@@ -32,14 +32,28 @@ initSocket(server);
 
 // Middlewares
 app.use(helmet());
+
+// ✅ UPDATED CORS CONFIGURATION - Added Dashboard URLs
 app.use(cors({
     origin: [
-        'https://traf3li.com',
-        'http://localhost:5173',
-        process.env.CLIENT_URL
-    ].filter(Boolean),
-    credentials: true
+        // Production URLs
+        'https://traf3li.com',                    // Marketplace
+        'https://dashboard.traf3li.com',          // Dashboard (NEW)
+        'https://www.traf3li.com',                // Marketplace with www
+        'https://www.dashboard.traf3li.com',      // Dashboard with www
+        
+        // Development URLs
+        'http://localhost:5173',                  // Marketplace (Vite default)
+        'http://localhost:5174',                  // Dashboard (Vite alternate)
+        'http://localhost:3000',                  // Alternative port
+        
+        // Environment variable (if set)
+        process.env.CLIENT_URL,
+        process.env.DASHBOARD_URL
+    ].filter(Boolean), // Remove undefined values
+    credentials: true  // CRITICAL: Allows HttpOnly cookies
 }));
+
 app.use(express.json());
 app.use(cookieParser());
 
@@ -63,6 +77,15 @@ app.use('/api/tasks', taskRoute);
 app.use('/api/notifications', notificationRoute);
 app.use('/api/events', eventRoute);
 
+// Health check endpoint (useful for monitoring)
+app.get('/health', (req, res) => {
+    res.status(200).json({
+        status: 'healthy',
+        timestamp: new Date().toISOString(),
+        uptime: process.uptime()
+    });
+});
+
 // Error handling middleware
 app.use((err, req, res, next) => {
     console.error(err.stack);
@@ -76,4 +99,9 @@ server.listen(PORT, () => {
     scheduleTaskReminders();
     console.log(`🚀 Server running on port ${PORT}`);
     console.log(`⚡ Socket.io ready`);
+    console.log(`🔐 CORS enabled for:`);
+    console.log(`   - https://traf3li.com`);
+    console.log(`   - https://dashboard.traf3li.com`);
+    console.log(`   - http://localhost:5173`);
+    console.log(`   - http://localhost:5174`);
 });
