@@ -17,6 +17,8 @@ const PeerReview = require('./peerReview.model');
 const Task = require('./task.model');
 const Notification = require('./notification.model');
 const Event = require('./event.model'); // ✅ ADDED
+const Expense = require('./expense.model');
+const TimeEntry = require('./timeEntry.model');
 
 module.exports = {
     User,
@@ -37,5 +39,7 @@ module.exports = {
     PeerReview,
     Task,
     Notification,
-    Event // ✅ ADDED
+    Event, // ✅ ADDED
+    Expense,
+    TimeEntry
 };

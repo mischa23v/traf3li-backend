@@ -21,7 +21,9 @@ const {
     answerRoute,
     taskRoute,
     notificationRoute,
-    eventRoute
+    eventRoute,
+    expenseRoute,
+    timeTrackingRoute
 } = require('./routes');
 
 const app = express();
@@ -76,6 +78,8 @@ app.use('/api/answers', answerRoute);
 app.use('/api/tasks', taskRoute);
 app.use('/api/notifications', notificationRoute);
 app.use('/api/events', eventRoute);
+app.use('/api/expenses', expenseRoute);
+app.use('/api/time-tracking', timeTrackingRoute);
 
 // Health check endpoint (useful for monitoring)
 app.get('/health', (req, res) => {

@@ -13,6 +13,8 @@ const answerRoute = require('./answer.route');
 const taskRoute = require('./task.route');
 const notificationRoute = require('./notification.route');
 const eventRoute = require('./event.route');
+const expenseRoute = require('./expense.route');
+const timeTrackingRoute = require('./timeTracking.route');
 
 module.exports = {
     gigRoute,
@@ -29,5 +31,7 @@ module.exports = {
     answerRoute,
     taskRoute,
     notificationRoute,
-    eventRoute
+    eventRoute,
+    expenseRoute,
+    timeTrackingRoute
 };
