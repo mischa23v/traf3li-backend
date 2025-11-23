@@ -18,6 +18,10 @@
    - [Time Tracking](#53-time-tracking)
    - [Payments](#54-payments)
    - [Retainers](#55-retainers)
+   - [Billing Rates](#56-billing-rates)
+   - [Statements](#57-statements)
+   - [Transactions](#58-transactions)
+   - [Reports](#59-reports)
 6. [Tasks System](#6-tasks-system)
 7. [Reminders System](#7-reminders-system)
 8. [Events System](#8-events-system)
@@ -570,6 +574,16 @@ POST /conversations/:id/messages
 
 #### Client → Server Events
 
+**Join User Session (Required on connect):**
+```javascript
+socket.emit('user:join', userId);
+```
+
+**Join Conversation (Required before messaging):**
+```javascript
+socket.emit('conversation:join', conversationId);
+```
+
 **Send Message:**
 ```javascript
 socket.emit('message:send', {
@@ -579,49 +593,120 @@ socket.emit('message:send', {
 });
 ```
 
-**Typing Indicator:**
+**Typing Indicators:**
 ```javascript
+// Start typing
 socket.emit('typing:start', {
-  conversationId: '507f...'
+  conversationId: '507f...',
+  userId: '507f...',
+  username: 'أحمد'
 });
 
+// Stop typing
 socket.emit('typing:stop', {
-  conversationId: '507f...'
+  conversationId: '507f...',
+  userId: '507f...'
+});
+```
+
+**Mark Messages as Read:**
+```javascript
+socket.emit('message:read', {
+  conversationId: '507f...',
+  userId: '507f...'
 });
 ```
 
 #### Server → Client Events
 
-**New Message:**
+**User Online Status:**
 ```javascript
-socket.on('message:new', (data) => {
+socket.on('user:online', (data) => {
   console.log(data);
   // {
-  //   conversationId: '507f...',
-  //   message: { ... }
+  //   userId: '507f...',
+  //   socketId: 'abc123'
   // }
 });
 ```
 
-**User Typing:**
+**User Offline Status:**
 ```javascript
-socket.on('user:typing', (data) => {
+socket.on('user:offline', (data) => {
+  console.log(data);
+  // {
+  //   userId: '507f...'
+  // }
+});
+```
+
+**Receive Message:**
+```javascript
+socket.on('message:receive', (data) => {
   console.log(data);
   // {
   //   conversationId: '507f...',
+  //   message: {
+  //     _id: '507f...',
+  //     senderId: '507f...',
+  //     content: 'مرحباً',
+  //     createdAt: '2025-11-23T10:00:00Z'
+  //   }
+  // }
+});
+```
+
+**Typing Indicator Show:**
+```javascript
+socket.on('typing:show', (data) => {
+  console.log(data);
+  // {
   //   userId: '507f...',
   //   username: 'أحمد'
   // }
 });
 ```
 
-**User Online/Offline:**
+**Typing Indicator Hide:**
 ```javascript
-socket.on('user:status', (data) => {
+socket.on('typing:hide', (data) => {
   console.log(data);
   // {
-  //   userId: '507f...',
-  //   status: 'online' | 'offline'
+  //   userId: '507f...'
+  // }
+});
+```
+
+**Message Read Notification:**
+```javascript
+socket.on('message:read', (data) => {
+  console.log(data);
+  // {
+  //   userId: '507f...'
+  // }
+});
+```
+
+**New Notification:**
+```javascript
+socket.on('notification:new', (notification) => {
+  console.log(notification);
+  // {
+  //   _id: '507f...',
+  //   type: 'message' | 'reminder' | 'task' | 'payment',
+  //   title: 'عنوان الإشعار',
+  //   message: 'محتوى الإشعار',
+  //   createdAt: '2025-11-23T10:00:00Z'
+  // }
+});
+```
+
+**Notification Count Update:**
+```javascript
+socket.on('notification:count', (data) => {
+  console.log(data);
+  // {
+  //   count: 5
   // }
 });
 ```
@@ -2165,6 +2250,846 @@ GET /retainers/stats
     "lowBalanceAlerts": 5
   }
 }
+```
+
+---
+
+### 5.6 Billing Rates
+
+#### Base Path: `/billing-rates`
+
+#### Data Model
+```typescript
+interface BillingRate {
+  _id: string;
+  lawyerId: string;
+  rateType: 'standard' | 'custom_client' | 'custom_case_type' | 'activity_based';
+  standardHourlyRate?: number;
+  customRate?: number;
+  clientId?: string;              // For custom_client type
+  caseType?: string;              // For custom_case_type type
+  activityCode?: string;          // For activity_based type
+  currency: string;               // Default: 'SAR'
+  effectiveFrom?: Date;
+  effectiveTo?: Date;
+  isActive: boolean;
+  description?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+```
+
+**Rate Priority Hierarchy:**
+1. Custom Client Rate (highest priority)
+2. Custom Case Type Rate
+3. Activity-Based Rate
+4. Standard Rate (lowest priority/fallback)
+
+#### 5.6.1 Create Billing Rate
+
+**Endpoint:**
+```
+POST /billing-rates
+```
+
+**Request Body:**
+```json
+{
+  "rateType": "custom_client",
+  "customRate": 500,
+  "clientId": "507f...",
+  "currency": "SAR",
+  "description": "سعر خاص للعميل المتميز"
+}
+```
+
+**Success Response (201):**
+```json
+{
+  "success": true,
+  "message": "تم إنشاء سعر الفوترة بنجاح",
+  "billingRate": {
+    "_id": "507f...",
+    "lawyerId": "507f...",
+    "rateType": "custom_client",
+    "customRate": 500,
+    "clientId": "507f...",
+    "currency": "SAR",
+    "isActive": true,
+    "createdAt": "2025-11-23T10:00:00Z"
+  }
+}
+```
+
+#### 5.6.2 Set Standard Rate (Quick Setup)
+
+**Endpoint:**
+```
+POST /billing-rates/standard
+```
+
+**Request Body:**
+```json
+{
+  "standardHourlyRate": 300,
+  "currency": "SAR"
+}
+```
+
+**Success Response (200):**
+```json
+{
+  "success": true,
+  "message": "تم تحديث سعر الساعة القياسي بنجاح",
+  "billingRate": {
+    "_id": "507f...",
+    "rateType": "standard",
+    "standardHourlyRate": 300,
+    "currency": "SAR"
+  }
+}
+```
+
+#### 5.6.3 Get All Billing Rates
+
+**Endpoint:**
+```
+GET /billing-rates
+```
+
+**Query Parameters:**
+```
+?rateType=custom_client
+&clientId=507f...
+&isActive=true
+&page=1
+&limit=20
+```
+
+**Success Response (200):**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "_id": "507f...",
+      "rateType": "standard",
+      "standardHourlyRate": 300,
+      "isActive": true
+    },
+    {
+      "_id": "507f...",
+      "rateType": "custom_client",
+      "customRate": 500,
+      "clientId": {...},
+      "isActive": true
+    }
+  ],
+  "pagination": {
+    "page": 1,
+    "limit": 20,
+    "total": 5,
+    "pages": 1
+  }
+}
+```
+
+#### 5.6.4 Get Applicable Rate
+
+**Endpoint:**
+```
+GET /billing-rates/applicable
+```
+
+**Query Parameters:**
+```
+?clientId=507f...
+&caseType=civil
+&activityCode=consultation
+```
+
+**Success Response (200):**
+```json
+{
+  "success": true,
+  "hourlyRate": 500,
+  "rateType": "custom_client",
+  "billingRate": {
+    "_id": "507f...",
+    "customRate": 500,
+    "clientId": "507f..."
+  }
+}
+```
+
+#### 5.6.5 Update Billing Rate
+
+**Endpoint:**
+```
+PUT /billing-rates/:id
+```
+
+**Request Body:**
+```json
+{
+  "customRate": 550,
+  "isActive": true
+}
+```
+
+#### 5.6.6 Delete Billing Rate
+
+**Endpoint:**
+```
+DELETE /billing-rates/:id
+```
+
+**Success Response (200):**
+```json
+{
+  "success": true,
+  "message": "تم حذف سعر الفوترة بنجاح"
+}
+```
+
+---
+
+### 5.7 Statements
+
+#### Base Path: `/statements`
+
+#### Data Model
+```typescript
+interface Statement {
+  _id: string;
+  statementNumber: string;        // Auto-generated: STMT-202511-0001
+  userId: string;
+  periodStart: Date;
+  periodEnd: Date;
+  type: 'monthly' | 'quarterly' | 'yearly' | 'custom';
+  summary: {
+    totalIncome: number;
+    totalExpenses: number;
+    netIncome: number;
+    invoicesCount: number;
+    paidInvoices: number;
+    pendingInvoices: number;
+    expensesCount: number;
+  };
+  invoices: string[];             // Array of Invoice IDs
+  expenses: string[];             // Array of Expense IDs
+  transactions: string[];         // Array of Transaction IDs
+  status: 'draft' | 'generated' | 'sent' | 'archived';
+  generatedAt?: Date;
+  generatedBy: string;
+  notes?: string;
+  pdfUrl?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+```
+
+#### 5.7.1 Generate Statement
+
+**Endpoint:**
+```
+POST /statements/generate
+```
+
+**Request Body:**
+```json
+{
+  "periodStart": "2025-11-01",
+  "periodEnd": "2025-11-30",
+  "type": "monthly",
+  "notes": "كشف حساب شهر نوفمبر"
+}
+```
+
+**Success Response (201):**
+```json
+{
+  "success": true,
+  "message": "تم إنشاء الكشف بنجاح",
+  "statement": {
+    "_id": "507f...",
+    "statementNumber": "STMT-202511-0001",
+    "periodStart": "2025-11-01T00:00:00Z",
+    "periodEnd": "2025-11-30T23:59:59Z",
+    "type": "monthly",
+    "summary": {
+      "totalIncome": 25000,
+      "totalExpenses": 8000,
+      "netIncome": 17000,
+      "invoicesCount": 10,
+      "paidInvoices": 8,
+      "pendingInvoices": 2,
+      "expensesCount": 15
+    },
+    "status": "generated",
+    "generatedAt": "2025-11-23T10:00:00Z"
+  }
+}
+```
+
+#### 5.7.2 Get All Statements
+
+**Endpoint:**
+```
+GET /statements
+```
+
+**Query Parameters:**
+```
+?status=generated
+&type=monthly
+&startDate=2025-01-01
+&endDate=2025-12-31
+&page=1
+&limit=20
+```
+
+**Success Response (200):**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "_id": "507f...",
+      "statementNumber": "STMT-202511-0001",
+      "periodStart": "2025-11-01",
+      "periodEnd": "2025-11-30",
+      "summary": {
+        "totalIncome": 25000,
+        "totalExpenses": 8000,
+        "netIncome": 17000
+      },
+      "status": "generated"
+    }
+  ],
+  "pagination": {
+    "page": 1,
+    "limit": 20,
+    "total": 12,
+    "pages": 1
+  }
+}
+```
+
+#### 5.7.3 Get Single Statement
+
+**Endpoint:**
+```
+GET /statements/:id
+```
+
+**Success Response (200):**
+```json
+{
+  "success": true,
+  "data": {
+    "_id": "507f...",
+    "statementNumber": "STMT-202511-0001",
+    "summary": {...},
+    "invoices": [
+      {
+        "invoiceNumber": "INV-2025-0001",
+        "totalAmount": 5000,
+        "status": "paid"
+      }
+    ],
+    "expenses": [
+      {
+        "description": "إيجار المكتب",
+        "amount": 3000,
+        "category": "rent"
+      }
+    ],
+    "transactions": [...]
+  }
+}
+```
+
+#### 5.7.4 Delete Statement
+
+**Endpoint:**
+```
+DELETE /statements/:id
+```
+
+#### 5.7.5 Send Statement
+
+**Endpoint:**
+```
+POST /statements/:id/send
+```
+
+**Request Body:**
+```json
+{
+  "email": "client@example.com"
+}
+```
+
+**Success Response (200):**
+```json
+{
+  "success": true,
+  "message": "تم إرسال الكشف إلى client@example.com",
+  "statement": {
+    "_id": "507f...",
+    "status": "sent"
+  }
+}
+```
+
+---
+
+### 5.8 Transactions
+
+#### Base Path: `/transactions`
+
+#### Data Model
+```typescript
+interface Transaction {
+  _id: string;
+  transactionId: string;          // Auto-generated: TXN-202511-12345
+  userId: string;
+  type: 'income' | 'expense' | 'transfer';
+  amount: number;
+  category: string;
+  description: string;
+  paymentMethod?: 'cash' | 'card' | 'transfer' | 'check';
+  invoiceId?: string;
+  expenseId?: string;
+  caseId?: string;
+  referenceNumber?: string;
+  date: Date;
+  status: 'completed' | 'pending' | 'cancelled';
+  notes?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+```
+
+#### 5.8.1 Create Transaction
+
+**Endpoint:**
+```
+POST /transactions
+```
+
+**Request Body:**
+```json
+{
+  "type": "income",
+  "amount": 5000,
+  "category": "legal_fees",
+  "description": "رسوم استشارة قانونية",
+  "paymentMethod": "transfer",
+  "caseId": "507f...",
+  "date": "2025-11-23",
+  "notes": "دفعة من العميل أحمد"
+}
+```
+
+**Success Response (201):**
+```json
+{
+  "success": true,
+  "message": "تم إنشاء المعاملة بنجاح",
+  "transaction": {
+    "_id": "507f...",
+    "transactionId": "TXN-202511-00001",
+    "type": "income",
+    "amount": 5000,
+    "category": "legal_fees",
+    "status": "completed",
+    "createdAt": "2025-11-23T10:00:00Z"
+  }
+}
+```
+
+#### 5.8.2 Get All Transactions
+
+**Endpoint:**
+```
+GET /transactions
+```
+
+**Query Parameters:**
+```
+?type=income
+&category=legal_fees
+&status=completed
+&startDate=2025-11-01
+&endDate=2025-11-30
+&minAmount=1000
+&maxAmount=10000
+&search=استشارة
+&page=1
+&limit=20
+&sortBy=date
+&sortOrder=desc
+```
+
+**Success Response (200):**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "_id": "507f...",
+      "transactionId": "TXN-202511-00001",
+      "type": "income",
+      "amount": 5000,
+      "category": "legal_fees",
+      "description": "رسوم استشارة قانونية",
+      "date": "2025-11-23",
+      "status": "completed"
+    }
+  ],
+  "pagination": {
+    "page": 1,
+    "limit": 20,
+    "total": 45,
+    "pages": 3
+  }
+}
+```
+
+#### 5.8.3 Get Account Balance
+
+**Endpoint:**
+```
+GET /transactions/balance
+```
+
+**Query Parameters:**
+```
+?upToDate=2025-11-23
+```
+
+**Success Response (200):**
+```json
+{
+  "success": true,
+  "balance": 45000,
+  "asOfDate": "2025-11-23T23:59:59Z"
+}
+```
+
+**Note:** Uses the Transaction.calculateBalance() static method.
+
+#### 5.8.4 Get Transaction Summary
+
+**Endpoint:**
+```
+GET /transactions/summary
+```
+
+**Query Parameters:**
+```
+?startDate=2025-11-01
+&endDate=2025-11-30
+&type=income
+&category=legal_fees
+&caseId=507f...
+```
+
+**Success Response (200):**
+```json
+{
+  "success": true,
+  "summary": {
+    "totalIncome": 25000,
+    "totalExpenses": 8000,
+    "netIncome": 17000,
+    "transactionCount": 45,
+    "averageTransaction": 733.33
+  }
+}
+```
+
+**Note:** Uses the Transaction.getSummary() static method.
+
+#### 5.8.5 Get Transactions by Category
+
+**Endpoint:**
+```
+GET /transactions/by-category
+```
+
+**Query Parameters:**
+```
+?startDate=2025-11-01
+&endDate=2025-11-30
+&type=expense
+```
+
+**Success Response (200):**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "_id": "rent",
+      "total": 3000,
+      "count": 1,
+      "avgAmount": 3000
+    },
+    {
+      "_id": "office_supplies",
+      "total": 1500,
+      "count": 5,
+      "avgAmount": 300
+    }
+  ]
+}
+```
+
+#### 5.8.6 Update Transaction
+
+**Endpoint:**
+```
+PUT /transactions/:id
+```
+
+#### 5.8.7 Cancel Transaction
+
+**Endpoint:**
+```
+POST /transactions/:id/cancel
+```
+
+**Request Body:**
+```json
+{
+  "reason": "خطأ في المبلغ"
+}
+```
+
+#### 5.8.8 Delete Transaction
+
+**Endpoint:**
+```
+DELETE /transactions/:id
+```
+
+#### 5.8.9 Bulk Delete Transactions
+
+**Endpoint:**
+```
+DELETE /transactions/bulk
+```
+
+**Request Body:**
+```json
+{
+  "transactionIds": ["507f...", "507f...", "507f..."]
+}
+```
+
+**Success Response (200):**
+```json
+{
+  "success": true,
+  "message": "تم حذف 3 معاملة بنجاح",
+  "deletedCount": 3
+}
+```
+
+---
+
+### 5.9 Reports
+
+#### Base Path: `/reports`
+
+#### Data Model
+```typescript
+interface Report {
+  _id: string;
+  reportName: string;
+  reportType: 'revenue' | 'aging' | 'realization' | 'collections' | 'productivity' |
+              'profitability' | 'time_utilization' | 'tax' | 'custom';
+  startDate?: Date;
+  endDate?: Date;
+  filters: any;                   // Dynamic filters based on report type
+  createdBy: string;
+  isPublic: boolean;
+  isScheduled: boolean;
+  scheduleFrequency?: 'daily' | 'weekly' | 'monthly' | 'quarterly';
+  lastRun?: Date;
+  nextRun?: Date;
+  outputFormat: 'pdf' | 'excel' | 'csv';
+  outputUrl?: string;
+  emailRecipients: string[];
+  createdAt: Date;
+  updatedAt: Date;
+}
+```
+
+#### 5.9.1 Get Report Templates
+
+**Endpoint:**
+```
+GET /reports/templates
+```
+
+**Success Response (200):**
+```json
+{
+  "success": true,
+  "templates": [
+    {
+      "type": "revenue",
+      "name": "تقرير الإيرادات",
+      "description": "تحليل شامل للإيرادات حسب الفترة الزمنية",
+      "requiredFields": ["startDate", "endDate"],
+      "optionalFields": ["clientId", "caseId"]
+    },
+    {
+      "type": "aging",
+      "name": "تقرير الفواتير المتأخرة",
+      "description": "تحليل الفواتير غير المدفوعة حسب فترات التأخير",
+      "requiredFields": [],
+      "optionalFields": ["clientId"]
+    },
+    {
+      "type": "tax",
+      "name": "تقرير الضرائب",
+      "description": "تقرير ضريبة القيمة المضافة (15%)",
+      "requiredFields": ["startDate", "endDate"],
+      "optionalFields": []
+    }
+  ]
+}
+```
+
+#### 5.9.2 Generate Report
+
+**Endpoint:**
+```
+POST /reports/generate
+```
+
+**Request Body (Revenue Report Example):**
+```json
+{
+  "reportName": "تقرير إيرادات نوفمبر",
+  "reportType": "revenue",
+  "startDate": "2025-11-01",
+  "endDate": "2025-11-30",
+  "filters": {
+    "clientId": "507f..."
+  },
+  "outputFormat": "pdf",
+  "emailRecipients": ["admin@traf3li.com"]
+}
+```
+
+**Success Response (201):**
+```json
+{
+  "success": true,
+  "message": "تم إنشاء التقرير بنجاح",
+  "report": {
+    "_id": "507f...",
+    "reportName": "تقرير إيرادات نوفمبر",
+    "reportType": "revenue",
+    "status": "generated",
+    "lastRun": "2025-11-23T10:00:00Z"
+  },
+  "data": {
+    "summary": {
+      "totalRevenue": 25000,
+      "totalCollected": 20000,
+      "totalOutstanding": 5000,
+      "invoiceCount": 10
+    },
+    "byStatus": {
+      "paid": 8,
+      "partial": 1,
+      "sent": 1
+    },
+    "invoices": [...]
+  }
+}
+```
+
+**Report Types Available:**
+
+1. **Revenue Report** - Total revenue analysis
+2. **Aging Report** - Overdue invoices by aging periods (30/60/90+ days)
+3. **Collections Report** - Payment collections by method
+4. **Productivity Report** - Time tracking and billable hours
+5. **Profitability Report** - Net profit = Revenue - Expenses
+6. **Time Utilization Report** - Billable vs non-billable hours
+7. **Tax Report** - Saudi VAT 15% calculations
+
+#### 5.9.3 Get All Reports
+
+**Endpoint:**
+```
+GET /reports
+```
+
+**Query Parameters:**
+```
+?reportType=revenue
+&isScheduled=true
+&page=1
+&limit=20
+```
+
+#### 5.9.4 Get Single Report
+
+**Endpoint:**
+```
+GET /reports/:id
+```
+
+#### 5.9.5 Delete Report
+
+**Endpoint:**
+```
+DELETE /reports/:id
+```
+
+#### 5.9.6 Schedule Report
+
+**Endpoint:**
+```
+POST /reports/:id/schedule
+```
+
+**Request Body:**
+```json
+{
+  "scheduleFrequency": "monthly",
+  "emailRecipients": ["admin@traf3li.com", "accountant@traf3li.com"]
+}
+```
+
+**Success Response (200):**
+```json
+{
+  "success": true,
+  "message": "تم جدولة التقرير بنجاح",
+  "report": {
+    "_id": "507f...",
+    "isScheduled": true,
+    "scheduleFrequency": "monthly",
+    "nextRun": "2025-12-23T10:00:00Z"
+  }
+}
+```
+
+#### 5.9.7 Unschedule Report
+
+**Endpoint:**
+```
+DELETE /reports/:id/schedule
 ```
 
 ---
