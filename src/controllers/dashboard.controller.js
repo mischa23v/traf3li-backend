@@ -233,15 +233,30 @@ const getRecentMessages = async (request, response) => {
         const userId = request.userID;
         const limit = parseInt(request.query.limit) || 10;
 
-        const messages = await Message.find({
+        // First, find all conversations where the user is involved
+        const { Conversation } = require('../models');
+        const conversations = await Conversation.find({
             $or: [
-                { senderID: userId },
-                { recipientID: userId }
+                { sellerID: userId },
+                { buyerID: userId }
             ]
+        }).lean();
+
+        // Get conversation IDs
+        const conversationIDs = conversations.map(conv => conv.conversationID);
+
+        if (conversationIDs.length === 0) {
+            return response.json({
+                error: false,
+                messages: []
+            });
+        }
+
+        // Get recent messages from those conversations
+        const messages = await Message.find({
+            conversationID: { $in: conversationIDs }
         })
-        .populate('senderID', 'username image')
-        .populate('recipientID', 'username image')
-        .populate('conversationID')
+        .populate('userID', 'username image')
         .sort({ createdAt: -1 })
         .limit(limit)
         .lean();
