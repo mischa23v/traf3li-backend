@@ -12,15 +12,21 @@ const timeEntrySchema = new mongoose.Schema({
         maxlength: 500,
         trim: true
     },
-    caseId: {
+    lawyerId: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'Case',
+        ref: 'User',
         required: true,
         index: true
     },
-    userId: {
+    clientId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
+        required: true,
+        index: true
+    },
+    caseId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Case',
         required: true,
         index: true
     },
@@ -59,17 +65,66 @@ const timeEntrySchema = new mongoose.Schema({
         type: Boolean,
         default: false
     },
+    activityCode: {
+        type: String,
+        enum: [
+            'court_appearance',
+            'client_meeting',
+            'research',
+            'document_preparation',
+            'phone_call',
+            'email',
+            'travel',
+            'administrative',
+            'other'
+        ]
+    },
+    status: {
+        type: String,
+        enum: ['draft', 'pending_approval', 'approved', 'invoiced', 'rejected'],
+        default: 'draft',
+        index: true
+    },
     invoiceId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Invoice'
     },
+    invoicedAt: Date,
+    wasTimerBased: {
+        type: Boolean,
+        default: false
+    },
+    timerStartedAt: Date,
+    timerPausedDuration: {
+        type: Number,
+        default: 0
+    },
+    approvedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
+    },
+    approvedAt: Date,
+    rejectionReason: String,
+    editHistory: [{
+        editedBy: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'User'
+        },
+        editedAt: Date,
+        changes: mongoose.Schema.Types.Mixed
+    }],
+    attachments: [{
+        fileName: String,
+        fileUrl: String,
+        fileType: String
+    }],
     notes: {
         type: String,
         maxlength: 1000
     },
-    wasTimerBased: {
-        type: Boolean,
-        default: false
+    createdBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
     }
 }, {
     versionKey: false,
