@@ -2,6 +2,7 @@ const express = require('express');
 const http = require('http');
 const cors = require('cors');
 const helmet = require('helmet');
+const compression = require('compression');
 const cookieParser = require('cookie-parser');
 const connectDB = require('./configs/db');
 const { scheduleTaskReminders } = require('./utils/taskReminders');
@@ -51,6 +52,18 @@ initSocket(server);
 
 // Middlewares
 app.use(helmet());
+
+// ✅ PERFORMANCE: Response compression (gzip)
+app.use(compression({
+    filter: (req, res) => {
+        if (req.headers['x-no-compression']) {
+            return false;
+        }
+        return compression.filter(req, res);
+    },
+    level: 6, // Balanced compression level (1-9, 6 is default)
+    threshold: 1024 // Only compress responses > 1KB
+}));
 
 // ✅ ENHANCED CORS CONFIGURATION - Supports Vercel deployments
 const allowedOrigins = [
@@ -116,11 +129,25 @@ app.use(cors(corsOptions));
 // Handle preflight requests explicitly
 app.options('*', cors(corsOptions));
 
-app.use(express.json());
+// ✅ PERFORMANCE: JSON body parser with size limit
+app.use(express.json({ limit: '10mb' })); // Prevent large payload attacks
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(cookieParser());
 
-// Static files for uploads
-app.use('/uploads', express.static('uploads'));
+// ✅ PERFORMANCE: Static files with caching
+app.use('/uploads', express.static('uploads', {
+    maxAge: '7d', // Cache static files for 7 days
+    etag: true,
+    lastModified: true,
+    setHeaders: (res, path) => {
+        // Set cache control headers
+        if (path.match(/\.(jpg|jpeg|png|gif|webp|svg|ico)$/i)) {
+            res.setHeader('Cache-Control', 'public, max-age=604800, immutable'); // 7 days
+        } else if (path.match(/\.(pdf|doc|docx)$/i)) {
+            res.setHeader('Cache-Control', 'public, max-age=86400'); // 1 day
+        }
+    }
+}));
 
 // Marketplace Routes
 app.use('/api/gigs', gigRoute);

@@ -152,48 +152,61 @@ const getLawyers = async (request, response) => {
             filter['lawyerProfile.rating'] = { $gte: parseFloat(minRating) };
         }
         
-        // Get lawyers
-        const lawyers = await User.find(filter)
-            .select('-password')
-            .sort({ 'lawyerProfile.rating': -1, 'lawyerProfile.totalReviews': -1 })
-            .limit(parseInt(limit))
-            .skip((parseInt(page) - 1) * parseInt(limit));
-        
-        // Get total count for pagination
-        const total = await User.countDocuments(filter);
-        
-        // For each lawyer, get their gigs to calculate price range
+        // ✅ PERFORMANCE: Use lean() for faster queries and parallel execution
+        const [lawyers, total] = await Promise.all([
+            User.find(filter)
+                .select('-password')
+                .sort({ 'lawyerProfile.rating': -1, 'lawyerProfile.totalReviews': -1 })
+                .limit(parseInt(limit))
+                .skip((parseInt(page) - 1) * parseInt(limit))
+                .lean(), // Convert to plain JS objects for better performance
+            User.countDocuments(filter)
+        ]);
+
+        // ✅ PERFORMANCE: Batch fetch all gigs at once instead of N+1 queries
         const { Gig } = require('../models');
-        const lawyersWithPriceRange = await Promise.all(
-            lawyers.map(async (lawyer) => {
-                try {
-                    const gigs = await Gig.find({ 
-                        userID: lawyer._id, 
-                        isActive: true 
-                    }).select('price');
-                    
-                    let priceMin = 0;
-                    let priceMax = 0;
-                    
-                    if (gigs.length > 0) {
-                        const prices = gigs.map(g => g.price);
-                        priceMin = Math.min(...prices);
-                        priceMax = Math.max(...prices);
-                    }
-                    
-                    return {
-                        ...lawyer.toObject(),
-                        priceRange: { min: priceMin, max: priceMax }
-                    };
-                } catch (gigError) {
-                    console.error('Gig lookup failed for lawyer:', lawyer._id);
-                    return {
-                        ...lawyer.toObject(),
-                        priceRange: { min: 500, max: 5000 }
-                    };
+        const lawyerIds = lawyers.map(l => l._id);
+
+        const allGigs = await Gig.find({
+            userID: { $in: lawyerIds },
+            isActive: true
+        })
+        .select('userID price')
+        .lean();
+
+        // Group gigs by lawyer ID for quick lookup
+        const gigsByLawyer = allGigs.reduce((acc, gig) => {
+            const lawyerId = gig.userID.toString();
+            if (!acc[lawyerId]) acc[lawyerId] = [];
+            acc[lawyerId].push(gig.price);
+            return acc;
+        }, {});
+
+        // Calculate price ranges for each lawyer
+        const lawyersWithPriceRange = lawyers.map((lawyer) => {
+            try {
+                const prices = gigsByLawyer[lawyer._id.toString()] || [];
+
+                let priceMin = 0;
+                let priceMax = 0;
+
+                if (prices.length > 0) {
+                    priceMin = Math.min(...prices);
+                    priceMax = Math.max(...prices);
                 }
-            })
-        );
+
+                return {
+                    ...lawyer,
+                    priceRange: { min: priceMin, max: priceMax }
+                };
+            } catch (gigError) {
+                console.error('Price calculation failed for lawyer:', lawyer._id);
+                return {
+                    ...lawyer,
+                    priceRange: { min: 0, max: 0 }
+                };
+            }
+        });
         
         // Apply price filter if provided
         let filteredLawyers = lawyersWithPriceRange;
