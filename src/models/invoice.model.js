@@ -48,10 +48,22 @@ const invoiceSchema = new mongoose.Schema({
         type: Number,
         required: true
     },
+    amountPaid: {
+        type: Number,
+        default: 0
+    },
+    balanceDue: {
+        type: Number,
+        default: 0
+    },
     status: {
         type: String,
-        enum: ['draft', 'sent', 'paid', 'overdue', 'cancelled'],
+        enum: ['draft', 'pending', 'sent', 'paid', 'overdue', 'cancelled'],
         default: 'draft'
+    },
+    issueDate: {
+        type: Date,
+        default: Date.now
     },
     dueDate: {
         type: Date,
@@ -64,7 +76,29 @@ const invoiceSchema = new mongoose.Schema({
     paymentIntent: {
         type: String,
         required: false
-    }
+    },
+    notes: {
+        type: String,
+        maxlength: 500
+    },
+    pdfUrl: {
+        type: String
+    },
+    history: [{
+        action: {
+            type: String,
+            enum: ['created', 'sent', 'viewed', 'paid', 'cancelled', 'reminded']
+        },
+        date: {
+            type: Date,
+            default: Date.now
+        },
+        user: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'User'
+        },
+        note: String
+    }]
 }, {
     versionKey: false,
     timestamps: true

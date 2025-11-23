@@ -7,6 +7,7 @@ const connectDB = require('./configs/db');
 const { scheduleTaskReminders } = require('./utils/taskReminders');
 const { initSocket } = require('./configs/socket');
 const {
+    // Marketplace
     gigRoute,
     authRoute,
     orderRoute,
@@ -16,12 +17,26 @@ const {
     userRoute,
     jobRoute,
     proposalRoute,
-    caseRoute,
     questionRoute,
     answerRoute,
+
+    // Dashboard Core
+    caseRoute,
     taskRoute,
     notificationRoute,
-    eventRoute
+    eventRoute,
+
+    // Dashboard Finance
+    invoiceRoute,
+    expenseRoute,
+    timeTrackingRoute,
+    paymentRoute,
+    retainerRoute,
+
+    // Dashboard Organization
+    reminderRoute,
+    clientRoute,
+    calendarRoute
 } = require('./routes');
 
 const app = express();
@@ -60,7 +75,7 @@ app.use(cookieParser());
 // Static files for uploads
 app.use('/uploads', express.static('uploads'));
 
-// Routes
+// Marketplace Routes
 app.use('/api/gigs', gigRoute);
 app.use('/api/auth', authRoute);
 app.use('/api/orders', orderRoute);
@@ -70,12 +85,26 @@ app.use('/api/reviews', reviewRoute);
 app.use('/api/users', userRoute);
 app.use('/api/jobs', jobRoute);
 app.use('/api/proposals', proposalRoute);
-app.use('/api/cases', caseRoute);
 app.use('/api/questions', questionRoute);
 app.use('/api/answers', answerRoute);
+
+// Dashboard Core Routes
+app.use('/api/cases', caseRoute);
 app.use('/api/tasks', taskRoute);
 app.use('/api/notifications', notificationRoute);
 app.use('/api/events', eventRoute);
+
+// Dashboard Finance Routes
+app.use('/api/invoices', invoiceRoute);
+app.use('/api/expenses', expenseRoute);
+app.use('/api/time-tracking', timeTrackingRoute);
+app.use('/api/payments', paymentRoute);
+app.use('/api/retainers', retainerRoute);
+
+// Dashboard Organization Routes
+app.use('/api/reminders', reminderRoute);
+app.use('/api/clients', clientRoute);
+app.use('/api/calendar', calendarRoute);
 
 // Health check endpoint (useful for monitoring)
 app.get('/health', (req, res) => {

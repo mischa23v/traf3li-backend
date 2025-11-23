@@ -63,10 +63,29 @@ const caseSchema = new mongoose.Schema({
         type: String,
         required: false
     },
-    
+    judge: {
+        type: String,
+        required: false
+    },
+    nextHearing: {
+        type: Date,
+        required: false
+    },
+
+    priority: {
+        type: String,
+        enum: ['low', 'medium', 'high', 'critical'],
+        default: 'medium'
+    },
+    progress: {
+        type: Number,
+        min: 0,
+        max: 100,
+        default: 0
+    },
     status: {
         type: String,
-        enum: ['active', 'on-hold', 'completed', 'won', 'lost', 'settled'],
+        enum: ['active', 'closed', 'appeal', 'settlement', 'on-hold', 'completed', 'won', 'lost', 'settled'],
         default: 'active'
     },
     outcome: {
@@ -74,14 +93,65 @@ const caseSchema = new mongoose.Schema({
         enum: ['won', 'lost', 'settled', 'ongoing'],
         default: 'ongoing'
     },
+    claimAmount: {
+        type: Number,
+        default: 0
+    },
+    expectedWinAmount: {
+        type: Number,
+        default: 0
+    },
+    timeline: [{
+        event: {
+            type: String,
+            required: true
+        },
+        date: {
+            type: Date,
+            required: true
+        },
+        type: {
+            type: String,
+            enum: ['court', 'filing', 'deadline', 'general'],
+            default: 'general'
+        },
+        status: {
+            type: String,
+            enum: ['upcoming', 'completed'],
+            default: 'upcoming'
+        }
+    }],
+    claims: [{
+        type: {
+            type: String,
+            required: true
+        },
+        amount: {
+            type: Number,
+            required: true
+        },
+        period: String,
+        description: String
+    }],
     notes: [{
         text: String,
         date: { type: Date, default: Date.now }
     }],
     documents: [{
-        name: String,
+        filename: String,
         url: String,
-        uploadedAt: { type: Date, default: Date.now }
+        type: String,
+        size: Number,
+        uploadedBy: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'User'
+        },
+        uploadedAt: { type: Date, default: Date.now },
+        category: {
+            type: String,
+            enum: ['contract', 'evidence', 'correspondence', 'other'],
+            default: 'other'
+        }
     }],
     hearings: [{
         date: Date,
