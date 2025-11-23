@@ -12,6 +12,7 @@ const questionRoute = require('./question.route');
 const answerRoute = require('./answer.route');
 
 // Dashboard Core Routes
+const dashboardRoute = require('./dashboard.route');
 const caseRoute = require('./case.route');
 const taskRoute = require('./task.route');
 const notificationRoute = require('./notification.route');
@@ -48,6 +49,7 @@ module.exports = {
     answerRoute,
 
     // Dashboard Core
+    dashboardRoute,
     caseRoute,
     taskRoute,
     notificationRoute,
