@@ -48,23 +48,23 @@ PREFLIGHT=$(curl -s -I \
     -X OPTIONS \
     "$BACKEND_URL/api/auth/me")
 
-# Check for CORS headers
-if echo "$PREFLIGHT" | grep -q "Access-Control-Allow-Origin"; then
-    ALLOW_ORIGIN=$(echo "$PREFLIGHT" | grep "Access-Control-Allow-Origin" | cut -d' ' -f2- | tr -d '\r')
+# Check for CORS headers (case-insensitive for HTTP/2)
+if echo "$PREFLIGHT" | grep -qi "access-control-allow-origin"; then
+    ALLOW_ORIGIN=$(echo "$PREFLIGHT" | grep -i "access-control-allow-origin" | cut -d' ' -f2- | tr -d '\r')
     echo -e "${GREEN}✅ Access-Control-Allow-Origin: $ALLOW_ORIGIN${NC}"
 else
     echo -e "${RED}❌ Missing: Access-Control-Allow-Origin${NC}"
 fi
 
-if echo "$PREFLIGHT" | grep -q "Access-Control-Allow-Credentials"; then
-    ALLOW_CREDS=$(echo "$PREFLIGHT" | grep "Access-Control-Allow-Credentials" | cut -d' ' -f2- | tr -d '\r')
+if echo "$PREFLIGHT" | grep -qi "access-control-allow-credentials"; then
+    ALLOW_CREDS=$(echo "$PREFLIGHT" | grep -i "access-control-allow-credentials" | cut -d' ' -f2- | tr -d '\r')
     echo -e "${GREEN}✅ Access-Control-Allow-Credentials: $ALLOW_CREDS${NC}"
 else
     echo -e "${RED}❌ Missing: Access-Control-Allow-Credentials${NC}"
 fi
 
-if echo "$PREFLIGHT" | grep -q "Access-Control-Allow-Methods"; then
-    ALLOW_METHODS=$(echo "$PREFLIGHT" | grep "Access-Control-Allow-Methods" | cut -d' ' -f2- | tr -d '\r')
+if echo "$PREFLIGHT" | grep -qi "access-control-allow-methods"; then
+    ALLOW_METHODS=$(echo "$PREFLIGHT" | grep -i "access-control-allow-methods" | cut -d' ' -f2- | tr -d '\r')
     echo -e "${GREEN}✅ Access-Control-Allow-Methods: $ALLOW_METHODS${NC}"
 else
     echo -e "${RED}❌ Missing: Access-Control-Allow-Methods${NC}"
@@ -81,8 +81,10 @@ GET_RESPONSE=$(curl -s -I \
     -H "Content-Type: application/json" \
     "$BACKEND_URL/health")
 
-if echo "$GET_RESPONSE" | grep -q "Access-Control-Allow-Origin"; then
+if echo "$GET_RESPONSE" | grep -qi "access-control-allow-origin"; then
+    GET_ORIGIN=$(echo "$GET_RESPONSE" | grep -i "access-control-allow-origin" | cut -d' ' -f2- | tr -d '\r')
     echo -e "${GREEN}✅ CORS headers present on GET request${NC}"
+    echo -e "${GREEN}   Origin: $GET_ORIGIN${NC}"
 else
     echo -e "${RED}❌ CORS headers missing on GET request${NC}"
 fi
