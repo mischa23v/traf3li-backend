@@ -23,6 +23,7 @@ const {
 
     // Dashboard Core
     dashboardRoute,
+    activityRoute,
     caseRoute,
     taskRoute,
     notificationRoute,
@@ -165,6 +166,7 @@ app.use('/api/answers', answerRoute);
 
 // Dashboard Core Routes
 app.use('/api/dashboard', dashboardRoute);
+app.use('/api/activities', activityRoute);
 app.use('/api/cases', caseRoute);
 app.use('/api/tasks', taskRoute);
 app.use('/api/notifications', notificationRoute);
