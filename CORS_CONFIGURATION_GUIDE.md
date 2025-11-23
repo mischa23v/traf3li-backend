@@ -145,7 +145,7 @@ is present on the requested resource.
 
 2. **Backend not using HTTPS in production**
    - Cookies with `secure: true` ONLY work over HTTPS
-   - Use Let's Encrypt or Cloudflare for SSL
+   - Most hosting providers (Render, Railway, Heroku) provide automatic HTTPS
 
 3. **SameSite setting incorrect**
    - ✅ Already configured:
