@@ -19,13 +19,23 @@ const taskSchema = new mongoose.Schema({
     },
     status: {
         type: String,
-        enum: ['todo', 'in-progress', 'done'],
+        enum: ['backlog', 'todo', 'in progress', 'in-progress', 'done', 'canceled'],
         default: 'todo',
         required: true
+    },
+    label: {
+        type: String,
+        enum: ['bug', 'feature', 'documentation'],
+        required: false
     },
     dueDate: {
         type: Date,
         required: true
+    },
+    clientId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        required: false
     },
     assignedTo: {
         type: mongoose.Schema.Types.ObjectId,
@@ -59,6 +69,41 @@ const taskSchema = new mongoose.Schema({
     },
     tags: [{
         type: String
+    }],
+    subtasks: [{
+        title: {
+            type: String,
+            required: true
+        },
+        completed: {
+            type: Boolean,
+            default: false
+        }
+    }],
+    attachments: [{
+        filename: String,
+        url: String,
+        size: Number,
+        uploadedAt: {
+            type: Date,
+            default: Date.now
+        }
+    }],
+    comments: [{
+        user: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'User',
+            required: true
+        },
+        text: {
+            type: String,
+            required: true,
+            maxlength: 1000
+        },
+        timestamp: {
+            type: Date,
+            default: Date.now
+        }
     }],
     completedAt: {
         type: Date,
