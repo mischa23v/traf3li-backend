@@ -97,7 +97,7 @@ transactionSchema.statics.calculateBalance = async function(userId, upToDate = n
     const result = await this.aggregate([
         {
             $match: {
-                userId: mongoose.Types.ObjectId(userId),
+                userId: new mongoose.Types.ObjectId(userId),
                 date: { $lte: upToDate },
                 status: 'completed'
             }
@@ -124,7 +124,7 @@ transactionSchema.statics.calculateBalance = async function(userId, upToDate = n
 // Static method: Get transaction summary
 transactionSchema.statics.getSummary = async function(userId, filters = {}) {
     const matchStage = {
-        userId: mongoose.Types.ObjectId(userId),
+        userId: new mongoose.Types.ObjectId(userId),
         status: 'completed'
     };
 

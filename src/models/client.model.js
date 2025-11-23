@@ -117,7 +117,7 @@ clientSchema.pre('save', async function(next) {
 // Static method: Search clients
 clientSchema.statics.searchClients = async function(lawyerId, searchTerm, filters = {}) {
     const query = {
-        lawyerId: mongoose.Types.ObjectId(lawyerId),
+        lawyerId: new mongoose.Types.ObjectId(lawyerId),
         status: { $ne: 'archived' }
     };
 

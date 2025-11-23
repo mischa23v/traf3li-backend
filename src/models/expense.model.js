@@ -209,8 +209,8 @@ expenseSchema.pre('save', async function(next) {
 expenseSchema.statics.getExpenseStats = async function(filters = {}) {
     const matchStage = {};
 
-    if (filters.userId) matchStage.userId = mongoose.Types.ObjectId(filters.userId);
-    if (filters.caseId) matchStage.caseId = mongoose.Types.ObjectId(filters.caseId);
+    if (filters.userId) matchStage.userId = new mongoose.Types.ObjectId(filters.userId);
+    if (filters.caseId) matchStage.caseId = new mongoose.Types.ObjectId(filters.caseId);
     if (filters.startDate || filters.endDate) {
         matchStage.date = {};
         if (filters.startDate) matchStage.date.$gte = new Date(filters.startDate);
@@ -258,8 +258,8 @@ expenseSchema.statics.getExpenseStats = async function(filters = {}) {
 expenseSchema.statics.getExpensesByCategory = async function(filters = {}) {
     const matchStage = {};
 
-    if (filters.userId) matchStage.userId = mongoose.Types.ObjectId(filters.userId);
-    if (filters.caseId) matchStage.caseId = mongoose.Types.ObjectId(filters.caseId);
+    if (filters.userId) matchStage.userId = new mongoose.Types.ObjectId(filters.userId);
+    if (filters.caseId) matchStage.caseId = new mongoose.Types.ObjectId(filters.caseId);
     if (filters.startDate || filters.endDate) {
         matchStage.date = {};
         if (filters.startDate) matchStage.date.$gte = new Date(filters.startDate);

@@ -160,8 +160,8 @@ timeEntrySchema.pre('save', function(next) {
 timeEntrySchema.statics.getTimeStats = async function(filters = {}) {
     const matchStage = {};
 
-    if (filters.userId) matchStage.userId = mongoose.Types.ObjectId(filters.userId);
-    if (filters.caseId) matchStage.caseId = mongoose.Types.ObjectId(filters.caseId);
+    if (filters.userId) matchStage.userId = new mongoose.Types.ObjectId(filters.userId);
+    if (filters.caseId) matchStage.caseId = new mongoose.Types.ObjectId(filters.caseId);
     if (filters.startDate || filters.endDate) {
         matchStage.date = {};
         if (filters.startDate) matchStage.date.$gte = new Date(filters.startDate);
@@ -205,7 +205,7 @@ timeEntrySchema.statics.getTimeStats = async function(filters = {}) {
 
 // Static method: Get time by case
 timeEntrySchema.statics.getTimeByCase = async function(userId, filters = {}) {
-    const matchStage = { userId: mongoose.Types.ObjectId(userId) };
+    const matchStage = { userId: new mongoose.Types.ObjectId(userId) };
 
     if (filters.startDate || filters.endDate) {
         matchStage.date = {};

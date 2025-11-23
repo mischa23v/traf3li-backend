@@ -101,7 +101,7 @@ reminderSchema.statics.getUpcoming = async function(userId, days = 7) {
     future.setDate(future.getDate() + days);
 
     return await this.find({
-        userId: mongoose.Types.ObjectId(userId),
+        userId: new mongoose.Types.ObjectId(userId),
         status: 'pending',
         reminderDate: {
             $gte: now,
@@ -119,7 +119,7 @@ reminderSchema.statics.getOverdue = async function(userId) {
     const now = new Date();
 
     return await this.find({
-        userId: mongoose.Types.ObjectId(userId),
+        userId: new mongoose.Types.ObjectId(userId),
         status: 'pending',
         reminderDate: { $lt: now }
     })
