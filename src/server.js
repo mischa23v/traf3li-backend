@@ -52,26 +52,69 @@ initSocket(server);
 // Middlewares
 app.use(helmet());
 
-// ✅ UPDATED CORS CONFIGURATION - Added Dashboard URLs
-app.use(cors({
-    origin: [
-        // Production URLs
-        'https://traf3li.com',                    // Marketplace
-        'https://dashboard.traf3li.com',          // Dashboard (NEW)
-        'https://www.traf3li.com',                // Marketplace with www
-        'https://www.dashboard.traf3li.com',      // Dashboard with www
-        
-        // Development URLs
-        'http://localhost:5173',                  // Marketplace (Vite default)
-        'http://localhost:5174',                  // Dashboard (Vite alternate)
-        'http://localhost:3000',                  // Alternative port
-        
-        // Environment variable (if set)
-        process.env.CLIENT_URL,
-        process.env.DASHBOARD_URL
-    ].filter(Boolean), // Remove undefined values
-    credentials: true  // CRITICAL: Allows HttpOnly cookies
-}));
+// ✅ ENHANCED CORS CONFIGURATION - Supports Vercel deployments
+const allowedOrigins = [
+    // Production URLs
+    'https://traf3li.com',
+    'https://dashboard.traf3li.com',
+    'https://www.traf3li.com',
+    'https://www.dashboard.traf3li.com',
+
+    // Vercel Deployments
+    'https://traf3li-dashboard-9e4y2s2su-mischa-alrabehs-projects.vercel.app',
+
+    // Development URLs
+    'http://localhost:5173',
+    'http://localhost:5174',
+    'http://localhost:3000',
+    'http://localhost:8080',
+
+    // Environment variables
+    process.env.CLIENT_URL,
+    process.env.DASHBOARD_URL
+].filter(Boolean);
+
+const corsOptions = {
+    origin: function (origin, callback) {
+        // Allow requests with no origin (mobile apps, Postman, server-to-server)
+        if (!origin) {
+            return callback(null, true);
+        }
+
+        // Allow all Vercel preview deployments
+        if (origin.includes('.vercel.app')) {
+            return callback(null, true);
+        }
+
+        // Check against whitelist
+        if (allowedOrigins.indexOf(origin) !== -1) {
+            return callback(null, true);
+        }
+
+        // Log blocked origins for debugging
+        console.log('🚫 CORS blocked origin:', origin);
+        callback(new Error('Not allowed by CORS'));
+    },
+    credentials: true, // CRITICAL: Allows HttpOnly cookies
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: [
+        'Content-Type',
+        'Authorization',
+        'X-Requested-With',
+        'Accept',
+        'Origin',
+        'Cache-Control',
+        'X-File-Name'
+    ],
+    exposedHeaders: ['Set-Cookie'],
+    maxAge: 86400, // 24 hours - cache preflight requests
+    optionsSuccessStatus: 204
+};
+
+app.use(cors(corsOptions));
+
+// Handle preflight requests explicitly
+app.options('*', cors(corsOptions));
 
 app.use(express.json());
 app.use(cookieParser());
@@ -136,9 +179,13 @@ server.listen(PORT, () => {
     scheduleTaskReminders();
     console.log(`🚀 Server running on port ${PORT}`);
     console.log(`⚡ Socket.io ready`);
+    console.log(`🌍 Environment: ${NODE_ENV || 'development'}`);
     console.log(`🔐 CORS enabled for:`);
     console.log(`   - https://traf3li.com`);
     console.log(`   - https://dashboard.traf3li.com`);
+    console.log(`   - https://traf3li-dashboard-9e4y2s2su-mischa-alrabehs-projects.vercel.app`);
+    console.log(`   - All *.vercel.app domains (preview deployments)`);
     console.log(`   - http://localhost:5173`);
     console.log(`   - http://localhost:5174`);
+    console.log(`🍪 Cookie settings: httpOnly, sameSite=${NODE_ENV === 'production' ? 'none' : 'strict'}, secure=${NODE_ENV === 'production'}`);
 });
