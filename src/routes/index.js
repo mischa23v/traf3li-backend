@@ -23,6 +23,10 @@ const expenseRoute = require('./expense.route');
 const timeTrackingRoute = require('./timeTracking.route');
 const paymentRoute = require('./payment.route');
 const retainerRoute = require('./retainer.route');
+const billingRateRoute = require('./billingRate.route');
+const statementRoute = require('./statement.route');
+const transactionRoute = require('./transaction.route');
+const reportRoute = require('./report.route');
 
 // Dashboard Organization Routes
 const reminderRoute = require('./reminder.route');
@@ -55,6 +59,10 @@ module.exports = {
     timeTrackingRoute,
     paymentRoute,
     retainerRoute,
+    billingRateRoute,
+    statementRoute,
+    transactionRoute,
+    reportRoute,
 
     // Dashboard Organization
     reminderRoute,
