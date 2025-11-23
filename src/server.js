@@ -32,6 +32,10 @@ const {
     timeTrackingRoute,
     paymentRoute,
     retainerRoute,
+    billingRateRoute,
+    statementRoute,
+    transactionRoute,
+    reportRoute,
 
     // Dashboard Organization
     reminderRoute,
@@ -100,6 +104,10 @@ app.use('/api/expenses', expenseRoute);
 app.use('/api/time-tracking', timeTrackingRoute);
 app.use('/api/payments', paymentRoute);
 app.use('/api/retainers', retainerRoute);
+app.use('/api/billing-rates', billingRateRoute);
+app.use('/api/statements', statementRoute);
+app.use('/api/transactions', transactionRoute);
+app.use('/api/reports', reportRoute);
 
 // Dashboard Organization Routes
 app.use('/api/reminders', reminderRoute);
