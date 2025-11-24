@@ -77,7 +77,8 @@ const authLogin = async (request, response) => {
                 sameSite: NODE_ENV === 'production' ? 'none' : 'strict',
                 secure: NODE_ENV === 'production',
                 maxAge: 60 * 60 * 24 * 7 * 1000, // 7 days
-                path: '/'
+                path: '/',
+                domain: NODE_ENV === 'production' ? '.traf3li.com' : undefined
             }
             
             return response.cookie('accessToken', token, cookieConfig)
@@ -103,7 +104,8 @@ const authLogout = async (request, response) => {
         httpOnly: true,
         sameSite: NODE_ENV === 'production' ? 'none' : 'strict',
         secure: NODE_ENV === 'production',
-        path: '/'
+        path: '/',
+        domain: NODE_ENV === 'production' ? '.traf3li.com' : undefined
     })
     .send({
         error: false,
