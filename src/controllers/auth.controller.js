@@ -100,8 +100,10 @@ const authLogin = async (request, response) => {
 
 const authLogout = async (request, response) => {
     return response.clearCookie('accessToken', {
-        sameSite: 'none',
-        secure: true
+        httpOnly: true,
+        sameSite: NODE_ENV === 'production' ? 'none' : 'strict',
+        secure: NODE_ENV === 'production',
+        path: '/'
     })
     .send({
         error: false,
