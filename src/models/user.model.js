@@ -1,6 +1,23 @@
 const mongoose = require('mongoose');
 
+// Court experience schema for lawyer profiles
+const courtExperienceSchema = new mongoose.Schema({
+    courtId: {
+        type: String,
+        required: true
+    },
+    courtName: {
+        type: String,
+        required: true
+    },
+    caseCount: {
+        type: String,
+        required: false
+    }
+}, { _id: false });
+
 const userSchema = new mongoose.Schema({
+    // Basic user info
     username: {
         type: String,
         required: true,
@@ -15,13 +32,17 @@ const userSchema = new mongoose.Schema({
         type: String,
         required: true,
     },
+    firstName: {
+        type: String,
+        required: true,
+    },
+    lastName: {
+        type: String,
+        required: true,
+    },
     image: {
         type: String,
         required: false,
-    },
-    country: {
-        type: String,
-        required: true,
     },
     phone: {
         type: String,
@@ -31,6 +52,27 @@ const userSchema = new mongoose.Schema({
         type: String,
         required: false,
     },
+
+    // Location info
+    country: {
+        type: String,
+        default: 'Saudi Arabia',
+        required: false,
+    },
+    nationality: {
+        type: String,
+        required: false,
+    },
+    region: {
+        type: String,
+        required: false,
+    },
+    city: {
+        type: String,
+        required: false,
+    },
+
+    // Role and type
     isSeller: {
         type: Boolean,
         default: false,
@@ -42,10 +84,20 @@ const userSchema = new mongoose.Schema({
         default: 'client',
         required: false
     },
+    // For lawyers: 'marketplace' (visible in search + dashboard) or 'dashboard' (dashboard only)
+    lawyerMode: {
+        type: String,
+        enum: ['marketplace', 'dashboard', null],
+        default: null,
+        required: false
+    },
+
+    // Lawyer-specific profile data
     lawyerProfile: {
-        specialization: {
-            type: [String],
-            default: []
+        // Licensing
+        isLicensed: {
+            type: Boolean,
+            default: false
         },
         licenseNumber: {
             type: String,
@@ -55,14 +107,70 @@ const userSchema = new mongoose.Schema({
             type: String,
             required: false
         },
-        yearsExperience: {
-            type: Number,
-            default: 0
-        },
         verified: {
             type: Boolean,
             default: false
         },
+
+        // Experience & Specialization
+        yearsExperience: {
+            type: Number,
+            default: 0
+        },
+        workType: {
+            type: String,
+            required: false
+        },
+        firmName: {
+            type: String,
+            required: false
+        },
+        specialization: {
+            type: [String],
+            default: []
+        },
+        languages: {
+            type: [String],
+            default: ['العربية']
+        },
+
+        // Courts experience
+        courts: {
+            type: [courtExperienceSchema],
+            default: []
+        },
+
+        // Khebra platform registration
+        isRegisteredKhebra: {
+            type: Boolean,
+            default: false
+        },
+
+        // Marketplace settings (only for lawyerMode: 'marketplace')
+        serviceType: {
+            type: String,
+            enum: ['consultation', 'litigation', 'both', null],
+            default: null
+        },
+        pricingModel: {
+            type: [String],
+            default: []
+        },
+        hourlyRateMin: {
+            type: Number,
+            required: false
+        },
+        hourlyRateMax: {
+            type: Number,
+            required: false
+        },
+        acceptsRemote: {
+            type: String,
+            enum: ['نعم', 'لا', 'كلاهما', null],
+            default: null
+        },
+
+        // Stats (system-managed)
         rating: {
             type: Number,
             default: 0,
@@ -80,10 +188,6 @@ const userSchema = new mongoose.Schema({
         casesTotal: {
             type: Number,
             default: 0
-        },
-        languages: {
-            type: [String],
-            default: ['arabic']
         },
         firmID: {
             type: mongoose.Schema.Types.ObjectId,
