@@ -1,4 +1,6 @@
 const { Document, Case, Client } = require('../models');
+const DocumentVersion = require('../models/documentVersion.model');
+const DocumentVersionService = require('../services/documentVersionService');
 const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
 const { s3, getSignedUrl, deleteObject, BUCKETS } = require('../configs/s3');
@@ -363,11 +365,11 @@ const revokeShareLink = asyncHandler(async (req, res) => {
 
 /**
  * Upload new version
- * POST /api/documents/:id/version
+ * POST /api/documents/:id/versions
  */
 const uploadVersion = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const { fileName, originalName, fileSize, url, fileKey, changeNote } = req.body;
+    const { fileName, originalName, fileSize, url, fileKey, changeNote, mimeType, fileType } = req.body;
     const lawyerId = req.userID;
 
     const document = await Document.findOne({ _id: id, lawyerId });
@@ -376,33 +378,28 @@ const uploadVersion = asyncHandler(async (req, res) => {
         throw new CustomException('المستند غير موجود', 404);
     }
 
-    // Save current version to history
-    document.versions.push({
-        version: document.version,
-        fileName: document.fileName,
-        originalName: document.originalName,
-        fileSize: document.fileSize,
-        url: document.url,
-        fileKey: document.fileKey,
-        uploadedBy: document.uploadedBy,
+    // Use DocumentVersionService for enhanced version management
+    const file = {
+        originalName: originalName || fileName,
+        fileName: fileName,
+        fileSize: fileSize,
+        fileKey: fileKey,
+        url: url,
+        mimeType: mimeType || fileType || document.fileType
+    };
+
+    const updatedDocument = await DocumentVersionService.uploadVersion(
+        id,
+        file,
+        lawyerId,
         changeNote
-    });
-
-    // Update current document
-    document.version += 1;
-    document.fileName = fileName;
-    document.originalName = originalName;
-    document.fileSize = fileSize;
-    document.url = url;
-    document.fileKey = fileKey;
-    document.uploadedBy = lawyerId;
-
-    await document.save();
+    );
 
     res.status(200).json({
         success: true,
+        error: false,
         message: 'تم تحميل الإصدار الجديد بنجاح',
-        data: document
+        data: updatedDocument
     });
 });
 
@@ -414,19 +411,19 @@ const getVersionHistory = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const lawyerId = req.userID;
 
-    const document = await Document.findOne({ _id: id, lawyerId })
-        .populate('versions.uploadedBy', 'firstName lastName');
+    const document = await Document.findOne({ _id: id, lawyerId });
 
     if (!document) {
         throw new CustomException('المستند غير موجود', 404);
     }
 
+    // Use DocumentVersionService for comprehensive version history
+    const versions = await DocumentVersionService.getVersions(id);
+
     res.status(200).json({
         success: true,
-        data: {
-            currentVersion: document.version,
-            versions: document.versions
-        }
+        error: false,
+        data: versions
     });
 });
 
@@ -444,37 +441,18 @@ const restoreVersion = asyncHandler(async (req, res) => {
         throw new CustomException('المستند غير موجود', 404);
     }
 
-    const version = document.versions.id(versionId);
-    if (!version) {
-        throw new CustomException('الإصدار غير موجود', 404);
-    }
-
-    // Save current as new version
-    document.versions.push({
-        version: document.version,
-        fileName: document.fileName,
-        originalName: document.originalName,
-        fileSize: document.fileSize,
-        url: document.url,
-        fileKey: document.fileKey,
-        uploadedBy: document.uploadedBy,
-        changeNote: 'Before restore'
-    });
-
-    // Restore selected version
-    document.version += 1;
-    document.fileName = version.fileName;
-    document.originalName = version.originalName;
-    document.fileSize = version.fileSize;
-    document.url = version.url;
-    document.fileKey = version.fileKey;
-
-    await document.save();
+    // Use DocumentVersionService for version restoration
+    const updatedDocument = await DocumentVersionService.restoreVersion(
+        id,
+        versionId,
+        lawyerId
+    );
 
     res.status(200).json({
         success: true,
+        error: false,
         message: 'تم استعادة الإصدار بنجاح',
-        data: document
+        data: updatedDocument
     });
 });
 

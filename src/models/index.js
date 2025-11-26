@@ -78,6 +78,10 @@ const MatterBudget = require('./matterBudget.model');
 const BudgetEntry = require('./budgetEntry.model');
 const BudgetTemplate = require('./budgetTemplate.model');
 
+// Audit Trail Models
+const CaseAuditLog = require('./caseAuditLog.model');
+const DocumentVersion = require('./documentVersion.model');
+
 module.exports = {
     // Marketplace
     User,
@@ -157,5 +161,9 @@ module.exports = {
     // Matter Budgets
     MatterBudget,
     BudgetEntry,
-    BudgetTemplate
+    BudgetTemplate,
+
+    // Audit Trail
+    CaseAuditLog,
+    DocumentVersion
 };
