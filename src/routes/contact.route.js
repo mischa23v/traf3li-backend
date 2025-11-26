@@ -8,6 +8,8 @@ const {
     deleteContact,
     bulkDeleteContacts,
     searchContacts,
+    getContactsByCase,
+    getContactsByClient,
     linkToCase,
     unlinkFromCase,
     linkToClient,
@@ -18,6 +20,10 @@ const app = express.Router();
 
 // Search (must be before :id routes)
 app.get('/search', userMiddleware, searchContacts);
+
+// By case/client
+app.get('/case/:caseId', userMiddleware, getContactsByCase);
+app.get('/client/:clientId', userMiddleware, getContactsByClient);
 
 // Bulk operations
 app.post('/bulk-delete', userMiddleware, bulkDeleteContacts);
