@@ -18,17 +18,17 @@ const app = express.Router();
 app.post('/', userMiddleware, createClient);
 app.get('/', userMiddleware, getClients);
 
-// Special queries
+// Special queries (before :id to avoid conflicts)
 app.get('/search', userMiddleware, searchClients);
 app.get('/stats', userMiddleware, getClientStats);
 app.get('/top-revenue', userMiddleware, getTopClientsByRevenue);
 
+// Bulk operations
+app.post('/bulk-delete', userMiddleware, bulkDeleteClients);
+
 // Single client
 app.get('/:id', userMiddleware, getClient);
-app.put('/:id', userMiddleware, updateClient);
+app.patch('/:id', userMiddleware, updateClient);
 app.delete('/:id', userMiddleware, deleteClient);
-
-// Bulk operations
-app.delete('/bulk', userMiddleware, bulkDeleteClients);
 
 module.exports = app;

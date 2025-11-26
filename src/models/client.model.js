@@ -6,7 +6,13 @@ const clientSchema = new mongoose.Schema({
         unique: true,
         index: true
     },
-    name: {
+    lawyerId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        required: true,
+        index: true
+    },
+    fullName: {
         type: String,
         required: true,
         trim: true
@@ -21,74 +27,43 @@ const clientSchema = new mongoose.Schema({
         required: true,
         trim: true
     },
-    type: {
+    alternatePhone: {
         type: String,
-        enum: ['individual', 'company'],
-        default: 'individual'
+        trim: true
     },
     nationalId: {
         type: String,
         trim: true
     },
-    commercialRegistration: {
+    companyName: {
+        type: String,
+        trim: true
+    },
+    companyRegistration: {
+        type: String,
+        trim: true
+    },
+    city: {
         type: String,
         trim: true
     },
     address: {
-        street: String,
-        city: String,
-        postalCode: String,
-        country: {
-            type: String,
-            default: 'Saudi Arabia'
-        }
-    },
-    lawyerId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'User',
-        required: true,
-        index: true
-    },
-    platformUserId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'User'
-    },
-    status: {
         type: String,
-        enum: ['active', 'inactive', 'archived'],
-        default: 'active'
+        trim: true
+    },
+    preferredContactMethod: {
+        type: String,
+        enum: ['email', 'phone', 'sms', 'whatsapp'],
+        default: 'phone'
     },
     notes: {
         type: String,
         maxlength: 2000
     },
-    source: {
+    status: {
         type: String,
-        enum: ['platform', 'external', 'referral'],
-        default: 'external'
-    },
-    totalCases: {
-        type: Number,
-        default: 0
-    },
-    activeCases: {
-        type: Number,
-        default: 0
-    },
-    totalInvoices: {
-        type: Number,
-        default: 0
-    },
-    totalPaid: {
-        type: Number,
-        default: 0
-    },
-    totalOutstanding: {
-        type: Number,
-        default: 0
-    },
-    lastInteraction: {
-        type: Date
+        enum: ['active', 'inactive', 'archived'],
+        default: 'active'
     }
 }, {
     versionKey: false,
@@ -97,25 +72,20 @@ const clientSchema = new mongoose.Schema({
 
 // Indexes
 clientSchema.index({ lawyerId: 1, status: 1 });
-clientSchema.index({ name: 'text', email: 'text' });
+clientSchema.index({ lawyerId: 1, fullName: 'text', email: 'text', phone: 'text' });
+clientSchema.index({ clientId: 1 });
 
 // Generate client ID before saving
 clientSchema.pre('save', async function(next) {
     if (!this.clientId) {
-        const year = new Date().getFullYear();
-        const count = await this.constructor.countDocuments({
-            lawyerId: this.lawyerId,
-            createdAt: {
-                $gte: new Date(year, 0, 1)
-            }
-        });
-        this.clientId = `CLT-${year}-${String(count + 1).padStart(4, '0')}`;
+        const randomNum = Math.floor(100000 + Math.random() * 900000);
+        this.clientId = `CLT-${randomNum}`;
     }
     next();
 });
 
 // Static method: Search clients
-clientSchema.statics.searchClients = async function(lawyerId, searchTerm, filters = {}) {
+clientSchema.statics.searchClients = async function(lawyerId, searchTerm, limit = 20) {
     const query = {
         lawyerId: new mongoose.Types.ObjectId(lawyerId),
         status: { $ne: 'archived' }
@@ -123,19 +93,18 @@ clientSchema.statics.searchClients = async function(lawyerId, searchTerm, filter
 
     if (searchTerm) {
         query.$or = [
-            { name: { $regex: searchTerm, $options: 'i' } },
+            { fullName: { $regex: searchTerm, $options: 'i' } },
             { email: { $regex: searchTerm, $options: 'i' } },
             { phone: { $regex: searchTerm, $options: 'i' } },
-            { clientId: { $regex: searchTerm, $options: 'i' } }
+            { clientId: { $regex: searchTerm, $options: 'i' } },
+            { companyName: { $regex: searchTerm, $options: 'i' } }
         ];
     }
 
-    if (filters.type) query.type = filters.type;
-    if (filters.status) query.status = filters.status;
-
     return await this.find(query)
-        .sort({ lastInteraction: -1, createdAt: -1 })
-        .limit(filters.limit || 50);
+        .select('clientId fullName email phone companyName status')
+        .sort({ fullName: 1 })
+        .limit(limit);
 };
 
 module.exports = mongoose.model('Client', clientSchema);

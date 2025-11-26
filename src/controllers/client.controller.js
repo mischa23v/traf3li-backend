@@ -17,10 +17,8 @@ const createClient = asyncHandler(async (req, res) => {
         companyRegistration,
         address,
         city,
-        country = 'Saudi Arabia',
         notes,
-        preferredContactMethod = 'email',
-        language = 'ar',
+        preferredContactMethod,
         status = 'active'
     } = req.body;
 
@@ -31,7 +29,7 @@ const createClient = asyncHandler(async (req, res) => {
         throw new CustomException('الحقول المطلوبة: الاسم الكامل، رقم الهاتف', 400);
     }
 
-    // Check if client already exists by email or phone
+    // Check if client already exists by email
     if (email) {
         const existingClient = await Client.findOne({ lawyerId, email });
         if (existingClient) {
@@ -50,17 +48,16 @@ const createClient = asyncHandler(async (req, res) => {
         companyRegistration,
         address,
         city,
-        country,
         notes,
         preferredContactMethod,
-        language,
         status
     });
 
     res.status(201).json({
-        success: true,
-        message: 'تم إنشاء العميل بنجاح',
-        client
+        data: client,
+        total: 1,
+        page: 1,
+        limit: 1
     });
 });
 
@@ -72,18 +69,14 @@ const getClients = asyncHandler(async (req, res) => {
     const {
         status,
         search,
-        city,
-        country,
         page = 1,
-        limit = 50
+        limit = 10
     } = req.query;
 
     const lawyerId = req.userID;
     const query = { lawyerId };
 
     if (status) query.status = status;
-    if (city) query.city = city;
-    if (country) query.country = country;
 
     // Search by name, email, phone, or client ID
     if (search) {
@@ -96,22 +89,22 @@ const getClients = asyncHandler(async (req, res) => {
         ];
     }
 
-    const clients = await Client.find(query)
-        .sort({ createdAt: -1 })
-        .limit(parseInt(limit))
-        .skip((parseInt(page) - 1) * parseInt(limit));
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
 
-    const total = await Client.countDocuments(query);
+    const [clients, total] = await Promise.all([
+        Client.find(query)
+            .sort({ createdAt: -1 })
+            .skip((pageNum - 1) * limitNum)
+            .limit(limitNum),
+        Client.countDocuments(query)
+    ]);
 
     res.status(200).json({
-        success: true,
         data: clients,
-        pagination: {
-            page: parseInt(page),
-            limit: parseInt(limit),
-            total,
-            pages: Math.ceil(total / parseInt(limit))
-        }
+        total,
+        page: pageNum,
+        limit: limitNum
     });
 });
 
@@ -133,61 +126,17 @@ const getClient = asyncHandler(async (req, res) => {
         throw new CustomException('لا يمكنك الوصول إلى هذا العميل', 403);
     }
 
-    // Get related data
-    const cases = await Case.find({ clientId: id, lawyerId })
-        .select('title caseNumber status createdAt')
-        .sort({ createdAt: -1 })
-        .limit(10);
-
-    const invoices = await Invoice.find({ clientId: id, lawyerId })
-        .select('invoiceNumber totalAmount status dueDate')
-        .sort({ createdAt: -1 })
-        .limit(10);
-
-    const payments = await Payment.find({ clientId: id, lawyerId })
-        .select('paymentNumber amount paymentDate status')
-        .sort({ paymentDate: -1 })
-        .limit(10);
-
-    // Calculate totals
-    const totalInvoiced = await Invoice.aggregate([
-        { $match: { clientId: client._id, lawyerId: client.lawyerId } },
-        { $group: { _id: null, total: { $sum: '$totalAmount' } } }
-    ]);
-
-    const totalPaid = await Payment.aggregate([
-        { $match: { clientId: client._id, lawyerId: client.lawyerId, status: 'completed' } },
-        { $group: { _id: null, total: { $sum: '$amount' } } }
-    ]);
-
-    const outstandingBalance = await Invoice.aggregate([
-        { $match: { clientId: client._id, lawyerId: client.lawyerId, status: { $in: ['sent', 'partial'] } } },
-        { $group: { _id: null, total: { $sum: '$balanceDue' } } }
-    ]);
-
     res.status(200).json({
-        success: true,
-        data: {
-            client,
-            relatedData: {
-                cases,
-                invoices,
-                payments
-            },
-            summary: {
-                totalCases: await Case.countDocuments({ clientId: id, lawyerId }),
-                totalInvoices: await Invoice.countDocuments({ clientId: id, lawyerId }),
-                totalInvoiced: totalInvoiced[0]?.total || 0,
-                totalPaid: totalPaid[0]?.total || 0,
-                outstandingBalance: outstandingBalance[0]?.total || 0
-            }
-        }
+        data: [client],
+        total: 1,
+        page: 1,
+        limit: 1
     });
 });
 
 /**
  * Update client
- * PUT /api/clients/:id
+ * PATCH /api/clients/:id
  */
 const updateClient = asyncHandler(async (req, res) => {
     const { id } = req.params;
@@ -225,10 +174,8 @@ const updateClient = asyncHandler(async (req, res) => {
         'companyRegistration',
         'address',
         'city',
-        'country',
         'notes',
         'preferredContactMethod',
-        'language',
         'status'
     ];
 
@@ -241,9 +188,10 @@ const updateClient = asyncHandler(async (req, res) => {
     await client.save();
 
     res.status(200).json({
-        success: true,
-        message: 'تم تحديث العميل بنجاح',
-        client
+        data: [client],
+        total: 1,
+        page: 1,
+        limit: 1
     });
 });
 
@@ -265,32 +213,13 @@ const deleteClient = asyncHandler(async (req, res) => {
         throw new CustomException('لا يمكنك الوصول إلى هذا العميل', 403);
     }
 
-    // Check if client has active cases or unpaid invoices
-    const activeCases = await Case.countDocuments({
-        clientId: id,
-        lawyerId,
-        status: { $in: ['active', 'pending'] }
-    });
-
-    if (activeCases > 0) {
-        throw new CustomException('لا يمكن حذف عميل لديه قضايا نشطة', 400);
-    }
-
-    const unpaidInvoices = await Invoice.countDocuments({
-        clientId: id,
-        lawyerId,
-        status: { $in: ['draft', 'sent', 'partial'] }
-    });
-
-    if (unpaidInvoices > 0) {
-        throw new CustomException('لا يمكن حذف عميل لديه فواتير غير مدفوعة', 400);
-    }
-
     await Client.findByIdAndDelete(id);
 
     res.status(200).json({
-        success: true,
-        message: 'تم حذف العميل بنجاح'
+        data: [],
+        total: 0,
+        page: 1,
+        limit: 1
     });
 });
 
@@ -302,16 +231,22 @@ const searchClients = asyncHandler(async (req, res) => {
     const { q } = req.query;
     const lawyerId = req.userID;
 
-    if (!q || q.length < 2) {
-        throw new CustomException('يجب أن يكون مصطلح البحث حرفين على الأقل', 400);
+    if (!q || q.length < 1) {
+        return res.status(200).json({
+            data: [],
+            total: 0,
+            page: 1,
+            limit: 20
+        });
     }
 
-    const clients = await Client.searchClients(lawyerId, q);
+    const clients = await Client.searchClients(lawyerId, q, 20);
 
     res.status(200).json({
-        success: true,
         data: clients,
-        count: clients.length
+        total: clients.length,
+        page: 1,
+        limit: 20
     });
 });
 
@@ -321,50 +256,42 @@ const searchClients = asyncHandler(async (req, res) => {
  */
 const getClientStats = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
+    const mongoose = require('mongoose');
+    const lawyerObjectId = new mongoose.Types.ObjectId(lawyerId);
 
-    const totalClients = await Client.countDocuments({ lawyerId });
-
-    const byStatus = await Client.aggregate([
-        { $match: { lawyerId } },
-        {
-            $group: {
-                _id: '$status',
-                count: { $sum: 1 }
+    const [totalClients, byStatus, byCity] = await Promise.all([
+        Client.countDocuments({ lawyerId }),
+        Client.aggregate([
+            { $match: { lawyerId: lawyerObjectId } },
+            {
+                $group: {
+                    _id: '$status',
+                    count: { $sum: 1 }
+                }
             }
-        }
-    ]);
-
-    const byCity = await Client.aggregate([
-        { $match: { lawyerId } },
-        {
-            $group: {
-                _id: '$city',
-                count: { $sum: 1 }
-            }
-        },
-        { $sort: { count: -1 } },
-        { $limit: 10 }
-    ]);
-
-    const byCountry = await Client.aggregate([
-        { $match: { lawyerId } },
-        {
-            $group: {
-                _id: '$country',
-                count: { $sum: 1 }
-            }
-        },
-        { $sort: { count: -1 } }
+        ]),
+        Client.aggregate([
+            { $match: { lawyerId: lawyerObjectId } },
+            {
+                $group: {
+                    _id: '$city',
+                    count: { $sum: 1 }
+                }
+            },
+            { $sort: { count: -1 } },
+            { $limit: 10 }
+        ])
     ]);
 
     res.status(200).json({
-        success: true,
         data: {
             totalClients,
             byStatus,
-            byCity,
-            byCountry
-        }
+            byCity
+        },
+        total: 1,
+        page: 1,
+        limit: 1
     });
 });
 
@@ -375,9 +302,11 @@ const getClientStats = asyncHandler(async (req, res) => {
 const getTopClientsByRevenue = asyncHandler(async (req, res) => {
     const { limit = 10 } = req.query;
     const lawyerId = req.userID;
+    const mongoose = require('mongoose');
+    const lawyerObjectId = new mongoose.Types.ObjectId(lawyerId);
 
     const topClients = await Invoice.aggregate([
-        { $match: { lawyerId, status: 'paid' } },
+        { $match: { lawyerId: lawyerObjectId, status: 'paid' } },
         {
             $group: {
                 _id: '$clientId',
@@ -395,7 +324,7 @@ const getTopClientsByRevenue = asyncHandler(async (req, res) => {
                 as: 'client'
             }
         },
-        { $unwind: '$client' },
+        { $unwind: { path: '$client', preserveNullAndEmptyArrays: true } },
         {
             $project: {
                 clientId: '$_id',
@@ -408,62 +337,42 @@ const getTopClientsByRevenue = asyncHandler(async (req, res) => {
     ]);
 
     res.status(200).json({
-        success: true,
-        data: topClients
+        data: topClients,
+        total: topClients.length,
+        page: 1,
+        limit: parseInt(limit)
     });
 });
 
 /**
  * Bulk delete clients
- * DELETE /api/clients/bulk
+ * POST /api/clients/bulk-delete
  */
 const bulkDeleteClients = asyncHandler(async (req, res) => {
-    const { clientIds } = req.body;
+    const { ids } = req.body;
     const lawyerId = req.userID;
 
-    if (!clientIds || !Array.isArray(clientIds) || clientIds.length === 0) {
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
         throw new CustomException('معرفات العملاء مطلوبة', 400);
     }
 
-    // Verify all clients belong to lawyer and have no active cases/unpaid invoices
+    // Verify all clients belong to lawyer
     const clients = await Client.find({
-        _id: { $in: clientIds },
+        _id: { $in: ids },
         lawyerId
     });
 
-    if (clients.length !== clientIds.length) {
+    if (clients.length !== ids.length) {
         throw new CustomException('بعض العملاء غير صالحين للحذف', 400);
     }
 
-    // Check for active cases
-    for (const client of clients) {
-        const activeCases = await Case.countDocuments({
-            clientId: client._id,
-            lawyerId,
-            status: { $in: ['active', 'pending'] }
-        });
-
-        if (activeCases > 0) {
-            throw new CustomException(`العميل ${client.fullName} لديه قضايا نشطة`, 400);
-        }
-
-        const unpaidInvoices = await Invoice.countDocuments({
-            clientId: client._id,
-            lawyerId,
-            status: { $in: ['draft', 'sent', 'partial'] }
-        });
-
-        if (unpaidInvoices > 0) {
-            throw new CustomException(`العميل ${client.fullName} لديه فواتير غير مدفوعة`, 400);
-        }
-    }
-
-    await Client.deleteMany({ _id: { $in: clientIds } });
+    await Client.deleteMany({ _id: { $in: ids } });
 
     res.status(200).json({
-        success: true,
-        message: `تم حذف ${clients.length} عملاء بنجاح`,
-        count: clients.length
+        data: [],
+        total: clients.length,
+        page: 1,
+        limit: clients.length
     });
 });
 

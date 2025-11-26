@@ -44,7 +44,9 @@ const {
     reminderRoute,
     clientRoute,
     calendarRoute,
-    lawyerRoute
+    lawyerRoute,
+    contactRoute,
+    organizationRoute
 } = require('./routes');
 
 const app = express();
@@ -189,6 +191,8 @@ app.use('/api/reminders', reminderRoute);
 app.use('/api/clients', clientRoute);
 app.use('/api/calendar', calendarRoute);
 app.use('/api/lawyers', lawyerRoute);
+app.use('/api/contacts', contactRoute);
+app.use('/api/organizations', organizationRoute);
 
 // Health check endpoint (useful for monitoring)
 app.get('/health', (req, res) => {

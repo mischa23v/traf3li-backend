@@ -35,6 +35,9 @@ const BillingActivity = require('./billingActivity.model');
 const Reminder = require('./reminder.model');
 const Client = require('./client.model');
 const Report = require('./report.model');
+const Contact = require('./contact.model');
+const Organization = require('./organization.model');
+const Staff = require('./staff.model');
 
 module.exports = {
     // Marketplace
@@ -73,5 +76,8 @@ module.exports = {
     // Dashboard Organization
     Reminder,
     Client,
-    Report
+    Report,
+    Contact,
+    Organization,
+    Staff
 };
