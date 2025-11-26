@@ -1,0 +1,98 @@
+#!/bin/sh
+
+chown www-data.mysql /var/lib/legalcase/data/
+chmod 0770 /var/lib/legalcase/data/
+
+chown www-data.www-data /var/lib/legalcase/config/
+chmod 0700 /var/lib/legalcase/config/
+
+chown www-data.www-data /var/log/legalcase/
+chmod 0700 /var/lib/legalcase/config/
+
+# if [ -d /etc/apache ]
+# then
+# 	cd /etc/apache
+# 
+# 	if [ ! -L legalcase.conf ]
+# 	then
+# 		ln -s /usr/share/legalcase/apache/legalcase.conf
+# 	fi
+# 
+# 	echo "Include /etc/apache/legalcase.conf" >> /etc/apache/httpd.conf
+# 
+# 	# [ML] If php4/php5 is installed, then it should already be active, no?
+# 	# messy!
+# 	# apache-modconf apache enable mod_php4
+# fi
+# 
+# if [  -d /etc/apache2 ]
+# then
+# 	cd /etc/apache2/sites-enabled/
+# 
+# 	if [ ! -L legalcase.conf ]
+# 	then
+# 		ln -s /usr/share/legalcase/apache2/legalcase.conf
+# 	fi
+# 
+# 	# [ML] If php4/php5 is installed, then it should already be active, no?
+# 	# messy!
+# 	# apache-modconf apache enable mod_php4
+# fi
+# 
+# if [  -d /etc/apache-ssl ]
+# then
+# 	cd /etc/apache-ssl
+# 
+# 	if [ ! -L legalcase.conf ]
+# 	then
+# 		ln -s /usr/share/legalcase/apache/legalcase.conf
+# 	fi
+# 
+# 	echo "Include /etc/apache-ssl/legalcase.conf" >> /etc/apache-ssl/httpd.conf
+# 
+# 	# [ML] If php4/php5 is installed, then it should already be active, no?
+# 	# messy!
+# 	apache-modconf apache-ssl enable mod_php4
+# fi
+	
+
+### Activate on mysql extension, if necessary
+IFS=':'
+PHP4CONF="/etc/php4/apache/php.ini:/etc/php4/apache2/php.ini:/etc/php5/apache2/php.ini"
+
+for file in $PHP4CONF; do
+	if [ -f $file ]; then
+		IS_ACTIVE=`grep mysql.so $file | grep extension | grep -v "^;"`
+
+		if [ -z $IS_ACTIVE ]; then
+			echo "extension=mysql.so" >> $file
+			echo "$file: MySQL extension was activated"
+		fi
+	fi
+done
+
+### restart apache server
+echo " "
+echo "Restarting the apache server(s)"
+sleep 0.2
+
+if [ -e /etc/init.d/apache ]
+then
+	/etc/init.d/apache restart
+fi
+if [ -e /etc/init.d/apache2 ]
+then
+	/etc/init.d/apache2 restart
+fi
+if [ -e /etc/init.d/apache-ssl ]
+then
+	/etc/init.d/apache-ssl restart
+fi
+
+# The dialog(1) was hiding the console, where possible errors are shown..
+echo -e "\n"
+echo -e "** The Legal Case Management (LCM) installation is almost complete."
+echo -e "** To finish the installation, please read "
+echo -e "**          /usr/share/doc/legalcase/README.Debian"
+echo -e "\n"
+

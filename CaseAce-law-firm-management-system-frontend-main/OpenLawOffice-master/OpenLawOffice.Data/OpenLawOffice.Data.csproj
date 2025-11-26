@@ -1,0 +1,236 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProductVersion>8.0.30703</ProductVersion>
+    <SchemaVersion>2.0</SchemaVersion>
+    <ProjectGuid>{596A8BCB-2716-47BD-82C3-5B52F0082F10}</ProjectGuid>
+    <OutputType>Library</OutputType>
+    <AppDesignerFolder>Properties</AppDesignerFolder>
+    <RootNamespace>OpenLawOffice.Data</RootNamespace>
+    <AssemblyName>OpenLawOffice.Data</AssemblyName>
+    <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
+    <FileAlignment>512</FileAlignment>
+    <TargetFrameworkProfile />
+    <SolutionDir Condition="$(SolutionDir) == '' Or $(SolutionDir) == '*Undefined*'">..\OpenLawOffice.WebClient\</SolutionDir>
+    <RestorePackages>true</RestorePackages>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <OutputPath>bin\Debug\</OutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+    <Prefer32Bit>false</Prefer32Bit>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <DebugType>pdbonly</DebugType>
+    <Optimize>true</Optimize>
+    <OutputPath>bin\Release\</OutputPath>
+    <DefineConstants>TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+    <Prefer32Bit>false</Prefer32Bit>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="AutoMapper, Version=3.3.1.0, Culture=neutral, PublicKeyToken=be96cd2c38ef1005, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\OpenLawOffice.WebClient\packages\AutoMapper.3.3.1\lib\net40\AutoMapper.dll</HintPath>
+    </Reference>
+    <Reference Include="AutoMapper.Net4, Version=3.3.1.0, Culture=neutral, PublicKeyToken=be96cd2c38ef1005, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\OpenLawOffice.WebClient\packages\AutoMapper.3.3.1\lib\net40\AutoMapper.Net4.dll</HintPath>
+    </Reference>
+    <Reference Include="Dapper, Version=1.40.0.0, Culture=neutral, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\OpenLawOffice.WebClient\packages\Dapper.1.42\lib\net45\Dapper.dll</HintPath>
+    </Reference>
+    <Reference Include="Npgsql, Version=3.0.3.0, Culture=neutral, PublicKeyToken=5d8b90d52f46fda7, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\OpenLawOffice.WebClient\packages\Npgsql.3.0.3\lib\net45\Npgsql.dll</HintPath>
+    </Reference>
+    <Reference Include="System" />
+    <Reference Include="System.ComponentModel.DataAnnotations" />
+    <Reference Include="System.Configuration" />
+    <Reference Include="System.Core" />
+    <Reference Include="System.Web" />
+    <Reference Include="System.Web.ApplicationServices" />
+    <Reference Include="System.Xml.Linq" />
+    <Reference Include="System.Data.DataSetExtensions" />
+    <Reference Include="Microsoft.CSharp" />
+    <Reference Include="System.Data" />
+    <Reference Include="System.Xml" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="Account\UserRole.cs" />
+    <Compile Include="Account\Users.cs" />
+    <Compile Include="Base.cs" />
+    <Compile Include="Billing\Billing.cs" />
+    <Compile Include="Billing\BillingGroup.cs" />
+    <Compile Include="Billing\BillingRate.cs" />
+    <Compile Include="Billing\Expense.cs" />
+    <Compile Include="Billing\ExpenseMatter.cs" />
+    <Compile Include="Billing\Fee.cs" />
+    <Compile Include="Billing\FeeMatter.cs" />
+    <Compile Include="Billing\Invoice.cs" />
+    <Compile Include="Billing\InvoiceExpense.cs" />
+    <Compile Include="Billing\InvoiceFee.cs" />
+    <Compile Include="Billing\InvoiceTime.cs" />
+    <Compile Include="DBOs\Account\UserRole.cs" />
+    <Compile Include="DBOs\Account\Users.cs" />
+    <Compile Include="DBOs\Billing\BillingGroup.cs" />
+    <Compile Include="DBOs\Billing\BillingRate.cs" />
+    <Compile Include="DBOs\Billing\Expense.cs" />
+    <Compile Include="DBOs\Billing\ExpenseMatter.cs" />
+    <Compile Include="DBOs\Billing\Fee.cs" />
+    <Compile Include="DBOs\Billing\FeeMatter.cs" />
+    <Compile Include="DBOs\Billing\Invoice.cs" />
+    <Compile Include="DBOs\Billing\InvoiceExpense.cs" />
+    <Compile Include="DBOs\Billing\InvoiceFee.cs" />
+    <Compile Include="DBOs\Billing\InvoiceTime.cs" />
+    <Compile Include="DBOs\Events\EventMatter.cs" />
+    <Compile Include="DBOs\Events\EventNote.cs" />
+    <Compile Include="DBOs\Events\EventTag.cs" />
+    <Compile Include="DBOs\Events\EventTask.cs" />
+    <Compile Include="DBOs\External\ExternalSession.cs" />
+    <Compile Include="DBOs\Forms\Form.cs" />
+    <Compile Include="DBOs\Forms\FormField.cs" />
+    <Compile Include="DBOs\Forms\FormFieldMatter.cs" />
+    <Compile Include="DBOs\Matters\MatterType.cs" />
+    <Compile Include="DBOs\Notes\NoteNotification.cs" />
+    <Compile Include="DBOs\Tasks\TaskTemplate.cs" />
+    <Compile Include="Events\Event.cs" />
+    <Compile Include="DataHelper.cs" />
+    <Compile Include="Contacts\Contact.cs" />
+    <Compile Include="Database.cs" />
+    <Compile Include="DateTimeExtensions.cs" />
+    <Compile Include="DBOs\Events\Event.cs" />
+    <Compile Include="DBOs\Events\EventAssignedContact.cs" />
+    <Compile Include="DBOs\Events\EventResponsibleUser.cs" />
+    <Compile Include="DBOs\ColumnAttributeTypeMapper.cs" />
+    <Compile Include="DBOs\Contacts\Contact.cs" />
+    <Compile Include="DBOs\Core.cs" />
+    <Compile Include="DBOs\DboBase.cs" />
+    <Compile Include="DBOs\DboWithDatesOnly.cs" />
+    <Compile Include="DBOs\Documents\Document.cs" />
+    <Compile Include="DBOs\Documents\DocumentMatter.cs" />
+    <Compile Include="DBOs\Documents\DocumentTask.cs" />
+    <Compile Include="DBOs\Documents\Version.cs" />
+    <Compile Include="DBOs\Matters\Matter.cs" />
+    <Compile Include="DBOs\Matters\MatterContact.cs" />
+    <Compile Include="DBOs\Matters\MatterTag.cs" />
+    <Compile Include="DBOs\Matters\ResponsibleUser.cs" />
+    <Compile Include="DBOs\Notes\Note.cs" />
+    <Compile Include="DBOs\Notes\NoteMatter.cs" />
+    <Compile Include="DBOs\Notes\NoteTask.cs" />
+    <Compile Include="DBOs\NullDbo.cs" />
+    <Compile Include="DBOs\Settings\TagFilter.cs" />
+    <Compile Include="DBOs\Tagging\TagBase.cs" />
+    <Compile Include="DBOs\Tagging\TagCategory.cs" />
+    <Compile Include="DBOs\Tasks\Task.cs" />
+    <Compile Include="DBOs\Tasks\TaskAssignedContact.cs" />
+    <Compile Include="DBOs\Tasks\TaskMatter.cs" />
+    <Compile Include="DBOs\Tasks\TaskResponsibleUser.cs" />
+    <Compile Include="DBOs\Tasks\TaskTag.cs" />
+    <Compile Include="DBOs\Tasks\TaskTime.cs" />
+    <Compile Include="DBOs\Timing\Time.cs" />
+    <Compile Include="Documents\Document.cs" />
+    <Compile Include="Documents\DocumentMatter.cs" />
+    <Compile Include="Documents\DocumentTask.cs" />
+    <Compile Include="Documents\Version.cs" />
+    <Compile Include="Events\EventAssignedContact.cs" />
+    <Compile Include="Events\EventMatter.cs" />
+    <Compile Include="Events\EventNote.cs" />
+    <Compile Include="Events\EventTag.cs" />
+    <Compile Include="Events\EventResponsibleUser.cs" />
+    <Compile Include="Events\EventTask.cs" />
+    <Compile Include="External\ExternalSession.cs" />
+    <Compile Include="Forms\Form.cs" />
+    <Compile Include="Forms\FormField.cs" />
+    <Compile Include="Forms\FormFieldMatter.cs" />
+    <Compile Include="Installation\Setup.cs" />
+    <Compile Include="Matters\Matter.cs" />
+    <Compile Include="Matters\MatterContact.cs" />
+    <Compile Include="Matters\MatterTag.cs" />
+    <Compile Include="Matters\MatterType.cs" />
+    <Compile Include="Matters\ResponsibleUser.cs" />
+    <Compile Include="Notes\Note.cs" />
+    <Compile Include="Notes\NoteMatter.cs" />
+    <Compile Include="Notes\NoteNotification.cs" />
+    <Compile Include="Notes\NoteTask.cs" />
+    <Compile Include="PostgreSQLProvider\PgMembershipProvider.cs" />
+    <Compile Include="PostgreSQLProvider\PgProfileProvider.cs" />
+    <Compile Include="PostgreSQLProvider\PgRoleProvider.cs" />
+    <Compile Include="PostgreSQLProvider\PgSessionStateStoreProvider.cs" />
+    <Compile Include="PostgreSQLProvider\SerializationHelper.cs" />
+    <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="Properties\Resources.Designer.cs">
+      <AutoGen>True</AutoGen>
+      <DesignTime>True</DesignTime>
+      <DependentUpon>Resources.resx</DependentUpon>
+    </Compile>
+    <Compile Include="Settings\UserTaskSettings.cs" />
+    <Compile Include="Tagging\TagCategory.cs" />
+    <Compile Include="Tasks\Task.cs" />
+    <Compile Include="Tasks\TaskAssignedContact.cs" />
+    <Compile Include="Tasks\TaskMatter.cs" />
+    <Compile Include="Tasks\TaskResponsibleUser.cs" />
+    <Compile Include="Tasks\TaskTag.cs" />
+    <Compile Include="Tasks\TaskTemplate.cs" />
+    <Compile Include="Tasks\TaskTime.cs" />
+    <Compile Include="Timing\Time.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="Installation\bitcoin.pdf">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Installation\fw4.pdf">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Resource Include="LICENSE.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <Service Include="{508349B6-6B84-4DF5-91F0-309BEEBAD82D}" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="InstallationNotes.txt" />
+    <Content Include="Installation\Install.sql">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\OpenLawOffice.Common\OpenLawOffice.Common.csproj">
+      <Project>{042206B5-2D13-42E0-B1B9-30254952BACA}</Project>
+      <Name>OpenLawOffice.Common</Name>
+    </ProjectReference>
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="Properties\Resources.resx">
+      <Generator>ResXFileCodeGenerator</Generator>
+      <LastGenOutput>Resources.Designer.cs</LastGenOutput>
+      <SubType>Designer</SubType>
+    </EmbeddedResource>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="packages.config" />
+  </ItemGroup>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <Import Project="$(SolutionDir)\.nuget\NuGet.targets" Condition="Exists('$(SolutionDir)\.nuget\NuGet.targets')" />
+  <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">
+    <PropertyGroup>
+      <ErrorText>This project references NuGet package(s) that are missing on this computer. Enable NuGet Package Restore to download them.  For more information, see http://go.microsoft.com/fwlink/?LinkID=322105. The missing file is {0}.</ErrorText>
+    </PropertyGroup>
+    <Error Condition="!Exists('$(SolutionDir)\.nuget\NuGet.targets')" Text="$([System.String]::Format('$(ErrorText)', '$(SolutionDir)\.nuget\NuGet.targets'))" />
+  </Target>
+  <Import Project="..\OpenLawOffice.WebClient\packages\AutoMapper.3.3.1\tools\AutoMapper.targets" Condition="Exists('..\OpenLawOffice.WebClient\packages\AutoMapper.3.3.1\tools\AutoMapper.targets')" />
+  <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
+       Other similar extension points exist, see Microsoft.Common.targets.
+  <Target Name="BeforeBuild">
+  </Target>
+  <Target Name="AfterBuild">
+  </Target>
+  -->
+</Project>

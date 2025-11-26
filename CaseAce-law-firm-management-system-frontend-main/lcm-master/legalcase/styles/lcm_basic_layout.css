@@ -1,0 +1,752 @@
+/* ============================= */
+/* Layout for the LCM UI  */
+/* ============================= */
+
+body {
+	font-family: Verdana, Arial, Helvetica, sans-serif;
+	margin: 5px;
+	padding: 0px;
+	text-align: center;
+}
+
+/* ============================================================ */
+/* Main layout settings, builded using tableless CSS technology */
+/* ============================================================ */
+
+#header {
+	text-align: left;
+	clear: both;
+
+	/* [ML] Would fix zoom-out Firefox problem, but seems to
+	 * break MSIE according to Krasi's commit on March 31 */
+	/* min-height: 90px;  */
+	
+	min-height: 91px;
+}
+
+/* Maybe will be removed later */
+#wrapper_wide {
+	
+}
+
+#wrapper_narrow {
+	
+}
+
+#container_wide {
+	width: 100%;
+	float: left;
+	margin-right: -200px;
+}
+
+#container_narrow {
+	
+}
+
+#content_wide {
+	margin-right: 200px;
+}
+
+#content_narrow {
+
+}
+
+#main_column {
+	margin-left: 170px;
+	background-color: #fff;
+	margin-right: 5px;
+	text-align: left;
+}
+
+#navigation_menu_column {
+	background-color: #fff;
+	text-align: center;
+	width: 170px;
+	float: left;
+}
+
+#prefs_column {
+	width: 200px;
+	text-align: left;
+	float: right;
+}
+
+#footer, #footer_narrow {
+	font-size: 11px;
+}
+
+#user_info_box_large_screen {
+	position: absolute;
+	top: 0px;
+	right: 10px;
+	width: 250px;
+	text-align: right;
+}
+
+#breadcrumb {
+	border-top: 1px dashed #ccc;
+	border-bottom: 1px dashed #ccc;
+	background-color: #efefef;
+	margin-bottom: 10px;
+	padding: 2px 5px 2px 5px;
+}
+
+#breadcrumb a {
+	color: #000;
+	text-decoration: underline;
+}
+
+/* ------------------- [Tabs list] ------------------- */
+
+.tabs {
+	margin-top: 10px;
+	margin-bottom: 10px;
+	height: 26px;
+}
+
+ul.tabs_list {
+	padding: 0;
+	margin: 0;
+	height: 25px;
+}
+
+ul.tabs_list li {
+	list-style-type: none;
+	float: left;
+	margin: 0px 0px 0px 5px;
+	line-height: 25px;
+	height: 25px;
+}
+
+ul.tabs_list li.active {
+	list-style-type: none;
+	float: left;
+	margin: 0px 0px 0px 5px;
+	padding: 0px 3px 0px 3px;
+	line-height: 25px;
+	height: 25px;
+}
+
+ul.tabs_list li a {
+	padding: 0px 3px 0px 3px;
+	text-decoration: none;
+	display: block;
+}
+
+.clearing {
+	height: 0;
+	clear: both;
+}
+
+/* ================================================== */
+/* Other visual settings - font, colors, sizes, boxes */
+/* ================================================== */
+
+a.balance_link {
+	float: left;
+	margin-top: 8px;
+	width: 85px;
+	height: 76px;
+	display: block;
+	text-decoration: none;
+}
+
+h1.lcm_main_head {
+	position: relative;
+	width: 650px;
+	margin: 0px 0px 0px 85px;
+	padding-top: 15px;
+}
+
+.lcm_slogan {
+	position: relative;
+	top: 0px;
+	color: #666;
+	font-size: 11px;
+	width: 585px;
+	margin: 0px 0px 0px 150px;
+}
+
+a.head_ttl_link, a.head_subttl_link {
+	text-decoration: none;
+	display: block;
+}
+
+a.head_subttl_link {
+	color: #666;
+}
+
+a, p, div, h1, h2, h3, strong, input, select, option, form, textarea, td, table, th {
+	font-family: Verdana, Arial, Helvetica, sans-serif;
+}
+
+h3 {
+	margin: 5px 0px 5px 0px;
+}
+
+hr.hair_line {
+	border: 0px;
+	margin: 0px;
+	width: 100%;
+	height: 1px;
+}
+
+/* ----------------------------------------------- */
+/* The main navigation column settings */
+/* ---------------------------------------------- */
+
+.nav_menu_box {
+	margin: 0px 5px 5px 0px;
+	text-align: left;
+}
+
+.nav_column_menu_head {
+	padding: 4px;
+	text-align: left;
+}
+
+ul.nav_menu_list {
+	list-style-type: none;
+	padding: 0px;
+	margin: 0px;
+}
+
+ul.nav_menu_list li {
+	margin: 0px;
+	line-height: 2;
+}
+
+p.nav_column_text {
+	margin: 4px;
+	margin-bottom: 10px;
+}
+
+/* Main column agenda small list */
+
+ul.small_agenda {
+	margin: 0;
+	padding: 0;
+}
+
+ul.small_agenda li {
+	margin: 0px 0px 5px 0px;
+	padding: 2px 0px 2px 5px;
+	font-size: 11px;
+	list-style-type: none;
+}
+
+/* --- [ Buttons-like effect ] --- */
+
+a.main_nav_btn:link, a.main_nav_btn:visited, a.main_nav_btn:active {
+	text-decoration: none;
+	display: block;
+	padding-left: 22px;
+	background: url("../images/lcm/main_nav_sq_out.gif") no-repeat 3px 3px;
+}
+
+a.main_nav_btn:hover {
+	text-decoration: none;
+	display: block;
+	padding-left: 22px;
+	background: url("../images/lcm/main_nav_sq_over.gif") no-repeat 3px 3px;
+}
+
+/* --- [ Heading of the main menu ] --- */
+
+.mm_agenda {
+	padding-left: 20px;
+	background: url("../images/jimmac/stock_reminder-16.png") no-repeat left center;
+}
+
+.mm_agenda a {
+	text-decoration: none;
+}
+
+.mm_calendar {
+	padding-left: 20px;
+	background: url("../images/jimmac/stock_insert_table-16.png") no-repeat left center;
+	line-height: 20px;
+}
+
+.mm_admin {
+	padding-left: 20px;
+	background: url("../images/jimmac/stock_menu_properties.png") no-repeat left center;
+	line-height: 20px;
+}
+
+.mm_main_menu {
+	padding-left: 20px;
+	background: url("../images/jimmac/stock_home-16.png") no-repeat left center;
+	line-height: 20px;
+}
+
+.sm_profile {
+	padding-left: 20px;
+	background: url("../images/jimmac/stock_exec-16.png") no-repeat left center;
+	line-height: 20px;
+}
+
+.sm_search {
+	padding-left: 20px;
+	background: url("../images/jimmac/stock_search-16.png") no-repeat left center;
+	line-height: 20px;
+}
+
+.sm_font_size {
+	padding-left: 20px;
+	background: url("../images/jimmac/stock_font-16.png") no-repeat left center;
+	line-height: 20px;
+}
+
+/* --------------------------------- */
+/* The right column settings */
+/* --------------------------------- */
+
+.prefs_column_menu_head {
+	font-weight: bold;
+	text-align: left;
+	padding: 4px;
+	margin-bottom: 5px;
+}
+
+p.prefs_column_text {
+	margin: 4px;
+	margin-bottom: 10px;
+}
+
+a.prefs_bold_lnk {
+	font-weight: bold;
+	text-decoration: none;
+}
+
+a.prefs_normal_lnk {
+	font-weight: normal;
+	text-decoration: underline;
+}
+
+/* Form elements */
+
+span.autocomplete {
+	position: absolute;
+	z-index: 9000;
+}
+
+.autocomplete ul {
+	padding: 0;
+	margin: 0;
+	margin-left: 0.5em;
+	background-color: #ffc;
+	list-style: none;
+	border: thin outset black;
+	cursor: pointer;
+}
+
+.autocomplete ul li.selected {
+	background-color: #ff5;
+}
+
+form.search_form {
+	margin: 4px 4px 10px 4px;
+}
+
+td input.search_form_txt, td textarea {
+	width: 85%;
+}
+
+/* [ML] testing */
+.ac_loading {
+	background : url('../images/lcm/indicator.gif') right center no-repeat;
+}
+
+
+fieldset input.search_form_txt, fieldset textarea {
+	width: 60%;
+}
+
+#footer_narrow input.search_form_txt {
+	width: 50%;
+}
+
+input.search_form_txt {
+	
+}
+
+input.search_form_btn, button.simple_form_btn {
+	font-weight: bold;
+}
+
+textarea.frm_tarea {
+	
+}
+
+select.sel_frm {
+	
+}
+
+/* ------------------------------- */
+/* Content column settings */
+/* ------------------------------ */
+
+h3.content_head {
+	text-transform: uppercase;
+	text-align: left;
+	margin-top: 0px;
+	margin-bottom: 5px;
+	margin-left: auto;
+	margin-right: auto;
+	padding: 2px 0px 2px 0px;
+	width: 99%;
+}
+
+h4 {
+	text-transform: uppercase;
+	text-align: left;
+	margin: 5px 0px 5px 0px;
+	padding: 0px;
+}
+
+table.tbl_data td {
+	text-align: left;
+	padding: 4px;
+}
+
+td.tbl_head, th.tbl_head {
+	font-weight: bold;
+}
+
+table.tbl_usr_dtl td, table.tbl_usr_dtl th{
+	padding: 3px;
+}
+
+table.tbl_usr_dtl, table.tbl_data {
+	border-collapse: collapse;
+}
+
+td.heading, th.heading {
+	
+}
+
+th.heading a {
+	text-decoration: none;
+}
+
+p.normal_text {
+	
+}
+
+a.content_link {
+	text-decoration: underline;
+}
+
+fieldset.conf_info_box, fieldset.info_box {
+	margin: 0em 0em 1em 0em;
+	padding: 0.5em;
+	-moz-border-radius: 10px;
+}
+
+small.sm_11 {
+	
+}
+
+ul.simple_list li {
+	
+}
+
+ul.wo_blt li {
+	list-style-type: none;
+}
+
+ul.list_names {
+	margin: 2px 0px 10px 0px;
+	padding: 0;
+	list-style-type: none;
+}
+
+a.add_lnk {
+	padding: 4px 4px 4px 22px;
+	margin-left: 5px;
+	background: url("../images/jimmac/stock_attach-16.png") no-repeat 2px 4px;
+	font-weight: bold;
+	text-decoration: none;
+	-moz-border-radius: 5px;
+}
+
+a.create_new_lnk {
+	padding: 4px 4px 4px 22px;
+	margin-left: 5px;
+	background: url("../images/jimmac/stock_new-16.png") no-repeat 2px 4px;
+	font-weight: bold;
+	text-decoration: none;
+	-moz-border-radius: 5px;
+}
+
+a.edit_lnk {
+	padding: 4px 4px 4px 22px;
+	margin-left: 5px;
+	background: url("../images/jimmac/stock_edit-16.png") no-repeat 2px 4px;
+	font-weight: bold;
+	text-decoration: none;
+	-moz-border-radius: 5px;
+}
+
+a.exp_lnk {
+	padding: 4px 4px 4px 22px;
+	margin-left: 5px;
+	background: url("../images/jimmac/stock_export-16.png") no-repeat 2px 4px;
+	font-weight: bold;
+	text-decoration: none;
+	-moz-border-radius: 5px;
+}
+
+a.run_lnk {
+	padding: 4px 4px 4px 22px;
+	margin-left: 5px;
+	background: url("../images/jimmac/stock_jump-to-16.png") no-repeat 2px 4px;
+	font-weight: bold;
+	text-decoration: none;
+	-moz-border-radius: 5px;
+}
+
+a.prefs_myprefs {
+	padding: 2px 4px 2px 20px;
+	margin-left: 1px;
+	background: url("../images/jimmac/stock_preferences-16.png") no-repeat 2px 2px;
+	font-size: 11px;
+	font-weight: bold;
+	text-decoration: none;
+}
+
+a.prefs_logout {
+	padding: 2px 4px 2px 20px;
+	margin-left: 1px;
+	background: url("../images/jimmac/stock_exit-16.png") no-repeat 2px 2px;
+	font-size: 11px;
+	font-weight: bold;
+	text-decoration: none;
+}
+
+a.back_lnk {
+	padding: 2px 4px 2px 20px;
+	margin-left: 1px;
+	background: url("../images/lcm/back_arr_sq.gif") no-repeat 2px 2px;
+	font-size: 11px;
+	font-weight: bold;
+	text-decoration: none;
+	-moz-border-radius: 5px;
+}
+
+/* List of info, used in places such as "case details", "client details", etc. */
+ul.info {
+	margin: 0;
+	padding: 0;
+}
+
+ul.info li {
+	list-style-type: none;
+	border-bottom: 1px solid #ccc;
+}
+
+ul.info li.large {
+	padding-top: 5px;
+	padding-bottom: 5px;
+}
+
+/* Important data, ex: "Case ID: 1234", will put the 1234 in bold. */
+ul.info li .label1 {
+}
+
+ul.info li .value1 {
+	font-weight: bold;
+}
+
+/* Less important data, we do not highlight it. You can change this here. */
+ul.info li .label2 {
+}
+
+ul.info li .value2 {
+}
+
+/* --- [ Errors list ] --- */
+
+ul.err_list li {
+	list-style-type: square;
+}
+
+/* Go to page bar */
+.page_numbers {
+	margin-top: 5px;
+}
+
+.page_numbers td {
+	
+}
+
+/* Help icon shown in the page titles and subtitles */
+.help_icon {
+	float: right;
+}
+
+/* Info boxes(bubbles) */
+
+.small_help_box {
+	border: 1px solid #ccc;
+	background: #efefef url("../images/jimmac/stock_draw-callouts.png") no-repeat 2px 0px;
+	padding: 5px 5px 5px 30px;
+	margin: 10px 5px 10px 5px;
+}
+
+/* Site config system message box */
+.sys_msg_box {
+	border: 1px solid #090;
+	color: #060;
+	font-weight: bold;
+	padding: 5px;
+	margin: 10px 5px 10px 5px;
+}
+
+.sys_msg_box ul li {
+	list-style-type: square;
+	font-weight: normal;
+	margin-bottom: 10px;
+}
+
+.sys_msg_box ul li a {
+	color: #060;
+	text-decoration: none;
+}
+
+/* For the Small/Normal/Large Font size list */
+
+ul.font_size_buttons {
+	margin: 10px 0px 0px 10px;
+	padding: 0;
+}
+
+ul.font_size_buttons li {
+	float: left;
+	list-style: none;
+	margin-right: 10px;
+}
+
+ul.font_size_buttons li a {
+	display: block;
+	width: 25px;
+	height: 20px;
+	text-decoration: none;
+	border: 1px solid #000;
+	color: #000;
+	background-color: #fff;
+	font-weight: bold;
+	text-align: center;
+}
+
+a.set_fnt_sz {
+	text-decoration: none;
+	color: #000;
+	font-weight: bold;
+	border: 1px solid #000;
+}
+
+/* ============================================================ */
+/* Calendar/Agenda CSS                                          */
+/* ============================================================ */
+
+ul.list_events {
+	margin: 0;
+	padding: 0;
+	border-top: 1px solid #ccc;
+	border-left: 1px solid #ccc;
+	float: left;
+	width: 147px;
+}   
+
+/* Can be used fot blank */
+
+ul.list_events li { 
+	float: left;
+	list-style-type: none;
+	border-right: 1px solid #ccc;
+	border-bottom: 1px solid #ccc;
+	width: 20px;
+	height: 20px;
+	line-height: 20px;
+}   
+
+ul.list_events li a {
+	display: block; 
+	width: 20px;
+	height: 20px;
+	/* line-height: 20px; */
+	font-size: 10px;
+	text-decoration: none;
+	text-align: center;
+	color: #036;
+	background: #fff;
+}   
+
+/*
+ul.list_events li a:hover {
+	background: #def;
+	color: #f60;
+} 
+*/
+
+ul.list_events li a.week_day { 
+	background: #efefef;
+	color: #333;
+}   
+
+/* Today's date */
+
+ul.list_events li a.today { 
+	background: #def;
+	color: #369;
+	font-weight: bold;
+}
+
+/* Selected date */
+
+ul.list_events li a.sel_day {
+	background: #def;
+	color: #369;
+	font-weight: bold;
+}
+
+/* Shows days with appointments */
+
+ul.list_events li a.app_day { 
+	background: #efefef;
+	color: #f60;
+}
+
+/* Used in the navigation bar at the top of the calendar */
+div.cal_navigation {
+	color: black;
+	font-size: 14px;
+	padding: 2px;
+	background-color: #bbbbbb;
+	-moz-border-radius-topleft: 8px;
+	-moz-border-radius-topright: 8px;
+}
+
+div.cal_navigation img {
+	border: 0px;
+	vertical-align: middle;
+	margin: 1px;
+}
+
+/* Used in the floating calendar over "now" icon */
+a.cal_yearview {
+	background-color: #aaaaaa;
+	padding: 3px;
+	margin: 1px;
+	font-size: 10px;
+	/* font-weight: bold; */
+	color: white;
+	-moz-border-radius: 5px;
+}
+a.cal_yearview:hover {
+	color: black;
+	background-color: white;
+}
+
