@@ -10,16 +10,20 @@ const notificationSchema = new mongoose.Schema({
     type: {
         type: String,
         enum: [
-            'order',           // طلب جديد
-            'proposal',        // عرض محاماة
+            'order',             // طلب جديد
+            'proposal',          // عرض محاماة
             'proposal_accepted', // قبول عرض
-            'task',            // تذكير مهمة
-            'message',         // رسالة جديدة
-            'hearing',         // جلسة قادمة
-            'case',            // تحديث قضية
-            'event',           // حدث قادم
-            'review',          // تقييم جديد
-            'payment'          // دفعة مالية
+            'task',              // تذكير مهمة
+            'task_assigned',     // تم تعيين مهمة
+            'message',           // رسالة جديدة
+            'hearing',           // جلسة قادمة
+            'hearing_reminder',  // تذكير بجلسة
+            'deadline',          // موعد نهائي
+            'case',              // تحديث قضية
+            'case_update',       // تحديث القضية
+            'event',             // حدث قادم
+            'review',            // تقييم جديد
+            'payment'            // دفعة مالية
         ],
         required: true
     },

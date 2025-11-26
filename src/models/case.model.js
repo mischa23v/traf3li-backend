@@ -144,6 +144,7 @@ const caseSchema = new mongoose.Schema({
     documents: [{
         filename: String,
         url: String,
+        fileKey: String,
         type: String,
         size: Number,
         uploadedBy: {
@@ -153,9 +154,15 @@ const caseSchema = new mongoose.Schema({
         uploadedAt: { type: Date, default: Date.now },
         category: {
             type: String,
-            enum: ['contract', 'evidence', 'correspondence', 'other'],
+            enum: ['contract', 'evidence', 'correspondence', 'pleading', 'judgment', 'other'],
             default: 'other'
-        }
+        },
+        bucket: {
+            type: String,
+            enum: ['general', 'judgments'],
+            default: 'general'
+        },
+        description: String
     }],
     hearings: [{
         date: Date,
@@ -165,6 +172,10 @@ const caseSchema = new mongoose.Schema({
             type: String,
             enum: ['scheduled', 'attended', 'missed'],
             default: 'scheduled'
+        },
+        attended: {
+            type: Boolean,
+            default: false
         }
     }],
     startDate: {
