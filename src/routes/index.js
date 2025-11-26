@@ -36,6 +36,22 @@ const clientRoute = require('./client.route');
 const calendarRoute = require('./calendar.route');
 const lawyerRoute = require('./lawyer.route');
 
+// New API Routes
+const tagRoute = require('./tag.route');
+const contactRoute = require('./contact.route');
+const organizationRoute = require('./organization.route');
+const documentRoute = require('./document.route');
+const followupRoute = require('./followup.route');
+const workflowRoute = require('./workflow.route');
+const rateGroupRoute = require('./rateGroup.route');
+const rateCardRoute = require('./rateCard.route');
+const invoiceTemplateRoute = require('./invoiceTemplate.route');
+const dataExportRoute = require('./dataExport.route');
+const conflictCheckRoute = require('./conflictCheck.route');
+const trustAccountRoute = require('./trustAccount.route');
+const matterBudgetRoute = require('./matterBudget.route');
+const savedReportRoute = require('./savedReport.route');
+
 module.exports = {
     // Marketplace
     gigRoute,
@@ -73,5 +89,21 @@ module.exports = {
     reminderRoute,
     clientRoute,
     calendarRoute,
-    lawyerRoute
+    lawyerRoute,
+
+    // New API Routes
+    tagRoute,
+    contactRoute,
+    organizationRoute,
+    documentRoute,
+    followupRoute,
+    workflowRoute,
+    rateGroupRoute,
+    rateCardRoute,
+    invoiceTemplateRoute,
+    dataExportRoute,
+    conflictCheckRoute,
+    trustAccountRoute,
+    matterBudgetRoute,
+    savedReportRoute
 };
