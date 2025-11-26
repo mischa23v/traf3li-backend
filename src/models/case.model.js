@@ -135,7 +135,11 @@ const caseSchema = new mongoose.Schema({
     }],
     notes: [{
         text: String,
-        date: { type: Date, default: Date.now }
+        createdBy: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'User'
+        },
+        createdAt: { type: Date, default: Date.now }
     }],
     documents: [{
         filename: String,
@@ -157,7 +161,11 @@ const caseSchema = new mongoose.Schema({
         date: Date,
         location: String,
         notes: String,
-        attended: { type: Boolean, default: false }
+        status: {
+            type: String,
+            enum: ['scheduled', 'attended', 'missed'],
+            default: 'scheduled'
+        }
     }],
     startDate: {
         type: Date,
