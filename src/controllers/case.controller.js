@@ -199,7 +199,11 @@ const addNote = async (request, response) => {
             throw CustomException('Only the lawyer can add notes!', 403);
         }
 
-        caseDoc.notes.push({ text, date: new Date() });
+        caseDoc.notes.push({
+            text,
+            createdBy: request.userID,
+            createdAt: new Date()
+        });
         await caseDoc.save();
 
         return response.status(202).send({
@@ -272,7 +276,14 @@ const addHearing = async (request, response) => {
             throw CustomException('Only the lawyer can add hearings!', 403);
         }
 
-        caseDoc.hearings.push({ date, location, notes, attended: false });
+        caseDoc.hearings.push({ date, location, notes, status: 'scheduled' });
+
+        // Update nextHearing if this is the soonest upcoming hearing
+        const hearingDate = new Date(date);
+        if (!caseDoc.nextHearing || hearingDate < new Date(caseDoc.nextHearing)) {
+            caseDoc.nextHearing = hearingDate;
+        }
+
         await caseDoc.save();
 
         return response.status(202).send({
@@ -440,7 +451,7 @@ const addClaim = async (request, response) => {
 // Update hearing
 const updateHearing = async (request, response) => {
     const { _id, hearingId } = request.params;
-    const { attended, notes, date, location } = request.body;
+    const { status, notes, date, location } = request.body;
     try {
         const caseDoc = await Case.findById(_id);
 
@@ -457,7 +468,7 @@ const updateHearing = async (request, response) => {
             throw CustomException('Hearing not found!', 404);
         }
 
-        if (attended !== undefined) hearing.attended = attended;
+        if (status !== undefined) hearing.status = status;
         if (notes !== undefined) hearing.notes = notes;
         if (date !== undefined) hearing.date = date;
         if (location !== undefined) hearing.location = location;
