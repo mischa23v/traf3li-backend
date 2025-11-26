@@ -44,7 +44,23 @@ const {
     reminderRoute,
     clientRoute,
     calendarRoute,
-    lawyerRoute
+    lawyerRoute,
+
+    // New API Routes
+    tagRoute,
+    contactRoute,
+    organizationRoute,
+    documentRoute,
+    followupRoute,
+    workflowRoute,
+    rateGroupRoute,
+    rateCardRoute,
+    invoiceTemplateRoute,
+    dataExportRoute,
+    conflictCheckRoute,
+    trustAccountRoute,
+    matterBudgetRoute,
+    savedReportRoute
 } = require('./routes');
 
 const app = express();
@@ -189,6 +205,22 @@ app.use('/api/reminders', reminderRoute);
 app.use('/api/clients', clientRoute);
 app.use('/api/calendar', calendarRoute);
 app.use('/api/lawyers', lawyerRoute);
+
+// New API Routes
+app.use('/api/tags', tagRoute);
+app.use('/api/contacts', contactRoute);
+app.use('/api/organizations', organizationRoute);
+app.use('/api/documents', documentRoute);
+app.use('/api/followups', followupRoute);
+app.use('/api/workflows', workflowRoute);
+app.use('/api/rate-groups', rateGroupRoute);
+app.use('/api/rate-cards', rateCardRoute);
+app.use('/api/invoice-templates', invoiceTemplateRoute);
+app.use('/api/data-export', dataExportRoute);
+app.use('/api/conflict-checks', conflictCheckRoute);
+app.use('/api/trust-accounts', trustAccountRoute);
+app.use('/api/matter-budgets', matterBudgetRoute);
+app.use('/api/saved-reports', savedReportRoute);
 
 // Health check endpoint (useful for monitoring)
 app.get('/health', (req, res) => {

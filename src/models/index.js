@@ -36,6 +36,48 @@ const Reminder = require('./reminder.model');
 const Client = require('./client.model');
 const Report = require('./report.model');
 
+// New Service Models
+const Tag = require('./tag.model');
+const Contact = require('./contact.model');
+const Organization = require('./organization.model');
+const Document = require('./document.model');
+const Followup = require('./followup.model');
+
+// Workflow Models
+const WorkflowTemplate = require('./workflowTemplate.model');
+const CaseStageProgress = require('./caseStageProgress.model');
+
+// Enhanced Billing Models
+const RateGroup = require('./rateGroup.model');
+const RateCard = require('./rateCard.model');
+
+// Invoice Template Model
+const InvoiceTemplate = require('./invoiceTemplate.model');
+
+// Export/Import Models
+const ExportJob = require('./exportJob.model');
+const ImportJob = require('./importJob.model');
+const ExportTemplate = require('./exportTemplate.model');
+
+// Enhanced Report Models
+const SavedReport = require('./savedReport.model');
+const DashboardWidget = require('./dashboardWidget.model');
+
+// Conflict Check Model
+const ConflictCheck = require('./conflictCheck.model');
+
+// Trust Account Models
+const TrustAccount = require('./trustAccount.model');
+const ClientTrustBalance = require('./clientTrustBalance.model');
+const TrustTransaction = require('./trustTransaction.model');
+const TrustReconciliation = require('./trustReconciliation.model');
+const ThreeWayReconciliation = require('./threeWayReconciliation.model');
+
+// Matter Budget Models
+const MatterBudget = require('./matterBudget.model');
+const BudgetEntry = require('./budgetEntry.model');
+const BudgetTemplate = require('./budgetTemplate.model');
+
 module.exports = {
     // Marketplace
     User,
@@ -73,5 +115,47 @@ module.exports = {
     // Dashboard Organization
     Reminder,
     Client,
-    Report
+    Report,
+
+    // New Services
+    Tag,
+    Contact,
+    Organization,
+    Document,
+    Followup,
+
+    // Workflows
+    WorkflowTemplate,
+    CaseStageProgress,
+
+    // Enhanced Billing
+    RateGroup,
+    RateCard,
+
+    // Invoice Templates
+    InvoiceTemplate,
+
+    // Export/Import
+    ExportJob,
+    ImportJob,
+    ExportTemplate,
+
+    // Enhanced Reports
+    SavedReport,
+    DashboardWidget,
+
+    // Conflict Check
+    ConflictCheck,
+
+    // Trust Accounts
+    TrustAccount,
+    ClientTrustBalance,
+    TrustTransaction,
+    TrustReconciliation,
+    ThreeWayReconciliation,
+
+    // Matter Budgets
+    MatterBudget,
+    BudgetEntry,
+    BudgetTemplate
 };
