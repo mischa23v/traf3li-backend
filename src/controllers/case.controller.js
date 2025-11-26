@@ -89,17 +89,19 @@ const createCase = async (request, response) => {
 
 // Get all cases
 const getCases = async (request, response) => {
-    const { status, outcome } = request.query;
+    const { status, outcome, category, priority } = request.query;
     try {
         const filters = {
             $or: [{ lawyerId: request.userID }, { clientId: request.userID }],
             ...(status && { status }),
-            ...(outcome && { outcome })
+            ...(outcome && { outcome }),
+            ...(category && { category }),
+            ...(priority && { priority })
         };
 
         const cases = await Case.find(filters)
-            .populate('lawyerId', 'username image email')
-            .populate('clientId', 'username image email')
+            .populate('lawyerId', 'username firstName lastName image email')
+            .populate('clientId', 'username firstName lastName image email')
             .populate('contractId')
             .sort({ updatedAt: -1 });
 
@@ -120,9 +122,10 @@ const getCase = async (request, response) => {
     const { _id } = request.params;
     try {
         const caseDoc = await Case.findById(_id)
-            .populate('lawyerId', 'username image email lawyerProfile')
-            .populate('clientId', 'username image email')
-            .populate('contractId');
+            .populate('lawyerId', 'username firstName lastName image email lawyerProfile')
+            .populate('clientId', 'username firstName lastName image email')
+            .populate('contractId')
+            .populate('documents.uploadedBy', 'username firstName lastName');
 
         if (!caseDoc) {
             throw CustomException('Case not found!', 404);
@@ -215,7 +218,7 @@ const addNote = async (request, response) => {
 // Add document to case
 const addDocument = async (request, response) => {
     const { _id } = request.params;
-    const { name, url } = request.body;
+    const { name, filename, url, type, size, category } = request.body;
     try {
         const caseDoc = await Case.findById(_id);
 
@@ -230,7 +233,15 @@ const addDocument = async (request, response) => {
             throw CustomException('You do not have access to this case!', 403);
         }
 
-        caseDoc.documents.push({ name, url, uploadedAt: new Date() });
+        caseDoc.documents.push({
+            filename: filename || name,  // Support both 'filename' and 'name' fields
+            url,
+            type,
+            size,
+            category: category || 'other',
+            uploadedBy: request.userID,
+            uploadedAt: new Date()
+        });
         await caseDoc.save();
 
         return response.status(202).send({
@@ -355,6 +366,410 @@ const updateOutcome = async (request, response) => {
     }
 };
 
+// Add timeline event to case
+const addTimelineEvent = async (request, response) => {
+    const { _id } = request.params;
+    const { event, date, type, status } = request.body;
+    try {
+        const caseDoc = await Case.findById(_id);
+
+        if (!caseDoc) {
+            throw CustomException('Case not found!', 404);
+        }
+
+        if (caseDoc.lawyerId.toString() !== request.userID) {
+            throw CustomException('Only the lawyer can add timeline events!', 403);
+        }
+
+        caseDoc.timeline.push({
+            event,
+            date,
+            type: type || 'general',
+            status: status || 'upcoming'
+        });
+        await caseDoc.save();
+
+        return response.status(202).send({
+            error: false,
+            message: 'Timeline event added successfully!',
+            case: caseDoc
+        });
+    } catch ({ message, status = 500 }) {
+        return response.status(status).send({
+            error: true,
+            message
+        });
+    }
+};
+
+// Add claim to case
+const addClaim = async (request, response) => {
+    const { _id } = request.params;
+    const { type, amount, period, description } = request.body;
+    try {
+        const caseDoc = await Case.findById(_id);
+
+        if (!caseDoc) {
+            throw CustomException('Case not found!', 404);
+        }
+
+        if (caseDoc.lawyerId.toString() !== request.userID) {
+            throw CustomException('Only the lawyer can add claims!', 403);
+        }
+
+        caseDoc.claims.push({ type, amount, period, description });
+
+        // Update total claim amount
+        caseDoc.claimAmount = caseDoc.claims.reduce((sum, claim) => sum + (claim.amount || 0), 0);
+
+        await caseDoc.save();
+
+        return response.status(202).send({
+            error: false,
+            message: 'Claim added successfully!',
+            case: caseDoc
+        });
+    } catch ({ message, status = 500 }) {
+        return response.status(status).send({
+            error: true,
+            message
+        });
+    }
+};
+
+// Update hearing
+const updateHearing = async (request, response) => {
+    const { _id, hearingId } = request.params;
+    const { attended, notes, date, location } = request.body;
+    try {
+        const caseDoc = await Case.findById(_id);
+
+        if (!caseDoc) {
+            throw CustomException('Case not found!', 404);
+        }
+
+        if (caseDoc.lawyerId.toString() !== request.userID) {
+            throw CustomException('Only the lawyer can update hearings!', 403);
+        }
+
+        const hearing = caseDoc.hearings.id(hearingId);
+        if (!hearing) {
+            throw CustomException('Hearing not found!', 404);
+        }
+
+        if (attended !== undefined) hearing.attended = attended;
+        if (notes !== undefined) hearing.notes = notes;
+        if (date !== undefined) hearing.date = date;
+        if (location !== undefined) hearing.location = location;
+
+        await caseDoc.save();
+
+        return response.status(202).send({
+            error: false,
+            message: 'Hearing updated successfully!',
+            case: caseDoc
+        });
+    } catch ({ message, status = 500 }) {
+        return response.status(status).send({
+            error: true,
+            message
+        });
+    }
+};
+
+// Update progress
+const updateProgress = async (request, response) => {
+    const { _id } = request.params;
+    const { progress } = request.body;
+    try {
+        const caseDoc = await Case.findById(_id);
+
+        if (!caseDoc) {
+            throw CustomException('Case not found!', 404);
+        }
+
+        if (caseDoc.lawyerId.toString() !== request.userID) {
+            throw CustomException('Only the lawyer can update case progress!', 403);
+        }
+
+        if (progress < 0 || progress > 100) {
+            throw CustomException('Progress must be between 0 and 100!', 400);
+        }
+
+        caseDoc.progress = progress;
+        await caseDoc.save();
+
+        return response.status(202).send({
+            error: false,
+            message: 'Case progress updated!',
+            case: caseDoc
+        });
+    } catch ({ message, status = 500 }) {
+        return response.status(status).send({
+            error: true,
+            message
+        });
+    }
+};
+
+// Delete case
+const deleteCase = async (request, response) => {
+    const { _id } = request.params;
+    try {
+        const caseDoc = await Case.findById(_id);
+
+        if (!caseDoc) {
+            throw CustomException('Case not found!', 404);
+        }
+
+        if (caseDoc.lawyerId.toString() !== request.userID) {
+            throw CustomException('Only the lawyer can delete this case!', 403);
+        }
+
+        await Case.findByIdAndDelete(_id);
+
+        return response.status(200).send({
+            error: false,
+            message: 'Case deleted successfully!'
+        });
+    } catch ({ message, status = 500 }) {
+        return response.status(status).send({
+            error: true,
+            message
+        });
+    }
+};
+
+// Delete note from case
+const deleteNote = async (request, response) => {
+    const { _id, noteId } = request.params;
+    try {
+        const caseDoc = await Case.findById(_id);
+
+        if (!caseDoc) {
+            throw CustomException('Case not found!', 404);
+        }
+
+        if (caseDoc.lawyerId.toString() !== request.userID) {
+            throw CustomException('Only the lawyer can delete notes!', 403);
+        }
+
+        const note = caseDoc.notes.id(noteId);
+        if (!note) {
+            throw CustomException('Note not found!', 404);
+        }
+
+        caseDoc.notes.pull(noteId);
+        await caseDoc.save();
+
+        return response.status(200).send({
+            error: false,
+            message: 'Note deleted successfully!',
+            case: caseDoc
+        });
+    } catch ({ message, status = 500 }) {
+        return response.status(status).send({
+            error: true,
+            message
+        });
+    }
+};
+
+// Delete hearing from case
+const deleteHearing = async (request, response) => {
+    const { _id, hearingId } = request.params;
+    try {
+        const caseDoc = await Case.findById(_id);
+
+        if (!caseDoc) {
+            throw CustomException('Case not found!', 404);
+        }
+
+        if (caseDoc.lawyerId.toString() !== request.userID) {
+            throw CustomException('Only the lawyer can delete hearings!', 403);
+        }
+
+        const hearing = caseDoc.hearings.id(hearingId);
+        if (!hearing) {
+            throw CustomException('Hearing not found!', 404);
+        }
+
+        caseDoc.hearings.pull(hearingId);
+        await caseDoc.save();
+
+        return response.status(200).send({
+            error: false,
+            message: 'Hearing deleted successfully!',
+            case: caseDoc
+        });
+    } catch ({ message, status = 500 }) {
+        return response.status(status).send({
+            error: true,
+            message
+        });
+    }
+};
+
+// Delete document from case
+const deleteDocument = async (request, response) => {
+    const { _id, documentId } = request.params;
+    try {
+        const caseDoc = await Case.findById(_id);
+
+        if (!caseDoc) {
+            throw CustomException('Case not found!', 404);
+        }
+
+        if (caseDoc.lawyerId.toString() !== request.userID) {
+            throw CustomException('Only the lawyer can delete documents!', 403);
+        }
+
+        const doc = caseDoc.documents.id(documentId);
+        if (!doc) {
+            throw CustomException('Document not found!', 404);
+        }
+
+        caseDoc.documents.pull(documentId);
+        await caseDoc.save();
+
+        return response.status(200).send({
+            error: false,
+            message: 'Document deleted successfully!',
+            case: caseDoc
+        });
+    } catch ({ message, status = 500 }) {
+        return response.status(status).send({
+            error: true,
+            message
+        });
+    }
+};
+
+// Delete claim from case
+const deleteClaim = async (request, response) => {
+    const { _id, claimId } = request.params;
+    try {
+        const caseDoc = await Case.findById(_id);
+
+        if (!caseDoc) {
+            throw CustomException('Case not found!', 404);
+        }
+
+        if (caseDoc.lawyerId.toString() !== request.userID) {
+            throw CustomException('Only the lawyer can delete claims!', 403);
+        }
+
+        const claim = caseDoc.claims.id(claimId);
+        if (!claim) {
+            throw CustomException('Claim not found!', 404);
+        }
+
+        caseDoc.claims.pull(claimId);
+
+        // Update total claim amount
+        caseDoc.claimAmount = caseDoc.claims.reduce((sum, c) => sum + (c.amount || 0), 0);
+
+        await caseDoc.save();
+
+        return response.status(200).send({
+            error: false,
+            message: 'Claim deleted successfully!',
+            case: caseDoc
+        });
+    } catch ({ message, status = 500 }) {
+        return response.status(status).send({
+            error: true,
+            message
+        });
+    }
+};
+
+// Delete timeline event from case
+const deleteTimelineEvent = async (request, response) => {
+    const { _id, eventId } = request.params;
+    try {
+        const caseDoc = await Case.findById(_id);
+
+        if (!caseDoc) {
+            throw CustomException('Case not found!', 404);
+        }
+
+        if (caseDoc.lawyerId.toString() !== request.userID) {
+            throw CustomException('Only the lawyer can delete timeline events!', 403);
+        }
+
+        const event = caseDoc.timeline.id(eventId);
+        if (!event) {
+            throw CustomException('Timeline event not found!', 404);
+        }
+
+        caseDoc.timeline.pull(eventId);
+        await caseDoc.save();
+
+        return response.status(200).send({
+            error: false,
+            message: 'Timeline event deleted successfully!',
+            case: caseDoc
+        });
+    } catch ({ message, status = 500 }) {
+        return response.status(status).send({
+            error: true,
+            message
+        });
+    }
+};
+
+// Get case statistics
+const getStatistics = async (request, response) => {
+    try {
+        // Only get cases where user is the lawyer
+        const cases = await Case.find({ lawyerId: request.userID });
+
+        const statistics = {
+            total: cases.length,
+            active: cases.filter(c => c.status === 'active').length,
+            closed: cases.filter(c => c.status === 'closed').length,
+            completed: cases.filter(c => c.status === 'completed').length,
+            won: cases.filter(c => c.outcome === 'won').length,
+            lost: cases.filter(c => c.outcome === 'lost').length,
+            settled: cases.filter(c => c.outcome === 'settled').length,
+            onHold: cases.filter(c => c.status === 'on-hold').length,
+            appeal: cases.filter(c => c.status === 'appeal').length,
+            settlement: cases.filter(c => c.status === 'settlement').length,
+            highPriority: cases.filter(c => c.priority === 'high' || c.priority === 'critical').length,
+            totalClaimAmount: cases.reduce((sum, c) => sum + (c.claimAmount || 0), 0),
+            totalExpectedWinAmount: cases.reduce((sum, c) => sum + (c.expectedWinAmount || 0), 0),
+            avgProgress: cases.length > 0
+                ? Math.round(cases.reduce((sum, c) => sum + (c.progress || 0), 0) / cases.length)
+                : 0,
+            byCategory: {},
+            byPriority: {
+                low: cases.filter(c => c.priority === 'low').length,
+                medium: cases.filter(c => c.priority === 'medium').length,
+                high: cases.filter(c => c.priority === 'high').length,
+                critical: cases.filter(c => c.priority === 'critical').length
+            }
+        };
+
+        // Group by category
+        cases.forEach(c => {
+            if (c.category) {
+                statistics.byCategory[c.category] = (statistics.byCategory[c.category] || 0) + 1;
+            }
+        });
+
+        return response.send({
+            error: false,
+            statistics
+        });
+    } catch ({ message, status = 500 }) {
+        return response.status(status).send({
+            error: true,
+            message
+        });
+    }
+};
+
 module.exports = {
     createCase,
     getCases,
@@ -364,5 +779,16 @@ module.exports = {
     addDocument,
     addHearing,
     updateStatus,
-    updateOutcome
+    updateOutcome,
+    addTimelineEvent,
+    addClaim,
+    updateHearing,
+    updateProgress,
+    deleteCase,
+    deleteNote,
+    deleteHearing,
+    deleteDocument,
+    deleteClaim,
+    deleteTimelineEvent,
+    getStatistics
 };
