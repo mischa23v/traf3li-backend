@@ -1,5 +1,7 @@
 const { Case, Order, User } = require('../models');
 const AuditLog = require('../models/auditLog.model');
+const CaseAuditLog = require('../models/caseAuditLog.model');
+const CaseAuditService = require('../services/caseAuditService');
 const { CustomException } = require('../utils');
 const { calculateLawyerScore } = require('./score.controller');
 const { getUploadPresignedUrl, getDownloadPresignedUrl, deleteFile, generateFileKey } = require('../configs/s3');
@@ -1210,6 +1212,8 @@ const updateTimelineEvent = async (request, response) => {
 // Get case audit history
 const getCaseAudit = async (request, response) => {
     const { _id } = request.params;
+    const { page = 1, limit = 50, resource, action } = request.query;
+
     try {
         const caseDoc = await Case.findById(_id);
 
@@ -1222,28 +1226,50 @@ const getCaseAudit = async (request, response) => {
             throw CustomException('Only the lawyer can view audit history!', 403);
         }
 
-        // Get audit logs for this case
-        const logs = await AuditLog.find({
+        // Get audit logs from the new CaseAuditLog model
+        const result = await CaseAuditService.getCaseAuditHistory(_id, {
+            page: parseInt(page),
+            limit: parseInt(limit),
+            resource,
+            action
+        });
+
+        // Also get legacy logs from the old AuditLog model for backwards compatibility
+        const legacyLogs = await AuditLog.find({
             resourceType: 'Case',
             resourceId: _id
         })
             .populate('userId', 'firstName lastName email')
             .sort({ timestamp: -1 })
-            .limit(100);
+            .limit(50);
 
-        // Transform to match expected format
-        const formattedLogs = logs.map(log => ({
+        // Transform legacy logs to match expected format
+        const formattedLegacyLogs = legacyLogs.map(log => ({
             _id: log._id,
             userId: log.userId,
-            action: log.action,
-            resource: log.resourceType.toLowerCase(),
+            action: mapLegacyAction(log.action),
+            resource: log.resourceType?.toLowerCase() || 'case',
+            resourceId: log.resourceId,
+            caseId: _id,
             changes: log.details || {},
-            timestamp: log.timestamp
+            metadata: {
+                ip: log.ipAddress,
+                userAgent: log.userAgent
+            },
+            timestamp: log.timestamp,
+            createdAt: log.timestamp,
+            isLegacy: true
         }));
+
+        // Combine and sort all logs
+        const allLogs = [...result.logs, ...formattedLegacyLogs]
+            .sort((a, b) => new Date(b.timestamp || b.createdAt) - new Date(a.timestamp || a.createdAt))
+            .slice(0, parseInt(limit));
 
         return response.send({
             error: false,
-            logs: formattedLogs
+            data: allLogs,
+            pagination: result.pagination
         });
     } catch ({ message, status = 500 }) {
         return response.status(status).send({
@@ -1251,6 +1277,21 @@ const getCaseAudit = async (request, response) => {
             message
         });
     }
+};
+
+// Helper to map legacy action names to new format
+const mapLegacyAction = (action) => {
+    const mapping = {
+        'view_case': 'view',
+        'create_case': 'create',
+        'update_case': 'update',
+        'delete_case': 'delete',
+        'view_document': 'view',
+        'upload_document': 'create',
+        'download_document': 'view',
+        'delete_document': 'delete'
+    };
+    return mapping[action] || action;
 };
 
 module.exports = {
