@@ -1,6 +1,8 @@
 const { Case, Order, User } = require('../models');
+const AuditLog = require('../models/auditLog.model');
 const { CustomException } = require('../utils');
 const { calculateLawyerScore } = require('./score.controller');
+const { getUploadPresignedUrl, getDownloadPresignedUrl, deleteFile, generateFileKey } = require('../configs/s3');
 
 // Create case (from contract OR standalone)
 const createCase = async (request, response) => {
@@ -87,27 +89,96 @@ const createCase = async (request, response) => {
     }
 };
 
-// Get all cases
+// Get all cases (enhanced with advanced filtering and pagination)
 const getCases = async (request, response) => {
-    const { status, outcome, category, priority } = request.query;
+    const {
+        status,
+        outcome,
+        category,
+        priority,
+        lawyerId,
+        clientId,
+        dateFrom,
+        dateTo,
+        search,
+        page = 1,
+        limit = 20,
+        sortBy = 'createdAt',
+        sortOrder = 'desc'
+    } = request.query;
+
     try {
+        // Build filters
         const filters = {
-            $or: [{ lawyerId: request.userID }, { clientId: request.userID }],
-            ...(status && { status }),
-            ...(outcome && { outcome }),
-            ...(category && { category }),
-            ...(priority && { priority })
+            $or: [{ lawyerId: request.userID }, { clientId: request.userID }]
         };
 
-        const cases = await Case.find(filters)
-            .populate('lawyerId', 'username firstName lastName image email')
-            .populate('clientId', 'username firstName lastName image email')
-            .populate('contractId')
-            .sort({ updatedAt: -1 });
+        // Apply optional filters
+        if (status) filters.status = status;
+        if (outcome) filters.outcome = outcome;
+        if (category) filters.category = category;
+        if (priority) filters.priority = priority;
+
+        // Filter by specific lawyer or client
+        if (lawyerId) {
+            filters.lawyerId = lawyerId;
+            delete filters.$or;
+        }
+        if (clientId) {
+            filters.clientId = clientId;
+            delete filters.$or;
+        }
+
+        // Date range filter
+        if (dateFrom || dateTo) {
+            filters.createdAt = {};
+            if (dateFrom) filters.createdAt.$gte = new Date(dateFrom);
+            if (dateTo) filters.createdAt.$lte = new Date(dateTo);
+        }
+
+        // Search filter (title, description, caseNumber)
+        if (search) {
+            filters.$and = filters.$and || [];
+            filters.$and.push({
+                $or: [
+                    { title: { $regex: search, $options: 'i' } },
+                    { description: { $regex: search, $options: 'i' } },
+                    { caseNumber: { $regex: search, $options: 'i' } },
+                    { clientName: { $regex: search, $options: 'i' } }
+                ]
+            });
+        }
+
+        // Build sort object
+        const sort = {};
+        sort[sortBy] = sortOrder === 'asc' ? 1 : -1;
+
+        // Calculate pagination
+        const pageNum = parseInt(page);
+        const limitNum = parseInt(limit);
+        const skip = (pageNum - 1) * limitNum;
+
+        // Execute query with pagination
+        const [cases, total] = await Promise.all([
+            Case.find(filters)
+                .populate('lawyerId', 'username firstName lastName image email')
+                .populate('clientId', 'username firstName lastName image email')
+                .populate('contractId')
+                .sort(sort)
+                .skip(skip)
+                .limit(limitNum),
+            Case.countDocuments(filters)
+        ]);
 
         return response.send({
             error: false,
-            cases
+            cases,
+            pagination: {
+                page: pageNum,
+                limit: limitNum,
+                total,
+                pages: Math.ceil(total / limitNum)
+            }
         });
     } catch ({ message, status = 500 }) {
         return response.status(status).send({
@@ -730,18 +801,53 @@ const deleteTimelineEvent = async (request, response) => {
     }
 };
 
-// Get case statistics
+// Get case statistics (enhanced with byMonth and successRate)
 const getStatistics = async (request, response) => {
     try {
         // Only get cases where user is the lawyer
         const cases = await Case.find({ lawyerId: request.userID });
+
+        // Calculate won amount (from cases with outcome = 'won')
+        const wonCases = cases.filter(c => c.outcome === 'won');
+        const totalWonAmount = wonCases.reduce((sum, c) => sum + (c.claimAmount || 0), 0);
+
+        // Calculate success rate
+        const completedCases = cases.filter(c =>
+            c.outcome === 'won' || c.outcome === 'lost' || c.outcome === 'settled'
+        );
+        const successRate = completedCases.length > 0
+            ? Math.round((wonCases.length / completedCases.length) * 100)
+            : 0;
+
+        // Group by month (last 12 months)
+        const byMonth = [];
+        const now = new Date();
+        for (let i = 11; i >= 0; i--) {
+            const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
+            const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+            const monthStart = new Date(date.getFullYear(), date.getMonth(), 1);
+            const monthEnd = new Date(date.getFullYear(), date.getMonth() + 1, 0, 23, 59, 59, 999);
+
+            const created = cases.filter(c => {
+                const createdAt = new Date(c.createdAt);
+                return createdAt >= monthStart && createdAt <= monthEnd;
+            }).length;
+
+            const closed = cases.filter(c => {
+                if (!c.endDate) return false;
+                const endDate = new Date(c.endDate);
+                return endDate >= monthStart && endDate <= monthEnd;
+            }).length;
+
+            byMonth.push({ month: monthKey, created, closed });
+        }
 
         const statistics = {
             total: cases.length,
             active: cases.filter(c => c.status === 'active').length,
             closed: cases.filter(c => c.status === 'closed').length,
             completed: cases.filter(c => c.status === 'completed').length,
-            won: cases.filter(c => c.outcome === 'won').length,
+            won: wonCases.length,
             lost: cases.filter(c => c.outcome === 'lost').length,
             settled: cases.filter(c => c.outcome === 'settled').length,
             onHold: cases.filter(c => c.status === 'on-hold').length,
@@ -750,28 +856,394 @@ const getStatistics = async (request, response) => {
             highPriority: cases.filter(c => c.priority === 'high' || c.priority === 'critical').length,
             totalClaimAmount: cases.reduce((sum, c) => sum + (c.claimAmount || 0), 0),
             totalExpectedWinAmount: cases.reduce((sum, c) => sum + (c.expectedWinAmount || 0), 0),
+            totalWonAmount,
             avgProgress: cases.length > 0
                 ? Math.round(cases.reduce((sum, c) => sum + (c.progress || 0), 0) / cases.length)
                 : 0,
-            byCategory: {},
+            successRate,
+            byCategory: {
+                labor: cases.filter(c => c.category === 'labor').length,
+                commercial: cases.filter(c => c.category === 'commercial').length,
+                civil: cases.filter(c => c.category === 'civil').length,
+                criminal: cases.filter(c => c.category === 'criminal').length,
+                family: cases.filter(c => c.category === 'family').length,
+                administrative: cases.filter(c => c.category === 'administrative').length
+            },
             byPriority: {
                 low: cases.filter(c => c.priority === 'low').length,
                 medium: cases.filter(c => c.priority === 'medium').length,
                 high: cases.filter(c => c.priority === 'high').length,
                 critical: cases.filter(c => c.priority === 'critical').length
-            }
+            },
+            byMonth
         };
-
-        // Group by category
-        cases.forEach(c => {
-            if (c.category) {
-                statistics.byCategory[c.category] = (statistics.byCategory[c.category] || 0) + 1;
-            }
-        });
 
         return response.send({
             error: false,
             statistics
+        });
+    } catch ({ message, status = 500 }) {
+        return response.status(status).send({
+            error: true,
+            message
+        });
+    }
+};
+
+// ==================== S3 DOCUMENT MANAGEMENT ====================
+
+// Get presigned URL for uploading document
+const getDocumentUploadUrl = async (request, response) => {
+    const { _id } = request.params;
+    const { filename, contentType, category } = request.body;
+    try {
+        const caseDoc = await Case.findById(_id);
+
+        if (!caseDoc) {
+            throw CustomException('Case not found!', 404);
+        }
+
+        // Check access (lawyer or client)
+        const isLawyer = caseDoc.lawyerId.toString() === request.userID;
+        const isClient = caseDoc.clientId && caseDoc.clientId.toString() === request.userID;
+
+        if (!isLawyer && !isClient) {
+            throw CustomException('You do not have access to this case!', 403);
+        }
+
+        // Determine bucket based on category
+        const bucket = category === 'judgment' ? 'judgments' : 'general';
+
+        // Generate file key
+        const fileKey = generateFileKey(_id, category || 'other', filename);
+
+        // Get presigned URL
+        const uploadUrl = await getUploadPresignedUrl(fileKey, contentType, bucket);
+
+        return response.status(200).send({
+            error: false,
+            uploadUrl,
+            fileKey,
+            bucket
+        });
+    } catch ({ message, status = 500 }) {
+        return response.status(status).send({
+            error: true,
+            message
+        });
+    }
+};
+
+// Confirm document upload and save to case
+const confirmDocumentUpload = async (request, response) => {
+    const { _id } = request.params;
+    const { filename, fileKey, bucket, type, size, category, description } = request.body;
+    try {
+        const caseDoc = await Case.findById(_id);
+
+        if (!caseDoc) {
+            throw CustomException('Case not found!', 404);
+        }
+
+        // Check access (lawyer or client)
+        const isLawyer = caseDoc.lawyerId.toString() === request.userID;
+        const isClient = caseDoc.clientId && caseDoc.clientId.toString() === request.userID;
+
+        if (!isLawyer && !isClient) {
+            throw CustomException('You do not have access to this case!', 403);
+        }
+
+        // Add document to case
+        caseDoc.documents.push({
+            filename,
+            fileKey,
+            bucket: bucket || 'general',
+            type,
+            size,
+            category: category || 'other',
+            description,
+            uploadedBy: request.userID,
+            uploadedAt: new Date()
+        });
+
+        await caseDoc.save();
+
+        return response.status(201).send({
+            error: false,
+            message: 'Document uploaded successfully!',
+            document: caseDoc.documents[caseDoc.documents.length - 1],
+            case: caseDoc
+        });
+    } catch ({ message, status = 500 }) {
+        return response.status(status).send({
+            error: true,
+            message
+        });
+    }
+};
+
+// Get presigned URL for downloading document
+const getDocumentDownloadUrl = async (request, response) => {
+    const { _id, docId } = request.params;
+    try {
+        const caseDoc = await Case.findById(_id);
+
+        if (!caseDoc) {
+            throw CustomException('Case not found!', 404);
+        }
+
+        // Check access (lawyer or client)
+        const isLawyer = caseDoc.lawyerId.toString() === request.userID;
+        const isClient = caseDoc.clientId && caseDoc.clientId.toString() === request.userID;
+
+        if (!isLawyer && !isClient) {
+            throw CustomException('You do not have access to this case!', 403);
+        }
+
+        const doc = caseDoc.documents.id(docId);
+        if (!doc) {
+            throw CustomException('Document not found!', 404);
+        }
+
+        // If document has fileKey, generate presigned URL from S3
+        if (doc.fileKey) {
+            const downloadUrl = await getDownloadPresignedUrl(
+                doc.fileKey,
+                doc.bucket || 'general',
+                doc.filename
+            );
+
+            return response.status(200).send({
+                error: false,
+                downloadUrl,
+                filename: doc.filename
+            });
+        }
+
+        // Fallback to stored URL (legacy documents)
+        return response.status(200).send({
+            error: false,
+            downloadUrl: doc.url,
+            filename: doc.filename
+        });
+    } catch ({ message, status = 500 }) {
+        return response.status(status).send({
+            error: true,
+            message
+        });
+    }
+};
+
+// Delete document from case and S3
+const deleteDocumentWithS3 = async (request, response) => {
+    const { _id, docId } = request.params;
+    try {
+        const caseDoc = await Case.findById(_id);
+
+        if (!caseDoc) {
+            throw CustomException('Case not found!', 404);
+        }
+
+        if (caseDoc.lawyerId.toString() !== request.userID) {
+            throw CustomException('Only the lawyer can delete documents!', 403);
+        }
+
+        const doc = caseDoc.documents.id(docId);
+        if (!doc) {
+            throw CustomException('Document not found!', 404);
+        }
+
+        // Delete from S3 if fileKey exists
+        if (doc.fileKey) {
+            try {
+                await deleteFile(doc.fileKey, doc.bucket || 'general');
+            } catch (s3Error) {
+                console.error('S3 delete error:', s3Error);
+                // Continue even if S3 delete fails
+            }
+        }
+
+        caseDoc.documents.pull(docId);
+        await caseDoc.save();
+
+        return response.status(200).send({
+            error: false,
+            message: 'Document deleted successfully!',
+            case: caseDoc
+        });
+    } catch ({ message, status = 500 }) {
+        return response.status(status).send({
+            error: true,
+            message
+        });
+    }
+};
+
+// ==================== NOTES CRUD ====================
+
+// Update note
+const updateNote = async (request, response) => {
+    const { _id, noteId } = request.params;
+    const { text } = request.body;
+    try {
+        const caseDoc = await Case.findById(_id);
+
+        if (!caseDoc) {
+            throw CustomException('Case not found!', 404);
+        }
+
+        if (caseDoc.lawyerId.toString() !== request.userID) {
+            throw CustomException('Only the lawyer can update notes!', 403);
+        }
+
+        const note = caseDoc.notes.id(noteId);
+        if (!note) {
+            throw CustomException('Note not found!', 404);
+        }
+
+        if (text !== undefined) note.text = text;
+
+        await caseDoc.save();
+
+        return response.status(202).send({
+            error: false,
+            message: 'Note updated successfully!',
+            case: caseDoc
+        });
+    } catch ({ message, status = 500 }) {
+        return response.status(status).send({
+            error: true,
+            message
+        });
+    }
+};
+
+// ==================== CLAIMS CRUD ====================
+
+// Update claim
+const updateClaim = async (request, response) => {
+    const { _id, claimId } = request.params;
+    const { type, amount, period, description } = request.body;
+    try {
+        const caseDoc = await Case.findById(_id);
+
+        if (!caseDoc) {
+            throw CustomException('Case not found!', 404);
+        }
+
+        if (caseDoc.lawyerId.toString() !== request.userID) {
+            throw CustomException('Only the lawyer can update claims!', 403);
+        }
+
+        const claim = caseDoc.claims.id(claimId);
+        if (!claim) {
+            throw CustomException('Claim not found!', 404);
+        }
+
+        if (type !== undefined) claim.type = type;
+        if (amount !== undefined) claim.amount = amount;
+        if (period !== undefined) claim.period = period;
+        if (description !== undefined) claim.description = description;
+
+        // Recalculate total claim amount
+        caseDoc.claimAmount = caseDoc.claims.reduce((sum, c) => sum + (c.amount || 0), 0);
+
+        await caseDoc.save();
+
+        return response.status(202).send({
+            error: false,
+            message: 'Claim updated successfully!',
+            case: caseDoc
+        });
+    } catch ({ message, status = 500 }) {
+        return response.status(status).send({
+            error: true,
+            message
+        });
+    }
+};
+
+// ==================== TIMELINE CRUD ====================
+
+// Update timeline event
+const updateTimelineEvent = async (request, response) => {
+    const { _id, eventId } = request.params;
+    const { event, date, type, status } = request.body;
+    try {
+        const caseDoc = await Case.findById(_id);
+
+        if (!caseDoc) {
+            throw CustomException('Case not found!', 404);
+        }
+
+        if (caseDoc.lawyerId.toString() !== request.userID) {
+            throw CustomException('Only the lawyer can update timeline events!', 403);
+        }
+
+        const timelineEvent = caseDoc.timeline.id(eventId);
+        if (!timelineEvent) {
+            throw CustomException('Timeline event not found!', 404);
+        }
+
+        if (event !== undefined) timelineEvent.event = event;
+        if (date !== undefined) timelineEvent.date = date;
+        if (type !== undefined) timelineEvent.type = type;
+        if (status !== undefined) timelineEvent.status = status;
+
+        await caseDoc.save();
+
+        return response.status(202).send({
+            error: false,
+            message: 'Timeline event updated successfully!',
+            case: caseDoc
+        });
+    } catch ({ message, status = 500 }) {
+        return response.status(status).send({
+            error: true,
+            message
+        });
+    }
+};
+
+// ==================== AUDIT LOG ====================
+
+// Get case audit history
+const getCaseAudit = async (request, response) => {
+    const { _id } = request.params;
+    try {
+        const caseDoc = await Case.findById(_id);
+
+        if (!caseDoc) {
+            throw CustomException('Case not found!', 404);
+        }
+
+        // Check access (only lawyer can view audit)
+        if (caseDoc.lawyerId.toString() !== request.userID) {
+            throw CustomException('Only the lawyer can view audit history!', 403);
+        }
+
+        // Get audit logs for this case
+        const logs = await AuditLog.find({
+            resourceType: 'Case',
+            resourceId: _id
+        })
+            .populate('userId', 'firstName lastName email')
+            .sort({ timestamp: -1 })
+            .limit(100);
+
+        // Transform to match expected format
+        const formattedLogs = logs.map(log => ({
+            _id: log._id,
+            userId: log.userId,
+            action: log.action,
+            resource: log.resourceType.toLowerCase(),
+            changes: log.details || {},
+            timestamp: log.timestamp
+        }));
+
+        return response.send({
+            error: false,
+            logs: formattedLogs
         });
     } catch ({ message, status = 500 }) {
         return response.status(status).send({
@@ -801,5 +1273,16 @@ module.exports = {
     deleteDocument,
     deleteClaim,
     deleteTimelineEvent,
-    getStatistics
+    getStatistics,
+    // S3 Document Management
+    getDocumentUploadUrl,
+    confirmDocumentUpload,
+    getDocumentDownloadUrl,
+    deleteDocumentWithS3,
+    // Notes, Claims, Timeline CRUD
+    updateNote,
+    updateClaim,
+    updateTimelineEvent,
+    // Audit
+    getCaseAudit
 };

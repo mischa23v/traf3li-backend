@@ -288,10 +288,44 @@ const deleteUser = async (request, response) => {
     }
 };
 
+// Get team members for case/task assignment
+const getTeamMembers = async (request, response) => {
+    try {
+        const users = await User.find({
+            isSeller: true,
+            role: { $in: ['lawyer', 'admin', 'paralegal', 'assistant'] }
+        })
+            .select('_id firstName lastName email role image lawyerProfile.specialization')
+            .sort({ firstName: 1 });
+
+        // Transform to match expected format
+        const formattedUsers = users.map(user => ({
+            _id: user._id,
+            firstName: user.firstName,
+            lastName: user.lastName,
+            email: user.email,
+            role: user.role,
+            avatar: user.image,
+            status: 'active'
+        }));
+
+        return response.send({
+            error: false,
+            users: formattedUsers
+        });
+    } catch ({ message, status = 500 }) {
+        return response.status(status).send({
+            error: true,
+            message
+        });
+    }
+};
+
 module.exports = {
     getUserProfile,
     getLawyerProfile,
     getLawyers,
     updateUserProfile,
-    deleteUser
+    deleteUser,
+    getTeamMembers
 };

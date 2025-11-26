@@ -1,17 +1,21 @@
 const express = require('express');
 const { userMiddleware } = require('../middlewares');
-const { 
-    getUserProfile, 
-    getLawyerProfile, 
-    getLawyers,  // ✅ ADD THIS
-    updateUserProfile, 
-    deleteUser 
+const {
+    getUserProfile,
+    getLawyerProfile,
+    getLawyers,
+    updateUserProfile,
+    deleteUser,
+    getTeamMembers
 } = require('../controllers/user.controller');
 
 const app = express.Router();
 
-// Get all lawyers with filters (public - no auth required) ✅
+// Get all lawyers with filters (public - no auth required)
 app.get('/lawyers', getLawyers);
+
+// Get team members (protected - must be before /:_id to avoid conflict)
+app.get('/team', userMiddleware, getTeamMembers);
 
 // Get user profile (public - no auth required)
 app.get('/:_id', getUserProfile);
