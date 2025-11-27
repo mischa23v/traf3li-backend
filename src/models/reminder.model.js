@@ -13,8 +13,11 @@ const escalationSchema = new mongoose.Schema({
     enabled: { type: Boolean, default: false },
     escalateAfterMinutes: { type: Number, default: 30 },
     escalateTo: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    // Multiple escalation targets
+    escalateToMultiple: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
     escalated: { type: Boolean, default: false },
-    escalatedAt: Date
+    escalatedAt: Date,
+    escalationLevel: { type: Number, default: 0 }
 }, { _id: false });
 
 const reminderSchema = new mongoose.Schema({
@@ -75,12 +78,40 @@ const reminderSchema = new mongoose.Schema({
         ],
         default: 'general'
     },
+    // Enhanced reminder type for Saudi legal practice
+    reminderType: {
+        type: String,
+        enum: [
+            'general',
+            'court_hearing',
+            'filing_deadline',
+            'appeal_deadline',
+            'client_meeting',
+            'client_call',
+            'payment_due',
+            'document_deadline',
+            'contract_renewal',
+            'follow_up',
+            'statutory_deadline',
+            'najiz_deadline',
+            'other'
+        ],
+        default: 'general'
+    },
     status: {
         type: String,
-        enum: ['pending', 'snoozed', 'completed', 'dismissed', 'delegated'],
+        enum: ['pending', 'snoozed', 'triggered', 'completed', 'dismissed', 'expired', 'delegated'],
         default: 'pending',
         index: true
     },
+    // Deadline information
+    deadlineType: {
+        type: String,
+        enum: ['statutory', 'court_ordered', 'contractual', 'internal', 'none'],
+        default: 'internal'
+    },
+    actualDeadlineDate: Date,
+    daysBeforeDeadline: Number,
     // Snooze configuration
     snooze: {
         snoozedAt: Date,
@@ -149,6 +180,11 @@ const reminderSchema = new mongoose.Schema({
         interval: { type: Number, default: 1 },
         daysOfWeek: [{ type: Number, min: 0, max: 6 }],
         dayOfMonth: { type: Number, min: 1, max: 31 },
+        endType: {
+            type: String,
+            enum: ['never', 'after_occurrences', 'on_date'],
+            default: 'never'
+        },
         endDate: Date,
         maxOccurrences: Number,
         occurrencesCompleted: { type: Number, default: 0 },
@@ -190,6 +226,12 @@ reminderSchema.index({ userId: 1, status: 1, reminderDateTime: 1 });
 reminderSchema.index({ 'recurring.enabled': 1, 'recurring.nextOccurrence': 1 });
 reminderSchema.index({ delegatedTo: 1, status: 1 });
 reminderSchema.index({ 'snooze.snoozeUntil': 1, status: 1 });
+// New indexes for Saudi legal fields
+reminderSchema.index({ reminderType: 1, status: 1 });
+reminderSchema.index({ deadlineType: 1, actualDeadlineDate: 1 });
+reminderSchema.index({ relatedTask: 1 });
+reminderSchema.index({ relatedEvent: 1 });
+reminderSchema.index({ relatedInvoice: 1 });
 
 // Generate reminder ID before saving
 reminderSchema.pre('save', async function(next) {

@@ -15,6 +15,10 @@ const createReminder = asyncHandler(async (req, res) => {
         reminderTime,
         priority = 'medium',
         type = 'general',
+        reminderType = 'general',
+        deadlineType,
+        actualDeadlineDate,
+        daysBeforeDeadline,
         relatedCase,
         relatedTask,
         relatedEvent,
@@ -65,6 +69,10 @@ const createReminder = asyncHandler(async (req, res) => {
         reminderTime: dateTime.toTimeString().substring(0, 5),
         priority,
         type,
+        reminderType,
+        deadlineType,
+        actualDeadlineDate,
+        daysBeforeDeadline,
         relatedCase,
         relatedTask,
         relatedEvent,
@@ -101,7 +109,11 @@ const getReminders = asyncHandler(async (req, res) => {
         status,
         priority,
         type,
+        reminderType,
+        deadlineType,
         relatedCase,
+        relatedTask,
+        relatedEvent,
         clientId,
         startDate,
         endDate,
@@ -122,7 +134,11 @@ const getReminders = asyncHandler(async (req, res) => {
     if (status) query.status = status;
     if (priority) query.priority = priority;
     if (type) query.type = type;
+    if (reminderType) query.reminderType = reminderType;
+    if (deadlineType) query.deadlineType = deadlineType;
     if (relatedCase) query.relatedCase = relatedCase;
+    if (relatedTask) query.relatedTask = relatedTask;
+    if (relatedEvent) query.relatedEvent = relatedEvent;
     if (clientId) query.clientId = clientId;
 
     if (startDate || endDate) {
@@ -212,6 +228,7 @@ const updateReminder = asyncHandler(async (req, res) => {
 
     const allowedFields = [
         'title', 'description', 'reminderDateTime', 'priority', 'type',
+        'reminderType', 'deadlineType', 'actualDeadlineDate', 'daysBeforeDeadline',
         'relatedCase', 'relatedTask', 'relatedEvent', 'relatedInvoice',
         'clientId', 'recurring', 'notification', 'tags', 'notes'
     ];
