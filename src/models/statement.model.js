@@ -1,5 +1,41 @@
 const mongoose = require('mongoose');
 
+// Item schema for statement line items
+const statementItemSchema = new mongoose.Schema({
+    itemType: {
+        type: String,
+        enum: ['invoice', 'payment', 'expense', 'time_entry', 'adjustment', 'credit'],
+        required: true
+    },
+    referenceId: {
+        type: mongoose.Schema.Types.ObjectId,
+        refPath: 'items.referenceModel'
+    },
+    referenceModel: {
+        type: String,
+        enum: ['Invoice', 'Payment', 'Expense', 'TimeEntry']
+    },
+    referenceNumber: {
+        type: String
+    },
+    date: {
+        type: Date,
+        required: true
+    },
+    description: {
+        type: String,
+        required: true
+    },
+    amount: {
+        type: Number,
+        required: true
+    },
+    balance: {
+        type: Number,
+        default: 0
+    }
+}, { _id: false });
+
 const statementSchema = new mongoose.Schema({
     statementNumber: {
         type: String,
@@ -7,10 +43,24 @@ const statementSchema = new mongoose.Schema({
         unique: true,
         index: true
     },
-    userId: {
+    // Client this statement is for
+    clientId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
         required: true,
+        index: true
+    },
+    // Lawyer/firm generating the statement
+    lawyerId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        required: true,
+        index: true
+    },
+    // Case reference (optional - for case-specific statements)
+    caseId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Case',
         index: true
     },
     periodStart: {
@@ -21,12 +71,35 @@ const statementSchema = new mongoose.Schema({
         type: Date,
         required: true
     },
-    type: {
+    period: {
         type: String,
         enum: ['monthly', 'quarterly', 'yearly', 'custom'],
         default: 'monthly'
     },
+    // Detailed line items
+    items: [statementItemSchema],
     summary: {
+        openingBalance: {
+            type: Number,
+            default: 0
+        },
+        totalCharges: {
+            type: Number,
+            default: 0
+        },
+        totalPayments: {
+            type: Number,
+            default: 0
+        },
+        totalAdjustments: {
+            type: Number,
+            default: 0
+        },
+        closingBalance: {
+            type: Number,
+            default: 0
+        },
+        // Legacy fields for backward compatibility
         totalIncome: {
             type: Number,
             default: 0
@@ -56,6 +129,7 @@ const statementSchema = new mongoose.Schema({
             default: 0
         }
     },
+    // Legacy reference arrays
     transactions: [{
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Transaction'
@@ -67,6 +141,10 @@ const statementSchema = new mongoose.Schema({
     expenses: [{
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Expense'
+    }],
+    payments: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Payment'
     }],
     pdfUrl: {
         type: String
@@ -93,7 +171,9 @@ const statementSchema = new mongoose.Schema({
 });
 
 // Indexes
-statementSchema.index({ userId: 1, periodStart: -1 });
+statementSchema.index({ lawyerId: 1, periodStart: -1 });
+statementSchema.index({ clientId: 1, periodStart: -1 });
+statementSchema.index({ caseId: 1, periodStart: -1 });
 statementSchema.index({ status: 1 });
 
 // Generate statement number before saving

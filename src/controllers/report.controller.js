@@ -669,6 +669,366 @@ async function generateTaxReport(userId, startDate, endDate, filters) {
     };
 }
 
+// ==================== Direct Report Endpoints ====================
+
+/**
+ * Get accounts aging report (direct access)
+ * GET /api/reports/accounts-aging
+ */
+const getAccountsAgingReport = asyncHandler(async (req, res) => {
+    const { clientId } = req.query;
+    const lawyerId = req.userID;
+
+    const filters = {};
+    if (clientId) filters.clientId = clientId;
+
+    const agingData = await generateAgingReport(lawyerId, filters);
+
+    res.status(200).json({
+        success: true,
+        report: 'accounts-aging',
+        generatedAt: new Date(),
+        data: agingData
+    });
+});
+
+/**
+ * Get revenue by client report
+ * GET /api/reports/revenue-by-client
+ */
+const getRevenueByClientReport = asyncHandler(async (req, res) => {
+    const { startDate, endDate } = req.query;
+    const lawyerId = req.userID;
+
+    const dateQuery = {};
+    if (startDate && endDate) {
+        dateQuery.issueDate = {
+            $gte: new Date(startDate),
+            $lte: new Date(endDate)
+        };
+    }
+
+    const invoices = await Invoice.find({ lawyerId, ...dateQuery })
+        .populate('clientId', 'firstName lastName username email');
+
+    // Group by client
+    const byClient = {};
+    invoices.forEach(inv => {
+        const clientId = inv.clientId?._id?.toString() || 'unknown';
+        const clientName = inv.clientId
+            ? `${inv.clientId.firstName || ''} ${inv.clientId.lastName || inv.clientId.username}`.trim()
+            : 'Unknown Client';
+
+        if (!byClient[clientId]) {
+            byClient[clientId] = {
+                clientId,
+                clientName,
+                email: inv.clientId?.email,
+                totalInvoiced: 0,
+                totalPaid: 0,
+                totalOutstanding: 0,
+                invoiceCount: 0
+            };
+        }
+
+        byClient[clientId].totalInvoiced += inv.totalAmount || 0;
+        byClient[clientId].totalPaid += inv.amountPaid || 0;
+        byClient[clientId].totalOutstanding += (inv.totalAmount || 0) - (inv.amountPaid || 0);
+        byClient[clientId].invoiceCount += 1;
+    });
+
+    const clients = Object.values(byClient).sort((a, b) => b.totalInvoiced - a.totalInvoiced);
+
+    const totals = clients.reduce((acc, client) => {
+        acc.totalInvoiced += client.totalInvoiced;
+        acc.totalPaid += client.totalPaid;
+        acc.totalOutstanding += client.totalOutstanding;
+        return acc;
+    }, { totalInvoiced: 0, totalPaid: 0, totalOutstanding: 0 });
+
+    res.status(200).json({
+        success: true,
+        report: 'revenue-by-client',
+        generatedAt: new Date(),
+        period: { startDate, endDate },
+        summary: totals,
+        data: clients
+    });
+});
+
+/**
+ * Get outstanding invoices report
+ * GET /api/reports/outstanding-invoices
+ */
+const getOutstandingInvoicesReport = asyncHandler(async (req, res) => {
+    const { clientId, caseId, minAmount, maxAmount } = req.query;
+    const lawyerId = req.userID;
+
+    const query = {
+        lawyerId,
+        status: { $in: ['sent', 'partial', 'overdue'] }
+    };
+
+    if (clientId) query.clientId = clientId;
+    if (caseId) query.caseId = caseId;
+
+    const invoices = await Invoice.find(query)
+        .populate('clientId', 'firstName lastName username email')
+        .populate('caseId', 'title caseNumber')
+        .sort({ dueDate: 1 });
+
+    // Calculate outstanding amounts and filter
+    let outstandingInvoices = invoices.map(inv => {
+        const outstanding = (inv.totalAmount || 0) - (inv.amountPaid || 0);
+        const now = new Date();
+        const daysOverdue = inv.dueDate ? Math.floor((now - new Date(inv.dueDate)) / (1000 * 60 * 60 * 24)) : 0;
+
+        return {
+            _id: inv._id,
+            invoiceNumber: inv.invoiceNumber,
+            client: inv.clientId ? {
+                _id: inv.clientId._id,
+                name: `${inv.clientId.firstName || ''} ${inv.clientId.lastName || inv.clientId.username}`.trim(),
+                email: inv.clientId.email
+            } : null,
+            case: inv.caseId ? {
+                _id: inv.caseId._id,
+                title: inv.caseId.title,
+                caseNumber: inv.caseId.caseNumber
+            } : null,
+            totalAmount: inv.totalAmount,
+            amountPaid: inv.amountPaid || 0,
+            outstanding,
+            issueDate: inv.issueDate,
+            dueDate: inv.dueDate,
+            daysOverdue: Math.max(0, daysOverdue),
+            status: inv.status
+        };
+    });
+
+    // Apply amount filters if provided
+    if (minAmount) {
+        outstandingInvoices = outstandingInvoices.filter(inv => inv.outstanding >= parseFloat(minAmount));
+    }
+    if (maxAmount) {
+        outstandingInvoices = outstandingInvoices.filter(inv => inv.outstanding <= parseFloat(maxAmount));
+    }
+
+    const totalOutstanding = outstandingInvoices.reduce((sum, inv) => sum + inv.outstanding, 0);
+
+    res.status(200).json({
+        success: true,
+        report: 'outstanding-invoices',
+        generatedAt: new Date(),
+        summary: {
+            totalOutstanding,
+            invoiceCount: outstandingInvoices.length,
+            averageOutstanding: outstandingInvoices.length > 0 ? totalOutstanding / outstandingInvoices.length : 0
+        },
+        data: outstandingInvoices
+    });
+});
+
+/**
+ * Get time entries report (exportable)
+ * GET /api/reports/time-entries
+ */
+const getTimeEntriesReport = asyncHandler(async (req, res) => {
+    const {
+        startDate,
+        endDate,
+        clientId,
+        caseId,
+        isBillable,
+        status,
+        page = 1,
+        limit = 100
+    } = req.query;
+
+    const lawyerId = req.userID;
+    const query = { lawyerId };
+
+    if (startDate || endDate) {
+        query.date = {};
+        if (startDate) query.date.$gte = new Date(startDate);
+        if (endDate) query.date.$lte = new Date(endDate);
+    }
+
+    if (clientId) query.clientId = clientId;
+    if (caseId) query.caseId = caseId;
+    if (isBillable !== undefined) query.isBillable = isBillable === 'true';
+    if (status) query.status = status;
+
+    const timeEntries = await TimeEntry.find(query)
+        .populate('clientId', 'firstName lastName username')
+        .populate('caseId', 'title caseNumber')
+        .sort({ date: -1 })
+        .limit(parseInt(limit))
+        .skip((parseInt(page) - 1) * parseInt(limit));
+
+    const total = await TimeEntry.countDocuments(query);
+
+    // Calculate totals
+    const allEntries = await TimeEntry.find(query);
+    const totalHours = allEntries.reduce((sum, e) => sum + (e.hours || 0), 0);
+    const billableHours = allEntries.filter(e => e.isBillable).reduce((sum, e) => sum + (e.hours || 0), 0);
+    const totalBillableAmount = allEntries.reduce((sum, e) => sum + (e.billableAmount || 0), 0);
+
+    res.status(200).json({
+        success: true,
+        report: 'time-entries',
+        generatedAt: new Date(),
+        period: { startDate, endDate },
+        summary: {
+            totalHours,
+            billableHours,
+            nonBillableHours: totalHours - billableHours,
+            totalBillableAmount,
+            entriesCount: total
+        },
+        data: timeEntries.map(entry => ({
+            _id: entry._id,
+            date: entry.date,
+            client: entry.clientId ? {
+                name: `${entry.clientId.firstName || ''} ${entry.clientId.lastName || entry.clientId.username}`.trim()
+            } : null,
+            case: entry.caseId ? {
+                title: entry.caseId.title,
+                caseNumber: entry.caseId.caseNumber
+            } : null,
+            description: entry.description,
+            hours: entry.hours,
+            rate: entry.rate,
+            billableAmount: entry.billableAmount,
+            isBillable: entry.isBillable,
+            status: entry.status
+        })),
+        pagination: {
+            page: parseInt(page),
+            limit: parseInt(limit),
+            total,
+            pages: Math.ceil(total / parseInt(limit))
+        }
+    });
+});
+
+/**
+ * Export data to various formats
+ * POST /api/reports/export
+ */
+const exportReport = asyncHandler(async (req, res) => {
+    const {
+        reportType,
+        format = 'json',
+        startDate,
+        endDate,
+        filters = {}
+    } = req.body;
+
+    const lawyerId = req.userID;
+
+    // Validate format
+    const validFormats = ['json', 'csv', 'pdf', 'excel'];
+    if (!validFormats.includes(format)) {
+        throw new CustomException('Invalid export format. Use json, csv, pdf, or excel', 400);
+    }
+
+    // Validate report type
+    const validTypes = ['invoices', 'payments', 'expenses', 'time-entries', 'clients', 'statements'];
+    if (!validTypes.includes(reportType)) {
+        throw new CustomException('Invalid report type', 400);
+    }
+
+    let data;
+    let fileName;
+
+    switch (reportType) {
+        case 'invoices':
+            const invoiceQuery = { lawyerId };
+            if (startDate) invoiceQuery.issueDate = { $gte: new Date(startDate) };
+            if (endDate) invoiceQuery.issueDate = { ...invoiceQuery.issueDate, $lte: new Date(endDate) };
+            if (filters.status) invoiceQuery.status = filters.status;
+            if (filters.clientId) invoiceQuery.clientId = filters.clientId;
+
+            data = await Invoice.find(invoiceQuery)
+                .populate('clientId', 'firstName lastName username email')
+                .populate('caseId', 'title caseNumber')
+                .lean();
+            fileName = `invoices_export_${Date.now()}`;
+            break;
+
+        case 'payments':
+            const paymentQuery = { lawyerId };
+            if (startDate) paymentQuery.paymentDate = { $gte: new Date(startDate) };
+            if (endDate) paymentQuery.paymentDate = { ...paymentQuery.paymentDate, $lte: new Date(endDate) };
+            if (filters.status) paymentQuery.status = filters.status;
+            if (filters.clientId) paymentQuery.clientId = filters.clientId;
+
+            data = await Payment.find(paymentQuery)
+                .populate('clientId', 'firstName lastName username email')
+                .populate('invoiceId', 'invoiceNumber')
+                .lean();
+            fileName = `payments_export_${Date.now()}`;
+            break;
+
+        case 'expenses':
+            const expenseQuery = { lawyerId };
+            if (startDate) expenseQuery.date = { $gte: new Date(startDate) };
+            if (endDate) expenseQuery.date = { ...expenseQuery.date, $lte: new Date(endDate) };
+            if (filters.category) expenseQuery.category = filters.category;
+            if (filters.caseId) expenseQuery.caseId = filters.caseId;
+
+            data = await Expense.find(expenseQuery)
+                .populate('caseId', 'title caseNumber')
+                .lean();
+            fileName = `expenses_export_${Date.now()}`;
+            break;
+
+        case 'time-entries':
+            const timeQuery = { lawyerId };
+            if (startDate) timeQuery.date = { $gte: new Date(startDate) };
+            if (endDate) timeQuery.date = { ...timeQuery.date, $lte: new Date(endDate) };
+            if (filters.caseId) timeQuery.caseId = filters.caseId;
+            if (filters.clientId) timeQuery.clientId = filters.clientId;
+
+            data = await TimeEntry.find(timeQuery)
+                .populate('caseId', 'title caseNumber')
+                .populate('clientId', 'firstName lastName username')
+                .lean();
+            fileName = `time_entries_export_${Date.now()}`;
+            break;
+
+        default:
+            data = [];
+            fileName = `export_${Date.now()}`;
+    }
+
+    // For now, return JSON format
+    // In production, implement actual CSV/PDF/Excel generation
+    if (format === 'json') {
+        res.status(200).json({
+            success: true,
+            fileName: `${fileName}.json`,
+            format,
+            recordCount: data.length,
+            exportedAt: new Date(),
+            data
+        });
+    } else {
+        // Placeholder for other formats
+        res.status(200).json({
+            success: true,
+            message: `Export to ${format} format - data prepared`,
+            fileName: `${fileName}.${format}`,
+            format,
+            recordCount: data.length,
+            exportedAt: new Date(),
+            // In production: downloadUrl would be returned
+            data // Returning data for now, remove in production
+        });
+    }
+});
+
 module.exports = {
     generateReport,
     getReports,
@@ -676,5 +1036,11 @@ module.exports = {
     deleteReport,
     getReportTemplates,
     scheduleReport,
-    unscheduleReport
+    unscheduleReport,
+    // Direct report endpoints
+    getAccountsAgingReport,
+    getRevenueByClientReport,
+    getOutstandingInvoicesReport,
+    getTimeEntriesReport,
+    exportReport
 };
