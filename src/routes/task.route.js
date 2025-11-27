@@ -21,7 +21,8 @@ const {
     getTaskStats,
     getUpcomingTasks,
     getOverdueTasks,
-    getTasksByCase
+    getTasksByCase,
+    getTasksDueToday
 } = require('../controllers/task.controller');
 
 const app = express.Router();
@@ -30,6 +31,7 @@ const app = express.Router();
 app.get('/stats', userMiddleware, getTaskStats);
 app.get('/upcoming', userMiddleware, getUpcomingTasks);
 app.get('/overdue', userMiddleware, getOverdueTasks);
+app.get('/due-today', userMiddleware, getTasksDueToday);
 app.get('/case/:caseId', userMiddleware, getTasksByCase);
 
 // Bulk operations

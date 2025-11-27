@@ -480,82 +480,153 @@ const getCalendarStats = asyncHandler(async (req, res) => {
     // Default to current month
     const start = startDate ? new Date(startDate) : new Date(new Date().getFullYear(), new Date().getMonth(), 1);
     const end = endDate ? new Date(endDate) : new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0, 23, 59, 59);
+    const now = new Date();
 
-    // Event stats
-    const eventStats = await Event.aggregate([
+    // Get total counts
+    const totalEvents = await Event.countDocuments({
+        $or: [
+            { createdBy: userId },
+            { organizer: userId },
+            { 'attendees.userId': userId }
+        ],
+        startDateTime: { $gte: start, $lte: end }
+    });
+
+    const totalTasks = await Task.countDocuments({
+        $or: [
+            { assignedTo: userId },
+            { createdBy: userId }
+        ],
+        dueDate: { $gte: start, $lte: end }
+    });
+
+    const totalReminders = await Reminder.countDocuments({
+        userId,
+        reminderDateTime: { $gte: start, $lte: end }
+    });
+
+    // Upcoming hearings (next 30 days)
+    const upcomingHearings = await Event.countDocuments({
+        $or: [
+            { createdBy: userId },
+            { organizer: userId },
+            { 'attendees.userId': userId }
+        ],
+        type: 'hearing',
+        startDateTime: { $gte: now, $lte: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000) },
+        status: { $nin: ['cancelled', 'completed'] }
+    });
+
+    // Overdue items (tasks + reminders)
+    const overdueTasks = await Task.countDocuments({
+        $or: [
+            { assignedTo: userId },
+            { createdBy: userId }
+        ],
+        dueDate: { $lt: now },
+        status: { $nin: ['done', 'canceled'] }
+    });
+
+    const overdueReminders = await Reminder.countDocuments({
+        userId,
+        reminderDateTime: { $lt: now },
+        status: 'pending'
+    });
+
+    const overdueItems = overdueTasks + overdueReminders;
+
+    // Completed this month
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+
+    const completedTasksThisMonth = await Task.countDocuments({
+        $or: [
+            { assignedTo: userId },
+            { createdBy: userId }
+        ],
+        completedAt: { $gte: monthStart, $lte: monthEnd },
+        status: 'done'
+    });
+
+    const completedEventsThisMonth = await Event.countDocuments({
+        $or: [
+            { createdBy: userId },
+            { organizer: userId }
+        ],
+        completedAt: { $gte: monthStart, $lte: monthEnd },
+        status: 'completed'
+    });
+
+    const completedThisMonth = completedTasksThisMonth + completedEventsThisMonth;
+
+    // Events by type
+    const eventsByType = await Event.aggregate([
         {
             $match: {
                 $or: [
                     { createdBy: userId },
-                    { attendees: userId }
+                    { organizer: userId },
+                    { 'attendees.userId': userId }
                 ],
-                startDate: { $gte: start, $lte: end }
+                startDateTime: { $gte: start, $lte: end }
             }
         },
         {
             $group: {
-                _id: '$status',
+                _id: '$type',
                 count: { $sum: 1 }
             }
         }
     ]);
 
-    // Task stats
-    const taskStats = await Task.aggregate([
+    const byType = {};
+    eventsByType.forEach(item => {
+        byType[item._id || 'other'] = item.count;
+    });
+
+    // Tasks by priority
+    const tasksByPriority = await Task.aggregate([
         {
             $match: {
                 $or: [
                     { assignedTo: userId },
                     { createdBy: userId }
                 ],
-                dueDate: { $gte: start, $lte: end }
+                dueDate: { $gte: start, $lte: end },
+                status: { $nin: ['done', 'canceled'] }
             }
         },
         {
             $group: {
-                _id: '$status',
+                _id: '$priority',
                 count: { $sum: 1 }
             }
         }
     ]);
 
-    // Reminder stats
-    const reminderStats = await Reminder.aggregate([
-        {
-            $match: {
-                userId,
-                reminderDate: { $gte: start, $lte: end }
-            }
-        },
-        {
-            $group: {
-                _id: '$status',
-                count: { $sum: 1 }
-            }
+    const byPriority = {
+        critical: 0,
+        high: 0,
+        medium: 0,
+        low: 0
+    };
+    tasksByPriority.forEach(item => {
+        if (byPriority.hasOwnProperty(item._id)) {
+            byPriority[item._id] = item.count;
         }
-    ]);
-
-    // Count overdue tasks
-    const overdueTasks = await Task.countDocuments({
-        $or: [
-            { assignedTo: userId },
-            { createdBy: userId }
-        ],
-        dueDate: { $lt: new Date() },
-        status: { $ne: 'done' }
     });
 
     res.status(200).json({
         success: true,
         data: {
-            events: eventStats,
-            tasks: taskStats,
-            reminders: reminderStats,
-            overdueTasks,
-            dateRange: {
-                start,
-                end
-            }
+            totalEvents,
+            totalTasks,
+            totalReminders,
+            upcomingHearings,
+            overdueItems,
+            completedThisMonth,
+            byType,
+            byPriority
         }
     });
 });

@@ -817,6 +817,34 @@ const getTasksByCase = asyncHandler(async (req, res) => {
     });
 });
 
+// Get tasks due today
+const getTasksDueToday = asyncHandler(async (req, res) => {
+    const userId = req.userID;
+
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+
+    const endOfDay = new Date();
+    endOfDay.setHours(23, 59, 59, 999);
+
+    const tasks = await Task.find({
+        $or: [{ assignedTo: userId }, { createdBy: userId }],
+        dueDate: { $gte: startOfDay, $lte: endOfDay },
+        status: { $nin: ['done', 'canceled'] }
+    })
+        .populate('assignedTo', 'firstName lastName image')
+        .populate('createdBy', 'firstName lastName image')
+        .populate('caseId', 'title caseNumber')
+        .sort({ dueTime: 1, priority: -1 });
+
+    res.status(200).json({
+        success: true,
+        data: tasks,
+        count: tasks.length,
+        date: startOfDay.toISOString().split('T')[0]
+    });
+});
+
 // Helper function to calculate next due date
 function calculateNextDueDate(currentDueDate, recurring) {
     const nextDate = new Date(currentDueDate);
@@ -869,5 +897,6 @@ module.exports = {
     getTaskStats,
     getUpcomingTasks,
     getOverdueTasks,
-    getTasksByCase
+    getTasksByCase,
+    getTasksDueToday
 };
