@@ -125,17 +125,8 @@ bankTransactionSchema.pre('save', async function(next) {
     next();
 });
 
-// Post-save hook to update account balance
-bankTransactionSchema.post('save', async function(doc) {
-    if (doc.isNew || doc.isModified('amount') || doc.isModified('type')) {
-        const BankAccount = mongoose.model('BankAccount');
-        const multiplier = doc.type === 'credit' ? 1 : -1;
-        await BankAccount.findByIdAndUpdate(
-            doc.accountId,
-            { $inc: { balance: doc.amount * multiplier, availableBalance: doc.amount * multiplier } }
-        );
-    }
-});
+// Note: Balance updates are handled in the controller for manual transactions.
+// Imported transactions do not update balances as they are historical records.
 
 // Static method: Match transaction with system record
 bankTransactionSchema.statics.matchTransaction = async function(transactionId, matchedType, recordId) {

@@ -84,6 +84,9 @@ billPaymentSchema.index({ billId: 1, paymentDate: -1 });
 
 // Pre-save hook
 billPaymentSchema.pre('save', async function(next) {
+    // Track if this is a new document for post-save hook
+    this._wasNew = this.isNew;
+
     // Generate payment number
     if (!this.paymentNumber) {
         const date = new Date();
@@ -100,8 +103,11 @@ billPaymentSchema.pre('save', async function(next) {
     next();
 });
 
-// Post-save hook to update bill
+// Post-save hook to update bill (only runs on new document creation)
 billPaymentSchema.post('save', async function(doc) {
+    // Only process on new document creation to avoid double-updates
+    if (!doc._wasNew) return;
+
     if (doc.status === 'completed') {
         const Bill = mongoose.model('Bill');
         const bill = await Bill.findById(doc.billId);

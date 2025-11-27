@@ -198,10 +198,12 @@ const updateBill = asyncHandler(async (req, res) => {
         throw CustomException('Cannot edit a cancelled bill', 400);
     }
 
-    // Add to history
-    const updateData = { ...req.body };
-    updateData.$push = {
-        history: { action: 'updated', performedBy: lawyerId, performedAt: new Date(), details: req.body }
+    // Add to history - use $set for fields and $push for history
+    const updateData = {
+        $set: { ...req.body },
+        $push: {
+            history: { action: 'updated', performedBy: lawyerId, performedAt: new Date(), details: req.body }
+        }
     };
 
     const updatedBill = await Bill.findByIdAndUpdate(
