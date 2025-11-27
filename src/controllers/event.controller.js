@@ -184,12 +184,17 @@ const getEvents = asyncHandler(async (req, res) => {
 
     res.status(200).json({
         success: true,
-        data: { events, tasks },
+        events: events || [],
+        tasks: tasks || [],
+        data: { events: events || [], tasks: tasks || [] }, // backwards compatibility
+        total: total,
         pagination: {
             page: parseInt(page),
             limit: parseInt(limit),
             total,
-            pages: Math.ceil(total / parseInt(limit))
+            totalPages: Math.ceil(total / parseInt(limit)),
+            pages: Math.ceil(total / parseInt(limit)),
+            hasMore: (parseInt(page) * parseInt(limit)) < total
         }
     });
 });

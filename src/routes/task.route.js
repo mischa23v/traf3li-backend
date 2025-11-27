@@ -22,10 +22,29 @@ const {
     getUpcomingTasks,
     getOverdueTasks,
     getTasksByCase,
-    getTasksDueToday
+    getTasksDueToday,
+    // Template functions
+    getTemplates,
+    getTemplate,
+    createTemplate,
+    updateTemplate,
+    deleteTemplate,
+    createFromTemplate,
+    saveAsTemplate
 } = require('../controllers/task.controller');
 
 const app = express.Router();
+
+// ==============================================
+// TEMPLATE ROUTES (MUST BE BEFORE /:id ROUTES!)
+// ==============================================
+app.get('/templates', userMiddleware, getTemplates);
+app.post('/templates', userMiddleware, createTemplate);
+app.get('/templates/:templateId', userMiddleware, getTemplate);
+app.put('/templates/:templateId', userMiddleware, updateTemplate);
+app.patch('/templates/:templateId', userMiddleware, updateTemplate);
+app.delete('/templates/:templateId', userMiddleware, deleteTemplate);
+app.post('/templates/:templateId/create', userMiddleware, createFromTemplate);
 
 // Static routes (must be before parameterized routes)
 app.get('/stats', userMiddleware, getTaskStats);
@@ -63,5 +82,8 @@ app.post('/:id/time', userMiddleware, addManualTime);
 app.post('/:id/comments', userMiddleware, addComment);
 app.put('/:id/comments/:commentId', userMiddleware, updateComment);
 app.delete('/:id/comments/:commentId', userMiddleware, deleteComment);
+
+// Save task as template
+app.post('/:id/save-as-template', userMiddleware, saveAsTemplate);
 
 module.exports = app;
