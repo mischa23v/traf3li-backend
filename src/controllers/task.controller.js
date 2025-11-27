@@ -876,6 +876,367 @@ function calculateNextDueDate(currentDueDate, recurring) {
     return nextDate;
 }
 
+// ============================================
+// TEMPLATE FUNCTIONS
+// ============================================
+
+/**
+ * Get all task templates
+ * GET /api/tasks/templates
+ */
+const getTemplates = asyncHandler(async (req, res) => {
+    const userId = req.userID;
+
+    const templates = await Task.find({
+        isTemplate: true,
+        $or: [
+            { createdBy: userId },
+            { isPublic: true }
+        ]
+    })
+        .populate('createdBy', 'firstName lastName email image')
+        .sort({ createdAt: -1 });
+
+    res.status(200).json({
+        success: true,
+        templates: templates,
+        data: templates,
+        total: templates.length
+    });
+});
+
+/**
+ * Get a single template by ID
+ * GET /api/tasks/templates/:templateId
+ */
+const getTemplate = asyncHandler(async (req, res) => {
+    const { templateId } = req.params;
+    const userId = req.userID;
+
+    const template = await Task.findOne({
+        _id: templateId,
+        isTemplate: true,
+        $or: [
+            { createdBy: userId },
+            { isPublic: true }
+        ]
+    })
+        .populate('createdBy', 'firstName lastName email image');
+
+    if (!template) {
+        throw new CustomException('Template not found', 404);
+    }
+
+    res.status(200).json({
+        success: true,
+        template: template,
+        data: template
+    });
+});
+
+/**
+ * Create a new task template
+ * POST /api/tasks/templates
+ */
+const createTemplate = asyncHandler(async (req, res) => {
+    const {
+        title,
+        templateName,
+        description,
+        priority,
+        label,
+        tags,
+        subtasks,
+        checklists,
+        timeTracking,
+        reminders,
+        notes,
+        isPublic
+    } = req.body;
+
+    const userId = req.userID;
+
+    const template = await Task.create({
+        title,
+        templateName: templateName || title,
+        description,
+        priority: priority || 'medium',
+        status: 'todo',
+        label,
+        tags,
+        subtasks: subtasks?.map(st => ({
+            title: st.title,
+            completed: false,
+            autoReset: st.autoReset || false
+        })),
+        checklists,
+        timeTracking: timeTracking ? {
+            estimatedMinutes: timeTracking.estimatedMinutes || 0,
+            actualMinutes: 0,
+            sessions: []
+        } : undefined,
+        reminders,
+        notes,
+        isTemplate: true,
+        isPublic: isPublic || false,
+        createdBy: userId
+    });
+
+    await template.populate('createdBy', 'firstName lastName email image');
+
+    res.status(201).json({
+        success: true,
+        template: template,
+        data: template,
+        message: 'Template created successfully'
+    });
+});
+
+/**
+ * Update a task template
+ * PUT /api/tasks/templates/:templateId
+ */
+const updateTemplate = asyncHandler(async (req, res) => {
+    const { templateId } = req.params;
+    const userId = req.userID;
+    const updates = req.body;
+
+    const template = await Task.findOne({
+        _id: templateId,
+        isTemplate: true,
+        createdBy: userId
+    });
+
+    if (!template) {
+        throw new CustomException('Template not found or you do not have permission to update it', 404);
+    }
+
+    // Don't allow changing isTemplate to false
+    delete updates.isTemplate;
+    delete updates.createdBy;
+    delete updates.templateId;
+
+    // Update the template
+    Object.assign(template, updates);
+    await template.save();
+
+    await template.populate('createdBy', 'firstName lastName email image');
+
+    res.status(200).json({
+        success: true,
+        template: template,
+        data: template,
+        message: 'Template updated successfully'
+    });
+});
+
+/**
+ * Delete a task template
+ * DELETE /api/tasks/templates/:templateId
+ */
+const deleteTemplate = asyncHandler(async (req, res) => {
+    const { templateId } = req.params;
+    const userId = req.userID;
+
+    const template = await Task.findOneAndDelete({
+        _id: templateId,
+        isTemplate: true,
+        createdBy: userId
+    });
+
+    if (!template) {
+        throw new CustomException('Template not found or you do not have permission to delete it', 404);
+    }
+
+    res.status(200).json({
+        success: true,
+        message: 'Template deleted successfully'
+    });
+});
+
+/**
+ * Create a new task from a template
+ * POST /api/tasks/templates/:templateId/create
+ */
+const createFromTemplate = asyncHandler(async (req, res) => {
+    const { templateId } = req.params;
+    const userId = req.userID;
+    const {
+        title,
+        dueDate,
+        dueTime,
+        assignedTo,
+        caseId,
+        clientId,
+        notes
+    } = req.body;
+
+    const template = await Task.findOne({
+        _id: templateId,
+        isTemplate: true,
+        $or: [
+            { createdBy: userId },
+            { isPublic: true }
+        ]
+    });
+
+    if (!template) {
+        throw new CustomException('Template not found', 404);
+    }
+
+    // Validate assignedTo if provided
+    if (assignedTo) {
+        const assignedUser = await User.findById(assignedTo);
+        if (!assignedUser) {
+            throw new CustomException('Assigned user not found', 404);
+        }
+    }
+
+    // Validate caseId if provided
+    if (caseId) {
+        const caseDoc = await Case.findById(caseId);
+        if (!caseDoc) {
+            throw new CustomException('Case not found', 404);
+        }
+    }
+
+    // Create new task from template
+    const taskData = {
+        title: title || template.title,
+        description: template.description,
+        priority: template.priority,
+        status: 'todo',
+        label: template.label,
+        tags: template.tags ? [...template.tags] : [],
+        dueDate,
+        dueTime,
+        assignedTo: assignedTo || userId,
+        caseId,
+        clientId,
+        createdBy: userId,
+        isTemplate: false,
+        templateId: templateId,
+        notes: notes || template.notes,
+        timeTracking: template.timeTracking ? {
+            estimatedMinutes: template.timeTracking.estimatedMinutes || 0,
+            actualMinutes: 0,
+            sessions: []
+        } : { estimatedMinutes: 0, actualMinutes: 0, sessions: [] },
+        // Reset subtasks to incomplete
+        subtasks: template.subtasks?.map(st => ({
+            title: st.title,
+            completed: false,
+            autoReset: st.autoReset || false
+        })),
+        // Reset checklists
+        checklists: template.checklists?.map(cl => ({
+            title: cl.title,
+            items: cl.items?.map(item => ({
+                text: item.text,
+                completed: false
+            }))
+        })),
+        reminders: template.reminders?.map(r => ({
+            type: r.type,
+            beforeMinutes: r.beforeMinutes,
+            sent: false
+        })),
+        history: [{
+            action: 'created_from_template',
+            userId: userId,
+            changes: { templateId: templateId, templateName: template.templateName || template.title },
+            timestamp: new Date()
+        }]
+    };
+
+    const newTask = await Task.create(taskData);
+
+    await newTask.populate([
+        { path: 'assignedTo', select: 'firstName lastName image email' },
+        { path: 'createdBy', select: 'firstName lastName image' },
+        { path: 'caseId', select: 'title caseNumber' }
+    ]);
+
+    res.status(201).json({
+        success: true,
+        task: newTask,
+        data: newTask,
+        message: 'Task created from template successfully'
+    });
+});
+
+/**
+ * Save an existing task as a template
+ * POST /api/tasks/:taskId/save-as-template
+ */
+const saveAsTemplate = asyncHandler(async (req, res) => {
+    const { taskId } = req.params;
+    const { templateName, isPublic } = req.body;
+    const userId = req.userID;
+
+    const task = await Task.findOne({
+        _id: taskId,
+        $or: [
+            { createdBy: userId },
+            { assignedTo: userId }
+        ]
+    });
+
+    if (!task) {
+        throw new CustomException('Task not found', 404);
+    }
+
+    // Create template from task
+    const templateData = {
+        title: task.title,
+        templateName: templateName || `${task.title} (Template)`,
+        description: task.description,
+        priority: task.priority,
+        status: 'todo',
+        label: task.label,
+        tags: task.tags ? [...task.tags] : [],
+        isTemplate: true,
+        isPublic: isPublic || false,
+        createdBy: userId,
+        notes: task.notes,
+        timeTracking: task.timeTracking ? {
+            estimatedMinutes: task.timeTracking.estimatedMinutes || 0,
+            actualMinutes: 0,
+            sessions: []
+        } : { estimatedMinutes: 0, actualMinutes: 0, sessions: [] },
+        // Reset subtasks
+        subtasks: task.subtasks?.map(st => ({
+            title: st.title,
+            completed: false,
+            autoReset: st.autoReset || false
+        })),
+        // Reset checklists
+        checklists: task.checklists?.map(cl => ({
+            title: cl.title,
+            items: cl.items?.map(item => ({
+                text: item.text,
+                completed: false
+            }))
+        })),
+        reminders: task.reminders?.map(r => ({
+            type: r.type,
+            beforeMinutes: r.beforeMinutes,
+            sent: false
+        }))
+    };
+
+    const template = await Task.create(templateData);
+
+    await template.populate('createdBy', 'firstName lastName email image');
+
+    res.status(201).json({
+        success: true,
+        template: template,
+        data: template,
+        message: 'Task saved as template successfully'
+    });
+});
+
 module.exports = {
     createTask,
     getTasks,
@@ -898,5 +1259,13 @@ module.exports = {
     getUpcomingTasks,
     getOverdueTasks,
     getTasksByCase,
-    getTasksDueToday
+    getTasksDueToday,
+    // Template functions
+    getTemplates,
+    getTemplate,
+    createTemplate,
+    updateTemplate,
+    deleteTemplate,
+    createFromTemplate,
+    saveAsTemplate
 };

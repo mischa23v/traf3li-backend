@@ -163,7 +163,26 @@ const taskSchema = new mongoose.Schema({
     progress: { type: Number, default: 0, min: 0, max: 100 },
     completedAt: Date,
     completedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-    notes: { type: String, maxlength: 2000 }
+    notes: { type: String, maxlength: 2000 },
+    // Template fields
+    isTemplate: {
+        type: Boolean,
+        default: false,
+        index: true
+    },
+    templateId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Task'
+    },
+    isPublic: {
+        type: Boolean,
+        default: false
+    },
+    templateName: {
+        type: String,
+        trim: true,
+        maxlength: 200
+    }
 }, {
     versionKey: false,
     timestamps: true
@@ -177,6 +196,8 @@ taskSchema.index({ caseId: 1, status: 1 });
 taskSchema.index({ clientId: 1 });
 taskSchema.index({ 'recurring.enabled': 1, 'recurring.nextDue': 1 });
 taskSchema.index({ title: 'text', description: 'text' });
+taskSchema.index({ isTemplate: 1, createdBy: 1 });
+taskSchema.index({ isTemplate: 1, isPublic: 1 });
 
 // Pre-save hook to calculate progress from subtasks
 taskSchema.pre('save', function(next) {
