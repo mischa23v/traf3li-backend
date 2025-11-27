@@ -22,6 +22,7 @@ const Notification = require('./notification.model');
 
 // Dashboard Finance Models
 const Invoice = require('./invoice.model');
+const Quote = require('./quote.model');
 const Expense = require('./expense.model');
 const TimeEntry = require('./timeEntry.model');
 const Payment = require('./payment.model');
@@ -30,11 +31,17 @@ const Statement = require('./statement.model');
 const Transaction = require('./transaction.model');
 const BillingRate = require('./billingRate.model');
 const BillingActivity = require('./billingActivity.model');
+const Tax = require('./tax.model');
+const PaymentMode = require('./paymentMode.model');
 
 // Dashboard Organization Models
 const Reminder = require('./reminder.model');
 const Client = require('./client.model');
 const Report = require('./report.model');
+
+// Settings Models
+const CompanySettings = require('./companySettings.model');
+const FinanceSettings = require('./financeSettings.model');
 
 // New Service Models
 const Tag = require('./tag.model');
@@ -107,6 +114,7 @@ module.exports = {
 
     // Dashboard Finance
     Invoice,
+    Quote,
     Expense,
     TimeEntry,
     Payment,
@@ -115,11 +123,17 @@ module.exports = {
     Transaction,
     BillingRate,
     BillingActivity,
+    Tax,
+    PaymentMode,
 
     // Dashboard Organization
     Reminder,
     Client,
     Report,
+
+    // Settings
+    CompanySettings,
+    FinanceSettings,
 
     // New Services
     Tag,

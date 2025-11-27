@@ -31,6 +31,7 @@ const {
 
     // Dashboard Finance
     invoiceRoute,
+    quoteRoute,
     expenseRoute,
     timeTrackingRoute,
     paymentRoute,
@@ -39,12 +40,17 @@ const {
     statementRoute,
     transactionRoute,
     reportRoute,
+    taxRoute,
+    paymentModeRoute,
 
     // Dashboard Organization
     reminderRoute,
     clientRoute,
     calendarRoute,
     lawyerRoute,
+
+    // Settings
+    settingsRoute,
 
     // New API Routes
     tagRoute,
@@ -72,7 +78,7 @@ initSocket(server);
 // Middlewares
 app.use(helmet());
 
-// ✅ PERFORMANCE: Response compression (gzip)
+// PERFORMANCE: Response compression (gzip)
 app.use(compression({
     filter: (req, res) => {
         if (req.headers['x-no-compression']) {
@@ -84,7 +90,7 @@ app.use(compression({
     threshold: 1024 // Only compress responses > 1KB
 }));
 
-// ✅ ENHANCED CORS CONFIGURATION - Supports Vercel deployments
+// ENHANCED CORS CONFIGURATION - Supports Vercel deployments
 const allowedOrigins = [
     // Production URLs
     'https://traf3li.com',
@@ -124,7 +130,7 @@ const corsOptions = {
         }
 
         // Log blocked origins for debugging
-        console.log('🚫 CORS blocked origin:', origin);
+        console.log('CORS blocked origin:', origin);
         callback(new Error('Not allowed by CORS'));
     },
     credentials: true, // CRITICAL: Allows HttpOnly cookies
@@ -148,12 +154,12 @@ app.use(cors(corsOptions));
 // Handle preflight requests explicitly
 app.options('*', cors(corsOptions));
 
-// ✅ PERFORMANCE: JSON body parser with size limit
+// PERFORMANCE: JSON body parser with size limit
 app.use(express.json({ limit: '10mb' })); // Prevent large payload attacks
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(cookieParser());
 
-// ✅ PERFORMANCE: Static files with caching
+// PERFORMANCE: Static files with caching
 app.use('/uploads', express.static('uploads', {
     maxAge: '7d', // Cache static files for 7 days
     etag: true,
@@ -191,20 +197,27 @@ app.use('/api/events', eventRoute);
 
 // Dashboard Finance Routes
 app.use('/api/invoices', invoiceRoute);
+app.use('/api/quotes', quoteRoute);
 app.use('/api/expenses', expenseRoute);
 app.use('/api/time-tracking', timeTrackingRoute);
+app.use('/api/time-entries', timeTrackingRoute); // Alias for spec compatibility
 app.use('/api/payments', paymentRoute);
 app.use('/api/retainers', retainerRoute);
 app.use('/api/billing-rates', billingRateRoute);
 app.use('/api/statements', statementRoute);
 app.use('/api/transactions', transactionRoute);
 app.use('/api/reports', reportRoute);
+app.use('/api/taxes', taxRoute);
+app.use('/api/payment-modes', paymentModeRoute);
 
 // Dashboard Organization Routes
 app.use('/api/reminders', reminderRoute);
 app.use('/api/clients', clientRoute);
 app.use('/api/calendar', calendarRoute);
 app.use('/api/lawyers', lawyerRoute);
+
+// Settings Routes
+app.use('/api/settings', settingsRoute);
 
 // New API Routes
 app.use('/api/tags', tagRoute);
@@ -215,6 +228,9 @@ app.use('/api/followups', followupRoute);
 app.use('/api/workflows', workflowRoute);
 app.use('/api/rate-groups', rateGroupRoute);
 app.use('/api/rate-cards', rateCardRoute);
+app.use('/api/billing/groups', rateGroupRoute); // Alias for spec compatibility
+app.use('/api/billing/rates', billingRateRoute); // Alias for spec compatibility
+app.use('/api/billing/rate-cards', rateCardRoute); // Alias for spec compatibility
 app.use('/api/invoice-templates', invoiceTemplateRoute);
 app.use('/api/data-export', dataExportRoute);
 app.use('/api/conflict-checks', conflictCheckRoute);
@@ -242,15 +258,15 @@ const PORT = process.env.PORT || 8080;
 server.listen(PORT, () => {
     connectDB();
     scheduleTaskReminders();
-    console.log(`🚀 Server running on port ${PORT}`);
-    console.log(`⚡ Socket.io ready`);
-    console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
-    console.log(`🔐 CORS enabled for:`);
+    console.log(`Server running on port ${PORT}`);
+    console.log(`Socket.io ready`);
+    console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+    console.log(`CORS enabled for:`);
     console.log(`   - https://traf3li.com`);
     console.log(`   - https://dashboard.traf3li.com`);
     console.log(`   - https://traf3li-dashboard-9e4y2s2su-mischa-alrabehs-projects.vercel.app`);
     console.log(`   - All *.vercel.app domains (preview deployments)`);
     console.log(`   - http://localhost:5173`);
     console.log(`   - http://localhost:5174`);
-    console.log(`🍪 Cookie settings: httpOnly, sameSite=${process.env.NODE_ENV === 'production' ? 'none' : 'strict'}, secure=${process.env.NODE_ENV === 'production'}`);
+    console.log(`Cookie settings: httpOnly, sameSite=${process.env.NODE_ENV === 'production' ? 'none' : 'strict'}, secure=${process.env.NODE_ENV === 'production'}`);
 });

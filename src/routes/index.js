@@ -21,6 +21,7 @@ const eventRoute = require('./event.route');
 
 // Dashboard Finance Routes
 const invoiceRoute = require('./invoice.route');
+const quoteRoute = require('./quote.route');
 const expenseRoute = require('./expense.route');
 const timeTrackingRoute = require('./timeTracking.route');
 const paymentRoute = require('./payment.route');
@@ -29,12 +30,17 @@ const billingRateRoute = require('./billingRate.route');
 const statementRoute = require('./statement.route');
 const transactionRoute = require('./transaction.route');
 const reportRoute = require('./report.route');
+const taxRoute = require('./tax.route');
+const paymentModeRoute = require('./paymentMode.route');
 
 // Dashboard Organization Routes
 const reminderRoute = require('./reminder.route');
 const clientRoute = require('./client.route');
 const calendarRoute = require('./calendar.route');
 const lawyerRoute = require('./lawyer.route');
+
+// Settings Routes
+const settingsRoute = require('./settings.route');
 
 // New API Routes
 const tagRoute = require('./tag.route');
@@ -76,6 +82,7 @@ module.exports = {
 
     // Dashboard Finance
     invoiceRoute,
+    quoteRoute,
     expenseRoute,
     timeTrackingRoute,
     paymentRoute,
@@ -84,12 +91,17 @@ module.exports = {
     statementRoute,
     transactionRoute,
     reportRoute,
+    taxRoute,
+    paymentModeRoute,
 
     // Dashboard Organization
     reminderRoute,
     clientRoute,
     calendarRoute,
     lawyerRoute,
+
+    // Settings
+    settingsRoute,
 
     // New API Routes
     tagRoute,
