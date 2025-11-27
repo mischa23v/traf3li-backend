@@ -35,9 +35,9 @@ const getCalendarView = asyncHandler(async (req, res) => {
         const eventQuery = {
             $or: [
                 { createdBy: userId },
-                { attendees: userId }
+                { 'attendees.userId': userId }
             ],
-            startDate: { $gte: start, $lte: end },
+            startDateTime: { $gte: start, $lte: end },
             ...caseFilter
         };
 
@@ -114,7 +114,7 @@ const getCalendarView = asyncHandler(async (req, res) => {
     if (!type || type === 'reminder') {
         const reminderQuery = {
             userId,
-            reminderDate: { $gte: start, $lte: end }
+            reminderDateTime: { $gte: start, $lte: end }
         };
 
         if (caseId) {
@@ -189,13 +189,13 @@ const getCalendarByDate = asyncHandler(async (req, res) => {
     const events = await Event.find({
         $or: [
             { createdBy: userId },
-            { attendees: userId }
+            { 'attendees.userId': userId }
         ],
-        startDate: { $gte: startOfDay, $lte: endOfDay }
+        startDateTime: { $gte: startOfDay, $lte: endOfDay }
     })
         .populate('createdBy', 'username image')
         .populate('caseId', 'title caseNumber')
-        .sort({ startDate: 1 });
+        .sort({ startDateTime: 1 });
 
     // Fetch tasks
     const tasks = await Task.find({
@@ -212,12 +212,12 @@ const getCalendarByDate = asyncHandler(async (req, res) => {
     // Fetch reminders
     const reminders = await Reminder.find({
         userId,
-        reminderDate: { $gte: startOfDay, $lte: endOfDay }
+        reminderDateTime: { $gte: startOfDay, $lte: endOfDay }
     })
         .populate('relatedCase', 'title caseNumber')
         .populate('relatedTask', 'title')
         .populate('relatedEvent', 'title')
-        .sort({ reminderDate: 1 });
+        .sort({ reminderDateTime: 1 });
 
     res.status(200).json({
         success: true,
@@ -251,13 +251,13 @@ const getCalendarByMonth = asyncHandler(async (req, res) => {
     const events = await Event.find({
         $or: [
             { createdBy: userId },
-            { attendees: userId }
+            { 'attendees.userId': userId }
         ],
-        startDate: { $gte: startDate, $lte: endDate }
+        startDateTime: { $gte: startDate, $lte: endDate }
     })
         .populate('createdBy', 'username image')
         .populate('caseId', 'title caseNumber')
-        .sort({ startDate: 1 });
+        .sort({ startDateTime: 1 });
 
     // Fetch tasks
     const tasks = await Task.find({
@@ -274,10 +274,10 @@ const getCalendarByMonth = asyncHandler(async (req, res) => {
     // Fetch reminders
     const reminders = await Reminder.find({
         userId,
-        reminderDate: { $gte: startDate, $lte: endDate }
+        reminderDateTime: { $gte: startDate, $lte: endDate }
     })
         .populate('relatedCase', 'title caseNumber')
-        .sort({ reminderDate: 1 });
+        .sort({ reminderDateTime: 1 });
 
     // Group by date
     const groupedByDate = {};
@@ -346,14 +346,14 @@ const getUpcomingItems = asyncHandler(async (req, res) => {
     const events = await Event.find({
         $or: [
             { createdBy: userId },
-            { attendees: userId }
+            { 'attendees.userId': userId }
         ],
-        startDate: { $gte: today, $lte: futureDate },
+        startDateTime: { $gte: today, $lte: futureDate },
         status: { $ne: 'cancelled' }
     })
         .populate('createdBy', 'username image')
         .populate('caseId', 'title caseNumber')
-        .sort({ startDate: 1 })
+        .sort({ startDateTime: 1 })
         .limit(20);
 
     // Fetch upcoming tasks
@@ -373,20 +373,20 @@ const getUpcomingItems = asyncHandler(async (req, res) => {
     // Fetch upcoming reminders
     const reminders = await Reminder.find({
         userId,
-        reminderDate: { $gte: today, $lte: futureDate },
+        reminderDateTime: { $gte: today, $lte: futureDate },
         status: 'pending'
     })
         .populate('relatedCase', 'title caseNumber')
         .populate('relatedTask', 'title')
         .populate('relatedEvent', 'title')
-        .sort({ reminderDate: 1 })
+        .sort({ reminderDateTime: 1 })
         .limit(20);
 
     // Combine and sort
     const allItems = [
-        ...events.map(e => ({ ...e.toObject(), type: 'event', date: e.startDate })),
+        ...events.map(e => ({ ...e.toObject(), type: 'event', date: e.startDateTime })),
         ...tasks.map(t => ({ ...t.toObject(), type: 'task', date: t.dueDate })),
-        ...reminders.map(r => ({ ...r.toObject(), type: 'reminder', date: r.reminderDate }))
+        ...reminders.map(r => ({ ...r.toObject(), type: 'reminder', date: r.reminderDateTime }))
     ].sort((a, b) => new Date(a.date) - new Date(b.date));
 
     res.status(200).json({
@@ -431,26 +431,26 @@ const getOverdueItems = asyncHandler(async (req, res) => {
     // Overdue reminders
     const reminders = await Reminder.find({
         userId,
-        reminderDate: { $lt: now },
+        reminderDateTime: { $lt: now },
         status: 'pending'
     })
         .populate('relatedCase', 'title caseNumber')
         .populate('relatedTask', 'title')
         .populate('relatedEvent', 'title')
-        .sort({ reminderDate: -1 });
+        .sort({ reminderDateTime: -1 });
 
     // Past events (for reference)
     const pastEvents = await Event.find({
         $or: [
             { createdBy: userId },
-            { attendees: userId }
+            { 'attendees.userId': userId }
         ],
-        startDate: { $lt: now },
+        startDateTime: { $lt: now },
         status: { $in: ['scheduled', 'confirmed'] }
     })
         .populate('createdBy', 'username image')
         .populate('caseId', 'title caseNumber')
-        .sort({ startDate: -1 })
+        .sort({ startDateTime: -1 })
         .limit(10);
 
     res.status(200).json({
