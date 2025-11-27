@@ -615,6 +615,208 @@ const getPaymentStats = asyncHandler(async (req, res) => {
 });
 
 /**
+ * Record payment for specific invoice
+ * POST /api/invoices/:invoiceId/payments
+ */
+const recordInvoicePayment = asyncHandler(async (req, res) => {
+    const { invoiceId } = req.params;
+    const {
+        amount,
+        paymentMethod,
+        transactionId,
+        notes
+    } = req.body;
+
+    const lawyerId = req.userID;
+
+    // Validate amount
+    if (!amount || amount <= 0) {
+        throw new CustomException('Amount is required and must be positive', 400);
+    }
+
+    // Validate and get invoice
+    const invoice = await Invoice.findById(invoiceId);
+    if (!invoice) {
+        throw new CustomException('Invoice not found', 404);
+    }
+
+    if (invoice.lawyerId.toString() !== lawyerId) {
+        throw new CustomException('You do not have access to this invoice', 403);
+    }
+
+    if (invoice.status === 'paid') {
+        throw new CustomException('Invoice is already paid in full', 400);
+    }
+
+    if (invoice.status === 'cancelled') {
+        throw new CustomException('Cannot record payment for cancelled invoice', 400);
+    }
+
+    // Check if payment exceeds balance due
+    if (amount > invoice.balanceDue) {
+        throw new CustomException(`Payment amount exceeds balance due (${invoice.balanceDue} SAR)`, 400);
+    }
+
+    // Create payment record
+    const payment = await Payment.create({
+        clientId: invoice.clientId,
+        invoiceId: invoice._id,
+        caseId: invoice.caseId,
+        lawyerId,
+        amount,
+        currency: 'SAR',
+        paymentMethod: paymentMethod || 'bank_transfer',
+        transactionId,
+        status: 'completed',
+        paymentDate: new Date(),
+        notes,
+        createdBy: lawyerId,
+        processedBy: lawyerId,
+        allocations: [{
+            invoiceId: invoice._id,
+            amount,
+            allocatedAt: new Date()
+        }]
+    });
+
+    // Update invoice
+    invoice.amountPaid = (invoice.amountPaid || 0) + amount;
+    invoice.balanceDue = invoice.totalAmount - invoice.amountPaid;
+
+    if (invoice.balanceDue <= 0) {
+        invoice.status = 'paid';
+        invoice.paidDate = new Date();
+    } else if (invoice.amountPaid > 0) {
+        invoice.status = 'partial';
+    }
+
+    invoice.history.push({
+        action: 'payment_received',
+        date: new Date(),
+        user: lawyerId,
+        note: `Payment of ${amount} SAR received`
+    });
+
+    await invoice.save();
+
+    // Log activity
+    await BillingActivity.logActivity({
+        activityType: 'payment_received',
+        userId: lawyerId,
+        clientId: invoice.clientId,
+        relatedModel: 'Payment',
+        relatedId: payment._id,
+        description: `Payment of ${amount} SAR received for invoice ${invoice.invoiceNumber}`,
+        amount,
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent')
+    });
+
+    await payment.populate([
+        { path: 'clientId', select: 'firstName lastName username email' },
+        { path: 'invoiceId', select: 'invoiceNumber totalAmount status balanceDue' }
+    ]);
+
+    res.status(201).json({
+        success: true,
+        message: 'Payment recorded successfully',
+        payment,
+        invoice: {
+            _id: invoice._id,
+            invoiceNumber: invoice.invoiceNumber,
+            totalAmount: invoice.totalAmount,
+            amountPaid: invoice.amountPaid,
+            balanceDue: invoice.balanceDue,
+            status: invoice.status
+        }
+    });
+});
+
+/**
+ * Get payments summary
+ * GET /api/payments/summary
+ */
+const getPaymentsSummary = asyncHandler(async (req, res) => {
+    const { startDate, endDate } = req.query;
+    const lawyerId = req.userID;
+
+    const matchQuery = { lawyerId, status: 'completed', isRefund: { $ne: true } };
+
+    if (startDate || endDate) {
+        matchQuery.paymentDate = {};
+        if (startDate) matchQuery.paymentDate.$gte = new Date(startDate);
+        if (endDate) matchQuery.paymentDate.$lte = new Date(endDate);
+    }
+
+    // Calculate total received
+    const totalReceived = await Payment.aggregate([
+        { $match: matchQuery },
+        {
+            $group: {
+                _id: null,
+                total: { $sum: '$amount' }
+            }
+        }
+    ]);
+
+    // Calculate this month
+    const now = new Date();
+    const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const thisMonthQuery = {
+        ...matchQuery,
+        paymentDate: { $gte: firstDayOfMonth }
+    };
+
+    const thisMonth = await Payment.aggregate([
+        { $match: thisMonthQuery },
+        {
+            $group: {
+                _id: null,
+                total: { $sum: '$amount' }
+            }
+        }
+    ]);
+
+    // Calculate pending payments
+    const pendingQuery = { lawyerId, status: 'pending' };
+    const pending = await Payment.aggregate([
+        { $match: pendingQuery },
+        {
+            $group: {
+                _id: null,
+                total: { $sum: '$amount' }
+            }
+        }
+    ]);
+
+    // By payment method
+    const byMethod = await Payment.aggregate([
+        { $match: matchQuery },
+        {
+            $group: {
+                _id: '$paymentMethod',
+                total: { $sum: '$amount' }
+            }
+        }
+    ]);
+
+    const byMethodObj = {};
+    byMethod.forEach(item => {
+        byMethodObj[item._id || 'other'] = item.total;
+    });
+
+    res.status(200).json({
+        success: true,
+        summary: {
+            totalReceived: totalReceived[0]?.total || 0,
+            thisMonth: thisMonth[0]?.total || 0,
+            pending: pending[0]?.total || 0,
+            byMethod: byMethodObj
+        }
+    });
+});
+
+/**
  * Bulk delete payments
  * DELETE /api/payments/bulk
  */
@@ -657,5 +859,7 @@ module.exports = {
     createRefund,
     sendReceipt,
     getPaymentStats,
+    getPaymentsSummary,
+    recordInvoicePayment,
     bulkDeletePayments
 };

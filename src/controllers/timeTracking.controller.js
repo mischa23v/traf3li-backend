@@ -692,6 +692,101 @@ const getTimeStats = asyncHandler(async (req, res) => {
 });
 
 /**
+ * Get weekly time entries for calendar view
+ * GET /api/time-tracking/weekly
+ */
+const getWeeklyEntries = asyncHandler(async (req, res) => {
+    const { weekStartDate } = req.query;
+    const lawyerId = req.userID;
+
+    // Parse week start date, default to current week's Monday
+    let startDate;
+    if (weekStartDate) {
+        startDate = new Date(weekStartDate);
+    } else {
+        startDate = new Date();
+        const day = startDate.getDay();
+        const diff = startDate.getDate() - day + (day === 0 ? -6 : 1);
+        startDate.setDate(diff);
+    }
+    startDate.setHours(0, 0, 0, 0);
+
+    const endDate = new Date(startDate);
+    endDate.setDate(endDate.getDate() + 6);
+    endDate.setHours(23, 59, 59, 999);
+
+    // Get all time entries for the week
+    const timeEntries = await TimeEntry.find({
+        lawyerId,
+        date: { $gte: startDate, $lte: endDate }
+    })
+        .populate('caseId', 'title caseNumber')
+        .populate('clientId', 'firstName lastName username')
+        .sort({ date: 1 });
+
+    // Group entries by project (case)
+    const projectsMap = new Map();
+    const dailyTotals = {};
+    let weeklyTotal = 0;
+
+    // Initialize daily totals for each day of the week
+    for (let i = 0; i < 7; i++) {
+        const date = new Date(startDate);
+        date.setDate(date.getDate() + i);
+        dailyTotals[date.toISOString().split('T')[0]] = 0;
+    }
+
+    timeEntries.forEach(entry => {
+        const projectId = entry.caseId?._id?.toString() || 'no-project';
+        const projectName = entry.caseId?.title || 'No Project';
+        const clientName = entry.clientId ?
+            `${entry.clientId.firstName || ''} ${entry.clientId.lastName || ''}`.trim() || entry.clientId.username :
+            'No Client';
+
+        if (!projectsMap.has(projectId)) {
+            projectsMap.set(projectId, {
+                projectId,
+                projectName,
+                clientName,
+                entries: {},
+                totalHours: 0
+            });
+        }
+
+        const project = projectsMap.get(projectId);
+        const dateKey = entry.date.toISOString().split('T')[0];
+
+        if (!project.entries[dateKey]) {
+            project.entries[dateKey] = [];
+        }
+
+        project.entries[dateKey].push({
+            entryId: entry._id,
+            duration: entry.duration,
+            description: entry.description,
+            isBillable: entry.isBillable
+        });
+
+        // Update totals
+        const hoursWorked = entry.duration / 60;
+        project.totalHours += hoursWorked;
+        dailyTotals[dateKey] = (dailyTotals[dateKey] || 0) + entry.duration;
+        weeklyTotal += entry.duration;
+    });
+
+    res.status(200).json({
+        success: true,
+        data: {
+            weekStartDate: startDate.toISOString().split('T')[0],
+            weekEndDate: endDate.toISOString().split('T')[0],
+            projects: Array.from(projectsMap.values()),
+            dailyTotals,
+            weeklyTotal
+        }
+    });
+});
+
+/**
  * Bulk delete time entries
  * DELETE /api/time-tracking/entries/bulk
  */
@@ -744,6 +839,9 @@ module.exports = {
     getTimeEntry,
     updateTimeEntry,
     deleteTimeEntry,
+
+    // Weekly view
+    getWeeklyEntries,
 
     // Approval workflow
     approveTimeEntry,

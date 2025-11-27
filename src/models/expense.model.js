@@ -167,11 +167,11 @@ const expenseSchema = new mongoose.Schema({
 
 // Indexes for performance
 expenseSchema.index({ caseId: 1, date: -1 });
-expenseSchema.index({ userId: 1, date: -1 });
+expenseSchema.index({ lawyerId: 1, date: -1 });
 expenseSchema.index({ category: 1 });
 expenseSchema.index({ isBillable: 1, invoiceId: 1 });
 expenseSchema.index({ date: -1 });
-expenseSchema.index({ status: 1, userId: 1 });
+expenseSchema.index({ status: 1, lawyerId: 1 });
 
 // Generate expense ID and calculate billable amount before saving
 expenseSchema.pre('save', async function(next) {
@@ -209,7 +209,7 @@ expenseSchema.pre('save', async function(next) {
 expenseSchema.statics.getExpenseStats = async function(filters = {}) {
     const matchStage = {};
 
-    if (filters.userId) matchStage.userId = new mongoose.Types.ObjectId(filters.userId);
+    if (filters.lawyerId) matchStage.lawyerId = new mongoose.Types.ObjectId(filters.lawyerId);
     if (filters.caseId) matchStage.caseId = new mongoose.Types.ObjectId(filters.caseId);
     if (filters.startDate || filters.endDate) {
         matchStage.date = {};
@@ -258,7 +258,7 @@ expenseSchema.statics.getExpenseStats = async function(filters = {}) {
 expenseSchema.statics.getExpensesByCategory = async function(filters = {}) {
     const matchStage = {};
 
-    if (filters.userId) matchStage.userId = new mongoose.Types.ObjectId(filters.userId);
+    if (filters.lawyerId) matchStage.lawyerId = new mongoose.Types.ObjectId(filters.lawyerId);
     if (filters.caseId) matchStage.caseId = new mongoose.Types.ObjectId(filters.caseId);
     if (filters.startDate || filters.endDate) {
         matchStage.date = {};

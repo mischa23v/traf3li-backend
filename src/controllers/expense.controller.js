@@ -1,4 +1,4 @@
-const { Expense, Case, User } = require('../models');
+const { Expense, Case, User, BillingActivity } = require('../models');
 const { CustomException } = require('../utils');
 const asyncHandler = require('../utils/asyncHandler');
 
@@ -16,49 +16,63 @@ const createExpense = asyncHandler(async (req, res) => {
         isBillable
     } = req.body;
 
-    try {
-        // Validate amount
-        if (!amount || amount < 0) {
-            throw CustomException('المبلغ غير صالح', 400);
-        }
+    const lawyerId = req.userID;
 
-        // If caseId provided, validate case exists and user has access
-        if (caseId) {
-            const caseDoc = await Case.findById(caseId);
-            if (!caseDoc) {
-                throw CustomException('القضية غير موجودة', 404);
-            }
-
-            if (caseDoc.lawyerId.toString() !== req.userID) {
-                throw CustomException('ليس لديك صلاحية لإضافة مصروف لهذه القضية', 403);
-            }
-        }
-
-        const expense = await Expense.create({
-            description,
-            amount,
-            category: category || 'other',
-            caseId,
-            userId: req.userID,
-            date: date || new Date(),
-            paymentMethod: paymentMethod || 'cash',
-            vendor,
-            notes,
-            isBillable: isBillable || false
-        });
-
-        const populatedExpense = await Expense.findById(expense._id)
-            .populate('caseId', 'title caseNumber')
-            .populate('userId', 'username email');
-
-        return res.status(201).json({
-            success: true,
-            message: 'تم إضافة المصروف بنجاح',
-            data: populatedExpense
-        });
-    } catch (error) {
-        throw CustomException(error.message || 'فشل إنشاء المصروف', error.status || 500);
+    // Validate required fields
+    if (!description || description.length < 3) {
+        throw CustomException('Description is required (min 3 characters)', 400);
     }
+
+    if (!amount || amount < 0) {
+        throw CustomException('Invalid amount', 400);
+    }
+
+    // If caseId provided, validate case exists and user has access
+    if (caseId) {
+        const caseDoc = await Case.findById(caseId);
+        if (!caseDoc) {
+            throw CustomException('Case not found', 404);
+        }
+
+        if (caseDoc.lawyerId.toString() !== lawyerId) {
+            throw CustomException('You do not have access to this case', 403);
+        }
+    }
+
+    const expense = await Expense.create({
+        description,
+        amount,
+        category: category || 'other',
+        caseId,
+        lawyerId,
+        date: date || new Date(),
+        paymentMethod: paymentMethod || 'cash',
+        vendor,
+        notes,
+        isBillable: isBillable !== undefined ? isBillable : true,
+        createdBy: lawyerId
+    });
+
+    // Log activity
+    await BillingActivity.logActivity({
+        activityType: 'expense_created',
+        userId: lawyerId,
+        relatedModel: 'Expense',
+        relatedId: expense._id,
+        description: `Expense ${expense.expenseId} created for ${amount} SAR`,
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent')
+    });
+
+    const populatedExpense = await Expense.findById(expense._id)
+        .populate('caseId', 'title caseNumber')
+        .populate('lawyerId', 'firstName lastName username email');
+
+    return res.status(201).json({
+        success: true,
+        message: 'Expense created successfully',
+        expense: populatedExpense
+    });
 });
 
 // Get all expenses with filters
@@ -73,258 +87,287 @@ const getExpenses = asyncHandler(async (req, res) => {
         limit = 20
     } = req.query;
 
-    try {
-        const filters = { userId: req.userID };
+    const lawyerId = req.userID;
+    const filters = { lawyerId };
 
-        if (status) filters.status = status;
-        if (category) filters.category = category;
-        if (caseId) filters.caseId = caseId;
+    if (status) filters.status = status;
+    if (category) filters.category = category;
+    if (caseId) filters.caseId = caseId;
 
-        if (startDate || endDate) {
-            filters.date = {};
-            if (startDate) filters.date.$gte = new Date(startDate);
-            if (endDate) filters.date.$lte = new Date(endDate);
-        }
-
-        const expenses = await Expense.find(filters)
-            .populate('caseId', 'title caseNumber')
-            .populate('userId', 'username email')
-            .sort({ date: -1, createdAt: -1 })
-            .limit(parseInt(limit))
-            .skip((parseInt(page) - 1) * parseInt(limit));
-
-        const total = await Expense.countDocuments(filters);
-
-        return res.json({
-            success: true,
-            data: expenses,
-            pagination: {
-                total,
-                page: parseInt(page),
-                limit: parseInt(limit),
-                pages: Math.ceil(total / limit)
-            },
-            message: expenses.length === 0 ? 'لا توجد مصروفات' : undefined
-        });
-    } catch (error) {
-        throw CustomException(error.message || 'فشل جلب المصروفات', error.status || 500);
+    if (startDate || endDate) {
+        filters.date = {};
+        if (startDate) filters.date.$gte = new Date(startDate);
+        if (endDate) filters.date.$lte = new Date(endDate);
     }
+
+    const expenses = await Expense.find(filters)
+        .populate('caseId', 'title caseNumber')
+        .populate('lawyerId', 'firstName lastName username email')
+        .sort({ date: -1, createdAt: -1 })
+        .limit(parseInt(limit))
+        .skip((parseInt(page) - 1) * parseInt(limit));
+
+    const total = await Expense.countDocuments(filters);
+
+    return res.json({
+        success: true,
+        expenses,
+        total
+    });
 });
 
 // Get single expense
 const getExpense = asyncHandler(async (req, res) => {
     const { id } = req.params;
+    const lawyerId = req.userID;
 
-    try {
-        const expense = await Expense.findById(id)
-            .populate('caseId', 'title caseNumber category')
-            .populate('userId', 'username email')
-            .populate('invoiceId', 'invoiceNumber total');
+    const expense = await Expense.findById(id)
+        .populate('caseId', 'title caseNumber category')
+        .populate('lawyerId', 'firstName lastName username email')
+        .populate('invoiceId', 'invoiceNumber totalAmount');
 
-        if (!expense) {
-            throw CustomException('المصروف غير موجود', 404);
-        }
-
-        // Check access
-        if (expense.userId._id.toString() !== req.userID) {
-            throw CustomException('ليس لديك صلاحية لعرض هذا المصروف', 403);
-        }
-
-        return res.json({
-            success: true,
-            data: expense
-        });
-    } catch (error) {
-        throw CustomException(error.message || 'فشل جلب المصروف', error.status || 500);
+    if (!expense) {
+        throw CustomException('Expense not found', 404);
     }
+
+    // Check access
+    if (expense.lawyerId._id.toString() !== lawyerId) {
+        throw CustomException('You do not have access to this expense', 403);
+    }
+
+    return res.json({
+        success: true,
+        expense
+    });
 });
 
 // Update expense
 const updateExpense = asyncHandler(async (req, res) => {
     const { id } = req.params;
+    const lawyerId = req.userID;
 
-    try {
-        const expense = await Expense.findById(id);
+    const expense = await Expense.findById(id);
 
-        if (!expense) {
-            throw CustomException('المصروف غير موجود', 404);
-        }
-
-        // Check access
-        if (expense.userId.toString() !== req.userID) {
-            throw CustomException('ليس لديك صلاحية لتعديل هذا المصروف', 403);
-        }
-
-        // Don't allow editing if already reimbursed or billed
-        if (expense.isReimbursed) {
-            throw CustomException('لا يمكن تعديل مصروف تم سداده', 400);
-        }
-
-        if (expense.invoiceId) {
-            throw CustomException('لا يمكن تعديل مصروف مرتبط بفاتورة', 400);
-        }
-
-        const updatedExpense = await Expense.findByIdAndUpdate(
-            id,
-            { $set: req.body },
-            { new: true, runValidators: true }
-        )
-        .populate('caseId', 'title caseNumber')
-        .populate('userId', 'username email');
-
-        return res.json({
-            success: true,
-            message: 'تم تحديث المصروف بنجاح',
-            data: updatedExpense
-        });
-    } catch (error) {
-        throw CustomException(error.message || 'فشل تحديث المصروف', error.status || 500);
+    if (!expense) {
+        throw CustomException('Expense not found', 404);
     }
+
+    // Check access
+    if (expense.lawyerId.toString() !== lawyerId) {
+        throw CustomException('You do not have access to this expense', 403);
+    }
+
+    // Don't allow editing if already reimbursed or billed
+    if (expense.reimbursementStatus === 'paid') {
+        throw CustomException('Cannot edit a reimbursed expense', 400);
+    }
+
+    if (expense.invoiceId) {
+        throw CustomException('Cannot edit an invoiced expense', 400);
+    }
+
+    const updatedExpense = await Expense.findByIdAndUpdate(
+        id,
+        { $set: req.body },
+        { new: true, runValidators: true }
+    )
+        .populate('caseId', 'title caseNumber')
+        .populate('lawyerId', 'firstName lastName username email');
+
+    return res.json({
+        success: true,
+        message: 'Expense updated successfully',
+        expense: updatedExpense
+    });
 });
 
 // Delete expense
 const deleteExpense = asyncHandler(async (req, res) => {
     const { id } = req.params;
+    const lawyerId = req.userID;
 
-    try {
-        const expense = await Expense.findById(id);
+    const expense = await Expense.findById(id);
 
-        if (!expense) {
-            throw CustomException('المصروف غير موجود', 404);
-        }
-
-        // Check access
-        if (expense.userId.toString() !== req.userID) {
-            throw CustomException('ليس لديك صلاحية لحذف هذا المصروف', 403);
-        }
-
-        // Don't allow deleting if reimbursed or billed
-        if (expense.isReimbursed) {
-            throw CustomException('لا يمكن حذف مصروف تم سداده', 400);
-        }
-
-        if (expense.invoiceId) {
-            throw CustomException('لا يمكن حذف مصروف مرتبط بفاتورة', 400);
-        }
-
-        await Expense.findByIdAndDelete(id);
-
-        return res.json({
-            success: true,
-            message: 'تم حذف المصروف بنجاح'
-        });
-    } catch (error) {
-        throw CustomException(error.message || 'فشل حذف المصروف', error.status || 500);
+    if (!expense) {
+        throw CustomException('Expense not found', 404);
     }
+
+    // Check access
+    if (expense.lawyerId.toString() !== lawyerId) {
+        throw CustomException('You do not have access to this expense', 403);
+    }
+
+    // Don't allow deleting if reimbursed or billed
+    if (expense.reimbursementStatus === 'paid') {
+        throw CustomException('Cannot delete a reimbursed expense', 400);
+    }
+
+    if (expense.invoiceId) {
+        throw CustomException('Cannot delete an invoiced expense', 400);
+    }
+
+    await Expense.findByIdAndDelete(id);
+
+    return res.json({
+        success: true,
+        message: 'Expense deleted successfully'
+    });
 });
 
 // Get expense statistics
 const getExpenseStats = asyncHandler(async (req, res) => {
     const { caseId, startDate, endDate } = req.query;
+    const lawyerId = req.userID;
 
-    try {
-        const filters = { userId: req.userID };
+    const filters = { lawyerId };
 
-        if (caseId) filters.caseId = caseId;
-        if (startDate) filters.startDate = startDate;
-        if (endDate) filters.endDate = endDate;
+    if (caseId) filters.caseId = caseId;
+    if (startDate) filters.startDate = startDate;
+    if (endDate) filters.endDate = endDate;
 
-        const stats = await Expense.getExpenseStats(filters);
+    const stats = await Expense.getExpenseStats(filters);
 
-        return res.json({
-            success: true,
-            data: stats
-        });
-    } catch (error) {
-        throw CustomException(error.message || 'فشل جلب إحصائيات المصروفات', error.status || 500);
-    }
+    // Get expenses by category
+    const byCategory = await Expense.getExpensesByCategory(filters);
+    const byCategoryObj = {};
+    byCategory.forEach(item => {
+        byCategoryObj[item.category] = item.total;
+    });
+
+    // Get expenses by month
+    const matchStage = { lawyerId: require('mongoose').Types.ObjectId(lawyerId) };
+    if (startDate) matchStage.date = { $gte: new Date(startDate) };
+    if (endDate) matchStage.date = { ...matchStage.date, $lte: new Date(endDate) };
+
+    const byMonth = await Expense.aggregate([
+        { $match: matchStage },
+        {
+            $group: {
+                _id: {
+                    year: { $year: '$date' },
+                    month: { $month: '$date' }
+                },
+                amount: { $sum: '$amount' }
+            }
+        },
+        { $sort: { '_id.year': 1, '_id.month': 1 } },
+        {
+            $project: {
+                month: {
+                    $concat: [
+                        { $toString: '$_id.year' },
+                        '-',
+                        { $cond: [{ $lt: ['$_id.month', 10] }, { $concat: ['0', { $toString: '$_id.month' }] }, { $toString: '$_id.month' }] }
+                    ]
+                },
+                amount: 1,
+                _id: 0
+            }
+        }
+    ]);
+
+    return res.json({
+        success: true,
+        stats: {
+            totalExpenses: stats.totalExpenses,
+            billableExpenses: stats.billableExpenses,
+            nonBillableExpenses: stats.nonBillableExpenses,
+            byCategory: byCategoryObj,
+            byMonth
+        }
+    });
 });
 
 // Get expenses by category
 const getExpensesByCategory = asyncHandler(async (req, res) => {
     const { caseId, startDate, endDate } = req.query;
+    const lawyerId = req.userID;
 
-    try {
-        const filters = { userId: req.userID };
+    const filters = { lawyerId };
 
-        if (caseId) filters.caseId = caseId;
-        if (startDate) filters.startDate = startDate;
-        if (endDate) filters.endDate = endDate;
+    if (caseId) filters.caseId = caseId;
+    if (startDate) filters.startDate = startDate;
+    if (endDate) filters.endDate = endDate;
 
-        const byCategory = await Expense.getExpensesByCategory(filters);
+    const byCategory = await Expense.getExpensesByCategory(filters);
 
-        return res.json({
-            success: true,
-            data: byCategory
-        });
-    } catch (error) {
-        throw CustomException(error.message || 'فشل جلب المصروفات حسب الفئة', error.status || 500);
-    }
+    return res.json({
+        success: true,
+        data: byCategory
+    });
 });
 
 // Mark expense as reimbursed
 const markAsReimbursed = asyncHandler(async (req, res) => {
     const { id } = req.params;
+    const lawyerId = req.userID;
 
-    try {
-        const expense = await Expense.findById(id);
+    const expense = await Expense.findById(id);
 
-        if (!expense) {
-            throw CustomException('المصروف غير موجود', 404);
-        }
-
-        // Check access
-        if (expense.userId.toString() !== req.userID) {
-            throw CustomException('ليس لديك صلاحية لتحديث هذا المصروف', 403);
-        }
-
-        if (expense.isReimbursed) {
-            throw CustomException('تم سداد هذا المصروف مسبقاً', 400);
-        }
-
-        expense.isReimbursed = true;
-        expense.reimbursedAt = new Date();
-        await expense.save();
-
-        return res.json({
-            success: true,
-            message: 'تم تحديث حالة السداد بنجاح',
-            data: expense
-        });
-    } catch (error) {
-        throw CustomException(error.message || 'فشل تحديث حالة السداد', error.status || 500);
+    if (!expense) {
+        throw CustomException('Expense not found', 404);
     }
+
+    // Check access
+    if (expense.lawyerId.toString() !== lawyerId) {
+        throw CustomException('You do not have access to this expense', 403);
+    }
+
+    if (expense.reimbursementStatus === 'paid') {
+        throw CustomException('Expense already reimbursed', 400);
+    }
+
+    expense.reimbursementStatus = 'paid';
+    expense.reimbursedAt = new Date();
+    expense.reimbursedAmount = expense.amount;
+    await expense.save();
+
+    return res.json({
+        success: true,
+        message: 'Expense marked as reimbursed',
+        expense
+    });
 });
 
 // Upload receipt
 const uploadReceipt = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const { receiptUrl } = req.body;
+    const { fileName, fileUrl, fileType } = req.body;
+    const lawyerId = req.userID;
 
-    try {
-        const expense = await Expense.findById(id);
+    const expense = await Expense.findById(id);
 
-        if (!expense) {
-            throw CustomException('المصروف غير موجود', 404);
-        }
-
-        // Check access
-        if (expense.userId.toString() !== req.userID) {
-            throw CustomException('ليس لديك صلاحية لتحديث هذا المصروف', 403);
-        }
-
-        expense.receiptUrl = receiptUrl;
-        expense.hasReceipt = true;
-        await expense.save();
-
-        return res.json({
-            success: true,
-            message: 'تم رفع الإيصال بنجاح',
-            data: expense
-        });
-    } catch (error) {
-        throw CustomException(error.message || 'فشل رفع الإيصال', error.status || 500);
+    if (!expense) {
+        throw CustomException('Expense not found', 404);
     }
+
+    // Check access
+    if (expense.lawyerId.toString() !== lawyerId) {
+        throw CustomException('You do not have access to this expense', 403);
+    }
+
+    const receipt = {
+        fileName: fileName || 'receipt',
+        fileUrl,
+        fileType: fileType || 'application/pdf',
+        uploadedAt: new Date()
+    };
+
+    expense.receipts.push(receipt);
+    expense.hasReceipt = true;
+
+    // Also set the single receiptUrl for backwards compatibility
+    if (!expense.receiptUrl) {
+        expense.receiptUrl = fileUrl;
+    }
+
+    await expense.save();
+
+    return res.json({
+        success: true,
+        message: 'Receipt uploaded successfully',
+        receipt
+    });
 });
 
 module.exports = {
