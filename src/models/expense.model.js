@@ -23,7 +23,24 @@ const expenseSchema = new mongoose.Schema({
     },
     category: {
         type: String,
-        enum: ['office', 'transport', 'hospitality', 'government', 'court_fees', 'filing_fees', 'expert_witness', 'investigation', 'accommodation', 'meals', 'postage', 'printing', 'consultation', 'documents', 'research', 'software', 'telephone', 'mileage', 'other'],
+        enum: [
+            'office_supplies',      // مستلزمات مكتبية
+            'travel',               // سفر وانتقالات
+            'transport',            // مواصلات
+            'meals',                // وجبات وضيافة
+            'software',             // برمجيات واشتراكات
+            'equipment',            // معدات وأجهزة
+            'communication',        // اتصالات
+            'government_fees',      // رسوم حكومية
+            'professional_services', // خدمات مهنية
+            'marketing',            // تسويق وإعلان
+            'training',             // تدريب وتطوير
+            // Legacy categories for backward compatibility
+            'office', 'hospitality', 'government', 'court_fees', 'filing_fees',
+            'expert_witness', 'investigation', 'accommodation', 'postage',
+            'printing', 'consultation', 'documents', 'research', 'telephone', 'mileage',
+            'other'
+        ],
         required: true,
         default: 'other'
     },
@@ -51,8 +68,22 @@ const expenseSchema = new mongoose.Schema({
     },
     paymentMethod: {
         type: String,
-        enum: ['cash', 'card', 'transfer'],
+        enum: ['cash', 'card', 'debit', 'transfer', 'check', 'petty_cash'],
         default: 'cash'
+    },
+    // NEW FIELDS per API spec
+    expenseType: {
+        type: String,
+        enum: ['company', 'personal'],
+        default: 'company'
+    },
+    taxAmount: {
+        type: Number,
+        default: 0
+    },
+    receiptNumber: {
+        type: String,
+        default: null
     },
     status: {
         type: String,
