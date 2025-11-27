@@ -928,6 +928,337 @@ const syncTaskToCalendar = async (taskId) => {
     }
 };
 
+// === ICS EXPORT/IMPORT ===
+
+/**
+ * Export event to ICS format
+ * GET /api/events/:id/export/ics
+ */
+const exportEventToICS = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const userId = req.userID;
+
+    const event = await Event.findById(id)
+        .populate('organizer', 'firstName lastName email')
+        .populate('attendees.userId', 'firstName lastName email')
+        .populate('caseId', 'title caseNumber');
+
+    if (!event) {
+        throw new CustomException('Event not found', 404);
+    }
+
+    // Check access
+    const hasAccess = event.createdBy.toString() === userId ||
+                      event.organizer._id.toString() === userId ||
+                      event.isUserAttendee(userId);
+
+    if (!hasAccess) {
+        throw new CustomException('You do not have access to this event', 403);
+    }
+
+    // Generate ICS content
+    const icsContent = generateICS(event);
+
+    // Set headers for file download
+    res.setHeader('Content-Type', 'text/calendar; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${sanitizeFilename(event.title)}.ics"`);
+
+    res.send(icsContent);
+});
+
+/**
+ * Import events from ICS file
+ * POST /api/events/import/ics
+ */
+const importEventsFromICS = asyncHandler(async (req, res) => {
+    const userId = req.userID;
+
+    if (!req.file) {
+        throw new CustomException('ICS file is required', 400);
+    }
+
+    const icsContent = req.file.buffer.toString('utf-8');
+    const parsedEvents = parseICS(icsContent);
+
+    if (parsedEvents.length === 0) {
+        throw new CustomException('No valid events found in ICS file', 400);
+    }
+
+    const createdEvents = [];
+    const errors = [];
+
+    for (const eventData of parsedEvents) {
+        try {
+            const event = await Event.create({
+                title: eventData.title || 'Imported Event',
+                description: eventData.description,
+                type: 'meeting',
+                startDateTime: eventData.startDate,
+                endDateTime: eventData.endDate,
+                allDay: eventData.allDay || false,
+                location: eventData.location ? { type: 'physical', address: eventData.location } : undefined,
+                organizer: userId,
+                createdBy: userId,
+                status: 'scheduled',
+                priority: 'medium',
+                importedFrom: 'ics',
+                importedAt: new Date(),
+                externalId: eventData.uid
+            });
+            createdEvents.push(event);
+        } catch (error) {
+            errors.push({
+                event: eventData.title,
+                error: error.message
+            });
+        }
+    }
+
+    res.status(201).json({
+        success: true,
+        message: `${createdEvents.length} event(s) imported successfully`,
+        data: {
+            imported: createdEvents.length,
+            failed: errors.length,
+            events: createdEvents,
+            errors: errors.length > 0 ? errors : undefined
+        }
+    });
+});
+
+// Helper function to generate ICS content
+function generateICS(event) {
+    const formatDate = (date, allDay = false) => {
+        const d = new Date(date);
+        if (allDay) {
+            return d.toISOString().replace(/[-:]/g, '').split('T')[0];
+        }
+        return d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+    };
+
+    const escapeText = (text) => {
+        if (!text) return '';
+        return text
+            .replace(/\\/g, '\\\\')
+            .replace(/;/g, '\\;')
+            .replace(/,/g, '\\,')
+            .replace(/\n/g, '\\n');
+    };
+
+    const foldLine = (line) => {
+        const result = [];
+        while (line.length > 75) {
+            result.push(line.substring(0, 75));
+            line = ' ' + line.substring(75);
+        }
+        result.push(line);
+        return result.join('\r\n');
+    };
+
+    const lines = [
+        'BEGIN:VCALENDAR',
+        'VERSION:2.0',
+        'PRODID:-//Traf3li//Calendar//AR',
+        'CALSCALE:GREGORIAN',
+        'METHOD:PUBLISH',
+        'BEGIN:VEVENT'
+    ];
+
+    // UID
+    lines.push(`UID:${event._id}@traf3li.com`);
+
+    // Timestamps
+    lines.push(`DTSTAMP:${formatDate(new Date())}`);
+    lines.push(`CREATED:${formatDate(event.createdAt)}`);
+    lines.push(`LAST-MODIFIED:${formatDate(event.updatedAt || event.createdAt)}`);
+
+    // Date/Time
+    if (event.allDay) {
+        lines.push(`DTSTART;VALUE=DATE:${formatDate(event.startDateTime, true)}`);
+        if (event.endDateTime) {
+            lines.push(`DTEND;VALUE=DATE:${formatDate(event.endDateTime, true)}`);
+        }
+    } else {
+        lines.push(`DTSTART:${formatDate(event.startDateTime)}`);
+        if (event.endDateTime) {
+            lines.push(`DTEND:${formatDate(event.endDateTime)}`);
+        }
+    }
+
+    // Summary (Title)
+    lines.push(foldLine(`SUMMARY:${escapeText(event.title)}`));
+
+    // Description
+    if (event.description) {
+        lines.push(foldLine(`DESCRIPTION:${escapeText(event.description)}`));
+    }
+
+    // Location
+    if (event.location) {
+        const locationStr = event.location.address ||
+                           (event.location.type === 'virtual' ? event.location.meetingUrl : '');
+        if (locationStr) {
+            lines.push(foldLine(`LOCATION:${escapeText(locationStr)}`));
+        }
+    }
+
+    // Organizer
+    if (event.organizer) {
+        const orgEmail = event.organizer.email || 'noreply@traf3li.com';
+        const orgName = `${event.organizer.firstName || ''} ${event.organizer.lastName || ''}`.trim();
+        lines.push(`ORGANIZER;CN=${escapeText(orgName)}:mailto:${orgEmail}`);
+    }
+
+    // Attendees
+    if (event.attendees && event.attendees.length > 0) {
+        event.attendees.forEach(attendee => {
+            if (attendee.userId && attendee.userId.email) {
+                const attendeeName = `${attendee.userId.firstName || ''} ${attendee.userId.lastName || ''}`.trim();
+                const partstat = attendee.status === 'confirmed' ? 'ACCEPTED' :
+                                attendee.status === 'declined' ? 'DECLINED' :
+                                attendee.status === 'tentative' ? 'TENTATIVE' : 'NEEDS-ACTION';
+                lines.push(`ATTENDEE;CN=${escapeText(attendeeName)};PARTSTAT=${partstat}:mailto:${attendee.userId.email}`);
+            }
+        });
+    }
+
+    // Priority
+    const priorityMap = { 'critical': 1, 'high': 3, 'medium': 5, 'low': 7 };
+    if (event.priority && priorityMap[event.priority]) {
+        lines.push(`PRIORITY:${priorityMap[event.priority]}`);
+    }
+
+    // Status
+    const statusMap = {
+        'scheduled': 'CONFIRMED',
+        'confirmed': 'CONFIRMED',
+        'cancelled': 'CANCELLED',
+        'tentative': 'TENTATIVE'
+    };
+    lines.push(`STATUS:${statusMap[event.status] || 'CONFIRMED'}`);
+
+    // Categories (based on type)
+    if (event.type) {
+        lines.push(`CATEGORIES:${event.type.toUpperCase()}`);
+    }
+
+    // Case reference in X-property
+    if (event.caseId) {
+        lines.push(`X-TRAF3LI-CASE-ID:${event.caseId._id || event.caseId}`);
+        if (event.caseId.caseNumber) {
+            lines.push(`X-TRAF3LI-CASE-NUMBER:${event.caseId.caseNumber}`);
+        }
+    }
+
+    lines.push('END:VEVENT');
+    lines.push('END:VCALENDAR');
+
+    return lines.join('\r\n');
+}
+
+// Helper function to parse ICS content
+function parseICS(icsContent) {
+    const events = [];
+    const lines = icsContent.replace(/\r\n /g, '').split(/\r?\n/);
+
+    let currentEvent = null;
+    let inEvent = false;
+
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i].trim();
+
+        if (line === 'BEGIN:VEVENT') {
+            inEvent = true;
+            currentEvent = {};
+            continue;
+        }
+
+        if (line === 'END:VEVENT') {
+            if (currentEvent && currentEvent.startDate) {
+                events.push(currentEvent);
+            }
+            currentEvent = null;
+            inEvent = false;
+            continue;
+        }
+
+        if (!inEvent || !currentEvent) continue;
+
+        const colonIndex = line.indexOf(':');
+        if (colonIndex === -1) continue;
+
+        const keyPart = line.substring(0, colonIndex);
+        const value = line.substring(colonIndex + 1);
+        const key = keyPart.split(';')[0];
+
+        switch (key) {
+            case 'UID':
+                currentEvent.uid = value;
+                break;
+            case 'SUMMARY':
+                currentEvent.title = unescapeICS(value);
+                break;
+            case 'DESCRIPTION':
+                currentEvent.description = unescapeICS(value);
+                break;
+            case 'LOCATION':
+                currentEvent.location = unescapeICS(value);
+                break;
+            case 'DTSTART':
+                currentEvent.startDate = parseICSDate(value, keyPart);
+                currentEvent.allDay = keyPart.includes('VALUE=DATE') && !keyPart.includes('DATE-TIME');
+                break;
+            case 'DTEND':
+                currentEvent.endDate = parseICSDate(value, keyPart);
+                break;
+        }
+    }
+
+    return events;
+}
+
+// Helper function to parse ICS date
+function parseICSDate(value, keyPart) {
+    // Check if it's a date-only value
+    if (keyPart.includes('VALUE=DATE') && value.length === 8) {
+        const year = value.substring(0, 4);
+        const month = value.substring(4, 6);
+        const day = value.substring(6, 8);
+        return new Date(`${year}-${month}-${day}T00:00:00Z`);
+    }
+
+    // Full datetime value
+    const cleanValue = value.replace('Z', '');
+    if (cleanValue.length >= 15) {
+        const year = cleanValue.substring(0, 4);
+        const month = cleanValue.substring(4, 6);
+        const day = cleanValue.substring(6, 8);
+        const hour = cleanValue.substring(9, 11);
+        const minute = cleanValue.substring(11, 13);
+        const second = cleanValue.substring(13, 15);
+        return new Date(`${year}-${month}-${day}T${hour}:${minute}:${second}Z`);
+    }
+
+    return new Date(value);
+}
+
+// Helper function to unescape ICS text
+function unescapeICS(text) {
+    return text
+        .replace(/\\n/g, '\n')
+        .replace(/\\,/g, ',')
+        .replace(/\\;/g, ';')
+        .replace(/\\\\/g, '\\');
+}
+
+// Helper function to sanitize filename
+function sanitizeFilename(filename) {
+    return filename
+        .replace(/[^a-zA-Z0-9\u0600-\u06FF\s-_]/g, '')
+        .replace(/\s+/g, '_')
+        .substring(0, 50) || 'event';
+}
+
 module.exports = {
     createEvent,
     getEvents,
@@ -951,5 +1282,7 @@ module.exports = {
     getEventsByMonth,
     getEventStats,
     checkAvailability,
-    syncTaskToCalendar
+    syncTaskToCalendar,
+    exportEventToICS,
+    importEventsFromICS
 };

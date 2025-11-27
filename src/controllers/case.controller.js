@@ -1,4 +1,4 @@
-const { Case, Order, User } = require('../models');
+const { Case, Order, User, Event, Reminder } = require('../models');
 const AuditLog = require('../models/auditLog.model');
 const CaseAuditLog = require('../models/caseAuditLog.model');
 const CaseAuditService = require('../services/caseAuditService');
@@ -349,7 +349,9 @@ const addHearing = async (request, response) => {
             throw CustomException('Only the lawyer can add hearings!', 403);
         }
 
-        caseDoc.hearings.push({ date, location, notes, status: 'scheduled' });
+        // Create the hearing
+        const hearing = { date, location, notes, status: 'scheduled' };
+        caseDoc.hearings.push(hearing);
 
         // Update nextHearing if this is the soonest upcoming hearing
         const hearingDate = new Date(date);
@@ -359,10 +361,82 @@ const addHearing = async (request, response) => {
 
         await caseDoc.save();
 
+        // Get the newly created hearing ID
+        const newHearing = caseDoc.hearings[caseDoc.hearings.length - 1];
+
+        // Auto-create Calendar Event for the hearing
+        let createdEvent = null;
+        let createdReminder = null;
+
+        try {
+            createdEvent = await Event.create({
+                title: `جلسة محكمة - ${caseDoc.title}`,
+                description: notes || `جلسة محكمة - قضية رقم ${caseDoc.caseNumber || ''}`,
+                type: 'hearing',
+                startDateTime: hearingDate,
+                endDateTime: new Date(hearingDate.getTime() + 2 * 60 * 60 * 1000), // Default 2 hours
+                allDay: false,
+                timezone: 'Asia/Riyadh',
+                location: location ? { type: 'physical', address: location } : undefined,
+                caseId: caseDoc._id,
+                organizer: request.userID,
+                createdBy: request.userID,
+                status: 'scheduled',
+                priority: 'high',
+                color: '#ef4444',
+                hearingId: newHearing._id // Link to hearing
+            });
+
+            // Update hearing with event reference
+            newHearing.eventId = createdEvent._id;
+        } catch (eventError) {
+            console.error('Error creating event for hearing:', eventError);
+        }
+
+        // Auto-create Reminder (1 day before the hearing)
+        try {
+            const reminderDate = new Date(hearingDate);
+            reminderDate.setDate(reminderDate.getDate() - 1);
+            reminderDate.setHours(9, 0, 0, 0); // Set reminder for 9 AM
+
+            // Only create reminder if hearing is more than 1 day away
+            if (reminderDate > new Date()) {
+                createdReminder = await Reminder.create({
+                    userId: request.userID,
+                    title: `تذكير: جلسة محكمة - ${caseDoc.title}`,
+                    description: `موعد الجلسة غداً في ${location || 'المحكمة'}`,
+                    type: 'hearing',
+                    reminderDateTime: reminderDate,
+                    priority: 'high',
+                    status: 'pending',
+                    relatedCase: caseDoc._id,
+                    relatedEvent: createdEvent ? createdEvent._id : undefined,
+                    hearingId: newHearing._id, // Link to hearing
+                    notification: {
+                        channels: ['push', 'email'],
+                        advanceNotifications: [
+                            { minutes: 1440, sent: false } // 24 hours before
+                        ]
+                    },
+                    createdBy: request.userID
+                });
+
+                // Update hearing with reminder reference
+                newHearing.reminderId = createdReminder._id;
+            }
+        } catch (reminderError) {
+            console.error('Error creating reminder for hearing:', reminderError);
+        }
+
+        // Save the case again with event/reminder references
+        await caseDoc.save();
+
         return response.status(202).send({
             error: false,
             message: 'Hearing added successfully!',
-            case: caseDoc
+            case: caseDoc,
+            event: createdEvent,
+            reminder: createdReminder
         });
     } catch ({ message, status = 500 }) {
         return response.status(status).send({
@@ -541,12 +615,65 @@ const updateHearing = async (request, response) => {
             throw CustomException('Hearing not found!', 404);
         }
 
+        const oldDate = hearing.date;
         if (status !== undefined) hearing.status = status;
         if (notes !== undefined) hearing.notes = notes;
         if (date !== undefined) hearing.date = date;
         if (location !== undefined) hearing.location = location;
 
         await caseDoc.save();
+
+        // Sync linked Event if it exists
+        if (hearing.eventId) {
+            try {
+                const eventUpdates = {};
+                if (date !== undefined) {
+                    const hearingDate = new Date(date);
+                    eventUpdates.startDateTime = hearingDate;
+                    eventUpdates.endDateTime = new Date(hearingDate.getTime() + 2 * 60 * 60 * 1000);
+                }
+                if (location !== undefined) {
+                    eventUpdates.location = { type: 'physical', address: location };
+                }
+                if (notes !== undefined) {
+                    eventUpdates.description = notes || `جلسة محكمة - قضية رقم ${caseDoc.caseNumber || ''}`;
+                }
+                if (status !== undefined) {
+                    const eventStatusMap = {
+                        'scheduled': 'scheduled',
+                        'completed': 'completed',
+                        'adjourned': 'postponed',
+                        'cancelled': 'cancelled'
+                    };
+                    eventUpdates.status = eventStatusMap[status] || 'scheduled';
+                }
+
+                if (Object.keys(eventUpdates).length > 0) {
+                    await Event.findByIdAndUpdate(hearing.eventId, eventUpdates);
+                }
+            } catch (eventError) {
+                console.error('Error updating linked event:', eventError);
+            }
+        }
+
+        // Sync linked Reminder if it exists and date changed
+        if (hearing.reminderId && date !== undefined && oldDate.getTime() !== new Date(date).getTime()) {
+            try {
+                const hearingDate = new Date(date);
+                const reminderDate = new Date(hearingDate);
+                reminderDate.setDate(reminderDate.getDate() - 1);
+                reminderDate.setHours(9, 0, 0, 0);
+
+                const reminderUpdates = {
+                    reminderDateTime: reminderDate,
+                    description: `موعد الجلسة غداً في ${location || hearing.location || 'المحكمة'}`
+                };
+
+                await Reminder.findByIdAndUpdate(hearing.reminderId, reminderUpdates);
+            } catch (reminderError) {
+                console.error('Error updating linked reminder:', reminderError);
+            }
+        }
 
         return response.status(202).send({
             error: false,
@@ -678,8 +805,30 @@ const deleteHearing = async (request, response) => {
             throw CustomException('Hearing not found!', 404);
         }
 
+        // Store references before deleting the hearing
+        const eventId = hearing.eventId;
+        const reminderId = hearing.reminderId;
+
         caseDoc.hearings.pull(hearingId);
         await caseDoc.save();
+
+        // Delete linked Event if it exists
+        if (eventId) {
+            try {
+                await Event.findByIdAndDelete(eventId);
+            } catch (eventError) {
+                console.error('Error deleting linked event:', eventError);
+            }
+        }
+
+        // Delete linked Reminder if it exists
+        if (reminderId) {
+            try {
+                await Reminder.findByIdAndDelete(reminderId);
+            } catch (reminderError) {
+                console.error('Error deleting linked reminder:', reminderError);
+            }
+        }
 
         return response.status(200).send({
             error: false,
