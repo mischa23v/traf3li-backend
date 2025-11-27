@@ -60,7 +60,18 @@ const {
     conflictCheckRoute,
     trustAccountRoute,
     matterBudgetRoute,
-    savedReportRoute
+    savedReportRoute,
+
+    // Bank Accounts
+    bankAccountRoute,
+    bankTransferRoute,
+    bankTransactionRoute,
+    bankReconciliationRoute,
+
+    // Vendors and Bills
+    vendorRoute,
+    billRoute,
+    billPaymentRoute
 } = require('./routes');
 
 const app = express();
@@ -221,6 +232,17 @@ app.use('/api/conflict-checks', conflictCheckRoute);
 app.use('/api/trust-accounts', trustAccountRoute);
 app.use('/api/matter-budgets', matterBudgetRoute);
 app.use('/api/saved-reports', savedReportRoute);
+
+// Bank Account Routes
+app.use('/api/bank-accounts', bankAccountRoute);
+app.use('/api/bank-transfers', bankTransferRoute);
+app.use('/api/bank-transactions', bankTransactionRoute);
+app.use('/api/bank-reconciliations', bankReconciliationRoute);
+
+// Vendor and Bills Routes
+app.use('/api/vendors', vendorRoute);
+app.use('/api/bills', billRoute);
+app.use('/api/bill-payments', billPaymentRoute);
 
 // Health check endpoint (useful for monitoring)
 app.get('/health', (req, res) => {

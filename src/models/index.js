@@ -82,6 +82,17 @@ const BudgetTemplate = require('./budgetTemplate.model');
 const CaseAuditLog = require('./caseAuditLog.model');
 const DocumentVersion = require('./documentVersion.model');
 
+// Bank Account Models
+const BankAccount = require('./bankAccount.model');
+const BankTransfer = require('./bankTransfer.model');
+const BankTransaction = require('./bankTransaction.model');
+const BankReconciliation = require('./bankReconciliation.model');
+
+// Vendor and Bills Models
+const Vendor = require('./vendor.model');
+const Bill = require('./bill.model');
+const BillPayment = require('./billPayment.model');
+
 module.exports = {
     // Marketplace
     User,
@@ -165,5 +176,16 @@ module.exports = {
 
     // Audit Trail
     CaseAuditLog,
-    DocumentVersion
+    DocumentVersion,
+
+    // Bank Accounts
+    BankAccount,
+    BankTransfer,
+    BankTransaction,
+    BankReconciliation,
+
+    // Vendors and Bills
+    Vendor,
+    Bill,
+    BillPayment
 };

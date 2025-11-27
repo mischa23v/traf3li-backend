@@ -52,6 +52,17 @@ const trustAccountRoute = require('./trustAccount.route');
 const matterBudgetRoute = require('./matterBudget.route');
 const savedReportRoute = require('./savedReport.route');
 
+// Bank Account Routes
+const bankAccountRoute = require('./bankAccount.route');
+const bankTransferRoute = require('./bankTransfer.route');
+const bankTransactionRoute = require('./bankTransaction.route');
+const bankReconciliationRoute = require('./bankReconciliation.route');
+
+// Vendor and Bills Routes
+const vendorRoute = require('./vendor.route');
+const billRoute = require('./bill.route');
+const billPaymentRoute = require('./billPayment.route');
+
 module.exports = {
     // Marketplace
     gigRoute,
@@ -105,5 +116,16 @@ module.exports = {
     conflictCheckRoute,
     trustAccountRoute,
     matterBudgetRoute,
-    savedReportRoute
+    savedReportRoute,
+
+    // Bank Accounts
+    bankAccountRoute,
+    bankTransferRoute,
+    bankTransactionRoute,
+    bankReconciliationRoute,
+
+    // Vendors and Bills
+    vendorRoute,
+    billRoute,
+    billPaymentRoute
 };
