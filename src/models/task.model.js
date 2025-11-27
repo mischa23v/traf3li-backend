@@ -40,6 +40,7 @@ const commentSchema = new mongoose.Schema({
     userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     content: { type: String, required: true, maxlength: 2000 },
     mentions: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+    visibility: { type: String, enum: ['internal', 'client_visible'], default: 'internal' },
     createdAt: { type: Date, default: Date.now },
     updatedAt: Date
 }, { _id: true });
@@ -90,18 +91,54 @@ const taskSchema = new mongoose.Schema({
         enum: ['bug', 'feature', 'documentation', 'enhancement', 'question', 'legal', 'administrative', 'urgent'],
         default: null
     },
+    // Task type for Saudi legal practice
+    taskType: {
+        type: String,
+        enum: [
+            'court_hearing', 'filing_deadline', 'appeal_deadline',
+            'document_drafting', 'contract_review', 'client_meeting',
+            'client_call', 'consultation', 'najiz_procedure',
+            'legal_research', 'enforcement_followup', 'notarization',
+            'billing_task', 'administrative', 'follow_up', 'other'
+        ],
+        default: 'other'
+    },
     tags: [{ type: String, trim: true }],
     dueDate: {
         type: Date,
         index: true
     },
     dueTime: String, // HH:mm format
+    // Hijri date support
+    dueDateHijri: {
+        year: Number,
+        month: Number,
+        day: Number,
+        formatted: String
+    },
+    // Deadline type and statutory reference
+    deadlineType: {
+        type: String,
+        enum: ['statutory', 'court_ordered', 'contractual', 'internal', 'none'],
+        default: 'internal'
+    },
+    statutoryReference: {
+        lawName: String,
+        articleNumber: String,
+        daysAllowed: Number
+    },
+    warningDaysBefore: {
+        type: Number,
+        default: 3
+    },
     startDate: Date,
     assignedTo: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
         index: true
     },
+    // Multiple assignees support
+    assignedToMultiple: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
     createdBy: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
@@ -118,6 +155,16 @@ const taskSchema = new mongoose.Schema({
         ref: 'User',
         index: true
     },
+    // Linked entities
+    eventId: { type: mongoose.Schema.Types.ObjectId, ref: 'Event' },
+    reminderId: { type: mongoose.Schema.Types.ObjectId, ref: 'Reminder' },
+    invoiceId: { type: mongoose.Schema.Types.ObjectId, ref: 'Invoice' },
+    // Related documents
+    relatedDocuments: [{
+        documentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Document' },
+        documentName: String,
+        documentType: String
+    }],
     parentTaskId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Task'
@@ -163,7 +210,73 @@ const taskSchema = new mongoose.Schema({
     progress: { type: Number, default: 0, min: 0, max: 100 },
     completedAt: Date,
     completedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-    notes: { type: String, maxlength: 2000 },
+    notes: { type: String, maxlength: 5000 },
+    // Court system fields
+    courtType: {
+        type: String,
+        enum: [
+            'general_court', 'criminal_court', 'family_court',
+            'commercial_court', 'labor_court', 'appeal_court',
+            'supreme_court', 'administrative_court', 'enforcement_court'
+        ]
+    },
+    courtCaseNumber: String,
+    caseYear: Number,
+    // Billing fields
+    billing: {
+        isBillable: { type: Boolean, default: true },
+        billingType: {
+            type: String,
+            enum: ['hourly', 'fixed_fee', 'retainer', 'pro_bono', 'not_billable'],
+            default: 'hourly'
+        },
+        hourlyRate: Number,
+        fixedAmount: Number,
+        currency: { type: String, default: 'SAR' },
+        billableAmount: Number,
+        invoiceStatus: {
+            type: String,
+            enum: ['not_invoiced', 'invoiced', 'paid', 'written_off'],
+            default: 'not_invoiced'
+        },
+        linkedInvoiceId: { type: mongoose.Schema.Types.ObjectId, ref: 'Invoice' }
+    },
+    // Knowledge links (for future AI features)
+    knowledgeLinks: {
+        linkedJudgments: [{
+            judgmentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Judgment' },
+            judgmentNumber: String,
+            courtType: String,
+            year: Number,
+            summary: String,
+            addedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+            addedAt: Date
+        }],
+        linkedLaws: [{
+            lawId: { type: mongoose.Schema.Types.ObjectId, ref: 'Law' },
+            lawName: String,
+            lawNumber: String,
+            articleNumber: String,
+            addedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+            addedAt: Date
+        }],
+        suggestedJudgments: [{
+            judgmentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Judgment' },
+            relevanceScore: Number,
+            isAccepted: Boolean
+        }],
+        researchNotes: String
+    },
+    // Marketplace tracking
+    marketplaceTracking: {
+        originSource: {
+            type: String,
+            enum: ['marketplace_job', 'marketplace_gig', 'direct_client', 'referral', 'other']
+        },
+        marketplaceJobId: { type: mongoose.Schema.Types.ObjectId, ref: 'Job' },
+        marketplaceOrderId: { type: mongoose.Schema.Types.ObjectId, ref: 'Order' },
+        clientSatisfactionRating: { type: Number, min: 1, max: 5 }
+    },
     // Template fields
     isTemplate: {
         type: Boolean,
@@ -198,6 +311,12 @@ taskSchema.index({ 'recurring.enabled': 1, 'recurring.nextDue': 1 });
 taskSchema.index({ title: 'text', description: 'text' });
 taskSchema.index({ isTemplate: 1, createdBy: 1 });
 taskSchema.index({ isTemplate: 1, isPublic: 1 });
+// New indexes for Saudi legal fields
+taskSchema.index({ taskType: 1, status: 1 });
+taskSchema.index({ deadlineType: 1, dueDate: 1 });
+taskSchema.index({ courtType: 1 });
+taskSchema.index({ 'billing.invoiceStatus': 1 });
+taskSchema.index({ assignedToMultiple: 1 });
 
 // Pre-save hook to calculate progress from subtasks
 taskSchema.pre('save', function(next) {

@@ -10,13 +10,23 @@ const createTask = asyncHandler(async (req, res) => {
         priority,
         status,
         label,
+        taskType,
         tags,
         dueDate,
         dueTime,
+        dueDateHijri,
+        deadlineType,
+        statutoryReference,
+        warningDaysBefore,
         startDate,
         assignedTo,
+        assignedToMultiple,
         caseId,
         clientId,
+        eventId,
+        reminderId,
+        invoiceId,
+        relatedDocuments,
         parentTaskId,
         subtasks,
         checklists,
@@ -24,7 +34,13 @@ const createTask = asyncHandler(async (req, res) => {
         recurring,
         reminders,
         notes,
-        points
+        points,
+        courtType,
+        courtCaseNumber,
+        caseYear,
+        billing,
+        knowledgeLinks,
+        marketplaceTracking
     } = req.body;
 
     const userId = req.userID;
@@ -51,14 +67,24 @@ const createTask = asyncHandler(async (req, res) => {
         priority: priority || 'medium',
         status: status || 'todo',
         label,
+        taskType: taskType || 'other',
         tags,
         dueDate,
         dueTime,
+        dueDateHijri,
+        deadlineType,
+        statutoryReference,
+        warningDaysBefore,
         startDate,
         assignedTo: assignedTo || userId,
+        assignedToMultiple,
         createdBy: userId,
         caseId,
         clientId,
+        eventId,
+        reminderId,
+        invoiceId,
+        relatedDocuments,
         parentTaskId,
         subtasks: subtasks || [],
         checklists: checklists || [],
@@ -66,7 +92,13 @@ const createTask = asyncHandler(async (req, res) => {
         recurring,
         reminders: reminders || [],
         notes,
-        points: points || 0
+        points: points || 0,
+        courtType,
+        courtCaseNumber,
+        caseYear,
+        billing,
+        knowledgeLinks,
+        marketplaceTracking
     });
 
     // Add history entry
@@ -97,6 +129,9 @@ const getTasks = asyncHandler(async (req, res) => {
         status,
         priority,
         label,
+        taskType,
+        deadlineType,
+        courtType,
         assignedTo,
         caseId,
         clientId,
@@ -104,6 +139,8 @@ const getTasks = asyncHandler(async (req, res) => {
         search,
         startDate,
         endDate,
+        isBillable,
+        invoiceStatus,
         page = 1,
         limit = 50,
         sortBy = 'dueDate',
@@ -114,16 +151,23 @@ const getTasks = asyncHandler(async (req, res) => {
     const query = {
         $or: [
             { assignedTo: userId },
-            { createdBy: userId }
+            { createdBy: userId },
+            { assignedToMultiple: userId }
         ]
     };
 
     if (status) query.status = status;
     if (priority) query.priority = priority;
     if (label) query.label = label;
+    if (taskType) query.taskType = taskType;
+    if (deadlineType) query.deadlineType = deadlineType;
+    if (courtType) query.courtType = courtType;
     if (assignedTo) query.assignedTo = assignedTo;
     if (caseId) query.caseId = caseId;
     if (clientId) query.clientId = clientId;
+    if (isBillable === 'true') query['billing.isBillable'] = true;
+    if (isBillable === 'false') query['billing.isBillable'] = false;
+    if (invoiceStatus) query['billing.invoiceStatus'] = invoiceStatus;
 
     // Date range filter
     if (startDate || endDate) {
@@ -148,9 +192,12 @@ const getTasks = asyncHandler(async (req, res) => {
 
     const tasks = await Task.find(query)
         .populate('assignedTo', 'firstName lastName username email image')
+        .populate('assignedToMultiple', 'firstName lastName username email image')
         .populate('createdBy', 'firstName lastName username email image')
         .populate('caseId', 'title caseNumber')
         .populate('clientId', 'firstName lastName')
+        .populate('eventId', 'title startDateTime')
+        .populate('reminderId', 'title reminderDateTime')
         .sort(sortOptions)
         .limit(parseInt(limit))
         .skip((parseInt(page) - 1) * parseInt(limit));
@@ -176,21 +223,30 @@ const getTask = asyncHandler(async (req, res) => {
 
     const task = await Task.findById(id)
         .populate('assignedTo', 'firstName lastName username email image')
+        .populate('assignedToMultiple', 'firstName lastName username email image')
         .populate('createdBy', 'firstName lastName username email image')
         .populate('caseId', 'title caseNumber category')
         .populate('clientId', 'firstName lastName email')
         .populate('completedBy', 'firstName lastName')
         .populate('comments.userId', 'firstName lastName image')
-        .populate('timeTracking.sessions.userId', 'firstName lastName');
+        .populate('timeTracking.sessions.userId', 'firstName lastName')
+        .populate('eventId', 'title startDateTime endDateTime')
+        .populate('reminderId', 'title reminderDateTime')
+        .populate('invoiceId', 'invoiceNumber totalAmount status')
+        .populate('relatedDocuments.documentId', 'name fileUrl');
 
     if (!task) {
         throw new CustomException('Task not found', 404);
     }
 
-    // Check access
+    // Check access - include assignedToMultiple
+    const isInMultipleAssignees = task.assignedToMultiple?.some(
+        u => u._id.toString() === userId
+    );
     const hasAccess =
         task.assignedTo?._id.toString() === userId ||
-        task.createdBy._id.toString() === userId;
+        task.createdBy._id.toString() === userId ||
+        isInMultipleAssignees;
 
     if (!hasAccess) {
         throw new CustomException('You do not have access to this task', 403);
@@ -213,10 +269,14 @@ const updateTask = asyncHandler(async (req, res) => {
         throw new CustomException('Task not found', 404);
     }
 
-    // Check permission
+    // Check permission - include assignedToMultiple
+    const isInMultipleAssignees = task.assignedToMultiple?.some(
+        u => u.toString() === userId
+    );
     const canUpdate =
         task.createdBy.toString() === userId ||
-        task.assignedTo?.toString() === userId;
+        task.assignedTo?.toString() === userId ||
+        isInMultipleAssignees;
 
     if (!canUpdate) {
         throw new CustomException('You do not have permission to update this task', 403);
@@ -225,10 +285,13 @@ const updateTask = asyncHandler(async (req, res) => {
     // Track changes for history
     const changes = {};
     const allowedFields = [
-        'title', 'description', 'status', 'priority', 'label', 'tags',
-        'dueDate', 'dueTime', 'startDate', 'assignedTo', 'caseId', 'clientId',
+        'title', 'description', 'status', 'priority', 'label', 'taskType', 'tags',
+        'dueDate', 'dueTime', 'dueDateHijri', 'deadlineType', 'statutoryReference',
+        'warningDaysBefore', 'startDate', 'assignedTo', 'assignedToMultiple',
+        'caseId', 'clientId', 'eventId', 'reminderId', 'invoiceId', 'relatedDocuments',
         'subtasks', 'checklists', 'timeTracking', 'recurring', 'reminders',
-        'notes', 'points', 'progress'
+        'notes', 'points', 'progress', 'courtType', 'courtCaseNumber', 'caseYear',
+        'billing', 'knowledgeLinks', 'marketplaceTracking'
     ];
 
     allowedFields.forEach(field => {
