@@ -79,6 +79,41 @@ const timeEntrySchema = new mongoose.Schema({
             'other'
         ]
     },
+    // NEW FIELDS per API spec
+    taskType: {
+        type: String,
+        enum: [
+            'consultation',
+            'research',
+            'document_review',
+            'document_drafting',
+            'court_appearance',
+            'meeting',
+            'phone_call',
+            'email_correspondence',
+            'negotiation',
+            'contract_review',
+            'filing',
+            'travel',
+            'administrative',
+            'other'
+        ],
+        default: 'other'
+    },
+    assigneeId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        default: null
+    },
+    billStatus: {
+        type: String,
+        enum: ['unbilled', 'billed', 'non_billable'],
+        default: 'unbilled'
+    },
+    hours: {
+        type: Number,
+        default: 0
+    },
     status: {
         type: String,
         enum: ['draft', 'pending_approval', 'approved', 'invoiced', 'rejected'],
@@ -147,10 +182,23 @@ timeEntrySchema.pre('save', function(next) {
         this.entryId = `TIME-${year}${month}-${random}`;
     }
 
+    // Calculate hours from duration (duration is in minutes)
+    if (this.isModified('duration') || !this.hours) {
+        this.hours = this.duration / 60;
+    }
+
     // Calculate total amount if duration or hourlyRate changed
     if (this.isModified('duration') || this.isModified('hourlyRate')) {
         const hours = this.duration / 60;
         this.totalAmount = Math.round(hours * this.hourlyRate * 100) / 100;
+    }
+
+    // Sync isBillable with billStatus
+    if (this.isModified('billStatus')) {
+        this.isBillable = this.billStatus !== 'non_billable';
+        if (this.billStatus === 'billed') {
+            this.isBilled = true;
+        }
     }
 
     next();
