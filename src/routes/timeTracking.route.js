@@ -15,6 +15,9 @@ const {
     updateTimeEntry,
     deleteTimeEntry,
 
+    // Weekly view
+    getWeeklyEntries,
+
     // Approval workflow
     approveTimeEntry,
     rejectTimeEntry,
@@ -40,7 +43,11 @@ app.post('/entries', userMiddleware, createTimeEntry);
 app.get('/entries', userMiddleware, getTimeEntries);
 app.get('/entries/:id', userMiddleware, getTimeEntry);
 app.put('/entries/:id', userMiddleware, updateTimeEntry);
+app.patch('/entries/:id', userMiddleware, updateTimeEntry);
 app.delete('/entries/:id', userMiddleware, deleteTimeEntry);
+
+// Weekly view for calendar
+app.get('/weekly', userMiddleware, getWeeklyEntries);
 
 // Approval routes
 app.post('/entries/:id/approve', userMiddleware, approveTimeEntry);

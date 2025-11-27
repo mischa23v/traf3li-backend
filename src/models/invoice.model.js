@@ -44,9 +44,18 @@ const invoiceSchema = new mongoose.Schema({
         type: Number,
         required: true
     },
-    total: {
+    totalAmount: {
         type: Number,
         required: true
+    },
+    discountType: {
+        type: String,
+        enum: ['percentage', 'fixed'],
+        default: null
+    },
+    discountValue: {
+        type: Number,
+        default: 0
     },
     amountPaid: {
         type: Number,
@@ -58,7 +67,7 @@ const invoiceSchema = new mongoose.Schema({
     },
     status: {
         type: String,
-        enum: ['draft', 'pending', 'sent', 'paid', 'overdue', 'cancelled'],
+        enum: ['draft', 'pending', 'sent', 'paid', 'partial', 'overdue', 'cancelled'],
         default: 'draft'
     },
     issueDate: {

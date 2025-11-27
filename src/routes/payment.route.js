@@ -11,6 +11,7 @@ const {
     createRefund,
     sendReceipt,
     getPaymentStats,
+    getPaymentsSummary,
     bulkDeletePayments
 } = require('../controllers/payment.controller');
 
@@ -20,6 +21,7 @@ const app = express.Router();
 app.post('/', userMiddleware, createPayment);
 app.get('/', userMiddleware, getPayments);
 app.get('/stats', userMiddleware, getPaymentStats);
+app.get('/summary', userMiddleware, getPaymentsSummary);
 app.get('/:id', userMiddleware, getPayment);
 app.put('/:id', userMiddleware, updatePayment);
 app.delete('/:id', userMiddleware, deletePayment);
