@@ -93,6 +93,10 @@ const Vendor = require('./vendor.model');
 const Bill = require('./bill.model');
 const BillPayment = require('./billPayment.model');
 
+// Apps Integration Models
+const App = require('./app.model');
+const UserApp = require('./userApp.model');
+
 module.exports = {
     // Marketplace
     User,
@@ -187,5 +191,9 @@ module.exports = {
     // Vendors and Bills
     Vendor,
     Bill,
-    BillPayment
+    BillPayment,
+
+    // Apps Integration
+    App,
+    UserApp
 };

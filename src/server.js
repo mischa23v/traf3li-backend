@@ -71,7 +71,10 @@ const {
     // Vendors and Bills
     vendorRoute,
     billRoute,
-    billPaymentRoute
+    billPaymentRoute,
+
+    // Apps Integration
+    appRoute
 } = require('./routes');
 
 const app = express();
@@ -243,6 +246,9 @@ app.use('/api/bank-reconciliations', bankReconciliationRoute);
 app.use('/api/vendors', vendorRoute);
 app.use('/api/bills', billRoute);
 app.use('/api/bill-payments', billPaymentRoute);
+
+// Apps Integration Routes
+app.use('/api/apps', appRoute);
 
 // Health check endpoint (useful for monitoring)
 app.get('/health', (req, res) => {

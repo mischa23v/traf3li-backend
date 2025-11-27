@@ -63,6 +63,9 @@ const vendorRoute = require('./vendor.route');
 const billRoute = require('./bill.route');
 const billPaymentRoute = require('./billPayment.route');
 
+// Apps Integration Routes
+const appRoute = require('./app.route');
+
 module.exports = {
     // Marketplace
     gigRoute,
@@ -127,5 +130,8 @@ module.exports = {
     // Vendors and Bills
     vendorRoute,
     billRoute,
-    billPaymentRoute
+    billPaymentRoute,
+
+    // Apps Integration
+    appRoute
 };
