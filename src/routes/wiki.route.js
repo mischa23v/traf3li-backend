@@ -204,4 +204,29 @@ router.get('/wiki/:pageId/export/preview', wikiController.getHtmlPreview);
 // Update calendar settings for a page
 router.put('/wiki/:pageId/calendar', wikiController.updateCalendarSettings);
 
+// ============================================
+// VOICE MEMO ROUTES
+// ============================================
+
+// List voice memos for a page
+router.get('/wiki/:pageId/voice-memos', wikiController.listVoiceMemos);
+
+// Get upload URL for voice memo
+router.post('/wiki/:pageId/voice-memos/upload', wikiController.getVoiceMemoUploadUrl);
+
+// Confirm voice memo upload
+router.post('/wiki/:pageId/voice-memos/confirm', wikiController.confirmVoiceMemoUpload);
+
+// Get voice memo stream/download URL
+router.get('/wiki/:pageId/voice-memos/:memoId/url', wikiController.getVoiceMemoUrl);
+
+// Update voice memo metadata
+router.put('/wiki/:pageId/voice-memos/:memoId', wikiController.updateVoiceMemo);
+
+// Delete voice memo
+router.delete('/wiki/:pageId/voice-memos/:memoId', wikiController.deleteVoiceMemo);
+
+// Seal/unseal voice memo
+router.post('/wiki/:pageId/voice-memos/:memoId/seal', wikiController.sealVoiceMemo);
+
 module.exports = router;
