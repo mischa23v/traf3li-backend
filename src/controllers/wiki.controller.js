@@ -1468,6 +1468,13 @@ exports.getRecentPages = async (req, res) => {
         const userId = req.userID;
         const { limit = 10 } = req.query;
 
+        if (!userId) {
+            return res.status(401).json({
+                success: false,
+                message: 'User not authenticated'
+            });
+        }
+
         const pages = await WikiPage.getRecentPages(userId, parseInt(limit));
 
         res.json({
