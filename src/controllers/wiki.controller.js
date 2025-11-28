@@ -4,6 +4,8 @@ const WikiBacklink = require('../models/wikiBacklink.model');
 const WikiCollection = require('../models/wikiCollection.model');
 const WikiComment = require('../models/wikiComment.model');
 const Case = require('../models/case.model');
+const { getUploadPresignedUrl, getDownloadPresignedUrl, deleteFile, generateFileKey, BUCKETS } = require('../configs/s3');
+const crypto = require('crypto');
 
 // Helper to extract links from content
 const extractLinksFromContent = (content, contentText) => {
@@ -1641,6 +1643,478 @@ exports.initializeDefaultCollections = async (req, res) => {
         res.status(500).json({
             success: false,
             message: 'Error initializing default collections',
+            error: error.message
+        });
+    }
+};
+
+// ============================================
+// ATTACHMENT OPERATIONS
+// ============================================
+
+// Get presigned URL for uploading attachment
+exports.getAttachmentUploadUrl = async (req, res) => {
+    try {
+        const { pageId } = req.params;
+        const userId = req.user._id;
+        const { fileName, fileType, documentCategory, isConfidential } = req.body;
+
+        if (!fileName || !fileType) {
+            return res.status(400).json({
+                success: false,
+                message: 'fileName and fileType are required'
+            });
+        }
+
+        const page = await WikiPage.findOne({
+            $or: [{ _id: pageId }, { pageId: pageId }]
+        });
+
+        if (!page) {
+            return res.status(404).json({
+                success: false,
+                message: 'Page not found'
+            });
+        }
+
+        // Check edit permission
+        if (!page.canEdit(userId)) {
+            return res.status(403).json({
+                success: false,
+                message: page.isSealed ? 'Cannot add attachments to sealed pages' : 'Access denied'
+            });
+        }
+
+        // Generate unique file key
+        const uniqueId = crypto.randomBytes(8).toString('hex');
+        const sanitizedFileName = fileName.replace(/[^a-zA-Z0-9.-]/g, '_');
+        const fileKey = `wiki/${page.caseId}/${page._id}/${uniqueId}-${sanitizedFileName}`;
+
+        // Get presigned URL
+        const uploadUrl = await getUploadPresignedUrl(fileKey, fileType, 'general');
+
+        res.json({
+            success: true,
+            data: {
+                uploadUrl,
+                fileKey,
+                expiresIn: 3600
+            }
+        });
+    } catch (error) {
+        console.error('Error getting attachment upload URL:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error getting upload URL',
+            error: error.message
+        });
+    }
+};
+
+// Confirm attachment upload and add to page
+exports.confirmAttachmentUpload = async (req, res) => {
+    try {
+        const { pageId } = req.params;
+        const userId = req.user._id;
+        const {
+            fileName,
+            fileNameAr,
+            fileKey,
+            fileUrl,
+            fileType,
+            fileSize,
+            documentCategory,
+            isConfidential
+        } = req.body;
+
+        if (!fileName || !fileKey) {
+            return res.status(400).json({
+                success: false,
+                message: 'fileName and fileKey are required'
+            });
+        }
+
+        const page = await WikiPage.findOne({
+            $or: [{ _id: pageId }, { pageId: pageId }]
+        });
+
+        if (!page) {
+            return res.status(404).json({
+                success: false,
+                message: 'Page not found'
+            });
+        }
+
+        // Check edit permission
+        if (!page.canEdit(userId)) {
+            return res.status(403).json({
+                success: false,
+                message: page.isSealed ? 'Cannot add attachments to sealed pages' : 'Access denied'
+            });
+        }
+
+        // Create attachment object
+        const attachment = {
+            fileName,
+            fileNameAr,
+            fileUrl: fileUrl || `https://${BUCKETS.general}.s3.amazonaws.com/${fileKey}`,
+            fileKey,
+            fileType,
+            fileSize,
+            uploadedBy: userId,
+            uploadedAt: new Date(),
+            isSealed: false,
+            isConfidential: isConfidential || page.isConfidential,
+            documentCategory: documentCategory || 'other'
+        };
+
+        // Add to page attachments
+        page.attachments.push(attachment);
+        page.lastModifiedBy = userId;
+        await page.save();
+
+        // Create revision for attachment
+        await WikiRevision.createFromPage(
+            page,
+            userId,
+            'update',
+            `Added attachment: ${fileName}`,
+            { ipAddress: req.ip, userAgent: req.get('user-agent') }
+        );
+
+        res.status(201).json({
+            success: true,
+            message: 'Attachment added successfully',
+            data: {
+                attachment: page.attachments[page.attachments.length - 1],
+                attachmentCount: page.attachmentCount
+            }
+        });
+    } catch (error) {
+        console.error('Error confirming attachment upload:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error adding attachment',
+            error: error.message
+        });
+    }
+};
+
+// Get attachment download URL
+exports.getAttachmentDownloadUrl = async (req, res) => {
+    try {
+        const { pageId, attachmentId } = req.params;
+        const userId = req.user._id;
+
+        const page = await WikiPage.findOne({
+            $or: [{ _id: pageId }, { pageId: pageId }]
+        });
+
+        if (!page) {
+            return res.status(404).json({
+                success: false,
+                message: 'Page not found'
+            });
+        }
+
+        // Check view permission
+        if (!page.canView(userId)) {
+            return res.status(403).json({
+                success: false,
+                message: 'Access denied'
+            });
+        }
+
+        // Find attachment
+        const attachment = page.attachments.find(
+            a => a.attachmentId === attachmentId || a._id?.toString() === attachmentId
+        );
+
+        if (!attachment) {
+            return res.status(404).json({
+                success: false,
+                message: 'Attachment not found'
+            });
+        }
+
+        // Get presigned download URL
+        const downloadUrl = await getDownloadPresignedUrl(
+            attachment.fileKey,
+            'general',
+            attachment.fileName
+        );
+
+        res.json({
+            success: true,
+            data: {
+                downloadUrl,
+                fileName: attachment.fileName,
+                fileType: attachment.fileType,
+                fileSize: attachment.fileSize,
+                expiresIn: 3600
+            }
+        });
+    } catch (error) {
+        console.error('Error getting attachment download URL:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error getting download URL',
+            error: error.message
+        });
+    }
+};
+
+// List attachments for a page
+exports.listAttachments = async (req, res) => {
+    try {
+        const { pageId } = req.params;
+        const userId = req.user._id;
+
+        const page = await WikiPage.findOne({
+            $or: [{ _id: pageId }, { pageId: pageId }]
+        })
+        .populate('attachments.uploadedBy', 'firstName lastName avatar');
+
+        if (!page) {
+            return res.status(404).json({
+                success: false,
+                message: 'Page not found'
+            });
+        }
+
+        // Check view permission
+        if (!page.canView(userId)) {
+            return res.status(403).json({
+                success: false,
+                message: 'Access denied'
+            });
+        }
+
+        res.json({
+            success: true,
+            data: {
+                attachments: page.attachments,
+                count: page.attachmentCount
+            }
+        });
+    } catch (error) {
+        console.error('Error listing attachments:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error listing attachments',
+            error: error.message
+        });
+    }
+};
+
+// Delete attachment
+exports.deleteAttachment = async (req, res) => {
+    try {
+        const { pageId, attachmentId } = req.params;
+        const userId = req.user._id;
+
+        const page = await WikiPage.findOne({
+            $or: [{ _id: pageId }, { pageId: pageId }]
+        });
+
+        if (!page) {
+            return res.status(404).json({
+                success: false,
+                message: 'Page not found'
+            });
+        }
+
+        // Check edit permission
+        if (!page.canEdit(userId)) {
+            return res.status(403).json({
+                success: false,
+                message: page.isSealed ? 'Cannot delete attachments from sealed pages' : 'Access denied'
+            });
+        }
+
+        // Find attachment
+        const attachmentIndex = page.attachments.findIndex(
+            a => a.attachmentId === attachmentId || a._id?.toString() === attachmentId
+        );
+
+        if (attachmentIndex === -1) {
+            return res.status(404).json({
+                success: false,
+                message: 'Attachment not found'
+            });
+        }
+
+        const attachment = page.attachments[attachmentIndex];
+
+        // Check if attachment is sealed
+        if (attachment.isSealed) {
+            return res.status(403).json({
+                success: false,
+                message: 'Cannot delete sealed attachments'
+            });
+        }
+
+        // Delete from S3
+        try {
+            await deleteFile(attachment.fileKey, 'general');
+        } catch (s3Error) {
+            console.error('S3 delete error:', s3Error);
+            // Continue even if S3 delete fails
+        }
+
+        // Remove from page
+        const deletedFileName = attachment.fileName;
+        page.attachments.splice(attachmentIndex, 1);
+        page.lastModifiedBy = userId;
+        await page.save();
+
+        // Create revision for deletion
+        await WikiRevision.createFromPage(
+            page,
+            userId,
+            'update',
+            `Deleted attachment: ${deletedFileName}`,
+            { ipAddress: req.ip, userAgent: req.get('user-agent') }
+        );
+
+        res.json({
+            success: true,
+            message: 'Attachment deleted successfully',
+            data: {
+                attachmentCount: page.attachmentCount
+            }
+        });
+    } catch (error) {
+        console.error('Error deleting attachment:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error deleting attachment',
+            error: error.message
+        });
+    }
+};
+
+// Update attachment metadata
+exports.updateAttachment = async (req, res) => {
+    try {
+        const { pageId, attachmentId } = req.params;
+        const userId = req.user._id;
+        const { fileName, fileNameAr, documentCategory, isConfidential } = req.body;
+
+        const page = await WikiPage.findOne({
+            $or: [{ _id: pageId }, { pageId: pageId }]
+        });
+
+        if (!page) {
+            return res.status(404).json({
+                success: false,
+                message: 'Page not found'
+            });
+        }
+
+        // Check edit permission
+        if (!page.canEdit(userId)) {
+            return res.status(403).json({
+                success: false,
+                message: page.isSealed ? 'Cannot update attachments on sealed pages' : 'Access denied'
+            });
+        }
+
+        // Find attachment
+        const attachment = page.attachments.find(
+            a => a.attachmentId === attachmentId || a._id?.toString() === attachmentId
+        );
+
+        if (!attachment) {
+            return res.status(404).json({
+                success: false,
+                message: 'Attachment not found'
+            });
+        }
+
+        // Check if attachment is sealed
+        if (attachment.isSealed) {
+            return res.status(403).json({
+                success: false,
+                message: 'Cannot update sealed attachments'
+            });
+        }
+
+        // Update fields
+        if (fileName !== undefined) attachment.fileName = fileName;
+        if (fileNameAr !== undefined) attachment.fileNameAr = fileNameAr;
+        if (documentCategory !== undefined) attachment.documentCategory = documentCategory;
+        if (isConfidential !== undefined) attachment.isConfidential = isConfidential;
+
+        page.lastModifiedBy = userId;
+        await page.save();
+
+        res.json({
+            success: true,
+            message: 'Attachment updated successfully',
+            data: attachment
+        });
+    } catch (error) {
+        console.error('Error updating attachment:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error updating attachment',
+            error: error.message
+        });
+    }
+};
+
+// Seal/unseal attachment (for legal auditability)
+exports.sealAttachment = async (req, res) => {
+    try {
+        const { pageId, attachmentId } = req.params;
+        const { seal } = req.body; // true to seal, false to unseal
+        const userId = req.user._id;
+
+        const page = await WikiPage.findOne({
+            $or: [{ _id: pageId }, { pageId: pageId }]
+        });
+
+        if (!page) {
+            return res.status(404).json({
+                success: false,
+                message: 'Page not found'
+            });
+        }
+
+        // Only page owner can seal/unseal
+        if (page.lawyerId.toString() !== userId.toString()) {
+            return res.status(403).json({
+                success: false,
+                message: 'Only the page owner can seal/unseal attachments'
+            });
+        }
+
+        // Find attachment
+        const attachment = page.attachments.find(
+            a => a.attachmentId === attachmentId || a._id?.toString() === attachmentId
+        );
+
+        if (!attachment) {
+            return res.status(404).json({
+                success: false,
+                message: 'Attachment not found'
+            });
+        }
+
+        attachment.isSealed = seal !== false;
+        await page.save();
+
+        res.json({
+            success: true,
+            message: seal !== false ? 'Attachment sealed successfully' : 'Attachment unsealed successfully',
+            data: attachment
+        });
+    } catch (error) {
+        console.error('Error sealing/unsealing attachment:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error updating attachment seal status',
             error: error.message
         });
     }

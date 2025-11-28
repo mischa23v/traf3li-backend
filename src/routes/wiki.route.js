@@ -108,6 +108,31 @@ router.delete('/wiki/comments/:commentId', wikiController.deleteComment);
 router.post('/wiki/comments/:commentId/resolve', wikiController.resolveComment);
 
 // ============================================
+// ATTACHMENT ROUTES
+// ============================================
+
+// List attachments for a page
+router.get('/wiki/:pageId/attachments', wikiController.listAttachments);
+
+// Get upload URL for attachment
+router.post('/wiki/:pageId/attachments/upload', wikiController.getAttachmentUploadUrl);
+
+// Confirm attachment upload
+router.post('/wiki/:pageId/attachments/confirm', wikiController.confirmAttachmentUpload);
+
+// Get download URL for attachment
+router.get('/wiki/:pageId/attachments/:attachmentId/download', wikiController.getAttachmentDownloadUrl);
+
+// Update attachment metadata
+router.put('/wiki/:pageId/attachments/:attachmentId', wikiController.updateAttachment);
+
+// Delete attachment
+router.delete('/wiki/:pageId/attachments/:attachmentId', wikiController.deleteAttachment);
+
+// Seal/unseal attachment
+router.post('/wiki/:pageId/attachments/:attachmentId/seal', wikiController.sealAttachment);
+
+// ============================================
 // SEAL/UNSEAL ROUTES
 // ============================================
 
