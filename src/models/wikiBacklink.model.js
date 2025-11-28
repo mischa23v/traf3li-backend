@@ -45,6 +45,19 @@ const wikiBacklinkSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Case',
         index: true
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // VALIDATION
+    // ═══════════════════════════════════════════════════════════════
+    isValid: {
+        type: Boolean,
+        default: true,
+        index: true
+    },
+    lastValidatedAt: {
+        type: Date,
+        default: Date.now
     }
 }, {
     timestamps: true,
@@ -230,6 +243,47 @@ wikiBacklinkSchema.statics.deletePageLinks = async function(pageId) {
     });
 
     return result.deletedCount;
+};
+
+// Static: Validate all links for a case (check if targets exist)
+wikiBacklinkSchema.statics.validateLinks = async function(caseId) {
+    const WikiPage = mongoose.model('WikiPage');
+
+    const links = await this.find({
+        caseId: new mongoose.Types.ObjectId(caseId)
+    });
+
+    let validCount = 0;
+    let invalidCount = 0;
+
+    for (const link of links) {
+        const targetExists = await WikiPage.exists({
+            _id: link.targetPageId,
+            status: { $ne: 'archived' }
+        });
+
+        const isValid = !!targetExists;
+        if (isValid !== link.isValid) {
+            link.isValid = isValid;
+            link.lastValidatedAt = new Date();
+            await link.save();
+        }
+
+        if (isValid) validCount++;
+        else invalidCount++;
+    }
+
+    return { total: links.length, valid: validCount, invalid: invalidCount };
+};
+
+// Static: Get broken links for a case
+wikiBacklinkSchema.statics.getBrokenLinks = async function(caseId) {
+    return await this.find({
+        caseId: new mongoose.Types.ObjectId(caseId),
+        isValid: false
+    })
+    .populate('sourcePageId', 'title urlSlug')
+    .sort({ lastValidatedAt: -1 });
 };
 
 module.exports = mongoose.model('WikiBacklink', wikiBacklinkSchema);

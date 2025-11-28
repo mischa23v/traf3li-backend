@@ -32,6 +32,10 @@ const wikiCommentSchema = new mongoose.Schema({
         required: true,
         maxlength: 5000
     },
+    contentHtml: {
+        type: String,
+        maxlength: 10000
+    },
 
     // Thread support (reply to another comment)
     parentCommentId: {
@@ -41,6 +45,12 @@ const wikiCommentSchema = new mongoose.Schema({
     replyCount: {
         type: Number,
         default: 0
+    },
+    depth: {
+        type: Number,
+        default: 0,
+        min: 0,
+        max: 3 // Maximum nesting depth
     },
 
     // Inline comment support (like Google Docs)
@@ -217,14 +227,21 @@ wikiCommentSchema.statics.getCaseCommentActivity = async function(caseId, limit 
 };
 
 // Instance: Add reply
-wikiCommentSchema.methods.addReply = async function(userId, content, mentions = []) {
+wikiCommentSchema.methods.addReply = async function(userId, content, contentHtml, mentions = []) {
+    // Check depth limit
+    if (this.depth >= 3) {
+        throw new Error('Maximum reply depth (3) reached');
+    }
+
     const reply = new this.constructor({
         pageId: this.pageId,
         parentCommentId: this._id,
         userId,
         content,
+        contentHtml,
         mentions,
-        caseId: this.caseId
+        caseId: this.caseId,
+        depth: this.depth + 1
     });
 
     await reply.save();

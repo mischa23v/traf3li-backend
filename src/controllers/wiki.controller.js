@@ -1,7 +1,7 @@
 const WikiPage = require('../models/wikiPage.model');
 const WikiRevision = require('../models/wikiRevision.model');
 const WikiBacklink = require('../models/wikiBacklink.model');
-const WikiFolder = require('../models/wikiFolder.model');
+const WikiCollection = require('../models/wikiCollection.model');
 const WikiComment = require('../models/wikiComment.model');
 const Case = require('../models/case.model');
 
@@ -32,7 +32,7 @@ const extractLinksFromContent = (content, contentText) => {
 exports.listPages = async (req, res) => {
     try {
         const { caseId } = req.params;
-        const { pageType, folderId, parentPageId, search, status } = req.query;
+        const { pageType, collectionId, parentPageId, search, status } = req.query;
         const userId = req.user._id;
 
         // Verify case access
@@ -55,7 +55,7 @@ exports.listPages = async (req, res) => {
         } else {
             const options = {};
             if (pageType) options.pageType = pageType;
-            if (folderId) options.folderId = folderId;
+            if (collectionId) options.collectionId = collectionId;
             if (parentPageId === 'null') options.parentPageId = null;
             else if (parentPageId) options.parentPageId = parentPageId;
 
@@ -95,16 +95,16 @@ exports.getPageTree = async (req, res) => {
             });
         }
 
-        const [pageTree, folderTree] = await Promise.all([
+        const [pageTree, collectionTree] = await Promise.all([
             WikiPage.getPageTree(caseId),
-            WikiFolder.getFolderTree(caseId)
+            WikiCollection.getCollectionTree(caseId)
         ]);
 
         res.json({
             success: true,
             data: {
                 pages: pageTree,
-                folders: folderTree
+                collections: collectionTree
             }
         });
     } catch (error) {
@@ -130,7 +130,7 @@ exports.createPage = async (req, res) => {
             summary,
             pageType,
             parentPageId,
-            folderId,
+            collectionId,
             linkedTasks,
             linkedEvents,
             linkedReminders,
@@ -163,7 +163,7 @@ exports.createPage = async (req, res) => {
             summary,
             pageType: pageType || 'note',
             parentPageId,
-            folderId,
+            collectionId,
             caseId,
             lawyerId: userId,
             clientId: caseDoc.clientId,
@@ -185,9 +185,9 @@ exports.createPage = async (req, res) => {
         // Create initial revision
         await WikiRevision.createFromPage(page, userId, 'create', 'Initial version');
 
-        // Update folder page count if in a folder
-        if (folderId) {
-            await WikiFolder.updatePageCount(folderId);
+        // Update collection page count if in a collection
+        if (collectionId) {
+            await WikiCollection.updatePageCount(collectionId);
         }
 
         // Extract and sync backlinks
@@ -248,7 +248,7 @@ exports.getPage = async (req, res) => {
         .populate('lastModifiedBy', 'firstName lastName avatar')
         .populate('collaborators.userId', 'firstName lastName avatar')
         .populate('parentPageId', 'title urlSlug')
-        .populate('folderId', 'name nameAr icon color')
+        .populate('collectionId', 'name nameAr icon color collectionType')
         .populate('caseId', 'title caseNumber')
         .populate('linkedTasks', 'title status priority')
         .populate('linkedEvents', 'title startDateTime status')
@@ -309,7 +309,7 @@ exports.updatePage = async (req, res) => {
             summary,
             pageType,
             parentPageId,
-            folderId,
+            collectionId,
             linkedTasks,
             linkedEvents,
             linkedReminders,
@@ -343,7 +343,7 @@ exports.updatePage = async (req, res) => {
             });
         }
 
-        const oldFolderId = page.folderId;
+        const oldCollectionId = page.collectionId;
 
         // Update fields
         if (title !== undefined) page.title = title;
@@ -353,7 +353,7 @@ exports.updatePage = async (req, res) => {
         if (summary !== undefined) page.summary = summary;
         if (pageType !== undefined) page.pageType = pageType;
         if (parentPageId !== undefined) page.parentPageId = parentPageId || undefined;
-        if (folderId !== undefined) page.folderId = folderId || undefined;
+        if (collectionId !== undefined) page.collectionId = collectionId || undefined;
         if (linkedTasks !== undefined) page.linkedTasks = linkedTasks;
         if (linkedEvents !== undefined) page.linkedEvents = linkedEvents;
         if (linkedReminders !== undefined) page.linkedReminders = linkedReminders;
@@ -392,12 +392,12 @@ exports.updatePage = async (req, res) => {
             { ipAddress: req.ip, userAgent: req.get('user-agent') }
         );
 
-        // Update folder page counts if folder changed
-        if (oldFolderId && oldFolderId.toString() !== (folderId || '').toString()) {
-            await WikiFolder.updatePageCount(oldFolderId);
+        // Update collection page counts if collection changed
+        if (oldCollectionId && oldCollectionId.toString() !== (collectionId || '').toString()) {
+            await WikiCollection.updatePageCount(oldCollectionId);
         }
-        if (folderId) {
-            await WikiFolder.updatePageCount(folderId);
+        if (collectionId) {
+            await WikiCollection.updatePageCount(collectionId);
         }
 
         // Sync backlinks
@@ -475,7 +475,7 @@ exports.deletePage = async (req, res) => {
             });
         }
 
-        const folderId = page.folderId;
+        const collectionId = page.collectionId;
 
         if (permanent === 'true') {
             // Permanent delete
@@ -488,9 +488,9 @@ exports.deletePage = async (req, res) => {
             await page.archive(userId);
         }
 
-        // Update folder count
-        if (folderId) {
-            await WikiFolder.updatePageCount(folderId);
+        // Update collection count
+        if (collectionId) {
+            await WikiCollection.updatePageCount(collectionId);
         }
 
         res.json({
@@ -705,14 +705,14 @@ exports.restoreVersion = async (req, res) => {
 };
 
 // ============================================
-// FOLDER OPERATIONS
+// COLLECTION OPERATIONS
 // ============================================
 
-// List folders
-exports.listFolders = async (req, res) => {
+// List collections
+exports.listCollections = async (req, res) => {
     try {
         const { caseId } = req.params;
-        const { parentFolderId } = req.query;
+        const { parentCollectionId } = req.query;
         const userId = req.user._id;
 
         const caseDoc = await Case.findOne({ _id: caseId, lawyerId: userId });
@@ -724,31 +724,31 @@ exports.listFolders = async (req, res) => {
         }
 
         const options = {};
-        if (parentFolderId === 'null') options.parentFolderId = null;
-        else if (parentFolderId) options.parentFolderId = parentFolderId;
+        if (parentCollectionId === 'null') options.parentCollectionId = null;
+        else if (parentCollectionId) options.parentCollectionId = parentCollectionId;
 
-        const folders = await WikiFolder.getCaseFolders(caseId, options);
+        const collections = await WikiCollection.getCaseCollections(caseId, options);
 
         res.json({
             success: true,
-            data: folders
+            data: collections
         });
     } catch (error) {
-        console.error('Error listing folders:', error);
+        console.error('Error listing collections:', error);
         res.status(500).json({
             success: false,
-            message: 'Error listing folders',
+            message: 'Error listing collections',
             error: error.message
         });
     }
 };
 
-// Create folder
-exports.createFolder = async (req, res) => {
+// Create collection
+exports.createCollection = async (req, res) => {
     try {
         const { caseId } = req.params;
         const userId = req.user._id;
-        const { name, nameAr, description, icon, color, parentFolderId } = req.body;
+        const { name, nameAr, description, descriptionAr, icon, color, parentCollectionId, collectionType, defaultPageType, defaultConfidentialityLevel, visibility } = req.body;
 
         const caseDoc = await Case.findOne({ _id: caseId, lawyerId: userId });
         if (!caseDoc) {
@@ -758,125 +758,135 @@ exports.createFolder = async (req, res) => {
             });
         }
 
-        const folder = new WikiFolder({
+        const collection = new WikiCollection({
             name,
             nameAr,
             description,
+            descriptionAr,
             icon,
             color,
-            parentFolderId,
+            parentCollectionId,
+            collectionType: collectionType || 'custom',
+            defaultPageType,
+            defaultConfidentialityLevel,
+            visibility,
             caseId,
             lawyerId: userId,
             createdBy: userId
         });
 
-        await folder.save();
+        await collection.save();
 
-        // Update parent subfolder count
-        if (parentFolderId) {
-            await WikiFolder.updateSubfolderCount(parentFolderId);
+        // Update parent sub-collection count
+        if (parentCollectionId) {
+            await WikiCollection.updateSubCollectionCount(parentCollectionId);
         }
 
         res.status(201).json({
             success: true,
-            message: 'Folder created successfully',
-            data: folder
+            message: 'Collection created successfully',
+            data: collection
         });
     } catch (error) {
-        console.error('Error creating folder:', error);
+        console.error('Error creating collection:', error);
         res.status(500).json({
             success: false,
-            message: 'Error creating folder',
+            message: 'Error creating collection',
             error: error.message
         });
     }
 };
 
-// Update folder
-exports.updateFolder = async (req, res) => {
+// Update collection
+exports.updateCollection = async (req, res) => {
     try {
-        const { folderId } = req.params;
+        const { collectionId } = req.params;
         const userId = req.user._id;
-        const { name, nameAr, description, icon, color } = req.body;
+        const { name, nameAr, description, descriptionAr, icon, color, collectionType, defaultPageType, defaultConfidentialityLevel, visibility } = req.body;
 
-        const folder = await WikiFolder.findById(folderId);
-        if (!folder) {
+        const collection = await WikiCollection.findById(collectionId);
+        if (!collection) {
             return res.status(404).json({
                 success: false,
-                message: 'Folder not found'
+                message: 'Collection not found'
             });
         }
 
-        if (folder.lawyerId.toString() !== userId.toString()) {
+        if (collection.lawyerId.toString() !== userId.toString()) {
             return res.status(403).json({
                 success: false,
                 message: 'Access denied'
             });
         }
 
-        if (name !== undefined) folder.name = name;
-        if (nameAr !== undefined) folder.nameAr = nameAr;
-        if (description !== undefined) folder.description = description;
-        if (icon !== undefined) folder.icon = icon;
-        if (color !== undefined) folder.color = color;
-        folder.lastModifiedBy = userId;
+        if (name !== undefined) collection.name = name;
+        if (nameAr !== undefined) collection.nameAr = nameAr;
+        if (description !== undefined) collection.description = description;
+        if (descriptionAr !== undefined) collection.descriptionAr = descriptionAr;
+        if (icon !== undefined) collection.icon = icon;
+        if (color !== undefined) collection.color = color;
+        if (collectionType !== undefined) collection.collectionType = collectionType;
+        if (defaultPageType !== undefined) collection.defaultPageType = defaultPageType;
+        if (defaultConfidentialityLevel !== undefined) collection.defaultConfidentialityLevel = defaultConfidentialityLevel;
+        if (visibility !== undefined) collection.visibility = visibility;
+        collection.lastModifiedBy = userId;
 
-        await folder.save();
+        await collection.save();
 
         res.json({
             success: true,
-            message: 'Folder updated successfully',
-            data: folder
+            message: 'Collection updated successfully',
+            data: collection
         });
     } catch (error) {
-        console.error('Error updating folder:', error);
+        console.error('Error updating collection:', error);
         res.status(500).json({
             success: false,
-            message: 'Error updating folder',
+            message: 'Error updating collection',
             error: error.message
         });
     }
 };
 
-// Delete folder
-exports.deleteFolder = async (req, res) => {
+// Delete collection
+exports.deleteCollection = async (req, res) => {
     try {
-        const { folderId } = req.params;
+        const { collectionId } = req.params;
         const userId = req.user._id;
 
-        const folder = await WikiFolder.findById(folderId);
-        if (!folder) {
+        const collection = await WikiCollection.findById(collectionId);
+        if (!collection) {
             return res.status(404).json({
                 success: false,
-                message: 'Folder not found'
+                message: 'Collection not found'
             });
         }
 
-        if (folder.lawyerId.toString() !== userId.toString()) {
+        if (collection.lawyerId.toString() !== userId.toString()) {
             return res.status(403).json({
                 success: false,
                 message: 'Access denied'
             });
         }
 
-        if (folder.isDefault) {
+        if (collection.isDefault) {
             return res.status(400).json({
                 success: false,
-                message: 'Cannot delete default folders'
+                message: 'Cannot delete default collections'
             });
         }
 
-        await folder.deleteAndMovePages();
+        await collection.deleteAndMovePages();
 
         res.json({
             success: true,
-            message: 'Folder deleted successfully'
+            message: 'Collection deleted successfully'
         });
     } catch (error) {
-        console.error('Error deleting folder:', error);
+        console.error('Error deleting collection:', error);
         res.status(500).json({
             success: false,
-            message: 'Error deleting folder',
+            message: 'Error deleting collection',
             error: error.message
         });
     }
@@ -1330,7 +1340,7 @@ exports.listTemplates = async (req, res) => {
 exports.createFromTemplate = async (req, res) => {
     try {
         const { templateId } = req.params;
-        const { caseId, title, folderId } = req.body;
+        const { caseId, title, collectionId } = req.body;
         const userId = req.user._id;
 
         const caseDoc = await Case.findOne({ _id: caseId, lawyerId: userId });
@@ -1343,7 +1353,7 @@ exports.createFromTemplate = async (req, res) => {
 
         const page = await WikiPage.createFromTemplate(templateId, caseId, userId, {
             title,
-            folderId,
+            collectionId,
             lawyerId: userId,
             clientId: caseDoc.clientId
         });
@@ -1534,7 +1544,7 @@ exports.togglePin = async (req, res) => {
 exports.movePage = async (req, res) => {
     try {
         const { pageId } = req.params;
-        const { parentPageId, folderId, order } = req.body;
+        const { parentPageId, collectionId, order } = req.body;
         const userId = req.user._id;
 
         const page = await WikiPage.findOne({
@@ -1555,10 +1565,10 @@ exports.movePage = async (req, res) => {
             });
         }
 
-        const oldFolderId = page.folderId;
+        const oldCollectionId = page.collectionId;
 
         if (parentPageId !== undefined) page.parentPageId = parentPageId || undefined;
-        if (folderId !== undefined) page.folderId = folderId || undefined;
+        if (collectionId !== undefined) page.collectionId = collectionId || undefined;
         if (order !== undefined) page.order = order;
 
         // Regenerate path
@@ -1573,9 +1583,9 @@ exports.movePage = async (req, res) => {
 
         await page.save();
 
-        // Update folder counts
-        if (oldFolderId) await WikiFolder.updatePageCount(oldFolderId);
-        if (folderId) await WikiFolder.updatePageCount(folderId);
+        // Update collection counts
+        if (oldCollectionId) await WikiCollection.updatePageCount(oldCollectionId);
+        if (collectionId) await WikiCollection.updatePageCount(collectionId);
 
         res.json({
             success: true,
@@ -1592,8 +1602,8 @@ exports.movePage = async (req, res) => {
     }
 };
 
-// Initialize default folders for a case
-exports.initializeDefaultFolders = async (req, res) => {
+// Initialize default collections for a case
+exports.initializeDefaultCollections = async (req, res) => {
     try {
         const { caseId } = req.params;
         const userId = req.user._id;
@@ -1606,8 +1616,8 @@ exports.initializeDefaultFolders = async (req, res) => {
             });
         }
 
-        // Check if default folders already exist
-        const existingDefaults = await WikiFolder.countDocuments({
+        // Check if default collections already exist
+        const existingDefaults = await WikiCollection.countDocuments({
             caseId,
             isDefault: true
         });
@@ -1615,22 +1625,22 @@ exports.initializeDefaultFolders = async (req, res) => {
         if (existingDefaults > 0) {
             return res.status(400).json({
                 success: false,
-                message: 'Default folders already exist for this case'
+                message: 'Default collections already exist for this case'
             });
         }
 
-        const folders = await WikiFolder.createDefaultFolders(caseId, userId, userId);
+        const collections = await WikiCollection.createDefaultCollections(caseId, userId, userId);
 
         res.status(201).json({
             success: true,
-            message: 'Default folders created successfully',
-            data: folders
+            message: 'Default collections created successfully',
+            data: collections
         });
     } catch (error) {
-        console.error('Error initializing default folders:', error);
+        console.error('Error initializing default collections:', error);
         res.status(500).json({
             success: false,
-            message: 'Error initializing default folders',
+            message: 'Error initializing default collections',
             error: error.message
         });
     }

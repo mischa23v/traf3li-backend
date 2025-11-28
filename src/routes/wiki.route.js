@@ -28,8 +28,8 @@ router.get('/cases/:caseId/wiki/pinned', wikiController.getPinnedPages);
 // Get link graph for a case
 router.get('/cases/:caseId/wiki/graph', wikiController.getLinkGraph);
 
-// Initialize default folders for a case
-router.post('/cases/:caseId/wiki/init-folders', wikiController.initializeDefaultFolders);
+// Initialize default collections for a case
+router.post('/cases/:caseId/wiki/init-collections', wikiController.initializeDefaultCollections);
 
 // Get a single page
 router.get('/wiki/:pageId', wikiController.getPage);
@@ -63,20 +63,20 @@ router.get('/wiki/:pageId/diff', wikiController.compareVersions);
 router.post('/wiki/:pageId/restore/:version', wikiController.restoreVersion);
 
 // ============================================
-// FOLDER ROUTES
+// COLLECTION ROUTES
 // ============================================
 
-// List folders for a case
-router.get('/cases/:caseId/wiki/folders', wikiController.listFolders);
+// List collections for a case
+router.get('/cases/:caseId/wiki/collections', wikiController.listCollections);
 
-// Create folder
-router.post('/cases/:caseId/wiki/folders', wikiController.createFolder);
+// Create collection
+router.post('/cases/:caseId/wiki/collections', wikiController.createCollection);
 
-// Update folder
-router.put('/wiki/folders/:folderId', wikiController.updateFolder);
+// Update collection
+router.put('/wiki/collections/:collectionId', wikiController.updateCollection);
 
-// Delete folder
-router.delete('/wiki/folders/:folderId', wikiController.deleteFolder);
+// Delete collection
+router.delete('/wiki/collections/:collectionId', wikiController.deleteCollection);
 
 // ============================================
 // BACKLINK ROUTES

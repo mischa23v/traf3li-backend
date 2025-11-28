@@ -97,7 +97,7 @@ const BillPayment = require('./billPayment.model');
 const WikiPage = require('./wikiPage.model');
 const WikiRevision = require('./wikiRevision.model');
 const WikiBacklink = require('./wikiBacklink.model');
-const WikiFolder = require('./wikiFolder.model');
+const WikiCollection = require('./wikiCollection.model');
 const WikiComment = require('./wikiComment.model');
 
 module.exports = {
@@ -200,6 +200,6 @@ module.exports = {
     WikiPage,
     WikiRevision,
     WikiBacklink,
-    WikiFolder,
+    WikiCollection,
     WikiComment
 };

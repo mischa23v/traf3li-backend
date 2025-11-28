@@ -1,21 +1,32 @@
 const mongoose = require('mongoose');
 
 const wikiRevisionSchema = new mongoose.Schema({
-    // Reference to the page
+    // ═══════════════════════════════════════════════════════════════
+    // REFERENCE
+    // ═══════════════════════════════════════════════════════════════
     pageId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'WikiPage',
         required: true,
         index: true
     },
+    caseId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Case',
+        index: true
+    },
 
-    // Version number
+    // ═══════════════════════════════════════════════════════════════
+    // VERSION INFO
+    // ═══════════════════════════════════════════════════════════════
     version: {
         type: Number,
         required: true
     },
 
-    // Content snapshot
+    // ═══════════════════════════════════════════════════════════════
+    // CONTENT SNAPSHOT
+    // ═══════════════════════════════════════════════════════════════
     title: {
         type: String,
         required: true
@@ -24,19 +35,28 @@ const wikiRevisionSchema = new mongoose.Schema({
     content: mongoose.Schema.Types.Mixed,
     contentText: String,
     summary: String,
+    summaryAr: String,
 
-    // Change tracking
+    // ═══════════════════════════════════════════════════════════════
+    // CHANGE TRACKING
+    // ═══════════════════════════════════════════════════════════════
     changeType: {
         type: String,
-        enum: ['create', 'update', 'restore', 'seal', 'unseal', 'move', 'rename'],
+        enum: ['create', 'update', 'restore', 'seal', 'unseal', 'auto_save', 'publish', 'archive'],
         required: true
     },
     changeSummary: {
         type: String,
         maxlength: 500
     },
+    changeSummaryAr: {
+        type: String,
+        maxlength: 500
+    },
 
-    // Diff statistics
+    // ═══════════════════════════════════════════════════════════════
+    // DIFF STATISTICS
+    // ═══════════════════════════════════════════════════════════════
     additions: {
         type: Number,
         default: 0
@@ -45,98 +65,107 @@ const wikiRevisionSchema = new mongoose.Schema({
         type: Number,
         default: 0
     },
-
-    // Previous version reference for comparison
-    previousVersionId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'WikiRevision'
+    wordCountChange: {
+        type: Number,
+        default: 0
     },
+    wordCount: Number,
 
-    // Author
+    // ═══════════════════════════════════════════════════════════════
+    // RESTORATION TRACKING
+    // ═══════════════════════════════════════════════════════════════
+    isRestoration: {
+        type: Boolean,
+        default: false
+    },
+    restoredFromVersion: Number,
+
+    // ═══════════════════════════════════════════════════════════════
+    // AUTHOR & AUDIT
+    // ═══════════════════════════════════════════════════════════════
     createdBy: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
         required: true,
         index: true
     },
-
-    // Metadata
-    wordCount: Number,
-
-    // Request metadata for audit
     ipAddress: String,
-    userAgent: String,
-
-    // Case reference for easier querying
-    caseId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Case',
-        index: true
-    }
+    userAgent: String
 }, {
     timestamps: true,
     versionKey: false
 });
 
-// Indexes
+// ═══════════════════════════════════════════════════════════════
+// INDEXES
+// ═══════════════════════════════════════════════════════════════
 wikiRevisionSchema.index({ pageId: 1, version: -1 });
 wikiRevisionSchema.index({ pageId: 1, createdAt: -1 });
 wikiRevisionSchema.index({ createdBy: 1, createdAt: -1 });
 wikiRevisionSchema.index({ caseId: 1, createdAt: -1 });
+wikiRevisionSchema.index({ changeType: 1, createdAt: -1 });
 
-// Static: Create revision from page
+// ═══════════════════════════════════════════════════════════════
+// STATIC METHODS
+// ═══════════════════════════════════════════════════════════════
+
+// Create revision from page
 wikiRevisionSchema.statics.createFromPage = async function(page, userId, changeType, changeSummary, metadata = {}) {
-    // Get the previous revision to link
+    // Get previous revision for diff calculation
     const previousRevision = await this.findOne({ pageId: page._id })
         .sort({ version: -1 })
-        .select('_id');
+        .select('contentText wordCount');
 
-    // Calculate diff stats (simple word-based diff)
+    // Calculate diff stats
     let additions = 0;
     let deletions = 0;
+    let wordCountChange = 0;
 
-    if (previousRevision) {
-        const prev = await this.findById(previousRevision._id);
-        if (prev && prev.contentText && page.contentText) {
-            const prevWords = new Set(prev.contentText.split(/\s+/));
-            const currentWords = new Set(page.contentText.split(/\s+/));
+    if (previousRevision && previousRevision.contentText && page.contentText) {
+        const prevWords = new Set(previousRevision.contentText.split(/\s+/));
+        const currentWords = new Set(page.contentText.split(/\s+/));
 
-            // Count additions (words in current but not in previous)
-            currentWords.forEach(word => {
-                if (!prevWords.has(word)) additions++;
-            });
+        currentWords.forEach(word => {
+            if (!prevWords.has(word)) additions++;
+        });
 
-            // Count deletions (words in previous but not in current)
-            prevWords.forEach(word => {
-                if (!currentWords.has(word)) deletions++;
-            });
-        }
+        prevWords.forEach(word => {
+            if (!currentWords.has(word)) deletions++;
+        });
+
+        wordCountChange = (page.wordCount || 0) - (previousRevision.wordCount || 0);
     }
 
     return await this.create({
         pageId: page._id,
+        caseId: page.caseId,
         version: page.version,
         title: page.title,
         titleAr: page.titleAr,
         content: page.content,
         contentText: page.contentText,
         summary: page.summary,
+        summaryAr: page.summaryAr,
         changeType,
         changeSummary,
+        changeSummaryAr: metadata.changeSummaryAr,
         additions,
         deletions,
-        previousVersionId: previousRevision?._id,
-        createdBy: userId,
+        wordCountChange,
         wordCount: page.wordCount,
-        caseId: page.caseId,
+        isRestoration: metadata.isRestoration || false,
+        restoredFromVersion: metadata.restoredFromVersion,
+        createdBy: userId,
         ipAddress: metadata.ipAddress,
         userAgent: metadata.userAgent
     });
 };
 
-// Static: Get page history
+// Get page history
 wikiRevisionSchema.statics.getPageHistory = async function(pageId, options = {}) {
     const query = { pageId: new mongoose.Types.ObjectId(pageId) };
+
+    if (options.changeType) query.changeType = options.changeType;
 
     let cursor = this.find(query)
         .sort({ version: -1 })
@@ -148,7 +177,7 @@ wikiRevisionSchema.statics.getPageHistory = async function(pageId, options = {})
     return await cursor;
 };
 
-// Static: Get specific version
+// Get specific version
 wikiRevisionSchema.statics.getVersion = async function(pageId, version) {
     return await this.findOne({
         pageId: new mongoose.Types.ObjectId(pageId),
@@ -156,7 +185,7 @@ wikiRevisionSchema.statics.getVersion = async function(pageId, version) {
     }).populate('createdBy', 'firstName lastName avatar');
 };
 
-// Static: Compare two versions
+// Compare two versions
 wikiRevisionSchema.statics.compareVersions = async function(pageId, version1, version2) {
     const [rev1, rev2] = await Promise.all([
         this.findOne({ pageId, version: version1 }),
@@ -174,12 +203,12 @@ wikiRevisionSchema.statics.compareVersions = async function(pageId, version1, ve
     };
 };
 
-// Static: Get revision count for a page
+// Get revision count for a page
 wikiRevisionSchema.statics.getRevisionCount = async function(pageId) {
     return await this.countDocuments({ pageId: new mongoose.Types.ObjectId(pageId) });
 };
 
-// Static: Get recent activity across all pages for a case
+// Get recent activity across all pages for a case
 wikiRevisionSchema.statics.getCaseActivity = async function(caseId, limit = 20) {
     return await this.find({ caseId: new mongoose.Types.ObjectId(caseId) })
         .sort({ createdAt: -1 })
@@ -188,7 +217,7 @@ wikiRevisionSchema.statics.getCaseActivity = async function(caseId, limit = 20) 
         .populate('pageId', 'title urlSlug pageType');
 };
 
-// Static: Get user contributions
+// Get user contributions
 wikiRevisionSchema.statics.getUserContributions = async function(userId, options = {}) {
     const query = { createdBy: new mongoose.Types.ObjectId(userId) };
 
@@ -202,7 +231,7 @@ wikiRevisionSchema.statics.getUserContributions = async function(userId, options
         .populate('pageId', 'title urlSlug caseId');
 };
 
-// Static: Get revision statistics for a page
+// Get revision statistics for a page
 wikiRevisionSchema.statics.getPageStats = async function(pageId) {
     const stats = await this.aggregate([
         { $match: { pageId: new mongoose.Types.ObjectId(pageId) } },
@@ -240,7 +269,29 @@ wikiRevisionSchema.statics.getPageStats = async function(pageId) {
     };
 };
 
-// Static: Delete old revisions (keep last N)
+// Get activity by change type
+wikiRevisionSchema.statics.getActivityByType = async function(caseId, days = 30) {
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - days);
+
+    return await this.aggregate([
+        {
+            $match: {
+                caseId: new mongoose.Types.ObjectId(caseId),
+                createdAt: { $gte: startDate }
+            }
+        },
+        {
+            $group: {
+                _id: '$changeType',
+                count: { $sum: 1 }
+            }
+        },
+        { $sort: { count: -1 } }
+    ]);
+};
+
+// Delete old revisions (keep last N)
 wikiRevisionSchema.statics.pruneOldRevisions = async function(pageId, keepCount = 100) {
     const revisions = await this.find({ pageId })
         .sort({ version: -1 })
