@@ -677,6 +677,10 @@ wikiPageSchema.statics.createFromTemplate = async function(templateId, caseId, u
 
 // Get recent pages
 wikiPageSchema.statics.getRecentPages = async function(lawyerId, limit = 10) {
+    if (!lawyerId || !mongoose.Types.ObjectId.isValid(lawyerId)) {
+        return [];
+    }
+
     return await this.find({
         lawyerId: new mongoose.Types.ObjectId(lawyerId),
         status: { $nin: ['archived'] },
