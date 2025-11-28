@@ -39,6 +39,45 @@ const attachmentVersionSchema = new mongoose.Schema({
     restoredFrom: Number
 }, { _id: false });
 
+// Voice memo schema
+const voiceMemoSchema = new mongoose.Schema({
+    memoId: {
+        type: String,
+        default: () => new mongoose.Types.ObjectId().toString()
+    },
+    title: {
+        type: String,
+        maxlength: 200
+    },
+    titleAr: {
+        type: String,
+        maxlength: 200
+    },
+    fileUrl: { type: String, required: true },
+    fileKey: { type: String, required: true },
+    fileSize: Number, // in bytes
+    duration: Number, // in seconds
+    format: {
+        type: String,
+        enum: ['mp3', 'webm', 'ogg', 'wav'],
+        default: 'mp3'
+    },
+    transcription: String, // Optional transcription text
+    transcriptionAr: String,
+    isTranscribed: { type: Boolean, default: false },
+    recordedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    recordedAt: { type: Date, default: Date.now },
+    // Metadata
+    description: String,
+    descriptionAr: String,
+    isConfidential: { type: Boolean, default: false },
+    isSealed: { type: Boolean, default: false },
+    // Timestamps for when the memo was added/modified
+    createdAt: { type: Date, default: Date.now },
+    lastModifiedAt: Date,
+    lastModifiedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
+}, { _id: false });
+
 // Attachment schema
 const wikiAttachmentSchema = new mongoose.Schema({
     attachmentId: {
@@ -366,6 +405,19 @@ const wikiPageSchema = new mongoose.Schema({
     },
 
     // ═══════════════════════════════════════════════════════════════
+    // 13.5 VOICE MEMOS (2 fields)
+    // ═══════════════════════════════════════════════════════════════
+    voiceMemos: [voiceMemoSchema],
+    voiceMemoCount: {
+        type: Number,
+        default: 0
+    },
+    totalVoiceMemoDuration: {
+        type: Number,
+        default: 0 // Total duration in seconds
+    },
+
+    // ═══════════════════════════════════════════════════════════════
     // 14. COLLABORATORS & AUDIT (3 fields)
     // ═══════════════════════════════════════════════════════════════
     createdBy: {
@@ -535,6 +587,10 @@ wikiPageSchema.pre('save', async function(next) {
 
     // Update attachment count
     this.attachmentCount = this.attachments?.length || 0;
+
+    // Update voice memo count and total duration
+    this.voiceMemoCount = this.voiceMemos?.length || 0;
+    this.totalVoiceMemoDuration = this.voiceMemos?.reduce((total, memo) => total + (memo.duration || 0), 0) || 0;
 
     // Auto-expire locks
     if (this.isLocked && this.lockExpiresAt && new Date() > this.lockExpiresAt) {

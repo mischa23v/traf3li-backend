@@ -2947,3 +2947,522 @@ exports.updateCalendarSettings = async (req, res) => {
         });
     }
 };
+
+// ============================================
+// VOICE MEMO OPERATIONS
+// ============================================
+
+// Get presigned URL for uploading voice memo
+exports.getVoiceMemoUploadUrl = async (req, res) => {
+    try {
+        const { pageId } = req.params;
+        const userId = req.userID;
+        const { fileName, fileType, duration } = req.body;
+
+        if (!fileName || !fileType) {
+            return res.status(400).json({
+                success: false,
+                message: 'fileName and fileType are required'
+            });
+        }
+
+        // Validate file type is audio
+        const allowedTypes = ['audio/mpeg', 'audio/mp3', 'audio/webm', 'audio/ogg', 'audio/wav'];
+        if (!allowedTypes.includes(fileType)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid file type. Allowed: mp3, webm, ogg, wav'
+            });
+        }
+
+        const page = await WikiPage.findOne({
+            $or: [{ _id: pageId }, { pageId: pageId }]
+        });
+
+        if (!page) {
+            return res.status(404).json({
+                success: false,
+                message: 'Page not found'
+            });
+        }
+
+        // Check edit permission
+        if (!page.canEdit(userId)) {
+            return res.status(403).json({
+                success: false,
+                message: page.isSealed ? 'Cannot add voice memos to sealed pages' : 'Access denied'
+            });
+        }
+
+        // Generate unique file key
+        const uniqueId = crypto.randomBytes(8).toString('hex');
+        const sanitizedFileName = fileName.replace(/[^a-zA-Z0-9.-]/g, '_');
+        const fileKey = `wiki/${page.caseId}/${page._id}/voice-memos/${uniqueId}-${sanitizedFileName}`;
+
+        // Get presigned URL
+        const uploadUrl = await getUploadPresignedUrl(fileKey, fileType, 'general');
+
+        res.json({
+            success: true,
+            data: {
+                uploadUrl,
+                fileKey,
+                expiresIn: 3600
+            }
+        });
+    } catch (error) {
+        console.error('Error getting voice memo upload URL:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error getting upload URL',
+            error: error.message
+        });
+    }
+};
+
+// Confirm voice memo upload and add to page
+exports.confirmVoiceMemoUpload = async (req, res) => {
+    try {
+        const { pageId } = req.params;
+        const userId = req.userID;
+        const {
+            title,
+            titleAr,
+            fileKey,
+            fileUrl,
+            fileType,
+            fileSize,
+            duration,
+            description,
+            descriptionAr,
+            isConfidential
+        } = req.body;
+
+        if (!fileKey) {
+            return res.status(400).json({
+                success: false,
+                message: 'fileKey is required'
+            });
+        }
+
+        const page = await WikiPage.findOne({
+            $or: [{ _id: pageId }, { pageId: pageId }]
+        });
+
+        if (!page) {
+            return res.status(404).json({
+                success: false,
+                message: 'Page not found'
+            });
+        }
+
+        // Check edit permission
+        if (!page.canEdit(userId)) {
+            return res.status(403).json({
+                success: false,
+                message: page.isSealed ? 'Cannot add voice memos to sealed pages' : 'Access denied'
+            });
+        }
+
+        // Determine format from fileType
+        let format = 'mp3';
+        if (fileType) {
+            if (fileType.includes('webm')) format = 'webm';
+            else if (fileType.includes('ogg')) format = 'ogg';
+            else if (fileType.includes('wav')) format = 'wav';
+        }
+
+        // Create voice memo object
+        const voiceMemo = {
+            title: title || `Voice Memo ${(page.voiceMemos?.length || 0) + 1}`,
+            titleAr,
+            fileUrl: fileUrl || `https://${BUCKETS.general}.s3.amazonaws.com/${fileKey}`,
+            fileKey,
+            fileSize,
+            duration: duration || 0,
+            format,
+            description,
+            descriptionAr,
+            isConfidential: isConfidential || page.isConfidential,
+            recordedBy: userId,
+            recordedAt: new Date(),
+            createdAt: new Date()
+        };
+
+        // Add to page voice memos
+        if (!page.voiceMemos) {
+            page.voiceMemos = [];
+        }
+        page.voiceMemos.push(voiceMemo);
+        page.lastModifiedBy = userId;
+        await page.save();
+
+        // Create revision for voice memo
+        await WikiRevision.createFromPage(
+            page,
+            userId,
+            'update',
+            `Added voice memo: ${voiceMemo.title}`,
+            { ipAddress: req.ip, userAgent: req.get('user-agent') }
+        );
+
+        res.status(201).json({
+            success: true,
+            message: 'Voice memo added successfully',
+            data: {
+                voiceMemo: page.voiceMemos[page.voiceMemos.length - 1],
+                voiceMemoCount: page.voiceMemoCount,
+                totalDuration: page.totalVoiceMemoDuration
+            }
+        });
+    } catch (error) {
+        console.error('Error confirming voice memo upload:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error adding voice memo',
+            error: error.message
+        });
+    }
+};
+
+// List voice memos for a page
+exports.listVoiceMemos = async (req, res) => {
+    try {
+        const { pageId } = req.params;
+        const userId = req.userID;
+
+        const page = await WikiPage.findOne({
+            $or: [{ _id: pageId }, { pageId: pageId }]
+        })
+        .populate('voiceMemos.recordedBy', 'firstName lastName avatar')
+        .populate('voiceMemos.lastModifiedBy', 'firstName lastName avatar');
+
+        if (!page) {
+            return res.status(404).json({
+                success: false,
+                message: 'Page not found'
+            });
+        }
+
+        // Check view permission
+        if (!page.canView(userId)) {
+            return res.status(403).json({
+                success: false,
+                message: 'Access denied'
+            });
+        }
+
+        res.json({
+            success: true,
+            data: {
+                voiceMemos: page.voiceMemos || [],
+                count: page.voiceMemoCount || 0,
+                totalDuration: page.totalVoiceMemoDuration || 0
+            }
+        });
+    } catch (error) {
+        console.error('Error listing voice memos:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error listing voice memos',
+            error: error.message
+        });
+    }
+};
+
+// Get voice memo download/play URL
+exports.getVoiceMemoUrl = async (req, res) => {
+    try {
+        const { pageId, memoId } = req.params;
+        const userId = req.userID;
+
+        const page = await WikiPage.findOne({
+            $or: [{ _id: pageId }, { pageId: pageId }]
+        });
+
+        if (!page) {
+            return res.status(404).json({
+                success: false,
+                message: 'Page not found'
+            });
+        }
+
+        // Check view permission
+        if (!page.canView(userId)) {
+            return res.status(403).json({
+                success: false,
+                message: 'Access denied'
+            });
+        }
+
+        // Find voice memo
+        const voiceMemo = page.voiceMemos?.find(
+            m => m.memoId === memoId || m._id?.toString() === memoId
+        );
+
+        if (!voiceMemo) {
+            return res.status(404).json({
+                success: false,
+                message: 'Voice memo not found'
+            });
+        }
+
+        // Get presigned download URL
+        const downloadUrl = await getDownloadPresignedUrl(
+            voiceMemo.fileKey,
+            'general',
+            `${voiceMemo.title || 'voice-memo'}.${voiceMemo.format || 'mp3'}`
+        );
+
+        res.json({
+            success: true,
+            data: {
+                downloadUrl,
+                streamUrl: downloadUrl, // Same URL can be used for streaming
+                title: voiceMemo.title,
+                duration: voiceMemo.duration,
+                format: voiceMemo.format,
+                fileSize: voiceMemo.fileSize,
+                expiresIn: 3600
+            }
+        });
+    } catch (error) {
+        console.error('Error getting voice memo URL:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error getting voice memo URL',
+            error: error.message
+        });
+    }
+};
+
+// Update voice memo metadata
+exports.updateVoiceMemo = async (req, res) => {
+    try {
+        const { pageId, memoId } = req.params;
+        const userId = req.userID;
+        const {
+            title,
+            titleAr,
+            description,
+            descriptionAr,
+            isConfidential,
+            transcription,
+            transcriptionAr
+        } = req.body;
+
+        const page = await WikiPage.findOne({
+            $or: [{ _id: pageId }, { pageId: pageId }]
+        });
+
+        if (!page) {
+            return res.status(404).json({
+                success: false,
+                message: 'Page not found'
+            });
+        }
+
+        // Check edit permission
+        if (!page.canEdit(userId)) {
+            return res.status(403).json({
+                success: false,
+                message: page.isSealed ? 'Cannot update voice memos on sealed pages' : 'Access denied'
+            });
+        }
+
+        // Find voice memo
+        const voiceMemo = page.voiceMemos?.find(
+            m => m.memoId === memoId || m._id?.toString() === memoId
+        );
+
+        if (!voiceMemo) {
+            return res.status(404).json({
+                success: false,
+                message: 'Voice memo not found'
+            });
+        }
+
+        // Check if memo is sealed
+        if (voiceMemo.isSealed) {
+            return res.status(403).json({
+                success: false,
+                message: 'Cannot update sealed voice memos'
+            });
+        }
+
+        // Update fields
+        if (title !== undefined) voiceMemo.title = title;
+        if (titleAr !== undefined) voiceMemo.titleAr = titleAr;
+        if (description !== undefined) voiceMemo.description = description;
+        if (descriptionAr !== undefined) voiceMemo.descriptionAr = descriptionAr;
+        if (isConfidential !== undefined) voiceMemo.isConfidential = isConfidential;
+        if (transcription !== undefined) {
+            voiceMemo.transcription = transcription;
+            voiceMemo.isTranscribed = !!transcription;
+        }
+        if (transcriptionAr !== undefined) voiceMemo.transcriptionAr = transcriptionAr;
+
+        voiceMemo.lastModifiedAt = new Date();
+        voiceMemo.lastModifiedBy = userId;
+        page.lastModifiedBy = userId;
+
+        await page.save();
+
+        res.json({
+            success: true,
+            message: 'Voice memo updated successfully',
+            data: voiceMemo
+        });
+    } catch (error) {
+        console.error('Error updating voice memo:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error updating voice memo',
+            error: error.message
+        });
+    }
+};
+
+// Delete voice memo
+exports.deleteVoiceMemo = async (req, res) => {
+    try {
+        const { pageId, memoId } = req.params;
+        const userId = req.userID;
+
+        const page = await WikiPage.findOne({
+            $or: [{ _id: pageId }, { pageId: pageId }]
+        });
+
+        if (!page) {
+            return res.status(404).json({
+                success: false,
+                message: 'Page not found'
+            });
+        }
+
+        // Check edit permission
+        if (!page.canEdit(userId)) {
+            return res.status(403).json({
+                success: false,
+                message: page.isSealed ? 'Cannot delete voice memos from sealed pages' : 'Access denied'
+            });
+        }
+
+        // Find voice memo index
+        const memoIndex = page.voiceMemos?.findIndex(
+            m => m.memoId === memoId || m._id?.toString() === memoId
+        );
+
+        if (memoIndex === -1 || memoIndex === undefined) {
+            return res.status(404).json({
+                success: false,
+                message: 'Voice memo not found'
+            });
+        }
+
+        const voiceMemo = page.voiceMemos[memoIndex];
+
+        // Check if memo is sealed
+        if (voiceMemo.isSealed) {
+            return res.status(403).json({
+                success: false,
+                message: 'Cannot delete sealed voice memos'
+            });
+        }
+
+        // Delete from S3
+        try {
+            await deleteFile(voiceMemo.fileKey, 'general');
+        } catch (s3Error) {
+            console.error('S3 delete error:', s3Error);
+            // Continue even if S3 delete fails
+        }
+
+        // Remove from page
+        const deletedTitle = voiceMemo.title;
+        page.voiceMemos.splice(memoIndex, 1);
+        page.lastModifiedBy = userId;
+        await page.save();
+
+        // Create revision for deletion
+        await WikiRevision.createFromPage(
+            page,
+            userId,
+            'update',
+            `Deleted voice memo: ${deletedTitle}`,
+            { ipAddress: req.ip, userAgent: req.get('user-agent') }
+        );
+
+        res.json({
+            success: true,
+            message: 'Voice memo deleted successfully',
+            data: {
+                voiceMemoCount: page.voiceMemoCount,
+                totalDuration: page.totalVoiceMemoDuration
+            }
+        });
+    } catch (error) {
+        console.error('Error deleting voice memo:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error deleting voice memo',
+            error: error.message
+        });
+    }
+};
+
+// Seal/unseal voice memo
+exports.sealVoiceMemo = async (req, res) => {
+    try {
+        const { pageId, memoId } = req.params;
+        const { seal } = req.body;
+        const userId = req.userID;
+
+        const page = await WikiPage.findOne({
+            $or: [{ _id: pageId }, { pageId: pageId }]
+        });
+
+        if (!page) {
+            return res.status(404).json({
+                success: false,
+                message: 'Page not found'
+            });
+        }
+
+        // Only page owner can seal/unseal
+        if (page.lawyerId.toString() !== userId.toString()) {
+            return res.status(403).json({
+                success: false,
+                message: 'Only the page owner can seal/unseal voice memos'
+            });
+        }
+
+        // Find voice memo
+        const voiceMemo = page.voiceMemos?.find(
+            m => m.memoId === memoId || m._id?.toString() === memoId
+        );
+
+        if (!voiceMemo) {
+            return res.status(404).json({
+                success: false,
+                message: 'Voice memo not found'
+            });
+        }
+
+        voiceMemo.isSealed = seal !== false;
+        await page.save();
+
+        res.json({
+            success: true,
+            message: seal !== false ? 'Voice memo sealed successfully' : 'Voice memo unsealed successfully',
+            data: voiceMemo
+        });
+    } catch (error) {
+        console.error('Error sealing/unsealing voice memo:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error updating voice memo seal status',
+            error: error.message
+        });
+    }
+};

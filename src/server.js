@@ -250,6 +250,31 @@ app.use('/api/bill-payments', billPaymentRoute);
 // Wiki Routes
 app.use('/api', wikiRoute);
 
+// ============================================
+// ALIAS ROUTES (for frontend compatibility)
+// ============================================
+
+// Case workflows alias (frontend expects /api/case-workflows)
+app.use('/api/case-workflows', workflowRoute);
+
+// Billing aliases (frontend expects /api/billing/rates and /api/billing/groups)
+app.use('/api/billing/rates', billingRateRoute);
+app.use('/api/billing/groups', rateGroupRoute);
+
+// Apps endpoint (placeholder for app integrations)
+app.get('/api/apps', (req, res) => {
+    // Return empty apps list for now - can be expanded later
+    res.json({
+        success: true,
+        data: {
+            apps: [],
+            installed: [],
+            available: []
+        },
+        message: 'Apps feature coming soon'
+    });
+});
+
 // Health check endpoint (useful for monitoring)
 app.get('/health', (req, res) => {
     res.status(200).json({
