@@ -31,7 +31,20 @@ const {
     updateClaim,
     updateTimelineEvent,
     // Audit
-    getCaseAudit
+    getCaseAudit,
+    // Rich Documents (CKEditor)
+    createRichDocument,
+    getRichDocuments,
+    getRichDocument,
+    updateRichDocument,
+    deleteRichDocument,
+    getRichDocumentVersions,
+    restoreRichDocumentVersion,
+    // Rich Document Export
+    exportRichDocumentToPdf,
+    exportRichDocumentToLatex,
+    exportRichDocumentToMarkdown,
+    getRichDocumentPreview
 } = require('../controllers/case.controller');
 const app = express.Router();
 
@@ -130,5 +143,40 @@ app.patch('/:_id/outcome', userMiddleware, updateOutcome);
 // ==================== AUDIT ====================
 // Get case audit history
 app.get('/:_id/audit', userMiddleware, getCaseAudit);
+
+// ==================== RICH DOCUMENTS (CKEditor) ====================
+// Create rich document
+app.post('/:_id/rich-documents', userMiddleware, createRichDocument);
+
+// Get all rich documents for a case
+app.get('/:_id/rich-documents', userMiddleware, getRichDocuments);
+
+// Get single rich document
+app.get('/:_id/rich-documents/:docId', userMiddleware, getRichDocument);
+
+// Update rich document
+app.patch('/:_id/rich-documents/:docId', userMiddleware, updateRichDocument);
+
+// Delete rich document
+app.delete('/:_id/rich-documents/:docId', userMiddleware, deleteRichDocument);
+
+// Get rich document version history
+app.get('/:_id/rich-documents/:docId/versions', userMiddleware, getRichDocumentVersions);
+
+// Restore rich document to a previous version
+app.post('/:_id/rich-documents/:docId/versions/:versionNumber/restore', userMiddleware, restoreRichDocumentVersion);
+
+// ==================== RICH DOCUMENT EXPORT ====================
+// Export to PDF
+app.get('/:_id/rich-documents/:docId/export/pdf', userMiddleware, exportRichDocumentToPdf);
+
+// Export to LaTeX
+app.get('/:_id/rich-documents/:docId/export/latex', userMiddleware, exportRichDocumentToLatex);
+
+// Export to Markdown
+app.get('/:_id/rich-documents/:docId/export/markdown', userMiddleware, exportRichDocumentToMarkdown);
+
+// Get HTML preview
+app.get('/:_id/rich-documents/:docId/preview', userMiddleware, getRichDocumentPreview);
 
 module.exports = app;

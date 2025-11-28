@@ -20,12 +20,14 @@ const getCalendarView = asyncHandler(async (req, res) => {
         tasks: [],
         reminders: [],
         wikiPages: [],
+        caseDocuments: [],
         summary: {
             totalItems: 0,
             eventCount: 0,
             taskCount: 0,
             reminderCount: 0,
-            wikiPageCount: 0
+            wikiPageCount: 0,
+            caseDocumentCount: 0
         }
     };
 
@@ -196,11 +198,65 @@ const getCalendarView = asyncHandler(async (req, res) => {
         result.summary.wikiPageCount = wikiPages.length;
     }
 
+    // Fetch case rich documents with calendar dates
+    if (!type || type === 'case-document') {
+        const caseQuery = {
+            lawyerId: userId,
+            'richDocuments.showOnCalendar': true
+        };
+
+        if (caseId) {
+            caseQuery._id = caseId;
+        }
+
+        const cases = await Case.find(caseQuery)
+            .populate('richDocuments.createdBy', 'firstName lastName')
+            .select('_id title caseNumber richDocuments');
+
+        // Extract rich documents that match the date range
+        const caseDocuments = [];
+        cases.forEach(caseDoc => {
+            if (caseDoc.richDocuments) {
+                caseDoc.richDocuments.forEach(doc => {
+                    if (doc.showOnCalendar && doc.calendarDate) {
+                        const docDate = new Date(doc.calendarDate);
+                        if (docDate >= start && docDate <= end) {
+                            caseDocuments.push({
+                                id: doc._id,
+                                type: 'case-document',
+                                title: doc.title,
+                                titleAr: doc.titleAr,
+                                description: doc.contentPlainText?.substring(0, 200),
+                                startDate: doc.calendarDate,
+                                endDate: doc.calendarDate,
+                                allDay: true,
+                                documentType: doc.documentType,
+                                status: doc.status,
+                                color: doc.calendarColor || '#3b82f6',
+                                caseId: caseDoc._id,
+                                caseName: caseDoc.title,
+                                caseNumber: caseDoc.caseNumber,
+                                createdBy: doc.createdBy,
+                                version: doc.version,
+                                priority: 'normal'
+                            });
+                        }
+                    }
+                });
+            }
+        });
+
+        result.caseDocuments = caseDocuments.sort((a, b) =>
+            new Date(a.startDate) - new Date(b.startDate)
+        );
+        result.summary.caseDocumentCount = caseDocuments.length;
+    }
+
     // Calculate total items
-    result.summary.totalItems = result.summary.eventCount + result.summary.taskCount + result.summary.reminderCount + result.summary.wikiPageCount;
+    result.summary.totalItems = result.summary.eventCount + result.summary.taskCount + result.summary.reminderCount + result.summary.wikiPageCount + result.summary.caseDocumentCount;
 
     // Combine and sort all items chronologically
-    const allItems = [...result.events, ...result.tasks, ...result.reminders, ...result.wikiPages]
+    const allItems = [...result.events, ...result.tasks, ...result.reminders, ...result.wikiPages, ...result.caseDocuments]
         .sort((a, b) => new Date(a.startDate) - new Date(b.startDate));
 
     res.status(200).json({
@@ -275,6 +331,32 @@ const getCalendarByDate = asyncHandler(async (req, res) => {
         .populate('caseId', 'title caseNumber')
         .sort({ calendarDate: 1 });
 
+    // Fetch case rich documents
+    const cases = await Case.find({
+        lawyerId: userId,
+        'richDocuments.showOnCalendar': true
+    }).select('_id title caseNumber richDocuments');
+
+    const caseDocuments = [];
+    cases.forEach(caseDoc => {
+        if (caseDoc.richDocuments) {
+            caseDoc.richDocuments.forEach(doc => {
+                if (doc.showOnCalendar && doc.calendarDate) {
+                    const docDate = new Date(doc.calendarDate);
+                    if (docDate >= startOfDay && docDate <= endOfDay) {
+                        caseDocuments.push({
+                            ...doc.toObject(),
+                            type: 'case-document',
+                            caseId: caseDoc._id,
+                            caseName: caseDoc.title,
+                            caseNumber: caseDoc.caseNumber
+                        });
+                    }
+                }
+            });
+        }
+    });
+
     res.status(200).json({
         success: true,
         data: {
@@ -283,12 +365,14 @@ const getCalendarByDate = asyncHandler(async (req, res) => {
             tasks: tasks.map(t => ({ ...t.toObject(), type: 'task' })),
             reminders: reminders.map(r => ({ ...r.toObject(), type: 'reminder' })),
             wikiPages: wikiPages.map(w => ({ ...w.toObject(), type: 'wiki' })),
+            caseDocuments,
             summary: {
-                total: events.length + tasks.length + reminders.length + wikiPages.length,
+                total: events.length + tasks.length + reminders.length + wikiPages.length + caseDocuments.length,
                 eventCount: events.length,
                 taskCount: tasks.length,
                 reminderCount: reminders.length,
-                wikiPageCount: wikiPages.length
+                wikiPageCount: wikiPages.length,
+                caseDocumentCount: caseDocuments.length
             }
         }
     });
@@ -348,10 +432,36 @@ const getCalendarByMonth = asyncHandler(async (req, res) => {
         .populate('caseId', 'title caseNumber')
         .sort({ calendarDate: 1 });
 
+    // Fetch case rich documents
+    const casesWithDocs = await Case.find({
+        lawyerId: userId,
+        'richDocuments.showOnCalendar': true
+    }).select('_id title caseNumber richDocuments');
+
+    const caseDocuments = [];
+    casesWithDocs.forEach(caseDoc => {
+        if (caseDoc.richDocuments) {
+            caseDoc.richDocuments.forEach(doc => {
+                if (doc.showOnCalendar && doc.calendarDate) {
+                    const docDate = new Date(doc.calendarDate);
+                    if (docDate >= startDate && docDate <= endDate) {
+                        caseDocuments.push({
+                            ...doc.toObject(),
+                            _caseId: caseDoc._id,
+                            _caseName: caseDoc.title,
+                            _caseNumber: caseDoc.caseNumber,
+                            _type: 'CaseDocument'
+                        });
+                    }
+                }
+            });
+        }
+    });
+
     // Group by date
     const groupedByDate = {};
 
-    [...events, ...tasks, ...reminders, ...wikiPages].forEach(item => {
+    [...events, ...tasks, ...reminders, ...wikiPages, ...caseDocuments].forEach(item => {
         let itemDate;
         if (item.startDate) itemDate = item.startDate;
         else if (item.dueDate) itemDate = item.dueDate;
@@ -369,18 +479,21 @@ const getCalendarByMonth = asyncHandler(async (req, res) => {
                 tasks: [],
                 reminders: [],
                 wikiPages: [],
+                caseDocuments: [],
                 count: 0
             };
         }
 
-        if (item.constructor.modelName === 'Event') {
+        if (item.constructor?.modelName === 'Event') {
             groupedByDate[dateKey].events.push(item);
-        } else if (item.constructor.modelName === 'Task') {
+        } else if (item.constructor?.modelName === 'Task') {
             groupedByDate[dateKey].tasks.push(item);
-        } else if (item.constructor.modelName === 'Reminder') {
+        } else if (item.constructor?.modelName === 'Reminder') {
             groupedByDate[dateKey].reminders.push(item);
-        } else if (item.constructor.modelName === 'WikiPage') {
+        } else if (item.constructor?.modelName === 'WikiPage') {
             groupedByDate[dateKey].wikiPages.push(item);
+        } else if (item._type === 'CaseDocument') {
+            groupedByDate[dateKey].caseDocuments.push(item);
         }
 
         groupedByDate[dateKey].count++;
@@ -393,11 +506,12 @@ const getCalendarByMonth = asyncHandler(async (req, res) => {
             groupedByDate,
             summary: {
                 totalDays: Object.keys(groupedByDate).length,
-                totalItems: events.length + tasks.length + reminders.length + wikiPages.length,
+                totalItems: events.length + tasks.length + reminders.length + wikiPages.length + caseDocuments.length,
                 eventCount: events.length,
                 taskCount: tasks.length,
                 reminderCount: reminders.length,
-                wikiPageCount: wikiPages.length
+                wikiPageCount: wikiPages.length,
+                caseDocumentCount: caseDocuments.length
             }
         }
     });
@@ -470,12 +584,40 @@ const getUpcomingItems = asyncHandler(async (req, res) => {
         .sort({ calendarDate: 1 })
         .limit(20);
 
+    // Fetch upcoming case rich documents
+    const casesWithUpcomingDocs = await Case.find({
+        lawyerId: userId,
+        'richDocuments.showOnCalendar': true
+    }).select('_id title caseNumber richDocuments');
+
+    const caseDocuments = [];
+    casesWithUpcomingDocs.forEach(caseDoc => {
+        if (caseDoc.richDocuments) {
+            caseDoc.richDocuments.forEach(doc => {
+                if (doc.showOnCalendar && doc.calendarDate) {
+                    const docDate = new Date(doc.calendarDate);
+                    if (docDate >= today && docDate <= futureDate) {
+                        caseDocuments.push({
+                            ...doc.toObject(),
+                            type: 'case-document',
+                            date: doc.calendarDate,
+                            caseId: caseDoc._id,
+                            caseName: caseDoc.title,
+                            caseNumber: caseDoc.caseNumber
+                        });
+                    }
+                }
+            });
+        }
+    });
+
     // Combine and sort
     const allItems = [
         ...events.map(e => ({ ...e.toObject(), type: 'event', date: e.startDateTime })),
         ...tasks.map(t => ({ ...t.toObject(), type: 'task', date: t.dueDate })),
         ...reminders.map(r => ({ ...r.toObject(), type: 'reminder', date: r.reminderDateTime })),
-        ...wikiPages.map(w => ({ ...w.toObject(), type: 'wiki', date: w.calendarDate }))
+        ...wikiPages.map(w => ({ ...w.toObject(), type: 'wiki', date: w.calendarDate })),
+        ...caseDocuments
     ].sort((a, b) => new Date(a.date) - new Date(b.date));
 
     res.status(200).json({
@@ -487,7 +629,8 @@ const getUpcomingItems = asyncHandler(async (req, res) => {
                 eventCount: events.length,
                 taskCount: tasks.length,
                 reminderCount: reminders.length,
-                wikiPageCount: wikiPages.length
+                wikiPageCount: wikiPages.length,
+                caseDocumentCount: caseDocuments.length
             },
             dateRange: {
                 start: today,

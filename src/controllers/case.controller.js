@@ -5,6 +5,7 @@ const CaseAuditService = require('../services/caseAuditService');
 const { CustomException } = require('../utils');
 const { calculateLawyerScore } = require('./score.controller');
 const { getUploadPresignedUrl, getDownloadPresignedUrl, deleteFile, generateFileKey } = require('../configs/s3');
+const documentExportService = require('../services/documentExport.service');
 
 // Create case (from contract OR standalone)
 const createCase = async (request, response) => {
@@ -1443,6 +1444,672 @@ const mapLegacyAction = (action) => {
     return mapping[action] || action;
 };
 
+// ==================== RICH DOCUMENTS (Editable with CKEditor) ====================
+
+// Helper to strip HTML tags for plain text
+const stripHtml = (html) => {
+    if (!html) return '';
+    return html.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim();
+};
+
+// Helper to count words
+const countWords = (text) => {
+    if (!text) return 0;
+    return text.split(/\s+/).filter(word => word.length > 0).length;
+};
+
+// Create rich document in case
+const createRichDocument = async (request, response) => {
+    const { _id } = request.params;
+    const {
+        title,
+        titleAr,
+        content,
+        documentType,
+        status,
+        language,
+        textDirection,
+        showOnCalendar,
+        calendarDate,
+        calendarColor
+    } = request.body;
+
+    try {
+        const caseDoc = await Case.findById(_id);
+
+        if (!caseDoc) {
+            throw CustomException('Case not found!', 404);
+        }
+
+        if (caseDoc.lawyerId.toString() !== request.userID) {
+            throw CustomException('Only the lawyer can create documents!', 403);
+        }
+
+        const plainText = stripHtml(content);
+
+        const richDoc = {
+            title,
+            titleAr,
+            content,
+            contentPlainText: plainText,
+            documentType: documentType || 'other',
+            status: status || 'draft',
+            language: language || 'ar',
+            textDirection: textDirection || 'rtl',
+            version: 1,
+            wordCount: countWords(plainText),
+            characterCount: plainText.length,
+            showOnCalendar: showOnCalendar || false,
+            calendarDate,
+            calendarColor: calendarColor || '#3b82f6',
+            createdBy: request.userID,
+            lastEditedBy: request.userID,
+            createdAt: new Date(),
+            updatedAt: new Date()
+        };
+
+        caseDoc.richDocuments.push(richDoc);
+        await caseDoc.save();
+
+        const newDoc = caseDoc.richDocuments[caseDoc.richDocuments.length - 1];
+
+        return response.status(201).send({
+            error: false,
+            message: 'Rich document created successfully!',
+            data: {
+                document: newDoc
+            }
+        });
+    } catch ({ message, status = 500 }) {
+        return response.status(status).send({
+            error: true,
+            message
+        });
+    }
+};
+
+// Get all rich documents for a case
+const getRichDocuments = async (request, response) => {
+    const { _id } = request.params;
+    const { documentType, status, search } = request.query;
+
+    try {
+        const caseDoc = await Case.findById(_id)
+            .populate('richDocuments.createdBy', 'firstName lastName')
+            .populate('richDocuments.lastEditedBy', 'firstName lastName');
+
+        if (!caseDoc) {
+            throw CustomException('Case not found!', 404);
+        }
+
+        // Check access
+        const isLawyer = caseDoc.lawyerId.toString() === request.userID;
+        const isClient = caseDoc.clientId && caseDoc.clientId.toString() === request.userID;
+
+        if (!isLawyer && !isClient) {
+            throw CustomException('You do not have access to this case!', 403);
+        }
+
+        let documents = caseDoc.richDocuments || [];
+
+        // Apply filters
+        if (documentType) {
+            documents = documents.filter(d => d.documentType === documentType);
+        }
+        if (status) {
+            documents = documents.filter(d => d.status === status);
+        }
+        if (search) {
+            const searchLower = search.toLowerCase();
+            documents = documents.filter(d =>
+                (d.title && d.title.toLowerCase().includes(searchLower)) ||
+                (d.titleAr && d.titleAr.includes(search)) ||
+                (d.contentPlainText && d.contentPlainText.toLowerCase().includes(searchLower))
+            );
+        }
+
+        // Sort by updatedAt desc
+        documents.sort((a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt));
+
+        return response.send({
+            error: false,
+            data: {
+                documents,
+                total: documents.length
+            }
+        });
+    } catch ({ message, status = 500 }) {
+        return response.status(status).send({
+            error: true,
+            message
+        });
+    }
+};
+
+// Get single rich document
+const getRichDocument = async (request, response) => {
+    const { _id, docId } = request.params;
+
+    try {
+        const caseDoc = await Case.findById(_id)
+            .populate('richDocuments.createdBy', 'firstName lastName')
+            .populate('richDocuments.lastEditedBy', 'firstName lastName')
+            .populate('richDocuments.previousVersions.editedBy', 'firstName lastName');
+
+        if (!caseDoc) {
+            throw CustomException('Case not found!', 404);
+        }
+
+        // Check access
+        const isLawyer = caseDoc.lawyerId.toString() === request.userID;
+        const isClient = caseDoc.clientId && caseDoc.clientId.toString() === request.userID;
+
+        if (!isLawyer && !isClient) {
+            throw CustomException('You do not have access to this case!', 403);
+        }
+
+        const richDoc = caseDoc.richDocuments.id(docId);
+        if (!richDoc) {
+            throw CustomException('Document not found!', 404);
+        }
+
+        return response.send({
+            error: false,
+            data: {
+                document: richDoc,
+                case: {
+                    _id: caseDoc._id,
+                    title: caseDoc.title,
+                    caseNumber: caseDoc.caseNumber
+                }
+            }
+        });
+    } catch ({ message, status = 500 }) {
+        return response.status(status).send({
+            error: true,
+            message
+        });
+    }
+};
+
+// Update rich document
+const updateRichDocument = async (request, response) => {
+    const { _id, docId } = request.params;
+    const {
+        title,
+        titleAr,
+        content,
+        documentType,
+        status,
+        language,
+        textDirection,
+        showOnCalendar,
+        calendarDate,
+        calendarColor,
+        changeNote
+    } = request.body;
+
+    try {
+        const caseDoc = await Case.findById(_id);
+
+        if (!caseDoc) {
+            throw CustomException('Case not found!', 404);
+        }
+
+        if (caseDoc.lawyerId.toString() !== request.userID) {
+            throw CustomException('Only the lawyer can update documents!', 403);
+        }
+
+        const richDoc = caseDoc.richDocuments.id(docId);
+        if (!richDoc) {
+            throw CustomException('Document not found!', 404);
+        }
+
+        // Save previous version if content changed
+        if (content !== undefined && content !== richDoc.content) {
+            richDoc.previousVersions.push({
+                content: richDoc.content,
+                version: richDoc.version,
+                editedBy: richDoc.lastEditedBy,
+                editedAt: richDoc.updatedAt,
+                changeNote: changeNote || `Version ${richDoc.version}`
+            });
+            richDoc.version += 1;
+        }
+
+        // Update fields
+        if (title !== undefined) richDoc.title = title;
+        if (titleAr !== undefined) richDoc.titleAr = titleAr;
+        if (content !== undefined) {
+            richDoc.content = content;
+            richDoc.contentPlainText = stripHtml(content);
+            richDoc.wordCount = countWords(richDoc.contentPlainText);
+            richDoc.characterCount = richDoc.contentPlainText.length;
+        }
+        if (documentType !== undefined) richDoc.documentType = documentType;
+        if (status !== undefined) richDoc.status = status;
+        if (language !== undefined) richDoc.language = language;
+        if (textDirection !== undefined) richDoc.textDirection = textDirection;
+        if (showOnCalendar !== undefined) richDoc.showOnCalendar = showOnCalendar;
+        if (calendarDate !== undefined) richDoc.calendarDate = calendarDate;
+        if (calendarColor !== undefined) richDoc.calendarColor = calendarColor;
+
+        richDoc.lastEditedBy = request.userID;
+        richDoc.updatedAt = new Date();
+
+        await caseDoc.save();
+
+        return response.status(202).send({
+            error: false,
+            message: 'Document updated successfully!',
+            data: {
+                document: richDoc
+            }
+        });
+    } catch ({ message, status = 500 }) {
+        return response.status(status).send({
+            error: true,
+            message
+        });
+    }
+};
+
+// Delete rich document
+const deleteRichDocument = async (request, response) => {
+    const { _id, docId } = request.params;
+
+    try {
+        const caseDoc = await Case.findById(_id);
+
+        if (!caseDoc) {
+            throw CustomException('Case not found!', 404);
+        }
+
+        if (caseDoc.lawyerId.toString() !== request.userID) {
+            throw CustomException('Only the lawyer can delete documents!', 403);
+        }
+
+        const richDoc = caseDoc.richDocuments.id(docId);
+        if (!richDoc) {
+            throw CustomException('Document not found!', 404);
+        }
+
+        caseDoc.richDocuments.pull(docId);
+        await caseDoc.save();
+
+        return response.status(200).send({
+            error: false,
+            message: 'Document deleted successfully!'
+        });
+    } catch ({ message, status = 500 }) {
+        return response.status(status).send({
+            error: true,
+            message
+        });
+    }
+};
+
+// Get rich document version history
+const getRichDocumentVersions = async (request, response) => {
+    const { _id, docId } = request.params;
+
+    try {
+        const caseDoc = await Case.findById(_id)
+            .populate('richDocuments.previousVersions.editedBy', 'firstName lastName');
+
+        if (!caseDoc) {
+            throw CustomException('Case not found!', 404);
+        }
+
+        // Check access
+        const isLawyer = caseDoc.lawyerId.toString() === request.userID;
+        const isClient = caseDoc.clientId && caseDoc.clientId.toString() === request.userID;
+
+        if (!isLawyer && !isClient) {
+            throw CustomException('You do not have access to this case!', 403);
+        }
+
+        const richDoc = caseDoc.richDocuments.id(docId);
+        if (!richDoc) {
+            throw CustomException('Document not found!', 404);
+        }
+
+        // Include current version as well
+        const versions = [
+            {
+                version: richDoc.version,
+                content: richDoc.content,
+                editedBy: richDoc.lastEditedBy,
+                editedAt: richDoc.updatedAt,
+                changeNote: 'Current version',
+                isCurrent: true
+            },
+            ...(richDoc.previousVersions || []).map(v => ({
+                ...v.toObject(),
+                isCurrent: false
+            }))
+        ];
+
+        return response.send({
+            error: false,
+            data: {
+                documentId: docId,
+                title: richDoc.title,
+                versions
+            }
+        });
+    } catch ({ message, status = 500 }) {
+        return response.status(status).send({
+            error: true,
+            message
+        });
+    }
+};
+
+// Restore rich document to a previous version
+const restoreRichDocumentVersion = async (request, response) => {
+    const { _id, docId, versionNumber } = request.params;
+
+    try {
+        const caseDoc = await Case.findById(_id);
+
+        if (!caseDoc) {
+            throw CustomException('Case not found!', 404);
+        }
+
+        if (caseDoc.lawyerId.toString() !== request.userID) {
+            throw CustomException('Only the lawyer can restore document versions!', 403);
+        }
+
+        const richDoc = caseDoc.richDocuments.id(docId);
+        if (!richDoc) {
+            throw CustomException('Document not found!', 404);
+        }
+
+        const targetVersion = richDoc.previousVersions.find(
+            v => v.version === parseInt(versionNumber)
+        );
+
+        if (!targetVersion) {
+            throw CustomException('Version not found!', 404);
+        }
+
+        // Save current as previous version
+        richDoc.previousVersions.push({
+            content: richDoc.content,
+            version: richDoc.version,
+            editedBy: richDoc.lastEditedBy,
+            editedAt: richDoc.updatedAt,
+            changeNote: `Before restore from version ${versionNumber}`
+        });
+
+        // Restore
+        richDoc.content = targetVersion.content;
+        richDoc.contentPlainText = stripHtml(targetVersion.content);
+        richDoc.wordCount = countWords(richDoc.contentPlainText);
+        richDoc.characterCount = richDoc.contentPlainText.length;
+        richDoc.version += 1;
+        richDoc.lastEditedBy = request.userID;
+        richDoc.updatedAt = new Date();
+
+        await caseDoc.save();
+
+        return response.status(202).send({
+            error: false,
+            message: `Document restored to version ${versionNumber}!`,
+            data: {
+                document: richDoc
+            }
+        });
+    } catch ({ message, status = 500 }) {
+        return response.status(status).send({
+            error: true,
+            message
+        });
+    }
+};
+
+// ==================== RICH DOCUMENT EXPORT ====================
+
+// Export rich document to PDF
+const exportRichDocumentToPdf = async (request, response) => {
+    const { _id, docId } = request.params;
+
+    try {
+        const caseDoc = await Case.findById(_id);
+
+        if (!caseDoc) {
+            throw CustomException('Case not found!', 404);
+        }
+
+        // Check access
+        const isLawyer = caseDoc.lawyerId.toString() === request.userID;
+        const isClient = caseDoc.clientId && caseDoc.clientId.toString() === request.userID;
+
+        if (!isLawyer && !isClient) {
+            throw CustomException('You do not have access to this case!', 403);
+        }
+
+        const richDoc = caseDoc.richDocuments.id(docId);
+        if (!richDoc) {
+            throw CustomException('Document not found!', 404);
+        }
+
+        // Prepare document for export
+        const exportData = {
+            title: richDoc.title,
+            titleAr: richDoc.titleAr,
+            content: richDoc.content,
+            caseId: {
+                caseNumber: caseDoc.caseNumber
+            },
+            pageType: richDoc.documentType,
+            createdAt: richDoc.createdAt,
+            version: richDoc.version
+        };
+
+        const direction = richDoc.textDirection || 'rtl';
+
+        // Generate PDF
+        const pdfBuffer = await documentExportService.generatePdf(exportData, { direction });
+
+        // Upload to S3
+        const fileName = `${richDoc.title || 'document'}_v${richDoc.version}.pdf`;
+        const uploadResult = await documentExportService.uploadExportToS3(
+            pdfBuffer,
+            fileName,
+            'application/pdf'
+        );
+
+        // Update export tracking
+        richDoc.lastExportedAt = new Date();
+        richDoc.lastExportFormat = 'pdf';
+        richDoc.exportCount = (richDoc.exportCount || 0) + 1;
+        await caseDoc.save();
+
+        return response.send({
+            error: false,
+            message: 'PDF generated successfully!',
+            data: {
+                downloadUrl: uploadResult.downloadUrl,
+                fileName: uploadResult.fileName
+            }
+        });
+    } catch ({ message, status = 500 }) {
+        return response.status(status).send({
+            error: true,
+            message
+        });
+    }
+};
+
+// Export rich document to LaTeX
+const exportRichDocumentToLatex = async (request, response) => {
+    const { _id, docId } = request.params;
+
+    try {
+        const caseDoc = await Case.findById(_id);
+
+        if (!caseDoc) {
+            throw CustomException('Case not found!', 404);
+        }
+
+        // Check access
+        const isLawyer = caseDoc.lawyerId.toString() === request.userID;
+        const isClient = caseDoc.clientId && caseDoc.clientId.toString() === request.userID;
+
+        if (!isLawyer && !isClient) {
+            throw CustomException('You do not have access to this case!', 403);
+        }
+
+        const richDoc = caseDoc.richDocuments.id(docId);
+        if (!richDoc) {
+            throw CustomException('Document not found!', 404);
+        }
+
+        const exportData = {
+            title: richDoc.title,
+            titleAr: richDoc.titleAr,
+            content: richDoc.content,
+            contentText: richDoc.contentPlainText
+        };
+
+        const direction = richDoc.textDirection || 'rtl';
+        const latex = documentExportService.generateLatex(exportData, { direction });
+
+        // Update export tracking
+        richDoc.lastExportedAt = new Date();
+        richDoc.lastExportFormat = 'latex';
+        richDoc.exportCount = (richDoc.exportCount || 0) + 1;
+        await caseDoc.save();
+
+        return response.send({
+            error: false,
+            data: {
+                latex,
+                fileName: `${richDoc.title || 'document'}.tex`
+            }
+        });
+    } catch ({ message, status = 500 }) {
+        return response.status(status).send({
+            error: true,
+            message
+        });
+    }
+};
+
+// Export rich document to Markdown
+const exportRichDocumentToMarkdown = async (request, response) => {
+    const { _id, docId } = request.params;
+
+    try {
+        const caseDoc = await Case.findById(_id);
+
+        if (!caseDoc) {
+            throw CustomException('Case not found!', 404);
+        }
+
+        // Check access
+        const isLawyer = caseDoc.lawyerId.toString() === request.userID;
+        const isClient = caseDoc.clientId && caseDoc.clientId.toString() === request.userID;
+
+        if (!isLawyer && !isClient) {
+            throw CustomException('You do not have access to this case!', 403);
+        }
+
+        const richDoc = caseDoc.richDocuments.id(docId);
+        if (!richDoc) {
+            throw CustomException('Document not found!', 404);
+        }
+
+        const exportData = {
+            title: richDoc.title,
+            titleAr: richDoc.titleAr,
+            content: richDoc.content,
+            caseId: {
+                caseNumber: caseDoc.caseNumber
+            },
+            pageType: richDoc.documentType,
+            createdAt: richDoc.createdAt
+        };
+
+        const direction = richDoc.textDirection || 'rtl';
+        const markdown = documentExportService.generateMarkdown(exportData, { direction });
+
+        // Update export tracking
+        richDoc.lastExportedAt = new Date();
+        richDoc.lastExportFormat = 'markdown';
+        richDoc.exportCount = (richDoc.exportCount || 0) + 1;
+        await caseDoc.save();
+
+        return response.send({
+            error: false,
+            data: {
+                markdown,
+                fileName: `${richDoc.title || 'document'}.md`
+            }
+        });
+    } catch ({ message, status = 500 }) {
+        return response.status(status).send({
+            error: true,
+            message
+        });
+    }
+};
+
+// Get HTML preview of rich document
+const getRichDocumentPreview = async (request, response) => {
+    const { _id, docId } = request.params;
+
+    try {
+        const caseDoc = await Case.findById(_id);
+
+        if (!caseDoc) {
+            throw CustomException('Case not found!', 404);
+        }
+
+        // Check access
+        const isLawyer = caseDoc.lawyerId.toString() === request.userID;
+        const isClient = caseDoc.clientId && caseDoc.clientId.toString() === request.userID;
+
+        if (!isLawyer && !isClient) {
+            throw CustomException('You do not have access to this case!', 403);
+        }
+
+        const richDoc = caseDoc.richDocuments.id(docId);
+        if (!richDoc) {
+            throw CustomException('Document not found!', 404);
+        }
+
+        const exportData = {
+            title: richDoc.title,
+            titleAr: richDoc.titleAr,
+            content: richDoc.content,
+            caseId: {
+                caseNumber: caseDoc.caseNumber
+            },
+            pageType: richDoc.documentType,
+            createdAt: richDoc.createdAt,
+            version: richDoc.version
+        };
+
+        const direction = richDoc.textDirection || 'rtl';
+        const html = documentExportService.generateHtmlTemplate(exportData, { direction });
+
+        return response.send({
+            error: false,
+            data: {
+                html
+            }
+        });
+    } catch ({ message, status = 500 }) {
+        return response.status(status).send({
+            error: true,
+            message
+        });
+    }
+};
+
 module.exports = {
     createCase,
     getCases,
@@ -1474,5 +2141,18 @@ module.exports = {
     updateClaim,
     updateTimelineEvent,
     // Audit
-    getCaseAudit
+    getCaseAudit,
+    // Rich Documents (CKEditor)
+    createRichDocument,
+    getRichDocuments,
+    getRichDocument,
+    updateRichDocument,
+    deleteRichDocument,
+    getRichDocumentVersions,
+    restoreRichDocumentVersion,
+    // Rich Document Export
+    exportRichDocumentToPdf,
+    exportRichDocumentToLatex,
+    exportRichDocumentToMarkdown,
+    getRichDocumentPreview
 };
