@@ -65,19 +65,21 @@ const wikiCollectionSchema = new mongoose.Schema({
     },
 
     // ═══════════════════════════════════════════════════════════════
-    // ASSOCIATIONS
+    // ASSOCIATIONS - User-centric (caseId is OPTIONAL)
     // ═══════════════════════════════════════════════════════════════
-    caseId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Case',
-        required: true,
-        index: true
-    },
+    // Owner - the only required relationship
     lawyerId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
         required: true,
         index: true
+    },
+    // Case link is OPTIONAL - folders can exist without a case
+    caseId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Case',
+        index: true,
+        sparse: true // Allow null/undefined
     },
 
     // ═══════════════════════════════════════════════════════════════
@@ -163,13 +165,18 @@ const wikiCollectionSchema = new mongoose.Schema({
 });
 
 // ═══════════════════════════════════════════════════════════════
-// INDEXES
+// INDEXES - User-centric (lawyerId is primary)
 // ═══════════════════════════════════════════════════════════════
-wikiCollectionSchema.index({ caseId: 1, order: 1 });
+// Primary user-centric indexes
+wikiCollectionSchema.index({ lawyerId: 1, order: 1 });
+wikiCollectionSchema.index({ lawyerId: 1, collectionType: 1 });
+wikiCollectionSchema.index({ lawyerId: 1, parentCollectionId: 1, order: 1 });
+wikiCollectionSchema.index({ name: 1, lawyerId: 1 });
+wikiCollectionSchema.index({ urlSlug: 1, lawyerId: 1 });
+
+// Case-related indexes (optional)
+wikiCollectionSchema.index({ caseId: 1, order: 1 }, { sparse: true });
 wikiCollectionSchema.index({ parentCollectionId: 1, order: 1 });
-wikiCollectionSchema.index({ caseId: 1, collectionType: 1 });
-wikiCollectionSchema.index({ name: 1, caseId: 1 });
-wikiCollectionSchema.index({ urlSlug: 1, caseId: 1 });
 
 // ═══════════════════════════════════════════════════════════════
 // PRE-SAVE HOOKS
@@ -210,10 +217,113 @@ wikiCollectionSchema.pre('save', async function(next) {
 });
 
 // ═══════════════════════════════════════════════════════════════
-// STATIC METHODS
+// STATIC METHODS - User-Centric (Standalone Wiki)
 // ═══════════════════════════════════════════════════════════════
 
-// Get collections for a case
+// Get all user's folders (standalone - no case required)
+wikiCollectionSchema.statics.getUserFolders = async function(lawyerId, options = {}) {
+    const query = { lawyerId: new mongoose.Types.ObjectId(lawyerId) };
+
+    if (options.parentCollectionId === null) {
+        query.parentCollectionId = { $exists: false };
+    } else if (options.parentCollectionId) {
+        query.parentCollectionId = new mongoose.Types.ObjectId(options.parentCollectionId);
+    }
+
+    // Filter by case if provided (optional)
+    if (options.caseId) {
+        query.caseId = new mongoose.Types.ObjectId(options.caseId);
+    } else if (options.excludeCaseFolders) {
+        // Only get standalone folders (not case-specific)
+        query.caseId = { $exists: false };
+    }
+
+    return await this.find(query)
+        .sort({ order: 1, name: 1 })
+        .populate('createdBy', 'firstName lastName');
+};
+
+// Get user's folder tree (standalone - no case required)
+wikiCollectionSchema.statics.getUserFolderTree = async function(lawyerId, options = {}) {
+    const query = { lawyerId: new mongoose.Types.ObjectId(lawyerId) };
+
+    if (options.caseId) {
+        query.caseId = new mongoose.Types.ObjectId(options.caseId);
+    }
+
+    const collections = await this.find(query)
+        .select('collectionId name nameAr urlSlug icon color parentCollectionId order depth collectionType isDefault pageCount caseId')
+        .sort({ order: 1, name: 1 })
+        .lean();
+
+    const buildTree = (parentId = null) => {
+        return collections
+            .filter(c => {
+                if (parentId === null) return !c.parentCollectionId;
+                return c.parentCollectionId && c.parentCollectionId.toString() === parentId.toString();
+            })
+            .map(collection => ({
+                ...collection,
+                children: buildTree(collection._id)
+            }));
+    };
+
+    return buildTree();
+};
+
+// Create default folders for a user (standalone)
+wikiCollectionSchema.statics.createDefaultUserFolders = async function(lawyerId, createdBy) {
+    const defaultFolders = [
+        {
+            name: 'Personal Notes',
+            nameAr: 'ملاحظات شخصية',
+            icon: '📝',
+            collectionType: 'notes',
+            color: '#22c55e',
+            order: 0
+        },
+        {
+            name: 'Research',
+            nameAr: 'البحث',
+            icon: '🔍',
+            collectionType: 'research',
+            color: '#8b5cf6',
+            order: 1
+        },
+        {
+            name: 'Templates',
+            nameAr: 'القوالب',
+            icon: '📋',
+            collectionType: 'custom',
+            color: '#f97316',
+            order: 2
+        },
+        {
+            name: 'Archive',
+            nameAr: 'الأرشيف',
+            icon: '📦',
+            collectionType: 'custom',
+            color: '#64748b',
+            order: 3
+        }
+    ];
+
+    const folders = defaultFolders.map(folder => ({
+        ...folder,
+        lawyerId,
+        createdBy,
+        isDefault: true
+        // Note: No caseId - these are standalone user folders
+    }));
+
+    return await this.insertMany(folders);
+};
+
+// ═══════════════════════════════════════════════════════════════
+// LEGACY STATIC METHODS (Case-Centric - Backward Compatibility)
+// ═══════════════════════════════════════════════════════════════
+
+// Get collections for a case (legacy)
 wikiCollectionSchema.statics.getCaseCollections = async function(caseId, options = {}) {
     const query = { caseId: new mongoose.Types.ObjectId(caseId) };
 
@@ -228,7 +338,7 @@ wikiCollectionSchema.statics.getCaseCollections = async function(caseId, options
         .populate('createdBy', 'firstName lastName');
 };
 
-// Get collection tree
+// Get collection tree for a case (legacy)
 wikiCollectionSchema.statics.getCollectionTree = async function(caseId) {
     const collections = await this.find({
         caseId: new mongoose.Types.ObjectId(caseId)

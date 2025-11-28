@@ -7,7 +7,49 @@ const { userMiddleware } = require('../middlewares');
 router.use(userMiddleware);
 
 // ============================================
-// PAGE ROUTES
+// STANDALONE WIKI ROUTES (User-Centric - No Case Required)
+// ============================================
+
+// List all user's pages (standalone)
+router.get('/wiki/pages', wikiController.listUserPages);
+
+// Get user's page tree (standalone)
+router.get('/wiki/tree', wikiController.getUserPageTree);
+
+// Create a new page (standalone - no case required)
+router.post('/wiki/pages', wikiController.createStandalonePage);
+
+// Search user's pages (standalone)
+router.get('/wiki/pages/search', wikiController.searchUserPages);
+
+// Get user's pinned pages
+router.get('/wiki/pages/pinned', wikiController.getUserPinnedPages);
+
+// Get user's tags
+router.get('/wiki/tags', wikiController.getUserTags);
+
+// Link/Unlink entities to a page
+router.post('/wiki/:pageId/link', wikiController.linkEntity);
+router.delete('/wiki/:pageId/link', wikiController.unlinkEntity);
+
+// ============================================
+// STANDALONE FOLDER ROUTES (User-Centric)
+// ============================================
+
+// List user's folders (standalone)
+router.get('/wiki/folders', wikiController.listUserFolders);
+
+// Get user's folder tree
+router.get('/wiki/folders/tree', wikiController.getUserFolderTree);
+
+// Create folder (standalone)
+router.post('/wiki/folders', wikiController.createUserFolder);
+
+// Initialize default folders for user
+router.post('/wiki/folders/init', wikiController.initializeUserFolders);
+
+// ============================================
+// CASE-LINKED PAGE ROUTES (Legacy - Backward Compatibility)
 // ============================================
 
 // List pages for a case

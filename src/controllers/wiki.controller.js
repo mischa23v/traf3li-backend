@@ -2947,3 +2947,553 @@ exports.updateCalendarSettings = async (req, res) => {
         });
     }
 };
+
+// ============================================
+// STANDALONE WIKI OPERATIONS (User-Centric)
+// ============================================
+
+// List all user's pages (standalone - no case required)
+exports.listUserPages = async (req, res) => {
+    try {
+        const userId = req.userID;
+        const {
+            pageType,
+            collectionId,
+            parentPageId,
+            tags,
+            caseId,
+            clientId,
+            sortBy,
+            limit,
+            skip
+        } = req.query;
+
+        const options = {
+            pageType,
+            collectionId,
+            sortBy,
+            limit,
+            skip
+        };
+
+        if (parentPageId === 'null') options.parentPageId = null;
+        else if (parentPageId) options.parentPageId = parentPageId;
+
+        if (tags) options.tags = tags.split(',');
+        if (caseId) options.caseId = caseId;
+        if (clientId) options.clientId = clientId;
+
+        const pages = await WikiPage.getUserPages(userId, options);
+        const total = await WikiPage.countDocuments({
+            lawyerId: userId,
+            status: { $nin: ['archived'] },
+            isTemplate: false
+        });
+
+        res.json({
+            success: true,
+            data: pages,
+            pagination: {
+                total,
+                limit: parseInt(limit) || 50,
+                skip: parseInt(skip) || 0
+            }
+        });
+    } catch (error) {
+        console.error('Error listing user pages:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error listing pages',
+            error: error.message
+        });
+    }
+};
+
+// Get user's page tree (standalone)
+exports.getUserPageTree = async (req, res) => {
+    try {
+        const userId = req.userID;
+        const { collectionId } = req.query;
+
+        const [pageTree, folderTree] = await Promise.all([
+            WikiPage.getUserPageTree(userId, { collectionId }),
+            WikiCollection.getUserFolderTree(userId)
+        ]);
+
+        res.json({
+            success: true,
+            data: {
+                pages: pageTree,
+                folders: folderTree
+            }
+        });
+    } catch (error) {
+        console.error('Error getting user page tree:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error getting page tree',
+            error: error.message
+        });
+    }
+};
+
+// Create a new page (standalone - no case required)
+exports.createStandalonePage = async (req, res) => {
+    try {
+        const userId = req.userID;
+        const {
+            title,
+            titleAr,
+            content,
+            contentText,
+            summary,
+            pageType,
+            parentPageId,
+            collectionId,
+            // Optional linking - can link to any entity or none
+            caseId,
+            clientId,
+            linkedCaseIds,
+            linkedClientIds,
+            linkedTaskIds,
+            linkedEventIds,
+            linkedReminderIds,
+            linkedDocumentIds,
+            linkedWikiPageIds,
+            tags,
+            isTemplate,
+            visibility,
+            isConfidential
+        } = req.body;
+
+        // Create page without requiring caseId
+        const page = new WikiPage({
+            title,
+            titleAr,
+            content,
+            contentText,
+            summary,
+            pageType: pageType || 'note',
+            parentPageId,
+            collectionId,
+            // User is the owner
+            lawyerId: userId,
+            createdBy: userId,
+            lastModifiedBy: userId,
+            // Optional single links (legacy support)
+            caseId: caseId || undefined,
+            clientId: clientId || undefined,
+            // Multi-entity linking
+            linkedCaseIds: linkedCaseIds || [],
+            linkedClientIds: linkedClientIds || [],
+            linkedTaskIds: linkedTaskIds || [],
+            linkedEventIds: linkedEventIds || [],
+            linkedReminderIds: linkedReminderIds || [],
+            linkedDocumentIds: linkedDocumentIds || [],
+            linkedWikiPageIds: linkedWikiPageIds || [],
+            tags: tags || [],
+            isTemplate: isTemplate || false,
+            visibility: visibility || 'private',
+            isConfidential: isConfidential || false,
+            collaborators: [{ userId, role: 'author', lastContributedAt: new Date() }]
+        });
+
+        await page.save();
+
+        // Create initial revision
+        await WikiRevision.createFromPage(page, userId, 'create', 'Initial version');
+
+        // Update collection page count if in a collection
+        if (collectionId) {
+            await WikiCollection.updatePageCount(collectionId);
+        }
+
+        // Extract and sync backlinks
+        const links = extractLinksFromContent(content, contentText);
+        if (links.length > 0) {
+            const resolvedLinks = [];
+            for (const link of links) {
+                const targetPage = await WikiPage.findOne({
+                    lawyerId: userId,
+                    $or: [
+                        { _id: link.targetId },
+                        { title: link.targetId },
+                        { urlSlug: link.targetId.toLowerCase() }
+                    ]
+                });
+                if (targetPage) {
+                    resolvedLinks.push({
+                        ...link,
+                        targetId: targetPage._id
+                    });
+                }
+            }
+            await WikiBacklink.syncLinksFromPage(page, resolvedLinks);
+        }
+
+        // Populate for response
+        await page.populate([
+            { path: 'createdBy', select: 'firstName lastName avatar' },
+            { path: 'collectionId', select: 'name nameAr icon color' },
+            { path: 'caseId', select: 'title caseNumber' },
+            { path: 'linkedCaseIds', select: 'title caseNumber' }
+        ]);
+
+        res.status(201).json({
+            success: true,
+            message: 'Page created successfully',
+            data: page
+        });
+    } catch (error) {
+        console.error('Error creating standalone wiki page:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error creating wiki page',
+            error: error.message
+        });
+    }
+};
+
+// Search user's pages (standalone)
+exports.searchUserPages = async (req, res) => {
+    try {
+        const userId = req.userID;
+        const { q, pageType, collectionId, caseId, limit = 20 } = req.query;
+
+        if (!q) {
+            return res.status(400).json({
+                success: false,
+                message: 'Search query is required'
+            });
+        }
+
+        const results = await WikiPage.searchUserPages(userId, q, {
+            pageType,
+            collectionId,
+            caseId,
+            limit: parseInt(limit)
+        });
+
+        res.json({
+            success: true,
+            data: results
+        });
+    } catch (error) {
+        console.error('Error searching user pages:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error searching pages',
+            error: error.message
+        });
+    }
+};
+
+// Get user's pinned pages
+exports.getUserPinnedPages = async (req, res) => {
+    try {
+        const userId = req.userID;
+
+        const pages = await WikiPage.getUserPinnedPages(userId);
+
+        res.json({
+            success: true,
+            data: pages
+        });
+    } catch (error) {
+        console.error('Error getting user pinned pages:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error getting pinned pages',
+            error: error.message
+        });
+    }
+};
+
+// Get user's tags
+exports.getUserTags = async (req, res) => {
+    try {
+        const userId = req.userID;
+
+        const tags = await WikiPage.getUserTags(userId);
+
+        res.json({
+            success: true,
+            data: tags
+        });
+    } catch (error) {
+        console.error('Error getting user tags:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error getting tags',
+            error: error.message
+        });
+    }
+};
+
+// Link entity to a page (post-creation linking)
+exports.linkEntity = async (req, res) => {
+    try {
+        const { pageId } = req.params;
+        const userId = req.userID;
+        const { entityType, entityId } = req.body;
+
+        if (!entityType || !entityId) {
+            return res.status(400).json({
+                success: false,
+                message: 'entityType and entityId are required'
+            });
+        }
+
+        const validTypes = ['case', 'client', 'task', 'event', 'reminder', 'document', 'wiki'];
+        if (!validTypes.includes(entityType)) {
+            return res.status(400).json({
+                success: false,
+                message: `Invalid entityType. Must be one of: ${validTypes.join(', ')}`
+            });
+        }
+
+        const page = await WikiPage.findOne({
+            $or: [{ _id: pageId }, { pageId: pageId }],
+            lawyerId: userId
+        });
+
+        if (!page) {
+            return res.status(404).json({
+                success: false,
+                message: 'Page not found'
+            });
+        }
+
+        const updatedPage = await WikiPage.linkEntity(page._id, entityType, entityId);
+
+        // Create revision
+        await WikiRevision.createFromPage(
+            updatedPage,
+            userId,
+            'update',
+            `Linked ${entityType}: ${entityId}`,
+            { ipAddress: req.ip, userAgent: req.get('user-agent') }
+        );
+
+        res.json({
+            success: true,
+            message: `${entityType} linked successfully`,
+            data: updatedPage
+        });
+    } catch (error) {
+        console.error('Error linking entity:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error linking entity',
+            error: error.message
+        });
+    }
+};
+
+// Unlink entity from a page
+exports.unlinkEntity = async (req, res) => {
+    try {
+        const { pageId } = req.params;
+        const userId = req.userID;
+        const { entityType, entityId } = req.body;
+
+        if (!entityType || !entityId) {
+            return res.status(400).json({
+                success: false,
+                message: 'entityType and entityId are required'
+            });
+        }
+
+        const validTypes = ['case', 'client', 'task', 'event', 'reminder', 'document', 'wiki'];
+        if (!validTypes.includes(entityType)) {
+            return res.status(400).json({
+                success: false,
+                message: `Invalid entityType. Must be one of: ${validTypes.join(', ')}`
+            });
+        }
+
+        const page = await WikiPage.findOne({
+            $or: [{ _id: pageId }, { pageId: pageId }],
+            lawyerId: userId
+        });
+
+        if (!page) {
+            return res.status(404).json({
+                success: false,
+                message: 'Page not found'
+            });
+        }
+
+        const updatedPage = await WikiPage.unlinkEntity(page._id, entityType, entityId);
+
+        // Create revision
+        await WikiRevision.createFromPage(
+            updatedPage,
+            userId,
+            'update',
+            `Unlinked ${entityType}: ${entityId}`,
+            { ipAddress: req.ip, userAgent: req.get('user-agent') }
+        );
+
+        res.json({
+            success: true,
+            message: `${entityType} unlinked successfully`,
+            data: updatedPage
+        });
+    } catch (error) {
+        console.error('Error unlinking entity:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error unlinking entity',
+            error: error.message
+        });
+    }
+};
+
+// ============================================
+// STANDALONE FOLDER OPERATIONS
+// ============================================
+
+// List user's folders (standalone)
+exports.listUserFolders = async (req, res) => {
+    try {
+        const userId = req.userID;
+        const { parentCollectionId, caseId, excludeCaseFolders } = req.query;
+
+        const options = {};
+        if (parentCollectionId === 'null') options.parentCollectionId = null;
+        else if (parentCollectionId) options.parentCollectionId = parentCollectionId;
+        if (caseId) options.caseId = caseId;
+        if (excludeCaseFolders === 'true') options.excludeCaseFolders = true;
+
+        const folders = await WikiCollection.getUserFolders(userId, options);
+
+        res.json({
+            success: true,
+            data: folders
+        });
+    } catch (error) {
+        console.error('Error listing user folders:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error listing folders',
+            error: error.message
+        });
+    }
+};
+
+// Get user's folder tree
+exports.getUserFolderTree = async (req, res) => {
+    try {
+        const userId = req.userID;
+        const { caseId } = req.query;
+
+        const folderTree = await WikiCollection.getUserFolderTree(userId, { caseId });
+
+        res.json({
+            success: true,
+            data: folderTree
+        });
+    } catch (error) {
+        console.error('Error getting user folder tree:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error getting folder tree',
+            error: error.message
+        });
+    }
+};
+
+// Create folder (standalone - no case required)
+exports.createUserFolder = async (req, res) => {
+    try {
+        const userId = req.userID;
+        const {
+            name,
+            nameAr,
+            description,
+            descriptionAr,
+            icon,
+            color,
+            parentCollectionId,
+            collectionType,
+            defaultPageType,
+            defaultConfidentialityLevel,
+            visibility,
+            caseId // Optional - can link to a case or not
+        } = req.body;
+
+        const folder = new WikiCollection({
+            name,
+            nameAr,
+            description,
+            descriptionAr,
+            icon,
+            color,
+            parentCollectionId,
+            collectionType: collectionType || 'custom',
+            defaultPageType,
+            defaultConfidentialityLevel,
+            visibility,
+            caseId: caseId || undefined, // Optional
+            lawyerId: userId,
+            createdBy: userId
+        });
+
+        await folder.save();
+
+        // Update parent sub-collection count
+        if (parentCollectionId) {
+            await WikiCollection.updateSubCollectionCount(parentCollectionId);
+        }
+
+        res.status(201).json({
+            success: true,
+            message: 'Folder created successfully',
+            data: folder
+        });
+    } catch (error) {
+        console.error('Error creating folder:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error creating folder',
+            error: error.message
+        });
+    }
+};
+
+// Initialize default folders for user
+exports.initializeUserFolders = async (req, res) => {
+    try {
+        const userId = req.userID;
+
+        // Check if default folders already exist
+        const existingDefaults = await WikiCollection.countDocuments({
+            lawyerId: userId,
+            isDefault: true,
+            caseId: { $exists: false } // Standalone folders only
+        });
+
+        if (existingDefaults > 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'Default folders already exist for this user'
+            });
+        }
+
+        const folders = await WikiCollection.createDefaultUserFolders(userId, userId);
+
+        res.status(201).json({
+            success: true,
+            message: 'Default folders created successfully',
+            data: folders
+        });
+    } catch (error) {
+        console.error('Error initializing user folders:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error initializing folders',
+            error: error.message
+        });
+    }
+};

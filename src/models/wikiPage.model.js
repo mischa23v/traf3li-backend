@@ -204,25 +204,36 @@ const wikiPageSchema = new mongoose.Schema({
     },
 
     // ═══════════════════════════════════════════════════════════════
-    // 5. RELATIONSHIPS (3 fields)
+    // 5. RELATIONSHIPS - ALL LINKS ARE OPTIONAL (user-centric)
     // ═══════════════════════════════════════════════════════════════
-    caseId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Case',
-        required: true,
-        index: true
-    },
-    clientId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Client',
-        index: true
-    },
+    // Owner/Creator - the only required relationship
     lawyerId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
         required: true,
         index: true
     },
+    // Legacy single case link (optional, for backward compatibility)
+    caseId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Case',
+        index: true
+    },
+    // Legacy single client link (optional)
+    clientId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Client',
+        index: true
+    },
+    // Multi-entity linking - can link to multiple cases and clients
+    linkedCaseIds: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Case'
+    }],
+    linkedClientIds: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Client'
+    }],
 
     // ═══════════════════════════════════════════════════════════════
     // 6. ENTITY LINKING (7 arrays)
@@ -467,22 +478,41 @@ const wikiPageSchema = new mongoose.Schema({
 });
 
 // ═══════════════════════════════════════════════════════════════
-// INDEXES
+// INDEXES - User-centric (lawyerId is primary)
 // ═══════════════════════════════════════════════════════════════
-wikiPageSchema.index({ caseId: 1, status: 1 });
+// Primary user-centric indexes
 wikiPageSchema.index({ lawyerId: 1, status: 1 });
-wikiPageSchema.index({ caseId: 1, pageType: 1 });
+wikiPageSchema.index({ lawyerId: 1, pageType: 1 });
+wikiPageSchema.index({ lawyerId: 1, updatedAt: -1 }); // For recent pages
+wikiPageSchema.index({ lawyerId: 1, isPinned: 1, pinnedAt: -1 }); // For pinned pages
+wikiPageSchema.index({ lawyerId: 1, collectionId: 1, order: 1 }); // For folder organization
+wikiPageSchema.index({ lawyerId: 1, tags: 1 }); // For tag filtering
+
+// URL slug uniqueness per user (not per case)
+wikiPageSchema.index({ urlSlug: 1, lawyerId: 1 }, { unique: true });
+wikiPageSchema.index({ fullPath: 1, lawyerId: 1 });
+
+// Case-related indexes (optional linking)
+wikiPageSchema.index({ caseId: 1, status: 1 }, { sparse: true });
+wikiPageSchema.index({ linkedCaseIds: 1 }, { sparse: true });
+wikiPageSchema.index({ linkedClientIds: 1 }, { sparse: true });
+
+// Organization indexes
 wikiPageSchema.index({ collectionId: 1, order: 1 });
 wikiPageSchema.index({ parentPageId: 1, order: 1 });
-wikiPageSchema.index({ urlSlug: 1, caseId: 1 }, { unique: true });
-wikiPageSchema.index({ fullPath: 1, caseId: 1 });
 wikiPageSchema.index({ tags: 1 });
+
+// Templates and special pages
 wikiPageSchema.index({ isTemplate: 1, lawyerId: 1 });
 wikiPageSchema.index({ isSealed: 1 });
 wikiPageSchema.index({ isLocked: 1, lockExpiresAt: 1 });
 wikiPageSchema.index({ confidentialityLevel: 1 });
+
+// Search
 wikiPageSchema.index({ searchKeywords: 1 });
 wikiPageSchema.index({ title: 'text', contentText: 'text', summary: 'text', searchKeywords: 'text' });
+
+// Calendar
 wikiPageSchema.index({ showOnCalendar: 1, calendarDate: 1 });
 wikiPageSchema.index({ lawyerId: 1, showOnCalendar: 1, calendarDate: 1 });
 
@@ -559,13 +589,189 @@ wikiPageSchema.virtual('isEditable').get(function() {
 });
 
 // ═══════════════════════════════════════════════════════════════
-// STATIC METHODS
+// STATIC METHODS - User-Centric (Standalone Wiki)
 // ═══════════════════════════════════════════════════════════════
 
-// Get pages for a case
+// Get all user's pages (standalone - no case required)
+wikiPageSchema.statics.getUserPages = async function(lawyerId, options = {}) {
+    const query = {
+        lawyerId: new mongoose.Types.ObjectId(lawyerId),
+        status: { $nin: ['archived'] },
+        isTemplate: false
+    };
+
+    if (options.pageType) query.pageType = options.pageType;
+    if (options.collectionId) query.collectionId = new mongoose.Types.ObjectId(options.collectionId);
+    if (options.status) query.status = options.status;
+    if (options.tags && options.tags.length) query.tags = { $in: options.tags };
+    if (options.parentPageId === null) query.parentPageId = { $exists: false };
+    else if (options.parentPageId) query.parentPageId = new mongoose.Types.ObjectId(options.parentPageId);
+
+    // Filter by linked entities (optional)
+    if (options.caseId) {
+        query.$or = [
+            { caseId: new mongoose.Types.ObjectId(options.caseId) },
+            { linkedCaseIds: new mongoose.Types.ObjectId(options.caseId) }
+        ];
+    }
+    if (options.clientId) {
+        query.$or = [
+            { clientId: new mongoose.Types.ObjectId(options.clientId) },
+            { linkedClientIds: new mongoose.Types.ObjectId(options.clientId) }
+        ];
+    }
+
+    const sortOptions = options.sortBy === 'title' ? { title: 1 } :
+                        options.sortBy === 'created' ? { createdAt: -1 } :
+                        { updatedAt: -1 }; // Default: most recently updated
+
+    let queryBuilder = this.find(query)
+        .sort(sortOptions)
+        .populate('createdBy', 'firstName lastName avatar')
+        .populate('lastModifiedBy', 'firstName lastName avatar')
+        .populate('collectionId', 'name nameAr icon color');
+
+    if (options.limit) queryBuilder = queryBuilder.limit(parseInt(options.limit));
+    if (options.skip) queryBuilder = queryBuilder.skip(parseInt(options.skip));
+
+    return await queryBuilder;
+};
+
+// Get user's page tree (standalone - no case required)
+wikiPageSchema.statics.getUserPageTree = async function(lawyerId, options = {}) {
+    const query = {
+        lawyerId: new mongoose.Types.ObjectId(lawyerId),
+        status: { $nin: ['archived'] },
+        isTemplate: false
+    };
+
+    if (options.collectionId) query.collectionId = new mongoose.Types.ObjectId(options.collectionId);
+
+    const pages = await this.find(query)
+        .select('pageId title titleAr urlSlug pageType parentPageId collectionId order depth fullPath icon isPinned status isSealed isLocked caseId linkedCaseIds tags updatedAt')
+        .sort({ order: 1 })
+        .lean();
+
+    const buildTree = (parentId = null) => {
+        return pages
+            .filter(p => {
+                if (parentId === null) return !p.parentPageId;
+                return p.parentPageId && p.parentPageId.toString() === parentId.toString();
+            })
+            .map(page => ({
+                ...page,
+                children: buildTree(page._id)
+            }));
+    };
+
+    return buildTree();
+};
+
+// Search user's pages (standalone - no case required)
+wikiPageSchema.statics.searchUserPages = async function(lawyerId, searchTerm, options = {}) {
+    const query = {
+        lawyerId: new mongoose.Types.ObjectId(lawyerId),
+        status: { $nin: ['archived'] },
+        isTemplate: false,
+        $text: { $search: searchTerm }
+    };
+
+    if (options.pageType) query.pageType = options.pageType;
+    if (options.collectionId) query.collectionId = new mongoose.Types.ObjectId(options.collectionId);
+    if (options.caseId) {
+        query.$or = [
+            { caseId: new mongoose.Types.ObjectId(options.caseId) },
+            { linkedCaseIds: new mongoose.Types.ObjectId(options.caseId) }
+        ];
+    }
+
+    return await this.find(query, { score: { $meta: 'textScore' } })
+        .sort({ score: { $meta: 'textScore' } })
+        .limit(options.limit || 20)
+        .populate('createdBy', 'firstName lastName')
+        .populate('caseId', 'title caseNumber')
+        .populate('linkedCaseIds', 'title caseNumber');
+};
+
+// Get user's pinned pages
+wikiPageSchema.statics.getUserPinnedPages = async function(lawyerId) {
+    return await this.find({
+        lawyerId: new mongoose.Types.ObjectId(lawyerId),
+        isPinned: true,
+        status: { $nin: ['archived'] },
+        isTemplate: false
+    })
+    .sort({ pinnedAt: -1 })
+    .populate('caseId', 'title caseNumber')
+    .select('pageId title urlSlug pageType icon status caseId linkedCaseIds tags updatedAt');
+};
+
+// Get all unique tags for a user
+wikiPageSchema.statics.getUserTags = async function(lawyerId) {
+    const result = await this.aggregate([
+        { $match: { lawyerId: new mongoose.Types.ObjectId(lawyerId), status: { $nin: ['archived'] } } },
+        { $unwind: '$tags' },
+        { $group: { _id: '$tags', count: { $sum: 1 } } },
+        { $sort: { count: -1 } },
+        { $project: { tag: '$_id', count: 1, _id: 0 } }
+    ]);
+    return result;
+};
+
+// Link/Unlink entities (post-creation linking)
+wikiPageSchema.statics.linkEntity = async function(pageId, entityType, entityId) {
+    const fieldMap = {
+        case: 'linkedCaseIds',
+        client: 'linkedClientIds',
+        task: 'linkedTaskIds',
+        event: 'linkedEventIds',
+        reminder: 'linkedReminderIds',
+        document: 'linkedDocumentIds',
+        wiki: 'linkedWikiPageIds'
+    };
+
+    const field = fieldMap[entityType];
+    if (!field) throw new Error('Invalid entity type');
+
+    return await this.findByIdAndUpdate(
+        pageId,
+        { $addToSet: { [field]: new mongoose.Types.ObjectId(entityId) } },
+        { new: true }
+    );
+};
+
+wikiPageSchema.statics.unlinkEntity = async function(pageId, entityType, entityId) {
+    const fieldMap = {
+        case: 'linkedCaseIds',
+        client: 'linkedClientIds',
+        task: 'linkedTaskIds',
+        event: 'linkedEventIds',
+        reminder: 'linkedReminderIds',
+        document: 'linkedDocumentIds',
+        wiki: 'linkedWikiPageIds'
+    };
+
+    const field = fieldMap[entityType];
+    if (!field) throw new Error('Invalid entity type');
+
+    return await this.findByIdAndUpdate(
+        pageId,
+        { $pull: { [field]: new mongoose.Types.ObjectId(entityId) } },
+        { new: true }
+    );
+};
+
+// ═══════════════════════════════════════════════════════════════
+// LEGACY STATIC METHODS (Case-Centric - Backward Compatibility)
+// ═══════════════════════════════════════════════════════════════
+
+// Get pages for a case (legacy)
 wikiPageSchema.statics.getCasePages = async function(caseId, options = {}) {
     const query = {
-        caseId: new mongoose.Types.ObjectId(caseId),
+        $or: [
+            { caseId: new mongoose.Types.ObjectId(caseId) },
+            { linkedCaseIds: new mongoose.Types.ObjectId(caseId) }
+        ],
         status: { $nin: ['archived'] }
     };
 
@@ -582,10 +788,13 @@ wikiPageSchema.statics.getCasePages = async function(caseId, options = {}) {
         .populate('collectionId', 'name nameAr icon color');
 };
 
-// Get page tree for a case
+// Get page tree for a case (legacy)
 wikiPageSchema.statics.getPageTree = async function(caseId) {
     const pages = await this.find({
-        caseId: new mongoose.Types.ObjectId(caseId),
+        $or: [
+            { caseId: new mongoose.Types.ObjectId(caseId) },
+            { linkedCaseIds: new mongoose.Types.ObjectId(caseId) }
+        ],
         status: { $nin: ['archived'] }
     })
     .select('pageId title titleAr urlSlug pageType parentPageId collectionId order depth fullPath icon isPinned status isSealed isLocked')
@@ -607,10 +816,13 @@ wikiPageSchema.statics.getPageTree = async function(caseId) {
     return buildTree();
 };
 
-// Search pages
+// Search pages in a case (legacy)
 wikiPageSchema.statics.searchPages = async function(caseId, searchTerm, options = {}) {
     const query = {
-        caseId: new mongoose.Types.ObjectId(caseId),
+        $or: [
+            { caseId: new mongoose.Types.ObjectId(caseId) },
+            { linkedCaseIds: new mongoose.Types.ObjectId(caseId) }
+        ],
         status: { $nin: ['archived'] },
         $text: { $search: searchTerm }
     };
