@@ -4,7 +4,19 @@
  * Uses Puppeteer for PDF generation (best for Arabic/RTL text)
  */
 
-const puppeteer = require('puppeteer');
+// Lazy load puppeteer - it's optional and may not be available in all environments
+let puppeteer = null;
+const getPuppeteer = () => {
+    if (puppeteer === null) {
+        try {
+            puppeteer = require('puppeteer');
+        } catch (err) {
+            console.warn('Puppeteer not available - PDF export will be disabled');
+            puppeteer = false;
+        }
+    }
+    return puppeteer;
+};
 const { getUploadPresignedUrl, getDownloadPresignedUrl, BUCKETS } = require('../configs/s3');
 const crypto = require('crypto');
 
@@ -220,6 +232,11 @@ const formatFileSize = (bytes) => {
 
 // Generate PDF using Puppeteer (best for Arabic/RTL)
 const generatePdf = async (page, options = {}) => {
+    const pptr = getPuppeteer();
+    if (!pptr) {
+        throw new Error('PDF export is not available - puppeteer is not installed');
+    }
+
     const {
         format = 'A4',
         margin = { top: '20mm', right: '20mm', bottom: '20mm', left: '20mm' },
@@ -231,7 +248,7 @@ const generatePdf = async (page, options = {}) => {
     let browser = null;
 
     try {
-        browser = await puppeteer.launch({
+        browser = await pptr.launch({
             headless: 'new',
             args: [
                 '--no-sandbox',
