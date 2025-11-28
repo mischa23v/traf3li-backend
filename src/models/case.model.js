@@ -164,6 +164,112 @@ const caseSchema = new mongoose.Schema({
         },
         description: String
     }],
+
+    // Rich text documents (editable with CKEditor, Arabic RTL support)
+    richDocuments: [{
+        // Basic Info
+        title: {
+            type: String,
+            required: true
+        },
+        titleAr: String,  // Arabic title
+
+        // Content (HTML from CKEditor)
+        content: {
+            type: String,
+            default: ''
+        },
+        contentPlainText: String,  // For search indexing
+
+        // Document Type
+        documentType: {
+            type: String,
+            enum: ['legal_memo', 'contract_draft', 'pleading', 'motion', 'brief', 'letter', 'notice', 'agreement', 'report', 'notes', 'other'],
+            default: 'other'
+        },
+
+        // Status
+        status: {
+            type: String,
+            enum: ['draft', 'review', 'final', 'archived'],
+            default: 'draft'
+        },
+
+        // Language & Direction
+        language: {
+            type: String,
+            enum: ['ar', 'en', 'mixed'],
+            default: 'ar'
+        },
+        textDirection: {
+            type: String,
+            enum: ['rtl', 'ltr', 'auto'],
+            default: 'rtl'
+        },
+
+        // Versioning
+        version: {
+            type: Number,
+            default: 1
+        },
+        previousVersions: [{
+            content: String,
+            version: Number,
+            editedBy: {
+                type: mongoose.Schema.Types.ObjectId,
+                ref: 'User'
+            },
+            editedAt: Date,
+            changeNote: String
+        }],
+
+        // Metadata
+        wordCount: {
+            type: Number,
+            default: 0
+        },
+        characterCount: {
+            type: Number,
+            default: 0
+        },
+
+        // Export tracking
+        lastExportedAt: Date,
+        lastExportFormat: {
+            type: String,
+            enum: ['pdf', 'docx', 'latex', 'html', 'markdown']
+        },
+        exportCount: {
+            type: Number,
+            default: 0
+        },
+
+        // Calendar integration (optional)
+        showOnCalendar: {
+            type: Boolean,
+            default: false
+        },
+        calendarDate: Date,
+        calendarColor: {
+            type: String,
+            default: '#3b82f6'
+        },
+
+        // Audit
+        createdBy: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'User'
+        },
+        lastEditedBy: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'User'
+        },
+        createdAt: {
+            type: Date,
+            default: Date.now
+        },
+        updatedAt: Date
+    }],
     hearings: [{
         date: Date,
         location: String,
@@ -198,5 +304,8 @@ const caseSchema = new mongoose.Schema({
 
 caseSchema.index({ lawyerId: 1, status: 1 });
 caseSchema.index({ clientId: 1, status: 1 });
+caseSchema.index({ 'richDocuments.showOnCalendar': 1, 'richDocuments.calendarDate': 1 });
+caseSchema.index({ 'richDocuments.documentType': 1 });
+caseSchema.index({ 'richDocuments.status': 1 });
 
 module.exports = mongoose.model('Case', caseSchema);

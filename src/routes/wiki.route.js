@@ -181,4 +181,27 @@ router.get('/wiki/search', wikiController.globalSearch);
 // Get recent pages
 router.get('/wiki/recent', wikiController.getRecentPages);
 
+// ============================================
+// EXPORT ROUTES (PDF, LaTeX, Markdown)
+// ============================================
+
+// Export page as PDF (with Arabic/RTL support)
+router.get('/wiki/:pageId/export/pdf', wikiController.exportToPdf);
+
+// Export page as LaTeX
+router.get('/wiki/:pageId/export/latex', wikiController.exportToLatex);
+
+// Export page as Markdown
+router.get('/wiki/:pageId/export/markdown', wikiController.exportToMarkdown);
+
+// Get HTML preview for export
+router.get('/wiki/:pageId/export/preview', wikiController.getHtmlPreview);
+
+// ============================================
+// CALENDAR SETTINGS
+// ============================================
+
+// Update calendar settings for a page
+router.put('/wiki/:pageId/calendar', wikiController.updateCalendarSettings);
+
 module.exports = router;

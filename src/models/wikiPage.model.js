@@ -432,7 +432,35 @@ const wikiPageSchema = new mongoose.Schema({
     }],
     embedding: [{
         type: Number
-    }]
+    }],
+
+    // ═══════════════════════════════════════════════════════════════
+    // 19. CALENDAR INTEGRATION (4 fields)
+    // ═══════════════════════════════════════════════════════════════
+    showOnCalendar: {
+        type: Boolean,
+        default: false
+    },
+    calendarDate: Date,
+    calendarEndDate: Date,
+    calendarColor: {
+        type: String,
+        default: '#8b5cf6' // purple for wiki
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // 20. DOCUMENT EXPORT (4 fields)
+    // ═══════════════════════════════════════════════════════════════
+    lastExportedAt: Date,
+    lastExportFormat: {
+        type: String,
+        enum: ['pdf', 'docx', 'latex', 'html', 'markdown']
+    },
+    exportCount: {
+        type: Number,
+        default: 0
+    },
+    cachedPdfUrl: String
 }, {
     timestamps: true,
     versionKey: false
@@ -455,6 +483,8 @@ wikiPageSchema.index({ isLocked: 1, lockExpiresAt: 1 });
 wikiPageSchema.index({ confidentialityLevel: 1 });
 wikiPageSchema.index({ searchKeywords: 1 });
 wikiPageSchema.index({ title: 'text', contentText: 'text', summary: 'text', searchKeywords: 'text' });
+wikiPageSchema.index({ showOnCalendar: 1, calendarDate: 1 });
+wikiPageSchema.index({ lawyerId: 1, showOnCalendar: 1, calendarDate: 1 });
 
 // ═══════════════════════════════════════════════════════════════
 // PRE-SAVE HOOKS
