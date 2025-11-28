@@ -93,6 +93,13 @@ const Vendor = require('./vendor.model');
 const Bill = require('./bill.model');
 const BillPayment = require('./billPayment.model');
 
+// Wiki Models
+const WikiPage = require('./wikiPage.model');
+const WikiRevision = require('./wikiRevision.model');
+const WikiBacklink = require('./wikiBacklink.model');
+const WikiCollection = require('./wikiCollection.model');
+const WikiComment = require('./wikiComment.model');
+
 module.exports = {
     // Marketplace
     User,
@@ -187,5 +194,12 @@ module.exports = {
     // Vendors and Bills
     Vendor,
     Bill,
-    BillPayment
+    BillPayment,
+
+    // Wiki
+    WikiPage,
+    WikiRevision,
+    WikiBacklink,
+    WikiCollection,
+    WikiComment
 };

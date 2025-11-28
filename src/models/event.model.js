@@ -22,6 +22,7 @@ const attendeeSchema = new mongoose.Schema({
     userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     email: String,
     name: String,
+    phone: String,
     role: {
         type: String,
         enum: ['organizer', 'required', 'optional', 'resource'],
@@ -31,6 +32,11 @@ const attendeeSchema = new mongoose.Schema({
         type: String,
         enum: ['invited', 'confirmed', 'declined', 'tentative', 'no_response'],
         default: 'invited'
+    },
+    responseStatus: {
+        type: String,
+        enum: ['pending', 'accepted', 'declined', 'tentative'],
+        default: 'pending'
     },
     isRequired: { type: Boolean, default: true },
     responseNote: String,
@@ -133,7 +139,7 @@ const eventSchema = new mongoose.Schema({
     },
     status: {
         type: String,
-        enum: ['scheduled', 'confirmed', 'in_progress', 'completed', 'cancelled', 'postponed', 'rescheduled'],
+        enum: ['scheduled', 'confirmed', 'tentative', 'canceled', 'cancelled', 'postponed', 'completed', 'in_progress', 'rescheduled'],
         default: 'scheduled',
         index: true
     },
@@ -183,6 +189,44 @@ const eventSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Task'
     },
+    reminderId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Reminder'
+    },
+    invoiceId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Invoice'
+    },
+    // Court details (show only for court events)
+    courtDetails: {
+        courtType: {
+            type: String,
+            enum: [
+                'general_court',
+                'criminal_court',
+                'family_court',
+                'commercial_court',
+                'labor_court',
+                'appeal_court',
+                'supreme_court',
+                'administrative_court',
+                'enforcement_court'
+            ]
+        },
+        courtCaseNumber: String,
+        caseYear: Number,
+        najizCaseNumber: String
+    },
+    // Virtual meeting (show only for virtual/hybrid)
+    virtualMeeting: {
+        platform: {
+            type: String,
+            enum: ['zoom', 'teams', 'google_meet', 'webex', 'other']
+        },
+        meetingUrl: String,
+        meetingId: String,
+        meetingPassword: String
+    },
     // Agenda and minutes
     agenda: [agendaItemSchema],
     actionItems: [actionItemSchema],
@@ -207,6 +251,11 @@ const eventSchema = new mongoose.Schema({
         daysOfWeek: [{ type: Number, min: 0, max: 6 }],
         dayOfMonth: { type: Number, min: 1, max: 31 },
         weekOfMonth: { type: Number, min: 1, max: 5 },
+        endType: {
+            type: String,
+            enum: ['never', 'after_occurrences', 'on_date'],
+            default: 'never'
+        },
         endDate: Date,
         maxOccurrences: Number,
         occurrencesCompleted: { type: Number, default: 0 },
@@ -214,6 +263,9 @@ const eventSchema = new mongoose.Schema({
         parentEventId: { type: mongoose.Schema.Types.ObjectId, ref: 'Event' },
         nextOccurrence: Date
     },
+    // Recurring instance fields
+    isRecurringInstance: { type: Boolean, default: false },
+    parentEventId: { type: mongoose.Schema.Types.ObjectId, ref: 'Event' },
     // Calendar sync
     calendarSync: {
         googleCalendarId: String,
@@ -243,9 +295,33 @@ const eventSchema = new mongoose.Schema({
         enum: ['low', 'medium', 'high', 'critical'],
         default: 'medium'
     },
+    // Enhanced Billing
+    billing: {
+        isBillable: { type: Boolean, default: false },
+        billingType: {
+            type: String,
+            enum: ['hourly', 'fixed_fee', 'retainer', 'pro_bono', 'not_billable'],
+            default: 'hourly'
+        },
+        hourlyRate: Number,
+        fixedAmount: Number,
+        currency: { type: String, default: 'SAR' },
+        billableAmount: Number,
+        invoiceStatus: {
+            type: String,
+            enum: ['not_invoiced', 'invoiced', 'paid'],
+            default: 'not_invoiced'
+        },
+        linkedInvoiceId: { type: mongoose.Schema.Types.ObjectId, ref: 'Invoice' }
+    },
     // Completion tracking
     completedAt: Date,
     completedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    outcome: String,
+    // Follow-up
+    followUpRequired: { type: Boolean, default: false },
+    followUpTaskId: { type: mongoose.Schema.Types.ObjectId, ref: 'Task' },
+    followUpNotes: String,
     // Cancellation/Postponement
     cancelledAt: Date,
     cancelledBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },

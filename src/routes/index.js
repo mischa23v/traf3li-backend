@@ -63,6 +63,9 @@ const vendorRoute = require('./vendor.route');
 const billRoute = require('./bill.route');
 const billPaymentRoute = require('./billPayment.route');
 
+// Wiki Routes
+const wikiRoute = require('./wiki.route');
+
 module.exports = {
     // Marketplace
     gigRoute,
@@ -127,5 +130,8 @@ module.exports = {
     // Vendors and Bills
     vendorRoute,
     billRoute,
-    billPaymentRoute
+    billPaymentRoute,
+
+    // Wiki
+    wikiRoute
 };
