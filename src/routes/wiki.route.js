@@ -1,0 +1,140 @@
+const express = require('express');
+const router = express.Router();
+const wikiController = require('../controllers/wiki.controller');
+const { authenticate } = require('../middleware/auth.middleware');
+
+// Apply authentication to all routes
+router.use(authenticate);
+
+// ============================================
+// PAGE ROUTES
+// ============================================
+
+// List pages for a case
+router.get('/cases/:caseId/wiki', wikiController.listPages);
+
+// Get page tree for a case
+router.get('/cases/:caseId/wiki/tree', wikiController.getPageTree);
+
+// Create a new page
+router.post('/cases/:caseId/wiki', wikiController.createPage);
+
+// Search pages in a case
+router.get('/cases/:caseId/wiki/search', wikiController.search);
+
+// Get pinned pages for a case
+router.get('/cases/:caseId/wiki/pinned', wikiController.getPinnedPages);
+
+// Get link graph for a case
+router.get('/cases/:caseId/wiki/graph', wikiController.getLinkGraph);
+
+// Initialize default folders for a case
+router.post('/cases/:caseId/wiki/init-folders', wikiController.initializeDefaultFolders);
+
+// Get a single page
+router.get('/wiki/:pageId', wikiController.getPage);
+
+// Update a page
+router.put('/wiki/:pageId', wikiController.updatePage);
+
+// Delete a page
+router.delete('/wiki/:pageId', wikiController.deletePage);
+
+// Move a page
+router.put('/wiki/:pageId/move', wikiController.movePage);
+
+// Toggle pin status
+router.post('/wiki/:pageId/pin', wikiController.togglePin);
+
+// ============================================
+// VERSION CONTROL ROUTES
+// ============================================
+
+// Get page history
+router.get('/wiki/:pageId/history', wikiController.getHistory);
+
+// Get specific revision
+router.get('/wiki/:pageId/revisions/:version', wikiController.getRevision);
+
+// Compare versions
+router.get('/wiki/:pageId/diff', wikiController.compareVersions);
+
+// Restore version
+router.post('/wiki/:pageId/restore/:version', wikiController.restoreVersion);
+
+// ============================================
+// FOLDER ROUTES
+// ============================================
+
+// List folders for a case
+router.get('/cases/:caseId/wiki/folders', wikiController.listFolders);
+
+// Create folder
+router.post('/cases/:caseId/wiki/folders', wikiController.createFolder);
+
+// Update folder
+router.put('/wiki/folders/:folderId', wikiController.updateFolder);
+
+// Delete folder
+router.delete('/wiki/folders/:folderId', wikiController.deleteFolder);
+
+// ============================================
+// BACKLINK ROUTES
+// ============================================
+
+// Get backlinks for a page
+router.get('/wiki/:pageId/backlinks', wikiController.getBacklinks);
+
+// Get outgoing links from a page
+router.get('/wiki/:pageId/links', wikiController.getOutgoingLinks);
+
+// ============================================
+// COMMENT ROUTES
+// ============================================
+
+// Get comments for a page
+router.get('/wiki/:pageId/comments', wikiController.getComments);
+
+// Add comment
+router.post('/wiki/:pageId/comments', wikiController.addComment);
+
+// Update comment
+router.put('/wiki/comments/:commentId', wikiController.updateComment);
+
+// Delete comment
+router.delete('/wiki/comments/:commentId', wikiController.deleteComment);
+
+// Resolve comment
+router.post('/wiki/comments/:commentId/resolve', wikiController.resolveComment);
+
+// ============================================
+// SEAL/UNSEAL ROUTES
+// ============================================
+
+// Seal page
+router.post('/wiki/:pageId/seal', wikiController.sealPage);
+
+// Unseal page
+router.post('/wiki/:pageId/unseal', wikiController.unsealPage);
+
+// ============================================
+// TEMPLATE ROUTES
+// ============================================
+
+// List templates
+router.get('/wiki/templates', wikiController.listTemplates);
+
+// Create from template
+router.post('/wiki/templates/:templateId/create', wikiController.createFromTemplate);
+
+// ============================================
+// GLOBAL ROUTES
+// ============================================
+
+// Global search across all cases
+router.get('/wiki/search', wikiController.globalSearch);
+
+// Get recent pages
+router.get('/wiki/recent', wikiController.getRecentPages);
+
+module.exports = router;
