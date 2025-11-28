@@ -28,8 +28,9 @@ const app = express.Router();
 app.get('/presets', userMiddleware, getPresets);
 app.post('/presets/:presetType', userMiddleware, importPreset);
 
-// Stats
+// Stats (support both /stats and /statistics for frontend compatibility)
 app.get('/stats', userMiddleware, getWorkflowStatistics);
+app.get('/statistics', userMiddleware, getWorkflowStatistics);
 
 // By category
 app.get('/category/:category', userMiddleware, getWorkflowsByCategory);
