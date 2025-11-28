@@ -24,6 +24,21 @@ const collaboratorSchema = new mongoose.Schema({
     editCount: { type: Number, default: 0 }
 }, { _id: false });
 
+// Attachment version schema (embedded in attachment)
+const attachmentVersionSchema = new mongoose.Schema({
+    versionNumber: { type: Number, required: true },
+    fileName: { type: String, required: true },
+    fileUrl: { type: String, required: true },
+    fileKey: { type: String, required: true },
+    fileType: String,
+    fileSize: Number,
+    uploadedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    uploadedAt: { type: Date, default: Date.now },
+    changeNote: String,
+    isRestored: { type: Boolean, default: false },
+    restoredFrom: Number
+}, { _id: false });
+
 // Attachment schema
 const wikiAttachmentSchema = new mongoose.Schema({
     attachmentId: {
@@ -44,7 +59,16 @@ const wikiAttachmentSchema = new mongoose.Schema({
         type: String,
         enum: ['pleading', 'evidence', 'exhibit', 'contract', 'correspondence', 'research', 'judgment', 'other'],
         default: 'other'
-    }
+    },
+    // Version tracking
+    currentVersion: { type: Number, default: 1 },
+    versionCount: { type: Number, default: 1 },
+    versionHistory: [attachmentVersionSchema],
+    // Metadata
+    description: String,
+    descriptionAr: String,
+    lastModifiedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    lastModifiedAt: Date
 }, { _id: false });
 
 const wikiPageSchema = new mongoose.Schema({

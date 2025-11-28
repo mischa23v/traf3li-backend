@@ -133,6 +133,25 @@ router.delete('/wiki/:pageId/attachments/:attachmentId', wikiController.deleteAt
 router.post('/wiki/:pageId/attachments/:attachmentId/seal', wikiController.sealAttachment);
 
 // ============================================
+// ATTACHMENT VERSIONING ROUTES
+// ============================================
+
+// Get upload URL for new version
+router.post('/wiki/:pageId/attachments/:attachmentId/versions/upload', wikiController.getAttachmentVersionUploadUrl);
+
+// Confirm new version upload
+router.post('/wiki/:pageId/attachments/:attachmentId/versions/confirm', wikiController.confirmAttachmentVersionUpload);
+
+// Get attachment version history
+router.get('/wiki/:pageId/attachments/:attachmentId/versions', wikiController.getAttachmentVersionHistory);
+
+// Download specific version
+router.get('/wiki/:pageId/attachments/:attachmentId/versions/:versionNumber/download', wikiController.downloadAttachmentVersion);
+
+// Restore previous version
+router.post('/wiki/:pageId/attachments/:attachmentId/versions/:versionNumber/restore', wikiController.restoreAttachmentVersion);
+
+// ============================================
 // SEAL/UNSEAL ROUTES
 // ============================================
 

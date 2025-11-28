@@ -2119,3 +2119,534 @@ exports.sealAttachment = async (req, res) => {
         });
     }
 };
+
+// ============================================
+// ATTACHMENT VERSIONING
+// ============================================
+
+// Get presigned URL for uploading new version of an attachment
+exports.getAttachmentVersionUploadUrl = async (req, res) => {
+    try {
+        const { pageId, attachmentId } = req.params;
+        const userId = req.user._id;
+        const { fileName, fileType } = req.body;
+
+        if (!fileName || !fileType) {
+            return res.status(400).json({
+                success: false,
+                message: 'fileName and fileType are required'
+            });
+        }
+
+        const page = await WikiPage.findOne({
+            $or: [{ _id: pageId }, { pageId: pageId }]
+        });
+
+        if (!page) {
+            return res.status(404).json({
+                success: false,
+                message: 'Page not found'
+            });
+        }
+
+        // Check edit permission
+        if (!page.canEdit(userId)) {
+            return res.status(403).json({
+                success: false,
+                message: page.isSealed ? 'Cannot update attachments on sealed pages' : 'Access denied'
+            });
+        }
+
+        // Find attachment
+        const attachment = page.attachments.find(
+            a => a.attachmentId === attachmentId || a._id?.toString() === attachmentId
+        );
+
+        if (!attachment) {
+            return res.status(404).json({
+                success: false,
+                message: 'Attachment not found'
+            });
+        }
+
+        // Check if attachment is sealed
+        if (attachment.isSealed) {
+            return res.status(403).json({
+                success: false,
+                message: 'Cannot upload new versions of sealed attachments'
+            });
+        }
+
+        // Generate unique file key for new version
+        const uniqueId = crypto.randomBytes(8).toString('hex');
+        const sanitizedFileName = fileName.replace(/[^a-zA-Z0-9.-]/g, '_');
+        const nextVersion = (attachment.currentVersion || 1) + 1;
+        const fileKey = `wiki/${page.caseId}/${page._id}/versions/${attachmentId}/v${nextVersion}-${uniqueId}-${sanitizedFileName}`;
+
+        // Get presigned URL
+        const uploadUrl = await getUploadPresignedUrl(fileKey, fileType, 'general');
+
+        res.json({
+            success: true,
+            data: {
+                uploadUrl,
+                fileKey,
+                nextVersion,
+                expiresIn: 3600
+            }
+        });
+    } catch (error) {
+        console.error('Error getting attachment version upload URL:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error getting upload URL',
+            error: error.message
+        });
+    }
+};
+
+// Confirm new version upload
+exports.confirmAttachmentVersionUpload = async (req, res) => {
+    try {
+        const { pageId, attachmentId } = req.params;
+        const userId = req.user._id;
+        const {
+            fileName,
+            fileKey,
+            fileUrl,
+            fileType,
+            fileSize,
+            changeNote
+        } = req.body;
+
+        if (!fileName || !fileKey) {
+            return res.status(400).json({
+                success: false,
+                message: 'fileName and fileKey are required'
+            });
+        }
+
+        const page = await WikiPage.findOne({
+            $or: [{ _id: pageId }, { pageId: pageId }]
+        });
+
+        if (!page) {
+            return res.status(404).json({
+                success: false,
+                message: 'Page not found'
+            });
+        }
+
+        // Check edit permission
+        if (!page.canEdit(userId)) {
+            return res.status(403).json({
+                success: false,
+                message: page.isSealed ? 'Cannot update attachments on sealed pages' : 'Access denied'
+            });
+        }
+
+        // Find attachment
+        const attachment = page.attachments.find(
+            a => a.attachmentId === attachmentId || a._id?.toString() === attachmentId
+        );
+
+        if (!attachment) {
+            return res.status(404).json({
+                success: false,
+                message: 'Attachment not found'
+            });
+        }
+
+        // Check if attachment is sealed
+        if (attachment.isSealed) {
+            return res.status(403).json({
+                success: false,
+                message: 'Cannot upload new versions of sealed attachments'
+            });
+        }
+
+        // Save current version to history
+        const currentVersionRecord = {
+            versionNumber: attachment.currentVersion || 1,
+            fileName: attachment.fileName,
+            fileUrl: attachment.fileUrl,
+            fileKey: attachment.fileKey,
+            fileType: attachment.fileType,
+            fileSize: attachment.fileSize,
+            uploadedBy: attachment.lastModifiedBy || attachment.uploadedBy,
+            uploadedAt: attachment.lastModifiedAt || attachment.uploadedAt,
+            changeNote: null
+        };
+
+        // Initialize version history if not exists
+        if (!attachment.versionHistory) {
+            attachment.versionHistory = [];
+        }
+
+        // Add current version to history
+        attachment.versionHistory.push(currentVersionRecord);
+
+        // Update attachment with new version
+        const newVersion = (attachment.currentVersion || 1) + 1;
+        attachment.fileName = fileName;
+        attachment.fileUrl = fileUrl || `https://${BUCKETS.general}.s3.amazonaws.com/${fileKey}`;
+        attachment.fileKey = fileKey;
+        attachment.fileType = fileType || attachment.fileType;
+        attachment.fileSize = fileSize;
+        attachment.currentVersion = newVersion;
+        attachment.versionCount = newVersion;
+        attachment.lastModifiedBy = userId;
+        attachment.lastModifiedAt = new Date();
+
+        // Add change note to the new current version record (will be saved in history on next update)
+        if (changeNote) {
+            attachment.description = changeNote;
+        }
+
+        page.lastModifiedBy = userId;
+        await page.save();
+
+        // Create revision for version update
+        await WikiRevision.createFromPage(
+            page,
+            userId,
+            'update',
+            `Updated attachment "${attachment.fileName}" to version ${newVersion}${changeNote ? ': ' + changeNote : ''}`,
+            { ipAddress: req.ip, userAgent: req.get('user-agent') }
+        );
+
+        res.json({
+            success: true,
+            message: 'New version uploaded successfully',
+            data: {
+                attachment,
+                currentVersion: newVersion,
+                versionCount: newVersion
+            }
+        });
+    } catch (error) {
+        console.error('Error confirming attachment version upload:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error uploading new version',
+            error: error.message
+        });
+    }
+};
+
+// Get attachment version history
+exports.getAttachmentVersionHistory = async (req, res) => {
+    try {
+        const { pageId, attachmentId } = req.params;
+        const userId = req.user._id;
+
+        const page = await WikiPage.findOne({
+            $or: [{ _id: pageId }, { pageId: pageId }]
+        })
+        .populate('attachments.uploadedBy', 'firstName lastName avatar')
+        .populate('attachments.lastModifiedBy', 'firstName lastName avatar')
+        .populate('attachments.versionHistory.uploadedBy', 'firstName lastName avatar');
+
+        if (!page) {
+            return res.status(404).json({
+                success: false,
+                message: 'Page not found'
+            });
+        }
+
+        // Check view permission
+        if (!page.canView(userId)) {
+            return res.status(403).json({
+                success: false,
+                message: 'Access denied'
+            });
+        }
+
+        // Find attachment
+        const attachment = page.attachments.find(
+            a => a.attachmentId === attachmentId || a._id?.toString() === attachmentId
+        );
+
+        if (!attachment) {
+            return res.status(404).json({
+                success: false,
+                message: 'Attachment not found'
+            });
+        }
+
+        // Build version list (current + history)
+        const versions = [];
+
+        // Add current version
+        versions.push({
+            versionNumber: attachment.currentVersion || 1,
+            fileName: attachment.fileName,
+            fileUrl: attachment.fileUrl,
+            fileKey: attachment.fileKey,
+            fileType: attachment.fileType,
+            fileSize: attachment.fileSize,
+            uploadedBy: attachment.lastModifiedBy || attachment.uploadedBy,
+            uploadedAt: attachment.lastModifiedAt || attachment.uploadedAt,
+            changeNote: attachment.description,
+            isCurrent: true
+        });
+
+        // Add history versions (sorted by version number descending)
+        if (attachment.versionHistory && attachment.versionHistory.length > 0) {
+            const historyVersions = attachment.versionHistory
+                .map(v => ({
+                    ...v.toObject ? v.toObject() : v,
+                    isCurrent: false
+                }))
+                .sort((a, b) => b.versionNumber - a.versionNumber);
+
+            versions.push(...historyVersions);
+        }
+
+        res.json({
+            success: true,
+            data: {
+                attachmentId: attachment.attachmentId,
+                fileName: attachment.fileName,
+                currentVersion: attachment.currentVersion || 1,
+                versionCount: attachment.versionCount || 1,
+                versions
+            }
+        });
+    } catch (error) {
+        console.error('Error getting attachment version history:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error getting version history',
+            error: error.message
+        });
+    }
+};
+
+// Download a specific version
+exports.downloadAttachmentVersion = async (req, res) => {
+    try {
+        const { pageId, attachmentId, versionNumber } = req.params;
+        const userId = req.user._id;
+
+        const page = await WikiPage.findOne({
+            $or: [{ _id: pageId }, { pageId: pageId }]
+        });
+
+        if (!page) {
+            return res.status(404).json({
+                success: false,
+                message: 'Page not found'
+            });
+        }
+
+        // Check view permission
+        if (!page.canView(userId)) {
+            return res.status(403).json({
+                success: false,
+                message: 'Access denied'
+            });
+        }
+
+        // Find attachment
+        const attachment = page.attachments.find(
+            a => a.attachmentId === attachmentId || a._id?.toString() === attachmentId
+        );
+
+        if (!attachment) {
+            return res.status(404).json({
+                success: false,
+                message: 'Attachment not found'
+            });
+        }
+
+        const version = parseInt(versionNumber);
+        let fileKey, fileName, fileType, fileSize;
+
+        // Check if requesting current version
+        if (version === (attachment.currentVersion || 1)) {
+            fileKey = attachment.fileKey;
+            fileName = attachment.fileName;
+            fileType = attachment.fileType;
+            fileSize = attachment.fileSize;
+        } else {
+            // Find in history
+            const historyVersion = attachment.versionHistory?.find(
+                v => v.versionNumber === version
+            );
+
+            if (!historyVersion) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'Version not found'
+                });
+            }
+
+            fileKey = historyVersion.fileKey;
+            fileName = historyVersion.fileName;
+            fileType = historyVersion.fileType;
+            fileSize = historyVersion.fileSize;
+        }
+
+        // Get presigned download URL
+        const downloadUrl = await getDownloadPresignedUrl(fileKey, 'general', fileName);
+
+        res.json({
+            success: true,
+            data: {
+                downloadUrl,
+                fileName,
+                fileType,
+                fileSize,
+                version,
+                expiresIn: 3600
+            }
+        });
+    } catch (error) {
+        console.error('Error downloading attachment version:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error getting download URL',
+            error: error.message
+        });
+    }
+};
+
+// Restore a previous version
+exports.restoreAttachmentVersion = async (req, res) => {
+    try {
+        const { pageId, attachmentId, versionNumber } = req.params;
+        const userId = req.user._id;
+
+        const page = await WikiPage.findOne({
+            $or: [{ _id: pageId }, { pageId: pageId }]
+        });
+
+        if (!page) {
+            return res.status(404).json({
+                success: false,
+                message: 'Page not found'
+            });
+        }
+
+        // Check edit permission
+        if (!page.canEdit(userId)) {
+            return res.status(403).json({
+                success: false,
+                message: page.isSealed ? 'Cannot restore attachments on sealed pages' : 'Access denied'
+            });
+        }
+
+        // Find attachment
+        const attachment = page.attachments.find(
+            a => a.attachmentId === attachmentId || a._id?.toString() === attachmentId
+        );
+
+        if (!attachment) {
+            return res.status(404).json({
+                success: false,
+                message: 'Attachment not found'
+            });
+        }
+
+        // Check if attachment is sealed
+        if (attachment.isSealed) {
+            return res.status(403).json({
+                success: false,
+                message: 'Cannot restore sealed attachments'
+            });
+        }
+
+        const version = parseInt(versionNumber);
+
+        // Cannot restore to current version
+        if (version === (attachment.currentVersion || 1)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Cannot restore to current version'
+            });
+        }
+
+        // Find the version to restore
+        const versionToRestore = attachment.versionHistory?.find(
+            v => v.versionNumber === version
+        );
+
+        if (!versionToRestore) {
+            return res.status(404).json({
+                success: false,
+                message: 'Version not found'
+            });
+        }
+
+        // Save current version to history
+        const currentVersionRecord = {
+            versionNumber: attachment.currentVersion || 1,
+            fileName: attachment.fileName,
+            fileUrl: attachment.fileUrl,
+            fileKey: attachment.fileKey,
+            fileType: attachment.fileType,
+            fileSize: attachment.fileSize,
+            uploadedBy: attachment.lastModifiedBy || attachment.uploadedBy,
+            uploadedAt: attachment.lastModifiedAt || attachment.uploadedAt,
+            changeNote: attachment.description
+        };
+
+        // Initialize version history if not exists
+        if (!attachment.versionHistory) {
+            attachment.versionHistory = [];
+        }
+
+        // Add current to history
+        attachment.versionHistory.push(currentVersionRecord);
+
+        // Restore the old version as new current
+        const newVersion = (attachment.currentVersion || 1) + 1;
+        attachment.fileName = versionToRestore.fileName;
+        attachment.fileUrl = versionToRestore.fileUrl;
+        attachment.fileKey = versionToRestore.fileKey;
+        attachment.fileType = versionToRestore.fileType;
+        attachment.fileSize = versionToRestore.fileSize;
+        attachment.currentVersion = newVersion;
+        attachment.versionCount = newVersion;
+        attachment.lastModifiedBy = userId;
+        attachment.lastModifiedAt = new Date();
+        attachment.description = `Restored from version ${version}`;
+
+        // Update the restored version record to mark it
+        const restoredIndex = attachment.versionHistory.findIndex(v => v.versionNumber === version);
+        if (restoredIndex !== -1) {
+            attachment.versionHistory[restoredIndex].isRestored = true;
+            attachment.versionHistory[restoredIndex].restoredFrom = version;
+        }
+
+        page.lastModifiedBy = userId;
+        await page.save();
+
+        // Create revision for restore
+        await WikiRevision.createFromPage(
+            page,
+            userId,
+            'update',
+            `Restored attachment "${attachment.fileName}" to version ${version}`,
+            { ipAddress: req.ip, userAgent: req.get('user-agent') }
+        );
+
+        res.json({
+            success: true,
+            message: `Attachment restored to version ${version}`,
+            data: {
+                attachment,
+                restoredFromVersion: version,
+                newVersion
+            }
+        });
+    } catch (error) {
+        console.error('Error restoring attachment version:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error restoring version',
+            error: error.message
+        });
+    }
+};
