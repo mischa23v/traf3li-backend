@@ -35,7 +35,7 @@ exports.listPages = async (req, res) => {
     try {
         const { caseId } = req.params;
         const { pageType, collectionId, parentPageId, search, status } = req.query;
-        const userId = req.user._id;
+        const userId = req.userID;
 
         // Verify case access
         const caseDoc = await Case.findOne({
@@ -82,7 +82,7 @@ exports.listPages = async (req, res) => {
 exports.getPageTree = async (req, res) => {
     try {
         const { caseId } = req.params;
-        const userId = req.user._id;
+        const userId = req.userID;
 
         // Verify case access
         const caseDoc = await Case.findOne({
@@ -123,7 +123,7 @@ exports.getPageTree = async (req, res) => {
 exports.createPage = async (req, res) => {
     try {
         const { caseId } = req.params;
-        const userId = req.user._id;
+        const userId = req.userID;
         const {
             title,
             titleAr,
@@ -238,7 +238,7 @@ exports.createPage = async (req, res) => {
 exports.getPage = async (req, res) => {
     try {
         const { pageId } = req.params;
-        const userId = req.user._id;
+        const userId = req.userID;
 
         const page = await WikiPage.findOne({
             $or: [
@@ -302,7 +302,7 @@ exports.getPage = async (req, res) => {
 exports.updatePage = async (req, res) => {
     try {
         const { pageId } = req.params;
-        const userId = req.user._id;
+        const userId = req.userID;
         const {
             title,
             titleAr,
@@ -446,7 +446,7 @@ exports.deletePage = async (req, res) => {
     try {
         const { pageId } = req.params;
         const { permanent } = req.query;
-        const userId = req.user._id;
+        const userId = req.userID;
 
         const page = await WikiPage.findOne({
             $or: [
@@ -641,7 +641,7 @@ exports.compareVersions = async (req, res) => {
 exports.restoreVersion = async (req, res) => {
     try {
         const { pageId, version } = req.params;
-        const userId = req.user._id;
+        const userId = req.userID;
 
         const page = await WikiPage.findOne({
             $or: [{ _id: pageId }, { pageId: pageId }]
@@ -715,7 +715,7 @@ exports.listCollections = async (req, res) => {
     try {
         const { caseId } = req.params;
         const { parentCollectionId } = req.query;
-        const userId = req.user._id;
+        const userId = req.userID;
 
         const caseDoc = await Case.findOne({ _id: caseId, lawyerId: userId });
         if (!caseDoc) {
@@ -749,7 +749,7 @@ exports.listCollections = async (req, res) => {
 exports.createCollection = async (req, res) => {
     try {
         const { caseId } = req.params;
-        const userId = req.user._id;
+        const userId = req.userID;
         const { name, nameAr, description, descriptionAr, icon, color, parentCollectionId, collectionType, defaultPageType, defaultConfidentialityLevel, visibility } = req.body;
 
         const caseDoc = await Case.findOne({ _id: caseId, lawyerId: userId });
@@ -803,7 +803,7 @@ exports.createCollection = async (req, res) => {
 exports.updateCollection = async (req, res) => {
     try {
         const { collectionId } = req.params;
-        const userId = req.user._id;
+        const userId = req.userID;
         const { name, nameAr, description, descriptionAr, icon, color, collectionType, defaultPageType, defaultConfidentialityLevel, visibility } = req.body;
 
         const collection = await WikiCollection.findById(collectionId);
@@ -854,7 +854,7 @@ exports.updateCollection = async (req, res) => {
 exports.deleteCollection = async (req, res) => {
     try {
         const { collectionId } = req.params;
-        const userId = req.user._id;
+        const userId = req.userID;
 
         const collection = await WikiCollection.findById(collectionId);
         if (!collection) {
@@ -966,7 +966,7 @@ exports.getOutgoingLinks = async (req, res) => {
 exports.getLinkGraph = async (req, res) => {
     try {
         const { caseId } = req.params;
-        const userId = req.user._id;
+        const userId = req.userID;
 
         const caseDoc = await Case.findOne({ _id: caseId, lawyerId: userId });
         if (!caseDoc) {
@@ -1037,7 +1037,7 @@ exports.getComments = async (req, res) => {
 exports.addComment = async (req, res) => {
     try {
         const { pageId } = req.params;
-        const userId = req.user._id;
+        const userId = req.userID;
         const {
             content,
             parentCommentId,
@@ -1111,7 +1111,7 @@ exports.addComment = async (req, res) => {
 exports.updateComment = async (req, res) => {
     try {
         const { commentId } = req.params;
-        const userId = req.user._id;
+        const userId = req.userID;
         const { content } = req.body;
 
         const comment = await WikiComment.findById(commentId);
@@ -1151,7 +1151,7 @@ exports.updateComment = async (req, res) => {
 exports.deleteComment = async (req, res) => {
     try {
         const { commentId } = req.params;
-        const userId = req.user._id;
+        const userId = req.userID;
 
         const comment = await WikiComment.findById(commentId);
         if (!comment) {
@@ -1191,7 +1191,7 @@ exports.deleteComment = async (req, res) => {
 exports.resolveComment = async (req, res) => {
     try {
         const { commentId } = req.params;
-        const userId = req.user._id;
+        const userId = req.userID;
         const { note } = req.body;
 
         const comment = await WikiComment.findById(commentId);
@@ -1228,7 +1228,7 @@ exports.resolveComment = async (req, res) => {
 exports.sealPage = async (req, res) => {
     try {
         const { pageId } = req.params;
-        const userId = req.user._id;
+        const userId = req.userID;
         const { reason } = req.body;
 
         const page = await WikiPage.findOne({
@@ -1273,7 +1273,7 @@ exports.sealPage = async (req, res) => {
 exports.unsealPage = async (req, res) => {
     try {
         const { pageId } = req.params;
-        const userId = req.user._id;
+        const userId = req.userID;
 
         const page = await WikiPage.findOne({
             $or: [{ _id: pageId }, { pageId: pageId }]
@@ -1320,7 +1320,7 @@ exports.unsealPage = async (req, res) => {
 // List templates
 exports.listTemplates = async (req, res) => {
     try {
-        const userId = req.user._id;
+        const userId = req.userID;
 
         const templates = await WikiPage.getTemplates(userId);
 
@@ -1343,7 +1343,7 @@ exports.createFromTemplate = async (req, res) => {
     try {
         const { templateId } = req.params;
         const { caseId, title, collectionId } = req.body;
-        const userId = req.user._id;
+        const userId = req.userID;
 
         const caseDoc = await Case.findOne({ _id: caseId, lawyerId: userId });
         if (!caseDoc) {
@@ -1384,7 +1384,7 @@ exports.search = async (req, res) => {
     try {
         const { caseId } = req.params;
         const { q, pageType, limit = 20 } = req.query;
-        const userId = req.user._id;
+        const userId = req.userID;
 
         if (!q) {
             return res.status(400).json({
@@ -1424,7 +1424,7 @@ exports.search = async (req, res) => {
 exports.globalSearch = async (req, res) => {
     try {
         const { q, limit = 20 } = req.query;
-        const userId = req.user._id;
+        const userId = req.userID;
 
         if (!q) {
             return res.status(400).json({
@@ -1464,7 +1464,7 @@ exports.globalSearch = async (req, res) => {
 // Get recent pages
 exports.getRecentPages = async (req, res) => {
     try {
-        const userId = req.user._id;
+        const userId = req.userID;
         const { limit = 10 } = req.query;
 
         const pages = await WikiPage.getRecentPages(userId, parseInt(limit));
@@ -1508,7 +1508,7 @@ exports.getPinnedPages = async (req, res) => {
 exports.togglePin = async (req, res) => {
     try {
         const { pageId } = req.params;
-        const userId = req.user._id;
+        const userId = req.userID;
 
         const page = await WikiPage.findOne({
             $or: [{ _id: pageId }, { pageId: pageId }]
@@ -1547,7 +1547,7 @@ exports.movePage = async (req, res) => {
     try {
         const { pageId } = req.params;
         const { parentPageId, collectionId, order } = req.body;
-        const userId = req.user._id;
+        const userId = req.userID;
 
         const page = await WikiPage.findOne({
             $or: [{ _id: pageId }, { pageId: pageId }]
@@ -1608,7 +1608,7 @@ exports.movePage = async (req, res) => {
 exports.initializeDefaultCollections = async (req, res) => {
     try {
         const { caseId } = req.params;
-        const userId = req.user._id;
+        const userId = req.userID;
 
         const caseDoc = await Case.findOne({ _id: caseId, lawyerId: userId });
         if (!caseDoc) {
@@ -1656,7 +1656,7 @@ exports.initializeDefaultCollections = async (req, res) => {
 exports.getAttachmentUploadUrl = async (req, res) => {
     try {
         const { pageId } = req.params;
-        const userId = req.user._id;
+        const userId = req.userID;
         const { fileName, fileType, documentCategory, isConfidential } = req.body;
 
         if (!fileName || !fileType) {
@@ -1715,7 +1715,7 @@ exports.getAttachmentUploadUrl = async (req, res) => {
 exports.confirmAttachmentUpload = async (req, res) => {
     try {
         const { pageId } = req.params;
-        const userId = req.user._id;
+        const userId = req.userID;
         const {
             fileName,
             fileNameAr,
@@ -1804,7 +1804,7 @@ exports.confirmAttachmentUpload = async (req, res) => {
 exports.getAttachmentDownloadUrl = async (req, res) => {
     try {
         const { pageId, attachmentId } = req.params;
-        const userId = req.user._id;
+        const userId = req.userID;
 
         const page = await WikiPage.findOne({
             $or: [{ _id: pageId }, { pageId: pageId }]
@@ -1868,7 +1868,7 @@ exports.getAttachmentDownloadUrl = async (req, res) => {
 exports.listAttachments = async (req, res) => {
     try {
         const { pageId } = req.params;
-        const userId = req.user._id;
+        const userId = req.userID;
 
         const page = await WikiPage.findOne({
             $or: [{ _id: pageId }, { pageId: pageId }]
@@ -1911,7 +1911,7 @@ exports.listAttachments = async (req, res) => {
 exports.deleteAttachment = async (req, res) => {
     try {
         const { pageId, attachmentId } = req.params;
-        const userId = req.user._id;
+        const userId = req.userID;
 
         const page = await WikiPage.findOne({
             $or: [{ _id: pageId }, { pageId: pageId }]
@@ -1998,7 +1998,7 @@ exports.deleteAttachment = async (req, res) => {
 exports.updateAttachment = async (req, res) => {
     try {
         const { pageId, attachmentId } = req.params;
-        const userId = req.user._id;
+        const userId = req.userID;
         const { fileName, fileNameAr, documentCategory, isConfidential } = req.body;
 
         const page = await WikiPage.findOne({
@@ -2069,7 +2069,7 @@ exports.sealAttachment = async (req, res) => {
     try {
         const { pageId, attachmentId } = req.params;
         const { seal } = req.body; // true to seal, false to unseal
-        const userId = req.user._id;
+        const userId = req.userID;
 
         const page = await WikiPage.findOne({
             $or: [{ _id: pageId }, { pageId: pageId }]
@@ -2128,7 +2128,7 @@ exports.sealAttachment = async (req, res) => {
 exports.getAttachmentVersionUploadUrl = async (req, res) => {
     try {
         const { pageId, attachmentId } = req.params;
-        const userId = req.user._id;
+        const userId = req.userID;
         const { fileName, fileType } = req.body;
 
         if (!fileName || !fileType) {
@@ -2209,7 +2209,7 @@ exports.getAttachmentVersionUploadUrl = async (req, res) => {
 exports.confirmAttachmentVersionUpload = async (req, res) => {
     try {
         const { pageId, attachmentId } = req.params;
-        const userId = req.user._id;
+        const userId = req.userID;
         const {
             fileName,
             fileKey,
@@ -2338,7 +2338,7 @@ exports.confirmAttachmentVersionUpload = async (req, res) => {
 exports.getAttachmentVersionHistory = async (req, res) => {
     try {
         const { pageId, attachmentId } = req.params;
-        const userId = req.user._id;
+        const userId = req.userID;
 
         const page = await WikiPage.findOne({
             $or: [{ _id: pageId }, { pageId: pageId }]
@@ -2427,7 +2427,7 @@ exports.getAttachmentVersionHistory = async (req, res) => {
 exports.downloadAttachmentVersion = async (req, res) => {
     try {
         const { pageId, attachmentId, versionNumber } = req.params;
-        const userId = req.user._id;
+        const userId = req.userID;
 
         const page = await WikiPage.findOne({
             $or: [{ _id: pageId }, { pageId: pageId }]
@@ -2516,7 +2516,7 @@ exports.downloadAttachmentVersion = async (req, res) => {
 exports.restoreAttachmentVersion = async (req, res) => {
     try {
         const { pageId, attachmentId, versionNumber } = req.params;
-        const userId = req.user._id;
+        const userId = req.userID;
 
         const page = await WikiPage.findOne({
             $or: [{ _id: pageId }, { pageId: pageId }]

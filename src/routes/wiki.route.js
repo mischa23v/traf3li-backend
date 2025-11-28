@@ -1,10 +1,10 @@
 const express = require('express');
 const router = express.Router();
 const wikiController = require('../controllers/wiki.controller');
-const { authenticate } = require('../middleware/auth.middleware');
+const { userMiddleware } = require('../middlewares');
 
 // Apply authentication to all routes
-router.use(authenticate);
+router.use(userMiddleware);
 
 // ============================================
 // PAGE ROUTES
