@@ -6,6 +6,7 @@ const WikiComment = require('../models/wikiComment.model');
 const Case = require('../models/case.model');
 const { getUploadPresignedUrl, getDownloadPresignedUrl, deleteFile, generateFileKey, BUCKETS } = require('../configs/s3');
 const crypto = require('crypto');
+const documentExportService = require('../services/documentExport.service');
 
 // Helper to extract links from content
 const extractLinksFromContent = (content, contentText) => {
@@ -2646,6 +2647,295 @@ exports.restoreAttachmentVersion = async (req, res) => {
         res.status(500).json({
             success: false,
             message: 'Error restoring version',
+            error: error.message
+        });
+    }
+};
+
+// ============================================
+// DOCUMENT EXPORT (PDF, LaTeX, Markdown)
+// ============================================
+
+// Export page as PDF
+exports.exportToPdf = async (req, res) => {
+    try {
+        const { pageId } = req.params;
+        const userId = req.userID;
+        const {
+            direction = 'rtl',
+            includeAttachments = false,
+            includeMetadata = true,
+            format = 'A4',
+            landscape = false
+        } = req.query;
+
+        const page = await WikiPage.findOne({
+            $or: [{ _id: pageId }, { pageId: pageId }]
+        })
+        .populate('createdBy', 'firstName lastName')
+        .populate('caseId', 'title caseNumber');
+
+        if (!page) {
+            return res.status(404).json({
+                success: false,
+                message: 'Page not found'
+            });
+        }
+
+        // Check view permission
+        if (!page.canView(userId)) {
+            return res.status(403).json({
+                success: false,
+                message: 'Access denied'
+            });
+        }
+
+        // Generate PDF
+        const pdfBuffer = await documentExportService.generatePdf(page, {
+            direction,
+            includeAttachments: includeAttachments === 'true',
+            includeMetadata: includeMetadata !== 'false',
+            format,
+            landscape: landscape === 'true'
+        });
+
+        // Update export stats
+        page.lastExportedAt = new Date();
+        page.lastExportFormat = 'pdf';
+        page.exportCount = (page.exportCount || 0) + 1;
+        await page.save();
+
+        // Set response headers for PDF download
+        const fileName = `${page.title || page.titleAr || 'document'}.pdf`;
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(fileName)}"`);
+        res.setHeader('Content-Length', pdfBuffer.length);
+
+        res.send(pdfBuffer);
+    } catch (error) {
+        console.error('Error exporting to PDF:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error exporting to PDF',
+            error: error.message
+        });
+    }
+};
+
+// Export page as LaTeX
+exports.exportToLatex = async (req, res) => {
+    try {
+        const { pageId } = req.params;
+        const userId = req.userID;
+        const { direction = 'rtl' } = req.query;
+
+        const page = await WikiPage.findOne({
+            $or: [{ _id: pageId }, { pageId: pageId }]
+        })
+        .populate('createdBy', 'firstName lastName')
+        .populate('caseId', 'title caseNumber');
+
+        if (!page) {
+            return res.status(404).json({
+                success: false,
+                message: 'Page not found'
+            });
+        }
+
+        // Check view permission
+        if (!page.canView(userId)) {
+            return res.status(403).json({
+                success: false,
+                message: 'Access denied'
+            });
+        }
+
+        // Generate LaTeX
+        const latexContent = documentExportService.generateLatex(page, { direction });
+
+        // Update export stats
+        page.lastExportedAt = new Date();
+        page.lastExportFormat = 'latex';
+        page.exportCount = (page.exportCount || 0) + 1;
+        await page.save();
+
+        // Set response headers for LaTeX download
+        const fileName = `${page.title || page.titleAr || 'document'}.tex`;
+        res.setHeader('Content-Type', 'application/x-latex');
+        res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(fileName)}"`);
+
+        res.send(latexContent);
+    } catch (error) {
+        console.error('Error exporting to LaTeX:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error exporting to LaTeX',
+            error: error.message
+        });
+    }
+};
+
+// Export page as Markdown
+exports.exportToMarkdown = async (req, res) => {
+    try {
+        const { pageId } = req.params;
+        const userId = req.userID;
+        const { direction = 'rtl', includeMetadata = true } = req.query;
+
+        const page = await WikiPage.findOne({
+            $or: [{ _id: pageId }, { pageId: pageId }]
+        })
+        .populate('createdBy', 'firstName lastName')
+        .populate('caseId', 'title caseNumber');
+
+        if (!page) {
+            return res.status(404).json({
+                success: false,
+                message: 'Page not found'
+            });
+        }
+
+        // Check view permission
+        if (!page.canView(userId)) {
+            return res.status(403).json({
+                success: false,
+                message: 'Access denied'
+            });
+        }
+
+        // Generate Markdown
+        const mdContent = documentExportService.generateMarkdown(page, {
+            direction,
+            includeMetadata: includeMetadata !== 'false'
+        });
+
+        // Update export stats
+        page.lastExportedAt = new Date();
+        page.lastExportFormat = 'markdown';
+        page.exportCount = (page.exportCount || 0) + 1;
+        await page.save();
+
+        // Set response headers for Markdown download
+        const fileName = `${page.title || page.titleAr || 'document'}.md`;
+        res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
+        res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(fileName)}"`);
+
+        res.send(mdContent);
+    } catch (error) {
+        console.error('Error exporting to Markdown:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error exporting to Markdown',
+            error: error.message
+        });
+    }
+};
+
+// Get HTML preview (for frontend preview before export)
+exports.getHtmlPreview = async (req, res) => {
+    try {
+        const { pageId } = req.params;
+        const userId = req.userID;
+        const {
+            direction = 'rtl',
+            includeAttachments = false,
+            includeMetadata = true
+        } = req.query;
+
+        const page = await WikiPage.findOne({
+            $or: [{ _id: pageId }, { pageId: pageId }]
+        })
+        .populate('createdBy', 'firstName lastName')
+        .populate('caseId', 'title caseNumber');
+
+        if (!page) {
+            return res.status(404).json({
+                success: false,
+                message: 'Page not found'
+            });
+        }
+
+        // Check view permission
+        if (!page.canView(userId)) {
+            return res.status(403).json({
+                success: false,
+                message: 'Access denied'
+            });
+        }
+
+        // Generate HTML preview
+        const htmlContent = documentExportService.generateHtmlTemplate(page, {
+            direction,
+            includeAttachments: includeAttachments === 'true',
+            includeMetadata: includeMetadata !== 'false'
+        });
+
+        res.setHeader('Content-Type', 'text/html; charset=utf-8');
+        res.send(htmlContent);
+    } catch (error) {
+        console.error('Error generating HTML preview:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error generating preview',
+            error: error.message
+        });
+    }
+};
+
+// Update calendar settings for a page
+exports.updateCalendarSettings = async (req, res) => {
+    try {
+        const { pageId } = req.params;
+        const userId = req.userID;
+        const {
+            showOnCalendar,
+            calendarDate,
+            calendarEndDate,
+            calendarColor
+        } = req.body;
+
+        const page = await WikiPage.findOne({
+            $or: [{ _id: pageId }, { pageId: pageId }]
+        });
+
+        if (!page) {
+            return res.status(404).json({
+                success: false,
+                message: 'Page not found'
+            });
+        }
+
+        // Check edit permission
+        if (!page.canEdit(userId)) {
+            return res.status(403).json({
+                success: false,
+                message: page.isSealed ? 'Cannot modify sealed pages' : 'Access denied'
+            });
+        }
+
+        // Update calendar settings
+        if (showOnCalendar !== undefined) page.showOnCalendar = showOnCalendar;
+        if (calendarDate !== undefined) page.calendarDate = calendarDate ? new Date(calendarDate) : null;
+        if (calendarEndDate !== undefined) page.calendarEndDate = calendarEndDate ? new Date(calendarEndDate) : null;
+        if (calendarColor !== undefined) page.calendarColor = calendarColor;
+
+        await page.save();
+
+        res.json({
+            success: true,
+            message: 'Calendar settings updated',
+            data: {
+                showOnCalendar: page.showOnCalendar,
+                calendarDate: page.calendarDate,
+                calendarEndDate: page.calendarEndDate,
+                calendarColor: page.calendarColor
+            }
+        });
+    } catch (error) {
+        console.error('Error updating calendar settings:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error updating calendar settings',
             error: error.message
         });
     }

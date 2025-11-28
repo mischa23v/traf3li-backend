@@ -1,4 +1,4 @@
-const { Event, Task, Reminder, Case } = require('../models');
+const { Event, Task, Reminder, Case, WikiPage } = require('../models');
 const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
 
@@ -19,11 +19,13 @@ const getCalendarView = asyncHandler(async (req, res) => {
         events: [],
         tasks: [],
         reminders: [],
+        wikiPages: [],
         summary: {
             totalItems: 0,
             eventCount: 0,
             taskCount: 0,
-            reminderCount: 0
+            reminderCount: 0,
+            wikiPageCount: 0
         }
     };
 
@@ -151,11 +153,54 @@ const getCalendarView = asyncHandler(async (req, res) => {
         result.summary.reminderCount = reminders.length;
     }
 
+    // Fetch wiki pages with calendar dates
+    if (!type || type === 'wiki') {
+        const wikiQuery = {
+            lawyerId: userId,
+            showOnCalendar: true,
+            calendarDate: { $gte: start, $lte: end },
+            status: { $nin: ['archived'] }
+        };
+
+        if (caseId) {
+            wikiQuery.caseId = caseId;
+        }
+
+        const wikiPages = await WikiPage.find(wikiQuery)
+            .populate('createdBy', 'firstName lastName avatar')
+            .populate('caseId', 'title caseNumber')
+            .sort({ calendarDate: 1 });
+
+        result.wikiPages = wikiPages.map(page => ({
+            id: page._id,
+            type: 'wiki',
+            title: page.title,
+            titleAr: page.titleAr,
+            description: page.summary,
+            startDate: page.calendarDate,
+            endDate: page.calendarEndDate || page.calendarDate,
+            allDay: true,
+            pageType: page.pageType,
+            status: page.status,
+            color: page.calendarColor || '#8b5cf6',
+            caseId: page.caseId?._id,
+            caseName: page.caseId?.title,
+            caseNumber: page.caseId?.caseNumber,
+            createdBy: page.createdBy,
+            urlSlug: page.urlSlug,
+            pageId: page.pageId,
+            icon: page.icon,
+            priority: 'normal'
+        }));
+
+        result.summary.wikiPageCount = wikiPages.length;
+    }
+
     // Calculate total items
-    result.summary.totalItems = result.summary.eventCount + result.summary.taskCount + result.summary.reminderCount;
+    result.summary.totalItems = result.summary.eventCount + result.summary.taskCount + result.summary.reminderCount + result.summary.wikiPageCount;
 
     // Combine and sort all items chronologically
-    const allItems = [...result.events, ...result.tasks, ...result.reminders]
+    const allItems = [...result.events, ...result.tasks, ...result.reminders, ...result.wikiPages]
         .sort((a, b) => new Date(a.startDate) - new Date(b.startDate));
 
     res.status(200).json({
@@ -219,6 +264,17 @@ const getCalendarByDate = asyncHandler(async (req, res) => {
         .populate('relatedEvent', 'title')
         .sort({ reminderDateTime: 1 });
 
+    // Fetch wiki pages
+    const wikiPages = await WikiPage.find({
+        lawyerId: userId,
+        showOnCalendar: true,
+        calendarDate: { $gte: startOfDay, $lte: endOfDay },
+        status: { $nin: ['archived'] }
+    })
+        .populate('createdBy', 'firstName lastName avatar')
+        .populate('caseId', 'title caseNumber')
+        .sort({ calendarDate: 1 });
+
     res.status(200).json({
         success: true,
         data: {
@@ -226,11 +282,13 @@ const getCalendarByDate = asyncHandler(async (req, res) => {
             events: events.map(e => ({ ...e.toObject(), type: 'event' })),
             tasks: tasks.map(t => ({ ...t.toObject(), type: 'task' })),
             reminders: reminders.map(r => ({ ...r.toObject(), type: 'reminder' })),
+            wikiPages: wikiPages.map(w => ({ ...w.toObject(), type: 'wiki' })),
             summary: {
-                total: events.length + tasks.length + reminders.length,
+                total: events.length + tasks.length + reminders.length + wikiPages.length,
                 eventCount: events.length,
                 taskCount: tasks.length,
-                reminderCount: reminders.length
+                reminderCount: reminders.length,
+                wikiPageCount: wikiPages.length
             }
         }
     });
@@ -279,14 +337,28 @@ const getCalendarByMonth = asyncHandler(async (req, res) => {
         .populate('relatedCase', 'title caseNumber')
         .sort({ reminderDateTime: 1 });
 
+    // Fetch wiki pages
+    const wikiPages = await WikiPage.find({
+        lawyerId: userId,
+        showOnCalendar: true,
+        calendarDate: { $gte: startDate, $lte: endDate },
+        status: { $nin: ['archived'] }
+    })
+        .populate('createdBy', 'firstName lastName avatar')
+        .populate('caseId', 'title caseNumber')
+        .sort({ calendarDate: 1 });
+
     // Group by date
     const groupedByDate = {};
 
-    [...events, ...tasks, ...reminders].forEach(item => {
+    [...events, ...tasks, ...reminders, ...wikiPages].forEach(item => {
         let itemDate;
         if (item.startDate) itemDate = item.startDate;
         else if (item.dueDate) itemDate = item.dueDate;
         else if (item.reminderDate) itemDate = item.reminderDate;
+        else if (item.calendarDate) itemDate = item.calendarDate;
+
+        if (!itemDate) return;
 
         const dateKey = itemDate.toISOString().split('T')[0];
 
@@ -296,6 +368,7 @@ const getCalendarByMonth = asyncHandler(async (req, res) => {
                 events: [],
                 tasks: [],
                 reminders: [],
+                wikiPages: [],
                 count: 0
             };
         }
@@ -306,6 +379,8 @@ const getCalendarByMonth = asyncHandler(async (req, res) => {
             groupedByDate[dateKey].tasks.push(item);
         } else if (item.constructor.modelName === 'Reminder') {
             groupedByDate[dateKey].reminders.push(item);
+        } else if (item.constructor.modelName === 'WikiPage') {
+            groupedByDate[dateKey].wikiPages.push(item);
         }
 
         groupedByDate[dateKey].count++;
@@ -318,10 +393,11 @@ const getCalendarByMonth = asyncHandler(async (req, res) => {
             groupedByDate,
             summary: {
                 totalDays: Object.keys(groupedByDate).length,
-                totalItems: events.length + tasks.length + reminders.length,
+                totalItems: events.length + tasks.length + reminders.length + wikiPages.length,
                 eventCount: events.length,
                 taskCount: tasks.length,
-                reminderCount: reminders.length
+                reminderCount: reminders.length,
+                wikiPageCount: wikiPages.length
             }
         }
     });
@@ -382,11 +458,24 @@ const getUpcomingItems = asyncHandler(async (req, res) => {
         .sort({ reminderDateTime: 1 })
         .limit(20);
 
+    // Fetch upcoming wiki pages
+    const wikiPages = await WikiPage.find({
+        lawyerId: userId,
+        showOnCalendar: true,
+        calendarDate: { $gte: today, $lte: futureDate },
+        status: { $nin: ['archived'] }
+    })
+        .populate('createdBy', 'firstName lastName avatar')
+        .populate('caseId', 'title caseNumber')
+        .sort({ calendarDate: 1 })
+        .limit(20);
+
     // Combine and sort
     const allItems = [
         ...events.map(e => ({ ...e.toObject(), type: 'event', date: e.startDateTime })),
         ...tasks.map(t => ({ ...t.toObject(), type: 'task', date: t.dueDate })),
-        ...reminders.map(r => ({ ...r.toObject(), type: 'reminder', date: r.reminderDateTime }))
+        ...reminders.map(r => ({ ...r.toObject(), type: 'reminder', date: r.reminderDateTime })),
+        ...wikiPages.map(w => ({ ...w.toObject(), type: 'wiki', date: w.calendarDate }))
     ].sort((a, b) => new Date(a.date) - new Date(b.date));
 
     res.status(200).json({
@@ -397,7 +486,8 @@ const getUpcomingItems = asyncHandler(async (req, res) => {
                 total: allItems.length,
                 eventCount: events.length,
                 taskCount: tasks.length,
-                reminderCount: reminders.length
+                reminderCount: reminders.length,
+                wikiPageCount: wikiPages.length
             },
             dateRange: {
                 start: today,
