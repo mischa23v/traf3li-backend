@@ -72,6 +72,9 @@ const crmPipelineRoute = require('./crmPipeline.route');
 const referralRoute = require('./referral.route');
 const crmActivityRoute = require('./crmActivity.route');
 
+// HR Routes
+const hrRoute = require('./hr.route');
+
 module.exports = {
     // Marketplace
     gigRoute,
@@ -145,5 +148,8 @@ module.exports = {
     leadRoute,
     crmPipelineRoute,
     referralRoute,
-    crmActivityRoute
+    crmActivityRoute,
+
+    // HR
+    hrRoute
 };
