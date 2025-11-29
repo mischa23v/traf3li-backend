@@ -7,6 +7,45 @@ const { userMiddleware } = require('../middlewares');
 router.use(userMiddleware);
 
 // ============================================
+// GLOBAL ROUTES (must be before :pageId routes)
+// ============================================
+
+// List templates
+router.get('/wiki/templates', wikiController.listTemplates);
+
+// Global search across all cases
+router.get('/wiki/search', wikiController.globalSearch);
+
+// Get recent pages
+router.get('/wiki/recent', wikiController.getRecentPages);
+
+// Create from template
+router.post('/wiki/templates/:templateId/create', wikiController.createFromTemplate);
+
+// ============================================
+// COLLECTION ROUTES (must be before :pageId routes)
+// ============================================
+
+// Update collection
+router.put('/wiki/collections/:collectionId', wikiController.updateCollection);
+
+// Delete collection
+router.delete('/wiki/collections/:collectionId', wikiController.deleteCollection);
+
+// ============================================
+// COMMENT ROUTES (must be before :pageId routes)
+// ============================================
+
+// Update comment
+router.put('/wiki/comments/:commentId', wikiController.updateComment);
+
+// Delete comment
+router.delete('/wiki/comments/:commentId', wikiController.deleteComment);
+
+// Resolve comment
+router.post('/wiki/comments/:commentId/resolve', wikiController.resolveComment);
+
+// ============================================
 // PAGE ROUTES
 // ============================================
 
@@ -72,12 +111,6 @@ router.get('/cases/:caseId/wiki/collections', wikiController.listCollections);
 // Create collection
 router.post('/cases/:caseId/wiki/collections', wikiController.createCollection);
 
-// Update collection
-router.put('/wiki/collections/:collectionId', wikiController.updateCollection);
-
-// Delete collection
-router.delete('/wiki/collections/:collectionId', wikiController.deleteCollection);
-
 // ============================================
 // BACKLINK ROUTES
 // ============================================
@@ -97,15 +130,6 @@ router.get('/wiki/:pageId/comments', wikiController.getComments);
 
 // Add comment
 router.post('/wiki/:pageId/comments', wikiController.addComment);
-
-// Update comment
-router.put('/wiki/comments/:commentId', wikiController.updateComment);
-
-// Delete comment
-router.delete('/wiki/comments/:commentId', wikiController.deleteComment);
-
-// Resolve comment
-router.post('/wiki/comments/:commentId/resolve', wikiController.resolveComment);
 
 // ============================================
 // ATTACHMENT ROUTES
@@ -160,26 +184,6 @@ router.post('/wiki/:pageId/seal', wikiController.sealPage);
 
 // Unseal page
 router.post('/wiki/:pageId/unseal', wikiController.unsealPage);
-
-// ============================================
-// TEMPLATE ROUTES
-// ============================================
-
-// List templates
-router.get('/wiki/templates', wikiController.listTemplates);
-
-// Create from template
-router.post('/wiki/templates/:templateId/create', wikiController.createFromTemplate);
-
-// ============================================
-// GLOBAL ROUTES
-// ============================================
-
-// Global search across all cases
-router.get('/wiki/search', wikiController.globalSearch);
-
-// Get recent pages
-router.get('/wiki/recent', wikiController.getRecentPages);
 
 // ============================================
 // EXPORT ROUTES (PDF, LaTeX, Markdown)
