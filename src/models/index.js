@@ -100,6 +100,11 @@ const WikiBacklink = require('./wikiBacklink.model');
 const WikiCollection = require('./wikiCollection.model');
 const WikiComment = require('./wikiComment.model');
 
+// HR Models
+const Employee = require('./employee.model');
+const Salary = require('./salary.model');
+const Payroll = require('./payroll.model');
+
 module.exports = {
     // Marketplace
     User,
@@ -201,5 +206,10 @@ module.exports = {
     WikiRevision,
     WikiBacklink,
     WikiCollection,
-    WikiComment
+    WikiComment,
+
+    // HR
+    Employee,
+    Salary,
+    Payroll
 };

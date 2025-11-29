@@ -80,7 +80,10 @@ const {
     leadRoute,
     crmPipelineRoute,
     referralRoute,
-    crmActivityRoute
+    crmActivityRoute,
+
+    // HR
+    hrRoute
 } = require('./routes');
 
 const app = express();
@@ -261,6 +264,9 @@ app.use('/api/leads', leadRoute);
 app.use('/api/crm-pipelines', crmPipelineRoute);
 app.use('/api/referrals', referralRoute);
 app.use('/api/crm-activities', crmActivityRoute);
+
+// HR Routes
+app.use('/api/hr', hrRoute);
 
 // ============================================
 // ALIAS ROUTES (for frontend compatibility)
