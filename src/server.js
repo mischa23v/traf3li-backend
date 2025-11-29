@@ -80,7 +80,15 @@ const {
     leadRoute,
     crmPipelineRoute,
     referralRoute,
-    crmActivityRoute
+    crmActivityRoute,
+
+    // HR
+    employeeRoute,
+    salaryRoute,
+    payrollRoute,
+    leaveRoute,
+    attendanceRoute,
+    evaluationRoute
 } = require('./routes');
 
 const app = express();
@@ -261,6 +269,14 @@ app.use('/api/leads', leadRoute);
 app.use('/api/crm-pipelines', crmPipelineRoute);
 app.use('/api/referrals', referralRoute);
 app.use('/api/crm-activities', crmActivityRoute);
+
+// HR Routes (الموارد البشرية)
+app.use('/api/employees', employeeRoute);      // الموظفين
+app.use('/api/salaries', salaryRoute);         // الرواتب
+app.use('/api/payroll', payrollRoute);         // مسيرات الرواتب
+app.use('/api/leaves', leaveRoute);            // الإجازات
+app.use('/api/attendance', attendanceRoute);   // الحضور والانصراف
+app.use('/api/evaluations', evaluationRoute);  // التقييمات
 
 // ============================================
 // ALIAS ROUTES (for frontend compatibility)
