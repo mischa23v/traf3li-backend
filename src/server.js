@@ -74,7 +74,13 @@ const {
     billPaymentRoute,
 
     // Wiki
-    wikiRoute
+    wikiRoute,
+
+    // CRM
+    leadRoute,
+    crmPipelineRoute,
+    referralRoute,
+    crmActivityRoute
 } = require('./routes');
 
 const app = express();
@@ -249,6 +255,12 @@ app.use('/api/bill-payments', billPaymentRoute);
 
 // Wiki Routes
 app.use('/api', wikiRoute);
+
+// CRM Routes
+app.use('/api/leads', leadRoute);
+app.use('/api/crm-pipelines', crmPipelineRoute);
+app.use('/api/referrals', referralRoute);
+app.use('/api/crm-activities', crmActivityRoute);
 
 // ============================================
 // ALIAS ROUTES (for frontend compatibility)
