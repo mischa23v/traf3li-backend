@@ -1,0 +1,520 @@
+const mongoose = require('mongoose');
+
+// Lead source tracking
+const leadSourceSchema = new mongoose.Schema({
+    type: {
+        type: String,
+        enum: ['website', 'referral', 'social_media', 'advertising', 'cold_call', 'walk_in', 'event', 'other'],
+        required: true
+    },
+    referralId: { type: mongoose.Schema.Types.ObjectId, ref: 'Referral' },
+    referralName: String,
+    campaign: String,
+    medium: String, // google, facebook, linkedin, etc.
+    notes: String
+}, { _id: false });
+
+// Intake information schema
+const intakeInfoSchema = new mongoose.Schema({
+    caseType: {
+        type: String,
+        enum: [
+            'civil', 'criminal', 'family', 'commercial', 'labor',
+            'real_estate', 'administrative', 'execution', 'other'
+        ]
+    },
+    caseDescription: String,
+    urgency: {
+        type: String,
+        enum: ['low', 'normal', 'high', 'urgent'],
+        default: 'normal'
+    },
+    estimatedValue: Number,
+    opposingParty: String,
+    courtName: String,
+    currentStatus: String, // Brief description of current legal situation
+    desiredOutcome: String,
+    deadline: Date,
+    hasDocuments: Boolean,
+    conflictCheckCompleted: { type: Boolean, default: false },
+    conflictCheckResult: {
+        type: String,
+        enum: ['clear', 'potential_conflict', 'conflict'],
+    },
+    conflictCheckNotes: String,
+    intakeFormId: { type: mongoose.Schema.Types.ObjectId, ref: 'IntakeForm' },
+    intakeCompletedAt: Date
+}, { _id: false });
+
+// Qualification schema
+const qualificationSchema = new mongoose.Schema({
+    budget: {
+        type: String,
+        enum: ['unknown', 'low', 'medium', 'high', 'premium']
+    },
+    authority: {
+        type: String,
+        enum: ['unknown', 'decision_maker', 'influencer', 'researcher']
+    },
+    need: {
+        type: String,
+        enum: ['unknown', 'urgent', 'planning', 'exploring']
+    },
+    timeline: {
+        type: String,
+        enum: ['unknown', 'immediate', 'this_month', 'this_quarter', 'this_year', 'no_timeline']
+    },
+    score: { type: Number, default: 0, min: 0, max: 100 },
+    notes: String,
+    qualifiedAt: Date,
+    qualifiedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
+}, { _id: false });
+
+const leadSchema = new mongoose.Schema({
+    // ═══════════════════════════════════════════════════════════════
+    // IDENTIFICATION
+    // ═══════════════════════════════════════════════════════════════
+    leadId: {
+        type: String,
+        unique: true,
+        index: true
+    },
+    lawyerId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        required: true,
+        index: true
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // CONTACT INFORMATION
+    // ═══════════════════════════════════════════════════════════════
+    type: {
+        type: String,
+        enum: ['individual', 'company'],
+        default: 'individual'
+    },
+    // Individual fields
+    firstName: {
+        type: String,
+        trim: true
+    },
+    lastName: {
+        type: String,
+        trim: true
+    },
+    // Company fields
+    companyName: {
+        type: String,
+        trim: true
+    },
+    companyNameAr: {
+        type: String,
+        trim: true
+    },
+    contactPerson: {
+        type: String,
+        trim: true
+    },
+    // Common fields
+    email: {
+        type: String,
+        trim: true,
+        lowercase: true
+    },
+    phone: {
+        type: String,
+        required: true,
+        trim: true
+    },
+    alternatePhone: {
+        type: String,
+        trim: true
+    },
+    whatsapp: {
+        type: String,
+        trim: true
+    },
+    address: {
+        street: String,
+        city: String,
+        postalCode: String,
+        country: { type: String, default: 'Saudi Arabia' }
+    },
+    nationalId: String,
+    commercialRegistration: String,
+
+    // ═══════════════════════════════════════════════════════════════
+    // PIPELINE & STATUS
+    // ═══════════════════════════════════════════════════════════════
+    status: {
+        type: String,
+        enum: [
+            'new',           // جديد
+            'contacted',     // تم التواصل
+            'qualified',     // مؤهل
+            'proposal',      // عرض السعر
+            'negotiation',   // التفاوض
+            'won',           // فاز
+            'lost',          // خسر
+            'dormant'        // خامل
+        ],
+        default: 'new',
+        index: true
+    },
+    pipelineId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Pipeline'
+    },
+    pipelineStageId: {
+        type: mongoose.Schema.Types.ObjectId
+    },
+    probability: {
+        type: Number,
+        default: 10,
+        min: 0,
+        max: 100
+    },
+    expectedCloseDate: Date,
+    actualCloseDate: Date,
+    lostReason: {
+        type: String,
+        enum: ['price', 'competitor', 'no_response', 'not_qualified', 'timing', 'other']
+    },
+    lostNotes: String,
+
+    // ═══════════════════════════════════════════════════════════════
+    // SOURCE & ACQUISITION
+    // ═══════════════════════════════════════════════════════════════
+    source: leadSourceSchema,
+
+    // ═══════════════════════════════════════════════════════════════
+    // INTAKE & CASE INFORMATION
+    // ═══════════════════════════════════════════════════════════════
+    intake: intakeInfoSchema,
+
+    // ═══════════════════════════════════════════════════════════════
+    // QUALIFICATION (BANT)
+    // ═══════════════════════════════════════════════════════════════
+    qualification: qualificationSchema,
+
+    // ═══════════════════════════════════════════════════════════════
+    // VALUE
+    // ═══════════════════════════════════════════════════════════════
+    estimatedValue: {
+        type: Number,
+        default: 0
+    },
+    currency: {
+        type: String,
+        default: 'SAR'
+    },
+    proposedFeeType: {
+        type: String,
+        enum: ['hourly', 'fixed', 'contingency', 'retainer', 'hybrid']
+    },
+    proposedAmount: Number,
+
+    // ═══════════════════════════════════════════════════════════════
+    // ASSIGNMENT
+    // ═══════════════════════════════════════════════════════════════
+    assignedTo: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
+    },
+    teamMembers: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
+    }],
+
+    // ═══════════════════════════════════════════════════════════════
+    // ACTIVITY TRACKING
+    // ═══════════════════════════════════════════════════════════════
+    lastContactedAt: Date,
+    lastActivityAt: Date,
+    nextFollowUpDate: Date,
+    nextFollowUpNote: String,
+    activityCount: { type: Number, default: 0 },
+    callCount: { type: Number, default: 0 },
+    emailCount: { type: Number, default: 0 },
+    meetingCount: { type: Number, default: 0 },
+
+    // ═══════════════════════════════════════════════════════════════
+    // CONVERSION
+    // ═══════════════════════════════════════════════════════════════
+    convertedToClient: { type: Boolean, default: false },
+    clientId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Client'
+    },
+    convertedAt: Date,
+    convertedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
+    },
+    caseId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Case'
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // METADATA
+    // ═══════════════════════════════════════════════════════════════
+    tags: [{ type: String, trim: true }],
+    notes: { type: String, maxlength: 5000 },
+    customFields: mongoose.Schema.Types.Mixed,
+    createdBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        required: true
+    },
+    lastModifiedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
+    }
+}, {
+    timestamps: true,
+    versionKey: false
+});
+
+// ═══════════════════════════════════════════════════════════════
+// INDEXES
+// ═══════════════════════════════════════════════════════════════
+leadSchema.index({ lawyerId: 1, status: 1 });
+leadSchema.index({ lawyerId: 1, 'source.type': 1 });
+leadSchema.index({ lawyerId: 1, assignedTo: 1 });
+leadSchema.index({ lawyerId: 1, nextFollowUpDate: 1 });
+leadSchema.index({ lawyerId: 1, convertedToClient: 1 });
+leadSchema.index({ lawyerId: 1, createdAt: -1 });
+leadSchema.index({ firstName: 'text', lastName: 'text', companyName: 'text', email: 'text', phone: 'text' });
+
+// ═══════════════════════════════════════════════════════════════
+// VIRTUALS
+// ═══════════════════════════════════════════════════════════════
+leadSchema.virtual('displayName').get(function() {
+    if (this.type === 'company') {
+        return this.companyName || this.companyNameAr;
+    }
+    return `${this.firstName || ''} ${this.lastName || ''}`.trim();
+});
+
+leadSchema.virtual('daysSinceCreated').get(function() {
+    return Math.floor((Date.now() - this.createdAt) / (1000 * 60 * 60 * 24));
+});
+
+leadSchema.virtual('daysSinceContact').get(function() {
+    if (!this.lastContactedAt) return null;
+    return Math.floor((Date.now() - this.lastContactedAt) / (1000 * 60 * 60 * 24));
+});
+
+leadSchema.set('toJSON', { virtuals: true });
+leadSchema.set('toObject', { virtuals: true });
+
+// ═══════════════════════════════════════════════════════════════
+// PRE-SAVE HOOKS
+// ═══════════════════════════════════════════════════════════════
+leadSchema.pre('save', async function(next) {
+    // Generate lead ID
+    if (!this.leadId) {
+        const date = new Date();
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const count = await this.constructor.countDocuments({
+            lawyerId: this.lawyerId,
+            createdAt: {
+                $gte: new Date(year, date.getMonth(), 1),
+                $lt: new Date(year, date.getMonth() + 1, 1)
+            }
+        });
+        this.leadId = `LEAD-${year}${month}-${String(count + 1).padStart(4, '0')}`;
+    }
+
+    // Calculate lead score if qualification data exists
+    if (this.qualification) {
+        let score = 0;
+        const scoring = {
+            budget: { unknown: 0, low: 5, medium: 15, high: 20, premium: 25 },
+            authority: { unknown: 0, researcher: 5, influencer: 15, decision_maker: 25 },
+            need: { unknown: 0, exploring: 5, planning: 15, urgent: 25 },
+            timeline: { unknown: 0, no_timeline: 0, this_year: 5, this_quarter: 15, this_month: 20, immediate: 25 }
+        };
+
+        if (this.qualification.budget) score += scoring.budget[this.qualification.budget] || 0;
+        if (this.qualification.authority) score += scoring.authority[this.qualification.authority] || 0;
+        if (this.qualification.need) score += scoring.need[this.qualification.need] || 0;
+        if (this.qualification.timeline) score += scoring.timeline[this.qualification.timeline] || 0;
+
+        this.qualification.score = score;
+    }
+
+    next();
+});
+
+// ═══════════════════════════════════════════════════════════════
+// STATIC METHODS
+// ═══════════════════════════════════════════════════════════════
+
+// Get leads with filters
+leadSchema.statics.getLeads = async function(lawyerId, filters = {}) {
+    const query = { lawyerId: new mongoose.Types.ObjectId(lawyerId) };
+
+    if (filters.status) query.status = filters.status;
+    if (filters.source) query['source.type'] = filters.source;
+    if (filters.assignedTo) query.assignedTo = new mongoose.Types.ObjectId(filters.assignedTo);
+    if (filters.pipelineId) query.pipelineId = new mongoose.Types.ObjectId(filters.pipelineId);
+    if (filters.convertedToClient !== undefined) query.convertedToClient = filters.convertedToClient;
+
+    if (filters.search) {
+        query.$or = [
+            { firstName: { $regex: filters.search, $options: 'i' } },
+            { lastName: { $regex: filters.search, $options: 'i' } },
+            { companyName: { $regex: filters.search, $options: 'i' } },
+            { email: { $regex: filters.search, $options: 'i' } },
+            { phone: { $regex: filters.search, $options: 'i' } },
+            { leadId: { $regex: filters.search, $options: 'i' } }
+        ];
+    }
+
+    // Date filters
+    if (filters.createdAfter) {
+        query.createdAt = { ...query.createdAt, $gte: new Date(filters.createdAfter) };
+    }
+    if (filters.createdBefore) {
+        query.createdAt = { ...query.createdAt, $lte: new Date(filters.createdBefore) };
+    }
+
+    const sort = {};
+    sort[filters.sortBy || 'createdAt'] = filters.sortOrder === 'asc' ? 1 : -1;
+
+    return await this.find(query)
+        .populate('assignedTo', 'firstName lastName avatar')
+        .populate('source.referralId', 'name')
+        .sort(sort)
+        .limit(filters.limit || 50)
+        .skip(filters.skip || 0);
+};
+
+// Get pipeline statistics
+leadSchema.statics.getPipelineStats = async function(lawyerId, dateRange = {}) {
+    const matchQuery = { lawyerId: new mongoose.Types.ObjectId(lawyerId) };
+
+    if (dateRange.start) matchQuery.createdAt = { $gte: new Date(dateRange.start) };
+    if (dateRange.end) matchQuery.createdAt = { ...matchQuery.createdAt, $lte: new Date(dateRange.end) };
+
+    const stats = await this.aggregate([
+        { $match: matchQuery },
+        {
+            $group: {
+                _id: '$status',
+                count: { $sum: 1 },
+                totalValue: { $sum: '$estimatedValue' },
+                avgValue: { $avg: '$estimatedValue' }
+            }
+        }
+    ]);
+
+    // Conversion rate
+    const total = await this.countDocuments(matchQuery);
+    const converted = await this.countDocuments({ ...matchQuery, convertedToClient: true });
+
+    return {
+        byStatus: stats,
+        total,
+        converted,
+        conversionRate: total > 0 ? ((converted / total) * 100).toFixed(2) : 0
+    };
+};
+
+// Get leads needing follow-up
+leadSchema.statics.getNeedingFollowUp = async function(lawyerId, limit = 20) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    return await this.find({
+        lawyerId: new mongoose.Types.ObjectId(lawyerId),
+        convertedToClient: false,
+        status: { $nin: ['won', 'lost'] },
+        $or: [
+            { nextFollowUpDate: { $lte: today } },
+            { lastContactedAt: { $lte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) } }, // No contact in 7 days
+            { lastContactedAt: { $exists: false } }
+        ]
+    })
+    .sort({ nextFollowUpDate: 1, createdAt: 1 })
+    .limit(limit);
+};
+
+// ═══════════════════════════════════════════════════════════════
+// INSTANCE METHODS
+// ═══════════════════════════════════════════════════════════════
+
+// Convert lead to client
+leadSchema.methods.convertToClient = async function(userId) {
+    const Client = mongoose.model('Client');
+
+    // Create client from lead data
+    const clientData = {
+        name: this.type === 'company' ? this.companyName : `${this.firstName} ${this.lastName}`,
+        email: this.email,
+        phone: this.phone,
+        type: this.type === 'company' ? 'company' : 'individual',
+        nationalId: this.nationalId,
+        commercialRegistration: this.commercialRegistration,
+        address: this.address,
+        lawyerId: this.lawyerId,
+        source: this.source?.type || 'external',
+        notes: this.notes
+    };
+
+    const client = await Client.create(clientData);
+
+    // Update lead
+    this.convertedToClient = true;
+    this.clientId = client._id;
+    this.convertedAt = new Date();
+    this.convertedBy = userId;
+    this.status = 'won';
+    this.actualCloseDate = new Date();
+    await this.save();
+
+    return client;
+};
+
+// Update status with history
+leadSchema.methods.updateStatus = async function(newStatus, userId, notes) {
+    const CrmActivity = mongoose.model('CrmActivity');
+
+    const oldStatus = this.status;
+    this.status = newStatus;
+    this.lastModifiedBy = userId;
+
+    // Update probability based on status
+    const probabilityMap = {
+        'new': 10,
+        'contacted': 20,
+        'qualified': 40,
+        'proposal': 60,
+        'negotiation': 80,
+        'won': 100,
+        'lost': 0,
+        'dormant': 5
+    };
+    this.probability = probabilityMap[newStatus] || this.probability;
+
+    await this.save();
+
+    // Log activity
+    await CrmActivity.create({
+        lawyerId: this.lawyerId,
+        type: 'status_change',
+        entityType: 'lead',
+        entityId: this._id,
+        title: `Status changed from ${oldStatus} to ${newStatus}`,
+        description: notes,
+        performedBy: userId
+    });
+
+    return this;
+};
+
+module.exports = mongoose.model('Lead', leadSchema);

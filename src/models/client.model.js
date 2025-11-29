@@ -64,9 +64,66 @@ const clientSchema = new mongoose.Schema({
     },
     source: {
         type: String,
-        enum: ['platform', 'external', 'referral'],
+        enum: ['platform', 'external', 'referral', 'website', 'social_media', 'advertising', 'cold_call', 'walk_in', 'event'],
         default: 'external'
     },
+
+    // ═══════════════════════════════════════════════════════════════
+    // CRM FIELDS
+    // ═══════════════════════════════════════════════════════════════
+    // Lead conversion tracking
+    convertedFromLead: { type: Boolean, default: false },
+    leadId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Lead'
+    },
+    convertedAt: Date,
+
+    // Referral tracking
+    referralId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Referral'
+    },
+    referralName: String,
+
+    // Client value & engagement
+    lifetimeValue: { type: Number, default: 0 },
+    clientRating: { type: Number, min: 1, max: 5 },
+    clientTier: {
+        type: String,
+        enum: ['standard', 'premium', 'vip'],
+        default: 'standard'
+    },
+
+    // Activity tracking
+    lastContactedAt: Date,
+    lastActivityAt: Date,
+    nextFollowUpDate: Date,
+    nextFollowUpNote: String,
+    activityCount: { type: Number, default: 0 },
+    callCount: { type: Number, default: 0 },
+    emailCount: { type: Number, default: 0 },
+    meetingCount: { type: Number, default: 0 },
+
+    // Tags for categorization
+    tags: [{ type: String, trim: true }],
+
+    // Preferences
+    preferredContactMethod: {
+        type: String,
+        enum: ['phone', 'email', 'whatsapp', 'sms', 'in_person'],
+        default: 'phone'
+    },
+    preferredLanguage: {
+        type: String,
+        enum: ['ar', 'en'],
+        default: 'ar'
+    },
+    timezone: { type: String, default: 'Asia/Riyadh' },
+
+    // ═══════════════════════════════════════════════════════════════
+    // STATISTICS
+    // ═══════════════════════════════════════════════════════════════
     totalCases: {
         type: Number,
         default: 0
@@ -97,6 +154,10 @@ const clientSchema = new mongoose.Schema({
 
 // Indexes
 clientSchema.index({ lawyerId: 1, status: 1 });
+clientSchema.index({ lawyerId: 1, clientTier: 1 });
+clientSchema.index({ lawyerId: 1, source: 1 });
+clientSchema.index({ lawyerId: 1, referralId: 1 });
+clientSchema.index({ lawyerId: 1, nextFollowUpDate: 1 });
 clientSchema.index({ name: 'text', email: 'text' });
 
 // Generate client ID before saving
