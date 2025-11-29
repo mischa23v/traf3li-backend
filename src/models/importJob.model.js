@@ -45,7 +45,7 @@ const importJobSchema = new mongoose.Schema({
         type: Number,
         default: 0
     },
-    errors: [importErrorSchema],
+    importErrors: [importErrorSchema],
     mapping: mongoose.Schema.Types.Mixed,
     options: {
         skipDuplicates: { type: Boolean, default: true },
@@ -100,7 +100,7 @@ importJobSchema.statics.addError = async function(jobId, row, field, message) {
     return await this.findByIdAndUpdate(
         jobId,
         {
-            $push: { errors: { row, field, message } },
+            $push: { importErrors: { row, field, message } },
             $inc: { errorCount: 1 }
         },
         { new: true }
@@ -131,7 +131,7 @@ importJobSchema.statics.failJob = async function(jobId, error) {
         jobId,
         {
             status: 'failed',
-            $push: { errors: { row: 0, field: 'system', message: error } }
+            $push: { importErrors: { row: 0, field: 'system', message: error } }
         },
         { new: true }
     );
