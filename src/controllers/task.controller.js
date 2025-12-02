@@ -1691,6 +1691,74 @@ const updateTaskStatus = asyncHandler(async (req, res) => {
     });
 });
 
+/**
+ * Update task progress manually
+ * PATCH /api/tasks/:id/progress
+ */
+const updateProgress = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const { progress, autoCalculate } = req.body;
+    const userId = req.userID;
+
+    const task = await Task.findById(id);
+
+    if (!task) {
+        throw new CustomException('Task not found', 404);
+    }
+
+    // Check permission
+    const hasAccess = task.assignedTo?.toString() === userId ||
+                      task.createdBy.toString() === userId;
+    if (!hasAccess) {
+        throw new CustomException('You do not have permission to update this task', 403);
+    }
+
+    // If autoCalculate is true, switch back to automatic progress calculation
+    if (autoCalculate === true) {
+        task.manualProgress = false;
+        // Recalculate from subtasks if any
+        if (task.subtasks && task.subtasks.length > 0) {
+            const completed = task.subtasks.filter(s => s.completed).length;
+            task.progress = Math.round((completed / task.subtasks.length) * 100);
+        }
+    } else if (progress !== undefined) {
+        // Validate progress value
+        if (typeof progress !== 'number' || progress < 0 || progress > 100) {
+            throw new CustomException('Progress must be a number between 0 and 100', 400);
+        }
+
+        task.manualProgress = true;
+        task.progress = progress;
+
+        // If progress is 100, auto-complete the task
+        if (progress === 100 && task.status !== 'done') {
+            task.status = 'done';
+            task.completedAt = new Date();
+            task.completedBy = userId;
+        }
+    }
+
+    // Add history entry
+    task.history.push({
+        action: 'updated',
+        userId,
+        changes: { progress: { from: task.progress, to: progress || task.progress } },
+        timestamp: new Date()
+    });
+
+    await task.save();
+
+    const populatedTask = await Task.findById(id)
+        .populate('assignedTo', 'firstName lastName email image')
+        .populate('createdBy', 'firstName lastName email image');
+
+    res.status(200).json({
+        success: true,
+        message: 'Progress updated successfully',
+        data: populatedTask
+    });
+});
+
 // ============================================
 // WORKFLOW FUNCTIONS
 // ============================================
@@ -2441,6 +2509,8 @@ module.exports = {
     addDependency,
     removeDependency,
     updateTaskStatus,
+    // Progress functions
+    updateProgress,
     // Workflow functions
     addWorkflowRule,
     updateOutcome,

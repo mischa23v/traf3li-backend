@@ -48,6 +48,8 @@ const {
     addDependency,
     removeDependency,
     updateTaskStatus,
+    // Progress functions
+    updateProgress,
     // Workflow functions
     addWorkflowRule,
     updateOutcome,
@@ -135,6 +137,11 @@ app.patch('/:id/voice-memos/:memoId/transcription', userMiddleware, updateVoiceM
 app.post('/:id/dependencies', userMiddleware, addDependency);
 app.delete('/:id/dependencies/:dependencyTaskId', userMiddleware, removeDependency);
 app.patch('/:id/status', userMiddleware, updateTaskStatus);
+
+// ==============================================
+// PROGRESS ROUTES
+// ==============================================
+app.patch('/:id/progress', userMiddleware, updateProgress);
 
 // ==============================================
 // WORKFLOW ROUTES
