@@ -2052,7 +2052,7 @@ const getAttachmentDownloadUrl = asyncHandler(async (req, res) => {
  */
 const createDocument = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const { title, content, fileType = 'text/html' } = req.body;
+    const { title, content, contentJson, contentFormat = 'html' } = req.body;
     const userId = req.userID;
 
     if (!title) {
@@ -2066,24 +2066,41 @@ const createDocument = asyncHandler(async (req, res) => {
 
     const user = await User.findById(userId).select('firstName lastName');
 
-    // Sanitize document content
-    const sanitizedContent = sanitizeRichText(content || '');
+    // Handle different content formats (TipTap JSON or HTML)
+    let sanitizedContent = '';
+    let documentJson = null;
 
-    if (hasDangerousContent(content)) {
-        throw new CustomException('Invalid content detected', 400);
+    if (contentFormat === 'tiptap-json' && contentJson) {
+        // Store TipTap JSON directly (it's a structured format, not user HTML)
+        documentJson = contentJson;
+        // Also store HTML version for display/preview
+        sanitizedContent = content ? sanitizeRichText(content) : '';
+    } else {
+        // HTML format - sanitize it
+        sanitizedContent = sanitizeRichText(content || '');
+        if (hasDangerousContent(content)) {
+            throw new CustomException('Invalid content detected', 400);
+        }
     }
+
+    // Calculate size based on content
+    const contentSize = documentJson
+        ? Buffer.byteLength(JSON.stringify(documentJson), 'utf8')
+        : Buffer.byteLength(sanitizedContent, 'utf8');
 
     // Create document as an attachment with editable content
     const document = {
         fileName: title.endsWith('.html') ? title : `${title}.html`,
         fileUrl: null, // No file URL for in-app documents
-        fileType: fileType,
-        fileSize: Buffer.byteLength(sanitizedContent, 'utf8'),
+        fileType: 'text/html',
+        fileSize: contentSize,
         uploadedBy: userId,
         uploadedAt: new Date(),
         storageType: 'local',
         isEditable: true,
         documentContent: sanitizedContent,
+        documentJson: documentJson,
+        contentFormat: contentFormat,
         lastEditedBy: userId,
         lastEditedAt: new Date()
     };
@@ -2113,10 +2130,11 @@ const createDocument = asyncHandler(async (req, res) => {
 /**
  * Update a text/rich-text document in a task
  * PATCH /api/tasks/:id/documents/:documentId
+ * Supports both HTML and TipTap JSON formats
  */
 const updateDocument = asyncHandler(async (req, res) => {
     const { id, documentId } = req.params;
-    const { title, content } = req.body;
+    const { title, content, contentJson, contentFormat } = req.body;
     const userId = req.userID;
 
     const task = await Task.findById(id);
@@ -2135,12 +2153,23 @@ const updateDocument = asyncHandler(async (req, res) => {
 
     const user = await User.findById(userId).select('firstName lastName');
 
-    // Sanitize content if provided
-    if (content !== undefined) {
+    // Handle different content formats
+    if (contentFormat === 'tiptap-json' && contentJson !== undefined) {
+        // Update TipTap JSON content
+        document.documentJson = contentJson;
+        document.contentFormat = 'tiptap-json';
+        // Also update HTML version if provided
+        if (content !== undefined) {
+            document.documentContent = sanitizeRichText(content);
+        }
+        document.fileSize = Buffer.byteLength(JSON.stringify(contentJson), 'utf8');
+    } else if (content !== undefined) {
+        // HTML format - sanitize it
         if (hasDangerousContent(content)) {
             throw new CustomException('Invalid content detected', 400);
         }
         document.documentContent = sanitizeRichText(content);
+        document.contentFormat = 'html';
         document.fileSize = Buffer.byteLength(document.documentContent, 'utf8');
     }
 
@@ -2173,6 +2202,7 @@ const updateDocument = asyncHandler(async (req, res) => {
 /**
  * Get document content
  * GET /api/tasks/:id/documents/:documentId
+ * Returns both HTML and TipTap JSON format for editable documents
  */
 const getDocument = asyncHandler(async (req, res) => {
     const { id, documentId } = req.params;
@@ -2191,7 +2221,7 @@ const getDocument = asyncHandler(async (req, res) => {
     }
 
     // If it's an editable document, return the content directly
-    if (document.isEditable && document.documentContent) {
+    if (document.isEditable) {
         return res.status(200).json({
             success: true,
             document: {
@@ -2199,7 +2229,9 @@ const getDocument = asyncHandler(async (req, res) => {
                 fileName: document.fileName,
                 fileType: document.fileType,
                 fileSize: document.fileSize,
-                content: document.documentContent,
+                content: document.documentContent || '',
+                contentJson: document.documentJson || null,
+                contentFormat: document.contentFormat || 'html',
                 isEditable: document.isEditable,
                 uploadedBy: document.uploadedBy,
                 uploadedAt: document.uploadedAt,
@@ -2228,6 +2260,9 @@ const getDocument = asyncHandler(async (req, res) => {
             fileSize: document.fileSize,
             downloadUrl,
             isEditable: document.isEditable,
+            isVoiceMemo: document.isVoiceMemo,
+            duration: document.duration,
+            transcription: document.transcription,
             uploadedBy: document.uploadedBy,
             uploadedAt: document.uploadedAt
         }
