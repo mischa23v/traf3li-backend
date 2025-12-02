@@ -63,9 +63,6 @@ const vendorRoute = require('./vendor.route');
 const billRoute = require('./bill.route');
 const billPaymentRoute = require('./billPayment.route');
 
-// Wiki Routes
-const wikiRoute = require('./wiki.route');
-
 // CRM Routes
 const leadRoute = require('./lead.route');
 const crmPipelineRoute = require('./crmPipeline.route');
@@ -140,9 +137,6 @@ module.exports = {
     vendorRoute,
     billRoute,
     billPaymentRoute,
-
-    // Wiki
-    wikiRoute,
 
     // CRM
     leadRoute,
