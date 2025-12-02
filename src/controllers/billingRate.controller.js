@@ -24,20 +24,20 @@ const createRate = asyncHandler(async (req, res) => {
 
     // Validate required fields
     if (!rateType || !standardHourlyRate) {
-        throw new CustomException('نوع السعر والسعر بالساعة مطلوبان', 400);
+        throw CustomException('نوع السعر والسعر بالساعة مطلوبان', 400);
     }
 
     // Validate rate type specific requirements
     if (rateType === 'custom_client' && !clientId) {
-        throw new CustomException('معرف العميل مطلوب لسعر العميل المخصص', 400);
+        throw CustomException('معرف العميل مطلوب لسعر العميل المخصص', 400);
     }
 
     if (rateType === 'custom_case_type' && !caseType) {
-        throw new CustomException('نوع القضية مطلوب لسعر نوع القضية المخصص', 400);
+        throw CustomException('نوع القضية مطلوب لسعر نوع القضية المخصص', 400);
     }
 
     if (rateType === 'activity_based' && !activityCode) {
-        throw new CustomException('رمز النشاط مطلوب للسعر المبني على النشاط', 400);
+        throw CustomException('رمز النشاط مطلوب للسعر المبني على النشاط', 400);
     }
 
     const billingRate = await BillingRate.create({
@@ -133,11 +133,11 @@ const getRate = asyncHandler(async (req, res) => {
         .populate('createdBy', 'username');
 
     if (!billingRate) {
-        throw new CustomException('السعر غير موجود', 404);
+        throw CustomException('السعر غير موجود', 404);
     }
 
     if (billingRate.lawyerId.toString() !== lawyerId) {
-        throw new CustomException('لا يمكنك الوصول إلى هذا السعر', 403);
+        throw CustomException('لا يمكنك الوصول إلى هذا السعر', 403);
     }
 
     res.status(200).json({
@@ -157,11 +157,11 @@ const updateRate = asyncHandler(async (req, res) => {
     const billingRate = await BillingRate.findById(id);
 
     if (!billingRate) {
-        throw new CustomException('السعر غير موجود', 404);
+        throw CustomException('السعر غير موجود', 404);
     }
 
     if (billingRate.lawyerId.toString() !== lawyerId) {
-        throw new CustomException('لا يمكنك الوصول إلى هذا السعر', 403);
+        throw CustomException('لا يمكنك الوصول إلى هذا السعر', 403);
     }
 
     const allowedFields = [
@@ -219,11 +219,11 @@ const deleteRate = asyncHandler(async (req, res) => {
     const billingRate = await BillingRate.findById(id);
 
     if (!billingRate) {
-        throw new CustomException('السعر غير موجود', 404);
+        throw CustomException('السعر غير موجود', 404);
     }
 
     if (billingRate.lawyerId.toString() !== lawyerId) {
-        throw new CustomException('لا يمكنك الوصول إلى هذا السعر', 403);
+        throw CustomException('لا يمكنك الوصول إلى هذا السعر', 403);
     }
 
     await BillingRate.findByIdAndDelete(id);
@@ -250,7 +250,7 @@ const getApplicableRate = asyncHandler(async (req, res) => {
     );
 
     if (!rate) {
-        throw new CustomException('لم يتم العثور على سعر. يرجى تعيين سعر قياسي أولاً', 404);
+        throw CustomException('لم يتم العثور على سعر. يرجى تعيين سعر قياسي أولاً', 404);
     }
 
     res.status(200).json({
@@ -271,7 +271,7 @@ const setStandardRate = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
 
     if (!standardHourlyRate || standardHourlyRate <= 0) {
-        throw new CustomException('السعر بالساعة مطلوب ويجب أن يكون أكبر من صفر', 400);
+        throw CustomException('السعر بالساعة مطلوب ويجب أن يكون أكبر من صفر', 400);
     }
 
     // Check if standard rate already exists

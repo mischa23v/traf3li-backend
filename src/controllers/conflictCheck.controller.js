@@ -52,7 +52,7 @@ const runConflictCheck = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
 
     if (!searchTerms || searchTerms.length === 0) {
-        throw new CustomException('يجب تحديد مصطلحات البحث', 400);
+        throw CustomException('يجب تحديد مصطلحات البحث', 400);
     }
 
     // Create conflict check record
@@ -295,7 +295,7 @@ const getConflictCheck = asyncHandler(async (req, res) => {
         .populate('matches.entityId');
 
     if (!check) {
-        throw new CustomException('فحص التعارض غير موجود', 404);
+        throw CustomException('فحص التعارض غير موجود', 404);
     }
 
     res.status(200).json({
@@ -316,7 +316,7 @@ const updateConflictCheck = asyncHandler(async (req, res) => {
     const check = await ConflictCheck.findOne({ _id: id, lawyerId });
 
     if (!check) {
-        throw new CustomException('فحص التعارض غير موجود', 404);
+        throw CustomException('فحص التعارض غير موجود', 404);
     }
 
     if (status) check.status = status;
@@ -349,12 +349,12 @@ const resolveMatch = asyncHandler(async (req, res) => {
     const check = await ConflictCheck.findOne({ _id: id, lawyerId });
 
     if (!check) {
-        throw new CustomException('فحص التعارض غير موجود', 404);
+        throw CustomException('فحص التعارض غير موجود', 404);
     }
 
     const index = parseInt(matchIndex);
     if (index < 0 || index >= check.matches.length) {
-        throw new CustomException('فهرس التطابق غير صالح', 400);
+        throw CustomException('فهرس التطابق غير صالح', 400);
     }
 
     check.matches[index].resolved = true;
@@ -391,7 +391,7 @@ const deleteConflictCheck = asyncHandler(async (req, res) => {
     const check = await ConflictCheck.findOneAndDelete({ _id: id, lawyerId });
 
     if (!check) {
-        throw new CustomException('فحص التعارض غير موجود', 404);
+        throw CustomException('فحص التعارض غير موجود', 404);
     }
 
     res.status(200).json({
@@ -411,7 +411,7 @@ const quickConflictCheck = asyncHandler(async (req, res) => {
     const searchTerms = [name, email, phone, company].filter(Boolean);
 
     if (searchTerms.length === 0) {
-        throw new CustomException('يجب تحديد مصطلح بحث واحد على الأقل', 400);
+        throw CustomException('يجب تحديد مصطلح بحث واحد على الأقل', 400);
     }
 
     // Quick search without creating a record

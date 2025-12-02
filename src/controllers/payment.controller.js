@@ -29,17 +29,17 @@ const createPayment = asyncHandler(async (req, res) => {
 
     // Validate required fields
     if (!clientId || !amount || !paymentMethod) {
-        throw new CustomException('الحقول المطلوبة: العميل، المبلغ، طريقة الدفع', 400);
+        throw CustomException('الحقول المطلوبة: العميل، المبلغ، طريقة الدفع', 400);
     }
 
     // Validate invoice if provided
     if (invoiceId) {
         const invoice = await Invoice.findById(invoiceId);
         if (!invoice) {
-            throw new CustomException('الفاتورة غير موجودة', 404);
+            throw CustomException('الفاتورة غير موجودة', 404);
         }
         if (invoice.lawyerId.toString() !== lawyerId) {
-            throw new CustomException('لا يمكنك الوصول إلى هذه الفاتورة', 403);
+            throw CustomException('لا يمكنك الوصول إلى هذه الفاتورة', 403);
         }
     }
 
@@ -179,11 +179,11 @@ const getPayment = asyncHandler(async (req, res) => {
         .populate('allocations.invoiceId', 'invoiceNumber totalAmount');
 
     if (!payment) {
-        throw new CustomException('الدفعة غير موجودة', 404);
+        throw CustomException('الدفعة غير موجودة', 404);
     }
 
     if (payment.lawyerId._id.toString() !== lawyerId) {
-        throw new CustomException('لا يمكنك الوصول إلى هذه الدفعة', 403);
+        throw CustomException('لا يمكنك الوصول إلى هذه الدفعة', 403);
     }
 
     res.status(200).json({
@@ -203,16 +203,16 @@ const updatePayment = asyncHandler(async (req, res) => {
     const payment = await Payment.findById(id);
 
     if (!payment) {
-        throw new CustomException('الدفعة غير موجودة', 404);
+        throw CustomException('الدفعة غير موجودة', 404);
     }
 
     if (payment.lawyerId.toString() !== lawyerId) {
-        throw new CustomException('لا يمكنك الوصول إلى هذه الدفعة', 403);
+        throw CustomException('لا يمكنك الوصول إلى هذه الدفعة', 403);
     }
 
     // Cannot update completed or refunded payments
     if (payment.status === 'completed' || payment.status === 'refunded') {
-        throw new CustomException('لا يمكن تحديث دفعة مكتملة أو مستردة', 400);
+        throw CustomException('لا يمكن تحديث دفعة مكتملة أو مستردة', 400);
     }
 
     const allowedFields = ['notes', 'internalNotes', 'allocations'];
@@ -247,16 +247,16 @@ const deletePayment = asyncHandler(async (req, res) => {
     const payment = await Payment.findById(id);
 
     if (!payment) {
-        throw new CustomException('الدفعة غير موجودة', 404);
+        throw CustomException('الدفعة غير موجودة', 404);
     }
 
     if (payment.lawyerId.toString() !== lawyerId) {
-        throw new CustomException('لا يمكنك الوصول إلى هذه الدفعة', 403);
+        throw CustomException('لا يمكنك الوصول إلى هذه الدفعة', 403);
     }
 
     // Cannot delete completed or refunded payments
     if (payment.status === 'completed' || payment.status === 'refunded') {
-        throw new CustomException('لا يمكن حذف دفعة مكتملة أو مستردة', 400);
+        throw CustomException('لا يمكن حذف دفعة مكتملة أو مستردة', 400);
     }
 
     await Payment.findByIdAndDelete(id);
@@ -278,15 +278,15 @@ const completePayment = asyncHandler(async (req, res) => {
     const payment = await Payment.findById(id);
 
     if (!payment) {
-        throw new CustomException('الدفعة غير موجودة', 404);
+        throw CustomException('الدفعة غير موجودة', 404);
     }
 
     if (payment.lawyerId.toString() !== lawyerId) {
-        throw new CustomException('لا يمكنك الوصول إلى هذه الدفعة', 403);
+        throw CustomException('لا يمكنك الوصول إلى هذه الدفعة', 403);
     }
 
     if (payment.status === 'completed') {
-        throw new CustomException('الدفعة مكتملة بالفعل', 400);
+        throw CustomException('الدفعة مكتملة بالفعل', 400);
     }
 
     payment.status = 'completed';
@@ -361,11 +361,11 @@ const failPayment = asyncHandler(async (req, res) => {
     const payment = await Payment.findById(id);
 
     if (!payment) {
-        throw new CustomException('الدفعة غير موجودة', 404);
+        throw CustomException('الدفعة غير موجودة', 404);
     }
 
     if (payment.lawyerId.toString() !== lawyerId) {
-        throw new CustomException('لا يمكنك الوصول إلى هذه الدفعة', 403);
+        throw CustomException('لا يمكنك الوصول إلى هذه الدفعة', 403);
     }
 
     payment.status = 'failed';
@@ -405,21 +405,21 @@ const createRefund = asyncHandler(async (req, res) => {
     const originalPayment = await Payment.findById(id);
 
     if (!originalPayment) {
-        throw new CustomException('الدفعة الأصلية غير موجودة', 404);
+        throw CustomException('الدفعة الأصلية غير موجودة', 404);
     }
 
     if (originalPayment.lawyerId.toString() !== lawyerId) {
-        throw new CustomException('لا يمكنك الوصول إلى هذه الدفعة', 403);
+        throw CustomException('لا يمكنك الوصول إلى هذه الدفعة', 403);
     }
 
     if (originalPayment.status !== 'completed') {
-        throw new CustomException('يمكن فقط استرداد الدفعات المكتملة', 400);
+        throw CustomException('يمكن فقط استرداد الدفعات المكتملة', 400);
     }
 
     const refundAmount = amount || originalPayment.amount;
 
     if (refundAmount > originalPayment.amount) {
-        throw new CustomException('مبلغ الاسترداد أكبر من المبلغ الأصلي', 400);
+        throw CustomException('مبلغ الاسترداد أكبر من المبلغ الأصلي', 400);
     }
 
     // Create refund payment
@@ -499,15 +499,15 @@ const sendReceipt = asyncHandler(async (req, res) => {
         .populate('invoiceId', 'invoiceNumber');
 
     if (!payment) {
-        throw new CustomException('الدفعة غير موجودة', 404);
+        throw CustomException('الدفعة غير موجودة', 404);
     }
 
     if (payment.lawyerId._id.toString() !== lawyerId) {
-        throw new CustomException('لا يمكنك الوصول إلى هذه الدفعة', 403);
+        throw CustomException('لا يمكنك الوصول إلى هذه الدفعة', 403);
     }
 
     if (payment.status !== 'completed') {
-        throw new CustomException('يمكن فقط إرسال إيصالات للدفعات المكتملة', 400);
+        throw CustomException('يمكن فقط إرسال إيصالات للدفعات المكتملة', 400);
     }
 
     // TODO: Generate PDF receipt and send email
@@ -631,30 +631,30 @@ const recordInvoicePayment = asyncHandler(async (req, res) => {
 
     // Validate amount
     if (!amount || amount <= 0) {
-        throw new CustomException('Amount is required and must be positive', 400);
+        throw CustomException('Amount is required and must be positive', 400);
     }
 
     // Validate and get invoice
     const invoice = await Invoice.findById(invoiceId);
     if (!invoice) {
-        throw new CustomException('Invoice not found', 404);
+        throw CustomException('Invoice not found', 404);
     }
 
     if (invoice.lawyerId.toString() !== lawyerId) {
-        throw new CustomException('You do not have access to this invoice', 403);
+        throw CustomException('You do not have access to this invoice', 403);
     }
 
     if (invoice.status === 'paid') {
-        throw new CustomException('Invoice is already paid in full', 400);
+        throw CustomException('Invoice is already paid in full', 400);
     }
 
     if (invoice.status === 'cancelled') {
-        throw new CustomException('Cannot record payment for cancelled invoice', 400);
+        throw CustomException('Cannot record payment for cancelled invoice', 400);
     }
 
     // Check if payment exceeds balance due
     if (amount > invoice.balanceDue) {
-        throw new CustomException(`Payment amount exceeds balance due (${invoice.balanceDue} SAR)`, 400);
+        throw CustomException(`Payment amount exceeds balance due (${invoice.balanceDue} SAR)`, 400);
     }
 
     // Create payment record
@@ -825,7 +825,7 @@ const bulkDeletePayments = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
 
     if (!paymentIds || !Array.isArray(paymentIds) || paymentIds.length === 0) {
-        throw new CustomException('معرفات الدفعات مطلوبة', 400);
+        throw CustomException('معرفات الدفعات مطلوبة', 400);
     }
 
     // Verify all payments belong to lawyer and are not completed/refunded
@@ -836,7 +836,7 @@ const bulkDeletePayments = asyncHandler(async (req, res) => {
     });
 
     if (payments.length !== paymentIds.length) {
-        throw new CustomException('بعض الدفعات غير صالحة للحذف', 400);
+        throw CustomException('بعض الدفعات غير صالحة للحذف', 400);
     }
 
     await Payment.deleteMany({ _id: { $in: paymentIds } });

@@ -15,7 +15,7 @@ const createTemplate = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
 
     if (!name || !nameAr) {
-        throw new CustomException('الاسم بالعربية والإنجليزية مطلوب', 400);
+        throw CustomException('الاسم بالعربية والإنجليزية مطلوب', 400);
     }
 
     const template = await InvoiceTemplate.create({
@@ -86,7 +86,7 @@ const getTemplate = asyncHandler(async (req, res) => {
     const template = await InvoiceTemplate.findOne({ _id: id, lawyerId });
 
     if (!template) {
-        throw new CustomException('قالب الفاتورة غير موجود', 404);
+        throw CustomException('قالب الفاتورة غير موجود', 404);
     }
 
     res.status(200).json({
@@ -178,7 +178,7 @@ const updateTemplate = asyncHandler(async (req, res) => {
     const template = await InvoiceTemplate.findOne({ _id: id, lawyerId });
 
     if (!template) {
-        throw new CustomException('قالب الفاتورة غير موجود', 404);
+        throw CustomException('قالب الفاتورة غير موجود', 404);
     }
 
     const allowedFields = [
@@ -213,11 +213,11 @@ const deleteTemplate = asyncHandler(async (req, res) => {
     const template = await InvoiceTemplate.findOne({ _id: id, lawyerId });
 
     if (!template) {
-        throw new CustomException('قالب الفاتورة غير موجود', 404);
+        throw CustomException('قالب الفاتورة غير موجود', 404);
     }
 
     if (template.isDefault) {
-        throw new CustomException('لا يمكن حذف القالب الافتراضي', 400);
+        throw CustomException('لا يمكن حذف القالب الافتراضي', 400);
     }
 
     await InvoiceTemplate.findByIdAndDelete(id);
@@ -240,7 +240,7 @@ const duplicateTemplate = asyncHandler(async (req, res) => {
     const original = await InvoiceTemplate.findOne({ _id: id, lawyerId });
 
     if (!original) {
-        throw new CustomException('قالب الفاتورة غير موجود', 404);
+        throw CustomException('قالب الفاتورة غير موجود', 404);
     }
 
     const duplicate = await InvoiceTemplate.create({
@@ -279,7 +279,7 @@ const setAsDefault = asyncHandler(async (req, res) => {
     const template = await InvoiceTemplate.findOne({ _id: id, lawyerId });
 
     if (!template) {
-        throw new CustomException('قالب الفاتورة غير موجود', 404);
+        throw CustomException('قالب الفاتورة غير موجود', 404);
     }
 
     // Remove default from other templates
@@ -309,7 +309,7 @@ const previewTemplate = asyncHandler(async (req, res) => {
     const template = await InvoiceTemplate.findOne({ _id: id, lawyerId });
 
     if (!template) {
-        throw new CustomException('قالب الفاتورة غير موجود', 404);
+        throw CustomException('قالب الفاتورة غير موجود', 404);
     }
 
     // Return template with sample data for preview
@@ -354,7 +354,7 @@ const exportTemplate = asyncHandler(async (req, res) => {
     const template = await InvoiceTemplate.findOne({ _id: id, lawyerId });
 
     if (!template) {
-        throw new CustomException('قالب الفاتورة غير موجود', 404);
+        throw CustomException('قالب الفاتورة غير موجود', 404);
     }
 
     const exportData = {
@@ -392,7 +392,7 @@ const importTemplate = asyncHandler(async (req, res) => {
     } = req.body;
 
     if (!name || !nameAr) {
-        throw new CustomException('الاسم بالعربية والإنجليزية مطلوب', 400);
+        throw CustomException('الاسم بالعربية والإنجليزية مطلوب', 400);
     }
 
     const template = await InvoiceTemplate.create({

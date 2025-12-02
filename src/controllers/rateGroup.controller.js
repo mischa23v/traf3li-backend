@@ -11,13 +11,13 @@ const createRateGroup = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
 
     if (!name) {
-        throw new CustomException('اسم مجموعة الأسعار مطلوب', 400);
+        throw CustomException('اسم مجموعة الأسعار مطلوب', 400);
     }
 
     // Check for duplicate name
     const existing = await RateGroup.findOne({ lawyerId, name: name.trim() });
     if (existing) {
-        throw new CustomException('مجموعة الأسعار موجودة بالفعل', 400);
+        throw CustomException('مجموعة الأسعار موجودة بالفعل', 400);
     }
 
     // If setting as default, remove default from others
@@ -91,7 +91,7 @@ const getRateGroup = asyncHandler(async (req, res) => {
         .populate('rates.billingRateId');
 
     if (!rateGroup) {
-        throw new CustomException('مجموعة الأسعار غير موجودة', 404);
+        throw CustomException('مجموعة الأسعار غير موجودة', 404);
     }
 
     res.status(200).json({
@@ -111,7 +111,7 @@ const updateRateGroup = asyncHandler(async (req, res) => {
     const rateGroup = await RateGroup.findOne({ _id: id, lawyerId });
 
     if (!rateGroup) {
-        throw new CustomException('مجموعة الأسعار غير موجودة', 404);
+        throw CustomException('مجموعة الأسعار غير موجودة', 404);
     }
 
     // Check for duplicate name if name is being changed
@@ -122,7 +122,7 @@ const updateRateGroup = asyncHandler(async (req, res) => {
             _id: { $ne: id }
         });
         if (existing) {
-            throw new CustomException('مجموعة الأسعار موجودة بالفعل', 400);
+            throw CustomException('مجموعة الأسعار موجودة بالفعل', 400);
         }
     }
 
@@ -161,13 +161,13 @@ const deleteRateGroup = asyncHandler(async (req, res) => {
     const rateGroup = await RateGroup.findOne({ _id: id, lawyerId });
 
     if (!rateGroup) {
-        throw new CustomException('مجموعة الأسعار غير موجودة', 404);
+        throw CustomException('مجموعة الأسعار غير موجودة', 404);
     }
 
     // Check if used in any rate cards
     const usedInCards = await RateCard.countDocuments({ rateGroupId: id });
     if (usedInCards > 0) {
-        throw new CustomException('لا يمكن حذف مجموعة أسعار مستخدمة في بطاقات أسعار', 400);
+        throw CustomException('لا يمكن حذف مجموعة أسعار مستخدمة في بطاقات أسعار', 400);
     }
 
     await RateGroup.findByIdAndDelete(id);
@@ -190,7 +190,7 @@ const addRateToGroup = asyncHandler(async (req, res) => {
     const rateGroup = await RateGroup.findOne({ _id: id, lawyerId });
 
     if (!rateGroup) {
-        throw new CustomException('مجموعة الأسعار غير موجودة', 404);
+        throw CustomException('مجموعة الأسعار غير موجودة', 404);
     }
 
     // Check if rate already exists in group
@@ -198,14 +198,14 @@ const addRateToGroup = asyncHandler(async (req, res) => {
         r => r.billingRateId?.toString() === billingRateId
     );
     if (existingRate) {
-        throw new CustomException('السعر موجود بالفعل في المجموعة', 400);
+        throw CustomException('السعر موجود بالفعل في المجموعة', 400);
     }
 
     // Verify billing rate exists
     if (billingRateId) {
         const billingRate = await BillingRate.findOne({ _id: billingRateId, lawyerId });
         if (!billingRate) {
-            throw new CustomException('سعر الفوترة غير موجود', 404);
+            throw CustomException('سعر الفوترة غير موجود', 404);
         }
     }
 
@@ -235,7 +235,7 @@ const removeRateFromGroup = asyncHandler(async (req, res) => {
     const rateGroup = await RateGroup.findOne({ _id: id, lawyerId });
 
     if (!rateGroup) {
-        throw new CustomException('مجموعة الأسعار غير موجودة', 404);
+        throw CustomException('مجموعة الأسعار غير موجودة', 404);
     }
 
     rateGroup.rates = rateGroup.rates.filter(
@@ -285,7 +285,7 @@ const duplicateRateGroup = asyncHandler(async (req, res) => {
     const original = await RateGroup.findOne({ _id: id, lawyerId });
 
     if (!original) {
-        throw new CustomException('مجموعة الأسعار غير موجودة', 404);
+        throw CustomException('مجموعة الأسعار غير موجودة', 404);
     }
 
     const duplicate = await RateGroup.create({

@@ -15,7 +15,7 @@ const getUploadUrl = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
 
     if (!fileName || !fileType || !category) {
-        throw new CustomException('اسم الملف ونوعه والفئة مطلوبة', 400);
+        throw CustomException('اسم الملف ونوعه والفئة مطلوبة', 400);
     }
 
     const year = new Date().getFullYear();
@@ -47,7 +47,7 @@ const confirmUpload = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
 
     if (!fileName || !fileKey || !category) {
-        throw new CustomException('بيانات الملف غير مكتملة', 400);
+        throw CustomException('بيانات الملف غير مكتملة', 400);
     }
 
     const document = await Document.create({
@@ -135,7 +135,7 @@ const getDocument = asyncHandler(async (req, res) => {
         .populate('clientId', 'name fullName');
 
     if (!document) {
-        throw new CustomException('المستند غير موجود', 404);
+        throw CustomException('المستند غير موجود', 404);
     }
 
     res.status(200).json({
@@ -155,7 +155,7 @@ const updateDocument = asyncHandler(async (req, res) => {
     const document = await Document.findOne({ _id: id, lawyerId });
 
     if (!document) {
-        throw new CustomException('المستند غير موجود', 404);
+        throw CustomException('المستند غير موجود', 404);
     }
 
     const allowedFields = [
@@ -189,7 +189,7 @@ const deleteDocument = asyncHandler(async (req, res) => {
     const document = await Document.findOne({ _id: id, lawyerId });
 
     if (!document) {
-        throw new CustomException('المستند غير موجود', 404);
+        throw CustomException('المستند غير موجود', 404);
     }
 
     // Delete from S3
@@ -285,7 +285,7 @@ const downloadDocument = asyncHandler(async (req, res) => {
     const document = await Document.findOne({ _id: id, lawyerId });
 
     if (!document) {
-        throw new CustomException('المستند غير موجود', 404);
+        throw CustomException('المستند غير موجود', 404);
     }
 
     const downloadUrl = await getSignedUrl(BUCKETS.general, document.fileKey, document.fileType, 'getObject');
@@ -317,7 +317,7 @@ const generateShareLink = asyncHandler(async (req, res) => {
     const document = await Document.findOne({ _id: id, lawyerId });
 
     if (!document) {
-        throw new CustomException('المستند غير موجود', 404);
+        throw CustomException('المستند غير موجود', 404);
     }
 
     const shareToken = Document.generateShareToken();
@@ -350,7 +350,7 @@ const revokeShareLink = asyncHandler(async (req, res) => {
     const document = await Document.findOne({ _id: id, lawyerId });
 
     if (!document) {
-        throw new CustomException('المستند غير موجود', 404);
+        throw CustomException('المستند غير موجود', 404);
     }
 
     document.shareToken = null;
@@ -375,7 +375,7 @@ const uploadVersion = asyncHandler(async (req, res) => {
     const document = await Document.findOne({ _id: id, lawyerId });
 
     if (!document) {
-        throw new CustomException('المستند غير موجود', 404);
+        throw CustomException('المستند غير موجود', 404);
     }
 
     // Use DocumentVersionService for enhanced version management
@@ -414,7 +414,7 @@ const getVersionHistory = asyncHandler(async (req, res) => {
     const document = await Document.findOne({ _id: id, lawyerId });
 
     if (!document) {
-        throw new CustomException('المستند غير موجود', 404);
+        throw CustomException('المستند غير موجود', 404);
     }
 
     // Use DocumentVersionService for comprehensive version history
@@ -438,7 +438,7 @@ const restoreVersion = asyncHandler(async (req, res) => {
     const document = await Document.findOne({ _id: id, lawyerId });
 
     if (!document) {
-        throw new CustomException('المستند غير موجود', 404);
+        throw CustomException('المستند غير موجود', 404);
     }
 
     // Use DocumentVersionService for version restoration
@@ -465,7 +465,7 @@ const searchDocuments = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
 
     if (!q || q.length < 2) {
-        throw new CustomException('يجب أن يكون مصطلح البحث حرفين على الأقل', 400);
+        throw CustomException('يجب أن يكون مصطلح البحث حرفين على الأقل', 400);
     }
 
     const documents = await Document.searchDocuments(lawyerId, q);
@@ -506,7 +506,7 @@ const bulkDeleteDocuments = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
 
     if (!documentIds || !Array.isArray(documentIds) || documentIds.length === 0) {
-        throw new CustomException('معرفات المستندات مطلوبة', 400);
+        throw CustomException('معرفات المستندات مطلوبة', 400);
     }
 
     const documents = await Document.find({
@@ -547,13 +547,13 @@ const moveDocument = asyncHandler(async (req, res) => {
     const document = await Document.findOne({ _id: id, lawyerId });
 
     if (!document) {
-        throw new CustomException('المستند غير موجود', 404);
+        throw CustomException('المستند غير موجود', 404);
     }
 
     if (caseId) {
         const caseExists = await Case.findOne({ _id: caseId, lawyerId });
         if (!caseExists) {
-            throw new CustomException('القضية غير موجودة', 404);
+            throw CustomException('القضية غير موجودة', 404);
         }
     }
 

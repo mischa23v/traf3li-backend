@@ -28,14 +28,14 @@ const createClient = asyncHandler(async (req, res) => {
 
     // Validate required fields
     if (!fullName || !phone) {
-        throw new CustomException('الحقول المطلوبة: الاسم الكامل، رقم الهاتف', 400);
+        throw CustomException('الحقول المطلوبة: الاسم الكامل، رقم الهاتف', 400);
     }
 
     // Check if client already exists by email or phone
     if (email) {
         const existingClient = await Client.findOne({ lawyerId, email });
         if (existingClient) {
-            throw new CustomException('يوجد عميل بهذا البريد الإلكتروني بالفعل', 400);
+            throw CustomException('يوجد عميل بهذا البريد الإلكتروني بالفعل', 400);
         }
     }
 
@@ -126,11 +126,11 @@ const getClient = asyncHandler(async (req, res) => {
     const client = await Client.findById(id);
 
     if (!client) {
-        throw new CustomException('العميل غير موجود', 404);
+        throw CustomException('العميل غير موجود', 404);
     }
 
     if (client.lawyerId.toString() !== lawyerId) {
-        throw new CustomException('لا يمكنك الوصول إلى هذا العميل', 403);
+        throw CustomException('لا يمكنك الوصول إلى هذا العميل', 403);
     }
 
     // Get related data
@@ -196,11 +196,11 @@ const updateClient = asyncHandler(async (req, res) => {
     const client = await Client.findById(id);
 
     if (!client) {
-        throw new CustomException('العميل غير موجود', 404);
+        throw CustomException('العميل غير موجود', 404);
     }
 
     if (client.lawyerId.toString() !== lawyerId) {
-        throw new CustomException('لا يمكنك الوصول إلى هذا العميل', 403);
+        throw CustomException('لا يمكنك الوصول إلى هذا العميل', 403);
     }
 
     // Check if email is being changed and already exists
@@ -211,7 +211,7 @@ const updateClient = asyncHandler(async (req, res) => {
             _id: { $ne: id }
         });
         if (existingClient) {
-            throw new CustomException('يوجد عميل بهذا البريد الإلكتروني بالفعل', 400);
+            throw CustomException('يوجد عميل بهذا البريد الإلكتروني بالفعل', 400);
         }
     }
 
@@ -258,11 +258,11 @@ const deleteClient = asyncHandler(async (req, res) => {
     const client = await Client.findById(id);
 
     if (!client) {
-        throw new CustomException('العميل غير موجود', 404);
+        throw CustomException('العميل غير موجود', 404);
     }
 
     if (client.lawyerId.toString() !== lawyerId) {
-        throw new CustomException('لا يمكنك الوصول إلى هذا العميل', 403);
+        throw CustomException('لا يمكنك الوصول إلى هذا العميل', 403);
     }
 
     // Check if client has active cases or unpaid invoices
@@ -273,7 +273,7 @@ const deleteClient = asyncHandler(async (req, res) => {
     });
 
     if (activeCases > 0) {
-        throw new CustomException('لا يمكن حذف عميل لديه قضايا نشطة', 400);
+        throw CustomException('لا يمكن حذف عميل لديه قضايا نشطة', 400);
     }
 
     const unpaidInvoices = await Invoice.countDocuments({
@@ -283,7 +283,7 @@ const deleteClient = asyncHandler(async (req, res) => {
     });
 
     if (unpaidInvoices > 0) {
-        throw new CustomException('لا يمكن حذف عميل لديه فواتير غير مدفوعة', 400);
+        throw CustomException('لا يمكن حذف عميل لديه فواتير غير مدفوعة', 400);
     }
 
     await Client.findByIdAndDelete(id);
@@ -303,7 +303,7 @@ const searchClients = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
 
     if (!q || q.length < 2) {
-        throw new CustomException('يجب أن يكون مصطلح البحث حرفين على الأقل', 400);
+        throw CustomException('يجب أن يكون مصطلح البحث حرفين على الأقل', 400);
     }
 
     const clients = await Client.searchClients(lawyerId, q);
@@ -422,7 +422,7 @@ const bulkDeleteClients = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
 
     if (!clientIds || !Array.isArray(clientIds) || clientIds.length === 0) {
-        throw new CustomException('معرفات العملاء مطلوبة', 400);
+        throw CustomException('معرفات العملاء مطلوبة', 400);
     }
 
     // Verify all clients belong to lawyer and have no active cases/unpaid invoices
@@ -432,7 +432,7 @@ const bulkDeleteClients = asyncHandler(async (req, res) => {
     });
 
     if (clients.length !== clientIds.length) {
-        throw new CustomException('بعض العملاء غير صالحين للحذف', 400);
+        throw CustomException('بعض العملاء غير صالحين للحذف', 400);
     }
 
     // Check for active cases
@@ -444,7 +444,7 @@ const bulkDeleteClients = asyncHandler(async (req, res) => {
         });
 
         if (activeCases > 0) {
-            throw new CustomException(`العميل ${client.fullName} لديه قضايا نشطة`, 400);
+            throw CustomException(`العميل ${client.fullName} لديه قضايا نشطة`, 400);
         }
 
         const unpaidInvoices = await Invoice.countDocuments({
@@ -454,7 +454,7 @@ const bulkDeleteClients = asyncHandler(async (req, res) => {
         });
 
         if (unpaidInvoices > 0) {
-            throw new CustomException(`العميل ${client.fullName} لديه فواتير غير مدفوعة`, 400);
+            throw CustomException(`العميل ${client.fullName} لديه فواتير غير مدفوعة`, 400);
         }
     }
 

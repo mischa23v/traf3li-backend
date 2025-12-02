@@ -20,18 +20,18 @@ const generateStatement = asyncHandler(async (req, res) => {
 
     // Validate required fields
     if (!clientId) {
-        throw new CustomException('Client ID is required', 400);
+        throw CustomException('Client ID is required', 400);
     }
 
     if (!periodStart || !periodEnd) {
-        throw new CustomException('Period start and end dates are required', 400);
+        throw CustomException('Period start and end dates are required', 400);
     }
 
     const startDate = new Date(periodStart);
     const endDate = new Date(periodEnd);
 
     if (startDate >= endDate) {
-        throw new CustomException('Period start must be before period end', 400);
+        throw CustomException('Period start must be before period end', 400);
     }
 
     // Build query for client data
@@ -244,11 +244,11 @@ const getStatement = asyncHandler(async (req, res) => {
         .populate('generatedBy', 'firstName lastName username');
 
     if (!statement) {
-        throw new CustomException('Statement not found', 404);
+        throw CustomException('Statement not found', 404);
     }
 
     if (statement.lawyerId.toString() !== lawyerId) {
-        throw new CustomException('You do not have access to this statement', 403);
+        throw CustomException('You do not have access to this statement', 403);
     }
 
     res.status(200).json({
@@ -271,11 +271,11 @@ const downloadStatement = asyncHandler(async (req, res) => {
         .populate('lawyerId', 'firstName lastName username email firmName');
 
     if (!statement) {
-        throw new CustomException('Statement not found', 404);
+        throw CustomException('Statement not found', 404);
     }
 
     if (statement.lawyerId._id.toString() !== lawyerId) {
-        throw new CustomException('You do not have access to this statement', 403);
+        throw CustomException('You do not have access to this statement', 403);
     }
 
     // If PDF already exists, return URL
@@ -326,11 +326,11 @@ const deleteStatement = asyncHandler(async (req, res) => {
     const statement = await Statement.findById(id);
 
     if (!statement) {
-        throw new CustomException('Statement not found', 404);
+        throw CustomException('Statement not found', 404);
     }
 
     if (statement.lawyerId.toString() !== lawyerId) {
-        throw new CustomException('You do not have access to this statement', 403);
+        throw CustomException('You do not have access to this statement', 403);
     }
 
     await Statement.findByIdAndDelete(id);
@@ -354,11 +354,11 @@ const sendStatement = asyncHandler(async (req, res) => {
         .populate('clientId', 'firstName lastName email');
 
     if (!statement) {
-        throw new CustomException('Statement not found', 404);
+        throw CustomException('Statement not found', 404);
     }
 
     if (statement.lawyerId.toString() !== lawyerId) {
-        throw new CustomException('You do not have access to this statement', 403);
+        throw CustomException('You do not have access to this statement', 403);
     }
 
     const recipientEmail = email || statement.clientId.email;

@@ -28,23 +28,23 @@ const createRetainer = asyncHandler(async (req, res) => {
 
     // Validate required fields
     if (!clientId || !retainerType || !initialAmount) {
-        throw new CustomException('الحقول المطلوبة: العميل، نوع العربون، المبلغ الأولي', 400);
+        throw CustomException('الحقول المطلوبة: العميل، نوع العربون، المبلغ الأولي', 400);
     }
 
     // Validate case if provided
     if (caseId) {
         const caseDoc = await Case.findById(caseId);
         if (!caseDoc) {
-            throw new CustomException('القضية غير موجودة', 404);
+            throw CustomException('القضية غير موجودة', 404);
         }
         if (caseDoc.lawyerId.toString() !== lawyerId) {
-            throw new CustomException('لا يمكنك الوصول إلى هذه القضية', 403);
+            throw CustomException('لا يمكنك الوصول إلى هذه القضية', 403);
         }
     }
 
     // Validate auto-replenish settings
     if (autoReplenish && (!replenishThreshold || !replenishAmount)) {
-        throw new CustomException('التجديد التلقائي يتطلب حد التجديد ومبلغ التجديد', 400);
+        throw CustomException('التجديد التلقائي يتطلب حد التجديد ومبلغ التجديد', 400);
     }
 
     const retainer = await Retainer.create({
@@ -178,11 +178,11 @@ const getRetainer = asyncHandler(async (req, res) => {
         .populate('deposits.paymentId', 'paymentNumber amount paymentDate');
 
     if (!retainer) {
-        throw new CustomException('العربون غير موجود', 404);
+        throw CustomException('العربون غير موجود', 404);
     }
 
     if (retainer.lawyerId._id.toString() !== lawyerId) {
-        throw new CustomException('لا يمكنك الوصول إلى هذا العربون', 403);
+        throw CustomException('لا يمكنك الوصول إلى هذا العربون', 403);
     }
 
     res.status(200).json({
@@ -202,11 +202,11 @@ const updateRetainer = asyncHandler(async (req, res) => {
     const retainer = await Retainer.findById(id);
 
     if (!retainer) {
-        throw new CustomException('العربون غير موجود', 404);
+        throw CustomException('العربون غير موجود', 404);
     }
 
     if (retainer.lawyerId.toString() !== lawyerId) {
-        throw new CustomException('لا يمكنك الوصول إلى هذا العربون', 403);
+        throw CustomException('لا يمكنك الوصول إلى هذا العربون', 403);
     }
 
     const allowedFields = [
@@ -251,28 +251,28 @@ const consumeRetainer = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
 
     if (!amount || amount <= 0) {
-        throw new CustomException('المبلغ مطلوب ويجب أن يكون أكبر من صفر', 400);
+        throw CustomException('المبلغ مطلوب ويجب أن يكون أكبر من صفر', 400);
     }
 
     const retainer = await Retainer.findById(id);
 
     if (!retainer) {
-        throw new CustomException('العربون غير موجود', 404);
+        throw CustomException('العربون غير موجود', 404);
     }
 
     if (retainer.lawyerId.toString() !== lawyerId) {
-        throw new CustomException('لا يمكنك الوصول إلى هذا العربون', 403);
+        throw CustomException('لا يمكنك الوصول إلى هذا العربون', 403);
     }
 
     if (retainer.status !== 'active') {
-        throw new CustomException('العربون غير نشط', 400);
+        throw CustomException('العربون غير نشط', 400);
     }
 
     // Validate invoice if provided
     if (invoiceId) {
         const invoice = await Invoice.findById(invoiceId);
         if (!invoice) {
-            throw new CustomException('الفاتورة غير موجودة', 404);
+            throw CustomException('الفاتورة غير موجودة', 404);
         }
     }
 
@@ -315,7 +315,7 @@ const consumeRetainer = asyncHandler(async (req, res) => {
             lowBalanceAlert: retainer.currentBalance <= retainer.minimumBalance
         });
     } catch (error) {
-        throw new CustomException(error.message, 400);
+        throw CustomException(error.message, 400);
     }
 });
 
@@ -329,27 +329,27 @@ const replenishRetainer = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
 
     if (!amount || amount <= 0) {
-        throw new CustomException('المبلغ مطلوب ويجب أن يكون أكبر من صفر', 400);
+        throw CustomException('المبلغ مطلوب ويجب أن يكون أكبر من صفر', 400);
     }
 
     const retainer = await Retainer.findById(id);
 
     if (!retainer) {
-        throw new CustomException('العربون غير موجود', 404);
+        throw CustomException('العربون غير موجود', 404);
     }
 
     if (retainer.lawyerId.toString() !== lawyerId) {
-        throw new CustomException('لا يمكنك الوصول إلى هذا العربون', 403);
+        throw CustomException('لا يمكنك الوصول إلى هذا العربون', 403);
     }
 
     // Validate payment if provided
     if (paymentId) {
         const payment = await Payment.findById(paymentId);
         if (!payment) {
-            throw new CustomException('الدفعة غير موجودة', 404);
+            throw CustomException('الدفعة غير موجودة', 404);
         }
         if (payment.status !== 'completed') {
-            throw new CustomException('يجب أن تكون الدفعة مكتملة', 400);
+            throw CustomException('يجب أن تكون الدفعة مكتملة', 400);
         }
     }
 
@@ -381,7 +381,7 @@ const replenishRetainer = asyncHandler(async (req, res) => {
             retainer
         });
     } catch (error) {
-        throw new CustomException(error.message, 400);
+        throw CustomException(error.message, 400);
     }
 });
 
@@ -397,15 +397,15 @@ const refundRetainer = asyncHandler(async (req, res) => {
     const retainer = await Retainer.findById(id);
 
     if (!retainer) {
-        throw new CustomException('العربون غير موجود', 404);
+        throw CustomException('العربون غير موجود', 404);
     }
 
     if (retainer.lawyerId.toString() !== lawyerId) {
-        throw new CustomException('لا يمكنك الوصول إلى هذا العربون', 403);
+        throw CustomException('لا يمكنك الوصول إلى هذا العربون', 403);
     }
 
     if (retainer.status === 'refunded') {
-        throw new CustomException('تم استرداد العربون بالفعل', 400);
+        throw CustomException('تم استرداد العربون بالفعل', 400);
     }
 
     const refundAmount = retainer.currentBalance;
@@ -453,11 +453,11 @@ const getRetainerHistory = asyncHandler(async (req, res) => {
         .populate('deposits.paymentId', 'paymentNumber amount paymentDate');
 
     if (!retainer) {
-        throw new CustomException('العربون غير موجود', 404);
+        throw CustomException('العربون غير موجود', 404);
     }
 
     if (retainer.lawyerId.toString() !== lawyerId) {
-        throw new CustomException('لا يمكنك الوصول إلى هذا العربون', 403);
+        throw CustomException('لا يمكنك الوصول إلى هذا العربون', 403);
     }
 
     // Combine and sort transactions chronologically

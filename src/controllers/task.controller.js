@@ -41,14 +41,14 @@ const createTask = asyncHandler(async (req, res) => {
 
     // Check for dangerous content
     if (hasDangerousContent(description) || hasDangerousContent(notes)) {
-        throw new CustomException('Invalid content detected', 400);
+        throw CustomException('Invalid content detected', 400);
     }
 
     // Validate assignedTo user if provided
     if (assignedTo) {
         const assignedUser = await User.findById(assignedTo);
         if (!assignedUser) {
-            throw new CustomException('Assigned user not found', 404);
+            throw CustomException('Assigned user not found', 404);
         }
     }
 
@@ -56,7 +56,7 @@ const createTask = asyncHandler(async (req, res) => {
     if (caseId) {
         const caseDoc = await Case.findById(caseId);
         if (!caseDoc) {
-            throw new CustomException('Case not found', 404);
+            throw CustomException('Case not found', 404);
         }
     }
 
@@ -199,7 +199,7 @@ const getTask = asyncHandler(async (req, res) => {
         .populate('timeTracking.sessions.userId', 'firstName lastName');
 
     if (!task) {
-        throw new CustomException('Task not found', 404);
+        throw CustomException('Task not found', 404);
     }
 
     // Check access
@@ -208,7 +208,7 @@ const getTask = asyncHandler(async (req, res) => {
         task.createdBy._id.toString() === userId;
 
     if (!hasAccess) {
-        throw new CustomException('You do not have access to this task', 403);
+        throw CustomException('You do not have access to this task', 403);
     }
 
     res.status(200).json({
@@ -225,7 +225,7 @@ const updateTask = asyncHandler(async (req, res) => {
     const task = await Task.findById(id);
 
     if (!task) {
-        throw new CustomException('Task not found', 404);
+        throw CustomException('Task not found', 404);
     }
 
     // Check permission
@@ -234,7 +234,7 @@ const updateTask = asyncHandler(async (req, res) => {
         task.assignedTo?.toString() === userId;
 
     if (!canUpdate) {
-        throw new CustomException('You do not have permission to update this task', 403);
+        throw CustomException('You do not have permission to update this task', 403);
     }
 
     // Sanitize text fields
@@ -244,7 +244,7 @@ const updateTask = asyncHandler(async (req, res) => {
 
     // Check for dangerous content
     if (hasDangerousContent(req.body.description) || hasDangerousContent(req.body.notes)) {
-        throw new CustomException('Invalid content detected', 400);
+        throw CustomException('Invalid content detected', 400);
     }
 
     // Track changes for history
@@ -301,12 +301,12 @@ const deleteTask = asyncHandler(async (req, res) => {
     const task = await Task.findById(id);
 
     if (!task) {
-        throw new CustomException('Task not found', 404);
+        throw CustomException('Task not found', 404);
     }
 
     // Only creator can delete
     if (task.createdBy.toString() !== userId) {
-        throw new CustomException('Only the task creator can delete this task', 403);
+        throw CustomException('Only the task creator can delete this task', 403);
     }
 
     await Task.findByIdAndDelete(id);
@@ -326,7 +326,7 @@ const completeTask = asyncHandler(async (req, res) => {
     const task = await Task.findById(id);
 
     if (!task) {
-        throw new CustomException('Task not found', 404);
+        throw CustomException('Task not found', 404);
     }
 
     const canComplete =
@@ -334,7 +334,7 @@ const completeTask = asyncHandler(async (req, res) => {
         task.createdBy.toString() === userId;
 
     if (!canComplete) {
-        throw new CustomException('You do not have permission to complete this task', 403);
+        throw CustomException('You do not have permission to complete this task', 403);
     }
 
     task.status = 'done';
@@ -425,7 +425,7 @@ const addSubtask = asyncHandler(async (req, res) => {
 
     const task = await Task.findById(id);
     if (!task) {
-        throw new CustomException('Task not found', 404);
+        throw CustomException('Task not found', 404);
     }
 
     task.subtasks.push({
@@ -457,12 +457,12 @@ const toggleSubtask = asyncHandler(async (req, res) => {
 
     const task = await Task.findById(id);
     if (!task) {
-        throw new CustomException('Task not found', 404);
+        throw CustomException('Task not found', 404);
     }
 
     const subtask = task.subtasks.id(subtaskId);
     if (!subtask) {
-        throw new CustomException('Subtask not found', 404);
+        throw CustomException('Subtask not found', 404);
     }
 
     subtask.completed = !subtask.completed;
@@ -490,7 +490,7 @@ const deleteSubtask = asyncHandler(async (req, res) => {
 
     const task = await Task.findById(id);
     if (!task) {
-        throw new CustomException('Task not found', 404);
+        throw CustomException('Task not found', 404);
     }
 
     task.subtasks.pull(subtaskId);
@@ -513,12 +513,12 @@ const startTimer = asyncHandler(async (req, res) => {
 
     const task = await Task.findById(id);
     if (!task) {
-        throw new CustomException('Task not found', 404);
+        throw CustomException('Task not found', 404);
     }
 
     // Check for active session
     if (task.timeTracking.isTracking) {
-        throw new CustomException('A timer is already running for this task', 400);
+        throw CustomException('A timer is already running for this task', 400);
     }
 
     const now = new Date();
@@ -549,16 +549,16 @@ const stopTimer = asyncHandler(async (req, res) => {
 
     const task = await Task.findById(id);
     if (!task) {
-        throw new CustomException('Task not found', 404);
+        throw CustomException('Task not found', 404);
     }
 
     if (!task.timeTracking.isTracking) {
-        throw new CustomException('No active timer found', 400);
+        throw CustomException('No active timer found', 400);
     }
 
     const activeSession = task.timeTracking.sessions.find(s => !s.endedAt);
     if (!activeSession) {
-        throw new CustomException('No active timer found', 400);
+        throw CustomException('No active timer found', 400);
     }
 
     activeSession.endedAt = new Date();
@@ -602,11 +602,11 @@ const addManualTime = asyncHandler(async (req, res) => {
 
     const task = await Task.findById(id);
     if (!task) {
-        throw new CustomException('Task not found', 404);
+        throw CustomException('Task not found', 404);
     }
 
     if (!minutes || minutes <= 0) {
-        throw new CustomException('Minutes must be a positive number', 400);
+        throw CustomException('Minutes must be a positive number', 400);
     }
 
     const sessionDate = date ? new Date(date) : new Date();
@@ -645,19 +645,19 @@ const addComment = asyncHandler(async (req, res) => {
     const userId = req.userID;
 
     if (!rawContent) {
-        throw new CustomException('Comment content is required', 400);
+        throw CustomException('Comment content is required', 400);
     }
 
     // Sanitize comment content (more restrictive than rich text)
     const sanitizedContent = sanitizeComment(rawContent);
 
     if (hasDangerousContent(rawContent)) {
-        throw new CustomException('Invalid content detected', 400);
+        throw CustomException('Invalid content detected', 400);
     }
 
     const task = await Task.findById(id);
     if (!task) {
-        throw new CustomException('Task not found', 404);
+        throw CustomException('Task not found', 404);
     }
 
     task.comments.push({
@@ -688,28 +688,28 @@ const updateComment = asyncHandler(async (req, res) => {
     const userId = req.userID;
 
     if (!rawContent) {
-        throw new CustomException('Comment content is required', 400);
+        throw CustomException('Comment content is required', 400);
     }
 
     // Sanitize comment content
     const sanitizedContent = sanitizeComment(rawContent);
 
     if (hasDangerousContent(rawContent)) {
-        throw new CustomException('Invalid content detected', 400);
+        throw CustomException('Invalid content detected', 400);
     }
 
     const task = await Task.findById(id);
     if (!task) {
-        throw new CustomException('Task not found', 404);
+        throw CustomException('Task not found', 404);
     }
 
     const comment = task.comments.id(commentId);
     if (!comment) {
-        throw new CustomException('Comment not found', 404);
+        throw CustomException('Comment not found', 404);
     }
 
     if (comment.userId.toString() !== userId) {
-        throw new CustomException('You can only edit your own comments', 403);
+        throw CustomException('You can only edit your own comments', 403);
     }
 
     comment.content = sanitizedContent;
@@ -731,16 +731,16 @@ const deleteComment = asyncHandler(async (req, res) => {
 
     const task = await Task.findById(id);
     if (!task) {
-        throw new CustomException('Task not found', 404);
+        throw CustomException('Task not found', 404);
     }
 
     const comment = task.comments.id(commentId);
     if (!comment) {
-        throw new CustomException('Comment not found', 404);
+        throw CustomException('Comment not found', 404);
     }
 
     if (comment.userId.toString() !== userId && task.createdBy.toString() !== userId) {
-        throw new CustomException('You cannot delete this comment', 403);
+        throw CustomException('You cannot delete this comment', 403);
     }
 
     task.comments.pull(commentId);
@@ -760,7 +760,7 @@ const bulkUpdateTasks = asyncHandler(async (req, res) => {
     const userId = req.userID;
 
     if (!taskIds || !Array.isArray(taskIds) || taskIds.length === 0) {
-        throw new CustomException('Task IDs are required', 400);
+        throw CustomException('Task IDs are required', 400);
     }
 
     // Verify access to all tasks
@@ -770,7 +770,7 @@ const bulkUpdateTasks = asyncHandler(async (req, res) => {
     });
 
     if (tasks.length !== taskIds.length) {
-        throw new CustomException('Some tasks are not accessible', 403);
+        throw CustomException('Some tasks are not accessible', 403);
     }
 
     const allowedUpdates = ['status', 'priority', 'assignedTo', 'dueDate', 'label'];
@@ -799,7 +799,7 @@ const bulkDeleteTasks = asyncHandler(async (req, res) => {
     const userId = req.userID;
 
     if (!taskIds || !Array.isArray(taskIds) || taskIds.length === 0) {
-        throw new CustomException('Task IDs are required', 400);
+        throw CustomException('Task IDs are required', 400);
     }
 
     // Verify ownership of all tasks
@@ -809,7 +809,7 @@ const bulkDeleteTasks = asyncHandler(async (req, res) => {
     });
 
     if (tasks.length !== taskIds.length) {
-        throw new CustomException('Some tasks cannot be deleted', 403);
+        throw CustomException('Some tasks cannot be deleted', 403);
     }
 
     await Task.deleteMany({ _id: { $in: taskIds } });
@@ -887,7 +887,7 @@ const getTasksByCase = asyncHandler(async (req, res) => {
 
     const caseDoc = await Case.findById(caseId);
     if (!caseDoc) {
-        throw new CustomException('Case not found', 404);
+        throw CustomException('Case not found', 404);
     }
 
     const tasks = await Task.find({ caseId })
@@ -1009,7 +1009,7 @@ const getTemplate = asyncHandler(async (req, res) => {
         .populate('createdBy', 'firstName lastName email image');
 
     if (!template) {
-        throw new CustomException('Template not found', 404);
+        throw CustomException('Template not found', 404);
     }
 
     res.status(200).json({
@@ -1093,7 +1093,7 @@ const updateTemplate = asyncHandler(async (req, res) => {
     });
 
     if (!template) {
-        throw new CustomException('Template not found or you do not have permission to update it', 404);
+        throw CustomException('Template not found or you do not have permission to update it', 404);
     }
 
     // Don't allow changing isTemplate to false
@@ -1130,7 +1130,7 @@ const deleteTemplate = asyncHandler(async (req, res) => {
     });
 
     if (!template) {
-        throw new CustomException('Template not found or you do not have permission to delete it', 404);
+        throw CustomException('Template not found or you do not have permission to delete it', 404);
     }
 
     res.status(200).json({
@@ -1166,14 +1166,14 @@ const createFromTemplate = asyncHandler(async (req, res) => {
     });
 
     if (!template) {
-        throw new CustomException('Template not found', 404);
+        throw CustomException('Template not found', 404);
     }
 
     // Validate assignedTo if provided
     if (assignedTo) {
         const assignedUser = await User.findById(assignedTo);
         if (!assignedUser) {
-            throw new CustomException('Assigned user not found', 404);
+            throw CustomException('Assigned user not found', 404);
         }
     }
 
@@ -1181,7 +1181,7 @@ const createFromTemplate = asyncHandler(async (req, res) => {
     if (caseId) {
         const caseDoc = await Case.findById(caseId);
         if (!caseDoc) {
-            throw new CustomException('Case not found', 404);
+            throw CustomException('Case not found', 404);
         }
     }
 
@@ -1268,7 +1268,7 @@ const saveAsTemplate = asyncHandler(async (req, res) => {
     });
 
     if (!task) {
-        throw new CustomException('Task not found', 404);
+        throw CustomException('Task not found', 404);
     }
 
     // Create template from task
@@ -1337,11 +1337,11 @@ const addAttachment = asyncHandler(async (req, res) => {
 
     const task = await Task.findById(id);
     if (!task) {
-        throw new CustomException('Task not found', 404);
+        throw CustomException('Task not found', 404);
     }
 
     if (!req.file) {
-        throw new CustomException('No file uploaded', 400);
+        throw CustomException('No file uploaded', 400);
     }
 
     const user = await User.findById(userId).select('firstName lastName');
@@ -1419,17 +1419,17 @@ const deleteAttachment = asyncHandler(async (req, res) => {
 
     const task = await Task.findById(id);
     if (!task) {
-        throw new CustomException('Task not found', 404);
+        throw CustomException('Task not found', 404);
     }
 
     const attachment = task.attachments.id(attachmentId);
     if (!attachment) {
-        throw new CustomException('Attachment not found', 404);
+        throw CustomException('Attachment not found', 404);
     }
 
     // Only uploader or task creator can delete
     if (attachment.uploadedBy.toString() !== userId && task.createdBy.toString() !== userId) {
-        throw new CustomException('You do not have permission to delete this attachment', 403);
+        throw CustomException('You do not have permission to delete this attachment', 403);
     }
 
     const fileName = attachment.fileName;
@@ -1517,32 +1517,32 @@ const addDependency = asyncHandler(async (req, res) => {
     const userId = req.userID;
 
     if (!dependsOn) {
-        throw new CustomException('dependsOn task ID is required', 400);
+        throw CustomException('dependsOn task ID is required', 400);
     }
 
     const task = await Task.findById(id);
     if (!task) {
-        throw new CustomException('Task not found', 404);
+        throw CustomException('Task not found', 404);
     }
 
     const dependentTask = await Task.findById(dependsOn);
     if (!dependentTask) {
-        throw new CustomException('المهمة المحددة غير موجودة', 404);
+        throw CustomException('المهمة المحددة غير موجودة', 404);
     }
 
     // Prevent self-reference
     if (id === dependsOn) {
-        throw new CustomException('لا يمكن للمهمة أن تعتمد على نفسها', 400);
+        throw CustomException('لا يمكن للمهمة أن تعتمد على نفسها', 400);
     }
 
     // Check if dependency already exists
     if (task.blockedBy.some(t => t.toString() === dependsOn)) {
-        throw new CustomException('هذه التبعية موجودة بالفعل', 400);
+        throw CustomException('هذه التبعية موجودة بالفعل', 400);
     }
 
     // Check for circular dependency
     if (await hasCircularDependency(id, dependsOn)) {
-        throw new CustomException('لا يمكن إنشاء تبعية دائرية', 400);
+        throw CustomException('لا يمكن إنشاء تبعية دائرية', 400);
     }
 
     const user = await User.findById(userId).select('firstName lastName');
@@ -1586,7 +1586,7 @@ const removeDependency = asyncHandler(async (req, res) => {
 
     const task = await Task.findById(id);
     if (!task) {
-        throw new CustomException('Task not found', 404);
+        throw CustomException('Task not found', 404);
     }
 
     const dependentTask = await Task.findById(dependencyTaskId);
@@ -1632,7 +1632,7 @@ const updateTaskStatus = asyncHandler(async (req, res) => {
     const task = await Task.findById(id).populate('blockedBy', 'title status');
 
     if (!task) {
-        throw new CustomException('Task not found', 404);
+        throw CustomException('Task not found', 404);
     }
 
     // Check dependencies when moving to in_progress
@@ -1703,14 +1703,14 @@ const updateProgress = asyncHandler(async (req, res) => {
     const task = await Task.findById(id);
 
     if (!task) {
-        throw new CustomException('Task not found', 404);
+        throw CustomException('Task not found', 404);
     }
 
     // Check permission
     const hasAccess = task.assignedTo?.toString() === userId ||
                       task.createdBy.toString() === userId;
     if (!hasAccess) {
-        throw new CustomException('You do not have permission to update this task', 403);
+        throw CustomException('You do not have permission to update this task', 403);
     }
 
     // If autoCalculate is true, switch back to automatic progress calculation
@@ -1724,7 +1724,7 @@ const updateProgress = asyncHandler(async (req, res) => {
     } else if (progress !== undefined) {
         // Validate progress value
         if (typeof progress !== 'number' || progress < 0 || progress > 100) {
-            throw new CustomException('Progress must be a number between 0 and 100', 400);
+            throw CustomException('Progress must be a number between 0 and 100', 400);
         }
 
         task.manualProgress = true;
@@ -1864,11 +1864,11 @@ const addWorkflowRule = asyncHandler(async (req, res) => {
 
     const task = await Task.findById(id);
     if (!task) {
-        throw new CustomException('Task not found', 404);
+        throw CustomException('Task not found', 404);
     }
 
     if (!name || !trigger || !actions) {
-        throw new CustomException('name, trigger, and actions are required', 400);
+        throw CustomException('name, trigger, and actions are required', 400);
     }
 
     task.workflowRules.push({
@@ -1899,7 +1899,7 @@ const updateOutcome = asyncHandler(async (req, res) => {
 
     const task = await Task.findById(id);
     if (!task) {
-        throw new CustomException('Task not found', 404);
+        throw CustomException('Task not found', 404);
     }
 
     task.outcome = outcome;
@@ -1946,7 +1946,7 @@ const updateEstimate = asyncHandler(async (req, res) => {
 
     const task = await Task.findById(id);
     if (!task) {
-        throw new CustomException('Task not found', 404);
+        throw CustomException('Task not found', 404);
     }
 
     if (estimatedMinutes !== undefined) {
@@ -1979,7 +1979,7 @@ const getTimeTrackingSummary = asyncHandler(async (req, res) => {
         .populate('timeTracking.sessions.userId', 'firstName lastName');
 
     if (!task) {
-        throw new CustomException('Task not found', 404);
+        throw CustomException('Task not found', 404);
     }
 
     const estimatedMinutes = task.timeTracking?.estimatedMinutes || 0;
@@ -2043,12 +2043,12 @@ const updateSubtask = asyncHandler(async (req, res) => {
 
     const task = await Task.findById(id);
     if (!task) {
-        throw new CustomException('Task not found', 404);
+        throw CustomException('Task not found', 404);
     }
 
     const subtask = task.subtasks.id(subtaskId);
     if (!subtask) {
-        throw new CustomException('Subtask not found', 404);
+        throw CustomException('Subtask not found', 404);
     }
 
     if (title !== undefined) {
@@ -2078,12 +2078,12 @@ const getAttachmentDownloadUrl = asyncHandler(async (req, res) => {
 
     const task = await Task.findById(id);
     if (!task) {
-        throw new CustomException('Task not found', 404);
+        throw CustomException('Task not found', 404);
     }
 
     const attachment = task.attachments.id(attachmentId);
     if (!attachment) {
-        throw new CustomException('Attachment not found', 404);
+        throw CustomException('Attachment not found', 404);
     }
 
     let downloadUrl = attachment.fileUrl;
@@ -2094,7 +2094,7 @@ const getAttachmentDownloadUrl = asyncHandler(async (req, res) => {
             downloadUrl = await getTaskFilePresignedUrl(attachment.fileKey, attachment.fileName);
         } catch (err) {
             console.error('Error generating presigned URL:', err);
-            throw new CustomException('Error generating download URL', 500);
+            throw CustomException('Error generating download URL', 500);
         }
     }
 
@@ -2124,12 +2124,12 @@ const createDocument = asyncHandler(async (req, res) => {
     const userId = req.userID;
 
     if (!title) {
-        throw new CustomException('Document title is required', 400);
+        throw CustomException('Document title is required', 400);
     }
 
     const task = await Task.findById(id);
     if (!task) {
-        throw new CustomException('Task not found', 404);
+        throw CustomException('Task not found', 404);
     }
 
     const user = await User.findById(userId).select('firstName lastName');
@@ -2147,7 +2147,7 @@ const createDocument = asyncHandler(async (req, res) => {
         // HTML format - sanitize it
         sanitizedContent = sanitizeRichText(content || '');
         if (hasDangerousContent(content)) {
-            throw new CustomException('Invalid content detected', 400);
+            throw CustomException('Invalid content detected', 400);
         }
     }
 
@@ -2207,16 +2207,16 @@ const updateDocument = asyncHandler(async (req, res) => {
 
     const task = await Task.findById(id);
     if (!task) {
-        throw new CustomException('Task not found', 404);
+        throw CustomException('Task not found', 404);
     }
 
     const document = task.attachments.id(documentId);
     if (!document) {
-        throw new CustomException('Document not found', 404);
+        throw CustomException('Document not found', 404);
     }
 
     if (!document.isEditable) {
-        throw new CustomException('This document cannot be edited', 400);
+        throw CustomException('This document cannot be edited', 400);
     }
 
     const user = await User.findById(userId).select('firstName lastName');
@@ -2234,7 +2234,7 @@ const updateDocument = asyncHandler(async (req, res) => {
     } else if (content !== undefined) {
         // HTML format - sanitize it
         if (hasDangerousContent(content)) {
-            throw new CustomException('Invalid content detected', 400);
+            throw CustomException('Invalid content detected', 400);
         }
         document.documentContent = sanitizeRichText(content);
         document.contentFormat = 'html';
@@ -2280,12 +2280,12 @@ const getDocument = asyncHandler(async (req, res) => {
         .populate('attachments.lastEditedBy', 'firstName lastName');
 
     if (!task) {
-        throw new CustomException('Task not found', 404);
+        throw CustomException('Task not found', 404);
     }
 
     const document = task.attachments.id(documentId);
     if (!document) {
-        throw new CustomException('Document not found', 404);
+        throw CustomException('Document not found', 404);
     }
 
     // If it's an editable document, return the content directly
@@ -2350,11 +2350,11 @@ const addVoiceMemo = asyncHandler(async (req, res) => {
 
     const task = await Task.findById(id);
     if (!task) {
-        throw new CustomException('Task not found', 404);
+        throw CustomException('Task not found', 404);
     }
 
     if (!req.file) {
-        throw new CustomException('No audio file uploaded', 400);
+        throw CustomException('No audio file uploaded', 400);
     }
 
     const user = await User.findById(userId).select('firstName lastName');
@@ -2438,16 +2438,16 @@ const updateVoiceMemoTranscription = asyncHandler(async (req, res) => {
 
     const task = await Task.findById(id);
     if (!task) {
-        throw new CustomException('Task not found', 404);
+        throw CustomException('Task not found', 404);
     }
 
     const voiceMemo = task.attachments.id(memoId);
     if (!voiceMemo) {
-        throw new CustomException('Voice memo not found', 404);
+        throw CustomException('Voice memo not found', 404);
     }
 
     if (!voiceMemo.isVoiceMemo) {
-        throw new CustomException('This attachment is not a voice memo', 400);
+        throw CustomException('This attachment is not a voice memo', 400);
     }
 
     // Sanitize transcription

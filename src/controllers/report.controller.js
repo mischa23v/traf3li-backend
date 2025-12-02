@@ -21,7 +21,7 @@ const generateReport = asyncHandler(async (req, res) => {
 
     // Validate required fields
     if (!reportName || !reportType) {
-        throw new CustomException('اسم التقرير ونوعه مطلوبان', 400);
+        throw CustomException('اسم التقرير ونوعه مطلوبان', 400);
     }
 
     const validReportTypes = [
@@ -37,12 +37,12 @@ const generateReport = asyncHandler(async (req, res) => {
     ];
 
     if (!validReportTypes.includes(reportType)) {
-        throw new CustomException('نوع التقرير غير صالح', 400);
+        throw CustomException('نوع التقرير غير صالح', 400);
     }
 
     // Date validation
     if (startDate && endDate && new Date(startDate) >= new Date(endDate)) {
-        throw new CustomException('تاريخ البداية يجب أن يكون قبل تاريخ النهاية', 400);
+        throw CustomException('تاريخ البداية يجب أن يكون قبل تاريخ النهاية', 400);
     }
 
     // Generate report data based on type
@@ -147,11 +147,11 @@ const getReport = asyncHandler(async (req, res) => {
     const report = await Report.findById(id).populate('createdBy', 'username email');
 
     if (!report) {
-        throw new CustomException('التقرير غير موجود', 404);
+        throw CustomException('التقرير غير موجود', 404);
     }
 
     if (report.createdBy._id.toString() !== userId && !report.isPublic) {
-        throw new CustomException('لا يمكنك الوصول إلى هذا التقرير', 403);
+        throw CustomException('لا يمكنك الوصول إلى هذا التقرير', 403);
     }
 
     res.status(200).json({
@@ -171,11 +171,11 @@ const deleteReport = asyncHandler(async (req, res) => {
     const report = await Report.findById(id);
 
     if (!report) {
-        throw new CustomException('التقرير غير موجود', 404);
+        throw CustomException('التقرير غير موجود', 404);
     }
 
     if (report.createdBy.toString() !== userId) {
-        throw new CustomException('لا يمكنك الوصول إلى هذا التقرير', 403);
+        throw CustomException('لا يمكنك الوصول إلى هذا التقرير', 403);
     }
 
     await Report.findByIdAndDelete(id);
@@ -261,16 +261,16 @@ const scheduleReport = asyncHandler(async (req, res) => {
     const report = await Report.findById(id);
 
     if (!report) {
-        throw new CustomException('التقرير غير موجود', 404);
+        throw CustomException('التقرير غير موجود', 404);
     }
 
     if (report.createdBy.toString() !== userId) {
-        throw new CustomException('لا يمكنك الوصول إلى هذا التقرير', 403);
+        throw CustomException('لا يمكنك الوصول إلى هذا التقرير', 403);
     }
 
     const validFrequencies = ['daily', 'weekly', 'monthly', 'quarterly'];
     if (!validFrequencies.includes(scheduleFrequency)) {
-        throw new CustomException('تكرار الجدولة غير صالح', 400);
+        throw CustomException('تكرار الجدولة غير صالح', 400);
     }
 
     report.isScheduled = true;
@@ -314,11 +314,11 @@ const unscheduleReport = asyncHandler(async (req, res) => {
     const report = await Report.findById(id);
 
     if (!report) {
-        throw new CustomException('التقرير غير موجود', 404);
+        throw CustomException('التقرير غير موجود', 404);
     }
 
     if (report.createdBy.toString() !== userId) {
-        throw new CustomException('لا يمكنك الوصول إلى هذا التقرير', 403);
+        throw CustomException('لا يمكنك الوصول إلى هذا التقرير', 403);
     }
 
     report.isScheduled = false;
@@ -930,13 +930,13 @@ const exportReport = asyncHandler(async (req, res) => {
     // Validate format
     const validFormats = ['json', 'csv', 'pdf', 'excel'];
     if (!validFormats.includes(format)) {
-        throw new CustomException('Invalid export format. Use json, csv, pdf, or excel', 400);
+        throw CustomException('Invalid export format. Use json, csv, pdf, or excel', 400);
     }
 
     // Validate report type
     const validTypes = ['invoices', 'payments', 'expenses', 'time-entries', 'clients', 'statements'];
     if (!validTypes.includes(reportType)) {
-        throw new CustomException('Invalid report type', 400);
+        throw CustomException('Invalid report type', 400);
     }
 
     let data;

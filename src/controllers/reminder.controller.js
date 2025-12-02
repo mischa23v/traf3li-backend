@@ -57,28 +57,28 @@ const createReminder = asyncHandler(async (req, res) => {
     // Validate required fields
     const dateTime = reminderDateTime || (reminderDate && reminderTime ? new Date(`${reminderDate}T${reminderTime}`) : null);
     if (!title || !dateTime) {
-        throw new CustomException('Title and reminder date/time are required', 400);
+        throw CustomException('Title and reminder date/time are required', 400);
     }
 
     // Validate related entities
     if (relatedCase) {
         const caseDoc = await Case.findById(relatedCase);
         if (!caseDoc) {
-            throw new CustomException('Case not found', 404);
+            throw CustomException('Case not found', 404);
         }
     }
 
     if (relatedTask) {
         const task = await Task.findById(relatedTask);
         if (!task) {
-            throw new CustomException('Task not found', 404);
+            throw CustomException('Task not found', 404);
         }
     }
 
     if (relatedEvent) {
         const event = await Event.findById(relatedEvent);
         if (!event) {
-            throw new CustomException('Event not found', 404);
+            throw CustomException('Event not found', 404);
         }
     }
 
@@ -203,13 +203,13 @@ const getReminder = asyncHandler(async (req, res) => {
         .populate('completedBy', 'firstName lastName');
 
     if (!reminder) {
-        throw new CustomException('Reminder not found', 404);
+        throw CustomException('Reminder not found', 404);
     }
 
     const hasAccess = reminder.userId._id.toString() === userId ||
                       reminder.delegatedTo?.toString() === userId;
     if (!hasAccess) {
-        throw new CustomException('You do not have access to this reminder', 403);
+        throw CustomException('You do not have access to this reminder', 403);
     }
 
     res.status(200).json({
@@ -229,11 +229,11 @@ const updateReminder = asyncHandler(async (req, res) => {
     const reminder = await Reminder.findById(id);
 
     if (!reminder) {
-        throw new CustomException('Reminder not found', 404);
+        throw CustomException('Reminder not found', 404);
     }
 
     if (reminder.userId.toString() !== userId) {
-        throw new CustomException('You can only update your own reminders', 403);
+        throw CustomException('You can only update your own reminders', 403);
     }
 
     const allowedFields = [
@@ -280,11 +280,11 @@ const deleteReminder = asyncHandler(async (req, res) => {
     const reminder = await Reminder.findById(id);
 
     if (!reminder) {
-        throw new CustomException('Reminder not found', 404);
+        throw CustomException('Reminder not found', 404);
     }
 
     if (reminder.userId.toString() !== userId) {
-        throw new CustomException('You can only delete your own reminders', 403);
+        throw CustomException('You can only delete your own reminders', 403);
     }
 
     await Reminder.findByIdAndDelete(id);
@@ -307,13 +307,13 @@ const completeReminder = asyncHandler(async (req, res) => {
     const reminder = await Reminder.findById(id);
 
     if (!reminder) {
-        throw new CustomException('Reminder not found', 404);
+        throw CustomException('Reminder not found', 404);
     }
 
     const hasAccess = reminder.userId.toString() === userId ||
                       reminder.delegatedTo?.toString() === userId;
     if (!hasAccess) {
-        throw new CustomException('You cannot complete this reminder', 403);
+        throw CustomException('You cannot complete this reminder', 403);
     }
 
     reminder.status = 'completed';
@@ -387,13 +387,13 @@ const dismissReminder = asyncHandler(async (req, res) => {
     const reminder = await Reminder.findById(id);
 
     if (!reminder) {
-        throw new CustomException('Reminder not found', 404);
+        throw CustomException('Reminder not found', 404);
     }
 
     const hasAccess = reminder.userId.toString() === userId ||
                       reminder.delegatedTo?.toString() === userId;
     if (!hasAccess) {
-        throw new CustomException('You cannot dismiss this reminder', 403);
+        throw CustomException('You cannot dismiss this reminder', 403);
     }
 
     reminder.status = 'dismissed';
@@ -422,19 +422,19 @@ const snoozeReminder = asyncHandler(async (req, res) => {
     const reminder = await Reminder.findById(id);
 
     if (!reminder) {
-        throw new CustomException('Reminder not found', 404);
+        throw CustomException('Reminder not found', 404);
     }
 
     const hasAccess = reminder.userId.toString() === userId ||
                       reminder.delegatedTo?.toString() === userId;
     if (!hasAccess) {
-        throw new CustomException('You cannot snooze this reminder', 403);
+        throw CustomException('You cannot snooze this reminder', 403);
     }
 
     // Check max snooze count
     const maxSnooze = reminder.snooze?.maxSnoozeCount || 5;
     if ((reminder.snooze?.snoozeCount || 0) >= maxSnooze) {
-        throw new CustomException(`Maximum snooze limit (${maxSnooze}) reached`, 400);
+        throw CustomException(`Maximum snooze limit (${maxSnooze}) reached`, 400);
     }
 
     // Calculate snooze until time
@@ -479,23 +479,23 @@ const delegateReminder = asyncHandler(async (req, res) => {
     const userId = req.userID;
 
     if (!delegateTo) {
-        throw new CustomException('Delegate target user ID is required', 400);
+        throw CustomException('Delegate target user ID is required', 400);
     }
 
     const reminder = await Reminder.findById(id);
 
     if (!reminder) {
-        throw new CustomException('Reminder not found', 404);
+        throw CustomException('Reminder not found', 404);
     }
 
     if (reminder.userId.toString() !== userId) {
-        throw new CustomException('You can only delegate your own reminders', 403);
+        throw CustomException('You can only delegate your own reminders', 403);
     }
 
     // Verify delegate user exists
     const delegateUser = await User.findById(delegateTo);
     if (!delegateUser) {
-        throw new CustomException('Delegate user not found', 404);
+        throw CustomException('Delegate user not found', 404);
     }
 
     reminder.status = 'delegated';
@@ -606,7 +606,7 @@ const bulkDeleteReminders = asyncHandler(async (req, res) => {
     const userId = req.userID;
 
     if (!reminderIds || !Array.isArray(reminderIds) || reminderIds.length === 0) {
-        throw new CustomException('Reminder IDs are required', 400);
+        throw CustomException('Reminder IDs are required', 400);
     }
 
     const reminders = await Reminder.find({
@@ -615,7 +615,7 @@ const bulkDeleteReminders = asyncHandler(async (req, res) => {
     });
 
     if (reminders.length !== reminderIds.length) {
-        throw new CustomException('Some reminders cannot be deleted', 400);
+        throw CustomException('Some reminders cannot be deleted', 400);
     }
 
     await Reminder.deleteMany({ _id: { $in: reminderIds } });
@@ -636,7 +636,7 @@ const bulkUpdateReminders = asyncHandler(async (req, res) => {
     const userId = req.userID;
 
     if (!reminderIds || !Array.isArray(reminderIds) || reminderIds.length === 0) {
-        throw new CustomException('Reminder IDs are required', 400);
+        throw CustomException('Reminder IDs are required', 400);
     }
 
     const reminders = await Reminder.find({
@@ -645,7 +645,7 @@ const bulkUpdateReminders = asyncHandler(async (req, res) => {
     });
 
     if (reminders.length !== reminderIds.length) {
-        throw new CustomException('Some reminders are not accessible', 403);
+        throw CustomException('Some reminders are not accessible', 403);
     }
 
     const allowedUpdates = ['status', 'priority', 'reminderDateTime'];

@@ -20,13 +20,13 @@ const createTrustAccount = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
 
     if (!name || !accountNumber || !bankName) {
-        throw new CustomException('الاسم ورقم الحساب واسم البنك مطلوبة', 400);
+        throw CustomException('الاسم ورقم الحساب واسم البنك مطلوبة', 400);
     }
 
     // Check for duplicate account number
     const existing = await TrustAccount.findOne({ lawyerId, accountNumber });
     if (existing) {
-        throw new CustomException('رقم الحساب موجود بالفعل', 400);
+        throw CustomException('رقم الحساب موجود بالفعل', 400);
     }
 
     // If setting as default, remove default from others
@@ -85,7 +85,7 @@ const getTrustAccount = asyncHandler(async (req, res) => {
     const account = await TrustAccount.findOne({ _id: id, lawyerId });
 
     if (!account) {
-        throw new CustomException('حساب الأمانات غير موجود', 404);
+        throw CustomException('حساب الأمانات غير موجود', 404);
     }
 
     res.status(200).json({
@@ -105,7 +105,7 @@ const updateTrustAccount = asyncHandler(async (req, res) => {
     const account = await TrustAccount.findOne({ _id: id, lawyerId });
 
     if (!account) {
-        throw new CustomException('حساب الأمانات غير موجود', 404);
+        throw CustomException('حساب الأمانات غير موجود', 404);
     }
 
     // If setting as default, remove default from others
@@ -143,17 +143,17 @@ const deleteTrustAccount = asyncHandler(async (req, res) => {
     const account = await TrustAccount.findOne({ _id: id, lawyerId });
 
     if (!account) {
-        throw new CustomException('حساب الأمانات غير موجود', 404);
+        throw CustomException('حساب الأمانات غير موجود', 404);
     }
 
     if (account.balance !== 0) {
-        throw new CustomException('لا يمكن حذف حساب به رصيد', 400);
+        throw CustomException('لا يمكن حذف حساب به رصيد', 400);
     }
 
     // Check for transactions
     const hasTransactions = await TrustTransaction.exists({ trustAccountId: id });
     if (hasTransactions) {
-        throw new CustomException('لا يمكن حذف حساب به معاملات', 400);
+        throw CustomException('لا يمكن حذف حساب به معاملات', 400);
     }
 
     await TrustAccount.findByIdAndDelete(id);
@@ -179,7 +179,7 @@ const createTransaction = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
 
     if (!type || !clientId || !amount) {
-        throw new CustomException('نوع المعاملة والعميل والمبلغ مطلوبة', 400);
+        throw CustomException('نوع المعاملة والعميل والمبلغ مطلوبة', 400);
     }
 
     const session = await mongoose.startSession();
@@ -188,7 +188,7 @@ const createTransaction = asyncHandler(async (req, res) => {
     try {
         const account = await TrustAccount.findOne({ _id: id, lawyerId }).session(session);
         if (!account) {
-            throw new CustomException('حساب الأمانات غير موجود', 404);
+            throw CustomException('حساب الأمانات غير موجود', 404);
         }
 
         // Get or create client trust balance
@@ -210,7 +210,7 @@ const createTransaction = asyncHandler(async (req, res) => {
         // Validate withdrawal
         if (type === 'withdrawal' || type === 'disbursement') {
             if (clientBalance.balance < amount) {
-                throw new CustomException('رصيد العميل غير كافٍ', 400);
+                throw CustomException('رصيد العميل غير كافٍ', 400);
             }
         }
 
@@ -325,7 +325,7 @@ const getTransaction = asyncHandler(async (req, res) => {
         .populate('caseId', 'title caseNumber');
 
     if (!transaction) {
-        throw new CustomException('المعاملة غير موجودة', 404);
+        throw CustomException('المعاملة غير موجودة', 404);
     }
 
     res.status(200).json({
@@ -354,11 +354,11 @@ const voidTransaction = asyncHandler(async (req, res) => {
         }).session(session);
 
         if (!transaction) {
-            throw new CustomException('المعاملة غير موجودة', 404);
+            throw CustomException('المعاملة غير موجودة', 404);
         }
 
         if (transaction.status === 'voided') {
-            throw new CustomException('المعاملة ملغاة بالفعل', 400);
+            throw CustomException('المعاملة ملغاة بالفعل', 400);
         }
 
         // Reverse the balance changes
@@ -480,11 +480,11 @@ const transferBetweenClients = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
 
     if (!fromClientId || !toClientId || !amount) {
-        throw new CustomException('العميل المصدر والمستلم والمبلغ مطلوبة', 400);
+        throw CustomException('العميل المصدر والمستلم والمبلغ مطلوبة', 400);
     }
 
     if (fromClientId === toClientId) {
-        throw new CustomException('لا يمكن التحويل لنفس العميل', 400);
+        throw CustomException('لا يمكن التحويل لنفس العميل', 400);
     }
 
     const session = await mongoose.startSession();
@@ -498,7 +498,7 @@ const transferBetweenClients = asyncHandler(async (req, res) => {
         }).session(session);
 
         if (!fromBalance || fromBalance.balance < amount) {
-            throw new CustomException('رصيد العميل المصدر غير كافٍ', 400);
+            throw CustomException('رصيد العميل المصدر غير كافٍ', 400);
         }
 
         // Get or create destination client balance
@@ -589,12 +589,12 @@ const createReconciliation = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
 
     if (bankStatementBalance === undefined || !statementDate) {
-        throw new CustomException('رصيد كشف البنك وتاريخ الكشف مطلوبان', 400);
+        throw CustomException('رصيد كشف البنك وتاريخ الكشف مطلوبان', 400);
     }
 
     const account = await TrustAccount.findOne({ _id: id, lawyerId });
     if (!account) {
-        throw new CustomException('حساب الأمانات غير موجود', 404);
+        throw CustomException('حساب الأمانات غير موجود', 404);
     }
 
     // Calculate book balance
@@ -664,7 +664,7 @@ const createThreeWayReconciliation = asyncHandler(async (req, res) => {
 
     const account = await TrustAccount.findOne({ _id: id, lawyerId });
     if (!account) {
-        throw new CustomException('حساب الأمانات غير موجود', 404);
+        throw CustomException('حساب الأمانات غير موجود', 404);
     }
 
     // Get all client balances
@@ -756,7 +756,7 @@ const getAccountSummary = asyncHandler(async (req, res) => {
 
     const account = await TrustAccount.findOne({ _id: id, lawyerId });
     if (!account) {
-        throw new CustomException('حساب الأمانات غير موجود', 404);
+        throw CustomException('حساب الأمانات غير موجود', 404);
     }
 
     // Get client count and total
