@@ -234,6 +234,7 @@ const taskSchema = new mongoose.Schema({
     history: [historyEntrySchema],
     points: { type: Number, default: 0 }, // Gamification
     progress: { type: Number, default: 0, min: 0, max: 100 },
+    manualProgress: { type: Boolean, default: false }, // If true, progress is set manually and not auto-calculated from subtasks
     completedAt: Date,
     completedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     notes: { type: String, maxlength: 2000 },
@@ -308,8 +309,8 @@ taskSchema.index({ createdAt: -1 });
 
 // Pre-save hook to calculate progress from subtasks and budget
 taskSchema.pre('save', function(next) {
-    // Calculate progress from subtasks
-    if (this.subtasks && this.subtasks.length > 0) {
+    // Calculate progress from subtasks (only if not manually set)
+    if (!this.manualProgress && this.subtasks && this.subtasks.length > 0) {
         const completed = this.subtasks.filter(s => s.completed).length;
         this.progress = Math.round((completed / this.subtasks.length) * 100);
     }
