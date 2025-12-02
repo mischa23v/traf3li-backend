@@ -55,7 +55,18 @@ const attachmentSchema = new mongoose.Schema({
     fileSize: Number,
     uploadedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     uploadedAt: { type: Date, default: Date.now },
-    storageType: { type: String, enum: ['local', 's3'], default: 'local' }
+    storageType: { type: String, enum: ['local', 's3'], default: 'local' },
+    // Document editing support (TipTap compatible)
+    isEditable: { type: Boolean, default: false },
+    documentContent: String, // HTML content for rendering
+    documentJson: mongoose.Schema.Types.Mixed, // TipTap JSON format for editing
+    contentFormat: { type: String, enum: ['html', 'tiptap-json', 'markdown'], default: 'html' },
+    lastEditedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    lastEditedAt: Date,
+    // Voice memo support
+    isVoiceMemo: { type: Boolean, default: false },
+    duration: Number, // Duration in seconds for audio files
+    transcription: String // Optional transcription for voice memos
 }, { _id: true });
 
 // History entry schema

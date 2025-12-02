@@ -3,6 +3,7 @@ const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
 const { deleteFile } = require('../configs/s3');
 const { isS3Configured, getTaskFilePresignedUrl, isS3Url, extractS3Key } = require('../configs/taskUpload');
+const { sanitizeRichText, sanitizeComment, stripHtml, hasDangerousContent } = require('../utils/sanitize');
 const fs = require('fs');
 const path = require('path');
 
@@ -33,6 +34,16 @@ const createTask = asyncHandler(async (req, res) => {
 
     const userId = req.userID;
 
+    // Sanitize user input to prevent XSS
+    const sanitizedTitle = title ? stripHtml(title) : '';
+    const sanitizedDescription = description ? sanitizeRichText(description) : '';
+    const sanitizedNotes = notes ? sanitizeRichText(notes) : '';
+
+    // Check for dangerous content
+    if (hasDangerousContent(description) || hasDangerousContent(notes)) {
+        throw new CustomException('Invalid content detected', 400);
+    }
+
     // Validate assignedTo user if provided
     if (assignedTo) {
         const assignedUser = await User.findById(assignedTo);
@@ -50,8 +61,8 @@ const createTask = asyncHandler(async (req, res) => {
     }
 
     const task = await Task.create({
-        title,
-        description,
+        title: sanitizedTitle,
+        description: sanitizedDescription,
         priority: priority || 'medium',
         status: status || 'todo',
         label,
@@ -69,7 +80,7 @@ const createTask = asyncHandler(async (req, res) => {
         timeTracking: timeTracking || { estimatedMinutes: 0, actualMinutes: 0, sessions: [] },
         recurring,
         reminders: reminders || [],
-        notes,
+        notes: sanitizedNotes,
         points: points || 0
     });
 
@@ -224,6 +235,16 @@ const updateTask = asyncHandler(async (req, res) => {
 
     if (!canUpdate) {
         throw new CustomException('You do not have permission to update this task', 403);
+    }
+
+    // Sanitize text fields
+    if (req.body.title) req.body.title = stripHtml(req.body.title);
+    if (req.body.description) req.body.description = sanitizeRichText(req.body.description);
+    if (req.body.notes) req.body.notes = sanitizeRichText(req.body.notes);
+
+    // Check for dangerous content
+    if (hasDangerousContent(req.body.description) || hasDangerousContent(req.body.notes)) {
+        throw new CustomException('Invalid content detected', 400);
     }
 
     // Track changes for history
@@ -618,8 +639,21 @@ const addManualTime = asyncHandler(async (req, res) => {
 // Add comment
 const addComment = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const { content, mentions } = req.body;
+    // Accept both 'text' (frontend) and 'content' (schema) for flexibility
+    const { content, text, mentions } = req.body;
+    const rawContent = content || text;
     const userId = req.userID;
+
+    if (!rawContent) {
+        throw new CustomException('Comment content is required', 400);
+    }
+
+    // Sanitize comment content (more restrictive than rich text)
+    const sanitizedContent = sanitizeComment(rawContent);
+
+    if (hasDangerousContent(rawContent)) {
+        throw new CustomException('Invalid content detected', 400);
+    }
 
     const task = await Task.findById(id);
     if (!task) {
@@ -628,7 +662,7 @@ const addComment = asyncHandler(async (req, res) => {
 
     task.comments.push({
         userId,
-        content,
+        content: sanitizedContent,
         mentions: mentions || [],
         createdAt: new Date()
     });
@@ -648,8 +682,21 @@ const addComment = asyncHandler(async (req, res) => {
 // Update comment
 const updateComment = asyncHandler(async (req, res) => {
     const { id, commentId } = req.params;
-    const { content } = req.body;
+    // Accept both 'text' (frontend) and 'content' (schema) for flexibility
+    const { content, text } = req.body;
+    const rawContent = content || text;
     const userId = req.userID;
+
+    if (!rawContent) {
+        throw new CustomException('Comment content is required', 400);
+    }
+
+    // Sanitize comment content
+    const sanitizedContent = sanitizeComment(rawContent);
+
+    if (hasDangerousContent(rawContent)) {
+        throw new CustomException('Invalid content detected', 400);
+    }
 
     const task = await Task.findById(id);
     if (!task) {
@@ -665,7 +712,7 @@ const updateComment = asyncHandler(async (req, res) => {
         throw new CustomException('You can only edit your own comments', 403);
     }
 
-    comment.content = content;
+    comment.content = sanitizedContent;
     comment.updatedAt = new Date();
 
     await task.save();
@@ -1995,6 +2042,358 @@ const getAttachmentDownloadUrl = asyncHandler(async (req, res) => {
     });
 });
 
+// ============================================
+// DOCUMENT MANAGEMENT FUNCTIONS
+// ============================================
+
+/**
+ * Create a new text/rich-text document in a task
+ * POST /api/tasks/:id/documents
+ */
+const createDocument = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const { title, content, contentJson, contentFormat = 'html' } = req.body;
+    const userId = req.userID;
+
+    if (!title) {
+        throw new CustomException('Document title is required', 400);
+    }
+
+    const task = await Task.findById(id);
+    if (!task) {
+        throw new CustomException('Task not found', 404);
+    }
+
+    const user = await User.findById(userId).select('firstName lastName');
+
+    // Handle different content formats (TipTap JSON or HTML)
+    let sanitizedContent = '';
+    let documentJson = null;
+
+    if (contentFormat === 'tiptap-json' && contentJson) {
+        // Store TipTap JSON directly (it's a structured format, not user HTML)
+        documentJson = contentJson;
+        // Also store HTML version for display/preview
+        sanitizedContent = content ? sanitizeRichText(content) : '';
+    } else {
+        // HTML format - sanitize it
+        sanitizedContent = sanitizeRichText(content || '');
+        if (hasDangerousContent(content)) {
+            throw new CustomException('Invalid content detected', 400);
+        }
+    }
+
+    // Calculate size based on content
+    const contentSize = documentJson
+        ? Buffer.byteLength(JSON.stringify(documentJson), 'utf8')
+        : Buffer.byteLength(sanitizedContent, 'utf8');
+
+    // Create document as an attachment with editable content
+    const document = {
+        fileName: title.endsWith('.html') ? title : `${title}.html`,
+        fileUrl: null, // No file URL for in-app documents
+        fileType: 'text/html',
+        fileSize: contentSize,
+        uploadedBy: userId,
+        uploadedAt: new Date(),
+        storageType: 'local',
+        isEditable: true,
+        documentContent: sanitizedContent,
+        documentJson: documentJson,
+        contentFormat: contentFormat,
+        lastEditedBy: userId,
+        lastEditedAt: new Date()
+    };
+
+    task.attachments.push(document);
+
+    // Add history entry
+    task.history.push({
+        action: 'attachment_added',
+        userId,
+        userName: user ? `${user.firstName} ${user.lastName}` : undefined,
+        details: `Created document: ${title}`,
+        timestamp: new Date()
+    });
+
+    await task.save();
+
+    const newDocument = task.attachments[task.attachments.length - 1];
+
+    res.status(201).json({
+        success: true,
+        message: 'تم إنشاء المستند بنجاح',
+        document: newDocument
+    });
+});
+
+/**
+ * Update a text/rich-text document in a task
+ * PATCH /api/tasks/:id/documents/:documentId
+ * Supports both HTML and TipTap JSON formats
+ */
+const updateDocument = asyncHandler(async (req, res) => {
+    const { id, documentId } = req.params;
+    const { title, content, contentJson, contentFormat } = req.body;
+    const userId = req.userID;
+
+    const task = await Task.findById(id);
+    if (!task) {
+        throw new CustomException('Task not found', 404);
+    }
+
+    const document = task.attachments.id(documentId);
+    if (!document) {
+        throw new CustomException('Document not found', 404);
+    }
+
+    if (!document.isEditable) {
+        throw new CustomException('This document cannot be edited', 400);
+    }
+
+    const user = await User.findById(userId).select('firstName lastName');
+
+    // Handle different content formats
+    if (contentFormat === 'tiptap-json' && contentJson !== undefined) {
+        // Update TipTap JSON content
+        document.documentJson = contentJson;
+        document.contentFormat = 'tiptap-json';
+        // Also update HTML version if provided
+        if (content !== undefined) {
+            document.documentContent = sanitizeRichText(content);
+        }
+        document.fileSize = Buffer.byteLength(JSON.stringify(contentJson), 'utf8');
+    } else if (content !== undefined) {
+        // HTML format - sanitize it
+        if (hasDangerousContent(content)) {
+            throw new CustomException('Invalid content detected', 400);
+        }
+        document.documentContent = sanitizeRichText(content);
+        document.contentFormat = 'html';
+        document.fileSize = Buffer.byteLength(document.documentContent, 'utf8');
+    }
+
+    // Update title if provided
+    if (title) {
+        document.fileName = title.endsWith('.html') ? title : `${title}.html`;
+    }
+
+    document.lastEditedBy = userId;
+    document.lastEditedAt = new Date();
+
+    // Add history entry
+    task.history.push({
+        action: 'updated',
+        userId,
+        userName: user ? `${user.firstName} ${user.lastName}` : undefined,
+        details: `Updated document: ${document.fileName}`,
+        timestamp: new Date()
+    });
+
+    await task.save();
+
+    res.status(200).json({
+        success: true,
+        message: 'تم تحديث المستند بنجاح',
+        document
+    });
+});
+
+/**
+ * Get document content
+ * GET /api/tasks/:id/documents/:documentId
+ * Returns both HTML and TipTap JSON format for editable documents
+ */
+const getDocument = asyncHandler(async (req, res) => {
+    const { id, documentId } = req.params;
+
+    const task = await Task.findById(id)
+        .populate('attachments.uploadedBy', 'firstName lastName')
+        .populate('attachments.lastEditedBy', 'firstName lastName');
+
+    if (!task) {
+        throw new CustomException('Task not found', 404);
+    }
+
+    const document = task.attachments.id(documentId);
+    if (!document) {
+        throw new CustomException('Document not found', 404);
+    }
+
+    // If it's an editable document, return the content directly
+    if (document.isEditable) {
+        return res.status(200).json({
+            success: true,
+            document: {
+                _id: document._id,
+                fileName: document.fileName,
+                fileType: document.fileType,
+                fileSize: document.fileSize,
+                content: document.documentContent || '',
+                contentJson: document.documentJson || null,
+                contentFormat: document.contentFormat || 'html',
+                isEditable: document.isEditable,
+                uploadedBy: document.uploadedBy,
+                uploadedAt: document.uploadedAt,
+                lastEditedBy: document.lastEditedBy,
+                lastEditedAt: document.lastEditedAt
+            }
+        });
+    }
+
+    // For uploaded files, return the download URL
+    let downloadUrl = document.fileUrl;
+    if (document.storageType === 's3' && document.fileKey) {
+        try {
+            downloadUrl = await getTaskFilePresignedUrl(document.fileKey, document.fileName);
+        } catch (err) {
+            console.error('Error generating presigned URL:', err);
+        }
+    }
+
+    res.status(200).json({
+        success: true,
+        document: {
+            _id: document._id,
+            fileName: document.fileName,
+            fileType: document.fileType,
+            fileSize: document.fileSize,
+            downloadUrl,
+            isEditable: document.isEditable,
+            isVoiceMemo: document.isVoiceMemo,
+            duration: document.duration,
+            transcription: document.transcription,
+            uploadedBy: document.uploadedBy,
+            uploadedAt: document.uploadedAt
+        }
+    });
+});
+
+/**
+ * Add voice memo to task
+ * POST /api/tasks/:id/voice-memos
+ * Note: This endpoint expects the file to be uploaded via the attachments endpoint
+ * with additional voice memo metadata
+ */
+const addVoiceMemo = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const { duration, transcription } = req.body;
+    const userId = req.userID;
+
+    const task = await Task.findById(id);
+    if (!task) {
+        throw new CustomException('Task not found', 404);
+    }
+
+    if (!req.file) {
+        throw new CustomException('No audio file uploaded', 400);
+    }
+
+    const user = await User.findById(userId).select('firstName lastName');
+
+    let voiceMemo;
+
+    if (isS3Configured() && req.file.location) {
+        // S3 upload
+        voiceMemo = {
+            fileName: req.file.originalname || `voice-memo-${Date.now()}.webm`,
+            fileUrl: req.file.location,
+            fileKey: req.file.key,
+            fileType: req.file.mimetype,
+            fileSize: req.file.size,
+            uploadedBy: userId,
+            uploadedAt: new Date(),
+            storageType: 's3',
+            isVoiceMemo: true,
+            duration: duration || 0,
+            transcription: transcription ? sanitizeRichText(transcription) : null
+        };
+    } else {
+        // Local storage
+        voiceMemo = {
+            fileName: req.file.originalname || `voice-memo-${Date.now()}.webm`,
+            fileUrl: `/uploads/tasks/${req.file.filename}`,
+            fileType: req.file.mimetype,
+            fileSize: req.file.size,
+            uploadedBy: userId,
+            uploadedAt: new Date(),
+            storageType: 'local',
+            isVoiceMemo: true,
+            duration: duration || 0,
+            transcription: transcription ? sanitizeRichText(transcription) : null
+        };
+    }
+
+    task.attachments.push(voiceMemo);
+
+    // Add history entry
+    task.history.push({
+        action: 'attachment_added',
+        userId,
+        userName: user ? `${user.firstName} ${user.lastName}` : undefined,
+        details: `Voice memo (${duration || 0}s)`,
+        timestamp: new Date()
+    });
+
+    await task.save();
+
+    const newVoiceMemo = task.attachments[task.attachments.length - 1];
+
+    // Generate download URL if S3
+    let downloadUrl = newVoiceMemo.fileUrl;
+    if (newVoiceMemo.storageType === 's3' && newVoiceMemo.fileKey) {
+        try {
+            downloadUrl = await getTaskFilePresignedUrl(newVoiceMemo.fileKey, newVoiceMemo.fileName);
+        } catch (err) {
+            console.error('Error generating presigned URL:', err);
+        }
+    }
+
+    res.status(201).json({
+        success: true,
+        message: 'تم إضافة المذكرة الصوتية بنجاح',
+        voiceMemo: {
+            ...newVoiceMemo.toObject(),
+            downloadUrl
+        }
+    });
+});
+
+/**
+ * Update voice memo transcription
+ * PATCH /api/tasks/:id/voice-memos/:memoId/transcription
+ */
+const updateVoiceMemoTranscription = asyncHandler(async (req, res) => {
+    const { id, memoId } = req.params;
+    const { transcription } = req.body;
+    const userId = req.userID;
+
+    const task = await Task.findById(id);
+    if (!task) {
+        throw new CustomException('Task not found', 404);
+    }
+
+    const voiceMemo = task.attachments.id(memoId);
+    if (!voiceMemo) {
+        throw new CustomException('Voice memo not found', 404);
+    }
+
+    if (!voiceMemo.isVoiceMemo) {
+        throw new CustomException('This attachment is not a voice memo', 400);
+    }
+
+    // Sanitize transcription
+    voiceMemo.transcription = transcription ? sanitizeRichText(transcription) : null;
+
+    await task.save();
+
+    res.status(200).json({
+        success: true,
+        message: 'تم تحديث النص',
+        voiceMemo
+    });
+});
+
 module.exports = {
     createTask,
     getTasks,
@@ -2031,6 +2430,13 @@ module.exports = {
     addAttachment,
     deleteAttachment,
     getAttachmentDownloadUrl,
+    // Document functions
+    createDocument,
+    updateDocument,
+    getDocument,
+    // Voice memo functions
+    addVoiceMemo,
+    updateVoiceMemoTranscription,
     // Dependency functions
     addDependency,
     removeDependency,

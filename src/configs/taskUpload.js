@@ -1,17 +1,40 @@
 const multer = require('multer');
-const multerS3 = require('multer-s3');
 const path = require('path');
 const fs = require('fs');
-const { s3Client, BUCKETS, PRESIGNED_URL_EXPIRY } = require('./s3');
-const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
-const { GetObjectCommand } = require('@aws-sdk/client-s3');
 
-// Check if S3 is configured
+// Import S3 config - handle gracefully if not configured
+let s3Client = null;
+let BUCKETS = { tasks: 'traf3li-task-attachments' };
+let PRESIGNED_URL_EXPIRY = 3600;
+let multerS3 = null;
+let getSignedUrl = null;
+let GetObjectCommand = null;
+
+try {
+    const s3Config = require('./s3');
+    s3Client = s3Config.s3Client;
+    BUCKETS = s3Config.BUCKETS;
+    PRESIGNED_URL_EXPIRY = s3Config.PRESIGNED_URL_EXPIRY;
+
+    if (s3Client) {
+        multerS3 = require('multer-s3');
+        const presigner = require('@aws-sdk/s3-request-presigner');
+        const s3Commands = require('@aws-sdk/client-s3');
+        getSignedUrl = presigner.getSignedUrl;
+        GetObjectCommand = s3Commands.GetObjectCommand;
+    }
+} catch (err) {
+    console.log('S3 modules not available, using local storage only');
+}
+
+// Check if S3 is configured and available
+// Supports both old variable names (AWS_S3_BUCKET) and new names (S3_BUCKET_DOCUMENTS)
 const isS3Configured = () => {
     return !!(
+        s3Client &&
         process.env.AWS_ACCESS_KEY_ID &&
         process.env.AWS_SECRET_ACCESS_KEY &&
-        (process.env.S3_BUCKET_DOCUMENTS || process.env.S3_BUCKET_TASKS)
+        (process.env.AWS_S3_BUCKET || process.env.S3_BUCKET_DOCUMENTS || process.env.S3_BUCKET_TASKS)
     );
 };
 
@@ -62,9 +85,16 @@ const generateS3Key = (req, file) => {
     return `tasks/${taskId}/${timestamp}-${randomString}-${sanitizedFilename}`;
 };
 
+// Ensure uploads directory exists
+const uploadDir = 'uploads/tasks';
+if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir, { recursive: true });
+    console.log('Created uploads/tasks directory');
+}
+
 let taskUpload;
 
-if (isS3Configured()) {
+if (isS3Configured() && multerS3) {
     // S3 Storage Configuration
     const s3Storage = multerS3({
         s3: s3Client,
@@ -94,18 +124,18 @@ if (isS3Configured()) {
     console.log('Task uploads configured with S3 storage');
 } else {
     // Local Storage Configuration (fallback)
-    const uploadDir = 'uploads/tasks';
-    if (!fs.existsSync(uploadDir)) {
-        fs.mkdirSync(uploadDir, { recursive: true });
-    }
-
     const localStorage = multer.diskStorage({
         destination: (req, file, cb) => {
+            // Ensure directory exists before each upload
+            if (!fs.existsSync(uploadDir)) {
+                fs.mkdirSync(uploadDir, { recursive: true });
+            }
             cb(null, uploadDir);
         },
         filename: (req, file, cb) => {
             const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-            cb(null, uniqueSuffix + path.extname(file.originalname));
+            const ext = path.extname(file.originalname);
+            cb(null, uniqueSuffix + ext);
         }
     });
 
@@ -127,7 +157,7 @@ if (isS3Configured()) {
  * @returns {Promise<string>} - The presigned URL
  */
 const getTaskFilePresignedUrl = async (fileKey, filename = null) => {
-    if (!isS3Configured()) {
+    if (!isS3Configured() || !getSignedUrl || !GetObjectCommand) {
         return null;
     }
 
