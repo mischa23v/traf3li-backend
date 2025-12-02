@@ -1,22 +1,6 @@
 const { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 
-// S3 Client configuration
-const s3Client = new S3Client({
-    region: process.env.AWS_REGION || 'me-south-1',
-    credentials: {
-        accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY
-    }
-});
-
-// Bucket names
-const BUCKETS = {
-    general: process.env.S3_BUCKET_DOCUMENTS || 'traf3li-legal-documents',
-    judgments: process.env.S3_BUCKET_JUDGMENTS || 'traf3li-case-judgments',
-    tasks: process.env.S3_BUCKET_TASKS || process.env.S3_BUCKET_DOCUMENTS || 'traf3li-legal-documents'
-};
-
 // Check if S3 is configured
 const isS3Configured = () => {
     return !!(
@@ -24,6 +8,29 @@ const isS3Configured = () => {
         process.env.AWS_SECRET_ACCESS_KEY &&
         (process.env.S3_BUCKET_DOCUMENTS || process.env.S3_BUCKET_TASKS)
     );
+};
+
+// S3 Client configuration - only create if configured
+let s3Client = null;
+
+if (isS3Configured()) {
+    s3Client = new S3Client({
+        region: process.env.AWS_REGION || 'me-south-1',
+        credentials: {
+            accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+            secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY
+        }
+    });
+    console.log('S3 client initialized successfully');
+} else {
+    console.log('S3 not configured - using local storage for file uploads');
+}
+
+// Bucket names
+const BUCKETS = {
+    general: process.env.S3_BUCKET_DOCUMENTS || 'traf3li-legal-documents',
+    judgments: process.env.S3_BUCKET_JUDGMENTS || 'traf3li-case-judgments',
+    tasks: process.env.S3_BUCKET_TASKS || process.env.S3_BUCKET_DOCUMENTS || 'traf3li-legal-documents'
 };
 
 // URL expiry time (in seconds)
@@ -37,6 +44,10 @@ const PRESIGNED_URL_EXPIRY = parseInt(process.env.PRESIGNED_URL_EXPIRY) || 3600;
  * @returns {Promise<string>} - The presigned URL
  */
 const getUploadPresignedUrl = async (fileKey, contentType, bucket = 'general') => {
+    if (!isS3Configured() || !s3Client) {
+        throw new Error('S3 is not configured');
+    }
+
     const bucketName = BUCKETS[bucket] || BUCKETS.general;
 
     const command = new PutObjectCommand({
@@ -60,6 +71,10 @@ const getUploadPresignedUrl = async (fileKey, contentType, bucket = 'general') =
  * @returns {Promise<string>} - The presigned URL
  */
 const getDownloadPresignedUrl = async (fileKey, bucket = 'general', filename = null) => {
+    if (!isS3Configured() || !s3Client) {
+        throw new Error('S3 is not configured');
+    }
+
     const bucketName = BUCKETS[bucket] || BUCKETS.general;
 
     const commandOptions = {
@@ -83,10 +98,15 @@ const getDownloadPresignedUrl = async (fileKey, bucket = 'general', filename = n
 /**
  * Delete a file from S3
  * @param {string} fileKey - The S3 key for the file
- * @param {string} bucket - The bucket name ('general' or 'judgments')
+ * @param {string} bucket - The bucket name ('general', 'judgments', or 'tasks')
  * @returns {Promise<void>}
  */
 const deleteFile = async (fileKey, bucket = 'general') => {
+    if (!isS3Configured() || !s3Client) {
+        console.log('S3 not configured, skipping S3 delete for:', fileKey);
+        return;
+    }
+
     const bucketName = BUCKETS[bucket] || BUCKETS.general;
 
     const command = new DeleteObjectCommand({
