@@ -73,9 +73,6 @@ const {
     billRoute,
     billPaymentRoute,
 
-    // Wiki
-    wikiRoute,
-
     // CRM
     leadRoute,
     crmPipelineRoute,
@@ -255,9 +252,6 @@ app.use('/api/bank-reconciliations', bankReconciliationRoute);
 app.use('/api/vendors', vendorRoute);
 app.use('/api/bills', billRoute);
 app.use('/api/bill-payments', billPaymentRoute);
-
-// Wiki Routes
-app.use('/api', wikiRoute);
 
 // CRM Routes
 app.use('/api/leads', leadRoute);

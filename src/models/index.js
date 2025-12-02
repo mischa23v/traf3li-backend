@@ -93,13 +93,6 @@ const Vendor = require('./vendor.model');
 const Bill = require('./bill.model');
 const BillPayment = require('./billPayment.model');
 
-// Wiki Models
-const WikiPage = require('./wikiPage.model');
-const WikiRevision = require('./wikiRevision.model');
-const WikiBacklink = require('./wikiBacklink.model');
-const WikiCollection = require('./wikiCollection.model');
-const WikiComment = require('./wikiComment.model');
-
 // HR Models
 const Employee = require('./employee.model');
 const Salary = require('./salary.model');
@@ -200,13 +193,6 @@ module.exports = {
     Vendor,
     Bill,
     BillPayment,
-
-    // Wiki
-    WikiPage,
-    WikiRevision,
-    WikiBacklink,
-    WikiCollection,
-    WikiComment,
 
     // HR
     Employee,
