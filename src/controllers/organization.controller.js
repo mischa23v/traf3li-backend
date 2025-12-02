@@ -15,7 +15,7 @@ const createOrganization = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
 
     if (!name || !type) {
-        throw new CustomException('اسم المنظمة ونوعها مطلوبان', 400);
+        throw CustomException('اسم المنظمة ونوعها مطلوبان', 400);
     }
 
     const organization = await Organization.create({
@@ -104,7 +104,7 @@ const getOrganization = asyncHandler(async (req, res) => {
         .populate('linkedCases', 'title caseNumber status');
 
     if (!organization) {
-        throw new CustomException('المنظمة غير موجودة', 404);
+        throw CustomException('المنظمة غير موجودة', 404);
     }
 
     res.status(200).json({
@@ -124,7 +124,7 @@ const updateOrganization = asyncHandler(async (req, res) => {
     const organization = await Organization.findOne({ _id: id, lawyerId });
 
     if (!organization) {
-        throw new CustomException('المنظمة غير موجودة', 404);
+        throw CustomException('المنظمة غير موجودة', 404);
     }
 
     const allowedFields = [
@@ -159,7 +159,7 @@ const deleteOrganization = asyncHandler(async (req, res) => {
     const organization = await Organization.findOneAndDelete({ _id: id, lawyerId });
 
     if (!organization) {
-        throw new CustomException('المنظمة غير موجودة', 404);
+        throw CustomException('المنظمة غير موجودة', 404);
     }
 
     res.status(200).json({
@@ -177,7 +177,7 @@ const bulkDeleteOrganizations = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
 
     if (!organizationIds || !Array.isArray(organizationIds) || organizationIds.length === 0) {
-        throw new CustomException('معرفات المنظمات مطلوبة', 400);
+        throw CustomException('معرفات المنظمات مطلوبة', 400);
     }
 
     const result = await Organization.deleteMany({
@@ -201,7 +201,7 @@ const searchOrganizations = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
 
     if (!q || q.length < 2) {
-        throw new CustomException('يجب أن يكون مصطلح البحث حرفين على الأقل', 400);
+        throw CustomException('يجب أن يكون مصطلح البحث حرفين على الأقل', 400);
     }
 
     const organizations = await Organization.searchOrganizations(lawyerId, q);
@@ -243,12 +243,12 @@ const linkToClient = asyncHandler(async (req, res) => {
 
     const organization = await Organization.findOne({ _id: id, lawyerId });
     if (!organization) {
-        throw new CustomException('المنظمة غير موجودة', 404);
+        throw CustomException('المنظمة غير موجودة', 404);
     }
 
     const clientExists = await Client.findOne({ _id: clientId, lawyerId });
     if (!clientExists) {
-        throw new CustomException('العميل غير موجود', 404);
+        throw CustomException('العميل غير موجود', 404);
     }
 
     if (!organization.linkedClients.includes(clientId)) {
@@ -274,12 +274,12 @@ const linkToContact = asyncHandler(async (req, res) => {
 
     const organization = await Organization.findOne({ _id: id, lawyerId });
     if (!organization) {
-        throw new CustomException('المنظمة غير موجودة', 404);
+        throw CustomException('المنظمة غير موجودة', 404);
     }
 
     const contactExists = await Contact.findOne({ _id: contactId, lawyerId });
     if (!contactExists) {
-        throw new CustomException('جهة الاتصال غير موجودة', 404);
+        throw CustomException('جهة الاتصال غير موجودة', 404);
     }
 
     if (!organization.linkedContacts.includes(contactId)) {
@@ -305,12 +305,12 @@ const linkToCase = asyncHandler(async (req, res) => {
 
     const organization = await Organization.findOne({ _id: id, lawyerId });
     if (!organization) {
-        throw new CustomException('المنظمة غير موجودة', 404);
+        throw CustomException('المنظمة غير موجودة', 404);
     }
 
     const caseExists = await Case.findOne({ _id: caseId, lawyerId });
     if (!caseExists) {
-        throw new CustomException('القضية غير موجودة', 404);
+        throw CustomException('القضية غير موجودة', 404);
     }
 
     if (!organization.linkedCases.includes(caseId)) {

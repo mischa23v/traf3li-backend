@@ -19,19 +19,19 @@ const createBudget = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
 
     if (!caseId || !totalBudget) {
-        throw new CustomException('القضية والميزانية الإجمالية مطلوبان', 400);
+        throw CustomException('القضية والميزانية الإجمالية مطلوبان', 400);
     }
 
     // Verify case exists
     const caseDoc = await Case.findOne({ _id: caseId, lawyerId });
     if (!caseDoc) {
-        throw new CustomException('القضية غير موجودة', 404);
+        throw CustomException('القضية غير موجودة', 404);
     }
 
     // Check if budget already exists for case
     const existing = await MatterBudget.findOne({ caseId, lawyerId });
     if (existing) {
-        throw new CustomException('ميزانية القضية موجودة بالفعل', 400);
+        throw CustomException('ميزانية القضية موجودة بالفعل', 400);
     }
 
     // If using template, get phases from template
@@ -47,7 +47,7 @@ const createBudget = asyncHandler(async (req, res) => {
     if (budgetPhases.length > 0) {
         const phaseTotal = budgetPhases.reduce((sum, p) => sum + (p.budget || 0), 0);
         if (phaseTotal > totalBudget) {
-            throw new CustomException('مجموع مراحل الميزانية يتجاوز الميزانية الإجمالية', 400);
+            throw CustomException('مجموع مراحل الميزانية يتجاوز الميزانية الإجمالية', 400);
         }
     }
 
@@ -121,7 +121,7 @@ const getBudget = asyncHandler(async (req, res) => {
         .populate('clientId', 'firstName lastName companyName email');
 
     if (!budget) {
-        throw new CustomException('الميزانية غير موجودة', 404);
+        throw CustomException('الميزانية غير موجودة', 404);
     }
 
     // Get entries for this budget
@@ -167,7 +167,7 @@ const updateBudget = asyncHandler(async (req, res) => {
     const budget = await MatterBudget.findOne({ _id: id, lawyerId });
 
     if (!budget) {
-        throw new CustomException('الميزانية غير موجودة', 404);
+        throw CustomException('الميزانية غير موجودة', 404);
     }
 
     const allowedFields = [
@@ -206,7 +206,7 @@ const deleteBudget = asyncHandler(async (req, res) => {
     const budget = await MatterBudget.findOne({ _id: id, lawyerId });
 
     if (!budget) {
-        throw new CustomException('الميزانية غير موجودة', 404);
+        throw CustomException('الميزانية غير موجودة', 404);
     }
 
     // Delete all entries
@@ -236,13 +236,13 @@ const addEntry = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
 
     if (!type || !amount) {
-        throw new CustomException('نوع المصروف والمبلغ مطلوبان', 400);
+        throw CustomException('نوع المصروف والمبلغ مطلوبان', 400);
     }
 
     const budget = await MatterBudget.findOne({ _id: id, lawyerId });
 
     if (!budget) {
-        throw new CustomException('الميزانية غير موجودة', 404);
+        throw CustomException('الميزانية غير موجودة', 404);
     }
 
     const entry = await BudgetEntry.create({
@@ -365,7 +365,7 @@ const updateEntry = asyncHandler(async (req, res) => {
     });
 
     if (!entry) {
-        throw new CustomException('المصروف غير موجود', 404);
+        throw CustomException('المصروف غير موجود', 404);
     }
 
     const oldAmount = entry.amount;
@@ -422,7 +422,7 @@ const deleteEntry = asyncHandler(async (req, res) => {
     });
 
     if (!entry) {
-        throw new CustomException('المصروف غير موجود', 404);
+        throw CustomException('المصروف غير موجود', 404);
     }
 
     // Update budget totals
@@ -457,19 +457,19 @@ const addPhase = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
 
     if (!name || !phaseBudget) {
-        throw new CustomException('اسم المرحلة والميزانية مطلوبان', 400);
+        throw CustomException('اسم المرحلة والميزانية مطلوبان', 400);
     }
 
     const budget = await MatterBudget.findOne({ _id: id, lawyerId });
 
     if (!budget) {
-        throw new CustomException('الميزانية غير موجودة', 404);
+        throw CustomException('الميزانية غير موجودة', 404);
     }
 
     // Check total phases budget
     const currentPhaseBudget = budget.phases.reduce((sum, p) => sum + p.budget, 0);
     if (currentPhaseBudget + phaseBudget > budget.totalBudget) {
-        throw new CustomException('مجموع ميزانيات المراحل يتجاوز الميزانية الإجمالية', 400);
+        throw CustomException('مجموع ميزانيات المراحل يتجاوز الميزانية الإجمالية', 400);
     }
 
     budget.phases.push({
@@ -503,12 +503,12 @@ const updatePhase = asyncHandler(async (req, res) => {
     const budget = await MatterBudget.findOne({ _id: id, lawyerId });
 
     if (!budget) {
-        throw new CustomException('الميزانية غير موجودة', 404);
+        throw CustomException('الميزانية غير موجودة', 404);
     }
 
     const phase = budget.phases.id(phaseId);
     if (!phase) {
-        throw new CustomException('المرحلة غير موجودة', 404);
+        throw CustomException('المرحلة غير موجودة', 404);
     }
 
     const allowedFields = ['name', 'nameAr', 'budget', 'startDate', 'endDate', 'description', 'status'];
@@ -538,18 +538,18 @@ const deletePhase = asyncHandler(async (req, res) => {
     const budget = await MatterBudget.findOne({ _id: id, lawyerId });
 
     if (!budget) {
-        throw new CustomException('الميزانية غير موجودة', 404);
+        throw CustomException('الميزانية غير موجودة', 404);
     }
 
     const phase = budget.phases.id(phaseId);
     if (!phase) {
-        throw new CustomException('المرحلة غير موجودة', 404);
+        throw CustomException('المرحلة غير موجودة', 404);
     }
 
     // Check if phase has entries
     const hasEntries = await BudgetEntry.exists({ budgetId: id, phaseId });
     if (hasEntries) {
-        throw new CustomException('لا يمكن حذف مرحلة بها مصروفات', 400);
+        throw CustomException('لا يمكن حذف مرحلة بها مصروفات', 400);
     }
 
     phase.deleteOne();
@@ -573,7 +573,7 @@ const createTemplate = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
 
     if (!name) {
-        throw new CustomException('اسم القالب مطلوب', 400);
+        throw CustomException('اسم القالب مطلوب', 400);
     }
 
     const template = await BudgetTemplate.create({
@@ -624,7 +624,7 @@ const updateTemplate = asyncHandler(async (req, res) => {
     const template = await BudgetTemplate.findOne({ _id: id, lawyerId });
 
     if (!template) {
-        throw new CustomException('قالب الميزانية غير موجود', 404);
+        throw CustomException('قالب الميزانية غير موجود', 404);
     }
 
     const allowedFields = ['name', 'nameAr', 'description', 'caseType', 'phases', 'isDefault'];
@@ -654,7 +654,7 @@ const deleteTemplate = asyncHandler(async (req, res) => {
     const template = await BudgetTemplate.findOneAndDelete({ _id: id, lawyerId });
 
     if (!template) {
-        throw new CustomException('قالب الميزانية غير موجود', 404);
+        throw CustomException('قالب الميزانية غير موجود', 404);
     }
 
     res.status(200).json({
@@ -677,7 +677,7 @@ const getBudgetAnalysis = asyncHandler(async (req, res) => {
         .populate('caseId', 'title caseNumber');
 
     if (!budget) {
-        throw new CustomException('الميزانية غير موجودة', 404);
+        throw CustomException('الميزانية غير موجودة', 404);
     }
 
     // Get entries grouped by category

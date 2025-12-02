@@ -14,7 +14,7 @@ const createWorkflow = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
 
     if (!name || !nameAr || !caseCategory) {
-        throw new CustomException('الاسم والفئة مطلوبان', 400);
+        throw CustomException('الاسم والفئة مطلوبان', 400);
     }
 
     const workflow = await WorkflowTemplate.create({
@@ -82,7 +82,7 @@ const getWorkflow = asyncHandler(async (req, res) => {
         .populate('createdBy', 'firstName lastName');
 
     if (!workflow) {
-        throw new CustomException('نموذج سير العمل غير موجود', 404);
+        throw CustomException('نموذج سير العمل غير موجود', 404);
     }
 
     res.status(200).json({
@@ -118,7 +118,7 @@ const updateWorkflow = asyncHandler(async (req, res) => {
     const workflow = await WorkflowTemplate.findOne({ _id: id, lawyerId });
 
     if (!workflow) {
-        throw new CustomException('نموذج سير العمل غير موجود', 404);
+        throw CustomException('نموذج سير العمل غير موجود', 404);
     }
 
     const allowedFields = [
@@ -152,13 +152,13 @@ const deleteWorkflow = asyncHandler(async (req, res) => {
     // Check if workflow is in use
     const inUse = await CaseStageProgress.findOne({ workflowId: id });
     if (inUse) {
-        throw new CustomException('لا يمكن حذف نموذج سير العمل لأنه قيد الاستخدام', 400);
+        throw CustomException('لا يمكن حذف نموذج سير العمل لأنه قيد الاستخدام', 400);
     }
 
     const workflow = await WorkflowTemplate.findOneAndDelete({ _id: id, lawyerId });
 
     if (!workflow) {
-        throw new CustomException('نموذج سير العمل غير موجود', 404);
+        throw CustomException('نموذج سير العمل غير موجود', 404);
     }
 
     res.status(200).json({
@@ -179,7 +179,7 @@ const duplicateWorkflow = asyncHandler(async (req, res) => {
     const original = await WorkflowTemplate.findOne({ _id: id, lawyerId });
 
     if (!original) {
-        throw new CustomException('نموذج سير العمل غير موجود', 404);
+        throw CustomException('نموذج سير العمل غير موجود', 404);
     }
 
     const duplicate = await WorkflowTemplate.create({
@@ -213,7 +213,7 @@ const addStage = asyncHandler(async (req, res) => {
     const workflow = await WorkflowTemplate.findOne({ _id: id, lawyerId });
 
     if (!workflow) {
-        throw new CustomException('نموذج سير العمل غير موجود', 404);
+        throw CustomException('نموذج سير العمل غير موجود', 404);
     }
 
     const newStage = {
@@ -242,12 +242,12 @@ const updateStage = asyncHandler(async (req, res) => {
     const workflow = await WorkflowTemplate.findOne({ _id: id, lawyerId });
 
     if (!workflow) {
-        throw new CustomException('نموذج سير العمل غير موجود', 404);
+        throw CustomException('نموذج سير العمل غير موجود', 404);
     }
 
     const stage = workflow.stages.id(stageId);
     if (!stage) {
-        throw new CustomException('المرحلة غير موجودة', 404);
+        throw CustomException('المرحلة غير موجودة', 404);
     }
 
     Object.keys(req.body).forEach(key => {
@@ -276,7 +276,7 @@ const deleteStage = asyncHandler(async (req, res) => {
     const workflow = await WorkflowTemplate.findOne({ _id: id, lawyerId });
 
     if (!workflow) {
-        throw new CustomException('نموذج سير العمل غير موجود', 404);
+        throw CustomException('نموذج سير العمل غير موجود', 404);
     }
 
     workflow.stages.pull(stageId);
@@ -301,7 +301,7 @@ const reorderStages = asyncHandler(async (req, res) => {
     const workflow = await WorkflowTemplate.findOne({ _id: id, lawyerId });
 
     if (!workflow) {
-        throw new CustomException('نموذج سير العمل غير موجود', 404);
+        throw CustomException('نموذج سير العمل غير موجود', 404);
     }
 
     stageOrder.forEach((stageId, index) => {
@@ -332,7 +332,7 @@ const addTransition = asyncHandler(async (req, res) => {
     const workflow = await WorkflowTemplate.findOne({ _id: id, lawyerId });
 
     if (!workflow) {
-        throw new CustomException('نموذج سير العمل غير موجود', 404);
+        throw CustomException('نموذج سير العمل غير موجود', 404);
     }
 
     workflow.transitions.push(req.body);
@@ -356,7 +356,7 @@ const initializeWorkflowForCase = asyncHandler(async (req, res) => {
 
     const caseDoc = await Case.findOne({ _id: caseId, lawyerId });
     if (!caseDoc) {
-        throw new CustomException('القضية غير موجودة', 404);
+        throw CustomException('القضية غير موجودة', 404);
     }
 
     let workflow;
@@ -367,13 +367,13 @@ const initializeWorkflowForCase = asyncHandler(async (req, res) => {
     }
 
     if (!workflow) {
-        throw new CustomException('نموذج سير العمل غير موجود', 404);
+        throw CustomException('نموذج سير العمل غير موجود', 404);
     }
 
     const initialStage = workflow.stages.find(s => s.isInitial) || workflow.stages[0];
 
     if (!initialStage) {
-        throw new CustomException('لا توجد مرحلة بدء في نموذج سير العمل', 400);
+        throw CustomException('لا توجد مرحلة بدء في نموذج سير العمل', 400);
     }
 
     const progress = await CaseStageProgress.initializeForCase(
@@ -402,7 +402,7 @@ const getCaseProgress = asyncHandler(async (req, res) => {
         .populate('stageHistory.completedBy', 'firstName lastName');
 
     if (!progress) {
-        throw new CustomException('لم يتم تهيئة سير العمل لهذه القضية', 404);
+        throw CustomException('لم يتم تهيئة سير العمل لهذه القضية', 404);
     }
 
     res.status(200).json({
@@ -423,14 +423,14 @@ const moveCaseToStage = asyncHandler(async (req, res) => {
     const progress = await CaseStageProgress.findOne({ caseId });
 
     if (!progress) {
-        throw new CustomException('لم يتم تهيئة سير العمل لهذه القضية', 404);
+        throw CustomException('لم يتم تهيئة سير العمل لهذه القضية', 404);
     }
 
     const workflow = await WorkflowTemplate.findById(progress.workflowId);
     const newStage = workflow.stages.id(stageId);
 
     if (!newStage) {
-        throw new CustomException('المرحلة غير موجودة', 404);
+        throw CustomException('المرحلة غير موجودة', 404);
     }
 
     await CaseStageProgress.moveToStage(caseId, stageId, newStage.name, lawyerId, notes);
@@ -462,7 +462,7 @@ const completeRequirement = asyncHandler(async (req, res) => {
     );
 
     if (!progress) {
-        throw new CustomException('لم يتم تهيئة سير العمل لهذه القضية', 404);
+        throw CustomException('لم يتم تهيئة سير العمل لهذه القضية', 404);
     }
 
     res.status(200).json({
@@ -580,7 +580,7 @@ const importPreset = asyncHandler(async (req, res) => {
 
     const preset = presets[presetId];
     if (!preset) {
-        throw new CustomException('النموذج غير موجود', 404);
+        throw CustomException('النموذج غير موجود', 404);
     }
 
     const workflow = await WorkflowTemplate.create({

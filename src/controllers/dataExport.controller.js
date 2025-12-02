@@ -15,7 +15,7 @@ const createExportJob = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
 
     if (!entityType) {
-        throw new CustomException('نوع البيانات المراد تصديرها مطلوب', 400);
+        throw CustomException('نوع البيانات المراد تصديرها مطلوب', 400);
     }
 
     // Get template if provided
@@ -170,7 +170,7 @@ const getExportJobStatus = asyncHandler(async (req, res) => {
     const job = await ExportJob.findOne({ _id: id, lawyerId });
 
     if (!job) {
-        throw new CustomException('وظيفة التصدير غير موجودة', 404);
+        throw CustomException('وظيفة التصدير غير موجودة', 404);
     }
 
     res.status(200).json({
@@ -190,15 +190,15 @@ const downloadExportFile = asyncHandler(async (req, res) => {
     const job = await ExportJob.findOne({ _id: id, lawyerId });
 
     if (!job) {
-        throw new CustomException('وظيفة التصدير غير موجودة', 404);
+        throw CustomException('وظيفة التصدير غير موجودة', 404);
     }
 
     if (job.status !== 'completed') {
-        throw new CustomException('التصدير لم يكتمل بعد', 400);
+        throw CustomException('التصدير لم يكتمل بعد', 400);
     }
 
     if (!job.fileUrl) {
-        throw new CustomException('ملف التصدير غير متوفر', 404);
+        throw CustomException('ملف التصدير غير متوفر', 404);
     }
 
     // In production, this would generate a presigned S3 URL
@@ -222,11 +222,11 @@ const cancelExportJob = asyncHandler(async (req, res) => {
     const job = await ExportJob.findOne({ _id: id, lawyerId });
 
     if (!job) {
-        throw new CustomException('وظيفة التصدير غير موجودة', 404);
+        throw CustomException('وظيفة التصدير غير موجودة', 404);
     }
 
     if (!['pending', 'processing'].includes(job.status)) {
-        throw new CustomException('لا يمكن إلغاء هذه الوظيفة', 400);
+        throw CustomException('لا يمكن إلغاء هذه الوظيفة', 400);
     }
 
     job.status = 'cancelled';
@@ -250,7 +250,7 @@ const deleteExportJob = asyncHandler(async (req, res) => {
     const job = await ExportJob.findOneAndDelete({ _id: id, lawyerId });
 
     if (!job) {
-        throw new CustomException('وظيفة التصدير غير موجودة', 404);
+        throw CustomException('وظيفة التصدير غير موجودة', 404);
     }
 
     res.status(200).json({
@@ -271,7 +271,7 @@ const createImportJob = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
 
     if (!entityType || !fileUrl) {
-        throw new CustomException('نوع البيانات وملف الاستيراد مطلوبان', 400);
+        throw CustomException('نوع البيانات وملف الاستيراد مطلوبان', 400);
     }
 
     const importJob = await ImportJob.create({
@@ -305,11 +305,11 @@ const startImportJob = asyncHandler(async (req, res) => {
     const job = await ImportJob.findOne({ _id: id, lawyerId });
 
     if (!job) {
-        throw new CustomException('وظيفة الاستيراد غير موجودة', 404);
+        throw CustomException('وظيفة الاستيراد غير موجودة', 404);
     }
 
     if (job.status !== 'pending' && job.status !== 'validated') {
-        throw new CustomException('لا يمكن بدء هذه الوظيفة', 400);
+        throw CustomException('لا يمكن بدء هذه الوظيفة', 400);
     }
 
     // Start import process (async)
@@ -370,7 +370,7 @@ const validateImportFile = asyncHandler(async (req, res) => {
     const job = await ImportJob.findOne({ _id: id, lawyerId });
 
     if (!job) {
-        throw new CustomException('وظيفة الاستيراد غير موجودة', 404);
+        throw CustomException('وظيفة الاستيراد غير موجودة', 404);
     }
 
     // In a real implementation, this would:
@@ -440,7 +440,7 @@ const getImportJobStatus = asyncHandler(async (req, res) => {
     const job = await ImportJob.findOne({ _id: id, lawyerId });
 
     if (!job) {
-        throw new CustomException('وظيفة الاستيراد غير موجودة', 404);
+        throw CustomException('وظيفة الاستيراد غير موجودة', 404);
     }
 
     res.status(200).json({
@@ -460,11 +460,11 @@ const cancelImportJob = asyncHandler(async (req, res) => {
     const job = await ImportJob.findOne({ _id: id, lawyerId });
 
     if (!job) {
-        throw new CustomException('وظيفة الاستيراد غير موجودة', 404);
+        throw CustomException('وظيفة الاستيراد غير موجودة', 404);
     }
 
     if (!['pending', 'validated', 'processing'].includes(job.status)) {
-        throw new CustomException('لا يمكن إلغاء هذه الوظيفة', 400);
+        throw CustomException('لا يمكن إلغاء هذه الوظيفة', 400);
     }
 
     job.status = 'cancelled';
@@ -485,7 +485,7 @@ const createExportTemplate = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
 
     if (!name || !entityType) {
-        throw new CustomException('الاسم ونوع البيانات مطلوبان', 400);
+        throw CustomException('الاسم ونوع البيانات مطلوبان', 400);
     }
 
     const template = await ExportTemplate.create({
@@ -527,7 +527,7 @@ const updateExportTemplate = asyncHandler(async (req, res) => {
     const template = await ExportTemplate.findOne({ _id: id, lawyerId });
 
     if (!template) {
-        throw new CustomException('قالب التصدير غير موجود', 404);
+        throw CustomException('قالب التصدير غير موجود', 404);
     }
 
     const allowedFields = ['name', 'nameAr', 'entityType', 'columns', 'format', 'options'];
@@ -553,7 +553,7 @@ const deleteExportTemplate = asyncHandler(async (req, res) => {
     const template = await ExportTemplate.findOneAndDelete({ _id: id, lawyerId });
 
     if (!template) {
-        throw new CustomException('قالب التصدير غير موجود', 404);
+        throw CustomException('قالب التصدير غير موجود', 404);
     }
 
     res.status(200).json({

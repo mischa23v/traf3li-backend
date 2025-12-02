@@ -15,17 +15,17 @@ const startTimer = asyncHandler(async (req, res) => {
 
     // Check if timer already running for this lawyer
     if (activeTimers.has(lawyerId)) {
-        throw new CustomException('يوجد مؤقت قيد التشغيل بالفعل. يرجى إيقافه أولاً', 400);
+        throw CustomException('يوجد مؤقت قيد التشغيل بالفعل. يرجى إيقافه أولاً', 400);
     }
 
     // Validate case if provided
     if (caseId) {
         const caseDoc = await Case.findById(caseId);
         if (!caseDoc) {
-            throw new CustomException('القضية غير موجودة', 404);
+            throw CustomException('القضية غير موجودة', 404);
         }
         if (caseDoc.lawyerId.toString() !== lawyerId) {
-            throw new CustomException('لا يمكنك الوصول إلى هذه القضية', 403);
+            throw CustomException('لا يمكنك الوصول إلى هذه القضية', 403);
         }
     }
 
@@ -33,7 +33,7 @@ const startTimer = asyncHandler(async (req, res) => {
     const hourlyRate = await BillingRate.getApplicableRate(lawyerId, clientId, null, activityCode);
 
     if (!hourlyRate) {
-        throw new CustomException('لم يتم العثور على سعر بالساعة. يرجى تعيين الأسعار أولاً', 400);
+        throw CustomException('لم يتم العثور على سعر بالساعة. يرجى تعيين الأسعار أولاً', 400);
     }
 
     // Create timer state
@@ -75,11 +75,11 @@ const pauseTimer = asyncHandler(async (req, res) => {
     const timer = activeTimers.get(lawyerId);
 
     if (!timer) {
-        throw new CustomException('لا يوجد مؤقت نشط', 400);
+        throw CustomException('لا يوجد مؤقت نشط', 400);
     }
 
     if (timer.isPaused) {
-        throw new CustomException('المؤقت متوقف مؤقتاً بالفعل', 400);
+        throw CustomException('المؤقت متوقف مؤقتاً بالفعل', 400);
     }
 
     timer.isPaused = true;
@@ -105,11 +105,11 @@ const resumeTimer = asyncHandler(async (req, res) => {
     const timer = activeTimers.get(lawyerId);
 
     if (!timer) {
-        throw new CustomException('لا يوجد مؤقت نشط', 400);
+        throw CustomException('لا يوجد مؤقت نشط', 400);
     }
 
     if (!timer.isPaused) {
-        throw new CustomException('المؤقت قيد التشغيل بالفعل', 400);
+        throw CustomException('المؤقت قيد التشغيل بالفعل', 400);
     }
 
     // Add paused duration
@@ -139,7 +139,7 @@ const stopTimer = asyncHandler(async (req, res) => {
     const timer = activeTimers.get(lawyerId);
 
     if (!timer) {
-        throw new CustomException('لا يوجد مؤقت نشط', 400);
+        throw CustomException('لا يوجد مؤقت نشط', 400);
     }
 
     // If paused, add final pause duration
@@ -253,17 +253,17 @@ const createTimeEntry = asyncHandler(async (req, res) => {
 
     // Validate required fields
     if (!description || !date || !duration || !hourlyRate) {
-        throw new CustomException('الحقول المطلوبة: الوصف، التاريخ، المدة، السعر بالساعة', 400);
+        throw CustomException('الحقول المطلوبة: الوصف، التاريخ، المدة، السعر بالساعة', 400);
     }
 
     // Validate case
     if (caseId) {
         const caseDoc = await Case.findById(caseId);
         if (!caseDoc) {
-            throw new CustomException('القضية غير موجودة', 404);
+            throw CustomException('القضية غير موجودة', 404);
         }
         if (caseDoc.lawyerId.toString() !== lawyerId) {
-            throw new CustomException('لا يمكنك الوصول إلى هذه القضية', 403);
+            throw CustomException('لا يمكنك الوصول إلى هذه القضية', 403);
         }
     }
 
@@ -404,11 +404,11 @@ const getTimeEntry = asyncHandler(async (req, res) => {
         .populate('invoiceId', 'invoiceNumber status');
 
     if (!timeEntry) {
-        throw new CustomException('إدخال الوقت غير موجود', 404);
+        throw CustomException('إدخال الوقت غير موجود', 404);
     }
 
     if (timeEntry.lawyerId._id.toString() !== lawyerId) {
-        throw new CustomException('لا يمكنك الوصول إلى هذا الإدخال', 403);
+        throw CustomException('لا يمكنك الوصول إلى هذا الإدخال', 403);
     }
 
     res.status(200).json({
@@ -428,21 +428,21 @@ const updateTimeEntry = asyncHandler(async (req, res) => {
     const timeEntry = await TimeEntry.findById(id);
 
     if (!timeEntry) {
-        throw new CustomException('إدخال الوقت غير موجود', 404);
+        throw CustomException('إدخال الوقت غير موجود', 404);
     }
 
     if (timeEntry.lawyerId.toString() !== lawyerId) {
-        throw new CustomException('لا يمكنك الوصول إلى هذا الإدخال', 403);
+        throw CustomException('لا يمكنك الوصول إلى هذا الإدخال', 403);
     }
 
     // Cannot update if invoiced
     if (timeEntry.invoiceId) {
-        throw new CustomException('لا يمكن تحديث إدخال وقت مُدرج في فاتورة', 400);
+        throw CustomException('لا يمكن تحديث إدخال وقت مُدرج في فاتورة', 400);
     }
 
     // Cannot update if approved
     if (timeEntry.status === 'approved') {
-        throw new CustomException('لا يمكن تحديث إدخال وقت تمت الموافقة عليه', 400);
+        throw CustomException('لا يمكن تحديث إدخال وقت تمت الموافقة عليه', 400);
     }
 
     // Track changes
@@ -504,16 +504,16 @@ const deleteTimeEntry = asyncHandler(async (req, res) => {
     const timeEntry = await TimeEntry.findById(id);
 
     if (!timeEntry) {
-        throw new CustomException('إدخال الوقت غير موجود', 404);
+        throw CustomException('إدخال الوقت غير موجود', 404);
     }
 
     if (timeEntry.lawyerId.toString() !== lawyerId) {
-        throw new CustomException('لا يمكنك الوصول إلى هذا الإدخال', 403);
+        throw CustomException('لا يمكنك الوصول إلى هذا الإدخال', 403);
     }
 
     // Cannot delete if invoiced
     if (timeEntry.invoiceId) {
-        throw new CustomException('لا يمكن حذف إدخال وقت مُدرج في فاتورة', 400);
+        throw CustomException('لا يمكن حذف إدخال وقت مُدرج في فاتورة', 400);
     }
 
     await TimeEntry.findByIdAndDelete(id);
@@ -535,15 +535,15 @@ const approveTimeEntry = asyncHandler(async (req, res) => {
     const timeEntry = await TimeEntry.findById(id);
 
     if (!timeEntry) {
-        throw new CustomException('إدخال الوقت غير موجود', 404);
+        throw CustomException('إدخال الوقت غير موجود', 404);
     }
 
     if (timeEntry.status === 'approved') {
-        throw new CustomException('تمت الموافقة على الإدخال بالفعل', 400);
+        throw CustomException('تمت الموافقة على الإدخال بالفعل', 400);
     }
 
     if (timeEntry.status === 'invoiced') {
-        throw new CustomException('لا يمكن الموافقة على إدخال مُدرج في فاتورة', 400);
+        throw CustomException('لا يمكن الموافقة على إدخال مُدرج في فاتورة', 400);
     }
 
     timeEntry.status = 'approved';
@@ -585,13 +585,13 @@ const rejectTimeEntry = asyncHandler(async (req, res) => {
     const reviewerId = req.userID;
 
     if (!reason) {
-        throw new CustomException('سبب الرفض مطلوب', 400);
+        throw CustomException('سبب الرفض مطلوب', 400);
     }
 
     const timeEntry = await TimeEntry.findById(id);
 
     if (!timeEntry) {
-        throw new CustomException('إدخال الوقت غير موجود', 404);
+        throw CustomException('إدخال الوقت غير موجود', 404);
     }
 
     timeEntry.status = 'rejected';
@@ -795,7 +795,7 @@ const bulkDeleteTimeEntries = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
 
     if (!entryIds || !Array.isArray(entryIds) || entryIds.length === 0) {
-        throw new CustomException('معرفات الإدخالات مطلوبة', 400);
+        throw CustomException('معرفات الإدخالات مطلوبة', 400);
     }
 
     // Verify all entries belong to lawyer and are not invoiced
@@ -806,7 +806,7 @@ const bulkDeleteTimeEntries = asyncHandler(async (req, res) => {
     });
 
     if (entries.length !== entryIds.length) {
-        throw new CustomException('بعض الإدخالات غير صالحة للحذف', 400);
+        throw CustomException('بعض الإدخالات غير صالحة للحذف', 400);
     }
 
     await TimeEntry.deleteMany({ _id: { $in: entryIds } });

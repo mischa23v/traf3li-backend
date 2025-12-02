@@ -8,15 +8,15 @@ exports.createProposal = async (req, res, next) => {
         const job = await Job.findById(req.body.jobId).populate('userID', 'username');
 
         if (!job) {
-            throw new CustomException('Job not found', 404);
+            throw CustomException('Job not found', 404);
         }
 
         if (job.status !== 'open') {
-            throw new CustomException('Job is not accepting proposals', 400);
+            throw CustomException('Job is not accepting proposals', 400);
         }
 
         if (job.userID._id.toString() === req.userID) {
-            throw new CustomException('Cannot submit proposal to your own job', 400);
+            throw CustomException('Cannot submit proposal to your own job', 400);
         }
 
         // Check if already submitted
@@ -26,7 +26,7 @@ exports.createProposal = async (req, res, next) => {
         });
 
         if (existing) {
-            throw new CustomException('Already submitted proposal for this job', 400);
+            throw CustomException('Already submitted proposal for this job', 400);
         }
 
         const proposal = await Proposal.create({
@@ -68,11 +68,11 @@ exports.getJobProposals = async (req, res, next) => {
         const job = await Job.findById(req.params.jobId);
 
         if (!job) {
-            throw new CustomException('Job not found', 404);
+            throw CustomException('Job not found', 404);
         }
 
         if (job.userID.toString() !== req.userID) {
-            throw new CustomException('Not authorized', 403);
+            throw CustomException('Not authorized', 403);
         }
 
         const proposals = await Proposal.find({ jobId: req.params.jobId })
@@ -104,13 +104,13 @@ exports.acceptProposal = async (req, res, next) => {
         const proposal = await Proposal.findById(req.params._id).populate('lawyerId', 'username');
 
         if (!proposal) {
-            throw new CustomException('Proposal not found', 404);
+            throw CustomException('Proposal not found', 404);
         }
 
         const job = await Job.findById(proposal.jobId);
 
         if (job.userID.toString() !== req.userID) {
-            throw new CustomException('Not authorized', 403);
+            throw CustomException('Not authorized', 403);
         }
 
         // Update proposal status
@@ -162,13 +162,13 @@ exports.rejectProposal = async (req, res, next) => {
         const proposal = await Proposal.findById(req.params._id).populate('lawyerId', 'username');
 
         if (!proposal) {
-            throw new CustomException('Proposal not found', 404);
+            throw CustomException('Proposal not found', 404);
         }
 
         const job = await Job.findById(proposal.jobId);
 
         if (job.userID.toString() !== req.userID) {
-            throw new CustomException('Not authorized', 403);
+            throw CustomException('Not authorized', 403);
         }
 
         proposal.status = 'rejected';
@@ -201,15 +201,15 @@ exports.withdrawProposal = async (req, res, next) => {
         const proposal = await Proposal.findById(req.params._id);
 
         if (!proposal) {
-            throw new CustomException('Proposal not found', 404);
+            throw CustomException('Proposal not found', 404);
         }
 
         if (proposal.lawyerId.toString() !== req.userID) {
-            throw new CustomException('Not authorized', 403);
+            throw CustomException('Not authorized', 403);
         }
 
         if (proposal.status !== 'pending') {
-            throw new CustomException('Cannot withdraw this proposal', 400);
+            throw CustomException('Cannot withdraw this proposal', 400);
         }
 
         proposal.status = 'withdrawn';

@@ -56,7 +56,7 @@ const markAsRead = async (request, response) => {
         });
         
         if (!notification) {
-            throw new CustomException('Notification not found', 404);
+            throw CustomException('Notification not found', 404);
         }
         
         notification.read = true;
@@ -114,7 +114,7 @@ const deleteNotification = async (request, response) => {
         });
         
         if (!notification) {
-            throw new CustomException('Notification not found', 404);
+            throw CustomException('Notification not found', 404);
         }
         
         // Get updated unread count

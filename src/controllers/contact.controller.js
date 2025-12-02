@@ -15,7 +15,7 @@ const createContact = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
 
     if (!firstName || !lastName || !type) {
-        throw new CustomException('الاسم الأول والأخير والنوع مطلوبون', 400);
+        throw CustomException('الاسم الأول والأخير والنوع مطلوبون', 400);
     }
 
     const contact = await Contact.create({
@@ -103,7 +103,7 @@ const getContact = asyncHandler(async (req, res) => {
         .populate('linkedClients', 'name fullName email');
 
     if (!contact) {
-        throw new CustomException('جهة الاتصال غير موجودة', 404);
+        throw CustomException('جهة الاتصال غير موجودة', 404);
     }
 
     res.status(200).json({
@@ -123,7 +123,7 @@ const updateContact = asyncHandler(async (req, res) => {
     const contact = await Contact.findOne({ _id: id, lawyerId });
 
     if (!contact) {
-        throw new CustomException('جهة الاتصال غير موجودة', 404);
+        throw CustomException('جهة الاتصال غير موجودة', 404);
     }
 
     const allowedFields = [
@@ -158,7 +158,7 @@ const deleteContact = asyncHandler(async (req, res) => {
     const contact = await Contact.findOneAndDelete({ _id: id, lawyerId });
 
     if (!contact) {
-        throw new CustomException('جهة الاتصال غير موجودة', 404);
+        throw CustomException('جهة الاتصال غير موجودة', 404);
     }
 
     res.status(200).json({
@@ -176,7 +176,7 @@ const bulkDeleteContacts = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
 
     if (!contactIds || !Array.isArray(contactIds) || contactIds.length === 0) {
-        throw new CustomException('معرفات جهات الاتصال مطلوبة', 400);
+        throw CustomException('معرفات جهات الاتصال مطلوبة', 400);
     }
 
     const result = await Contact.deleteMany({
@@ -200,7 +200,7 @@ const searchContacts = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
 
     if (!q || q.length < 2) {
-        throw new CustomException('يجب أن يكون مصطلح البحث حرفين على الأقل', 400);
+        throw CustomException('يجب أن يكون مصطلح البحث حرفين على الأقل', 400);
     }
 
     const contacts = await Contact.searchContacts(lawyerId, q);
@@ -261,12 +261,12 @@ const linkToCase = asyncHandler(async (req, res) => {
 
     const contact = await Contact.findOne({ _id: id, lawyerId });
     if (!contact) {
-        throw new CustomException('جهة الاتصال غير موجودة', 404);
+        throw CustomException('جهة الاتصال غير موجودة', 404);
     }
 
     const caseExists = await Case.findOne({ _id: caseId, lawyerId });
     if (!caseExists) {
-        throw new CustomException('القضية غير موجودة', 404);
+        throw CustomException('القضية غير موجودة', 404);
     }
 
     if (!contact.linkedCases.includes(caseId)) {
@@ -292,7 +292,7 @@ const unlinkFromCase = asyncHandler(async (req, res) => {
 
     const contact = await Contact.findOne({ _id: id, lawyerId });
     if (!contact) {
-        throw new CustomException('جهة الاتصال غير موجودة', 404);
+        throw CustomException('جهة الاتصال غير موجودة', 404);
     }
 
     contact.linkedCases = contact.linkedCases.filter(c => c.toString() !== caseId);
@@ -316,12 +316,12 @@ const linkToClient = asyncHandler(async (req, res) => {
 
     const contact = await Contact.findOne({ _id: id, lawyerId });
     if (!contact) {
-        throw new CustomException('جهة الاتصال غير موجودة', 404);
+        throw CustomException('جهة الاتصال غير موجودة', 404);
     }
 
     const clientExists = await Client.findOne({ _id: clientId, lawyerId });
     if (!clientExists) {
-        throw new CustomException('العميل غير موجود', 404);
+        throw CustomException('العميل غير موجود', 404);
     }
 
     if (!contact.linkedClients.includes(clientId)) {
@@ -347,7 +347,7 @@ const unlinkFromClient = asyncHandler(async (req, res) => {
 
     const contact = await Contact.findOne({ _id: id, lawyerId });
     if (!contact) {
-        throw new CustomException('جهة الاتصال غير موجودة', 404);
+        throw CustomException('جهة الاتصال غير موجودة', 404);
     }
 
     contact.linkedClients = contact.linkedClients.filter(c => c.toString() !== clientId);

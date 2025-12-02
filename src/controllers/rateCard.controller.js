@@ -14,14 +14,14 @@ const createRateCard = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
 
     if (!name) {
-        throw new CustomException('اسم بطاقة الأسعار مطلوب', 400);
+        throw CustomException('اسم بطاقة الأسعار مطلوب', 400);
     }
 
     // Verify client exists if provided
     if (clientId) {
         const client = await Client.findOne({ _id: clientId, lawyerId });
         if (!client) {
-            throw new CustomException('العميل غير موجود', 404);
+            throw CustomException('العميل غير موجود', 404);
         }
     }
 
@@ -29,7 +29,7 @@ const createRateCard = asyncHandler(async (req, res) => {
     if (caseId) {
         const caseDoc = await Case.findOne({ _id: caseId, lawyerId });
         if (!caseDoc) {
-            throw new CustomException('القضية غير موجودة', 404);
+            throw CustomException('القضية غير موجودة', 404);
         }
     }
 
@@ -37,7 +37,7 @@ const createRateCard = asyncHandler(async (req, res) => {
     if (rateGroupId) {
         const rateGroup = await RateGroup.findOne({ _id: rateGroupId, lawyerId });
         if (!rateGroup) {
-            throw new CustomException('مجموعة الأسعار غير موجودة', 404);
+            throw CustomException('مجموعة الأسعار غير موجودة', 404);
         }
     }
 
@@ -110,7 +110,7 @@ const getRateCard = asyncHandler(async (req, res) => {
         .populate('rateGroupId');
 
     if (!rateCard) {
-        throw new CustomException('بطاقة الأسعار غير موجودة', 404);
+        throw CustomException('بطاقة الأسعار غير موجودة', 404);
     }
 
     res.status(200).json({
@@ -130,7 +130,7 @@ const updateRateCard = asyncHandler(async (req, res) => {
     const rateCard = await RateCard.findOne({ _id: id, lawyerId });
 
     if (!rateCard) {
-        throw new CustomException('بطاقة الأسعار غير موجودة', 404);
+        throw CustomException('بطاقة الأسعار غير موجودة', 404);
     }
 
     const allowedFields = [
@@ -164,7 +164,7 @@ const deleteRateCard = asyncHandler(async (req, res) => {
     const rateCard = await RateCard.findOneAndDelete({ _id: id, lawyerId });
 
     if (!rateCard) {
-        throw new CustomException('بطاقة الأسعار غير موجودة', 404);
+        throw CustomException('بطاقة الأسعار غير موجودة', 404);
     }
 
     res.status(200).json({
@@ -258,13 +258,13 @@ const addCustomRate = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
 
     if (!activityCode || !rate) {
-        throw new CustomException('رمز النشاط والسعر مطلوبان', 400);
+        throw CustomException('رمز النشاط والسعر مطلوبان', 400);
     }
 
     const rateCard = await RateCard.findOne({ _id: id, lawyerId });
 
     if (!rateCard) {
-        throw new CustomException('بطاقة الأسعار غير موجودة', 404);
+        throw CustomException('بطاقة الأسعار غير موجودة', 404);
     }
 
     // Check if activity code already exists
@@ -272,7 +272,7 @@ const addCustomRate = asyncHandler(async (req, res) => {
         r => r.activityCode === activityCode
     );
     if (existingRate) {
-        throw new CustomException('رمز النشاط موجود بالفعل في البطاقة', 400);
+        throw CustomException('رمز النشاط موجود بالفعل في البطاقة', 400);
     }
 
     rateCard.customRates.push({
@@ -304,7 +304,7 @@ const updateCustomRate = asyncHandler(async (req, res) => {
     const rateCard = await RateCard.findOne({ _id: id, lawyerId });
 
     if (!rateCard) {
-        throw new CustomException('بطاقة الأسعار غير موجودة', 404);
+        throw CustomException('بطاقة الأسعار غير موجودة', 404);
     }
 
     const rateIndex = rateCard.customRates.findIndex(
@@ -312,7 +312,7 @@ const updateCustomRate = asyncHandler(async (req, res) => {
     );
 
     if (rateIndex === -1) {
-        throw new CustomException('السعر المخصص غير موجود', 404);
+        throw CustomException('السعر المخصص غير موجود', 404);
     }
 
     const allowedFields = ['activityCode', 'description', 'rate', 'unit', 'minimum', 'roundingIncrement'];
@@ -342,7 +342,7 @@ const removeCustomRate = asyncHandler(async (req, res) => {
     const rateCard = await RateCard.findOne({ _id: id, lawyerId });
 
     if (!rateCard) {
-        throw new CustomException('بطاقة الأسعار غير موجودة', 404);
+        throw CustomException('بطاقة الأسعار غير موجودة', 404);
     }
 
     rateCard.customRates = rateCard.customRates.filter(
@@ -367,7 +367,7 @@ const calculateRate = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
 
     if (!activityCode || !hours) {
-        throw new CustomException('رمز النشاط والساعات مطلوبة', 400);
+        throw CustomException('رمز النشاط والساعات مطلوبة', 400);
     }
 
     // Try to find applicable rate card

@@ -48,7 +48,7 @@ exports.getJob = async (req, res, next) => {
         ).populate('userID', 'username image email phone country createdAt');  // ✅ CHANGED from clientId to userID
 
         if (!job) {
-            throw new CustomException('Job not found', 404);
+            throw CustomException('Job not found', 404);
         }
 
         res.status(200).json(job);
@@ -63,11 +63,11 @@ exports.updateJob = async (req, res, next) => {
         const job = await Job.findById(req.params._id);
 
         if (!job) {
-            throw new CustomException('Job not found', 404);
+            throw CustomException('Job not found', 404);
         }
 
         if (job.userID.toString() !== req.userID) {  // ✅ CHANGED from clientId to userID
-            throw new CustomException('Not authorized', 403);
+            throw CustomException('Not authorized', 403);
         }
 
         Object.assign(job, req.body);
@@ -85,11 +85,11 @@ exports.deleteJob = async (req, res, next) => {
         const job = await Job.findById(req.params._id);
 
         if (!job) {
-            throw new CustomException('Job not found', 404);
+            throw CustomException('Job not found', 404);
         }
 
         if (job.userID.toString() !== req.userID) {  // ✅ CHANGED from clientId to userID
-            throw new CustomException('Not authorized', 403);
+            throw CustomException('Not authorized', 403);
         }
 
         await Job.findByIdAndDelete(req.params._id);

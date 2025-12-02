@@ -14,7 +14,7 @@ const createFollowup = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
 
     if (!title || !type || !dueDate || !entityType || !entityId) {
-        throw new CustomException('العنوان والنوع وتاريخ الاستحقاق ونوع الكيان ومعرف الكيان مطلوبة', 400);
+        throw CustomException('العنوان والنوع وتاريخ الاستحقاق ونوع الكيان ومعرف الكيان مطلوبة', 400);
     }
 
     const followup = await Followup.create({
@@ -99,7 +99,7 @@ const getFollowup = asyncHandler(async (req, res) => {
         .populate('history.performedBy', 'firstName lastName');
 
     if (!followup) {
-        throw new CustomException('المتابعة غير موجودة', 404);
+        throw CustomException('المتابعة غير موجودة', 404);
     }
 
     res.status(200).json({
@@ -119,7 +119,7 @@ const updateFollowup = asyncHandler(async (req, res) => {
     const followup = await Followup.findOne({ _id: id, lawyerId });
 
     if (!followup) {
-        throw new CustomException('المتابعة غير موجودة', 404);
+        throw CustomException('المتابعة غير موجودة', 404);
     }
 
     const allowedFields = [
@@ -159,7 +159,7 @@ const deleteFollowup = asyncHandler(async (req, res) => {
     const followup = await Followup.findOneAndDelete({ _id: id, lawyerId });
 
     if (!followup) {
-        throw new CustomException('المتابعة غير موجودة', 404);
+        throw CustomException('المتابعة غير موجودة', 404);
     }
 
     res.status(200).json({
@@ -260,7 +260,7 @@ const completeFollowup = asyncHandler(async (req, res) => {
     const followup = await Followup.findOne({ _id: id, lawyerId });
 
     if (!followup) {
-        throw new CustomException('المتابعة غير موجودة', 404);
+        throw CustomException('المتابعة غير موجودة', 404);
     }
 
     followup.status = 'completed';
@@ -314,7 +314,7 @@ const cancelFollowup = asyncHandler(async (req, res) => {
     const followup = await Followup.findOne({ _id: id, lawyerId });
 
     if (!followup) {
-        throw new CustomException('المتابعة غير موجودة', 404);
+        throw CustomException('المتابعة غير موجودة', 404);
     }
 
     followup.status = 'cancelled';
@@ -345,13 +345,13 @@ const rescheduleFollowup = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
 
     if (!newDueDate) {
-        throw new CustomException('تاريخ الاستحقاق الجديد مطلوب', 400);
+        throw CustomException('تاريخ الاستحقاق الجديد مطلوب', 400);
     }
 
     const followup = await Followup.findOne({ _id: id, lawyerId });
 
     if (!followup) {
-        throw new CustomException('المتابعة غير موجودة', 404);
+        throw CustomException('المتابعة غير موجودة', 404);
     }
 
     const previousDueDate = followup.dueDate;
@@ -389,13 +389,13 @@ const addNote = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
 
     if (!note) {
-        throw new CustomException('الملاحظة مطلوبة', 400);
+        throw CustomException('الملاحظة مطلوبة', 400);
     }
 
     const followup = await Followup.findOne({ _id: id, lawyerId });
 
     if (!followup) {
-        throw new CustomException('المتابعة غير موجودة', 404);
+        throw CustomException('المتابعة غير موجودة', 404);
     }
 
     followup.history.push({
@@ -423,7 +423,7 @@ const bulkComplete = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
 
     if (!followupIds || !Array.isArray(followupIds) || followupIds.length === 0) {
-        throw new CustomException('معرفات المتابعات مطلوبة', 400);
+        throw CustomException('معرفات المتابعات مطلوبة', 400);
     }
 
     const result = await Followup.updateMany(
@@ -460,7 +460,7 @@ const bulkDelete = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
 
     if (!followupIds || !Array.isArray(followupIds) || followupIds.length === 0) {
-        throw new CustomException('معرفات المتابعات مطلوبة', 400);
+        throw CustomException('معرفات المتابعات مطلوبة', 400);
     }
 
     const result = await Followup.deleteMany({

@@ -17,7 +17,7 @@ const createReport = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
 
     if (!name || !type) {
-        throw new CustomException('اسم التقرير ونوعه مطلوبان', 400);
+        throw CustomException('اسم التقرير ونوعه مطلوبان', 400);
     }
 
     const report = await SavedReport.create({
@@ -85,7 +85,7 @@ const getReport = asyncHandler(async (req, res) => {
     const report = await SavedReport.findOne({ _id: id, lawyerId });
 
     if (!report) {
-        throw new CustomException('التقرير غير موجود', 404);
+        throw CustomException('التقرير غير موجود', 404);
     }
 
     res.status(200).json({
@@ -105,7 +105,7 @@ const updateReport = asyncHandler(async (req, res) => {
     const report = await SavedReport.findOne({ _id: id, lawyerId });
 
     if (!report) {
-        throw new CustomException('التقرير غير موجود', 404);
+        throw CustomException('التقرير غير موجود', 404);
     }
 
     const allowedFields = [
@@ -140,7 +140,7 @@ const deleteReport = asyncHandler(async (req, res) => {
     const report = await SavedReport.findOneAndDelete({ _id: id, lawyerId });
 
     if (!report) {
-        throw new CustomException('التقرير غير موجود', 404);
+        throw CustomException('التقرير غير موجود', 404);
     }
 
     res.status(200).json({
@@ -161,7 +161,7 @@ const runReport = asyncHandler(async (req, res) => {
     const report = await SavedReport.findOne({ _id: id, lawyerId });
 
     if (!report) {
-        throw new CustomException('التقرير غير موجود', 404);
+        throw CustomException('التقرير غير موجود', 404);
     }
 
     // Merge override config with saved config
@@ -206,7 +206,7 @@ const duplicateReport = asyncHandler(async (req, res) => {
     const original = await SavedReport.findOne({ _id: id, lawyerId });
 
     if (!original) {
-        throw new CustomException('التقرير غير موجود', 404);
+        throw CustomException('التقرير غير موجود', 404);
     }
 
     const duplicate = await SavedReport.create({
@@ -241,7 +241,7 @@ const createWidget = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
 
     if (!name || !type || !dataSource) {
-        throw new CustomException('الاسم والنوع ومصدر البيانات مطلوبة', 400);
+        throw CustomException('الاسم والنوع ومصدر البيانات مطلوبة', 400);
     }
 
     const widget = await DashboardWidget.create({
@@ -295,7 +295,7 @@ const getWidget = asyncHandler(async (req, res) => {
     const widget = await DashboardWidget.findOne({ _id: id, lawyerId });
 
     if (!widget) {
-        throw new CustomException('الودجت غير موجود', 404);
+        throw CustomException('الودجت غير موجود', 404);
     }
 
     res.status(200).json({
@@ -315,7 +315,7 @@ const updateWidget = asyncHandler(async (req, res) => {
     const widget = await DashboardWidget.findOne({ _id: id, lawyerId });
 
     if (!widget) {
-        throw new CustomException('الودجت غير موجود', 404);
+        throw CustomException('الودجت غير موجود', 404);
     }
 
     const allowedFields = [
@@ -349,7 +349,7 @@ const deleteWidget = asyncHandler(async (req, res) => {
     const widget = await DashboardWidget.findOneAndDelete({ _id: id, lawyerId });
 
     if (!widget) {
-        throw new CustomException('الودجت غير موجود', 404);
+        throw CustomException('الودجت غير موجود', 404);
     }
 
     res.status(200).json({
@@ -367,7 +367,7 @@ const updateLayout = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
 
     if (!widgets || !Array.isArray(widgets)) {
-        throw new CustomException('قائمة الودجات مطلوبة', 400);
+        throw CustomException('قائمة الودجات مطلوبة', 400);
     }
 
     const updates = widgets.map(w => ({
@@ -399,7 +399,7 @@ const getWidgetData = asyncHandler(async (req, res) => {
     const widget = await DashboardWidget.findOne({ _id: id, lawyerId });
 
     if (!widget) {
-        throw new CustomException('الودجت غير موجود', 404);
+        throw CustomException('الودجت غير موجود', 404);
     }
 
     // In production, this would fetch actual data based on dataSource

@@ -34,14 +34,14 @@ const createEvent = asyncHandler(async (req, res) => {
 
     // Validate required fields
     if (!title || !type || !startDateTime) {
-        throw new CustomException('Title, type, and start date/time are required', 400);
+        throw CustomException('Title, type, and start date/time are required', 400);
     }
 
     // Validate case access if provided
     if (caseId) {
         const caseDoc = await Case.findById(caseId);
         if (!caseDoc) {
-            throw new CustomException('Case not found', 404);
+            throw CustomException('Case not found', 404);
         }
     }
 
@@ -220,7 +220,7 @@ const getEvent = asyncHandler(async (req, res) => {
         .populate('cancelledBy', 'firstName lastName');
 
     if (!event) {
-        throw new CustomException('Event not found', 404);
+        throw CustomException('Event not found', 404);
     }
 
     // Check access
@@ -229,7 +229,7 @@ const getEvent = asyncHandler(async (req, res) => {
                       event.isUserAttendee(userId);
 
     if (!hasAccess) {
-        throw new CustomException('You do not have access to this event', 403);
+        throw CustomException('You do not have access to this event', 403);
     }
 
     res.status(200).json({
@@ -249,12 +249,12 @@ const updateEvent = asyncHandler(async (req, res) => {
     const event = await Event.findById(id);
 
     if (!event) {
-        throw new CustomException('Event not found', 404);
+        throw CustomException('Event not found', 404);
     }
 
     // Only organizer or creator can update
     if (event.organizer.toString() !== userId && event.createdBy.toString() !== userId) {
-        throw new CustomException('Only the organizer can update this event', 403);
+        throw CustomException('Only the organizer can update this event', 403);
     }
 
     const allowedFields = [
@@ -297,12 +297,12 @@ const deleteEvent = asyncHandler(async (req, res) => {
     const event = await Event.findById(id);
 
     if (!event) {
-        throw new CustomException('Event not found', 404);
+        throw CustomException('Event not found', 404);
     }
 
     // Only organizer or creator can delete
     if (event.organizer.toString() !== userId && event.createdBy.toString() !== userId) {
-        throw new CustomException('Only the organizer can delete this event', 403);
+        throw CustomException('Only the organizer can delete this event', 403);
     }
 
     await Event.findByIdAndDelete(id);
@@ -325,11 +325,11 @@ const cancelEvent = asyncHandler(async (req, res) => {
     const event = await Event.findById(id);
 
     if (!event) {
-        throw new CustomException('Event not found', 404);
+        throw CustomException('Event not found', 404);
     }
 
     if (event.organizer.toString() !== userId && event.createdBy.toString() !== userId) {
-        throw new CustomException('Only the organizer can cancel this event', 403);
+        throw CustomException('Only the organizer can cancel this event', 403);
     }
 
     event.status = 'cancelled';
@@ -356,17 +356,17 @@ const postponeEvent = asyncHandler(async (req, res) => {
     const userId = req.userID;
 
     if (!newDateTime) {
-        throw new CustomException('New date/time is required', 400);
+        throw CustomException('New date/time is required', 400);
     }
 
     const event = await Event.findById(id);
 
     if (!event) {
-        throw new CustomException('Event not found', 404);
+        throw CustomException('Event not found', 404);
     }
 
     if (event.organizer.toString() !== userId && event.createdBy.toString() !== userId) {
-        throw new CustomException('Only the organizer can postpone this event', 403);
+        throw CustomException('Only the organizer can postpone this event', 403);
     }
 
     event.status = 'postponed';
@@ -394,7 +394,7 @@ const completeEvent = asyncHandler(async (req, res) => {
     const event = await Event.findById(id);
 
     if (!event) {
-        throw new CustomException('Event not found', 404);
+        throw CustomException('Event not found', 404);
     }
 
     const hasAccess = event.organizer.toString() === userId ||
@@ -402,7 +402,7 @@ const completeEvent = asyncHandler(async (req, res) => {
                       event.isUserAttendee(userId);
 
     if (!hasAccess) {
-        throw new CustomException('You cannot complete this event', 403);
+        throw CustomException('You cannot complete this event', 403);
     }
 
     event.status = 'completed';
@@ -438,18 +438,18 @@ const addAttendee = asyncHandler(async (req, res) => {
     const event = await Event.findById(id);
 
     if (!event) {
-        throw new CustomException('Event not found', 404);
+        throw CustomException('Event not found', 404);
     }
 
     if (event.organizer.toString() !== userId && event.createdBy.toString() !== userId) {
-        throw new CustomException('Only the organizer can add attendees', 403);
+        throw CustomException('Only the organizer can add attendees', 403);
     }
 
     // Check if attendee already exists
     if (attendeeUserId) {
         const exists = event.attendees.some(a => a.userId?.toString() === attendeeUserId);
         if (exists) {
-            throw new CustomException('Attendee already added to this event', 400);
+            throw CustomException('Attendee already added to this event', 400);
         }
     }
 
@@ -484,11 +484,11 @@ const removeAttendee = asyncHandler(async (req, res) => {
     const event = await Event.findById(id);
 
     if (!event) {
-        throw new CustomException('Event not found', 404);
+        throw CustomException('Event not found', 404);
     }
 
     if (event.organizer.toString() !== userId && event.createdBy.toString() !== userId) {
-        throw new CustomException('Only the organizer can remove attendees', 403);
+        throw CustomException('Only the organizer can remove attendees', 403);
     }
 
     event.attendees.pull(attendeeId);
@@ -510,20 +510,20 @@ const rsvpEvent = asyncHandler(async (req, res) => {
     const userId = req.userID;
 
     if (!status || !['confirmed', 'declined', 'tentative'].includes(status)) {
-        throw new CustomException('Valid RSVP status is required (confirmed, declined, tentative)', 400);
+        throw CustomException('Valid RSVP status is required (confirmed, declined, tentative)', 400);
     }
 
     const event = await Event.findById(id);
 
     if (!event) {
-        throw new CustomException('Event not found', 404);
+        throw CustomException('Event not found', 404);
     }
 
     // Find attendee entry for this user
     const attendee = event.attendees.find(a => a.userId?.toString() === userId);
 
     if (!attendee) {
-        throw new CustomException('You are not invited to this event', 403);
+        throw CustomException('You are not invited to this event', 403);
     }
 
     attendee.status = status;
@@ -553,11 +553,11 @@ const addAgendaItem = asyncHandler(async (req, res) => {
     const event = await Event.findById(id);
 
     if (!event) {
-        throw new CustomException('Event not found', 404);
+        throw CustomException('Event not found', 404);
     }
 
     if (event.organizer.toString() !== userId && event.createdBy.toString() !== userId) {
-        throw new CustomException('Only the organizer can manage agenda', 403);
+        throw CustomException('Only the organizer can manage agenda', 403);
     }
 
     event.agenda.push({
@@ -591,16 +591,16 @@ const updateAgendaItem = asyncHandler(async (req, res) => {
     const event = await Event.findById(id);
 
     if (!event) {
-        throw new CustomException('Event not found', 404);
+        throw CustomException('Event not found', 404);
     }
 
     if (event.organizer.toString() !== userId && event.createdBy.toString() !== userId) {
-        throw new CustomException('Only the organizer can manage agenda', 403);
+        throw CustomException('Only the organizer can manage agenda', 403);
     }
 
     const agendaItem = event.agenda.id(agendaId);
     if (!agendaItem) {
-        throw new CustomException('Agenda item not found', 404);
+        throw CustomException('Agenda item not found', 404);
     }
 
     const allowedFields = ['title', 'description', 'duration', 'presenter', 'notes', 'order', 'completed'];
@@ -630,11 +630,11 @@ const deleteAgendaItem = asyncHandler(async (req, res) => {
     const event = await Event.findById(id);
 
     if (!event) {
-        throw new CustomException('Event not found', 404);
+        throw CustomException('Event not found', 404);
     }
 
     if (event.organizer.toString() !== userId && event.createdBy.toString() !== userId) {
-        throw new CustomException('Only the organizer can manage agenda', 403);
+        throw CustomException('Only the organizer can manage agenda', 403);
     }
 
     event.agenda.pull(agendaId);
@@ -660,7 +660,7 @@ const addActionItem = asyncHandler(async (req, res) => {
     const event = await Event.findById(id);
 
     if (!event) {
-        throw new CustomException('Event not found', 404);
+        throw CustomException('Event not found', 404);
     }
 
     const hasAccess = event.organizer.toString() === userId ||
@@ -668,7 +668,7 @@ const addActionItem = asyncHandler(async (req, res) => {
                       event.isUserAttendee(userId);
 
     if (!hasAccess) {
-        throw new CustomException('You cannot add action items to this event', 403);
+        throw CustomException('You cannot add action items to this event', 403);
     }
 
     event.actionItems.push({
@@ -701,12 +701,12 @@ const updateActionItem = asyncHandler(async (req, res) => {
     const event = await Event.findById(id);
 
     if (!event) {
-        throw new CustomException('Event not found', 404);
+        throw CustomException('Event not found', 404);
     }
 
     const item = event.actionItems.id(itemId);
     if (!item) {
-        throw new CustomException('Action item not found', 404);
+        throw CustomException('Action item not found', 404);
     }
 
     const allowedFields = ['description', 'assignedTo', 'dueDate', 'status', 'priority'];
@@ -740,7 +740,7 @@ const getCalendarEvents = asyncHandler(async (req, res) => {
     const userId = req.userID;
 
     if (!startDate || !endDate) {
-        throw new CustomException('Start date and end date are required', 400);
+        throw CustomException('Start date and end date are required', 400);
     }
 
     const events = await Event.getCalendarEvents(
@@ -881,7 +881,7 @@ const checkAvailability = asyncHandler(async (req, res) => {
     const { userIds, startDateTime, endDateTime, excludeEventId } = req.body;
 
     if (!userIds || !startDateTime || !endDateTime) {
-        throw new CustomException('User IDs, start time, and end time are required', 400);
+        throw CustomException('User IDs, start time, and end time are required', 400);
     }
 
     const result = await Event.checkAvailability(
@@ -949,7 +949,7 @@ const exportEventToICS = asyncHandler(async (req, res) => {
         .populate('caseId', 'title caseNumber');
 
     if (!event) {
-        throw new CustomException('Event not found', 404);
+        throw CustomException('Event not found', 404);
     }
 
     // Check access
@@ -958,7 +958,7 @@ const exportEventToICS = asyncHandler(async (req, res) => {
                       event.isUserAttendee(userId);
 
     if (!hasAccess) {
-        throw new CustomException('You do not have access to this event', 403);
+        throw CustomException('You do not have access to this event', 403);
     }
 
     // Generate ICS content
@@ -979,14 +979,14 @@ const importEventsFromICS = asyncHandler(async (req, res) => {
     const userId = req.userID;
 
     if (!req.file) {
-        throw new CustomException('ICS file is required', 400);
+        throw CustomException('ICS file is required', 400);
     }
 
     const icsContent = req.file.buffer.toString('utf-8');
     const parsedEvents = parseICS(icsContent);
 
     if (parsedEvents.length === 0) {
-        throw new CustomException('No valid events found in ICS file', 400);
+        throw CustomException('No valid events found in ICS file', 400);
     }
 
     const createdEvents = [];

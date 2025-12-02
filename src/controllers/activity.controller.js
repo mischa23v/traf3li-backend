@@ -76,11 +76,11 @@ const getActivity = asyncHandler(async (req, res) => {
         .populate('clientId', 'firstName lastName username email');
 
     if (!activity) {
-        throw new CustomException('Activity not found', 404);
+        throw CustomException('Activity not found', 404);
     }
 
     if (activity.userId._id.toString() !== lawyerId) {
-        throw new CustomException('You do not have access to this activity', 403);
+        throw CustomException('You do not have access to this activity', 403);
     }
 
     res.status(200).json({
@@ -171,7 +171,7 @@ const getEntityActivities = asyncHandler(async (req, res) => {
     const validEntityTypes = ['Invoice', 'Payment', 'TimeEntry', 'Expense', 'Retainer', 'Statement', 'BillingRate'];
 
     if (!validEntityTypes.includes(entityType)) {
-        throw new CustomException('Invalid entity type', 400);
+        throw CustomException('Invalid entity type', 400);
     }
 
     const query = {

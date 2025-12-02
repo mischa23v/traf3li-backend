@@ -11,13 +11,13 @@ const createTag = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
 
     if (!name || !color) {
-        throw new CustomException('الاسم واللون مطلوبان', 400);
+        throw CustomException('الاسم واللون مطلوبان', 400);
     }
 
     // Check for duplicate name
     const existing = await Tag.findOne({ lawyerId, name: name.trim() });
     if (existing) {
-        throw new CustomException('الوسم موجود بالفعل', 400);
+        throw CustomException('الوسم موجود بالفعل', 400);
     }
 
     const tag = await Tag.create({
@@ -90,7 +90,7 @@ const getTag = asyncHandler(async (req, res) => {
     const tag = await Tag.findOne({ _id: id, lawyerId });
 
     if (!tag) {
-        throw new CustomException('الوسم غير موجود', 404);
+        throw CustomException('الوسم غير موجود', 404);
     }
 
     res.status(200).json({
@@ -110,7 +110,7 @@ const updateTag = asyncHandler(async (req, res) => {
     const tag = await Tag.findOne({ _id: id, lawyerId });
 
     if (!tag) {
-        throw new CustomException('الوسم غير موجود', 404);
+        throw CustomException('الوسم غير موجود', 404);
     }
 
     // Check for duplicate name if name is being changed
@@ -121,7 +121,7 @@ const updateTag = asyncHandler(async (req, res) => {
             _id: { $ne: id }
         });
         if (existing) {
-            throw new CustomException('الوسم موجود بالفعل', 400);
+            throw CustomException('الوسم موجود بالفعل', 400);
         }
     }
 
@@ -152,7 +152,7 @@ const deleteTag = asyncHandler(async (req, res) => {
     const tag = await Tag.findOneAndDelete({ _id: id, lawyerId });
 
     if (!tag) {
-        throw new CustomException('الوسم غير موجود', 404);
+        throw CustomException('الوسم غير موجود', 404);
     }
 
     res.status(200).json({
@@ -170,7 +170,7 @@ const searchTags = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
 
     if (!q || q.length < 1) {
-        throw new CustomException('يجب أن يكون مصطلح البحث حرفًا واحدًا على الأقل', 400);
+        throw CustomException('يجب أن يكون مصطلح البحث حرفًا واحدًا على الأقل', 400);
     }
 
     const tags = await Tag.searchTags(lawyerId, q, entityType);
@@ -208,12 +208,12 @@ const attachTag = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
 
     if (!entityType || !entityId) {
-        throw new CustomException('نوع الكيان ومعرف الكيان مطلوبان', 400);
+        throw CustomException('نوع الكيان ومعرف الكيان مطلوبان', 400);
     }
 
     const tag = await Tag.findOne({ _id: id, lawyerId });
     if (!tag) {
-        throw new CustomException('الوسم غير موجود', 404);
+        throw CustomException('الوسم غير موجود', 404);
     }
 
     // Increment usage count
@@ -235,7 +235,7 @@ const detachTag = asyncHandler(async (req, res) => {
 
     const tag = await Tag.findOne({ _id: id, lawyerId });
     if (!tag) {
-        throw new CustomException('الوسم غير موجود', 404);
+        throw CustomException('الوسم غير موجود', 404);
     }
 
     // Decrement usage count

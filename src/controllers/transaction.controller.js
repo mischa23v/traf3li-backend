@@ -25,15 +25,15 @@ const createTransaction = asyncHandler(async (req, res) => {
 
     // Validate required fields
     if (!type || !amount) {
-        throw new CustomException('النوع والمبلغ مطلوبان', 400);
+        throw CustomException('النوع والمبلغ مطلوبان', 400);
     }
 
     if (!['income', 'expense', 'transfer'].includes(type)) {
-        throw new CustomException('نوع المعاملة غير صالح', 400);
+        throw CustomException('نوع المعاملة غير صالح', 400);
     }
 
     if (amount <= 0) {
-        throw new CustomException('المبلغ يجب أن يكون أكبر من صفر', 400);
+        throw CustomException('المبلغ يجب أن يكون أكبر من صفر', 400);
     }
 
     // Create transaction
@@ -165,11 +165,11 @@ const getTransaction = asyncHandler(async (req, res) => {
         .populate('caseId', 'caseNumber title status');
 
     if (!transaction) {
-        throw new CustomException('المعاملة غير موجودة', 404);
+        throw CustomException('المعاملة غير موجودة', 404);
     }
 
     if (transaction.userId.toString() !== userId) {
-        throw new CustomException('لا يمكنك الوصول إلى هذه المعاملة', 403);
+        throw CustomException('لا يمكنك الوصول إلى هذه المعاملة', 403);
     }
 
     res.status(200).json({
@@ -189,11 +189,11 @@ const updateTransaction = asyncHandler(async (req, res) => {
     const transaction = await Transaction.findById(id);
 
     if (!transaction) {
-        throw new CustomException('المعاملة غير موجودة', 404);
+        throw CustomException('المعاملة غير موجودة', 404);
     }
 
     if (transaction.userId.toString() !== userId) {
-        throw new CustomException('لا يمكنك الوصول إلى هذه المعاملة', 403);
+        throw CustomException('لا يمكنك الوصول إلى هذه المعاملة', 403);
     }
 
     const allowedUpdates = [
@@ -243,11 +243,11 @@ const deleteTransaction = asyncHandler(async (req, res) => {
     const transaction = await Transaction.findById(id);
 
     if (!transaction) {
-        throw new CustomException('المعاملة غير موجودة', 404);
+        throw CustomException('المعاملة غير موجودة', 404);
     }
 
     if (transaction.userId.toString() !== userId) {
-        throw new CustomException('لا يمكنك الوصول إلى هذه المعاملة', 403);
+        throw CustomException('لا يمكنك الوصول إلى هذه المعاملة', 403);
     }
 
     await Transaction.findByIdAndDelete(id);
@@ -357,15 +357,15 @@ const cancelTransaction = asyncHandler(async (req, res) => {
     const transaction = await Transaction.findById(id);
 
     if (!transaction) {
-        throw new CustomException('المعاملة غير موجودة', 404);
+        throw CustomException('المعاملة غير موجودة', 404);
     }
 
     if (transaction.userId.toString() !== userId) {
-        throw new CustomException('لا يمكنك الوصول إلى هذه المعاملة', 403);
+        throw CustomException('لا يمكنك الوصول إلى هذه المعاملة', 403);
     }
 
     if (transaction.status === 'cancelled') {
-        throw new CustomException('المعاملة ملغاة بالفعل', 400);
+        throw CustomException('المعاملة ملغاة بالفعل', 400);
     }
 
     transaction.status = 'cancelled';
@@ -393,7 +393,7 @@ const bulkDeleteTransactions = asyncHandler(async (req, res) => {
     const userId = req.userID;
 
     if (!transactionIds || !Array.isArray(transactionIds) || transactionIds.length === 0) {
-        throw new CustomException('يجب تحديد المعاملات المراد حذفها', 400);
+        throw CustomException('يجب تحديد المعاملات المراد حذفها', 400);
     }
 
     const result = await Transaction.deleteMany({
