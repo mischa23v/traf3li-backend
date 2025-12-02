@@ -50,10 +50,12 @@ const commentSchema = new mongoose.Schema({
 const attachmentSchema = new mongoose.Schema({
     fileName: String,
     fileUrl: String,
+    fileKey: String, // S3 key for the file (used for S3 storage)
     fileType: String,
     fileSize: Number,
     uploadedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-    uploadedAt: { type: Date, default: Date.now }
+    uploadedAt: { type: Date, default: Date.now },
+    storageType: { type: String, enum: ['local', 's3'], default: 'local' }
 }, { _id: true });
 
 // History entry schema

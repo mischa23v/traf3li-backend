@@ -1,6 +1,10 @@
 const { Task, User, Case } = require('../models');
 const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
+const { deleteFile } = require('../configs/s3');
+const { isS3Configured, getTaskFilePresignedUrl, isS3Url, extractS3Key } = require('../configs/taskUpload');
+const fs = require('fs');
+const path = require('path');
 
 // Create task
 const createTask = asyncHandler(async (req, res) => {
@@ -1278,6 +1282,7 @@ const saveAsTemplate = asyncHandler(async (req, res) => {
 /**
  * Add attachment to task
  * POST /api/tasks/:id/attachments
+ * Supports both local storage and S3 uploads
  */
 const addAttachment = asyncHandler(async (req, res) => {
     const { id } = req.params;
@@ -1294,14 +1299,32 @@ const addAttachment = asyncHandler(async (req, res) => {
 
     const user = await User.findById(userId).select('firstName lastName');
 
-    const attachment = {
-        fileName: req.file.originalname,
-        fileUrl: `/uploads/tasks/${req.file.filename}`,
-        fileType: req.file.mimetype,
-        fileSize: req.file.size,
-        uploadedBy: userId,
-        uploadedAt: new Date()
-    };
+    let attachment;
+
+    if (isS3Configured() && req.file.location) {
+        // S3 upload - multer-s3 provides location (full URL) and key
+        attachment = {
+            fileName: req.file.originalname,
+            fileUrl: req.file.location, // Full S3 URL
+            fileKey: req.file.key, // S3 key for deletion
+            fileType: req.file.mimetype,
+            fileSize: req.file.size,
+            uploadedBy: userId,
+            uploadedAt: new Date(),
+            storageType: 's3'
+        };
+    } else {
+        // Local storage upload
+        attachment = {
+            fileName: req.file.originalname,
+            fileUrl: `/uploads/tasks/${req.file.filename}`,
+            fileType: req.file.mimetype,
+            fileSize: req.file.size,
+            uploadedBy: userId,
+            uploadedAt: new Date(),
+            storageType: 'local'
+        };
+    }
 
     task.attachments.push(attachment);
 
@@ -1318,16 +1341,30 @@ const addAttachment = asyncHandler(async (req, res) => {
 
     const newAttachment = task.attachments[task.attachments.length - 1];
 
+    // If S3, generate a presigned URL for immediate access
+    let downloadUrl = newAttachment.fileUrl;
+    if (newAttachment.storageType === 's3' && newAttachment.fileKey) {
+        try {
+            downloadUrl = await getTaskFilePresignedUrl(newAttachment.fileKey, newAttachment.fileName);
+        } catch (err) {
+            console.error('Error generating presigned URL:', err);
+        }
+    }
+
     res.status(201).json({
         success: true,
         message: 'تم رفع المرفق بنجاح',
-        attachment: newAttachment
+        attachment: {
+            ...newAttachment.toObject(),
+            downloadUrl
+        }
     });
 });
 
 /**
  * Delete attachment from task
  * DELETE /api/tasks/:id/attachments/:attachmentId
+ * Supports both local storage and S3 deletion
  */
 const deleteAttachment = asyncHandler(async (req, res) => {
     const { id, attachmentId } = req.params;
@@ -1349,6 +1386,27 @@ const deleteAttachment = asyncHandler(async (req, res) => {
     }
 
     const fileName = attachment.fileName;
+    const fileUrl = attachment.fileUrl;
+    const fileKey = attachment.fileKey;
+    const storageType = attachment.storageType;
+
+    // Delete the actual file from storage
+    try {
+        if (storageType === 's3' && fileKey) {
+            // Delete from S3
+            await deleteFile(fileKey, 'tasks');
+        } else if (storageType === 'local' || !storageType) {
+            // Delete from local storage
+            const localPath = path.join(process.cwd(), fileUrl);
+            if (fs.existsSync(localPath)) {
+                fs.unlinkSync(localPath);
+            }
+        }
+    } catch (err) {
+        console.error('Error deleting file from storage:', err);
+        // Continue with database removal even if file deletion fails
+    }
+
     task.attachments.pull(attachmentId);
 
     const user = await User.findById(userId).select('firstName lastName');
@@ -1895,6 +1953,48 @@ const updateSubtask = asyncHandler(async (req, res) => {
     });
 });
 
+/**
+ * Get download URL for an attachment
+ * GET /api/tasks/:id/attachments/:attachmentId/download-url
+ * Returns a fresh presigned URL for S3 files or the local URL
+ */
+const getAttachmentDownloadUrl = asyncHandler(async (req, res) => {
+    const { id, attachmentId } = req.params;
+
+    const task = await Task.findById(id);
+    if (!task) {
+        throw new CustomException('Task not found', 404);
+    }
+
+    const attachment = task.attachments.id(attachmentId);
+    if (!attachment) {
+        throw new CustomException('Attachment not found', 404);
+    }
+
+    let downloadUrl = attachment.fileUrl;
+
+    // If S3 storage, generate a fresh presigned URL
+    if (attachment.storageType === 's3' && attachment.fileKey) {
+        try {
+            downloadUrl = await getTaskFilePresignedUrl(attachment.fileKey, attachment.fileName);
+        } catch (err) {
+            console.error('Error generating presigned URL:', err);
+            throw new CustomException('Error generating download URL', 500);
+        }
+    }
+
+    res.status(200).json({
+        success: true,
+        attachment: {
+            _id: attachment._id,
+            fileName: attachment.fileName,
+            fileType: attachment.fileType,
+            fileSize: attachment.fileSize,
+            downloadUrl
+        }
+    });
+});
+
 module.exports = {
     createTask,
     getTasks,
@@ -1930,6 +2030,7 @@ module.exports = {
     // Attachment functions
     addAttachment,
     deleteAttachment,
+    getAttachmentDownloadUrl,
     // Dependency functions
     addDependency,
     removeDependency,

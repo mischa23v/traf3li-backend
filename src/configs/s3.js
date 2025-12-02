@@ -13,7 +13,17 @@ const s3Client = new S3Client({
 // Bucket names
 const BUCKETS = {
     general: process.env.S3_BUCKET_DOCUMENTS || 'traf3li-legal-documents',
-    judgments: process.env.S3_BUCKET_JUDGMENTS || 'traf3li-case-judgments'
+    judgments: process.env.S3_BUCKET_JUDGMENTS || 'traf3li-case-judgments',
+    tasks: process.env.S3_BUCKET_TASKS || process.env.S3_BUCKET_DOCUMENTS || 'traf3li-legal-documents'
+};
+
+// Check if S3 is configured
+const isS3Configured = () => {
+    return !!(
+        process.env.AWS_ACCESS_KEY_ID &&
+        process.env.AWS_SECRET_ACCESS_KEY &&
+        (process.env.S3_BUCKET_DOCUMENTS || process.env.S3_BUCKET_TASKS)
+    );
 };
 
 // URL expiry time (in seconds)
@@ -105,6 +115,7 @@ const generateFileKey = (caseId, category, filename) => {
 module.exports = {
     s3Client,
     BUCKETS,
+    isS3Configured,
     getUploadPresignedUrl,
     getDownloadPresignedUrl,
     deleteFile,

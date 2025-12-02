@@ -36,6 +36,7 @@ const {
     // Attachment functions
     addAttachment,
     deleteAttachment,
+    getAttachmentDownloadUrl,
     // Dependency functions
     addDependency,
     removeDependency,
@@ -105,6 +106,7 @@ app.post('/:id/save-as-template', userMiddleware, saveAsTemplate);
 // ATTACHMENT ROUTES
 // ==============================================
 app.post('/:id/attachments', userMiddleware, taskUpload.single('file'), addAttachment);
+app.get('/:id/attachments/:attachmentId/download-url', userMiddleware, getAttachmentDownloadUrl);
 app.delete('/:id/attachments/:attachmentId', userMiddleware, deleteAttachment);
 
 // ==============================================
