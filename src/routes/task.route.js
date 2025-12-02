@@ -1,5 +1,6 @@
 const express = require('express');
 const { userMiddleware } = require('../middlewares');
+const taskUpload = require('../configs/taskUpload');
 const {
     createTask,
     getTasks,
@@ -10,6 +11,7 @@ const {
     addSubtask,
     toggleSubtask,
     deleteSubtask,
+    updateSubtask,
     startTimer,
     stopTimer,
     addManualTime,
@@ -30,7 +32,21 @@ const {
     updateTemplate,
     deleteTemplate,
     createFromTemplate,
-    saveAsTemplate
+    saveAsTemplate,
+    // Attachment functions
+    addAttachment,
+    deleteAttachment,
+    getAttachmentDownloadUrl,
+    // Dependency functions
+    addDependency,
+    removeDependency,
+    updateTaskStatus,
+    // Workflow functions
+    addWorkflowRule,
+    updateOutcome,
+    // Budget functions
+    updateEstimate,
+    getTimeTrackingSummary
 } = require('../controllers/task.controller');
 
 const app = express.Router();
@@ -85,5 +101,36 @@ app.delete('/:id/comments/:commentId', userMiddleware, deleteComment);
 
 // Save task as template
 app.post('/:id/save-as-template', userMiddleware, saveAsTemplate);
+
+// ==============================================
+// ATTACHMENT ROUTES
+// ==============================================
+app.post('/:id/attachments', userMiddleware, taskUpload.single('file'), addAttachment);
+app.get('/:id/attachments/:attachmentId/download-url', userMiddleware, getAttachmentDownloadUrl);
+app.delete('/:id/attachments/:attachmentId', userMiddleware, deleteAttachment);
+
+// ==============================================
+// DEPENDENCY ROUTES
+// ==============================================
+app.post('/:id/dependencies', userMiddleware, addDependency);
+app.delete('/:id/dependencies/:dependencyTaskId', userMiddleware, removeDependency);
+app.patch('/:id/status', userMiddleware, updateTaskStatus);
+
+// ==============================================
+// WORKFLOW ROUTES
+// ==============================================
+app.post('/:id/workflow-rules', userMiddleware, addWorkflowRule);
+app.patch('/:id/outcome', userMiddleware, updateOutcome);
+
+// ==============================================
+// BUDGET/ESTIMATE ROUTES
+// ==============================================
+app.patch('/:id/estimate', userMiddleware, updateEstimate);
+app.get('/:id/time-tracking/summary', userMiddleware, getTimeTrackingSummary);
+
+// ==============================================
+// ENHANCED SUBTASK ROUTES
+// ==============================================
+app.patch('/:id/subtasks/:subtaskId', userMiddleware, updateSubtask);
 
 module.exports = app;

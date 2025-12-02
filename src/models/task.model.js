@@ -5,7 +5,8 @@ const subtaskSchema = new mongoose.Schema({
     title: { type: String, required: true },
     completed: { type: Boolean, default: false },
     completedAt: Date,
-    autoReset: { type: Boolean, default: false }
+    autoReset: { type: Boolean, default: false },
+    order: { type: Number, default: 0 }
 }, { _id: true });
 
 // Time session schema
@@ -14,7 +15,8 @@ const timeSessionSchema = new mongoose.Schema({
     endedAt: Date,
     duration: Number, // minutes
     userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-    notes: String
+    notes: String,
+    isBillable: { type: Boolean, default: true }
 }, { _id: true });
 
 // Checklist schema
@@ -48,19 +50,77 @@ const commentSchema = new mongoose.Schema({
 const attachmentSchema = new mongoose.Schema({
     fileName: String,
     fileUrl: String,
+    fileKey: String, // S3 key for the file (used for S3 storage)
     fileType: String,
     fileSize: Number,
     uploadedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-    uploadedAt: { type: Date, default: Date.now }
+    uploadedAt: { type: Date, default: Date.now },
+    storageType: { type: String, enum: ['local', 's3'], default: 'local' }
 }, { _id: true });
 
 // History entry schema
 const historyEntrySchema = new mongoose.Schema({
-    action: { type: String, required: true },
+    action: {
+        type: String,
+        required: true,
+        enum: ['created', 'updated', 'status_changed', 'assigned', 'completed', 'reopened',
+               'commented', 'attachment_added', 'attachment_removed', 'subtask_added',
+               'subtask_completed', 'subtask_uncompleted', 'subtask_deleted',
+               'dependency_added', 'dependency_removed', 'created_from_template']
+    },
     userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    userName: String,
     changes: mongoose.Schema.Types.Mixed,
+    oldValue: mongoose.Schema.Types.Mixed,
+    newValue: mongoose.Schema.Types.Mixed,
+    details: String,
     timestamp: { type: Date, default: Date.now }
+}, { _id: true });
+
+// Workflow rule schema
+const workflowConditionSchema = new mongoose.Schema({
+    field: { type: String, required: true },
+    operator: { type: String, enum: ['equals', 'not_equals', 'contains', 'greater_than', 'less_than'], required: true },
+    value: mongoose.Schema.Types.Mixed
 }, { _id: false });
+
+const workflowActionSchema = new mongoose.Schema({
+    type: {
+        type: String,
+        enum: ['create_task', 'update_field', 'send_notification', 'assign_user'],
+        required: true
+    },
+    taskTemplate: {
+        title: String,
+        description: String,
+        taskType: String,
+        priority: String,
+        dueDateOffset: Number,
+        assignedTo: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
+    },
+    field: String,
+    value: mongoose.Schema.Types.Mixed,
+    notificationType: String,
+    recipients: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }]
+}, { _id: false });
+
+const workflowRuleSchema = new mongoose.Schema({
+    name: { type: String, required: true },
+    trigger: {
+        type: { type: String, enum: ['status_change', 'completion', 'due_date_passed'], required: true },
+        fromStatus: String,
+        toStatus: String
+    },
+    conditions: [workflowConditionSchema],
+    actions: [workflowActionSchema],
+    isActive: { type: Boolean, default: true }
+}, { _id: true });
+
+// Dependency schema
+const dependencySchema = new mongoose.Schema({
+    taskId: { type: mongoose.Schema.Types.ObjectId, ref: 'Task', required: true },
+    type: { type: String, enum: ['blocks', 'blocked_by', 'related'], default: 'blocked_by' }
+}, { _id: true });
 
 const taskSchema = new mongoose.Schema({
     title: {
@@ -127,7 +187,9 @@ const taskSchema = new mongoose.Schema({
     timeTracking: {
         estimatedMinutes: { type: Number, default: 0 },
         actualMinutes: { type: Number, default: 0 },
-        sessions: [timeSessionSchema]
+        sessions: [timeSessionSchema],
+        isTracking: { type: Boolean, default: false },
+        currentSessionStart: Date
     },
     recurring: {
         enabled: { type: Boolean, default: false },
@@ -182,6 +244,36 @@ const taskSchema = new mongoose.Schema({
         type: String,
         trim: true,
         maxlength: 200
+    },
+    // Task Dependencies
+    dependencies: [dependencySchema],
+    blockedBy: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Task' }],
+    blocks: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Task' }],
+    // Workflow Rules
+    workflowRules: [workflowRuleSchema],
+    outcome: {
+        type: String,
+        enum: ['successful', 'unsuccessful', 'appealed', 'settled', 'dismissed', null],
+        default: null
+    },
+    outcomeNotes: { type: String, maxlength: 2000 },
+    outcomeDate: Date,
+    // Budget Tracking
+    budget: {
+        estimatedHours: { type: Number, default: 0 },
+        hourlyRate: { type: Number, default: 0 },
+        estimatedCost: { type: Number, default: 0 },
+        actualCost: { type: Number, default: 0 },
+        variance: { type: Number, default: 0 },
+        variancePercent: { type: Number, default: 0 }
+    },
+    // Task Type for legal workflows
+    taskType: {
+        type: String,
+        enum: ['general', 'court_hearing', 'document_review', 'client_meeting',
+               'filing_deadline', 'appeal_deadline', 'discovery', 'deposition',
+               'mediation', 'settlement', 'research', 'drafting'],
+        default: 'general'
     }
 }, {
     versionKey: false,
@@ -198,13 +290,50 @@ taskSchema.index({ 'recurring.enabled': 1, 'recurring.nextDue': 1 });
 taskSchema.index({ title: 'text', description: 'text' });
 taskSchema.index({ isTemplate: 1, createdBy: 1 });
 taskSchema.index({ isTemplate: 1, isPublic: 1 });
+taskSchema.index({ blockedBy: 1 });
+taskSchema.index({ blocks: 1 });
+taskSchema.index({ taskType: 1 });
+taskSchema.index({ createdAt: -1 });
 
-// Pre-save hook to calculate progress from subtasks
+// Pre-save hook to calculate progress from subtasks and budget
 taskSchema.pre('save', function(next) {
+    // Calculate progress from subtasks
     if (this.subtasks && this.subtasks.length > 0) {
         const completed = this.subtasks.filter(s => s.completed).length;
         this.progress = Math.round((completed / this.subtasks.length) * 100);
     }
+
+    // Calculate actual minutes from time sessions
+    if (this.timeTracking?.sessions) {
+        this.timeTracking.actualMinutes = this.timeTracking.sessions
+            .filter(s => s.endedAt)
+            .reduce((sum, s) => sum + (s.duration || 0), 0);
+    }
+
+    // Calculate budget figures
+    if (this.budget) {
+        // Calculate estimated cost
+        if (this.budget.hourlyRate && this.timeTracking?.estimatedMinutes) {
+            this.budget.estimatedHours = this.timeTracking.estimatedMinutes / 60;
+            this.budget.estimatedCost = this.budget.estimatedHours * this.budget.hourlyRate;
+        }
+
+        // Calculate actual cost (only billable time)
+        if (this.budget.hourlyRate && this.timeTracking?.sessions) {
+            const billableMinutes = this.timeTracking.sessions
+                .filter(s => s.endedAt && s.isBillable !== false)
+                .reduce((sum, s) => sum + (s.duration || 0), 0);
+            const actualHours = billableMinutes / 60;
+            this.budget.actualCost = actualHours * this.budget.hourlyRate;
+        }
+
+        // Calculate variance
+        if (this.budget.estimatedCost > 0) {
+            this.budget.variance = this.budget.estimatedCost - this.budget.actualCost;
+            this.budget.variancePercent = (this.budget.variance / this.budget.estimatedCost) * 100;
+        }
+    }
+
     next();
 });
 
