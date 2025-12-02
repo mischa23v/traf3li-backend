@@ -37,6 +37,13 @@ const {
     addAttachment,
     deleteAttachment,
     getAttachmentDownloadUrl,
+    // Document functions
+    createDocument,
+    updateDocument,
+    getDocument,
+    // Voice memo functions
+    addVoiceMemo,
+    updateVoiceMemoTranscription,
     // Dependency functions
     addDependency,
     removeDependency,
@@ -108,6 +115,19 @@ app.post('/:id/save-as-template', userMiddleware, saveAsTemplate);
 app.post('/:id/attachments', userMiddleware, taskUpload.single('file'), addAttachment);
 app.get('/:id/attachments/:attachmentId/download-url', userMiddleware, getAttachmentDownloadUrl);
 app.delete('/:id/attachments/:attachmentId', userMiddleware, deleteAttachment);
+
+// ==============================================
+// DOCUMENT ROUTES (in-app text editor)
+// ==============================================
+app.post('/:id/documents', userMiddleware, createDocument);
+app.get('/:id/documents/:documentId', userMiddleware, getDocument);
+app.patch('/:id/documents/:documentId', userMiddleware, updateDocument);
+
+// ==============================================
+// VOICE MEMO ROUTES
+// ==============================================
+app.post('/:id/voice-memos', userMiddleware, taskUpload.single('file'), addVoiceMemo);
+app.patch('/:id/voice-memos/:memoId/transcription', userMiddleware, updateVoiceMemoTranscription);
 
 // ==============================================
 // DEPENDENCY ROUTES
