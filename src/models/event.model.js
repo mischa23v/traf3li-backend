@@ -472,15 +472,24 @@ eventSchema.methods.postpone = function(newDateTime, reason) {
 // Static method: Get events for calendar view
 eventSchema.statics.getCalendarEvents = async function(userId, startDate, endDate, filters = {}) {
     const query = {
-        $or: [
-            { createdBy: new mongoose.Types.ObjectId(userId) },
-            { organizer: new mongoose.Types.ObjectId(userId) },
-            { 'attendees.userId': new mongoose.Types.ObjectId(userId) }
-        ],
-        startDateTime: { $gte: startDate },
-        $or: [
-            { endDateTime: { $lte: endDate } },
-            { endDateTime: { $exists: false } }
+        $and: [
+            // User access check
+            {
+                $or: [
+                    { createdBy: new mongoose.Types.ObjectId(userId) },
+                    { organizer: new mongoose.Types.ObjectId(userId) },
+                    { 'attendees.userId': new mongoose.Types.ObjectId(userId) }
+                ]
+            },
+            // Date range check
+            { startDateTime: { $gte: startDate } },
+            {
+                $or: [
+                    { endDateTime: { $lte: endDate } },
+                    { endDateTime: { $exists: false } },
+                    { endDateTime: null }
+                ]
+            }
         ],
         status: { $ne: 'cancelled' }
     };

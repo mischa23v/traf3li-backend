@@ -298,8 +298,50 @@ app.get('/health', (req, res) => {
 
 // Error handling middleware
 app.use((err, req, res, next) => {
-    console.error(err.stack);
-    res.status(500).send({ error: true, message: 'Something went wrong!' });
+    // Log error details for debugging
+    console.error('❌ Error:', {
+        message: err.message,
+        status: err.status || err.statusCode,
+        name: err.name,
+        stack: process.env.NODE_ENV !== 'production' ? err.stack : undefined
+    });
+
+    // Handle Mongoose validation errors
+    if (err.name === 'ValidationError') {
+        const messages = Object.values(err.errors).map(e => e.message);
+        return res.status(400).json({
+            error: true,
+            message: messages.join(', '),
+            details: process.env.NODE_ENV !== 'production' ? err.errors : undefined
+        });
+    }
+
+    // Handle Mongoose CastError (invalid ObjectId)
+    if (err.name === 'CastError') {
+        return res.status(400).json({
+            error: true,
+            message: `Invalid ${err.path}: ${err.value}`
+        });
+    }
+
+    // Handle duplicate key error
+    if (err.code === 11000) {
+        const field = Object.keys(err.keyValue)[0];
+        return res.status(400).json({
+            error: true,
+            message: `Duplicate value for field: ${field}`
+        });
+    }
+
+    // Handle custom exceptions and other errors
+    const status = err.status || err.statusCode || 500;
+    const message = err.message || 'Something went wrong!';
+
+    res.status(status).json({
+        error: true,
+        message,
+        ...(process.env.NODE_ENV !== 'production' && { stack: err.stack })
+    });
 });
 
 const PORT = process.env.PORT || 8080;
