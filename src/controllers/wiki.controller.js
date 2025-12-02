@@ -170,10 +170,10 @@ exports.createPage = async (req, res) => {
             caseId,
             lawyerId: userId,
             clientId: caseDoc.clientId,
-            linkedTasks,
-            linkedEvents,
-            linkedReminders,
-            linkedDocuments,
+            linkedTaskIds: linkedTasks,
+            linkedEventIds: linkedEvents,
+            linkedReminderIds: linkedReminders,
+            linkedDocumentIds: linkedDocuments,
             tags,
             isTemplate: isTemplate || false,
             visibility: visibility || 'case_team',
@@ -253,9 +253,9 @@ exports.getPage = async (req, res) => {
         .populate('parentPageId', 'title urlSlug')
         .populate('collectionId', 'name nameAr icon color collectionType')
         .populate('caseId', 'title caseNumber')
-        .populate('linkedTasks', 'title status priority')
-        .populate('linkedEvents', 'title startDateTime status')
-        .populate('linkedReminders', 'title reminderDateTime status');
+        .populate('linkedTaskIds', 'title status priority')
+        .populate('linkedEventIds', 'title startDateTime status')
+        .populate('linkedReminderIds', 'title reminderDateTime status');
 
         if (!page) {
             return res.status(404).json({
@@ -357,11 +357,11 @@ exports.updatePage = async (req, res) => {
         if (pageType !== undefined) page.pageType = pageType;
         if (parentPageId !== undefined) page.parentPageId = parentPageId || undefined;
         if (collectionId !== undefined) page.collectionId = collectionId || undefined;
-        if (linkedTasks !== undefined) page.linkedTasks = linkedTasks;
-        if (linkedEvents !== undefined) page.linkedEvents = linkedEvents;
-        if (linkedReminders !== undefined) page.linkedReminders = linkedReminders;
-        if (linkedDocuments !== undefined) page.linkedDocuments = linkedDocuments;
-        if (linkedPages !== undefined) page.linkedPages = linkedPages;
+        if (linkedTasks !== undefined) page.linkedTaskIds = linkedTasks;
+        if (linkedEvents !== undefined) page.linkedEventIds = linkedEvents;
+        if (linkedReminders !== undefined) page.linkedReminderIds = linkedReminders;
+        if (linkedDocuments !== undefined) page.linkedDocumentIds = linkedDocuments;
+        if (linkedPages !== undefined) page.linkedWikiPageIds = linkedPages;
         if (tags !== undefined) page.tags = tags;
         if (visibility !== undefined) page.visibility = visibility;
         if (isConfidential !== undefined) page.isConfidential = isConfidential;
