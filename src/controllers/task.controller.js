@@ -618,8 +618,14 @@ const addManualTime = asyncHandler(async (req, res) => {
 // Add comment
 const addComment = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const { content, mentions } = req.body;
+    // Accept both 'text' (frontend) and 'content' (schema) for flexibility
+    const { content, text, mentions } = req.body;
+    const commentContent = content || text;
     const userId = req.userID;
+
+    if (!commentContent) {
+        throw new CustomException('Comment content is required', 400);
+    }
 
     const task = await Task.findById(id);
     if (!task) {
@@ -628,7 +634,7 @@ const addComment = asyncHandler(async (req, res) => {
 
     task.comments.push({
         userId,
-        content,
+        content: commentContent,
         mentions: mentions || [],
         createdAt: new Date()
     });
@@ -648,8 +654,14 @@ const addComment = asyncHandler(async (req, res) => {
 // Update comment
 const updateComment = asyncHandler(async (req, res) => {
     const { id, commentId } = req.params;
-    const { content } = req.body;
+    // Accept both 'text' (frontend) and 'content' (schema) for flexibility
+    const { content, text } = req.body;
+    const commentContent = content || text;
     const userId = req.userID;
+
+    if (!commentContent) {
+        throw new CustomException('Comment content is required', 400);
+    }
 
     const task = await Task.findById(id);
     if (!task) {
@@ -665,7 +677,7 @@ const updateComment = asyncHandler(async (req, res) => {
         throw new CustomException('You can only edit your own comments', 403);
     }
 
-    comment.content = content;
+    comment.content = commentContent;
     comment.updatedAt = new Date();
 
     await task.save();
