@@ -13,7 +13,7 @@ const createReminder = asyncHandler(async (req, res) => {
         reminderDateTime,
         reminderDate,
         reminderTime,
-        priority = 'medium',
+        priority: rawPriority = 'medium',
         type = 'general',
         relatedCase,
         relatedTask,
@@ -21,12 +21,38 @@ const createReminder = asyncHandler(async (req, res) => {
         relatedInvoice,
         clientId,
         recurring,
-        notification,
+        notification: rawNotification,
         tags,
         notes
     } = req.body;
 
     const userId = req.userID;
+
+    // Normalize priority - map 'urgent' to 'critical'
+    const priorityMap = { urgent: 'critical', normal: 'medium' };
+    const priority = priorityMap[rawPriority] || rawPriority;
+
+    // Normalize notification object
+    let notification = rawNotification || { channels: ['push'] };
+
+    // Handle case where advanceNotifications is a number (minutes) instead of array
+    if (notification.advanceNotifications !== undefined) {
+        if (typeof notification.advanceNotifications === 'number') {
+            notification = {
+                ...notification,
+                advanceNotifications: [{
+                    beforeMinutes: notification.advanceNotifications,
+                    channels: notification.channels || ['push']
+                }]
+            };
+        } else if (!Array.isArray(notification.advanceNotifications)) {
+            // If it's neither number nor array, reset to empty array
+            notification = {
+                ...notification,
+                advanceNotifications: []
+            };
+        }
+    }
 
     // Validate required fields
     const dateTime = reminderDateTime || (reminderDate && reminderTime ? new Date(`${reminderDate}T${reminderTime}`) : null);
@@ -71,7 +97,7 @@ const createReminder = asyncHandler(async (req, res) => {
         relatedInvoice,
         clientId,
         recurring: recurring || { enabled: false },
-        notification: notification || { channels: ['push'] },
+        notification,
         tags: tags || [],
         notes,
         status: 'pending',
