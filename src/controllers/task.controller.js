@@ -2299,6 +2299,56 @@ const createDocument = asyncHandler(async (req, res) => {
 });
 
 /**
+ * Get all documents for a task
+ * GET /api/tasks/:id/documents
+ * Returns a list of all editable documents (TipTap documents) for a task
+ */
+const getDocuments = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const userId = req.userID;
+
+    const task = await Task.findById(id)
+        .populate('createdBy', '_id')
+        .populate('assignedTo', '_id')
+        .populate('attachments.uploadedBy', 'firstName lastName')
+        .populate('attachments.lastEditedBy', 'firstName lastName');
+
+    if (!task) {
+        throw CustomException('Task not found', 404);
+    }
+
+    // Verify user has access to this task
+    const isCreator = task.createdBy && task.createdBy._id.toString() === userId;
+    const isAssignee = task.assignedTo && task.assignedTo._id.toString() === userId;
+
+    if (!isCreator && !isAssignee) {
+        throw CustomException('You do not have access to this task', 403);
+    }
+
+    // Filter to get only editable documents (TipTap documents)
+    const documents = task.attachments
+        .filter(attachment => attachment.isEditable === true)
+        .map(doc => ({
+            _id: doc._id,
+            fileName: doc.fileName,
+            fileType: doc.fileType,
+            fileSize: doc.fileSize,
+            contentFormat: doc.contentFormat || 'html',
+            isEditable: doc.isEditable,
+            uploadedBy: doc.uploadedBy,
+            uploadedAt: doc.uploadedAt,
+            lastEditedBy: doc.lastEditedBy,
+            lastEditedAt: doc.lastEditedAt
+        }));
+
+    res.status(200).json({
+        success: true,
+        documents,
+        count: documents.length
+    });
+});
+
+/**
  * Update a text/rich-text document in a task
  * PATCH /api/tasks/:id/documents/:documentId
  * Supports both HTML and TipTap JSON formats
@@ -2846,6 +2896,7 @@ module.exports = {
     getAttachmentVersions,
     // Document functions
     createDocument,
+    getDocuments,
     updateDocument,
     getDocument,
     getDocumentVersions,
