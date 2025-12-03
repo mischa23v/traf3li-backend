@@ -81,6 +81,7 @@ const BudgetTemplate = require('./budgetTemplate.model');
 // Audit Trail Models
 const CaseAuditLog = require('./caseAuditLog.model');
 const DocumentVersion = require('./documentVersion.model');
+const TaskDocumentVersion = require('./taskDocumentVersion.model');
 
 // Bank Account Models
 const BankAccount = require('./bankAccount.model');
@@ -182,6 +183,7 @@ module.exports = {
     // Audit Trail
     CaseAuditLog,
     DocumentVersion,
+    TaskDocumentVersion,
 
     // Bank Accounts
     BankAccount,

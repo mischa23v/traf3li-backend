@@ -42,6 +42,9 @@ const {
     createDocument,
     updateDocument,
     getDocument,
+    getDocumentVersions,
+    getDocumentVersion,
+    restoreDocumentVersion,
     // Voice memo functions
     addVoiceMemo,
     updateVoiceMemoTranscription,
@@ -126,6 +129,10 @@ app.delete('/:id/attachments/:attachmentId', userMiddleware, deleteAttachment);
 app.post('/:id/documents', userMiddleware, createDocument);
 app.get('/:id/documents/:documentId', userMiddleware, getDocument);
 app.patch('/:id/documents/:documentId', userMiddleware, updateDocument);
+// Document versioning
+app.get('/:id/documents/:documentId/versions', userMiddleware, getDocumentVersions);
+app.get('/:id/documents/:documentId/versions/:versionId', userMiddleware, getDocumentVersion);
+app.post('/:id/documents/:documentId/versions/:versionId/restore', userMiddleware, restoreDocumentVersion);
 
 // ==============================================
 // VOICE MEMO ROUTES
