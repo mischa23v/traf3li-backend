@@ -1,16 +1,26 @@
-# S3 Attachments API - Frontend Integration Guide
+# Frontend Integration Guide
 
-## Overview
-
-This document covers the complete integration for task attachments with S3 storage, including:
-- Download/Preview attachments
-- Version history (S3 versioning)
-- Access logging
-- Server-side encryption (SSE)
+Complete API documentation for:
+- S3 Task Attachments (upload, download, versioning)
+- TipTap Rich Text Documents
+- Access Logging & Server-Side Encryption
 
 ---
 
-## Environment Variables (Backend)
+## Table of Contents
+
+1. [Environment Variables](#environment-variables)
+2. [S3 Attachments API](#s3-attachments-api)
+3. [TipTap Documents API](#tiptap-documents-api)
+4. [TypeScript Types](#typescript-types)
+5. [API Service Functions](#api-service-functions)
+6. [React Components](#react-components)
+7. [Security Features](#security-features)
+8. [Troubleshooting](#troubleshooting)
+
+---
+
+## Environment Variables
 
 ```bash
 # AWS Credentials
@@ -41,7 +51,7 @@ PRESIGNED_URL_EXPIRY=3600
 
 ---
 
-## API Endpoints
+## S3 Attachments API
 
 ### 1. Get Download URL
 
@@ -61,7 +71,7 @@ Authorization: Bearer <access_token>
 {
   "success": true,
   "downloadUrl": "https://bucket.s3.region.amazonaws.com/tasks/123/file.pdf?X-Amz-Algorithm=...",
-  "versionId": "abc123" | null,
+  "versionId": "abc123",
   "attachment": {
     "_id": "attachmentId",
     "fileName": "document.pdf",
@@ -119,10 +129,6 @@ Authorization: Bearer <access_token>
   ]
 }
 ```
-
-**Note:** Returns empty `versions` array if:
-- Attachment uses local storage (not S3)
-- Versioning is not enabled on the bucket
 
 ---
 
@@ -198,6 +204,223 @@ Authorization: Bearer <access_token>
 
 ---
 
+## TipTap Documents API
+
+The frontend uses TipTap rich text editor for creating/editing documents attached to tasks. Documents store both HTML content (for rendering) and JSON content (for editing).
+
+### TipTap Editor Features
+
+| Feature | Icon | Shortcut |
+|---------|------|----------|
+| Bold | **B** | Ctrl+B |
+| Italic | *I* | Ctrl+I |
+| Underline | U̲ | Ctrl+U |
+| Strikethrough | ~~S~~ | |
+| Code | `</>` | Inline code |
+| Text Color | 🎨 | 8 colors |
+| Highlight | 🖍️ | 6 background colors |
+| Alignment | ⬅️➡️ | Right, Center, Left, Justify |
+| Headings | H1-H3 | |
+| Lists | • 1. | Bullet, Numbered |
+| Blockquote | ❝ | |
+| Horizontal Rule | — | |
+| Table | 📊 | Insert, add/delete rows/cols |
+| Image | 🖼️ | |
+| Link/Unlink | 🔗 | |
+| Undo/Redo | ↩️↪️ | |
+| Character Count | | Shows chars + words |
+
+---
+
+### 1. Create Document
+
+**Endpoint:**
+```
+POST /api/tasks/:taskId/documents
+```
+
+**Headers:**
+```
+Authorization: Bearer <access_token>
+Content-Type: application/json
+```
+
+**Request Body:**
+```json
+{
+  "title": "عنوان المستند",
+  "content": "<p>HTML content from TipTap</p>",
+  "contentJson": { "type": "doc", "content": [...] },
+  "contentFormat": "tiptap-json"
+}
+```
+
+**Response (201):**
+```json
+{
+  "document": {
+    "_id": "doc_123",
+    "title": "عنوان المستند",
+    "fileName": "document.html",
+    "content": "<p>HTML content</p>",
+    "contentJson": { ... },
+    "contentFormat": "tiptap-json",
+    "createdAt": "2025-12-03T10:00:00Z",
+    "updatedAt": "2025-12-03T10:00:00Z"
+  }
+}
+```
+
+---
+
+### 2. Get Single Document
+
+**Endpoint:**
+```
+GET /api/tasks/:taskId/documents/:documentId
+```
+
+**Response:**
+```json
+{
+  "document": {
+    "_id": "doc_123",
+    "title": "مستند 1",
+    "content": "<p>Full HTML content</p>",
+    "contentJson": { "type": "doc", "content": [...] },
+    "contentFormat": "tiptap-json",
+    "createdAt": "2025-12-03T10:00:00Z",
+    "updatedAt": "2025-12-03T10:00:00Z"
+  }
+}
+```
+
+---
+
+### 3. Update Document
+
+**Endpoint:**
+```
+PATCH /api/tasks/:taskId/documents/:documentId
+```
+
+**Request Body:** (all fields optional)
+```json
+{
+  "title": "عنوان محدث",
+  "content": "<p>Updated HTML</p>",
+  "contentJson": { ... }
+}
+```
+
+**Response:**
+```json
+{
+  "document": { ... }
+}
+```
+
+---
+
+### TipTap JSON Structure Examples
+
+**Simple Paragraph:**
+```json
+{
+  "type": "doc",
+  "content": [
+    {
+      "type": "paragraph",
+      "attrs": { "textAlign": "right" },
+      "content": [
+        { "type": "text", "text": "Hello world" }
+      ]
+    }
+  ]
+}
+```
+
+**With Text Formatting:**
+```json
+{
+  "type": "doc",
+  "content": [
+    {
+      "type": "paragraph",
+      "content": [
+        { "type": "text", "marks": [{ "type": "bold" }], "text": "Bold text" },
+        { "type": "text", "text": " and " },
+        { "type": "text", "marks": [{ "type": "italic" }], "text": "italic text" }
+      ]
+    }
+  ]
+}
+```
+
+**With Colors & Highlights:**
+```json
+{
+  "type": "paragraph",
+  "content": [
+    {
+      "type": "text",
+      "marks": [
+        { "type": "textStyle", "attrs": { "color": "#ef4444" } }
+      ],
+      "text": "Red text"
+    },
+    {
+      "type": "text",
+      "marks": [
+        { "type": "highlight", "attrs": { "color": "#fef08a" } }
+      ],
+      "text": "Highlighted text"
+    }
+  ]
+}
+```
+
+**Table Structure:**
+```json
+{
+  "type": "table",
+  "content": [
+    {
+      "type": "tableRow",
+      "content": [
+        {
+          "type": "tableHeader",
+          "attrs": { "colspan": 1, "rowspan": 1 },
+          "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "Header 1" }] }]
+        },
+        {
+          "type": "tableHeader",
+          "attrs": { "colspan": 1, "rowspan": 1 },
+          "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "Header 2" }] }]
+        }
+      ]
+    },
+    {
+      "type": "tableRow",
+      "content": [
+        {
+          "type": "tableCell",
+          "attrs": { "colspan": 1, "rowspan": 1 },
+          "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "Cell 1" }] }]
+        },
+        {
+          "type": "tableCell",
+          "attrs": { "colspan": 1, "rowspan": 1 },
+          "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "Cell 2" }] }]
+        }
+      ]
+    }
+  ]
+}
+```
+
+---
+
 ## TypeScript Types
 
 ```typescript
@@ -252,6 +475,41 @@ export interface UploadResponse {
   message: string;
   attachment: Attachment;
 }
+
+// types/document.ts
+
+export interface TaskDocument {
+  _id: string;
+  fileName: string;
+  title?: string;
+  content?: string;                              // HTML content
+  contentJson?: TipTapJSON;                      // TipTap JSON structure
+  contentFormat?: 'html' | 'tiptap-json' | 'markdown';
+  fileUrl?: string;
+  fileType?: string;
+  fileSize?: number;
+  createdBy?: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface TipTapJSON {
+  type: 'doc';
+  content: TipTapNode[];
+}
+
+export interface TipTapNode {
+  type: string;
+  attrs?: Record<string, any>;
+  content?: TipTapNode[];
+  marks?: TipTapMark[];
+  text?: string;
+}
+
+export interface TipTapMark {
+  type: string;
+  attrs?: Record<string, any>;
+}
 ```
 
 ---
@@ -263,19 +521,12 @@ export interface UploadResponse {
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL;
 
-/**
- * Get access token from your auth store/context
- */
 function getAccessToken(): string {
-  // Implement based on your auth system
   return localStorage.getItem('accessToken') || '';
 }
 
 /**
  * Get presigned download URL for an attachment
- * @param taskId - Task ID
- * @param attachmentId - Attachment ID
- * @param versionId - Optional: specific version ID
  */
 export async function getAttachmentDownloadUrl(
   taskId: string,
@@ -308,8 +559,6 @@ export async function getAttachmentDownloadUrl(
 
 /**
  * Get all versions of an attachment
- * @param taskId - Task ID
- * @param attachmentId - Attachment ID
  */
 export async function getAttachmentVersions(
   taskId: string,
@@ -336,8 +585,6 @@ export async function getAttachmentVersions(
 
 /**
  * Upload a new attachment
- * @param taskId - Task ID
- * @param file - File to upload
  */
 export async function uploadAttachment(
   taskId: string,
@@ -353,7 +600,6 @@ export async function uploadAttachment(
       credentials: 'include',
       headers: {
         'Authorization': `Bearer ${getAccessToken()}`
-        // Don't set Content-Type - browser sets it with boundary
       },
       body: formData
     }
@@ -369,8 +615,6 @@ export async function uploadAttachment(
 
 /**
  * Delete an attachment
- * @param taskId - Task ID
- * @param attachmentId - Attachment ID
  */
 export async function deleteAttachment(
   taskId: string,
@@ -397,9 +641,6 @@ export async function deleteAttachment(
 
 /**
  * Preview attachment in new tab
- * @param taskId - Task ID
- * @param attachmentId - Attachment ID
- * @param versionId - Optional: specific version
  */
 export async function previewAttachment(
   taskId: string,
@@ -416,10 +657,6 @@ export async function previewAttachment(
 
 /**
  * Download attachment with save dialog
- * @param taskId - Task ID
- * @param attachmentId - Attachment ID
- * @param fileName - File name for download
- * @param versionId - Optional: specific version
  */
 export async function downloadAttachment(
   taskId: string,
@@ -439,6 +676,105 @@ export async function downloadAttachment(
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
+}
+```
+
+```typescript
+// api/documents.ts
+
+/**
+ * Get a document by ID
+ */
+export async function getDocument(
+  taskId: string,
+  documentId: string
+): Promise<{ document: TaskDocument }> {
+  const response = await fetch(
+    `${API_BASE}/api/tasks/${taskId}/documents/${documentId}`,
+    {
+      method: 'GET',
+      credentials: 'include',
+      headers: {
+        'Authorization': `Bearer ${getAccessToken()}`
+      }
+    }
+  );
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || 'Failed to get document');
+  }
+
+  return response.json();
+}
+
+/**
+ * Create a new document
+ */
+export async function createDocument(
+  taskId: string,
+  data: {
+    title: string;
+    content: string;
+    contentJson: TipTapJSON;
+    contentFormat?: string;
+  }
+): Promise<{ document: TaskDocument }> {
+  const response = await fetch(
+    `${API_BASE}/api/tasks/${taskId}/documents`,
+    {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Authorization': `Bearer ${getAccessToken()}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        ...data,
+        contentFormat: data.contentFormat || 'tiptap-json'
+      })
+    }
+  );
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || 'Failed to create document');
+  }
+
+  return response.json();
+}
+
+/**
+ * Update a document
+ */
+export async function updateDocument(
+  taskId: string,
+  documentId: string,
+  data: {
+    title?: string;
+    content?: string;
+    contentJson?: TipTapJSON;
+  }
+): Promise<{ document: TaskDocument }> {
+  const response = await fetch(
+    `${API_BASE}/api/tasks/${taskId}/documents/${documentId}`,
+    {
+      method: 'PATCH',
+      credentials: 'include',
+      headers: {
+        'Authorization': `Bearer ${getAccessToken()}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(data)
+    }
+  );
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || 'Failed to update document');
+  }
+
+  return response.json();
 }
 ```
 
@@ -551,7 +887,6 @@ export function AttachmentList({ taskId, attachments, onDelete }: Props) {
           </div>
 
           <div className="flex items-center gap-2">
-            {/* Version History Button (only for S3) */}
             {attachment.storageType === 's3' && (
               <button
                 onClick={() => setShowVersions(
@@ -564,7 +899,6 @@ export function AttachmentList({ taskId, attachments, onDelete }: Props) {
               </button>
             )}
 
-            {/* Preview Button */}
             <button
               onClick={() => handlePreview(attachment)}
               disabled={loading === attachment._id}
@@ -573,7 +907,6 @@ export function AttachmentList({ taskId, attachments, onDelete }: Props) {
               {loading === attachment._id ? '...' : 'معاينة'}
             </button>
 
-            {/* Download Button */}
             <button
               onClick={() => handleDownload(attachment)}
               disabled={loading === attachment._id}
@@ -582,7 +915,6 @@ export function AttachmentList({ taskId, attachments, onDelete }: Props) {
               {loading === attachment._id ? '...' : 'تحميل'}
             </button>
 
-            {/* Delete Button */}
             <button
               onClick={() => handleDelete(attachment)}
               disabled={loading === attachment._id}
@@ -594,7 +926,6 @@ export function AttachmentList({ taskId, attachments, onDelete }: Props) {
         </div>
       ))}
 
-      {/* Version History Panel */}
       {showVersions && (
         <div className="mt-2 p-4 bg-white border rounded-lg shadow">
           <AttachmentVersions
@@ -681,18 +1012,13 @@ export function AttachmentVersions({ taskId, attachment, onClose }: Props) {
         <h4 className="font-semibold">
           سجل النسخ: {attachment.fileName}
         </h4>
-        <button
-          onClick={onClose}
-          className="text-gray-500 hover:text-gray-700"
-        >
+        <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
           ✕
         </button>
       </div>
 
       {loading && (
-        <div className="text-center py-4 text-gray-500">
-          جاري التحميل...
-        </div>
+        <div className="text-center py-4 text-gray-500">جاري التحميل...</div>
       )}
 
       {error && (
@@ -708,9 +1034,7 @@ export function AttachmentVersions({ taskId, attachment, onClose }: Props) {
       )}
 
       {!loading && !error && versions.length === 0 && (
-        <div className="text-center py-4 text-gray-500">
-          لا توجد نسخ سابقة
-        </div>
+        <div className="text-center py-4 text-gray-500">لا توجد نسخ سابقة</div>
       )}
 
       {!loading && !error && versions.length > 0 && (
@@ -805,18 +1129,15 @@ export function AttachmentUpload({ taskId, onUpload }: Props) {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Reset input
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
 
-    // Validate file type
     if (!ALLOWED_TYPES.includes(file.type)) {
       setError('نوع الملف غير مسموح');
       return;
     }
 
-    // Validate file size
     if (file.size > MAX_SIZE) {
       setError('حجم الملف يتجاوز الحد المسموح (50MB)');
       return;
@@ -827,7 +1148,6 @@ export function AttachmentUpload({ taskId, onUpload }: Props) {
       setError(null);
       setProgress(0);
 
-      // Simulate progress (actual progress requires XHR)
       const progressInterval = setInterval(() => {
         setProgress(prev => Math.min(prev + 10, 90));
       }, 200);
@@ -839,7 +1159,6 @@ export function AttachmentUpload({ taskId, onUpload }: Props) {
 
       onUpload(result.attachment);
 
-      // Reset after success
       setTimeout(() => {
         setProgress(0);
       }, 1000);
@@ -907,6 +1226,27 @@ export function AttachmentUpload({ taskId, onUpload }: Props) {
 
 ---
 
+## Security Features
+
+### Server-Side Encryption
+| Type | Description |
+|------|-------------|
+| **SSE-S3 (AES256)** | Default, free, automatic encryption |
+| **SSE-KMS** | Optional, uses AWS KMS for key management |
+| **Bucket Key** | Reduces KMS API costs by ~99% when enabled |
+
+### Access Control
+- JWT authentication required for all endpoints
+- User must be task creator or assignee to access attachments/documents
+- Presigned URLs expire after configured time (default: 1 hour)
+
+### S3 Features Supported
+- **Versioning**: Enable on bucket for version history
+- **Bucket Key**: Enable for cost-effective KMS encryption
+- **Access Logging**: Separate bucket for audit trail
+
+---
+
 ## Access Logging
 
 When `S3_BUCKET_TASKS_LOGS` is configured, every download generates a log entry:
@@ -924,28 +1264,9 @@ When `S3_BUCKET_TASKS_LOGS` is configured, every download generates a log entry:
   "taskId": "task456",
   "attachmentId": "att789",
   "fileName": "document.pdf",
-  "versionId": "abc123" | "latest"
+  "versionId": "abc123"
 }
 ```
-
----
-
-## Security Features
-
-### Server-Side Encryption
-- **SSE-S3 (AES256)**: Default, free, automatic encryption
-- **SSE-KMS**: Optional, uses AWS KMS for key management
-- **Bucket Key**: Reduces KMS API costs by ~99% when enabled
-
-### Access Control
-- JWT authentication required for all endpoints
-- User must be task creator or assignee to access attachments
-- Presigned URLs expire after configured time (default: 1 hour)
-
-### S3 Features Supported
-- **Versioning**: Enable on bucket for version history
-- **Bucket Key**: Enable for cost-effective KMS encryption
-- **Access Logging**: Separate bucket for audit trail
 
 ---
 
@@ -957,10 +1278,10 @@ When `S3_BUCKET_TASKS_LOGS` is configured, every download generates a log entry:
 3. Check if presigned URL has expired
 
 ### "S3 is not configured" Error
-1. Verify environment variables are set:
-   - `AWS_ACCESS_KEY_ID`
-   - `AWS_SECRET_ACCESS_KEY`
-   - `S3_BUCKET_TASKS` or `AWS_S3_BUCKET`
+Verify environment variables are set:
+- `AWS_ACCESS_KEY_ID`
+- `AWS_SECRET_ACCESS_KEY`
+- `S3_BUCKET_TASKS` or `AWS_S3_BUCKET`
 
 ### Empty Versions Array
 1. Versioning must be enabled on the S3 bucket
@@ -971,3 +1292,8 @@ When `S3_BUCKET_TASKS_LOGS` is configured, every download generates a log entry:
 1. Check file size (max 50MB for S3)
 2. Verify file type is allowed
 3. Check IAM permissions for `s3:PutObject`
+
+### Document Save Fails
+1. Check `contentJson` is valid TipTap JSON structure
+2. Verify task exists and user has access
+3. Check for maximum content size limits
