@@ -2072,13 +2072,24 @@ const updateSubtask = asyncHandler(async (req, res) => {
  * Get download URL for an attachment
  * GET /api/tasks/:id/attachments/:attachmentId/download-url
  * Returns a fresh presigned URL for S3 files or the local URL
+ * Verifies user has access to the task/attachment before generating URL
  */
 const getAttachmentDownloadUrl = asyncHandler(async (req, res) => {
     const { id, attachmentId } = req.params;
+    const userId = req.userID;
 
     const task = await Task.findById(id);
     if (!task) {
         throw CustomException('Task not found', 404);
+    }
+
+    // Verify user has access to this task
+    const hasAccess =
+        task.createdBy.toString() === userId ||
+        task.assignedTo?.toString() === userId;
+
+    if (!hasAccess) {
+        throw CustomException('You do not have access to this attachment', 403);
     }
 
     const attachment = task.attachments.id(attachmentId);
@@ -2088,24 +2099,28 @@ const getAttachmentDownloadUrl = asyncHandler(async (req, res) => {
 
     let downloadUrl = attachment.fileUrl;
 
-    // If S3 storage, generate a fresh presigned URL
+    // If S3 storage, generate a fresh presigned URL (expires in 15 minutes for security)
     if (attachment.storageType === 's3' && attachment.fileKey) {
         try {
             downloadUrl = await getTaskFilePresignedUrl(attachment.fileKey, attachment.fileName);
+            if (!downloadUrl) {
+                throw new Error('Failed to generate presigned URL - S3 may not be configured');
+            }
         } catch (err) {
             console.error('Error generating presigned URL:', err);
             throw CustomException('Error generating download URL', 500);
         }
     }
 
+    // Return downloadUrl at top level for frontend compatibility
     res.status(200).json({
         success: true,
+        downloadUrl,
         attachment: {
             _id: attachment._id,
             fileName: attachment.fileName,
             fileType: attachment.fileType,
-            fileSize: attachment.fileSize,
-            downloadUrl
+            fileSize: attachment.fileSize
         }
     });
 });
