@@ -28,13 +28,13 @@ try {
 }
 
 // Check if S3 is configured and available
-// Supports both old variable names (AWS_S3_BUCKET) and new names (S3_BUCKET_DOCUMENTS)
+// Supports multiple variable naming conventions
 const isS3Configured = () => {
     return !!(
         s3Client &&
         process.env.AWS_ACCESS_KEY_ID &&
         process.env.AWS_SECRET_ACCESS_KEY &&
-        (process.env.AWS_S3_BUCKET || process.env.S3_BUCKET_DOCUMENTS || process.env.S3_BUCKET_TASKS)
+        (process.env.S3_BUCKET_TASKS || process.env.AWS_S3_BUCKET || process.env.AWS_S3_BUCKET_DOCUMENTS || process.env.S3_BUCKET_DOCUMENTS)
     );
 };
 
@@ -94,9 +94,17 @@ if (!fs.existsSync(uploadDir)) {
 
 let taskUpload;
 
+// Server-side encryption configuration (matches s3.js)
+const SSE_CONFIG = {
+    enabled: process.env.S3_SSE_ENABLED !== 'false',
+    algorithm: process.env.S3_SSE_ALGORITHM || 'AES256',
+    kmsKeyId: process.env.S3_KMS_KEY_ID || null,
+    bucketKeyEnabled: process.env.S3_BUCKET_KEY_ENABLED !== 'false'
+};
+
 if (isS3Configured() && multerS3) {
-    // S3 Storage Configuration
-    const s3Storage = multerS3({
+    // S3 Storage Configuration with server-side encryption
+    const s3StorageConfig = {
         s3: s3Client,
         bucket: BUCKETS.tasks,
         contentType: multerS3.AUTO_CONTENT_TYPE,
@@ -111,7 +119,23 @@ if (isS3Configured() && multerS3) {
                 uploadedBy: req.userID || 'unknown'
             });
         }
-    });
+    };
+
+    // Apply server-side encryption if enabled
+    if (SSE_CONFIG.enabled) {
+        s3StorageConfig.serverSideEncryption = SSE_CONFIG.algorithm;
+
+        // If using SSE-KMS with Bucket Key
+        if (SSE_CONFIG.algorithm === 'aws:kms') {
+            if (SSE_CONFIG.kmsKeyId) {
+                s3StorageConfig.sseKmsKeyId = SSE_CONFIG.kmsKeyId;
+            }
+            // Note: multer-s3 doesn't directly support BucketKeyEnabled
+            // but if Bucket Key is enabled at bucket level, it will be used automatically
+        }
+    }
+
+    const s3Storage = multerS3(s3StorageConfig);
 
     taskUpload = multer({
         storage: s3Storage,
@@ -154,9 +178,12 @@ if (isS3Configured() && multerS3) {
  * Get a presigned URL for downloading a file from S3
  * @param {string} fileKey - The S3 key for the file
  * @param {string} filename - Original filename for Content-Disposition
+ * @param {string} versionId - Optional S3 version ID for versioned buckets
+ * @param {string} disposition - 'inline' for preview, 'attachment' for download (default)
+ * @param {string} contentType - Optional content type for proper browser handling
  * @returns {Promise<string>} - The presigned URL
  */
-const getTaskFilePresignedUrl = async (fileKey, filename = null) => {
+const getTaskFilePresignedUrl = async (fileKey, filename = null, versionId = null, disposition = 'attachment', contentType = null) => {
     if (!isS3Configured() || !getSignedUrl || !GetObjectCommand) {
         return null;
     }
@@ -166,8 +193,22 @@ const getTaskFilePresignedUrl = async (fileKey, filename = null) => {
         Key: fileKey
     };
 
+    // Support S3 versioning
+    if (versionId) {
+        commandOptions.VersionId = versionId;
+    }
+
+    // Set Content-Disposition based on disposition parameter
+    // 'inline' - opens in browser (for preview)
+    // 'attachment' - triggers download dialog
     if (filename) {
-        commandOptions.ResponseContentDisposition = `attachment; filename="${encodeURIComponent(filename)}"`;
+        const dispositionType = disposition === 'inline' ? 'inline' : 'attachment';
+        commandOptions.ResponseContentDisposition = `${dispositionType}; filename="${encodeURIComponent(filename)}"`;
+    }
+
+    // Set Content-Type for proper browser handling (especially for preview)
+    if (contentType) {
+        commandOptions.ResponseContentType = contentType;
     }
 
     const command = new GetObjectCommand(commandOptions);
