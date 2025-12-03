@@ -2071,13 +2071,15 @@ const updateSubtask = asyncHandler(async (req, res) => {
 /**
  * Get download URL for an attachment
  * GET /api/tasks/:id/attachments/:attachmentId/download-url
- * Query params: ?versionId=xxx (optional - for versioned S3 buckets)
+ * Query params:
+ *   - versionId (optional): specific S3 version ID for versioned buckets
+ *   - disposition (optional): 'inline' for preview, 'attachment' for download (default)
  * Returns a fresh presigned URL for S3 files or the local URL
  * Verifies user has access to the task/attachment before generating URL
  */
 const getAttachmentDownloadUrl = asyncHandler(async (req, res) => {
     const { id, attachmentId } = req.params;
-    const { versionId } = req.query; // Optional: specific S3 version
+    const { versionId, disposition = 'attachment' } = req.query;
     const userId = req.userID;
 
     const task = await Task.findById(id);
@@ -2105,15 +2107,22 @@ const getAttachmentDownloadUrl = asyncHandler(async (req, res) => {
     // If S3 storage, generate a fresh presigned URL
     if (attachment.storageType === 's3' && attachment.fileKey) {
         try {
-            // Support versioning - pass versionId if provided
-            downloadUrl = await getTaskFilePresignedUrl(attachment.fileKey, attachment.fileName, versionId || null);
+            // Support versioning and disposition (inline for preview, attachment for download)
+            downloadUrl = await getTaskFilePresignedUrl(
+                attachment.fileKey,
+                attachment.fileName,
+                versionId || null,
+                disposition, // 'inline' or 'attachment'
+                attachment.fileType // Content-Type for proper browser handling
+            );
             if (!downloadUrl) {
                 throw new Error('Failed to generate presigned URL - S3 may not be configured');
             }
             currentVersionId = versionId || null;
 
             // Log file access asynchronously (don't wait for it)
-            logFileAccess(attachment.fileKey, 'tasks', userId, 'download', {
+            const action = disposition === 'inline' ? 'preview' : 'download';
+            logFileAccess(attachment.fileKey, 'tasks', userId, action, {
                 taskId: id,
                 attachmentId,
                 fileName: attachment.fileName,
@@ -2131,6 +2140,7 @@ const getAttachmentDownloadUrl = asyncHandler(async (req, res) => {
         success: true,
         downloadUrl,
         versionId: currentVersionId,
+        disposition,
         attachment: {
             _id: attachment._id,
             fileName: attachment.fileName,

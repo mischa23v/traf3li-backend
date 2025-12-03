@@ -58,7 +58,27 @@ PRESIGNED_URL_EXPIRY=3600
 **Endpoint:**
 ```
 GET /api/tasks/:taskId/attachments/:attachmentId/download-url
-GET /api/tasks/:taskId/attachments/:attachmentId/download-url?versionId=xxx
+```
+
+**Query Parameters:**
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `versionId` | string | - | Optional: Specific S3 version ID |
+| `disposition` | string | `attachment` | `inline` for preview, `attachment` for download |
+
+**Examples:**
+```
+# Download (triggers save dialog)
+GET /api/tasks/:taskId/attachments/:attachmentId/download-url
+
+# Preview (opens in browser - PDF, images, etc.)
+GET /api/tasks/:taskId/attachments/:attachmentId/download-url?disposition=inline
+
+# Download specific version
+GET /api/tasks/:taskId/attachments/:attachmentId/download-url?versionId=abc123
+
+# Preview specific version
+GET /api/tasks/:taskId/attachments/:attachmentId/download-url?disposition=inline&versionId=abc123
 ```
 
 **Headers:**
@@ -72,6 +92,7 @@ Authorization: Bearer <access_token>
   "success": true,
   "downloadUrl": "https://bucket.s3.region.amazonaws.com/tasks/123/file.pdf?X-Amz-Algorithm=...",
   "versionId": "abc123",
+  "disposition": "inline",
   "attachment": {
     "_id": "attachmentId",
     "fileName": "document.pdf",
@@ -80,6 +101,12 @@ Authorization: Bearer <access_token>
   }
 }
 ```
+
+**Disposition Behavior:**
+| Value | Content-Disposition Header | Browser Behavior |
+|-------|---------------------------|------------------|
+| `inline` | `inline; filename="doc.pdf"` | Opens in browser (PDF viewer, image display) |
+| `attachment` | `attachment; filename="doc.pdf"` | Shows "Save As" dialog |
 
 **Error Responses:**
 | Status | Message |
@@ -451,6 +478,7 @@ export interface DownloadUrlResponse {
   success: boolean;
   downloadUrl: string;
   versionId: string | null;
+  disposition: 'inline' | 'attachment';
   attachment: {
     _id: string;
     fileName: string;
@@ -527,18 +555,29 @@ function getAccessToken(): string {
 
 /**
  * Get presigned download URL for an attachment
+ * @param taskId - The task ID
+ * @param attachmentId - The attachment ID
+ * @param options - Optional parameters
+ * @param options.versionId - Specific S3 version ID
+ * @param options.disposition - 'inline' for preview, 'attachment' for download
  */
 export async function getAttachmentDownloadUrl(
   taskId: string,
   attachmentId: string,
-  versionId?: string
+  options?: {
+    versionId?: string;
+    disposition?: 'inline' | 'attachment';
+  }
 ): Promise<DownloadUrlResponse> {
   const url = new URL(
     `${API_BASE}/api/tasks/${taskId}/attachments/${attachmentId}/download-url`
   );
 
-  if (versionId) {
-    url.searchParams.set('versionId', versionId);
+  if (options?.versionId) {
+    url.searchParams.set('versionId', options.versionId);
+  }
+  if (options?.disposition) {
+    url.searchParams.set('disposition', options.disposition);
   }
 
   const response = await fetch(url.toString(), {
@@ -640,7 +679,7 @@ export async function deleteAttachment(
 }
 
 /**
- * Preview attachment in new tab
+ * Preview attachment in new tab (opens in browser)
  */
 export async function previewAttachment(
   taskId: string,
@@ -650,13 +689,13 @@ export async function previewAttachment(
   const { downloadUrl } = await getAttachmentDownloadUrl(
     taskId,
     attachmentId,
-    versionId
+    { versionId, disposition: 'inline' }
   );
   window.open(downloadUrl, '_blank');
 }
 
 /**
- * Download attachment with save dialog
+ * Download attachment with save dialog (triggers download)
  */
 export async function downloadAttachment(
   taskId: string,
@@ -667,7 +706,7 @@ export async function downloadAttachment(
   const { downloadUrl } = await getAttachmentDownloadUrl(
     taskId,
     attachmentId,
-    versionId
+    { versionId, disposition: 'attachment' }
   );
 
   const link = document.createElement('a');

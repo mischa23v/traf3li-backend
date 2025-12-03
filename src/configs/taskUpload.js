@@ -179,9 +179,11 @@ if (isS3Configured() && multerS3) {
  * @param {string} fileKey - The S3 key for the file
  * @param {string} filename - Original filename for Content-Disposition
  * @param {string} versionId - Optional S3 version ID for versioned buckets
+ * @param {string} disposition - 'inline' for preview, 'attachment' for download (default)
+ * @param {string} contentType - Optional content type for proper browser handling
  * @returns {Promise<string>} - The presigned URL
  */
-const getTaskFilePresignedUrl = async (fileKey, filename = null, versionId = null) => {
+const getTaskFilePresignedUrl = async (fileKey, filename = null, versionId = null, disposition = 'attachment', contentType = null) => {
     if (!isS3Configured() || !getSignedUrl || !GetObjectCommand) {
         return null;
     }
@@ -196,8 +198,17 @@ const getTaskFilePresignedUrl = async (fileKey, filename = null, versionId = nul
         commandOptions.VersionId = versionId;
     }
 
+    // Set Content-Disposition based on disposition parameter
+    // 'inline' - opens in browser (for preview)
+    // 'attachment' - triggers download dialog
     if (filename) {
-        commandOptions.ResponseContentDisposition = `attachment; filename="${encodeURIComponent(filename)}"`;
+        const dispositionType = disposition === 'inline' ? 'inline' : 'attachment';
+        commandOptions.ResponseContentDisposition = `${dispositionType}; filename="${encodeURIComponent(filename)}"`;
+    }
+
+    // Set Content-Type for proper browser handling (especially for preview)
+    if (contentType) {
+        commandOptions.ResponseContentType = contentType;
     }
 
     const command = new GetObjectCommand(commandOptions);
