@@ -94,9 +94,17 @@ if (!fs.existsSync(uploadDir)) {
 
 let taskUpload;
 
+// Server-side encryption configuration (matches s3.js)
+const SSE_CONFIG = {
+    enabled: process.env.S3_SSE_ENABLED !== 'false',
+    algorithm: process.env.S3_SSE_ALGORITHM || 'AES256',
+    kmsKeyId: process.env.S3_KMS_KEY_ID || null,
+    bucketKeyEnabled: process.env.S3_BUCKET_KEY_ENABLED !== 'false'
+};
+
 if (isS3Configured() && multerS3) {
-    // S3 Storage Configuration
-    const s3Storage = multerS3({
+    // S3 Storage Configuration with server-side encryption
+    const s3StorageConfig = {
         s3: s3Client,
         bucket: BUCKETS.tasks,
         contentType: multerS3.AUTO_CONTENT_TYPE,
@@ -111,7 +119,23 @@ if (isS3Configured() && multerS3) {
                 uploadedBy: req.userID || 'unknown'
             });
         }
-    });
+    };
+
+    // Apply server-side encryption if enabled
+    if (SSE_CONFIG.enabled) {
+        s3StorageConfig.serverSideEncryption = SSE_CONFIG.algorithm;
+
+        // If using SSE-KMS with Bucket Key
+        if (SSE_CONFIG.algorithm === 'aws:kms') {
+            if (SSE_CONFIG.kmsKeyId) {
+                s3StorageConfig.sseKmsKeyId = SSE_CONFIG.kmsKeyId;
+            }
+            // Note: multer-s3 doesn't directly support BucketKeyEnabled
+            // but if Bucket Key is enabled at bucket level, it will be used automatically
+        }
+    }
+
+    const s3Storage = multerS3(s3StorageConfig);
 
     taskUpload = multer({
         storage: s3Storage,

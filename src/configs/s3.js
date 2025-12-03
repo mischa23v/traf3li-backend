@@ -51,6 +51,40 @@ const isLoggingEnabled = () => !!(BUCKETS.documentsLogs || BUCKETS.tasksLogs);
 // URL expiry time (in seconds)
 const PRESIGNED_URL_EXPIRY = parseInt(process.env.PRESIGNED_URL_EXPIRY) || 3600;
 
+// Server-side encryption configuration
+// Supports SSE-S3 (AES256) or SSE-KMS with Bucket Key
+const SSE_CONFIG = {
+    enabled: process.env.S3_SSE_ENABLED !== 'false', // Enabled by default
+    algorithm: process.env.S3_SSE_ALGORITHM || 'AES256', // 'AES256' for SSE-S3, 'aws:kms' for SSE-KMS
+    kmsKeyId: process.env.S3_KMS_KEY_ID || null, // Required if using SSE-KMS
+    bucketKeyEnabled: process.env.S3_BUCKET_KEY_ENABLED !== 'false' // Bucket Key enabled by default for KMS
+};
+
+/**
+ * Get encryption parameters for PutObject commands
+ * @returns {Object} - Encryption parameters to spread into command options
+ */
+const getEncryptionParams = () => {
+    if (!SSE_CONFIG.enabled) {
+        return {};
+    }
+
+    const params = {
+        ServerSideEncryption: SSE_CONFIG.algorithm
+    };
+
+    // If using SSE-KMS, add KMS key and Bucket Key setting
+    if (SSE_CONFIG.algorithm === 'aws:kms') {
+        if (SSE_CONFIG.kmsKeyId) {
+            params.SSEKMSKeyId = SSE_CONFIG.kmsKeyId;
+        }
+        // Enable Bucket Key to reduce KMS costs
+        params.BucketKeyEnabled = SSE_CONFIG.bucketKeyEnabled;
+    }
+
+    return params;
+};
+
 /**
  * Generate a presigned URL for uploading a file
  * @param {string} fileKey - The S3 key for the file
@@ -68,7 +102,8 @@ const getUploadPresignedUrl = async (fileKey, contentType, bucket = 'general') =
     const command = new PutObjectCommand({
         Bucket: bucketName,
         Key: fileKey,
-        ContentType: contentType
+        ContentType: contentType,
+        ...getEncryptionParams() // Apply server-side encryption
     });
 
     const url = await getSignedUrl(s3Client, command, {
@@ -223,7 +258,8 @@ const logFileAccess = async (fileKey, bucket, userId, action, metadata = {}) => 
             Bucket: logBucket,
             Key: logKey,
             Body: JSON.stringify(logEntry, null, 2),
-            ContentType: 'application/json'
+            ContentType: 'application/json',
+            ...getEncryptionParams() // Apply server-side encryption to logs
         });
 
         await s3Client.send(command);
@@ -273,10 +309,12 @@ const generateFileKey = (caseId, category, filename) => {
 module.exports = {
     s3Client,
     BUCKETS,
+    SSE_CONFIG,
     isS3Configured,
     isLoggingEnabled,
     getUploadPresignedUrl,
     getDownloadPresignedUrl,
+    getEncryptionParams,
     deleteFile,
     generateFileKey,
     listFileVersions,
