@@ -154,9 +154,10 @@ if (isS3Configured() && multerS3) {
  * Get a presigned URL for downloading a file from S3
  * @param {string} fileKey - The S3 key for the file
  * @param {string} filename - Original filename for Content-Disposition
+ * @param {string} versionId - Optional S3 version ID for versioned buckets
  * @returns {Promise<string>} - The presigned URL
  */
-const getTaskFilePresignedUrl = async (fileKey, filename = null) => {
+const getTaskFilePresignedUrl = async (fileKey, filename = null, versionId = null) => {
     if (!isS3Configured() || !getSignedUrl || !GetObjectCommand) {
         return null;
     }
@@ -165,6 +166,11 @@ const getTaskFilePresignedUrl = async (fileKey, filename = null) => {
         Bucket: BUCKETS.tasks,
         Key: fileKey
     };
+
+    // Support S3 versioning
+    if (versionId) {
+        commandOptions.VersionId = versionId;
+    }
 
     if (filename) {
         commandOptions.ResponseContentDisposition = `attachment; filename="${encodeURIComponent(filename)}"`;

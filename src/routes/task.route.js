@@ -37,6 +37,7 @@ const {
     addAttachment,
     deleteAttachment,
     getAttachmentDownloadUrl,
+    getAttachmentVersions,
     // Document functions
     createDocument,
     updateDocument,
@@ -116,6 +117,7 @@ app.post('/:id/save-as-template', userMiddleware, saveAsTemplate);
 // ==============================================
 app.post('/:id/attachments', userMiddleware, taskUpload.single('file'), addAttachment);
 app.get('/:id/attachments/:attachmentId/download-url', userMiddleware, getAttachmentDownloadUrl);
+app.get('/:id/attachments/:attachmentId/versions', userMiddleware, getAttachmentVersions);
 app.delete('/:id/attachments/:attachmentId', userMiddleware, deleteAttachment);
 
 // ==============================================

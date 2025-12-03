@@ -1,7 +1,7 @@
 const { Task, User, Case } = require('../models');
 const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
-const { deleteFile } = require('../configs/s3');
+const { deleteFile, listFileVersions, logFileAccess } = require('../configs/s3');
 const { isS3Configured, getTaskFilePresignedUrl, isS3Url, extractS3Key } = require('../configs/taskUpload');
 const { sanitizeRichText, sanitizeComment, stripHtml, hasDangerousContent } = require('../utils/sanitize');
 const fs = require('fs');
@@ -2071,11 +2071,13 @@ const updateSubtask = asyncHandler(async (req, res) => {
 /**
  * Get download URL for an attachment
  * GET /api/tasks/:id/attachments/:attachmentId/download-url
+ * Query params: ?versionId=xxx (optional - for versioned S3 buckets)
  * Returns a fresh presigned URL for S3 files or the local URL
  * Verifies user has access to the task/attachment before generating URL
  */
 const getAttachmentDownloadUrl = asyncHandler(async (req, res) => {
     const { id, attachmentId } = req.params;
+    const { versionId } = req.query; // Optional: specific S3 version
     const userId = req.userID;
 
     const task = await Task.findById(id);
@@ -2098,14 +2100,26 @@ const getAttachmentDownloadUrl = asyncHandler(async (req, res) => {
     }
 
     let downloadUrl = attachment.fileUrl;
+    let currentVersionId = null;
 
-    // If S3 storage, generate a fresh presigned URL (expires in 15 minutes for security)
+    // If S3 storage, generate a fresh presigned URL
     if (attachment.storageType === 's3' && attachment.fileKey) {
         try {
-            downloadUrl = await getTaskFilePresignedUrl(attachment.fileKey, attachment.fileName);
+            // Support versioning - pass versionId if provided
+            downloadUrl = await getTaskFilePresignedUrl(attachment.fileKey, attachment.fileName, versionId || null);
             if (!downloadUrl) {
                 throw new Error('Failed to generate presigned URL - S3 may not be configured');
             }
+            currentVersionId = versionId || null;
+
+            // Log file access asynchronously (don't wait for it)
+            logFileAccess(attachment.fileKey, 'tasks', userId, 'download', {
+                taskId: id,
+                attachmentId,
+                fileName: attachment.fileName,
+                versionId: versionId || 'latest'
+            }).catch(err => console.error('Failed to log access:', err.message));
+
         } catch (err) {
             console.error('Error generating presigned URL:', err);
             throw CustomException('Error generating download URL', 500);
@@ -2116,6 +2130,7 @@ const getAttachmentDownloadUrl = asyncHandler(async (req, res) => {
     res.status(200).json({
         success: true,
         downloadUrl,
+        versionId: currentVersionId,
         attachment: {
             _id: attachment._id,
             fileName: attachment.fileName,
@@ -2123,6 +2138,69 @@ const getAttachmentDownloadUrl = asyncHandler(async (req, res) => {
             fileSize: attachment.fileSize
         }
     });
+});
+
+/**
+ * Get all versions of an attachment (for versioned S3 buckets)
+ * GET /api/tasks/:id/attachments/:attachmentId/versions
+ * Returns list of all versions with metadata
+ */
+const getAttachmentVersions = asyncHandler(async (req, res) => {
+    const { id, attachmentId } = req.params;
+    const userId = req.userID;
+
+    const task = await Task.findById(id);
+    if (!task) {
+        throw CustomException('Task not found', 404);
+    }
+
+    // Verify user has access to this task
+    const hasAccess =
+        task.createdBy.toString() === userId ||
+        task.assignedTo?.toString() === userId;
+
+    if (!hasAccess) {
+        throw CustomException('You do not have access to this attachment', 403);
+    }
+
+    const attachment = task.attachments.id(attachmentId);
+    if (!attachment) {
+        throw CustomException('Attachment not found', 404);
+    }
+
+    // Only S3 storage supports versioning
+    if (attachment.storageType !== 's3' || !attachment.fileKey) {
+        return res.status(200).json({
+            success: true,
+            versions: [],
+            message: 'Versioning not available for local storage'
+        });
+    }
+
+    try {
+        const versions = await listFileVersions(attachment.fileKey, 'tasks');
+
+        res.status(200).json({
+            success: true,
+            attachment: {
+                _id: attachment._id,
+                fileName: attachment.fileName,
+                fileKey: attachment.fileKey
+            },
+            versions
+        });
+    } catch (err) {
+        console.error('Error listing versions:', err);
+        // If versioning is not enabled, return empty array
+        if (err.name === 'NoSuchBucket' || err.Code === 'NoSuchBucket') {
+            throw CustomException('Bucket not found', 404);
+        }
+        res.status(200).json({
+            success: true,
+            versions: [],
+            message: 'Versioning may not be enabled on this bucket'
+        });
+    }
 });
 
 // ============================================
@@ -2513,6 +2591,7 @@ module.exports = {
     addAttachment,
     deleteAttachment,
     getAttachmentDownloadUrl,
+    getAttachmentVersions,
     // Document functions
     createDocument,
     updateDocument,
