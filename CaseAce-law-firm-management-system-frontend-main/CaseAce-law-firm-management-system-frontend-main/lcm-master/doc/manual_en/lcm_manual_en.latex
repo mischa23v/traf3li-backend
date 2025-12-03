@@ -1,0 +1,2269 @@
+\documentclass[a4paper,leqno]{book}
+\usepackage{ucs}
+% \usepackage[utf8]{inputenc}
+% \usepackage[T2A]{fontenc}
+\usepackage{fancyhdr}
+\usepackage{html}
+\usepackage[english]{babel}
+
+% 	This file is part of the Legal Case Management System (LCM).
+% 	(C) 2004-2005 Free Software Foundation, Inc.
+% 
+% 	This program is free software; you can redistribute it and/or modify it
+% 	under the terms of the GNU General Public License as published by the
+% 	Free Software Foundation; either version 2 of the License, or (at your
+% 	option) any later version.
+% 
+% 	This program is distributed in the hope that it will be useful, but
+% 	WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+% 	or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
+% 	for more details.
+% 
+% 	You should have received a copy of the GNU General Public License along
+% 	with this program; if not, write to the Free Software Foundation, Inc.,
+% 	59 Temple Place, Suite 330, Boston, MA  02111-1307, USA
+% 
+% 	$Id$
+
+% [ML] \pagestyle{plain}
+
+%%% Fancy Header START
+\pagestyle{fancy}                       % Sets fancy header and footer
+\fancyfoot{}                            % Delete current footer settings
+\renewcommand{\chaptermark}[1]{         % Lower Case Chapter marker style
+	\markboth{\chaptername\ \thechapter.\ #1}{}}
+\renewcommand{\sectionmark}[1]{         % Lower case Section marker style
+	\markright{\thesection.\ #1}}
+\fancyhead[LE,RO]{\bfseries\thepage}    % Page number (boldface) in left on even
+                                        % pages and right on odd pages
+\fancyhead[RE]{\bfseries\leftmark}      % Chapter in the right on even pages
+\fancyhead[LO]{\bfseries\rightmark}     % Section in the left on odd pages
+\renewcommand{\headrulewidth}{0.3pt}    % Width of head rule
+% Clear Header Style on the Last Empty Odd pages
+\makeatletter
+\def\cleardoublepage{\clearpage\if@twoside \ifodd\c@page\else
+\hbox{}
+\thispagestyle{empty}                   % Empty header styles
+\newpage
+\if@twocolumn\hbox{}\newpage\fi\fi\fi}
+\makeatother
+%%% Fancy Header END
+
+\makeindex
+%%%\setcounter{chapter}{1}
+
+\begin{document}
+
+% [ML] used for anchors such as lcm_help(topic, subtopic), 
+% where subtopic = anchor in page
+\newcommand{\htmlsubsectionid}[1]{
+	\html{\begin{rawhtml}<div><a name=\end{rawhtml}"#1"\begin{rawhtml}></a></div>\end{rawhtml}}
+}
+
+\frontmatter
+
+\newlength{\centeroffset}
+\setlength{\centeroffset}{-0.5\oddsidemargin}
+\addtolength{\centeroffset}{0.5\evensidemargin}
+\addtolength{\textwidth}{-\centeroffset}
+\thispagestyle{empty}
+\noindent\hspace*{\centeroffset}%
+\begin{minipage}{\textwidth}
+\parindent=0pt
+\flushright
+{\Large\bfseries Legal Case Management\\
+for not-for-profit organisations
+\rule[-1ex]{\textwidth}{1.5pt}\\[2.5ex]
+User's manual}
+\end{minipage}
+
+\vspace{\stretch{1}}
+\noindent\hspace*{\centeroffset}\begin{minipage}{\textwidth}
+\flushright
+{\bfseries 
+by Kaloian Doganov\\[1.5ex]
+Christina Haralanova\\[1.5ex]
+Mathieu Lutfy\\[1.5ex]}
+Version: 0.6-pre4
+\end{minipage}
+\addtolength{\textwidth}{\centeroffset}
+\vspace{\stretch{2}}
+
+%%\abstract{TODO: Document abstract.}
+
+\tableofcontents
+
+%% ----------------------------------------------------------------------
+
+\mainmatter
+
+\part{Introduction}
+
+\chapter{About the project}
+
+\HTMLset{mypagename}{about\_contrib}
+\section{Contributors}
+
+
+The Legal Case Management project was initiated by the Internet Rights
+Bulgaria Foundation (IRBF, www.irbf.ngo-bg.org) in July 2004, as a result of
+research and collaboration with various Bulgarian legal advice centres and the
+Cambridge Independent Advice Centre (CIAC, www.ciac.org.uk) in 2003.
+
+The project was made possible with the financial support of the Information
+Program of the Open Society Institute (OSI, www.soros.org), and with the collaboration
+of the Law Program of the Bulgarian Open Society Institute (OSI-bg, www.osi.bg).
+
+The main contributors to the project are:
+
+\begin{itemize}
+\item Christina Haralanova (Project manager)
+\item Mathieu Lutfy (Software development leader)
+\item Anastas Giokov (PHP/MySQL development)
+\item Krasimir Makaveev (Web development and quality assurance)
+\item Kaloian Doganov (Documentation and quality assurance)
+\item Alexander Shopov (Documentation)
+\end{itemize}
+
+Translators:
+
+\begin{itemize}
+\item Alexander Shopov (Bulgarian)
+\item Maria Velichkova (Bulgarian documentation)
+\item Luís André Beckhauser (Portuguese of Brazil)
+\end{itemize}
+
+Quality assurance:
+
+\begin{itemize}
+\item Bulgarian Open Society Institute, www.osi.bg (legal consultation, structural testing)
+\item Bulgarian Helsinki Committee, www.bghelsinki.org (legal consultation, behavioral and structural testing)
+\item Inter-Space, www.i-space.org (user-interface quality assurance, promotion and distribution)
+\item Chris Bailey --- CIAC, www.ciac.org.uk (behavioral testing, English proof-reading)
+\end{itemize}
+
+Web hosting:
+
+\begin{itemize}
+\item Source Forge, www.sourceforge.net (download, CVS, mailing-lists)
+\item NGO Bulgaria Gateway, www.ngo-bg.org (website, documentation, testing sites)
+\end{itemize}
+
+We would also like to thank the authors of the Spip (www.spip.net)
+content management system, from which many concepts were re-used. As well as
+the Trad-Lang (www.eledo.com/download/trad\_lang) translation system by
+Florent Jugla, which is very helpful to manage the LCM translations.
+
+\section{Contacts}
+
+\subsection{Project management}
+
+The project manager is Christina Halaranova and the software development leader
+and co-ordinator is Mathieu Lutfy. The best way to contact them is by writing to
+the project management mailing-list:
+
+\begin{itemize}
+\item Contact: legalcase-core@lists.sourceforge.net
+\item Subscription: Access to this mailing-list is restricted
+\end{itemize}
+
+\subsection{Software developers}
+
+To report bugs, to join the software development or to contact the developers:
+
+\begin{itemize}
+\item Contact: legalcase-devel@lists.sourceforge.net
+\item Public archive: http://sf.net/mailarchive/forum.php?forum\_id=42175
+\item Subscription: https://lists.sf.net/lists/listinfo/legalcase-devel
+\end{itemize}
+
+\subsection{Software testers}
+
+People interested in testing LCM and sending us test reports and discussion
+related to testing:
+
+\begin{itemize}
+\item Contact: legalcase-testing-en@lists.sourceforge.net
+\item Public archive: http://sf.net/mailarchive/forum.php?forum\_id=42844
+\item Subscription: https://lists.sf.net/lists/listinfo/legalcase-testing-en
+\end{itemize}
+
+This list is also available in Bulgarian:
+
+\begin{itemize}
+\item Contact: legalcase-testing-bg@lists.sourceforge.net
+\item Public archive: http://sf.net/mailarchive/forum.php?forum\_id=42915
+\item Subscription: https://lists.sf.net/lists/listinfo/legalcase-testing-bg
+\end{itemize}
+
+Please note, that both lists forward all messages to the developers
+mailing-list, so there is no need to subscribe to all of the above.
+
+\subsection{Announcements}
+
+To receive announcements regarding new LCM releases, updates, important bugs
+or security issues, please consider subscribing to the news mailing-list:
+
+\begin{itemize}
+\item Contact: legalcase-news@lists.sourceforge.net
+\item Public archive: http://sf.net/mailarchive/forum.php?forum\_id=42845
+\item Subscription: https://lists.sf.net/lists/listinfo/legalcase-news
+\end{itemize}
+
+This list is also available in Bulgarian:
+
+\begin{itemize}
+\item Contact: legalcase-news-bg@lists.sourceforge.net
+\item Public archive: http://sf.net/mailarchive/forum.php?forum\_id=42914
+\item Subscription: https://lists.sf.net/lists/listinfo/legalcase-news-bg
+\end{itemize}
+
+Messages sent to this list are no more than 1-2 times per month. Note that due
+to lack of time, release managers often forget to make proper announcements.
+If you have a personal account on the Free Software database ``Freshmeat'' 
+(http://freshmeat.net), you may subscribe to our project ``legalcase''
+(http://freshmeat.net/p/legalcase/) in order to get automatic announcements 
+of new releases.
+
+\subsection{Internet Rights Bulgaria Foundation - IRBF}
+
+IRBF is a not-for-profit and non-governmental organisation (NGO) who 
+coordinates the Legal Case Management software development. IRBF aims to 
+promote the social and human rights initiatives of social NGOs in Bulgaria.
+It encourages NGOs to strategically use the Internet and works to 
+facilitate their ICT access.
+
+\begin{itemize}
+\item Website: http://www.irbf.ngo-bg.org
+\item Contact: irbf@ngo-bg.org
+\end{itemize}
+
+\section{Project history}
+
+The history of the versions describes the evolution of the software
+development based on dates and released versions from the very beginning of
+the ide till now. Version 0.6.0 is the first official and stable version of
+the program suitable for use by the not-for-profit advice centres. Development
+continues.
+
+\begin{description}
+\item [Mai 16, 2005] Release of version 0.6.0. Milestone release for stability
+and usability. This branch release (0.6.x) will only have bug fixes, where as
+the experimental development features will go into the 0.7.x branch.
+\item [Mai 12, 2005] Release of version 0.4.5. New features for reporting
+the case activities, including statistical information.
+\item [April 23, 2005] Release of version 0.4.4. New features for case
+conclusions and enhancements to the case archive numbers for better tracking
+of the case history.
+\item [April 12, 2005] Release of version 0.4.3. New installer visual design,
+better keywords integration and many access rights bugfixes.
+\item [March 9, 2005] Release of version 0.4.2. New ``agenda'' feature, new
+concept of case ``stages'', many user interface enhancements and first
+Portuguese of Brazil translation.
+\item [January 26, 2005] Release of version 0.4.1. Bugfix release.
+\item [January 24, 2005] Release of version 0.4.0. Many user interface
+enhancements, as well as better internal structure and security. First
+completed Bulgarian translation.
+\item [December 14, 2004] Release of version 0.2.2. Experimental new features,
+such as a first reporting attempt and a primitive keywords implementation.
+\item [November 10, 2004] Release of version 0.2.1. Bugfix release.
+\item [November 1, 2004] Release of version 0.2.0. First public release.
+\item [August 1, 2004] Received financial support from the Open Society
+Institute (information program) in collaboration with the Open Society
+Foundation --- Bulgaria (legal program).
+\item [July-August 2003] Initial discussions on designing a legal case management
+system for Bulgarian not-for-profit organisations.
+\end{description}
+
+\HTMLset{mypagename}{about\_license}
+\section{Copyright and terms of use}
+
+\begin{verbatim}
+(C) 2004-2005 Free Software Foundation, Inc.
+
+This program is free software; you can redistribute it and/or modify it
+under the terms of the GNU General Public License as published by the 
+Free Software Foundation; either version 2 of the License, or (at your 
+option) any later version.
+
+This program is distributed in the hope that it will be useful, but 
+WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
+for more details.
+
+You should have received a copy of the GNU General Public License along 
+with this program; if not, write to the Free Software Foundation, Inc.,
+59 Temple Place, Suite 330, Boston, MA  02111-1307, USA
+\end{verbatim}
+
+\chapter{Installation}
+
+% Are introductory words required?
+
+\section{Minimal requirements}
+
+% This is taken from the README file.
+
+\begin{enumerate}
+\item MySQL 3.23.x, database server;
+
+\item Apache 1.3.x or 2.x, web server;
+
+\item PHP 4.3.x, language interpreter;
+
+\item libapache-mod-php or libapache2-mod-php 4.3.x, library which links Apache
+and PHP (it is possible that this is included in your PHP installation);
+
+\item PHP4-mysql, MySQL library for PHP (it is possible that this module is
+		part of your PHP installation).
+\end{enumerate}
+
+\section{Before installing}
+
+% This is taken from the INSTALL file. (small edits)
+
+To start the LCM installation assistant, procede with the following steps.
+
+Download the latest tar.gz archive from our Source Forge project page
+<http://sf.net/projects/legalcase> and uncompress it in a temporary
+directory:
+
+\begin{verbatim}
+$ cd /tmp/
+$ tar xzf /path/to/legalcase-X.Y.Z.tar.gz
+\end{verbatim}
+
+After decompressing the archive, there will be a new directory called legalcase:
+
+\begin{verbatim}
+$ ls -l
+
+drwxr-xr-x 6 user user 4096 2005-03-09 10:26 legalcase
+\end{verbatim}
+
+Move the legalcase directory in a space accessible by the Apache Web server:
+
+\begin{verbatim}
+$ mv legalcase /var/www/
+\end{verbatim}
+
+Provide the permission to ``write'' to the Apache Web server for the directories
+log, inc/config and inc/data:
+
+\begin{verbatim}
+$ cd /var/www/legalcase/
+$ chmod a+rw log inc/config inc/data
+\end{verbatim}
+
+Access to this directory from your Web browser: <http://localhost/legalcase/> 
+and follow the instructions from the installation assistant.
+
+% \section{While installing}
+
+\HTMLset{mypagename}{install\_permissions}
+\section{Setting up directory permissions}
+
+
+When you install LCM files, some directories will not be configured correctly:
+therefore, you must modify their configuration through your usual FTP or SSH
+client.
+
+Since LCM writes information on the disk, you must give the web server  the
+permission to ``write'' in the following directories:
+
+\begin{itemize}
+\item /log
+\item /inc/data
+\item /inc/config
+\end{itemize}
+
+FTP ``clients'' differ in their functions but the procedure is generally thus:
+
+\begin{itemize}
+\item Select the folder of which you want to modify the permissions;
+\item Find in your FTP client a feature called ``change (or modify or set
+permissions'';
+\item If this feature appears as a graphical interface, check the box
+corresponding to ``Write'' for the ``Others'' (or ``World'' or ``All users'');
+\item If this feature appears in ``text'' mode, the numeric configuration is ``0777''.
+\end{itemize}
+
+When you make this modification for every directory indicated by the
+installation system, you must reload the page and the procedure will resume
+automatically.
+
+\HTMLset{mypagename}{install\_database}
+\section{Your database connection}
+
+This step consists of entering the necessary information for the connection of
+LCM to the SQL database server.
+
+\begin{itemize}
+\item Database address: this information should be “localhost”, but it could also
+be your site’s address (“www.mysite.org”) depending on the configuration of
+the server.
+\item Connection login: it is often the same login you use to upload your files by
+FTP or SSH.
+\item Connection password: it is often the same password as the one you use to
+access your site by FTP or SSH.
+\end{itemize}
+
+{\em These settings cannot be invented: not knowing them means that your host has
+not given them to you. Therefore: if you do not have this information at hand
+you cannot continue.}
+
+\begin{itemize}
+\item If you are not the server administrator: you must contact him/her directly.
+Some Internet hosts provide such information in an online guide or require a
+specific procedure for that.
+\item If you are the server administrator: you can create a database for LCM with
+the following commands:
+\end{itemize}
+
+\begin{verbatim}
+$ mysql -u root
+mysql> create database lcm;
+mysql> grant all on lcm.* to lcm_user@localhost identified by 'mypassword';
+\end{verbatim}
+
+In the above example, we create a database named “lcm” and later create a new
+user named “lcm\_user” to whom we give full access to the “lcm” database.
+
+The “lcm\_user” and “mypassword” will then be the
+connection login and connection password respectively for continuing the
+installation.
+
+Please note that the best way to connect to your database depends on your
+local server configuration.
+
+\HTMLset{mypagename}{install\_personal}
+\section{Personal information}
+
+
+This step should be completed carefully. Indeed, it is this step that
+determines your connection identification to the system! If you proceed
+hastily, you might not be able to connect...
+
+Once the software is installed, you will have the possibility to change this
+information.
+
+\begin{itemize}
+\item  Your connection identifiers: this the identification that you yourself
+choose to connect to your own LCM system.
+\item  Your contact information: this will allow other authors to contact you.
+It also allows you to change your password by e-mail if you have forgotten it.
+\end{itemize}
+
+%% ----------------------------------------------------------------------
+%% ----------------------------------------------------------------------
+%% ----------------------------------------------------------------------
+
+\part{User functions}
+
+\chapter{Cases}
+
+All data in the Legal Case Management Software is organised in the so called
+\emph{cases}. The case is a comparatively independent casus introduced to the
+consultancy centre and managed by its experts. The case can include different
+activities, but they are always addressed towards one aim -- solving the case.
+
+The case is the main logical unit of the program. It could contain the
+following details:
+
+\begin{itemize}
+\item description related to its origin
+\item current status
+\item clients (physical and juridical persons) associated to it
+\item planned or done activities related to the case (e.g. appointments and
+consultations)
+\item reportis
+\item attached documents 
+\item etc.
+\end{itemize}
+
+The case is a \emph{process}, which undergoes development. All activities
+associated with a certain case -- status changes, additional events etc., are
+recorded in the ``Follow-ups'' section. The history of the case could be
+tracked from this section from the moment of its registration in the LCM on. 
+
+\HTMLset{mypagename}{cases\_intro}
+\section{Start. New case. Edit case information.}
+
+% MODIF 0.6.3
+\htmlsubsectionid{mycases}
+\subsection{My cases}
+
+After entering the system through a username and password, you will get on the
+page called: ``My cases''. The page contains by default a list, which
+summarised the cases on which you are working at the moment. The list includes
+the following features: 
+
+\begin{itemize}
+\item A unique case identification number (\#)
+\item Creation date
+\item Title of the case
+% [ML] (was removed from program) \item Номер на делото в съда
+\item Status of the case
+\end{itemize}
+
+You can sort the list by creation date in ascending or descending order by
+clicking on the title of the ``Creation date'' column.
+
+To open one of the cases in the list, click on the title of the respective row.
+
+You can also define which cases should be displayed in the list of cases
+with the help of the ``Filter'' dropdown menus.
+
+{\bf Type of case:}
+\begin{itemize}
+\item My cases -- cases in which you are involved
+\item Public cases -- cases that are visible to all the users in the system (e.g. any user in the system can consult the case information)
+\end{itemize}
+
+If you have administrator rights in the system, you can list all the existing 
+cases registered in the system without exception.
+
+
+{\bf Creation date of the case:}
+\begin{itemize}
+\item in the past month
+\item in the past 3 months
+\item in the past 6 months
+\item in the past year
+\item year 2005
+\item etc.
+\end{itemize}
+
+Further below, the ``My cases'' page contains a list of the latest follow-up
+activities performed for the shown cases. The list includes the following
+coloumns:  
+
+\begin{description}
+\item[\#] The unique identification number of the case of the performed follow-up
+\item[Start] date and hour of starting the follow-up
+\item[Lenght] timeline of the follow-up (measured in hours)
+\item[User] initials of the user who have fulfilled the follow-up
+\item[Type] type of the follow-up (task, consulting, appointment etc.)
+\item[Description] short description of the activity
+\end{description}
+
+You can click on some of the follow-ups in the list in order to open it. 
+
+
+\htmlsubsectionid{newcase}
+\subsection{New case}
+
+{\bf In order to open a new case in the system}, follow the steps:
+
+\begin{enumerate}
+\item Click on the button ``Cases'' from the main navigation menu and
+then on the ``Open a new case'' button located in the central part of
+the screen, under the list of cases.
+
+\item The form ``New case'' will open, with the following elements:
+
+\begin{description}
+\item[Title of the case] Enter a short but descriptive title of the case,
+which will help to you and your colleagues to distinguish it easily among the
+others. Mandatory field. 
+
+\item[Assignement date] Shows the moment, from which the case has been
+assigned and work on it has been started. This field is useful for the cases
+in which you have worked on the case (e.g. on paper) and later on it has been
+filled in the system. By default, the value of this field is the date of
+creation of the case.
+
+%\item[Номер на делото в съда] незадължително помощно поле за
+%удобство, въведете го само когато случаят касае дело в съда
+
+\item[Legal reason] optional field, in which usually is filled in the
+normative act, article and paragraph number, according to which a breach has been
+done. This field may be de-activated by the site administrator, according to
+the requirements of your office.
+
+\item[Alleged crime] optional field, similar to the ``legal reason''. It
+may also be de-activated by the site administrator, according to the
+requirements of your office.
+
+\item[Notes] optional field, free text.
+
+\item[Status of the case] in the beginning status, there are two
+possibilities:
+\begin{itemize}
+\item draft -- the case is not yet opened officially to work on it
+\item open -- work has been started on the case or the case has been assigned
+to certain user of the system
+\end{itemize}
+
+\item[Stage] optional field, you can fill it in, if the case has relation to a
+case with certain state in the current legal system of the court: 
+\begin{itemize}
+\item first 
+\item second
+\item third
+\item fourth 
+\end{itemize}
+
+\item[Office collaboration and confidentiality] here you can control whether
+your colleagues (the other users) can review and/or fill in date for the
+certain case or not. Both existing fields are:
+\begin{itemize}
+\item Other users can consult this case. (i.e. they can read the case, but not
+to modify the data related to it)
+\item Other users can contribute to this case. (i.e. they can as well read, as
+modify data related to the case)
+\end{itemize}
+\end{description}
+
+{\bf NB!} The default values of both fields and the possibility to change them
+depends on the office policy regarding the system, defined by the administrator of your organisation. 
+
+The page can contain additional fields and keywords in relation to the
+settings, made by the administrator of your organisation. 
+
+\item Click on the ``Validate'' button in order to save the form. 
+\end{enumerate}
+
+After successfully registering your case in the system, you will see the page
+called: ``Case details'', showing the newly registered case, with its newly
+appropriated case ID. This page gives the general information, the follow-ups, the
+agenda, the reports and the attached documents related to this case, as well
+as a possibility to go back for editing it. 
+
+
+\HTMLset{mypagename}{cases\_participants}
+\section{Case participants}
+
+\htmlsubsectionid{users}
+\subsection{Users}
+
+After registering a new case, it is automatically added to the list of Your
+cases. Since you are its creator, therefore you are the one responsible and
+engaged with work on this case. 
+
+However, sometimes it might happen that you should work together with another
+colleague (or colleagues) on the same case. E.g. you might include your
+assistant who is involved with the case. The LCM software is made in the way
+so that it encourages the collaboration and co-operation among the users, and
+therefore it allows you to add more users to a certain case, making them equal
+contributors. 
+
+{\bf In order to add a new user to a case}, follow the steps:
+
+\begin{enumerate}
+\item Select a case from the ``My cases'' page (accessible by clicking on the
+``Cases'' from the main menu).
+\item In order to open the page for choice of users, click on the button ``Add
+a user to a case'' from the page ``Case details'' | ``General'' | ``General
+information''. 
+\item The page for chosing users shows a list of names of all the users
+registered in the system. 
+
+\begin{itemize}
+\item If the users are more than 15, the page is divided into pages. You can
+go through the pages by clicking on the hyperlinks ``Next'' and ``Previous'',
+situated in the lower part of the list, or by clicking directly on the number
+of the respective page. 
+
+\item If the pages are too many, you can use the search field by:
+\begin{itemize}
+\item clicking on the text field ``Find user''
+\item introduce name or part of name of certain user
+\item click on the button ``Search'' and check the list that will appear with
+the eventual results.
+\end{itemize}
+\end{itemize}
+
+\item Use the fiels on the left side to tick on the user(s) you choose to add
+to your case. 
+
+\item Click on the ``Validate'' button in order to confirm your choice. 
+
+\item Go on with choosing and adding more users to the case or use the
+hyperlink on top to go back to your case. 
+
+\end{enumerate}
+
+{\bf NB!} Once adding user to your case, you cannot totally remove her/him
+from it. Instead, you can specify access rights of each of the users,
+associated to certain case. 
+
+{\bf In order to specify the access rights of a user on a certain case},
+follow the steps:
+
+\begin{enumerate}
+\item Choose a case from the page ``My cases'' (accessible by clicking on
+``Cases'' from the main menu).
+\item In the case details is shown a list of the users, associated to this case.
+\item Click on the pictogram, illustrating a hand, situated on the left side
+of the name of the user, to which you want to specify access rights. 
+\item Opens a page called ``Edite access rights''. From the dropdown menu
+``Access right'' choose one of the following possibilities: 
+\begin{itemize}
+\item Consult case information
+\item Add information to the case
+\item Case administrator
+\item Un-assign from a case
+\end{itemize}
+\item Click on the button ``Validate'' in order to confirm your choice. 
+
+\end{enumerate}
+
+
+\htmlsubsectionid{clientsorgs}
+\subsection{Clients and organisations}
+
+Each case, registered in the consulting centre, operates with persons or
+organisations who are external to the centre -- the so called clients. These are persons
+and/or institutions, who have requested the consulting centre to work on a
+certain case. LCM identifies two types of clients: 
+
+\begin{itemize}
+\item physical persons (called herein \emph{clients})
+\item juridical persons (\emph{organisations})
+\end{itemize}
+
+The operation related to adding customers to the case associates them to your
+case. 
+
+{\bf In order to add a client - physical person to a case}, follow the steps:
+
+\begin{enumerate}
+
+\item Select a case from the ``My cases'' (accessible by clicking on ``Cases'' from
+the main navigation menu).
+
+\item Click on the button ``Add a client'' in order to open the page for
+choosing clients -- physical persons.
+
+\item The page for choosing clients shows a list of the names of the already
+registered clients in the system. Right below the title of the page, there is
+the title of the case, to which you are adding clients, as well as the rest
+clients and organisations related to the case. 
+
+\begin{itemize}
+\item If the clients are more than 15, the page is divided into sub-pages. You can
+go through the pages by clicking on the hyperlinks ``Next'' and ``Previous'',
+situated in the lower part of the list, or by clicking directly on the number
+of the respective page. 
+
+\item If the pages are too many, you can use the search field by:
+\begin{itemize}
+\item clicking on the text field ``Find client''
+\item introduce name or part of name of certain client
+\item click on the button ``Search'' and check the list that will appear with
+the eventual results.
+\end{itemize}
+\end{itemize}
+
+\item Use the fiels on the left side to tick on the client(s) you choose to add
+to your case. 
+
+\item Click on the ``Validate'' button in order to confirm your choice. 
+
+\item Go on with choosing and adding more users to the case or use the
+hyperlink on top to go back to your case. 
+
+\end{enumerate}
+
+After confirming, the chosen clients appear in the list of ``Case clients'' in
+the general page ``Case details''.
+
+If the client, with which you are working on the current case is new to the
+system, you can register her/him by clicking on the button ``Register a new
+client and attach to this case''.
+% [ML] html-refs make too many problems for on-line help. FIXME
+% .р \pageref{Person. Edit Person.}
+
+You can add more than one physical person to a certain case. 
+
+{\bf In order to add a client - juridical person (organisation) to a case},
+follow the steps:
+
+\begin{enumerate}
+
+\item Select a case from the ``My cases'' (accessible by clicking on ``Cases'' from
+the main manu).
+
+\item Click on the button ``Add an organisation'' in order to open the page for
+choosing clients - juridical persons.
+
+\item The page for choosing organisations shows a list of the names of the
+already registered ones in the system. Right below the title of the page, there is
+the title of the case, to which you are adding organisations, as well as the rest
+clients and organisations related to the case.
+
+\begin{itemize}
+\item If the organisations are more than 15, the page is divided into sub-pages. You
+can go through the pages by clicking on the hyperlinks ``Next'' and ``Previous'',
+situated in the lower part of the list, or by clicking directly on the number
+of the respective page. 
+
+\item If the pages are too many, you can use the search field by:
+\begin{itemize}
+\item clicking on the text field ``Find organisation''
+\item introduce name or part of name of certain organisation
+\item click on the button ``Search'' and check the list that will appear with
+the eventual results.
+\end{itemize}
+\end{itemize}
+
+\item Use the fiels on the left side to tick on the organisation(s) you choose to
+add to your case. 
+
+\item Click on the ``Validate'' button in order to confirm your choice. 
+
+\item Go on with choosing and adding more users to the case or use the
+hyperlink on top to go back to your case. 
+
+\end{enumerate}
+
+After confirming, the chosen organisation appear in the list of ``Case
+clients'' in the general page ``Case details''.
+
+If the client, with which you are working on the current case is new to the
+system, you can register her/him by clicking on the button ``Add new
+organisation''.
+% [ML] latex refs make too many problems for on-line help, FIXME
+% , p. \pageref{Organization. Edit Organization.}
+
+\HTMLset{mypagename}{cases\_followups}
+\section{New follow-up}
+
+%% MODIF 0.6.3
+As the case evolves, new activities related to the case should be recorded
+into the system: consultations with the client, research, traveling, etc.
+The activities for each case will help to analyse and report how time is 
+spent for your cases. 
+
+{\bf In order to add a follow-up to a case}, follow the steps:
+
+\begin{enumerate}
+\item Select a case from the ``My cases'' (accessible by clicking on ``Cases'' from
+the main menu).
+
+\item Click on the ``Follow-ups'' tab in order to open the list of existing
+follow-ups (done activities) within the current case.
+
+\item Click the button ``New follow-up''.
+
+\item Fill in the form ``New follow-up'', containing the following fields:
+
+\begin{description}
+\item[Start] The date and hour from which is considered that the activities
+has started
+
+\item[Time spent on activity] duration of the activity (in hours), optional
+field
+
+\item[Type] type of activity (e.g. task, consulting, appointment etc.; the
+possible valueas are being defined by the administrator of the system)
+
+\item[Description] optional field, free text
+
+\item[Sum billed] amount, defined by the consulting centre
+
+\end{description}
+
+\item Click on the ``Validate'' button in order to save the form. 
+
+\end{enumerate}
+
+%% MODIF 0.6.3
+{\bf NB!} There is one exception related to this: changing the case stage or
+status should be done as described in the next section, even if they also
+generate a new follow-up to the case.
+
+%% MODIF 0.6.3
+\HTMLset{mypagename}{cases\_statusstage}
+\section{New case stage or status}
+
+\htmlsubsectionid{casestage}
+\subsection{New case stage}
+
+{\bf In order to change the stage of the case}, follow the steps:
+
+\begin{enumerate}
+\item Select the case and open the general information of it.
+
+\item Select a new stage from the dropdown menu ``Stage'' among the following
+values:
+\begin{itemize}
+\item first 
+\item second
+\item third
+\item fourth
+\end{itemize}
+
+\item Click on the ``Validate'' button, which appears right after the dropdown
+menu after selecting a new value.
+
+\item  Clicking the ``Validate'' button leads to opening of another form called:
+``Case stage change''. It contains the following fields:
+
+\begin{description}
+\item[Start] The date and the hour from which on the stage of the case has
+been changed
+\item[Time spent on activity] optional field
+\item[Conclusion] the conclusion, with which the previous stage has finished.
+You can select one of the following values:
+\begin{itemize}
+\item no conclusion
+\item guilty
+\item not guilty
+\item cessation
+\item re-investigation
+\end{itemize}
+
+\item[Sentence] The given sentence on the case (if any). You can select one of
+the following values: 
+\begin{itemize}
+\item no sentense
+\item fine (in money)
+\item prison (in months)
+\item probation (in months)
+\item community work (in days)
+\end{itemize}
+In the additional text field you can mark a number, specifying the quantity.
+E.g. number of months of prison or quantity of the fine etc. 
+
+\item[Description] optional field, free text
+
+\item[Sum billed] sum defined by the consulting centre
+
+\end{description}
+
+\item Click on the ``Validate'' button in order to save the form.
+
+\end{enumerate}
+
+{\bf NB!} Pay attention that the possible values of the ``Conclusion'' and
+``Sentense'' can be different in your installation of the progdam since they are
+configured by the administrator. 
+
+\htmlsubsectionid{casestatus}
+\subsection{New case status}
+
+{\bf In order to change the status of a case}, follow the steps:
+
+\begin{enumerate}
+\item Go to the general information tab of the case.
+
+\item Select new status of the case from the ``Status'' dropdown menu.
+Depending on the current status of the case, you have some of the following possibilities:
+\begin{itemize}
+\item draft
+\item open 
+\item closed
+\item merged
+\item suspended
+\item deleted (in reality, a case registered in the system is never 
+deleted, but it is ``marked'' as such and only system administrators
+can access it. If necessary, the administrator of the system can
+restore the case on a later stage.)
+\end{itemize}
+
+{\bf NB!} By marking the case as ``closed'' makes the user unable to modify the
+data in it. Only the administrator is able to change the status of the case
+again, so that editing and additional modifications are done with regards to
+this particular case. 
+
+\item Click on the ``Validate'' button, which appears right after the dropdown
+menu after selecting a new value.
+
+\item Clicking the ``Validate'' button leads to opening of another form called:
+``Case status change''. The status change will not be processed unless this
+form is completed. The form contains the following fields:
+
+\begin{description}
+\item[Start] The date and the hour from which on the status of the case has
+been changed 
+\item[Time spent on activity] optional field, showing the time spent on the
+case status change
+\item[Conclusion] the conclusion, with which the previous status has finished.
+You can select one of the following values:
+\begin{itemize}
+\item no conclusion (e.g. the case is suspended, closed, deletec, etc.)
+\item guilty
+\item not guilty
+\item cessation
+\item re-investigation
+\end{itemize}
+
+\item[Sentence] The given sentence on the case (if any). You can select one of
+the following values: 
+\begin{itemize}
+\item no sentense
+\item fine (in money)
+\item prison (in months)
+\item probation (in months)
+\item community work (in days)
+\end{itemize}
+In the additional text field you can mark a number, specifying the quantity.
+E.g. number of months of prison or quantity of the fine etc. 
+
+\item[Description] optional field, free text
+
+\item[Sum billed] sum defined by the consulting centre. This field could be
+left free, if the organisation does not charge money for providing legal
+assistance. 
+
+\end{description}
+
+\item Click on the ``Validate'' button in order to save the form.
+
+\end{enumerate}
+
+{\bf NB!} Pay attention that the possible values of the ``Conclusion'' and
+``Sentense'' can be different in your installation of the progdam since they are
+configured by the administrator. 
+
+
+% TODO: This should go into Tools->Documents (if not already there)
+% \HTMLset{mypagename}{tools\_documents}
+% \section{Attaching documents}
+% 
+% {\bf In order to attach new document to an existing case}, follow the steps:
+% 
+% \begin{enumerate}
+% \item Select a case from the ``My cases'' (accessible by clicking on ``Cases'' from
+% the main manu).
+% 
+% \item Click on the section ``Documents'' in order to open the list of attached
+% to the case documents. If there is no documents attached, instead of a list,
+% there will be a text shown, saying: There are no documents attached.
+% 
+% \item Click on the button ``Browse'' inside the field ``File name'' and select the
+% desired file from the dialogue window. 
+% 
+% \item In the field ``Description'' write down a short description of the
+% contents of the document, which you are intending to attach.
+% 
+% \item Click on the ``Validate'' button in order to save the form. 
+% \end{enumerate}
+% 
+% After attaching the document, it becomes visible in the list of attached to
+% the case documents and your collaborators get access to it, too. 
+
+% ----------------------------------------------------------------------------
+% ----------------------------------------------------------------------------
+% ----------------------------------------------------------------------------
+
+\chapter{Clients -- physical and juridical persons}
+
+\HTMLset{mypagename}{clients\_intro}
+\section{Introduction}
+
+%% MODIF 0.6.3
+The follow-up activities for each case usually involve one or many clients.
+LCM manages clients seperately from cases, since a given client may be
+involved in one or many cases. It is therefore necessary to associate the
+clients with their cases in order to quickly find the client's cases, the
+contacts of the client, etc. It is also possible to generate reports for
+statistical information of clients.
+
+LCM identifies two types of clients: 
+
+\begin{itemize}
+\item physical persons
+\item juridical persons (organisations)
+\end{itemize}
+
+% MODIF 0.6.3
+Depending on the policy of your legal aid centre, juridical persons
+may also be associated with cases for which they are related (funding,
+co-defenders, etc.). It is also possible that they system administrator has
+completely de-activated them.
+
+\HTMLset{mypagename}{clients\_newclient}
+\section{Physical person. Edit physical persons information.}
+% [ML] html-refs make too many problems for on-line help. FIXME
+% \label{Person. Edit Person.}
+
+{\bf In order to register a new physical person in the program}, follow the
+steps:
+
+\begin{enumerate}
+\item Click on the menu ``Clients'' from the main menu and then on the button
+``Register a new client''.
+
+\item The ``New client'' form is open. It contains the following fields:
+
+\begin{description}
+\item[Name] the first name, mandatory field
+
+\item[Middle name] the father's name, optional field
+
+\item[Surname] the family name, mandatory field
+
+\item[Gender] one of the following values is accepted:
+\begin{itemize}
+\item n/a -- no information (by default)
+\item male
+\item female
+\end{itemize}
+
+\item[Citizen number] the unique ID number, given by the country, optional field
+
+\item[Civil status] one of the following values is accepted:
+\begin{itemize}
+\item divorsed or separated
+\item married or cohabiting
+\item single
+\item unknown (by default)
+\item widowed
+\end{itemize}
+
+\item[Income] one of the following values is accepted:
+\begin{itemize}
+\item average
+\item above average
+\item under average
+\item unknown (by default)
+\end{itemize}
+
+\item[Notes] optional field, free text
+
+\item[Home address] conventional postal address, optional field
+
+\item[E-mail] e-mail address, optional field
+
+\item[Other contact] optional field, allows to fill in additional contact
+details; e.g. second postal address, second e-mail etc.
+
+All the records in the Contacts section could be deleted by ticking on the
+respective fields, marked with a garbage bin image. 
+\end{description}
+
+\item Click on the ``Validate'' button in order to save the form. 
+
+\end{enumerate}
+
+{\bf NB!} Fields such as the ``Middle name'', ``Citizen number'', ``Civil status'' and
+``Income'' can miss from the form. This depends on the aid centre policy and the
+settings made by the administrator of the software. 
+
+{\bf In order to edit and existing physical person}, follow the steps:
+
+\begin{enumerate}
+\item Open the list of physical persons (accessible by clicking on ``Clients'' from
+the main manu). The page for choosing physical persons shows a list of the
+names of all the persons, registered in the system. 
+
+\begin{itemize}
+\item If the clients are more than 15, the page is divided into sub-pages. You
+can go through the pages by clicking on the hyperlinks ``Next'' and ``Previous'',
+situated in the lower part of the list, or by clicking directly on the number
+of the respective page. 
+
+\item If the pages are too many, you can use the search field by:
+\begin{itemize}
+\item clicking on the text field ``Find client''
+\item introduce name or part of name of certain client
+\item click on the button ``Search'' and check the list that will appear with
+the eventual results.
+\end{itemize}
+\end{itemize}
+
+\item Select a physical person by clicking on the respective line with her/his
+name. A general information about this client will appear.
+
+\item Click on the button ``Edit client information''.
+
+\item Fill in the form ``Edit client'', containing the following fields:
+
+\begin{description}
+\item[Client ID] a unique identification number of the physical person. This
+number is generated automoatically at registering the person and it cannot be
+modified or deleted. 
+
+\item[Name] first name, mandatory field
+
+\item[Middle name] the father's name, optional field
+
+\item[Surname] the family name, mandatory field
+
+\item [Creation date] marks the moment, in which the physical person - the
+client has been registered for the first time in the system. The value of the
+field cannot be changed. 
+
+\item[Gender] one of the following values is accepted:
+\begin{itemize}
+\item n/a -- no information (by default)
+\item male
+\item female
+\end{itemize}
+
+\item[Citizen number] the unique ID number, given by the country, optional field
+
+\item[Civil status] one of the following values is accepted:
+\begin{itemize}
+\item divorsed or separated
+\item married or cohabiting
+\item single
+\item unknown (by default)
+\item widowed
+\end{itemize}
+
+\item[Income] one of the following values is accepted:
+\begin{itemize}
+\item average
+\item above average
+\item under average
+\item unknown (by default)
+\end{itemize}
+
+\item[Notes] optional field, free text
+
+\item[Home address] conventional postal address, optional field
+
+\item[E-mail] e-mail address, optional field
+
+\item[Other contact] optional field, allows to fill in additional contact
+details; e.g. second postal address, second e-mail etc.
+
+All the records in the Contacts section could be deleted by ticking on the
+respective fields, marked with a garbage bin image. 
+\end{description}
+
+\item Click on the ``Validate'' button in order to save the form. 
+
+\end{enumerate}
+
+One client could be added in the same time to two or more cases, e.g. if
+she/he has come before on another case to the legal aid centre. Association of
+the client to a case helps the centre to track clients who have come before on
+another case and on which cases the lawyers in the centre have worked with them. 
+
+\HTMLset{mypagename}{clients\_neworg}
+\section{Organisation. Edit organisation.}
+% [ML] html-refs make too many problems for on-line help. FIXME
+% \label{Organization. Edit Organization.}
+
+{\bf In order to register a new juridical person (organisation) in the
+system}, follow the steps:
+
+\begin{enumerate}
+\item Click on ``Organisations'' from the main menu and then on the ``Register a
+new organisation''.
+
+\item The form ``New organisation'' opens. It contains the following fields:
+
+\begin{description}
+\item[Name] the name of the juridical person, mandatory field
+
+\item[Court registration] the number of the court registration, optional field
+
+\item[Tax number] tax registration number, optional field
+
+\item[Statistical reference number] optional field
+
+\item[Notes] optional field, free text
+
+\item[Home address] conventional postal address, optional field
+
+\item[E-mail] e-mail address, optional field
+
+\item[Other contact] optional field, allows to fill in additional contact
+details; e.g. second postal address, second e-mail etc.
+
+All the records in the Contacts section could be deleted by ticking on the
+respective fields, marked with a garbage bin image. 
+\end{description}
+
+\item Click on the ``Validate'' button in order to save the form. 
+
+\end{enumerate}
+
+{\bf In order to edit an existing organisation}, follow the steps:
+
+\begin{enumerate}
+\item Open the list of organisations (accessible through clicking on
+``Organisations'' from the main menu). The page for the already existing
+juridical persons, registered in the system, is shown. 
+
+\begin{itemize}
+\item If the organisations are more than 15, the page is divided into sub-pages. You
+can go through the pages by clicking on the hyperlinks ``Next'' and ``Previous'',
+situated in the lower part of the list, or by clicking directly on the number
+of the respective page. 
+
+\item If the pages are too many, you can use the search field by:
+\begin{itemize}
+\item clicking on the text field ``Find organisation''
+\item introduce name or part of name of certain organisation
+\item click on the button ``Search'' and check the list that will appear with
+the eventual results.
+\end{itemize}
+\end{itemize}
+
+\item Select a juridical person by clicking on the respective line with her/his
+name. A general information about this organisation will appear.
+
+\item Click on the button ``Edit the organisations information''.
+
+\item Fill in the form ``Organisation'', containing the following fields:
+
+\begin{description}
+\item[Organisation ID] unique identification number of the physical person created within
+the system. This number is automaticlly generated in the moment of its
+registration and it cannot be changed.
+
+\item[Name] the name of the juridical person, mandatory field
+
+\item[Court registration] the number of the court registration, optional field
+
+\item[Tax number] tax registration number, optional field
+
+\item[Statistical reference number] optional field
+
+\item[Notes] optional field, free text
+
+\item[Creation date] the creation date marks the moment, in which the
+juridical person has been registered for the first time in the system. The
+value of the field cannot be changed.
+
+\item[Home address] conventional postal address, optional field
+
+\item[E-mail] e-mail address, optional field
+
+\item[Other contact] optional field, allows to fill in additional contact
+details; e.g. second postal address, second e-mail etc.
+
+All the records in the Contacts section could be deleted by ticking on the
+respective fields, marked with a garbage bin image. 
+\end{description}
+
+\item Click on the ``Validate'' button in order to save the form. 
+
+\end{enumerate}
+
+% ----------------------------------------------------------------------------
+% ----------------------------------------------------------------------------
+% ----------------------------------------------------------------------------
+
+\chapter{Users}
+
+Users can be lawyers, advisers or any other member of your staff who works
+with the clients of your organisation.
+Users are the people who enter in the LCM system with a username an a
+password. A user recieves access to the program and uses its features. If you
+are already logged to LCM, therefore you are one of the users of the program.
+The LCM users are divided in two: 
+
+\begin{itemize}
+\item regular users 
+\item administrators
+\end{itemize}
+
+\HTMLset{mypagename}{authors\_intro}
+\section{Regular users}
+
+The regular user logs to the system every day to record her/his work: to register new
+cases, new clients or organisations etc or to record a case follow-up. In
+other words, LCM is made to be used mainly by regular users. 
+
+{\bf In order to see the cases, in which a certain user participates}, follow
+these steps:
+
+\begin{enumerate}
+\item Open the list of users (accessible by clicking on the ``Users'' from the
+main menu). The page for the already existing users, registered in the system, is shown. 
+
+\begin{itemize}
+\item If the users are more than 15, the page is divided into sub-pages. You
+can go through the pages by clicking on the hyperlinks ``Next'' and ``Previous'',
+situated in the lower part of the list, or by clicking directly on the number
+of the respective page. 
+
+\item If the pages are too many, you can use the search field by:
+\begin{itemize}
+\item clicking on the text field ``Find user''
+\item introduce name or part of name of certain organisation
+\item click on the button ``Search'' and check the list that will appear with
+the eventual results.
+\end{itemize}
+\end{itemize}
+
+\item Select a user by clicking on the respective line with her/his
+name. A general information about this user will appear.
+
+\item Click on the section ``Cases'' from the general information, in order to
+open a list of the cases related to this user. The list contains coloums with
+number of the case, creation date, case title and stage. You can sort the list
+by date. 
+
+\item If you have access to some of the cases (i.e. you have access rights to
+this certain case or the case is publicly accessible) then you can click with
+the mouse on the respective line from the list and open the cases details page. 
+
+\end{enumerate}
+
+{\bf NB!} The administrator can see all the users and all their cases, even
+the ones that are marked as confidential.
+
+\HTMLset{mypagename}{authors\_admin}
+\section{Administrator}
+
+Except the everyday work in the LCM system, sometimes an official intervention is
+needed. This type of activity is done by specialised user(s), who posess more
+rights than the regular ones. These users are called administrators, while
+their additional rights are called administrator rights. 
+
+Usually in a program installation there is one administrator, but it is
+possible that they more, too. The administrator is characterised by the fact
+that she/he has \emph{full access} to the cases. This simultaneously defines
+her/his big rights but also responsisbilties. If you are having administrators
+rights, use them only if this is necessary. Otherwise you are risking to make
+a mistake by negligence, which can lead to unwanted consequences. 
+
+The administrator's righta and responsibilities include:
+
+\begin{itemize}
+\item to define the policy of work of the consulting centre
+
+\item to set the main parameters of work of the system 
+
+\item to register new users to work with LCM 
+
+\item to change the users data and passwords
+
+\item to define keywords for the different forms, correspondent to the
+activities of the consulting centre
+
+\item to add/remove optional fields
+
+\item to add/remove fields, created by using the keywords
+
+\item to extract reports based on the work of all the users and all their
+cases together or separately
+
+\item to change the status of an already ``closed'' case, in order that a user
+can work again on it etc. 
+
+\end{itemize}
+
+{\bf NB!} It is important to know that the administrator of the program is a
+\emph{role}, and not a separate person. A person could be both regular user
+and administratod in the system. It is not good to use your administrator's
+access every time you enter in the system, but only to do a certain
+administrative action. After you finish it, log out and log in again in the
+system as a regular user. 
+
+\HTMLset{mypagename}{authors\_edit}
+\section{Adding a user}
+
+Adding new users to the LCM system is an administrative activity and
+you should posess administrator rights in order to do it. 
+
+{\bf To create a new user}, follow the steps:
+
+\begin{enumerate}
+\item Click on the ``Users'' from the main menu and then on the button ``Register
+a new user''. 
+
+\item The form ``New user'' opens. It contains the following fields: 
+
+\begin{description}
+\item[Name] first name, mandatory field
+
+\item[Middle name] the father's name, optional field
+
+\item[Surname] the family name, mandatory field
+
+\item[Home address] conventional postal address, optional field
+
+\item[E-mail] e-mail address, optional field
+
+\item[Other contact] optional field, allows to fill in additional contact
+details; e.g. second postal address, second e-mail etc.
+
+\item[User name] a unique to the system name, with which the user will be
+identified. If the user name you have entered is already in use by another
+users, you will be invited to choose another name.
+
+\item[New password] a password, with which the new user will identify himself
+to the system. The password itself is not shown on the screen. Instead, for
+each symbol of it is shown asterisk (*) for secrurity reasons. The password
+should be not less than 6 symbols. 
+
+\item[Confirm the new password] re-enter the passowrd one more time in order
+to verify that it is written right. The values in the two fields for entering
+of the password should coincide. 
+\end{description}
+
+\item Click on the ``Validate'' button in order to save the form. 
+
+\end{enumerate}
+
+% MODIF 0.6.3
+% \HTMLset{mypagename}{authors\_edit}
+% \section{Edit a user}
+
+After registering a user, the information regarding her/him can be changed --
+e.g. names, contact details, password etc. If you are a regular user, you can
+edit only your own information. If you are in the role of
+administrator, you can edit the information of all the users (regular users
+and/or administrators) registered in the system. 
+
+{\bf In order to edit a user}, follow the steps:
+
+\begin{enumerate}
+\item Open the list of users (accessible by clicking on the ``Users'' from the
+main menu). The page for the already existing users, registered in the system, is shown. 
+
+\begin{itemize}
+\item If the users are more than 15, the page is divided into sub-pages. You
+can go through the pages by clicking on the hyperlinks ``Next'' and ``Previous'',
+situated in the lower part of the list, or by clicking directly on the number
+of the respective page. 
+
+\item If the pages are too many, you can use the search field by:
+\begin{itemize}
+\item clicking on the text field ``Find user''
+\item introduce name or part of name of certain organisation
+\item click on the button ``Search'' and check the list that will appear with
+the eventual results.
+\end{itemize}
+\end{itemize}
+
+\item Select a user by clicking on the respective line with her/his
+name. A general information about this user will appear.
+
+\item Click on the user ``Edit user's information''. In the normal ase you
+should see this button only for yourself. If you have administrators rights 
+access, you can edit the information for any user.
+
+\item Fill in the form ``Edit user's information'', containing the following
+fields: 
+\begin{description}
+\item[Name] first name, mandatory field
+
+\item[Middle name] the father's name, optional field
+
+\item[Surname] the family name, mandatory field
+
+\item[Home address] conventional postal address, optional field
+
+\item[E-mail] e-mail address, optional field
+
+\item[Other contact] optional field, allows to fill in additional contact
+details; e.g. second postal address, second e-mail etc.
+
+All the records in the Contacts section could be deleted by ticking on the
+respective fields, marked with a garbage bin image. 
+
+\item[User name] a unique to the system name, which only the administrator can
+change. 
+
+\item[New password] a password, with which the new user will identify himself
+to the system. Fill in this field only in case you want to change the user's
+password. The password itself is not shown on the screen. Instead, for
+each symbol of it is shown asterisk (*) for secrurity reasons. The password
+should be not less than 6 symbols. 
+
+\item[Confirm the new password] re-enter the passowrd one more time in order
+to verify that it is written right. The values in the two fields for entering
+of the password should coincide. 
+\end{description}
+
+\item Click on the ``Validate'' button in order to save the form. 
+
+\end{enumerate}
+
+% ----------------------------------------------------------------------------
+% ----------------------------------------------------------------------------
+% ----------------------------------------------------------------------------
+
+\chapter{Tools}
+
+% TODO for translation
+
+% Освен управлението на случаите, физическите и юридическите лица, ПУЮП
+% може да организира времето Ви по дейности и да Ви напомня за
+% предстоящи срещи и други събития. Също така, можете да отбелязвате
+% събития които касаят и други потребители на системата (вашите колеги),
+% така че предстоящите ангажименти автоматично да се появяват в техния
+% календар. Това превръща ПУЮП в олекотена система за съвместна работа.
+% 
+% \HTMLset{mypagename}{tools\_calendar}
+% \section{Календар}
+% 
+% След нормално влизане в системата, вдясно на основния екран (под
+% основното меню) стои „Календар“. Календарът е разграфен на дни според
+% традиционния изглед и винаги показва текущия месец, а текущият ден е
+% осветен в различен цвят, който а го отличава от останалите. Дните, за
+% които имате насрочени ангажименти също са осветени в различен цвят.
+% 
+% Всеки ден представлява хипервръзка, върху която можете да щракнете за
+% да отворите по-подробна информация за ангажиментите си през деня.
+% 
+% % XXX TODO: можем ли тук да добавим малко за навигацията из календара?
+% 
+% \HTMLset{mypagename}{tools\_agenda}
+% \section{Дневен ред}
+% 
+% Ангажиментите, които Ви предстоят, са изброени в списъка „Дневен ред“,
+% разположен точно под календара.
+% 
+% {\bf За да добавите нов ангажимент към дневния си ред}, следвайте
+% стъпките:
+% 
+% \begin{enumerate}
+% 
+% \item Изберете ден от календара, на който ще започне новия ангажимент
+% 
+% \item Щракнете върху бутона „Въвежане на нова дейност“
+% 
+% \item Отваря се формулярът „Нова среща“, съдържащ следните полета:
+% 
+% \begin{description}
+% \item[Начало] дата и час от който се счита, че започва дейността
+% 
+% \item[Продължителност] времетраене на дейността (в часове)
+% 
+% \item[Напомни ми] колко време преди началото да получите напомнящо известие (в часове)
+% 
+% \item[Наименование] няколко думи, обозначаващи дейността. Въведете
+% нещо кратко, но описателно, така че да се ориентирате по-лесно когато
+% хвърляте поглед на календара или дневния ред.
+% 
+% \item[Вид] естество на ангажимента, например:
+% \begin{itemize}
+% \item среща
+% \item телефонен разговор
+% \item заседание на съда
+% \end{itemize}
+% 
+% \item[Описание] свободен текст, по-подробно описание на дейността и бележки
+% 
+% \item[Участващи потребители] списък от потребителите, взимащи участие
+% в дейността. За да добавите нов потребител изберете името му от
+% падащия списък и щракнете върху бутона „Add“. Можете да повтаряте
+% тази операция докато добавите всички потребители, които желаете.
+% 
+% \item[Участващи клиенти] списък от клиентите (физически и юридически
+% лица), взимащи участие в дейността. За да добавите нов клиент изберете
+% името му от падащия списък и щракнете върху бутона „Add“. Можете да
+% повтаряте тази операция докато добавите всички клиенти, които
+% желаете.
+% 
+% \end{description}
+% 
+% \item Щракнете върху бутона „Изпращане“ за да потвърдите
+% формуляра.
+% 
+% \end{enumerate}
+% 
+% Новата предстояща дейност се появява като Ваш ангажимент в списъка
+% „Дневен ред“, разположен точно под календара. Ако дейността включва и
+% други потребители, тя автоматично се появява и в техния дневен ред.
+% 
+% % XXX TODO: трябва ли ни описание на редактиране на дейност?
+
+
+%% ----------------------------------------------------------------------
+
+\part{Administrative functions}
+
+\chapter{Site configuration}
+
+\HTMLset{mypagename}{siteconfig\_general}
+\section{General configuration}
+
+\htmlsubsectionid{identification}
+\subsection{Site identification}
+
+The site identification is used to personalise the system according to your
+work environment, for example:
+
+\begin{itemize}
+\item The “site name” can be the name of your organisation or the name of your
+project related to case management.
+\item The “site description” can be a short description (3-10 words) about the
+aim of the site.
+\end{itemize}
+
+A typical usage is to enter the name of the organisation as the “site name”
+and {\em title\_software} as the “site description”.
+
+Note: The default values ({\em title\_software} and
+{\em title\_software\_description}) are identifiers that refer to the
+translation system, and therefore show the name and description of the
+software according to the language of the visitor.
+
+\htmlsubsectionid{contacts}
+\subsection{Site location and contacts}
+
+The Internet address or network location, and the e-mail of site administrator
+are occasionally used when communicating with the user using various features.
+
+For example, users who have forgotten their password can reset it using a
+request sent by e-mail. This e-mail includes a hyperlink which refers to the
+Internet address of the system.
+
+\HTMLset{mypagename}{siteconfig\_collab}
+\section{Collaborative work}
+
+% MODIF 0.6.3
+\htmlsubsectionid{collab}
+\subsection{Access to information}
+
+Collaborative work features refer to the different policies or habits that an
+organisation can adopt: they are usually a compromise between the privacy of
+the clients and collaboration between the users (office staff).
+
+Collaborative work features (or access rights) are separated into two options
+for users who are not explicitly assigned to a case: who has access to read
+the information of a case and who has access to add information.
+
+For each option, the system will recommend a setting to the user, based on the
+typical habits of the organisation. This allows the user to select how the
+information of the case is shared with other users. 
+
+Administrators can also impose a strict policy, where users cannot decide how
+the case information is shared. The right to read or add information to a case
+can then be modified on a case by case basis only by the administrators.
+
+This is only for the criteria that influence access rights for a given case.
+For each case, one of the following criteria apply:
+
+\begin{itemize}
+\item Site administrators are given full access to all cases;
+\item Each user assigned to a case can have their own access rights;
+\item Other users, not assigned to the case, get access based on the collaborative
+work settings.
+\end{itemize}
+
+Note: If the above options are changed, it will not affect the settings of
+existing cases.
+
+\htmlsubsectionid{selfreg}
+\subsection{Self-registration of new users}
+
+Self-registration of new users is aimed at Internet-based organisations  who
+allow new members to register by themselves. In other words, the case
+management system is open to all, but registration is required in order to
+access it.
+
+\HTMLset{mypagename}{siteconfig\_policy}
+\section{Office policy}
+
+Some fields of the system can be hidden or shown depending on the policy of
+the organisation. Sometimes it may be that a field is not recommended or
+simply that is has no use for the case management activities. Fields which are
+shown are not mandatory, they are only a mean to encourage or remind the user
+to enter the information.
+
+If fields are hidden, the information previously entered will not be erased
+from the system, it will only be hidden.
+
+\htmlsubsectionid{clients}
+\subsection{Clients and users}
+
+\begin{itemize}
+\item Middle name or initial: Some countries such as Bulgaria often use middle
+names when they register people. Others, such as Canada sometimes ask for a
+middle initial. Most of the time, this information is not useful at all except
+for some particular administrative reasons (the address of the person is a
+more reliable way to identify someone).
+\item Citizen number: Some countries have national ID cards with a number unique
+for each citizen. In case of doubt, do not activate this field. There might be
+strict laws regarding the use of national ID numbers. Most of the time, the
+number is abused as a mean to identify the client. Unless specific
+administrative reasons suggest to use this number, clients should be
+identified according to their home address.
+\item Civil status: This field is aimed at statistical reporting of clients. It
+depends on the field of work of the organisation.
+\item Income: This field is aimed at statistical reporting of clients. It depends
+on the field of work of the organisation. For example, some legal offices
+offer free legal advice to people with an income lower to the national
+average. Some organisations offer legal advice only to people with a low
+income, such organisations can de-activate this field since it will always be
+“low income”.
+\item Hide user e-mails: For some Internet-based organisations, it might be
+necessary to hide user e-mails, depending on the policy of the organisation.
+In case of doubt, say no.
+\end{itemize}
+
+\htmlsubsectionid{cases}
+\subsection{Cases}
+
+\begin{itemize}
+\item Assignment date: This allows users to enter a date which is different from
+the creation date of the case (in the system, which cannot be changed). It
+could be the date of assignment of the case to the organisation or it could be
+the date when the case was previously created -- this depends on your
+organisation policy.
+\item Allow case information to be modified once they are created: By default, 
+the user is allowed to correct information until the case is closed. If this
+option is set to “no”, users will be allowed to submit information but not to
+correct it. This option applies to the case information only, not to its
+follow-ups. In case of doubt, say “yes”.
+\end{itemize}
+
+\htmlsubsectionid{followups}
+\subsection{Follow-ups}
+
+\begin{itemize}
+\item Sum billed: Allows users (advisors, lawyers, etc.) to bill for their
+activities.
+\item Allow case follow-up information to be modified once they are created: By
+default, the user is allowed to correct information until the case is closed.
+If this option is set to “no”, users will be allowed to submit information but
+not to correct it. This option applies to the case follow-up information only,
+not to its follow-ups. In case of doubt, say “yes”.
+\end{itemize}
+
+\HTMLset{mypagename}{siteconfig\_regional}
+\section{Regional settings}
+
+
+\begin{itemize}
+\item Default language: Used in rare cases where the language of the user could
+not be detected from the Web browser of the user or if the language setting of
+the browser is not correctly configured.
+\item Currency: Used only if the “sum billed” field for case follow-ups is
+activated.
+\end{itemize}
+
+\chapter{Archives}
+ 
+\HTMLset{mypagename}{archives\_intro}
+\section{Introduction}
+
+The ``archive'' panel, accessible from the administrative menu, offers a method
+to create backup copies of all the information stored in the system. The
+backups can later be used to either restore the system in the event of a server 
+disruption or to synchronise with another legal case management system.
+
+Make sure that backups are generated regularly, at least twice a month. For
+very busy offices, backups should be generated every day.
+
+In the event of a disruption caused by the server which is hosting the legal
+case management system, all of the information stored in the system may be lost.
+The server may also be victim of vandalism, human errors, etc. Therefore, make
+sure you generate backups regularly!
+
+The interface to generate the backups has been made as simple as possible, so
+that anyone in your organisation can handle this task. For example, it may be
+part of the tasks your secretary does before he/she leaves work.
+
+Backups should be stored on a seperate computer than the system itself. For
+example, if the hard disk of the host computer fails, then both the
+information stored in the system and the backups will be lost. You may also
+want to consider storing the backups off-site, since many computers may be
+disrupted in the event of a fire or theft. Make sure that the backups are
+stored in a safe and secure way, since they contain sensitive information that
+might cause important privacy risks if they are exposed to people outside your
+organisation. For example, a network intruder could copy the backups and
+publish your client information on the Internet.
+
+A simple alternative is to store the backups on a CD (using a CD writer), and
+to store them in a secure location at one of the manager's home or in a bank
+secure deposit box. Make sure that the backups actually work: install a
+seperate LCM in order to see whether the backups can be restored as expected.
+
+Take a moment to plan this policy for your organisation, and regularly check 
+whether it is correctly applied.
+ 
+\HTMLset{mypagename}{archives\_export}
+\section{Export}
+
+\htmlsubsectionid{newbackup}
+\subsection{Generate a new backup archive}
+
+{\bf To generate a new backup archive of the system}, follow the steps:
+
+\begin{enumerate}
+\item Click on the button ``Archives'' from the main navigation menu and
+then on the ``Backup'' tab located at the top of the screen.
+
+\item When the ``Backup'' form opens, locate the box titled ``Create a new
+backup'' and click on the ``New backup'' button. It may take a few seconds
+in order for the operation to complete. Click only once!
+
+\item A message will then appear over the ``Create a new backup'' box to
+inform that the backup was successfully created. At this point, the backup
+is stored only on the host computer itself. As mentioned in the introduction
+section, this is something which is not sufficient in order to have a good
+backup, since the host computer might fail, and the backup will be lost.
+
+\item Click on the lcm-NNNNNNNN.tar link in order to download the backup
+archive onto your local computer. Note that the ``NNNNNNNN'' refers to the current date.
+Alternatively, you can download the backup archive from the list of previosuly made 
+backups located below the ``Create a new backup'' box.
+\end{enumerate}
+
+Once the backup archive is safely copied onto your local computer, you can
+either store it on a recordable CD, copy it off-site, etc.
+
+\htmlsubsectionid{delbackup}
+\subsection{Delete a previously made backups}
+
+Over time, the previosuly made backups may occupy too much disk space on the
+server. If the server is shared with others, it is also safer to delete the
+backups since anyone can copy the files without needing the password to access
+the database (since the information from the database has been copied into a
+file).
+
+{\bf To delete a backup from the list of previously made backups}, follow the steps:
+
+\begin{enumerate}
+\item Click on the button ``Archives'' from the main navigation menu and
+then on the ``Backup'' tab located at the top of the screen.
+
+\item When the ``Backup'' form opens, locate the box titled ``Previously made
+backups'', then locate the backup you wish to delete.
+
+\item Click on the checkbox located near the name of the backup to delete. A
+``delete'' button will then appear under the list of previously made
+backups.
+
+\item Confirm the delete operation by clicking on the ``delete'' button.
+\end{enumerate}
+
+\HTMLset{mypagename}{archives\_import}
+\section{Import}
+
+\htmlsubsectionid{newrestore}
+\subsection{Import an archive}
+
+The procedure to restore a backup is seperated into two parts, similar to the
+generation of a backup: the backup must first be uploaded to the server before
+the restore operation is made. 
+
+If it is more convenient, the backup can be uploaded using SSH or FTP,
+depending on your host. For very large backups, this might be mandatory.
+If you chose this option, make sure to upload into the ``inc/data'' directory.
+You can then ignore some of the steps described below.
+
+{\bf To upload an existing backup onto the system}, follow the steps:
+
+\begin{enumerate}
+\item Click on the button ``Archives'' from the main navigation menu and
+then on the ``Restore'' tab located at the top of the screen.
+
+\item When the ``Backup'' form opens, locate the box titled ``Upload a
+backup''.
+
+\item Click on the ``Browse'' button. It will open a dialog box to help you 
+locate the backup file to upload from your local computer. When you have 
+selected the file, click on ``Ok'' to close the dialog box.
+
+\item Click on the ``Validate'' button to upload the file onto the server.
+\end{enumerate}
+
+{\bf To restore an existing backup}, follow the steps:
+
+\begin{enumerate}
+\item Locate the ``Restore a backup'' box, located under the ``Upload a
+backup'' box.
+
+\item Select the backup to restore from the dropdown menu.
+
+\item Select the operation to make:
+
+\begin{description}
+\item[Restore] Deletes the existing database in the system and will
+restore the system to the exact state of the backup. This is the normal
+operation to do if you have re-installed LCM on a new computer and you wish
+to restore the database from your previous installation. Never risk restoring
+the database ``just for testing'', the restore operation may fail and leave the
+system in an unstable state.
+
+\item[Synchronise] May be used to synchronise a system with a parent one (or a
+centralised system). This is very experimental, and we do not recommend using
+it unless you have tested the operation, and know very well what you are
+doing. Note: LCM does not support the synchronisation of two system, it only
+supports sending information to a centralised server -- information from the
+central server should never be sent to the local host.
+
+\end{description}
+
+\item Click on the ``Validate'' button to proceed with the opration.
+\end{enumerate}
+
+\htmlsubsectionid{delrestore}
+\subsection{Delete the uploaded archive}
+
+Once the system is successfully restored, you can delete the uploaded archive
+from the ``Backup'' tab. For more information, refer to the previous section.
+
+\chapter{Keywords}
+
+\HTMLset{mypagename}{keywords\_intro}
+\section{Introduction}
+
+Keywords are used to customize some aspects of the system to your environment.
+They are usually related to statistical information and therefore offer a
+limited range of options. There are two types of keywords:
+
+\begin{description}
+\item [System] Used by specific features of the software, such as the types of
+case stages, follow-up types, contacts or meetings.
+
+\item [User] Allow administrators to add new fields for statistical use. They
+are attached to cases, clients or organisations and are a tool to add a new
+field to those elements.
+\end{description}
+
+\HTMLset{mypagename}{keywords\_new\_group}
+\section{New keyword group, todo}
+
+Only ``user'' keyword groups can be created, since ``system'' keyword groups
+refer to specific features of the software.
+
+{\bf To create a new user keyword group}, follow these steps:
+
+\begin{enumerate}
+\item Click on the ``Keywords'' administrative menu item, then click on the
+``User keywords'' tab located at the top of the screen.
+\item Add the bottom of the screen, click on the ``Create new keyword group''
+button.
+\item When the ``new keyword group'' form appears, enter the following 
+information:
+
+\begin{description}
+\item [Applies to] refers to what the keyword will be attached to. Possible
+values include: case, case stage, client and organisation. The ``case stage''
+is similar to ``case'', except that its value can be changed depending on the
+case stage.
+\item [Policy] Indicates to the user whether the field is mandatory,
+recommended or optional. Please note that the software does not enforce
+the policy of the fields, since the information may only be available 
+at some time in the future. It is meant to be informative.
+\item [Default choice] When keywords are added to the keyword group, it is
+possible to propose a default value. For example, for a keyword group ``age
+group'', the default keyword should be ``unknown''.
+\item [Code] Short, unique word used internally by the software. This field
+is mandatory.
+\item [Title] Name of the field which will be shown in the details or edit
+forms.
+\item [Description] Provided to the user as a form of contextual help. (Note:
+currently not implemented.)
+\item [One or many] Specify whether the keywords from this group can be 
+selected one or many times for this group. In case of doubt, say ``one''.
+\item [Hidden] Keywords which are in use by the software cannot be deleted,
+but it is possible to hide them so that they are no longer used in the future.
+\end{description}
+
+\item Click on the ``Validate'' button in order to save the information.
+\end{enumerate}
+
+\HTMLset{mypagename}{keywords\_new}
+\section{New keyword, todo}
+
+TODO
+
+\HTMLset{mypagename}{keywords\_remove}
+\section{Remove keyword, todo}
+
+TODO
+
+\chapter{Reports}
+
+\HTMLset{mypagename}{reports\_intro}
+\section{Introduction}
+
+An important aspect of case management is the possibility to extract
+statistical information based on the activities of the organisation. In order
+to generate the reports, a basic structure must first be defined, which can
+later be used at regular intervals to generate the reports.
+
+The ``List of reports'', accessible from the ``Reports'' navigation menu item,
+therefore presents a list of report structures, which can be used to generate
+reports.
+
+\subsection{New report}
+
+{\bf To create a new report}, follow these steps:
+
+\begin{enumerate}
+\item Click on the ``Reports'' administrative menu item, then click on the
+``New report'' button located at the end of the list of reports.
+
+\item In the ``New report'' form, enter the following information:
+
+\begin{description}
+\item [Title] Choose a short but representative title for the report, which
+will help you to find your report in the future. Mandatory field.
+
+\item [Description] More detailed information on the report, if necessary. It
+will be shown at the top of the report.
+
+\item [Notes] Optional text shown at the end of the report. For example, if
+your office require printed reports to be approved by a manager, enter the
+name of the manager in the ``notes'' field so that the manager has a place to
+sign.
+\end{description}
+
+\item Click on the ``Validate'' button in order to save the information.
+\end{enumerate}
+
+Upon successful validation of the report, the screen ``report details'' will
+be shown. From this screen, the report can be personalized to include the
+fields and filters necessary for the report.
+
+\subsection{Edit report}
+
+{\bf To edit the information of an existing report}, follow these steps:
+
+\begin{enumerate}
+\item Click on the ``Reports'' administrative menu item, then click on the
+report that you wish to edit.
+
+\item Click on the ``Edit report details'' button located in the ``general
+information'' section of the screen.
+
+\item For more information on the fields, refer to the ``New report'' section.
+
+\item Click on the ``Validate'' button in order to save the information.
+\end{enumerate}
+
+Upon successful validation of the report, the screen ``report details'' will
+be shown. From this screen, the report can be personalized to include the
+fields and filters necessary for the report.
+
+
+\HTMLset{mypagename}{reports\_edit}
+\section{Customizing a report}
+
+This section provides more information on how to define the contents of
+a report. The reports generated by the software typically have the following
+structure:
+
+\begin{description}
+\item [Lines] The main reference element of the report. For example, a 
+report which will list the number of new cases for all users will use
+the ``Users'' table for the ``line'' information. On the other hand,
+a report which would list the journal of activities for one specific
+user would use the ``Follow-ups'' table. A report must include at least
+a source element for the lines of the report.
+
+\item [Columns] The column information lists information in relation
+to the ``Line'' information. For example, if the line is using the
+``users'' table and the ``column'' is using the ``follow-ups'' table,
+then it is possible to extract information on the follow-ups for each
+user. More detailed examples are provided in the next sections.
+
+\item [Filters] After selecting the source elements for the lines and
+(optinally) columns for the report, it is possible to filter the 
+results based on certain criteria. For example, to generate a monthly
+report, it will be necessary to add a filter based on the date of the
+case or follow-ups.
+\end{description}
+
+\subsection{Defining the lines and columns of reports}
+
+The report line and column each allow to use one source element, from
+which many fields can be used. The only exception to this are keywords,
+because they only have a title, so specifying the field is not necessary.
+
+{\bf To define the source element of a line or column of a new report},
+follow these steps:
+
+\begin{enumerate}
+\item From the ``Report details'' form, select the source table or
+keyword for the report line (later repeat for the report column, if
+necessary).
+
+\item Click on the ``Validate'' button. It will refresh the screen,
+showing the selected source, as well as a list of fields available
+(if the source is a table).
+
+\item To add a field, select it from the menu located on the
+``Add a field'' line of the form, then click on ``Validate''. The
+fields are shown in the report in the order that they were added.
+\end{enumerate}
+
+To change the line or column source, all of the fields selected for
+the source must first be removed. Fields can be removed by clicking
+on the ``X'' located next to the title of the field. When there are
+no fields selected for a source, a ``X'' is shown next to the name
+of the source in order to change it.
+
+\subsection{Example: Number of cases per user}
+
+{\bf To list the number of cases per user, within a given period},
+follow these steps:
+
+\begin{enumerate}
+\item As the ``line information'' source, select the table ``User'',
+then click on ``Validate''.
+\item Add the field ``name'', then click on ``Validate''. Repeat with
+the ``surname'' field.
+\item As the ``column information'' source, select the table ``Case'',
+then click on ``Validate''.
+\item Add the field ``count'', then click on ``Validate''.
+\end{enumerate}
+
+To count the number of new cases for a given period, it is possible
+to add a filter based on the creation date of the case:
+
+\begin{enumerate}
+\item In the ``report filters'' section, select the ``Case: creation
+date'' item from the menu, then click on ``Validate''.
+\item After the screen is refreshed, a new menu will be shown next to 
+the name of the field (creation date), which by default shows ``none''. 
+Change the value for ``in'', then click on ``Validate''.
+\item Two sets of fields will then be displayed in order to enter the
+date interval for the report. If you would like to use this reports on
+many intervals, for example each month, simply leave the fields empty.
+\end{enumerate}
+
+The report is now ready to be generated, using the ``Generate report''
+button at the top of the screen. If a ``creation date'' filter was
+created and its value was left empty, the software will show a screen
+to enter the date interval.
+
+Please note that in this specific case the list of cases are seperated by
+case stage and a total is shown at the end of each line (the sum of all
+case stages for the user) as well as a total at the end of the report
+(the sum of cases for all users).
+
+\subsection{Example: Time spent of each follow-up type, for each user}
+
+{\bf To list the total amount of time spent on each follow-up type,
+for each user}, follow these steps:
+
+\begin{enumerate}
+\item As the ``line information'' source, select the table ``User'',
+then click on ``Validate''.
+\item Add the field ``name'', then click on ``Validate''. Repeat with
+the ``surname'' field.
+\item As the ``column information'' source, select the table ``Follow-up'',
+then click on ``Validate''.
+\item Add the field ``type'', then click on ``Validate''.
+\end{enumerate}
+
+To limit the results to activities for a given period, use the following
+filter:
+
+\begin{enumerate}
+\item In the ``report filters'' section, select the ``Follow-up: Start''
+item from the menu, then click on ``Validate''.
+\item After the screen is refreshed, a new menu will be shown next to 
+the name of the field (creation date), which by default shows ``none''. 
+Change the value for ``in'', then click on ``Validate''.
+\item Two sets of fields will then be displayed in order to enter the
+date interval for the report. If you would like to use this reports on
+many intervals, for example each month, simply leave the fields empty.
+\end{enumerate}
+
+The report is now ready to be generated, using the ``Generate report''
+button at the top of the screen. If a ``start date'' filter was created 
+and its value was left empty, the software will show a screen to enter 
+the date interval.
+
+%% ----------------------------------------------------------------------
+
+% \part{FAQ}
+
+% \chapter{About usage}
+
+% \chapter{Technical problems}
+
+%% ----------------------------------------------------------------------
+
+\end{document}

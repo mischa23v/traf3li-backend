@@ -1,0 +1,16 @@
+*.suo
+*.user
+bin
+obj
+*.pdb
+*.cache
+*_svn
+*.svn
+*.suo
+*.user
+packages
+OpenLawOffice.WinClient
+OpenLawOffice.Server
+
+/OpenLawOffice.WebClient/OpenLawOffice.WebClient.Publish.xml
+/OpenLawOffice.WebClient/Properties/PublishProfiles

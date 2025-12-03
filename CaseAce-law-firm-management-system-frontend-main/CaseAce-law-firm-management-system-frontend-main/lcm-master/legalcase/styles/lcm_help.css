@@ -1,0 +1,150 @@
+/* -------------------- */
+/* Help pages styles */
+/* -------------------- */
+
+body {
+	font-family: Verdana, Arial, Helvetica, sans-serif;
+	margin: 0;
+	padding: 0;
+	background: url("../images/lcm/help_back.gif") repeat-y 150px;
+}
+
+h1 {
+	width: 734px;
+	height: 50px;
+	line-height: 50px;
+	margin: 0;
+	padding-left: 5px;
+	border-bottom: 1px solid #999;
+	border-right: 1px solid #999;
+	color: #333;
+	background: #efefef;
+	font-size: 1.8em;
+	letter-spacing: -1px;
+}
+
+h2 {
+	margin-top: 5px;
+	/* [ML] margin: 5px 0px 0px 15px; */
+	padding: 0;
+}
+
+/* Layout */
+
+#hlp_big_box {
+	width: 739px;
+	height: 525px;
+	/* border-bottom: 1px solid #999; */
+	/* border-right: 1px solid #999; */
+}
+
+#hlp_menu {
+	float: left;
+	width: 150px;
+}
+
+#hlp_cont {
+	float: right;
+	width: 588px;
+	height: 525px;
+	/* border-left: 1px solid #999; */
+	/* overflow: auto; */
+}
+
+/* Real help content styles */
+
+.hlp_data {
+	margin: 5px 15px 0px 15px;
+}
+
+.hlp_data p, .hlp_data div, .hlp_data ul li, .hlp_data li, .hlp_data dl, .hlp_data textarea {
+	font-family: Verdana, Arial, Helvetica, sans-serif;
+	font-size: 12px;
+}
+
+.hlp_data li {
+	margin-left: 25px;
+	list-style-type: square;
+}
+
+.hlp_data dl {
+	margin-left: 25px;
+}
+
+.hlp_data textarea {
+	width: 500px;
+	border: 1px solid #333;
+}
+
+.hlp_data pre {
+	border: 1px solid #aaa;
+	background: #f0f0f0;
+	padding: 4px;
+}
+
+.hlp_data a {
+	color: #f30;
+	text-decoration: underline;
+}
+
+.hlp_data a:hover {
+	color: #f30;
+	text-decoration: none;
+}
+
+/* Help Main Menu  */
+
+#hlp_menu ul#nav {
+	margin: 0;
+	padding: 0; 
+	list-style: none;
+	width: 150px;
+	}
+
+#hlp_menu ul.subnav {
+	margin: -1px 0px 0px 0px;
+	padding: 0; 
+	list-style: none;
+	width: 200px;
+	border-top: 1px solid #999;
+}
+
+#hlp_menu ul.subnav li a {
+	border-right: 1px solid #999;
+}
+
+#hlp_menu ul.subnav li a:hover, #hlp_menu ul#nav li a:hover {
+	background: #efefef;
+	color: #f30;
+}
+	
+#hlp_menu ul li {
+	position: relative;
+	}
+	
+#hlp_menu li ul {
+	position: absolute;
+	left: 150px;
+	top: 0;
+	display: none;
+	}
+
+#hlp_menu ul li a {
+	display: block;
+	text-decoration: none;
+	color: #333;
+	background: #fff;
+	padding: 5px;
+	border-left: 1px solid #999;
+	border-right: 0;
+	border-bottom: 1px solid #999;
+	border-top: 0;
+	font-size: 11px;
+	}
+	
+/* Holly Hack. IE Requirement \*/
+* html #hlp_menu ul li { float: left; height: 1%; }
+* html #hlp_menu ul li a { height: 1%; }
+/* End */
+
+#hlp_menu li:hover ul, #hlp_menu li.over ul { display: block; }

@@ -1,0 +1,82 @@
+# Render Deployment Configuration
+# Documentation: https://render.com/docs/yaml-spec
+
+services:
+  - type: web
+    name: traf3li-backend
+    env: node
+    region: oregon # Choose: oregon, frankfurt, singapore
+    plan: free # or: starter, standard, pro
+
+    # Build Configuration
+    buildCommand: npm install
+    startCommand: node src/server.js
+
+    # Health Check
+    healthCheckPath: /health
+
+    # Environment Variables
+    envVars:
+      - key: NODE_ENV
+        value: production
+
+      # Database (set in Render dashboard - secret)
+      - key: MONGODB_URI
+        sync: false
+
+      # JWT Secret (set in Render dashboard - secret)
+      - key: JWT_SECRET
+        sync: false
+
+      # Stripe (set in Render dashboard - secret)
+      - key: STRIPE_SECRET_KEY
+        sync: false
+
+      # Frontend URLs for CORS (optional - already in code)
+      - key: CLIENT_URL
+        value: https://traf3li.com
+
+      - key: DASHBOARD_URL
+        value: https://dashboard.traf3li.com
+
+      # Test mode (disable in production)
+      - key: TEST_MODE
+        value: false
+
+    # ⚠️ IMPORTANT: DO NOT add CORS headers here!
+    # We handle CORS in Express (src/server.js) for better control
+    # Adding CORS headers here would cause duplicate headers and break requests
+
+    # ✅ Static Security Headers (safe - don't conflict with Express)
+    headers:
+      - path: /*
+        name: X-Frame-Options
+        value: DENY
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: X-XSS-Protection
+        value: 1; mode=block
+      - path: /*
+        name: Referrer-Policy
+        value: strict-origin-when-cross-origin
+      - path: /*
+        name: Permissions-Policy
+        value: geolocation=(), microphone=(), camera=()
+
+    # Auto-Deploy
+    autoDeploy: true
+
+    # Scaling (Free tier: 1 instance only)
+    numInstances: 1
+
+    # Disk for uploads (optional)
+    disk:
+      name: uploads
+      mountPath: /opt/render/project/src/uploads
+      sizeGB: 1
+
+# Note: Secret environment variables (MONGODB_URI, JWT_SECRET, STRIPE_SECRET_KEY)
+# should be set in Render Dashboard under Environment for security.
+# Do not commit secrets to git!
