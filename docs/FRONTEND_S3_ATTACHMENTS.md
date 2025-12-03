@@ -343,7 +343,128 @@ PATCH /api/tasks/:taskId/documents/:documentId
 **Response:**
 ```json
 {
-  "document": { ... }
+  "document": { ... },
+  "version": 3
+}
+```
+
+---
+
+### 4. Get Document Versions
+
+**Endpoint:**
+```
+GET /api/tasks/:taskId/documents/:documentId/versions
+```
+
+**Headers:**
+```
+Authorization: Bearer <access_token>
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "document": {
+    "_id": "documentId",
+    "fileName": "مستند.html",
+    "isEditable": true
+  },
+  "versions": [
+    {
+      "_id": "current",
+      "version": 3,
+      "title": "مستند.html",
+      "fileSize": 1234,
+      "contentFormat": "tiptap-json",
+      "editedBy": "userId",
+      "createdAt": "2025-12-03T12:00:00Z",
+      "isCurrent": true
+    },
+    {
+      "_id": "versionId2",
+      "version": 2,
+      "title": "مستند.html",
+      "fileSize": 1100,
+      "contentFormat": "tiptap-json",
+      "editedBy": {
+        "_id": "userId",
+        "firstName": "أحمد",
+        "lastName": "محمد",
+        "fullName": "أحمد محمد"
+      },
+      "changeNote": "Auto-saved before update",
+      "createdAt": "2025-12-03T11:30:00Z"
+    },
+    {
+      "_id": "versionId1",
+      "version": 1,
+      "title": "مستند.html",
+      "fileSize": 800,
+      "contentFormat": "tiptap-json",
+      "editedBy": { ... },
+      "changeNote": "Auto-saved before update",
+      "createdAt": "2025-12-03T10:00:00Z"
+    }
+  ]
+}
+```
+
+---
+
+### 5. Get Specific Version Content
+
+**Endpoint:**
+```
+GET /api/tasks/:taskId/documents/:documentId/versions/:versionId
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "version": {
+    "_id": "versionId",
+    "version": 2,
+    "title": "مستند.html",
+    "documentContent": "<p>HTML content at this version</p>",
+    "documentJson": { "type": "doc", "content": [...] },
+    "contentFormat": "tiptap-json",
+    "fileSize": 1100,
+    "editedBy": {
+      "_id": "userId",
+      "firstName": "أحمد",
+      "lastName": "محمد"
+    },
+    "changeNote": "Auto-saved before update",
+    "createdAt": "2025-12-03T11:30:00Z"
+  }
+}
+```
+
+---
+
+### 6. Restore Previous Version
+
+**Endpoint:**
+```
+POST /api/tasks/:taskId/documents/:documentId/versions/:versionId/restore
+```
+
+**Headers:**
+```
+Authorization: Bearer <access_token>
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "تم استعادة النسخة 2 بنجاح",
+  "document": { ... },
+  "restoredFromVersion": 2,
+  "currentVersion": 4
 }
 ```
 
@@ -537,6 +658,52 @@ export interface TipTapNode {
 export interface TipTapMark {
   type: string;
   attrs?: Record<string, any>;
+}
+
+// types/document-version.ts
+
+export interface TaskDocumentVersion {
+  _id: string;
+  taskId: string;
+  documentId: string;
+  version: number;
+  title: string;
+  documentContent?: string;
+  documentJson?: TipTapJSON;
+  contentFormat: 'html' | 'tiptap-json' | 'markdown';
+  fileSize: number;
+  editedBy: {
+    _id: string;
+    firstName: string;
+    lastName: string;
+    fullName?: string;
+  } | string;
+  changeNote?: string;
+  createdAt: string;
+  isCurrent?: boolean;
+}
+
+export interface DocumentVersionsResponse {
+  success: boolean;
+  document: {
+    _id: string;
+    fileName: string;
+    isEditable: boolean;
+  };
+  versions: TaskDocumentVersion[];
+}
+
+export interface DocumentVersionResponse {
+  success: boolean;
+  version: TaskDocumentVersion;
+}
+
+export interface RestoreVersionResponse {
+  success: boolean;
+  message: string;
+  document: TaskDocument;
+  restoredFromVersion: number;
+  currentVersion: number;
 }
 ```
 
@@ -814,6 +981,130 @@ export async function updateDocument(
   }
 
   return response.json();
+}
+
+/**
+ * Get document version history
+ */
+export async function getDocumentVersions(
+  taskId: string,
+  documentId: string
+): Promise<DocumentVersionsResponse> {
+  const response = await fetch(
+    `${API_BASE}/api/tasks/${taskId}/documents/${documentId}/versions`,
+    {
+      method: 'GET',
+      credentials: 'include',
+      headers: {
+        'Authorization': `Bearer ${getAccessToken()}`
+      }
+    }
+  );
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || 'Failed to get document versions');
+  }
+
+  return response.json();
+}
+
+/**
+ * Get specific version content
+ */
+export async function getDocumentVersion(
+  taskId: string,
+  documentId: string,
+  versionId: string
+): Promise<DocumentVersionResponse> {
+  const response = await fetch(
+    `${API_BASE}/api/tasks/${taskId}/documents/${documentId}/versions/${versionId}`,
+    {
+      method: 'GET',
+      credentials: 'include',
+      headers: {
+        'Authorization': `Bearer ${getAccessToken()}`
+      }
+    }
+  );
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || 'Failed to get document version');
+  }
+
+  return response.json();
+}
+
+/**
+ * Restore a previous version
+ */
+export async function restoreDocumentVersion(
+  taskId: string,
+  documentId: string,
+  versionId: string
+): Promise<RestoreVersionResponse> {
+  const response = await fetch(
+    `${API_BASE}/api/tasks/${taskId}/documents/${documentId}/versions/${versionId}/restore`,
+    {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Authorization': `Bearer ${getAccessToken()}`
+      }
+    }
+  );
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || 'Failed to restore document version');
+  }
+
+  return response.json();
+}
+```
+
+```typescript
+// hooks/use-document-versions.ts
+
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import {
+  getDocumentVersions,
+  getDocumentVersion,
+  restoreDocumentVersion
+} from '../api/documents';
+
+export function useDocumentVersions(taskId: string, documentId: string) {
+  return useQuery({
+    queryKey: ['task-document-versions', taskId, documentId],
+    queryFn: () => getDocumentVersions(taskId, documentId),
+    enabled: !!taskId && !!documentId,
+  });
+}
+
+export function useDocumentVersion(taskId: string, documentId: string, versionId: string) {
+  return useQuery({
+    queryKey: ['task-document-version', taskId, documentId, versionId],
+    queryFn: () => getDocumentVersion(taskId, documentId, versionId),
+    enabled: !!taskId && !!documentId && !!versionId,
+  });
+}
+
+export function useRestoreDocumentVersion() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ taskId, documentId, versionId }: {
+      taskId: string;
+      documentId: string;
+      versionId: string;
+    }) => restoreDocumentVersion(taskId, documentId, versionId),
+    onSuccess: (_, { taskId, documentId }) => {
+      queryClient.invalidateQueries(['task-document-versions', taskId, documentId]);
+      queryClient.invalidateQueries(['task-document', taskId, documentId]);
+      queryClient.invalidateQueries(['task', taskId]);
+    },
+  });
 }
 ```
 

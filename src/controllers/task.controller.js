@@ -1,4 +1,4 @@
-const { Task, User, Case } = require('../models');
+const { Task, User, Case, TaskDocumentVersion } = require('../models');
 const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
 const { deleteFile, listFileVersions, logFileAccess } = require('../configs/s3');
@@ -2302,10 +2302,11 @@ const createDocument = asyncHandler(async (req, res) => {
  * Update a text/rich-text document in a task
  * PATCH /api/tasks/:id/documents/:documentId
  * Supports both HTML and TipTap JSON formats
+ * Automatically saves version history before updating
  */
 const updateDocument = asyncHandler(async (req, res) => {
     const { id, documentId } = req.params;
-    const { title, content, contentJson, contentFormat } = req.body;
+    const { title, content, contentJson, contentFormat, changeNote } = req.body;
     const userId = req.userID;
 
     const task = await Task.findById(id);
@@ -2323,6 +2324,29 @@ const updateDocument = asyncHandler(async (req, res) => {
     }
 
     const user = await User.findById(userId).select('firstName lastName');
+
+    // Save current version to history before updating
+    // Only save if there's actual content to preserve
+    if (document.documentContent || document.documentJson) {
+        try {
+            await TaskDocumentVersion.createSnapshot(
+                id,
+                documentId,
+                {
+                    title: document.fileName,
+                    documentContent: document.documentContent,
+                    documentJson: document.documentJson,
+                    contentFormat: document.contentFormat,
+                    fileSize: document.fileSize
+                },
+                document.lastEditedBy || document.uploadedBy || userId,
+                changeNote || 'Auto-saved before update'
+            );
+        } catch (err) {
+            console.error('Error saving document version:', err);
+            // Continue with update even if version save fails
+        }
+    }
 
     // Handle different content formats
     if (contentFormat === 'tiptap-json' && contentJson !== undefined) {
@@ -2363,10 +2387,14 @@ const updateDocument = asyncHandler(async (req, res) => {
 
     await task.save();
 
+    // Get current version number
+    const currentVersion = await TaskDocumentVersion.getLatestVersionNumber(id, documentId);
+
     res.status(200).json({
         success: true,
         message: 'تم تحديث المستند بنجاح',
-        document
+        document,
+        version: currentVersion + 1 // Current document is one ahead of saved versions
     });
 });
 
@@ -2437,6 +2465,220 @@ const getDocument = asyncHandler(async (req, res) => {
             uploadedBy: document.uploadedBy,
             uploadedAt: document.uploadedAt
         }
+    });
+});
+
+/**
+ * Get version history for a TipTap document
+ * GET /api/tasks/:id/documents/:documentId/versions
+ */
+const getDocumentVersions = asyncHandler(async (req, res) => {
+    const { id, documentId } = req.params;
+    const userId = req.userID;
+
+    const task = await Task.findById(id)
+        .populate('createdBy', '_id')
+        .populate('assignedTo', '_id');
+
+    if (!task) {
+        throw CustomException('Task not found', 404);
+    }
+
+    // Verify user has access to this task
+    const isCreator = task.createdBy && task.createdBy._id.toString() === userId;
+    const isAssignee = task.assignedTo && task.assignedTo._id.toString() === userId;
+
+    if (!isCreator && !isAssignee) {
+        throw CustomException('You do not have access to this document', 403);
+    }
+
+    const document = task.attachments.id(documentId);
+    if (!document) {
+        throw CustomException('Document not found', 404);
+    }
+
+    if (!document.isEditable) {
+        throw CustomException('This document does not support versioning', 400);
+    }
+
+    // Get version history from database
+    const versions = await TaskDocumentVersion.getVersionHistory(id, documentId);
+
+    // Get current version number
+    const latestVersionNum = versions.length > 0 ? versions[0].version : 0;
+
+    // Add current document as the latest version (not yet saved to history)
+    const currentVersion = {
+        _id: 'current',
+        version: latestVersionNum + 1,
+        title: document.fileName,
+        fileSize: document.fileSize,
+        contentFormat: document.contentFormat,
+        editedBy: document.lastEditedBy || document.uploadedBy,
+        createdAt: document.lastEditedAt || document.uploadedAt,
+        isCurrent: true
+    };
+
+    res.status(200).json({
+        success: true,
+        document: {
+            _id: document._id,
+            fileName: document.fileName,
+            isEditable: document.isEditable
+        },
+        versions: [currentVersion, ...versions]
+    });
+});
+
+/**
+ * Restore a previous version of a TipTap document
+ * POST /api/tasks/:id/documents/:documentId/versions/:versionId/restore
+ */
+const restoreDocumentVersion = asyncHandler(async (req, res) => {
+    const { id, documentId, versionId } = req.params;
+    const userId = req.userID;
+
+    const task = await Task.findById(id)
+        .populate('createdBy', '_id')
+        .populate('assignedTo', '_id');
+
+    if (!task) {
+        throw CustomException('Task not found', 404);
+    }
+
+    // Verify user has access to this task
+    const isCreator = task.createdBy && task.createdBy._id.toString() === userId;
+    const isAssignee = task.assignedTo && task.assignedTo._id.toString() === userId;
+
+    if (!isCreator && !isAssignee) {
+        throw CustomException('You do not have access to this document', 403);
+    }
+
+    const document = task.attachments.id(documentId);
+    if (!document) {
+        throw CustomException('Document not found', 404);
+    }
+
+    if (!document.isEditable) {
+        throw CustomException('This document does not support versioning', 400);
+    }
+
+    // Find the version to restore
+    const versionToRestore = await TaskDocumentVersion.findById(versionId);
+    if (!versionToRestore || versionToRestore.documentId.toString() !== documentId) {
+        throw CustomException('Version not found', 404);
+    }
+
+    const user = await User.findById(userId).select('firstName lastName');
+
+    // Save current version to history before restoring
+    if (document.documentContent || document.documentJson) {
+        await TaskDocumentVersion.createSnapshot(
+            id,
+            documentId,
+            {
+                title: document.fileName,
+                documentContent: document.documentContent,
+                documentJson: document.documentJson,
+                contentFormat: document.contentFormat,
+                fileSize: document.fileSize
+            },
+            document.lastEditedBy || document.uploadedBy || userId,
+            `Replaced by restore of v${versionToRestore.version}`
+        );
+    }
+
+    // Restore the old version
+    document.documentContent = versionToRestore.documentContent;
+    document.documentJson = versionToRestore.documentJson;
+    document.contentFormat = versionToRestore.contentFormat;
+    document.fileSize = versionToRestore.fileSize;
+    document.fileName = versionToRestore.title;
+    document.lastEditedBy = userId;
+    document.lastEditedAt = new Date();
+
+    // Add history entry
+    task.history.push({
+        action: 'restored',
+        userId,
+        userName: user ? `${user.firstName} ${user.lastName}` : undefined,
+        details: `Restored document "${document.fileName}" to version ${versionToRestore.version}`,
+        timestamp: new Date()
+    });
+
+    await task.save();
+
+    // Get new version number
+    const currentVersion = await TaskDocumentVersion.getLatestVersionNumber(id, documentId);
+
+    res.status(200).json({
+        success: true,
+        message: `تم استعادة النسخة ${versionToRestore.version} بنجاح`,
+        document,
+        restoredFromVersion: versionToRestore.version,
+        currentVersion: currentVersion + 1
+    });
+});
+
+/**
+ * Get a specific version content
+ * GET /api/tasks/:id/documents/:documentId/versions/:versionId
+ */
+const getDocumentVersion = asyncHandler(async (req, res) => {
+    const { id, documentId, versionId } = req.params;
+    const userId = req.userID;
+
+    const task = await Task.findById(id)
+        .populate('createdBy', '_id')
+        .populate('assignedTo', '_id');
+
+    if (!task) {
+        throw CustomException('Task not found', 404);
+    }
+
+    // Verify user has access
+    const isCreator = task.createdBy && task.createdBy._id.toString() === userId;
+    const isAssignee = task.assignedTo && task.assignedTo._id.toString() === userId;
+
+    if (!isCreator && !isAssignee) {
+        throw CustomException('You do not have access to this document', 403);
+    }
+
+    const document = task.attachments.id(documentId);
+    if (!document) {
+        throw CustomException('Document not found', 404);
+    }
+
+    // If requesting current version
+    if (versionId === 'current') {
+        return res.status(200).json({
+            success: true,
+            version: {
+                _id: 'current',
+                version: (await TaskDocumentVersion.getLatestVersionNumber(id, documentId)) + 1,
+                title: document.fileName,
+                documentContent: document.documentContent,
+                documentJson: document.documentJson,
+                contentFormat: document.contentFormat,
+                fileSize: document.fileSize,
+                editedBy: document.lastEditedBy || document.uploadedBy,
+                createdAt: document.lastEditedAt || document.uploadedAt,
+                isCurrent: true
+            }
+        });
+    }
+
+    // Get specific version
+    const version = await TaskDocumentVersion.findById(versionId)
+        .populate('editedBy', 'firstName lastName fullName');
+
+    if (!version || version.documentId.toString() !== documentId) {
+        throw CustomException('Version not found', 404);
+    }
+
+    res.status(200).json({
+        success: true,
+        version
     });
 });
 
@@ -2606,6 +2848,9 @@ module.exports = {
     createDocument,
     updateDocument,
     getDocument,
+    getDocumentVersions,
+    getDocumentVersion,
+    restoreDocumentVersion,
     // Voice memo functions
     addVoiceMemo,
     updateVoiceMemoTranscription,
