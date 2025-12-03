@@ -75,9 +75,9 @@ const historyEntrySchema = new mongoose.Schema({
         type: String,
         required: true,
         enum: ['created', 'updated', 'status_changed', 'assigned', 'completed', 'reopened',
-               'commented', 'attachment_added', 'attachment_removed', 'subtask_added',
-               'subtask_completed', 'subtask_uncompleted', 'subtask_deleted',
-               'dependency_added', 'dependency_removed', 'created_from_template']
+            'commented', 'attachment_added', 'attachment_removed', 'subtask_added',
+            'subtask_completed', 'subtask_uncompleted', 'subtask_deleted',
+            'dependency_added', 'dependency_removed', 'created_from_template']
     },
     userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     userName: String,
@@ -158,8 +158,7 @@ const taskSchema = new mongoose.Schema({
     },
     label: {
         type: String,
-        enum: ['bug', 'feature', 'documentation', 'enhancement', 'question', 'legal', 'administrative', 'urgent'],
-        default: null
+        enum: ['bug', 'feature', 'documentation', 'enhancement', 'question', 'legal', 'administrative', 'urgent']
     },
     tags: [{ type: String, trim: true }],
     dueDate: {
@@ -283,8 +282,8 @@ const taskSchema = new mongoose.Schema({
     taskType: {
         type: String,
         enum: ['general', 'court_hearing', 'document_review', 'client_meeting',
-               'filing_deadline', 'appeal_deadline', 'discovery', 'deposition',
-               'mediation', 'settlement', 'research', 'drafting'],
+            'filing_deadline', 'appeal_deadline', 'discovery', 'deposition',
+            'mediation', 'settlement', 'research', 'drafting', 'other'],
         default: 'general'
     }
 }, {
@@ -308,7 +307,7 @@ taskSchema.index({ taskType: 1 });
 taskSchema.index({ createdAt: -1 });
 
 // Pre-save hook to calculate progress from subtasks and budget
-taskSchema.pre('save', function(next) {
+taskSchema.pre('save', function (next) {
     // Calculate progress from subtasks (only if not manually set)
     if (!this.manualProgress && this.subtasks && this.subtasks.length > 0) {
         const completed = this.subtasks.filter(s => s.completed).length;
@@ -350,7 +349,7 @@ taskSchema.pre('save', function(next) {
 });
 
 // Static method: Get task stats
-taskSchema.statics.getStats = async function(userId) {
+taskSchema.statics.getStats = async function (userId) {
     const stats = await this.aggregate([
         { $match: { $or: [{ assignedTo: new mongoose.Types.ObjectId(userId) }, { createdBy: new mongoose.Types.ObjectId(userId) }] } },
         {
