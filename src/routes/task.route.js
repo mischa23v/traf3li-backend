@@ -40,6 +40,7 @@ const {
     getAttachmentVersions,
     // Document functions
     createDocument,
+    getDocuments,
     updateDocument,
     getDocument,
     getDocumentVersions,
@@ -127,6 +128,7 @@ app.delete('/:id/attachments/:attachmentId', userMiddleware, deleteAttachment);
 // DOCUMENT ROUTES (in-app text editor)
 // ==============================================
 app.post('/:id/documents', userMiddleware, createDocument);
+app.get('/:id/documents', userMiddleware, getDocuments);
 app.get('/:id/documents/:documentId', userMiddleware, getDocument);
 app.patch('/:id/documents/:documentId', userMiddleware, updateDocument);
 // Document versioning
