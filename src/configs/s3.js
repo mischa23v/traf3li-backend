@@ -2,12 +2,12 @@ const { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } = re
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 
 // Check if S3 is configured
-// Supports both old variable names (AWS_S3_BUCKET) and new names (S3_BUCKET_DOCUMENTS)
+// Supports multiple variable naming conventions
 const isS3Configured = () => {
     return !!(
         process.env.AWS_ACCESS_KEY_ID &&
         process.env.AWS_SECRET_ACCESS_KEY &&
-        (process.env.AWS_S3_BUCKET || process.env.S3_BUCKET_DOCUMENTS || process.env.S3_BUCKET_TASKS)
+        (process.env.S3_BUCKET_TASKS || process.env.AWS_S3_BUCKET || process.env.AWS_S3_BUCKET_DOCUMENTS || process.env.S3_BUCKET_DOCUMENTS)
     );
 };
 
@@ -27,11 +27,12 @@ if (isS3Configured()) {
     console.log('S3 not configured - using local storage for file uploads');
 }
 
-// Bucket names - support both old and new variable names
+// Bucket names - support multiple variable naming conventions
+// Priority: S3_BUCKET_* > AWS_S3_BUCKET_* > AWS_S3_BUCKET (fallback)
 const BUCKETS = {
-    general: process.env.AWS_S3_BUCKET || process.env.S3_BUCKET_DOCUMENTS || 'traf3li-legal-documents',
-    judgments: process.env.AWS_S3_JUDGMENTS_BUCKET || process.env.S3_BUCKET_JUDGMENTS || 'traf3li-case-judgments',
-    tasks: process.env.S3_BUCKET_TASKS || process.env.AWS_S3_BUCKET || process.env.S3_BUCKET_DOCUMENTS || 'traf3li-legal-documents'
+    general: process.env.S3_BUCKET_DOCUMENTS || process.env.AWS_S3_BUCKET_DOCUMENTS || process.env.AWS_S3_BUCKET || 'traf3li-legal-documents',
+    judgments: process.env.S3_BUCKET_JUDGMENTS || process.env.AWS_S3_JUDGMENTS_BUCKET || 'traf3li-case-judgments',
+    tasks: process.env.S3_BUCKET_TASKS || process.env.AWS_S3_BUCKET || 'traf3li-task-attachments'
 };
 
 // URL expiry time (in seconds)
