@@ -235,7 +235,8 @@ const getExpenseStats = asyncHandler(async (req, res) => {
     });
 
     // Get expenses by month
-    const matchStage = { lawyerId: require('mongoose').Types.ObjectId(lawyerId) };
+    const mongoose = require('mongoose');
+    const matchStage = { lawyerId: new mongoose.Types.ObjectId(lawyerId) };
     if (startDate) matchStage.date = { $gte: new Date(startDate) };
     if (endDate) matchStage.date = { ...matchStage.date, $lte: new Date(endDate) };
 

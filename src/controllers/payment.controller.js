@@ -161,6 +161,40 @@ const getPayments = asyncHandler(async (req, res) => {
 });
 
 /**
+ * Get new payment defaults/template
+ * GET /api/payments/new
+ */
+const getNewPaymentDefaults = asyncHandler(async (req, res) => {
+    res.status(200).json({
+        success: true,
+        data: {
+            clientId: null,
+            invoiceId: null,
+            caseId: null,
+            amount: 0,
+            currency: 'SAR',
+            paymentMethod: 'bank_transfer',
+            gatewayProvider: null,
+            transactionId: null,
+            checkNumber: null,
+            checkDate: null,
+            bankName: null,
+            allocations: [],
+            notes: '',
+            internalNotes: ''
+        },
+        paymentMethods: [
+            { value: 'cash', label: 'نقدي' },
+            { value: 'bank_transfer', label: 'تحويل بنكي' },
+            { value: 'credit_card', label: 'بطاقة ائتمان' },
+            { value: 'debit_card', label: 'بطاقة خصم' },
+            { value: 'check', label: 'شيك' },
+            { value: 'online', label: 'دفع إلكتروني' }
+        ]
+    });
+});
+
+/**
  * Get single payment
  * GET /api/payments/:id
  */
@@ -852,6 +886,7 @@ module.exports = {
     createPayment,
     getPayments,
     getPayment,
+    getNewPaymentDefaults,
     updatePayment,
     deletePayment,
     completePayment,
