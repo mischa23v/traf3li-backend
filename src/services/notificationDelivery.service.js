@@ -6,6 +6,10 @@
  * - Email: Resend (IMPLEMENTED - 100 emails/day free)
  * - SMS/WhatsApp: Stubs ready for MSG91/Twilio when company established
  * - Push: Stubs ready for web-push implementation
+ *
+ * RATE LIMITING:
+ * - Max 1 email per user per hour (to prevent spam/blacklisting)
+ * - OTP and critical auth emails bypass rate limiting
  */
 
 const { Resend } = require('resend');
@@ -16,6 +20,49 @@ const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KE
 const RESEND_CONFIG = {
   fromEmail: process.env.FROM_EMAIL || 'onboarding@resend.dev',
   fromName: process.env.FROM_NAME || 'TRAF3LI',
+};
+
+// Rate limiting: Track last email sent per user/email
+// Format: { email: timestamp }
+const emailRateLimit = new Map();
+const RATE_LIMIT_MS = 60 * 60 * 1000; // 1 hour in milliseconds
+
+/**
+ * Check if email can be sent (rate limit check)
+ * @param {string} email - Recipient email
+ * @returns {Object} - { allowed: boolean, waitMinutes?: number }
+ */
+const checkEmailRateLimit = (email) => {
+  const lastSent = emailRateLimit.get(email);
+  if (!lastSent) {
+    return { allowed: true };
+  }
+
+  const timeSince = Date.now() - lastSent;
+  if (timeSince >= RATE_LIMIT_MS) {
+    return { allowed: true };
+  }
+
+  const waitMinutes = Math.ceil((RATE_LIMIT_MS - timeSince) / 60000);
+  return { allowed: false, waitMinutes };
+};
+
+/**
+ * Record email sent for rate limiting
+ * @param {string} email - Recipient email
+ */
+const recordEmailSent = (email) => {
+  emailRateLimit.set(email, Date.now());
+
+  // Clean up old entries periodically (every 100 emails)
+  if (emailRateLimit.size > 100) {
+    const now = Date.now();
+    for (const [key, timestamp] of emailRateLimit.entries()) {
+      if (now - timestamp > RATE_LIMIT_MS) {
+        emailRateLimit.delete(key);
+      }
+    }
+  }
 };
 
 /**
@@ -100,12 +147,13 @@ class NotificationDeliveryService {
   }
 
   /**
-   * Send email via Resend
+   * Send email via Resend (with rate limiting)
    * @param {Object} options - Email options
+   * @param {boolean} options.bypassRateLimit - Skip rate limit check (for OTP/auth)
    * @returns {Promise<Object>} - Send result
    */
   static async sendEmail(options) {
-    const { to, subject, message, userName = 'User', data = {} } = options;
+    const { to, subject, message, userName = 'User', data = {}, bypassRateLimit = false } = options;
 
     if (!resend) {
       console.warn('⚠️ Resend not configured. Email not sent.');
@@ -114,6 +162,21 @@ class NotificationDeliveryService {
         error: 'Email service not configured',
         stub: true
       };
+    }
+
+    // Check rate limit (unless bypassed for OTP/auth emails)
+    if (!bypassRateLimit) {
+      const rateCheck = checkEmailRateLimit(to);
+      if (!rateCheck.allowed) {
+        console.log(`⏳ Email rate limited for ${to}. Wait ${rateCheck.waitMinutes} minutes.`);
+        return {
+          success: false,
+          rateLimited: true,
+          waitMinutes: rateCheck.waitMinutes,
+          error: `Rate limited. Max 1 email per hour. Wait ${rateCheck.waitMinutes} minutes.`,
+          channel: 'email'
+        };
+      }
     }
 
     try {
@@ -134,6 +197,9 @@ class NotificationDeliveryService {
       if (error) {
         throw new Error(error.message);
       }
+
+      // Record successful send for rate limiting
+      recordEmailSent(to);
 
       console.log(`✅ Email sent to ${to}: ${sendData.id}`);
       return {
@@ -249,7 +315,8 @@ class NotificationDeliveryService {
   }
 
   /**
-   * Send OTP via Email
+   * Send OTP via Email (bypasses rate limit - user initiated)
+   * Note: Still records send to prevent spam emails after OTP
    * @param {string} email - Recipient email
    * @param {string} otpCode - OTP code
    * @param {string} userName - User's name
@@ -278,6 +345,9 @@ class NotificationDeliveryService {
         throw new Error(error.message);
       }
 
+      // Record send - OTP counts towards rate limit for other emails
+      recordEmailSent(email);
+
       console.log(`✅ OTP email sent to ${email}: ${data.id}`);
       return {
         success: true,
@@ -295,7 +365,7 @@ class NotificationDeliveryService {
   }
 
   /**
-   * Send Welcome Email
+   * Send Welcome Email (bypasses rate limit - user just registered)
    * @param {string} email - Recipient email
    * @param {string} userName - User's name
    * @param {string} userType - 'client' or 'lawyer'
@@ -323,6 +393,9 @@ class NotificationDeliveryService {
         throw new Error(error.message);
       }
 
+      // Record send for rate limiting
+      recordEmailSent(email);
+
       return { success: true, messageId: data.id };
     } catch (error) {
       console.error('❌ Welcome email error:', error.message);
@@ -331,7 +404,7 @@ class NotificationDeliveryService {
   }
 
   /**
-   * Send Password Reset Email
+   * Send Password Reset Email (bypasses rate limit - user initiated)
    * @param {string} email - Recipient email
    * @param {string} resetToken - Reset token
    * @param {string} userName - User's name
@@ -357,6 +430,9 @@ class NotificationDeliveryService {
         throw new Error(error.message);
       }
 
+      // Record send for rate limiting
+      recordEmailSent(email);
+
       return { success: true, messageId: data.id };
     } catch (error) {
       console.error('❌ Password reset email error:', error.message);
@@ -365,7 +441,7 @@ class NotificationDeliveryService {
   }
 
   /**
-   * Send Reminder Email
+   * Send Reminder Email (with rate limiting - max 1/hour per user)
    * @param {Object} reminder - Reminder object
    * @param {Object} user - User object
    * @returns {Promise<Object>} - Send result
@@ -373,6 +449,18 @@ class NotificationDeliveryService {
   static async sendReminderEmail(reminder, user) {
     if (!resend || !user.email) {
       return { success: false, error: 'Email not available' };
+    }
+
+    // Check rate limit - only 1 email per hour per user
+    const rateCheck = checkEmailRateLimit(user.email);
+    if (!rateCheck.allowed) {
+      console.log(`⏳ Reminder email rate limited for ${user.email}. Skipping.`);
+      return {
+        success: false,
+        rateLimited: true,
+        waitMinutes: rateCheck.waitMinutes,
+        error: 'Rate limited - will send in next available window'
+      };
     }
 
     try {
@@ -388,6 +476,9 @@ class NotificationDeliveryService {
       if (error) {
         throw new Error(error.message);
       }
+
+      // Record successful send for rate limiting
+      recordEmailSent(user.email);
 
       return { success: true, messageId: data.id };
     } catch (error) {
