@@ -194,6 +194,42 @@ const userSchema = new mongoose.Schema({
             ref: 'Firm',
             required: false
         }
+    },
+
+    // Push notification subscription (Web Push)
+    pushSubscription: {
+        endpoint: {
+            type: String,
+            required: false
+        },
+        keys: {
+            p256dh: {
+                type: String,
+                required: false
+            },
+            auth: {
+                type: String,
+                required: false
+            }
+        }
+    },
+
+    // Notification preferences
+    notificationPreferences: {
+        channels: {
+            email: { type: Boolean, default: true },
+            push: { type: Boolean, default: true },
+            sms: { type: Boolean, default: false },
+            whatsapp: { type: Boolean, default: false },
+            in_app: { type: Boolean, default: true }
+        },
+        types: {
+            task_reminders: { type: Boolean, default: true },
+            hearing_reminders: { type: Boolean, default: true },
+            case_updates: { type: Boolean, default: true },
+            messages: { type: Boolean, default: true },
+            payments: { type: Boolean, default: true }
+        }
     }
 }, {
     versionKey: false,
