@@ -371,6 +371,48 @@ const uploadReceipt = asyncHandler(async (req, res) => {
     });
 });
 
+// Smart category suggestion
+const suggestCategory = asyncHandler(async (req, res) => {
+    const { description, descriptions } = req.body;
+    const { suggestCategory: suggest, suggestCategoriesBatch, getAllCategories } = require('../utils/smartCategorization');
+
+    // Single description
+    if (description) {
+        const suggestion = suggest(description);
+        return res.json({
+            success: true,
+            data: suggestion
+        });
+    }
+
+    // Batch descriptions
+    if (descriptions && Array.isArray(descriptions)) {
+        const suggestions = suggestCategoriesBatch(descriptions);
+        return res.json({
+            success: true,
+            data: suggestions
+        });
+    }
+
+    // Return all categories if no description provided
+    const categories = getAllCategories();
+    return res.json({
+        success: true,
+        data: { categories }
+    });
+});
+
+// Get all expense categories with account codes
+const getExpenseCategories = asyncHandler(async (req, res) => {
+    const { getAllCategories } = require('../utils/smartCategorization');
+    const categories = getAllCategories();
+
+    return res.json({
+        success: true,
+        data: categories
+    });
+});
+
 module.exports = {
     createExpense,
     getExpenses,
@@ -380,5 +422,7 @@ module.exports = {
     getExpenseStats,
     getExpensesByCategory,
     markAsReimbursed,
-    uploadReceipt
+    uploadReceipt,
+    suggestCategory,
+    getExpenseCategories
 };
