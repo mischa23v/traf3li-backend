@@ -6,6 +6,21 @@ const expenseSchema = new mongoose.Schema({
         unique: true,
         index: true
     },
+    // Accounting: GL account for this expense
+    expenseAccountId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Account'
+    },
+    // Accounting: Bank/Cash account used
+    bankAccountId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Account'
+    },
+    // GL entry ID for this expense
+    glEntryId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'GeneralLedger'
+    },
     description: {
         type: String,
         required: true,
@@ -329,6 +344,151 @@ expenseSchema.statics.markAsReimbursed = async function(expenseIds) {
             }
         }
     );
+};
+
+/**
+ * Post expense to General Ledger (called when expense is approved)
+ * DR: Expense Account
+ * CR: Bank/Cash Account
+ * @param {Session} session - MongoDB session for transactions
+ */
+expenseSchema.methods.postToGL = async function(session = null) {
+    const GeneralLedger = mongoose.model('GeneralLedger');
+    const Account = mongoose.model('Account');
+
+    // Check if already posted
+    if (this.glEntryId) {
+        throw new Error('Expense already posted to GL');
+    }
+
+    // Only post approved expenses
+    if (this.status !== 'approved') {
+        throw new Error('Only approved expenses can be posted to GL');
+    }
+
+    // Map expense category to GL account code
+    const categoryAccountMap = {
+        'office_supplies': '5203',
+        'travel': '5300',
+        'transport': '5301',
+        'meals': '5303',
+        'software': '5204',
+        'equipment': '1201',
+        'communication': '5210',
+        'government_fees': '5401',
+        'professional_services': '5400',
+        'marketing': '5206',
+        'training': '5205',
+        'office': '5203',
+        'hospitality': '5303',
+        'government': '5401',
+        'court_fees': '5401',
+        'filing_fees': '5402',
+        'expert_witness': '5403',
+        'investigation': '5400',
+        'accommodation': '5302',
+        'postage': '5211',
+        'printing': '5203',
+        'consultation': '5400',
+        'documents': '5203',
+        'research': '5205',
+        'telephone': '5210',
+        'mileage': '5301',
+        'other': '5600'
+    };
+
+    // Get expense account (use mapped account or default)
+    let expenseAccountId = this.expenseAccountId;
+    if (!expenseAccountId) {
+        const accountCode = categoryAccountMap[this.category] || '5600';
+        const expenseAccount = await Account.findOne({ code: accountCode });
+        if (!expenseAccount) {
+            // Fallback to Other Expenses
+            const fallbackAccount = await Account.findOne({ code: '5600' });
+            if (!fallbackAccount) throw new Error('Expense account not found');
+            expenseAccountId = fallbackAccount._id;
+        } else {
+            expenseAccountId = expenseAccount._id;
+        }
+        this.expenseAccountId = expenseAccountId;
+    }
+
+    // Get bank/cash account (use default if not set)
+    let bankAccountId = this.bankAccountId;
+    if (!bankAccountId) {
+        // Map payment method to account
+        const paymentAccountMap = {
+            'cash': '1101',      // Cash on Hand
+            'petty_cash': '1101',
+            'card': '1102',     // Bank Account - Main
+            'debit': '1102',
+            'transfer': '1102',
+            'check': '1102'
+        };
+        const accountCode = paymentAccountMap[this.paymentMethod] || '1102';
+        const bankAccount = await Account.findOne({ code: accountCode });
+        if (!bankAccount) throw new Error('Bank/Cash account not found');
+        bankAccountId = bankAccount._id;
+        this.bankAccountId = bankAccountId;
+    }
+
+    // Convert amount to halalas if needed
+    const { toHalalas } = require('../utils/currency');
+    const amount = Number.isInteger(this.amount) ? this.amount : toHalalas(this.amount);
+
+    // Create GL entry: DR Expense, CR Bank/Cash
+    const glEntry = await GeneralLedger.postTransaction({
+        transactionDate: this.date || new Date(),
+        description: `Expense ${this.expenseId} - ${this.description}`,
+        descriptionAr: `مصروف ${this.expenseId}`,
+        debitAccountId: expenseAccountId,
+        creditAccountId: bankAccountId,
+        amount,
+        referenceId: this._id,
+        referenceModel: 'Expense',
+        referenceNumber: this.expenseId,
+        caseId: this.caseId,
+        clientId: this.clientId,
+        lawyerId: this.lawyerId,
+        meta: {
+            category: this.category,
+            vendor: this.vendor,
+            receiptNumber: this.receiptNumber,
+            isBillable: this.isBillable,
+            expenseType: this.expenseType
+        },
+        createdBy: this.approvedBy || this.lawyerId
+    }, session);
+
+    this.glEntryId = glEntry._id;
+
+    const options = session ? { session } : {};
+    await this.save(options);
+
+    return glEntry;
+};
+
+/**
+ * Approve and post expense to GL
+ * @param {ObjectId} userId - User approving the expense
+ * @param {Session} session - MongoDB session for transactions
+ */
+expenseSchema.methods.approve = async function(userId, session = null) {
+    if (this.status === 'approved') {
+        throw new Error('Expense already approved');
+    }
+
+    this.status = 'approved';
+    this.approvedBy = userId;
+    this.approvedAt = new Date();
+
+    const options = session ? { session } : {};
+    await this.save(options);
+
+    // Post to GL
+    const glEntry = await this.postToGL(session);
+
+    return { expense: this, glEntry };
 };
 
 module.exports = mongoose.model('Expense', expenseSchema);

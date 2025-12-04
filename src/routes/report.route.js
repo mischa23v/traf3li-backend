@@ -16,7 +16,23 @@ const {
     exportReport
 } = require('../controllers/report.controller');
 
+// Accounting reports
+const {
+    getProfitLossReport,
+    getBalanceSheetReport,
+    getCaseProfitabilityReport,
+    getARAgingReport,
+    getTrialBalanceReport
+} = require('../controllers/accountingReports.controller');
+
 const app = express.Router();
+
+// Accounting/Financial reports (must be before /:id routes)
+app.get('/profit-loss', userMiddleware, getProfitLossReport);
+app.get('/balance-sheet', userMiddleware, getBalanceSheetReport);
+app.get('/case-profitability', userMiddleware, getCaseProfitabilityReport);
+app.get('/ar-aging', userMiddleware, getARAgingReport);
+app.get('/trial-balance', userMiddleware, getTrialBalanceReport);
 
 // Direct report endpoints (must be before /:id routes)
 app.get('/accounts-aging', userMiddleware, getAccountsAgingReport);

@@ -80,7 +80,15 @@ const {
     crmActivityRoute,
 
     // HR
-    hrRoute
+    hrRoute,
+
+    // Accounting
+    accountRoute,
+    generalLedgerRoute,
+    journalEntryRoute,
+    recurringTransactionRoute,
+    priceLevelRoute,
+    fiscalPeriodRoute
 } = require('./routes');
 
 const app = express();
@@ -261,6 +269,14 @@ app.use('/api/crm-activities', crmActivityRoute);
 
 // HR Routes
 app.use('/api/hr', hrRoute);
+
+// Accounting Routes
+app.use('/api/accounts', accountRoute);
+app.use('/api/general-ledger', generalLedgerRoute);
+app.use('/api/journal-entries', journalEntryRoute);
+app.use('/api/recurring-transactions', recurringTransactionRoute);
+app.use('/api/price-levels', priceLevelRoute);
+app.use('/api/fiscal-periods', fiscalPeriodRoute);
 
 // ============================================
 // ALIAS ROUTES (for frontend compatibility)
