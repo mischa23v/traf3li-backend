@@ -1950,28 +1950,78 @@ curl -X PUT http://localhost:5000/api/notifications/NOTIFICATION_ID/read \
 
 ## Summary Checklist
 
-### Backend Tasks
-- [x] NotificationDeliveryService created
-- [x] EmailOTP model created
-- [x] OTP utilities created
-- [x] Cron jobs configured
-- [x] Rate limiting implemented
-- [ ] Add OTP routes to auth.routes.js
-- [ ] Add push subscription routes to user.routes.js
-- [ ] Add pushSubscription field to User model
+### ✅ Backend Tasks (ALL COMPLETED)
+- [x] NotificationDeliveryService created (`src/services/notificationDelivery.service.js`)
+- [x] EmailOTP model created (`src/models/emailOtp.model.js`)
+- [x] OTP utilities created (`src/utils/otp.utils.js`)
+- [x] OTP controller created (`src/controllers/otp.controller.js`)
+- [x] Push subscription controller created (`src/controllers/pushSubscription.controller.js`)
+- [x] Cron jobs configured (9 jobs in `src/utils/taskReminders.js`)
+- [x] Rate limiting implemented (1 email/hour, OTP unlimited)
+- [x] OTP routes added to `auth.route.js`
+- [x] Push subscription routes added to `user.route.js`
+- [x] pushSubscription + notificationPreferences fields added to User model
 
 ### Frontend Tasks
-- [ ] Create authApi service
-- [ ] Create LoginWithOTP component
-- [ ] Create SocketContext provider
-- [ ] Create NotificationBell component
-- [ ] Create service worker (sw.js)
-- [ ] Create pushNotifications utility
-- [ ] Create PushNotificationSettings component
-- [ ] Add environment variables
+- [ ] Create authApi service (`services/authApi.js`)
+- [ ] Create LoginWithOTP component (`components/LoginWithOTP.jsx`)
+- [ ] Create SocketContext provider (`contexts/SocketContext.jsx`)
+- [ ] Create NotificationBell component (`components/NotificationBell.jsx`)
+- [ ] Create service worker (`public/sw.js`)
+- [ ] Create pushNotifications utility (`utils/pushNotifications.js`)
+- [ ] Create PushNotificationSettings component (`components/PushNotificationSettings.jsx`)
+- [ ] Add environment variables to `.env`
 - [ ] Test OTP flow
 - [ ] Test Socket.io notifications
 - [ ] Test push notifications
+
+---
+
+## 10. Important Notes for Frontend Developer
+
+### Rate Limiting - What You Need to Know
+
+| Email Type | Rate Limited? | Notes |
+|------------|---------------|-------|
+| **OTP** | NO | Always sends. Own limit: 5/hour, 1min between |
+| **Password Reset** | NO | Always sends |
+| **Welcome** | NO | Sent once on registration |
+| **Reminders** | YES | 1 per hour max |
+| **Notifications** | YES | 1 per hour max |
+
+**Important**: OTP emails have their own rate limiting in the backend:
+- Max 5 OTP requests per email per hour
+- Must wait 60 seconds between OTP requests
+- Max 3 verification attempts per OTP
+
+### VAPID Public Key (Copy This)
+```
+BBPHXE1quI58UtPRW7BUWKGyqX7G2dJuYwsBpJi27_seabDaBY2J_c5GzN83rzBthjcx_iCtIkWX1z3x1iwf6J0
+```
+
+### API Base URLs
+- **Auth OTP**: `/api/auth/send-otp`, `/api/auth/verify-otp`, `/api/auth/resend-otp`
+- **Push Subscription**: `/api/users/push-subscription`, `/api/users/vapid-public-key`
+- **Notifications**: `/api/notifications`, `/api/notifications/:id/read`
+- **Reminders**: `/api/reminders`, `/api/reminders/:id/snooze`
+
+### Socket.io Events to Listen For
+```javascript
+socket.on('notification', (data) => { /* new notification */ });
+socket.on('notificationCount', (count) => { /* unread count update */ });
+socket.on('notificationsRead', () => { /* all marked as read */ });
+```
+
+### Error Response Format
+All endpoints return errors in this format:
+```json
+{
+  "success": false,
+  "error": "English error message",
+  "errorAr": "رسالة الخطأ بالعربية",
+  "waitTime": 60  // Only for rate limit errors
+}
+```
 
 ---
 
