@@ -273,7 +273,7 @@ const postEntry = asyncHandler(async (req, res) => {
     }
 
     // Validate entry
-    const validation = entry.validate();
+    const validation = entry.validateEntry();
     if (!validation.isValid) {
         return res.status(400).json({
             success: false,

@@ -424,7 +424,7 @@ journalEntrySchema.methods.void = async function (reason, userId, session = null
 /**
  * Instance method: Validate entry can be posted
  */
-journalEntrySchema.methods.validate = function () {
+journalEntrySchema.methods.validateEntry = function () {
   const errors = [];
 
   if (this.status !== "draft") {
