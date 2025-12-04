@@ -9,7 +9,9 @@ const {
     getExpenseStats,
     getExpensesByCategory,
     markAsReimbursed,
-    uploadReceipt
+    uploadReceipt,
+    suggestCategory,
+    getExpenseCategories
 } = require('../controllers/expense.controller');
 
 const app = express.Router();
@@ -17,6 +19,10 @@ const app = express.Router();
 // Expense CRUD
 app.post('/', userMiddleware, createExpense);
 app.get('/', userMiddleware, getExpenses);
+
+// Smart categorization (AI-powered suggestions)
+app.post('/suggest-category', userMiddleware, suggestCategory);
+app.get('/categories', userMiddleware, getExpenseCategories);
 
 // Statistics and grouping
 app.get('/stats', userMiddleware, getExpenseStats);
