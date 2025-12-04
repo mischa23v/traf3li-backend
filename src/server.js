@@ -5,7 +5,7 @@ const helmet = require('helmet');
 const compression = require('compression');
 const cookieParser = require('cookie-parser');
 const connectDB = require('./configs/db');
-const { scheduleTaskReminders } = require('./utils/taskReminders');
+const { initializeAllReminders } = require('./utils/taskReminders');
 const { initSocket } = require('./configs/socket');
 const {
     // Marketplace
@@ -348,7 +348,7 @@ const PORT = process.env.PORT || 8080;
 
 server.listen(PORT, () => {
     connectDB();
-    scheduleTaskReminders();
+    initializeAllReminders();
     console.log(`🚀 Server running on port ${PORT}`);
     console.log(`⚡ Socket.io ready`);
     console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
