@@ -99,6 +99,17 @@ const Employee = require('./employee.model');
 const Salary = require('./salary.model');
 const Payroll = require('./payroll.model');
 
+// Authentication Models
+const EmailOTP = require('./emailOtp.model');
+
+// CRM Models
+const Lead = require('./lead.model');
+const CrmActivity = require('./crmActivity.model');
+const Referral = require('./referral.model');
+
+// Audit Models
+const AuditLog = require('./auditLog.model');
+
 module.exports = {
     // Marketplace
     User,
@@ -199,5 +210,16 @@ module.exports = {
     // HR
     Employee,
     Salary,
-    Payroll
+    Payroll,
+
+    // Authentication
+    EmailOTP,
+
+    // CRM
+    Lead,
+    CrmActivity,
+    Referral,
+
+    // Audit
+    AuditLog
 };
