@@ -315,8 +315,8 @@ class NotificationDeliveryService {
   }
 
   /**
-   * Send OTP via Email (bypasses rate limit - user initiated)
-   * Note: Still records send to prevent spam emails after OTP
+   * Send OTP via Email (NO rate limit - users must be able to log in)
+   * OTP has its own rate limiting in EmailOTP model (5/hour, 1min between)
    * @param {string} email - Recipient email
    * @param {string} otpCode - OTP code
    * @param {string} userName - User's name
@@ -330,6 +330,9 @@ class NotificationDeliveryService {
         error: 'Email service not configured'
       };
     }
+
+    // NO rate limit check - OTP is critical for login
+    // OTP has its own rate limiting in EmailOTP model
 
     try {
       const htmlContent = this.generateOTPEmailHTML(otpCode, userName);
@@ -345,8 +348,8 @@ class NotificationDeliveryService {
         throw new Error(error.message);
       }
 
-      // Record send - OTP counts towards rate limit for other emails
-      recordEmailSent(email);
+      // Don't record for rate limiting - OTP should not block other emails
+      // OTP has its own rate limiting in EmailOTP model
 
       console.log(`✅ OTP email sent to ${email}: ${data.id}`);
       return {
