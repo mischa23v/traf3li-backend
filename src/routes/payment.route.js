@@ -4,6 +4,7 @@ const {
     createPayment,
     getPayments,
     getPayment,
+    getNewPaymentDefaults,
     updatePayment,
     deletePayment,
     completePayment,
@@ -20,6 +21,7 @@ const app = express.Router();
 // Static routes (must be before parameterized routes)
 app.get('/stats', userMiddleware, getPaymentStats);
 app.get('/summary', userMiddleware, getPaymentsSummary);
+app.get('/new', userMiddleware, getNewPaymentDefaults);
 app.delete('/bulk', userMiddleware, bulkDeletePayments);
 
 // Payment CRUD
