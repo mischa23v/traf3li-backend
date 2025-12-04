@@ -6,7 +6,12 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node src/server.js",
-    "dev": "nodemon src/server.js"
+    "dev": "nodemon src/server.js",
+    "seed:accounts": "node src/scripts/seedAccounts.js",
+    "migrate:invoices": "node src/scripts/migrateInvoicesToGL.js",
+    "migrate:bills": "node src/scripts/migrateBillsToGL.js",
+    "migrate:expenses": "node src/scripts/migrateExpensesToGL.js",
+    "migrate:all": "npm run migrate:invoices && npm run migrate:bills && npm run migrate:expenses"
   },
   "keywords": [],
   "author": "",
@@ -18,11 +23,14 @@
     "compression": "^1.7.4",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
+    "decimal.js": "^10.4.3",
+    "dinero.js": "^2.0.0-alpha.14",
     "dotenv": "^16.0.3",
     "express": "^4.18.2",
     "express-rate-limit": "^8.2.1",
     "express-slow-down": "^3.0.1",
     "helmet": "^7.1.0",
+    "ioredis": "^5.3.2",
     "ip-range-check": "^0.2.0",
     "jsonwebtoken": "^9.0.0",
     "mongoose": "^7.0.1",

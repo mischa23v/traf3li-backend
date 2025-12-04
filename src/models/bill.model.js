@@ -41,6 +41,16 @@ const billItemSchema = new mongoose.Schema({
     },
     categoryId: {
         type: String
+    },
+    // Job costing: Case ID for this line item
+    caseId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Case'
+    },
+    // GL account for this expense line
+    expenseAccountId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Account'
     }
 }, { _id: true });
 
@@ -120,6 +130,16 @@ const billSchema = new mongoose.Schema({
         required: true,
         index: true
     },
+    // Accounting: Default A/P account
+    payableAccountId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Account'
+    },
+    // GL entries for this bill
+    glEntries: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'GeneralLedger'
+    }],
     items: [billItemSchema],
     subtotal: {
         type: Number,
@@ -525,6 +545,174 @@ billSchema.statics.generateRecurringBill = async function(parentBillId) {
     await parentBill.save();
 
     return newBill;
+};
+
+/**
+ * Post bill to General Ledger
+ * Creates GL entries for each line item:
+ * DR: Expense Account (per line)
+ * CR: Accounts Payable
+ * @param {Session} session - MongoDB session for transactions
+ */
+billSchema.methods.postToGL = async function(session = null) {
+    const GeneralLedger = mongoose.model('GeneralLedger');
+    const Account = mongoose.model('Account');
+
+    // Check if already posted
+    if (this.glEntries && this.glEntries.length > 0) {
+        throw new Error('Bill already posted to GL');
+    }
+
+    // Get A/P account (use default if not set)
+    let payableAccountId = this.payableAccountId;
+    if (!payableAccountId) {
+        const apAccount = await Account.findOne({ code: '2101' }); // Accounts Payable
+        if (!apAccount) throw new Error('Accounts Payable account not found');
+        payableAccountId = apAccount._id;
+        this.payableAccountId = payableAccountId;
+    }
+
+    // Get default expense account
+    const defaultExpenseAccount = await Account.findOne({ code: '5200' }); // Operating Expenses
+    if (!defaultExpenseAccount) throw new Error('Default Expense account not found');
+
+    const { toHalalas } = require('../utils/currency');
+    const glEntries = [];
+
+    // Create GL entry for each line item
+    for (const item of this.items) {
+        // Get expense account for this line (use default if not set)
+        const expenseAccountId = item.expenseAccountId || defaultExpenseAccount._id;
+
+        // Convert amount to halalas if needed
+        const amount = Number.isInteger(item.total) ? item.total : toHalalas(item.total);
+
+        if (amount > 0) {
+            const glEntry = await GeneralLedger.postTransaction({
+                transactionDate: this.billDate || new Date(),
+                description: `Bill ${this.billNumber} - ${item.description}`,
+                descriptionAr: item.descriptionAr || `فاتورة ${this.billNumber}`,
+                debitAccountId: expenseAccountId,
+                creditAccountId: payableAccountId,
+                amount,
+                referenceId: this._id,
+                referenceModel: 'Bill',
+                referenceNumber: this.billNumber,
+                caseId: item.caseId || this.caseId,
+                lawyerId: this.lawyerId,
+                meta: {
+                    vendorId: this.vendorId,
+                    itemDescription: item.description,
+                    quantity: item.quantity,
+                    unitPrice: item.unitPrice
+                },
+                createdBy: this.lawyerId
+            }, session);
+
+            glEntries.push(glEntry._id);
+        }
+    }
+
+    this.glEntries = glEntries;
+
+    const options = session ? { session } : {};
+    await this.save(options);
+
+    return glEntries;
+};
+
+/**
+ * Record payment for this bill
+ * DR: Accounts Payable
+ * CR: Bank Account
+ * @param {Object} paymentData - Payment details
+ * @param {Session} session - MongoDB session for transactions
+ */
+billSchema.methods.recordPayment = async function(paymentData, session = null) {
+    const GeneralLedger = mongoose.model('GeneralLedger');
+    const Account = mongoose.model('Account');
+    const BillPayment = mongoose.model('BillPayment');
+
+    const { amount, paymentDate, bankAccountId, paymentMethod, userId } = paymentData;
+
+    // Get A/P account
+    let payableAccountId = this.payableAccountId;
+    if (!payableAccountId) {
+        const apAccount = await Account.findOne({ code: '2101' });
+        if (!apAccount) throw new Error('Accounts Payable account not found');
+        payableAccountId = apAccount._id;
+    }
+
+    // Get bank account (use default if not specified)
+    let bankAcctId = bankAccountId;
+    if (!bankAcctId) {
+        const bankAccount = await Account.findOne({ code: '1102' }); // Bank Account - Main
+        if (!bankAccount) throw new Error('Default Bank account not found');
+        bankAcctId = bankAccount._id;
+    }
+
+    // Convert amount to halalas if needed
+    const { toHalalas, addAmounts } = require('../utils/currency');
+    const amountHalalas = Number.isInteger(amount) ? amount : toHalalas(amount);
+
+    // Create bill payment record
+    const billPayment = new BillPayment({
+        billId: this._id,
+        lawyerId: this.lawyerId,
+        amount: amountHalalas,
+        paymentDate: paymentDate || new Date(),
+        paymentMethod: paymentMethod || 'bank_transfer',
+        bankAccountId: bankAcctId,
+        createdBy: userId
+    });
+
+    const options = session ? { session } : {};
+    await billPayment.save(options);
+
+    // Post payment to GL: DR A/P, CR Bank
+    const glEntry = await GeneralLedger.postTransaction({
+        transactionDate: paymentDate || new Date(),
+        description: `Payment for Bill ${this.billNumber}`,
+        descriptionAr: `دفعة للفاتورة ${this.billNumber}`,
+        debitAccountId: payableAccountId,
+        creditAccountId: bankAcctId,
+        amount: amountHalalas,
+        referenceId: billPayment._id,
+        referenceModel: 'BillPayment',
+        referenceNumber: billPayment.paymentNumber,
+        caseId: this.caseId,
+        lawyerId: this.lawyerId,
+        meta: {
+            billId: this._id,
+            billNumber: this.billNumber,
+            vendorId: this.vendorId
+        },
+        createdBy: userId
+    }, session);
+
+    // Update bill payment tracking
+    this.amountPaid = addAmounts(this.amountPaid || 0, amountHalalas);
+    this.balanceDue = this.totalAmount - this.amountPaid;
+
+    // Update bill status
+    if (this.balanceDue <= 0) {
+        this.status = 'paid';
+        this.paidDate = new Date();
+    } else if (this.amountPaid > 0) {
+        this.status = 'partial';
+    }
+
+    // Add to history
+    this.history.push({
+        action: 'paid',
+        performedBy: userId,
+        performedAt: new Date(),
+        details: { amount: amountHalalas, paymentMethod }
+    });
+
+    await this.save(options);
+
+    return { billPayment, glEntry };
 };
 
 module.exports = mongoose.model('Bill', billSchema);

@@ -72,6 +72,14 @@ const crmActivityRoute = require('./crmActivity.route');
 // HR Routes
 const hrRoute = require('./hr.route');
 
+// Accounting Routes
+const accountRoute = require('./account.route');
+const generalLedgerRoute = require('./generalLedger.route');
+const journalEntryRoute = require('./journalEntry.route');
+const recurringTransactionRoute = require('./recurringTransaction.route');
+const priceLevelRoute = require('./priceLevel.route');
+const fiscalPeriodRoute = require('./fiscalPeriod.route');
+
 module.exports = {
     // Marketplace
     gigRoute,
@@ -145,5 +153,13 @@ module.exports = {
     crmActivityRoute,
 
     // HR
-    hrRoute
+    hrRoute,
+
+    // Accounting
+    accountRoute,
+    generalLedgerRoute,
+    journalEntryRoute,
+    recurringTransactionRoute,
+    priceLevelRoute,
+    fiscalPeriodRoute
 };

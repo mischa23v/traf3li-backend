@@ -95,6 +95,27 @@ const vendorSchema = new mongoose.Schema({
         ref: 'User',
         required: true,
         index: true
+    },
+    // Accounting integration
+    defaultExpenseAccountId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Account'
+    },
+    payableAccountId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Account'
+    },
+    // Credit terms
+    creditLimit: {
+        type: Number,
+        default: 0 // In halalas
+    },
+    openingBalance: {
+        type: Number,
+        default: 0 // In halalas
+    },
+    openingBalanceDate: {
+        type: Date
     }
 }, {
     versionKey: false,
@@ -155,6 +176,53 @@ vendorSchema.statics.getVendorSummary = async function(vendorId, lawyerId) {
         },
         recentBills
     };
+};
+
+/**
+ * Get vendor balance from GL
+ * (What we owe this vendor)
+ */
+vendorSchema.methods.getGLBalance = async function() {
+    const GeneralLedger = mongoose.model('GeneralLedger');
+    const Account = mongoose.model('Account');
+
+    // Get payable account (use default if not set)
+    let payableAccountId = this.payableAccountId;
+    if (!payableAccountId) {
+        const apAccount = await Account.findOne({ code: '2010' });
+        if (!apAccount) return 0;
+        payableAccountId = apAccount._id;
+    }
+
+    // Sum all GL entries referencing this vendor
+    const result = await GeneralLedger.aggregate([
+        {
+            $match: {
+                'meta.vendorId': this._id,
+                status: 'posted'
+            }
+        },
+        {
+            $group: {
+                _id: null,
+                debits: {
+                    $sum: {
+                        $cond: [{ $eq: ['$debitAccountId', payableAccountId] }, '$amount', 0]
+                    }
+                },
+                credits: {
+                    $sum: {
+                        $cond: [{ $eq: ['$creditAccountId', payableAccountId] }, '$amount', 0]
+                    }
+                }
+            }
+        }
+    ]);
+
+    if (!result[0]) return 0;
+    // For A/P (liability), normal balance is credit
+    // Balance = Credits - Debits
+    return result[0].credits - result[0].debits;
 };
 
 module.exports = mongoose.model('Vendor', vendorSchema);
