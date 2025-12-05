@@ -1,73 +1,237 @@
 const mongoose = require('mongoose');
+const { Schema } = mongoose;
 
-const invoiceSchema = new mongoose.Schema({
-    invoiceNumber: {
+// ============ LINE ITEM SCHEMA ============
+const LineItemSchema = new Schema({
+    type: {
         type: String,
-        required: true,
-        unique: true
+        enum: ['time', 'expense', 'flat_fee', 'product', 'discount', 'subtotal', 'comment'],
+        default: 'time'
     },
-    // Accounting account references
-    incomeAccountId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Account'
-    },
-    receivableAccountId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Account'
-    },
-    // GL entry IDs for this invoice
-    glEntries: [{
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'GeneralLedger'
-    }],
-    caseId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Case',
-        required: false
-    },
-    contractId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Order',
-        required: false
-    },
-    lawyerId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'User',
+    date: Date,
+    description: {
+        type: String,
         required: true
     },
-    clientId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'User',
-        required: true
-    },
-    items: [{
-        description: String,
-        quantity: { type: Number, default: 1 },
-        unitPrice: Number,
-        total: Number
-    }],
-    subtotal: {
+    quantity: {
         type: Number,
-        required: true
+        default: 1,
+        min: 0
     },
-    vatRate: {
+    unitPrice: {
         type: Number,
-        default: 15
-    },
-    vatAmount: {
-        type: Number,
-        required: true
-    },
-    totalAmount: {
-        type: Number,
-        required: true
+        default: 0,
+        min: 0
     },
     discountType: {
         type: String,
         enum: ['percentage', 'fixed'],
-        default: null
+        default: 'percentage'
     },
     discountValue: {
+        type: Number,
+        default: 0,
+        min: 0
+    },
+    lineTotal: {
+        type: Number,
+        default: 0
+    },
+    taxable: {
+        type: Boolean,
+        default: true
+    },
+    // For firms with multiple attorneys
+    attorneyId: {
+        type: Schema.Types.ObjectId,
+        ref: 'User'
+    },
+    // UTBMS Activity Codes
+    activityCode: {
+        type: String,
+        enum: ['L110', 'L120', 'L130', 'L140', 'L210', 'L220', 'L230', 'L240']
+    },
+    // Linked records
+    timeEntryId: {
+        type: Schema.Types.ObjectId,
+        ref: 'TimeEntry'
+    },
+    expenseId: {
+        type: Schema.Types.ObjectId,
+        ref: 'Expense'
+    }
+}, { _id: true });
+
+// ============ INSTALLMENT SCHEMA ============
+const InstallmentSchema = new Schema({
+    dueDate: {
+        type: Date,
+        required: true
+    },
+    amount: {
+        type: Number,
+        required: true
+    },
+    status: {
+        type: String,
+        enum: ['pending', 'paid', 'overdue'],
+        default: 'pending'
+    },
+    paidAt: Date,
+    paidAmount: {
+        type: Number,
+        default: 0
+    }
+});
+
+// ============ APPROVAL SCHEMA ============
+const ApprovalSchema = new Schema({
+    approverId: {
+        type: Schema.Types.ObjectId,
+        ref: 'User',
+        required: true
+    },
+    status: {
+        type: String,
+        enum: ['pending', 'approved', 'rejected'],
+        default: 'pending'
+    },
+    date: Date,
+    notes: String
+});
+
+// ============ MAIN INVOICE SCHEMA ============
+const invoiceSchema = new Schema({
+    // ============ HEADER ============
+    invoiceNumber: {
+        type: String,
+        required: true,
+        unique: true,
+        index: true
+    },
+    status: {
+        type: String,
+        enum: ['draft', 'pending_approval', 'sent', 'viewed', 'partial', 'paid', 'overdue', 'void', 'written_off', 'cancelled'],
+        default: 'draft',
+        index: true
+    },
+
+    // ============ CLIENT & CASE ============
+    clientId: {
+        type: Schema.Types.ObjectId,
+        ref: 'User',
+        required: true,
+        index: true
+    },
+    clientType: {
+        type: String,
+        enum: ['individual', 'corporate', 'government'],
+        default: 'individual'
+    },
+    caseId: {
+        type: Schema.Types.ObjectId,
+        ref: 'Case',
+        index: true
+    },
+    contractId: {
+        type: Schema.Types.ObjectId,
+        ref: 'Order'
+    },
+
+    // ============ LAWYER/FIRM ============
+    lawyerId: {
+        type: Schema.Types.ObjectId,
+        ref: 'User',
+        required: true,
+        index: true
+    },
+    responsibleAttorneyId: {
+        type: Schema.Types.ObjectId,
+        ref: 'User'
+    },
+
+    // ============ DATES ============
+    issueDate: {
+        type: Date,
+        default: Date.now
+    },
+    dueDate: {
+        type: Date,
+        required: true,
+        index: true
+    },
+    paymentTerms: {
+        type: String,
+        enum: ['due_on_receipt', 'net_7', 'net_15', 'net_30', 'net_45', 'net_60', 'net_90', 'eom', 'custom'],
+        default: 'net_30'
+    },
+    currency: {
+        type: String,
+        default: 'SAR'
+    },
+
+    // ============ ORGANIZATION (Firms) ============
+    firmSize: {
+        type: String,
+        enum: ['solo', 'small', 'medium', 'large'],
+        default: 'solo'
+    },
+    departmentId: {
+        type: String,
+        enum: ['commercial', 'criminal', 'corporate', 'real_estate', 'labor', 'family']
+    },
+    locationId: {
+        type: String,
+        enum: ['riyadh', 'jeddah', 'dammam', 'makkah', 'madinah']
+    },
+    billingArrangement: {
+        type: String,
+        enum: ['hourly', 'flat_fee', 'contingency', 'blended', 'monthly_retainer', 'percentage'],
+        default: 'hourly'
+    },
+    customerPONumber: String,
+    matterNumber: String,
+
+    // ============ LINE ITEMS ============
+    items: [LineItemSchema],
+
+    // ============ TOTALS ============
+    subtotal: {
+        type: Number,
+        default: 0
+    },
+    discountType: {
+        type: String,
+        enum: ['percentage', 'fixed'],
+        default: 'percentage'
+    },
+    discountValue: {
+        type: Number,
+        default: 0
+    },
+    discountAmount: {
+        type: Number,
+        default: 0
+    },
+    taxableAmount: {
+        type: Number,
+        default: 0
+    },
+    vatRate: {
+        type: Number,
+        default: 15  // 15% Saudi VAT (stored as percentage)
+    },
+    vatAmount: {
+        type: Number,
+        default: 0
+    },
+    totalAmount: {
+        type: Number,
+        default: 0
+    },
+
+    // ============ PAYMENTS ============
+    depositAmount: {
         type: Number,
         default: 0
     },
@@ -79,62 +243,275 @@ const invoiceSchema = new mongoose.Schema({
         type: Number,
         default: 0
     },
-    status: {
-        type: String,
-        enum: ['draft', 'pending', 'sent', 'paid', 'partial', 'overdue', 'cancelled'],
-        default: 'draft'
+    paidDate: Date,
+
+    // ============ RETAINER ============
+    applyFromRetainer: {
+        type: Number,
+        default: 0
     },
-    issueDate: {
-        type: Date,
-        default: Date.now
+    retainerTransactionId: {
+        type: Schema.Types.ObjectId,
+        ref: 'Retainer'
     },
-    dueDate: {
-        type: Date,
-        required: true
-    },
-    paidDate: {
-        type: Date,
-        required: false
-    },
-    paymentIntent: {
-        type: String,
-        required: false
-    },
+
+    // ============ NOTES ============
     notes: {
         type: String,
         maxlength: 500
     },
-    pdfUrl: {
-        type: String
+    customerNotes: String,
+    internalNotes: String,
+    termsAndConditions: String,
+    termsTemplate: {
+        type: String,
+        enum: ['standard', 'corporate', 'government', 'custom'],
+        default: 'standard'
     },
+
+    // ============ ZATCA E-INVOICE ============
+    zatca: {
+        invoiceType: {
+            type: String,
+            enum: ['388', '386', '383', '381'],  // Tax Invoice | Prepayment | Debit | Credit
+            default: '388'
+        },
+        invoiceSubtype: {
+            type: String,
+            enum: ['0100000', '0200000'],  // B2B | B2C
+            default: '0200000'
+        },
+        invoiceUUID: String,
+        invoiceHash: String,
+        previousInvoiceHash: String,
+        qrCode: String,
+        xmlInvoice: String,
+        cryptographicStamp: String,
+        status: {
+            type: String,
+            enum: ['draft', 'pending', 'cleared', 'reported', 'rejected'],
+            default: 'draft'
+        },
+        clearanceDate: Date,
+        rejectionReason: String,
+        // Seller (Office) Info
+        sellerVATNumber: String,
+        sellerCR: String,
+        sellerAddress: {
+            street: String,
+            buildingNumber: String,
+            city: String,
+            postalCode: String,
+            province: String,
+            country: { type: String, default: 'SA' }
+        },
+        // Buyer (Client) Info
+        buyerVATNumber: String,
+        buyerCR: String,
+        buyerAddress: {
+            street: String,
+            buildingNumber: String,
+            city: String,
+            postalCode: String,
+            province: String,
+            country: { type: String, default: 'SA' }
+        }
+    },
+
+    // ============ WIP & BUDGET (Firms) ============
+    wip: {
+        wipAmount: { type: Number, default: 0 },
+        writeOffAmount: { type: Number, default: 0 },
+        writeDownAmount: { type: Number, default: 0 },
+        adjustmentReason: {
+            type: String,
+            enum: ['client_relationship', 'collection_risk', 'quality_issue', 'competitive_pricing', 'pro_bono']
+        }
+    },
+    budget: {
+        projectBudget: Number,
+        budgetConsumed: Number,
+        percentComplete: { type: Number, min: 0, max: 100 }
+    },
+
+    // ============ PAYMENT PLAN ============
+    paymentPlan: {
+        enabled: { type: Boolean, default: false },
+        installments: { type: Number, enum: [2, 3, 4, 6, 12] },
+        frequency: {
+            type: String,
+            enum: ['weekly', 'biweekly', 'monthly']
+        },
+        schedule: [InstallmentSchema]
+    },
+
+    // ============ PAYMENT SETTINGS ============
+    bankAccountId: {
+        type: Schema.Types.ObjectId,
+        ref: 'BankAccount'
+    },
+    paymentInstructions: String,
+    enableOnlinePayment: { type: Boolean, default: false },
+    paymentLink: String,
+    qrCodePayment: String,
+    paymentIntent: String,  // Stripe payment intent
+
+    // ============ LATE FEES ============
+    lateFees: {
+        enabled: { type: Boolean, default: false },
+        type: {
+            type: String,
+            enum: ['daily_percentage', 'monthly_percentage', 'fixed']
+        },
+        rate: Number,
+        gracePeriod: { type: Number, default: 0 },  // Days
+        accumulatedFees: { type: Number, default: 0 }
+    },
+
+    // ============ APPROVAL WORKFLOW ============
+    approval: {
+        required: { type: Boolean, default: false },
+        chain: [ApprovalSchema],
+        currentApprover: {
+            type: Schema.Types.ObjectId,
+            ref: 'User'
+        },
+        approvedAt: Date,
+        approvedBy: {
+            type: Schema.Types.ObjectId,
+            ref: 'User'
+        }
+    },
+
+    // ============ EMAIL ============
+    email: {
+        template: {
+            type: String,
+            enum: ['standard', 'reminder', 'final_notice', 'thank_you'],
+            default: 'standard'
+        },
+        subject: String,
+        body: String,
+        ccRecipients: [String],
+        autoSendOnApproval: { type: Boolean, default: false },
+        sentAt: Date,
+        openedAt: Date,
+        lastReminderAt: Date,
+        reminderCount: { type: Number, default: 0 }
+    },
+
+    // ============ ATTACHMENTS ============
+    attachments: [{
+        filename: String,
+        url: String,
+        type: String,
+        size: Number,
+        uploadedAt: { type: Date, default: Date.now }
+    }],
+
+    // ============ ACCOUNTING (GL Integration) ============
+    incomeAccountId: {
+        type: Schema.Types.ObjectId,
+        ref: 'Account'
+    },
+    receivableAccountId: {
+        type: Schema.Types.ObjectId,
+        ref: 'Account'
+    },
+    glEntries: [{
+        type: Schema.Types.ObjectId,
+        ref: 'GeneralLedger'
+    }],
+    accounting: {
+        revenueAccountId: String,
+        arAccountId: String,
+        costCenter: String,
+        profitCenter: String,
+        revenueRecognitionMethod: {
+            type: String,
+            enum: ['immediate', 'percentage_completion', 'milestone', 'deferred']
+        },
+        revenueStartDate: Date,
+        revenueEndDate: Date,
+        journalEntryId: {
+            type: Schema.Types.ObjectId,
+            ref: 'JournalEntry'
+        }
+    },
+
+    // ============ PDF ============
+    pdfUrl: String,
+
+    // ============ AUDIT & HISTORY ============
     history: [{
         action: {
             type: String,
-            enum: ['created', 'sent', 'viewed', 'paid', 'cancelled', 'reminded']
+            enum: ['created', 'updated', 'sent', 'viewed', 'paid', 'partial_payment', 'cancelled', 'voided', 'reminded', 'approved', 'rejected', 'payment_received']
         },
         date: {
             type: Date,
             default: Date.now
         },
         user: {
-            type: mongoose.Schema.Types.ObjectId,
+            type: Schema.Types.ObjectId,
             ref: 'User'
         },
         note: String
-    }]
+    }],
+
+    createdBy: {
+        type: Schema.Types.ObjectId,
+        ref: 'User'
+    },
+    updatedBy: {
+        type: Schema.Types.ObjectId,
+        ref: 'User'
+    },
+    sentAt: Date,
+    viewedAt: Date,
+    voidedAt: Date,
+    voidReason: String
+
 }, {
     versionKey: false,
-    timestamps: true
+    timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true }
 });
 
+// ============ INDEXES ============
 invoiceSchema.index({ invoiceNumber: 1 });
 invoiceSchema.index({ lawyerId: 1, status: 1 });
 invoiceSchema.index({ clientId: 1, status: 1 });
+invoiceSchema.index({ dueDate: 1, status: 1 });
+invoiceSchema.index({ createdAt: -1 });
+invoiceSchema.index({ 'zatca.status': 1 });
+invoiceSchema.index({ responsibleAttorneyId: 1 });
+
+// ============ VIRTUALS ============
+invoiceSchema.virtual('isOverdue').get(function() {
+    return this.status !== 'paid' &&
+        this.status !== 'void' &&
+        this.status !== 'cancelled' &&
+        new Date() > this.dueDate;
+});
+
+invoiceSchema.virtual('daysOverdue').get(function() {
+    if (!this.isOverdue) return 0;
+    const diff = new Date() - this.dueDate;
+    return Math.floor(diff / (1000 * 60 * 60 * 24));
+});
+
+invoiceSchema.virtual('client', {
+    ref: 'User',
+    localField: 'clientId',
+    foreignField: '_id',
+    justOne: true
+});
 
 // Virtual: Compute amountPaid from GL (payments received)
 invoiceSchema.virtual('computedAmountPaid').get(async function() {
     const GeneralLedger = mongoose.model('GeneralLedger');
-    const Account = mongoose.model('Account');
 
     // Get receivable account (either from invoice or default)
     const receivableAccountId = this.receivableAccountId;
@@ -160,6 +537,126 @@ invoiceSchema.virtual('computedAmountPaid').get(async function() {
 
     return result[0]?.total || 0;
 });
+
+// ============ STATICS ============
+invoiceSchema.statics.generateInvoiceNumber = async function() {
+    const date = new Date();
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+
+    // Find the last invoice of this month
+    const lastInvoice = await this.findOne({
+        invoiceNumber: new RegExp(`^INV-${year}${month}-`)
+    }).sort({ invoiceNumber: -1 });
+
+    let sequence = 1;
+    if (lastInvoice) {
+        const lastSequence = parseInt(lastInvoice.invoiceNumber.split('-')[2]);
+        sequence = lastSequence + 1;
+    }
+
+    return `INV-${year}${month}-${String(sequence).padStart(4, '0')}`;
+};
+
+invoiceSchema.statics.getOverdueInvoices = function(lawyerId = null) {
+    const query = {
+        status: { $in: ['sent', 'viewed', 'partial'] },
+        dueDate: { $lt: new Date() }
+    };
+    if (lawyerId) query.lawyerId = lawyerId;
+    return this.find(query);
+};
+
+invoiceSchema.statics.getClientBalance = async function(clientId) {
+    const result = await this.aggregate([
+        { $match: { clientId: new mongoose.Types.ObjectId(clientId), status: { $nin: ['void', 'draft', 'cancelled'] } } },
+        { $group: { _id: null, totalDue: { $sum: '$balanceDue' } } }
+    ]);
+    return result[0]?.totalDue || 0;
+};
+
+// ============ PRE-SAVE MIDDLEWARE ============
+invoiceSchema.pre('save', async function(next) {
+    // Auto-generate invoice number if not provided
+    if (this.isNew && !this.invoiceNumber) {
+        this.invoiceNumber = await this.constructor.generateInvoiceNumber();
+    }
+
+    // Calculate totals
+    this.calculateTotals();
+
+    // Update status if overdue
+    if (this.isOverdue && this.status === 'sent') {
+        this.status = 'overdue';
+    }
+
+    next();
+});
+
+// ============ METHODS ============
+invoiceSchema.methods.calculateTotals = function() {
+    // Calculate subtotal from line items
+    this.subtotal = this.items.reduce((sum, item) => {
+        if (item.type === 'discount' || item.type === 'comment' || item.type === 'subtotal') {
+            return sum;
+        }
+        return sum + (item.quantity * item.unitPrice);
+    }, 0);
+
+    // Calculate item-level discounts
+    const itemDiscounts = this.items.reduce((sum, item) => {
+        if (!item.discountValue || item.type === 'comment' || item.type === 'subtotal') return sum;
+        const lineSubtotal = item.quantity * item.unitPrice;
+        if (item.discountType === 'percentage') {
+            return sum + (lineSubtotal * (item.discountValue / 100));
+        }
+        return sum + item.discountValue;
+    }, 0);
+
+    // Calculate discount items (type === 'discount')
+    const discountItems = this.items.reduce((sum, item) => {
+        if (item.type !== 'discount') return sum;
+        return sum + Math.abs(item.unitPrice);
+    }, 0);
+
+    // Calculate invoice-level discount
+    let invoiceDiscount = 0;
+    const afterItemDiscounts = this.subtotal - itemDiscounts - discountItems;
+    if (this.discountType === 'percentage') {
+        invoiceDiscount = afterItemDiscounts * (this.discountValue / 100);
+    } else {
+        invoiceDiscount = this.discountValue || 0;
+    }
+
+    this.discountAmount = itemDiscounts + discountItems + invoiceDiscount;
+    this.taxableAmount = this.subtotal - this.discountAmount;
+    this.vatAmount = this.taxableAmount * (this.vatRate / 100);
+    this.totalAmount = this.taxableAmount + this.vatAmount;
+
+    // Calculate balance due
+    this.balanceDue = this.totalAmount - this.depositAmount - this.amountPaid - this.applyFromRetainer;
+
+    // Recalculate line totals
+    this.items.forEach(item => {
+        if (item.type === 'comment' || item.type === 'subtotal') {
+            item.lineTotal = 0;
+            return;
+        }
+        if (item.type === 'discount') {
+            item.lineTotal = -Math.abs(item.unitPrice);
+            return;
+        }
+        let lineTotal = item.quantity * item.unitPrice;
+        if (item.discountValue) {
+            if (item.discountType === 'percentage') {
+                lineTotal -= lineTotal * (item.discountValue / 100);
+            } else {
+                lineTotal -= item.discountValue;
+            }
+        }
+        item.lineTotal = lineTotal;
+    });
+};
 
 /**
  * Post invoice to General Ledger
@@ -325,6 +822,81 @@ invoiceSchema.methods.recordPayment = async function(paymentData, session = null
     await this.save(options);
 
     return { payment, glEntry };
+};
+
+/**
+ * Void the invoice
+ * @param {String} reason - Reason for voiding
+ * @param {ObjectId} userId - User performing the action
+ */
+invoiceSchema.methods.voidInvoice = async function(reason, userId) {
+    if (this.status === 'void') {
+        throw new Error('Invoice is already voided');
+    }
+
+    if (this.amountPaid > 0) {
+        throw new Error('Cannot void invoice with payments. Create a credit note instead.');
+    }
+
+    this.status = 'void';
+    this.voidedAt = new Date();
+    this.voidReason = reason;
+    this.updatedBy = userId;
+
+    this.history.push({
+        action: 'voided',
+        date: new Date(),
+        user: userId,
+        note: reason
+    });
+
+    await this.save();
+    return this;
+};
+
+/**
+ * Apply retainer to invoice
+ * @param {Number} amount - Amount to apply from retainer
+ * @param {ObjectId} retainerId - Retainer ID
+ * @param {ObjectId} userId - User performing the action
+ */
+invoiceSchema.methods.applyRetainer = async function(amount, retainerId, userId) {
+    const Retainer = mongoose.model('Retainer');
+    const { toHalalas, addAmounts } = require('../utils/currency');
+
+    const amountHalalas = Number.isInteger(amount) ? amount : toHalalas(amount);
+
+    const retainer = await Retainer.findById(retainerId);
+    if (!retainer) {
+        throw new Error('Retainer not found');
+    }
+
+    if (retainer.currentBalance < amountHalalas) {
+        throw new Error('Insufficient retainer balance');
+    }
+
+    // Consume from retainer
+    await retainer.consume(amountHalalas, this._id, `Applied to invoice ${this.invoiceNumber}`);
+
+    // Update invoice
+    this.applyFromRetainer = addAmounts(this.applyFromRetainer || 0, amountHalalas);
+    this.retainerTransactionId = retainerId;
+    this.balanceDue = this.totalAmount - this.depositAmount - this.amountPaid - this.applyFromRetainer;
+
+    if (this.balanceDue <= 0) {
+        this.status = 'paid';
+        this.paidDate = new Date();
+    }
+
+    this.history.push({
+        action: 'paid',
+        date: new Date(),
+        user: userId,
+        note: `Retainer applied: ${amountHalalas}`
+    });
+
+    await this.save();
+    return this;
 };
 
 module.exports = mongoose.model('Invoice', invoiceSchema);
