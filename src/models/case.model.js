@@ -1,6 +1,16 @@
 const mongoose = require('mongoose');
 
 const caseSchema = new mongoose.Schema({
+    // ═══════════════════════════════════════════════════════════════
+    // FIRM (Multi-Tenancy)
+    // ═══════════════════════════════════════════════════════════════
+    firmId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Firm',
+        index: true,
+        required: false  // Optional for backwards compatibility
+    },
+
     contractId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Order',
@@ -13,7 +23,7 @@ const caseSchema = new mongoose.Schema({
     },
     clientId: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'User',
+        ref: 'Client',
         required: false  // Optional for external cases
     },
     clientName: {

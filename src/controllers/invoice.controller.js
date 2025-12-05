@@ -128,6 +128,12 @@ const createInvoice = asyncHandler(async (req, res) => {
     } = req.body;
 
     const lawyerId = req.userID;
+    const firmId = req.firmId; // From firmFilter middleware
+
+    // Block departed users from financial operations
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية للوصول إلى الفواتير', 403);
+    }
 
     // Check if user is a lawyer
     const user = await User.findById(lawyerId);
@@ -181,11 +187,8 @@ const createInvoice = asyncHandler(async (req, res) => {
 
     // Handle retainer application validation
     if (applyFromRetainer > 0) {
-        const retainer = await Retainer.findOne({
-            clientId,
-            lawyerId,
-            status: 'active'
-        });
+        const retainerQuery = firmId ? { clientId, firmId, status: 'active' } : { clientId, lawyerId, status: 'active' };
+        const retainer = await Retainer.findOne(retainerQuery);
 
         if (!retainer || retainer.currentBalance < applyFromRetainer) {
             throw CustomException('رصيد العربون غير كافٍ - Insufficient retainer balance', 400);
@@ -197,6 +200,7 @@ const createInvoice = asyncHandler(async (req, res) => {
         caseId,
         contractId,
         lawyerId,
+        firmId, // Add firmId for multi-tenancy
         clientId,
         clientType: clientType || 'individual',
         items,
@@ -303,13 +307,24 @@ const getInvoices = asyncHandler(async (req, res) => {
         limit = 20
     } = req.query;
 
-    const user = await User.findById(req.userID);
+    // Block departed users from financial operations
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية للوصول إلى الفواتير', 403);
+    }
 
-    const filters = {
-        ...(user.role === 'lawyer'
-            ? { lawyerId: req.userID }
-            : { clientId: req.userID })
-    };
+    const user = await User.findById(req.userID);
+    const firmId = req.firmId; // From firmFilter middleware
+
+    // Build filters based on firmId or user role
+    let filters;
+    if (firmId) {
+        // If user has firmId, show all firm invoices
+        filters = { firmId };
+    } else if (user.role === 'lawyer') {
+        filters = { lawyerId: req.userID };
+    } else {
+        filters = { clientId: req.userID };
+    }
 
     if (status) filters.status = status;
     if (clientId) filters.clientId = clientId;
@@ -359,8 +374,14 @@ const getInvoices = asyncHandler(async (req, res) => {
  * GET /api/invoices/:id
  */
 const getInvoice = asyncHandler(async (req, res) => {
+    // Block departed users from financial operations
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية للوصول إلى الفواتير', 403);
+    }
+
     const { id, _id } = req.params;
     const invoiceId = id || _id;
+    const firmId = req.firmId; // From firmFilter middleware
 
     const invoice = await Invoice.findById(invoiceId)
         .populate('lawyerId', 'firstName lastName username image email country phone')
@@ -376,11 +397,19 @@ const getInvoice = asyncHandler(async (req, res) => {
         throw CustomException('Invoice not found!', 404);
     }
 
-    // Check access
+    // Check access - firmId takes precedence for multi-tenancy
     const lawyerIdStr = invoice.lawyerId._id ? invoice.lawyerId._id.toString() : invoice.lawyerId.toString();
     const clientIdStr = invoice.clientId._id ? invoice.clientId._id.toString() : invoice.clientId.toString();
 
-    if (lawyerIdStr !== req.userID && clientIdStr !== req.userID) {
+    let hasAccess = false;
+    if (firmId) {
+        hasAccess = invoice.firmId && invoice.firmId.toString() === firmId.toString();
+    }
+    if (!hasAccess) {
+        hasAccess = lawyerIdStr === req.userID || clientIdStr === req.userID;
+    }
+
+    if (!hasAccess) {
         throw CustomException('You do not have access to this invoice!', 403);
     }
 
@@ -409,8 +438,14 @@ const getInvoice = asyncHandler(async (req, res) => {
  * PATCH /api/invoices/:id
  */
 const updateInvoice = asyncHandler(async (req, res) => {
+    // Block departed users from financial operations
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية لتعديل الفواتير', 403);
+    }
+
     const { id, _id } = req.params;
     const invoiceId = id || _id;
+    const firmId = req.firmId;
 
     const invoice = await Invoice.findById(invoiceId);
 
@@ -418,7 +453,12 @@ const updateInvoice = asyncHandler(async (req, res) => {
         throw CustomException('Invoice not found!', 404);
     }
 
-    if (invoice.lawyerId.toString() !== req.userID) {
+    // Check access - firmId takes precedence
+    const hasAccess = firmId
+        ? invoice.firmId && invoice.firmId.toString() === firmId.toString()
+        : invoice.lawyerId.toString() === req.userID;
+
+    if (!hasAccess) {
         throw CustomException('Only the lawyer can update invoices!', 403);
     }
 
@@ -479,6 +519,11 @@ const updateInvoice = asyncHandler(async (req, res) => {
  * DELETE /api/invoices/:id
  */
 const deleteInvoice = asyncHandler(async (req, res) => {
+    // Block departed users from financial operations
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية لحذف الفواتير', 403);
+    }
+
     const { id, _id } = req.params;
     const invoiceId = id || _id;
 
@@ -532,6 +577,11 @@ const deleteInvoice = asyncHandler(async (req, res) => {
  * POST /api/invoices/:id/send
  */
 const sendInvoice = asyncHandler(async (req, res) => {
+    // Block departed users from financial operations
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية للوصول إلى الفواتير', 403);
+    }
+
     const { id, _id } = req.params;
     const invoiceId = id || _id;
 
@@ -606,6 +656,11 @@ const sendInvoice = asyncHandler(async (req, res) => {
  * POST /api/invoices/:id/record-payment
  */
 const recordPayment = asyncHandler(async (req, res) => {
+    // Block departed users from financial operations
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية للوصول إلى الفواتير', 403);
+    }
+
     const { id, _id } = req.params;
     const invoiceId = id || _id;
     const { amount, paymentMethod, reference, paymentDate, notes, bankAccountId } = req.body;
@@ -708,6 +763,11 @@ const recordPayment = asyncHandler(async (req, res) => {
  * POST /api/invoices/:id/void
  */
 const voidInvoice = asyncHandler(async (req, res) => {
+    // Block departed users from financial operations
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية للوصول إلى الفواتير', 403);
+    }
+
     const { id, _id } = req.params;
     const invoiceId = id || _id;
     const { reason } = req.body;
@@ -776,6 +836,11 @@ const voidInvoice = asyncHandler(async (req, res) => {
  * POST /api/invoices/:id/duplicate
  */
 const duplicateInvoice = asyncHandler(async (req, res) => {
+    // Block departed users from financial operations
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية للوصول إلى الفواتير', 403);
+    }
+
     const { id, _id } = req.params;
     const invoiceId = id || _id;
 
@@ -848,6 +913,11 @@ const duplicateInvoice = asyncHandler(async (req, res) => {
  * POST /api/invoices/:id/send-reminder
  */
 const sendReminder = asyncHandler(async (req, res) => {
+    // Block departed users from financial operations
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية للوصول إلى الفواتير', 403);
+    }
+
     const { id, _id } = req.params;
     const invoiceId = id || _id;
     const { template, customMessage, ccRecipients } = req.body;
@@ -912,6 +982,11 @@ const sendReminder = asyncHandler(async (req, res) => {
  * POST /api/invoices/:id/convert-to-credit-note
  */
 const convertToCreditNote = asyncHandler(async (req, res) => {
+    // Block departed users from financial operations
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية للوصول إلى الفواتير', 403);
+    }
+
     const { id, _id } = req.params;
     const invoiceId = id || _id;
     const { reason, amount } = req.body;
@@ -998,6 +1073,11 @@ const convertToCreditNote = asyncHandler(async (req, res) => {
  * POST /api/invoices/:id/submit-for-approval
  */
 const submitForApproval = asyncHandler(async (req, res) => {
+    // Block departed users from financial operations
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية للوصول إلى الفواتير', 403);
+    }
+
     const { id, _id } = req.params;
     const invoiceId = id || _id;
 
@@ -1038,6 +1118,11 @@ const submitForApproval = asyncHandler(async (req, res) => {
  * POST /api/invoices/:id/approve
  */
 const approveInvoice = asyncHandler(async (req, res) => {
+    // Block departed users from financial operations
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية للوصول إلى الفواتير', 403);
+    }
+
     const { id, _id } = req.params;
     const invoiceId = id || _id;
     const { notes } = req.body;
@@ -1099,6 +1184,11 @@ const approveInvoice = asyncHandler(async (req, res) => {
  * POST /api/invoices/:id/reject
  */
 const rejectInvoice = asyncHandler(async (req, res) => {
+    // Block departed users from financial operations
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية للوصول إلى الفواتير', 403);
+    }
+
     const { id, _id } = req.params;
     const invoiceId = id || _id;
     const { reason } = req.body;
@@ -1153,6 +1243,11 @@ const rejectInvoice = asyncHandler(async (req, res) => {
  * POST /api/invoices/:id/zatca/submit
  */
 const submitToZATCAHandler = asyncHandler(async (req, res) => {
+    // Block departed users from financial operations
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية للوصول إلى الفواتير', 403);
+    }
+
     const { id, _id } = req.params;
     const invoiceId = id || _id;
 
@@ -1220,6 +1315,11 @@ const submitToZATCAHandler = asyncHandler(async (req, res) => {
  * GET /api/invoices/:id/zatca/status
  */
 const getZATCAStatus = asyncHandler(async (req, res) => {
+    // Block departed users from financial operations
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية للوصول إلى الفواتير', 403);
+    }
+
     const { id, _id } = req.params;
     const invoiceId = id || _id;
 
@@ -1244,13 +1344,24 @@ const getZATCAStatus = asyncHandler(async (req, res) => {
  * GET /api/invoices/stats
  */
 const getStats = asyncHandler(async (req, res) => {
+    // Block departed users from financial operations
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية للوصول إلى الفواتير', 403);
+    }
+
     const { period = 'month' } = req.query;
     const lawyerId = req.userID;
+    const firmId = req.firmId;
 
     const dateFilter = getDateFilter(period);
 
+    // Build match filter based on firmId or lawyerId
+    const matchFilter = firmId
+        ? { firmId: new mongoose.Types.ObjectId(firmId), createdAt: dateFilter }
+        : { lawyerId: new mongoose.Types.ObjectId(lawyerId), createdAt: dateFilter };
+
     const stats = await Invoice.aggregate([
-        { $match: { lawyerId: new mongoose.Types.ObjectId(lawyerId), createdAt: dateFilter } },
+        { $match: matchFilter },
         {
             $group: {
                 _id: '$status',
@@ -1262,10 +1373,14 @@ const getStats = asyncHandler(async (req, res) => {
         }
     ]);
 
+    const overdueMatchFilter = firmId
+        ? { firmId: new mongoose.Types.ObjectId(firmId) }
+        : { lawyerId: new mongoose.Types.ObjectId(lawyerId) };
+
     const overdue = await Invoice.aggregate([
         {
             $match: {
-                lawyerId: new mongoose.Types.ObjectId(lawyerId),
+                ...overdueMatchFilter,
                 status: { $in: ['sent', 'viewed', 'partial'] },
                 dueDate: { $lt: new Date() }
             }
@@ -1303,12 +1418,21 @@ const getStats = asyncHandler(async (req, res) => {
  * GET /api/invoices/overdue
  */
 const getOverdueInvoices = asyncHandler(async (req, res) => {
+    // Block departed users from financial operations
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية للوصول إلى الفواتير', 403);
+    }
+
     const today = new Date();
+    const firmId = req.firmId;
+
+    // Build filter based on firmId or lawyerId
+    const queryFilter = firmId ? { firmId } : { lawyerId: req.userID };
 
     // Update status to overdue for past-due invoices
     await Invoice.updateMany(
         {
-            lawyerId: req.userID,
+            ...queryFilter,
             status: { $in: ['sent', 'viewed', 'partial'] },
             dueDate: { $lt: today }
         },
@@ -1316,7 +1440,7 @@ const getOverdueInvoices = asyncHandler(async (req, res) => {
     );
 
     const invoices = await Invoice.find({
-        lawyerId: req.userID,
+        ...queryFilter,
         status: 'overdue'
     })
         .populate('clientId', 'firstName lastName username email phone')
@@ -1336,6 +1460,11 @@ const getOverdueInvoices = asyncHandler(async (req, res) => {
  * POST /api/invoices/:id/payment
  */
 const createPaymentIntent = asyncHandler(async (req, res) => {
+    // Block departed users from financial operations
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية للوصول إلى الفواتير', 403);
+    }
+
     const { id, _id } = req.params;
     const invoiceId = id || _id;
 
@@ -1524,6 +1653,225 @@ const generatePDF = asyncHandler(async (req, res) => {
     });
 });
 
+// ============ UNIFIED DATA ENDPOINTS ============
+
+/**
+ * Get billable items (unbilled time entries, expenses, tasks)
+ * GET /api/invoices/billable-items
+ *
+ * This endpoint aggregates all unbilled items from various sources
+ * to enable seamless invoice creation without duplicate data entry.
+ *
+ * Query params:
+ * - clientId: Filter by client
+ * - caseId: Filter by case
+ * - startDate: Filter items from this date
+ * - endDate: Filter items until this date
+ */
+const getBillableItems = asyncHandler(async (req, res) => {
+    const { clientId, caseId, startDate, endDate } = req.query;
+    const lawyerId = req.userID;
+    const firmId = req.firmId;
+
+    // Build date filter
+    const dateFilter = {};
+    if (startDate) dateFilter.$gte = new Date(startDate);
+    if (endDate) dateFilter.$lte = new Date(endDate);
+
+    // Base query based on firmId or lawyerId
+    const baseQuery = firmId
+        ? { firmId: new mongoose.Types.ObjectId(firmId) }
+        : { lawyerId: new mongoose.Types.ObjectId(lawyerId) };
+    if (clientId) baseQuery.clientId = new mongoose.Types.ObjectId(clientId);
+    if (caseId) baseQuery.caseId = new mongoose.Types.ObjectId(caseId);
+
+    // Get unbilled time entries
+    const TimeEntry = mongoose.model('TimeEntry');
+    const timeQuery = {
+        ...baseQuery,
+        isBillable: true,
+        isBilled: false,
+        status: { $in: ['approved', 'draft'] }
+    };
+    if (Object.keys(dateFilter).length > 0) timeQuery.date = dateFilter;
+
+    const timeEntries = await TimeEntry.find(timeQuery)
+        .populate('caseId', 'title caseNumber')
+        .populate('clientId', 'fullNameArabic companyName clientNumber')
+        .sort({ date: -1 })
+        .lean();
+
+    // Get unbilled expenses
+    const Expense = mongoose.model('Expense');
+    const expenseQuery = {
+        ...baseQuery,
+        isBillable: true,
+        isBilled: false,
+        status: { $nin: ['rejected', 'cancelled'] }
+    };
+    if (Object.keys(dateFilter).length > 0) expenseQuery.date = dateFilter;
+
+    const expenses = await Expense.find(expenseQuery)
+        .populate('caseId', 'title caseNumber')
+        .populate('clientId', 'fullNameArabic companyName clientNumber')
+        .sort({ date: -1 })
+        .lean();
+
+    // Get billable tasks (completed tasks with billing info)
+    const Task = mongoose.model('Task');
+    const taskQuery = {
+        ...baseQuery,
+        'billing.isBillable': true,
+        'billing.isBilled': false,
+        status: 'completed'
+    };
+
+    const tasks = await Task.find(taskQuery)
+        .populate('caseId', 'title caseNumber')
+        .select('title billing dueDate completedAt caseId')
+        .sort({ completedAt: -1 })
+        .lean();
+
+    // Get billable events (attended events with billing info)
+    const Event = mongoose.model('Event');
+    const eventQuery = {
+        ...baseQuery,
+        'billing.isBillable': true,
+        'billing.isBilled': false,
+        status: 'completed'
+    };
+
+    const events = await Event.find(eventQuery)
+        .populate('caseId', 'title caseNumber')
+        .select('title billing startTime endTime caseId eventType')
+        .sort({ startTime: -1 })
+        .lean();
+
+    // Format items for invoice creation
+    const billableItems = {
+        timeEntries: timeEntries.map(entry => ({
+            type: 'time',
+            id: entry._id,
+            date: entry.date,
+            description: entry.description,
+            quantity: entry.hours || (entry.duration / 60),
+            unitPrice: entry.hourlyRate,
+            totalAmount: entry.totalAmount,
+            caseId: entry.caseId?._id,
+            caseName: entry.caseId?.title,
+            caseNumber: entry.caseId?.caseNumber,
+            clientId: entry.clientId?._id,
+            clientName: entry.clientId?.fullNameArabic || entry.clientId?.companyName,
+            activityCode: entry.activityCode,
+            taskType: entry.taskType
+        })),
+        expenses: expenses.map(expense => ({
+            type: 'expense',
+            id: expense._id,
+            date: expense.date,
+            description: expense.description,
+            quantity: 1,
+            unitPrice: expense.amount,
+            totalAmount: expense.amount,
+            caseId: expense.caseId?._id,
+            caseName: expense.caseId?.title,
+            caseNumber: expense.caseId?.caseNumber,
+            clientId: expense.clientId?._id,
+            clientName: expense.clientId?.fullNameArabic || expense.clientId?.companyName,
+            category: expense.category,
+            receiptUrl: expense.receiptUrl
+        })),
+        tasks: tasks.map(task => ({
+            type: 'flat_fee',
+            id: task._id,
+            date: task.completedAt || task.dueDate,
+            description: task.title,
+            quantity: 1,
+            unitPrice: task.billing?.amount || 0,
+            totalAmount: task.billing?.amount || 0,
+            caseId: task.caseId?._id,
+            caseName: task.caseId?.title,
+            caseNumber: task.caseId?.caseNumber
+        })),
+        events: events.map(event => ({
+            type: 'time',
+            id: event._id,
+            date: event.startTime,
+            description: `${event.eventType || 'اجتماع'}: ${event.title}`,
+            quantity: event.billing?.hours || 1,
+            unitPrice: event.billing?.hourlyRate || 0,
+            totalAmount: event.billing?.amount || 0,
+            caseId: event.caseId?._id,
+            caseName: event.caseId?.title,
+            caseNumber: event.caseId?.caseNumber
+        }))
+    };
+
+    // Calculate totals
+    const totals = {
+        timeEntries: {
+            count: billableItems.timeEntries.length,
+            totalHours: billableItems.timeEntries.reduce((sum, e) => sum + (e.quantity || 0), 0),
+            totalAmount: billableItems.timeEntries.reduce((sum, e) => sum + (e.totalAmount || 0), 0)
+        },
+        expenses: {
+            count: billableItems.expenses.length,
+            totalAmount: billableItems.expenses.reduce((sum, e) => sum + (e.totalAmount || 0), 0)
+        },
+        tasks: {
+            count: billableItems.tasks.length,
+            totalAmount: billableItems.tasks.reduce((sum, e) => sum + (e.totalAmount || 0), 0)
+        },
+        events: {
+            count: billableItems.events.length,
+            totalAmount: billableItems.events.reduce((sum, e) => sum + (e.totalAmount || 0), 0)
+        },
+        grandTotal: 0
+    };
+
+    totals.grandTotal = totals.timeEntries.totalAmount +
+                        totals.expenses.totalAmount +
+                        totals.tasks.totalAmount +
+                        totals.events.totalAmount;
+
+    res.json({
+        success: true,
+        data: billableItems,
+        totals
+    });
+});
+
+/**
+ * Get open invoices for a client (for payment allocation)
+ * GET /api/invoices/open/:clientId
+ */
+const getOpenInvoices = asyncHandler(async (req, res) => {
+    const { clientId } = req.params;
+    const lawyerId = req.userID;
+    const firmId = req.firmId;
+
+    // Build filter based on firmId or lawyerId
+    const queryFilter = firmId ? { firmId } : { lawyerId };
+
+    const invoices = await Invoice.find({
+        ...queryFilter,
+        clientId,
+        status: { $in: ['sent', 'viewed', 'partial', 'overdue'] },
+        balanceDue: { $gt: 0 }
+    })
+    .select('invoiceNumber issueDate dueDate totalAmount amountPaid balanceDue status')
+    .sort({ dueDate: 1 })
+    .lean();
+
+    const totalOutstanding = invoices.reduce((sum, inv) => sum + inv.balanceDue, 0);
+
+    res.json({
+        success: true,
+        data: invoices,
+        totalOutstanding
+    });
+});
+
 module.exports = {
     // CRUD
     createInvoice,
@@ -1560,5 +1908,9 @@ module.exports = {
 
     // Export
     generateXML,
-    generatePDF
+    generatePDF,
+
+    // Unified Data (No duplicate entry)
+    getBillableItems,
+    getOpenInvoices
 };

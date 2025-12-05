@@ -98,6 +98,16 @@ const attachmentSchema = new mongoose.Schema({
 }, { _id: true });
 
 const eventSchema = new mongoose.Schema({
+    // ═══════════════════════════════════════════════════════════════
+    // FIRM (Multi-Tenancy)
+    // ═══════════════════════════════════════════════════════════════
+    firmId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Firm',
+        index: true,
+        required: false  // Optional for backwards compatibility
+    },
+
     eventId: {
         type: String,
         unique: true,

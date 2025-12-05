@@ -98,6 +98,9 @@ const BillPayment = require('./billPayment.model');
 const Employee = require('./employee.model');
 const Salary = require('./salary.model');
 const Payroll = require('./payroll.model');
+const Leave = require('./leave.model');
+const Attendance = require('./attendance.model');
+const Evaluation = require('./evaluation.model');
 
 // Authentication Models
 const EmailOTP = require('./emailOtp.model');
@@ -211,6 +214,9 @@ module.exports = {
     Employee,
     Salary,
     Payroll,
+    Leave,
+    Attendance,
+    Evaluation,
 
     // Authentication
     EmailOTP,

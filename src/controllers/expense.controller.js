@@ -17,6 +17,12 @@ const createExpense = asyncHandler(async (req, res) => {
     } = req.body;
 
     const lawyerId = req.userID;
+    const firmId = req.firmId; // From firmFilter middleware
+
+    // Block departed users from financial operations
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية للوصول إلى المصروفات', 403);
+    }
 
     // Validate required fields
     if (!description || description.length < 3) {
@@ -45,6 +51,7 @@ const createExpense = asyncHandler(async (req, res) => {
         category: category || 'other',
         caseId,
         lawyerId,
+        firmId, // Add firmId for multi-tenancy
         date: date || new Date(),
         paymentMethod: paymentMethod || 'cash',
         vendor,
@@ -88,7 +95,15 @@ const getExpenses = asyncHandler(async (req, res) => {
     } = req.query;
 
     const lawyerId = req.userID;
-    const filters = { lawyerId };
+    const firmId = req.firmId; // From firmFilter middleware
+
+    // Block departed users from financial operations
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية للوصول إلى المصروفات', 403);
+    }
+
+    // Build filters - firmId first, then lawyerId fallback
+    const filters = firmId ? { firmId } : { lawyerId };
 
     if (status) filters.status = status;
     if (category) filters.category = category;
@@ -118,8 +133,14 @@ const getExpenses = asyncHandler(async (req, res) => {
 
 // Get single expense
 const getExpense = asyncHandler(async (req, res) => {
+    // Block departed users from financial operations
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية للوصول إلى المصروفات', 403);
+    }
+
     const { id } = req.params;
     const lawyerId = req.userID;
+    const firmId = req.firmId; // From firmFilter middleware
 
     const expense = await Expense.findById(id)
         .populate('caseId', 'title caseNumber category')
@@ -130,8 +151,12 @@ const getExpense = asyncHandler(async (req, res) => {
         throw CustomException('Expense not found', 404);
     }
 
-    // Check access
-    if (expense.lawyerId._id.toString() !== lawyerId) {
+    // Check access - firmId first, then lawyerId
+    const hasAccess = firmId
+        ? expense.firmId && expense.firmId.toString() === firmId.toString()
+        : expense.lawyerId._id.toString() === lawyerId;
+
+    if (!hasAccess) {
         throw CustomException('You do not have access to this expense', 403);
     }
 
@@ -143,8 +168,14 @@ const getExpense = asyncHandler(async (req, res) => {
 
 // Update expense
 const updateExpense = asyncHandler(async (req, res) => {
+    // Block departed users from financial operations
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية لتعديل المصروفات', 403);
+    }
+
     const { id } = req.params;
     const lawyerId = req.userID;
+    const firmId = req.firmId; // From firmFilter middleware
 
     const expense = await Expense.findById(id);
 
@@ -152,8 +183,12 @@ const updateExpense = asyncHandler(async (req, res) => {
         throw CustomException('Expense not found', 404);
     }
 
-    // Check access
-    if (expense.lawyerId.toString() !== lawyerId) {
+    // Check access - firmId first, then lawyerId
+    const hasAccess = firmId
+        ? expense.firmId && expense.firmId.toString() === firmId.toString()
+        : expense.lawyerId.toString() === lawyerId;
+
+    if (!hasAccess) {
         throw CustomException('You do not have access to this expense', 403);
     }
 
@@ -183,8 +218,14 @@ const updateExpense = asyncHandler(async (req, res) => {
 
 // Delete expense
 const deleteExpense = asyncHandler(async (req, res) => {
+    // Block departed users from financial operations
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية لحذف المصروفات', 403);
+    }
+
     const { id } = req.params;
     const lawyerId = req.userID;
+    const firmId = req.firmId; // From firmFilter middleware
 
     const expense = await Expense.findById(id);
 
@@ -192,8 +233,12 @@ const deleteExpense = asyncHandler(async (req, res) => {
         throw CustomException('Expense not found', 404);
     }
 
-    // Check access
-    if (expense.lawyerId.toString() !== lawyerId) {
+    // Check access - firmId first, then lawyerId
+    const hasAccess = firmId
+        ? expense.firmId && expense.firmId.toString() === firmId.toString()
+        : expense.lawyerId.toString() === lawyerId;
+
+    if (!hasAccess) {
         throw CustomException('You do not have access to this expense', 403);
     }
 
@@ -216,10 +261,17 @@ const deleteExpense = asyncHandler(async (req, res) => {
 
 // Get expense statistics
 const getExpenseStats = asyncHandler(async (req, res) => {
+    // Block departed users from financial operations
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية للوصول إلى المصروفات', 403);
+    }
+
     const { caseId, startDate, endDate } = req.query;
     const lawyerId = req.userID;
+    const firmId = req.firmId; // From firmFilter middleware
 
-    const filters = { lawyerId };
+    // Build filters - firmId first, then lawyerId fallback
+    const filters = firmId ? { firmId } : { lawyerId };
 
     if (caseId) filters.caseId = caseId;
     if (startDate) filters.startDate = startDate;
@@ -236,7 +288,10 @@ const getExpenseStats = asyncHandler(async (req, res) => {
 
     // Get expenses by month
     const mongoose = require('mongoose');
-    const matchStage = { lawyerId: new mongoose.Types.ObjectId(lawyerId) };
+    // Build match stage - firmId first, then lawyerId fallback
+    const matchStage = firmId
+        ? { firmId: new mongoose.Types.ObjectId(firmId) }
+        : { lawyerId: new mongoose.Types.ObjectId(lawyerId) };
     if (startDate) matchStage.date = { $gte: new Date(startDate) };
     if (endDate) matchStage.date = { ...matchStage.date, $lte: new Date(endDate) };
 
@@ -281,10 +336,17 @@ const getExpenseStats = asyncHandler(async (req, res) => {
 
 // Get expenses by category
 const getExpensesByCategory = asyncHandler(async (req, res) => {
+    // Block departed users from financial operations
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية للوصول إلى المصروفات', 403);
+    }
+
     const { caseId, startDate, endDate } = req.query;
     const lawyerId = req.userID;
+    const firmId = req.firmId; // From firmFilter middleware
 
-    const filters = { lawyerId };
+    // Build filters - firmId first, then lawyerId fallback
+    const filters = firmId ? { firmId } : { lawyerId };
 
     if (caseId) filters.caseId = caseId;
     if (startDate) filters.startDate = startDate;
@@ -300,8 +362,14 @@ const getExpensesByCategory = asyncHandler(async (req, res) => {
 
 // Mark expense as reimbursed
 const markAsReimbursed = asyncHandler(async (req, res) => {
+    // Block departed users from financial operations
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية للوصول إلى المصروفات', 403);
+    }
+
     const { id } = req.params;
     const lawyerId = req.userID;
+    const firmId = req.firmId; // From firmFilter middleware
 
     const expense = await Expense.findById(id);
 
@@ -309,8 +377,12 @@ const markAsReimbursed = asyncHandler(async (req, res) => {
         throw CustomException('Expense not found', 404);
     }
 
-    // Check access
-    if (expense.lawyerId.toString() !== lawyerId) {
+    // Check access - firmId first, then lawyerId
+    const hasAccess = firmId
+        ? expense.firmId && expense.firmId.toString() === firmId.toString()
+        : expense.lawyerId.toString() === lawyerId;
+
+    if (!hasAccess) {
         throw CustomException('You do not have access to this expense', 403);
     }
 
@@ -332,9 +404,15 @@ const markAsReimbursed = asyncHandler(async (req, res) => {
 
 // Upload receipt
 const uploadReceipt = asyncHandler(async (req, res) => {
+    // Block departed users from financial operations
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية للوصول إلى المصروفات', 403);
+    }
+
     const { id } = req.params;
     const { fileName, fileUrl, fileType } = req.body;
     const lawyerId = req.userID;
+    const firmId = req.firmId; // From firmFilter middleware
 
     const expense = await Expense.findById(id);
 
@@ -342,8 +420,12 @@ const uploadReceipt = asyncHandler(async (req, res) => {
         throw CustomException('Expense not found', 404);
     }
 
-    // Check access
-    if (expense.lawyerId.toString() !== lawyerId) {
+    // Check access - firmId first, then lawyerId
+    const hasAccess = firmId
+        ? expense.firmId && expense.firmId.toString() === firmId.toString()
+        : expense.lawyerId.toString() === lawyerId;
+
+    if (!hasAccess) {
         throw CustomException('You do not have access to this expense', 403);
     }
 

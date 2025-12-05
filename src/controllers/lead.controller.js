@@ -10,10 +10,20 @@ const Client = require('../models/client.model');
 // Create a new lead
 exports.createLead = async (req, res) => {
     try {
+        // Block departed users from lead operations
+        if (req.isDeparted) {
+            return res.status(403).json({
+                success: false,
+                message: 'ليس لديك صلاحية للوصول إلى العملاء المحتملين'
+            });
+        }
+
         const lawyerId = req.userID;
+        const firmId = req.firmId; // From firmFilter middleware
         const leadData = {
             ...req.body,
             lawyerId,
+            firmId, // Add firmId for multi-tenancy
             createdBy: lawyerId
         };
 
@@ -55,7 +65,16 @@ exports.createLead = async (req, res) => {
 // Get all leads
 exports.getLeads = async (req, res) => {
     try {
+        // Block departed users from lead operations
+        if (req.isDeparted) {
+            return res.status(403).json({
+                success: false,
+                message: 'ليس لديك صلاحية للوصول إلى العملاء المحتملين'
+            });
+        }
+
         const lawyerId = req.userID;
+        const firmId = req.firmId; // From firmFilter middleware
         const {
             status, source, assignedTo, pipelineId, search,
             convertedToClient, sortBy, sortOrder,
@@ -72,12 +91,17 @@ exports.getLeads = async (req, res) => {
             sortBy,
             sortOrder,
             limit: parseInt(limit),
-            skip: (parseInt(page) - 1) * parseInt(limit)
+            skip: (parseInt(page) - 1) * parseInt(limit),
+            firmId // Pass firmId to filter by firm
         };
 
+        // Use firmId-aware getLeads
         const leads = await Lead.getLeads(lawyerId, filters);
+
+        // Build count query - firmId first, then lawyerId fallback
+        const countQuery = firmId ? { firmId } : { lawyerId };
         const total = await Lead.countDocuments({
-            lawyerId,
+            ...countQuery,
             ...(status ? { status } : {}),
             ...(convertedToClient !== undefined ? { convertedToClient: filters.convertedToClient } : {})
         });
@@ -105,13 +129,24 @@ exports.getLeads = async (req, res) => {
 // Get single lead
 exports.getLead = async (req, res) => {
     try {
+        // Block departed users from lead operations
+        if (req.isDeparted) {
+            return res.status(403).json({
+                success: false,
+                message: 'ليس لديك صلاحية للوصول إلى العملاء المحتملين'
+            });
+        }
+
         const { id } = req.params;
         const lawyerId = req.userID;
+        const firmId = req.firmId; // From firmFilter middleware
 
-        const lead = await Lead.findOne({
-            $or: [{ _id: id }, { leadId: id }],
-            lawyerId
-        })
+        // Build query - firmId first, then lawyerId fallback
+        const accessQuery = firmId
+            ? { $or: [{ _id: id }, { leadId: id }], firmId }
+            : { $or: [{ _id: id }, { leadId: id }], lawyerId };
+
+        const lead = await Lead.findOne(accessQuery)
         .populate('assignedTo', 'firstName lastName avatar email')
         .populate('teamMembers', 'firstName lastName avatar')
         .populate('source.referralId', 'name')
@@ -148,14 +183,25 @@ exports.getLead = async (req, res) => {
 // Update lead
 exports.updateLead = async (req, res) => {
     try {
+        // Block departed users from lead operations
+        if (req.isDeparted) {
+            return res.status(403).json({
+                success: false,
+                message: 'ليس لديك صلاحية لتعديل العملاء المحتملين'
+            });
+        }
+
         const { id } = req.params;
         const lawyerId = req.userID;
+        const firmId = req.firmId; // From firmFilter middleware
         const updates = req.body;
 
-        const lead = await Lead.findOne({
-            $or: [{ _id: id }, { leadId: id }],
-            lawyerId
-        });
+        // Build query - firmId first, then lawyerId fallback
+        const accessQuery = firmId
+            ? { $or: [{ _id: id }, { leadId: id }], firmId }
+            : { $or: [{ _id: id }, { leadId: id }], lawyerId };
+
+        const lead = await Lead.findOne(accessQuery);
 
         if (!lead) {
             return res.status(404).json({
@@ -209,14 +255,24 @@ exports.updateLead = async (req, res) => {
 // Delete lead
 exports.deleteLead = async (req, res) => {
     try {
+        // Block departed users from lead operations
+        if (req.isDeparted) {
+            return res.status(403).json({
+                success: false,
+                message: 'ليس لديك صلاحية لحذف العملاء المحتملين'
+            });
+        }
+
         const { id } = req.params;
         const lawyerId = req.userID;
+        const firmId = req.firmId; // From firmFilter middleware
 
-        const lead = await Lead.findOneAndDelete({
-            $or: [{ _id: id }, { leadId: id }],
-            lawyerId,
-            convertedToClient: false
-        });
+        // Build query - firmId first, then lawyerId fallback
+        const accessQuery = firmId
+            ? { $or: [{ _id: id }, { leadId: id }], firmId, convertedToClient: false }
+            : { $or: [{ _id: id }, { leadId: id }], lawyerId, convertedToClient: false };
+
+        const lead = await Lead.findOneAndDelete(accessQuery);
 
         if (!lead) {
             return res.status(404).json({
@@ -246,14 +302,25 @@ exports.deleteLead = async (req, res) => {
 // Update lead status
 exports.updateStatus = async (req, res) => {
     try {
+        // Block departed users from lead operations
+        if (req.isDeparted) {
+            return res.status(403).json({
+                success: false,
+                message: 'ليس لديك صلاحية لتعديل حالة العملاء المحتملين'
+            });
+        }
+
         const { id } = req.params;
         const { status, notes, lostReason } = req.body;
         const lawyerId = req.userID;
+        const firmId = req.firmId; // From firmFilter middleware
 
-        const lead = await Lead.findOne({
-            $or: [{ _id: id }, { leadId: id }],
-            lawyerId
-        });
+        // Build query - firmId first, then lawyerId fallback
+        const accessQuery = firmId
+            ? { $or: [{ _id: id }, { leadId: id }], firmId }
+            : { $or: [{ _id: id }, { leadId: id }], lawyerId };
+
+        const lead = await Lead.findOne(accessQuery);
 
         if (!lead) {
             return res.status(404).json({
@@ -287,14 +354,25 @@ exports.updateStatus = async (req, res) => {
 // Move lead to pipeline stage
 exports.moveToStage = async (req, res) => {
     try {
+        // Block departed users from lead operations
+        if (req.isDeparted) {
+            return res.status(403).json({
+                success: false,
+                message: 'ليس لديك صلاحية لتعديل العملاء المحتملين'
+            });
+        }
+
         const { id } = req.params;
         const { stageId, notes } = req.body;
         const lawyerId = req.userID;
+        const firmId = req.firmId; // From firmFilter middleware
 
-        const lead = await Lead.findOne({
-            $or: [{ _id: id }, { leadId: id }],
-            lawyerId
-        });
+        // Build query - firmId first, then lawyerId fallback
+        const accessQuery = firmId
+            ? { $or: [{ _id: id }, { leadId: id }], firmId }
+            : { $or: [{ _id: id }, { leadId: id }], lawyerId };
+
+        const lead = await Lead.findOne(accessQuery);
 
         if (!lead) {
             return res.status(404).json({
@@ -365,8 +443,86 @@ exports.moveToStage = async (req, res) => {
 // LEAD CONVERSION
 // ============================================
 
-// Convert lead to client
+// Convert lead to client (with optional case creation)
 exports.convertToClient = async (req, res) => {
+    try {
+        // Block departed users from lead operations
+        if (req.isDeparted) {
+            return res.status(403).json({
+                success: false,
+                message: 'ليس لديك صلاحية لتحويل العملاء المحتملين'
+            });
+        }
+
+        const { id } = req.params;
+        const lawyerId = req.userID;
+        const firmId = req.firmId; // From firmFilter middleware
+        const { createCase, caseTitle } = req.body;
+
+        // Build query - firmId first, then lawyerId fallback
+        const accessQuery = firmId
+            ? { $or: [{ _id: id }, { leadId: id }], firmId, convertedToClient: false }
+            : { $or: [{ _id: id }, { leadId: id }], lawyerId, convertedToClient: false };
+
+        const lead = await Lead.findOne(accessQuery);
+
+        if (!lead) {
+            return res.status(404).json({
+                success: false,
+                message: 'Lead not found or already converted'
+            });
+        }
+
+        // Convert with options for case creation
+        const result = await lead.convertToClient(lawyerId, {
+            createCase: createCase || false,
+            caseTitle
+        });
+
+        const { client, case: createdCase } = result;
+
+        // Log activity
+        await CrmActivity.logActivity({
+            lawyerId,
+            type: 'lead_converted',
+            entityType: 'lead',
+            entityId: lead._id,
+            entityName: lead.displayName,
+            title: `Lead converted to client${createdCase ? ' with case' : ''}`,
+            secondaryEntityType: 'client',
+            secondaryEntityId: client._id,
+            secondaryEntityName: client.displayName || client.companyName,
+            performedBy: lawyerId
+        });
+
+        // Update pipeline stats
+        if (lead.pipelineId) {
+            await Pipeline.updateStats(lead.pipelineId);
+        }
+
+        res.json({
+            success: true,
+            message: createdCase
+                ? 'تم تحويل العميل المحتمل إلى عميل مع إنشاء قضية'
+                : 'تم تحويل العميل المحتمل إلى عميل بنجاح',
+            data: {
+                lead,
+                client,
+                case: createdCase
+            }
+        });
+    } catch (error) {
+        console.error('Error converting lead:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error converting lead to client',
+            error: error.message
+        });
+    }
+};
+
+// Preview conversion data (shows what will be transferred)
+exports.previewConversion = async (req, res) => {
     try {
         const { id } = req.params;
         const lawyerId = req.userID;
@@ -384,40 +540,48 @@ exports.convertToClient = async (req, res) => {
             });
         }
 
-        const client = await lead.convertToClient(lawyerId);
-
-        // Log activity
-        await CrmActivity.logActivity({
-            lawyerId,
-            type: 'lead_converted',
-            entityType: 'lead',
-            entityId: lead._id,
-            entityName: lead.displayName,
-            title: `Lead converted to client`,
-            secondaryEntityType: 'client',
-            secondaryEntityId: client._id,
-            secondaryEntityName: client.name,
-            performedBy: lawyerId
-        });
-
-        // Update pipeline stats
-        if (lead.pipelineId) {
-            await Pipeline.updateStats(lead.pipelineId);
-        }
+        // Preview what data will be transferred
+        const preview = {
+            clientData: {
+                clientType: lead.type === 'company' ? 'company' : 'individual',
+                displayName: lead.type === 'company'
+                    ? lead.companyName
+                    : `${lead.firstName || ''} ${lead.lastName || ''}`.trim(),
+                email: lead.email,
+                phone: lead.phone,
+                alternatePhone: lead.alternatePhone,
+                whatsapp: lead.whatsapp,
+                nationalId: lead.nationalId,
+                crNumber: lead.commercialRegistration,
+                address: lead.address,
+                proposedBilling: lead.proposedFeeType ? {
+                    type: lead.proposedFeeType,
+                    amount: lead.proposedAmount
+                } : null
+            },
+            caseData: lead.intake ? {
+                canCreateCase: true,
+                suggestedTitle: lead.intake.caseDescription || `قضية ${lead.displayName}`,
+                caseType: lead.intake.caseType,
+                urgency: lead.intake.urgency,
+                estimatedValue: lead.intake.estimatedValue || lead.estimatedValue,
+                opposingParty: lead.intake.opposingParty,
+                court: lead.intake.courtName
+            } : {
+                canCreateCase: false,
+                reason: 'No intake information available'
+            }
+        };
 
         res.json({
             success: true,
-            message: 'Lead converted to client successfully',
-            data: {
-                lead,
-                client
-            }
+            data: preview
         });
     } catch (error) {
-        console.error('Error converting lead:', error);
+        console.error('Error previewing conversion:', error);
         res.status(500).json({
             success: false,
-            message: 'Error converting lead to client',
+            message: 'Error previewing conversion',
             error: error.message
         });
     }
@@ -430,16 +594,28 @@ exports.convertToClient = async (req, res) => {
 // Get pipeline statistics
 exports.getStats = async (req, res) => {
     try {
+        // Block departed users from lead operations
+        if (req.isDeparted) {
+            return res.status(403).json({
+                success: false,
+                message: 'ليس لديك صلاحية للوصول إلى العملاء المحتملين'
+            });
+        }
+
         const lawyerId = req.userID;
+        const firmId = req.firmId; // From firmFilter middleware
         const { startDate, endDate } = req.query;
 
-        const stats = await Lead.getPipelineStats(lawyerId, { start: startDate, end: endDate });
+        const stats = await Lead.getPipelineStats(lawyerId, { start: startDate, end: endDate, firmId });
 
         // Get leads needing follow-up
-        const needsFollowUp = await Lead.getNeedingFollowUp(lawyerId, 10);
+        const needsFollowUp = await Lead.getNeedingFollowUp(lawyerId, 10, firmId);
+
+        // Build query - firmId first, then lawyerId fallback
+        const baseQuery = firmId ? { firmId } : { lawyerId };
 
         // Get recent leads
-        const recentLeads = await Lead.find({ lawyerId })
+        const recentLeads = await Lead.find(baseQuery)
             .sort({ createdAt: -1 })
             .limit(5)
             .select('leadId displayName status createdAt estimatedValue');
@@ -542,6 +718,14 @@ exports.getNeedingFollowUp = async (req, res) => {
 // Log activity for a lead
 exports.logActivity = async (req, res) => {
     try {
+        // Block departed users from lead operations
+        if (req.isDeparted) {
+            return res.status(403).json({
+                success: false,
+                message: 'ليس لديك صلاحية للوصول إلى العملاء المحتملين'
+            });
+        }
+
         const { id } = req.params;
         const lawyerId = req.userID;
         const activityData = req.body;
@@ -641,6 +825,14 @@ exports.getActivities = async (req, res) => {
 // Schedule follow-up
 exports.scheduleFollowUp = async (req, res) => {
     try {
+        // Block departed users from lead operations
+        if (req.isDeparted) {
+            return res.status(403).json({
+                success: false,
+                message: 'ليس لديك صلاحية للوصول إلى العملاء المحتملين'
+            });
+        }
+
         const { id } = req.params;
         const { date, note } = req.body;
         const lawyerId = req.userID;

@@ -1,6 +1,16 @@
 const mongoose = require('mongoose');
 
 const employeeSchema = new mongoose.Schema({
+    // ═══════════════════════════════════════════════════════════════
+    // FIRM (Multi-Tenancy)
+    // ═══════════════════════════════════════════════════════════════
+    firmId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Firm',
+        index: true,
+        required: false  // Optional for backwards compatibility
+    },
+
     employeeId: {
         type: String,
         unique: true,

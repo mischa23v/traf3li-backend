@@ -8,7 +8,7 @@
  */
 
 const express = require('express');
-const { userMiddleware } = require('../middlewares');
+const { userMiddleware, firmFilter } = require('../middlewares');
 const { authorize } = require('../middlewares/authorize.middleware');
 const {
     validateInvoice,
@@ -56,7 +56,11 @@ const {
 
     // Export
     generateXML,
-    generatePDF
+    generatePDF,
+
+    // Unified Data
+    getBillableItems,
+    getOpenInvoices
 } = require('../controllers/invoice.controller');
 const { recordInvoicePayment } = require('../controllers/payment.controller');
 
@@ -68,18 +72,37 @@ const router = express.Router();
 // Get invoice statistics
 router.get('/stats',
     userMiddleware,
+    firmFilter,
     getStats
 );
 
 // Get overdue invoices
 router.get('/overdue',
     userMiddleware,
+    firmFilter,
     getOverdueInvoices
+);
+
+// ============ UNIFIED DATA (No Duplicate Entry) ============
+
+// Get billable items (unbilled time entries, expenses, tasks)
+router.get('/billable-items',
+    userMiddleware,
+    firmFilter,
+    getBillableItems
+);
+
+// Get open invoices for a client (for payment allocation)
+router.get('/open/:clientId',
+    userMiddleware,
+    firmFilter,
+    getOpenInvoices
 );
 
 // Confirm payment (Stripe webhook - no validation needed for webhook)
 router.patch('/confirm-payment',
     userMiddleware,
+    firmFilter,
     confirmPayment
 );
 
@@ -88,6 +111,7 @@ router.patch('/confirm-payment',
 // Create invoice
 router.post('/',
     userMiddleware,
+    firmFilter,
     validateInvoice,
     createInvoice
 );
@@ -95,30 +119,35 @@ router.post('/',
 // Get all invoices (with pagination and filters)
 router.get('/',
     userMiddleware,
+    firmFilter,
     getInvoices
 );
 
 // Get single invoice
 router.get('/:id',
     userMiddleware,
+    firmFilter,
     getInvoice
 );
 
 // Also support /:_id for backwards compatibility
 router.get('/:_id',
     userMiddleware,
+    firmFilter,
     getInvoice
 );
 
 // Update invoice
 router.patch('/:id',
     userMiddleware,
+    firmFilter,
     validateUpdateInvoice,
     updateInvoice
 );
 
 router.patch('/:_id',
     userMiddleware,
+    firmFilter,
     validateUpdateInvoice,
     updateInvoice
 );
@@ -126,6 +155,7 @@ router.patch('/:_id',
 // Also support PUT for update
 router.put('/:id',
     userMiddleware,
+    firmFilter,
     validateUpdateInvoice,
     updateInvoice
 );
@@ -133,11 +163,13 @@ router.put('/:id',
 // Delete invoice
 router.delete('/:id',
     userMiddleware,
+    firmFilter,
     deleteInvoice
 );
 
 router.delete('/:_id',
     userMiddleware,
+    firmFilter,
     deleteInvoice
 );
 
@@ -146,17 +178,20 @@ router.delete('/:_id',
 // Send invoice to client
 router.post('/:id/send',
     userMiddleware,
+    firmFilter,
     sendInvoice
 );
 
 router.post('/:_id/send',
     userMiddleware,
+    firmFilter,
     sendInvoice
 );
 
 // Record payment for invoice
 router.post('/:id/record-payment',
     userMiddleware,
+    firmFilter,
     validatePayment,
     recordPayment
 );
@@ -164,17 +199,20 @@ router.post('/:id/record-payment',
 // Alternative payment recording endpoint (backwards compatibility)
 router.post('/:id/payments',
     userMiddleware,
+    firmFilter,
     recordInvoicePayment
 );
 
 router.post('/:_id/payments',
     userMiddleware,
+    firmFilter,
     recordInvoicePayment
 );
 
 // Void invoice
 router.post('/:id/void',
     userMiddleware,
+    firmFilter,
     validateVoid,
     voidInvoice
 );
@@ -182,12 +220,14 @@ router.post('/:id/void',
 // Duplicate invoice
 router.post('/:id/duplicate',
     userMiddleware,
+    firmFilter,
     duplicateInvoice
 );
 
 // Send reminder
 router.post('/:id/send-reminder',
     userMiddleware,
+    firmFilter,
     validateReminder,
     sendReminder
 );
@@ -195,12 +235,14 @@ router.post('/:id/send-reminder',
 // Convert to credit note
 router.post('/:id/convert-to-credit-note',
     userMiddleware,
+    firmFilter,
     convertToCreditNote
 );
 
 // Apply retainer to invoice
 router.post('/:id/apply-retainer',
     userMiddleware,
+    firmFilter,
     validateRetainerApplication,
     applyRetainer
 );
@@ -210,12 +252,14 @@ router.post('/:id/apply-retainer',
 // Submit invoice for approval
 router.post('/:id/submit-for-approval',
     userMiddleware,
+    firmFilter,
     submitForApproval
 );
 
 // Approve invoice (admin or lawyer)
 router.post('/:id/approve',
     userMiddleware,
+    firmFilter,
     validateApproval,
     approveInvoice
 );
@@ -223,6 +267,7 @@ router.post('/:id/approve',
 // Reject invoice (admin or lawyer)
 router.post('/:id/reject',
     userMiddleware,
+    firmFilter,
     validateRejection,
     rejectInvoice
 );
@@ -232,12 +277,14 @@ router.post('/:id/reject',
 // Submit invoice to ZATCA
 router.post('/:id/zatca/submit',
     userMiddleware,
+    firmFilter,
     submitToZATCA
 );
 
 // Get ZATCA status
 router.get('/:id/zatca/status',
     userMiddleware,
+    firmFilter,
     getZATCAStatus
 );
 
@@ -246,12 +293,14 @@ router.get('/:id/zatca/status',
 // Generate and download PDF
 router.get('/:id/pdf',
     userMiddleware,
+    firmFilter,
     generatePDF
 );
 
 // Generate and download XML (UBL 2.1 format for ZATCA)
 router.get('/:id/xml',
     userMiddleware,
+    firmFilter,
     generateXML
 );
 
@@ -260,11 +309,13 @@ router.get('/:id/xml',
 // Create payment intent (Stripe)
 router.post('/:id/payment',
     userMiddleware,
+    firmFilter,
     createPaymentIntent
 );
 
 router.post('/:_id/payment',
     userMiddleware,
+    firmFilter,
     createPaymentIntent
 );
 

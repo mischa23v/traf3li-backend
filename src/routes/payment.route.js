@@ -1,5 +1,5 @@
 const express = require('express');
-const { userMiddleware } = require('../middlewares');
+const { userMiddleware, firmFilter } = require('../middlewares');
 const {
     createPayment,
     getPayments,
@@ -19,22 +19,22 @@ const {
 const app = express.Router();
 
 // Static routes (must be before parameterized routes)
-app.get('/stats', userMiddleware, getPaymentStats);
-app.get('/summary', userMiddleware, getPaymentsSummary);
-app.get('/new', userMiddleware, getNewPaymentDefaults);
-app.delete('/bulk', userMiddleware, bulkDeletePayments);
+app.get('/stats', userMiddleware, firmFilter, getPaymentStats);
+app.get('/summary', userMiddleware, firmFilter, getPaymentsSummary);
+app.get('/new', userMiddleware, firmFilter, getNewPaymentDefaults);
+app.delete('/bulk', userMiddleware, firmFilter, bulkDeletePayments);
 
 // Payment CRUD
-app.post('/', userMiddleware, createPayment);
-app.get('/', userMiddleware, getPayments);
-app.get('/:id', userMiddleware, getPayment);
-app.put('/:id', userMiddleware, updatePayment);
-app.delete('/:id', userMiddleware, deletePayment);
+app.post('/', userMiddleware, firmFilter, createPayment);
+app.get('/', userMiddleware, firmFilter, getPayments);
+app.get('/:id', userMiddleware, firmFilter, getPayment);
+app.put('/:id', userMiddleware, firmFilter, updatePayment);
+app.delete('/:id', userMiddleware, firmFilter, deletePayment);
 
 // Payment actions
-app.post('/:id/complete', userMiddleware, completePayment);
-app.post('/:id/fail', userMiddleware, failPayment);
-app.post('/:id/refund', userMiddleware, createRefund);
-app.post('/:id/receipt', userMiddleware, sendReceipt);
+app.post('/:id/complete', userMiddleware, firmFilter, completePayment);
+app.post('/:id/fail', userMiddleware, firmFilter, failPayment);
+app.post('/:id/refund', userMiddleware, firmFilter, createRefund);
+app.post('/:id/receipt', userMiddleware, firmFilter, sendReceipt);
 
 module.exports = app;

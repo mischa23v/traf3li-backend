@@ -1,6 +1,6 @@
 const express = require('express');
-const { userMiddleware } = require('../middlewares');
-const upload = require('../configs/multer.config');
+const { userMiddleware, firmFilter } = require('../middlewares');
+const upload = require('../configs/multer');
 const {
     createClient,
     getClients,
@@ -20,10 +20,8 @@ const {
     updateFlags,
     uploadAttachments,
     deleteAttachment,
-    verifyYakeen,
     verifyWathq,
-    verifyMOJ,
-    verifyAttorney
+    getWathqData
 } = require('../controllers/client.controller');
 
 const app = express.Router();
@@ -31,59 +29,57 @@ const app = express.Router();
 // ─────────────────────────────────────────────────────────
 // CRUD
 // ─────────────────────────────────────────────────────────
-app.post('/', userMiddleware, createClient);
-app.get('/', userMiddleware, getClients);
+app.post('/', userMiddleware, firmFilter, createClient);
+app.get('/', userMiddleware, firmFilter, getClients);
 
 // ─────────────────────────────────────────────────────────
 // SPECIAL QUERIES
 // ─────────────────────────────────────────────────────────
-app.get('/search', userMiddleware, searchClients);
-app.get('/stats', userMiddleware, getClientStats);
-app.get('/top-revenue', userMiddleware, getTopClientsByRevenue);
+app.get('/search', userMiddleware, firmFilter, searchClients);
+app.get('/stats', userMiddleware, firmFilter, getClientStats);
+app.get('/top-revenue', userMiddleware, firmFilter, getTopClientsByRevenue);
 
 // ─────────────────────────────────────────────────────────
 // SINGLE CLIENT
 // ─────────────────────────────────────────────────────────
-app.get('/:id', userMiddleware, getClient);
-app.put('/:id', userMiddleware, updateClient);
-app.delete('/:id', userMiddleware, deleteClient);
+app.get('/:id', userMiddleware, firmFilter, getClient);
+app.put('/:id', userMiddleware, firmFilter, updateClient);
+app.delete('/:id', userMiddleware, firmFilter, deleteClient);
 
 // ─────────────────────────────────────────────────────────
 // BILLING & FINANCE LINKED DATA
 // ─────────────────────────────────────────────────────────
-app.get('/:id/billing-info', userMiddleware, getBillingInfo);
-app.get('/:id/cases', userMiddleware, getClientCases);
-app.get('/:id/invoices', userMiddleware, getClientInvoices);
-app.get('/:id/payments', userMiddleware, getClientPayments);
+app.get('/:id/billing-info', userMiddleware, firmFilter, getBillingInfo);
+app.get('/:id/cases', userMiddleware, firmFilter, getClientCases);
+app.get('/:id/invoices', userMiddleware, firmFilter, getClientInvoices);
+app.get('/:id/payments', userMiddleware, firmFilter, getClientPayments);
 
 // ─────────────────────────────────────────────────────────
 // VERIFICATION (Saudi Government Portals)
 // ─────────────────────────────────────────────────────────
-app.post('/:id/verify/yakeen', userMiddleware, verifyYakeen);     // National ID (requires API)
-app.post('/:id/verify/wathq', userMiddleware, verifyWathq);       // Commercial Registry (requires API)
-app.post('/:id/verify/moj', userMiddleware, verifyMOJ);           // Power of Attorney (free portal)
-app.post('/:id/verify/attorney', userMiddleware, verifyAttorney); // Attorney License (free portal)
+app.post('/:id/verify/wathq', userMiddleware, firmFilter, verifyWathq);       // Commercial Registry (Wathq API)
+app.get('/:id/wathq/:dataType', userMiddleware, firmFilter, getWathqData);    // Additional Wathq data (managers/owners/capital/branches/status)
 
 // ─────────────────────────────────────────────────────────
 // ATTACHMENTS
 // ─────────────────────────────────────────────────────────
-app.post('/:id/attachments', userMiddleware, upload.array('files', 10), uploadAttachments);
-app.delete('/:id/attachments/:attachmentId', userMiddleware, deleteAttachment);
+app.post('/:id/attachments', userMiddleware, firmFilter, upload.array('files', 10), uploadAttachments);
+app.delete('/:id/attachments/:attachmentId', userMiddleware, firmFilter, deleteAttachment);
 
 // ─────────────────────────────────────────────────────────
 // CONFLICT CHECK
 // ─────────────────────────────────────────────────────────
-app.post('/:id/conflict-check', userMiddleware, runConflictCheck);
+app.post('/:id/conflict-check', userMiddleware, firmFilter, runConflictCheck);
 
 // ─────────────────────────────────────────────────────────
 // STATUS & FLAGS
 // ─────────────────────────────────────────────────────────
-app.patch('/:id/status', userMiddleware, updateStatus);
-app.patch('/:id/flags', userMiddleware, updateFlags);
+app.patch('/:id/status', userMiddleware, firmFilter, updateStatus);
+app.patch('/:id/flags', userMiddleware, firmFilter, updateFlags);
 
 // ─────────────────────────────────────────────────────────
 // BULK OPERATIONS
 // ─────────────────────────────────────────────────────────
-app.delete('/bulk', userMiddleware, bulkDeleteClients);
+app.delete('/bulk', userMiddleware, firmFilter, bulkDeleteClients);
 
 module.exports = app;

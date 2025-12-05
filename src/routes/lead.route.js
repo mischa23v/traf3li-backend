@@ -1,10 +1,10 @@
 const express = require('express');
 const router = express.Router();
 const leadController = require('../controllers/lead.controller');
-const { userMiddleware } = require('../middlewares');
+const { userMiddleware, firmFilter } = require('../middlewares');
 
-// Apply authentication to all routes
-router.use(userMiddleware);
+// Apply authentication and firm filter to all routes
+router.use(userMiddleware, firmFilter);
 
 // ============================================
 // LEAD ROUTES
@@ -25,6 +25,7 @@ router.post('/:id/status', leadController.updateStatus);
 router.post('/:id/move', leadController.moveToStage);
 
 // Conversion
+router.get('/:id/conversion-preview', leadController.previewConversion);
 router.post('/:id/convert', leadController.convertToClient);
 
 // Activities

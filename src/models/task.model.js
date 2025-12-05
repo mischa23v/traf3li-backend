@@ -134,6 +134,16 @@ const dependencySchema = new mongoose.Schema({
 }, { _id: true });
 
 const taskSchema = new mongoose.Schema({
+    // ═══════════════════════════════════════════════════════════════
+    // FIRM (Multi-Tenancy)
+    // ═══════════════════════════════════════════════════════════════
+    firmId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Firm',
+        index: true,
+        required: false  // Optional for backwards compatibility
+    },
+
     title: {
         type: String,
         required: true,
