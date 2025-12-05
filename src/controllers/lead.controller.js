@@ -11,9 +11,11 @@ const Client = require('../models/client.model');
 exports.createLead = async (req, res) => {
     try {
         const lawyerId = req.userID;
+        const firmId = req.firmId; // From firmFilter middleware
         const leadData = {
             ...req.body,
             lawyerId,
+            firmId, // Add firmId for multi-tenancy
             createdBy: lawyerId
         };
 
@@ -56,6 +58,7 @@ exports.createLead = async (req, res) => {
 exports.getLeads = async (req, res) => {
     try {
         const lawyerId = req.userID;
+        const firmId = req.firmId; // From firmFilter middleware
         const {
             status, source, assignedTo, pipelineId, search,
             convertedToClient, sortBy, sortOrder,
@@ -72,12 +75,17 @@ exports.getLeads = async (req, res) => {
             sortBy,
             sortOrder,
             limit: parseInt(limit),
-            skip: (parseInt(page) - 1) * parseInt(limit)
+            skip: (parseInt(page) - 1) * parseInt(limit),
+            firmId // Pass firmId to filter by firm
         };
 
+        // Use firmId-aware getLeads
         const leads = await Lead.getLeads(lawyerId, filters);
+
+        // Build count query - firmId first, then lawyerId fallback
+        const countQuery = firmId ? { firmId } : { lawyerId };
         const total = await Lead.countDocuments({
-            lawyerId,
+            ...countQuery,
             ...(status ? { status } : {}),
             ...(convertedToClient !== undefined ? { convertedToClient: filters.convertedToClient } : {})
         });
@@ -107,11 +115,14 @@ exports.getLead = async (req, res) => {
     try {
         const { id } = req.params;
         const lawyerId = req.userID;
+        const firmId = req.firmId; // From firmFilter middleware
 
-        const lead = await Lead.findOne({
-            $or: [{ _id: id }, { leadId: id }],
-            lawyerId
-        })
+        // Build query - firmId first, then lawyerId fallback
+        const accessQuery = firmId
+            ? { $or: [{ _id: id }, { leadId: id }], firmId }
+            : { $or: [{ _id: id }, { leadId: id }], lawyerId };
+
+        const lead = await Lead.findOne(accessQuery)
         .populate('assignedTo', 'firstName lastName avatar email')
         .populate('teamMembers', 'firstName lastName avatar')
         .populate('source.referralId', 'name')
@@ -150,12 +161,15 @@ exports.updateLead = async (req, res) => {
     try {
         const { id } = req.params;
         const lawyerId = req.userID;
+        const firmId = req.firmId; // From firmFilter middleware
         const updates = req.body;
 
-        const lead = await Lead.findOne({
-            $or: [{ _id: id }, { leadId: id }],
-            lawyerId
-        });
+        // Build query - firmId first, then lawyerId fallback
+        const accessQuery = firmId
+            ? { $or: [{ _id: id }, { leadId: id }], firmId }
+            : { $or: [{ _id: id }, { leadId: id }], lawyerId };
+
+        const lead = await Lead.findOne(accessQuery);
 
         if (!lead) {
             return res.status(404).json({
@@ -211,12 +225,14 @@ exports.deleteLead = async (req, res) => {
     try {
         const { id } = req.params;
         const lawyerId = req.userID;
+        const firmId = req.firmId; // From firmFilter middleware
 
-        const lead = await Lead.findOneAndDelete({
-            $or: [{ _id: id }, { leadId: id }],
-            lawyerId,
-            convertedToClient: false
-        });
+        // Build query - firmId first, then lawyerId fallback
+        const accessQuery = firmId
+            ? { $or: [{ _id: id }, { leadId: id }], firmId, convertedToClient: false }
+            : { $or: [{ _id: id }, { leadId: id }], lawyerId, convertedToClient: false };
+
+        const lead = await Lead.findOneAndDelete(accessQuery);
 
         if (!lead) {
             return res.status(404).json({
@@ -249,11 +265,14 @@ exports.updateStatus = async (req, res) => {
         const { id } = req.params;
         const { status, notes, lostReason } = req.body;
         const lawyerId = req.userID;
+        const firmId = req.firmId; // From firmFilter middleware
 
-        const lead = await Lead.findOne({
-            $or: [{ _id: id }, { leadId: id }],
-            lawyerId
-        });
+        // Build query - firmId first, then lawyerId fallback
+        const accessQuery = firmId
+            ? { $or: [{ _id: id }, { leadId: id }], firmId }
+            : { $or: [{ _id: id }, { leadId: id }], lawyerId };
+
+        const lead = await Lead.findOne(accessQuery);
 
         if (!lead) {
             return res.status(404).json({
@@ -290,11 +309,14 @@ exports.moveToStage = async (req, res) => {
         const { id } = req.params;
         const { stageId, notes } = req.body;
         const lawyerId = req.userID;
+        const firmId = req.firmId; // From firmFilter middleware
 
-        const lead = await Lead.findOne({
-            $or: [{ _id: id }, { leadId: id }],
-            lawyerId
-        });
+        // Build query - firmId first, then lawyerId fallback
+        const accessQuery = firmId
+            ? { $or: [{ _id: id }, { leadId: id }], firmId }
+            : { $or: [{ _id: id }, { leadId: id }], lawyerId };
+
+        const lead = await Lead.findOne(accessQuery);
 
         if (!lead) {
             return res.status(404).json({
@@ -370,13 +392,15 @@ exports.convertToClient = async (req, res) => {
     try {
         const { id } = req.params;
         const lawyerId = req.userID;
+        const firmId = req.firmId; // From firmFilter middleware
         const { createCase, caseTitle } = req.body;
 
-        const lead = await Lead.findOne({
-            $or: [{ _id: id }, { leadId: id }],
-            lawyerId,
-            convertedToClient: false
-        });
+        // Build query - firmId first, then lawyerId fallback
+        const accessQuery = firmId
+            ? { $or: [{ _id: id }, { leadId: id }], firmId, convertedToClient: false }
+            : { $or: [{ _id: id }, { leadId: id }], lawyerId, convertedToClient: false };
+
+        const lead = await Lead.findOne(accessQuery);
 
         if (!lead) {
             return res.status(404).json({
@@ -507,15 +531,19 @@ exports.previewConversion = async (req, res) => {
 exports.getStats = async (req, res) => {
     try {
         const lawyerId = req.userID;
+        const firmId = req.firmId; // From firmFilter middleware
         const { startDate, endDate } = req.query;
 
-        const stats = await Lead.getPipelineStats(lawyerId, { start: startDate, end: endDate });
+        const stats = await Lead.getPipelineStats(lawyerId, { start: startDate, end: endDate, firmId });
 
         // Get leads needing follow-up
-        const needsFollowUp = await Lead.getNeedingFollowUp(lawyerId, 10);
+        const needsFollowUp = await Lead.getNeedingFollowUp(lawyerId, 10, firmId);
+
+        // Build query - firmId first, then lawyerId fallback
+        const baseQuery = firmId ? { firmId } : { lawyerId };
 
         // Get recent leads
-        const recentLeads = await Lead.find({ lawyerId })
+        const recentLeads = await Lead.find(baseQuery)
             .sort({ createdAt: -1 })
             .limit(5)
             .select('leadId displayName status createdAt estimatedValue');

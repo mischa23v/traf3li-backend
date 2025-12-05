@@ -12,6 +12,7 @@ const activeTimers = new Map();
 const startTimer = asyncHandler(async (req, res) => {
     const { caseId, clientId, activityCode, description } = req.body;
     const lawyerId = req.userID;
+    const firmId = req.firmId; // From firmFilter middleware
 
     // Check if timer already running for this lawyer
     if (activeTimers.has(lawyerId)) {
@@ -134,6 +135,7 @@ const resumeTimer = asyncHandler(async (req, res) => {
  */
 const stopTimer = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
+    const firmId = req.firmId; // From firmFilter middleware
     const { notes, isBillable = true } = req.body;
 
     const timer = activeTimers.get(lawyerId);
@@ -154,6 +156,7 @@ const stopTimer = asyncHandler(async (req, res) => {
     // Create time entry
     const timeEntry = await TimeEntry.create({
         lawyerId,
+        firmId, // Add firmId for multi-tenancy
         clientId: timer.clientId,
         caseId: timer.caseId,
         date: timer.startedAt,
@@ -250,6 +253,7 @@ const createTimeEntry = asyncHandler(async (req, res) => {
     } = req.body;
 
     const lawyerId = req.userID;
+    const firmId = req.firmId; // From firmFilter middleware
 
     // Validate required fields
     if (!description || !date || !duration || !hourlyRate) {
@@ -269,6 +273,7 @@ const createTimeEntry = asyncHandler(async (req, res) => {
 
     const timeEntry = await TimeEntry.create({
         lawyerId,
+        firmId, // Add firmId for multi-tenancy
         clientId,
         caseId,
         date: new Date(date),
@@ -326,7 +331,10 @@ const getTimeEntries = asyncHandler(async (req, res) => {
     } = req.query;
 
     const lawyerId = req.userID;
-    const query = { lawyerId };
+    const firmId = req.firmId; // From firmFilter middleware
+
+    // Build query - firmId first, then lawyerId fallback
+    const query = firmId ? { firmId } : { lawyerId };
 
     if (status) query.status = status;
     if (caseId) query.caseId = caseId;
@@ -395,6 +403,7 @@ const getTimeEntries = asyncHandler(async (req, res) => {
 const getTimeEntry = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const lawyerId = req.userID;
+    const firmId = req.firmId; // From firmFilter middleware
 
     const timeEntry = await TimeEntry.findById(id)
         .populate('lawyerId', 'username image email')
@@ -407,7 +416,12 @@ const getTimeEntry = asyncHandler(async (req, res) => {
         throw CustomException('إدخال الوقت غير موجود', 404);
     }
 
-    if (timeEntry.lawyerId._id.toString() !== lawyerId) {
+    // Check access - firmId first, then lawyerId
+    const hasAccess = firmId
+        ? timeEntry.firmId && timeEntry.firmId.toString() === firmId.toString()
+        : timeEntry.lawyerId._id.toString() === lawyerId;
+
+    if (!hasAccess) {
         throw CustomException('لا يمكنك الوصول إلى هذا الإدخال', 403);
     }
 
@@ -424,6 +438,7 @@ const getTimeEntry = asyncHandler(async (req, res) => {
 const updateTimeEntry = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const lawyerId = req.userID;
+    const firmId = req.firmId; // From firmFilter middleware
 
     const timeEntry = await TimeEntry.findById(id);
 
@@ -431,7 +446,12 @@ const updateTimeEntry = asyncHandler(async (req, res) => {
         throw CustomException('إدخال الوقت غير موجود', 404);
     }
 
-    if (timeEntry.lawyerId.toString() !== lawyerId) {
+    // Check access - firmId first, then lawyerId
+    const hasAccess = firmId
+        ? timeEntry.firmId && timeEntry.firmId.toString() === firmId.toString()
+        : timeEntry.lawyerId.toString() === lawyerId;
+
+    if (!hasAccess) {
         throw CustomException('لا يمكنك الوصول إلى هذا الإدخال', 403);
     }
 
@@ -500,6 +520,7 @@ const updateTimeEntry = asyncHandler(async (req, res) => {
 const deleteTimeEntry = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const lawyerId = req.userID;
+    const firmId = req.firmId; // From firmFilter middleware
 
     const timeEntry = await TimeEntry.findById(id);
 
@@ -507,7 +528,12 @@ const deleteTimeEntry = asyncHandler(async (req, res) => {
         throw CustomException('إدخال الوقت غير موجود', 404);
     }
 
-    if (timeEntry.lawyerId.toString() !== lawyerId) {
+    // Check access - firmId first, then lawyerId
+    const hasAccess = firmId
+        ? timeEntry.firmId && timeEntry.firmId.toString() === firmId.toString()
+        : timeEntry.lawyerId.toString() === lawyerId;
+
+    if (!hasAccess) {
         throw CustomException('لا يمكنك الوصول إلى هذا الإدخال', 403);
     }
 
@@ -628,8 +654,10 @@ const rejectTimeEntry = asyncHandler(async (req, res) => {
 const getTimeStats = asyncHandler(async (req, res) => {
     const { startDate, endDate, caseId, groupBy = 'day' } = req.query;
     const lawyerId = req.userID;
+    const firmId = req.firmId; // From firmFilter middleware
 
-    const matchQuery = { lawyerId };
+    // Build query - firmId first, then lawyerId fallback
+    const matchQuery = firmId ? { firmId } : { lawyerId };
 
     if (startDate || endDate) {
         matchQuery.date = {};
@@ -698,6 +726,7 @@ const getTimeStats = asyncHandler(async (req, res) => {
 const getWeeklyEntries = asyncHandler(async (req, res) => {
     const { weekStartDate } = req.query;
     const lawyerId = req.userID;
+    const firmId = req.firmId; // From firmFilter middleware
 
     // Parse week start date, default to current week's Monday
     let startDate;
@@ -715,9 +744,12 @@ const getWeeklyEntries = asyncHandler(async (req, res) => {
     endDate.setDate(endDate.getDate() + 6);
     endDate.setHours(23, 59, 59, 999);
 
+    // Build query - firmId first, then lawyerId fallback
+    const weekQuery = firmId ? { firmId } : { lawyerId };
+
     // Get all time entries for the week
     const timeEntries = await TimeEntry.find({
-        lawyerId,
+        ...weekQuery,
         date: { $gte: startDate, $lte: endDate }
     })
         .populate('caseId', 'title caseNumber')
@@ -793,17 +825,19 @@ const getWeeklyEntries = asyncHandler(async (req, res) => {
 const bulkDeleteTimeEntries = asyncHandler(async (req, res) => {
     const { entryIds } = req.body;
     const lawyerId = req.userID;
+    const firmId = req.firmId; // From firmFilter middleware
 
     if (!entryIds || !Array.isArray(entryIds) || entryIds.length === 0) {
         throw CustomException('معرفات الإدخالات مطلوبة', 400);
     }
 
-    // Verify all entries belong to lawyer and are not invoiced
-    const entries = await TimeEntry.find({
-        _id: { $in: entryIds },
-        lawyerId,
-        invoiceId: { $exists: false }
-    });
+    // Build access query - firmId first, then lawyerId fallback
+    const accessQuery = firmId
+        ? { _id: { $in: entryIds }, firmId, invoiceId: { $exists: false } }
+        : { _id: { $in: entryIds }, lawyerId, invoiceId: { $exists: false } };
+
+    // Verify all entries belong to firm/lawyer and are not invoiced
+    const entries = await TimeEntry.find(accessQuery);
 
     if (entries.length !== entryIds.length) {
         throw CustomException('بعض الإدخالات غير صالحة للحذف', 400);

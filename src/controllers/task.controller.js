@@ -33,6 +33,7 @@ const createTask = asyncHandler(async (req, res) => {
     } = req.body;
 
     const userId = req.userID;
+    const firmId = req.firmId; // From firmFilter middleware
 
     // Sanitize user input to prevent XSS
     const sanitizedTitle = title ? stripHtml(title) : '';
@@ -72,6 +73,7 @@ const createTask = asyncHandler(async (req, res) => {
         startDate,
         assignedTo: assignedTo || userId,
         createdBy: userId,
+        firmId, // Add firmId for multi-tenancy
         caseId,
         clientId,
         parentTaskId,
@@ -126,12 +128,17 @@ const getTasks = asyncHandler(async (req, res) => {
     } = req.query;
 
     const userId = req.userID;
-    const query = {
-        $or: [
-            { assignedTo: userId },
-            { createdBy: userId }
-        ]
-    };
+    const firmId = req.firmId; // From firmFilter middleware
+
+    // Build query - if firmId exists, filter by firm; otherwise by user
+    const query = firmId
+        ? { firmId }
+        : {
+            $or: [
+                { assignedTo: userId },
+                { createdBy: userId }
+            ]
+        };
 
     if (status) query.status = status;
     if (priority) query.priority = priority;
@@ -188,6 +195,7 @@ const getTasks = asyncHandler(async (req, res) => {
 const getTask = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const userId = req.userID;
+    const firmId = req.firmId; // From firmFilter middleware
 
     const task = await Task.findById(id)
         .populate('assignedTo', 'firstName lastName username email image')
@@ -202,10 +210,11 @@ const getTask = asyncHandler(async (req, res) => {
         throw CustomException('Task not found', 404);
     }
 
-    // Check access
-    const hasAccess =
-        task.assignedTo?._id.toString() === userId ||
-        task.createdBy._id.toString() === userId;
+    // Check access - firmId first, then user-based
+    const hasAccess = firmId
+        ? task.firmId && task.firmId.toString() === firmId.toString()
+        : (task.assignedTo?._id.toString() === userId ||
+           task.createdBy._id.toString() === userId);
 
     if (!hasAccess) {
         throw CustomException('You do not have access to this task', 403);
@@ -221,6 +230,7 @@ const getTask = asyncHandler(async (req, res) => {
 const updateTask = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const userId = req.userID;
+    const firmId = req.firmId; // From firmFilter middleware
 
     const task = await Task.findById(id);
 
@@ -228,10 +238,11 @@ const updateTask = asyncHandler(async (req, res) => {
         throw CustomException('Task not found', 404);
     }
 
-    // Check permission
-    const canUpdate =
-        task.createdBy.toString() === userId ||
-        task.assignedTo?.toString() === userId;
+    // Check permission - firmId first, then user-based
+    const canUpdate = firmId
+        ? task.firmId && task.firmId.toString() === firmId.toString()
+        : (task.createdBy.toString() === userId ||
+           task.assignedTo?.toString() === userId);
 
     if (!canUpdate) {
         throw CustomException('You do not have permission to update this task', 403);
@@ -297,6 +308,7 @@ const updateTask = asyncHandler(async (req, res) => {
 const deleteTask = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const userId = req.userID;
+    const firmId = req.firmId; // From firmFilter middleware
 
     const task = await Task.findById(id);
 
@@ -304,8 +316,12 @@ const deleteTask = asyncHandler(async (req, res) => {
         throw CustomException('Task not found', 404);
     }
 
-    // Only creator can delete
-    if (task.createdBy.toString() !== userId) {
+    // Check delete permission - firmId first, then creator-only
+    const canDelete = firmId
+        ? task.firmId && task.firmId.toString() === firmId.toString()
+        : task.createdBy.toString() === userId;
+
+    if (!canDelete) {
         throw CustomException('Only the task creator can delete this task', 403);
     }
 
@@ -758,16 +774,18 @@ const deleteComment = asyncHandler(async (req, res) => {
 const bulkUpdateTasks = asyncHandler(async (req, res) => {
     const { taskIds, updates } = req.body;
     const userId = req.userID;
+    const firmId = req.firmId; // From firmFilter middleware
 
     if (!taskIds || !Array.isArray(taskIds) || taskIds.length === 0) {
         throw CustomException('Task IDs are required', 400);
     }
 
-    // Verify access to all tasks
-    const tasks = await Task.find({
-        _id: { $in: taskIds },
-        $or: [{ assignedTo: userId }, { createdBy: userId }]
-    });
+    // Verify access to all tasks - firmId first, then user-based
+    const accessQuery = firmId
+        ? { _id: { $in: taskIds }, firmId }
+        : { _id: { $in: taskIds }, $or: [{ assignedTo: userId }, { createdBy: userId }] };
+
+    const tasks = await Task.find(accessQuery);
 
     if (tasks.length !== taskIds.length) {
         throw CustomException('Some tasks are not accessible', 403);
@@ -797,16 +815,18 @@ const bulkUpdateTasks = asyncHandler(async (req, res) => {
 const bulkDeleteTasks = asyncHandler(async (req, res) => {
     const { taskIds } = req.body;
     const userId = req.userID;
+    const firmId = req.firmId; // From firmFilter middleware
 
     if (!taskIds || !Array.isArray(taskIds) || taskIds.length === 0) {
         throw CustomException('Task IDs are required', 400);
     }
 
-    // Verify ownership of all tasks
-    const tasks = await Task.find({
-        _id: { $in: taskIds },
-        createdBy: userId
-    });
+    // Verify ownership of all tasks - firmId first, then creator-only
+    const accessQuery = firmId
+        ? { _id: { $in: taskIds }, firmId }
+        : { _id: { $in: taskIds }, createdBy: userId };
+
+    const tasks = await Task.find(accessQuery);
 
     if (tasks.length !== taskIds.length) {
         throw CustomException('Some tasks cannot be deleted', 403);
@@ -826,8 +846,10 @@ const bulkDeleteTasks = asyncHandler(async (req, res) => {
 // Get task stats
 const getTaskStats = asyncHandler(async (req, res) => {
     const userId = req.userID;
+    const firmId = req.firmId; // From firmFilter middleware
 
-    const stats = await Task.getStats(userId);
+    // Get stats with firmId filtering if available
+    const stats = await Task.getStats(userId, firmId);
 
     res.status(200).json({
         success: true,
@@ -839,13 +861,19 @@ const getTaskStats = asyncHandler(async (req, res) => {
 const getUpcomingTasks = asyncHandler(async (req, res) => {
     const { days = 7 } = req.query;
     const userId = req.userID;
+    const firmId = req.firmId; // From firmFilter middleware
 
     const today = new Date();
     const future = new Date();
     future.setDate(today.getDate() + parseInt(days));
 
+    // Build query - firmId first, then user-based
+    const baseQuery = firmId
+        ? { firmId }
+        : { $or: [{ assignedTo: userId }, { createdBy: userId }] };
+
     const tasks = await Task.find({
-        $or: [{ assignedTo: userId }, { createdBy: userId }],
+        ...baseQuery,
         dueDate: { $gte: today, $lte: future },
         status: { $nin: ['done', 'canceled'] }
     })
@@ -863,9 +891,15 @@ const getUpcomingTasks = asyncHandler(async (req, res) => {
 // Get overdue tasks
 const getOverdueTasks = asyncHandler(async (req, res) => {
     const userId = req.userID;
+    const firmId = req.firmId; // From firmFilter middleware
+
+    // Build query - firmId first, then user-based
+    const baseQuery = firmId
+        ? { firmId }
+        : { $or: [{ assignedTo: userId }, { createdBy: userId }] };
 
     const tasks = await Task.find({
-        $or: [{ assignedTo: userId }, { createdBy: userId }],
+        ...baseQuery,
         dueDate: { $lt: new Date() },
         status: { $nin: ['done', 'canceled'] }
     })
@@ -905,6 +939,7 @@ const getTasksByCase = asyncHandler(async (req, res) => {
 // Get tasks due today
 const getTasksDueToday = asyncHandler(async (req, res) => {
     const userId = req.userID;
+    const firmId = req.firmId; // From firmFilter middleware
 
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
@@ -912,8 +947,13 @@ const getTasksDueToday = asyncHandler(async (req, res) => {
     const endOfDay = new Date();
     endOfDay.setHours(23, 59, 59, 999);
 
+    // Build query - firmId first, then user-based
+    const baseQuery = firmId
+        ? { firmId }
+        : { $or: [{ assignedTo: userId }, { createdBy: userId }] };
+
     const tasks = await Task.find({
-        $or: [{ assignedTo: userId }, { createdBy: userId }],
+        ...baseQuery,
         dueDate: { $gte: startOfDay, $lte: endOfDay },
         status: { $nin: ['done', 'canceled'] }
     })

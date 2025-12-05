@@ -31,6 +31,7 @@ const createEvent = asyncHandler(async (req, res) => {
     } = req.body;
 
     const userId = req.userID;
+    const firmId = req.firmId; // From firmFilter middleware
 
     // Validate required fields
     if (!title || !type || !startDateTime) {
@@ -59,6 +60,7 @@ const createEvent = asyncHandler(async (req, res) => {
         clientId,
         taskId,
         organizer: userId,
+        firmId, // Add firmId for multi-tenancy
         attendees: attendees || [],
         agenda: agenda || [],
         reminders: reminders || [],
@@ -129,13 +131,18 @@ const getEvents = asyncHandler(async (req, res) => {
     } = req.query;
 
     const userId = req.userID;
-    const query = {
-        $or: [
-            { createdBy: userId },
-            { organizer: userId },
-            { 'attendees.userId': userId }
-        ]
-    };
+    const firmId = req.firmId; // From firmFilter middleware
+
+    // Build query - firmId first, then user-based
+    const query = firmId
+        ? { firmId }
+        : {
+            $or: [
+                { createdBy: userId },
+                { organizer: userId },
+                { 'attendees.userId': userId }
+            ]
+        };
 
     // Date range filter
     if (startDate || endDate) {
@@ -206,6 +213,7 @@ const getEvents = asyncHandler(async (req, res) => {
 const getEvent = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const userId = req.userID;
+    const firmId = req.firmId; // From firmFilter middleware
 
     const event = await Event.findById(id)
         .populate('organizer', 'firstName lastName image email')
@@ -223,10 +231,12 @@ const getEvent = asyncHandler(async (req, res) => {
         throw CustomException('Event not found', 404);
     }
 
-    // Check access
-    const hasAccess = event.createdBy._id.toString() === userId ||
-                      event.organizer._id.toString() === userId ||
-                      event.isUserAttendee(userId);
+    // Check access - firmId first, then user-based
+    const hasAccess = firmId
+        ? event.firmId && event.firmId.toString() === firmId.toString()
+        : (event.createdBy._id.toString() === userId ||
+           event.organizer._id.toString() === userId ||
+           event.isUserAttendee(userId));
 
     if (!hasAccess) {
         throw CustomException('You do not have access to this event', 403);
@@ -245,6 +255,7 @@ const getEvent = asyncHandler(async (req, res) => {
 const updateEvent = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const userId = req.userID;
+    const firmId = req.firmId; // From firmFilter middleware
 
     const event = await Event.findById(id);
 
@@ -252,8 +263,12 @@ const updateEvent = asyncHandler(async (req, res) => {
         throw CustomException('Event not found', 404);
     }
 
-    // Only organizer or creator can update
-    if (event.organizer.toString() !== userId && event.createdBy.toString() !== userId) {
+    // Check access - firmId first, then organizer/creator
+    const canUpdate = firmId
+        ? event.firmId && event.firmId.toString() === firmId.toString()
+        : (event.organizer.toString() === userId || event.createdBy.toString() === userId);
+
+    if (!canUpdate) {
         throw CustomException('Only the organizer can update this event', 403);
     }
 
@@ -293,6 +308,7 @@ const updateEvent = asyncHandler(async (req, res) => {
 const deleteEvent = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const userId = req.userID;
+    const firmId = req.firmId; // From firmFilter middleware
 
     const event = await Event.findById(id);
 
@@ -300,8 +316,12 @@ const deleteEvent = asyncHandler(async (req, res) => {
         throw CustomException('Event not found', 404);
     }
 
-    // Only organizer or creator can delete
-    if (event.organizer.toString() !== userId && event.createdBy.toString() !== userId) {
+    // Check access - firmId first, then organizer/creator
+    const canDelete = firmId
+        ? event.firmId && event.firmId.toString() === firmId.toString()
+        : (event.organizer.toString() === userId || event.createdBy.toString() === userId);
+
+    if (!canDelete) {
         throw CustomException('Only the organizer can delete this event', 403);
     }
 
@@ -738,6 +758,7 @@ const updateActionItem = asyncHandler(async (req, res) => {
 const getCalendarEvents = asyncHandler(async (req, res) => {
     const { startDate, endDate, caseId, type, status } = req.query;
     const userId = req.userID;
+    const firmId = req.firmId; // From firmFilter middleware
 
     if (!startDate || !endDate) {
         throw CustomException('Start date and end date are required', 400);
@@ -747,7 +768,7 @@ const getCalendarEvents = asyncHandler(async (req, res) => {
         userId,
         new Date(startDate),
         new Date(endDate),
-        { caseId, type, status }
+        { caseId, type, status, firmId }
     );
 
     res.status(200).json({
@@ -764,8 +785,9 @@ const getCalendarEvents = asyncHandler(async (req, res) => {
 const getUpcomingEvents = asyncHandler(async (req, res) => {
     const { days = 7 } = req.query;
     const userId = req.userID;
+    const firmId = req.firmId; // From firmFilter middleware
 
-    const events = await Event.getUpcoming(userId, parseInt(days));
+    const events = await Event.getUpcoming(userId, parseInt(days), firmId);
 
     res.status(200).json({
         success: true,
@@ -781,6 +803,7 @@ const getUpcomingEvents = asyncHandler(async (req, res) => {
 const getEventsByDate = asyncHandler(async (req, res) => {
     const { date } = req.params;
     const userId = req.userID;
+    const firmId = req.firmId; // From firmFilter middleware
 
     const startOfDay = new Date(date);
     startOfDay.setHours(0, 0, 0, 0);
@@ -788,24 +811,38 @@ const getEventsByDate = asyncHandler(async (req, res) => {
     const endOfDay = new Date(date);
     endOfDay.setHours(23, 59, 59, 999);
 
+    // Build query - firmId first, then user-based
+    const eventQuery = firmId
+        ? { firmId }
+        : {
+            $or: [
+                { createdBy: userId },
+                { organizer: userId },
+                { 'attendees.userId': userId }
+            ]
+        };
+
     const events = await Event.find({
-        $or: [
-            { createdBy: userId },
-            { organizer: userId },
-            { 'attendees.userId': userId }
-        ],
+        ...eventQuery,
         startDateTime: { $gte: startOfDay, $lte: endOfDay }
     })
         .populate('organizer', 'firstName lastName image')
         .populate('caseId', 'title caseNumber')
         .sort({ startDateTime: 1 });
 
+    // Build task query - firmId first, then user-based
+    const taskQuery = firmId
+        ? { firmId }
+        : {
+            $or: [
+                { assignedTo: userId },
+                { createdBy: userId }
+            ]
+        };
+
     // Get tasks due on this date
     const tasks = await Task.find({
-        $or: [
-            { assignedTo: userId },
-            { createdBy: userId }
-        ],
+        ...taskQuery,
         dueDate: { $gte: startOfDay, $lte: endOfDay },
         status: { $nin: ['done', 'canceled'] }
     })
@@ -825,16 +862,24 @@ const getEventsByDate = asyncHandler(async (req, res) => {
 const getEventsByMonth = asyncHandler(async (req, res) => {
     const { year, month } = req.params;
     const userId = req.userID;
+    const firmId = req.firmId; // From firmFilter middleware
 
     const startDate = new Date(year, month - 1, 1);
     const endDate = new Date(year, month, 0, 23, 59, 59);
 
+    // Build query - firmId first, then user-based
+    const baseQuery = firmId
+        ? { firmId }
+        : {
+            $or: [
+                { createdBy: userId },
+                { organizer: userId },
+                { 'attendees.userId': userId }
+            ]
+        };
+
     const events = await Event.find({
-        $or: [
-            { createdBy: userId },
-            { organizer: userId },
-            { 'attendees.userId': userId }
-        ],
+        ...baseQuery,
         startDateTime: { $gte: startDate, $lte: endDate }
     })
         .populate('organizer', 'firstName lastName image')
@@ -864,8 +909,9 @@ const getEventsByMonth = asyncHandler(async (req, res) => {
 const getEventStats = asyncHandler(async (req, res) => {
     const { startDate, endDate } = req.query;
     const userId = req.userID;
+    const firmId = req.firmId; // From firmFilter middleware
 
-    const stats = await Event.getStats(userId, { startDate, endDate });
+    const stats = await Event.getStats(userId, { startDate, endDate, firmId });
 
     res.status(200).json({
         success: true,

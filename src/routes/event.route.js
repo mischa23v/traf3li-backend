@@ -1,6 +1,6 @@
 const express = require('express');
 const multer = require('multer');
-const { userMiddleware } = require('../middlewares');
+const { userMiddleware, firmFilter } = require('../middlewares');
 const {
     createEvent,
     getEvents,
@@ -45,40 +45,40 @@ const icsUpload = multer({
 });
 
 // Static routes (must be before parameterized routes)
-app.get('/stats', userMiddleware, getEventStats);
-app.get('/calendar', userMiddleware, getCalendarEvents);
-app.get('/upcoming', userMiddleware, getUpcomingEvents);
-app.get('/month/:year/:month', userMiddleware, getEventsByMonth);
-app.get('/date/:date', userMiddleware, getEventsByDate);
-app.post('/availability', userMiddleware, checkAvailability);
-app.post('/import/ics', userMiddleware, icsUpload.single('file'), importEventsFromICS);
+app.get('/stats', userMiddleware, firmFilter, getEventStats);
+app.get('/calendar', userMiddleware, firmFilter, getCalendarEvents);
+app.get('/upcoming', userMiddleware, firmFilter, getUpcomingEvents);
+app.get('/month/:year/:month', userMiddleware, firmFilter, getEventsByMonth);
+app.get('/date/:date', userMiddleware, firmFilter, getEventsByDate);
+app.post('/availability', userMiddleware, firmFilter, checkAvailability);
+app.post('/import/ics', userMiddleware, firmFilter, icsUpload.single('file'), importEventsFromICS);
 
 // Event CRUD
-app.post('/', userMiddleware, createEvent);
-app.get('/', userMiddleware, getEvents);
-app.get('/:id', userMiddleware, getEvent);
-app.get('/:id/export/ics', userMiddleware, exportEventToICS);
-app.put('/:id', userMiddleware, updateEvent);
-app.patch('/:id', userMiddleware, updateEvent);
-app.delete('/:id', userMiddleware, deleteEvent);
+app.post('/', userMiddleware, firmFilter, createEvent);
+app.get('/', userMiddleware, firmFilter, getEvents);
+app.get('/:id', userMiddleware, firmFilter, getEvent);
+app.get('/:id/export/ics', userMiddleware, firmFilter, exportEventToICS);
+app.put('/:id', userMiddleware, firmFilter, updateEvent);
+app.patch('/:id', userMiddleware, firmFilter, updateEvent);
+app.delete('/:id', userMiddleware, firmFilter, deleteEvent);
 
 // Event actions
-app.post('/:id/complete', userMiddleware, completeEvent);
-app.post('/:id/cancel', userMiddleware, cancelEvent);
-app.post('/:id/postpone', userMiddleware, postponeEvent);
+app.post('/:id/complete', userMiddleware, firmFilter, completeEvent);
+app.post('/:id/cancel', userMiddleware, firmFilter, cancelEvent);
+app.post('/:id/postpone', userMiddleware, firmFilter, postponeEvent);
 
 // Attendee management
-app.post('/:id/attendees', userMiddleware, addAttendee);
-app.delete('/:id/attendees/:attendeeId', userMiddleware, removeAttendee);
-app.post('/:id/rsvp', userMiddleware, rsvpEvent);
+app.post('/:id/attendees', userMiddleware, firmFilter, addAttendee);
+app.delete('/:id/attendees/:attendeeId', userMiddleware, firmFilter, removeAttendee);
+app.post('/:id/rsvp', userMiddleware, firmFilter, rsvpEvent);
 
 // Agenda management
-app.post('/:id/agenda', userMiddleware, addAgendaItem);
-app.put('/:id/agenda/:agendaId', userMiddleware, updateAgendaItem);
-app.delete('/:id/agenda/:agendaId', userMiddleware, deleteAgendaItem);
+app.post('/:id/agenda', userMiddleware, firmFilter, addAgendaItem);
+app.put('/:id/agenda/:agendaId', userMiddleware, firmFilter, updateAgendaItem);
+app.delete('/:id/agenda/:agendaId', userMiddleware, firmFilter, deleteAgendaItem);
 
 // Action items
-app.post('/:id/action-items', userMiddleware, addActionItem);
-app.put('/:id/action-items/:itemId', userMiddleware, updateActionItem);
+app.post('/:id/action-items', userMiddleware, firmFilter, addActionItem);
+app.put('/:id/action-items/:itemId', userMiddleware, firmFilter, updateActionItem);
 
 module.exports = app;
