@@ -448,25 +448,113 @@ leadSchema.statics.getNeedingFollowUp = async function(lawyerId, limit = 20) {
 // INSTANCE METHODS
 // ═══════════════════════════════════════════════════════════════
 
-// Convert lead to client
-leadSchema.methods.convertToClient = async function(userId) {
+// Convert lead to client (comprehensive field transfer)
+leadSchema.methods.convertToClient = async function(userId, options = {}) {
     const Client = mongoose.model('Client');
+    const Case = mongoose.model('Case');
 
-    // Create client from lead data
+    // ═══════════════════════════════════════════════════════════════
+    // COMPREHENSIVE FIELD MAPPING: Lead → Client
+    // All shared fields transfer automatically - NO DUPLICATE ENTRY
+    // ═══════════════════════════════════════════════════════════════
     const clientData = {
-        name: this.type === 'company' ? this.companyName : `${this.firstName} ${this.lastName}`,
+        lawyerId: this.lawyerId,
+        leadId: this._id,
+        createdBy: userId,
+
+        // Client Type
+        clientType: this.type === 'company' ? 'company' : 'individual',
+
+        // Individual fields
+        firstName: this.firstName,
+        lastName: this.lastName,
+        fullNameArabic: this.type === 'individual' ? `${this.firstName || ''} ${this.lastName || ''}`.trim() : undefined,
+
+        // Company fields
+        companyName: this.companyName,
+        companyNameArabic: this.companyNameAr,
+        crNumber: this.commercialRegistration,
+
+        // Contact info
         email: this.email,
         phone: this.phone,
-        type: this.type === 'company' ? 'company' : 'individual',
-        nationalId: this.nationalId,
-        commercialRegistration: this.commercialRegistration,
+        alternatePhone: this.alternatePhone,
+        whatsapp: this.whatsapp,
+
+        // Address
         address: this.address,
-        lawyerId: this.lawyerId,
-        source: this.source?.type || 'external',
-        notes: this.notes
+
+        // IDs
+        nationalId: this.nationalId,
+
+        // Source tracking
+        clientSource: this.source?.type || 'referral',
+        referralId: this.source?.referralId,
+
+        // Notes
+        notes: this.notes,
+        tags: this.tags,
+
+        // Billing (from lead's proposed fee)
+        billing: this.proposedFeeType ? {
+            type: this.proposedFeeType === 'fixed' ? 'flat_fee' : this.proposedFeeType,
+            hourlyRate: this.proposedFeeType === 'hourly' ? this.proposedAmount : undefined,
+            flatFee: this.proposedFeeType === 'fixed' ? this.proposedAmount : undefined,
+            retainerAmount: this.proposedFeeType === 'retainer' ? this.proposedAmount : undefined
+        } : undefined,
+
+        // Assignments (from lead assignment)
+        assignments: this.assignedTo ? {
+            responsibleLawyerId: this.assignedTo
+        } : undefined,
+
+        // Initial status
+        status: 'active'
     };
 
+    // Remove undefined fields
+    Object.keys(clientData).forEach(key => {
+        if (clientData[key] === undefined) delete clientData[key];
+    });
+
+    // Create client
     const client = await Client.create(clientData);
+
+    // ═══════════════════════════════════════════════════════════════
+    // OPTIONAL: Create Case from Lead's Intake Info
+    // ═══════════════════════════════════════════════════════════════
+    let createdCase = null;
+    if (options.createCase && this.intake) {
+        const caseData = {
+            lawyerId: this.lawyerId,
+            clientId: client._id,
+            title: options.caseTitle || this.intake.caseDescription || `قضية ${client.displayName || client.companyName}`,
+            description: this.intake.currentStatus,
+            category: this.intake.caseType || 'other',
+            priority: this.intake.urgency === 'urgent' ? 'critical' :
+                      this.intake.urgency === 'high' ? 'high' :
+                      this.intake.urgency === 'low' ? 'low' : 'medium',
+            claimAmount: this.intake.estimatedValue || this.estimatedValue,
+            court: this.intake.courtName,
+            status: 'active',
+            source: 'external',
+            notes: this.intake.desiredOutcome ? [{
+                text: `الهدف المطلوب: ${this.intake.desiredOutcome}`,
+                createdBy: userId,
+                createdAt: new Date()
+            }] : []
+        };
+
+        // Handle opposing party
+        if (this.intake.opposingParty) {
+            caseData.laborCaseDetails = {
+                company: { name: this.intake.opposingParty }
+            };
+        }
+
+        createdCase = await Case.create(caseData);
+        this.caseId = createdCase._id;
+    }
 
     // Update lead
     this.convertedToClient = true;
@@ -477,7 +565,7 @@ leadSchema.methods.convertToClient = async function(userId) {
     this.actualCloseDate = new Date();
     await this.save();
 
-    return client;
+    return { client, case: createdCase };
 };
 
 // Update status with history

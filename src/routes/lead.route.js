@@ -25,6 +25,7 @@ router.post('/:id/status', leadController.updateStatus);
 router.post('/:id/move', leadController.moveToStage);
 
 // Conversion
+router.get('/:id/conversion-preview', leadController.previewConversion);
 router.post('/:id/convert', leadController.convertToClient);
 
 // Activities

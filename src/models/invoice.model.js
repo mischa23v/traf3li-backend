@@ -119,7 +119,7 @@ const invoiceSchema = new Schema({
     // ============ CLIENT & CASE ============
     clientId: {
         type: Schema.Types.ObjectId,
-        ref: 'User',
+        ref: 'Client',
         required: true,
         index: true
     },

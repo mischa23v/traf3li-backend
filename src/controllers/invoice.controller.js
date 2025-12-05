@@ -1524,6 +1524,218 @@ const generatePDF = asyncHandler(async (req, res) => {
     });
 });
 
+// ============ UNIFIED DATA ENDPOINTS ============
+
+/**
+ * Get billable items (unbilled time entries, expenses, tasks)
+ * GET /api/invoices/billable-items
+ *
+ * This endpoint aggregates all unbilled items from various sources
+ * to enable seamless invoice creation without duplicate data entry.
+ *
+ * Query params:
+ * - clientId: Filter by client
+ * - caseId: Filter by case
+ * - startDate: Filter items from this date
+ * - endDate: Filter items until this date
+ */
+const getBillableItems = asyncHandler(async (req, res) => {
+    const { clientId, caseId, startDate, endDate } = req.query;
+    const lawyerId = req.userID;
+
+    // Build date filter
+    const dateFilter = {};
+    if (startDate) dateFilter.$gte = new Date(startDate);
+    if (endDate) dateFilter.$lte = new Date(endDate);
+
+    // Base query
+    const baseQuery = { lawyerId: new mongoose.Types.ObjectId(lawyerId) };
+    if (clientId) baseQuery.clientId = new mongoose.Types.ObjectId(clientId);
+    if (caseId) baseQuery.caseId = new mongoose.Types.ObjectId(caseId);
+
+    // Get unbilled time entries
+    const TimeEntry = mongoose.model('TimeEntry');
+    const timeQuery = {
+        ...baseQuery,
+        isBillable: true,
+        isBilled: false,
+        status: { $in: ['approved', 'draft'] }
+    };
+    if (Object.keys(dateFilter).length > 0) timeQuery.date = dateFilter;
+
+    const timeEntries = await TimeEntry.find(timeQuery)
+        .populate('caseId', 'title caseNumber')
+        .populate('clientId', 'fullNameArabic companyName clientNumber')
+        .sort({ date: -1 })
+        .lean();
+
+    // Get unbilled expenses
+    const Expense = mongoose.model('Expense');
+    const expenseQuery = {
+        ...baseQuery,
+        isBillable: true,
+        isBilled: false,
+        status: { $nin: ['rejected', 'cancelled'] }
+    };
+    if (Object.keys(dateFilter).length > 0) expenseQuery.date = dateFilter;
+
+    const expenses = await Expense.find(expenseQuery)
+        .populate('caseId', 'title caseNumber')
+        .populate('clientId', 'fullNameArabic companyName clientNumber')
+        .sort({ date: -1 })
+        .lean();
+
+    // Get billable tasks (completed tasks with billing info)
+    const Task = mongoose.model('Task');
+    const taskQuery = {
+        ...baseQuery,
+        'billing.isBillable': true,
+        'billing.isBilled': false,
+        status: 'completed'
+    };
+
+    const tasks = await Task.find(taskQuery)
+        .populate('caseId', 'title caseNumber')
+        .select('title billing dueDate completedAt caseId')
+        .sort({ completedAt: -1 })
+        .lean();
+
+    // Get billable events (attended events with billing info)
+    const Event = mongoose.model('Event');
+    const eventQuery = {
+        ...baseQuery,
+        'billing.isBillable': true,
+        'billing.isBilled': false,
+        status: 'completed'
+    };
+
+    const events = await Event.find(eventQuery)
+        .populate('caseId', 'title caseNumber')
+        .select('title billing startTime endTime caseId eventType')
+        .sort({ startTime: -1 })
+        .lean();
+
+    // Format items for invoice creation
+    const billableItems = {
+        timeEntries: timeEntries.map(entry => ({
+            type: 'time',
+            id: entry._id,
+            date: entry.date,
+            description: entry.description,
+            quantity: entry.hours || (entry.duration / 60),
+            unitPrice: entry.hourlyRate,
+            totalAmount: entry.totalAmount,
+            caseId: entry.caseId?._id,
+            caseName: entry.caseId?.title,
+            caseNumber: entry.caseId?.caseNumber,
+            clientId: entry.clientId?._id,
+            clientName: entry.clientId?.fullNameArabic || entry.clientId?.companyName,
+            activityCode: entry.activityCode,
+            taskType: entry.taskType
+        })),
+        expenses: expenses.map(expense => ({
+            type: 'expense',
+            id: expense._id,
+            date: expense.date,
+            description: expense.description,
+            quantity: 1,
+            unitPrice: expense.amount,
+            totalAmount: expense.amount,
+            caseId: expense.caseId?._id,
+            caseName: expense.caseId?.title,
+            caseNumber: expense.caseId?.caseNumber,
+            clientId: expense.clientId?._id,
+            clientName: expense.clientId?.fullNameArabic || expense.clientId?.companyName,
+            category: expense.category,
+            receiptUrl: expense.receiptUrl
+        })),
+        tasks: tasks.map(task => ({
+            type: 'flat_fee',
+            id: task._id,
+            date: task.completedAt || task.dueDate,
+            description: task.title,
+            quantity: 1,
+            unitPrice: task.billing?.amount || 0,
+            totalAmount: task.billing?.amount || 0,
+            caseId: task.caseId?._id,
+            caseName: task.caseId?.title,
+            caseNumber: task.caseId?.caseNumber
+        })),
+        events: events.map(event => ({
+            type: 'time',
+            id: event._id,
+            date: event.startTime,
+            description: `${event.eventType || 'اجتماع'}: ${event.title}`,
+            quantity: event.billing?.hours || 1,
+            unitPrice: event.billing?.hourlyRate || 0,
+            totalAmount: event.billing?.amount || 0,
+            caseId: event.caseId?._id,
+            caseName: event.caseId?.title,
+            caseNumber: event.caseId?.caseNumber
+        }))
+    };
+
+    // Calculate totals
+    const totals = {
+        timeEntries: {
+            count: billableItems.timeEntries.length,
+            totalHours: billableItems.timeEntries.reduce((sum, e) => sum + (e.quantity || 0), 0),
+            totalAmount: billableItems.timeEntries.reduce((sum, e) => sum + (e.totalAmount || 0), 0)
+        },
+        expenses: {
+            count: billableItems.expenses.length,
+            totalAmount: billableItems.expenses.reduce((sum, e) => sum + (e.totalAmount || 0), 0)
+        },
+        tasks: {
+            count: billableItems.tasks.length,
+            totalAmount: billableItems.tasks.reduce((sum, e) => sum + (e.totalAmount || 0), 0)
+        },
+        events: {
+            count: billableItems.events.length,
+            totalAmount: billableItems.events.reduce((sum, e) => sum + (e.totalAmount || 0), 0)
+        },
+        grandTotal: 0
+    };
+
+    totals.grandTotal = totals.timeEntries.totalAmount +
+                        totals.expenses.totalAmount +
+                        totals.tasks.totalAmount +
+                        totals.events.totalAmount;
+
+    res.json({
+        success: true,
+        data: billableItems,
+        totals
+    });
+});
+
+/**
+ * Get open invoices for a client (for payment allocation)
+ * GET /api/invoices/open/:clientId
+ */
+const getOpenInvoices = asyncHandler(async (req, res) => {
+    const { clientId } = req.params;
+    const lawyerId = req.userID;
+
+    const invoices = await Invoice.find({
+        lawyerId,
+        clientId,
+        status: { $in: ['sent', 'viewed', 'partial', 'overdue'] },
+        balanceDue: { $gt: 0 }
+    })
+    .select('invoiceNumber issueDate dueDate totalAmount amountPaid balanceDue status')
+    .sort({ dueDate: 1 })
+    .lean();
+
+    const totalOutstanding = invoices.reduce((sum, inv) => sum + inv.balanceDue, 0);
+
+    res.json({
+        success: true,
+        data: invoices,
+        totalOutstanding
+    });
+});
+
 module.exports = {
     // CRUD
     createInvoice,
@@ -1560,5 +1772,9 @@ module.exports = {
 
     // Export
     generateXML,
-    generatePDF
+    generatePDF,
+
+    // Unified Data (No duplicate entry)
+    getBillableItems,
+    getOpenInvoices
 };

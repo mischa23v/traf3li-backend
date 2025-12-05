@@ -56,7 +56,11 @@ const {
 
     // Export
     generateXML,
-    generatePDF
+    generatePDF,
+
+    // Unified Data
+    getBillableItems,
+    getOpenInvoices
 } = require('../controllers/invoice.controller');
 const { recordInvoicePayment } = require('../controllers/payment.controller');
 
@@ -75,6 +79,20 @@ router.get('/stats',
 router.get('/overdue',
     userMiddleware,
     getOverdueInvoices
+);
+
+// ============ UNIFIED DATA (No Duplicate Entry) ============
+
+// Get billable items (unbilled time entries, expenses, tasks)
+router.get('/billable-items',
+    userMiddleware,
+    getBillableItems
+);
+
+// Get open invoices for a client (for payment allocation)
+router.get('/open/:clientId',
+    userMiddleware,
+    getOpenInvoices
 );
 
 // Confirm payment (Stripe webhook - no validation needed for webhook)

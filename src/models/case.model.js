@@ -13,7 +13,7 @@ const caseSchema = new mongoose.Schema({
     },
     clientId: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'User',
+        ref: 'Client',
         required: false  // Optional for external cases
     },
     clientName: {

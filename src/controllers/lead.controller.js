@@ -365,8 +365,76 @@ exports.moveToStage = async (req, res) => {
 // LEAD CONVERSION
 // ============================================
 
-// Convert lead to client
+// Convert lead to client (with optional case creation)
 exports.convertToClient = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const lawyerId = req.userID;
+        const { createCase, caseTitle } = req.body;
+
+        const lead = await Lead.findOne({
+            $or: [{ _id: id }, { leadId: id }],
+            lawyerId,
+            convertedToClient: false
+        });
+
+        if (!lead) {
+            return res.status(404).json({
+                success: false,
+                message: 'Lead not found or already converted'
+            });
+        }
+
+        // Convert with options for case creation
+        const result = await lead.convertToClient(lawyerId, {
+            createCase: createCase || false,
+            caseTitle
+        });
+
+        const { client, case: createdCase } = result;
+
+        // Log activity
+        await CrmActivity.logActivity({
+            lawyerId,
+            type: 'lead_converted',
+            entityType: 'lead',
+            entityId: lead._id,
+            entityName: lead.displayName,
+            title: `Lead converted to client${createdCase ? ' with case' : ''}`,
+            secondaryEntityType: 'client',
+            secondaryEntityId: client._id,
+            secondaryEntityName: client.displayName || client.companyName,
+            performedBy: lawyerId
+        });
+
+        // Update pipeline stats
+        if (lead.pipelineId) {
+            await Pipeline.updateStats(lead.pipelineId);
+        }
+
+        res.json({
+            success: true,
+            message: createdCase
+                ? 'تم تحويل العميل المحتمل إلى عميل مع إنشاء قضية'
+                : 'تم تحويل العميل المحتمل إلى عميل بنجاح',
+            data: {
+                lead,
+                client,
+                case: createdCase
+            }
+        });
+    } catch (error) {
+        console.error('Error converting lead:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error converting lead to client',
+            error: error.message
+        });
+    }
+};
+
+// Preview conversion data (shows what will be transferred)
+exports.previewConversion = async (req, res) => {
     try {
         const { id } = req.params;
         const lawyerId = req.userID;
@@ -384,40 +452,48 @@ exports.convertToClient = async (req, res) => {
             });
         }
 
-        const client = await lead.convertToClient(lawyerId);
-
-        // Log activity
-        await CrmActivity.logActivity({
-            lawyerId,
-            type: 'lead_converted',
-            entityType: 'lead',
-            entityId: lead._id,
-            entityName: lead.displayName,
-            title: `Lead converted to client`,
-            secondaryEntityType: 'client',
-            secondaryEntityId: client._id,
-            secondaryEntityName: client.name,
-            performedBy: lawyerId
-        });
-
-        // Update pipeline stats
-        if (lead.pipelineId) {
-            await Pipeline.updateStats(lead.pipelineId);
-        }
+        // Preview what data will be transferred
+        const preview = {
+            clientData: {
+                clientType: lead.type === 'company' ? 'company' : 'individual',
+                displayName: lead.type === 'company'
+                    ? lead.companyName
+                    : `${lead.firstName || ''} ${lead.lastName || ''}`.trim(),
+                email: lead.email,
+                phone: lead.phone,
+                alternatePhone: lead.alternatePhone,
+                whatsapp: lead.whatsapp,
+                nationalId: lead.nationalId,
+                crNumber: lead.commercialRegistration,
+                address: lead.address,
+                proposedBilling: lead.proposedFeeType ? {
+                    type: lead.proposedFeeType,
+                    amount: lead.proposedAmount
+                } : null
+            },
+            caseData: lead.intake ? {
+                canCreateCase: true,
+                suggestedTitle: lead.intake.caseDescription || `قضية ${lead.displayName}`,
+                caseType: lead.intake.caseType,
+                urgency: lead.intake.urgency,
+                estimatedValue: lead.intake.estimatedValue || lead.estimatedValue,
+                opposingParty: lead.intake.opposingParty,
+                court: lead.intake.courtName
+            } : {
+                canCreateCase: false,
+                reason: 'No intake information available'
+            }
+        };
 
         res.json({
             success: true,
-            message: 'Lead converted to client successfully',
-            data: {
-                lead,
-                client
-            }
+            data: preview
         });
     } catch (error) {
-        console.error('Error converting lead:', error);
+        console.error('Error previewing conversion:', error);
         res.status(500).json({
             success: false,
-            message: 'Error converting lead to client',
+            message: 'Error previewing conversion',
             error: error.message
         });
     }
