@@ -1,5 +1,91 @@
 const mongoose = require('mongoose');
 
+// ═══════════════════════════════════════════════════════════════
+// EXPENSE CATEGORIES ENUM
+// ═══════════════════════════════════════════════════════════════
+const EXPENSE_CATEGORIES = [
+    // Office
+    'office_supplies',      // مستلزمات مكتبية
+    'software',             // برمجيات واشتراكات
+    'hardware',             // أجهزة ومعدات
+    // Travel
+    'travel',               // سفر
+    'accommodation',        // إقامة
+    'meals',                // وجبات
+    'transportation',       // مواصلات
+    'fuel',                 // وقود
+    'parking',              // مواقف
+    // Legal
+    'court_fees',           // رسوم محكمة
+    'government_fees',      // رسوم حكومية
+    'legal_fees',           // رسوم قانونية
+    // Professional
+    'professional_services', // خدمات مهنية
+    'accounting',           // محاسبة
+    'consulting',           // استشارات
+    // Operational
+    'rent',                 // إيجار
+    'utilities',            // مرافق
+    'telecommunications',   // اتصالات
+    'maintenance',          // صيانة
+    'cleaning',             // نظافة
+    'security',             // أمن
+    // Marketing/HR
+    'marketing',            // تسويق
+    'training',             // تدريب
+    'recruitment',          // توظيف
+    // Other
+    'insurance',            // تأمين
+    'bank_charges',         // رسوم بنكية
+    'postage',              // بريد
+    'printing',             // طباعة
+    'subscriptions',        // اشتراكات
+    'entertainment',        // ترفيه
+    'donations',            // تبرعات
+    'other',                // أخرى
+    // Legacy categories for backward compatibility
+    'office', 'hospitality', 'government', 'filing_fees',
+    'expert_witness', 'investigation', 'documents', 'research',
+    'telephone', 'mileage', 'transport', 'equipment', 'communication'
+];
+
+// Payment methods
+const PAYMENT_METHODS = [
+    'cash',
+    'company_card',
+    'personal_card',
+    'debit_card',
+    'bank_transfer',
+    'check',
+    'petty_cash',
+    'direct_billing',
+    // Legacy
+    'card', 'debit', 'transfer'
+];
+
+// Trip purposes
+const TRIP_PURPOSES = [
+    'client_meeting',
+    'court_appearance',
+    'conference',
+    'training',
+    'business_development',
+    'site_visit',
+    'other'
+];
+
+// Government entities
+const GOVERNMENT_ENTITIES = [
+    'moj',    // Ministry of Justice
+    'moci',   // Ministry of Commerce
+    'mol',    // Ministry of Labor
+    'moi',    // Ministry of Interior
+    'mof',    // Ministry of Finance
+    'zatca',  // Zakat, Tax and Customs Authority
+    'sama',   // Saudi Arabian Monetary Authority
+    'other'
+];
+
 const expenseSchema = new mongoose.Schema({
     // ═══════════════════════════════════════════════════════════════
     // FIRM (Multi-Tenancy)
@@ -11,80 +97,47 @@ const expenseSchema = new mongoose.Schema({
         required: false  // Optional for backwards compatibility
     },
 
+    // ═══════════════════════════════════════════════════════════════
+    // BASIC INFO
+    // ═══════════════════════════════════════════════════════════════
     expenseId: {
         type: String,
         unique: true,
         index: true
     },
-    // Accounting: GL account for this expense
-    expenseAccountId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Account'
-    },
-    // Accounting: Bank/Cash account used
-    bankAccountId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Account'
-    },
-    // GL entry ID for this expense
-    glEntryId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'GeneralLedger'
+    // Alias for API compatibility
+    expenseNumber: {
+        type: String,
+        index: true
     },
     description: {
         type: String,
         required: true,
+        minlength: 10,
         maxlength: 500,
         trim: true
     },
+    // Amount in halalas (SAR subunit)
     amount: {
         type: Number,
         required: true,
         min: 0
     },
-    currency: {
-        type: String,
-        default: 'SAR'
+    taxAmount: {
+        type: Number,
+        default: 0,
+        min: 0
+    },
+    // Calculated: amount + taxAmount
+    totalAmount: {
+        type: Number,
+        default: 0
     },
     category: {
         type: String,
-        enum: [
-            'office_supplies',      // مستلزمات مكتبية
-            'travel',               // سفر وانتقالات
-            'transport',            // مواصلات
-            'meals',                // وجبات وضيافة
-            'software',             // برمجيات واشتراكات
-            'equipment',            // معدات وأجهزة
-            'communication',        // اتصالات
-            'government_fees',      // رسوم حكومية
-            'professional_services', // خدمات مهنية
-            'marketing',            // تسويق وإعلان
-            'training',             // تدريب وتطوير
-            // Legacy categories for backward compatibility
-            'office', 'hospitality', 'government', 'court_fees', 'filing_fees',
-            'expert_witness', 'investigation', 'accommodation', 'postage',
-            'printing', 'consultation', 'documents', 'research', 'telephone', 'mileage',
-            'other'
-        ],
+        enum: EXPENSE_CATEGORIES,
         required: true,
         default: 'other'
-    },
-    lawyerId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'User',
-        required: true,
-        index: true
-    },
-    clientId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'User',
-        index: true
-    },
-    caseId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Case',
-        required: false,
-        index: true
     },
     date: {
         type: Date,
@@ -93,51 +146,64 @@ const expenseSchema = new mongoose.Schema({
     },
     paymentMethod: {
         type: String,
-        enum: ['cash', 'card', 'debit', 'transfer', 'check', 'petty_cash'],
+        enum: PAYMENT_METHODS,
         default: 'cash'
-    },
-    // NEW FIELDS per API spec
-    expenseType: {
-        type: String,
-        enum: ['company', 'personal'],
-        default: 'company'
-    },
-    taxAmount: {
-        type: Number,
-        default: 0
-    },
-    receiptNumber: {
-        type: String,
-        default: null
-    },
-    status: {
-        type: String,
-        enum: ['draft', 'pending_approval', 'approved', 'invoiced', 'rejected'],
-        default: 'draft',
-        index: true
     },
     vendor: {
         type: String,
         trim: true
     },
-    receiptUrl: {
-        type: String
-    },
-    hasReceipt: {
-        type: Boolean,
-        default: false
-    },
-    notes: {
+    receiptNumber: {
         type: String,
-        maxlength: 1000
+        trim: true
     },
+    currency: {
+        type: String,
+        default: 'SAR'
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // EXPENSE TYPE (Reimbursable vs Non-Reimbursable)
+    // ═══════════════════════════════════════════════════════════════
+    expenseType: {
+        type: String,
+        enum: ['reimbursable', 'non_reimbursable', 'company', 'personal'],
+        default: 'non_reimbursable'
+    },
+    employeeId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Employee',
+        index: true
+    },
+    reimbursementStatus: {
+        type: String,
+        enum: ['pending', 'approved', 'paid', 'rejected'],
+        default: 'pending'
+    },
+    reimbursedAmount: {
+        type: Number,
+        default: 0
+    },
+    reimbursedAt: {
+        type: Date
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // BILLABLE
+    // ═══════════════════════════════════════════════════════════════
     isBillable: {
         type: Boolean,
         default: true
     },
-    billableAmount: {
-        type: Number,
-        default: 0
+    clientId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Client',
+        index: true
+    },
+    caseId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Case',
+        index: true
     },
     markupType: {
         type: String,
@@ -148,29 +214,146 @@ const expenseSchema = new mongoose.Schema({
         type: Number,
         default: 0
     },
-    isReimbursable: {
-        type: Boolean,
-        default: false
-    },
-    reimbursementStatus: {
-        type: String,
-        enum: ['pending', 'approved', 'paid'],
-        default: 'pending'
-    },
-    reimbursedAmount: {
+    billableAmount: {
         type: Number,
         default: 0
     },
-    reimbursedAt: {
-        type: Date
+    billingStatus: {
+        type: String,
+        enum: ['unbilled', 'billed', 'invoiced'],
+        default: 'unbilled'
     },
     invoiceId: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'Invoice'
+        ref: 'Invoice',
+        index: true
     },
     invoicedAt: {
         type: Date
     },
+
+    // ═══════════════════════════════════════════════════════════════
+    // TAX DETAILS
+    // ═══════════════════════════════════════════════════════════════
+    taxRate: {
+        type: Number,
+        default: 15,  // Saudi VAT rate
+        min: 0,
+        max: 100
+    },
+    taxReclaimable: {
+        type: Boolean,
+        default: false
+    },
+    vendorTaxNumber: {
+        type: String,
+        trim: true,
+        validate: {
+            validator: function(v) {
+                if (!v) return true;
+                return /^[0-9]{15}$/.test(v);
+            },
+            message: 'Vendor tax number must be 15 digits'
+        }
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // TRAVEL DETAILS (when category = travel)
+    // ═══════════════════════════════════════════════════════════════
+    travelDetails: {
+        purpose: {
+            type: String,
+            enum: TRIP_PURPOSES
+        },
+        departureLocation: String,
+        destination: String,
+        departureDate: Date,
+        returnDate: Date,
+        numberOfDays: Number,
+        attendees: [{
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'User'
+        }],
+        mileage: {
+            distance: Number,           // in KM
+            rate: Number,               // SAR per KM
+            amount: Number,             // Calculated
+            vehicle: {
+                type: String,
+                enum: ['company_car', 'personal_car', 'rental']
+            },
+            registration: String
+        },
+        perDiem: {
+            enabled: {
+                type: Boolean,
+                default: false
+            },
+            rate: Number,               // Daily rate
+            days: Number,
+            amount: Number,             // Calculated
+            actualMealCost: Number      // If exceeds per diem
+        }
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // GOVERNMENT REFERENCE (for legal/court fees)
+    // ═══════════════════════════════════════════════════════════════
+    governmentReference: {
+        transactionNumber: String,
+        courtCaseNumber: String,
+        entity: {
+            type: String,
+            enum: GOVERNMENT_ENTITIES
+        }
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // ORGANIZATION
+    // ═══════════════════════════════════════════════════════════════
+    departmentId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Department',
+        index: true
+    },
+    locationId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Location'
+    },
+    projectId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Project',
+        index: true
+    },
+    costCenterId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'CostCenter'
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // ATTACHMENTS
+    // ═══════════════════════════════════════════════════════════════
+    receipt: {
+        filename: String,
+        url: String,
+        mimeType: String,
+        size: Number
+    },
+    attachments: [{
+        type: {
+            type: String,
+            enum: ['invoice', 'authorization', 'quote', 'other']
+        },
+        filename: String,
+        url: String,
+        size: Number,
+        mimeType: String,
+        uploadedAt: {
+            type: Date,
+            default: Date.now
+        }
+    }],
+    // Legacy receipts array for backwards compatibility
     receipts: [{
         fileName: String,
         fileUrl: String,
@@ -180,16 +363,27 @@ const expenseSchema = new mongoose.Schema({
             default: Date.now
         }
     }],
-    mileage: {
-        distance: Number,
-        unit: {
-            type: String,
-            enum: ['km', 'miles'],
-            default: 'km'
-        },
-        ratePerUnit: Number,
-        startLocation: String,
-        endLocation: String
+    receiptUrl: String,
+    hasReceipt: {
+        type: Boolean,
+        default: false
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // WORKFLOW
+    // ═══════════════════════════════════════════════════════════════
+    status: {
+        type: String,
+        enum: ['draft', 'pending_approval', 'approved', 'rejected', 'paid', 'invoiced'],
+        default: 'draft',
+        index: true
+    },
+    submittedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
+    },
+    submittedAt: {
+        type: Date
     },
     approvedBy: {
         type: mongoose.Schema.Types.ObjectId,
@@ -199,8 +393,25 @@ const expenseSchema = new mongoose.Schema({
         type: Date
     },
     rejectionReason: {
-        type: String
+        type: String,
+        maxlength: 500
     },
+
+    // ═══════════════════════════════════════════════════════════════
+    // NOTES
+    // ═══════════════════════════════════════════════════════════════
+    notes: {
+        type: String,
+        maxlength: 1000
+    },
+    internalNotes: {
+        type: String,
+        maxlength: 1000
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // RECURRING
+    // ═══════════════════════════════════════════════════════════════
     isRecurring: {
         type: Boolean,
         default: false
@@ -212,7 +423,37 @@ const expenseSchema = new mongoose.Schema({
     recurringEndDate: {
         type: Date
     },
+
+    // ═══════════════════════════════════════════════════════════════
+    // ACCOUNTING
+    // ═══════════════════════════════════════════════════════════════
+    expenseAccountId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Account'
+    },
+    bankAccountId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Account'
+    },
+    glEntryId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'GeneralLedger'
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // AUDIT
+    // ═══════════════════════════════════════════════════════════════
+    lawyerId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        required: true,
+        index: true
+    },
     createdBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
+    },
+    updatedBy: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User'
     }
@@ -221,15 +462,22 @@ const expenseSchema = new mongoose.Schema({
     timestamps: true
 });
 
-// Indexes for performance
+// ═══════════════════════════════════════════════════════════════
+// INDEXES
+// ═══════════════════════════════════════════════════════════════
 expenseSchema.index({ caseId: 1, date: -1 });
 expenseSchema.index({ lawyerId: 1, date: -1 });
+expenseSchema.index({ firmId: 1, date: -1 });
 expenseSchema.index({ category: 1 });
 expenseSchema.index({ isBillable: 1, invoiceId: 1 });
 expenseSchema.index({ date: -1 });
 expenseSchema.index({ status: 1, lawyerId: 1 });
+expenseSchema.index({ billingStatus: 1 });
+expenseSchema.index({ expenseType: 1, reimbursementStatus: 1 });
 
-// Generate expense ID and calculate billable amount before saving
+// ═══════════════════════════════════════════════════════════════
+// PRE-SAVE HOOKS
+// ═══════════════════════════════════════════════════════════════
 expenseSchema.pre('save', async function(next) {
     // Generate expense ID
     if (!this.expenseId) {
@@ -243,28 +491,66 @@ expenseSchema.pre('save', async function(next) {
             }
         });
         this.expenseId = `EXP-${year}${month}-${String(count + 1).padStart(4, '0')}`;
+        this.expenseNumber = this.expenseId; // Keep in sync
     }
+
+    // Sync expenseNumber with expenseId
+    if (this.expenseId && !this.expenseNumber) {
+        this.expenseNumber = this.expenseId;
+    }
+
+    // Calculate totalAmount
+    this.totalAmount = (this.amount || 0) + (this.taxAmount || 0);
 
     // Calculate billable amount with markup
     if (this.isBillable) {
         if (this.markupType === 'percentage') {
-            this.billableAmount = this.amount * (1 + this.markupValue / 100);
+            this.billableAmount = this.totalAmount * (1 + (this.markupValue || 0) / 100);
         } else if (this.markupType === 'fixed') {
-            this.billableAmount = this.amount + this.markupValue;
+            this.billableAmount = this.totalAmount + (this.markupValue || 0);
         } else {
-            this.billableAmount = this.amount;
+            this.billableAmount = this.totalAmount;
         }
     } else {
         this.billableAmount = 0;
     }
 
+    // Calculate travel mileage amount if applicable
+    if (this.travelDetails && this.travelDetails.mileage) {
+        const mileage = this.travelDetails.mileage;
+        if (mileage.distance && mileage.rate) {
+            this.travelDetails.mileage.amount = mileage.distance * mileage.rate;
+        }
+    }
+
+    // Calculate per diem amount if applicable
+    if (this.travelDetails && this.travelDetails.perDiem && this.travelDetails.perDiem.enabled) {
+        const perDiem = this.travelDetails.perDiem;
+        if (perDiem.rate && perDiem.days) {
+            this.travelDetails.perDiem.amount = perDiem.rate * perDiem.days;
+        }
+    }
+
+    // Calculate number of travel days
+    if (this.travelDetails && this.travelDetails.departureDate && this.travelDetails.returnDate) {
+        const departure = new Date(this.travelDetails.departureDate);
+        const returnDate = new Date(this.travelDetails.returnDate);
+        const diffTime = Math.abs(returnDate - departure);
+        this.travelDetails.numberOfDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+    }
+
     next();
 });
 
-// Static method: Get expense stats
+// ═══════════════════════════════════════════════════════════════
+// STATIC METHODS
+// ═══════════════════════════════════════════════════════════════
+
+// Get expense stats
 expenseSchema.statics.getExpenseStats = async function(filters = {}) {
     const matchStage = {};
 
+    if (filters.firmId) matchStage.firmId = new mongoose.Types.ObjectId(filters.firmId);
     if (filters.lawyerId) matchStage.lawyerId = new mongoose.Types.ObjectId(filters.lawyerId);
     if (filters.caseId) matchStage.caseId = new mongoose.Types.ObjectId(filters.caseId);
     if (filters.startDate || filters.endDate) {
@@ -278,21 +564,35 @@ expenseSchema.statics.getExpenseStats = async function(filters = {}) {
         {
             $group: {
                 _id: null,
-                totalExpenses: { $sum: '$amount' },
+                totalExpenses: { $sum: '$totalAmount' },
+                totalAmount: { $sum: '$amount' },
+                totalTax: { $sum: '$taxAmount' },
                 billableExpenses: {
-                    $sum: { $cond: ['$isBillable', '$amount', 0] }
+                    $sum: { $cond: ['$isBillable', '$totalAmount', 0] }
                 },
                 nonBillableExpenses: {
-                    $sum: { $cond: ['$isBillable', 0, '$amount'] }
+                    $sum: { $cond: ['$isBillable', 0, '$totalAmount'] }
+                },
+                reimbursableExpenses: {
+                    $sum: {
+                        $cond: [
+                            { $in: ['$expenseType', ['reimbursable', 'personal']] },
+                            '$totalAmount',
+                            0
+                        ]
+                    }
                 },
                 reimbursedExpenses: {
-                    $sum: { $cond: ['$isReimbursed', '$amount', 0] }
+                    $sum: { $cond: [{ $eq: ['$reimbursementStatus', 'paid'] }, '$totalAmount', 0] }
                 },
-                pendingExpenses: {
-                    $sum: { $cond: [{ $eq: ['$status', 'pending'] }, '$amount', 0] }
+                pendingApproval: {
+                    $sum: { $cond: [{ $eq: ['$status', 'pending_approval'] }, '$totalAmount', 0] }
                 },
                 approvedExpenses: {
-                    $sum: { $cond: [{ $eq: ['$status', 'approved'] }, '$amount', 0] }
+                    $sum: { $cond: [{ $eq: ['$status', 'approved'] }, '$totalAmount', 0] }
+                },
+                invoicedExpenses: {
+                    $sum: { $cond: [{ $eq: ['$billingStatus', 'invoiced'] }, '$totalAmount', 0] }
                 },
                 expenseCount: { $sum: 1 }
             }
@@ -301,19 +601,24 @@ expenseSchema.statics.getExpenseStats = async function(filters = {}) {
 
     return stats[0] || {
         totalExpenses: 0,
+        totalAmount: 0,
+        totalTax: 0,
         billableExpenses: 0,
         nonBillableExpenses: 0,
+        reimbursableExpenses: 0,
         reimbursedExpenses: 0,
-        pendingExpenses: 0,
+        pendingApproval: 0,
         approvedExpenses: 0,
+        invoicedExpenses: 0,
         expenseCount: 0
     };
 };
 
-// Static method: Get expenses by category
+// Get expenses by category
 expenseSchema.statics.getExpensesByCategory = async function(filters = {}) {
     const matchStage = {};
 
+    if (filters.firmId) matchStage.firmId = new mongoose.Types.ObjectId(filters.firmId);
     if (filters.lawyerId) matchStage.lawyerId = new mongoose.Types.ObjectId(filters.lawyerId);
     if (filters.caseId) matchStage.caseId = new mongoose.Types.ObjectId(filters.caseId);
     if (filters.startDate || filters.endDate) {
@@ -327,7 +632,7 @@ expenseSchema.statics.getExpensesByCategory = async function(filters = {}) {
         {
             $group: {
                 _id: '$category',
-                total: { $sum: '$amount' },
+                total: { $sum: '$totalAmount' },
                 count: { $sum: 1 }
             }
         },
@@ -343,17 +648,152 @@ expenseSchema.statics.getExpensesByCategory = async function(filters = {}) {
     ]);
 };
 
-// Static method: Mark as reimbursed
-expenseSchema.statics.markAsReimbursed = async function(expenseIds) {
+// Mark as reimbursed
+expenseSchema.statics.markAsReimbursed = async function(expenseIds, userId) {
     return await this.updateMany(
         { _id: { $in: expenseIds } },
         {
             $set: {
-                isReimbursed: true,
-                reimbursedAt: new Date()
+                reimbursementStatus: 'paid',
+                reimbursedAt: new Date(),
+                updatedBy: userId
             }
         }
     );
+};
+
+// Get pending reimbursements
+expenseSchema.statics.getPendingReimbursements = async function(filters = {}) {
+    const matchStage = {
+        expenseType: { $in: ['reimbursable', 'personal'] },
+        reimbursementStatus: { $in: ['pending', 'approved'] }
+    };
+
+    if (filters.firmId) matchStage.firmId = new mongoose.Types.ObjectId(filters.firmId);
+    if (filters.employeeId) matchStage.employeeId = new mongoose.Types.ObjectId(filters.employeeId);
+
+    return await this.aggregate([
+        { $match: matchStage },
+        {
+            $group: {
+                _id: '$employeeId',
+                totalPending: { $sum: '$totalAmount' },
+                count: { $sum: 1 },
+                expenses: { $push: '$$ROOT' }
+            }
+        },
+        {
+            $lookup: {
+                from: 'employees',
+                localField: '_id',
+                foreignField: '_id',
+                as: 'employee'
+            }
+        },
+        { $unwind: { path: '$employee', preserveNullAndEmptyArrays: true } }
+    ]);
+};
+
+// ═══════════════════════════════════════════════════════════════
+// INSTANCE METHODS
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Submit expense for approval
+ */
+expenseSchema.methods.submit = async function(userId) {
+    if (this.status !== 'draft') {
+        throw new Error('Only draft expenses can be submitted');
+    }
+
+    this.status = 'pending_approval';
+    this.submittedBy = userId;
+    this.submittedAt = new Date();
+
+    return await this.save();
+};
+
+/**
+ * Approve expense
+ * @param {ObjectId} userId - User approving the expense
+ * @param {Session} session - MongoDB session for transactions
+ */
+expenseSchema.methods.approve = async function(userId, session = null) {
+    if (this.status === 'approved') {
+        throw new Error('Expense already approved');
+    }
+
+    if (this.status !== 'pending_approval' && this.status !== 'draft') {
+        throw new Error('Only pending expenses can be approved');
+    }
+
+    this.status = 'approved';
+    this.approvedBy = userId;
+    this.approvedAt = new Date();
+
+    // If reimbursable, also approve the reimbursement
+    if (this.expenseType === 'reimbursable' || this.expenseType === 'personal') {
+        this.reimbursementStatus = 'approved';
+    }
+
+    const options = session ? { session } : {};
+    await this.save(options);
+
+    // Post to GL
+    const glEntry = await this.postToGL(session);
+
+    return { expense: this, glEntry };
+};
+
+/**
+ * Reject expense
+ * @param {ObjectId} userId - User rejecting the expense
+ * @param {String} reason - Rejection reason
+ */
+expenseSchema.methods.reject = async function(userId, reason) {
+    if (this.status === 'rejected') {
+        throw new Error('Expense already rejected');
+    }
+
+    if (this.status !== 'pending_approval') {
+        throw new Error('Only pending expenses can be rejected');
+    }
+
+    this.status = 'rejected';
+    this.rejectionReason = reason;
+    this.updatedBy = userId;
+
+    if (this.expenseType === 'reimbursable' || this.expenseType === 'personal') {
+        this.reimbursementStatus = 'rejected';
+    }
+
+    return await this.save();
+};
+
+/**
+ * Mark as reimbursed (paid to employee)
+ * @param {ObjectId} userId - User processing the reimbursement
+ * @param {Number} amount - Optional partial reimbursement amount
+ */
+expenseSchema.methods.reimburse = async function(userId, amount = null) {
+    if (this.reimbursementStatus === 'paid') {
+        throw new Error('Expense already reimbursed');
+    }
+
+    if (this.expenseType !== 'reimbursable' && this.expenseType !== 'personal') {
+        throw new Error('Only reimbursable expenses can be reimbursed');
+    }
+
+    if (this.status !== 'approved') {
+        throw new Error('Expense must be approved before reimbursement');
+    }
+
+    this.reimbursementStatus = 'paid';
+    this.reimbursedAmount = amount || this.totalAmount;
+    this.reimbursedAt = new Date();
+    this.updatedBy = userId;
+
+    return await this.save();
 };
 
 /**
@@ -379,32 +819,51 @@ expenseSchema.methods.postToGL = async function(session = null) {
     // Map expense category to GL account code
     const categoryAccountMap = {
         'office_supplies': '5203',
-        'travel': '5300',
-        'transport': '5301',
-        'meals': '5303',
         'software': '5204',
-        'equipment': '1201',
-        'communication': '5210',
+        'hardware': '1201',
+        'travel': '5300',
+        'accommodation': '5302',
+        'meals': '5303',
+        'transportation': '5301',
+        'fuel': '5304',
+        'parking': '5305',
+        'court_fees': '5401',
         'government_fees': '5401',
+        'legal_fees': '5402',
         'professional_services': '5400',
+        'accounting': '5403',
+        'consulting': '5400',
+        'rent': '5100',
+        'utilities': '5101',
+        'telecommunications': '5210',
+        'maintenance': '5102',
+        'cleaning': '5103',
+        'security': '5104',
         'marketing': '5206',
         'training': '5205',
+        'recruitment': '5207',
+        'insurance': '5500',
+        'bank_charges': '5501',
+        'postage': '5211',
+        'printing': '5203',
+        'subscriptions': '5204',
+        'entertainment': '5303',
+        'donations': '5502',
+        'other': '5600',
+        // Legacy mappings
         'office': '5203',
         'hospitality': '5303',
         'government': '5401',
-        'court_fees': '5401',
         'filing_fees': '5402',
         'expert_witness': '5403',
         'investigation': '5400',
-        'accommodation': '5302',
-        'postage': '5211',
-        'printing': '5203',
-        'consultation': '5400',
+        'transport': '5301',
+        'equipment': '1201',
+        'communication': '5210',
         'documents': '5203',
         'research': '5205',
         'telephone': '5210',
-        'mileage': '5301',
-        'other': '5600'
+        'mileage': '5301'
     };
 
     // Get expense account (use mapped account or default)
@@ -428,12 +887,18 @@ expenseSchema.methods.postToGL = async function(session = null) {
     if (!bankAccountId) {
         // Map payment method to account
         const paymentAccountMap = {
-            'cash': '1101',      // Cash on Hand
+            'cash': '1101',
             'petty_cash': '1101',
-            'card': '1102',     // Bank Account - Main
+            'company_card': '1102',
+            'personal_card': '2100', // Payable to employee
+            'debit_card': '1102',
+            'bank_transfer': '1102',
+            'check': '1102',
+            'direct_billing': '2000',
+            // Legacy
+            'card': '1102',
             'debit': '1102',
-            'transfer': '1102',
-            'check': '1102'
+            'transfer': '1102'
         };
         const accountCode = paymentAccountMap[this.paymentMethod] || '1102';
         const bankAccount = await Account.findOne({ code: accountCode });
@@ -444,7 +909,7 @@ expenseSchema.methods.postToGL = async function(session = null) {
 
     // Convert amount to halalas if needed
     const { toHalalas } = require('../utils/currency');
-    const amount = Number.isInteger(this.amount) ? this.amount : toHalalas(this.amount);
+    const amount = Number.isInteger(this.totalAmount) ? this.totalAmount : toHalalas(this.totalAmount);
 
     // Create GL entry: DR Expense, CR Bank/Cash
     const glEntry = await GeneralLedger.postTransaction({
@@ -465,7 +930,9 @@ expenseSchema.methods.postToGL = async function(session = null) {
             vendor: this.vendor,
             receiptNumber: this.receiptNumber,
             isBillable: this.isBillable,
-            expenseType: this.expenseType
+            expenseType: this.expenseType,
+            taxAmount: this.taxAmount,
+            taxRate: this.taxRate
         },
         createdBy: this.approvedBy || this.lawyerId
     }, session);
@@ -478,27 +945,10 @@ expenseSchema.methods.postToGL = async function(session = null) {
     return glEntry;
 };
 
-/**
- * Approve and post expense to GL
- * @param {ObjectId} userId - User approving the expense
- * @param {Session} session - MongoDB session for transactions
- */
-expenseSchema.methods.approve = async function(userId, session = null) {
-    if (this.status === 'approved') {
-        throw new Error('Expense already approved');
-    }
-
-    this.status = 'approved';
-    this.approvedBy = userId;
-    this.approvedAt = new Date();
-
-    const options = session ? { session } : {};
-    await this.save(options);
-
-    // Post to GL
-    const glEntry = await this.postToGL(session);
-
-    return { expense: this, glEntry };
-};
+// Export constants for use in controllers
+expenseSchema.statics.EXPENSE_CATEGORIES = EXPENSE_CATEGORIES;
+expenseSchema.statics.PAYMENT_METHODS = PAYMENT_METHODS;
+expenseSchema.statics.TRIP_PURPOSES = TRIP_PURPOSES;
+expenseSchema.statics.GOVERNMENT_ENTITIES = GOVERNMENT_ENTITIES;
 
 module.exports = mongoose.model('Expense', expenseSchema);

@@ -6,35 +6,81 @@ const {
     getExpense,
     updateExpense,
     deleteExpense,
+    submitExpense,
+    approveExpense,
+    rejectExpense,
+    markAsReimbursed,
     getExpenseStats,
     getExpensesByCategory,
-    markAsReimbursed,
     uploadReceipt,
     suggestCategory,
-    getExpenseCategories
+    getExpenseCategories,
+    bulkApproveExpenses,
+    getNewExpenseDefaults
 } = require('../controllers/expense.controller');
 
 const app = express.Router();
 
-// Expense CRUD
-app.post('/', userMiddleware, firmFilter, createExpense);
-app.get('/', userMiddleware, firmFilter, getExpenses);
+// ═══════════════════════════════════════════════════════════════
+// STATIC ROUTES (must be before parameterized routes)
+// ═══════════════════════════════════════════════════════════════
+
+// Get defaults for new expense form
+app.get('/new', userMiddleware, firmFilter, getNewExpenseDefaults);
 
 // Smart categorization (AI-powered suggestions)
 app.post('/suggest-category', userMiddleware, firmFilter, suggestCategory);
+
+// Get all categories and enums
 app.get('/categories', userMiddleware, firmFilter, getExpenseCategories);
 
 // Statistics and grouping
 app.get('/stats', userMiddleware, firmFilter, getExpenseStats);
 app.get('/by-category', userMiddleware, firmFilter, getExpensesByCategory);
 
-// Single expense
+// Bulk operations
+app.post('/bulk-approve', userMiddleware, firmFilter, bulkApproveExpenses);
+
+// ═══════════════════════════════════════════════════════════════
+// CRUD ROUTES
+// ═══════════════════════════════════════════════════════════════
+
+// Create expense
+app.post('/', userMiddleware, firmFilter, createExpense);
+
+// List expenses with filters
+app.get('/', userMiddleware, firmFilter, getExpenses);
+
+// Get single expense
 app.get('/:id', userMiddleware, firmFilter, getExpense);
+
+// Update expense
 app.put('/:id', userMiddleware, firmFilter, updateExpense);
+
+// Delete expense
 app.delete('/:id', userMiddleware, firmFilter, deleteExpense);
 
-// Expense actions
+// ═══════════════════════════════════════════════════════════════
+// WORKFLOW ACTIONS
+// ═══════════════════════════════════════════════════════════════
+
+// Submit expense for approval
+app.post('/:id/submit', userMiddleware, firmFilter, submitExpense);
+
+// Approve expense
+app.post('/:id/approve', userMiddleware, firmFilter, approveExpense);
+
+// Reject expense
+app.post('/:id/reject', userMiddleware, firmFilter, rejectExpense);
+
+// Mark as reimbursed
 app.post('/:id/reimburse', userMiddleware, firmFilter, markAsReimbursed);
+
+// ═══════════════════════════════════════════════════════════════
+// ATTACHMENTS
+// ═══════════════════════════════════════════════════════════════
+
+// Upload receipt/attachment
 app.post('/:id/receipt', userMiddleware, firmFilter, uploadReceipt);
 
 module.exports = app;
