@@ -2,18 +2,26 @@
  * Task Reminders & Cron Jobs for TRAF3LI
  *
  * This module handles all scheduled background tasks:
- * - Task reminders (daily at 9:00 AM)
+ * - Task reminders (daily at 9:00 AM Saudi time)
  * - Hearing reminders (every hour)
  * - Reminder trigger (every minute) - sends notifications for due reminders
- * - Recurring item generator (daily at midnight)
+ * - Recurring item generator (daily at midnight Saudi time)
  * - Escalation checker (every 5 minutes)
  * - Snoozed reminder checker (every minute)
+ *
+ * All time-based cron jobs use Saudi Arabia timezone (Asia/Riyadh)
  */
 
 const cron = require('node-cron');
 const { Task, Case, Reminder, Notification, User, Event } = require('../models');
 const { createNotification } = require('../controllers/notification.controller');
 const NotificationDeliveryService = require('../services/notificationDelivery.service');
+const { DEFAULT_TIMEZONE } = require('./timezone');
+
+// Cron job options with Saudi Arabia timezone
+const cronOptions = {
+  timezone: DEFAULT_TIMEZONE // 'Asia/Riyadh'
+};
 
 /**
  * Calculate next occurrence for recurring reminders
@@ -177,7 +185,7 @@ const getPriorityIcon = (priority) => {
  */
 const scheduleTaskReminders = () => {
   // =========================================
-  // 1. Task reminders - daily at 9:00 AM
+  // 1. Task reminders - daily at 9:00 AM Saudi time
   // =========================================
   cron.schedule('0 9 * * *', async () => {
     console.log('🔔 Running task reminders cron job...');
@@ -222,10 +230,10 @@ const scheduleTaskReminders = () => {
     } catch (error) {
       console.error('❌ Error sending task reminders:', error);
     }
-  });
+  }, cronOptions);
 
   // =========================================
-  // 2. Hearing reminders - every hour
+  // 2. Hearing reminders - every hour Saudi time
   // =========================================
   cron.schedule('0 * * * *', async () => {
     console.log('🔔 Running hearing reminders cron job...');
@@ -279,7 +287,7 @@ const scheduleTaskReminders = () => {
     } catch (error) {
       console.error('❌ Error sending hearing reminders:', error);
     }
-  });
+  }, cronOptions);
 
   // =========================================
   // 3. Reminder trigger - EVERY MINUTE
@@ -333,7 +341,7 @@ const scheduleTaskReminders = () => {
     } catch (error) {
       console.error('❌ Error in reminder trigger:', error);
     }
-  });
+  }, cronOptions);
 
   // =========================================
   // 4. Advance notification trigger - EVERY MINUTE
@@ -399,10 +407,10 @@ const scheduleTaskReminders = () => {
     } catch (error) {
       console.error('❌ Error in advance notification trigger:', error);
     }
-  });
+  }, cronOptions);
 
   // =========================================
-  // 5. Recurring item generator - DAILY at midnight
+  // 5. Recurring item generator - DAILY at midnight Saudi time
   // Generates next instances of recurring reminders
   // =========================================
   cron.schedule('0 0 * * *', async () => {
@@ -479,7 +487,7 @@ const scheduleTaskReminders = () => {
     } catch (error) {
       console.error('❌ Error in recurring generator:', error);
     }
-  });
+  }, cronOptions);
 
   // =========================================
   // 6. Escalation checker - EVERY 5 MINUTES
@@ -543,7 +551,7 @@ const scheduleTaskReminders = () => {
     } catch (error) {
       console.error('❌ Error in escalation checker:', error);
     }
-  });
+  }, cronOptions);
 
   // =========================================
   // 7. Snoozed reminder checker - EVERY MINUTE
@@ -610,10 +618,10 @@ const scheduleTaskReminders = () => {
     } catch (error) {
       console.error('❌ Error in snoozed reminder checker:', error);
     }
-  });
+  }, cronOptions);
 
   // =========================================
-  // 8. Event reminders - EVERY HOUR
+  // 8. Event reminders - EVERY HOUR Saudi time
   // Sends reminders for upcoming events based on event.reminders array
   // =========================================
   cron.schedule('0 * * * *', async () => {
@@ -703,10 +711,10 @@ const scheduleTaskReminders = () => {
     } catch (error) {
       console.error('❌ Error sending event reminders:', error);
     }
-  });
+  }, cronOptions);
 
   // =========================================
-  // 9. Overdue task checker - DAILY at 10 AM
+  // 9. Overdue task checker - DAILY at 10 AM Saudi time
   // =========================================
   cron.schedule('0 10 * * *', async () => {
     console.log('⚠️ Running overdue task checker...');
@@ -745,17 +753,18 @@ const scheduleTaskReminders = () => {
     } catch (error) {
       console.error('❌ Error in overdue task checker:', error);
     }
-  });
+  }, cronOptions);
 
-  console.log('✅ Task reminders cron job scheduled (daily at 9:00 AM)');
+  console.log(`✅ All cron jobs scheduled with timezone: ${DEFAULT_TIMEZONE}`);
+  console.log('✅ Task reminders cron job scheduled (daily at 9:00 AM Saudi time)');
   console.log('✅ Hearing reminders cron job scheduled (every hour)');
   console.log('✅ Reminder trigger cron job scheduled (every minute)');
   console.log('✅ Advance notification trigger scheduled (every minute)');
-  console.log('✅ Recurring item generator scheduled (daily at midnight)');
+  console.log('✅ Recurring item generator scheduled (daily at midnight Saudi time)');
   console.log('✅ Escalation checker scheduled (every 5 minutes)');
   console.log('✅ Snoozed reminder checker scheduled (every minute)');
   console.log('✅ Event reminders scheduled (every hour)');
-  console.log('✅ Overdue task checker scheduled (daily at 10 AM)');
+  console.log('✅ Overdue task checker scheduled (daily at 10 AM Saudi time)');
 };
 
 module.exports = {

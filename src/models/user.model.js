@@ -71,6 +71,12 @@ const userSchema = new mongoose.Schema({
         type: String,
         required: false,
     },
+    // User's preferred timezone for date/time display
+    timezone: {
+        type: String,
+        default: 'Asia/Riyadh',
+        required: false,
+    },
 
     // Role and type
     isSeller: {
