@@ -22,7 +22,8 @@ const {
     deleteAttachment,
     verifyYakeen,
     verifyWathq,
-    verifyMOJ
+    verifyMOJ,
+    verifyAttorney
 } = require('../controllers/client.controller');
 
 const app = express.Router();
@@ -56,11 +57,12 @@ app.get('/:id/invoices', userMiddleware, getClientInvoices);
 app.get('/:id/payments', userMiddleware, getClientPayments);
 
 // ─────────────────────────────────────────────────────────
-// VERIFICATION (Saudi Government APIs)
+// VERIFICATION (Saudi Government Portals)
 // ─────────────────────────────────────────────────────────
-app.post('/:id/verify/yakeen', userMiddleware, verifyYakeen);
-app.post('/:id/verify/wathq', userMiddleware, verifyWathq);
-app.post('/:id/verify/moj', userMiddleware, verifyMOJ);
+app.post('/:id/verify/yakeen', userMiddleware, verifyYakeen);     // National ID (requires API)
+app.post('/:id/verify/wathq', userMiddleware, verifyWathq);       // Commercial Registry (requires API)
+app.post('/:id/verify/moj', userMiddleware, verifyMOJ);           // Power of Attorney (free portal)
+app.post('/:id/verify/attorney', userMiddleware, verifyAttorney); // Attorney License (free portal)
 
 // ─────────────────────────────────────────────────────────
 // ATTACHMENTS
