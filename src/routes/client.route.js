@@ -1,6 +1,6 @@
 const express = require('express');
 const { userMiddleware } = require('../middlewares');
-const upload = require('../configs/multer.config');
+const upload = require('../configs/multer');
 const {
     createClient,
     getClients,
