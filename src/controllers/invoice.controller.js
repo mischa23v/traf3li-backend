@@ -6,6 +6,7 @@
  * and reporting functionality.
  */
 
+const mongoose = require('mongoose');
 const { Invoice, Case, Order, User, Payment, Retainer, BillingActivity } = require('../models');
 const { CustomException } = require('../utils');
 const asyncHandler = require('../utils/asyncHandler');
@@ -1249,7 +1250,7 @@ const getStats = asyncHandler(async (req, res) => {
     const dateFilter = getDateFilter(period);
 
     const stats = await Invoice.aggregate([
-        { $match: { lawyerId: new require('mongoose').Types.ObjectId(lawyerId), createdAt: dateFilter } },
+        { $match: { lawyerId: new mongoose.Types.ObjectId(lawyerId), createdAt: dateFilter } },
         {
             $group: {
                 _id: '$status',
@@ -1264,7 +1265,7 @@ const getStats = asyncHandler(async (req, res) => {
     const overdue = await Invoice.aggregate([
         {
             $match: {
-                lawyerId: new require('mongoose').Types.ObjectId(lawyerId),
+                lawyerId: new mongoose.Types.ObjectId(lawyerId),
                 status: { $in: ['sent', 'viewed', 'partial'] },
                 dueDate: { $lt: new Date() }
             }
