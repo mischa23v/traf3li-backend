@@ -15,8 +15,9 @@ const {
     updateTimeEntry,
     deleteTimeEntry,
 
-    // Weekly view
-    getWeeklyEntries,
+    // Write-off / Write-down
+    writeOffTimeEntry,
+    writeDownTimeEntry,
 
     // Approval workflow
     approveTimeEntry,
@@ -24,35 +25,96 @@ const {
 
     // Analytics
     getTimeStats,
+    getWeeklyEntries,
+    getUnbilledEntries,
+
+    // UTBMS codes
+    getActivityCodes,
 
     // Bulk operations
-    bulkDeleteTimeEntries
+    bulkDeleteTimeEntries,
+    bulkApproveTimeEntries
 } = require('../controllers/timeTracking.controller');
 
-const app = express.Router();
+const router = express.Router();
 
-// Timer routes
-app.post('/timer/start', userMiddleware, firmFilter, startTimer);
-app.post('/timer/pause', userMiddleware, firmFilter, pauseTimer);
-app.post('/timer/resume', userMiddleware, firmFilter, resumeTimer);
-app.post('/timer/stop', userMiddleware, firmFilter, stopTimer);
-app.get('/timer/status', userMiddleware, firmFilter, getTimerStatus);
+// ═══════════════════════════════════════════════════════════════
+// TIMER ROUTES
+// ═══════════════════════════════════════════════════════════════
+router.post('/timer/start', userMiddleware, firmFilter, startTimer);
+router.post('/timer/pause', userMiddleware, firmFilter, pauseTimer);
+router.post('/timer/resume', userMiddleware, firmFilter, resumeTimer);
+router.post('/timer/stop', userMiddleware, firmFilter, stopTimer);
+router.get('/timer/status', userMiddleware, firmFilter, getTimerStatus);
 
-// Static routes (must be before parameterized routes)
-app.get('/weekly', userMiddleware, firmFilter, getWeeklyEntries);
-app.get('/stats', userMiddleware, firmFilter, getTimeStats);
-app.delete('/entries/bulk', userMiddleware, firmFilter, bulkDeleteTimeEntries);
+// ═══════════════════════════════════════════════════════════════
+// STATIC ROUTES (must be before parameterized routes)
+// ═══════════════════════════════════════════════════════════════
 
-// Time entry routes
-app.post('/entries', userMiddleware, firmFilter, createTimeEntry);
-app.get('/entries', userMiddleware, firmFilter, getTimeEntries);
-app.get('/entries/:id', userMiddleware, firmFilter, getTimeEntry);
-app.put('/entries/:id', userMiddleware, firmFilter, updateTimeEntry);
-app.patch('/entries/:id', userMiddleware, firmFilter, updateTimeEntry);
-app.delete('/entries/:id', userMiddleware, firmFilter, deleteTimeEntry);
+// Analytics & Reports
+router.get('/weekly', userMiddleware, firmFilter, getWeeklyEntries);
+router.get('/stats', userMiddleware, firmFilter, getTimeStats);
+router.get('/unbilled', userMiddleware, firmFilter, getUnbilledEntries);
 
-// Approval routes
-app.post('/entries/:id/approve', userMiddleware, firmFilter, approveTimeEntry);
-app.post('/entries/:id/reject', userMiddleware, firmFilter, rejectTimeEntry);
+// UTBMS Activity Codes
+router.get('/activity-codes', userMiddleware, firmFilter, getActivityCodes);
 
-module.exports = app;
+// Bulk Operations
+router.delete('/entries/bulk', userMiddleware, firmFilter, bulkDeleteTimeEntries);
+router.post('/entries/bulk-approve', userMiddleware, firmFilter, bulkApproveTimeEntries);
+
+// ═══════════════════════════════════════════════════════════════
+// TIME ENTRY CRUD ROUTES
+// ═══════════════════════════════════════════════════════════════
+
+// Create time entry
+// POST /api/time-tracking/entries
+// Body: clientId, date, description, duration, hourlyRate, ...
+router.post('/entries', userMiddleware, firmFilter, createTimeEntry);
+
+// Get all time entries with filters
+// GET /api/time-tracking/entries
+// Query: startDate, endDate, caseId, clientId, assigneeId, status, billStatus, timeType, activityCode, page, limit
+router.get('/entries', userMiddleware, firmFilter, getTimeEntries);
+
+// Get single time entry
+// GET /api/time-tracking/entries/:id
+router.get('/entries/:id', userMiddleware, firmFilter, getTimeEntry);
+
+// Update time entry
+// PATCH /api/time-tracking/entries/:id
+router.patch('/entries/:id', userMiddleware, firmFilter, updateTimeEntry);
+router.put('/entries/:id', userMiddleware, firmFilter, updateTimeEntry);
+
+// Delete time entry
+// DELETE /api/time-tracking/entries/:id
+router.delete('/entries/:id', userMiddleware, firmFilter, deleteTimeEntry);
+
+// ═══════════════════════════════════════════════════════════════
+// WRITE-OFF / WRITE-DOWN ROUTES
+// ═══════════════════════════════════════════════════════════════
+
+// Write off a time entry (شطب الوقت)
+// POST /api/time-tracking/entries/:id/write-off
+// Body: { reason: string }
+router.post('/entries/:id/write-off', userMiddleware, firmFilter, writeOffTimeEntry);
+
+// Write down a time entry (تخفيض المبلغ)
+// POST /api/time-tracking/entries/:id/write-down
+// Body: { amount: number, reason: string }
+router.post('/entries/:id/write-down', userMiddleware, firmFilter, writeDownTimeEntry);
+
+// ═══════════════════════════════════════════════════════════════
+// APPROVAL ROUTES
+// ═══════════════════════════════════════════════════════════════
+
+// Approve time entry
+// POST /api/time-tracking/entries/:id/approve
+router.post('/entries/:id/approve', userMiddleware, firmFilter, approveTimeEntry);
+
+// Reject time entry
+// POST /api/time-tracking/entries/:id/reject
+// Body: { reason: string }
+router.post('/entries/:id/reject', userMiddleware, firmFilter, rejectTimeEntry);
+
+module.exports = router;
