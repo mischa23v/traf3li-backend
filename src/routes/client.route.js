@@ -20,11 +20,8 @@ const {
     updateFlags,
     uploadAttachments,
     deleteAttachment,
-    verifyYakeen,
     verifyWathq,
-    getWathqData,
-    verifyMOJ,
-    verifyAttorney
+    getWathqData
 } = require('../controllers/client.controller');
 
 const app = express.Router();
@@ -60,11 +57,8 @@ app.get('/:id/payments', userMiddleware, getClientPayments);
 // ─────────────────────────────────────────────────────────
 // VERIFICATION (Saudi Government Portals)
 // ─────────────────────────────────────────────────────────
-app.post('/:id/verify/yakeen', userMiddleware, verifyYakeen);     // National ID (requires API - disabled)
 app.post('/:id/verify/wathq', userMiddleware, verifyWathq);       // Commercial Registry (Wathq API)
 app.get('/:id/wathq/:dataType', userMiddleware, getWathqData);    // Additional Wathq data (managers/owners/capital/branches/status)
-app.post('/:id/verify/moj', userMiddleware, verifyMOJ);           // Power of Attorney (free portal)
-app.post('/:id/verify/attorney', userMiddleware, verifyAttorney); // Attorney License (free portal)
 
 // ─────────────────────────────────────────────────────────
 // ATTACHMENTS

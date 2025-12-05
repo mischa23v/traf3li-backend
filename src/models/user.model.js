@@ -98,6 +98,23 @@ const userSchema = new mongoose.Schema({
         required: false
     },
 
+    // ═══════════════════════════════════════════════════════════════
+    // FIRM MEMBERSHIP (Multi-Tenancy)
+    // ═══════════════════════════════════════════════════════════════
+    firmId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Firm',
+        index: true,
+        required: false
+    },
+    // User's role within their firm
+    firmRole: {
+        type: String,
+        enum: ['owner', 'admin', 'partner', 'lawyer', 'paralegal', 'secretary', 'accountant', null],
+        default: null,
+        required: false
+    },
+
     // Lawyer-specific profile data
     lawyerProfile: {
         // Licensing

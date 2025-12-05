@@ -2,7 +2,6 @@ const mongoose = require('mongoose');
 const { Client, Case, Invoice, Payment } = require('../models');
 const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
-const mojPortalService = require('../services/mojPortalService');
 const wathqService = require('../services/wathqService');
 
 /**
@@ -718,26 +717,6 @@ const deleteAttachment = asyncHandler(async (req, res) => {
     });
 });
 
-/**
- * Verify client via Yakeen API (National ID)
- * POST /api/clients/:id/verify/yakeen
- *
- * NOTE: Yakeen API requires company registration with Elm.
- * This endpoint is disabled until API access is obtained.
- */
-const verifyYakeen = asyncHandler(async (req, res) => {
-    // Yakeen API requires company registration with Elm (علم)
-    // Cannot be accessed without official company credentials
-    res.status(503).json({
-        success: false,
-        message: 'خدمة يقين غير متوفرة حالياً',
-        data: {
-            verified: false,
-            note: 'خدمة يقين تتطلب تسجيل الشركة في علم للحصول على اعتماد API',
-            alternativeNote: 'يمكنك إدخال بيانات العميل يدوياً حتى يتم توفير الخدمة'
-        }
-    });
-});
 
 /**
  * Verify client via Wathq API (Commercial Registry)
@@ -873,103 +852,6 @@ const getWathqData = asyncHandler(async (req, res) => {
     });
 });
 
-/**
- * Verify Power of Attorney via MOJ Public Portal
- * POST /api/clients/:id/verify/moj
- *
- * Uses the free public MOJ portal at attorneysportal.moj.gov.sa
- */
-const verifyMOJ = asyncHandler(async (req, res) => {
-    const { id } = req.params;
-    const { poaNumber, idNumber } = req.body;
-    const lawyerId = req.userID;
-
-    const client = await Client.findById(id);
-
-    if (!client) {
-        throw CustomException('العميل غير موجود', 404);
-    }
-
-    if (client.lawyerId.toString() !== lawyerId) {
-        throw CustomException('لا يمكنك الوصول إلى هذا العميل', 403);
-    }
-
-    if (!poaNumber) {
-        throw CustomException('رقم الوكالة مطلوب', 400);
-    }
-
-    // Use client's national ID if not provided
-    const nationalId = idNumber || client.nationalId;
-
-    if (!nationalId) {
-        throw CustomException('رقم الهوية مطلوب', 400);
-    }
-
-    // Call MOJ portal service
-    const result = await mojPortalService.validatePOA(poaNumber, nationalId);
-
-    if (result.success) {
-        // Update client with POA information
-        client.powerOfAttorney = {
-            hasPOA: true,
-            poaNumber: result.data.poaNumber,
-            attorneyId: result.data.attorney?.idNumber,
-            attorneyName: result.data.attorney?.name,
-            attorneyType: result.data.attorney?.type,
-            source: 'notary',
-            notaryNumber: result.data.notaryNumber,
-            issueDate: result.data.issueDate ? new Date(result.data.issueDate) : undefined,
-            expiryDate: result.data.expiryDate ? new Date(result.data.expiryDate) : undefined,
-            powers: result.data.powers,
-            limitations: result.data.limitations,
-            mojVerified: true,
-            mojVerifiedAt: new Date()
-        };
-        client.updatedBy = lawyerId;
-        await client.save();
-    }
-
-    res.json({
-        success: result.success,
-        message: result.success ? 'تم التحقق من الوكالة بنجاح' : result.error,
-        data: result.data,
-        fromCache: result.fromCache || false
-    });
-});
-
-/**
- * Verify Attorney license via MOJ Public Portal
- * POST /api/clients/:id/verify/attorney
- */
-const verifyAttorney = asyncHandler(async (req, res) => {
-    const { id } = req.params;
-    const { attorneyId } = req.body;
-    const lawyerId = req.userID;
-
-    const client = await Client.findById(id);
-
-    if (!client) {
-        throw CustomException('العميل غير موجود', 404);
-    }
-
-    if (client.lawyerId.toString() !== lawyerId) {
-        throw CustomException('لا يمكنك الوصول إلى هذا العميل', 403);
-    }
-
-    if (!attorneyId) {
-        throw CustomException('رقم هوية المحامي مطلوب', 400);
-    }
-
-    // Call MOJ portal service to validate attorney
-    const result = await mojPortalService.validateAttorney(attorneyId);
-
-    res.json({
-        success: result.success,
-        message: result.success ? 'تم التحقق من المحامي بنجاح' : result.error,
-        data: result.data,
-        fromCache: result.fromCache || false
-    });
-});
 
 module.exports = {
     createClient,
@@ -990,9 +872,6 @@ module.exports = {
     updateFlags,
     uploadAttachments,
     deleteAttachment,
-    verifyYakeen,
     verifyWathq,
-    getWathqData,
-    verifyMOJ,
-    verifyAttorney
+    getWathqData
 };

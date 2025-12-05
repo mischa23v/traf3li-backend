@@ -102,6 +102,14 @@ const ApprovalSchema = new Schema({
 
 // ============ MAIN INVOICE SCHEMA ============
 const invoiceSchema = new Schema({
+    // ============ FIRM (Multi-Tenancy) ============
+    firmId: {
+        type: Schema.Types.ObjectId,
+        ref: 'Firm',
+        index: true,
+        required: false  // Optional for backwards compatibility
+    },
+
     // ============ HEADER ============
     invoiceNumber: {
         type: String,
