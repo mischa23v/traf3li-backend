@@ -6,9 +6,19 @@ const clientSchema = new mongoose.Schema({
         unique: true,
         index: true
     },
-    name: {
+    firstName: {
         type: String,
         required: true,
+        trim: true
+    },
+    lastName: {
+        type: String,
+        required: true,
+        trim: true
+    },
+    // For company clients
+    companyName: {
+        type: String,
         trim: true
     },
     email: {
@@ -158,7 +168,19 @@ clientSchema.index({ lawyerId: 1, clientTier: 1 });
 clientSchema.index({ lawyerId: 1, source: 1 });
 clientSchema.index({ lawyerId: 1, referralId: 1 });
 clientSchema.index({ lawyerId: 1, nextFollowUpDate: 1 });
-clientSchema.index({ name: 'text', email: 'text' });
+clientSchema.index({ firstName: 'text', lastName: 'text', companyName: 'text', email: 'text' });
+
+// Virtual for full name
+clientSchema.virtual('fullName').get(function() {
+    if (this.type === 'company' && this.companyName) {
+        return this.companyName;
+    }
+    return `${this.firstName} ${this.lastName}`.trim();
+});
+
+// Ensure virtuals are included in JSON output
+clientSchema.set('toJSON', { virtuals: true });
+clientSchema.set('toObject', { virtuals: true });
 
 // Generate client ID before saving
 clientSchema.pre('save', async function(next) {
@@ -184,7 +206,9 @@ clientSchema.statics.searchClients = async function(lawyerId, searchTerm, filter
 
     if (searchTerm) {
         query.$or = [
-            { name: { $regex: searchTerm, $options: 'i' } },
+            { firstName: { $regex: searchTerm, $options: 'i' } },
+            { lastName: { $regex: searchTerm, $options: 'i' } },
+            { companyName: { $regex: searchTerm, $options: 'i' } },
             { email: { $regex: searchTerm, $options: 'i' } },
             { phone: { $regex: searchTerm, $options: 'i' } },
             { clientId: { $regex: searchTerm, $options: 'i' } }

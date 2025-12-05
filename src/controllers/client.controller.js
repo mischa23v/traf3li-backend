@@ -8,11 +8,10 @@ const CustomException = require('../utils/CustomException');
  */
 const createClient = asyncHandler(async (req, res) => {
     const {
-        fullName,
-        name,
+        firstName,
+        lastName,
         email,
         phone,
-        alternatePhone,
         nationalId,
         companyName,
         companyRegistration,
@@ -30,15 +29,12 @@ const createClient = asyncHandler(async (req, res) => {
 
     const lawyerId = req.userID;
 
-    // Accept both 'fullName' and 'name' for backwards compatibility
-    const clientName = name || fullName;
-
     // Validate required fields
-    if (!clientName || !phone) {
-        throw CustomException('الحقول المطلوبة: الاسم الكامل، رقم الهاتف', 400);
+    if (!firstName || !lastName || !phone) {
+        throw CustomException('الحقول المطلوبة: الاسم الأول، اسم العائلة، رقم الهاتف', 400);
     }
 
-    // Check if client already exists by email or phone
+    // Check if client already exists by email
     if (email) {
         const existingClient = await Client.findOne({ lawyerId, email });
         if (existingClient) {
@@ -53,7 +49,9 @@ const createClient = asyncHandler(async (req, res) => {
 
     const client = await Client.create({
         lawyerId,
-        name: clientName,
+        firstName,
+        lastName,
+        companyName,
         email,
         phone,
         type,
@@ -97,7 +95,9 @@ const getClients = asyncHandler(async (req, res) => {
     // Search by name, email, phone, or client ID
     if (search) {
         query.$or = [
-            { name: { $regex: search, $options: 'i' } },
+            { firstName: { $regex: search, $options: 'i' } },
+            { lastName: { $regex: search, $options: 'i' } },
+            { companyName: { $regex: search, $options: 'i' } },
             { email: { $regex: search, $options: 'i' } },
             { phone: { $regex: search, $options: 'i' } },
             { clientId: { $regex: search, $options: 'i' } }
@@ -223,29 +223,28 @@ const updateClient = asyncHandler(async (req, res) => {
         }
     }
 
-    // Map frontend field names to model field names
-    const fieldMapping = {
-        'fullName': 'name',
-        'name': 'name',
-        'email': 'email',
-        'phone': 'phone',
-        'type': 'type',
-        'nationalId': 'nationalId',
-        'companyRegistration': 'commercialRegistration',
-        'commercialRegistration': 'commercialRegistration',
-        'notes': 'notes',
-        'preferredContactMethod': 'preferredContactMethod',
-        'language': 'preferredLanguage',
-        'preferredLanguage': 'preferredLanguage',
-        'status': 'status',
-        'tags': 'tags',
-        'clientTier': 'clientTier'
-    };
+    // Allowed fields for update
+    const allowedFields = [
+        'firstName',
+        'lastName',
+        'companyName',
+        'email',
+        'phone',
+        'type',
+        'nationalId',
+        'commercialRegistration',
+        'notes',
+        'preferredContactMethod',
+        'preferredLanguage',
+        'status',
+        'tags',
+        'clientTier'
+    ];
 
-    // Apply allowed field updates with mapping
-    Object.keys(fieldMapping).forEach(field => {
+    // Apply allowed field updates
+    allowedFields.forEach(field => {
         if (req.body[field] !== undefined) {
-            client[fieldMapping[field]] = req.body[field];
+            client[field] = req.body[field];
         }
     });
 
@@ -423,7 +422,9 @@ const getTopClientsByRevenue = asyncHandler(async (req, res) => {
         {
             $project: {
                 clientId: '$_id',
-                clientName: '$client.name',
+                clientFirstName: '$client.firstName',
+                clientLastName: '$client.lastName',
+                clientFullName: { $concat: ['$client.firstName', ' ', '$client.lastName'] },
                 clientEmail: '$client.email',
                 totalRevenue: 1,
                 invoiceCount: 1
@@ -468,7 +469,7 @@ const bulkDeleteClients = asyncHandler(async (req, res) => {
         });
 
         if (activeCases > 0) {
-            throw CustomException(`العميل ${client.name} لديه قضايا نشطة`, 400);
+            throw CustomException(`العميل ${client.fullName} لديه قضايا نشطة`, 400);
         }
 
         const unpaidInvoices = await Invoice.countDocuments({
@@ -478,7 +479,7 @@ const bulkDeleteClients = asyncHandler(async (req, res) => {
         });
 
         if (unpaidInvoices > 0) {
-            throw CustomException(`العميل ${client.name} لديه فواتير غير مدفوعة`, 400);
+            throw CustomException(`العميل ${client.fullName} لديه فواتير غير مدفوعة`, 400);
         }
     }
 
