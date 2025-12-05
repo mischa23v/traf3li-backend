@@ -9,25 +9,32 @@ const CustomException = require('../utils/CustomException');
 const createClient = asyncHandler(async (req, res) => {
     const {
         fullName,
+        name,
         email,
         phone,
         alternatePhone,
         nationalId,
         companyName,
         companyRegistration,
+        commercialRegistration,
         address,
         city,
         country = 'Saudi Arabia',
         notes,
         preferredContactMethod = 'email',
-        language = 'ar',
+        language,
+        preferredLanguage = 'ar',
+        type = 'individual',
         status = 'active'
     } = req.body;
 
     const lawyerId = req.userID;
 
+    // Accept both 'fullName' and 'name' for backwards compatibility
+    const clientName = name || fullName;
+
     // Validate required fields
-    if (!fullName || !phone) {
+    if (!clientName || !phone) {
         throw CustomException('الحقول المطلوبة: الاسم الكامل، رقم الهاتف', 400);
     }
 
@@ -39,21 +46,23 @@ const createClient = asyncHandler(async (req, res) => {
         }
     }
 
+    // Build address object - accept both flat fields and nested object
+    const clientAddress = address || {};
+    if (city) clientAddress.city = city;
+    if (country) clientAddress.country = country;
+
     const client = await Client.create({
         lawyerId,
-        fullName,
+        name: clientName,
         email,
         phone,
-        alternatePhone,
+        type,
         nationalId,
-        companyName,
-        companyRegistration,
-        address,
-        city,
-        country,
+        commercialRegistration: commercialRegistration || companyRegistration,
+        address: clientAddress,
         notes,
         preferredContactMethod,
-        language,
+        preferredLanguage: preferredLanguage || language,
         status
     });
 
@@ -88,11 +97,10 @@ const getClients = asyncHandler(async (req, res) => {
     // Search by name, email, phone, or client ID
     if (search) {
         query.$or = [
-            { fullName: { $regex: search, $options: 'i' } },
+            { name: { $regex: search, $options: 'i' } },
             { email: { $regex: search, $options: 'i' } },
             { phone: { $regex: search, $options: 'i' } },
-            { clientId: { $regex: search, $options: 'i' } },
-            { companyName: { $regex: search, $options: 'i' } }
+            { clientId: { $regex: search, $options: 'i' } }
         ];
     }
 
@@ -215,28 +223,44 @@ const updateClient = asyncHandler(async (req, res) => {
         }
     }
 
-    const allowedFields = [
-        'fullName',
-        'email',
-        'phone',
-        'alternatePhone',
-        'nationalId',
-        'companyName',
-        'companyRegistration',
-        'address',
-        'city',
-        'country',
-        'notes',
-        'preferredContactMethod',
-        'language',
-        'status'
-    ];
+    // Map frontend field names to model field names
+    const fieldMapping = {
+        'fullName': 'name',
+        'name': 'name',
+        'email': 'email',
+        'phone': 'phone',
+        'type': 'type',
+        'nationalId': 'nationalId',
+        'companyRegistration': 'commercialRegistration',
+        'commercialRegistration': 'commercialRegistration',
+        'notes': 'notes',
+        'preferredContactMethod': 'preferredContactMethod',
+        'language': 'preferredLanguage',
+        'preferredLanguage': 'preferredLanguage',
+        'status': 'status',
+        'tags': 'tags',
+        'clientTier': 'clientTier'
+    };
 
-    allowedFields.forEach(field => {
+    // Apply allowed field updates with mapping
+    Object.keys(fieldMapping).forEach(field => {
         if (req.body[field] !== undefined) {
-            client[field] = req.body[field];
+            client[fieldMapping[field]] = req.body[field];
         }
     });
+
+    // Handle address fields - support both nested and flat
+    if (req.body.address) {
+        client.address = { ...client.address, ...req.body.address };
+    }
+    if (req.body.city) {
+        if (!client.address) client.address = {};
+        client.address.city = req.body.city;
+    }
+    if (req.body.country) {
+        if (!client.address) client.address = {};
+        client.address.country = req.body.country;
+    }
 
     await client.save();
 
@@ -399,7 +423,7 @@ const getTopClientsByRevenue = asyncHandler(async (req, res) => {
         {
             $project: {
                 clientId: '$_id',
-                clientName: '$client.fullName',
+                clientName: '$client.name',
                 clientEmail: '$client.email',
                 totalRevenue: 1,
                 invoiceCount: 1
@@ -444,7 +468,7 @@ const bulkDeleteClients = asyncHandler(async (req, res) => {
         });
 
         if (activeCases > 0) {
-            throw CustomException(`العميل ${client.fullName} لديه قضايا نشطة`, 400);
+            throw CustomException(`العميل ${client.name} لديه قضايا نشطة`, 400);
         }
 
         const unpaidInvoices = await Invoice.countDocuments({
@@ -454,7 +478,7 @@ const bulkDeleteClients = asyncHandler(async (req, res) => {
         });
 
         if (unpaidInvoices > 0) {
-            throw CustomException(`العميل ${client.fullName} لديه فواتير غير مدفوعة`, 400);
+            throw CustomException(`العميل ${client.name} لديه فواتير غير مدفوعة`, 400);
         }
     }
 
