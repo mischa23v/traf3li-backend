@@ -1,23 +1,58 @@
-const { Expense, Case, User, BillingActivity } = require('../models');
+const { Expense, Case, Client, User, Employee, BillingActivity } = require('../models');
 const { CustomException } = require('../utils');
 const asyncHandler = require('../utils/asyncHandler');
+const mongoose = require('mongoose');
 
-// Create expense
+// ═══════════════════════════════════════════════════════════════
+// CREATE EXPENSE
+// POST /api/expenses
+// ═══════════════════════════════════════════════════════════════
 const createExpense = asyncHandler(async (req, res) => {
     const {
+        // Basic info
         description,
         amount,
+        taxAmount,
         category,
-        caseId,
         date,
         paymentMethod,
         vendor,
+        receiptNumber,
+        currency,
+        // Expense type
+        expenseType,
+        employeeId,
+        // Billable
+        isBillable,
+        clientId,
+        caseId,
+        markupType,
+        markupValue,
+        // Tax
+        taxRate,
+        taxReclaimable,
+        vendorTaxNumber,
+        // Travel
+        travelDetails,
+        // Government reference
+        governmentReference,
+        // Organization
+        departmentId,
+        locationId,
+        projectId,
+        costCenterId,
+        // Attachments
+        receipt,
+        attachments,
+        // Notes
         notes,
-        isBillable
+        internalNotes,
+        // Workflow
+        submitForApproval
     } = req.body;
 
     const lawyerId = req.userID;
-    const firmId = req.firmId; // From firmFilter middleware
+    const firmId = req.firmId;
 
     // Block departed users from financial operations
     if (req.isDeparted) {
@@ -25,12 +60,50 @@ const createExpense = asyncHandler(async (req, res) => {
     }
 
     // Validate required fields
-    if (!description || description.length < 3) {
-        throw CustomException('Description is required (min 3 characters)', 400);
+    if (!description) {
+        throw CustomException('Description is required', 400);
     }
 
-    if (!amount || amount < 0) {
-        throw CustomException('Invalid amount', 400);
+    if (description.length < 10) {
+        throw CustomException('Description must be at least 10 characters', 400);
+    }
+
+    if (!amount || amount < 0.01) {
+        throw CustomException('Amount must be at least 0.01', 400);
+    }
+
+    if (!category) {
+        throw CustomException('Category is required', 400);
+    }
+
+    if (!date) {
+        throw CustomException('Date is required', 400);
+    }
+
+    // Date cannot be in the future
+    const expenseDate = new Date(date);
+    const today = new Date();
+    today.setHours(23, 59, 59, 999);
+    if (expenseDate > today) {
+        throw CustomException('Expense date cannot be in the future', 400);
+    }
+
+    // Validate conditional fields
+    if (expenseType === 'reimbursable' && !employeeId) {
+        throw CustomException('Employee ID is required for reimbursable expenses', 400);
+    }
+
+    if (isBillable && !clientId) {
+        throw CustomException('Client ID is required for billable expenses', 400);
+    }
+
+    if (taxReclaimable && vendorTaxNumber && !/^[0-9]{15}$/.test(vendorTaxNumber)) {
+        throw CustomException('Vendor tax number must be exactly 15 digits', 400);
+    }
+
+    // Validate travel details if category is travel
+    if (category === 'travel' && !travelDetails) {
+        throw CustomException('Travel details are required for travel expenses', 400);
     }
 
     // If caseId provided, validate case exists and user has access
@@ -40,23 +113,90 @@ const createExpense = asyncHandler(async (req, res) => {
             throw CustomException('Case not found', 404);
         }
 
-        if (caseDoc.lawyerId.toString() !== lawyerId) {
+        // Check access via firmId or lawyerId
+        const hasAccess = firmId
+            ? caseDoc.firmId && caseDoc.firmId.toString() === firmId.toString()
+            : caseDoc.lawyerId.toString() === lawyerId;
+
+        if (!hasAccess) {
             throw CustomException('You do not have access to this case', 403);
         }
     }
 
+    // If clientId provided, validate client exists
+    if (clientId) {
+        const client = await Client.findById(clientId);
+        if (!client) {
+            throw CustomException('Client not found', 404);
+        }
+    }
+
+    // If employeeId provided, validate employee exists
+    if (employeeId) {
+        const employee = await Employee.findById(employeeId);
+        if (!employee) {
+            throw CustomException('Employee not found', 404);
+        }
+    }
+
+    // Determine initial status
+    let status = 'draft';
+    let submittedBy = null;
+    let submittedAt = null;
+
+    if (submitForApproval) {
+        status = 'pending_approval';
+        submittedBy = lawyerId;
+        submittedAt = new Date();
+    }
+
     const expense = await Expense.create({
+        // Basic info
         description,
         amount,
-        category: category || 'other',
-        caseId,
-        lawyerId,
-        firmId, // Add firmId for multi-tenancy
-        date: date || new Date(),
+        taxAmount: taxAmount || 0,
+        category,
+        date: expenseDate,
         paymentMethod: paymentMethod || 'cash',
         vendor,
-        notes,
+        receiptNumber,
+        currency: currency || 'SAR',
+        // Expense type
+        expenseType: expenseType || 'non_reimbursable',
+        employeeId,
+        // Billable
         isBillable: isBillable !== undefined ? isBillable : true,
+        clientId,
+        caseId,
+        markupType: markupType || 'none',
+        markupValue: markupValue || 0,
+        // Tax
+        taxRate: taxRate !== undefined ? taxRate : 15,
+        taxReclaimable: taxReclaimable || false,
+        vendorTaxNumber,
+        // Travel
+        travelDetails,
+        // Government reference
+        governmentReference,
+        // Organization
+        departmentId,
+        locationId,
+        projectId,
+        costCenterId,
+        firmId,
+        lawyerId,
+        // Attachments
+        receipt,
+        attachments: attachments || [],
+        hasReceipt: !!receipt || (attachments && attachments.length > 0),
+        // Notes
+        notes,
+        internalNotes,
+        // Workflow
+        status,
+        submittedBy,
+        submittedAt,
+        // Audit
         createdBy: lawyerId
     });
 
@@ -73,7 +213,11 @@ const createExpense = asyncHandler(async (req, res) => {
 
     const populatedExpense = await Expense.findById(expense._id)
         .populate('caseId', 'title caseNumber')
-        .populate('lawyerId', 'firstName lastName username email');
+        .populate('clientId', 'firstName lastName companyName')
+        .populate('employeeId', 'firstName lastName')
+        .populate('lawyerId', 'firstName lastName username email')
+        .populate('departmentId', 'name')
+        .populate('projectId', 'name');
 
     return res.status(201).json({
         success: true,
@@ -82,20 +226,30 @@ const createExpense = asyncHandler(async (req, res) => {
     });
 });
 
-// Get all expenses with filters
+// ═══════════════════════════════════════════════════════════════
+// GET ALL EXPENSES WITH FILTERS
+// GET /api/expenses
+// ═══════════════════════════════════════════════════════════════
 const getExpenses = asyncHandler(async (req, res) => {
     const {
         status,
         category,
         caseId,
+        clientId,
+        employeeId,
+        expenseType,
+        isBillable,
+        billingStatus,
         startDate,
         endDate,
         page = 1,
-        limit = 20
+        limit = 20,
+        sortBy = 'date',
+        order = 'desc'
     } = req.query;
 
     const lawyerId = req.userID;
-    const firmId = req.firmId; // From firmFilter middleware
+    const firmId = req.firmId;
 
     // Block departed users from financial operations
     if (req.isDeparted) {
@@ -108,6 +262,11 @@ const getExpenses = asyncHandler(async (req, res) => {
     if (status) filters.status = status;
     if (category) filters.category = category;
     if (caseId) filters.caseId = caseId;
+    if (clientId) filters.clientId = clientId;
+    if (employeeId) filters.employeeId = employeeId;
+    if (expenseType) filters.expenseType = expenseType;
+    if (isBillable !== undefined) filters.isBillable = isBillable === 'true';
+    if (billingStatus) filters.billingStatus = billingStatus;
 
     if (startDate || endDate) {
         filters.date = {};
@@ -115,10 +274,18 @@ const getExpenses = asyncHandler(async (req, res) => {
         if (endDate) filters.date.$lte = new Date(endDate);
     }
 
+    // Build sort
+    const sortOrder = order === 'asc' ? 1 : -1;
+    const sort = { [sortBy]: sortOrder, createdAt: -1 };
+
     const expenses = await Expense.find(filters)
         .populate('caseId', 'title caseNumber')
+        .populate('clientId', 'firstName lastName companyName')
+        .populate('employeeId', 'firstName lastName')
         .populate('lawyerId', 'firstName lastName username email')
-        .sort({ date: -1, createdAt: -1 })
+        .populate('approvedBy', 'firstName lastName')
+        .populate('invoiceId', 'invoiceNumber')
+        .sort(sort)
         .limit(parseInt(limit))
         .skip((parseInt(page) - 1) * parseInt(limit));
 
@@ -127,11 +294,19 @@ const getExpenses = asyncHandler(async (req, res) => {
     return res.json({
         success: true,
         expenses,
-        total
+        pagination: {
+            page: parseInt(page),
+            limit: parseInt(limit),
+            total,
+            pages: Math.ceil(total / parseInt(limit))
+        }
     });
 });
 
-// Get single expense
+// ═══════════════════════════════════════════════════════════════
+// GET SINGLE EXPENSE
+// GET /api/expenses/:id
+// ═══════════════════════════════════════════════════════════════
 const getExpense = asyncHandler(async (req, res) => {
     // Block departed users from financial operations
     if (req.isDeparted) {
@@ -140,12 +315,19 @@ const getExpense = asyncHandler(async (req, res) => {
 
     const { id } = req.params;
     const lawyerId = req.userID;
-    const firmId = req.firmId; // From firmFilter middleware
+    const firmId = req.firmId;
 
     const expense = await Expense.findById(id)
         .populate('caseId', 'title caseNumber category')
+        .populate('clientId', 'firstName lastName companyName email phone')
+        .populate('employeeId', 'firstName lastName email')
         .populate('lawyerId', 'firstName lastName username email')
-        .populate('invoiceId', 'invoiceNumber totalAmount');
+        .populate('approvedBy', 'firstName lastName')
+        .populate('submittedBy', 'firstName lastName')
+        .populate('invoiceId', 'invoiceNumber totalAmount')
+        .populate('departmentId', 'name')
+        .populate('projectId', 'name')
+        .populate('travelDetails.attendees', 'firstName lastName');
 
     if (!expense) {
         throw CustomException('Expense not found', 404);
@@ -166,7 +348,10 @@ const getExpense = asyncHandler(async (req, res) => {
     });
 });
 
-// Update expense
+// ═══════════════════════════════════════════════════════════════
+// UPDATE EXPENSE
+// PUT /api/expenses/:id
+// ═══════════════════════════════════════════════════════════════
 const updateExpense = asyncHandler(async (req, res) => {
     // Block departed users from financial operations
     if (req.isDeparted) {
@@ -175,7 +360,7 @@ const updateExpense = asyncHandler(async (req, res) => {
 
     const { id } = req.params;
     const lawyerId = req.userID;
-    const firmId = req.firmId; // From firmFilter middleware
+    const firmId = req.firmId;
 
     const expense = await Expense.findById(id);
 
@@ -192,7 +377,11 @@ const updateExpense = asyncHandler(async (req, res) => {
         throw CustomException('You do not have access to this expense', 403);
     }
 
-    // Don't allow editing if already reimbursed or billed
+    // Don't allow editing if already approved, reimbursed or billed
+    if (expense.status === 'approved' || expense.status === 'paid') {
+        throw CustomException('Cannot edit an approved expense', 400);
+    }
+
     if (expense.reimbursementStatus === 'paid') {
         throw CustomException('Cannot edit a reimbursed expense', 400);
     }
@@ -201,13 +390,49 @@ const updateExpense = asyncHandler(async (req, res) => {
         throw CustomException('Cannot edit an invoiced expense', 400);
     }
 
+    // Validate description if provided
+    if (req.body.description && req.body.description.length < 10) {
+        throw CustomException('Description must be at least 10 characters', 400);
+    }
+
+    // Validate amount if provided
+    if (req.body.amount !== undefined && req.body.amount < 0.01) {
+        throw CustomException('Amount must be at least 0.01', 400);
+    }
+
+    // Validate date if provided
+    if (req.body.date) {
+        const expenseDate = new Date(req.body.date);
+        const today = new Date();
+        today.setHours(23, 59, 59, 999);
+        if (expenseDate > today) {
+            throw CustomException('Expense date cannot be in the future', 400);
+        }
+    }
+
+    // Add updatedBy
+    req.body.updatedBy = lawyerId;
+
     const updatedExpense = await Expense.findByIdAndUpdate(
         id,
         { $set: req.body },
         { new: true, runValidators: true }
     )
         .populate('caseId', 'title caseNumber')
+        .populate('clientId', 'firstName lastName companyName')
+        .populate('employeeId', 'firstName lastName')
         .populate('lawyerId', 'firstName lastName username email');
+
+    // Log activity
+    await BillingActivity.logActivity({
+        activityType: 'expense_updated',
+        userId: lawyerId,
+        relatedModel: 'Expense',
+        relatedId: expense._id,
+        description: `Expense ${expense.expenseId} updated`,
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent')
+    });
 
     return res.json({
         success: true,
@@ -216,7 +441,10 @@ const updateExpense = asyncHandler(async (req, res) => {
     });
 });
 
-// Delete expense
+// ═══════════════════════════════════════════════════════════════
+// DELETE EXPENSE
+// DELETE /api/expenses/:id
+// ═══════════════════════════════════════════════════════════════
 const deleteExpense = asyncHandler(async (req, res) => {
     // Block departed users from financial operations
     if (req.isDeparted) {
@@ -225,7 +453,7 @@ const deleteExpense = asyncHandler(async (req, res) => {
 
     const { id } = req.params;
     const lawyerId = req.userID;
-    const firmId = req.firmId; // From firmFilter middleware
+    const firmId = req.firmId;
 
     const expense = await Expense.findById(id);
 
@@ -242,7 +470,11 @@ const deleteExpense = asyncHandler(async (req, res) => {
         throw CustomException('You do not have access to this expense', 403);
     }
 
-    // Don't allow deleting if reimbursed or billed
+    // Don't allow deleting if approved, reimbursed or billed
+    if (expense.status === 'approved' || expense.status === 'paid') {
+        throw CustomException('Cannot delete an approved expense', 400);
+    }
+
     if (expense.reimbursementStatus === 'paid') {
         throw CustomException('Cannot delete a reimbursed expense', 400);
     }
@@ -253,27 +485,289 @@ const deleteExpense = asyncHandler(async (req, res) => {
 
     await Expense.findByIdAndDelete(id);
 
+    // Log activity
+    await BillingActivity.logActivity({
+        activityType: 'expense_deleted',
+        userId: lawyerId,
+        relatedModel: 'Expense',
+        relatedId: expense._id,
+        description: `Expense ${expense.expenseId} deleted`,
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent')
+    });
+
     return res.json({
         success: true,
         message: 'Expense deleted successfully'
     });
 });
 
-// Get expense statistics
-const getExpenseStats = asyncHandler(async (req, res) => {
-    // Block departed users from financial operations
+// ═══════════════════════════════════════════════════════════════
+// SUBMIT EXPENSE FOR APPROVAL
+// POST /api/expenses/:id/submit
+// ═══════════════════════════════════════════════════════════════
+const submitExpense = asyncHandler(async (req, res) => {
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية لتقديم المصروفات', 403);
+    }
+
+    const { id } = req.params;
+    const lawyerId = req.userID;
+    const firmId = req.firmId;
+
+    const expense = await Expense.findById(id);
+
+    if (!expense) {
+        throw CustomException('Expense not found', 404);
+    }
+
+    // Check access
+    const hasAccess = firmId
+        ? expense.firmId && expense.firmId.toString() === firmId.toString()
+        : expense.lawyerId.toString() === lawyerId;
+
+    if (!hasAccess) {
+        throw CustomException('You do not have access to this expense', 403);
+    }
+
+    // Use the model method
+    await expense.submit(lawyerId);
+
+    // Log activity
+    await BillingActivity.logActivity({
+        activityType: 'expense_submitted',
+        userId: lawyerId,
+        relatedModel: 'Expense',
+        relatedId: expense._id,
+        description: `Expense ${expense.expenseId} submitted for approval`,
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent')
+    });
+
+    await expense.populate([
+        { path: 'caseId', select: 'title caseNumber' },
+        { path: 'clientId', select: 'firstName lastName companyName' },
+        { path: 'submittedBy', select: 'firstName lastName' }
+    ]);
+
+    return res.json({
+        success: true,
+        message: 'Expense submitted for approval',
+        expense
+    });
+});
+
+// ═══════════════════════════════════════════════════════════════
+// APPROVE EXPENSE
+// POST /api/expenses/:id/approve
+// ═══════════════════════════════════════════════════════════════
+const approveExpense = asyncHandler(async (req, res) => {
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية للموافقة على المصروفات', 403);
+    }
+
+    const { id } = req.params;
+    const lawyerId = req.userID;
+    const firmId = req.firmId;
+
+    const expense = await Expense.findById(id);
+
+    if (!expense) {
+        throw CustomException('Expense not found', 404);
+    }
+
+    // Check access
+    const hasAccess = firmId
+        ? expense.firmId && expense.firmId.toString() === firmId.toString()
+        : expense.lawyerId.toString() === lawyerId;
+
+    if (!hasAccess) {
+        throw CustomException('You do not have access to this expense', 403);
+    }
+
+    // Check permission to approve
+    if (req.hasPermission && !req.hasPermission('expenses', 'full')) {
+        throw CustomException('You do not have permission to approve expenses', 403);
+    }
+
+    // Use the model method (includes GL posting)
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    try {
+        const { expense: approvedExpense, glEntry } = await expense.approve(lawyerId, session);
+
+        // Log activity
+        await BillingActivity.logActivity({
+            activityType: 'expense_approved',
+            userId: lawyerId,
+            relatedModel: 'Expense',
+            relatedId: expense._id,
+            description: `Expense ${expense.expenseId} approved`,
+            amount: expense.totalAmount,
+            ipAddress: req.ip,
+            userAgent: req.get('user-agent')
+        });
+
+        await session.commitTransaction();
+
+        await approvedExpense.populate([
+            { path: 'caseId', select: 'title caseNumber' },
+            { path: 'clientId', select: 'firstName lastName companyName' },
+            { path: 'approvedBy', select: 'firstName lastName' }
+        ]);
+
+        return res.json({
+            success: true,
+            message: 'Expense approved successfully',
+            expense: approvedExpense,
+            glEntryId: glEntry ? glEntry._id : null
+        });
+    } catch (error) {
+        await session.abortTransaction();
+        throw error;
+    } finally {
+        session.endSession();
+    }
+});
+
+// ═══════════════════════════════════════════════════════════════
+// REJECT EXPENSE
+// POST /api/expenses/:id/reject
+// ═══════════════════════════════════════════════════════════════
+const rejectExpense = asyncHandler(async (req, res) => {
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية لرفض المصروفات', 403);
+    }
+
+    const { id } = req.params;
+    const { reason } = req.body;
+    const lawyerId = req.userID;
+    const firmId = req.firmId;
+
+    if (!reason) {
+        throw CustomException('Rejection reason is required', 400);
+    }
+
+    const expense = await Expense.findById(id);
+
+    if (!expense) {
+        throw CustomException('Expense not found', 404);
+    }
+
+    // Check access
+    const hasAccess = firmId
+        ? expense.firmId && expense.firmId.toString() === firmId.toString()
+        : expense.lawyerId.toString() === lawyerId;
+
+    if (!hasAccess) {
+        throw CustomException('You do not have access to this expense', 403);
+    }
+
+    // Check permission to reject
+    if (req.hasPermission && !req.hasPermission('expenses', 'full')) {
+        throw CustomException('You do not have permission to reject expenses', 403);
+    }
+
+    // Use the model method
+    await expense.reject(lawyerId, reason);
+
+    // Log activity
+    await BillingActivity.logActivity({
+        activityType: 'expense_rejected',
+        userId: lawyerId,
+        relatedModel: 'Expense',
+        relatedId: expense._id,
+        description: `Expense ${expense.expenseId} rejected: ${reason}`,
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent')
+    });
+
+    await expense.populate([
+        { path: 'caseId', select: 'title caseNumber' },
+        { path: 'clientId', select: 'firstName lastName companyName' }
+    ]);
+
+    return res.json({
+        success: true,
+        message: 'Expense rejected',
+        expense
+    });
+});
+
+// ═══════════════════════════════════════════════════════════════
+// MARK EXPENSE AS REIMBURSED
+// POST /api/expenses/:id/reimburse
+// ═══════════════════════════════════════════════════════════════
+const markAsReimbursed = asyncHandler(async (req, res) => {
     if (req.isDeparted) {
         throw CustomException('ليس لديك صلاحية للوصول إلى المصروفات', 403);
     }
 
-    const { caseId, startDate, endDate } = req.query;
+    const { id } = req.params;
+    const { amount } = req.body;
     const lawyerId = req.userID;
-    const firmId = req.firmId; // From firmFilter middleware
+    const firmId = req.firmId;
+
+    const expense = await Expense.findById(id);
+
+    if (!expense) {
+        throw CustomException('Expense not found', 404);
+    }
+
+    // Check access
+    const hasAccess = firmId
+        ? expense.firmId && expense.firmId.toString() === firmId.toString()
+        : expense.lawyerId.toString() === lawyerId;
+
+    if (!hasAccess) {
+        throw CustomException('You do not have access to this expense', 403);
+    }
+
+    // Use the model method
+    await expense.reimburse(lawyerId, amount);
+
+    // Log activity
+    await BillingActivity.logActivity({
+        activityType: 'expense_reimbursed',
+        userId: lawyerId,
+        relatedModel: 'Expense',
+        relatedId: expense._id,
+        description: `Expense ${expense.expenseId} reimbursed`,
+        amount: expense.reimbursedAmount,
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent')
+    });
+
+    await expense.populate([
+        { path: 'employeeId', select: 'firstName lastName' }
+    ]);
+
+    return res.json({
+        success: true,
+        message: 'Expense marked as reimbursed',
+        expense
+    });
+});
+
+// ═══════════════════════════════════════════════════════════════
+// GET EXPENSE STATISTICS
+// GET /api/expenses/stats
+// ═══════════════════════════════════════════════════════════════
+const getExpenseStats = asyncHandler(async (req, res) => {
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية للوصول إلى المصروفات', 403);
+    }
+
+    const { caseId, clientId, startDate, endDate } = req.query;
+    const lawyerId = req.userID;
+    const firmId = req.firmId;
 
     // Build filters - firmId first, then lawyerId fallback
     const filters = firmId ? { firmId } : { lawyerId };
 
     if (caseId) filters.caseId = caseId;
+    if (clientId) filters.clientId = clientId;
     if (startDate) filters.startDate = startDate;
     if (endDate) filters.endDate = endDate;
 
@@ -287,8 +781,6 @@ const getExpenseStats = asyncHandler(async (req, res) => {
     });
 
     // Get expenses by month
-    const mongoose = require('mongoose');
-    // Build match stage - firmId first, then lawyerId fallback
     const matchStage = firmId
         ? { firmId: new mongoose.Types.ObjectId(firmId) }
         : { lawyerId: new mongoose.Types.ObjectId(lawyerId) };
@@ -303,7 +795,8 @@ const getExpenseStats = asyncHandler(async (req, res) => {
                     year: { $year: '$date' },
                     month: { $month: '$date' }
                 },
-                amount: { $sum: '$amount' }
+                amount: { $sum: '$totalAmount' },
+                count: { $sum: 1 }
             }
         },
         { $sort: { '_id.year': 1, '_id.month': 1 } },
@@ -317,33 +810,40 @@ const getExpenseStats = asyncHandler(async (req, res) => {
                     ]
                 },
                 amount: 1,
+                count: 1,
                 _id: 0
             }
         }
     ]);
 
+    // Get pending reimbursements
+    const pendingReimbursements = await Expense.getPendingReimbursements(
+        firmId ? { firmId } : { lawyerId }
+    );
+
     return res.json({
         success: true,
         stats: {
-            totalExpenses: stats.totalExpenses,
-            billableExpenses: stats.billableExpenses,
-            nonBillableExpenses: stats.nonBillableExpenses,
+            ...stats,
             byCategory: byCategoryObj,
-            byMonth
+            byMonth,
+            pendingReimbursements
         }
     });
 });
 
-// Get expenses by category
+// ═══════════════════════════════════════════════════════════════
+// GET EXPENSES BY CATEGORY
+// GET /api/expenses/by-category
+// ═══════════════════════════════════════════════════════════════
 const getExpensesByCategory = asyncHandler(async (req, res) => {
-    // Block departed users from financial operations
     if (req.isDeparted) {
         throw CustomException('ليس لديك صلاحية للوصول إلى المصروفات', 403);
     }
 
     const { caseId, startDate, endDate } = req.query;
     const lawyerId = req.userID;
-    const firmId = req.firmId; // From firmFilter middleware
+    const firmId = req.firmId;
 
     // Build filters - firmId first, then lawyerId fallback
     const filters = firmId ? { firmId } : { lawyerId };
@@ -360,59 +860,23 @@ const getExpensesByCategory = asyncHandler(async (req, res) => {
     });
 });
 
-// Mark expense as reimbursed
-const markAsReimbursed = asyncHandler(async (req, res) => {
-    // Block departed users from financial operations
-    if (req.isDeparted) {
-        throw CustomException('ليس لديك صلاحية للوصول إلى المصروفات', 403);
-    }
-
-    const { id } = req.params;
-    const lawyerId = req.userID;
-    const firmId = req.firmId; // From firmFilter middleware
-
-    const expense = await Expense.findById(id);
-
-    if (!expense) {
-        throw CustomException('Expense not found', 404);
-    }
-
-    // Check access - firmId first, then lawyerId
-    const hasAccess = firmId
-        ? expense.firmId && expense.firmId.toString() === firmId.toString()
-        : expense.lawyerId.toString() === lawyerId;
-
-    if (!hasAccess) {
-        throw CustomException('You do not have access to this expense', 403);
-    }
-
-    if (expense.reimbursementStatus === 'paid') {
-        throw CustomException('Expense already reimbursed', 400);
-    }
-
-    expense.reimbursementStatus = 'paid';
-    expense.reimbursedAt = new Date();
-    expense.reimbursedAmount = expense.amount;
-    await expense.save();
-
-    return res.json({
-        success: true,
-        message: 'Expense marked as reimbursed',
-        expense
-    });
-});
-
-// Upload receipt
+// ═══════════════════════════════════════════════════════════════
+// UPLOAD RECEIPT
+// POST /api/expenses/:id/receipt
+// ═══════════════════════════════════════════════════════════════
 const uploadReceipt = asyncHandler(async (req, res) => {
-    // Block departed users from financial operations
     if (req.isDeparted) {
         throw CustomException('ليس لديك صلاحية للوصول إلى المصروفات', 403);
     }
 
     const { id } = req.params;
-    const { fileName, fileUrl, fileType } = req.body;
+    const { filename, url, mimeType, size, type = 'other' } = req.body;
     const lawyerId = req.userID;
-    const firmId = req.firmId; // From firmFilter middleware
+    const firmId = req.firmId;
+
+    if (!url) {
+        throw CustomException('Receipt URL is required', 400);
+    }
 
     const expense = await Expense.findById(id);
 
@@ -420,7 +884,7 @@ const uploadReceipt = asyncHandler(async (req, res) => {
         throw CustomException('Expense not found', 404);
     }
 
-    // Check access - firmId first, then lawyerId
+    // Check access
     const hasAccess = firmId
         ? expense.firmId && expense.firmId.toString() === firmId.toString()
         : expense.lawyerId.toString() === lawyerId;
@@ -429,31 +893,47 @@ const uploadReceipt = asyncHandler(async (req, res) => {
         throw CustomException('You do not have access to this expense', 403);
     }
 
-    const receipt = {
-        fileName: fileName || 'receipt',
-        fileUrl,
-        fileType: fileType || 'application/pdf',
+    const attachment = {
+        type,
+        filename: filename || 'receipt',
+        url,
+        mimeType: mimeType || 'application/pdf',
+        size: size || 0,
         uploadedAt: new Date()
     };
 
-    expense.receipts.push(receipt);
+    // Set as main receipt if first attachment
+    if (!expense.receipt || !expense.receipt.url) {
+        expense.receipt = {
+            filename: attachment.filename,
+            url: attachment.url,
+            mimeType: attachment.mimeType,
+            size: attachment.size
+        };
+    }
+
+    expense.attachments.push(attachment);
     expense.hasReceipt = true;
 
     // Also set the single receiptUrl for backwards compatibility
     if (!expense.receiptUrl) {
-        expense.receiptUrl = fileUrl;
+        expense.receiptUrl = url;
     }
 
+    expense.updatedBy = lawyerId;
     await expense.save();
 
     return res.json({
         success: true,
         message: 'Receipt uploaded successfully',
-        receipt
+        attachment
     });
 });
 
-// Smart category suggestion
+// ═══════════════════════════════════════════════════════════════
+// SMART CATEGORY SUGGESTION
+// POST /api/expenses/suggest-category
+// ═══════════════════════════════════════════════════════════════
 const suggestCategory = asyncHandler(async (req, res) => {
     const { description, descriptions } = req.body;
     const { suggestCategory: suggest, suggestCategoriesBatch, getAllCategories } = require('../utils/smartCategorization');
@@ -484,14 +964,122 @@ const suggestCategory = asyncHandler(async (req, res) => {
     });
 });
 
-// Get all expense categories with account codes
+// ═══════════════════════════════════════════════════════════════
+// GET ALL EXPENSE CATEGORIES
+// GET /api/expenses/categories
+// ═══════════════════════════════════════════════════════════════
 const getExpenseCategories = asyncHandler(async (req, res) => {
     const { getAllCategories } = require('../utils/smartCategorization');
     const categories = getAllCategories();
 
+    // Also include the enums from the model
+    const modelEnums = {
+        expenseCategories: Expense.EXPENSE_CATEGORIES,
+        paymentMethods: Expense.PAYMENT_METHODS,
+        tripPurposes: Expense.TRIP_PURPOSES,
+        governmentEntities: Expense.GOVERNMENT_ENTITIES
+    };
+
     return res.json({
         success: true,
-        data: categories
+        data: {
+            ...categories,
+            ...modelEnums
+        }
+    });
+});
+
+// ═══════════════════════════════════════════════════════════════
+// BULK APPROVE EXPENSES
+// POST /api/expenses/bulk-approve
+// ═══════════════════════════════════════════════════════════════
+const bulkApproveExpenses = asyncHandler(async (req, res) => {
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية للموافقة على المصروفات', 403);
+    }
+
+    const { expenseIds } = req.body;
+    const lawyerId = req.userID;
+    const firmId = req.firmId;
+
+    if (!expenseIds || !Array.isArray(expenseIds) || expenseIds.length === 0) {
+        throw CustomException('Expense IDs are required', 400);
+    }
+
+    // Check permission
+    if (req.hasPermission && !req.hasPermission('expenses', 'full')) {
+        throw CustomException('You do not have permission to approve expenses', 403);
+    }
+
+    const results = {
+        approved: [],
+        failed: []
+    };
+
+    for (const expenseId of expenseIds) {
+        try {
+            const expense = await Expense.findById(expenseId);
+
+            if (!expense) {
+                results.failed.push({ id: expenseId, error: 'Not found' });
+                continue;
+            }
+
+            // Check access
+            const hasAccess = firmId
+                ? expense.firmId && expense.firmId.toString() === firmId.toString()
+                : expense.lawyerId.toString() === lawyerId;
+
+            if (!hasAccess) {
+                results.failed.push({ id: expenseId, error: 'No access' });
+                continue;
+            }
+
+            await expense.approve(lawyerId);
+            results.approved.push(expenseId);
+        } catch (error) {
+            results.failed.push({ id: expenseId, error: error.message });
+        }
+    }
+
+    return res.json({
+        success: true,
+        message: `${results.approved.length} expenses approved`,
+        results
+    });
+});
+
+// ═══════════════════════════════════════════════════════════════
+// GET NEW EXPENSE DEFAULTS
+// GET /api/expenses/new
+// ═══════════════════════════════════════════════════════════════
+const getNewExpenseDefaults = asyncHandler(async (req, res) => {
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية للوصول إلى المصروفات', 403);
+    }
+
+    return res.json({
+        success: true,
+        data: {
+            description: '',
+            amount: 0,
+            taxAmount: 0,
+            taxRate: 15,
+            category: 'other',
+            date: new Date().toISOString().split('T')[0],
+            paymentMethod: 'cash',
+            expenseType: 'non_reimbursable',
+            isBillable: true,
+            markupType: 'none',
+            markupValue: 0,
+            currency: 'SAR'
+        },
+        enums: {
+            categories: Expense.EXPENSE_CATEGORIES,
+            paymentMethods: Expense.PAYMENT_METHODS,
+            tripPurposes: Expense.TRIP_PURPOSES,
+            governmentEntities: Expense.GOVERNMENT_ENTITIES
+        }
     });
 });
 
@@ -501,10 +1089,15 @@ module.exports = {
     getExpense,
     updateExpense,
     deleteExpense,
+    submitExpense,
+    approveExpense,
+    rejectExpense,
+    markAsReimbursed,
     getExpenseStats,
     getExpensesByCategory,
-    markAsReimbursed,
     uploadReceipt,
     suggestCategory,
-    getExpenseCategories
+    getExpenseCategories,
+    bulkApproveExpenses,
+    getNewExpenseDefaults
 };
