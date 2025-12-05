@@ -6,8 +6,12 @@ const {
     firmFilter,
     requireFirm,
     checkFirmPermission,
+    checkSpecialPermission,
+    blockDeparted,
     firmOwnerOnly,
-    firmAdminOnly
+    firmAdminOnly,
+    financeAccessOnly,
+    teamManagementOnly
 } = require('./firmFilter.middleware');
 
 module.exports = {
@@ -20,6 +24,10 @@ module.exports = {
     firmFilter,
     requireFirm,
     checkFirmPermission,
+    checkSpecialPermission,
+    blockDeparted,
     firmOwnerOnly,
-    firmAdminOnly
+    firmAdminOnly,
+    financeAccessOnly,
+    teamManagementOnly
 }

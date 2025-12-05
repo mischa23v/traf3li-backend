@@ -16,16 +16,27 @@ const teamMemberSchema = new mongoose.Schema({
     },
     role: {
         type: String,
-        enum: ['owner', 'admin', 'partner', 'lawyer', 'paralegal', 'secretary', 'accountant'],
+        enum: ['owner', 'admin', 'partner', 'lawyer', 'paralegal', 'secretary', 'accountant', 'departed'],
         default: 'lawyer'
+    },
+    // Original role before departure (for reference)
+    previousRole: {
+        type: String,
+        enum: ['owner', 'admin', 'partner', 'lawyer', 'paralegal', 'secretary', 'accountant', null],
+        default: null
     },
     permissions: {
         // Module access
         clients: { type: String, enum: ['none', 'view', 'edit', 'full'], default: 'view' },
         cases: { type: String, enum: ['none', 'view', 'edit', 'full'], default: 'view' },
+        leads: { type: String, enum: ['none', 'view', 'edit', 'full'], default: 'view' },
         invoices: { type: String, enum: ['none', 'view', 'edit', 'full'], default: 'view' },
         payments: { type: String, enum: ['none', 'view', 'edit', 'full'], default: 'view' },
+        expenses: { type: String, enum: ['none', 'view', 'edit', 'full'], default: 'view' },
         documents: { type: String, enum: ['none', 'view', 'edit', 'full'], default: 'view' },
+        tasks: { type: String, enum: ['none', 'view', 'edit', 'full'], default: 'edit' },
+        events: { type: String, enum: ['none', 'view', 'edit', 'full'], default: 'edit' },
+        timeTracking: { type: String, enum: ['none', 'view', 'edit', 'full'], default: 'edit' },
         reports: { type: String, enum: ['none', 'view', 'edit', 'full'], default: 'none' },
         settings: { type: String, enum: ['none', 'view', 'edit', 'full'], default: 'none' },
         team: { type: String, enum: ['none', 'view', 'edit', 'full'], default: 'none' },
@@ -34,15 +45,33 @@ const teamMemberSchema = new mongoose.Schema({
         canApproveInvoices: { type: Boolean, default: false },
         canManageRetainers: { type: Boolean, default: false },
         canExportData: { type: Boolean, default: false },
-        canDeleteRecords: { type: Boolean, default: false }
+        canDeleteRecords: { type: Boolean, default: false },
+        canViewFinance: { type: Boolean, default: false },
+        canManageTeam: { type: Boolean, default: false }
     },
     title: String,  // Job title within firm
     department: String,
     joinedAt: { type: Date, default: Date.now },
+    // Employment status tracking
     status: {
         type: String,
-        enum: ['active', 'inactive', 'pending'],
+        enum: ['active', 'departed', 'suspended', 'pending'],
         default: 'active'
+    },
+    // Departure information
+    departedAt: { type: Date, default: null },
+    departureReason: { type: String, default: null },
+    departureNotes: { type: String, default: null },
+    // Cases this member worked on (for departed access)
+    assignedCases: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Case'
+    }],
+    // Track who processed the departure
+    departureProcessedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        default: null
     }
 }, { _id: true });
 
@@ -418,43 +447,172 @@ firmSchema.statics.getUserRole = async function(firmId, userId) {
     return member?.role || null;
 };
 
+// Process member departure - converts active member to departed status
+firmSchema.methods.processDeparture = async function(userId, processedBy, reason = null, notes = null) {
+    const member = this.members.find(m => m.userId.toString() === userId.toString());
+    if (!member) {
+        throw new Error('User is not a member of this firm');
+    }
+
+    // Cannot process departure for owner
+    if (member.role === 'owner') {
+        throw new Error('Cannot process departure for firm owner. Transfer ownership first.');
+    }
+
+    // Already departed
+    if (member.status === 'departed') {
+        throw new Error('Member has already departed');
+    }
+
+    // Store original role
+    member.previousRole = member.role;
+
+    // Get cases this member was assigned to (for read-only access)
+    const Case = mongoose.model('Case');
+    const assignedCases = await Case.find({
+        firmId: this._id,
+        $or: [
+            { assignedTo: userId },
+            { lawyerId: userId },
+            { 'team.userId': userId }
+        ]
+    }).select('_id');
+
+    member.assignedCases = assignedCases.map(c => c._id);
+
+    // Update to departed status
+    member.role = 'departed';
+    member.status = 'departed';
+    member.departedAt = new Date();
+    member.departureReason = reason;
+    member.departureNotes = notes;
+    member.departureProcessedBy = processedBy;
+
+    // Set departed permissions (read-only to their own work, no finance)
+    member.permissions = getDefaultPermissions('departed');
+
+    await this.save();
+
+    // Update user's firmRole
+    const User = mongoose.model('User');
+    await User.findByIdAndUpdate(userId, {
+        firmRole: 'departed'
+        // Note: We keep firmId so they can still access their cases
+    });
+
+    return this;
+};
+
+// Reinstate a departed member
+firmSchema.methods.reinstateMember = async function(userId, newRole = null) {
+    const member = this.members.find(m => m.userId.toString() === userId.toString());
+    if (!member) {
+        throw new Error('User is not a member of this firm');
+    }
+
+    if (member.status !== 'departed') {
+        throw new Error('Member is not departed');
+    }
+
+    // Restore to previous role or new role
+    const roleToAssign = newRole || member.previousRole || 'lawyer';
+
+    member.role = roleToAssign;
+    member.status = 'active';
+    member.departedAt = null;
+    member.departureReason = null;
+    member.departureNotes = null;
+    member.departureProcessedBy = null;
+    member.assignedCases = [];
+    member.previousRole = null;
+
+    // Restore permissions for the role
+    member.permissions = getDefaultPermissions(roleToAssign);
+
+    await this.save();
+
+    // Update user's firmRole
+    const User = mongoose.model('User');
+    await User.findByIdAndUpdate(userId, { firmRole: roleToAssign });
+
+    return this;
+};
+
+// Get all active members (excludes departed)
+firmSchema.methods.getActiveMembers = function() {
+    return this.members.filter(m => m.status === 'active');
+};
+
+// Get all departed members
+firmSchema.methods.getDepartedMembers = function() {
+    return this.members.filter(m => m.status === 'departed');
+};
+
+// Check if user is departed
+firmSchema.methods.isDeparted = function(userId) {
+    const member = this.members.find(m => m.userId.toString() === userId.toString());
+    return member?.status === 'departed';
+};
+
 // Helper function for default permissions by role
 function getDefaultPermissions(role) {
     const permissions = {
         owner: {
-            clients: 'full', cases: 'full', invoices: 'full', payments: 'full',
-            documents: 'full', reports: 'full', settings: 'full', team: 'full', hr: 'full',
-            canApproveInvoices: true, canManageRetainers: true, canExportData: true, canDeleteRecords: true
+            clients: 'full', cases: 'full', leads: 'full', invoices: 'full', payments: 'full',
+            expenses: 'full', documents: 'full', tasks: 'full', events: 'full', timeTracking: 'full',
+            reports: 'full', settings: 'full', team: 'full', hr: 'full',
+            canApproveInvoices: true, canManageRetainers: true, canExportData: true,
+            canDeleteRecords: true, canViewFinance: true, canManageTeam: true
         },
         admin: {
-            clients: 'full', cases: 'full', invoices: 'full', payments: 'full',
-            documents: 'full', reports: 'full', settings: 'edit', team: 'full', hr: 'full',
-            canApproveInvoices: true, canManageRetainers: true, canExportData: true, canDeleteRecords: true
+            clients: 'full', cases: 'full', leads: 'full', invoices: 'full', payments: 'full',
+            expenses: 'full', documents: 'full', tasks: 'full', events: 'full', timeTracking: 'full',
+            reports: 'full', settings: 'edit', team: 'full', hr: 'full',
+            canApproveInvoices: true, canManageRetainers: true, canExportData: true,
+            canDeleteRecords: true, canViewFinance: true, canManageTeam: true
         },
         partner: {
-            clients: 'full', cases: 'full', invoices: 'full', payments: 'edit',
-            documents: 'full', reports: 'view', settings: 'view', team: 'view', hr: 'none',
-            canApproveInvoices: true, canManageRetainers: true, canExportData: true, canDeleteRecords: false
+            clients: 'full', cases: 'full', leads: 'full', invoices: 'full', payments: 'edit',
+            expenses: 'edit', documents: 'full', tasks: 'full', events: 'full', timeTracking: 'full',
+            reports: 'view', settings: 'view', team: 'view', hr: 'none',
+            canApproveInvoices: true, canManageRetainers: true, canExportData: true,
+            canDeleteRecords: false, canViewFinance: true, canManageTeam: false
         },
         lawyer: {
-            clients: 'edit', cases: 'edit', invoices: 'edit', payments: 'view',
-            documents: 'edit', reports: 'view', settings: 'none', team: 'none', hr: 'none',
-            canApproveInvoices: false, canManageRetainers: false, canExportData: false, canDeleteRecords: false
+            clients: 'edit', cases: 'edit', leads: 'edit', invoices: 'edit', payments: 'view',
+            expenses: 'edit', documents: 'edit', tasks: 'full', events: 'full', timeTracking: 'full',
+            reports: 'view', settings: 'none', team: 'view', hr: 'none',
+            canApproveInvoices: false, canManageRetainers: false, canExportData: false,
+            canDeleteRecords: false, canViewFinance: false, canManageTeam: false
         },
         paralegal: {
-            clients: 'edit', cases: 'edit', invoices: 'view', payments: 'none',
-            documents: 'edit', reports: 'none', settings: 'none', team: 'none', hr: 'none',
-            canApproveInvoices: false, canManageRetainers: false, canExportData: false, canDeleteRecords: false
+            clients: 'edit', cases: 'edit', leads: 'edit', invoices: 'view', payments: 'none',
+            expenses: 'view', documents: 'edit', tasks: 'edit', events: 'edit', timeTracking: 'edit',
+            reports: 'none', settings: 'none', team: 'view', hr: 'none',
+            canApproveInvoices: false, canManageRetainers: false, canExportData: false,
+            canDeleteRecords: false, canViewFinance: false, canManageTeam: false
         },
         secretary: {
-            clients: 'view', cases: 'view', invoices: 'view', payments: 'view',
-            documents: 'view', reports: 'none', settings: 'none', team: 'none', hr: 'none',
-            canApproveInvoices: false, canManageRetainers: false, canExportData: false, canDeleteRecords: false
+            clients: 'view', cases: 'view', leads: 'edit', invoices: 'view', payments: 'view',
+            expenses: 'view', documents: 'view', tasks: 'edit', events: 'edit', timeTracking: 'view',
+            reports: 'none', settings: 'none', team: 'view', hr: 'none',
+            canApproveInvoices: false, canManageRetainers: false, canExportData: false,
+            canDeleteRecords: false, canViewFinance: false, canManageTeam: false
         },
         accountant: {
-            clients: 'view', cases: 'none', invoices: 'full', payments: 'full',
-            documents: 'view', reports: 'full', settings: 'none', team: 'none', hr: 'view',
-            canApproveInvoices: true, canManageRetainers: true, canExportData: true, canDeleteRecords: false
+            clients: 'view', cases: 'none', leads: 'none', invoices: 'full', payments: 'full',
+            expenses: 'full', documents: 'view', tasks: 'edit', events: 'edit', timeTracking: 'view',
+            reports: 'full', settings: 'none', team: 'none', hr: 'view',
+            canApproveInvoices: true, canManageRetainers: true, canExportData: true,
+            canDeleteRecords: false, canViewFinance: true, canManageTeam: false
+        },
+        // Departed employees - read-only to their own cases/tasks, NO finance access
+        departed: {
+            clients: 'none', cases: 'view', leads: 'none', invoices: 'none', payments: 'none',
+            expenses: 'none', documents: 'view', tasks: 'view', events: 'view', timeTracking: 'view',
+            reports: 'none', settings: 'none', team: 'none', hr: 'none',
+            canApproveInvoices: false, canManageRetainers: false, canExportData: false,
+            canDeleteRecords: false, canViewFinance: false, canManageTeam: false
         }
     };
 

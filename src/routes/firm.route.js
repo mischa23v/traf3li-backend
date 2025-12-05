@@ -6,7 +6,12 @@
  */
 
 const express = require('express');
-const { userMiddleware, firmAdminOnly, firmOwnerOnly } = require('../middlewares');
+const {
+    userMiddleware,
+    firmAdminOnly,
+    firmOwnerOnly,
+    teamManagementOnly
+} = require('../middlewares');
 const {
     // Marketplace
     getFirms,
@@ -25,6 +30,14 @@ const {
     transferOwnership,
     getFirmStats,
 
+    // Team management
+    getTeam,
+    processDeparture,
+    reinstateMember,
+    getDepartedMembers,
+    getMyPermissions,
+    getAvailableRoles,
+
     // Backwards compatible
     addLawyer,
     removeLawyer
@@ -39,6 +52,9 @@ const app = express.Router();
 // Get all firms (public marketplace)
 app.get('/', getFirms);
 
+// Get available roles and their permissions (for UI)
+app.get('/roles', userMiddleware, getAvailableRoles);
+
 // ═══════════════════════════════════════════════════════════════
 // FIRM MANAGEMENT (Authenticated)
 // ═══════════════════════════════════════════════════════════════
@@ -48,6 +64,9 @@ app.post('/', userMiddleware, createFirm);
 
 // Get current user's firm
 app.get('/my', userMiddleware, getMyFirm);
+
+// Get current user's permissions (صلاحياتي)
+app.get('/my/permissions', userMiddleware, getMyPermissions);
 
 // Get firm by ID
 app.get('/:id', userMiddleware, getFirm);
@@ -66,26 +85,38 @@ app.patch('/:_id', userMiddleware, updateFirm);  // Backwards compatible
 app.patch('/:id/billing', userMiddleware, updateBillingSettings);
 
 // ═══════════════════════════════════════════════════════════════
-// TEAM MANAGEMENT
+// TEAM MANAGEMENT (فريق العمل)
 // ═══════════════════════════════════════════════════════════════
 
-// Get team members
+// Get team members (فريق العمل) - shows only active by default
+app.get('/:id/team', userMiddleware, getTeam);
+
+// Get team members (legacy)
 app.get('/:id/members', userMiddleware, getMembers);
 
+// Get departed members list (قائمة الموظفين المغادرين) - Admin only
+app.get('/:id/departed', userMiddleware, getDepartedMembers);
+
 // Invite new member
-app.post('/:id/members/invite', userMiddleware, inviteMember);
+app.post('/:id/members/invite', teamManagementOnly, inviteMember);
+
+// Process member departure (مغادرة الموظف) - Admin only
+app.post('/:id/members/:memberId/depart', firmAdminOnly, processDeparture);
+
+// Reinstate departed member (إعادة تفعيل عضو مغادر) - Admin only
+app.post('/:id/members/:memberId/reinstate', firmAdminOnly, reinstateMember);
 
 // Update member role/permissions
-app.put('/:id/members/:memberId', userMiddleware, updateMember);
+app.put('/:id/members/:memberId', teamManagementOnly, updateMember);
 
 // Remove member
-app.delete('/:id/members/:memberId', userMiddleware, removeMember);
+app.delete('/:id/members/:memberId', teamManagementOnly, removeMember);
 
 // Leave firm (for members)
 app.post('/:id/leave', userMiddleware, leaveFirm);
 
 // Transfer ownership (owner only)
-app.post('/:id/transfer-ownership', userMiddleware, transferOwnership);
+app.post('/:id/transfer-ownership', firmOwnerOnly, transferOwnership);
 
 // ═══════════════════════════════════════════════════════════════
 // STATISTICS

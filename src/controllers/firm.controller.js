@@ -702,6 +702,292 @@ const getFirmStats = asyncHandler(async (req, res) => {
     });
 });
 
+/**
+ * Get team members (فريق العمل)
+ * Only shows ACTIVE members by default
+ * GET /api/firms/:id/team
+ */
+const getTeam = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const userId = req.userID;
+    const { includeAll = false } = req.query;
+
+    const firm = await Firm.findById(id)
+        .populate('members.userId', 'firstName lastName email phone image lawyerProfile');
+
+    if (!firm) {
+        throw CustomException('المكتب غير موجود', 404);
+    }
+
+    // Check if user is a member
+    const requestingMember = firm.members.find(m => m.userId._id.toString() === userId);
+    if (!requestingMember) {
+        throw CustomException('لا يمكنك الوصول إلى قائمة فريق العمل', 403);
+    }
+
+    // Departed users can only see active team members
+    const isDeparted = requestingMember.status === 'departed' || requestingMember.role === 'departed';
+
+    let teamMembers;
+    if (isDeparted || !includeAll) {
+        // Show only active members
+        teamMembers = firm.members.filter(m => m.status === 'active');
+    } else {
+        // Admins/owners can see all including departed
+        if (['owner', 'admin'].includes(requestingMember.role)) {
+            teamMembers = firm.members;
+        } else {
+            teamMembers = firm.members.filter(m => m.status === 'active');
+        }
+    }
+
+    res.json({
+        success: true,
+        data: teamMembers,
+        meta: {
+            total: teamMembers.length,
+            activeCount: firm.members.filter(m => m.status === 'active').length,
+            departedCount: firm.members.filter(m => m.status === 'departed').length
+        }
+    });
+});
+
+/**
+ * Process member departure (مغادرة الموظف)
+ * POST /api/firms/:id/members/:memberId/depart
+ */
+const processDeparture = asyncHandler(async (req, res) => {
+    const { id, memberId } = req.params;
+    const userId = req.userID;
+    const { reason, notes } = req.body;
+
+    const firm = await Firm.findById(id);
+    if (!firm) {
+        throw CustomException('المكتب غير موجود', 404);
+    }
+
+    // Check if user is owner or admin
+    const requestingMember = firm.members.find(m => m.userId.toString() === userId);
+    if (!requestingMember || !['owner', 'admin'].includes(requestingMember.role)) {
+        throw CustomException('ليس لديك صلاحية لمعالجة مغادرة الموظفين', 403);
+    }
+
+    // Find the member to process
+    const memberToDepart = firm.members.find(m => m.userId.toString() === memberId);
+    if (!memberToDepart) {
+        throw CustomException('العضو غير موجود', 404);
+    }
+
+    // Cannot process owner's departure
+    if (memberToDepart.role === 'owner') {
+        throw CustomException('لا يمكن معالجة مغادرة مالك المكتب. يجب تحويل الملكية أولاً', 400);
+    }
+
+    // Admin cannot process another admin's departure (only owner can)
+    if (memberToDepart.role === 'admin' && requestingMember.role !== 'owner') {
+        throw CustomException('فقط مالك المكتب يمكنه معالجة مغادرة المسؤولين', 403);
+    }
+
+    // Process the departure
+    await firm.processDeparture(memberId, userId, reason, notes);
+
+    // Update user's firmStatus
+    await User.findByIdAndUpdate(memberId, { firmStatus: 'departed' });
+
+    res.json({
+        success: true,
+        message: 'تم معالجة مغادرة العضو بنجاح. سيحتفظ بإمكانية الاطلاع على القضايا التي عمل عليها',
+        data: {
+            userId: memberId,
+            status: 'departed',
+            departedAt: new Date()
+        }
+    });
+});
+
+/**
+ * Reinstate departed member (إعادة تفعيل عضو مغادر)
+ * POST /api/firms/:id/members/:memberId/reinstate
+ */
+const reinstateMember = asyncHandler(async (req, res) => {
+    const { id, memberId } = req.params;
+    const userId = req.userID;
+    const { role } = req.body;
+
+    const firm = await Firm.findById(id);
+    if (!firm) {
+        throw CustomException('المكتب غير موجود', 404);
+    }
+
+    // Check if user is owner or admin
+    const requestingMember = firm.members.find(m => m.userId.toString() === userId);
+    if (!requestingMember || !['owner', 'admin'].includes(requestingMember.role)) {
+        throw CustomException('ليس لديك صلاحية لإعادة تفعيل الأعضاء', 403);
+    }
+
+    // Check subscription limits
+    const activeMembers = firm.members.filter(m => m.status === 'active').length;
+    if (activeMembers >= firm.subscription.maxUsers) {
+        throw CustomException('تم الوصول إلى الحد الأقصى لعدد الأعضاء في خطتك الحالية', 400);
+    }
+
+    // Only owner can reinstate as admin
+    if (role === 'admin' && requestingMember.role !== 'owner') {
+        throw CustomException('فقط مالك المكتب يمكنه تعيين مسؤولين', 403);
+    }
+
+    // Reinstate the member
+    await firm.reinstateMember(memberId, role);
+
+    // Update user's firmStatus
+    await User.findByIdAndUpdate(memberId, { firmStatus: 'active' });
+
+    res.json({
+        success: true,
+        message: 'تم إعادة تفعيل العضو بنجاح',
+        data: {
+            userId: memberId,
+            status: 'active',
+            role: role || 'lawyer'
+        }
+    });
+});
+
+/**
+ * Get departed members list (قائمة الموظفين المغادرين)
+ * GET /api/firms/:id/departed
+ */
+const getDepartedMembers = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const userId = req.userID;
+
+    const firm = await Firm.findById(id)
+        .populate('members.userId', 'firstName lastName email phone image')
+        .populate('members.departureProcessedBy', 'firstName lastName');
+
+    if (!firm) {
+        throw CustomException('المكتب غير موجود', 404);
+    }
+
+    // Check if user is owner or admin
+    const requestingMember = firm.members.find(m => m.userId._id.toString() === userId);
+    if (!requestingMember || !['owner', 'admin'].includes(requestingMember.role)) {
+        throw CustomException('ليس لديك صلاحية للوصول إلى قائمة الموظفين المغادرين', 403);
+    }
+
+    const departedMembers = firm.members.filter(m => m.status === 'departed');
+
+    res.json({
+        success: true,
+        data: departedMembers,
+        count: departedMembers.length
+    });
+});
+
+/**
+ * Get my permissions (صلاحياتي)
+ * GET /api/firms/my/permissions
+ */
+const getMyPermissions = asyncHandler(async (req, res) => {
+    const userId = req.userID;
+
+    const user = await User.findById(userId).select('firmId firmRole firmStatus');
+    if (!user?.firmId) {
+        return res.status(404).json({
+            success: false,
+            message: 'لا يوجد مكتب مرتبط بحسابك',
+            code: 'NO_FIRM'
+        });
+    }
+
+    const firm = await Firm.findById(user.firmId).select('members name');
+    if (!firm) {
+        return res.status(404).json({
+            success: false,
+            message: 'المكتب غير موجود'
+        });
+    }
+
+    const member = firm.members.find(m => m.userId.toString() === userId);
+    if (!member) {
+        return res.status(404).json({
+            success: false,
+            message: 'لست عضواً في هذا المكتب'
+        });
+    }
+
+    const isDeparted = member.status === 'departed' || member.role === 'departed';
+
+    res.json({
+        success: true,
+        data: {
+            firmId: user.firmId,
+            firmName: firm.name,
+            role: member.role,
+            previousRole: member.previousRole,
+            status: member.status,
+            isDeparted,
+            permissions: member.permissions,
+            title: member.title,
+            department: member.department,
+            joinedAt: member.joinedAt,
+            departedAt: member.departedAt,
+            // Accessible modules summary
+            accessibleModules: {
+                clients: member.permissions?.clients || 'none',
+                cases: member.permissions?.cases || 'none',
+                leads: member.permissions?.leads || 'none',
+                invoices: member.permissions?.invoices || 'none',
+                payments: member.permissions?.payments || 'none',
+                expenses: member.permissions?.expenses || 'none',
+                documents: member.permissions?.documents || 'none',
+                tasks: member.permissions?.tasks || 'none',
+                events: member.permissions?.events || 'none',
+                timeTracking: member.permissions?.timeTracking || 'none',
+                reports: member.permissions?.reports || 'none',
+                team: member.permissions?.team || 'none'
+            },
+            specialPermissions: {
+                canApproveInvoices: member.permissions?.canApproveInvoices || false,
+                canManageRetainers: member.permissions?.canManageRetainers || false,
+                canExportData: member.permissions?.canExportData || false,
+                canDeleteRecords: member.permissions?.canDeleteRecords || false,
+                canViewFinance: member.permissions?.canViewFinance || false,
+                canManageTeam: member.permissions?.canManageTeam || false
+            },
+            // For departed, list of cases they can still access
+            assignedCases: isDeparted ? member.assignedCases : undefined
+        }
+    });
+});
+
+/**
+ * Get available roles and their permissions (for UI)
+ * GET /api/firms/roles
+ */
+const getAvailableRoles = asyncHandler(async (req, res) => {
+    const { getDefaultPermissions } = require('../config/permissions.config');
+
+    const roles = [
+        { id: 'admin', name: 'مسؤول', nameEn: 'Admin', description: 'صلاحيات كاملة تقريباً' },
+        { id: 'partner', name: 'شريك', nameEn: 'Partner', description: 'محامي أقدم مع صلاحيات موسعة' },
+        { id: 'lawyer', name: 'محامي', nameEn: 'Lawyer', description: 'صلاحيات العمل القانوني الأساسية' },
+        { id: 'paralegal', name: 'مساعد قانوني', nameEn: 'Paralegal', description: 'دعم للعمل القانوني' },
+        { id: 'secretary', name: 'سكرتير', nameEn: 'Secretary', description: 'صلاحيات إدارية أساسية' },
+        { id: 'accountant', name: 'محاسب', nameEn: 'Accountant', description: 'التركيز على الجوانب المالية' }
+    ];
+
+    const rolesWithPermissions = roles.map(role => ({
+        ...role,
+        defaultPermissions: getDefaultPermissions(role.id)
+    }));
+
+    res.json({
+        success: true,
+        data: rolesWithPermissions
+    });
+});
+
 module.exports = {
     // Marketplace (backwards compatible)
     getFirms,
@@ -719,6 +1005,14 @@ module.exports = {
     leaveFirm,
     transferOwnership,
     getFirmStats,
+
+    // Team management (فريق العمل)
+    getTeam,
+    processDeparture,
+    reinstateMember,
+    getDepartedMembers,
+    getMyPermissions,
+    getAvailableRoles,
 
     // Backwards compatible
     addLawyer,
