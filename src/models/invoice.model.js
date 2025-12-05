@@ -706,6 +706,7 @@ invoiceSchema.methods.postToGL = async function(session = null) {
 
     // Create GL entry
     const glEntry = await GeneralLedger.postTransaction({
+        firmId: this.firmId,  // Multi-tenancy: pass firmId to GL
         transactionDate: this.issueDate || new Date(),
         description: `Invoice ${this.invoiceNumber}`,
         descriptionAr: `فاتورة ${this.invoiceNumber}`,
@@ -788,6 +789,7 @@ invoiceSchema.methods.recordPayment = async function(paymentData, session = null
 
     // Post payment to GL
     const glEntry = await GeneralLedger.postTransaction({
+        firmId: this.firmId,  // Multi-tenancy: pass firmId to GL
         transactionDate: paymentDate || new Date(),
         description: `Payment for Invoice ${this.invoiceNumber}`,
         descriptionAr: `دفعة للفاتورة ${this.invoiceNumber}`,

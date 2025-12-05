@@ -913,6 +913,7 @@ expenseSchema.methods.postToGL = async function(session = null) {
 
     // Create GL entry: DR Expense, CR Bank/Cash
     const glEntry = await GeneralLedger.postTransaction({
+        firmId: this.firmId,  // Multi-tenancy: pass firmId to GL
         transactionDate: this.date || new Date(),
         description: `Expense ${this.expenseId} - ${this.description}`,
         descriptionAr: `مصروف ${this.expenseId}`,

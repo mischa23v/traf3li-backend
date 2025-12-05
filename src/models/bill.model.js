@@ -119,6 +119,16 @@ const recurringConfigSchema = new mongoose.Schema({
 }, { _id: false });
 
 const billSchema = new mongoose.Schema({
+    // ═══════════════════════════════════════════════════════════════
+    // FIRM (Multi-Tenancy)
+    // ═══════════════════════════════════════════════════════════════
+    firmId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Firm',
+        index: true,
+        required: false  // Optional for backwards compatibility
+    },
+
     billNumber: {
         type: String,
         unique: true,
@@ -589,6 +599,7 @@ billSchema.methods.postToGL = async function(session = null) {
 
         if (amount > 0) {
             const glEntry = await GeneralLedger.postTransaction({
+                firmId: this.firmId,  // Multi-tenancy: pass firmId to GL
                 transactionDate: this.billDate || new Date(),
                 description: `Bill ${this.billNumber} - ${item.description}`,
                 descriptionAr: item.descriptionAr || `فاتورة ${this.billNumber}`,
@@ -671,6 +682,7 @@ billSchema.methods.recordPayment = async function(paymentData, session = null) {
 
     // Post payment to GL: DR A/P, CR Bank
     const glEntry = await GeneralLedger.postTransaction({
+        firmId: this.firmId,  // Multi-tenancy: pass firmId to GL
         transactionDate: paymentDate || new Date(),
         description: `Payment for Bill ${this.billNumber}`,
         descriptionAr: `دفعة للفاتورة ${this.billNumber}`,

@@ -9,6 +9,16 @@ const mongoose = require("mongoose");
  */
 const generalLedgerSchema = new mongoose.Schema(
   {
+    // ═══════════════════════════════════════════════════════════════
+    // FIRM (Multi-Tenancy) - CRITICAL for data isolation
+    // ═══════════════════════════════════════════════════════════════
+    firmId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Firm",
+      index: true,
+      required: false  // Optional for backwards compatibility with existing data
+    },
+
     // Auto-generated entry number (GLE-YYYYMM-00001)
     entryNumber: {
       type: String,
@@ -193,6 +203,17 @@ generalLedgerSchema.index({ creditAccountId: 1 });
 generalLedgerSchema.index({ clientId: 1 });
 generalLedgerSchema.index({ fiscalYear: 1, fiscalMonth: 1, status: 1 });
 
+// Multi-tenancy indexes with firmId (CRITICAL for production)
+generalLedgerSchema.index({ firmId: 1, transactionDate: -1 });
+generalLedgerSchema.index({ firmId: 1, status: 1 });
+generalLedgerSchema.index({ firmId: 1, referenceModel: 1, status: 1 });
+generalLedgerSchema.index({ firmId: 1, caseId: 1, status: 1 });
+generalLedgerSchema.index({ firmId: 1, clientId: 1, status: 1 });
+generalLedgerSchema.index({ firmId: 1, lawyerId: 1, status: 1 });
+generalLedgerSchema.index({ firmId: 1, debitAccountId: 1, status: 1 });
+generalLedgerSchema.index({ firmId: 1, creditAccountId: 1, status: 1 });
+generalLedgerSchema.index({ firmId: 1, fiscalYear: 1, fiscalMonth: 1, status: 1 });
+
 // Compound indexes for reporting
 generalLedgerSchema.index({
   transactionDate: 1,
@@ -200,6 +221,19 @@ generalLedgerSchema.index({
   status: 1
 });
 generalLedgerSchema.index({
+  transactionDate: 1,
+  creditAccountId: 1,
+  status: 1
+});
+// Firm-scoped reporting indexes
+generalLedgerSchema.index({
+  firmId: 1,
+  transactionDate: 1,
+  debitAccountId: 1,
+  status: 1
+});
+generalLedgerSchema.index({
+  firmId: 1,
   transactionDate: 1,
   creditAccountId: 1,
   status: 1
@@ -297,6 +331,7 @@ async function generateEntryNumber() {
  */
 generalLedgerSchema.statics.postTransaction = async function (data, session = null) {
   const {
+    firmId,  // Multi-tenancy: firm ID for data isolation
     transactionDate,
     description,
     descriptionAr,
@@ -343,6 +378,7 @@ generalLedgerSchema.statics.postTransaction = async function (data, session = nu
   const entryNumber = await generateEntryNumber();
 
   const entry = new this({
+    firmId,  // Multi-tenancy: firm ID for data isolation
     entryNumber,
     transactionDate: transactionDate || new Date(),
     description,
@@ -401,6 +437,7 @@ generalLedgerSchema.statics.voidTransaction = async function (
   // Create reversing entry (swap debit and credit)
   const reversingEntryNumber = await generateEntryNumber();
   const reversingEntry = new this({
+    firmId: entry.firmId,  // Inherit firmId from original entry
     entryNumber: reversingEntryNumber,
     transactionDate: new Date(),
     description: `VOID: ${entry.description}`,

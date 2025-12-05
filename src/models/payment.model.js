@@ -858,6 +858,7 @@ paymentSchema.methods.postToGL = async function(session = null) {
 
     // Create GL entry: DR Bank, CR A/R
     const glEntry = await GeneralLedger.postTransaction({
+        firmId: this.firmId,  // Multi-tenancy: pass firmId to GL
         transactionDate: this.paymentDate || new Date(),
         description: `Payment ${this.paymentNumber}`,
         descriptionAr: `دفعة ${this.paymentNumber}`,
