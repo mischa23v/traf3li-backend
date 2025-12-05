@@ -10,14 +10,15 @@ const wathqService = require('../services/wathqService');
  */
 const createClient = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
+    const firmId = req.firmId; // From firmFilter middleware
 
     // Validate required fields
     if (!req.body.phone) {
         throw CustomException('رقم الهاتف مطلوب', 400);
     }
 
-    // Check for conflicts before creating
-    const conflicts = await Client.runConflictCheck(lawyerId, req.body);
+    // Check for conflicts before creating (within firm scope)
+    const conflicts = await Client.runConflictCheck(lawyerId, req.body, firmId);
     if (conflicts.length > 0) {
         return res.status(409).json({
             success: false,
@@ -29,6 +30,7 @@ const createClient = asyncHandler(async (req, res) => {
     const clientData = {
         ...req.body,
         lawyerId,
+        firmId, // Add firmId for multi-tenancy
         createdBy: lawyerId
     };
 
@@ -59,7 +61,10 @@ const getClients = asyncHandler(async (req, res) => {
     } = req.query;
 
     const lawyerId = req.userID;
-    const query = { lawyerId };
+    const firmId = req.firmId; // From firmFilter middleware
+
+    // Build query: use firmId if available, otherwise fall back to lawyerId
+    const query = firmId ? { firmId } : { lawyerId };
 
     if (status) query.status = status;
     if (clientType) query.clientType = clientType;
@@ -107,6 +112,7 @@ const getClients = asyncHandler(async (req, res) => {
 const getClient = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const lawyerId = req.userID;
+    const firmId = req.firmId; // From firmFilter middleware
 
     const client = await Client.findById(id)
         .populate('assignments.responsibleLawyerId', 'firstName lastName email')
@@ -119,41 +125,54 @@ const getClient = asyncHandler(async (req, res) => {
         throw CustomException('العميل غير موجود', 404);
     }
 
-    if (client.lawyerId.toString() !== lawyerId) {
+    // Check access: firmId takes precedence for multi-tenancy, fallback to lawyerId
+    const hasAccess = firmId
+        ? client.firmId && client.firmId.toString() === firmId.toString()
+        : client.lawyerId.toString() === lawyerId;
+
+    if (!hasAccess) {
         throw CustomException('لا يمكنك الوصول إلى هذا العميل', 403);
     }
 
+    // Build filter for related data queries
+    const dataFilter = firmId ? { firmId } : { lawyerId };
+
     // Get related data
     const [cases, invoices, payments] = await Promise.all([
-        Case.find({ clientId: id, lawyerId })
+        Case.find({ clientId: id, ...dataFilter })
             .select('title caseNumber status createdAt')
             .sort({ createdAt: -1 })
             .limit(10)
             .lean(),
-        Invoice.find({ clientId: id, lawyerId })
+        Invoice.find({ clientId: id, ...dataFilter })
             .select('invoiceNumber totalAmount status dueDate balanceDue')
             .sort({ createdAt: -1 })
             .limit(10)
             .lean(),
-        Payment.find({ clientId: id, lawyerId })
+        Payment.find({ clientId: id, ...dataFilter })
             .select('paymentNumber amount paymentDate status')
             .sort({ paymentDate: -1 })
             .limit(10)
             .lean()
     ]);
 
+    // Build aggregation match filter
+    const aggFilter = firmId
+        ? { clientId: new mongoose.Types.ObjectId(id), firmId: new mongoose.Types.ObjectId(firmId) }
+        : { clientId: new mongoose.Types.ObjectId(id), lawyerId: new mongoose.Types.ObjectId(lawyerId) };
+
     // Calculate totals
     const [totalInvoiced, totalPaid, outstandingBalance] = await Promise.all([
         Invoice.aggregate([
-            { $match: { clientId: new mongoose.Types.ObjectId(id), lawyerId: new mongoose.Types.ObjectId(lawyerId) } },
+            { $match: aggFilter },
             { $group: { _id: null, total: { $sum: '$totalAmount' } } }
         ]),
         Payment.aggregate([
-            { $match: { clientId: new mongoose.Types.ObjectId(id), lawyerId: new mongoose.Types.ObjectId(lawyerId), status: 'completed' } },
+            { $match: { ...aggFilter, status: 'completed' } },
             { $group: { _id: null, total: { $sum: '$amount' } } }
         ]),
         Invoice.aggregate([
-            { $match: { clientId: new mongoose.Types.ObjectId(id), lawyerId: new mongoose.Types.ObjectId(lawyerId), status: { $in: ['sent', 'partial', 'overdue'] } } },
+            { $match: { ...aggFilter, status: { $in: ['sent', 'partial', 'overdue'] } } },
             { $group: { _id: null, total: { $sum: '$balanceDue' } } }
         ])
     ]);
@@ -164,8 +183,8 @@ const getClient = asyncHandler(async (req, res) => {
             ...client,
             relatedData: { cases, invoices, payments },
             summary: {
-                totalCases: await Case.countDocuments({ clientId: id, lawyerId }),
-                totalInvoices: await Invoice.countDocuments({ clientId: id, lawyerId }),
+                totalCases: await Case.countDocuments({ clientId: id, ...dataFilter }),
+                totalInvoices: await Invoice.countDocuments({ clientId: id, ...dataFilter }),
                 totalInvoiced: totalInvoiced[0]?.total || 0,
                 totalPaid: totalPaid[0]?.total || 0,
                 outstandingBalance: outstandingBalance[0]?.total || 0
@@ -181,16 +200,22 @@ const getClient = asyncHandler(async (req, res) => {
 const getBillingInfo = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const lawyerId = req.userID;
+    const firmId = req.firmId; // From firmFilter middleware
 
     const client = await Client.findById(id)
-        .select('clientNumber clientType firstName lastName fullNameArabic fullNameEnglish companyName companyNameEnglish nationalId crNumber email phone address billing vatRegistration')
+        .select('clientNumber clientType firstName lastName fullNameArabic fullNameEnglish companyName companyNameEnglish nationalId crNumber email phone address billing vatRegistration lawyerId firmId')
         .lean();
 
     if (!client) {
         throw CustomException('العميل غير موجود', 404);
     }
 
-    if (client.lawyerId && client.lawyerId.toString() !== lawyerId) {
+    // Check access: firmId takes precedence for multi-tenancy
+    const hasAccess = firmId
+        ? client.firmId && client.firmId.toString() === firmId.toString()
+        : client.lawyerId && client.lawyerId.toString() === lawyerId;
+
+    if (!hasAccess) {
         throw CustomException('لا يمكنك الوصول إلى هذا العميل', 403);
     }
 
@@ -224,13 +249,24 @@ const getBillingInfo = asyncHandler(async (req, res) => {
 const getClientCases = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const lawyerId = req.userID;
+    const firmId = req.firmId;
 
     const client = await Client.findById(id);
-    if (!client || client.lawyerId.toString() !== lawyerId) {
+    if (!client) {
         throw CustomException('العميل غير موجود', 404);
     }
 
-    const cases = await Case.find({ clientId: id, lawyerId })
+    // Check access
+    const hasAccess = firmId
+        ? client.firmId && client.firmId.toString() === firmId.toString()
+        : client.lawyerId.toString() === lawyerId;
+
+    if (!hasAccess) {
+        throw CustomException('لا يمكنك الوصول إلى هذا العميل', 403);
+    }
+
+    const dataFilter = firmId ? { firmId } : { lawyerId };
+    const cases = await Case.find({ clientId: id, ...dataFilter })
         .populate('responsibleAttorneyId', 'firstName lastName')
         .sort({ createdAt: -1 })
         .lean();
@@ -248,13 +284,23 @@ const getClientCases = asyncHandler(async (req, res) => {
 const getClientInvoices = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const lawyerId = req.userID;
+    const firmId = req.firmId;
 
     const client = await Client.findById(id);
-    if (!client || client.lawyerId.toString() !== lawyerId) {
+    if (!client) {
         throw CustomException('العميل غير موجود', 404);
     }
 
-    const invoices = await Invoice.find({ clientId: id, lawyerId })
+    const hasAccess = firmId
+        ? client.firmId && client.firmId.toString() === firmId.toString()
+        : client.lawyerId.toString() === lawyerId;
+
+    if (!hasAccess) {
+        throw CustomException('لا يمكنك الوصول إلى هذا العميل', 403);
+    }
+
+    const dataFilter = firmId ? { firmId } : { lawyerId };
+    const invoices = await Invoice.find({ clientId: id, ...dataFilter })
         .select('invoiceNumber issueDate dueDate totalAmount amountPaid balanceDue status')
         .sort({ issueDate: -1 })
         .lean();
@@ -272,13 +318,23 @@ const getClientInvoices = asyncHandler(async (req, res) => {
 const getClientPayments = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const lawyerId = req.userID;
+    const firmId = req.firmId;
 
     const client = await Client.findById(id);
-    if (!client || client.lawyerId.toString() !== lawyerId) {
+    if (!client) {
         throw CustomException('العميل غير موجود', 404);
     }
 
-    const payments = await Payment.find({ clientId: id, lawyerId })
+    const hasAccess = firmId
+        ? client.firmId && client.firmId.toString() === firmId.toString()
+        : client.lawyerId.toString() === lawyerId;
+
+    if (!hasAccess) {
+        throw CustomException('لا يمكنك الوصول إلى هذا العميل', 403);
+    }
+
+    const dataFilter = firmId ? { firmId } : { lawyerId };
+    const payments = await Payment.find({ clientId: id, ...dataFilter })
         .select('paymentNumber paymentDate amount paymentMethod status')
         .sort({ paymentDate: -1 })
         .lean();
@@ -296,6 +352,7 @@ const getClientPayments = asyncHandler(async (req, res) => {
 const updateClient = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const lawyerId = req.userID;
+    const firmId = req.firmId;
 
     const client = await Client.findById(id);
 
@@ -303,13 +360,18 @@ const updateClient = asyncHandler(async (req, res) => {
         throw CustomException('العميل غير موجود', 404);
     }
 
-    if (client.lawyerId.toString() !== lawyerId) {
+    // Check access
+    const hasAccess = firmId
+        ? client.firmId && client.firmId.toString() === firmId.toString()
+        : client.lawyerId.toString() === lawyerId;
+
+    if (!hasAccess) {
         throw CustomException('لا يمكنك الوصول إلى هذا العميل', 403);
     }
 
     // Check for conflicts if updating key fields
     if (req.body.email || req.body.phone || req.body.nationalId || req.body.crNumber) {
-        const conflicts = await Client.runConflictCheck(lawyerId, { ...req.body, _id: id });
+        const conflicts = await Client.runConflictCheck(lawyerId, { ...req.body, _id: id }, firmId);
         if (conflicts.length > 0) {
             return res.status(409).json({
                 success: false,
@@ -339,6 +401,7 @@ const updateClient = asyncHandler(async (req, res) => {
 const deleteClient = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const lawyerId = req.userID;
+    const firmId = req.firmId;
 
     const client = await Client.findById(id);
 
@@ -346,14 +409,20 @@ const deleteClient = asyncHandler(async (req, res) => {
         throw CustomException('العميل غير موجود', 404);
     }
 
-    if (client.lawyerId.toString() !== lawyerId) {
+    // Check access
+    const hasAccess = firmId
+        ? client.firmId && client.firmId.toString() === firmId.toString()
+        : client.lawyerId.toString() === lawyerId;
+
+    if (!hasAccess) {
         throw CustomException('لا يمكنك الوصول إلى هذا العميل', 403);
     }
 
     // Check if client has active cases or unpaid invoices
+    const dataFilter = firmId ? { firmId } : { lawyerId };
     const [activeCases, unpaidInvoices] = await Promise.all([
-        Case.countDocuments({ clientId: id, lawyerId, status: { $in: ['active', 'pending'] } }),
-        Invoice.countDocuments({ clientId: id, lawyerId, status: { $in: ['draft', 'sent', 'partial'] } })
+        Case.countDocuments({ clientId: id, ...dataFilter, status: { $in: ['active', 'pending'] } }),
+        Invoice.countDocuments({ clientId: id, ...dataFilter, status: { $in: ['draft', 'sent', 'partial'] } })
     ]);
 
     if (activeCases > 0) {
@@ -379,12 +448,13 @@ const deleteClient = asyncHandler(async (req, res) => {
 const searchClients = asyncHandler(async (req, res) => {
     const { q } = req.query;
     const lawyerId = req.userID;
+    const firmId = req.firmId;
 
     if (!q || q.length < 2) {
         throw CustomException('يجب أن يكون مصطلح البحث حرفين على الأقل', 400);
     }
 
-    const clients = await Client.searchClients(lawyerId, q);
+    const clients = await Client.searchClients(lawyerId, q, firmId);
 
     res.status(200).json({
         success: true,
@@ -399,10 +469,15 @@ const searchClients = asyncHandler(async (req, res) => {
  */
 const getClientStats = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
-    const lawyerIdObj = new mongoose.Types.ObjectId(lawyerId);
+    const firmId = req.firmId;
+
+    // Build match filter based on firmId or lawyerId
+    const matchFilter = firmId
+        ? { firmId: new mongoose.Types.ObjectId(firmId) }
+        : { lawyerId: new mongoose.Types.ObjectId(lawyerId) };
 
     const stats = await Client.aggregate([
-        { $match: { lawyerId: lawyerIdObj } },
+        { $match: matchFilter },
         {
             $facet: {
                 byType: [{ $group: { _id: '$clientType', count: { $sum: 1 } } }],
@@ -434,10 +509,15 @@ const getClientStats = asyncHandler(async (req, res) => {
 const getTopClientsByRevenue = asyncHandler(async (req, res) => {
     const { limit = 10 } = req.query;
     const lawyerId = req.userID;
-    const lawyerIdObj = new mongoose.Types.ObjectId(lawyerId);
+    const firmId = req.firmId;
+
+    // Build match filter based on firmId or lawyerId
+    const matchFilter = firmId
+        ? { firmId: new mongoose.Types.ObjectId(firmId), status: 'paid' }
+        : { lawyerId: new mongoose.Types.ObjectId(lawyerId), status: 'paid' };
 
     const topClients = await Invoice.aggregate([
-        { $match: { lawyerId: lawyerIdObj, status: 'paid' } },
+        { $match: matchFilter },
         {
             $group: {
                 _id: '$clientId',
@@ -481,23 +561,28 @@ const getTopClientsByRevenue = asyncHandler(async (req, res) => {
 const bulkDeleteClients = asyncHandler(async (req, res) => {
     const { clientIds } = req.body;
     const lawyerId = req.userID;
+    const firmId = req.firmId;
 
     if (!clientIds || !Array.isArray(clientIds) || clientIds.length === 0) {
         throw CustomException('معرفات العملاء مطلوبة', 400);
     }
 
-    // Verify all clients belong to lawyer
-    const clients = await Client.find({ _id: { $in: clientIds }, lawyerId });
+    // Build filter for ownership check
+    const ownerFilter = firmId ? { firmId } : { lawyerId };
+
+    // Verify all clients belong to firm/lawyer
+    const clients = await Client.find({ _id: { $in: clientIds }, ...ownerFilter });
 
     if (clients.length !== clientIds.length) {
         throw CustomException('بعض العملاء غير صالحين للحذف', 400);
     }
 
     // Check for active cases or unpaid invoices
+    const dataFilter = firmId ? { firmId } : { lawyerId };
     for (const client of clients) {
         const [activeCases, unpaidInvoices] = await Promise.all([
-            Case.countDocuments({ clientId: client._id, lawyerId, status: { $in: ['active', 'pending'] } }),
-            Invoice.countDocuments({ clientId: client._id, lawyerId, status: { $in: ['draft', 'sent', 'partial'] } })
+            Case.countDocuments({ clientId: client._id, ...dataFilter, status: { $in: ['active', 'pending'] } }),
+            Invoice.countDocuments({ clientId: client._id, ...dataFilter, status: { $in: ['draft', 'sent', 'partial'] } })
         ]);
 
         if (activeCases > 0) {
@@ -525,6 +610,7 @@ const bulkDeleteClients = asyncHandler(async (req, res) => {
 const runConflictCheck = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const lawyerId = req.userID;
+    const firmId = req.firmId;
 
     const client = await Client.findById(id);
 
@@ -532,11 +618,16 @@ const runConflictCheck = asyncHandler(async (req, res) => {
         throw CustomException('العميل غير موجود', 404);
     }
 
-    if (client.lawyerId.toString() !== lawyerId) {
+    // Check access
+    const hasAccess = firmId
+        ? client.firmId && client.firmId.toString() === firmId.toString()
+        : client.lawyerId.toString() === lawyerId;
+
+    if (!hasAccess) {
         throw CustomException('لا يمكنك الوصول إلى هذا العميل', 403);
     }
 
-    const conflicts = await Client.runConflictCheck(lawyerId, client);
+    const conflicts = await Client.runConflictCheck(lawyerId, client, firmId);
 
     // Update conflict check status
     client.conflictCheck = {
@@ -567,6 +658,7 @@ const updateStatus = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const { status } = req.body;
     const lawyerId = req.userID;
+    const firmId = req.firmId;
 
     if (!['active', 'inactive', 'archived', 'pending'].includes(status)) {
         throw CustomException('حالة غير صالحة', 400);
@@ -578,7 +670,12 @@ const updateStatus = asyncHandler(async (req, res) => {
         throw CustomException('العميل غير موجود', 404);
     }
 
-    if (client.lawyerId.toString() !== lawyerId) {
+    // Check access
+    const hasAccess = firmId
+        ? client.firmId && client.firmId.toString() === firmId.toString()
+        : client.lawyerId.toString() === lawyerId;
+
+    if (!hasAccess) {
         throw CustomException('لا يمكنك الوصول إلى هذا العميل', 403);
     }
 
@@ -601,6 +698,7 @@ const updateFlags = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const { isVip, isHighRisk, needsApproval, isBlacklisted, blacklistReason } = req.body;
     const lawyerId = req.userID;
+    const firmId = req.firmId;
 
     const client = await Client.findById(id);
 
@@ -608,7 +706,12 @@ const updateFlags = asyncHandler(async (req, res) => {
         throw CustomException('العميل غير موجود', 404);
     }
 
-    if (client.lawyerId.toString() !== lawyerId) {
+    // Check access
+    const hasAccess = firmId
+        ? client.firmId && client.firmId.toString() === firmId.toString()
+        : client.lawyerId.toString() === lawyerId;
+
+    if (!hasAccess) {
         throw CustomException('لا يمكنك الوصول إلى هذا العميل', 403);
     }
 
@@ -645,6 +748,7 @@ const updateFlags = asyncHandler(async (req, res) => {
 const uploadAttachments = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const lawyerId = req.userID;
+    const firmId = req.firmId;
 
     const client = await Client.findById(id);
 
@@ -652,7 +756,12 @@ const uploadAttachments = asyncHandler(async (req, res) => {
         throw CustomException('العميل غير موجود', 404);
     }
 
-    if (client.lawyerId.toString() !== lawyerId) {
+    // Check access
+    const hasAccess = firmId
+        ? client.firmId && client.firmId.toString() === firmId.toString()
+        : client.lawyerId.toString() === lawyerId;
+
+    if (!hasAccess) {
         throw CustomException('لا يمكنك الوصول إلى هذا العميل', 403);
     }
 
@@ -689,6 +798,7 @@ const uploadAttachments = asyncHandler(async (req, res) => {
 const deleteAttachment = asyncHandler(async (req, res) => {
     const { id, attachmentId } = req.params;
     const lawyerId = req.userID;
+    const firmId = req.firmId;
 
     const client = await Client.findById(id);
 
@@ -696,7 +806,12 @@ const deleteAttachment = asyncHandler(async (req, res) => {
         throw CustomException('العميل غير موجود', 404);
     }
 
-    if (client.lawyerId.toString() !== lawyerId) {
+    // Check access
+    const hasAccess = firmId
+        ? client.firmId && client.firmId.toString() === firmId.toString()
+        : client.lawyerId.toString() === lawyerId;
+
+    if (!hasAccess) {
         throw CustomException('لا يمكنك الوصول إلى هذا العميل', 403);
     }
 
@@ -729,6 +844,7 @@ const verifyWathq = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const { crNumber, fullInfo = true } = req.body;
     const lawyerId = req.userID;
+    const firmId = req.firmId;
 
     const client = await Client.findById(id);
 
@@ -736,7 +852,12 @@ const verifyWathq = asyncHandler(async (req, res) => {
         throw CustomException('العميل غير موجود', 404);
     }
 
-    if (client.lawyerId.toString() !== lawyerId) {
+    // Check access
+    const hasAccess = firmId
+        ? client.firmId && client.firmId.toString() === firmId.toString()
+        : client.lawyerId.toString() === lawyerId;
+
+    if (!hasAccess) {
         throw CustomException('لا يمكنك الوصول إلى هذا العميل', 403);
     }
 
@@ -805,6 +926,7 @@ const verifyWathq = asyncHandler(async (req, res) => {
 const getWathqData = asyncHandler(async (req, res) => {
     const { id, dataType } = req.params;
     const lawyerId = req.userID;
+    const firmId = req.firmId;
 
     const client = await Client.findById(id);
 
@@ -812,7 +934,12 @@ const getWathqData = asyncHandler(async (req, res) => {
         throw CustomException('العميل غير موجود', 404);
     }
 
-    if (client.lawyerId.toString() !== lawyerId) {
+    // Check access
+    const hasAccess = firmId
+        ? client.firmId && client.firmId.toString() === firmId.toString()
+        : client.lawyerId.toString() === lawyerId;
+
+    if (!hasAccess) {
         throw CustomException('لا يمكنك الوصول إلى هذا العميل', 403);
     }
 

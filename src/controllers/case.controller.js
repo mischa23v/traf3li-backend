@@ -7,15 +7,34 @@ const { calculateLawyerScore } = require('./score.controller');
 const { getUploadPresignedUrl, getDownloadPresignedUrl, deleteFile, generateFileKey } = require('../configs/s3');
 const documentExportService = require('../services/documentExport.service');
 
+// Helper function to check firm access for a case
+const checkCaseAccess = (caseDoc, userId, firmId, requireLawyer = false) => {
+    const isLawyer = caseDoc.lawyerId.toString() === userId;
+    const isClient = caseDoc.clientId && caseDoc.clientId.toString() === userId;
+
+    // Check firm-level access if firmId is available
+    if (firmId) {
+        const hasFirmAccess = caseDoc.firmId && caseDoc.firmId.toString() === firmId.toString();
+        if (hasFirmAccess) {
+            if (requireLawyer) return isLawyer || true; // Firm members can act as lawyers
+            return true;
+        }
+    }
+
+    // Fall back to individual access
+    if (requireLawyer) return isLawyer;
+    return isLawyer || isClient;
+};
+
 // Create case (from contract OR standalone)
 const createCase = async (request, response) => {
-    const { 
-        contractId, 
-        clientId, 
-        clientName, 
-        clientPhone, 
-        title, 
-        description, 
+    const {
+        contractId,
+        clientId,
+        clientName,
+        clientPhone,
+        title,
+        description,
         category,
         laborCaseDetails,  // ✅ NEW
         caseNumber,        // ✅ NEW
@@ -23,7 +42,7 @@ const createCase = async (request, response) => {
         startDate,         // ✅ NEW
         documents          // ✅ NEW
     } = request.body;
-    
+
     try {
         // Check if user is a lawyer
         const user = await User.findById(request.userID);
@@ -31,8 +50,11 @@ const createCase = async (request, response) => {
             throw CustomException('Only lawyers can create cases!', 403);
         }
 
+        const firmId = request.firmId; // From firmFilter middleware
+
         let caseData = {
             lawyerId: request.userID,
+            firmId, // Add firmId for multi-tenancy
             title,
             description,
             category,
@@ -111,10 +133,19 @@ const getCases = async (request, response) => {
     } = request.query;
 
     try {
-        // Build filters
-        const filters = {
-            $or: [{ lawyerId: request.userID }, { clientId: request.userID }]
-        };
+        const firmId = request.firmId; // From firmFilter middleware
+
+        // Build filters based on firmId or user access
+        let filters;
+        if (firmId) {
+            // If user has firmId, show all firm cases
+            filters = { firmId };
+        } else {
+            // Otherwise, show cases where user is lawyer or client
+            filters = {
+                $or: [{ lawyerId: request.userID }, { clientId: request.userID }]
+            };
+        }
 
         // Apply optional filters
         if (status) filters.status = status;
@@ -195,6 +226,8 @@ const getCases = async (request, response) => {
 const getCase = async (request, response) => {
     const { _id } = request.params;
     try {
+        const firmId = request.firmId;
+
         const caseDoc = await Case.findById(_id)
             .populate('lawyerId', 'username firstName lastName image email lawyerProfile')
             .populate('clientId', 'username firstName lastName image email')
@@ -205,11 +238,8 @@ const getCase = async (request, response) => {
             throw CustomException('Case not found!', 404);
         }
 
-        // Check access (lawyer or client)
-        const isLawyer = caseDoc.lawyerId._id.toString() === request.userID;
-        const isClient = caseDoc.clientId && caseDoc.clientId._id.toString() === request.userID;
-        
-        if (!isLawyer && !isClient) {
+        // Check access using helper function
+        if (!checkCaseAccess(caseDoc, request.userID, firmId)) {
             throw CustomException('You do not have access to this case!', 403);
         }
 
@@ -229,13 +259,15 @@ const getCase = async (request, response) => {
 const updateCase = async (request, response) => {
     const { _id } = request.params;
     try {
+        const firmId = request.firmId;
         const caseDoc = await Case.findById(_id);
 
         if (!caseDoc) {
             throw CustomException('Case not found!', 404);
         }
 
-        if (caseDoc.lawyerId.toString() !== request.userID) {
+        // Check access (requires lawyer-level permissions)
+        if (!checkCaseAccess(caseDoc, request.userID, firmId, true)) {
             throw CustomException('Only the lawyer can update case details!', 403);
         }
 
@@ -263,13 +295,14 @@ const addNote = async (request, response) => {
     const { _id } = request.params;
     const { text } = request.body;
     try {
+        const firmId = request.firmId;
         const caseDoc = await Case.findById(_id);
 
         if (!caseDoc) {
             throw CustomException('Case not found!', 404);
         }
 
-        if (caseDoc.lawyerId.toString() !== request.userID) {
+        if (!checkCaseAccess(caseDoc, request.userID, firmId, true)) {
             throw CustomException('Only the lawyer can add notes!', 403);
         }
 
@@ -298,16 +331,14 @@ const addDocument = async (request, response) => {
     const { _id } = request.params;
     const { name, filename, url, type, size, category } = request.body;
     try {
+        const firmId = request.firmId;
         const caseDoc = await Case.findById(_id);
 
         if (!caseDoc) {
             throw CustomException('Case not found!', 404);
         }
 
-        const isLawyer = caseDoc.lawyerId.toString() === request.userID;
-        const isClient = caseDoc.clientId && caseDoc.clientId.toString() === request.userID;
-
-        if (!isLawyer && !isClient) {
+        if (!checkCaseAccess(caseDoc, request.userID, firmId)) {
             throw CustomException('You do not have access to this case!', 403);
         }
 
@@ -340,13 +371,14 @@ const addHearing = async (request, response) => {
     const { _id } = request.params;
     const { date, location, notes } = request.body;
     try {
+        const firmId = request.firmId;
         const caseDoc = await Case.findById(_id);
 
         if (!caseDoc) {
             throw CustomException('Case not found!', 404);
         }
 
-        if (caseDoc.lawyerId.toString() !== request.userID) {
+        if (!checkCaseAccess(caseDoc, request.userID, firmId, true)) {
             throw CustomException('Only the lawyer can add hearings!', 403);
         }
 
@@ -956,8 +988,14 @@ const deleteTimelineEvent = async (request, response) => {
 // Get case statistics (enhanced with byMonth and successRate)
 const getStatistics = async (request, response) => {
     try {
-        // Only get cases where user is the lawyer
-        const cases = await Case.find({ lawyerId: request.userID });
+        const firmId = request.firmId;
+
+        // Build query based on firmId or lawyerId
+        const queryFilter = firmId
+            ? { firmId }
+            : { lawyerId: request.userID };
+
+        const cases = await Case.find(queryFilter);
 
         // Calculate won amount (from cases with outcome = 'won')
         const wonCases = cases.filter(c => c.outcome === 'won');

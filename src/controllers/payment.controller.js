@@ -26,6 +26,7 @@ const createPayment = asyncHandler(async (req, res) => {
     } = req.body;
 
     const lawyerId = req.userID;
+    const firmId = req.firmId; // From firmFilter middleware
 
     // Validate required fields
     if (!clientId || !amount || !paymentMethod) {
@@ -38,7 +39,11 @@ const createPayment = asyncHandler(async (req, res) => {
         if (!invoice) {
             throw CustomException('الفاتورة غير موجودة', 404);
         }
-        if (invoice.lawyerId.toString() !== lawyerId) {
+        // Check access via firmId or lawyerId
+        const hasAccess = firmId
+            ? invoice.firmId && invoice.firmId.toString() === firmId.toString()
+            : invoice.lawyerId.toString() === lawyerId;
+        if (!hasAccess) {
             throw CustomException('لا يمكنك الوصول إلى هذه الفاتورة', 403);
         }
     }
@@ -48,6 +53,7 @@ const createPayment = asyncHandler(async (req, res) => {
         invoiceId,
         caseId,
         lawyerId,
+        firmId, // Add firmId for multi-tenancy
         amount,
         currency,
         paymentMethod,
@@ -108,7 +114,10 @@ const getPayments = asyncHandler(async (req, res) => {
     } = req.query;
 
     const lawyerId = req.userID;
-    const query = { lawyerId };
+    const firmId = req.firmId; // From firmFilter middleware
+
+    // Build query based on firmId or lawyerId
+    const query = firmId ? { firmId } : { lawyerId };
 
     if (status) query.status = status;
     if (paymentMethod) query.paymentMethod = paymentMethod;
@@ -201,6 +210,7 @@ const getNewPaymentDefaults = asyncHandler(async (req, res) => {
 const getPayment = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const lawyerId = req.userID;
+    const firmId = req.firmId;
 
     const payment = await Payment.findById(id)
         .populate('clientId', 'username email phone')
@@ -216,7 +226,12 @@ const getPayment = asyncHandler(async (req, res) => {
         throw CustomException('الدفعة غير موجودة', 404);
     }
 
-    if (payment.lawyerId._id.toString() !== lawyerId) {
+    // Check access via firmId or lawyerId
+    const hasAccess = firmId
+        ? payment.firmId && payment.firmId.toString() === firmId.toString()
+        : payment.lawyerId._id.toString() === lawyerId;
+
+    if (!hasAccess) {
         throw CustomException('لا يمكنك الوصول إلى هذه الدفعة', 403);
     }
 
@@ -233,6 +248,7 @@ const getPayment = asyncHandler(async (req, res) => {
 const updatePayment = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const lawyerId = req.userID;
+    const firmId = req.firmId;
 
     const payment = await Payment.findById(id);
 
@@ -240,7 +256,12 @@ const updatePayment = asyncHandler(async (req, res) => {
         throw CustomException('الدفعة غير موجودة', 404);
     }
 
-    if (payment.lawyerId.toString() !== lawyerId) {
+    // Check access via firmId or lawyerId
+    const hasAccess = firmId
+        ? payment.firmId && payment.firmId.toString() === firmId.toString()
+        : payment.lawyerId.toString() === lawyerId;
+
+    if (!hasAccess) {
         throw CustomException('لا يمكنك الوصول إلى هذه الدفعة', 403);
     }
 
@@ -565,8 +586,10 @@ const sendReceipt = asyncHandler(async (req, res) => {
 const getPaymentStats = asyncHandler(async (req, res) => {
     const { startDate, endDate, clientId, groupBy = 'status' } = req.query;
     const lawyerId = req.userID;
+    const firmId = req.firmId;
 
-    const matchQuery = { lawyerId };
+    // Build query based on firmId or lawyerId
+    const matchQuery = firmId ? { firmId } : { lawyerId };
 
     if (startDate || endDate) {
         matchQuery.paymentDate = {};
@@ -773,8 +796,11 @@ const recordInvoicePayment = asyncHandler(async (req, res) => {
 const getPaymentsSummary = asyncHandler(async (req, res) => {
     const { startDate, endDate } = req.query;
     const lawyerId = req.userID;
+    const firmId = req.firmId;
 
-    const matchQuery = { lawyerId, status: 'completed', isRefund: { $ne: true } };
+    // Build query based on firmId or lawyerId
+    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const matchQuery = { ...baseQuery, status: 'completed', isRefund: { $ne: true } };
 
     if (startDate || endDate) {
         matchQuery.paymentDate = {};
@@ -812,7 +838,7 @@ const getPaymentsSummary = asyncHandler(async (req, res) => {
     ]);
 
     // Calculate pending payments
-    const pendingQuery = { lawyerId, status: 'pending' };
+    const pendingQuery = { ...baseQuery, status: 'pending' };
     const pending = await Payment.aggregate([
         { $match: pendingQuery },
         {

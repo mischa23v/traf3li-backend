@@ -128,6 +128,7 @@ const createInvoice = asyncHandler(async (req, res) => {
     } = req.body;
 
     const lawyerId = req.userID;
+    const firmId = req.firmId; // From firmFilter middleware
 
     // Check if user is a lawyer
     const user = await User.findById(lawyerId);
@@ -181,11 +182,8 @@ const createInvoice = asyncHandler(async (req, res) => {
 
     // Handle retainer application validation
     if (applyFromRetainer > 0) {
-        const retainer = await Retainer.findOne({
-            clientId,
-            lawyerId,
-            status: 'active'
-        });
+        const retainerQuery = firmId ? { clientId, firmId, status: 'active' } : { clientId, lawyerId, status: 'active' };
+        const retainer = await Retainer.findOne(retainerQuery);
 
         if (!retainer || retainer.currentBalance < applyFromRetainer) {
             throw CustomException('رصيد العربون غير كافٍ - Insufficient retainer balance', 400);
@@ -197,6 +195,7 @@ const createInvoice = asyncHandler(async (req, res) => {
         caseId,
         contractId,
         lawyerId,
+        firmId, // Add firmId for multi-tenancy
         clientId,
         clientType: clientType || 'individual',
         items,
@@ -304,12 +303,18 @@ const getInvoices = asyncHandler(async (req, res) => {
     } = req.query;
 
     const user = await User.findById(req.userID);
+    const firmId = req.firmId; // From firmFilter middleware
 
-    const filters = {
-        ...(user.role === 'lawyer'
-            ? { lawyerId: req.userID }
-            : { clientId: req.userID })
-    };
+    // Build filters based on firmId or user role
+    let filters;
+    if (firmId) {
+        // If user has firmId, show all firm invoices
+        filters = { firmId };
+    } else if (user.role === 'lawyer') {
+        filters = { lawyerId: req.userID };
+    } else {
+        filters = { clientId: req.userID };
+    }
 
     if (status) filters.status = status;
     if (clientId) filters.clientId = clientId;
@@ -361,6 +366,7 @@ const getInvoices = asyncHandler(async (req, res) => {
 const getInvoice = asyncHandler(async (req, res) => {
     const { id, _id } = req.params;
     const invoiceId = id || _id;
+    const firmId = req.firmId; // From firmFilter middleware
 
     const invoice = await Invoice.findById(invoiceId)
         .populate('lawyerId', 'firstName lastName username image email country phone')
@@ -376,11 +382,19 @@ const getInvoice = asyncHandler(async (req, res) => {
         throw CustomException('Invoice not found!', 404);
     }
 
-    // Check access
+    // Check access - firmId takes precedence for multi-tenancy
     const lawyerIdStr = invoice.lawyerId._id ? invoice.lawyerId._id.toString() : invoice.lawyerId.toString();
     const clientIdStr = invoice.clientId._id ? invoice.clientId._id.toString() : invoice.clientId.toString();
 
-    if (lawyerIdStr !== req.userID && clientIdStr !== req.userID) {
+    let hasAccess = false;
+    if (firmId) {
+        hasAccess = invoice.firmId && invoice.firmId.toString() === firmId.toString();
+    }
+    if (!hasAccess) {
+        hasAccess = lawyerIdStr === req.userID || clientIdStr === req.userID;
+    }
+
+    if (!hasAccess) {
         throw CustomException('You do not have access to this invoice!', 403);
     }
 
@@ -411,6 +425,7 @@ const getInvoice = asyncHandler(async (req, res) => {
 const updateInvoice = asyncHandler(async (req, res) => {
     const { id, _id } = req.params;
     const invoiceId = id || _id;
+    const firmId = req.firmId;
 
     const invoice = await Invoice.findById(invoiceId);
 
@@ -418,7 +433,12 @@ const updateInvoice = asyncHandler(async (req, res) => {
         throw CustomException('Invoice not found!', 404);
     }
 
-    if (invoice.lawyerId.toString() !== req.userID) {
+    // Check access - firmId takes precedence
+    const hasAccess = firmId
+        ? invoice.firmId && invoice.firmId.toString() === firmId.toString()
+        : invoice.lawyerId.toString() === req.userID;
+
+    if (!hasAccess) {
         throw CustomException('Only the lawyer can update invoices!', 403);
     }
 
@@ -1246,11 +1266,17 @@ const getZATCAStatus = asyncHandler(async (req, res) => {
 const getStats = asyncHandler(async (req, res) => {
     const { period = 'month' } = req.query;
     const lawyerId = req.userID;
+    const firmId = req.firmId;
 
     const dateFilter = getDateFilter(period);
 
+    // Build match filter based on firmId or lawyerId
+    const matchFilter = firmId
+        ? { firmId: new mongoose.Types.ObjectId(firmId), createdAt: dateFilter }
+        : { lawyerId: new mongoose.Types.ObjectId(lawyerId), createdAt: dateFilter };
+
     const stats = await Invoice.aggregate([
-        { $match: { lawyerId: new mongoose.Types.ObjectId(lawyerId), createdAt: dateFilter } },
+        { $match: matchFilter },
         {
             $group: {
                 _id: '$status',
@@ -1262,10 +1288,14 @@ const getStats = asyncHandler(async (req, res) => {
         }
     ]);
 
+    const overdueMatchFilter = firmId
+        ? { firmId: new mongoose.Types.ObjectId(firmId) }
+        : { lawyerId: new mongoose.Types.ObjectId(lawyerId) };
+
     const overdue = await Invoice.aggregate([
         {
             $match: {
-                lawyerId: new mongoose.Types.ObjectId(lawyerId),
+                ...overdueMatchFilter,
                 status: { $in: ['sent', 'viewed', 'partial'] },
                 dueDate: { $lt: new Date() }
             }
@@ -1304,11 +1334,15 @@ const getStats = asyncHandler(async (req, res) => {
  */
 const getOverdueInvoices = asyncHandler(async (req, res) => {
     const today = new Date();
+    const firmId = req.firmId;
+
+    // Build filter based on firmId or lawyerId
+    const queryFilter = firmId ? { firmId } : { lawyerId: req.userID };
 
     // Update status to overdue for past-due invoices
     await Invoice.updateMany(
         {
-            lawyerId: req.userID,
+            ...queryFilter,
             status: { $in: ['sent', 'viewed', 'partial'] },
             dueDate: { $lt: today }
         },
@@ -1316,7 +1350,7 @@ const getOverdueInvoices = asyncHandler(async (req, res) => {
     );
 
     const invoices = await Invoice.find({
-        lawyerId: req.userID,
+        ...queryFilter,
         status: 'overdue'
     })
         .populate('clientId', 'firstName lastName username email phone')
@@ -1542,14 +1576,17 @@ const generatePDF = asyncHandler(async (req, res) => {
 const getBillableItems = asyncHandler(async (req, res) => {
     const { clientId, caseId, startDate, endDate } = req.query;
     const lawyerId = req.userID;
+    const firmId = req.firmId;
 
     // Build date filter
     const dateFilter = {};
     if (startDate) dateFilter.$gte = new Date(startDate);
     if (endDate) dateFilter.$lte = new Date(endDate);
 
-    // Base query
-    const baseQuery = { lawyerId: new mongoose.Types.ObjectId(lawyerId) };
+    // Base query based on firmId or lawyerId
+    const baseQuery = firmId
+        ? { firmId: new mongoose.Types.ObjectId(firmId) }
+        : { lawyerId: new mongoose.Types.ObjectId(lawyerId) };
     if (clientId) baseQuery.clientId = new mongoose.Types.ObjectId(clientId);
     if (caseId) baseQuery.caseId = new mongoose.Types.ObjectId(caseId);
 
@@ -1716,9 +1753,13 @@ const getBillableItems = asyncHandler(async (req, res) => {
 const getOpenInvoices = asyncHandler(async (req, res) => {
     const { clientId } = req.params;
     const lawyerId = req.userID;
+    const firmId = req.firmId;
+
+    // Build filter based on firmId or lawyerId
+    const queryFilter = firmId ? { firmId } : { lawyerId };
 
     const invoices = await Invoice.find({
-        lawyerId,
+        ...queryFilter,
         clientId,
         status: { $in: ['sent', 'viewed', 'partial', 'overdue'] },
         balanceDue: { $gt: 0 }
