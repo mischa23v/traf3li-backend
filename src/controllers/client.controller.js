@@ -9,6 +9,11 @@ const wathqService = require('../services/wathqService');
  * POST /api/clients
  */
 const createClient = asyncHandler(async (req, res) => {
+    // Block departed users from client operations
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية للوصول إلى العملاء', 403);
+    }
+
     const lawyerId = req.userID;
     const firmId = req.firmId; // From firmFilter middleware
 
@@ -48,6 +53,11 @@ const createClient = asyncHandler(async (req, res) => {
  * GET /api/clients
  */
 const getClients = asyncHandler(async (req, res) => {
+    // Block departed users from client operations
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية للوصول إلى العملاء', 403);
+    }
+
     const {
         status,
         clientType,
@@ -110,6 +120,11 @@ const getClients = asyncHandler(async (req, res) => {
  * GET /api/clients/:id
  */
 const getClient = asyncHandler(async (req, res) => {
+    // Block departed users from client operations
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية للوصول إلى العملاء', 403);
+    }
+
     const { id } = req.params;
     const lawyerId = req.userID;
     const firmId = req.firmId; // From firmFilter middleware
@@ -198,6 +213,11 @@ const getClient = asyncHandler(async (req, res) => {
  * GET /api/clients/:id/billing-info
  */
 const getBillingInfo = asyncHandler(async (req, res) => {
+    // Block departed users from client operations
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية للوصول إلى العملاء', 403);
+    }
+
     const { id } = req.params;
     const lawyerId = req.userID;
     const firmId = req.firmId; // From firmFilter middleware
@@ -247,6 +267,11 @@ const getBillingInfo = asyncHandler(async (req, res) => {
  * GET /api/clients/:id/cases
  */
 const getClientCases = asyncHandler(async (req, res) => {
+    // Block departed users from client operations
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية للوصول إلى العملاء', 403);
+    }
+
     const { id } = req.params;
     const lawyerId = req.userID;
     const firmId = req.firmId;
@@ -282,6 +307,11 @@ const getClientCases = asyncHandler(async (req, res) => {
  * GET /api/clients/:id/invoices
  */
 const getClientInvoices = asyncHandler(async (req, res) => {
+    // Block departed users from client operations
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية للوصول إلى العملاء', 403);
+    }
+
     const { id } = req.params;
     const lawyerId = req.userID;
     const firmId = req.firmId;
@@ -316,6 +346,11 @@ const getClientInvoices = asyncHandler(async (req, res) => {
  * GET /api/clients/:id/payments
  */
 const getClientPayments = asyncHandler(async (req, res) => {
+    // Block departed users from client operations
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية للوصول إلى العملاء', 403);
+    }
+
     const { id } = req.params;
     const lawyerId = req.userID;
     const firmId = req.firmId;
@@ -350,6 +385,11 @@ const getClientPayments = asyncHandler(async (req, res) => {
  * PUT /api/clients/:id
  */
 const updateClient = asyncHandler(async (req, res) => {
+    // Block departed users from client operations
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية لتعديل العملاء', 403);
+    }
+
     const { id } = req.params;
     const lawyerId = req.userID;
     const firmId = req.firmId;
@@ -399,6 +439,11 @@ const updateClient = asyncHandler(async (req, res) => {
  * DELETE /api/clients/:id
  */
 const deleteClient = asyncHandler(async (req, res) => {
+    // Block departed users from client operations
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية لحذف العملاء', 403);
+    }
+
     const { id } = req.params;
     const lawyerId = req.userID;
     const firmId = req.firmId;
@@ -446,6 +491,11 @@ const deleteClient = asyncHandler(async (req, res) => {
  * GET /api/clients/search
  */
 const searchClients = asyncHandler(async (req, res) => {
+    // Block departed users from client operations
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية للوصول إلى العملاء', 403);
+    }
+
     const { q } = req.query;
     const lawyerId = req.userID;
     const firmId = req.firmId;
@@ -468,6 +518,11 @@ const searchClients = asyncHandler(async (req, res) => {
  * GET /api/clients/stats
  */
 const getClientStats = asyncHandler(async (req, res) => {
+    // Block departed users from client operations
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية للوصول إلى العملاء', 403);
+    }
+
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
@@ -507,6 +562,11 @@ const getClientStats = asyncHandler(async (req, res) => {
  * GET /api/clients/top-revenue
  */
 const getTopClientsByRevenue = asyncHandler(async (req, res) => {
+    // Block departed users from client operations
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية للوصول إلى العملاء', 403);
+    }
+
     const { limit = 10 } = req.query;
     const lawyerId = req.userID;
     const firmId = req.firmId;
@@ -559,6 +619,11 @@ const getTopClientsByRevenue = asyncHandler(async (req, res) => {
  * DELETE /api/clients/bulk
  */
 const bulkDeleteClients = asyncHandler(async (req, res) => {
+    // Block departed users from client operations
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية لحذف العملاء', 403);
+    }
+
     const { clientIds } = req.body;
     const lawyerId = req.userID;
     const firmId = req.firmId;
@@ -608,6 +673,11 @@ const bulkDeleteClients = asyncHandler(async (req, res) => {
  * POST /api/clients/:id/conflict-check
  */
 const runConflictCheck = asyncHandler(async (req, res) => {
+    // Block departed users from client operations
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية للوصول إلى العملاء', 403);
+    }
+
     const { id } = req.params;
     const lawyerId = req.userID;
     const firmId = req.firmId;
@@ -655,6 +725,11 @@ const runConflictCheck = asyncHandler(async (req, res) => {
  * PATCH /api/clients/:id/status
  */
 const updateStatus = asyncHandler(async (req, res) => {
+    // Block departed users from client operations
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية لتعديل العملاء', 403);
+    }
+
     const { id } = req.params;
     const { status } = req.body;
     const lawyerId = req.userID;
@@ -695,6 +770,11 @@ const updateStatus = asyncHandler(async (req, res) => {
  * PATCH /api/clients/:id/flags
  */
 const updateFlags = asyncHandler(async (req, res) => {
+    // Block departed users from client operations
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية لتعديل العملاء', 403);
+    }
+
     const { id } = req.params;
     const { isVip, isHighRisk, needsApproval, isBlacklisted, blacklistReason } = req.body;
     const lawyerId = req.userID;
@@ -746,6 +826,11 @@ const updateFlags = asyncHandler(async (req, res) => {
  * POST /api/clients/:id/attachments
  */
 const uploadAttachments = asyncHandler(async (req, res) => {
+    // Block departed users from client operations
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية لتعديل العملاء', 403);
+    }
+
     const { id } = req.params;
     const lawyerId = req.userID;
     const firmId = req.firmId;
@@ -796,6 +881,11 @@ const uploadAttachments = asyncHandler(async (req, res) => {
  * DELETE /api/clients/:id/attachments/:attachmentId
  */
 const deleteAttachment = asyncHandler(async (req, res) => {
+    // Block departed users from client operations
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية لتعديل العملاء', 403);
+    }
+
     const { id, attachmentId } = req.params;
     const lawyerId = req.userID;
     const firmId = req.firmId;
@@ -841,6 +931,11 @@ const deleteAttachment = asyncHandler(async (req, res) => {
  * Requires WATHQ_CONSUMER_KEY and WATHQ_CONSUMER_SECRET in environment.
  */
 const verifyWathq = asyncHandler(async (req, res) => {
+    // Block departed users from client operations
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية للوصول إلى العملاء', 403);
+    }
+
     const { id } = req.params;
     const { crNumber, fullInfo = true } = req.body;
     const lawyerId = req.userID;
@@ -924,6 +1019,11 @@ const verifyWathq = asyncHandler(async (req, res) => {
  * GET /api/clients/:id/wathq/:dataType
  */
 const getWathqData = asyncHandler(async (req, res) => {
+    // Block departed users from client operations
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية للوصول إلى العملاء', 403);
+    }
+
     const { id, dataType } = req.params;
     const lawyerId = req.userID;
     const firmId = req.firmId;

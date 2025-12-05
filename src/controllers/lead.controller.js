@@ -10,6 +10,14 @@ const Client = require('../models/client.model');
 // Create a new lead
 exports.createLead = async (req, res) => {
     try {
+        // Block departed users from lead operations
+        if (req.isDeparted) {
+            return res.status(403).json({
+                success: false,
+                message: 'ليس لديك صلاحية للوصول إلى العملاء المحتملين'
+            });
+        }
+
         const lawyerId = req.userID;
         const firmId = req.firmId; // From firmFilter middleware
         const leadData = {
@@ -57,6 +65,14 @@ exports.createLead = async (req, res) => {
 // Get all leads
 exports.getLeads = async (req, res) => {
     try {
+        // Block departed users from lead operations
+        if (req.isDeparted) {
+            return res.status(403).json({
+                success: false,
+                message: 'ليس لديك صلاحية للوصول إلى العملاء المحتملين'
+            });
+        }
+
         const lawyerId = req.userID;
         const firmId = req.firmId; // From firmFilter middleware
         const {
@@ -113,6 +129,14 @@ exports.getLeads = async (req, res) => {
 // Get single lead
 exports.getLead = async (req, res) => {
     try {
+        // Block departed users from lead operations
+        if (req.isDeparted) {
+            return res.status(403).json({
+                success: false,
+                message: 'ليس لديك صلاحية للوصول إلى العملاء المحتملين'
+            });
+        }
+
         const { id } = req.params;
         const lawyerId = req.userID;
         const firmId = req.firmId; // From firmFilter middleware
@@ -159,6 +183,14 @@ exports.getLead = async (req, res) => {
 // Update lead
 exports.updateLead = async (req, res) => {
     try {
+        // Block departed users from lead operations
+        if (req.isDeparted) {
+            return res.status(403).json({
+                success: false,
+                message: 'ليس لديك صلاحية لتعديل العملاء المحتملين'
+            });
+        }
+
         const { id } = req.params;
         const lawyerId = req.userID;
         const firmId = req.firmId; // From firmFilter middleware
@@ -223,6 +255,14 @@ exports.updateLead = async (req, res) => {
 // Delete lead
 exports.deleteLead = async (req, res) => {
     try {
+        // Block departed users from lead operations
+        if (req.isDeparted) {
+            return res.status(403).json({
+                success: false,
+                message: 'ليس لديك صلاحية لحذف العملاء المحتملين'
+            });
+        }
+
         const { id } = req.params;
         const lawyerId = req.userID;
         const firmId = req.firmId; // From firmFilter middleware
@@ -262,6 +302,14 @@ exports.deleteLead = async (req, res) => {
 // Update lead status
 exports.updateStatus = async (req, res) => {
     try {
+        // Block departed users from lead operations
+        if (req.isDeparted) {
+            return res.status(403).json({
+                success: false,
+                message: 'ليس لديك صلاحية لتعديل حالة العملاء المحتملين'
+            });
+        }
+
         const { id } = req.params;
         const { status, notes, lostReason } = req.body;
         const lawyerId = req.userID;
@@ -306,6 +354,14 @@ exports.updateStatus = async (req, res) => {
 // Move lead to pipeline stage
 exports.moveToStage = async (req, res) => {
     try {
+        // Block departed users from lead operations
+        if (req.isDeparted) {
+            return res.status(403).json({
+                success: false,
+                message: 'ليس لديك صلاحية لتعديل العملاء المحتملين'
+            });
+        }
+
         const { id } = req.params;
         const { stageId, notes } = req.body;
         const lawyerId = req.userID;
@@ -390,6 +446,14 @@ exports.moveToStage = async (req, res) => {
 // Convert lead to client (with optional case creation)
 exports.convertToClient = async (req, res) => {
     try {
+        // Block departed users from lead operations
+        if (req.isDeparted) {
+            return res.status(403).json({
+                success: false,
+                message: 'ليس لديك صلاحية لتحويل العملاء المحتملين'
+            });
+        }
+
         const { id } = req.params;
         const lawyerId = req.userID;
         const firmId = req.firmId; // From firmFilter middleware
@@ -530,6 +594,14 @@ exports.previewConversion = async (req, res) => {
 // Get pipeline statistics
 exports.getStats = async (req, res) => {
     try {
+        // Block departed users from lead operations
+        if (req.isDeparted) {
+            return res.status(403).json({
+                success: false,
+                message: 'ليس لديك صلاحية للوصول إلى العملاء المحتملين'
+            });
+        }
+
         const lawyerId = req.userID;
         const firmId = req.firmId; // From firmFilter middleware
         const { startDate, endDate } = req.query;
@@ -646,6 +718,14 @@ exports.getNeedingFollowUp = async (req, res) => {
 // Log activity for a lead
 exports.logActivity = async (req, res) => {
     try {
+        // Block departed users from lead operations
+        if (req.isDeparted) {
+            return res.status(403).json({
+                success: false,
+                message: 'ليس لديك صلاحية للوصول إلى العملاء المحتملين'
+            });
+        }
+
         const { id } = req.params;
         const lawyerId = req.userID;
         const activityData = req.body;
@@ -745,6 +825,14 @@ exports.getActivities = async (req, res) => {
 // Schedule follow-up
 exports.scheduleFollowUp = async (req, res) => {
     try {
+        // Block departed users from lead operations
+        if (req.isDeparted) {
+            return res.status(403).json({
+                success: false,
+                message: 'ليس لديك صلاحية للوصول إلى العملاء المحتملين'
+            });
+        }
+
         const { id } = req.params;
         const { date, note } = req.body;
         const lawyerId = req.userID;

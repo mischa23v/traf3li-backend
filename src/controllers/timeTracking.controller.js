@@ -10,6 +10,11 @@ const activeTimers = new Map();
  * POST /api/time-tracking/timer/start
  */
 const startTimer = asyncHandler(async (req, res) => {
+    // Block departed users from creating time entries
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية لإنشاء إدخالات الوقت', 403);
+    }
+
     const { caseId, clientId, activityCode, description } = req.body;
     const lawyerId = req.userID;
     const firmId = req.firmId; // From firmFilter middleware
@@ -134,6 +139,11 @@ const resumeTimer = asyncHandler(async (req, res) => {
  * POST /api/time-tracking/timer/stop
  */
 const stopTimer = asyncHandler(async (req, res) => {
+    // Block departed users from creating time entries
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية لإنشاء إدخالات الوقت', 403);
+    }
+
     const lawyerId = req.userID;
     const firmId = req.firmId; // From firmFilter middleware
     const { notes, isBillable = true } = req.body;
@@ -239,6 +249,11 @@ const getTimerStatus = asyncHandler(async (req, res) => {
  * POST /api/time-tracking/entries
  */
 const createTimeEntry = asyncHandler(async (req, res) => {
+    // Block departed users from creating time entries
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية لإنشاء إدخالات الوقت', 403);
+    }
+
     const {
         caseId,
         clientId,
@@ -332,9 +347,15 @@ const getTimeEntries = asyncHandler(async (req, res) => {
 
     const lawyerId = req.userID;
     const firmId = req.firmId; // From firmFilter middleware
+    const isDeparted = req.isDeparted;
 
-    // Build query - firmId first, then lawyerId fallback
-    const query = firmId ? { firmId } : { lawyerId };
+    // Build query - departed users can only see their own entries
+    let query;
+    if (isDeparted) {
+        query = { lawyerId };
+    } else {
+        query = firmId ? { firmId } : { lawyerId };
+    }
 
     if (status) query.status = status;
     if (caseId) query.caseId = caseId;
@@ -436,6 +457,11 @@ const getTimeEntry = asyncHandler(async (req, res) => {
  * PUT /api/time-tracking/entries/:id
  */
 const updateTimeEntry = asyncHandler(async (req, res) => {
+    // Block departed users from updating time entries
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية لتعديل إدخالات الوقت', 403);
+    }
+
     const { id } = req.params;
     const lawyerId = req.userID;
     const firmId = req.firmId; // From firmFilter middleware
@@ -518,6 +544,11 @@ const updateTimeEntry = asyncHandler(async (req, res) => {
  * DELETE /api/time-tracking/entries/:id
  */
 const deleteTimeEntry = asyncHandler(async (req, res) => {
+    // Block departed users from deleting time entries
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية لحذف إدخالات الوقت', 403);
+    }
+
     const { id } = req.params;
     const lawyerId = req.userID;
     const firmId = req.firmId; // From firmFilter middleware
@@ -555,6 +586,11 @@ const deleteTimeEntry = asyncHandler(async (req, res) => {
  * POST /api/time-tracking/entries/:id/approve
  */
 const approveTimeEntry = asyncHandler(async (req, res) => {
+    // Block departed users from approving time entries
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية للموافقة على إدخالات الوقت', 403);
+    }
+
     const { id } = req.params;
     const approverId = req.userID;
 
@@ -606,6 +642,11 @@ const approveTimeEntry = asyncHandler(async (req, res) => {
  * POST /api/time-tracking/entries/:id/reject
  */
 const rejectTimeEntry = asyncHandler(async (req, res) => {
+    // Block departed users from rejecting time entries
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية لرفض إدخالات الوقت', 403);
+    }
+
     const { id } = req.params;
     const { reason } = req.body;
     const reviewerId = req.userID;
@@ -655,9 +696,15 @@ const getTimeStats = asyncHandler(async (req, res) => {
     const { startDate, endDate, caseId, groupBy = 'day' } = req.query;
     const lawyerId = req.userID;
     const firmId = req.firmId; // From firmFilter middleware
+    const isDeparted = req.isDeparted;
 
-    // Build query - firmId first, then lawyerId fallback
-    const matchQuery = firmId ? { firmId } : { lawyerId };
+    // Build query - departed users can only see their own entries
+    let matchQuery;
+    if (isDeparted) {
+        matchQuery = { lawyerId };
+    } else {
+        matchQuery = firmId ? { firmId } : { lawyerId };
+    }
 
     if (startDate || endDate) {
         matchQuery.date = {};
@@ -727,6 +774,7 @@ const getWeeklyEntries = asyncHandler(async (req, res) => {
     const { weekStartDate } = req.query;
     const lawyerId = req.userID;
     const firmId = req.firmId; // From firmFilter middleware
+    const isDeparted = req.isDeparted;
 
     // Parse week start date, default to current week's Monday
     let startDate;
@@ -744,8 +792,13 @@ const getWeeklyEntries = asyncHandler(async (req, res) => {
     endDate.setDate(endDate.getDate() + 6);
     endDate.setHours(23, 59, 59, 999);
 
-    // Build query - firmId first, then lawyerId fallback
-    const weekQuery = firmId ? { firmId } : { lawyerId };
+    // Build query - departed users can only see their own entries
+    let weekQuery;
+    if (isDeparted) {
+        weekQuery = { lawyerId };
+    } else {
+        weekQuery = firmId ? { firmId } : { lawyerId };
+    }
 
     // Get all time entries for the week
     const timeEntries = await TimeEntry.find({
@@ -823,6 +876,11 @@ const getWeeklyEntries = asyncHandler(async (req, res) => {
  * DELETE /api/time-tracking/entries/bulk
  */
 const bulkDeleteTimeEntries = asyncHandler(async (req, res) => {
+    // Block departed users from deleting time entries
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية لحذف إدخالات الوقت', 403);
+    }
+
     const { entryIds } = req.body;
     const lawyerId = req.userID;
     const firmId = req.firmId; // From firmFilter middleware

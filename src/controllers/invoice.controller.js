@@ -130,6 +130,11 @@ const createInvoice = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId; // From firmFilter middleware
 
+    // Block departed users from financial operations
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية للوصول إلى الفواتير', 403);
+    }
+
     // Check if user is a lawyer
     const user = await User.findById(lawyerId);
     if (user.role !== 'lawyer') {
@@ -302,6 +307,11 @@ const getInvoices = asyncHandler(async (req, res) => {
         limit = 20
     } = req.query;
 
+    // Block departed users from financial operations
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية للوصول إلى الفواتير', 403);
+    }
+
     const user = await User.findById(req.userID);
     const firmId = req.firmId; // From firmFilter middleware
 
@@ -364,6 +374,11 @@ const getInvoices = asyncHandler(async (req, res) => {
  * GET /api/invoices/:id
  */
 const getInvoice = asyncHandler(async (req, res) => {
+    // Block departed users from financial operations
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية للوصول إلى الفواتير', 403);
+    }
+
     const { id, _id } = req.params;
     const invoiceId = id || _id;
     const firmId = req.firmId; // From firmFilter middleware
@@ -423,6 +438,11 @@ const getInvoice = asyncHandler(async (req, res) => {
  * PATCH /api/invoices/:id
  */
 const updateInvoice = asyncHandler(async (req, res) => {
+    // Block departed users from financial operations
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية لتعديل الفواتير', 403);
+    }
+
     const { id, _id } = req.params;
     const invoiceId = id || _id;
     const firmId = req.firmId;
@@ -499,6 +519,11 @@ const updateInvoice = asyncHandler(async (req, res) => {
  * DELETE /api/invoices/:id
  */
 const deleteInvoice = asyncHandler(async (req, res) => {
+    // Block departed users from financial operations
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية لحذف الفواتير', 403);
+    }
+
     const { id, _id } = req.params;
     const invoiceId = id || _id;
 
@@ -552,6 +577,11 @@ const deleteInvoice = asyncHandler(async (req, res) => {
  * POST /api/invoices/:id/send
  */
 const sendInvoice = asyncHandler(async (req, res) => {
+    // Block departed users from financial operations
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية للوصول إلى الفواتير', 403);
+    }
+
     const { id, _id } = req.params;
     const invoiceId = id || _id;
 
@@ -626,6 +656,11 @@ const sendInvoice = asyncHandler(async (req, res) => {
  * POST /api/invoices/:id/record-payment
  */
 const recordPayment = asyncHandler(async (req, res) => {
+    // Block departed users from financial operations
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية للوصول إلى الفواتير', 403);
+    }
+
     const { id, _id } = req.params;
     const invoiceId = id || _id;
     const { amount, paymentMethod, reference, paymentDate, notes, bankAccountId } = req.body;
@@ -728,6 +763,11 @@ const recordPayment = asyncHandler(async (req, res) => {
  * POST /api/invoices/:id/void
  */
 const voidInvoice = asyncHandler(async (req, res) => {
+    // Block departed users from financial operations
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية للوصول إلى الفواتير', 403);
+    }
+
     const { id, _id } = req.params;
     const invoiceId = id || _id;
     const { reason } = req.body;
@@ -796,6 +836,11 @@ const voidInvoice = asyncHandler(async (req, res) => {
  * POST /api/invoices/:id/duplicate
  */
 const duplicateInvoice = asyncHandler(async (req, res) => {
+    // Block departed users from financial operations
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية للوصول إلى الفواتير', 403);
+    }
+
     const { id, _id } = req.params;
     const invoiceId = id || _id;
 
@@ -868,6 +913,11 @@ const duplicateInvoice = asyncHandler(async (req, res) => {
  * POST /api/invoices/:id/send-reminder
  */
 const sendReminder = asyncHandler(async (req, res) => {
+    // Block departed users from financial operations
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية للوصول إلى الفواتير', 403);
+    }
+
     const { id, _id } = req.params;
     const invoiceId = id || _id;
     const { template, customMessage, ccRecipients } = req.body;
@@ -932,6 +982,11 @@ const sendReminder = asyncHandler(async (req, res) => {
  * POST /api/invoices/:id/convert-to-credit-note
  */
 const convertToCreditNote = asyncHandler(async (req, res) => {
+    // Block departed users from financial operations
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية للوصول إلى الفواتير', 403);
+    }
+
     const { id, _id } = req.params;
     const invoiceId = id || _id;
     const { reason, amount } = req.body;
@@ -1018,6 +1073,11 @@ const convertToCreditNote = asyncHandler(async (req, res) => {
  * POST /api/invoices/:id/submit-for-approval
  */
 const submitForApproval = asyncHandler(async (req, res) => {
+    // Block departed users from financial operations
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية للوصول إلى الفواتير', 403);
+    }
+
     const { id, _id } = req.params;
     const invoiceId = id || _id;
 
@@ -1058,6 +1118,11 @@ const submitForApproval = asyncHandler(async (req, res) => {
  * POST /api/invoices/:id/approve
  */
 const approveInvoice = asyncHandler(async (req, res) => {
+    // Block departed users from financial operations
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية للوصول إلى الفواتير', 403);
+    }
+
     const { id, _id } = req.params;
     const invoiceId = id || _id;
     const { notes } = req.body;
@@ -1119,6 +1184,11 @@ const approveInvoice = asyncHandler(async (req, res) => {
  * POST /api/invoices/:id/reject
  */
 const rejectInvoice = asyncHandler(async (req, res) => {
+    // Block departed users from financial operations
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية للوصول إلى الفواتير', 403);
+    }
+
     const { id, _id } = req.params;
     const invoiceId = id || _id;
     const { reason } = req.body;
@@ -1173,6 +1243,11 @@ const rejectInvoice = asyncHandler(async (req, res) => {
  * POST /api/invoices/:id/zatca/submit
  */
 const submitToZATCAHandler = asyncHandler(async (req, res) => {
+    // Block departed users from financial operations
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية للوصول إلى الفواتير', 403);
+    }
+
     const { id, _id } = req.params;
     const invoiceId = id || _id;
 
@@ -1240,6 +1315,11 @@ const submitToZATCAHandler = asyncHandler(async (req, res) => {
  * GET /api/invoices/:id/zatca/status
  */
 const getZATCAStatus = asyncHandler(async (req, res) => {
+    // Block departed users from financial operations
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية للوصول إلى الفواتير', 403);
+    }
+
     const { id, _id } = req.params;
     const invoiceId = id || _id;
 
@@ -1264,6 +1344,11 @@ const getZATCAStatus = asyncHandler(async (req, res) => {
  * GET /api/invoices/stats
  */
 const getStats = asyncHandler(async (req, res) => {
+    // Block departed users from financial operations
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية للوصول إلى الفواتير', 403);
+    }
+
     const { period = 'month' } = req.query;
     const lawyerId = req.userID;
     const firmId = req.firmId;
@@ -1333,6 +1418,11 @@ const getStats = asyncHandler(async (req, res) => {
  * GET /api/invoices/overdue
  */
 const getOverdueInvoices = asyncHandler(async (req, res) => {
+    // Block departed users from financial operations
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية للوصول إلى الفواتير', 403);
+    }
+
     const today = new Date();
     const firmId = req.firmId;
 
@@ -1370,6 +1460,11 @@ const getOverdueInvoices = asyncHandler(async (req, res) => {
  * POST /api/invoices/:id/payment
  */
 const createPaymentIntent = asyncHandler(async (req, res) => {
+    // Block departed users from financial operations
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية للوصول إلى الفواتير', 403);
+    }
+
     const { id, _id } = req.params;
     const invoiceId = id || _id;
 

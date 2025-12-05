@@ -19,6 +19,11 @@ const createExpense = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId; // From firmFilter middleware
 
+    // Block departed users from financial operations
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية للوصول إلى المصروفات', 403);
+    }
+
     // Validate required fields
     if (!description || description.length < 3) {
         throw CustomException('Description is required (min 3 characters)', 400);
@@ -92,6 +97,11 @@ const getExpenses = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId; // From firmFilter middleware
 
+    // Block departed users from financial operations
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية للوصول إلى المصروفات', 403);
+    }
+
     // Build filters - firmId first, then lawyerId fallback
     const filters = firmId ? { firmId } : { lawyerId };
 
@@ -123,6 +133,11 @@ const getExpenses = asyncHandler(async (req, res) => {
 
 // Get single expense
 const getExpense = asyncHandler(async (req, res) => {
+    // Block departed users from financial operations
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية للوصول إلى المصروفات', 403);
+    }
+
     const { id } = req.params;
     const lawyerId = req.userID;
     const firmId = req.firmId; // From firmFilter middleware
@@ -153,6 +168,11 @@ const getExpense = asyncHandler(async (req, res) => {
 
 // Update expense
 const updateExpense = asyncHandler(async (req, res) => {
+    // Block departed users from financial operations
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية لتعديل المصروفات', 403);
+    }
+
     const { id } = req.params;
     const lawyerId = req.userID;
     const firmId = req.firmId; // From firmFilter middleware
@@ -198,6 +218,11 @@ const updateExpense = asyncHandler(async (req, res) => {
 
 // Delete expense
 const deleteExpense = asyncHandler(async (req, res) => {
+    // Block departed users from financial operations
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية لحذف المصروفات', 403);
+    }
+
     const { id } = req.params;
     const lawyerId = req.userID;
     const firmId = req.firmId; // From firmFilter middleware
@@ -236,6 +261,11 @@ const deleteExpense = asyncHandler(async (req, res) => {
 
 // Get expense statistics
 const getExpenseStats = asyncHandler(async (req, res) => {
+    // Block departed users from financial operations
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية للوصول إلى المصروفات', 403);
+    }
+
     const { caseId, startDate, endDate } = req.query;
     const lawyerId = req.userID;
     const firmId = req.firmId; // From firmFilter middleware
@@ -306,6 +336,11 @@ const getExpenseStats = asyncHandler(async (req, res) => {
 
 // Get expenses by category
 const getExpensesByCategory = asyncHandler(async (req, res) => {
+    // Block departed users from financial operations
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية للوصول إلى المصروفات', 403);
+    }
+
     const { caseId, startDate, endDate } = req.query;
     const lawyerId = req.userID;
     const firmId = req.firmId; // From firmFilter middleware
@@ -327,6 +362,11 @@ const getExpensesByCategory = asyncHandler(async (req, res) => {
 
 // Mark expense as reimbursed
 const markAsReimbursed = asyncHandler(async (req, res) => {
+    // Block departed users from financial operations
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية للوصول إلى المصروفات', 403);
+    }
+
     const { id } = req.params;
     const lawyerId = req.userID;
     const firmId = req.firmId; // From firmFilter middleware
@@ -364,6 +404,11 @@ const markAsReimbursed = asyncHandler(async (req, res) => {
 
 // Upload receipt
 const uploadReceipt = asyncHandler(async (req, res) => {
+    // Block departed users from financial operations
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية للوصول إلى المصروفات', 403);
+    }
+
     const { id } = req.params;
     const { fileName, fileUrl, fileType } = req.body;
     const lawyerId = req.userID;

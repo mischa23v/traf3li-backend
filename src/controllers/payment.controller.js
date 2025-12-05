@@ -28,6 +28,11 @@ const createPayment = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId; // From firmFilter middleware
 
+    // Block departed users from financial operations
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية للوصول إلى المدفوعات', 403);
+    }
+
     // Validate required fields
     if (!clientId || !amount || !paymentMethod) {
         throw CustomException('الحقول المطلوبة: العميل، المبلغ، طريقة الدفع', 400);
@@ -116,6 +121,11 @@ const getPayments = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId; // From firmFilter middleware
 
+    // Block departed users from financial operations
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية للوصول إلى المدفوعات', 403);
+    }
+
     // Build query based on firmId or lawyerId
     const query = firmId ? { firmId } : { lawyerId };
 
@@ -174,6 +184,11 @@ const getPayments = asyncHandler(async (req, res) => {
  * GET /api/payments/new
  */
 const getNewPaymentDefaults = asyncHandler(async (req, res) => {
+    // Block departed users from financial operations
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية للوصول إلى الدفعات', 403);
+    }
+
     res.status(200).json({
         success: true,
         data: {
@@ -208,6 +223,11 @@ const getNewPaymentDefaults = asyncHandler(async (req, res) => {
  * GET /api/payments/:id
  */
 const getPayment = asyncHandler(async (req, res) => {
+    // Block departed users from financial operations
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية للوصول إلى الدفعات', 403);
+    }
+
     const { id } = req.params;
     const lawyerId = req.userID;
     const firmId = req.firmId;
@@ -246,6 +266,11 @@ const getPayment = asyncHandler(async (req, res) => {
  * PUT /api/payments/:id
  */
 const updatePayment = asyncHandler(async (req, res) => {
+    // Block departed users from financial operations
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية لتعديل الدفعات', 403);
+    }
+
     const { id } = req.params;
     const lawyerId = req.userID;
     const firmId = req.firmId;
@@ -296,6 +321,11 @@ const updatePayment = asyncHandler(async (req, res) => {
  * DELETE /api/payments/:id
  */
 const deletePayment = asyncHandler(async (req, res) => {
+    // Block departed users from financial operations
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية لحذف الدفعات', 403);
+    }
+
     const { id } = req.params;
     const lawyerId = req.userID;
 
@@ -327,6 +357,11 @@ const deletePayment = asyncHandler(async (req, res) => {
  * POST /api/payments/:id/complete
  */
 const completePayment = asyncHandler(async (req, res) => {
+    // Block departed users from financial operations
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية للوصول إلى الدفعات', 403);
+    }
+
     const { id } = req.params;
     const lawyerId = req.userID;
 
@@ -409,6 +444,11 @@ const completePayment = asyncHandler(async (req, res) => {
  * POST /api/payments/:id/fail
  */
 const failPayment = asyncHandler(async (req, res) => {
+    // Block departed users from financial operations
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية للوصول إلى الدفعات', 403);
+    }
+
     const { id } = req.params;
     const { reason } = req.body;
     const lawyerId = req.userID;
@@ -453,6 +493,11 @@ const failPayment = asyncHandler(async (req, res) => {
  * POST /api/payments/:id/refund
  */
 const createRefund = asyncHandler(async (req, res) => {
+    // Block departed users from financial operations
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية للوصول إلى الدفعات', 403);
+    }
+
     const { id } = req.params;
     const { amount, reason } = req.body;
     const lawyerId = req.userID;
@@ -544,6 +589,11 @@ const createRefund = asyncHandler(async (req, res) => {
  * POST /api/payments/:id/receipt
  */
 const sendReceipt = asyncHandler(async (req, res) => {
+    // Block departed users from financial operations
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية للوصول إلى الدفعات', 403);
+    }
+
     const { id } = req.params;
     const { email } = req.body;
     const lawyerId = req.userID;
@@ -584,6 +634,11 @@ const sendReceipt = asyncHandler(async (req, res) => {
  * GET /api/payments/stats
  */
 const getPaymentStats = asyncHandler(async (req, res) => {
+    // Block departed users from financial operations
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية للوصول إلى الدفعات', 403);
+    }
+
     const { startDate, endDate, clientId, groupBy = 'status' } = req.query;
     const lawyerId = req.userID;
     const firmId = req.firmId;
@@ -676,6 +731,11 @@ const getPaymentStats = asyncHandler(async (req, res) => {
  * POST /api/invoices/:invoiceId/payments
  */
 const recordInvoicePayment = asyncHandler(async (req, res) => {
+    // Block departed users from financial operations
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية للوصول إلى الدفعات', 403);
+    }
+
     const { invoiceId } = req.params;
     const {
         amount,
@@ -794,6 +854,11 @@ const recordInvoicePayment = asyncHandler(async (req, res) => {
  * GET /api/payments/summary
  */
 const getPaymentsSummary = asyncHandler(async (req, res) => {
+    // Block departed users from financial operations
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية للوصول إلى الدفعات', 403);
+    }
+
     const { startDate, endDate } = req.query;
     const lawyerId = req.userID;
     const firmId = req.firmId;
@@ -881,6 +946,11 @@ const getPaymentsSummary = asyncHandler(async (req, res) => {
  * DELETE /api/payments/bulk
  */
 const bulkDeletePayments = asyncHandler(async (req, res) => {
+    // Block departed users from financial operations
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية لحذف الدفعات', 403);
+    }
+
     const { paymentIds } = req.body;
     const lawyerId = req.userID;
 
