@@ -44,6 +44,11 @@ const createCase = async (request, response) => {
     } = request.body;
 
     try {
+        // Check if user is departed (read-only access)
+        if (request.isDeparted) {
+            throw CustomException('لم يعد لديك صلاحية إنشاء قضايا جديدة', 403);
+        }
+
         // Check if user is a lawyer
         const user = await User.findById(request.userID);
         if (!user.isSeller) {
@@ -134,12 +139,25 @@ const getCases = async (request, response) => {
 
     try {
         const firmId = request.firmId; // From firmFilter middleware
+        const isDeparted = request.isDeparted; // From firmFilter middleware
 
         // Build filters based on firmId or user access
         let filters;
         if (firmId) {
-            // If user has firmId, show all firm cases
-            filters = { firmId };
+            if (isDeparted) {
+                // Departed users can only see cases they were assigned to
+                filters = {
+                    firmId,
+                    $or: [
+                        { lawyerId: request.userID },
+                        { assignedTo: request.userID },
+                        { 'team.userId': request.userID }
+                    ]
+                };
+            } else {
+                // Active firm members see all firm cases
+                filters = { firmId };
+            }
         } else {
             // Otherwise, show cases where user is lawyer or client
             filters = {
@@ -259,6 +277,11 @@ const getCase = async (request, response) => {
 const updateCase = async (request, response) => {
     const { _id } = request.params;
     try {
+        // Block departed users from updating
+        if (request.isDeparted) {
+            throw CustomException('لم يعد لديك صلاحية تعديل القضايا', 403);
+        }
+
         const firmId = request.firmId;
         const caseDoc = await Case.findById(_id);
 

@@ -33,6 +33,11 @@ const createEvent = asyncHandler(async (req, res) => {
     const userId = req.userID;
     const firmId = req.firmId; // From firmFilter middleware
 
+    // Block departed users from creating events
+    if (req.isDeparted) {
+        throw CustomException('لم يعد لديك صلاحية إنشاء مواعيد جديدة', 403);
+    }
+
     // Validate required fields
     if (!title || !type || !startDateTime) {
         throw CustomException('Title, type, and start date/time are required', 400);
@@ -132,17 +137,34 @@ const getEvents = asyncHandler(async (req, res) => {
 
     const userId = req.userID;
     const firmId = req.firmId; // From firmFilter middleware
+    const isDeparted = req.isDeparted; // From firmFilter middleware
 
     // Build query - firmId first, then user-based
-    const query = firmId
-        ? { firmId }
-        : {
+    let query;
+    if (firmId) {
+        if (isDeparted) {
+            // Departed users can only see events they organized or attended
+            query = {
+                firmId,
+                $or: [
+                    { createdBy: userId },
+                    { organizer: userId },
+                    { 'attendees.userId': userId }
+                ]
+            };
+        } else {
+            // Active firm members see all firm events
+            query = { firmId };
+        }
+    } else {
+        query = {
             $or: [
                 { createdBy: userId },
                 { organizer: userId },
                 { 'attendees.userId': userId }
             ]
         };
+    }
 
     // Date range filter
     if (startDate || endDate) {
@@ -256,6 +278,11 @@ const updateEvent = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const userId = req.userID;
     const firmId = req.firmId; // From firmFilter middleware
+
+    // Block departed users from updating
+    if (req.isDeparted) {
+        throw CustomException('لم يعد لديك صلاحية تعديل المواعيد', 403);
+    }
 
     const event = await Event.findById(id);
 

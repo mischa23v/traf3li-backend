@@ -35,6 +35,11 @@ const createTask = asyncHandler(async (req, res) => {
     const userId = req.userID;
     const firmId = req.firmId; // From firmFilter middleware
 
+    // Block departed users from creating tasks
+    if (req.isDeparted) {
+        throw CustomException('لم يعد لديك صلاحية إنشاء مهام جديدة', 403);
+    }
+
     // Sanitize user input to prevent XSS
     const sanitizedTitle = title ? stripHtml(title) : '';
     const sanitizedDescription = description ? sanitizeRichText(description) : '';
@@ -129,16 +134,32 @@ const getTasks = asyncHandler(async (req, res) => {
 
     const userId = req.userID;
     const firmId = req.firmId; // From firmFilter middleware
+    const isDeparted = req.isDeparted; // From firmFilter middleware
 
     // Build query - if firmId exists, filter by firm; otherwise by user
-    const query = firmId
-        ? { firmId }
-        : {
+    let query;
+    if (firmId) {
+        if (isDeparted) {
+            // Departed users can only see their own tasks
+            query = {
+                firmId,
+                $or: [
+                    { assignedTo: userId },
+                    { createdBy: userId }
+                ]
+            };
+        } else {
+            // Active firm members see all firm tasks
+            query = { firmId };
+        }
+    } else {
+        query = {
             $or: [
                 { assignedTo: userId },
                 { createdBy: userId }
             ]
         };
+    }
 
     if (status) query.status = status;
     if (priority) query.priority = priority;
@@ -231,6 +252,11 @@ const updateTask = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const userId = req.userID;
     const firmId = req.firmId; // From firmFilter middleware
+
+    // Block departed users from updating
+    if (req.isDeparted) {
+        throw CustomException('لم يعد لديك صلاحية تعديل المهام', 403);
+    }
 
     const task = await Task.findById(id);
 
