@@ -1,71 +1,132 @@
-const { TimeEntry, BillingRate, BillingActivity, Case } = require('../models');
+const { TimeEntry, BillingRate, BillingActivity, Case, Client } = require('../models');
 const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
 
 // In-memory timer state (in production, use Redis or database)
 const activeTimers = new Map();
 
+// ═══════════════════════════════════════════════════════════════
+// HELPER: Get firm filter for multi-tenancy
+// ═══════════════════════════════════════════════════════════════
+const getFirmFilter = (req) => {
+    if (req.firm && req.firm._id) {
+        return { firmId: req.firm._id };
+    }
+    if (req.firmId) {
+        return { firmId: req.firmId };
+    }
+    if (req.user && req.user._id) {
+        return { lawyerId: req.user._id };
+    }
+    return {};
+};
+
+// ═══════════════════════════════════════════════════════════════
+// VALIDATION HELPERS
+// ═══════════════════════════════════════════════════════════════
+const validateTimeEntry = (data) => {
+    const errors = [];
+
+    if (!data.clientId) errors.push('Client is required');
+    if (!data.date) errors.push('Date is required');
+    if (!data.description || data.description.length < 10) {
+        errors.push('Description must be at least 10 characters');
+    }
+    if (!data.duration || data.duration <= 0) errors.push('Duration must be positive');
+    if (data.duration > 1440) errors.push('Duration cannot exceed 24 hours (1440 minutes)');
+    if (!data.hourlyRate && data.hourlyRate !== 0) errors.push('Hourly rate is required');
+
+    if (new Date(data.date) > new Date()) {
+        errors.push('Date cannot be in the future');
+    }
+
+    if (data.writeOff && !data.writeOffReason) {
+        errors.push('Write-off reason is required');
+    }
+
+    if (data.writeDown && (!data.writeDownAmount || !data.writeDownReason)) {
+        errors.push('Write-down amount and reason are required');
+    }
+
+    // Validate start/end time if both provided
+    if (data.startTime && data.endTime) {
+        const timeRegex = /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/;
+        if (!timeRegex.test(data.startTime)) errors.push('Invalid start time format (HH:mm)');
+        if (!timeRegex.test(data.endTime)) errors.push('Invalid end time format (HH:mm)');
+    }
+
+    // Validate activity code
+    if (data.activityCode) {
+        const validCodes = Object.keys(TimeEntry.UTBMS_CODES);
+        const legacyCodes = TimeEntry.LEGACY_ACTIVITY_CODES;
+        if (!validCodes.includes(data.activityCode) && !legacyCodes.includes(data.activityCode)) {
+            errors.push('Invalid activity code');
+        }
+    }
+
+    return errors;
+};
+
+// ═══════════════════════════════════════════════════════════════
+// TIMER OPERATIONS
+// ═══════════════════════════════════════════════════════════════
+
 /**
  * Start timer for time tracking
  * POST /api/time-tracking/timer/start
  */
 const startTimer = asyncHandler(async (req, res) => {
-    // Block departed users from creating time entries
-    if (req.isDeparted) {
-        throw CustomException('ليس لديك صلاحية لإنشاء إدخالات الوقت', 403);
+    if (req.user?.departed || req.isDeparted) {
+        throw new CustomException('Departed users cannot create time entries', 403);
     }
 
     const { caseId, clientId, activityCode, description } = req.body;
-    const lawyerId = req.userID;
-    const firmId = req.firmId; // From firmFilter middleware
+    const userId = req.userID || req.user?._id;
+    const firmId = req.firmId || req.firm?._id;
 
-    // Check if timer already running for this lawyer
-    if (activeTimers.has(lawyerId)) {
-        throw CustomException('يوجد مؤقت قيد التشغيل بالفعل. يرجى إيقافه أولاً', 400);
+    if (activeTimers.has(userId.toString())) {
+        throw new CustomException('A timer is already running. Please stop it first.', 400);
     }
 
     // Validate case if provided
     if (caseId) {
         const caseDoc = await Case.findById(caseId);
         if (!caseDoc) {
-            throw CustomException('القضية غير موجودة', 404);
-        }
-        if (caseDoc.lawyerId.toString() !== lawyerId) {
-            throw CustomException('لا يمكنك الوصول إلى هذه القضية', 403);
+            throw new CustomException('Case not found', 404);
         }
     }
 
     // Get applicable hourly rate
-    const hourlyRate = await BillingRate.getApplicableRate(lawyerId, clientId, null, activityCode);
-
-    if (!hourlyRate) {
-        throw CustomException('لم يتم العثور على سعر بالساعة. يرجى تعيين الأسعار أولاً', 400);
+    let hourlyRate = 0;
+    if (BillingRate && BillingRate.getApplicableRate) {
+        hourlyRate = await BillingRate.getApplicableRate(userId, clientId, null, activityCode);
     }
 
-    // Create timer state
     const timerState = {
-        lawyerId,
+        userId,
+        firmId,
         caseId,
         clientId,
         activityCode,
         description: description || '',
-        hourlyRate,
+        hourlyRate: hourlyRate || 0,
         startedAt: new Date(),
         pausedDuration: 0,
         isPaused: false,
         pausedAt: null
     };
 
-    activeTimers.set(lawyerId, timerState);
+    activeTimers.set(userId.toString(), timerState);
 
     res.status(200).json({
         success: true,
-        message: 'تم بدء المؤقت بنجاح',
+        message: 'Timer started successfully',
         timer: {
             startedAt: timerState.startedAt,
             hourlyRate: timerState.hourlyRate,
             description: timerState.description,
             caseId: timerState.caseId,
+            clientId: timerState.clientId,
             activityCode: timerState.activityCode
         }
     });
@@ -76,16 +137,15 @@ const startTimer = asyncHandler(async (req, res) => {
  * POST /api/time-tracking/timer/pause
  */
 const pauseTimer = asyncHandler(async (req, res) => {
-    const lawyerId = req.userID;
-
-    const timer = activeTimers.get(lawyerId);
+    const userId = (req.userID || req.user?._id).toString();
+    const timer = activeTimers.get(userId);
 
     if (!timer) {
-        throw CustomException('لا يوجد مؤقت نشط', 400);
+        throw new CustomException('No active timer', 400);
     }
 
     if (timer.isPaused) {
-        throw CustomException('المؤقت متوقف مؤقتاً بالفعل', 400);
+        throw new CustomException('Timer is already paused', 400);
     }
 
     timer.isPaused = true;
@@ -93,7 +153,7 @@ const pauseTimer = asyncHandler(async (req, res) => {
 
     res.status(200).json({
         success: true,
-        message: 'تم إيقاف المؤقت مؤقتاً',
+        message: 'Timer paused',
         timer: {
             pausedAt: timer.pausedAt,
             elapsedMinutes: calculateElapsedMinutes(timer)
@@ -106,19 +166,17 @@ const pauseTimer = asyncHandler(async (req, res) => {
  * POST /api/time-tracking/timer/resume
  */
 const resumeTimer = asyncHandler(async (req, res) => {
-    const lawyerId = req.userID;
-
-    const timer = activeTimers.get(lawyerId);
+    const userId = (req.userID || req.user?._id).toString();
+    const timer = activeTimers.get(userId);
 
     if (!timer) {
-        throw CustomException('لا يوجد مؤقت نشط', 400);
+        throw new CustomException('No active timer', 400);
     }
 
     if (!timer.isPaused) {
-        throw CustomException('المؤقت قيد التشغيل بالفعل', 400);
+        throw new CustomException('Timer is already running', 400);
     }
 
-    // Add paused duration
     const pausedTime = new Date() - timer.pausedAt;
     timer.pausedDuration += pausedTime;
     timer.isPaused = false;
@@ -126,7 +184,7 @@ const resumeTimer = asyncHandler(async (req, res) => {
 
     res.status(200).json({
         success: true,
-        message: 'تم استئناف المؤقت',
+        message: 'Timer resumed',
         timer: {
             elapsedMinutes: calculateElapsedMinutes(timer),
             pausedDuration: timer.pausedDuration
@@ -139,75 +197,85 @@ const resumeTimer = asyncHandler(async (req, res) => {
  * POST /api/time-tracking/timer/stop
  */
 const stopTimer = asyncHandler(async (req, res) => {
-    // Block departed users from creating time entries
-    if (req.isDeparted) {
-        throw CustomException('ليس لديك صلاحية لإنشاء إدخالات الوقت', 403);
+    if (req.user?.departed || req.isDeparted) {
+        throw new CustomException('Departed users cannot create time entries', 403);
     }
 
-    const lawyerId = req.userID;
-    const firmId = req.firmId; // From firmFilter middleware
-    const { notes, isBillable = true } = req.body;
+    const userId = (req.userID || req.user?._id).toString();
+    const firmId = req.firmId || req.firm?._id;
+    const { notes, isBillable = true, timeType = 'billable' } = req.body;
 
-    const timer = activeTimers.get(lawyerId);
+    const timer = activeTimers.get(userId);
 
     if (!timer) {
-        throw CustomException('لا يوجد مؤقت نشط', 400);
+        throw new CustomException('No active timer', 400);
     }
 
-    // If paused, add final pause duration
     if (timer.isPaused) {
         const pausedTime = new Date() - timer.pausedAt;
         timer.pausedDuration += pausedTime;
     }
 
-    // Calculate total duration in minutes
     const duration = calculateElapsedMinutes(timer);
 
-    // Create time entry
+    if (duration < 1) {
+        activeTimers.delete(userId);
+        throw new CustomException('Duration must be at least 1 minute', 400);
+    }
+
     const timeEntry = await TimeEntry.create({
-        lawyerId,
-        firmId, // Add firmId for multi-tenancy
+        firmId,
+        assigneeId: userId,
+        userId: userId,
+        lawyerId: userId,
         clientId: timer.clientId,
         caseId: timer.caseId,
         date: timer.startedAt,
-        description: timer.description,
+        description: timer.description || 'Timer-based entry',
         duration,
         hourlyRate: timer.hourlyRate,
         activityCode: timer.activityCode,
-        isBillable,
+        timeType,
+        isBillable: timeType === 'billable',
         wasTimerBased: true,
         timerStartedAt: timer.startedAt,
         timerPausedDuration: timer.pausedDuration,
         notes: notes || '',
-        status: 'draft'
+        status: 'pending',
+        history: [{
+            action: 'created',
+            performedBy: userId,
+            timestamp: new Date(),
+            details: { method: 'timer' }
+        }]
     });
 
     // Log activity
-    await BillingActivity.logActivity({
-        activityType: 'time_entry_created',
-        userId: lawyerId,
-        clientId: timer.clientId,
-        relatedModel: 'TimeEntry',
-        relatedId: timeEntry._id,
-        description: `تم إنشاء إدخال وقت جديد: ${timer.description}`,
-        ipAddress: req.ip,
-        userAgent: req.get('user-agent')
-    });
+    if (BillingActivity && BillingActivity.logActivity) {
+        await BillingActivity.logActivity({
+            activityType: 'time_entry_created',
+            userId,
+            clientId: timer.clientId,
+            relatedModel: 'TimeEntry',
+            relatedId: timeEntry._id,
+            description: `Time entry created via timer: ${timer.description}`,
+            ipAddress: req.ip,
+            userAgent: req.get('user-agent')
+        });
+    }
 
-    // Remove timer
-    activeTimers.delete(lawyerId);
+    activeTimers.delete(userId);
 
-    // Populate response
     await timeEntry.populate([
-        { path: 'lawyerId', select: 'username image' },
-        { path: 'clientId', select: 'username' },
+        { path: 'assigneeId', select: 'name email' },
+        { path: 'clientId', select: 'firstName lastName companyName' },
         { path: 'caseId', select: 'title caseNumber' }
     ]);
 
     res.status(201).json({
         success: true,
-        message: 'تم إيقاف المؤقت وإنشاء إدخال الوقت',
-        timeEntry
+        message: 'Timer stopped and time entry created',
+        data: { timeEntry }
     });
 });
 
@@ -216,8 +284,8 @@ const stopTimer = asyncHandler(async (req, res) => {
  * GET /api/time-tracking/timer/status
  */
 const getTimerStatus = asyncHandler(async (req, res) => {
-    const lawyerId = req.userID;
-    const timer = activeTimers.get(lawyerId);
+    const userId = (req.userID || req.user?._id).toString();
+    const timer = activeTimers.get(userId);
 
     if (!timer) {
         return res.status(200).json({
@@ -234,6 +302,7 @@ const getTimerStatus = asyncHandler(async (req, res) => {
             startedAt: timer.startedAt,
             description: timer.description,
             caseId: timer.caseId,
+            clientId: timer.clientId,
             activityCode: timer.activityCode,
             hourlyRate: timer.hourlyRate,
             isPaused: timer.isPaused,
@@ -244,51 +313,71 @@ const getTimerStatus = asyncHandler(async (req, res) => {
     });
 });
 
+// ═══════════════════════════════════════════════════════════════
+// TIME ENTRY CRUD
+// ═══════════════════════════════════════════════════════════════
+
 /**
  * Create time entry manually
  * POST /api/time-tracking/entries
  */
 const createTimeEntry = asyncHandler(async (req, res) => {
-    // Block departed users from creating time entries
-    if (req.isDeparted) {
-        throw CustomException('ليس لديك صلاحية لإنشاء إدخالات الوقت', 403);
+    if (req.user?.departed || req.isDeparted) {
+        throw new CustomException('Departed users cannot create time entries', 403);
+    }
+
+    const userId = req.userID || req.user?._id;
+    const firmId = req.firmId || req.firm?._id;
+
+    // Validate required fields
+    const errors = validateTimeEntry(req.body);
+    if (errors.length > 0) {
+        throw new CustomException(errors.join('. '), 400);
     }
 
     const {
-        caseId,
         clientId,
+        caseId,
         date,
         description,
         duration,
         hourlyRate,
         activityCode,
-        isBillable = true,
+        timeType = 'billable',
+        isBillable,
         notes,
-        attachments
+        attachments,
+        assigneeId,
+        startTime,
+        endTime,
+        breakMinutes,
+        departmentId,
+        locationId,
+        practiceArea,
+        phase,
+        taskId,
+        writeOff,
+        writeOffReason,
+        writeDown,
+        writeDownAmount,
+        writeDownReason,
+        billStatus = 'draft'
     } = req.body;
 
-    const lawyerId = req.userID;
-    const firmId = req.firmId; // From firmFilter middleware
-
-    // Validate required fields
-    if (!description || !date || !duration || !hourlyRate) {
-        throw CustomException('الحقول المطلوبة: الوصف، التاريخ، المدة، السعر بالساعة', 400);
-    }
-
-    // Validate case
+    // Validate case access if provided
     if (caseId) {
         const caseDoc = await Case.findById(caseId);
         if (!caseDoc) {
-            throw CustomException('القضية غير موجودة', 404);
-        }
-        if (caseDoc.lawyerId.toString() !== lawyerId) {
-            throw CustomException('لا يمكنك الوصول إلى هذه القضية', 403);
+            throw new CustomException('Case not found', 404);
         }
     }
 
+    // Create time entry
     const timeEntry = await TimeEntry.create({
-        lawyerId,
-        firmId, // Add firmId for multi-tenancy
+        firmId,
+        assigneeId: assigneeId || userId,
+        userId,
+        lawyerId: assigneeId || userId,
         clientId,
         caseId,
         date: new Date(date),
@@ -296,35 +385,71 @@ const createTimeEntry = asyncHandler(async (req, res) => {
         duration,
         hourlyRate,
         activityCode,
-        isBillable,
+        timeType,
+        isBillable: isBillable !== undefined ? isBillable : (timeType === 'billable'),
+        startTime,
+        endTime,
+        breakMinutes: breakMinutes || 0,
         notes,
         attachments: attachments || [],
-        status: 'draft',
-        wasTimerBased: false
+        departmentId,
+        locationId,
+        practiceArea,
+        phase,
+        taskId,
+        writeOff: writeOff || false,
+        writeOffReason,
+        writeDown: writeDown || false,
+        writeDownAmount,
+        writeDownReason,
+        billStatus,
+        status: 'pending',
+        wasTimerBased: false,
+        createdBy: userId,
+        history: [{
+            action: 'created',
+            performedBy: userId,
+            timestamp: new Date(),
+            details: { method: 'manual' }
+        }]
     });
+
+    // Handle write-off/write-down
+    if (writeOff) {
+        timeEntry.writeOffBy = userId;
+        timeEntry.writeOffAt = new Date();
+        await timeEntry.save();
+    }
+    if (writeDown && writeDownAmount > 0) {
+        timeEntry.writeDownBy = userId;
+        timeEntry.writeDownAt = new Date();
+        await timeEntry.save();
+    }
 
     // Log activity
-    await BillingActivity.logActivity({
-        activityType: 'time_entry_created',
-        userId: lawyerId,
-        clientId,
-        relatedModel: 'TimeEntry',
-        relatedId: timeEntry._id,
-        description: `تم إنشاء إدخال وقت يدوي: ${description}`,
-        ipAddress: req.ip,
-        userAgent: req.get('user-agent')
-    });
+    if (BillingActivity && BillingActivity.logActivity) {
+        await BillingActivity.logActivity({
+            activityType: 'time_entry_created',
+            userId,
+            clientId,
+            relatedModel: 'TimeEntry',
+            relatedId: timeEntry._id,
+            description: `Time entry created: ${description}`,
+            ipAddress: req.ip,
+            userAgent: req.get('user-agent')
+        });
+    }
 
     await timeEntry.populate([
-        { path: 'lawyerId', select: 'username image' },
-        { path: 'clientId', select: 'username' },
+        { path: 'assigneeId', select: 'name email' },
+        { path: 'clientId', select: 'firstName lastName companyName' },
         { path: 'caseId', select: 'title caseNumber' }
     ]);
 
     res.status(201).json({
         success: true,
-        message: 'تم إنشاء إدخال الوقت بنجاح',
-        timeEntry
+        message: 'Time entry created successfully',
+        data: { timeEntry }
     });
 });
 
@@ -335,32 +460,38 @@ const createTimeEntry = asyncHandler(async (req, res) => {
 const getTimeEntries = asyncHandler(async (req, res) => {
     const {
         status,
+        billStatus,
         caseId,
         clientId,
+        assigneeId,
         startDate,
         endDate,
         isBillable,
+        timeType,
         activityCode,
         page = 1,
-        limit = 50
+        limit = 25
     } = req.query;
 
-    const lawyerId = req.userID;
-    const firmId = req.firmId; // From firmFilter middleware
-    const isDeparted = req.isDeparted;
+    const firmFilter = getFirmFilter(req);
+    const isDeparted = req.user?.departed || req.isDeparted;
 
-    // Build query - departed users can only see their own entries
+    // Build query
     let query;
     if (isDeparted) {
-        query = { lawyerId };
+        query = { lawyerId: req.userID || req.user?._id };
     } else {
-        query = firmId ? { firmId } : { lawyerId };
+        query = { ...firmFilter };
     }
 
+    // Apply filters
     if (status) query.status = status;
+    if (billStatus) query.billStatus = billStatus;
     if (caseId) query.caseId = caseId;
     if (clientId) query.clientId = clientId;
+    if (assigneeId) query.assigneeId = assigneeId;
     if (isBillable !== undefined) query.isBillable = isBillable === 'true';
+    if (timeType) query.timeType = timeType;
     if (activityCode) query.activityCode = activityCode;
 
     if (startDate || endDate) {
@@ -369,50 +500,75 @@ const getTimeEntries = asyncHandler(async (req, res) => {
         if (endDate) query.date.$lte = new Date(endDate);
     }
 
-    const timeEntries = await TimeEntry.find(query)
-        .populate('lawyerId', 'username image')
-        .populate('clientId', 'username')
-        .populate('caseId', 'title caseNumber')
-        .populate('approvedBy', 'username')
-        .populate('invoiceId', 'invoiceNumber')
-        .sort({ date: -1, createdAt: -1 })
-        .limit(parseInt(limit))
-        .skip((parseInt(page) - 1) * parseInt(limit));
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const limitNum = parseInt(limit);
 
-    const total = await TimeEntry.countDocuments(query);
+    const [entries, total] = await Promise.all([
+        TimeEntry.find(query)
+            .populate('assigneeId', 'name email')
+            .populate('userId', 'name email')
+            .populate('clientId', 'firstName lastName companyName')
+            .populate('caseId', 'title caseNumber')
+            .populate('approvedBy', 'name email')
+            .populate('rejectedBy', 'name email')
+            .populate('invoiceId', 'invoiceNumber')
+            .sort({ date: -1, createdAt: -1 })
+            .skip(skip)
+            .limit(limitNum),
+        TimeEntry.countDocuments(query)
+    ]);
 
-    // Calculate totals
-    const totals = await TimeEntry.aggregate([
+    // Calculate summary
+    const summaryAgg = await TimeEntry.aggregate([
         { $match: query },
         {
             $group: {
                 _id: null,
                 totalDuration: { $sum: '$duration' },
-                totalAmount: { $sum: '$totalAmount' },
-                billableDuration: {
-                    $sum: { $cond: ['$isBillable', '$duration', 0] }
+                totalBillable: {
+                    $sum: { $cond: [{ $eq: ['$timeType', 'billable'] }, '$duration', 0] }
                 },
-                billableAmount: {
-                    $sum: { $cond: ['$isBillable', '$totalAmount', 0] }
+                totalAmount: { $sum: '$finalAmount' },
+                billable: {
+                    $sum: { $cond: [{ $eq: ['$timeType', 'billable'] }, '$duration', 0] }
+                },
+                non_billable: {
+                    $sum: { $cond: [{ $eq: ['$timeType', 'non_billable'] }, '$duration', 0] }
+                },
+                pro_bono: {
+                    $sum: { $cond: [{ $eq: ['$timeType', 'pro_bono'] }, '$duration', 0] }
+                },
+                internal: {
+                    $sum: { $cond: [{ $eq: ['$timeType', 'internal'] }, '$duration', 0] }
                 }
             }
         }
     ]);
 
+    const summary = summaryAgg[0] || {
+        totalDuration: 0,
+        totalBillable: 0,
+        totalAmount: 0
+    };
+
     res.status(200).json({
         success: true,
-        data: timeEntries,
-        pagination: {
-            page: parseInt(page),
-            limit: parseInt(limit),
+        data: {
+            entries,
             total,
-            pages: Math.ceil(total / parseInt(limit))
-        },
-        summary: totals[0] || {
-            totalDuration: 0,
-            totalAmount: 0,
-            billableDuration: 0,
-            billableAmount: 0
+            page: parseInt(page),
+            totalPages: Math.ceil(total / limitNum),
+            summary: {
+                totalDuration: summary.totalDuration || 0,
+                totalBillable: summary.totalBillable || 0,
+                totalAmount: summary.totalAmount || 0,
+                byTimeType: {
+                    billable: summary.billable || 0,
+                    non_billable: summary.non_billable || 0,
+                    pro_bono: summary.pro_bono || 0,
+                    internal: summary.internal || 0
+                }
+            }
         }
     });
 });
@@ -423,27 +579,21 @@ const getTimeEntries = asyncHandler(async (req, res) => {
  */
 const getTimeEntry = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const lawyerId = req.userID;
-    const firmId = req.firmId; // From firmFilter middleware
+    const firmFilter = getFirmFilter(req);
 
-    const timeEntry = await TimeEntry.findById(id)
-        .populate('lawyerId', 'username image email')
-        .populate('clientId', 'username email')
+    const timeEntry = await TimeEntry.findOne({ _id: id, ...firmFilter })
+        .populate('assigneeId', 'name email')
+        .populate('userId', 'name email')
+        .populate('clientId', 'firstName lastName companyName email')
         .populate('caseId', 'title caseNumber category')
-        .populate('approvedBy', 'username')
+        .populate('approvedBy', 'name email')
+        .populate('rejectedBy', 'name email')
+        .populate('writeOffBy', 'name email')
+        .populate('writeDownBy', 'name email')
         .populate('invoiceId', 'invoiceNumber status');
 
     if (!timeEntry) {
-        throw CustomException('إدخال الوقت غير موجود', 404);
-    }
-
-    // Check access - firmId first, then lawyerId
-    const hasAccess = firmId
-        ? timeEntry.firmId && timeEntry.firmId.toString() === firmId.toString()
-        : timeEntry.lawyerId._id.toString() === lawyerId;
-
-    if (!hasAccess) {
-        throw CustomException('لا يمكنك الوصول إلى هذا الإدخال', 403);
+        throw new CustomException('Time entry not found', 404);
     }
 
     res.status(200).json({
@@ -454,46 +604,41 @@ const getTimeEntry = asyncHandler(async (req, res) => {
 
 /**
  * Update time entry
- * PUT /api/time-tracking/entries/:id
+ * PATCH /api/time-tracking/entries/:id
  */
 const updateTimeEntry = asyncHandler(async (req, res) => {
-    // Block departed users from updating time entries
-    if (req.isDeparted) {
-        throw CustomException('ليس لديك صلاحية لتعديل إدخالات الوقت', 403);
+    if (req.user?.departed || req.isDeparted) {
+        throw new CustomException('Departed users cannot update time entries', 403);
     }
 
     const { id } = req.params;
-    const lawyerId = req.userID;
-    const firmId = req.firmId; // From firmFilter middleware
+    const userId = req.userID || req.user?._id;
+    const firmFilter = getFirmFilter(req);
 
-    const timeEntry = await TimeEntry.findById(id);
+    const timeEntry = await TimeEntry.findOne({ _id: id, ...firmFilter });
 
     if (!timeEntry) {
-        throw CustomException('إدخال الوقت غير موجود', 404);
-    }
-
-    // Check access - firmId first, then lawyerId
-    const hasAccess = firmId
-        ? timeEntry.firmId && timeEntry.firmId.toString() === firmId.toString()
-        : timeEntry.lawyerId.toString() === lawyerId;
-
-    if (!hasAccess) {
-        throw CustomException('لا يمكنك الوصول إلى هذا الإدخال', 403);
+        throw new CustomException('Time entry not found', 404);
     }
 
     // Cannot update if invoiced
     if (timeEntry.invoiceId) {
-        throw CustomException('لا يمكن تحديث إدخال وقت مُدرج في فاتورة', 400);
+        throw new CustomException('Cannot update invoiced time entry', 400);
     }
 
-    // Cannot update if approved
+    // Cannot update if approved (unless admin)
     if (timeEntry.status === 'approved') {
-        throw CustomException('لا يمكن تحديث إدخال وقت تمت الموافقة عليه', 400);
+        throw new CustomException('Cannot update approved time entry', 400);
     }
 
     // Track changes
     const changes = {};
-    const allowedFields = ['description', 'duration', 'hourlyRate', 'activityCode', 'isBillable', 'notes'];
+    const allowedFields = [
+        'description', 'duration', 'hourlyRate', 'activityCode',
+        'timeType', 'isBillable', 'notes', 'startTime', 'endTime',
+        'breakMinutes', 'date', 'clientId', 'caseId', 'assigneeId',
+        'departmentId', 'locationId', 'practiceArea', 'phase', 'taskId'
+    ];
 
     allowedFields.forEach(field => {
         if (req.body[field] !== undefined && req.body[field] !== timeEntry[field]) {
@@ -502,10 +647,18 @@ const updateTimeEntry = asyncHandler(async (req, res) => {
         }
     });
 
-    // Add to edit history
+    // Add to history if changes made
     if (Object.keys(changes).length > 0) {
+        timeEntry.history.push({
+            action: 'updated',
+            performedBy: userId,
+            timestamp: new Date(),
+            details: { changes }
+        });
+
+        // Legacy edit history
         timeEntry.editHistory.push({
-            editedBy: lawyerId,
+            editedBy: userId,
             editedAt: new Date(),
             changes
         });
@@ -514,28 +667,30 @@ const updateTimeEntry = asyncHandler(async (req, res) => {
     await timeEntry.save();
 
     // Log activity
-    await BillingActivity.logActivity({
-        activityType: 'time_entry_updated',
-        userId: lawyerId,
-        clientId: timeEntry.clientId,
-        relatedModel: 'TimeEntry',
-        relatedId: timeEntry._id,
-        description: `تم تحديث إدخال الوقت: ${timeEntry.description}`,
-        changes,
-        ipAddress: req.ip,
-        userAgent: req.get('user-agent')
-    });
+    if (BillingActivity && BillingActivity.logActivity && Object.keys(changes).length > 0) {
+        await BillingActivity.logActivity({
+            activityType: 'time_entry_updated',
+            userId,
+            clientId: timeEntry.clientId,
+            relatedModel: 'TimeEntry',
+            relatedId: timeEntry._id,
+            description: `Time entry updated: ${timeEntry.description}`,
+            changes,
+            ipAddress: req.ip,
+            userAgent: req.get('user-agent')
+        });
+    }
 
     await timeEntry.populate([
-        { path: 'lawyerId', select: 'username image' },
-        { path: 'clientId', select: 'username' },
+        { path: 'assigneeId', select: 'name email' },
+        { path: 'clientId', select: 'firstName lastName companyName' },
         { path: 'caseId', select: 'title caseNumber' }
     ]);
 
     res.status(200).json({
         success: true,
-        message: 'تم تحديث إدخال الوقت بنجاح',
-        timeEntry
+        message: 'Time entry updated successfully',
+        data: { timeEntry }
     });
 });
 
@@ -544,96 +699,191 @@ const updateTimeEntry = asyncHandler(async (req, res) => {
  * DELETE /api/time-tracking/entries/:id
  */
 const deleteTimeEntry = asyncHandler(async (req, res) => {
-    // Block departed users from deleting time entries
-    if (req.isDeparted) {
-        throw CustomException('ليس لديك صلاحية لحذف إدخالات الوقت', 403);
+    if (req.user?.departed || req.isDeparted) {
+        throw new CustomException('Departed users cannot delete time entries', 403);
     }
 
     const { id } = req.params;
-    const lawyerId = req.userID;
-    const firmId = req.firmId; // From firmFilter middleware
+    const firmFilter = getFirmFilter(req);
 
-    const timeEntry = await TimeEntry.findById(id);
+    const timeEntry = await TimeEntry.findOne({ _id: id, ...firmFilter });
 
     if (!timeEntry) {
-        throw CustomException('إدخال الوقت غير موجود', 404);
+        throw new CustomException('Time entry not found', 404);
     }
 
-    // Check access - firmId first, then lawyerId
-    const hasAccess = firmId
-        ? timeEntry.firmId && timeEntry.firmId.toString() === firmId.toString()
-        : timeEntry.lawyerId.toString() === lawyerId;
-
-    if (!hasAccess) {
-        throw CustomException('لا يمكنك الوصول إلى هذا الإدخال', 403);
-    }
-
-    // Cannot delete if invoiced
     if (timeEntry.invoiceId) {
-        throw CustomException('لا يمكن حذف إدخال وقت مُدرج في فاتورة', 400);
+        throw new CustomException('Cannot delete invoiced time entry', 400);
     }
 
     await TimeEntry.findByIdAndDelete(id);
 
     res.status(200).json({
         success: true,
-        message: 'تم حذف إدخال الوقت بنجاح'
+        message: 'Time entry deleted successfully'
     });
 });
+
+// ═══════════════════════════════════════════════════════════════
+// WRITE-OFF / WRITE-DOWN
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Write off a time entry
+ * POST /api/time-tracking/entries/:id/write-off
+ */
+const writeOffTimeEntry = asyncHandler(async (req, res) => {
+    if (req.user?.departed || req.isDeparted) {
+        throw new CustomException('Departed users cannot write off time entries', 403);
+    }
+
+    const { id } = req.params;
+    const { reason } = req.body;
+    const userId = req.userID || req.user?._id;
+    const firmFilter = getFirmFilter(req);
+
+    if (!reason || reason.trim().length === 0) {
+        throw new CustomException('Write-off reason is required', 400);
+    }
+
+    const timeEntry = await TimeEntry.findOne({ _id: id, ...firmFilter });
+
+    if (!timeEntry) {
+        throw new CustomException('Time entry not found', 404);
+    }
+
+    await timeEntry.writeOffEntry(reason, userId);
+
+    // Log activity
+    if (BillingActivity && BillingActivity.logActivity) {
+        await BillingActivity.logActivity({
+            activityType: 'time_entry_written_off',
+            userId,
+            clientId: timeEntry.clientId,
+            relatedModel: 'TimeEntry',
+            relatedId: timeEntry._id,
+            description: `Time entry written off: ${reason}`,
+            ipAddress: req.ip,
+            userAgent: req.get('user-agent')
+        });
+    }
+
+    await timeEntry.populate([
+        { path: 'assigneeId', select: 'name email' },
+        { path: 'writeOffBy', select: 'name email' }
+    ]);
+
+    res.status(200).json({
+        success: true,
+        message: 'Time entry written off successfully',
+        data: { timeEntry }
+    });
+});
+
+/**
+ * Write down a time entry
+ * POST /api/time-tracking/entries/:id/write-down
+ */
+const writeDownTimeEntry = asyncHandler(async (req, res) => {
+    if (req.user?.departed || req.isDeparted) {
+        throw new CustomException('Departed users cannot write down time entries', 403);
+    }
+
+    const { id } = req.params;
+    const { amount, reason } = req.body;
+    const userId = req.userID || req.user?._id;
+    const firmFilter = getFirmFilter(req);
+
+    if (!amount || amount <= 0) {
+        throw new CustomException('Write-down amount is required and must be positive', 400);
+    }
+
+    if (!reason || reason.trim().length === 0) {
+        throw new CustomException('Write-down reason is required', 400);
+    }
+
+    const timeEntry = await TimeEntry.findOne({ _id: id, ...firmFilter });
+
+    if (!timeEntry) {
+        throw new CustomException('Time entry not found', 404);
+    }
+
+    await timeEntry.writeDownEntry(amount, reason, userId);
+
+    // Log activity
+    if (BillingActivity && BillingActivity.logActivity) {
+        await BillingActivity.logActivity({
+            activityType: 'time_entry_written_down',
+            userId,
+            clientId: timeEntry.clientId,
+            relatedModel: 'TimeEntry',
+            relatedId: timeEntry._id,
+            description: `Time entry written down by ${amount}: ${reason}`,
+            ipAddress: req.ip,
+            userAgent: req.get('user-agent')
+        });
+    }
+
+    await timeEntry.populate([
+        { path: 'assigneeId', select: 'name email' },
+        { path: 'writeDownBy', select: 'name email' }
+    ]);
+
+    res.status(200).json({
+        success: true,
+        message: 'Time entry written down successfully',
+        data: { timeEntry }
+    });
+});
+
+// ═══════════════════════════════════════════════════════════════
+// APPROVAL WORKFLOW
+// ═══════════════════════════════════════════════════════════════
 
 /**
  * Approve time entry
  * POST /api/time-tracking/entries/:id/approve
  */
 const approveTimeEntry = asyncHandler(async (req, res) => {
-    // Block departed users from approving time entries
-    if (req.isDeparted) {
-        throw CustomException('ليس لديك صلاحية للموافقة على إدخالات الوقت', 403);
+    if (req.user?.departed || req.isDeparted) {
+        throw new CustomException('Departed users cannot approve time entries', 403);
     }
 
     const { id } = req.params;
-    const approverId = req.userID;
+    const userId = req.userID || req.user?._id;
+    const firmFilter = getFirmFilter(req);
 
-    const timeEntry = await TimeEntry.findById(id);
+    const timeEntry = await TimeEntry.findOne({ _id: id, ...firmFilter });
 
     if (!timeEntry) {
-        throw CustomException('إدخال الوقت غير موجود', 404);
+        throw new CustomException('Time entry not found', 404);
     }
 
-    if (timeEntry.status === 'approved') {
-        throw CustomException('تمت الموافقة على الإدخال بالفعل', 400);
-    }
-
-    if (timeEntry.status === 'invoiced') {
-        throw CustomException('لا يمكن الموافقة على إدخال مُدرج في فاتورة', 400);
-    }
-
-    timeEntry.status = 'approved';
-    timeEntry.approvedBy = approverId;
-    timeEntry.approvedAt = new Date();
-    await timeEntry.save();
+    await timeEntry.approve(userId);
 
     // Log activity
-    await BillingActivity.logActivity({
-        activityType: 'time_entry_approved',
-        userId: approverId,
-        clientId: timeEntry.clientId,
-        relatedModel: 'TimeEntry',
-        relatedId: timeEntry._id,
-        description: `تمت الموافقة على إدخال الوقت: ${timeEntry.description}`,
-        ipAddress: req.ip,
-        userAgent: req.get('user-agent')
-    });
+    if (BillingActivity && BillingActivity.logActivity) {
+        await BillingActivity.logActivity({
+            activityType: 'time_entry_approved',
+            userId,
+            clientId: timeEntry.clientId,
+            relatedModel: 'TimeEntry',
+            relatedId: timeEntry._id,
+            description: `Time entry approved: ${timeEntry.description}`,
+            ipAddress: req.ip,
+            userAgent: req.get('user-agent')
+        });
+    }
 
     await timeEntry.populate([
-        { path: 'lawyerId', select: 'username image' },
-        { path: 'approvedBy', select: 'username' }
+        { path: 'assigneeId', select: 'name email' },
+        { path: 'approvedBy', select: 'name email' }
     ]);
 
     res.status(200).json({
         success: true,
-        message: 'تمت الموافقة على إدخال الوقت بنجاح',
-        timeEntry
+        message: 'Time entry approved successfully',
+        data: { timeEntry }
     });
 });
 
@@ -642,68 +892,71 @@ const approveTimeEntry = asyncHandler(async (req, res) => {
  * POST /api/time-tracking/entries/:id/reject
  */
 const rejectTimeEntry = asyncHandler(async (req, res) => {
-    // Block departed users from rejecting time entries
-    if (req.isDeparted) {
-        throw CustomException('ليس لديك صلاحية لرفض إدخالات الوقت', 403);
+    if (req.user?.departed || req.isDeparted) {
+        throw new CustomException('Departed users cannot reject time entries', 403);
     }
 
     const { id } = req.params;
     const { reason } = req.body;
-    const reviewerId = req.userID;
+    const userId = req.userID || req.user?._id;
+    const firmFilter = getFirmFilter(req);
 
-    if (!reason) {
-        throw CustomException('سبب الرفض مطلوب', 400);
+    if (!reason || reason.trim().length === 0) {
+        throw new CustomException('Rejection reason is required', 400);
     }
 
-    const timeEntry = await TimeEntry.findById(id);
+    const timeEntry = await TimeEntry.findOne({ _id: id, ...firmFilter });
 
     if (!timeEntry) {
-        throw CustomException('إدخال الوقت غير موجود', 404);
+        throw new CustomException('Time entry not found', 404);
     }
 
-    timeEntry.status = 'rejected';
-    timeEntry.rejectionReason = reason;
-    await timeEntry.save();
+    await timeEntry.reject(reason, userId);
 
     // Log activity
-    await BillingActivity.logActivity({
-        activityType: 'time_entry_rejected',
-        userId: reviewerId,
-        clientId: timeEntry.clientId,
-        relatedModel: 'TimeEntry',
-        relatedId: timeEntry._id,
-        description: `تم رفض إدخال الوقت: ${timeEntry.description}. السبب: ${reason}`,
-        ipAddress: req.ip,
-        userAgent: req.get('user-agent')
-    });
+    if (BillingActivity && BillingActivity.logActivity) {
+        await BillingActivity.logActivity({
+            activityType: 'time_entry_rejected',
+            userId,
+            clientId: timeEntry.clientId,
+            relatedModel: 'TimeEntry',
+            relatedId: timeEntry._id,
+            description: `Time entry rejected: ${reason}`,
+            ipAddress: req.ip,
+            userAgent: req.get('user-agent')
+        });
+    }
 
     await timeEntry.populate([
-        { path: 'lawyerId', select: 'username image' }
+        { path: 'assigneeId', select: 'name email' },
+        { path: 'rejectedBy', select: 'name email' }
     ]);
 
     res.status(200).json({
         success: true,
-        message: 'تم رفض إدخال الوقت',
-        timeEntry
+        message: 'Time entry rejected',
+        data: { timeEntry }
     });
 });
+
+// ═══════════════════════════════════════════════════════════════
+// ANALYTICS & REPORTS
+// ═══════════════════════════════════════════════════════════════
 
 /**
  * Get time entry statistics
  * GET /api/time-tracking/stats
  */
 const getTimeStats = asyncHandler(async (req, res) => {
-    const { startDate, endDate, caseId, groupBy = 'day' } = req.query;
-    const lawyerId = req.userID;
-    const firmId = req.firmId; // From firmFilter middleware
-    const isDeparted = req.isDeparted;
+    const { startDate, endDate, caseId, clientId, assigneeId, groupBy = 'day' } = req.query;
+    const firmFilter = getFirmFilter(req);
+    const isDeparted = req.user?.departed || req.isDeparted;
 
-    // Build query - departed users can only see their own entries
     let matchQuery;
     if (isDeparted) {
-        matchQuery = { lawyerId };
+        matchQuery = { lawyerId: req.userID || req.user?._id };
     } else {
-        matchQuery = firmId ? { firmId } : { lawyerId };
+        matchQuery = { ...firmFilter };
     }
 
     if (startDate || endDate) {
@@ -713,6 +966,8 @@ const getTimeStats = asyncHandler(async (req, res) => {
     }
 
     if (caseId) matchQuery.caseId = caseId;
+    if (clientId) matchQuery.clientId = clientId;
+    if (assigneeId) matchQuery.assigneeId = assigneeId;
 
     // Overall stats
     const overallStats = await TimeEntry.aggregate([
@@ -722,15 +977,28 @@ const getTimeStats = asyncHandler(async (req, res) => {
                 _id: null,
                 totalEntries: { $sum: 1 },
                 totalDuration: { $sum: '$duration' },
-                totalAmount: { $sum: '$totalAmount' },
-                billableDuration: { $sum: { $cond: ['$isBillable', '$duration', 0] } },
-                billableAmount: { $sum: { $cond: ['$isBillable', '$totalAmount', 0] } },
+                totalAmount: { $sum: '$finalAmount' },
+                billableDuration: { $sum: { $cond: [{ $eq: ['$timeType', 'billable'] }, '$duration', 0] } },
+                billableAmount: { $sum: { $cond: [{ $eq: ['$timeType', 'billable'] }, '$finalAmount', 0] } },
                 avgHourlyRate: { $avg: '$hourlyRate' }
             }
         }
     ]);
 
-    // Group by activity code
+    // By time type
+    const byTimeType = await TimeEntry.aggregate([
+        { $match: matchQuery },
+        {
+            $group: {
+                _id: '$timeType',
+                count: { $sum: 1 },
+                totalDuration: { $sum: '$duration' },
+                totalAmount: { $sum: '$finalAmount' }
+            }
+        }
+    ]);
+
+    // By activity code
     const byActivity = await TimeEntry.aggregate([
         { $match: matchQuery },
         {
@@ -738,20 +1006,33 @@ const getTimeStats = asyncHandler(async (req, res) => {
                 _id: '$activityCode',
                 count: { $sum: 1 },
                 totalDuration: { $sum: '$duration' },
-                totalAmount: { $sum: '$totalAmount' }
+                totalAmount: { $sum: '$finalAmount' }
             }
         },
-        { $sort: { totalAmount: -1 } }
+        { $sort: { totalAmount: -1 } },
+        { $limit: 10 }
     ]);
 
-    // Group by status
+    // By status
     const byStatus = await TimeEntry.aggregate([
         { $match: matchQuery },
         {
             $group: {
                 _id: '$status',
                 count: { $sum: 1 },
-                totalAmount: { $sum: '$totalAmount' }
+                totalAmount: { $sum: '$finalAmount' }
+            }
+        }
+    ]);
+
+    // By bill status
+    const byBillStatus = await TimeEntry.aggregate([
+        { $match: matchQuery },
+        {
+            $group: {
+                _id: '$billStatus',
+                count: { $sum: 1 },
+                totalAmount: { $sum: '$finalAmount' }
             }
         }
     ]);
@@ -759,9 +1040,18 @@ const getTimeStats = asyncHandler(async (req, res) => {
     res.status(200).json({
         success: true,
         data: {
-            overall: overallStats[0] || {},
+            overall: overallStats[0] || {
+                totalEntries: 0,
+                totalDuration: 0,
+                totalAmount: 0,
+                billableDuration: 0,
+                billableAmount: 0,
+                avgHourlyRate: 0
+            },
+            byTimeType,
             byActivity,
-            byStatus
+            byStatus,
+            byBillStatus
         }
     });
 });
@@ -772,11 +1062,9 @@ const getTimeStats = asyncHandler(async (req, res) => {
  */
 const getWeeklyEntries = asyncHandler(async (req, res) => {
     const { weekStartDate } = req.query;
-    const lawyerId = req.userID;
-    const firmId = req.firmId; // From firmFilter middleware
-    const isDeparted = req.isDeparted;
+    const firmFilter = getFirmFilter(req);
+    const isDeparted = req.user?.departed || req.isDeparted;
 
-    // Parse week start date, default to current week's Monday
     let startDate;
     if (weekStartDate) {
         startDate = new Date(weekStartDate);
@@ -792,21 +1080,19 @@ const getWeeklyEntries = asyncHandler(async (req, res) => {
     endDate.setDate(endDate.getDate() + 6);
     endDate.setHours(23, 59, 59, 999);
 
-    // Build query - departed users can only see their own entries
     let weekQuery;
     if (isDeparted) {
-        weekQuery = { lawyerId };
+        weekQuery = { lawyerId: req.userID || req.user?._id };
     } else {
-        weekQuery = firmId ? { firmId } : { lawyerId };
+        weekQuery = { ...firmFilter };
     }
 
-    // Get all time entries for the week
     const timeEntries = await TimeEntry.find({
         ...weekQuery,
         date: { $gte: startDate, $lte: endDate }
     })
         .populate('caseId', 'title caseNumber')
-        .populate('clientId', 'firstName lastName username')
+        .populate('clientId', 'firstName lastName companyName')
         .sort({ date: 1 });
 
     // Group entries by project (case)
@@ -814,7 +1100,6 @@ const getWeeklyEntries = asyncHandler(async (req, res) => {
     const dailyTotals = {};
     let weeklyTotal = 0;
 
-    // Initialize daily totals for each day of the week
     for (let i = 0; i < 7; i++) {
         const date = new Date(startDate);
         date.setDate(date.getDate() + i);
@@ -825,8 +1110,8 @@ const getWeeklyEntries = asyncHandler(async (req, res) => {
         const projectId = entry.caseId?._id?.toString() || 'no-project';
         const projectName = entry.caseId?.title || 'No Project';
         const clientName = entry.clientId ?
-            `${entry.clientId.firstName || ''} ${entry.clientId.lastName || ''}`.trim() || entry.clientId.username :
-            'No Client';
+            `${entry.clientId.firstName || ''} ${entry.clientId.lastName || ''}`.trim() ||
+            entry.clientId.companyName : 'No Client';
 
         if (!projectsMap.has(projectId)) {
             projectsMap.set(projectId, {
@@ -849,10 +1134,10 @@ const getWeeklyEntries = asyncHandler(async (req, res) => {
             entryId: entry._id,
             duration: entry.duration,
             description: entry.description,
-            isBillable: entry.isBillable
+            isBillable: entry.isBillable,
+            timeType: entry.timeType
         });
 
-        // Update totals
         const hoursWorked = entry.duration / 60;
         project.totalHours += hoursWorked;
         dailyTotals[dateKey] = (dailyTotals[dateKey] || 0) + entry.duration;
@@ -872,49 +1157,171 @@ const getWeeklyEntries = asyncHandler(async (req, res) => {
 });
 
 /**
+ * Get unbilled entries for invoicing
+ * GET /api/time-tracking/unbilled
+ */
+const getUnbilledEntries = asyncHandler(async (req, res) => {
+    const { clientId, caseId } = req.query;
+    const firmFilter = getFirmFilter(req);
+
+    const entries = await TimeEntry.getUnbilledEntries({
+        ...firmFilter,
+        clientId,
+        caseId
+    });
+
+    const totalAmount = entries.reduce((sum, entry) => sum + entry.finalAmount, 0);
+    const totalDuration = entries.reduce((sum, entry) => sum + entry.duration, 0);
+
+    res.status(200).json({
+        success: true,
+        data: {
+            entries,
+            count: entries.length,
+            totalAmount,
+            totalDuration
+        }
+    });
+});
+
+// ═══════════════════════════════════════════════════════════════
+// UTBMS ACTIVITY CODES
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Get all UTBMS activity codes
+ * GET /api/time-tracking/activity-codes
+ */
+const getActivityCodes = asyncHandler(async (req, res) => {
+    const codes = Object.entries(TimeEntry.UTBMS_CODES).map(([code, details]) => ({
+        code,
+        ...details
+    }));
+
+    // Group by category
+    const grouped = {};
+    codes.forEach(item => {
+        if (!grouped[item.category]) {
+            grouped[item.category] = [];
+        }
+        grouped[item.category].push(item);
+    });
+
+    res.status(200).json({
+        success: true,
+        data: {
+            codes,
+            grouped,
+            timeTypes: TimeEntry.TIME_TYPES.map(type => ({
+                value: type,
+                label: type.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()),
+                labelAr: {
+                    'billable': 'قابل للفوترة',
+                    'non_billable': 'غير قابل للفوترة',
+                    'pro_bono': 'خدمات مجانية',
+                    'internal': 'داخلي'
+                }[type]
+            }))
+        }
+    });
+});
+
+// ═══════════════════════════════════════════════════════════════
+// BULK OPERATIONS
+// ═══════════════════════════════════════════════════════════════
+
+/**
  * Bulk delete time entries
  * DELETE /api/time-tracking/entries/bulk
  */
 const bulkDeleteTimeEntries = asyncHandler(async (req, res) => {
-    // Block departed users from deleting time entries
-    if (req.isDeparted) {
-        throw CustomException('ليس لديك صلاحية لحذف إدخالات الوقت', 403);
+    if (req.user?.departed || req.isDeparted) {
+        throw new CustomException('Departed users cannot delete time entries', 403);
     }
 
     const { entryIds } = req.body;
-    const lawyerId = req.userID;
-    const firmId = req.firmId; // From firmFilter middleware
+    const firmFilter = getFirmFilter(req);
 
     if (!entryIds || !Array.isArray(entryIds) || entryIds.length === 0) {
-        throw CustomException('معرفات الإدخالات مطلوبة', 400);
+        throw new CustomException('Entry IDs are required', 400);
     }
 
-    // Build access query - firmId first, then lawyerId fallback
-    const accessQuery = firmId
-        ? { _id: { $in: entryIds }, firmId, invoiceId: { $exists: false } }
-        : { _id: { $in: entryIds }, lawyerId, invoiceId: { $exists: false } };
-
-    // Verify all entries belong to firm/lawyer and are not invoiced
-    const entries = await TimeEntry.find(accessQuery);
+    // Verify entries belong to firm and are not invoiced
+    const entries = await TimeEntry.find({
+        _id: { $in: entryIds },
+        ...firmFilter,
+        invoiceId: { $exists: false }
+    });
 
     if (entries.length !== entryIds.length) {
-        throw CustomException('بعض الإدخالات غير صالحة للحذف', 400);
+        throw new CustomException('Some entries are invalid or cannot be deleted', 400);
     }
 
     await TimeEntry.deleteMany({ _id: { $in: entryIds } });
 
     res.status(200).json({
         success: true,
-        message: `تم حذف ${entries.length} إدخالات وقت بنجاح`,
+        message: `${entries.length} time entries deleted successfully`,
         count: entries.length
     });
 });
 
-// Helper function to calculate elapsed minutes from timer
+/**
+ * Bulk approve time entries
+ * POST /api/time-tracking/entries/bulk-approve
+ */
+const bulkApproveTimeEntries = asyncHandler(async (req, res) => {
+    if (req.user?.departed || req.isDeparted) {
+        throw new CustomException('Departed users cannot approve time entries', 403);
+    }
+
+    const { entryIds } = req.body;
+    const userId = req.userID || req.user?._id;
+    const firmFilter = getFirmFilter(req);
+
+    if (!entryIds || !Array.isArray(entryIds) || entryIds.length === 0) {
+        throw new CustomException('Entry IDs are required', 400);
+    }
+
+    const result = await TimeEntry.updateMany(
+        {
+            _id: { $in: entryIds },
+            ...firmFilter,
+            status: 'pending'
+        },
+        {
+            $set: {
+                status: 'approved',
+                approvedBy: userId,
+                approvedAt: new Date(),
+                billStatus: 'unbilled'
+            },
+            $push: {
+                history: {
+                    action: 'approved',
+                    performedBy: userId,
+                    timestamp: new Date(),
+                    details: { bulk: true }
+                }
+            }
+        }
+    );
+
+    res.status(200).json({
+        success: true,
+        message: `${result.modifiedCount} time entries approved`,
+        count: result.modifiedCount
+    });
+});
+
+// ═══════════════════════════════════════════════════════════════
+// HELPER FUNCTIONS
+// ═══════════════════════════════════════════════════════════════
+
 function calculateElapsedMinutes(timer) {
     const now = timer.isPaused ? timer.pausedAt : new Date();
     const totalMs = now - timer.startedAt - timer.pausedDuration;
-    return Math.round(totalMs / 1000 / 60); // Convert to minutes
+    return Math.max(1, Math.round(totalMs / 1000 / 60));
 }
 
 module.exports = {
@@ -932,8 +1339,9 @@ module.exports = {
     updateTimeEntry,
     deleteTimeEntry,
 
-    // Weekly view
-    getWeeklyEntries,
+    // Write-off / Write-down
+    writeOffTimeEntry,
+    writeDownTimeEntry,
 
     // Approval workflow
     approveTimeEntry,
@@ -941,7 +1349,13 @@ module.exports = {
 
     // Analytics
     getTimeStats,
+    getWeeklyEntries,
+    getUnbilledEntries,
+
+    // UTBMS codes
+    getActivityCodes,
 
     // Bulk operations
-    bulkDeleteTimeEntries
+    bulkDeleteTimeEntries,
+    bulkApproveTimeEntries
 };
