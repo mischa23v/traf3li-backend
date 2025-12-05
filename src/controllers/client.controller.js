@@ -3,6 +3,7 @@ const { Client, Case, Invoice, Payment } = require('../models');
 const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
 const mojPortalService = require('../services/mojPortalService');
+const wathqService = require('../services/wathqService');
 
 /**
  * Create client
@@ -720,30 +721,20 @@ const deleteAttachment = asyncHandler(async (req, res) => {
 /**
  * Verify client via Yakeen API (National ID)
  * POST /api/clients/:id/verify/yakeen
+ *
+ * NOTE: Yakeen API requires company registration with Elm.
+ * This endpoint is disabled until API access is obtained.
  */
 const verifyYakeen = asyncHandler(async (req, res) => {
-    const { id } = req.params;
-    const { nationalId, dateOfBirth } = req.body;
-    const lawyerId = req.userID;
-
-    const client = await Client.findById(id);
-
-    if (!client) {
-        throw CustomException('العميل غير موجود', 404);
-    }
-
-    if (client.lawyerId.toString() !== lawyerId) {
-        throw CustomException('لا يمكنك الوصول إلى هذا العميل', 403);
-    }
-
-    // TODO: Implement actual Yakeen API call when credentials are available
-    // For now, return a placeholder response
-    res.json({
-        success: true,
-        message: 'Yakeen API integration pending - requires API credentials',
+    // Yakeen API requires company registration with Elm (علم)
+    // Cannot be accessed without official company credentials
+    res.status(503).json({
+        success: false,
+        message: 'خدمة يقين غير متوفرة حالياً',
         data: {
             verified: false,
-            note: 'يتطلب اعتماد API من يقين'
+            note: 'خدمة يقين تتطلب تسجيل الشركة في علم للحصول على اعتماد API',
+            alternativeNote: 'يمكنك إدخال بيانات العميل يدوياً حتى يتم توفير الخدمة'
         }
     });
 });
@@ -751,10 +742,13 @@ const verifyYakeen = asyncHandler(async (req, res) => {
 /**
  * Verify client via Wathq API (Commercial Registry)
  * POST /api/clients/:id/verify/wathq
+ *
+ * Uses Wathq API to verify company commercial registration.
+ * Requires WATHQ_CONSUMER_KEY and WATHQ_CONSUMER_SECRET in environment.
  */
 const verifyWathq = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const { crNumber } = req.body;
+    const { crNumber, fullInfo = true } = req.body;
     const lawyerId = req.userID;
 
     const client = await Client.findById(id);
@@ -767,15 +761,115 @@ const verifyWathq = asyncHandler(async (req, res) => {
         throw CustomException('لا يمكنك الوصول إلى هذا العميل', 403);
     }
 
-    // TODO: Implement actual Wathq API call when credentials are available
-    // For now, return a placeholder response
-    res.json({
-        success: true,
-        message: 'Wathq API integration pending - requires API credentials',
-        data: {
-            verified: false,
-            note: 'يتطلب اعتماد API من واثق'
+    // Check if Wathq is configured
+    if (!wathqService.isConfigured()) {
+        throw CustomException('خدمة واثق غير مفعلة - يرجى إضافة مفاتيح API', 503);
+    }
+
+    // Use client's CR number if not provided
+    const commercialRegNumber = crNumber || client.crNumber;
+
+    if (!commercialRegNumber) {
+        throw CustomException('رقم السجل التجاري مطلوب', 400);
+    }
+
+    // Call Wathq API
+    const result = fullInfo
+        ? await wathqService.getFullInfo(commercialRegNumber)
+        : await wathqService.getBasicInfo(commercialRegNumber);
+
+    if (result.success) {
+        // Update client with company information
+        client.clientType = 'company';
+        client.crNumber = commercialRegNumber;
+        client.companyName = result.data.companyName;
+        client.companyNameEnglish = result.data.companyNameEnglish;
+        client.unifiedNumber = result.data.crNationalNumber;
+        client.crStatus = result.data.status?.name;
+        client.capital = result.data.capital;
+        client.crIssueDate = result.data.issueDateGregorian ? new Date(result.data.issueDateGregorian) : undefined;
+        client.mainActivity = result.data.activities?.[0]?.name;
+        client.companyCity = result.data.headquarterCityName;
+        client.entityDuration = result.data.companyDuration;
+        client.website = result.data.eCommerce?.website;
+        client.ecommerceLink = result.data.eCommerce?.link;
+
+        // Store owners if available
+        if (result.data.parties && result.data.parties.length > 0) {
+            client.owners = result.data.parties.map(party => ({
+                name: party.name,
+                nationalId: party.nationalId,
+                nationality: party.nationality,
+                share: party.share
+            }));
         }
+
+        client.wathqVerified = true;
+        client.wathqVerifiedAt = new Date();
+        client.updatedBy = lawyerId;
+
+        await client.save();
+    }
+
+    res.json({
+        success: result.success,
+        message: result.success ? 'تم التحقق من السجل التجاري بنجاح' : result.error,
+        data: result.data,
+        fromCache: result.fromCache || false
+    });
+});
+
+/**
+ * Get additional Wathq data (managers, owners, capital, branches)
+ * GET /api/clients/:id/wathq/:dataType
+ */
+const getWathqData = asyncHandler(async (req, res) => {
+    const { id, dataType } = req.params;
+    const lawyerId = req.userID;
+
+    const client = await Client.findById(id);
+
+    if (!client) {
+        throw CustomException('العميل غير موجود', 404);
+    }
+
+    if (client.lawyerId.toString() !== lawyerId) {
+        throw CustomException('لا يمكنك الوصول إلى هذا العميل', 403);
+    }
+
+    if (!client.crNumber) {
+        throw CustomException('العميل ليس لديه سجل تجاري', 400);
+    }
+
+    if (!wathqService.isConfigured()) {
+        throw CustomException('خدمة واثق غير مفعلة', 503);
+    }
+
+    let result;
+    switch (dataType) {
+        case 'managers':
+            result = await wathqService.getManagers(client.crNumber);
+            break;
+        case 'owners':
+            result = await wathqService.getOwners(client.crNumber);
+            break;
+        case 'capital':
+            result = await wathqService.getCapital(client.crNumber);
+            break;
+        case 'branches':
+            result = await wathqService.getBranches(client.crNumber);
+            break;
+        case 'status':
+            result = await wathqService.getStatus(client.crNumber);
+            break;
+        default:
+            throw CustomException('نوع البيانات غير صالح', 400);
+    }
+
+    res.json({
+        success: result.success,
+        data: result.data,
+        error: result.error
     });
 });
 
@@ -898,6 +992,7 @@ module.exports = {
     deleteAttachment,
     verifyYakeen,
     verifyWathq,
+    getWathqData,
     verifyMOJ,
     verifyAttorney
 };
