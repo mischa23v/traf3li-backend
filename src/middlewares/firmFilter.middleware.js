@@ -22,7 +22,11 @@ const CustomException = require('../utils/CustomException');
 const {
     ROLE_PERMISSIONS,
     LEVEL_VALUES,
+    WORK_MODES,
     getDefaultPermissions,
+    getSoloLawyerPermissions,
+    isSoloLawyer: checkIsSoloLawyer,
+    resolveUserPermissions,
     meetsPermissionLevel,
     roleHasPermission,
     hasSpecialPermission,
@@ -51,19 +55,28 @@ const firmFilter = async (req, res, next) => {
         }
 
         // Handle solo lawyers - they have full permissions without needing a firm
-        if (user.isSoloLawyer || (user.role === 'lawyer' && !user.firmId && user.lawyerWorkMode === 'solo')) {
+        // Uses Casbin-style domain check: solo lawyers have no tenant/domain
+        if (checkIsSoloLawyer(user)) {
             req.firmId = null;
             req.firmRole = null;
             req.firmStatus = null;
             req.isDeparted = false;
             req.isSoloLawyer = true;
+            req.workMode = WORK_MODES.SOLO;
+            req.tenantId = null; // No tenant for solo lawyers
             req.firmQuery = { lawyerId: userId }; // Solo lawyers filter by their own ID
-            req.permissions = getDefaultPermissions('owner'); // Solo lawyers get full permissions
+            req.permissions = getSoloLawyerPermissions(); // Solo lawyers get full permissions
 
             // Helper functions for solo lawyers
             req.hasPermission = () => true; // Solo lawyers have all permissions
-            req.hasSpecialPermission = () => true; // Solo lawyers have all special permissions
+            req.hasSpecialPermission = (permission) => {
+                // Check special permissions specific to solo lawyers
+                const soloPerms = getSoloLawyerPermissions();
+                return soloPerms.special?.[permission] === true;
+            };
             req.canAccessCase = () => true;
+            req.canCreateFirm = () => true; // Solo lawyers can create a firm
+            req.canJoinFirm = () => true; // Solo lawyers can join a firm
             req.addFirmId = (data) => {
                 if (typeof data === 'object') {
                     data.lawyerId = userId;

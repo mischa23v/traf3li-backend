@@ -458,15 +458,75 @@ const authLogout = async (request, response) => {
 const authStatus = async (request, response) => {
     try {
         const user = await User.findOne({ _id: request.userID }).select('-password');
-        
+
         if(!user) {
             throw CustomException('User not found!', 404);
         }
-        
+
+        // Build enhanced user data with solo lawyer and firm info
+        const userData = {
+            ...user._doc,
+            isSoloLawyer: user.isSoloLawyer || false,
+            lawyerWorkMode: user.lawyerWorkMode || null
+        };
+
+        // If user is a lawyer, get firm/tenant information
+        if (user.role === 'lawyer' || user.isSeller) {
+            if (user.firmId) {
+                try {
+                    const firm = await Firm.findById(user.firmId)
+                        .select('name nameEnglish licenseNumber status members subscription');
+
+                    if (firm) {
+                        const member = firm.members.find(
+                            m => m.userId.toString() === user._id.toString()
+                        );
+
+                        // Tenant context (Casbin-style domain info)
+                        userData.tenant = {
+                            id: firm._id,
+                            name: firm.name,
+                            nameEn: firm.nameEnglish,
+                            status: firm.status,
+                            subscription: {
+                                plan: firm.subscription?.plan || 'free',
+                                status: firm.subscription?.status || 'trial'
+                            }
+                        };
+
+                        // User's role within tenant
+                        userData.firmRole = member?.role || user.firmRole;
+                        userData.firmStatus = member?.status || user.firmStatus;
+                        userData.permissions = member?.permissions || null;
+
+                        // For backwards compatibility
+                        userData.firm = {
+                            id: firm._id,
+                            name: firm.name,
+                            nameEn: firm.nameEnglish,
+                            status: firm.status
+                        };
+                    }
+                } catch (firmError) {
+                    console.log('Error fetching firm:', firmError.message);
+                }
+            } else if (user.isSoloLawyer || !user.firmId) {
+                // Solo lawyer - full access, no tenant
+                userData.tenant = null;
+                userData.firm = null;
+                userData.firmRole = null;
+                userData.firmStatus = null;
+                userData.isSoloLawyer = true;
+
+                // Solo lawyers get owner-level permissions
+                userData.permissions = getDefaultPermissions('owner');
+            }
+        }
+
         return response.send({
             error: false,
             message: 'Success!',
-            user
+            user: userData
         });
     }
     catch({message, status = 500}) {

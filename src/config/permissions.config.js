@@ -34,7 +34,18 @@ const ROLES = {
     PARALEGAL: 'paralegal',
     SECRETARY: 'secretary',
     ACCOUNTANT: 'accountant',
-    DEPARTED: 'departed'  // Special role for employees who left
+    DEPARTED: 'departed',  // Special role for employees who left
+    SOLO_LAWYER: 'solo_lawyer' // Independent lawyer without a firm
+};
+
+// ═══════════════════════════════════════════════════════════════
+// WORK MODES (Casbin-style domain/tenant types)
+// ═══════════════════════════════════════════════════════════════
+
+const WORK_MODES = {
+    SOLO: 'solo',           // Independent lawyer, no firm (tenant=null)
+    FIRM_OWNER: 'firm_owner', // Owns a firm (tenant=firmId, role=owner)
+    FIRM_MEMBER: 'firm_member' // Member of a firm (tenant=firmId, role=member/admin/etc)
 };
 
 // Role hierarchy for permission inheritance
@@ -345,6 +356,46 @@ const ROLE_PERMISSIONS = {
             // Cannot modify anything
             cannotUpdate: true
         }
+    },
+
+    // ─────────────────────────────────────────────────────────────
+    // SOLO_LAWYER - Independent lawyer without a firm
+    // Has full access to their own data (like owner, but no team)
+    // No tenant/domain context - data is filtered by lawyerId
+    // ─────────────────────────────────────────────────────────────
+    solo_lawyer: {
+        modules: {
+            clients: 'full',
+            cases: 'full',
+            leads: 'full',
+            invoices: 'full',
+            payments: 'full',
+            expenses: 'full',
+            documents: 'full',
+            tasks: 'full',
+            events: 'full',
+            timeTracking: 'full',
+            reports: 'full',
+            settings: 'full',
+            team: 'none',        // No team for solo lawyers
+            hr: 'none'           // No HR for solo lawyers
+        },
+        special: {
+            canApproveInvoices: true,
+            canManageRetainers: true,
+            canExportData: true,
+            canDeleteRecords: true,
+            canViewFinance: true,
+            canManageTeam: false,  // Cannot manage team (no team)
+            canCreateFirm: true,   // Can convert to firm
+            canJoinFirm: true      // Can join existing firm
+        },
+        // Solo lawyer specific settings
+        workMode: {
+            isSolo: true,
+            hasNoTenant: true,
+            dataFilterBy: 'lawyerId'
+        }
     }
 };
 
@@ -370,6 +421,74 @@ const EMPLOYMENT_STATUS = {
  */
 function getDefaultPermissions(role) {
     return ROLE_PERMISSIONS[role] || ROLE_PERMISSIONS.secretary;
+}
+
+/**
+ * Get permissions for a solo lawyer
+ * Solo lawyers have owner-level permissions for their own data
+ * @returns {object} Permissions object for solo lawyer
+ */
+function getSoloLawyerPermissions() {
+    return ROLE_PERMISSIONS.solo_lawyer;
+}
+
+/**
+ * Check if user is a solo lawyer based on their work mode
+ * @param {object} user - User object with isSoloLawyer and lawyerWorkMode
+ * @returns {boolean}
+ */
+function isSoloLawyer(user) {
+    return user.isSoloLawyer === true ||
+           user.lawyerWorkMode === 'solo' ||
+           (user.role === 'lawyer' && !user.firmId);
+}
+
+/**
+ * Get the appropriate permissions based on user context
+ * Implements Casbin-style domain-aware permission resolution
+ * @param {object} user - User object
+ * @param {object} member - Firm member object (if in a firm)
+ * @returns {object} Resolved permissions
+ */
+function resolveUserPermissions(user, member = null) {
+    // Solo lawyer - full permissions, no tenant
+    if (isSoloLawyer(user)) {
+        return {
+            ...ROLE_PERMISSIONS.solo_lawyer,
+            workMode: WORK_MODES.SOLO,
+            tenantId: null
+        };
+    }
+
+    // Firm member - permissions from firm membership
+    if (user.firmId && member) {
+        const rolePerms = ROLE_PERMISSIONS[member.role] || ROLE_PERMISSIONS.lawyer;
+        return {
+            ...rolePerms,
+            // Override with custom permissions if set
+            modules: { ...rolePerms.modules, ...(member.permissions || {}) },
+            workMode: member.role === 'owner' ? WORK_MODES.FIRM_OWNER : WORK_MODES.FIRM_MEMBER,
+            tenantId: user.firmId
+        };
+    }
+
+    // Fallback for users with firmId but no member data
+    if (user.firmId) {
+        const rolePerms = ROLE_PERMISSIONS[user.firmRole] || ROLE_PERMISSIONS.lawyer;
+        return {
+            ...rolePerms,
+            workMode: user.firmRole === 'owner' ? WORK_MODES.FIRM_OWNER : WORK_MODES.FIRM_MEMBER,
+            tenantId: user.firmId
+        };
+    }
+
+    // Default for non-lawyer users
+    return {
+        modules: {},
+        special: {},
+        workMode: null,
+        tenantId: null
+    };
 }
 
 /**
@@ -488,8 +607,12 @@ module.exports = {
     MODULES,
     ROLE_PERMISSIONS,
     EMPLOYMENT_STATUS,
+    WORK_MODES,
     // Helper functions
     getDefaultPermissions,
+    getSoloLawyerPermissions,
+    isSoloLawyer,
+    resolveUserPermissions,
     meetsPermissionLevel,
     roleHasPermission,
     hasSpecialPermission,
