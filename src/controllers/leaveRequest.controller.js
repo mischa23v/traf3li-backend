@@ -1,4 +1,4 @@
-const { LeaveRequest, Employee } = require('../models');
+const { LeaveRequest, Employee, LeaveBalance } = require('../models');
 const { CustomException } = require('../utils');
 const asyncHandler = require('../utils/asyncHandler');
 const mongoose = require('mongoose');
@@ -167,12 +167,44 @@ const createLeaveRequest = asyncHandler(async (req, res) => {
         new Date(dates.endDate),
         null,
         firmId,
-        lawyerId
+        lawyerId,
+        employee.organization?.departmentName || employee.employment?.departmentName
     );
 
-    // Get current balance
-    const balance = await LeaveRequest.getBalance(employeeId, firmId, lawyerId);
-    const currentBalance = balance[leaveType]?.remaining || 0;
+    // Get current balance from LeaveBalance model
+    const year = new Date().getFullYear();
+    const balance = await LeaveBalance.getOrCreateBalance(employeeId, year, firmId, lawyerId);
+
+    // Get current balance for leave type
+    let currentBalance = 0;
+    switch (leaveType) {
+        case 'annual':
+            currentBalance = balance.annualLeave?.remaining || 0;
+            break;
+        case 'sick':
+            currentBalance = balance.sickLeave?.totalRemaining || 0;
+            break;
+        case 'hajj':
+            currentBalance = balance.hajjLeave?.eligible && !balance.hajjLeave?.taken ? 15 : 0;
+            break;
+        case 'marriage':
+            currentBalance = balance.marriageLeave?.used ? 0 : 3;
+            break;
+        case 'birth':
+            currentBalance = balance.birthLeave?.remaining || 0;
+            break;
+        case 'death':
+            currentBalance = balance.deathLeave?.remaining || 0;
+            break;
+        case 'maternity':
+            currentBalance = balance.maternityLeave?.remaining || 0;
+            break;
+        case 'paternity':
+            currentBalance = balance.paternityLeave?.remaining || 0;
+            break;
+        default:
+            currentBalance = 0;
+    }
 
     // Prepare leave request data
     const requestData = {
@@ -369,14 +401,31 @@ const submitLeaveRequest = asyncHandler(async (req, res) => {
 
     // Check for conflicts
     if (leaveRequest.conflicts?.hasConflicts) {
-        const errors = leaveRequest.conflicts.conflicts.filter(c => c.severity === 'error');
-        if (errors.length > 0) {
+        const errors = leaveRequest.conflicts.overlappingLeaves?.filter(c => c.severity === 'high' || c.severity === 'critical');
+        if (errors && errors.length > 0) {
             throw CustomException('Cannot submit: leave request has conflicts', 400);
         }
     }
 
     leaveRequest.status = 'pending_approval';
     leaveRequest.submittedOn = new Date();
+
+    // Setup approval workflow
+    leaveRequest.approvalWorkflow = {
+        required: true,
+        steps: [{
+            stepNumber: 1,
+            stepName: 'Manager Approval',
+            stepNameAr: 'موافقة المدير',
+            approverRole: 'manager',
+            status: 'pending',
+            notificationSent: true,
+            notificationDate: new Date()
+        }],
+        currentStep: 1,
+        totalSteps: 1,
+        finalStatus: 'pending'
+    };
 
     await leaveRequest.save();
 
@@ -420,13 +469,47 @@ const approveLeaveRequest = asyncHandler(async (req, res) => {
     const daysToDeduct = leaveRequest.dates.workingDays || leaveRequest.dates.totalDays || 0;
     leaveRequest.balanceAfter = leaveRequest.balanceBefore - daysToDeduct;
 
-    // Update balance impact
+    // Deduct from LeaveBalance
+    const year = new Date().getFullYear();
+    const updatedBalance = await LeaveBalance.deductLeave(
+        leaveRequest.employeeId,
+        year,
+        leaveRequest.leaveType,
+        daysToDeduct,
+        firmId,
+        lawyerId
+    );
+
+    // Update balance impact with detailed information
     leaveRequest.balanceImpact = {
-        leaveType: leaveRequest.leaveType,
-        balanceBefore: leaveRequest.balanceBefore,
-        daysDeducted: daysToDeduct,
-        balanceAfter: leaveRequest.balanceAfter
+        balanceBefore: {
+            annualLeave: updatedBalance.annualLeave?.remaining + (leaveRequest.leaveType === 'annual' ? daysToDeduct : 0),
+            sickLeave: updatedBalance.sickLeave?.totalRemaining + (leaveRequest.leaveType === 'sick' ? daysToDeduct : 0),
+            hajjLeave: !updatedBalance.hajjLeave?.taken
+        },
+        deducted: {
+            annualLeave: leaveRequest.leaveType === 'annual' ? daysToDeduct : 0,
+            sickLeave: leaveRequest.leaveType === 'sick' ? daysToDeduct : 0,
+            unpaidLeave: leaveRequest.leaveType === 'unpaid' ? daysToDeduct : 0
+        },
+        balanceAfter: {
+            annualLeave: updatedBalance.annualLeave?.remaining,
+            sickLeave: updatedBalance.sickLeave?.totalRemaining,
+            hajjLeave: !updatedBalance.hajjLeave?.taken
+        }
     };
+
+    // Update approval workflow if exists
+    if (leaveRequest.approvalWorkflow?.steps?.length > 0) {
+        const currentStep = leaveRequest.approvalWorkflow.steps[leaveRequest.approvalWorkflow.currentStep - 1];
+        if (currentStep) {
+            currentStep.status = 'approved';
+            currentStep.approverId = lawyerId;
+            currentStep.actionDate = new Date();
+            currentStep.comments = comments;
+        }
+        leaveRequest.approvalWorkflow.finalStatus = 'approved';
+    }
 
     leaveRequest.status = 'approved';
     leaveRequest.approvedBy = lawyerId;
@@ -520,15 +603,28 @@ const cancelLeaveRequest = asyncHandler(async (req, res) => {
 
     // Restore balance if was approved
     const restoreBalance = leaveRequest.status === 'approved';
+    const daysToRestore = leaveRequest.dates.workingDays || leaveRequest.dates.totalDays || 0;
+
+    if (restoreBalance && daysToRestore > 0) {
+        const year = new Date().getFullYear();
+        await LeaveBalance.restoreLeave(
+            leaveRequest.employeeId,
+            year,
+            leaveRequest.leaveType,
+            daysToRestore,
+            firmId,
+            lawyerId
+        );
+    }
 
     leaveRequest.status = 'cancelled';
     leaveRequest.cancellation = {
         cancelled: true,
+        cancellationDate: new Date(),
         cancelledBy: lawyerId,
-        cancelledByName: user ? `${user.firstName} ${user.lastName}` : '',
-        cancelledOn: new Date(),
-        reason,
-        balanceRestored: restoreBalance
+        cancellationReason: reason,
+        balanceRestored: restoreBalance,
+        restoredAmount: restoreBalance ? daysToRestore : 0
     };
 
     await leaveRequest.save();
@@ -803,24 +899,33 @@ const getLeaveBalance = asyncHandler(async (req, res) => {
         throw CustomException('Access denied', 403);
     }
 
-    const balance = await LeaveRequest.getBalance(employeeId, firmId, lawyerId);
+    // Get or create balance from LeaveBalance model
+    const year = new Date().getFullYear();
+    const balance = await LeaveBalance.getOrCreateBalance(employeeId, year, firmId, lawyerId);
 
     // Get employee entitlements based on years of service
     const yearsOfService = employee.yearsOfService || 0;
-    const annualEntitlement = yearsOfService >= 5 ? 30 : 21;
-
-    // Update annual leave entitlement
-    if (balance.annual) {
-        balance.annual.entitled = annualEntitlement;
-        balance.annual.remaining = annualEntitlement - balance.annual.used;
-    }
 
     return res.json({
         success: true,
         employeeId,
         employeeName: employee.personalInfo?.fullNameEnglish || employee.personalInfo?.fullNameArabic,
+        employeeNumber: employee.employeeId,
         yearsOfService,
-        balance
+        year,
+        balance: {
+            annualLeave: balance.annualLeave,
+            sickLeave: balance.sickLeave,
+            hajjLeave: balance.hajjLeave,
+            marriageLeave: balance.marriageLeave,
+            birthLeave: balance.birthLeave,
+            deathLeave: balance.deathLeave,
+            maternityLeave: balance.maternityLeave,
+            paternityLeave: balance.paternityLeave,
+            examLeave: balance.examLeave,
+            unpaidLeave: balance.unpaidLeave,
+            totalStats: balance.totalStats
+        }
     });
 });
 

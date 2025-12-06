@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const Schema = mongoose.Schema;
 
 /**
  * Leave Request Model - Leave Management
@@ -27,161 +28,382 @@ const LEAVE_TYPES = {
 // SUB-SCHEMAS
 // ═══════════════════════════════════════════════════════════════
 
-const datesSchema = new mongoose.Schema({
+// Medical Certificate Sub-Schema
+const medicalCertificateSchema = new Schema({
+    required: { type: Boolean, default: false },
+    provided: { type: Boolean, default: false },
+    certificateUrl: String,
+    issuingDoctor: String,
+    doctorLicenseNumber: String,
+    issuingClinic: String,
+    clinicLicenseNumber: String,
+    issueDate: Date,
+    certificateNumber: String,
+    diagnosis: String,
+    diagnosisCode: String,
+    recommendedRestPeriod: Number,
+    restrictions: String,
+    verified: { type: Boolean, default: false },
+    verifiedBy: { type: Schema.Types.ObjectId, ref: 'User' },
+    verificationDate: Date
+}, { _id: false });
+
+// Work Handover Task Sub-Schema
+const handoverTaskSchema = new Schema({
+    taskId: String,
+    taskName: { type: String, required: true },
+    taskDescription: String,
+    priority: { type: String, enum: ['low', 'medium', 'high', 'urgent'], default: 'medium' },
+    dueDate: Date,
+    status: { type: String, enum: ['pending', 'in_progress', 'completed'], default: 'pending' },
+    handedOver: { type: Boolean, default: false },
+    handoverDate: Date,
+    instructions: String
+}, { _id: false });
+
+// Work Handover Sub-Schema
+const workHandoverSchema = new Schema({
+    required: { type: Boolean, default: false },
+    delegateTo: {
+        employeeId: { type: Schema.Types.ObjectId, ref: 'Employee' },
+        employeeName: String,
+        jobTitle: String,
+        department: String,
+        notified: { type: Boolean, default: false },
+        notificationDate: Date,
+        accepted: { type: Boolean, default: false },
+        acceptanceDate: Date,
+        rejectionReason: String
+    },
+    tasks: [handoverTaskSchema],
+    handoverCompleted: { type: Boolean, default: false },
+    handoverCompletionDate: Date,
+    handoverApprovedByManager: { type: Boolean, default: false }
+}, { _id: false });
+
+// Approval Step Sub-Schema
+const approvalStepSchema = new Schema({
+    stepNumber: Number,
+    stepName: String,
+    stepNameAr: String,
+    approverRole: String,
+    approverId: { type: Schema.Types.ObjectId, ref: 'User' },
+    approverName: String,
+    status: { type: String, enum: ['pending', 'approved', 'rejected', 'skipped'], default: 'pending' },
+    actionDate: Date,
+    comments: String,
+    notificationSent: { type: Boolean, default: false },
+    notificationDate: Date,
+    remindersSent: { type: Number, default: 0 },
+    autoApproved: { type: Boolean, default: false },
+    autoApprovalReason: String
+}, { _id: false });
+
+// Approval Workflow Sub-Schema
+const approvalWorkflowSchema = new Schema({
+    required: { type: Boolean, default: true },
+    steps: [approvalStepSchema],
+    currentStep: { type: Number, default: 1 },
+    totalSteps: Number,
+    finalStatus: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending' },
+    escalated: { type: Boolean, default: false },
+    escalationDate: Date,
+    escalatedTo: { type: Schema.Types.ObjectId, ref: 'User' }
+}, { _id: false });
+
+// Leave Document Sub-Schema
+const leaveDocumentSchema = new Schema({
+    documentType: {
+        type: String,
+        enum: ['medical_certificate', 'marriage_certificate', 'birth_certificate',
+            'death_certificate', 'hajj_permit', 'exam_proof',
+            'handover_document', 'approval_letter', 'extension_request',
+            'medical_clearance', 'other']
+    },
+    documentName: String,
+    documentNameAr: String,
+    fileName: String,
+    fileUrl: String,
+    fileSize: Number,
+    fileType: String,
+    uploadedOn: { type: Date, default: Date.now },
+    uploadedBy: { type: Schema.Types.ObjectId, ref: 'User' },
+    required: { type: Boolean, default: false },
+    verified: { type: Boolean, default: false },
+    verifiedBy: { type: Schema.Types.ObjectId, ref: 'User' },
+    verificationDate: Date,
+    expiryDate: Date
+}, { _id: false });
+
+// Dates Sub-Schema
+const datesSchema = new Schema({
     startDate: { type: Date, required: true },
     endDate: { type: Date, required: true },
-    totalDays: { type: Number, default: 0 },
-    workingDays: { type: Number, default: 0 },
+    totalDays: { type: Number, required: true },
+    workingDays: Number,
     halfDay: { type: Boolean, default: false },
     halfDayPeriod: { type: String, enum: ['first_half', 'second_half'] },
     returnDate: Date
 }, { _id: false });
 
-const workHandoverSchema = new mongoose.Schema({
-    required: { type: Boolean, default: false },
-    handoverTo: { type: mongoose.Schema.Types.ObjectId, ref: 'Employee' },
-    handoverToName: String,
-    handoverNotes: String,
-    handoverCompleted: { type: Boolean, default: false },
-    handoverCompletedOn: Date,
-    tasks: [{
-        taskDescription: String,
-        assignedTo: { type: mongoose.Schema.Types.ObjectId, ref: 'Employee' },
-        assignedToName: String,
-        status: { type: String, enum: ['pending', 'completed'] }
-    }]
+// Leave Details Sub-Schema (Type-Specific)
+const leaveDetailsSchema = new Schema({
+    leaveCategory: { type: String, enum: ['paid', 'unpaid', 'partial_pay'] },
+    payPercentage: { type: Number, default: 100 },
+    isEmergency: { type: Boolean, default: false },
+    emergencyReason: String,
+    emergencyVerified: Boolean,
+
+    legalEntitlement: {
+        entitled: Boolean,
+        entitlementArticle: String,
+        maximumDays: Number,
+        conditions: [String],
+        requiresDocumentation: Boolean
+    },
+
+    contactDuringLeave: {
+        available: { type: Boolean, default: true },
+        contactNumber: String,
+        alternateNumber: String,
+        email: String,
+        emergencyContact: {
+            name: String,
+            relationship: String,
+            phone: String
+        }
+    },
+
+    // Annual Leave Specific
+    annualLeave: {
+        entitlement: Number,
+        serviceYears: Number,
+        balanceBefore: Number,
+        balanceAfter: Number,
+        carriedForward: Number,
+        isSplitLeave: Boolean
+    },
+
+    // Sick Leave Specific
+    sickLeave: {
+        sickLeaveType: { type: String, enum: ['full_pay', 'partial_pay', 'unpaid'] },
+        payPercentage: Number,
+        ytdFullPayDaysUsed: Number,
+        ytdPartialPayDaysUsed: Number,
+        ytdUnpaidDaysUsed: Number,
+        ytdTotalUsed: Number,
+        ytdRemaining: Number,
+        medicalCertificate: medicalCertificateSchema,
+        hospitalized: Boolean,
+        hospitalName: String,
+        medicalClearanceRequired: Boolean
+    },
+
+    // Hajj Leave Specific
+    hajjLeave: {
+        eligibility: {
+            serviceYears: Number,
+            eligible: Boolean,
+            previouslyTaken: Boolean
+        },
+        hajjDuration: Number,
+        hajjPermit: {
+            required: Boolean,
+            provided: Boolean,
+            permitNumber: String,
+            permitUrl: String,
+            verified: Boolean
+        }
+    },
+
+    // Maternity Leave Specific
+    maternityLeave: {
+        totalDuration: Number,
+        preBirthLeave: Number,
+        postBirthLeave: Number,
+        expectedDeliveryDate: Date,
+        actualDeliveryDate: Date,
+        payPercentage: Number,
+        serviceYears: Number,
+        birthCertificate: {
+            required: Boolean,
+            provided: Boolean,
+            certificateUrl: String
+        },
+        nursingBreaksEligible: Boolean
+    },
+
+    // Marriage Leave Specific
+    marriageLeave: {
+        duration: Number,
+        marriageDate: Date,
+        marriageCertificate: {
+            required: Boolean,
+            provided: Boolean,
+            certificateUrl: String
+        },
+        previouslyUsed: Boolean
+    },
+
+    // Death Leave Specific
+    deathLeave: {
+        duration: Number,
+        relationship: { type: String, enum: ['spouse', 'parent', 'child', 'sibling', 'grandparent', 'other'] },
+        deceasedName: String,
+        dateOfDeath: Date,
+        deathCertificate: {
+            required: Boolean,
+            provided: Boolean,
+            certificateUrl: String
+        }
+    },
+
+    // Exam Leave Specific
+    examLeave: {
+        examType: String,
+        institution: String,
+        examDate: Date,
+        paid: Boolean,
+        attemptNumber: Number,
+        examProof: {
+            required: Boolean,
+            provided: Boolean,
+            documentUrl: String
+        }
+    },
+
+    // Unpaid Leave Specific
+    unpaidLeave: {
+        reason: String,
+        reasonCategory: { type: String, enum: ['personal', 'family', 'health', 'education', 'other'] },
+        detailedReason: String,
+        impactOnBenefits: {
+            affectsSalary: { type: Boolean, default: true },
+            affectsGOSI: { type: Boolean, default: true },
+            affectsSeniority: { type: Boolean, default: true },
+            affectsAnnualLeave: { type: Boolean, default: true },
+            affectsEOSB: { type: Boolean, default: true }
+        }
+    }
 }, { _id: false });
 
-const approvalStepSchema = new mongoose.Schema({
-    stepNumber: Number,
-    stepName: String,
-    approverId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-    approverName: String,
-    status: { type: String, enum: ['pending', 'approved', 'rejected', 'skipped'], default: 'pending' },
-    actionDate: Date,
-    comments: String
+// Balance Impact Sub-Schema
+const balanceImpactSchema = new Schema({
+    balanceBefore: {
+        annualLeave: Number,
+        sickLeave: Number,
+        hajjLeave: Boolean
+    },
+    deducted: {
+        annualLeave: Number,
+        sickLeave: Number,
+        unpaidLeave: Number
+    },
+    balanceAfter: {
+        annualLeave: Number,
+        sickLeave: Number,
+        hajjLeave: Boolean
+    }
 }, { _id: false });
 
-const approvalWorkflowSchema = new mongoose.Schema({
-    required: { type: Boolean, default: true },
-    steps: [approvalStepSchema],
-    currentStep: { type: Number, default: 1 },
-    totalSteps: { type: Number, default: 1 }
-}, { _id: false });
-
-const balanceImpactSchema = new mongoose.Schema({
-    leaveType: String,
-    balanceBefore: { type: Number, default: 0 },
-    daysDeducted: { type: Number, default: 0 },
-    balanceAfter: { type: Number, default: 0 },
-    carryForward: { type: Number, default: 0 },
-    encashmentEligible: { type: Boolean, default: false }
-}, { _id: false });
-
-const payrollImpactSchema = new mongoose.Schema({
+// Payroll Impact Sub-Schema
+const payrollImpactSchema = new Schema({
     affectsPayroll: { type: Boolean, default: false },
-    deductionAmount: { type: Number, default: 0 },
-    deductionDays: { type: Number, default: 0 },
-    salaryPercentage: { type: Number, default: 100 },
-    month: Number,
-    year: Number,
-    processed: { type: Boolean, default: false }
+    paidDays: Number,
+    paidAmount: Number,
+    payPercentage: Number,
+    unpaidDays: Number,
+    deductionAmount: Number,
+    processedInPayrollRun: { type: Schema.Types.ObjectId, ref: 'PayrollRun' },
+    processedDate: Date
 }, { _id: false });
 
-const returnFromLeaveSchema = new mongoose.Schema({
+// Return from Leave Sub-Schema
+const returnFromLeaveSchema = new Schema({
     expectedReturnDate: Date,
     actualReturnDate: Date,
-    returnConfirmed: { type: Boolean, default: false },
-    confirmedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-    confirmedOn: Date,
-    earlyReturn: { type: Boolean, default: false },
+    returned: { type: Boolean, default: false },
+    returnConfirmedBy: { type: Schema.Types.ObjectId, ref: 'User' },
+    returnConfirmationDate: Date,
     lateReturn: { type: Boolean, default: false },
-    lateDays: { type: Number, default: 0 },
-    notes: String
+    lateDays: Number,
+    lateReason: String,
+    extensionRequested: { type: Boolean, default: false },
+    extensionDays: Number,
+    extensionReason: String,
+    extensionApproved: Boolean,
+    extensionApprovedBy: { type: Schema.Types.ObjectId, ref: 'User' },
+    medicalClearanceRequired: { type: Boolean, default: false },
+    medicalClearanceProvided: Boolean,
+    clearanceDate: Date
 }, { _id: false });
 
-const conflictSchema = new mongoose.Schema({
+// Conflicts Sub-Schema
+const conflictsSchema = new Schema({
     hasConflicts: { type: Boolean, default: false },
-    conflicts: [{
-        conflictType: { type: String, enum: ['overlap', 'team_minimum', 'blackout', 'approval_pending'] },
-        description: String,
-        conflictWith: { type: mongoose.Schema.Types.ObjectId, ref: 'LeaveRequest' },
-        conflictEmployeeName: String,
-        severity: { type: String, enum: ['warning', 'error'] }
-    }]
+    overlappingLeaves: [{
+        conflictType: String,
+        conflictDetails: String,
+        severity: { type: String, enum: ['low', 'medium', 'high', 'critical'] },
+        conflictingLeaveId: { type: Schema.Types.ObjectId, ref: 'LeaveRequest' },
+        conflictingEmployee: String
+    }],
+    teamImpact: {
+        teamSize: Number,
+        onLeaveCount: Number,
+        availableCount: Number,
+        coveragePercentage: Number,
+        acceptable: Boolean
+    },
+    blackoutPeriod: {
+        inBlackoutPeriod: Boolean,
+        blackoutPeriodName: String,
+        exceptionGranted: Boolean
+    }
 }, { _id: false });
 
-const cancellationSchema = new mongoose.Schema({
+// Cancellation Sub-Schema
+const cancellationSchema = new Schema({
     cancelled: { type: Boolean, default: false },
-    cancelledBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-    cancelledByName: String,
-    cancelledOn: Date,
-    reason: String,
-    balanceRestored: { type: Boolean, default: false }
+    cancellationDate: Date,
+    cancelledBy: { type: Schema.Types.ObjectId, ref: 'User' },
+    cancellationReason: String,
+    balanceRestored: { type: Boolean, default: false },
+    restoredAmount: Number
 }, { _id: false });
 
-const documentSchema = new mongoose.Schema({
-    documentType: { type: String, enum: ['medical_certificate', 'hajj_permit', 'marriage_certificate', 'death_certificate', 'birth_certificate', 'other'] },
-    documentName: String,
-    fileUrl: String,
-    uploadedOn: { type: Date, default: Date.now },
-    uploadedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-    verified: { type: Boolean, default: false },
-    verifiedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-    verifiedOn: Date
-}, { _id: false });
-
-const notesSchema = new mongoose.Schema({
+// Notes Sub-Schema
+const notesSchema = new Schema({
     employeeNotes: String,
-    approverNotes: String,
+    managerNotes: String,
     hrNotes: String,
     internalNotes: String
 }, { _id: false });
 
-const statisticsSchema = new mongoose.Schema({
-    totalLeaveDays: { type: Number, default: 0 },
-    paidDays: { type: Number, default: 0 },
-    unpaidDays: { type: Number, default: 0 },
-    extensionDays: { type: Number, default: 0 }
-}, { _id: false });
-
-const leaveDetailsSchema = new mongoose.Schema({
-    // For sick leave
-    medicalDiagnosis: String,
-    hospitalName: String,
-    doctorName: String,
-
-    // For hajj leave
-    hajjYear: Number,
-    hajjType: { type: String, enum: ['first_time', 'repeat'] },
-
-    // For death leave
-    deceasedRelationship: String,
-    deceasedName: String,
-
-    // For maternity
-    expectedDeliveryDate: Date,
-    actualDeliveryDate: Date,
-    prenatalDays: Number,
-    postnatalDays: Number,
-
-    // For exam leave
-    examType: String,
-    institutionName: String,
-    examDates: [Date]
+// Statistics Sub-Schema
+const statisticsSchema = new Schema({
+    employeeYTDStats: {
+        totalLeaveDaysTaken: Number,
+        totalPaidLeaveDays: Number,
+        totalUnpaidLeaveDays: Number,
+        annualLeaveDaysTaken: Number,
+        sickLeaveDaysTaken: Number,
+        leaveRequestsSubmitted: Number,
+        leaveRequestsApproved: Number
+    }
 }, { _id: false });
 
 // ═══════════════════════════════════════════════════════════════
 // MAIN SCHEMA
 // ═══════════════════════════════════════════════════════════════
 
-const leaveRequestSchema = new mongoose.Schema({
-    // Identification
+const leaveRequestSchema = new Schema({
+    // Identifiers
     requestId: { type: String, unique: true, sparse: true },
     requestNumber: { type: String, unique: true, sparse: true },
 
-    // Employee Reference
-    employeeId: { type: mongoose.Schema.Types.ObjectId, ref: 'Employee', required: true },
+    // Employee Information
+    employeeId: { type: Schema.Types.ObjectId, ref: 'Employee', required: true },
     employeeNumber: String,
     employeeName: String,
     employeeNameAr: String,
@@ -189,7 +411,7 @@ const leaveRequestSchema = new mongoose.Schema({
     department: String,
     jobTitle: String,
 
-    // Leave Type
+    // Leave Type (Saudi Labor Law)
     leaveType: {
         type: String,
         enum: ['annual', 'sick', 'hajj', 'marriage', 'birth', 'death', 'eid', 'maternity', 'paternity', 'exam', 'unpaid'],
@@ -215,75 +437,92 @@ const leaveRequestSchema = new mongoose.Schema({
     submittedOn: Date,
 
     // Approval
-    approvedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    approvedBy: { type: Schema.Types.ObjectId, ref: 'User' },
     approverName: String,
     approvedOn: Date,
     approvalComments: String,
-    rejectedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    rejectedBy: { type: Schema.Types.ObjectId, ref: 'User' },
     rejectorName: String,
     rejectedOn: Date,
     rejectionReason: String,
 
-    // Balance
-    balanceBefore: { type: Number, default: 0 },
-    balanceAfter: { type: Number, default: 0 },
+    // Balance Impact (Simple)
+    balanceBefore: Number,
+    balanceAfter: Number,
 
-    // Extended details
+    // Leave Details (Type-Specific)
     leaveDetails: leaveDetailsSchema,
-    workHandover: workHandoverSchema,
-    approvalWorkflow: approvalWorkflowSchema,
-    balanceImpact: balanceImpactSchema,
-    payrollImpact: payrollImpactSchema,
-    returnFromLeave: returnFromLeaveSchema,
-    conflicts: conflictSchema,
-    cancellation: cancellationSchema,
-    documents: [documentSchema],
-    notes: notesSchema,
-    statistics: statisticsSchema,
 
-    // Extension
-    isExtension: { type: Boolean, default: false },
-    originalRequestId: { type: mongoose.Schema.Types.ObjectId, ref: 'LeaveRequest' },
-    extensionDays: { type: Number, default: 0 },
+    // Work Handover
+    workHandover: workHandoverSchema,
+
+    // Approval Workflow
+    approvalWorkflow: approvalWorkflowSchema,
+
+    // Balance Impact (Detailed)
+    balanceImpact: balanceImpactSchema,
+
+    // Payroll Impact
+    payrollImpact: payrollImpactSchema,
+
+    // Return from Leave
+    returnFromLeave: returnFromLeaveSchema,
+
+    // Conflicts
+    conflicts: conflictsSchema,
+
+    // Cancellation
+    cancellation: cancellationSchema,
+
+    // Documents
+    documents: [leaveDocumentSchema],
+
+    // Notes
+    notes: notesSchema,
+
+    // Statistics
+    statistics: statisticsSchema,
 
     // Multi-tenancy
     firmId: {
-        type: mongoose.Schema.Types.ObjectId,
+        type: Schema.Types.ObjectId,
         ref: 'Firm',
         index: true
     },
     lawyerId: {
-        type: mongoose.Schema.Types.ObjectId,
+        type: Schema.Types.ObjectId,
         ref: 'User',
         index: true
     },
-    createdBy: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'User'
-    }
+
+    // Audit
+    createdBy: { type: Schema.Types.ObjectId, ref: 'User' },
+    lastModifiedBy: { type: Schema.Types.ObjectId, ref: 'User' }
 
 }, {
     timestamps: true,
-    versionKey: false
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true }
 });
 
 // ═══════════════════════════════════════════════════════════════
 // INDEXES
 // ═══════════════════════════════════════════════════════════════
 
-leaveRequestSchema.index({ employeeId: 1, 'dates.startDate': 1, 'dates.endDate': 1 });
+leaveRequestSchema.index({ employeeId: 1, status: 1 });
+leaveRequestSchema.index({ leaveType: 1 });
+leaveRequestSchema.index({ 'dates.startDate': 1, 'dates.endDate': 1 });
+leaveRequestSchema.index({ department: 1 });
 leaveRequestSchema.index({ firmId: 1, status: 1 });
 leaveRequestSchema.index({ lawyerId: 1, status: 1 });
-leaveRequestSchema.index({ leaveType: 1, status: 1 });
-leaveRequestSchema.index({ 'dates.startDate': 1, 'dates.endDate': 1 });
 
 // ═══════════════════════════════════════════════════════════════
 // PRE-SAVE HOOKS
 // ═══════════════════════════════════════════════════════════════
 
 leaveRequestSchema.pre('save', async function (next) {
-    // Generate request IDs
-    if (!this.requestId) {
+    if (this.isNew) {
+        // Generate request IDs
         const year = new Date().getFullYear();
         const count = await this.constructor.countDocuments({
             createdAt: {
@@ -292,30 +531,37 @@ leaveRequestSchema.pre('save', async function (next) {
             },
             $or: [{ firmId: this.firmId }, { lawyerId: this.lawyerId }]
         });
-        this.requestId = `LR-${year}-${String(count + 1).padStart(4, '0')}`;
+        this.requestId = `LR-${year}-${String(count + 1).padStart(5, '0')}`;
+        this.requestNumber = this.requestId;
+
+        // Set leave type names
+        if (this.leaveType && LEAVE_TYPES[this.leaveType]) {
+            this.leaveTypeName = LEAVE_TYPES[this.leaveType].name;
+            this.leaveTypeNameAr = LEAVE_TYPES[this.leaveType].nameAr;
+        }
     }
 
-    if (!this.requestNumber) {
-        const count = await this.constructor.countDocuments({
-            $or: [{ firmId: this.firmId }, { lawyerId: this.lawyerId }]
-        });
-        this.requestNumber = `LEAVE-${String(count + 1).padStart(5, '0')}`;
+    // Calculate return date (next working day after end date)
+    if (this.dates?.startDate && this.dates?.endDate && !this.dates.returnDate) {
+        const returnDate = new Date(this.dates.endDate);
+        returnDate.setDate(returnDate.getDate() + 1);
+        // Skip weekends (Friday = 5, Saturday = 6)
+        while (returnDate.getDay() === 5 || returnDate.getDay() === 6) {
+            returnDate.setDate(returnDate.getDate() + 1);
+        }
+        this.dates.returnDate = returnDate;
+
+        // Set expected return date
+        if (!this.returnFromLeave) {
+            this.returnFromLeave = {};
+        }
+        this.returnFromLeave.expectedReturnDate = returnDate;
     }
 
-    // Set leave type names
-    if (this.leaveType && LEAVE_TYPES[this.leaveType]) {
-        this.leaveTypeName = LEAVE_TYPES[this.leaveType].name;
-        this.leaveTypeNameAr = LEAVE_TYPES[this.leaveType].nameAr;
-    }
-
-    // Calculate days
-    if (this.dates?.startDate && this.dates?.endDate) {
+    // Calculate working days if not set
+    if (this.dates?.startDate && this.dates?.endDate && !this.dates.workingDays) {
         const start = new Date(this.dates.startDate);
         const end = new Date(this.dates.endDate);
-        const diffTime = Math.abs(end - start);
-        this.dates.totalDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
-
-        // Calculate working days (excluding Fridays and Saturdays)
         let workingDays = 0;
         const current = new Date(start);
         while (current <= end) {
@@ -326,18 +572,6 @@ leaveRequestSchema.pre('save', async function (next) {
             current.setDate(current.getDate() + 1);
         }
         this.dates.workingDays = this.dates.halfDay ? 0.5 : workingDays;
-
-        // Set expected return date
-        if (!this.returnFromLeave?.expectedReturnDate) {
-            const returnDate = new Date(end);
-            returnDate.setDate(returnDate.getDate() + 1);
-            // Skip weekends
-            while (returnDate.getDay() === 5 || returnDate.getDay() === 6) {
-                returnDate.setDate(returnDate.getDate() + 1);
-            }
-            if (!this.returnFromLeave) this.returnFromLeave = {};
-            this.returnFromLeave.expectedReturnDate = returnDate;
-        }
     }
 
     next();
@@ -346,51 +580,6 @@ leaveRequestSchema.pre('save', async function (next) {
 // ═══════════════════════════════════════════════════════════════
 // STATIC METHODS
 // ═══════════════════════════════════════════════════════════════
-
-// Get leave balance for an employee
-leaveRequestSchema.statics.getBalance = async function (employeeId, firmId, lawyerId) {
-    const baseQuery = firmId ? { firmId } : { lawyerId };
-
-    const currentYear = new Date().getFullYear();
-    const yearStart = new Date(currentYear, 0, 1);
-    const yearEnd = new Date(currentYear, 11, 31);
-
-    // Get approved leaves for current year
-    const approvedLeaves = await this.aggregate([
-        {
-            $match: {
-                ...baseQuery,
-                employeeId: new mongoose.Types.ObjectId(employeeId),
-                status: { $in: ['approved', 'completed'] },
-                'dates.startDate': { $gte: yearStart, $lte: yearEnd }
-            }
-        },
-        {
-            $group: {
-                _id: '$leaveType',
-                totalDays: { $sum: '$dates.workingDays' },
-                count: { $sum: 1 }
-            }
-        }
-    ]);
-
-    // Build balance object
-    const balance = {};
-    Object.keys(LEAVE_TYPES).forEach(type => {
-        const used = approvedLeaves.find(l => l._id === type);
-        balance[type] = {
-            type,
-            name: LEAVE_TYPES[type].name,
-            nameAr: LEAVE_TYPES[type].nameAr,
-            entitled: LEAVE_TYPES[type].maxDays || 0,
-            used: used?.totalDays || 0,
-            remaining: (LEAVE_TYPES[type].maxDays || 0) - (used?.totalDays || 0),
-            requests: used?.count || 0
-        };
-    });
-
-    return balance;
-};
 
 // Get leave statistics
 leaveRequestSchema.statics.getStats = async function (firmId, lawyerId, month, year) {
@@ -421,6 +610,16 @@ leaveRequestSchema.statics.getStats = async function (firmId, lawyerId, month, y
         }
     ]);
 
+    // Count on leave today
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const onLeaveToday = await this.countDocuments({
+        ...baseQuery,
+        status: 'approved',
+        'dates.startDate': { $lte: today },
+        'dates.endDate': { $gte: today }
+    });
+
     // By leave type
     const byType = await this.aggregate([
         { $match: { ...query, status: { $in: ['approved', 'completed'] } } },
@@ -439,6 +638,7 @@ leaveRequestSchema.statics.getStats = async function (firmId, lawyerId, month, y
         approvedRequests: stats?.approvedRequests || 0,
         rejectedRequests: stats?.rejectedRequests || 0,
         totalDays: stats?.totalDays || 0,
+        onLeaveToday,
         byType: byType.map(t => ({
             type: t._id,
             name: LEAVE_TYPES[t._id]?.name,
@@ -450,9 +650,8 @@ leaveRequestSchema.statics.getStats = async function (firmId, lawyerId, month, y
 };
 
 // Check for conflicts
-leaveRequestSchema.statics.checkConflicts = async function (employeeId, startDate, endDate, excludeRequestId, firmId, lawyerId) {
+leaveRequestSchema.statics.checkConflicts = async function (employeeId, startDate, endDate, excludeRequestId, firmId, lawyerId, department) {
     const baseQuery = firmId ? { firmId } : { lawyerId };
-
     const conflicts = [];
 
     // Check for overlapping leaves for the same employee
@@ -461,7 +660,12 @@ leaveRequestSchema.statics.checkConflicts = async function (employeeId, startDat
         employeeId: new mongoose.Types.ObjectId(employeeId),
         status: { $in: ['submitted', 'pending_approval', 'approved'] },
         $or: [
-            { 'dates.startDate': { $lte: endDate }, 'dates.endDate': { $gte: startDate } }
+            { 'dates.startDate': { $lte: endDate, $gte: startDate } },
+            { 'dates.endDate': { $lte: endDate, $gte: startDate } },
+            {
+                'dates.startDate': { $lte: startDate },
+                'dates.endDate': { $gte: endDate }
+            }
         ]
     };
 
@@ -473,17 +677,50 @@ leaveRequestSchema.statics.checkConflicts = async function (employeeId, startDat
 
     overlapping.forEach(leave => {
         conflicts.push({
-            conflictType: 'overlap',
-            description: `Overlaps with existing ${leave.leaveTypeName} request`,
-            conflictWith: leave._id,
-            conflictEmployeeName: leave.employeeName,
-            severity: 'error'
+            conflictType: 'Overlapping Leave',
+            conflictDetails: `You already have a ${leave.leaveTypeName} leave from ${leave.dates.startDate.toISOString().split('T')[0]} to ${leave.dates.endDate.toISOString().split('T')[0]}`,
+            severity: 'high',
+            conflictingLeaveId: leave._id,
+            conflictingEmployee: leave.employeeName
         });
     });
 
+    // Get team members on leave during this period
+    let teamImpact = null;
+    if (department) {
+        const teamOnLeave = await this.find({
+            ...baseQuery,
+            department,
+            employeeId: { $ne: new mongoose.Types.ObjectId(employeeId) },
+            status: 'approved',
+            'dates.startDate': { $lte: endDate },
+            'dates.endDate': { $gte: startDate }
+        });
+
+        // Get team size (would need Employee model)
+        const Employee = mongoose.model('Employee');
+        const teamSize = await Employee.countDocuments({
+            ...baseQuery,
+            'organization.departmentName': department,
+            'employment.employmentStatus': 'active'
+        });
+
+        const onLeaveCount = teamOnLeave.length + 1; // +1 for current request
+        const coveragePercentage = teamSize > 0 ? ((teamSize - onLeaveCount) / teamSize) * 100 : 100;
+
+        teamImpact = {
+            teamSize,
+            onLeaveCount,
+            availableCount: teamSize - onLeaveCount,
+            coveragePercentage: Math.round(coveragePercentage),
+            acceptable: coveragePercentage >= 50
+        };
+    }
+
     return {
         hasConflicts: conflicts.length > 0,
-        conflicts
+        overlappingLeaves: conflicts,
+        teamImpact
     };
 };
 
