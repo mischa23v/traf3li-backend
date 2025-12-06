@@ -3,13 +3,49 @@ const mongoose = require('mongoose');
 /**
  * Employee Model - HR Management
  * Supports both Solo lawyers and Firm employees
+ * Matches frontend nested structure for form handling
  */
 
+// ═══════════════════════════════════════════════════════════════
+// SUB-SCHEMAS
+// ═══════════════════════════════════════════════════════════════
+
 const allowanceSchema = new mongoose.Schema({
-    name: { type: String, required: true },      // اسم البدل
-    nameAr: { type: String },                    // Arabic name
-    amount: { type: Number, required: true, default: 0 }
+    name: { type: String, required: true },
+    nameAr: { type: String },
+    amount: { type: Number, required: true, default: 0 },
+    taxable: { type: Boolean, default: true },
+    includedInEOSB: { type: Boolean, default: true },
+    includedInGOSI: { type: Boolean, default: false }
 }, { _id: true });
+
+const addressSchema = new mongoose.Schema({
+    city: String,
+    region: String,
+    country: { type: String, default: 'Saudi Arabia' }
+}, { _id: false });
+
+const emergencyContactSchema = new mongoose.Schema({
+    name: String,
+    relationship: String,
+    phone: String
+}, { _id: false });
+
+const bankDetailsSchema = new mongoose.Schema({
+    bankName: String,
+    iban: String
+}, { _id: false });
+
+const workScheduleSchema = new mongoose.Schema({
+    weeklyHours: { type: Number, default: 48 },
+    dailyHours: { type: Number, default: 8 },
+    workDays: [{ type: String }],
+    restDay: { type: String, default: 'Friday' }
+}, { _id: false });
+
+// ═══════════════════════════════════════════════════════════════
+// MAIN SCHEMA
+// ═══════════════════════════════════════════════════════════════
 
 const employeeSchema = new mongoose.Schema({
     // Auto-generated ID
@@ -19,158 +55,135 @@ const employeeSchema = new mongoose.Schema({
         sparse: true
     },
 
-    // ═══════════════════════════════════════════════════════════════
-    // PERSONAL DATA - البيانات الشخصية
-    // ═══════════════════════════════════════════════════════════════
-    firstName: { type: String, required: true, trim: true },
-    lastName: { type: String, required: true, trim: true },
-    firstNameAr: { type: String, trim: true },
-    lastNameAr: { type: String, trim: true },
-
-    // Identity
-    idType: {
+    // Office type - determines form behavior
+    officeType: {
         type: String,
-        enum: ['national_id', 'iqama', 'passport'],
-        default: 'national_id'
-    },
-    idNumber: { type: String, required: true },
-    nationality: { type: String, default: 'Saudi' },
-
-    gender: {
-        type: String,
-        enum: ['male', 'female'],
-        required: true
-    },
-    dateOfBirth: Date,
-
-    // Contact
-    phone: { type: String, required: true },
-    email: { type: String, lowercase: true, trim: true },
-
-    // Address
-    address: {
-        city: String,
-        region: String,
-        district: String,
-        street: String,
-        postalCode: String
-    },
-
-    maritalStatus: {
-        type: String,
-        enum: ['single', 'married', 'divorced', 'widowed'],
-        default: 'single'
-    },
-    dependents: { type: Number, default: 0 },
-
-    // Emergency Contact - جهة اتصال الطوارئ
-    emergencyContact: {
-        name: String,
-        relationship: String,
-        phone: String
+        enum: ['solo', 'small', 'medium', 'firm'],
+        default: 'solo'
     },
 
     // ═══════════════════════════════════════════════════════════════
-    // EMPLOYMENT DATA - بيانات التوظيف
+    // PERSONAL INFO - البيانات الشخصية
     // ═══════════════════════════════════════════════════════════════
-    department: String,
-    jobTitle: { type: String, required: true },
-    jobTitleAr: String,
-
-    employmentType: {
-        type: String,
-        enum: ['full_time', 'part_time', 'contract', 'temporary', 'intern'],
-        default: 'full_time'
-    },
-
-    contractType: {
-        type: String,
-        enum: ['unlimited', 'limited', 'seasonal', 'task_based'],
-        default: 'unlimited'
-    },
-
-    hireDate: { type: Date, required: true },
-    contractEndDate: Date,
-    probationDays: { type: Number, default: 90 },
-
-    // Work Schedule - جدول العمل
-    workSchedule: {
-        hoursPerWeek: { type: Number, default: 48 },
-        hoursPerDay: { type: Number, default: 8 },
-        weekendDays: [{ type: String, enum: ['friday', 'saturday', 'sunday'] }]
+    personalInfo: {
+        fullNameArabic: { type: String, required: true, trim: true },
+        fullNameEnglish: { type: String, trim: true },
+        nationalId: { type: String, required: true },
+        nationalIdType: {
+            type: String,
+            enum: ['saudi_id', 'iqama', 'gcc_id', 'passport'],
+            default: 'saudi_id'
+        },
+        nationalIdExpiry: Date,
+        nationality: { type: String, default: 'Saudi' },
+        isSaudi: { type: Boolean, default: true },
+        gender: {
+            type: String,
+            enum: ['male', 'female'],
+            required: true
+        },
+        dateOfBirth: Date,
+        mobile: { type: String, required: true },
+        email: { type: String, required: true, lowercase: true, trim: true },
+        personalEmail: { type: String, lowercase: true, trim: true },
+        currentAddress: addressSchema,
+        emergencyContact: emergencyContactSchema,
+        maritalStatus: {
+            type: String,
+            enum: ['single', 'married', 'divorced', 'widowed'],
+            default: 'single'
+        },
+        numberOfDependents: { type: Number, default: 0 }
     },
 
     // ═══════════════════════════════════════════════════════════════
-    // SALARY & ALLOWANCES - الراتب والبدلات
+    // EMPLOYMENT - بيانات التوظيف
     // ═══════════════════════════════════════════════════════════════
-    basicSalary: { type: Number, required: true, default: 0 },
-
-    // Dynamic allowances - can add unlimited
-    allowances: [allowanceSchema],
-
-    // Payment details
-    paymentFrequency: {
-        type: String,
-        enum: ['monthly', 'bi_weekly', 'weekly'],
-        default: 'monthly'
+    employment: {
+        employmentStatus: {
+            type: String,
+            enum: ['active', 'on_leave', 'suspended', 'terminated', 'resigned'],
+            default: 'active'
+        },
+        jobTitle: String,
+        jobTitleArabic: { type: String, required: true },
+        employmentType: {
+            type: String,
+            enum: ['full_time', 'part_time', 'contract', 'temporary'],
+            default: 'full_time'
+        },
+        contractType: {
+            type: String,
+            enum: ['indefinite', 'fixed_term'],
+            default: 'indefinite'
+        },
+        contractStartDate: Date,
+        contractEndDate: Date,
+        hireDate: { type: Date, required: true },
+        probationPeriod: { type: Number, default: 90 }, // Days
+        onProbation: { type: Boolean, default: true },
+        workSchedule: workScheduleSchema,
+        reportsTo: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Employee'
+        },
+        departmentName: String,
+        terminationDate: Date,
+        terminationReason: String
     },
-    paymentMethod: {
-        type: String,
-        enum: ['bank_transfer', 'cash', 'check'],
-        default: 'bank_transfer'
-    },
 
-    // Bank details - البيانات البنكية
-    bankDetails: {
-        bankName: String,
-        iban: String,
-        accountNumber: String
+    // ═══════════════════════════════════════════════════════════════
+    // COMPENSATION - الراتب والبدلات
+    // ═══════════════════════════════════════════════════════════════
+    compensation: {
+        basicSalary: { type: Number, required: true, default: 0 },
+        currency: { type: String, default: 'SAR' },
+        allowances: [allowanceSchema],
+        paymentFrequency: {
+            type: String,
+            enum: ['monthly', 'bi_weekly', 'weekly'],
+            default: 'monthly'
+        },
+        paymentMethod: {
+            type: String,
+            enum: ['bank_transfer', 'cash', 'check'],
+            default: 'bank_transfer'
+        },
+        bankDetails: bankDetailsSchema
     },
 
     // ═══════════════════════════════════════════════════════════════
     // GOSI - التأمينات الاجتماعية
     // ═══════════════════════════════════════════════════════════════
     gosi: {
-        isRegistered: { type: Boolean, default: false },
-        subscriberNumber: String,
-        registrationDate: Date,
+        registered: { type: Boolean, default: false },
+        gosiNumber: String,
         // Saudi: employee 9.75%, employer 12.75%
-        // Non-Saudi: employer 2% only
+        // Non-Saudi: employer 2% only (employee 0%)
         employeeContribution: { type: Number, default: 9.75 },
         employerContribution: { type: Number, default: 12.75 }
     },
 
     // ═══════════════════════════════════════════════════════════════
-    // ORGANIZATIONAL STRUCTURE - الهيكل التنظيمي (Firm only)
+    // ORGANIZATION - الهيكل التنظيمي (medium/firm only)
     // ═══════════════════════════════════════════════════════════════
-    branch: String,
-    team: String,
-    supervisor: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Employee'
-    },
-    costCenter: String,
-
-    // ═══════════════════════════════════════════════════════════════
-    // LEAVE BALANCES - رصيد الإجازات
-    // ═══════════════════════════════════════════════════════════════
-    leaveBalance: {
-        annual: { type: Number, default: 21 },      // 21 days first 5 years, 30 after
-        sick: { type: Number, default: 30 },
-        unpaid: { type: Number, default: 0 },
-        other: { type: Number, default: 0 }
+    organization: {
+        branchId: String,
+        departmentName: String,
+        teamId: String,
+        supervisorId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Employee'
+        },
+        costCenter: String
     },
 
     // ═══════════════════════════════════════════════════════════════
-    // STATUS
+    // LEAVE - رصيد الإجازات
     // ═══════════════════════════════════════════════════════════════
-    status: {
-        type: String,
-        enum: ['active', 'on_leave', 'suspended', 'terminated', 'resigned'],
-        default: 'active'
+    leave: {
+        annualLeaveEntitlement: { type: Number, default: 21 } // 21 or 30 days
     },
-    terminationDate: Date,
-    terminationReason: String,
 
     // ═══════════════════════════════════════════════════════════════
     // OWNERSHIP - Multi-tenancy
@@ -188,60 +201,86 @@ const employeeSchema = new mongoose.Schema({
     createdBy: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User'
-    },
-
-    // Notes
-    notes: String
+    }
 
 }, {
     timestamps: true,
     versionKey: false
 });
 
-// Indexes
-employeeSchema.index({ firmId: 1, status: 1 });
-employeeSchema.index({ lawyerId: 1, status: 1 });
+// ═══════════════════════════════════════════════════════════════
+// INDEXES
+// ═══════════════════════════════════════════════════════════════
+employeeSchema.index({ firmId: 1, 'employment.employmentStatus': 1 });
+employeeSchema.index({ lawyerId: 1, 'employment.employmentStatus': 1 });
 employeeSchema.index({ employeeId: 1 });
+employeeSchema.index({ 'personalInfo.nationalId': 1 });
 
-// Virtual: Full name
+// ═══════════════════════════════════════════════════════════════
+// VIRTUAL FIELDS
+// ═══════════════════════════════════════════════════════════════
+
+// Full name (for backward compatibility and convenience)
 employeeSchema.virtual('fullName').get(function() {
-    return `${this.firstName} ${this.lastName}`;
+    return this.personalInfo?.fullNameEnglish || this.personalInfo?.fullNameArabic || '';
 });
 
 employeeSchema.virtual('fullNameAr').get(function() {
-    if (this.firstNameAr && this.lastNameAr) {
-        return `${this.firstNameAr} ${this.lastNameAr}`;
-    }
-    return this.fullName;
+    return this.personalInfo?.fullNameArabic || '';
 });
 
-// Virtual: Total allowances
+// Total allowances - sum of all allowance amounts
 employeeSchema.virtual('totalAllowances').get(function() {
-    if (!this.allowances || this.allowances.length === 0) return 0;
-    return this.allowances.reduce((sum, a) => sum + (a.amount || 0), 0);
+    if (!this.compensation?.allowances || this.compensation.allowances.length === 0) return 0;
+    return this.compensation.allowances.reduce((sum, a) => sum + (a.amount || 0), 0);
 });
 
-// Virtual: Total salary (basic + allowances)
-employeeSchema.virtual('totalSalary').get(function() {
-    return (this.basicSalary || 0) + this.totalAllowances;
+// Gross salary = basicSalary + totalAllowances
+employeeSchema.virtual('grossSalary').get(function() {
+    return (this.compensation?.basicSalary || 0) + this.totalAllowances;
 });
 
-// Virtual: GOSI deduction
+// GOSI deduction = basicSalary * employeeContribution%
 employeeSchema.virtual('gosiDeduction').get(function() {
-    if (!this.gosi?.isRegistered) return 0;
-    return (this.basicSalary || 0) * (this.gosi.employeeContribution / 100);
+    if (!this.gosi?.registered) return 0;
+    return (this.compensation?.basicSalary || 0) * ((this.gosi.employeeContribution || 0) / 100);
 });
 
-// Virtual: Net salary
+// Net salary = grossSalary - gosiDeduction
 employeeSchema.virtual('netSalary').get(function() {
-    return this.totalSalary - this.gosiDeduction;
+    return this.grossSalary - this.gosiDeduction;
+});
+
+// Status shorthand (for backward compatibility)
+employeeSchema.virtual('status').get(function() {
+    return this.employment?.employmentStatus || 'active';
+});
+
+// Years of service - calculated from hire date
+employeeSchema.virtual('yearsOfService').get(function() {
+    if (!this.employment?.hireDate) return 0;
+    const hireDate = new Date(this.employment.hireDate);
+    const now = new Date();
+    const diffMs = now - hireDate;
+    const years = diffMs / (1000 * 60 * 60 * 24 * 365.25);
+    return Math.max(0, parseFloat(years.toFixed(2)));
+});
+
+// Minimum annual leave entitlement based on Saudi Labor Law
+// Under 5 years: 21 days minimum, 5+ years: 30 days minimum
+employeeSchema.virtual('minAnnualLeave').get(function() {
+    return this.yearsOfService >= 5 ? 30 : 21;
 });
 
 // Ensure virtuals are included in JSON
 employeeSchema.set('toJSON', { virtuals: true });
 employeeSchema.set('toObject', { virtuals: true });
 
-// Pre-save: Generate employee ID
+// ═══════════════════════════════════════════════════════════════
+// PRE-SAVE HOOKS
+// ═══════════════════════════════════════════════════════════════
+
+// Generate employee ID
 employeeSchema.pre('save', async function(next) {
     if (!this.employeeId) {
         const count = await this.constructor.countDocuments({
@@ -255,15 +294,20 @@ employeeSchema.pre('save', async function(next) {
     next();
 });
 
-// Static: Get employees for firm or solo lawyer
+// ═══════════════════════════════════════════════════════════════
+// STATIC METHODS
+// ═══════════════════════════════════════════════════════════════
+
+// Get employees for firm or solo lawyer
 employeeSchema.statics.getEmployees = function(firmId, lawyerId, filters = {}) {
     const query = firmId ? { firmId } : { lawyerId };
     return this.find({ ...query, ...filters })
-        .populate('supervisor', 'firstName lastName')
+        .populate('employment.reportsTo', 'personalInfo.fullNameArabic personalInfo.fullNameEnglish')
+        .populate('organization.supervisorId', 'personalInfo.fullNameArabic personalInfo.fullNameEnglish')
         .sort({ createdAt: -1 });
 };
 
-// Static: Get employee stats
+// Get employee stats
 employeeSchema.statics.getStats = async function(firmId, lawyerId) {
     const query = firmId ? { firmId } : { lawyerId };
 
@@ -274,11 +318,11 @@ employeeSchema.statics.getStats = async function(firmId, lawyerId) {
                 _id: null,
                 totalEmployees: { $sum: 1 },
                 activeEmployees: {
-                    $sum: { $cond: [{ $eq: ['$status', 'active'] }, 1, 0] }
+                    $sum: { $cond: [{ $eq: ['$employment.employmentStatus', 'active'] }, 1, 0] }
                 },
-                totalBasicSalary: { $sum: '$basicSalary' },
-                byDepartment: { $push: '$department' },
-                byStatus: { $push: '$status' }
+                totalBasicSalary: { $sum: '$compensation.basicSalary' },
+                byDepartment: { $push: '$employment.departmentName' },
+                byStatus: { $push: '$employment.employmentStatus' }
             }
         }
     ]);
