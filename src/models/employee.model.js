@@ -256,6 +256,22 @@ employeeSchema.virtual('status').get(function() {
     return this.employment?.employmentStatus || 'active';
 });
 
+// Years of service - calculated from hire date
+employeeSchema.virtual('yearsOfService').get(function() {
+    if (!this.employment?.hireDate) return 0;
+    const hireDate = new Date(this.employment.hireDate);
+    const now = new Date();
+    const diffMs = now - hireDate;
+    const years = diffMs / (1000 * 60 * 60 * 24 * 365.25);
+    return Math.max(0, parseFloat(years.toFixed(2)));
+});
+
+// Minimum annual leave entitlement based on Saudi Labor Law
+// Under 5 years: 21 days minimum, 5+ years: 30 days minimum
+employeeSchema.virtual('minAnnualLeave').get(function() {
+    return this.yearsOfService >= 5 ? 30 : 21;
+});
+
 // Ensure virtuals are included in JSON
 employeeSchema.set('toJSON', { virtuals: true });
 employeeSchema.set('toObject', { virtuals: true });
