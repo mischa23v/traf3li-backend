@@ -324,15 +324,22 @@ const linkToCase = asyncHandler(async (req, res) => {
 /**
  * Unlink contact from case
  * DELETE /api/contacts/:id/unlink-case/:caseId
+ * POST /api/contacts/:id/unlink-case (legacy with body)
  */
 const unlinkFromCase = asyncHandler(async (req, res) => {
     if (req.isDeparted) {
         throw CustomException('ليس لديك صلاحية للوصول', 403);
     }
 
-    const { id, caseId } = req.params;
+    const { id } = req.params;
+    // Support both params and body for caseId (legacy support)
+    const caseId = req.params.caseId || req.body.caseId;
     const lawyerId = req.userID;
     const firmId = req.firmId;
+
+    if (!caseId) {
+        throw CustomException('معرف القضية مطلوب', 400);
+    }
 
     const accessQuery = firmId
         ? { _id: id, firmId }
@@ -445,15 +452,22 @@ const linkToClient = asyncHandler(async (req, res) => {
 /**
  * Unlink contact from client
  * DELETE /api/contacts/:id/unlink-client/:clientId
+ * POST /api/contacts/:id/unlink-client (legacy with body)
  */
 const unlinkFromClient = asyncHandler(async (req, res) => {
     if (req.isDeparted) {
         throw CustomException('ليس لديك صلاحية للوصول', 403);
     }
 
-    const { id, clientId } = req.params;
+    const { id } = req.params;
+    // Support both params and body for clientId (legacy support)
+    const clientId = req.params.clientId || req.body.clientId;
     const lawyerId = req.userID;
     const firmId = req.firmId;
+
+    if (!clientId) {
+        throw CustomException('معرف العميل مطلوب', 400);
+    }
 
     const accessQuery = firmId
         ? { _id: id, firmId }
