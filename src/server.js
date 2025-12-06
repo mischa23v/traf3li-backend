@@ -84,6 +84,7 @@ const {
     // HR
     hrRoute,
     payrollRoute,
+    payrollRunRoute,
 
     // Accounting
     accountRoute,
@@ -287,6 +288,7 @@ app.use('/api/staff', staffRoute);
 // HR Routes
 app.use('/api/hr', hrRoute);
 app.use('/api/hr/payroll', payrollRoute);
+app.use('/api/hr/payroll-runs', payrollRunRoute);
 
 // Accounting Routes
 app.use('/api/accounts', accountRoute);
