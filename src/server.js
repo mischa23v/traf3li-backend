@@ -89,7 +89,12 @@ const {
     journalEntryRoute,
     recurringTransactionRoute,
     priceLevelRoute,
-    fiscalPeriodRoute
+    fiscalPeriodRoute,
+
+    // Investment & Trading Journal
+    tradesRoute,
+    brokersRoute,
+    tradingAccountsRoute
 } = require('./routes');
 
 const app = express();
@@ -279,6 +284,11 @@ app.use('/api/journal-entries', journalEntryRoute);
 app.use('/api/recurring-transactions', recurringTransactionRoute);
 app.use('/api/price-levels', priceLevelRoute);
 app.use('/api/fiscal-periods', fiscalPeriodRoute);
+
+// Investment & Trading Journal Routes
+app.use('/api/v1/trades', tradesRoute);
+app.use('/api/v1/brokers', brokersRoute);
+app.use('/api/v1/trading-accounts', tradingAccountsRoute);
 
 // ============================================
 // ALIAS ROUTES (for frontend compatibility)

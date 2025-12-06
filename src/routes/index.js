@@ -81,6 +81,11 @@ const recurringTransactionRoute = require('./recurringTransaction.route');
 const priceLevelRoute = require('./priceLevel.route');
 const fiscalPeriodRoute = require('./fiscalPeriod.route');
 
+// Investment & Trading Journal Routes
+const tradesRoute = require('./trades.route');
+const brokersRoute = require('./brokers.route');
+const tradingAccountsRoute = require('./tradingAccounts.route');
+
 module.exports = {
     // Marketplace
     gigRoute,
@@ -163,5 +168,10 @@ module.exports = {
     journalEntryRoute,
     recurringTransactionRoute,
     priceLevelRoute,
-    fiscalPeriodRoute
+    fiscalPeriodRoute,
+
+    // Investment & Trading Journal
+    tradesRoute,
+    brokersRoute,
+    tradingAccountsRoute
 };
