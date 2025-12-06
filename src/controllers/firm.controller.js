@@ -914,8 +914,7 @@ const getMyPermissions = asyncHandler(async (req, res) => {
                         tasks: 'full',
                         documents: 'full',
                         finance: 'full',
-                        time_tracking: 'full',
-                        investments: 'full'
+                        time_tracking: 'full'
                     },
                     special: {
                         canInviteMembers: false,

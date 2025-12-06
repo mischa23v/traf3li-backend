@@ -38,7 +38,7 @@ const bankAccountSchema = new mongoose.Schema({
     },
     type: {
         type: String,
-        enum: ['checking', 'savings', 'credit_card', 'cash', 'investment', 'loan', 'other'],
+        enum: ['checking', 'savings', 'credit_card', 'cash', 'loan', 'other'],
         required: true,
         default: 'checking'
     },

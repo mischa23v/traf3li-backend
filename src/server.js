@@ -97,10 +97,6 @@ const {
     brokersRoute,
     tradingAccountsRoute,
 
-    // Investment Portfolio
-    investmentsRoute,
-    investmentSearchRoute,
-
     // Invitations
     invitationRoute
 } = require('./routes');
@@ -298,10 +294,6 @@ app.use('/api/fiscal-periods', fiscalPeriodRoute);
 app.use('/api/v1/trades', tradesRoute);
 app.use('/api/v1/brokers', brokersRoute);
 app.use('/api/v1/trading-accounts', tradingAccountsRoute);
-
-// Investment Portfolio Routes
-app.use('/api/investments', investmentsRoute);
-app.use('/api/investment-search', investmentSearchRoute);
 
 // Invitation Routes
 app.use('/api/invitations', invitationRoute);
