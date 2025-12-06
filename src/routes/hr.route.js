@@ -1,79 +1,38 @@
 const express = require('express');
-const { userMiddleware } = require('../middlewares');
+const router = express.Router();
 const {
-    // Employees
     createEmployee,
     getEmployees,
     getEmployee,
     updateEmployee,
     deleteEmployee,
     getEmployeeStats,
-    // Salaries
-    createSalary,
-    getSalaries,
-    getSalary,
-    updateSalary,
-    deleteSalary,
-    approveSalary,
-    paySalary,
-    // Payroll
-    createPayroll,
-    getPayrolls,
-    getPayroll,
-    updatePayroll,
-    deletePayroll,
-    approvePayroll,
-    processPayrollPayment,
-    getPayrollStats
+    addAllowance,
+    removeAllowance,
+    getFormOptions
 } = require('../controllers/hr.controller');
+const { verifyToken } = require('../middlewares/jwt');
+const { attachFirmContext } = require('../middlewares/firmContext.middleware');
 
-const router = express.Router();
+// All routes require authentication
+router.use(verifyToken);
+router.use(attachFirmContext);
 
-// ═══════════════════════════════════════════════════════════════════════════
-// EMPLOYEE ROUTES - /api/hr/employees
-// ═══════════════════════════════════════════════════════════════════════════
+// Form options (dropdowns, etc.)
+router.get('/options', getFormOptions);
 
-// Statistics (must be before :id route)
-router.get('/employees/stats', userMiddleware, getEmployeeStats);
+// Employee stats
+router.get('/employees/stats', getEmployeeStats);
 
-// CRUD operations
-router.post('/employees', userMiddleware, createEmployee);
-router.get('/employees', userMiddleware, getEmployees);
-router.get('/employees/:id', userMiddleware, getEmployee);
-router.put('/employees/:id', userMiddleware, updateEmployee);
-router.delete('/employees/:id', userMiddleware, deleteEmployee);
+// Employee CRUD
+router.post('/employees', createEmployee);
+router.get('/employees', getEmployees);
+router.get('/employees/:id', getEmployee);
+router.put('/employees/:id', updateEmployee);
+router.delete('/employees/:id', deleteEmployee);
 
-// ═══════════════════════════════════════════════════════════════════════════
-// SALARY ROUTES - /api/hr/salaries
-// ═══════════════════════════════════════════════════════════════════════════
-
-// CRUD operations
-router.post('/salaries', userMiddleware, createSalary);
-router.get('/salaries', userMiddleware, getSalaries);
-router.get('/salaries/:id', userMiddleware, getSalary);
-router.put('/salaries/:id', userMiddleware, updateSalary);
-router.delete('/salaries/:id', userMiddleware, deleteSalary);
-
-// Salary actions
-router.post('/salaries/:id/approve', userMiddleware, approveSalary);
-router.post('/salaries/:id/pay', userMiddleware, paySalary);
-
-// ═══════════════════════════════════════════════════════════════════════════
-// PAYROLL ROUTES - /api/hr/payroll
-// ═══════════════════════════════════════════════════════════════════════════
-
-// Statistics (must be before :id route)
-router.get('/payroll/stats', userMiddleware, getPayrollStats);
-
-// CRUD operations
-router.post('/payroll', userMiddleware, createPayroll);
-router.get('/payroll', userMiddleware, getPayrolls);
-router.get('/payroll/:id', userMiddleware, getPayroll);
-router.put('/payroll/:id', userMiddleware, updatePayroll);
-router.delete('/payroll/:id', userMiddleware, deletePayroll);
-
-// Payroll actions
-router.post('/payroll/:id/approve', userMiddleware, approvePayroll);
-router.post('/payroll/:id/pay', userMiddleware, processPayrollPayment);
+// Allowances
+router.post('/employees/:id/allowances', addAllowance);
+router.delete('/employees/:id/allowances/:allowanceId', removeAllowance);
 
 module.exports = router;

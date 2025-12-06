@@ -40,7 +40,6 @@ const teamMemberSchema = new mongoose.Schema({
         reports: { type: String, enum: ['none', 'view', 'edit', 'full'], default: 'none' },
         settings: { type: String, enum: ['none', 'view', 'edit', 'full'], default: 'none' },
         team: { type: String, enum: ['none', 'view', 'edit', 'full'], default: 'none' },
-        hr: { type: String, enum: ['none', 'view', 'edit', 'full'], default: 'none' },
         // Special permissions
         canApproveInvoices: { type: Boolean, default: false },
         canManageRetainers: { type: Boolean, default: false },
@@ -560,49 +559,49 @@ function getDefaultPermissions(role) {
         owner: {
             clients: 'full', cases: 'full', leads: 'full', invoices: 'full', payments: 'full',
             expenses: 'full', documents: 'full', tasks: 'full', events: 'full', timeTracking: 'full',
-            reports: 'full', settings: 'full', team: 'full', hr: 'full',
+            reports: 'full', settings: 'full', team: 'full',
             canApproveInvoices: true, canManageRetainers: true, canExportData: true,
             canDeleteRecords: true, canViewFinance: true, canManageTeam: true
         },
         admin: {
             clients: 'full', cases: 'full', leads: 'full', invoices: 'full', payments: 'full',
             expenses: 'full', documents: 'full', tasks: 'full', events: 'full', timeTracking: 'full',
-            reports: 'full', settings: 'edit', team: 'full', hr: 'full',
+            reports: 'full', settings: 'edit', team: 'full',
             canApproveInvoices: true, canManageRetainers: true, canExportData: true,
             canDeleteRecords: true, canViewFinance: true, canManageTeam: true
         },
         partner: {
             clients: 'full', cases: 'full', leads: 'full', invoices: 'full', payments: 'edit',
             expenses: 'edit', documents: 'full', tasks: 'full', events: 'full', timeTracking: 'full',
-            reports: 'view', settings: 'view', team: 'view', hr: 'none',
+            reports: 'view', settings: 'view', team: 'view',
             canApproveInvoices: true, canManageRetainers: true, canExportData: true,
             canDeleteRecords: false, canViewFinance: true, canManageTeam: false
         },
         lawyer: {
             clients: 'edit', cases: 'edit', leads: 'edit', invoices: 'edit', payments: 'view',
             expenses: 'edit', documents: 'edit', tasks: 'full', events: 'full', timeTracking: 'full',
-            reports: 'view', settings: 'none', team: 'view', hr: 'none',
+            reports: 'view', settings: 'none', team: 'view',
             canApproveInvoices: false, canManageRetainers: false, canExportData: false,
             canDeleteRecords: false, canViewFinance: false, canManageTeam: false
         },
         paralegal: {
             clients: 'edit', cases: 'edit', leads: 'edit', invoices: 'view', payments: 'none',
             expenses: 'view', documents: 'edit', tasks: 'edit', events: 'edit', timeTracking: 'edit',
-            reports: 'none', settings: 'none', team: 'view', hr: 'none',
+            reports: 'none', settings: 'none', team: 'view',
             canApproveInvoices: false, canManageRetainers: false, canExportData: false,
             canDeleteRecords: false, canViewFinance: false, canManageTeam: false
         },
         secretary: {
             clients: 'view', cases: 'view', leads: 'edit', invoices: 'view', payments: 'view',
             expenses: 'view', documents: 'view', tasks: 'edit', events: 'edit', timeTracking: 'view',
-            reports: 'none', settings: 'none', team: 'view', hr: 'none',
+            reports: 'none', settings: 'none', team: 'view',
             canApproveInvoices: false, canManageRetainers: false, canExportData: false,
             canDeleteRecords: false, canViewFinance: false, canManageTeam: false
         },
         accountant: {
             clients: 'view', cases: 'none', leads: 'none', invoices: 'full', payments: 'full',
             expenses: 'full', documents: 'view', tasks: 'edit', events: 'edit', timeTracking: 'view',
-            reports: 'full', settings: 'none', team: 'none', hr: 'view',
+            reports: 'full', settings: 'none', team: 'none',
             canApproveInvoices: true, canManageRetainers: true, canExportData: true,
             canDeleteRecords: false, canViewFinance: true, canManageTeam: false
         },
@@ -610,7 +609,7 @@ function getDefaultPermissions(role) {
         departed: {
             clients: 'none', cases: 'view', leads: 'none', invoices: 'none', payments: 'none',
             expenses: 'none', documents: 'view', tasks: 'view', events: 'view', timeTracking: 'view',
-            reports: 'none', settings: 'none', team: 'none', hr: 'none',
+            reports: 'none', settings: 'none', team: 'none',
             canApproveInvoices: false, canManageRetainers: false, canExportData: false,
             canDeleteRecords: false, canViewFinance: false, canManageTeam: false
         }

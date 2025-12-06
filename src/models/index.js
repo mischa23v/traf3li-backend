@@ -94,14 +94,6 @@ const Vendor = require('./vendor.model');
 const Bill = require('./bill.model');
 const BillPayment = require('./billPayment.model');
 
-// HR Models
-const Employee = require('./employee.model');
-const Salary = require('./salary.model');
-const Payroll = require('./payroll.model');
-const Leave = require('./leave.model');
-const Attendance = require('./attendance.model');
-const Evaluation = require('./evaluation.model');
-
 // Authentication Models
 const EmailOTP = require('./emailOtp.model');
 
@@ -111,6 +103,9 @@ const CrmActivity = require('./crmActivity.model');
 const Referral = require('./referral.model');
 const Staff = require('./staff.model');
 const Pipeline = require('./pipeline.model');
+
+// HR Models
+const Employee = require('./employee.model');
 
 // Firm Invitation Model
 const FirmInvitation = require('./firmInvitation.model');
@@ -225,14 +220,6 @@ module.exports = {
     Bill,
     BillPayment,
 
-    // HR
-    Employee,
-    Salary,
-    Payroll,
-    Leave,
-    Attendance,
-    Evaluation,
-
     // Authentication
     EmailOTP,
 
@@ -242,6 +229,9 @@ module.exports = {
     Referral,
     Staff,
     Pipeline,
+
+    // HR
+    Employee,
 
     // Firm Invitation
     FirmInvitation,
