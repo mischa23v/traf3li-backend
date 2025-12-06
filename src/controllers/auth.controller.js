@@ -2,7 +2,7 @@ const { User, Firm, FirmInvitation } = require('../models');
 const { CustomException } = require('../utils');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
-const { getDefaultPermissions } = require('../config/permissions.config');
+const { getDefaultPermissions, getSoloLawyerPermissions, isSoloLawyer: checkIsSoloLawyer } = require('../config/permissions.config');
 
 const { JWT_SECRET, NODE_ENV } = process.env;
 const saltRounds = 10;
@@ -392,12 +392,12 @@ const authLogin = async (request, response) => {
                 lawyerWorkMode: user.lawyerWorkMode || null
             };
 
-            // If user is a lawyer, get firm information
+            // If user is a lawyer, get firm information and permissions
             if (user.role === 'lawyer' || user.isSeller) {
                 if (user.firmId) {
                     try {
                         const firm = await Firm.findById(user.firmId)
-                            .select('name nameEnglish licenseNumber status members');
+                            .select('name nameEnglish licenseNumber status members subscription');
 
                         if (firm) {
                             const member = firm.members.find(
@@ -412,14 +412,35 @@ const authLogin = async (request, response) => {
                             };
                             userData.firmRole = member?.role || user.firmRole;
                             userData.firmStatus = member?.status || user.firmStatus;
+
+                            // Include permissions from firm membership
+                            if (member) {
+                                userData.permissions = member.permissions || getDefaultPermissions(member.role);
+                            }
+
+                            // Tenant context for firm members
+                            userData.tenant = {
+                                id: firm._id,
+                                name: firm.name,
+                                nameEn: firm.nameEnglish,
+                                status: firm.status,
+                                subscription: {
+                                    plan: firm.subscription?.plan || 'free',
+                                    status: firm.subscription?.status || 'trial'
+                                }
+                            };
                         }
                     } catch (firmError) {
                         console.log('Error fetching firm:', firmError.message);
                     }
-                } else if (user.isSoloLawyer) {
+                } else if (checkIsSoloLawyer(user)) {
+                    // Solo lawyer - full permissions, no tenant
                     userData.firm = null;
                     userData.firmRole = null;
                     userData.firmStatus = null;
+                    userData.isSoloLawyer = true;
+                    userData.tenant = null;
+                    userData.permissions = getSoloLawyerPermissions();
                 }
             }
 
