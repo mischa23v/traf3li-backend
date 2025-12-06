@@ -1,7 +1,7 @@
 const GeneralLedger = require('../models/generalLedger.model');
 const Account = require('../models/account.model');
 const asyncHandler = require('../utils/asyncHandler');
-const CustomException = require('../utils/customException');
+const { CustomException } = require('../utils');
 const BillingActivity = require('../models/billingActivity.model');
 
 // ═══════════════════════════════════════════════════════════════
