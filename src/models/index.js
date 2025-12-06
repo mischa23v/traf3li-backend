@@ -104,6 +104,9 @@ const Referral = require('./referral.model');
 const Staff = require('./staff.model');
 const Pipeline = require('./pipeline.model');
 
+// HR Models
+const Employee = require('./employee.model');
+
 // Firm Invitation Model
 const FirmInvitation = require('./firmInvitation.model');
 
@@ -226,6 +229,9 @@ module.exports = {
     Referral,
     Staff,
     Pipeline,
+
+    // HR
+    Employee,
 
     // Firm Invitation
     FirmInvitation,
