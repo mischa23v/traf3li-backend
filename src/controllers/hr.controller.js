@@ -63,7 +63,42 @@ const getFormOptions = asyncHandler(async (req, res) => {
             { name: 'Education Allowance', nameAr: 'بدل تعليم' },
             { name: 'Fuel Allowance', nameAr: 'بدل وقود' },
             { name: 'Remote Work Allowance', nameAr: 'بدل عمل عن بعد' }
-        ]
+        ],
+
+        // Payroll options
+        payroll: {
+            commonAllowances: [
+                { name: 'Housing Allowance', nameAr: 'بدل سكن' },
+                { name: 'Transportation Allowance', nameAr: 'بدل نقل' },
+                { name: 'Food Allowance', nameAr: 'بدل طعام' },
+                { name: 'Phone Allowance', nameAr: 'بدل هاتف' },
+                { name: 'Medical Allowance', nameAr: 'بدل طبي' },
+                { name: 'Overtime', nameAr: 'أجر إضافي' },
+                { name: 'Bonus', nameAr: 'مكافأة' },
+                { name: 'Commission', nameAr: 'عمولة' }
+            ],
+            commonDeductions: [
+                { name: 'GOSI', nameAr: 'التأمينات الاجتماعية' },
+                { name: 'Loan Repayment', nameAr: 'سداد قرض' },
+                { name: 'Advance Recovery', nameAr: 'استرداد سلفة' },
+                { name: 'Absence', nameAr: 'غياب' },
+                { name: 'Late Deduction', nameAr: 'خصم تأخير' },
+                { name: 'Violation', nameAr: 'مخالفة' }
+            ],
+            paymentMethods: [
+                { value: 'bank_transfer', labelAr: 'تحويل بنكي' },
+                { value: 'cash', labelAr: 'نقدي' },
+                { value: 'check', labelAr: 'شيك' }
+            ],
+            paymentStatuses: [
+                { value: 'draft', labelAr: 'مسودة' },
+                { value: 'approved', labelAr: 'معتمد' },
+                { value: 'processing', labelAr: 'قيد المعالجة' },
+                { value: 'paid', labelAr: 'مدفوع' },
+                { value: 'failed', labelAr: 'فشل' },
+                { value: 'cancelled', labelAr: 'ملغي' }
+            ]
+        }
     });
 });
 
