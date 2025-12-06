@@ -94,7 +94,11 @@ const {
     // Investment & Trading Journal
     tradesRoute,
     brokersRoute,
-    tradingAccountsRoute
+    tradingAccountsRoute,
+
+    // Investment Portfolio
+    investmentsRoute,
+    investmentSearchRoute
 } = require('./routes');
 
 const app = express();
@@ -289,6 +293,10 @@ app.use('/api/fiscal-periods', fiscalPeriodRoute);
 app.use('/api/v1/trades', tradesRoute);
 app.use('/api/v1/brokers', brokersRoute);
 app.use('/api/v1/trading-accounts', tradingAccountsRoute);
+
+// Investment Portfolio Routes
+app.use('/api/investments', investmentsRoute);
+app.use('/api/investment-search', investmentSearchRoute);
 
 // ============================================
 // ALIAS ROUTES (for frontend compatibility)

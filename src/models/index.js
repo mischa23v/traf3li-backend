@@ -121,6 +121,10 @@ const Broker = require('./broker.model');
 const TradingAccount = require('./tradingAccount.model');
 const TradeStats = require('./tradeStats.model');
 
+// Investment Portfolio Models
+const Investment = require('./investment.model');
+const InvestmentTransaction = require('./investmentTransaction.model');
+
 module.exports = {
     // Marketplace
     User,
@@ -243,5 +247,9 @@ module.exports = {
     Trade,
     Broker,
     TradingAccount,
-    TradeStats
+    TradeStats,
+
+    // Investment Portfolio
+    Investment,
+    InvestmentTransaction
 };
