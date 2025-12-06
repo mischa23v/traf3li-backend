@@ -108,6 +108,7 @@ const Pipeline = require('./pipeline.model');
 const Employee = require('./employee.model');
 const SalarySlip = require('./salarySlip.model');
 const PayrollRun = require('./payrollRun.model');
+const LeaveRequest = require('./leaveRequest.model');
 
 // Firm Invitation Model
 const FirmInvitation = require('./firmInvitation.model');
@@ -236,6 +237,7 @@ module.exports = {
     Employee,
     SalarySlip,
     PayrollRun,
+    LeaveRequest,
 
     // Firm Invitation
     FirmInvitation,
