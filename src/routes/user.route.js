@@ -15,6 +15,9 @@ const {
     updateNotificationPreferences,
     getVapidPublicKey
 } = require('../controllers/pushSubscription.controller');
+const {
+    convertSoloToFirm
+} = require('../controllers/firm.controller');
 
 const app = express.Router();
 
@@ -36,6 +39,10 @@ app.delete('/push-subscription', userMiddleware, deletePushSubscription);
 // Notification preferences (protected)
 app.get('/notification-preferences', userMiddleware, getPushSubscriptionStatus);
 app.put('/notification-preferences', userMiddleware, updateNotificationPreferences);
+
+// ========== Solo Lawyer to Firm Conversion ==========
+// Convert solo lawyer to firm owner
+app.post('/convert-to-firm', userMiddleware, convertSoloToFirm);
 
 // Get user profile (public - no auth required)
 app.get('/:_id', getUserProfile);

@@ -99,6 +99,23 @@ const userSchema = new mongoose.Schema({
     },
 
     // ═══════════════════════════════════════════════════════════════
+    // SOLO LAWYER MODE
+    // ═══════════════════════════════════════════════════════════════
+    // Flag indicating if the lawyer works independently without a firm
+    isSoloLawyer: {
+        type: Boolean,
+        default: false,
+        required: false
+    },
+    // Work mode selected during registration: 'solo', 'firm_owner', 'firm_member'
+    lawyerWorkMode: {
+        type: String,
+        enum: ['solo', 'firm_owner', 'firm_member', null],
+        default: null,
+        required: false
+    },
+
+    // ═══════════════════════════════════════════════════════════════
     // FIRM MEMBERSHIP (Multi-Tenancy)
     // ═══════════════════════════════════════════════════════════════
     firmId: {
