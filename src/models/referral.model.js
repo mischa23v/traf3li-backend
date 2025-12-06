@@ -16,6 +16,16 @@ const feePaymentSchema = new mongoose.Schema({
 
 const referralSchema = new mongoose.Schema({
     // ═══════════════════════════════════════════════════════════════
+    // FIRM (Multi-Tenancy)
+    // ═══════════════════════════════════════════════════════════════
+    firmId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Firm',
+        index: true,
+        required: false
+    },
+
+    // ═══════════════════════════════════════════════════════════════
     // IDENTIFICATION
     // ═══════════════════════════════════════════════════════════════
     referralId: {
@@ -31,8 +41,75 @@ const referralSchema = new mongoose.Schema({
     },
 
     // ═══════════════════════════════════════════════════════════════
-    // REFERRAL SOURCE
+    // REFERRER INFORMATION
     // ═══════════════════════════════════════════════════════════════
+    referrerType: {
+        type: String,
+        enum: ['individual', 'organization', 'employee', 'client'],
+        default: 'individual'
+    },
+    referrerName: {
+        type: String,
+        required: true,
+        trim: true
+    },
+    referrerContactId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Contact'
+    },
+    referrerOrganizationId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Organization'
+    },
+    referrerEmail: {
+        type: String,
+        trim: true,
+        lowercase: true
+    },
+    referrerPhone: {
+        type: String,
+        trim: true
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // REFERRED LEAD/CLIENT
+    // ═══════════════════════════════════════════════════════════════
+    referredLeadId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Lead'
+    },
+    referredClientId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Client'
+    },
+    referredName: {
+        type: String,
+        required: true,
+        trim: true
+    },
+    referredEmail: {
+        type: String,
+        trim: true,
+        lowercase: true
+    },
+    referredPhone: {
+        type: String,
+        trim: true
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // REFERRAL DETAILS
+    // ═══════════════════════════════════════════════════════════════
+    referralDate: {
+        type: Date,
+        default: Date.now
+    },
+    source: {
+        type: String,
+        trim: true  // How referrer heard about us
+    },
+
+    // Legacy fields for backward compatibility
     type: {
         type: String,
         enum: [
@@ -43,11 +120,10 @@ const referralSchema = new mongoose.Schema({
             'employee',     // موظف
             'partner',      // شريك
             'organization', // منظمة
+            'individual',   // فرد
             'other'
-        ],
-        required: true
+        ]
     },
-
     // Source reference (polymorphic)
     sourceType: {
         type: String,
@@ -56,7 +132,6 @@ const referralSchema = new mongoose.Schema({
     sourceId: {
         type: mongoose.Schema.Types.ObjectId
     },
-
     // For external referrers not in the system
     externalSource: {
         name: String,
@@ -64,15 +139,10 @@ const referralSchema = new mongoose.Schema({
         email: String,
         phone: String,
         company: String,
-        relationship: String // How do you know them?
+        relationship: String
     },
-
-    // ═══════════════════════════════════════════════════════════════
-    // REFERRAL DETAILS
-    // ═══════════════════════════════════════════════════════════════
     name: {
         type: String,
-        required: true,
         trim: true
     },
     nameAr: {
@@ -85,16 +155,38 @@ const referralSchema = new mongoose.Schema({
     },
 
     // ═══════════════════════════════════════════════════════════════
+    // PRACTICE AREA & CASE INFO
+    // ═══════════════════════════════════════════════════════════════
+    practiceArea: {
+        type: String,
+        trim: true
+    },
+    caseType: {
+        type: String,
+        trim: true
+    },
+    estimatedValue: {
+        type: Number,  // In halalas
+        default: 0
+    },
+
+    // ═══════════════════════════════════════════════════════════════
     // STATUS & TRACKING
     // ═══════════════════════════════════════════════════════════════
     status: {
         type: String,
         enum: [
-            'active',       // نشط - accepting referrals
-            'inactive',     // غير نشط
-            'archived'      // مؤرشف
+            'pending',      // معلق
+            'contacted',    // تم التواصل
+            'qualified',    // مؤهل
+            'converted',    // تم التحويل
+            'rejected',     // مرفوض
+            'expired',      // منتهي الصلاحية
+            'active',       // نشط (legacy)
+            'inactive',     // غير نشط (legacy)
+            'archived'      // مؤرشف (legacy)
         ],
-        default: 'active'
+        default: 'pending'
     },
 
     // Statistics
@@ -122,10 +214,46 @@ const referralSchema = new mongoose.Schema({
     }],
     feeNotes: String,
 
-    // Totals
+    // Totals (all in halalas)
     totalFeesOwed: { type: Number, default: 0 },
     totalFeesPaid: { type: Number, default: 0 },
     feePayments: [feePaymentSchema],
+
+    // Commission Status
+    commissionStatus: {
+        type: String,
+        enum: ['pending', 'approved', 'paid', 'void'],
+        default: 'pending'
+    },
+    commissionAmount: { type: Number, default: 0 },  // Calculated amount (halalas)
+    paidAmount: { type: Number, default: 0 },         // Amount already paid (halalas)
+    paidDate: { type: Date },
+    paymentMethod: { type: String, trim: true },
+    paymentReference: { type: String, trim: true },
+
+    // ═══════════════════════════════════════════════════════════════
+    // AGREEMENT
+    // ═══════════════════════════════════════════════════════════════
+    hasAgreement: { type: Boolean, default: false },
+    agreementDate: { type: Date },
+    agreementExpiryDate: { type: Date },
+    agreementDocument: { type: String, trim: true },  // File URL
+
+    // ═══════════════════════════════════════════════════════════════
+    // BANKING (for commission payment)
+    // ═══════════════════════════════════════════════════════════════
+    bankName: { type: String, trim: true },
+    iban: { type: String, trim: true, maxlength: 24 },
+    accountHolderName: { type: String, trim: true },
+
+    // ═══════════════════════════════════════════════════════════════
+    // ASSIGNMENT
+    // ═══════════════════════════════════════════════════════════════
+    assignedTo: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'  // Staff ID handling this referral
+    },
+    followUpDate: { type: Date },
 
     // ═══════════════════════════════════════════════════════════════
     // REFERRED ENTITIES
@@ -188,9 +316,13 @@ const referralSchema = new mongoose.Schema({
 // INDEXES
 // ═══════════════════════════════════════════════════════════════
 referralSchema.index({ lawyerId: 1, status: 1 });
+referralSchema.index({ firmId: 1, status: 1 });
+referralSchema.index({ lawyerId: 1, referrerType: 1 });
+referralSchema.index({ lawyerId: 1, commissionStatus: 1 });
+referralSchema.index({ lawyerId: 1, practiceArea: 1 });
 referralSchema.index({ lawyerId: 1, type: 1 });
 referralSchema.index({ lawyerId: 1, 'sourceType': 1, 'sourceId': 1 });
-referralSchema.index({ name: 'text', 'externalSource.name': 'text' });
+referralSchema.index({ referrerName: 'text', referredName: 'text', name: 'text', 'externalSource.name': 'text' });
 
 // ═══════════════════════════════════════════════════════════════
 // VIRTUALS

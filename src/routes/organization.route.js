@@ -1,5 +1,5 @@
 const express = require('express');
-const { userMiddleware } = require('../middlewares');
+const { userMiddleware, firmFilter } = require('../middlewares');
 const {
     createOrganization,
     getOrganizations,
@@ -14,28 +14,38 @@ const {
     linkToCase
 } = require('../controllers/organization.controller');
 
-const app = express.Router();
+const router = express.Router();
 
-// Search (must be before :id routes)
-app.get('/search', userMiddleware, searchOrganizations);
+// Apply authentication and firm filter to all routes
+router.use(userMiddleware, firmFilter);
 
-// By client
-app.get('/client/:clientId', userMiddleware, getOrganizationsByClient);
+// ============================================
+// SPECIAL ROUTES (before :id routes)
+// ============================================
+router.get('/search', searchOrganizations);
+router.get('/client/:clientId', getOrganizationsByClient);
 
-// Bulk operations
-app.post('/bulk-delete', userMiddleware, bulkDeleteOrganizations);
+// ============================================
+// BULK OPERATIONS
+// ============================================
+router.delete('/bulk', bulkDeleteOrganizations);
+router.post('/bulk-delete', bulkDeleteOrganizations);  // Legacy support
 
-// CRUD operations
-app.get('/', userMiddleware, getOrganizations);
-app.post('/', userMiddleware, createOrganization);
+// ============================================
+// CRUD OPERATIONS
+// ============================================
+router.get('/', getOrganizations);
+router.post('/', createOrganization);
+router.get('/:id', getOrganization);
+router.put('/:id', updateOrganization);
+router.patch('/:id', updateOrganization);  // Support both PUT and PATCH
+router.delete('/:id', deleteOrganization);
 
-app.get('/:id', userMiddleware, getOrganization);
-app.patch('/:id', userMiddleware, updateOrganization);
-app.delete('/:id', userMiddleware, deleteOrganization);
+// ============================================
+// LINKING OPERATIONS
+// ============================================
+router.post('/:id/link-case', linkToCase);
+router.post('/:id/link-client', linkToClient);
+router.post('/:id/link-contact', linkToContact);
 
-// Linking operations
-app.post('/:id/link-case', userMiddleware, linkToCase);
-app.post('/:id/link-client', userMiddleware, linkToClient);
-app.post('/:id/link-contact', userMiddleware, linkToContact);
-
-module.exports = app;
+module.exports = router;

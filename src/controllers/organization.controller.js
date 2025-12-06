@@ -7,36 +7,34 @@ const CustomException = require('../utils/CustomException');
  * POST /api/organizations
  */
 const createOrganization = asyncHandler(async (req, res) => {
-    const {
-        name, nameAr, type, registrationNumber, vatNumber,
-        phone, fax, email, website, address, city,
-        postalCode, country, industry, size, notes
-    } = req.body;
-    const lawyerId = req.userID;
-
-    if (!name || !type) {
-        throw CustomException('اسم المنظمة ونوعها مطلوبان', 400);
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية للوصول', 403);
     }
 
-    const organization = await Organization.create({
+    const lawyerId = req.userID;
+    const firmId = req.firmId;
+
+    const orgData = {
+        ...req.body,
         lawyerId,
-        name: name.trim(),
-        nameAr: nameAr?.trim(),
-        type,
-        registrationNumber: registrationNumber?.trim(),
-        vatNumber: vatNumber?.trim(),
-        phone: phone?.trim(),
-        fax: fax?.trim(),
-        email: email?.trim().toLowerCase(),
-        website: website?.trim(),
-        address: address?.trim(),
-        city: city?.trim(),
-        postalCode: postalCode?.trim(),
-        country: country || 'Saudi Arabia',
-        industry: industry?.trim(),
-        size,
-        notes
-    });
+        firmId,
+        createdBy: lawyerId
+    };
+
+    // Validate required fields - support both legalName and legacy name field
+    if (!orgData.legalName && !orgData.name) {
+        throw CustomException('الاسم القانوني مطلوب', 400);
+    }
+    if (!orgData.type) {
+        throw CustomException('نوع المنظمة مطلوب', 400);
+    }
+
+    // Sync legalName and name for backward compatibility
+    if (!orgData.legalName && orgData.name) {
+        orgData.legalName = orgData.name;
+    }
+
+    const organization = await Organization.create(orgData);
 
     res.status(201).json({
         success: true,
@@ -46,46 +44,56 @@ const createOrganization = asyncHandler(async (req, res) => {
 });
 
 /**
- * Get all organizations
+ * Get all organizations with filters
  * GET /api/organizations
  */
 const getOrganizations = asyncHandler(async (req, res) => {
-    const {
-        type, status, search, city,
-        page = 1, limit = 50
-    } = req.query;
-    const lawyerId = req.userID;
-
-    const query = { lawyerId };
-
-    if (type) query.type = type;
-    if (status) query.status = status;
-    if (city) query.city = city;
-
-    if (search) {
-        query.$or = [
-            { name: { $regex: search, $options: 'i' } },
-            { nameAr: { $regex: search, $options: 'i' } },
-            { email: { $regex: search, $options: 'i' } },
-            { registrationNumber: { $regex: search, $options: 'i' } }
-        ];
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية للوصول', 403);
     }
 
-    const organizations = await Organization.find(query)
-        .sort({ createdAt: -1 })
-        .limit(parseInt(limit))
-        .skip((parseInt(page) - 1) * parseInt(limit));
+    const lawyerId = req.userID;
+    const firmId = req.firmId;
+    const {
+        type, status, industry, search, conflictCheckStatus, tags,
+        page = 1, limit = 20, sortBy = 'createdAt', sortOrder = 'desc'
+    } = req.query;
 
-    const total = await Organization.countDocuments(query);
+    const parsedLimit = Math.min(parseInt(limit) || 20, 100);
+    const parsedPage = parseInt(page) || 1;
 
-    res.status(200).json({
+    const filters = {
+        firmId,
+        type,
+        status,
+        industry,
+        search,
+        conflictCheckStatus,
+        tags: tags ? (Array.isArray(tags) ? tags : [tags]) : undefined,
+        sortBy,
+        sortOrder,
+        limit: parsedLimit,
+        skip: (parsedPage - 1) * parsedLimit
+    };
+
+    const organizations = await Organization.getOrganizations(lawyerId, filters);
+
+    // Count query
+    const countQuery = firmId ? { firmId } : { lawyerId };
+    if (type) countQuery.type = type;
+    if (status) countQuery.status = status;
+    if (industry) countQuery.industry = industry;
+    if (conflictCheckStatus) countQuery.conflictCheckStatus = conflictCheckStatus;
+    const total = await Organization.countDocuments(countQuery);
+
+    res.json({
         success: true,
         data: organizations,
         pagination: {
-            page: parseInt(page),
-            limit: parseInt(limit),
+            page: parsedPage,
+            limit: parsedLimit,
             total,
-            pages: Math.ceil(total / parseInt(limit))
+            totalPages: Math.ceil(total / parsedLimit)
         }
     });
 });
@@ -95,10 +103,21 @@ const getOrganizations = asyncHandler(async (req, res) => {
  * GET /api/organizations/:id
  */
 const getOrganization = asyncHandler(async (req, res) => {
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية للوصول', 403);
+    }
+
     const { id } = req.params;
     const lawyerId = req.userID;
+    const firmId = req.firmId;
 
-    const organization = await Organization.findOne({ _id: id, lawyerId })
+    const accessQuery = firmId
+        ? { _id: id, firmId }
+        : { _id: id, lawyerId };
+
+    const organization = await Organization.findOne(accessQuery)
+        .populate('keyContacts.contactId', 'firstName lastName email phone')
+        .populate('billingContact', 'firstName lastName email phone')
         .populate('linkedClients', 'name fullName email phone')
         .populate('linkedContacts', 'firstName lastName email phone')
         .populate('linkedCases', 'title caseNumber status');
@@ -107,7 +126,7 @@ const getOrganization = asyncHandler(async (req, res) => {
         throw CustomException('المنظمة غير موجودة', 404);
     }
 
-    res.status(200).json({
+    res.json({
         success: true,
         data: organization
     });
@@ -115,22 +134,40 @@ const getOrganization = asyncHandler(async (req, res) => {
 
 /**
  * Update organization
- * PATCH /api/organizations/:id
+ * PUT /api/organizations/:id
  */
 const updateOrganization = asyncHandler(async (req, res) => {
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية للوصول', 403);
+    }
+
     const { id } = req.params;
     const lawyerId = req.userID;
+    const firmId = req.firmId;
 
-    const organization = await Organization.findOne({ _id: id, lawyerId });
+    const accessQuery = firmId
+        ? { _id: id, firmId }
+        : { _id: id, lawyerId };
+
+    const organization = await Organization.findOne(accessQuery);
 
     if (!organization) {
         throw CustomException('المنظمة غير موجودة', 404);
     }
 
     const allowedFields = [
-        'name', 'nameAr', 'type', 'registrationNumber', 'vatNumber',
-        'phone', 'fax', 'email', 'website', 'address', 'city',
-        'postalCode', 'country', 'industry', 'size', 'notes', 'status'
+        'legalName', 'legalNameAr', 'tradeName', 'tradeNameAr', 'name', 'nameAr',
+        'type', 'status', 'industry', 'subIndustry', 'size', 'employeeCount',
+        'commercialRegistration', 'crIssueDate', 'crExpiryDate', 'crIssuingCity',
+        'vatNumber', 'unifiedNumber', 'municipalLicense', 'chamberMembership', 'registrationNumber',
+        'phone', 'fax', 'email', 'website',
+        'address', 'buildingNumber', 'district', 'city', 'province', 'postalCode', 'country', 'nationalAddress', 'poBox',
+        'parentCompany', 'subsidiaries', 'foundedDate',
+        'capital', 'annualRevenue', 'creditLimit', 'paymentTerms',
+        'bankName', 'iban', 'accountHolderName', 'swiftCode',
+        'billingType', 'preferredPaymentMethod', 'billingCycle', 'billingEmail', 'billingContact',
+        'conflictCheckStatus', 'conflictNotes', 'conflictCheckDate', 'conflictCheckedBy',
+        'keyContacts', 'tags', 'practiceAreas', 'notes', 'description'
     ];
 
     allowedFields.forEach(field => {
@@ -139,9 +176,10 @@ const updateOrganization = asyncHandler(async (req, res) => {
         }
     });
 
+    organization.updatedBy = lawyerId;
     await organization.save();
 
-    res.status(200).json({
+    res.json({
         success: true,
         message: 'تم تحديث المنظمة بنجاح',
         data: organization
@@ -153,16 +191,25 @@ const updateOrganization = asyncHandler(async (req, res) => {
  * DELETE /api/organizations/:id
  */
 const deleteOrganization = asyncHandler(async (req, res) => {
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية للوصول', 403);
+    }
+
     const { id } = req.params;
     const lawyerId = req.userID;
+    const firmId = req.firmId;
 
-    const organization = await Organization.findOneAndDelete({ _id: id, lawyerId });
+    const accessQuery = firmId
+        ? { _id: id, firmId }
+        : { _id: id, lawyerId };
+
+    const organization = await Organization.findOneAndDelete(accessQuery);
 
     if (!organization) {
         throw CustomException('المنظمة غير موجودة', 404);
     }
 
-    res.status(200).json({
+    res.json({
         success: true,
         message: 'تم حذف المنظمة بنجاح'
     });
@@ -170,22 +217,29 @@ const deleteOrganization = asyncHandler(async (req, res) => {
 
 /**
  * Bulk delete organizations
- * POST /api/organizations/bulk-delete
+ * DELETE /api/organizations/bulk
  */
 const bulkDeleteOrganizations = asyncHandler(async (req, res) => {
-    const { organizationIds } = req.body;
-    const lawyerId = req.userID;
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية للوصول', 403);
+    }
 
-    if (!organizationIds || !Array.isArray(organizationIds) || organizationIds.length === 0) {
+    const { ids, organizationIds } = req.body;
+    const deleteIds = ids || organizationIds; // Support both formats
+    const lawyerId = req.userID;
+    const firmId = req.firmId;
+
+    if (!deleteIds || !Array.isArray(deleteIds) || deleteIds.length === 0) {
         throw CustomException('معرفات المنظمات مطلوبة', 400);
     }
 
-    const result = await Organization.deleteMany({
-        _id: { $in: organizationIds },
-        lawyerId
-    });
+    const accessQuery = firmId
+        ? { _id: { $in: deleteIds }, firmId }
+        : { _id: { $in: deleteIds }, lawyerId };
 
-    res.status(200).json({
+    const result = await Organization.deleteMany(accessQuery);
+
+    res.json({
         success: true,
         message: `تم حذف ${result.deletedCount} منظمة بنجاح`,
         count: result.deletedCount
@@ -193,20 +247,26 @@ const bulkDeleteOrganizations = asyncHandler(async (req, res) => {
 });
 
 /**
- * Search organizations
+ * Search organizations (autocomplete)
  * GET /api/organizations/search
  */
 const searchOrganizations = asyncHandler(async (req, res) => {
-    const { q } = req.query;
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية للوصول', 403);
+    }
+
+    const { q, limit = 10 } = req.query;
     const lawyerId = req.userID;
 
     if (!q || q.length < 2) {
         throw CustomException('يجب أن يكون مصطلح البحث حرفين على الأقل', 400);
     }
 
-    const organizations = await Organization.searchOrganizations(lawyerId, q);
+    const organizations = await Organization.searchOrganizations(lawyerId, q, {
+        limit: Math.min(parseInt(limit) || 10, 50)
+    });
 
-    res.status(200).json({
+    res.json({
         success: true,
         data: organizations,
         count: organizations.length
@@ -220,13 +280,15 @@ const searchOrganizations = asyncHandler(async (req, res) => {
 const getOrganizationsByClient = asyncHandler(async (req, res) => {
     const { clientId } = req.params;
     const lawyerId = req.userID;
+    const firmId = req.firmId;
 
-    const organizations = await Organization.find({
-        lawyerId,
-        linkedClients: clientId
-    }).sort({ createdAt: -1 });
+    const query = firmId
+        ? { firmId, linkedClients: clientId }
+        : { lawyerId, linkedClients: clientId };
 
-    res.status(200).json({
+    const organizations = await Organization.find(query).sort({ createdAt: -1 });
+
+    res.json({
         success: true,
         data: organizations
     });
@@ -237,16 +299,28 @@ const getOrganizationsByClient = asyncHandler(async (req, res) => {
  * POST /api/organizations/:id/link-client
  */
 const linkToClient = asyncHandler(async (req, res) => {
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية للوصول', 403);
+    }
+
     const { id } = req.params;
     const { clientId } = req.body;
     const lawyerId = req.userID;
+    const firmId = req.firmId;
 
-    const organization = await Organization.findOne({ _id: id, lawyerId });
+    const accessQuery = firmId
+        ? { _id: id, firmId }
+        : { _id: id, lawyerId };
+
+    const organization = await Organization.findOne(accessQuery);
     if (!organization) {
         throw CustomException('المنظمة غير موجودة', 404);
     }
 
-    const clientExists = await Client.findOne({ _id: clientId, lawyerId });
+    const clientQuery = firmId
+        ? { _id: clientId, firmId }
+        : { _id: clientId, lawyerId };
+    const clientExists = await Client.findOne(clientQuery);
     if (!clientExists) {
         throw CustomException('العميل غير موجود', 404);
     }
@@ -256,7 +330,7 @@ const linkToClient = asyncHandler(async (req, res) => {
         await organization.save();
     }
 
-    res.status(200).json({
+    res.json({
         success: true,
         message: 'تم ربط المنظمة بالعميل بنجاح',
         data: organization
@@ -268,16 +342,28 @@ const linkToClient = asyncHandler(async (req, res) => {
  * POST /api/organizations/:id/link-contact
  */
 const linkToContact = asyncHandler(async (req, res) => {
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية للوصول', 403);
+    }
+
     const { id } = req.params;
     const { contactId } = req.body;
     const lawyerId = req.userID;
+    const firmId = req.firmId;
 
-    const organization = await Organization.findOne({ _id: id, lawyerId });
+    const accessQuery = firmId
+        ? { _id: id, firmId }
+        : { _id: id, lawyerId };
+
+    const organization = await Organization.findOne(accessQuery);
     if (!organization) {
         throw CustomException('المنظمة غير موجودة', 404);
     }
 
-    const contactExists = await Contact.findOne({ _id: contactId, lawyerId });
+    const contactQuery = firmId
+        ? { _id: contactId, firmId }
+        : { _id: contactId, lawyerId };
+    const contactExists = await Contact.findOne(contactQuery);
     if (!contactExists) {
         throw CustomException('جهة الاتصال غير موجودة', 404);
     }
@@ -287,7 +373,7 @@ const linkToContact = asyncHandler(async (req, res) => {
         await organization.save();
     }
 
-    res.status(200).json({
+    res.json({
         success: true,
         message: 'تم ربط المنظمة بجهة الاتصال بنجاح',
         data: organization
@@ -299,16 +385,28 @@ const linkToContact = asyncHandler(async (req, res) => {
  * POST /api/organizations/:id/link-case
  */
 const linkToCase = asyncHandler(async (req, res) => {
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية للوصول', 403);
+    }
+
     const { id } = req.params;
     const { caseId } = req.body;
     const lawyerId = req.userID;
+    const firmId = req.firmId;
 
-    const organization = await Organization.findOne({ _id: id, lawyerId });
+    const accessQuery = firmId
+        ? { _id: id, firmId }
+        : { _id: id, lawyerId };
+
+    const organization = await Organization.findOne(accessQuery);
     if (!organization) {
         throw CustomException('المنظمة غير موجودة', 404);
     }
 
-    const caseExists = await Case.findOne({ _id: caseId, lawyerId });
+    const caseQuery = firmId
+        ? { _id: caseId, firmId }
+        : { _id: caseId, lawyerId };
+    const caseExists = await Case.findOne(caseQuery);
     if (!caseExists) {
         throw CustomException('القضية غير موجودة', 404);
     }
@@ -318,7 +416,7 @@ const linkToCase = asyncHandler(async (req, res) => {
         await organization.save();
     }
 
-    res.status(200).json({
+    res.json({
         success: true,
         message: 'تم ربط المنظمة بالقضية بنجاح',
         data: organization
