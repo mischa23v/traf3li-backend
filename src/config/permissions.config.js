@@ -599,7 +599,321 @@ function getRequiredLevelForAction(method) {
     }
 }
 
+// ═══════════════════════════════════════════════════════════════
+// CASBIN-STYLE ENFORCER (Subject, Object, Action, Domain)
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * HTTP method to action mapping (Casbin-style)
+ */
+const ACTIONS = {
+    CREATE: 'create',
+    READ: 'read',
+    UPDATE: 'update',
+    DELETE: 'delete',
+    APPROVE: 'approve',
+    EXPORT: 'export',
+    MANAGE: 'manage'
+};
+
+/**
+ * Map HTTP method to action
+ * @param {string} method - HTTP method
+ * @returns {string} Action name
+ */
+function methodToAction(method) {
+    const map = {
+        'GET': ACTIONS.READ,
+        'POST': ACTIONS.CREATE,
+        'PUT': ACTIONS.UPDATE,
+        'PATCH': ACTIONS.UPDATE,
+        'DELETE': ACTIONS.DELETE
+    };
+    return map[method.toUpperCase()] || ACTIONS.READ;
+}
+
+/**
+ * Check if action is allowed by permission level
+ * @param {string} level - Permission level (none, view, edit, full)
+ * @param {string} action - Action (create, read, update, delete)
+ * @returns {boolean}
+ */
+function levelAllowsAction(level, action) {
+    const actionLevelMap = {
+        [ACTIONS.READ]: LEVEL_VALUES.view,
+        [ACTIONS.CREATE]: LEVEL_VALUES.edit,
+        [ACTIONS.UPDATE]: LEVEL_VALUES.edit,
+        [ACTIONS.DELETE]: LEVEL_VALUES.full,
+        [ACTIONS.APPROVE]: LEVEL_VALUES.full,
+        [ACTIONS.EXPORT]: LEVEL_VALUES.view,
+        [ACTIONS.MANAGE]: LEVEL_VALUES.full
+    };
+
+    const requiredLevel = actionLevelMap[action] || LEVEL_VALUES.view;
+    const userLevel = LEVEL_VALUES[level] || 0;
+
+    return userLevel >= requiredLevel;
+}
+
+/**
+ * Casbin-style enforce function
+ * Checks if subject can perform action on object in domain
+ *
+ * @param {object} subject - User context { role, permissions, isSoloLawyer, firmId, directPermissions, denyPermissions }
+ * @param {string} object - Resource/module name (e.g., 'cases', 'clients')
+ * @param {string} action - Action to perform (create, read, update, delete)
+ * @param {string|null} domain - Tenant/firm ID (null for solo lawyers)
+ * @returns {object} { allowed: boolean, reason: string }
+ */
+function enforce(subject, object, action, domain = null) {
+    // 1. Check explicit deny rules first (deny takes precedence - Casbin pattern)
+    if (subject.denyPermissions && subject.denyPermissions[object]) {
+        const denyLevel = subject.denyPermissions[object];
+        if (denyLevel === 'all' || levelAllowsAction(denyLevel, action)) {
+            return {
+                allowed: false,
+                reason: `DENIED: Explicit deny rule for ${object}:${action}`
+            };
+        }
+    }
+
+    // 2. Solo lawyer - full access to their own domain (domain=null)
+    if (subject.isSoloLawyer && domain === null) {
+        const soloPerms = ROLE_PERMISSIONS.solo_lawyer;
+        const level = soloPerms.modules[object] || 'none';
+        if (levelAllowsAction(level, action)) {
+            return {
+                allowed: true,
+                reason: 'ALLOWED: Solo lawyer has full access to own data'
+            };
+        }
+    }
+
+    // 3. Check domain/tenant match (multi-tenancy isolation)
+    if (domain && subject.firmId && subject.firmId.toString() !== domain.toString()) {
+        return {
+            allowed: false,
+            reason: 'DENIED: Cross-tenant access not allowed'
+        };
+    }
+
+    // 4. Check direct permissions first (Laravel Permission pattern)
+    if (subject.directPermissions && subject.directPermissions[object]) {
+        const level = subject.directPermissions[object];
+        if (levelAllowsAction(level, action)) {
+            return {
+                allowed: true,
+                reason: `ALLOWED: Direct permission ${object}:${level}`
+            };
+        }
+    }
+
+    // 5. Check custom permissions from firm membership
+    if (subject.permissions && subject.permissions[object]) {
+        const level = subject.permissions[object];
+        if (levelAllowsAction(level, action)) {
+            return {
+                allowed: true,
+                reason: `ALLOWED: Custom permission ${object}:${level}`
+            };
+        }
+    }
+
+    // 6. Check role-based permissions with inheritance
+    const rolePerms = getRolePermissionsWithInheritance(subject.role);
+    if (rolePerms && rolePerms.modules && rolePerms.modules[object]) {
+        const level = rolePerms.modules[object];
+        if (levelAllowsAction(level, action)) {
+            return {
+                allowed: true,
+                reason: `ALLOWED: Role ${subject.role} has ${object}:${level}`
+            };
+        }
+    }
+
+    // 7. Default deny
+    return {
+        allowed: false,
+        reason: `DENIED: No permission for ${object}:${action}`
+    };
+}
+
+/**
+ * Get role permissions with inheritance from hierarchy
+ * Higher roles inherit permissions from lower roles
+ *
+ * @param {string} role - Role name
+ * @returns {object} Merged permissions from role and inherited roles
+ */
+function getRolePermissionsWithInheritance(role) {
+    const roleIndex = ROLE_HIERARCHY.indexOf(role);
+    if (roleIndex === -1) {
+        return ROLE_PERMISSIONS[role] || null;
+    }
+
+    // Get all roles this role inherits from (lower in hierarchy)
+    const inheritedRoles = ROLE_HIERARCHY.slice(roleIndex);
+
+    // Merge permissions, higher roles override lower ones
+    let mergedModules = {};
+    let mergedSpecial = {};
+
+    // Start from lowest role and work up
+    for (let i = inheritedRoles.length - 1; i >= 0; i--) {
+        const inheritRole = inheritedRoles[i];
+        const perms = ROLE_PERMISSIONS[inheritRole];
+        if (perms) {
+            // Merge modules - higher level takes precedence
+            if (perms.modules) {
+                for (const [mod, level] of Object.entries(perms.modules)) {
+                    const currentLevel = LEVEL_VALUES[mergedModules[mod]] || 0;
+                    const newLevel = LEVEL_VALUES[level] || 0;
+                    if (newLevel > currentLevel) {
+                        mergedModules[mod] = level;
+                    }
+                }
+            }
+            // Merge special permissions - true takes precedence
+            if (perms.special) {
+                mergedSpecial = { ...mergedSpecial, ...perms.special };
+            }
+        }
+    }
+
+    return {
+        modules: mergedModules,
+        special: mergedSpecial,
+        role: role
+    };
+}
+
+/**
+ * Check special action permission (Casbin-style for special operations)
+ * @param {object} subject - User context
+ * @param {string} specialAction - Special action (canApproveInvoices, canExportData, etc.)
+ * @returns {boolean}
+ */
+function enforceSpecial(subject, specialAction) {
+    // Check direct special permissions
+    if (subject.directPermissions && subject.directPermissions[specialAction] === true) {
+        return true;
+    }
+
+    // Check custom permissions from firm membership
+    if (subject.permissions && subject.permissions[specialAction] === true) {
+        return true;
+    }
+
+    // Check role-based special permissions with inheritance
+    const rolePerms = getRolePermissionsWithInheritance(subject.role);
+    if (rolePerms && rolePerms.special && rolePerms.special[specialAction] === true) {
+        return true;
+    }
+
+    return false;
+}
+
+/**
+ * Build subject context for enforce function
+ * Creates a standardized subject object from user data
+ *
+ * @param {object} user - User document
+ * @param {object} member - Firm member data (optional)
+ * @returns {object} Subject context for enforce()
+ */
+function buildSubject(user, member = null) {
+    const subject = {
+        userId: user._id,
+        role: user.firmRole || user.role || 'client',
+        isSoloLawyer: isSoloLawyer(user),
+        firmId: user.firmId || null,
+        permissions: {},
+        directPermissions: {},
+        denyPermissions: {}
+    };
+
+    // Solo lawyer context
+    if (subject.isSoloLawyer) {
+        subject.role = 'solo_lawyer';
+        subject.permissions = ROLE_PERMISSIONS.solo_lawyer.modules;
+        return subject;
+    }
+
+    // Firm member context
+    if (member) {
+        subject.role = member.role;
+
+        // Custom permissions override role defaults
+        if (member.permissions && typeof member.permissions === 'object') {
+            // Separate modules from special permissions
+            const modulePerms = {};
+            const specialPerms = {};
+
+            for (const [key, value] of Object.entries(member.permissions)) {
+                if (MODULES[key.toUpperCase()] || Object.values(MODULES).includes(key)) {
+                    modulePerms[key] = value;
+                } else if (typeof value === 'boolean') {
+                    specialPerms[key] = value;
+                }
+            }
+
+            subject.permissions = modulePerms;
+            subject.directPermissions = specialPerms;
+        }
+
+        // Handle deny rules if present
+        if (member.denyPermissions) {
+            subject.denyPermissions = member.denyPermissions;
+        }
+    }
+
+    return subject;
+}
+
+/**
+ * Express middleware factory for Casbin-style enforcement
+ * Creates middleware that checks permissions before route handler
+ *
+ * @param {string} resource - Resource/module name
+ * @param {string} action - Action (optional, inferred from HTTP method if not provided)
+ * @returns {function} Express middleware
+ */
+function enforceMiddleware(resource, action = null) {
+    return async (req, res, next) => {
+        try {
+            const finalAction = action || methodToAction(req.method);
+            const subject = req.subject || buildSubject(
+                { _id: req.userID, firmId: req.firmId, firmRole: req.firmRole, isSoloLawyer: req.isSoloLawyer },
+                req.memberData
+            );
+            const domain = req.firmId || null;
+
+            const result = enforce(subject, resource, finalAction, domain);
+
+            if (!result.allowed) {
+                return res.status(403).json({
+                    success: false,
+                    message: 'ليس لديك صلاحية لهذا الإجراء',
+                    code: 'PERMISSION_DENIED',
+                    debug: process.env.NODE_ENV === 'development' ? result.reason : undefined
+                });
+            }
+
+            // Attach enforcement result for logging
+            req.enforcementResult = result;
+            next();
+        } catch (error) {
+            return res.status(500).json({
+                success: false,
+                message: 'Permission check failed',
+                error: error.message
+            });
+        }
+    };
+}
+
 module.exports = {
+    // Constants
     ROLES,
     ROLE_HIERARCHY,
     PERMISSION_LEVELS,
@@ -608,7 +922,9 @@ module.exports = {
     ROLE_PERMISSIONS,
     EMPLOYMENT_STATUS,
     WORK_MODES,
-    // Helper functions
+    ACTIONS,
+
+    // Basic helper functions
     getDefaultPermissions,
     getSoloLawyerPermissions,
     isSoloLawyer,
@@ -620,5 +936,14 @@ module.exports = {
     getRoleLevel,
     canManageRole,
     getAccessibleModules,
-    getRequiredLevelForAction
+    getRequiredLevelForAction,
+
+    // Casbin-style enforcer functions
+    methodToAction,
+    levelAllowsAction,
+    enforce,
+    enforceSpecial,
+    getRolePermissionsWithInheritance,
+    buildSubject,
+    enforceMiddleware
 };

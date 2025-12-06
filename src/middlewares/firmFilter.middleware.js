@@ -31,7 +31,12 @@ const {
     roleHasPermission,
     hasSpecialPermission,
     getDepartedRestrictions,
-    getRequiredLevelForAction
+    getRequiredLevelForAction,
+    // Casbin-style enforcer
+    enforce,
+    enforceSpecial,
+    buildSubject,
+    methodToAction
 } = require('../config/permissions.config');
 
 /**
@@ -67,6 +72,12 @@ const firmFilter = async (req, res, next) => {
             req.firmQuery = { lawyerId: userId }; // Solo lawyers filter by their own ID
             req.permissions = getSoloLawyerPermissions(); // Solo lawyers get full permissions
 
+            // Build subject for Casbin-style enforcement
+            req.subject = buildSubject(
+                { _id: userId, firmId: null, firmRole: null, isSoloLawyer: true, role: 'lawyer' },
+                null
+            );
+
             // Helper functions for solo lawyers
             req.hasPermission = () => true; // Solo lawyers have all permissions
             req.hasSpecialPermission = (permission) => {
@@ -84,6 +95,11 @@ const firmFilter = async (req, res, next) => {
                 return data;
             };
             req.getFirm = async () => null;
+
+            // Casbin-style enforce helper for solo lawyers
+            req.enforce = (resource, action) => {
+                return enforce(req.subject, resource, action, null);
+            };
 
             return next();
         }
@@ -175,6 +191,17 @@ const firmFilter = async (req, res, next) => {
                     ]
                 };
             }
+
+            // Build subject for Casbin-style enforcement (firm members)
+            req.subject = buildSubject(
+                { _id: userId, firmId: user.firmId, firmRole: user.firmRole, isSoloLawyer: false, role: user.role },
+                req.memberData
+            );
+
+            // Casbin-style enforce helper for firm members
+            req.enforce = (resource, action) => {
+                return enforce(req.subject, resource, action, user.firmId);
+            };
         } else {
             // For backwards compatibility with users without firmId
             // Fall back to lawyerId-based filtering (treat as solo lawyer)
