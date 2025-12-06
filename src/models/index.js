@@ -94,14 +94,6 @@ const Vendor = require('./vendor.model');
 const Bill = require('./bill.model');
 const BillPayment = require('./billPayment.model');
 
-// HR Models
-const Employee = require('./employee.model');
-const Salary = require('./salary.model');
-const Payroll = require('./payroll.model');
-const Leave = require('./leave.model');
-const Attendance = require('./attendance.model');
-const Evaluation = require('./evaluation.model');
-
 // Authentication Models
 const EmailOTP = require('./emailOtp.model');
 
@@ -224,14 +216,6 @@ module.exports = {
     Vendor,
     Bill,
     BillPayment,
-
-    // HR
-    Employee,
-    Salary,
-    Payroll,
-    Leave,
-    Attendance,
-    Evaluation,
 
     // Authentication
     EmailOTP,

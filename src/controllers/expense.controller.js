@@ -1,4 +1,4 @@
-const { Expense, Case, Client, User, Employee, BillingActivity } = require('../models');
+const { Expense, Case, Client, User, BillingActivity } = require('../models');
 const { CustomException } = require('../utils');
 const asyncHandler = require('../utils/asyncHandler');
 const mongoose = require('mongoose');
@@ -89,10 +89,6 @@ const createExpense = asyncHandler(async (req, res) => {
     }
 
     // Validate conditional fields
-    if (expenseType === 'reimbursable' && !employeeId) {
-        throw CustomException('Employee ID is required for reimbursable expenses', 400);
-    }
-
     if (isBillable && !clientId) {
         throw CustomException('Client ID is required for billable expenses', 400);
     }
@@ -128,14 +124,6 @@ const createExpense = asyncHandler(async (req, res) => {
         const client = await Client.findById(clientId);
         if (!client) {
             throw CustomException('Client not found', 404);
-        }
-    }
-
-    // If employeeId provided, validate employee exists
-    if (employeeId) {
-        const employee = await Employee.findById(employeeId);
-        if (!employee) {
-            throw CustomException('Employee not found', 404);
         }
     }
 

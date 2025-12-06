@@ -96,8 +96,7 @@ const MODULES = {
     TIME_TRACKING: 'timeTracking',
     REPORTS: 'reports',
     SETTINGS: 'settings',
-    TEAM: 'team',
-    HR: 'hr'
+    TEAM: 'team'
 };
 
 // ═══════════════════════════════════════════════════════════════
@@ -122,8 +121,7 @@ const ROLE_PERMISSIONS = {
             timeTracking: 'full',
             reports: 'full',
             settings: 'full',
-            team: 'full',
-            hr: 'full'
+            team: 'full'
         },
         special: {
             canApproveInvoices: true,
@@ -152,8 +150,7 @@ const ROLE_PERMISSIONS = {
             timeTracking: 'full',
             reports: 'full',
             settings: 'edit',  // Can edit but not full control
-            team: 'full',
-            hr: 'full'
+            team: 'full'
         },
         special: {
             canApproveInvoices: true,
@@ -182,8 +179,7 @@ const ROLE_PERMISSIONS = {
             timeTracking: 'full',
             reports: 'view',
             settings: 'view',
-            team: 'view',
-            hr: 'none'
+            team: 'view'
         },
         special: {
             canApproveInvoices: true,
@@ -212,8 +208,7 @@ const ROLE_PERMISSIONS = {
             timeTracking: 'full',
             reports: 'view',
             settings: 'none',
-            team: 'view',      // Can see team members
-            hr: 'none'
+            team: 'view'       // Can see team members
         },
         special: {
             canApproveInvoices: false,
@@ -242,8 +237,7 @@ const ROLE_PERMISSIONS = {
             timeTracking: 'edit',
             reports: 'none',
             settings: 'none',
-            team: 'view',
-            hr: 'none'
+            team: 'view'
         },
         special: {
             canApproveInvoices: false,
@@ -272,8 +266,7 @@ const ROLE_PERMISSIONS = {
             timeTracking: 'view',
             reports: 'none',
             settings: 'none',
-            team: 'view',
-            hr: 'none'
+            team: 'view'
         },
         special: {
             canApproveInvoices: false,
@@ -302,8 +295,7 @@ const ROLE_PERMISSIONS = {
             timeTracking: 'view',  // For billing purposes
             reports: 'full',
             settings: 'none',
-            team: 'none',
-            hr: 'view'
+            team: 'none'
         },
         special: {
             canApproveInvoices: true,
@@ -334,8 +326,7 @@ const ROLE_PERMISSIONS = {
             timeTracking: 'view', // Can see their time entries
             reports: 'none',
             settings: 'none',
-            team: 'none',
-            hr: 'none'
+            team: 'none'
         },
         special: {
             canApproveInvoices: false,
@@ -377,8 +368,7 @@ const ROLE_PERMISSIONS = {
             timeTracking: 'full',
             reports: 'full',
             settings: 'full',
-            team: 'none',        // No team for solo lawyers
-            hr: 'none'           // No HR for solo lawyers
+            team: 'none'         // No team for solo lawyers
         },
         special: {
             canApproveInvoices: true,

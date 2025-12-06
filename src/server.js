@@ -81,9 +81,6 @@ const {
     crmActivityRoute,
     staffRoute,
 
-    // HR
-    hrRoute,
-
     // Accounting
     accountRoute,
     generalLedgerRoute,
@@ -282,9 +279,6 @@ app.use('/api/crm-pipelines', crmPipelineRoute);
 app.use('/api/referrals', referralRoute);
 app.use('/api/crm-activities', crmActivityRoute);
 app.use('/api/staff', staffRoute);
-
-// HR Routes
-app.use('/api/hr', hrRoute);
 
 // Accounting Routes
 app.use('/api/accounts', accountRoute);
