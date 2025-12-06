@@ -476,6 +476,49 @@ const authLogout = async (request, response) => {
     });
 }
 
+const checkAvailability = async (request, response) => {
+    const { email, username, phone } = request.body;
+
+    try {
+        // Validate that at least one field is provided
+        if (!email && !username && !phone) {
+            return response.status(400).send({
+                error: true,
+                message: 'يجب توفير البريد الإلكتروني أو اسم المستخدم أو رقم الجوال'
+            });
+        }
+
+        // Build query based on provided field
+        let query = {};
+        let field = '';
+
+        if (email) {
+            query = { email: email.toLowerCase() };
+            field = 'email';
+        } else if (username) {
+            query = { username: username.toLowerCase() };
+            field = 'username';
+        } else if (phone) {
+            query = { phone: phone };
+            field = 'phone';
+        }
+
+        // Check if user exists with the given field
+        const existingUser = await User.findOne(query).select('_id');
+
+        return response.status(200).send({
+            error: false,
+            available: !existingUser,
+            field: field
+        });
+    } catch ({ message, status = 500 }) {
+        return response.status(status).send({
+            error: true,
+            message
+        });
+    }
+}
+
 const authStatus = async (request, response) => {
     try {
         const user = await User.findOne({ _id: request.userID }).select('-password');
@@ -562,5 +605,6 @@ module.exports = {
     authLogin,
     authLogout,
     authRegister,
-    authStatus
+    authStatus,
+    checkAvailability
 };

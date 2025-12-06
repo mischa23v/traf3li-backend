@@ -1,9 +1,12 @@
 const express = require('express');
-const { authLogin, authLogout, authRegister, authStatus } = require('../controllers/auth.controller');
+const { authLogin, authLogout, authRegister, authStatus, checkAvailability } = require('../controllers/auth.controller');
 const { sendOTP, verifyOTP, resendOTP, checkOTPStatus } = require('../controllers/otp.controller');
 const { authenticate } = require('../middlewares');
 
 const app = express.Router();
+
+// Check availability (email, username, phone)
+app.post('/check-availability', checkAvailability);
 
 // Register
 app.post('/register', authRegister);
