@@ -112,6 +112,9 @@ const Referral = require('./referral.model');
 const Staff = require('./staff.model');
 const Pipeline = require('./pipeline.model');
 
+// Firm Invitation Model
+const FirmInvitation = require('./firmInvitation.model');
+
 // Audit Models
 const AuditLog = require('./auditLog.model');
 
@@ -239,6 +242,9 @@ module.exports = {
     Referral,
     Staff,
     Pipeline,
+
+    // Firm Invitation
+    FirmInvitation,
 
     // Audit
     AuditLog,

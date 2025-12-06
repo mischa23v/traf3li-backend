@@ -27,6 +27,7 @@ const {
     updateMember,
     removeMember,
     leaveFirm,
+    leaveFirmWithSolo,
     transferOwnership,
     getFirmStats,
 
@@ -37,6 +38,12 @@ const {
     getDepartedMembers,
     getMyPermissions,
     getAvailableRoles,
+
+    // Invitation system
+    createInvitation,
+    getInvitations,
+    cancelInvitation,
+    resendInvitation,
 
     // Backwards compatible
     addLawyer,
@@ -112,11 +119,27 @@ app.put('/:id/members/:memberId', teamManagementOnly, updateMember);
 // Remove member
 app.delete('/:id/members/:memberId', teamManagementOnly, removeMember);
 
-// Leave firm (for members)
-app.post('/:id/leave', userMiddleware, leaveFirm);
+// Leave firm (for members) - with solo conversion option
+app.post('/:id/leave', userMiddleware, leaveFirmWithSolo);
 
 // Transfer ownership (owner only)
 app.post('/:id/transfer-ownership', firmOwnerOnly, transferOwnership);
+
+// ═══════════════════════════════════════════════════════════════
+// INVITATION SYSTEM (دعوات الانضمام)
+// ═══════════════════════════════════════════════════════════════
+
+// Create invitation
+app.post('/:firmId/invitations', firmAdminOnly, createInvitation);
+
+// Get firm invitations
+app.get('/:firmId/invitations', firmAdminOnly, getInvitations);
+
+// Cancel invitation
+app.delete('/:firmId/invitations/:invitationId', firmAdminOnly, cancelInvitation);
+
+// Resend invitation email
+app.post('/:firmId/invitations/:invitationId/resend', firmAdminOnly, resendInvitation);
 
 // ═══════════════════════════════════════════════════════════════
 // STATISTICS

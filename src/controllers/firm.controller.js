@@ -6,9 +6,10 @@
  */
 
 const mongoose = require('mongoose');
-const { Firm, User, Client, Case, Invoice, Lead } = require('../models');
+const { Firm, User, Client, Case, Invoice, Lead, FirmInvitation } = require('../models');
 const asyncHandler = require('../utils/asyncHandler');
 const { CustomException } = require('../utils');
+const { getDefaultPermissions } = require('../config/permissions.config');
 
 // ═══════════════════════════════════════════════════════════════
 // MARKETPLACE FUNCTIONS (Backwards Compatible)
@@ -891,12 +892,72 @@ const getDepartedMembers = asyncHandler(async (req, res) => {
 const getMyPermissions = asyncHandler(async (req, res) => {
     const userId = req.userID;
 
-    const user = await User.findById(userId).select('firmId firmRole firmStatus');
-    if (!user?.firmId) {
+    const user = await User.findById(userId).select('firmId firmRole firmStatus isSoloLawyer lawyerWorkMode role');
+
+    // Handle solo lawyer - they have full permissions without needing a firm
+    if (user.isSoloLawyer || (user.role === 'lawyer' && !user.firmId)) {
+        const soloPermissions = getDefaultPermissions('owner');
+        return res.json({
+            success: true,
+            data: {
+                isSoloLawyer: true,
+                firmId: null,
+                firmName: null,
+                role: null,
+                status: 'active',
+                isDeparted: false,
+                permissions: {
+                    modules: {
+                        cases: 'full',
+                        clients: 'full',
+                        calendar: 'full',
+                        tasks: 'full',
+                        documents: 'full',
+                        finance: 'full',
+                        time_tracking: 'full',
+                        investments: 'full'
+                    },
+                    special: {
+                        canInviteMembers: false,
+                        canManageBilling: true,
+                        canAccessReports: true,
+                        canExportData: true
+                    }
+                },
+                // Accessible modules summary for solo lawyers (full access)
+                accessibleModules: {
+                    clients: 'full',
+                    cases: 'full',
+                    leads: 'full',
+                    invoices: 'full',
+                    payments: 'full',
+                    expenses: 'full',
+                    documents: 'full',
+                    tasks: 'full',
+                    events: 'full',
+                    timeTracking: 'full',
+                    reports: 'full',
+                    team: 'none' // Solo lawyers don't have team
+                },
+                specialPermissions: {
+                    canApproveInvoices: true,
+                    canManageRetainers: true,
+                    canExportData: true,
+                    canDeleteRecords: true,
+                    canViewFinance: true,
+                    canManageTeam: false
+                }
+            }
+        });
+    }
+
+    // No firm associated
+    if (!user.firmId) {
         return res.status(404).json({
             success: false,
             message: 'لا يوجد مكتب مرتبط بحسابك',
-            code: 'NO_FIRM'
+            code: 'NO_FIRM_ASSOCIATED',
+            isSoloLawyer: false
         });
     }
 
@@ -904,7 +965,8 @@ const getMyPermissions = asyncHandler(async (req, res) => {
     if (!firm) {
         return res.status(404).json({
             success: false,
-            message: 'المكتب غير موجود'
+            message: 'المكتب غير موجود',
+            code: 'FIRM_NOT_FOUND'
         });
     }
 
@@ -921,6 +983,7 @@ const getMyPermissions = asyncHandler(async (req, res) => {
     res.json({
         success: true,
         data: {
+            isSoloLawyer: false,
             firmId: user.firmId,
             firmName: firm.name,
             role: member.role,
@@ -966,8 +1029,6 @@ const getMyPermissions = asyncHandler(async (req, res) => {
  * GET /api/firms/roles
  */
 const getAvailableRoles = asyncHandler(async (req, res) => {
-    const { getDefaultPermissions } = require('../config/permissions.config');
-
     const roles = [
         { id: 'admin', name: 'مسؤول', nameEn: 'Admin', description: 'صلاحيات كاملة تقريباً' },
         { id: 'partner', name: 'شريك', nameEn: 'Partner', description: 'محامي أقدم مع صلاحيات موسعة' },
@@ -988,6 +1049,506 @@ const getAvailableRoles = asyncHandler(async (req, res) => {
     });
 });
 
+// ═══════════════════════════════════════════════════════════════
+// INVITATION SYSTEM
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Create invitation
+ * POST /api/firms/:firmId/invitations
+ */
+const createInvitation = asyncHandler(async (req, res) => {
+    const { firmId } = req.params;
+    const userId = req.userID;
+    const { email, role = 'lawyer', permissions, expiresInDays = 7, message } = req.body;
+
+    // Validate email
+    if (!email) {
+        throw CustomException('البريد الإلكتروني مطلوب', 400);
+    }
+
+    const firm = await Firm.findById(firmId);
+    if (!firm) {
+        throw CustomException('المكتب غير موجود', 404);
+    }
+
+    // Check if user is owner or admin
+    const requestingMember = firm.members.find(m => m.userId.toString() === userId);
+    if (!requestingMember || !['owner', 'admin'].includes(requestingMember.role)) {
+        throw CustomException('ليس لديك صلاحية لإرسال دعوات', 403);
+    }
+
+    // Check subscription limits
+    const activeMembers = firm.members.filter(m => m.status === 'active').length;
+    const pendingInvitations = await FirmInvitation.countDocuments({
+        firmId,
+        status: 'pending',
+        expiresAt: { $gt: new Date() }
+    });
+
+    if (activeMembers + pendingInvitations >= firm.subscription.maxUsers) {
+        throw CustomException('تم الوصول إلى الحد الأقصى لعدد الأعضاء في خطتك الحالية', 400);
+    }
+
+    // Check if email is already a member
+    const existingMember = await User.findOne({ email: email.toLowerCase(), firmId });
+    if (existingMember) {
+        throw CustomException('هذا المستخدم عضو في المكتب بالفعل', 400);
+    }
+
+    // Check if there's already an active invitation
+    const hasActiveInvitation = await FirmInvitation.hasActiveInvitation(firmId, email);
+    if (hasActiveInvitation) {
+        throw CustomException('يوجد دعوة نشطة لهذا البريد الإلكتروني بالفعل', 400);
+    }
+
+    // Create invitation
+    const code = FirmInvitation.generateCode();
+    const expiresAt = new Date(Date.now() + expiresInDays * 24 * 60 * 60 * 1000);
+
+    const invitation = await FirmInvitation.create({
+        code,
+        firmId,
+        email: email.toLowerCase(),
+        role,
+        permissions: permissions || null,
+        message,
+        expiresAt,
+        invitedBy: userId
+    });
+
+    // Get firm name for response
+    const inviteLink = `https://app.traf3li.com/join-firm?code=${code}`;
+
+    res.status(201).json({
+        success: true,
+        invitation: {
+            id: invitation._id,
+            code: invitation.code,
+            firmId: invitation.firmId,
+            firmName: firm.name,
+            email: invitation.email,
+            role: invitation.role,
+            status: invitation.status,
+            expiresAt: invitation.expiresAt,
+            invitedBy: userId,
+            createdAt: invitation.createdAt
+        },
+        inviteLink,
+        message: 'تم إرسال الدعوة بنجاح'
+    });
+});
+
+/**
+ * Get firm invitations
+ * GET /api/firms/:firmId/invitations
+ */
+const getInvitations = asyncHandler(async (req, res) => {
+    const { firmId } = req.params;
+    const userId = req.userID;
+    const { status } = req.query;
+
+    const firm = await Firm.findById(firmId);
+    if (!firm) {
+        throw CustomException('المكتب غير موجود', 404);
+    }
+
+    // Check if user is owner or admin
+    const requestingMember = firm.members.find(m => m.userId.toString() === userId);
+    if (!requestingMember || !['owner', 'admin'].includes(requestingMember.role)) {
+        throw CustomException('ليس لديك صلاحية لعرض الدعوات', 403);
+    }
+
+    // Build query
+    const query = { firmId };
+    if (status) {
+        query.status = status;
+    }
+
+    const invitations = await FirmInvitation.find(query)
+        .populate('invitedBy', 'firstName lastName')
+        .sort({ createdAt: -1 });
+
+    res.json({
+        success: true,
+        invitations: invitations.map(inv => ({
+            id: inv._id,
+            code: inv.code,
+            email: inv.email,
+            role: inv.role,
+            status: inv.status,
+            expiresAt: inv.expiresAt,
+            invitedBy: inv.invitedBy ? {
+                id: inv.invitedBy._id,
+                name: `${inv.invitedBy.firstName} ${inv.invitedBy.lastName}`
+            } : null,
+            createdAt: inv.createdAt
+        })),
+        total: invitations.length
+    });
+});
+
+/**
+ * Cancel invitation
+ * DELETE /api/firms/:firmId/invitations/:invitationId
+ */
+const cancelInvitation = asyncHandler(async (req, res) => {
+    const { firmId, invitationId } = req.params;
+    const userId = req.userID;
+
+    const firm = await Firm.findById(firmId);
+    if (!firm) {
+        throw CustomException('المكتب غير موجود', 404);
+    }
+
+    // Check if user is owner or admin
+    const requestingMember = firm.members.find(m => m.userId.toString() === userId);
+    if (!requestingMember || !['owner', 'admin'].includes(requestingMember.role)) {
+        throw CustomException('ليس لديك صلاحية لإلغاء الدعوات', 403);
+    }
+
+    const invitation = await FirmInvitation.findOne({ _id: invitationId, firmId });
+    if (!invitation) {
+        throw CustomException('الدعوة غير موجودة', 404);
+    }
+
+    if (invitation.status !== 'pending') {
+        throw CustomException('لا يمكن إلغاء دعوة غير معلقة', 400);
+    }
+
+    await invitation.cancel(userId);
+
+    res.json({
+        success: true,
+        message: 'تم إلغاء الدعوة بنجاح'
+    });
+});
+
+/**
+ * Validate invitation code (public)
+ * GET /api/invitations/:code
+ */
+const validateInvitationCode = asyncHandler(async (req, res) => {
+    const { code } = req.params;
+
+    const invitation = await FirmInvitation.findValidByCode(code);
+
+    if (!invitation) {
+        return res.status(400).json({
+            valid: false,
+            error: 'الدعوة غير صالحة أو منتهية الصلاحية',
+            code: 'INVITATION_INVALID'
+        });
+    }
+
+    res.json({
+        valid: true,
+        invitation: {
+            firmName: invitation.firmId?.name,
+            firmNameEn: invitation.firmId?.nameEnglish,
+            role: invitation.role,
+            expiresAt: invitation.expiresAt,
+            invitedEmail: invitation.email
+        }
+    });
+});
+
+/**
+ * Accept invitation (authenticated user)
+ * POST /api/invitations/:code/accept
+ */
+const acceptInvitation = asyncHandler(async (req, res) => {
+    const { code } = req.params;
+    const userId = req.userID;
+    const { acceptTerms } = req.body;
+
+    if (!acceptTerms) {
+        throw CustomException('يجب قبول الشروط للانضمام', 400);
+    }
+
+    // Get user
+    const user = await User.findById(userId);
+    if (!user) {
+        throw CustomException('المستخدم غير موجود', 404);
+    }
+
+    // Check if user is a lawyer
+    if (user.role !== 'lawyer' && !user.isSeller) {
+        throw CustomException('هذه الخدمة متاحة للمحامين فقط', 403);
+    }
+
+    // Check if user already has a firm
+    if (user.firmId) {
+        throw CustomException('لديك مكتب مرتبط بالفعل', 409);
+    }
+
+    // Validate invitation
+    const invitation = await FirmInvitation.findValidByCode(code);
+    if (!invitation) {
+        throw CustomException('الدعوة غير صالحة أو منتهية الصلاحية', 400);
+    }
+
+    // Check if email matches
+    if (invitation.email.toLowerCase() !== user.email.toLowerCase()) {
+        throw CustomException('كود الدعوة مخصص لبريد إلكتروني آخر', 400);
+    }
+
+    // Get firm
+    const firm = await Firm.findById(invitation.firmId);
+    if (!firm) {
+        throw CustomException('المكتب غير موجود', 404);
+    }
+
+    // Check subscription limits
+    const activeMembers = firm.members.filter(m => m.status === 'active').length;
+    if (activeMembers >= firm.subscription.maxUsers) {
+        throw CustomException('تم الوصول إلى الحد الأقصى لعدد الأعضاء في المكتب', 400);
+    }
+
+    // Add user to firm
+    const memberPermissions = invitation.permissions && Object.values(invitation.permissions).some(v => v !== null)
+        ? invitation.permissions
+        : getDefaultPermissions(invitation.role);
+
+    firm.members.push({
+        userId: user._id,
+        role: invitation.role,
+        permissions: memberPermissions,
+        status: 'active',
+        joinedAt: new Date()
+    });
+
+    if (!firm.lawyers.includes(user._id)) {
+        firm.lawyers.push(user._id);
+    }
+
+    await firm.save();
+
+    // Update user
+    await User.findByIdAndUpdate(user._id, {
+        firmId: firm._id,
+        firmRole: invitation.role,
+        firmStatus: 'active',
+        isSoloLawyer: false,
+        lawyerWorkMode: 'firm_member',
+        'lawyerProfile.firmID': firm._id
+    });
+
+    // Mark invitation as accepted
+    await invitation.accept(user._id);
+
+    res.json({
+        success: true,
+        firm: {
+            id: firm._id,
+            name: firm.name,
+            role: invitation.role
+        },
+        message: 'تم الانضمام إلى المكتب بنجاح'
+    });
+});
+
+// ═══════════════════════════════════════════════════════════════
+// SOLO LAWYER FEATURES
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Convert solo lawyer to firm owner
+ * POST /api/users/convert-to-firm
+ */
+const convertSoloToFirm = asyncHandler(async (req, res) => {
+    const userId = req.userID;
+    const { firmData, migrateExistingData = true } = req.body;
+
+    // Get user
+    const user = await User.findById(userId);
+    if (!user) {
+        throw CustomException('المستخدم غير موجود', 404);
+    }
+
+    // Check if user is a lawyer
+    if (user.role !== 'lawyer' && !user.isSeller) {
+        throw CustomException('هذه الخدمة متاحة للمحامين فقط', 403);
+    }
+
+    // Check if user already has a firm
+    if (user.firmId) {
+        throw CustomException('لديك مكتب مرتبط بالفعل', 409);
+    }
+
+    // Validate firm data
+    if (!firmData || !firmData.name || !firmData.licenseNumber) {
+        throw CustomException('بيانات المكتب مطلوبة: الاسم ورقم الترخيص', 400);
+    }
+
+    // Create the firm
+    const firm = await Firm.create({
+        name: firmData.name,
+        nameArabic: firmData.name,
+        nameEnglish: firmData.nameEn || null,
+        licenseNumber: firmData.licenseNumber,
+        email: firmData.email || user.email,
+        phone: firmData.phone || user.phone,
+        address: {
+            region: firmData.region,
+            city: firmData.city,
+            street: firmData.address
+        },
+        website: firmData.website || null,
+        description: firmData.description || null,
+        practiceAreas: firmData.specializations || user.lawyerProfile?.specialization || [],
+        ownerId: userId,
+        createdBy: userId,
+        lawyers: [userId],
+        members: [{
+            userId,
+            role: 'owner',
+            permissions: getDefaultPermissions('owner'),
+            status: 'active',
+            joinedAt: new Date()
+        }],
+        subscription: {
+            plan: 'free',
+            status: 'trial',
+            trialEndsAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
+            maxUsers: 3,
+            maxCases: 50,
+            maxClients: 100
+        }
+    });
+
+    // Update user
+    await User.findByIdAndUpdate(userId, {
+        firmId: firm._id,
+        firmRole: 'owner',
+        firmStatus: 'active',
+        isSoloLawyer: false,
+        lawyerWorkMode: 'firm_owner',
+        'lawyerProfile.firmID': firm._id
+    });
+
+    // Migrate existing data if requested
+    if (migrateExistingData) {
+        // Update all existing data to belong to the new firm
+        await Promise.all([
+            Client.updateMany({ lawyerId: userId, firmId: null }, { firmId: firm._id }),
+            Case.updateMany({ lawyerId: userId, firmId: null }, { firmId: firm._id }),
+            Invoice.updateMany({ lawyerId: userId, firmId: null }, { firmId: firm._id }),
+            Lead.updateMany({ lawyerId: userId, firmId: null }, { firmId: firm._id })
+        ]);
+    }
+
+    res.status(201).json({
+        success: true,
+        firm: {
+            id: firm._id,
+            name: firm.name,
+            licenseNumber: firm.licenseNumber,
+            status: firm.status
+        },
+        message: 'تم إنشاء المكتب ونقل بياناتك بنجاح'
+    });
+});
+
+/**
+ * Leave firm (for members) with option to convert to solo
+ * POST /api/firms/:id/leave
+ * Updated to support convertToSolo option
+ */
+const leaveFirmWithSolo = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const userId = req.userID;
+    const { reason, convertToSolo = true } = req.body;
+
+    const firm = await Firm.findById(id);
+    if (!firm) {
+        throw CustomException('المكتب غير موجود', 404);
+    }
+
+    const member = firm.members.find(m => m.userId.toString() === userId);
+    if (!member) {
+        throw CustomException('أنت لست عضواً في هذا المكتب', 400);
+    }
+
+    if (member.role === 'owner') {
+        throw CustomException('لا يمكن لمالك المكتب المغادرة. قم بتحويل الملكية أولاً', 400);
+    }
+
+    // Remove from firm
+    await firm.removeMember(userId);
+
+    // Remove from lawyers array
+    firm.lawyers = firm.lawyers.filter(l => l.toString() !== userId);
+    await firm.save();
+
+    // Update user based on convertToSolo option
+    const userUpdate = {
+        $unset: { firmId: 1 },
+        firmRole: null,
+        firmStatus: null,
+        'lawyerProfile.firmID': null
+    };
+
+    if (convertToSolo) {
+        userUpdate.isSoloLawyer = true;
+        userUpdate.lawyerWorkMode = 'solo';
+    }
+
+    await User.findByIdAndUpdate(userId, userUpdate);
+
+    res.json({
+        success: true,
+        message: convertToSolo
+            ? 'تمت مغادرة المكتب بنجاح. أنت الآن محامي مستقل'
+            : 'تمت مغادرة المكتب بنجاح',
+        isSoloLawyer: convertToSolo
+    });
+});
+
+/**
+ * Resend invitation email
+ * POST /api/firms/:firmId/invitations/:invitationId/resend
+ */
+const resendInvitation = asyncHandler(async (req, res) => {
+    const { firmId, invitationId } = req.params;
+    const userId = req.userID;
+
+    const firm = await Firm.findById(firmId);
+    if (!firm) {
+        throw CustomException('المكتب غير موجود', 404);
+    }
+
+    // Check if user is owner or admin
+    const requestingMember = firm.members.find(m => m.userId.toString() === userId);
+    if (!requestingMember || !['owner', 'admin'].includes(requestingMember.role)) {
+        throw CustomException('ليس لديك صلاحية لإعادة إرسال الدعوات', 403);
+    }
+
+    const invitation = await FirmInvitation.findOne({ _id: invitationId, firmId });
+    if (!invitation) {
+        throw CustomException('الدعوة غير موجودة', 404);
+    }
+
+    if (invitation.status !== 'pending') {
+        throw CustomException('لا يمكن إعادة إرسال دعوة غير معلقة', 400);
+    }
+
+    if (invitation.expiresAt < new Date()) {
+        throw CustomException('الدعوة منتهية الصلاحية', 400);
+    }
+
+    // Update email sent tracking
+    await invitation.markEmailSent();
+
+    // TODO: Send email (integrate with email service)
+
+    res.json({
+        success: true,
+        message: 'تم إعادة إرسال الدعوة بنجاح',
+        emailSentCount: invitation.emailSentCount
+    });
+});
+
 module.exports = {
     // Marketplace (backwards compatible)
     getFirms,
@@ -1003,6 +1564,7 @@ module.exports = {
     updateMember,
     removeMember,
     leaveFirm,
+    leaveFirmWithSolo,
     transferOwnership,
     getFirmStats,
 
@@ -1013,6 +1575,17 @@ module.exports = {
     getDepartedMembers,
     getMyPermissions,
     getAvailableRoles,
+
+    // Invitation system
+    createInvitation,
+    getInvitations,
+    cancelInvitation,
+    validateInvitationCode,
+    acceptInvitation,
+    resendInvitation,
+
+    // Solo lawyer features
+    convertSoloToFirm,
 
     // Backwards compatible
     addLawyer,

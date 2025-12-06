@@ -1,7 +1,8 @@
-const { User } = require('../models');
+const { User, Firm, FirmInvitation } = require('../models');
 const { CustomException } = require('../utils');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
+const { getDefaultPermissions, getSoloLawyerPermissions, isSoloLawyer: checkIsSoloLawyer } = require('../config/permissions.config');
 
 const { JWT_SECRET, NODE_ENV } = process.env;
 const saltRounds = 10;
@@ -28,6 +29,11 @@ const authRegister = async (request, response) => {
         isSeller,
         role,
         lawyerMode,
+
+        // NEW: Lawyer work mode
+        lawyerWorkMode, // 'solo' | 'create_firm' | 'join_firm'
+        firmData,       // Required if lawyerWorkMode is 'create_firm'
+        invitationCode, // Required if lawyerWorkMode is 'join_firm'
 
         // Lawyer profile fields
         isLicensed,
@@ -63,6 +69,49 @@ const authRegister = async (request, response) => {
             });
         }
 
+        // Validate lawyerWorkMode for lawyers
+        const isLawyer = isSeller || role === 'lawyer';
+        if (isLawyer && lawyerWorkMode) {
+            // Validate create_firm mode
+            if (lawyerWorkMode === 'create_firm') {
+                if (!firmData || !firmData.name || !firmData.licenseNumber) {
+                    return response.status(400).send({
+                        error: true,
+                        message: 'بيانات المكتب مطلوبة: الاسم ورقم الترخيص'
+                    });
+                }
+            }
+
+            // Validate join_firm mode
+            if (lawyerWorkMode === 'join_firm') {
+                if (!invitationCode) {
+                    return response.status(400).send({
+                        error: true,
+                        message: 'كود الدعوة مطلوب للانضمام إلى مكتب'
+                    });
+                }
+
+                // Validate invitation code
+                const invitation = await FirmInvitation.findValidByCode(invitationCode);
+                if (!invitation) {
+                    return response.status(400).send({
+                        error: true,
+                        message: 'كود الدعوة غير صالح أو منتهي الصلاحية',
+                        code: 'INVITATION_INVALID'
+                    });
+                }
+
+                // Check if invitation is for this email
+                if (invitation.email.toLowerCase() !== email.toLowerCase()) {
+                    return response.status(400).send({
+                        error: true,
+                        message: 'كود الدعوة مخصص لبريد إلكتروني آخر',
+                        code: 'INVITATION_EMAIL_MISMATCH'
+                    });
+                }
+            }
+        }
+
         const hash = bcrypt.hashSync(password, saltRounds);
 
         // Build user object
@@ -81,11 +130,29 @@ const authRegister = async (request, response) => {
             city,
             isSeller: isSeller || false,
             role: role || (isSeller ? 'lawyer' : 'client'),
-            lawyerMode: isSeller ? (lawyerMode || 'dashboard') : null
+            lawyerMode: isLawyer ? (lawyerMode || 'dashboard') : null
         };
 
+        // Set solo lawyer fields
+        if (isLawyer) {
+            if (lawyerWorkMode === 'solo') {
+                userData.isSoloLawyer = true;
+                userData.lawyerWorkMode = 'solo';
+            } else if (lawyerWorkMode === 'create_firm') {
+                userData.isSoloLawyer = false;
+                userData.lawyerWorkMode = 'firm_owner';
+            } else if (lawyerWorkMode === 'join_firm') {
+                userData.isSoloLawyer = false;
+                userData.lawyerWorkMode = 'firm_member';
+            } else {
+                // Default to solo for backwards compatibility
+                userData.isSoloLawyer = true;
+                userData.lawyerWorkMode = 'solo';
+            }
+        }
+
         // Add lawyer profile if registering as lawyer
-        if (isSeller) {
+        if (isLawyer) {
             // Transform courts object from frontend format to array format
             let courtsArray = [];
             if (courts && typeof courts === 'object') {
@@ -119,10 +186,147 @@ const authRegister = async (request, response) => {
         const user = new User(userData);
         await user.save();
 
-        return response.status(201).send({
+        // Response object
+        let responseData = {
             error: false,
-            message: 'تم إنشاء الحساب بنجاح!'
-        });
+            message: 'تم إنشاء الحساب بنجاح!',
+            user: {
+                id: user._id,
+                username: user.username,
+                email: user.email,
+                role: user.role,
+                isSoloLawyer: user.isSoloLawyer,
+                firmId: null,
+                firmRole: null
+            }
+        };
+
+        // Handle firm creation if lawyerWorkMode is 'create_firm'
+        if (isLawyer && lawyerWorkMode === 'create_firm' && firmData) {
+            try {
+                const firm = await Firm.create({
+                    name: firmData.name,
+                    nameArabic: firmData.name,
+                    nameEnglish: firmData.nameEn || null,
+                    licenseNumber: firmData.licenseNumber,
+                    email: firmData.email || email,
+                    phone: firmData.phone || phone,
+                    address: {
+                        region: firmData.region,
+                        city: firmData.city,
+                        street: firmData.address
+                    },
+                    website: firmData.website || null,
+                    description: firmData.description || null,
+                    practiceAreas: firmData.specializations || [],
+                    ownerId: user._id,
+                    createdBy: user._id,
+                    lawyers: [user._id],
+                    members: [{
+                        userId: user._id,
+                        role: 'owner',
+                        permissions: getDefaultPermissions('owner'),
+                        status: 'active',
+                        joinedAt: new Date()
+                    }],
+                    subscription: {
+                        plan: 'free',
+                        status: 'trial',
+                        trialEndsAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
+                        maxUsers: 3,
+                        maxCases: 50,
+                        maxClients: 100
+                    }
+                });
+
+                // Update user with firm info
+                await User.findByIdAndUpdate(user._id, {
+                    firmId: firm._id,
+                    firmRole: 'owner',
+                    firmStatus: 'active',
+                    'lawyerProfile.firmID': firm._id
+                });
+
+                responseData.user.firmId = firm._id;
+                responseData.user.firmRole = 'owner';
+                responseData.firm = {
+                    id: firm._id,
+                    name: firm.name,
+                    licenseNumber: firm.licenseNumber
+                };
+                responseData.message = 'تم إنشاء الحساب والمكتب بنجاح';
+            } catch (firmError) {
+                console.log('Firm creation error:', firmError.message);
+                // User was created but firm creation failed
+                // Clean up by deleting the user
+                await User.findByIdAndDelete(user._id);
+                return response.status(400).send({
+                    error: true,
+                    message: 'فشل في إنشاء المكتب: ' + firmError.message
+                });
+            }
+        }
+
+        // Handle joining firm if lawyerWorkMode is 'join_firm'
+        if (isLawyer && lawyerWorkMode === 'join_firm' && invitationCode) {
+            try {
+                const invitation = await FirmInvitation.findValidByCode(invitationCode);
+                if (invitation) {
+                    const firm = await Firm.findById(invitation.firmId);
+                    if (firm) {
+                        // Add user to firm
+                        const memberPermissions = invitation.permissions && Object.values(invitation.permissions).some(v => v !== null)
+                            ? invitation.permissions
+                            : getDefaultPermissions(invitation.role);
+
+                        firm.members.push({
+                            userId: user._id,
+                            role: invitation.role,
+                            permissions: memberPermissions,
+                            status: 'active',
+                            joinedAt: new Date()
+                        });
+
+                        if (!firm.lawyers.includes(user._id)) {
+                            firm.lawyers.push(user._id);
+                        }
+
+                        await firm.save();
+
+                        // Update user with firm info
+                        await User.findByIdAndUpdate(user._id, {
+                            firmId: firm._id,
+                            firmRole: invitation.role,
+                            firmStatus: 'active',
+                            'lawyerProfile.firmID': firm._id
+                        });
+
+                        // Mark invitation as accepted
+                        await invitation.accept(user._id);
+
+                        responseData.user.firmId = firm._id;
+                        responseData.user.firmRole = invitation.role;
+                        responseData.firm = {
+                            id: firm._id,
+                            name: firm.name,
+                            role: invitation.role
+                        };
+                        responseData.message = 'تم إنشاء الحساب والانضمام إلى المكتب بنجاح';
+                    }
+                }
+            } catch (joinError) {
+                console.log('Join firm error:', joinError.message);
+                // User was created but joining failed - continue anyway
+                // They can join later
+            }
+        }
+
+        // Update message for solo lawyer
+        if (isLawyer && lawyerWorkMode === 'solo') {
+            responseData.message = 'تم إنشاء الحساب بنجاح كمحامي مستقل';
+        }
+
+        return response.status(201).send(responseData);
     }
     catch({message}) {
         console.log('Registration error:', message);
@@ -148,30 +352,30 @@ const authRegister = async (request, response) => {
 
 const authLogin = async (request, response) => {
     const { username, password } = request.body;
-    
+
     try {
-        // ✅ NEW: Accept both username AND email for login
+        // Accept both username AND email for login
         const user = await User.findOne({
             $or: [
                 { username: username },
                 { email: username }  // Allow email in username field
             ]
         });
-        
+
         if(!user) {
             throw CustomException('Check username or password!', 404);
         }
-        
+
         const match = bcrypt.compareSync(password, user.password);
-        
+
         if(match) {
-            const { password, ...data } = user._doc;
-            
+            const { password: pwd, ...data } = user._doc;
+
             const token = jwt.sign({
                 _id: user._id,
                 isSeller: user.isSeller
             }, JWT_SECRET, { expiresIn: '7 days' });
-            
+
             const cookieConfig = {
                 httpOnly: true,
                 sameSite: NODE_ENV === 'production' ? 'none' : 'strict',
@@ -179,16 +383,75 @@ const authLogin = async (request, response) => {
                 maxAge: 60 * 60 * 24 * 7 * 1000, // 7 days
                 path: '/',
                 domain: NODE_ENV === 'production' ? '.traf3li.com' : undefined
+            };
+
+            // Build enhanced user data with solo lawyer and firm info
+            const userData = {
+                ...data,
+                isSoloLawyer: user.isSoloLawyer || false,
+                lawyerWorkMode: user.lawyerWorkMode || null
+            };
+
+            // If user is a lawyer, get firm information and permissions
+            if (user.role === 'lawyer' || user.isSeller) {
+                if (user.firmId) {
+                    try {
+                        const firm = await Firm.findById(user.firmId)
+                            .select('name nameEnglish licenseNumber status members subscription');
+
+                        if (firm) {
+                            const member = firm.members.find(
+                                m => m.userId.toString() === user._id.toString()
+                            );
+
+                            userData.firm = {
+                                id: firm._id,
+                                name: firm.name,
+                                nameEn: firm.nameEnglish,
+                                status: firm.status
+                            };
+                            userData.firmRole = member?.role || user.firmRole;
+                            userData.firmStatus = member?.status || user.firmStatus;
+
+                            // Include permissions from firm membership
+                            if (member) {
+                                userData.permissions = member.permissions || getDefaultPermissions(member.role);
+                            }
+
+                            // Tenant context for firm members
+                            userData.tenant = {
+                                id: firm._id,
+                                name: firm.name,
+                                nameEn: firm.nameEnglish,
+                                status: firm.status,
+                                subscription: {
+                                    plan: firm.subscription?.plan || 'free',
+                                    status: firm.subscription?.status || 'trial'
+                                }
+                            };
+                        }
+                    } catch (firmError) {
+                        console.log('Error fetching firm:', firmError.message);
+                    }
+                } else if (checkIsSoloLawyer(user)) {
+                    // Solo lawyer - full permissions, no tenant
+                    userData.firm = null;
+                    userData.firmRole = null;
+                    userData.firmStatus = null;
+                    userData.isSoloLawyer = true;
+                    userData.tenant = null;
+                    userData.permissions = getSoloLawyerPermissions();
+                }
             }
-            
+
             return response.cookie('accessToken', token, cookieConfig)
                 .status(202).send({
                     error: false,
                     message: 'Success!',
-                    user: data
+                    user: userData
                 });
         }
-        
+
         throw CustomException('Check username or password!', 404);
     }
     catch({ message, status = 500 }) {
@@ -216,15 +479,75 @@ const authLogout = async (request, response) => {
 const authStatus = async (request, response) => {
     try {
         const user = await User.findOne({ _id: request.userID }).select('-password');
-        
+
         if(!user) {
             throw CustomException('User not found!', 404);
         }
-        
+
+        // Build enhanced user data with solo lawyer and firm info
+        const userData = {
+            ...user._doc,
+            isSoloLawyer: user.isSoloLawyer || false,
+            lawyerWorkMode: user.lawyerWorkMode || null
+        };
+
+        // If user is a lawyer, get firm/tenant information
+        if (user.role === 'lawyer' || user.isSeller) {
+            if (user.firmId) {
+                try {
+                    const firm = await Firm.findById(user.firmId)
+                        .select('name nameEnglish licenseNumber status members subscription');
+
+                    if (firm) {
+                        const member = firm.members.find(
+                            m => m.userId.toString() === user._id.toString()
+                        );
+
+                        // Tenant context (Casbin-style domain info)
+                        userData.tenant = {
+                            id: firm._id,
+                            name: firm.name,
+                            nameEn: firm.nameEnglish,
+                            status: firm.status,
+                            subscription: {
+                                plan: firm.subscription?.plan || 'free',
+                                status: firm.subscription?.status || 'trial'
+                            }
+                        };
+
+                        // User's role within tenant
+                        userData.firmRole = member?.role || user.firmRole;
+                        userData.firmStatus = member?.status || user.firmStatus;
+                        userData.permissions = member?.permissions || null;
+
+                        // For backwards compatibility
+                        userData.firm = {
+                            id: firm._id,
+                            name: firm.name,
+                            nameEn: firm.nameEnglish,
+                            status: firm.status
+                        };
+                    }
+                } catch (firmError) {
+                    console.log('Error fetching firm:', firmError.message);
+                }
+            } else if (user.isSoloLawyer || !user.firmId) {
+                // Solo lawyer - full access, no tenant
+                userData.tenant = null;
+                userData.firm = null;
+                userData.firmRole = null;
+                userData.firmStatus = null;
+                userData.isSoloLawyer = true;
+
+                // Solo lawyers get owner-level permissions
+                userData.permissions = getDefaultPermissions('owner');
+            }
+        }
+
         return response.send({
             error: false,
             message: 'Success!',
-            user
+            user: userData
         });
     }
     catch({message, status = 500}) {

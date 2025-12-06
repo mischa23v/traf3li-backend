@@ -22,17 +22,27 @@ const CustomException = require('../utils/CustomException');
 const {
     ROLE_PERMISSIONS,
     LEVEL_VALUES,
+    WORK_MODES,
     getDefaultPermissions,
+    getSoloLawyerPermissions,
+    isSoloLawyer: checkIsSoloLawyer,
+    resolveUserPermissions,
     meetsPermissionLevel,
     roleHasPermission,
     hasSpecialPermission,
     getDepartedRestrictions,
-    getRequiredLevelForAction
+    getRequiredLevelForAction,
+    // Casbin-style enforcer
+    enforce,
+    enforceSpecial,
+    buildSubject,
+    methodToAction
 } = require('../config/permissions.config');
 
 /**
  * Firm Filter Middleware
  * Attaches firmId, firmQuery, and permissions to the request object
+ * Also handles solo lawyers who work independently without a firm
  */
 const firmFilter = async (req, res, next) => {
     try {
@@ -42,11 +52,56 @@ const firmFilter = async (req, res, next) => {
             throw CustomException('User not authenticated', 401);
         }
 
-        // Get user with firmId
-        const user = await User.findById(userId).select('firmId firmRole firmStatus').lean();
+        // Get user with firmId and solo lawyer info
+        const user = await User.findById(userId).select('firmId firmRole firmStatus isSoloLawyer lawyerWorkMode role').lean();
 
         if (!user) {
             throw CustomException('User not found', 404);
+        }
+
+        // Handle solo lawyers - they have full permissions without needing a firm
+        // Uses Casbin-style domain check: solo lawyers have no tenant/domain
+        if (checkIsSoloLawyer(user)) {
+            req.firmId = null;
+            req.firmRole = null;
+            req.firmStatus = null;
+            req.isDeparted = false;
+            req.isSoloLawyer = true;
+            req.workMode = WORK_MODES.SOLO;
+            req.tenantId = null; // No tenant for solo lawyers
+            req.firmQuery = { lawyerId: userId }; // Solo lawyers filter by their own ID
+            req.permissions = getSoloLawyerPermissions(); // Solo lawyers get full permissions
+
+            // Build subject for Casbin-style enforcement
+            req.subject = buildSubject(
+                { _id: userId, firmId: null, firmRole: null, isSoloLawyer: true, role: 'lawyer' },
+                null
+            );
+
+            // Helper functions for solo lawyers
+            req.hasPermission = () => true; // Solo lawyers have all permissions
+            req.hasSpecialPermission = (permission) => {
+                // Check special permissions specific to solo lawyers
+                const soloPerms = getSoloLawyerPermissions();
+                return soloPerms.special?.[permission] === true;
+            };
+            req.canAccessCase = () => true;
+            req.canCreateFirm = () => true; // Solo lawyers can create a firm
+            req.canJoinFirm = () => true; // Solo lawyers can join a firm
+            req.addFirmId = (data) => {
+                if (typeof data === 'object') {
+                    data.lawyerId = userId;
+                }
+                return data;
+            };
+            req.getFirm = async () => null;
+
+            // Casbin-style enforce helper for solo lawyers
+            req.enforce = (resource, action) => {
+                return enforce(req.subject, resource, action, null);
+            };
+
+            return next();
         }
 
         // If user has firmId, use it for filtering
@@ -136,15 +191,27 @@ const firmFilter = async (req, res, next) => {
                     ]
                 };
             }
+
+            // Build subject for Casbin-style enforcement (firm members)
+            req.subject = buildSubject(
+                { _id: userId, firmId: user.firmId, firmRole: user.firmRole, isSoloLawyer: false, role: user.role },
+                req.memberData
+            );
+
+            // Casbin-style enforce helper for firm members
+            req.enforce = (resource, action) => {
+                return enforce(req.subject, resource, action, user.firmId);
+            };
         } else {
             // For backwards compatibility with users without firmId
-            // Fall back to lawyerId-based filtering
+            // Fall back to lawyerId-based filtering (treat as solo lawyer)
             req.firmId = null;
             req.firmRole = null;
             req.firmStatus = null;
             req.isDeparted = false;
-            req.firmQuery = {}; // Empty filter - controllers should use lawyerId
-            req.permissions = {};
+            req.isSoloLawyer = user.role === 'lawyer' || user.isSoloLawyer;
+            req.firmQuery = user.role === 'lawyer' ? { lawyerId: userId } : {}; // Lawyers filter by their own ID
+            req.permissions = user.role === 'lawyer' ? getDefaultPermissions('owner') : {};
             req.hasPermission = () => true; // Allow all for non-firm users
             req.hasSpecialPermission = () => true;
             req.canAccessCase = () => true;

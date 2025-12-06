@@ -91,6 +91,9 @@ const tradingAccountsRoute = require('./tradingAccounts.route');
 const investmentsRoute = require('./investments.route');
 const investmentSearchRoute = require('./investmentSearch.route');
 
+// Invitation Routes
+const invitationRoute = require('./invitation.route');
+
 module.exports = {
     // Marketplace
     gigRoute,
@@ -183,5 +186,8 @@ module.exports = {
 
     // Investment Portfolio
     investmentsRoute,
-    investmentSearchRoute
+    investmentSearchRoute,
+
+    // Invitations
+    invitationRoute
 };
