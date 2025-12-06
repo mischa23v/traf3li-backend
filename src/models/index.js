@@ -111,6 +111,9 @@ const PayrollRun = require('./payrollRun.model');
 const LeaveRequest = require('./leaveRequest.model');
 const LeaveBalance = require('./leaveBalance.model');
 const AttendanceRecord = require('./attendanceRecord.model');
+const PerformanceReview = require('./performanceReview.model');
+const ReviewTemplate = require('./reviewTemplate.model');
+const CalibrationSession = require('./calibrationSession.model');
 
 // Firm Invitation Model
 const FirmInvitation = require('./firmInvitation.model');
@@ -242,6 +245,9 @@ module.exports = {
     LeaveRequest,
     LeaveBalance,
     AttendanceRecord,
+    PerformanceReview,
+    ReviewTemplate,
+    CalibrationSession,
 
     // Firm Invitation
     FirmInvitation,

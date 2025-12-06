@@ -87,6 +87,7 @@ const {
     payrollRunRoute,
     leaveRequestRoute,
     attendanceRoute,
+    performanceReviewRoute,
 
     // Accounting
     accountRoute,
@@ -293,6 +294,7 @@ app.use('/api/hr/payroll', payrollRoute);
 app.use('/api/hr/payroll-runs', payrollRunRoute);
 app.use('/api/leave-requests', leaveRequestRoute);
 app.use('/api/attendance', attendanceRoute);
+app.use('/api/hr/performance-reviews', performanceReviewRoute);
 
 // Accounting Routes
 app.use('/api/accounts', accountRoute);
