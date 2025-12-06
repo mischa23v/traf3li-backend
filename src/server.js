@@ -20,6 +20,7 @@ const {
     proposalRoute,
     questionRoute,
     answerRoute,
+    firmRoute,
 
     // Dashboard Core
     dashboardRoute,
@@ -218,6 +219,7 @@ app.use('/api/jobs', jobRoute);
 app.use('/api/proposals', proposalRoute);
 app.use('/api/questions', questionRoute);
 app.use('/api/answers', answerRoute);
+app.use('/api/firms', firmRoute);
 
 // Dashboard Core Routes
 app.use('/api/dashboard', dashboardRoute);

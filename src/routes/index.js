@@ -10,6 +10,7 @@ const jobRoute = require('./job.route');
 const proposalRoute = require('./proposal.route');
 const questionRoute = require('./question.route');
 const answerRoute = require('./answer.route');
+const firmRoute = require('./firm.route');
 
 // Dashboard Core Routes
 const dashboardRoute = require('./dashboard.route');
@@ -103,6 +104,7 @@ module.exports = {
     proposalRoute,
     questionRoute,
     answerRoute,
+    firmRoute,
 
     // Dashboard Core
     dashboardRoute,
