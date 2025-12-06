@@ -10,6 +10,7 @@ const jobRoute = require('./job.route');
 const proposalRoute = require('./proposal.route');
 const questionRoute = require('./question.route');
 const answerRoute = require('./answer.route');
+const firmRoute = require('./firm.route');
 
 // Dashboard Core Routes
 const dashboardRoute = require('./dashboard.route');
@@ -81,6 +82,15 @@ const recurringTransactionRoute = require('./recurringTransaction.route');
 const priceLevelRoute = require('./priceLevel.route');
 const fiscalPeriodRoute = require('./fiscalPeriod.route');
 
+// Investment & Trading Journal Routes
+const tradesRoute = require('./trades.route');
+const brokersRoute = require('./brokers.route');
+const tradingAccountsRoute = require('./tradingAccounts.route');
+
+// Investment Portfolio Routes
+const investmentsRoute = require('./investments.route');
+const investmentSearchRoute = require('./investmentSearch.route');
+
 module.exports = {
     // Marketplace
     gigRoute,
@@ -94,6 +104,7 @@ module.exports = {
     proposalRoute,
     questionRoute,
     answerRoute,
+    firmRoute,
 
     // Dashboard Core
     dashboardRoute,
@@ -163,5 +174,14 @@ module.exports = {
     journalEntryRoute,
     recurringTransactionRoute,
     priceLevelRoute,
-    fiscalPeriodRoute
+    fiscalPeriodRoute,
+
+    // Investment & Trading Journal
+    tradesRoute,
+    brokersRoute,
+    tradingAccountsRoute,
+
+    // Investment Portfolio
+    investmentsRoute,
+    investmentSearchRoute
 };

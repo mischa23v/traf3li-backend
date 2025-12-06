@@ -20,6 +20,7 @@ const {
     proposalRoute,
     questionRoute,
     answerRoute,
+    firmRoute,
 
     // Dashboard Core
     dashboardRoute,
@@ -89,7 +90,16 @@ const {
     journalEntryRoute,
     recurringTransactionRoute,
     priceLevelRoute,
-    fiscalPeriodRoute
+    fiscalPeriodRoute,
+
+    // Investment & Trading Journal
+    tradesRoute,
+    brokersRoute,
+    tradingAccountsRoute,
+
+    // Investment Portfolio
+    investmentsRoute,
+    investmentSearchRoute
 } = require('./routes');
 
 const app = express();
@@ -209,6 +219,7 @@ app.use('/api/jobs', jobRoute);
 app.use('/api/proposals', proposalRoute);
 app.use('/api/questions', questionRoute);
 app.use('/api/answers', answerRoute);
+app.use('/api/firms', firmRoute);
 
 // Dashboard Core Routes
 app.use('/api/dashboard', dashboardRoute);
@@ -279,6 +290,15 @@ app.use('/api/journal-entries', journalEntryRoute);
 app.use('/api/recurring-transactions', recurringTransactionRoute);
 app.use('/api/price-levels', priceLevelRoute);
 app.use('/api/fiscal-periods', fiscalPeriodRoute);
+
+// Investment & Trading Journal Routes
+app.use('/api/v1/trades', tradesRoute);
+app.use('/api/v1/brokers', brokersRoute);
+app.use('/api/v1/trading-accounts', tradingAccountsRoute);
+
+// Investment Portfolio Routes
+app.use('/api/investments', investmentsRoute);
+app.use('/api/investment-search', investmentSearchRoute);
 
 // ============================================
 // ALIAS ROUTES (for frontend compatibility)

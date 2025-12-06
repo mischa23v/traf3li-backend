@@ -1,0 +1,732 @@
+const { Investment, InvestmentTransaction } = require('../models');
+const { CustomException } = require('../utils');
+const asyncHandler = require('../utils/asyncHandler');
+const { priceService } = require('../services/priceService');
+const { findSymbol, searchSymbols, ALL_SYMBOLS } = require('../data/symbols');
+
+// ═══════════════════════════════════════════════════════════════
+// CREATE INVESTMENT
+// ═══════════════════════════════════════════════════════════════
+const createInvestment = asyncHandler(async (req, res) => {
+    const userId = req.userID;
+    const firmId = req.firmId;
+
+    if (req.isDeparted) {
+        throw CustomException('You do not have permission to create investments', 403);
+    }
+
+    const {
+        symbol,
+        name,
+        nameEn,
+        type,
+        market,
+        sector,
+        sectorEn,
+        category,
+        tradingViewSymbol,
+        yahooSymbol,
+        purchaseDate,
+        purchasePrice,
+        quantity,
+        fees,
+        notes,
+        tags,
+        currency
+    } = req.body;
+
+    // ─────────────────────────────────────────────────────────────
+    // VALIDATION
+    // ─────────────────────────────────────────────────────────────
+    if (!symbol || symbol.trim().length === 0) {
+        throw CustomException('Symbol is required', 400);
+    }
+
+    if (!name || name.trim().length === 0) {
+        throw CustomException('Name is required', 400);
+    }
+
+    if (!type) {
+        throw CustomException('Investment type is required', 400);
+    }
+
+    if (!market) {
+        throw CustomException('Market is required', 400);
+    }
+
+    if (!purchaseDate) {
+        throw CustomException('Purchase date is required', 400);
+    }
+
+    if (!purchasePrice || purchasePrice <= 0) {
+        throw CustomException('Purchase price must be a positive number', 400);
+    }
+
+    if (!quantity || quantity <= 0) {
+        throw CustomException('Quantity must be a positive number', 400);
+    }
+
+    // Look up symbol info from database
+    const symbolInfo = findSymbol(symbol);
+
+    // Calculate total cost in halalas
+    const purchasePriceHalalas = Math.round(purchasePrice * 100);
+    const feesHalalas = fees ? Math.round(fees * 100) : 0;
+    const totalCost = purchasePriceHalalas * quantity + feesHalalas;
+
+    // ─────────────────────────────────────────────────────────────
+    // CREATE INVESTMENT
+    // ─────────────────────────────────────────────────────────────
+    const investment = await Investment.create({
+        userId,
+        firmId,
+        symbol: symbol.toUpperCase(),
+        name,
+        nameEn: nameEn || symbolInfo?.nameEn,
+        type,
+        market,
+        sector: sector || symbolInfo?.sectorAr,
+        sectorEn: sectorEn || symbolInfo?.sector,
+        category,
+        tradingViewSymbol: tradingViewSymbol || symbolInfo?.tv,
+        yahooSymbol: yahooSymbol || symbolInfo?.yahoo,
+        purchaseDate: new Date(purchaseDate),
+        purchasePrice: purchasePriceHalalas,
+        quantity,
+        totalCost,
+        fees: feesHalalas,
+        currentPrice: purchasePriceHalalas,
+        currentValue: purchasePriceHalalas * quantity,
+        notes,
+        tags,
+        currency: currency || 'SAR',
+        createdBy: userId
+    });
+
+    // Create initial purchase transaction
+    await InvestmentTransaction.create({
+        userId,
+        firmId,
+        investmentId: investment._id,
+        type: 'purchase',
+        date: new Date(purchaseDate),
+        quantity,
+        pricePerUnit: purchasePriceHalalas,
+        amount: totalCost,
+        fees: feesHalalas,
+        description: `Initial purchase of ${quantity} ${symbol}`,
+        createdBy: userId
+    });
+
+    // Try to get current price
+    try {
+        if (symbolInfo?.yahoo) {
+            const quote = await priceService.getPriceFromYahoo(symbolInfo.yahoo);
+            const priceInHalalas = Math.round(quote.price * 100);
+
+            investment.updatePrice({
+                price: priceInHalalas,
+                previousClose: Math.round(quote.previousClose * 100),
+                change: Math.round(quote.change * 100),
+                changePercent: quote.changePercent,
+                high: Math.round(quote.high * 100),
+                low: Math.round(quote.low * 100),
+                volume: quote.volume,
+                source: 'yahoo'
+            });
+
+            await investment.save();
+        }
+    } catch (error) {
+        console.error(`Failed to get initial price for ${symbol}:`, error.message);
+        // Continue without price update
+    }
+
+    return res.status(201).json({
+        success: true,
+        message: 'Investment created successfully',
+        data: investment
+    });
+});
+
+// ═══════════════════════════════════════════════════════════════
+// GET INVESTMENTS
+// ═══════════════════════════════════════════════════════════════
+const getInvestments = asyncHandler(async (req, res) => {
+    const userId = req.userID;
+    const firmId = req.firmId;
+
+    if (req.isDeparted) {
+        throw CustomException('You do not have permission to access investments', 403);
+    }
+
+    const {
+        page = 1,
+        limit = 20,
+        status = 'active',
+        type,
+        market,
+        search,
+        sortBy = 'purchaseDate',
+        sortOrder = 'desc'
+    } = req.query;
+
+    // ─────────────────────────────────────────────────────────────
+    // BUILD FILTERS
+    // ─────────────────────────────────────────────────────────────
+    const filters = firmId ? { firmId } : { userId };
+
+    if (status && status !== 'all') {
+        filters.status = status;
+    }
+    if (type) filters.type = type;
+    if (market) filters.market = market;
+
+    if (search) {
+        filters.$or = [
+            { symbol: { $regex: search, $options: 'i' } },
+            { name: { $regex: search, $options: 'i' } },
+            { nameEn: { $regex: search, $options: 'i' } }
+        ];
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // PAGINATION & SORTING
+    // ─────────────────────────────────────────────────────────────
+    const parsedLimit = Math.min(parseInt(limit), 100);
+    const parsedPage = parseInt(page);
+    const skip = (parsedPage - 1) * parsedLimit;
+    const sort = { [sortBy]: sortOrder === 'asc' ? 1 : -1 };
+
+    const investments = await Investment.find(filters)
+        .sort(sort)
+        .skip(skip)
+        .limit(parsedLimit);
+
+    const total = await Investment.countDocuments(filters);
+
+    // Get portfolio summary
+    const summary = await Investment.getPortfolioSummary(userId);
+
+    return res.json({
+        success: true,
+        data: {
+            investments,
+            pagination: {
+                page: parsedPage,
+                limit: parsedLimit,
+                total,
+                pages: Math.ceil(total / parsedLimit)
+            },
+            summary
+        }
+    });
+});
+
+// ═══════════════════════════════════════════════════════════════
+// GET SINGLE INVESTMENT
+// ═══════════════════════════════════════════════════════════════
+const getInvestment = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const userId = req.userID;
+    const firmId = req.firmId;
+
+    if (req.isDeparted) {
+        throw CustomException('You do not have permission to access investments', 403);
+    }
+
+    const query = firmId
+        ? { _id: id, firmId }
+        : { _id: id, userId };
+
+    const investment = await Investment.findOne(query);
+
+    if (!investment) {
+        throw CustomException('Investment not found', 404);
+    }
+
+    // Get transactions
+    const transactions = await InvestmentTransaction.find({ investmentId: id })
+        .sort({ date: -1 });
+
+    return res.json({
+        success: true,
+        data: {
+            investment,
+            transactions
+        }
+    });
+});
+
+// ═══════════════════════════════════════════════════════════════
+// UPDATE INVESTMENT
+// ═══════════════════════════════════════════════════════════════
+const updateInvestment = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const userId = req.userID;
+    const firmId = req.firmId;
+    const updateData = req.body;
+
+    if (req.isDeparted) {
+        throw CustomException('You do not have permission to update investments', 403);
+    }
+
+    const query = firmId
+        ? { _id: id, firmId }
+        : { _id: id, userId };
+
+    const investment = await Investment.findOne(query);
+    if (!investment) {
+        throw CustomException('Investment not found', 404);
+    }
+
+    // Don't allow changing symbol
+    delete updateData.symbol;
+
+    // Convert prices to halalas if provided in SAR
+    if (updateData.purchasePrice) {
+        updateData.purchasePrice = Math.round(updateData.purchasePrice * 100);
+    }
+    if (updateData.fees) {
+        updateData.fees = Math.round(updateData.fees * 100);
+    }
+
+    // Add audit
+    updateData.updatedBy = userId;
+
+    const updated = await Investment.findOneAndUpdate(
+        query,
+        updateData,
+        { new: true, runValidators: true }
+    );
+
+    return res.json({
+        success: true,
+        message: 'Investment updated successfully',
+        data: updated
+    });
+});
+
+// ═══════════════════════════════════════════════════════════════
+// DELETE INVESTMENT
+// ═══════════════════════════════════════════════════════════════
+const deleteInvestment = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const userId = req.userID;
+    const firmId = req.firmId;
+
+    if (req.isDeparted) {
+        throw CustomException('You do not have permission to delete investments', 403);
+    }
+
+    const query = firmId
+        ? { _id: id, firmId }
+        : { _id: id, userId };
+
+    const investment = await Investment.findOne(query);
+    if (!investment) {
+        throw CustomException('Investment not found', 404);
+    }
+
+    // Delete related transactions
+    await InvestmentTransaction.deleteMany({ investmentId: id });
+
+    // Delete investment
+    await Investment.findOneAndDelete(query);
+
+    return res.json({
+        success: true,
+        message: 'Investment deleted successfully'
+    });
+});
+
+// ═══════════════════════════════════════════════════════════════
+// REFRESH PRICE - Single Investment
+// ═══════════════════════════════════════════════════════════════
+const refreshPrice = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const userId = req.userID;
+    const firmId = req.firmId;
+
+    if (req.isDeparted) {
+        throw CustomException('You do not have permission to refresh prices', 403);
+    }
+
+    const query = firmId
+        ? { _id: id, firmId }
+        : { _id: id, userId };
+
+    const investment = await Investment.findOne(query);
+    if (!investment) {
+        throw CustomException('Investment not found', 404);
+    }
+
+    // Get symbol info
+    const symbolInfo = findSymbol(investment.symbol);
+    const yahooSymbol = investment.yahooSymbol || symbolInfo?.yahoo;
+
+    if (!yahooSymbol) {
+        throw CustomException('No price source available for this symbol', 400);
+    }
+
+    try {
+        const quote = await priceService.getPriceFromYahoo(yahooSymbol);
+        const priceInHalalas = Math.round(quote.price * 100);
+
+        investment.updatePrice({
+            price: priceInHalalas,
+            previousClose: Math.round(quote.previousClose * 100),
+            change: Math.round(quote.change * 100),
+            changePercent: quote.changePercent,
+            high: Math.round(quote.high * 100),
+            low: Math.round(quote.low * 100),
+            volume: quote.volume,
+            source: 'yahoo'
+        });
+
+        await investment.save();
+
+        return res.json({
+            success: true,
+            message: 'Price refreshed successfully',
+            data: {
+                investment,
+                quote: {
+                    price: quote.price,
+                    priceHalalas: priceInHalalas,
+                    change: quote.change,
+                    changePercent: quote.changePercent,
+                    lastUpdated: quote.lastUpdated
+                }
+            }
+        });
+    } catch (error) {
+        throw CustomException(`Failed to refresh price: ${error.message}`, 500);
+    }
+});
+
+// ═══════════════════════════════════════════════════════════════
+// REFRESH ALL PRICES
+// ═══════════════════════════════════════════════════════════════
+const refreshAllPrices = asyncHandler(async (req, res) => {
+    const userId = req.userID;
+    const firmId = req.firmId;
+
+    if (req.isDeparted) {
+        throw CustomException('You do not have permission to refresh prices', 403);
+    }
+
+    const { market } = req.query;
+
+    const query = firmId
+        ? { firmId, status: 'active' }
+        : { userId, status: 'active' };
+
+    if (market) {
+        query.market = market;
+    }
+
+    const investments = await Investment.find(query);
+    const updated = [];
+    const failed = [];
+
+    for (const investment of investments) {
+        try {
+            const symbolInfo = findSymbol(investment.symbol);
+            const yahooSymbol = investment.yahooSymbol || symbolInfo?.yahoo;
+
+            if (!yahooSymbol) {
+                failed.push({ symbol: investment.symbol, error: 'No price source' });
+                continue;
+            }
+
+            const quote = await priceService.getPriceFromYahoo(yahooSymbol);
+            const priceInHalalas = Math.round(quote.price * 100);
+
+            investment.updatePrice({
+                price: priceInHalalas,
+                previousClose: Math.round(quote.previousClose * 100),
+                change: Math.round(quote.change * 100),
+                changePercent: quote.changePercent,
+                high: Math.round(quote.high * 100),
+                low: Math.round(quote.low * 100),
+                volume: quote.volume,
+                source: 'yahoo'
+            });
+
+            await investment.save();
+            updated.push({ symbol: investment.symbol, price: priceInHalalas });
+
+            // Rate limiting
+            await new Promise(r => setTimeout(r, 300));
+        } catch (error) {
+            failed.push({ symbol: investment.symbol, error: error.message });
+        }
+    }
+
+    return res.json({
+        success: true,
+        message: `Updated ${updated.length} investments, ${failed.length} failed`,
+        data: { updated, failed }
+    });
+});
+
+// ═══════════════════════════════════════════════════════════════
+// GET PORTFOLIO SUMMARY
+// ═══════════════════════════════════════════════════════════════
+const getPortfolioSummary = asyncHandler(async (req, res) => {
+    const userId = req.userID;
+    const firmId = req.firmId;
+
+    if (req.isDeparted) {
+        throw CustomException('You do not have permission to access portfolio', 403);
+    }
+
+    const summary = await Investment.getPortfolioSummary(userId);
+
+    // Get breakdown by type
+    const byType = await Investment.aggregate([
+        {
+            $match: {
+                userId: userId,
+                status: 'active'
+            }
+        },
+        {
+            $group: {
+                _id: '$type',
+                count: { $sum: 1 },
+                totalCost: { $sum: '$totalCost' },
+                totalValue: { $sum: '$currentValue' },
+                totalDividends: { $sum: '$dividendsReceived' }
+            }
+        }
+    ]);
+
+    // Get breakdown by market
+    const byMarket = await Investment.aggregate([
+        {
+            $match: {
+                userId: userId,
+                status: 'active'
+            }
+        },
+        {
+            $group: {
+                _id: '$market',
+                count: { $sum: 1 },
+                totalCost: { $sum: '$totalCost' },
+                totalValue: { $sum: '$currentValue' }
+            }
+        }
+    ]);
+
+    return res.json({
+        success: true,
+        data: {
+            summary,
+            byType,
+            byMarket
+        }
+    });
+});
+
+// ═══════════════════════════════════════════════════════════════
+// ADD TRANSACTION
+// ═══════════════════════════════════════════════════════════════
+const addTransaction = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const userId = req.userID;
+    const firmId = req.firmId;
+
+    if (req.isDeparted) {
+        throw CustomException('You do not have permission to add transactions', 403);
+    }
+
+    const query = firmId
+        ? { _id: id, firmId }
+        : { _id: id, userId };
+
+    const investment = await Investment.findOne(query);
+    if (!investment) {
+        throw CustomException('Investment not found', 404);
+    }
+
+    const {
+        type,
+        date,
+        quantity,
+        pricePerUnit,
+        amount,
+        fees,
+        description,
+        notes
+    } = req.body;
+
+    if (!type) {
+        throw CustomException('Transaction type is required', 400);
+    }
+
+    if (!date) {
+        throw CustomException('Transaction date is required', 400);
+    }
+
+    if (!amount && amount !== 0) {
+        throw CustomException('Amount is required', 400);
+    }
+
+    // Convert to halalas
+    const amountHalalas = Math.round(Math.abs(amount) * 100);
+    const feesHalalas = fees ? Math.round(fees * 100) : 0;
+    const pricePerUnitHalalas = pricePerUnit ? Math.round(pricePerUnit * 100) : null;
+
+    // Validate sale quantity
+    if (type === 'sale') {
+        if (!quantity || quantity <= 0) {
+            throw CustomException('Quantity is required for sales', 400);
+        }
+        if (quantity > investment.quantity) {
+            throw CustomException('Cannot sell more than owned quantity', 400);
+        }
+    }
+
+    const transaction = await InvestmentTransaction.create({
+        userId,
+        firmId,
+        investmentId: id,
+        type,
+        date: new Date(date),
+        quantity,
+        pricePerUnit: pricePerUnitHalalas,
+        amount: amountHalalas,
+        fees: feesHalalas,
+        description,
+        notes,
+        createdBy: userId
+    });
+
+    // Reload investment after post-save hook
+    const updatedInvestment = await Investment.findById(id);
+
+    return res.status(201).json({
+        success: true,
+        message: 'Transaction added successfully',
+        data: {
+            transaction,
+            investment: updatedInvestment
+        }
+    });
+});
+
+// ═══════════════════════════════════════════════════════════════
+// GET TRANSACTIONS
+// ═══════════════════════════════════════════════════════════════
+const getTransactions = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const userId = req.userID;
+    const firmId = req.firmId;
+
+    if (req.isDeparted) {
+        throw CustomException('You do not have permission to access transactions', 403);
+    }
+
+    const query = firmId
+        ? { _id: id, firmId }
+        : { _id: id, userId };
+
+    const investment = await Investment.findOne(query);
+    if (!investment) {
+        throw CustomException('Investment not found', 404);
+    }
+
+    const {
+        page = 1,
+        limit = 20,
+        type
+    } = req.query;
+
+    const filters = { investmentId: id };
+    if (type) filters.type = type;
+
+    const parsedLimit = Math.min(parseInt(limit), 100);
+    const parsedPage = parseInt(page);
+    const skip = (parsedPage - 1) * parsedLimit;
+
+    const transactions = await InvestmentTransaction.find(filters)
+        .sort({ date: -1 })
+        .skip(skip)
+        .limit(parsedLimit);
+
+    const total = await InvestmentTransaction.countDocuments(filters);
+
+    return res.json({
+        success: true,
+        data: {
+            transactions,
+            pagination: {
+                page: parsedPage,
+                limit: parsedLimit,
+                total,
+                pages: Math.ceil(total / parsedLimit)
+            }
+        }
+    });
+});
+
+// ═══════════════════════════════════════════════════════════════
+// DELETE TRANSACTION
+// ═══════════════════════════════════════════════════════════════
+const deleteTransaction = asyncHandler(async (req, res) => {
+    const { id, transactionId } = req.params;
+    const userId = req.userID;
+    const firmId = req.firmId;
+
+    if (req.isDeparted) {
+        throw CustomException('You do not have permission to delete transactions', 403);
+    }
+
+    const query = firmId
+        ? { _id: id, firmId }
+        : { _id: id, userId };
+
+    const investment = await Investment.findOne(query);
+    if (!investment) {
+        throw CustomException('Investment not found', 404);
+    }
+
+    const transaction = await InvestmentTransaction.findOne({
+        _id: transactionId,
+        investmentId: id
+    });
+
+    if (!transaction) {
+        throw CustomException('Transaction not found', 404);
+    }
+
+    // Don't allow deleting the initial purchase
+    const transactionCount = await InvestmentTransaction.countDocuments({ investmentId: id });
+    if (transactionCount === 1 && transaction.type === 'purchase') {
+        throw CustomException('Cannot delete the initial purchase transaction', 400);
+    }
+
+    await InvestmentTransaction.findByIdAndDelete(transactionId);
+
+    return res.json({
+        success: true,
+        message: 'Transaction deleted successfully'
+    });
+});
+
+module.exports = {
+    createInvestment,
+    getInvestments,
+    getInvestment,
+    updateInvestment,
+    deleteInvestment,
+    refreshPrice,
+    refreshAllPrices,
+    getPortfolioSummary,
+    addTransaction,
+    getTransactions,
+    deleteTransaction
+};
