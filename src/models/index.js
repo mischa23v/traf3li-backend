@@ -109,6 +109,8 @@ const EmailOTP = require('./emailOtp.model');
 const Lead = require('./lead.model');
 const CrmActivity = require('./crmActivity.model');
 const Referral = require('./referral.model');
+const Staff = require('./staff.model');
+const Pipeline = require('./pipeline.model');
 
 // Audit Models
 const AuditLog = require('./auditLog.model');
@@ -225,6 +227,8 @@ module.exports = {
     Lead,
     CrmActivity,
     Referral,
+    Staff,
+    Pipeline,
 
     // Audit
     AuditLog

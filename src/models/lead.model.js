@@ -46,25 +46,47 @@ const intakeInfoSchema = new mongoose.Schema({
     intakeCompletedAt: Date
 }, { _id: false });
 
-// Qualification schema
+// Qualification schema with BANT scoring breakdown
 const qualificationSchema = new mongoose.Schema({
+    // BANT Fields
     budget: {
         type: String,
         enum: ['unknown', 'low', 'medium', 'high', 'premium']
     },
+    budgetAmount: { type: Number },  // Specific amount in halalas
+    budgetNotes: { type: String, maxlength: 500 },
+
     authority: {
         type: String,
         enum: ['unknown', 'decision_maker', 'influencer', 'researcher']
     },
+    authorityNotes: { type: String, maxlength: 500 },
+
     need: {
         type: String,
         enum: ['unknown', 'urgent', 'planning', 'exploring']
     },
+    needDescription: { type: String, maxlength: 1000 },
+
     timeline: {
         type: String,
         enum: ['unknown', 'immediate', 'this_month', 'this_quarter', 'this_year', 'no_timeline']
     },
-    score: { type: Number, default: 0, min: 0, max: 100 },
+    timelineNotes: { type: String, maxlength: 500 },
+
+    // Score Breakdown (0-150 points total)
+    scoreBreakdown: {
+        budgetScore: { type: Number, default: 0, min: 0, max: 30 },      // 0-30 points
+        authorityScore: { type: Number, default: 0, min: 0, max: 30 },  // 0-30 points
+        needScore: { type: Number, default: 0, min: 0, max: 30 },       // 0-30 points
+        timelineScore: { type: Number, default: 0, min: 0, max: 30 },   // 0-30 points
+        engagementScore: { type: Number, default: 0, min: 0, max: 15 }, // 0-15 points
+        fitScore: { type: Number, default: 0, min: 0, max: 15 }         // 0-15 points
+    },
+
+    // Overall lead score (computed from scoreBreakdown)
+    score: { type: Number, default: 0, min: 0, max: 150 },
+
     notes: String,
     qualifiedAt: Date,
     qualifiedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
@@ -268,9 +290,25 @@ const leadSchema = new mongoose.Schema({
     },
 
     // ═══════════════════════════════════════════════════════════════
+    // LEAD SCORING (0-150 points)
+    // ═══════════════════════════════════════════════════════════════
+    leadScore: { type: Number, default: 0, min: 0, max: 150 },
+
+    // ═══════════════════════════════════════════════════════════════
+    // COMPETITION TRACKING
+    // ═══════════════════════════════════════════════════════════════
+    competition: {
+        competitorNames: [{ type: String, trim: true }],
+        competitorNotes: { type: String, maxlength: 1000 },
+        ourAdvantages: { type: String, maxlength: 1000 },
+        theirAdvantages: { type: String, maxlength: 1000 }
+    },
+
+    // ═══════════════════════════════════════════════════════════════
     // METADATA
     // ═══════════════════════════════════════════════════════════════
     tags: [{ type: String, trim: true }],
+    practiceArea: { type: String, trim: true },
     notes: { type: String, maxlength: 5000 },
     customFields: mongoose.Schema.Types.Mixed,
     createdBy: {
@@ -339,22 +377,51 @@ leadSchema.pre('save', async function(next) {
         this.leadId = `LEAD-${year}${month}-${String(count + 1).padStart(4, '0')}`;
     }
 
-    // Calculate lead score if qualification data exists
+    // Calculate lead score with breakdown if qualification data exists
     if (this.qualification) {
-        let score = 0;
+        // BANT scoring (0-30 points each)
         const scoring = {
-            budget: { unknown: 0, low: 5, medium: 15, high: 20, premium: 25 },
-            authority: { unknown: 0, researcher: 5, influencer: 15, decision_maker: 25 },
-            need: { unknown: 0, exploring: 5, planning: 15, urgent: 25 },
-            timeline: { unknown: 0, no_timeline: 0, this_year: 5, this_quarter: 15, this_month: 20, immediate: 25 }
+            budget: { unknown: 0, low: 8, medium: 15, high: 23, premium: 30 },
+            authority: { unknown: 0, researcher: 8, influencer: 18, decision_maker: 30 },
+            need: { unknown: 0, exploring: 8, planning: 18, urgent: 30 },
+            timeline: { unknown: 0, no_timeline: 0, this_year: 8, this_quarter: 15, this_month: 23, immediate: 30 }
         };
 
-        if (this.qualification.budget) score += scoring.budget[this.qualification.budget] || 0;
-        if (this.qualification.authority) score += scoring.authority[this.qualification.authority] || 0;
-        if (this.qualification.need) score += scoring.need[this.qualification.need] || 0;
-        if (this.qualification.timeline) score += scoring.timeline[this.qualification.timeline] || 0;
+        const budgetScore = scoring.budget[this.qualification.budget] || 0;
+        const authorityScore = scoring.authority[this.qualification.authority] || 0;
+        const needScore = scoring.need[this.qualification.need] || 0;
+        const timelineScore = scoring.timeline[this.qualification.timeline] || 0;
 
-        this.qualification.score = score;
+        // Engagement score (based on activity - 0-15 points)
+        const engagementScore = Math.min(15, Math.floor(
+            (this.activityCount || 0) * 1.5 +
+            (this.callCount || 0) * 2 +
+            (this.meetingCount || 0) * 3
+        ));
+
+        // Fit score (based on estimated value and intake completion - 0-15 points)
+        let fitScore = 0;
+        if (this.estimatedValue > 0) fitScore += 5;
+        if (this.estimatedValue > 50000) fitScore += 5;  // > 500 SAR
+        if (this.intake?.conflictCheckCompleted) fitScore += 3;
+        if (this.intake?.caseType) fitScore += 2;
+        fitScore = Math.min(15, fitScore);
+
+        // Store breakdown
+        if (!this.qualification.scoreBreakdown) {
+            this.qualification.scoreBreakdown = {};
+        }
+        this.qualification.scoreBreakdown.budgetScore = budgetScore;
+        this.qualification.scoreBreakdown.authorityScore = authorityScore;
+        this.qualification.scoreBreakdown.needScore = needScore;
+        this.qualification.scoreBreakdown.timelineScore = timelineScore;
+        this.qualification.scoreBreakdown.engagementScore = engagementScore;
+        this.qualification.scoreBreakdown.fitScore = fitScore;
+
+        // Total score (0-150)
+        const totalScore = budgetScore + authorityScore + needScore + timelineScore + engagementScore + fitScore;
+        this.qualification.score = totalScore;
+        this.leadScore = totalScore;
     }
 
     next();
