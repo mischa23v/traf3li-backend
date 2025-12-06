@@ -78,6 +78,7 @@ const payrollRunRoute = require('./payrollRun.route');
 const leaveRequestRoute = require('./leaveRequest.route');
 const attendanceRoute = require('./attendance.route');
 const performanceReviewRoute = require('./performanceReview.route');
+const recruitmentRoute = require('./recruitment.route');
 
 // Accounting Routes
 const accountRoute = require('./account.route');
@@ -180,6 +181,7 @@ module.exports = {
     leaveRequestRoute,
     attendanceRoute,
     performanceReviewRoute,
+    recruitmentRoute,
 
     // Accounting
     accountRoute,

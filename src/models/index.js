@@ -115,6 +115,10 @@ const PerformanceReview = require('./performanceReview.model');
 const ReviewTemplate = require('./reviewTemplate.model');
 const CalibrationSession = require('./calibrationSession.model');
 
+// Recruitment Models
+const JobPosting = require('./jobPosting.model');
+const Applicant = require('./applicant.model');
+
 // Firm Invitation Model
 const FirmInvitation = require('./firmInvitation.model');
 
@@ -248,6 +252,10 @@ module.exports = {
     PerformanceReview,
     ReviewTemplate,
     CalibrationSession,
+
+    // Recruitment
+    JobPosting,
+    Applicant,
 
     // Firm Invitation
     FirmInvitation,
