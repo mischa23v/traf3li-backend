@@ -411,6 +411,137 @@ const getFormOptions = asyncHandler(async (req, res) => {
     return res.json({
         success: true,
         options: {
+            // Office types - shown at top like invoice page
+            officeTypes: [
+                {
+                    value: 'solo',
+                    label: 'Solo Lawyer',
+                    labelAr: 'محامي فردي',
+                    description: 'Independent lawyer',
+                    descriptionAr: 'محامي مستقل'
+                },
+                {
+                    value: 'small',
+                    label: 'Small Office',
+                    labelAr: 'مكتب صغير',
+                    description: '2-5 employees',
+                    descriptionAr: '٢-٥ موظفين'
+                },
+                {
+                    value: 'medium',
+                    label: 'Medium Office',
+                    labelAr: 'مكتب متوسط',
+                    description: '6-20 employees',
+                    descriptionAr: '٦-٢٠ موظف'
+                },
+                {
+                    value: 'firm',
+                    label: 'Law Firm',
+                    labelAr: 'شركة محاماة',
+                    description: '20+ employees',
+                    descriptionAr: '٢٠+ موظف'
+                }
+            ],
+
+            // Form sections with basic/advanced grouping
+            formSections: {
+                // BASIC SECTIONS - Always visible
+                basic: [
+                    {
+                        id: 'personal',
+                        label: 'Personal Data',
+                        labelAr: 'البيانات الشخصية',
+                        fields: ['firstName', 'lastName', 'idNumber', 'gender', 'phone', 'email']
+                    },
+                    {
+                        id: 'employment',
+                        label: 'Employment Data',
+                        labelAr: 'بيانات التوظيف',
+                        fields: ['jobTitle', 'employmentType', 'hireDate']
+                    },
+                    {
+                        id: 'salary',
+                        label: 'Salary & Allowances',
+                        labelAr: 'الراتب والبدلات',
+                        fields: ['basicSalary', 'allowances']
+                    }
+                ],
+
+                // ADVANCED SECTIONS - Collapsed by default (click to expand)
+                advanced: [
+                    {
+                        id: 'personal_advanced',
+                        label: 'Additional Personal Info',
+                        labelAr: 'معلومات شخصية إضافية',
+                        fields: ['firstNameAr', 'lastNameAr', 'idType', 'nationality', 'dateOfBirth', 'address', 'maritalStatus', 'dependents']
+                    },
+                    {
+                        id: 'emergency',
+                        label: 'Emergency Contact',
+                        labelAr: 'جهة اتصال الطوارئ',
+                        fields: ['emergencyContact']
+                    },
+                    {
+                        id: 'employment_advanced',
+                        label: 'Contract Details',
+                        labelAr: 'تفاصيل العقد',
+                        fields: ['contractType', 'contractEndDate', 'probationDays', 'department', 'jobTitleAr']
+                    },
+                    {
+                        id: 'work_schedule',
+                        label: 'Work Schedule',
+                        labelAr: 'جدول العمل',
+                        fields: ['workSchedule']
+                    },
+                    {
+                        id: 'payment',
+                        label: 'Payment Details',
+                        labelAr: 'تفاصيل الدفع',
+                        fields: ['paymentFrequency', 'paymentMethod', 'bankDetails']
+                    },
+                    {
+                        id: 'gosi',
+                        label: 'GOSI (Social Insurance)',
+                        labelAr: 'التأمينات الاجتماعية',
+                        fields: ['gosi']
+                    },
+                    {
+                        id: 'organization',
+                        label: 'Organizational Structure',
+                        labelAr: 'الهيكل التنظيمي',
+                        forTypes: ['medium', 'firm'],  // Only for medium/firm
+                        fields: ['branch', 'team', 'supervisor', 'costCenter']
+                    },
+                    {
+                        id: 'leave',
+                        label: 'Leave Balance',
+                        labelAr: 'رصيد الإجازات',
+                        fields: ['leaveBalance']
+                    }
+                ]
+            },
+
+            // Fields config by office type
+            fieldsByOfficeType: {
+                solo: {
+                    required: ['firstName', 'lastName', 'idNumber', 'gender', 'phone', 'jobTitle', 'hireDate', 'basicSalary'],
+                    hidden: ['branch', 'team', 'supervisor', 'costCenter', 'department']
+                },
+                small: {
+                    required: ['firstName', 'lastName', 'idNumber', 'gender', 'phone', 'jobTitle', 'hireDate', 'basicSalary'],
+                    hidden: ['branch', 'costCenter']
+                },
+                medium: {
+                    required: ['firstName', 'lastName', 'idNumber', 'gender', 'phone', 'jobTitle', 'hireDate', 'basicSalary', 'department'],
+                    hidden: []
+                },
+                firm: {
+                    required: ['firstName', 'lastName', 'idNumber', 'gender', 'phone', 'jobTitle', 'hireDate', 'basicSalary', 'department', 'branch'],
+                    hidden: []
+                }
+            },
+
+            // Dropdown options
             idTypes: [
                 { value: 'national_id', label: 'National ID', labelAr: 'هوية وطنية' },
                 { value: 'iqama', label: 'Iqama', labelAr: 'إقامة' },
@@ -485,6 +616,40 @@ const getFormOptions = asyncHandler(async (req, res) => {
                 { name: 'Education Allowance', nameAr: 'بدل تعليم' },
                 { name: 'Fuel Allowance', nameAr: 'بدل وقود' },
                 { name: 'Remote Work Allowance', nameAr: 'بدل عمل عن بعد' }
+            ],
+            cities: [
+                { value: 'riyadh', label: 'Riyadh', labelAr: 'الرياض' },
+                { value: 'jeddah', label: 'Jeddah', labelAr: 'جدة' },
+                { value: 'makkah', label: 'Makkah', labelAr: 'مكة المكرمة' },
+                { value: 'madinah', label: 'Madinah', labelAr: 'المدينة المنورة' },
+                { value: 'dammam', label: 'Dammam', labelAr: 'الدمام' },
+                { value: 'khobar', label: 'Khobar', labelAr: 'الخبر' },
+                { value: 'dhahran', label: 'Dhahran', labelAr: 'الظهران' },
+                { value: 'taif', label: 'Taif', labelAr: 'الطائف' },
+                { value: 'tabuk', label: 'Tabuk', labelAr: 'تبوك' },
+                { value: 'buraidah', label: 'Buraidah', labelAr: 'بريدة' },
+                { value: 'khamis', label: 'Khamis Mushait', labelAr: 'خميس مشيط' },
+                { value: 'abha', label: 'Abha', labelAr: 'أبها' },
+                { value: 'hail', label: 'Hail', labelAr: 'حائل' },
+                { value: 'najran', label: 'Najran', labelAr: 'نجران' },
+                { value: 'jizan', label: 'Jizan', labelAr: 'جازان' },
+                { value: 'yanbu', label: 'Yanbu', labelAr: 'ينبع' },
+                { value: 'jubail', label: 'Jubail', labelAr: 'الجبيل' }
+            ],
+            regions: [
+                { value: 'riyadh', label: 'Riyadh Region', labelAr: 'منطقة الرياض' },
+                { value: 'makkah', label: 'Makkah Region', labelAr: 'منطقة مكة المكرمة' },
+                { value: 'madinah', label: 'Madinah Region', labelAr: 'منطقة المدينة المنورة' },
+                { value: 'eastern', label: 'Eastern Province', labelAr: 'المنطقة الشرقية' },
+                { value: 'qassim', label: 'Qassim Region', labelAr: 'منطقة القصيم' },
+                { value: 'asir', label: 'Asir Region', labelAr: 'منطقة عسير' },
+                { value: 'tabuk', label: 'Tabuk Region', labelAr: 'منطقة تبوك' },
+                { value: 'hail', label: 'Hail Region', labelAr: 'منطقة حائل' },
+                { value: 'northern', label: 'Northern Borders', labelAr: 'منطقة الحدود الشمالية' },
+                { value: 'jazan', label: 'Jazan Region', labelAr: 'منطقة جازان' },
+                { value: 'najran', label: 'Najran Region', labelAr: 'منطقة نجران' },
+                { value: 'bahah', label: 'Al Bahah Region', labelAr: 'منطقة الباحة' },
+                { value: 'jouf', label: 'Al Jouf Region', labelAr: 'منطقة الجوف' }
             ]
         }
     });
