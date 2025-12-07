@@ -87,6 +87,7 @@ const expenseClaimRoute = require('./expenseClaim.route');
 const trainingRoute = require('./training.route');
 const assetAssignmentRoute = require('./assetAssignment.route');
 const employeeBenefitRoute = require('./employeeBenefit.route');
+const grievanceRoute = require('./grievance.route');
 
 // Accounting Routes
 const accountRoute = require('./account.route');
@@ -198,6 +199,7 @@ module.exports = {
     trainingRoute,
     assetAssignmentRoute,
     employeeBenefitRoute,
+    grievanceRoute,
 
     // Accounting
     accountRoute,
