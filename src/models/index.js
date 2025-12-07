@@ -156,6 +156,9 @@ const TradeStats = require('./tradeStats.model');
 const Investment = require('./investment.model');
 const InvestmentTransaction = require('./investmentTransaction.model');
 
+// Analytics Report Model
+const AnalyticsReport = require('./analyticsReport.model');
+
 module.exports = {
     // Marketplace
     User,
@@ -313,5 +316,8 @@ module.exports = {
 
     // Investment Portfolio
     Investment,
-    InvestmentTransaction
+    InvestmentTransaction,
+
+    // Analytics Reports
+    AnalyticsReport
 };
