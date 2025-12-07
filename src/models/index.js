@@ -119,6 +119,9 @@ const CalibrationSession = require('./calibrationSession.model');
 const JobPosting = require('./jobPosting.model');
 const Applicant = require('./applicant.model');
 
+// Onboarding Model
+const Onboarding = require('./onboarding.model');
+
 // Firm Invitation Model
 const FirmInvitation = require('./firmInvitation.model');
 
@@ -256,6 +259,9 @@ module.exports = {
     // Recruitment
     JobPosting,
     Applicant,
+
+    // Onboarding
+    Onboarding,
 
     // Firm Invitation
     FirmInvitation,
