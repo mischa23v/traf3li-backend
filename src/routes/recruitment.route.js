@@ -1,7 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const recruitmentController = require('../controllers/recruitment.controller');
-const { verifyToken } = require('../middleware/jwt');
+const { verifyToken } = require('../middlewares/jwt');
+const { attachFirmContext } = require('../middlewares/firmContext.middleware');
 
 /**
  * Recruitment Routes
@@ -11,6 +12,7 @@ const { verifyToken } = require('../middleware/jwt');
 
 // Apply authentication middleware to all routes
 router.use(verifyToken);
+router.use(attachFirmContext);
 
 // ═══════════════════════════════════════════════════════════════
 // STATISTICS (must be before :id routes)
