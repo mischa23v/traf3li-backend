@@ -1,6 +1,6 @@
 const OrganizationalUnit = require('../models/organizationalUnit.model');
 const asyncHandler = require('../utils/asyncHandler');
-const CustomException = require('../exceptions/customException');
+const CustomException = require('../utils/CustomException');
 
 // ═══════════════════════════════════════════════════════════════
 // GET ALL ORGANIZATIONAL UNITS
