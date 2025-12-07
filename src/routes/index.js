@@ -90,6 +90,7 @@ const employeeBenefitRoute = require('./employeeBenefit.route');
 const grievanceRoute = require('./grievance.route');
 const organizationalUnitRoute = require('./organizationalUnit.route');
 const jobPositionRoute = require('./jobPosition.route');
+const successionPlanRoute = require('./successionPlan.route');
 
 // Accounting Routes
 const accountRoute = require('./account.route');
@@ -204,6 +205,7 @@ module.exports = {
     grievanceRoute,
     organizationalUnitRoute,
     jobPositionRoute,
+    successionPlanRoute,
 
     // Accounting
     accountRoute,
