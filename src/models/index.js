@@ -131,6 +131,9 @@ const EmployeeLoan = require('./employeeLoan.model');
 // Employee Advance Model
 const EmployeeAdvance = require('./employeeAdvance.model');
 
+// Expense Claim Model
+const ExpenseClaim = require('./expenseClaim.model');
+
 // Firm Invitation Model
 const FirmInvitation = require('./firmInvitation.model');
 
@@ -280,6 +283,9 @@ module.exports = {
 
     // Employee Advances
     EmployeeAdvance,
+
+    // Expense Claims
+    ExpenseClaim,
 
     // Firm Invitation
     FirmInvitation,
