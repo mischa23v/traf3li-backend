@@ -8,6 +8,8 @@ const { attachFirmContext } = require('../middlewares/firmContext.middleware');
  * Attendance Routes
  * MODULE 5: الحضور والانصراف
  * Base path: /api/attendance
+ *
+ * IMPORTANT: Static routes must be defined BEFORE parameterized routes (/:id)
  */
 
 // Apply authentication middleware to all routes
@@ -15,29 +17,26 @@ router.use(verifyToken);
 router.use(attachFirmContext);
 
 // ═══════════════════════════════════════════════════════════════
-// CORE CRUD ROUTES
+// STATISTICS & REPORTS ROUTES (must be before /:id)
 // ═══════════════════════════════════════════════════════════════
 
-// GET /api/attendance - Get all attendance records with filtering
-router.get('/', attendanceController.getAttendanceRecords);
+// GET /api/attendance/today - Get today's attendance overview
+router.get('/today', attendanceController.getTodayAttendance);
 
-// GET /api/attendance/:id - Get single attendance record
-router.get('/:id', attendanceController.getAttendanceById);
+// GET /api/attendance/violations - Get all violations
+router.get('/violations', attendanceController.getViolations);
 
-// GET /api/attendance/employee/:employeeId/date/:date - Get attendance by employee and date
-router.get('/employee/:employeeId/date/:date', attendanceController.getAttendanceByEmployeeAndDate);
+// GET /api/attendance/corrections/pending - Get all pending corrections
+router.get('/corrections/pending', attendanceController.getPendingCorrections);
 
-// POST /api/attendance - Create manual attendance record
-router.post('/', attendanceController.createAttendanceRecord);
+// GET /api/attendance/report/monthly - Get monthly attendance report
+router.get('/report/monthly', attendanceController.getMonthlyReport);
 
-// PUT /api/attendance/:id - Update attendance record
-router.put('/:id', attendanceController.updateAttendanceRecord);
-
-// DELETE /api/attendance/:id - Delete attendance record
-router.delete('/:id', attendanceController.deleteAttendanceRecord);
+// GET /api/attendance/stats/department - Get department statistics
+router.get('/stats/department', attendanceController.getDepartmentStats);
 
 // ═══════════════════════════════════════════════════════════════
-// CHECK-IN / CHECK-OUT ROUTES
+// CHECK-IN / CHECK-OUT ROUTES (must be before /:id)
 // ═══════════════════════════════════════════════════════════════
 
 // POST /api/attendance/check-in - Employee check-in
@@ -46,8 +45,47 @@ router.post('/check-in', attendanceController.checkIn);
 // POST /api/attendance/check-out - Employee check-out
 router.post('/check-out', attendanceController.checkOut);
 
+// ═══════════════════════════════════════════════════════════════
+// BULK OPERATIONS ROUTES (must be before /:id)
+// ═══════════════════════════════════════════════════════════════
+
+// POST /api/attendance/mark-absences - Mark absences for date
+router.post('/mark-absences', attendanceController.markAbsences);
+
+// POST /api/attendance/import - Bulk import attendance records
+router.post('/import', attendanceController.importAttendance);
+
+// ═══════════════════════════════════════════════════════════════
+// ROUTES WITH SUB-PATHS (must be before /:id)
+// ═══════════════════════════════════════════════════════════════
+
 // GET /api/attendance/status/:employeeId - Get current check-in status
 router.get('/status/:employeeId', attendanceController.getCheckInStatus);
+
+// GET /api/attendance/summary/:employeeId - Get attendance summary for employee
+router.get('/summary/:employeeId', attendanceController.getAttendanceSummary);
+
+// GET /api/attendance/employee/:employeeId/date/:date - Get attendance by employee and date
+router.get('/employee/:employeeId/date/:date', attendanceController.getAttendanceByEmployeeAndDate);
+
+// ═══════════════════════════════════════════════════════════════
+// CORE CRUD ROUTES
+// ═══════════════════════════════════════════════════════════════
+
+// GET /api/attendance - Get all attendance records with filtering
+router.get('/', attendanceController.getAttendanceRecords);
+
+// POST /api/attendance - Create manual attendance record
+router.post('/', attendanceController.createAttendanceRecord);
+
+// GET /api/attendance/:id - Get single attendance record
+router.get('/:id', attendanceController.getAttendanceById);
+
+// PUT /api/attendance/:id - Update attendance record
+router.put('/:id', attendanceController.updateAttendanceRecord);
+
+// DELETE /api/attendance/:id - Delete attendance record
+router.delete('/:id', attendanceController.deleteAttendanceRecord);
 
 // ═══════════════════════════════════════════════════════════════
 // BREAK MANAGEMENT ROUTES
@@ -72,9 +110,6 @@ router.post('/:id/corrections', attendanceController.submitCorrection);
 // PUT /api/attendance/:id/corrections/:correctionId - Review correction request
 router.put('/:id/corrections/:correctionId', attendanceController.reviewCorrection);
 
-// GET /api/attendance/corrections/pending - Get all pending corrections
-router.get('/corrections/pending', attendanceController.getPendingCorrections);
-
 // ═══════════════════════════════════════════════════════════════
 // APPROVAL ROUTES
 // ═══════════════════════════════════════════════════════════════
@@ -86,11 +121,8 @@ router.post('/:id/approve', attendanceController.approveAttendance);
 router.post('/:id/reject', attendanceController.rejectAttendance);
 
 // ═══════════════════════════════════════════════════════════════
-// VIOLATION ROUTES
+// VIOLATION ROUTES (with :id parameter)
 // ═══════════════════════════════════════════════════════════════
-
-// GET /api/attendance/violations - Get all violations
-router.get('/violations', attendanceController.getViolations);
 
 // POST /api/attendance/:id/violations - Add violation
 router.post('/:id/violations', attendanceController.addViolation);
@@ -107,31 +139,5 @@ router.post('/:id/violations/:violationIndex/appeal', attendanceController.appea
 
 // POST /api/attendance/:id/overtime/approve - Approve overtime
 router.post('/:id/overtime/approve', attendanceController.approveOvertime);
-
-// ═══════════════════════════════════════════════════════════════
-// STATISTICS & REPORTS ROUTES
-// ═══════════════════════════════════════════════════════════════
-
-// GET /api/attendance/today - Get today's attendance overview
-router.get('/today', attendanceController.getTodayAttendance);
-
-// GET /api/attendance/summary/:employeeId - Get attendance summary for employee
-router.get('/summary/:employeeId', attendanceController.getAttendanceSummary);
-
-// GET /api/attendance/report/monthly - Get monthly attendance report
-router.get('/report/monthly', attendanceController.getMonthlyReport);
-
-// GET /api/attendance/stats/department - Get department statistics
-router.get('/stats/department', attendanceController.getDepartmentStats);
-
-// ═══════════════════════════════════════════════════════════════
-// BULK OPERATIONS ROUTES
-// ═══════════════════════════════════════════════════════════════
-
-// POST /api/attendance/mark-absences - Mark absences for date
-router.post('/mark-absences', attendanceController.markAbsences);
-
-// POST /api/attendance/import - Bulk import attendance records
-router.post('/import', attendanceController.importAttendance);
 
 module.exports = router;
