@@ -154,10 +154,13 @@ transactionSchema.statics.getSummary = async function(userId, filters = {}) {
         transferCount: 0
     };
 
-    summary.forEach(item => {
-        result[item._id] = item.total;
-        result[`${item._id}Count`] = item.count;
-    });
+    // Safely iterate over summary (defensive check for non-array responses)
+    if (Array.isArray(summary)) {
+        summary.forEach(item => {
+            result[item._id] = item.total;
+            result[`${item._id}Count`] = item.count;
+        });
+    }
 
     result.balance = result.income - result.expense;
 

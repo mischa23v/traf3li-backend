@@ -1,7 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const attendanceController = require('../controllers/attendance.controller');
-const { verifyToken } = require('../middleware/jwt');
+const { verifyToken } = require('../middlewares/jwt');
+const { attachFirmContext } = require('../middlewares/firmContext.middleware');
 
 /**
  * Attendance Routes
@@ -11,6 +12,7 @@ const { verifyToken } = require('../middleware/jwt');
 
 // Apply authentication middleware to all routes
 router.use(verifyToken);
+router.use(attachFirmContext);
 
 // ═══════════════════════════════════════════════════════════════
 // CORE CRUD ROUTES

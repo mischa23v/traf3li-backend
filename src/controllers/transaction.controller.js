@@ -36,7 +36,7 @@ const createTransaction = asyncHandler(async (req, res) => {
         throw CustomException('المبلغ يجب أن يكون أكبر من صفر', 400);
     }
 
-    // Create transaction
+    // Create transaction (using schema field names: relatedInvoice, relatedExpense, relatedCase)
     const transaction = await Transaction.create({
         userId,
         type,
@@ -44,19 +44,19 @@ const createTransaction = asyncHandler(async (req, res) => {
         category,
         description,
         paymentMethod,
-        invoiceId,
-        expenseId,
-        caseId,
-        referenceNumber,
+        relatedInvoice: invoiceId,
+        relatedExpense: expenseId,
+        relatedCase: caseId,
+        reference: referenceNumber,
         date: date || new Date(),
         status: 'completed',
         notes
     });
 
     await transaction.populate([
-        { path: 'invoiceId', select: 'invoiceNumber totalAmount' },
-        { path: 'expenseId', select: 'description amount' },
-        { path: 'caseId', select: 'caseNumber title' }
+        { path: 'relatedInvoice', select: 'invoiceNumber totalAmount' },
+        { path: 'relatedExpense', select: 'description amount' },
+        { path: 'relatedCase', select: 'caseNumber title' }
     ]);
 
     res.status(201).json({
@@ -98,9 +98,9 @@ const getTransactions = asyncHandler(async (req, res) => {
     if (category) query.category = category;
     if (status) query.status = status;
     if (paymentMethod) query.paymentMethod = paymentMethod;
-    if (caseId) query.caseId = caseId;
-    if (invoiceId) query.invoiceId = invoiceId;
-    if (expenseId) query.expenseId = expenseId;
+    if (caseId) query.relatedCase = caseId;
+    if (invoiceId) query.relatedInvoice = invoiceId;
+    if (expenseId) query.relatedExpense = expenseId;
 
     // Date range
     if (startDate || endDate) {
@@ -130,18 +130,19 @@ const getTransactions = asyncHandler(async (req, res) => {
     sortOptions[sortBy] = sortOrder === 'asc' ? 1 : -1;
 
     const transactions = await Transaction.find(query)
-        .populate('invoiceId', 'invoiceNumber totalAmount')
-        .populate('expenseId', 'description amount')
-        .populate('caseId', 'caseNumber title')
+        .populate('relatedInvoice', 'invoiceNumber totalAmount')
+        .populate('relatedExpense', 'description amount')
+        .populate('relatedCase', 'caseNumber title')
         .sort(sortOptions)
         .limit(parseInt(limit))
         .skip((parseInt(page) - 1) * parseInt(limit));
 
     const total = await Transaction.countDocuments(query);
 
+    // Ensure data is always an array (defensive check for frontend compatibility)
     res.status(200).json({
         success: true,
-        data: transactions,
+        data: Array.isArray(transactions) ? transactions : [],
         pagination: {
             page: parseInt(page),
             limit: parseInt(limit),
@@ -160,9 +161,9 @@ const getTransaction = asyncHandler(async (req, res) => {
     const userId = req.userID;
 
     const transaction = await Transaction.findById(id)
-        .populate('invoiceId', 'invoiceNumber totalAmount amountPaid status')
-        .populate('expenseId', 'description amount category')
-        .populate('caseId', 'caseNumber title status');
+        .populate('relatedInvoice', 'invoiceNumber totalAmount amountPaid status')
+        .populate('relatedExpense', 'description amount category')
+        .populate('relatedCase', 'caseNumber title status');
 
     if (!transaction) {
         throw CustomException('المعاملة غير موجودة', 404);
@@ -196,6 +197,14 @@ const updateTransaction = asyncHandler(async (req, res) => {
         throw CustomException('لا يمكنك الوصول إلى هذه المعاملة', 403);
     }
 
+    // Map request body field names to schema field names
+    const fieldMappings = {
+        invoiceId: 'relatedInvoice',
+        expenseId: 'relatedExpense',
+        caseId: 'relatedCase',
+        referenceNumber: 'reference'
+    };
+
     const allowedUpdates = [
         'type',
         'amount',
@@ -213,16 +222,18 @@ const updateTransaction = asyncHandler(async (req, res) => {
 
     allowedUpdates.forEach(field => {
         if (req.body[field] !== undefined) {
-            transaction[field] = req.body[field];
+            // Use schema field name if there's a mapping, otherwise use the original field
+            const schemaField = fieldMappings[field] || field;
+            transaction[schemaField] = req.body[field];
         }
     });
 
     await transaction.save();
 
     await transaction.populate([
-        { path: 'invoiceId', select: 'invoiceNumber totalAmount' },
-        { path: 'expenseId', select: 'description amount' },
-        { path: 'caseId', select: 'caseNumber title' }
+        { path: 'relatedInvoice', select: 'invoiceNumber totalAmount' },
+        { path: 'relatedExpense', select: 'description amount' },
+        { path: 'relatedCase', select: 'caseNumber title' }
     ]);
 
     res.status(200).json({
@@ -339,9 +350,10 @@ const getTransactionsByCategory = asyncHandler(async (req, res) => {
         { $sort: { total: -1 } }
     ]);
 
+    // Ensure data is always an array (defensive check for frontend compatibility)
     res.status(200).json({
         success: true,
-        data: transactions
+        data: Array.isArray(transactions) ? transactions : []
     });
 });
 

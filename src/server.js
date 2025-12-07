@@ -329,6 +329,9 @@ app.use('/api/case-workflows', workflowRoute);
 app.use('/api/billing/rates', billingRateRoute);
 app.use('/api/billing/groups', rateGroupRoute);
 
+// HR aliases (frontend expects routes without /hr/ prefix)
+app.use('/api/payroll-runs', payrollRunRoute);
+
 // Apps endpoint (placeholder for app integrations)
 app.get('/api/apps', (req, res) => {
     // Return empty apps list for now - can be expanded later
