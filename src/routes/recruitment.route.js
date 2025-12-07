@@ -80,6 +80,9 @@ router.post('/applicants/bulk-stage-update', recruitmentController.bulkUpdateSta
 // POST /api/hr/recruitment/applicants/bulk-reject - Bulk reject applicants
 router.post('/applicants/bulk-reject', recruitmentController.bulkReject);
 
+// GET /api/hr/recruitment/applicants/stats - Get applicant statistics (must be before :id)
+router.get('/applicants/stats', recruitmentController.getApplicantStats);
+
 // ═══════════════════════════════════════════════════════════════
 // APPLICANT CRUD ROUTES
 // ═══════════════════════════════════════════════════════════════
