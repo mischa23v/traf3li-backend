@@ -383,6 +383,31 @@ exports.getJobsNearingDeadline = async (req, res) => {
 // ═══════════════════════════════════════════════════════════════
 
 /**
+ * Get applicant statistics
+ * GET /api/hr/recruitment/applicants/stats
+ */
+exports.getApplicantStats = async (req, res) => {
+    try {
+        const { firmId, lawyerId } = req.user;
+        const { startDate, endDate } = req.query;
+
+        const dateRange = {};
+        if (startDate) dateRange.startDate = startDate;
+        if (endDate) dateRange.endDate = endDate;
+
+        const stats = await Applicant.getRecruitmentStats(firmId, dateRange);
+
+        res.json({
+            success: true,
+            data: stats
+        });
+    } catch (error) {
+        console.error('Error fetching applicant stats:', error);
+        res.status(500).json({ success: false, message: 'Error fetching applicant stats', error: error.message });
+    }
+};
+
+/**
  * Get all applicants
  * GET /api/hr/recruitment/applicants
  */
