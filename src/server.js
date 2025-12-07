@@ -91,6 +91,7 @@ const {
     recruitmentRoute,
     onboardingRoute,
     offboardingRoute,
+    employeeLoanRoute,
 
     // Accounting
     accountRoute,
@@ -301,6 +302,7 @@ app.use('/api/hr/performance-reviews', performanceReviewRoute);
 app.use('/api/hr/recruitment', recruitmentRoute);
 app.use('/api/hr/onboarding', onboardingRoute);
 app.use('/api/hr/offboarding', offboardingRoute);
+app.use('/api/hr/employee-loans', employeeLoanRoute);
 
 // Accounting Routes
 app.use('/api/accounts', accountRoute);

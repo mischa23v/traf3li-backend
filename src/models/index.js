@@ -125,6 +125,9 @@ const Onboarding = require('./onboarding.model');
 // Offboarding Model
 const Offboarding = require('./offboarding.model');
 
+// Employee Loan Model
+const EmployeeLoan = require('./employeeLoan.model');
+
 // Firm Invitation Model
 const FirmInvitation = require('./firmInvitation.model');
 
@@ -268,6 +271,9 @@ module.exports = {
 
     // Offboarding
     Offboarding,
+
+    // Employee Loans
+    EmployeeLoan,
 
     // Firm Invitation
     FirmInvitation,
