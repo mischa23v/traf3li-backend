@@ -81,6 +81,8 @@ const performanceReviewRoute = require('./performanceReview.route');
 const recruitmentRoute = require('./recruitment.route');
 const onboardingRoute = require('./onboarding.route');
 const offboardingRoute = require('./offboarding.route');
+const employeeLoanRoute = require('./employeeLoan.route');
+const employeeAdvanceRoute = require('./employeeAdvance.route');
 
 // Accounting Routes
 const accountRoute = require('./account.route');
@@ -186,6 +188,8 @@ module.exports = {
     recruitmentRoute,
     onboardingRoute,
     offboardingRoute,
+    employeeLoanRoute,
+    employeeAdvanceRoute,
 
     // Accounting
     accountRoute,
