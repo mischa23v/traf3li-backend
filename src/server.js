@@ -101,6 +101,7 @@ const {
     organizationalUnitRoute,
     jobPositionRoute,
     successionPlanRoute,
+    compensationRewardRoute,
 
     // Accounting
     accountRoute,
@@ -321,6 +322,7 @@ app.use('/api/hr/grievances', grievanceRoute);
 app.use('/api/hr/organizational-structure', organizationalUnitRoute);
 app.use('/api/hr/job-positions', jobPositionRoute);
 app.use('/api/hr/succession-plans', successionPlanRoute);
+app.use('/api/hr/compensation', compensationRewardRoute);
 
 // Accounting Routes
 app.use('/api/accounts', accountRoute);
