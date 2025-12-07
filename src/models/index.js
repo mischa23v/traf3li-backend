@@ -134,6 +134,9 @@ const EmployeeAdvance = require('./employeeAdvance.model');
 // Expense Claim Model
 const ExpenseClaim = require('./expenseClaim.model');
 
+// Training Model
+const Training = require('./training.model');
+
 // Firm Invitation Model
 const FirmInvitation = require('./firmInvitation.model');
 
@@ -286,6 +289,9 @@ module.exports = {
 
     // Expense Claims
     ExpenseClaim,
+
+    // Training
+    Training,
 
     // Firm Invitation
     FirmInvitation,
