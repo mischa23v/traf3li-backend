@@ -79,6 +79,8 @@ const leaveRequestRoute = require('./leaveRequest.route');
 const attendanceRoute = require('./attendance.route');
 const performanceReviewRoute = require('./performanceReview.route');
 const recruitmentRoute = require('./recruitment.route');
+const onboardingRoute = require('./onboarding.route');
+const offboardingRoute = require('./offboarding.route');
 
 // Accounting Routes
 const accountRoute = require('./account.route');
@@ -182,6 +184,8 @@ module.exports = {
     attendanceRoute,
     performanceReviewRoute,
     recruitmentRoute,
+    onboardingRoute,
+    offboardingRoute,
 
     // Accounting
     accountRoute,
