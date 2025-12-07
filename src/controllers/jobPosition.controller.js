@@ -1,6 +1,6 @@
 const JobPosition = require('../models/jobPosition.model');
 const asyncHandler = require('../utils/asyncHandler');
-const CustomException = require('../exceptions/customException');
+const CustomException = require('../utils/CustomException');
 
 // ═══════════════════════════════════════════════════════════════
 // GET ALL JOB POSITIONS
