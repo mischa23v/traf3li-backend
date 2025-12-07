@@ -98,6 +98,7 @@ const {
     assetAssignmentRoute,
     employeeBenefitRoute,
     grievanceRoute,
+    organizationalUnitRoute,
 
     // Accounting
     accountRoute,
@@ -315,6 +316,7 @@ app.use('/api/hr/trainings', trainingRoute);
 app.use('/api/hr/asset-assignments', assetAssignmentRoute);
 app.use('/api/hr/benefits', employeeBenefitRoute);
 app.use('/api/hr/grievances', grievanceRoute);
+app.use('/api/hr/organizational-structure', organizationalUnitRoute);
 
 // Accounting Routes
 app.use('/api/accounts', accountRoute);
