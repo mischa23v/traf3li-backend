@@ -137,6 +137,9 @@ const ExpenseClaim = require('./expenseClaim.model');
 // Training Model
 const Training = require('./training.model');
 
+// Asset Assignment Model
+const AssetAssignment = require('./assetAssignment.model');
+
 // Firm Invitation Model
 const FirmInvitation = require('./firmInvitation.model');
 
@@ -292,6 +295,9 @@ module.exports = {
 
     // Training
     Training,
+
+    // Asset Assignment
+    AssetAssignment,
 
     // Firm Invitation
     FirmInvitation,
