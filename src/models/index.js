@@ -122,6 +122,9 @@ const Applicant = require('./applicant.model');
 // Onboarding Model
 const Onboarding = require('./onboarding.model');
 
+// Offboarding Model
+const Offboarding = require('./offboarding.model');
+
 // Firm Invitation Model
 const FirmInvitation = require('./firmInvitation.model');
 
@@ -262,6 +265,9 @@ module.exports = {
 
     // Onboarding
     Onboarding,
+
+    // Offboarding
+    Offboarding,
 
     // Firm Invitation
     FirmInvitation,
