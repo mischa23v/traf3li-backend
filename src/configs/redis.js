@@ -125,6 +125,42 @@ const isRedisConnected = () => {
 };
 
 /**
+ * Health check for Redis connection
+ * @returns {Promise<Object>} Health status
+ */
+const healthCheck = async () => {
+  try {
+    const client = getRedisClient();
+    const pingResult = await client.ping();
+    return {
+      status: "healthy",
+      connected: isConnected,
+      ping: pingResult === "PONG"
+    };
+  } catch (error) {
+    return {
+      status: "unhealthy",
+      connected: false,
+      error: error.message
+    };
+  }
+};
+
+/**
+ * Graceful shutdown - close connections properly
+ */
+const gracefulShutdown = async () => {
+  console.log("Redis: Initiating graceful shutdown...");
+  try {
+    await disconnectRedis();
+    console.log("Redis: Graceful shutdown completed");
+  } catch (error) {
+    console.error("Redis: Error during graceful shutdown:", error.message);
+    throw error;
+  }
+};
+
+/**
  * Set value with expiry
  * @param {string} key - Key
  * @param {string} value - Value (will be JSON stringified if object)
@@ -188,11 +224,17 @@ const setIfNotExists = async (key, value, ttlSeconds = 86400) => {
   return result === "OK";
 };
 
+// Handle process termination
+process.on("SIGTERM", gracefulShutdown);
+process.on("SIGINT", gracefulShutdown);
+
 module.exports = {
   getRedisClient,
   connectRedis,
   disconnectRedis,
   isRedisConnected,
+  healthCheck,
+  gracefulShutdown,
   setWithExpiry,
   getValue,
   deleteKey,

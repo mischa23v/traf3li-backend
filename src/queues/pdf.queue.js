@@ -1,0 +1,454 @@
+/**
+ * PDF Queue Processor
+ *
+ * Handles asynchronous PDF generation for invoices, reports, and documents.
+ * Uses Puppeteer for rendering HTML to PDF.
+ */
+
+const { createQueue } = require('../configs/queue');
+const puppeteer = require('puppeteer');
+const fs = require('fs').promises;
+const path = require('path');
+
+// Create PDF queue
+const pdfQueue = createQueue('pdf', {
+  defaultJobOptions: {
+    attempts: 2,
+    backoff: {
+      type: 'fixed',
+      delay: 5000
+    },
+    removeOnComplete: {
+      age: 172800, // 48 hours
+      count: 200
+    },
+    timeout: 120000 // 2 minutes timeout for PDF generation
+  },
+  settings: {
+    lockDuration: 120000
+  }
+});
+
+// Browser instance pool (reuse browser for better performance)
+let browserInstance = null;
+
+/**
+ * Get or create browser instance
+ */
+async function getBrowser() {
+  if (!browserInstance || !browserInstance.isConnected()) {
+    browserInstance = await puppeteer.launch({
+      headless: 'new',
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-gpu'
+      ]
+    });
+  }
+  return browserInstance;
+}
+
+/**
+ * Process PDF jobs
+ */
+pdfQueue.process(async (job) => {
+  const { type, data } = job.data;
+
+  console.log(`📄 Processing PDF job ${job.id} of type: ${type}`);
+
+  try {
+    switch (type) {
+      case 'invoice':
+        return await generateInvoicePDF(data, job);
+
+      case 'report':
+        return await generateReportPDF(data, job);
+
+      case 'statement':
+        return await generateStatementPDF(data, job);
+
+      case 'contract':
+        return await generateContractPDF(data, job);
+
+      case 'custom':
+        return await generateCustomPDF(data, job);
+
+      default:
+        throw new Error(`Unknown PDF type: ${type}`);
+    }
+  } catch (error) {
+    console.error(`❌ PDF job ${job.id} failed:`, error.message);
+    throw error;
+  }
+});
+
+/**
+ * Generate invoice PDF
+ */
+async function generateInvoicePDF(data, job) {
+  const { invoiceId, invoiceData, options = {} } = data;
+
+  await job.progress(10);
+
+  // Generate HTML from invoice data
+  const html = generateInvoiceHTML(invoiceData);
+
+  await job.progress(30);
+
+  // Generate PDF
+  const pdfBuffer = await generatePDF(html, {
+    format: 'A4',
+    printBackground: true,
+    margin: {
+      top: '20mm',
+      bottom: '20mm',
+      left: '15mm',
+      right: '15mm'
+    },
+    ...options
+  });
+
+  await job.progress(80);
+
+  // Save PDF to file system or S3
+  const fileName = `invoice-${invoiceId}-${Date.now()}.pdf`;
+  const filePath = await savePDF(pdfBuffer, fileName);
+
+  await job.progress(100);
+
+  console.log(`✅ Invoice PDF generated: ${fileName}`);
+  return {
+    success: true,
+    invoiceId,
+    fileName,
+    filePath,
+    size: pdfBuffer.length
+  };
+}
+
+/**
+ * Generate report PDF
+ */
+async function generateReportPDF(data, job) {
+  const { reportId, reportData, reportType, options = {} } = data;
+
+  await job.progress(10);
+
+  // Generate HTML from report data
+  const html = generateReportHTML(reportData, reportType);
+
+  await job.progress(30);
+
+  // Generate PDF with landscape for wider reports
+  const pdfBuffer = await generatePDF(html, {
+    format: 'A4',
+    landscape: reportData.layout === 'landscape',
+    printBackground: true,
+    margin: {
+      top: '15mm',
+      bottom: '15mm',
+      left: '10mm',
+      right: '10mm'
+    },
+    ...options
+  });
+
+  await job.progress(80);
+
+  // Save PDF
+  const fileName = `report-${reportType}-${reportId}-${Date.now()}.pdf`;
+  const filePath = await savePDF(pdfBuffer, fileName);
+
+  await job.progress(100);
+
+  console.log(`✅ Report PDF generated: ${fileName}`);
+  return {
+    success: true,
+    reportId,
+    reportType,
+    fileName,
+    filePath,
+    size: pdfBuffer.length
+  };
+}
+
+/**
+ * Generate statement PDF
+ */
+async function generateStatementPDF(data, job) {
+  const { statementId, statementData, options = {} } = data;
+
+  await job.progress(10);
+
+  const html = generateStatementHTML(statementData);
+
+  await job.progress(30);
+
+  const pdfBuffer = await generatePDF(html, {
+    format: 'A4',
+    printBackground: true,
+    ...options
+  });
+
+  await job.progress(80);
+
+  const fileName = `statement-${statementId}-${Date.now()}.pdf`;
+  const filePath = await savePDF(pdfBuffer, fileName);
+
+  await job.progress(100);
+
+  console.log(`✅ Statement PDF generated: ${fileName}`);
+  return {
+    success: true,
+    statementId,
+    fileName,
+    filePath,
+    size: pdfBuffer.length
+  };
+}
+
+/**
+ * Generate contract PDF
+ */
+async function generateContractPDF(data, job) {
+  const { contractId, contractData, options = {} } = data;
+
+  await job.progress(10);
+
+  const html = generateContractHTML(contractData);
+
+  await job.progress(30);
+
+  const pdfBuffer = await generatePDF(html, {
+    format: 'A4',
+    printBackground: true,
+    ...options
+  });
+
+  await job.progress(80);
+
+  const fileName = `contract-${contractId}-${Date.now()}.pdf`;
+  const filePath = await savePDF(pdfBuffer, fileName);
+
+  await job.progress(100);
+
+  console.log(`✅ Contract PDF generated: ${fileName}`);
+  return {
+    success: true,
+    contractId,
+    fileName,
+    filePath,
+    size: pdfBuffer.length
+  };
+}
+
+/**
+ * Generate custom PDF from HTML
+ */
+async function generateCustomPDF(data, job) {
+  const { html, fileName: customFileName, options = {} } = data;
+
+  await job.progress(20);
+
+  const pdfBuffer = await generatePDF(html, {
+    format: 'A4',
+    printBackground: true,
+    ...options
+  });
+
+  await job.progress(80);
+
+  const fileName = customFileName || `document-${Date.now()}.pdf`;
+  const filePath = await savePDF(pdfBuffer, fileName);
+
+  await job.progress(100);
+
+  console.log(`✅ Custom PDF generated: ${fileName}`);
+  return {
+    success: true,
+    fileName,
+    filePath,
+    size: pdfBuffer.length
+  };
+}
+
+/**
+ * Core PDF generation function using Puppeteer
+ */
+async function generatePDF(html, options = {}) {
+  const browser = await getBrowser();
+  const page = await browser.newPage();
+
+  try {
+    await page.setContent(html, {
+      waitUntil: 'networkidle0'
+    });
+
+    const pdfBuffer = await page.pdf(options);
+
+    return pdfBuffer;
+  } finally {
+    await page.close();
+  }
+}
+
+/**
+ * Save PDF to file system
+ */
+async function savePDF(pdfBuffer, fileName) {
+  const uploadsDir = path.join(__dirname, '../../uploads/pdfs');
+
+  // Create directory if it doesn't exist
+  await fs.mkdir(uploadsDir, { recursive: true });
+
+  const filePath = path.join(uploadsDir, fileName);
+  await fs.writeFile(filePath, pdfBuffer);
+
+  return filePath;
+}
+
+/**
+ * Generate invoice HTML template
+ */
+function generateInvoiceHTML(invoiceData) {
+  // This is a simplified template - you should use a proper template engine
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="UTF-8">
+      <style>
+        body { font-family: Arial, sans-serif; margin: 0; padding: 20px; }
+        .header { text-align: center; margin-bottom: 30px; }
+        .invoice-details { margin-bottom: 20px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
+        th { background-color: #f2f2f2; }
+        .total { font-weight: bold; font-size: 18px; }
+      </style>
+    </head>
+    <body>
+      <div class="header">
+        <h1>INVOICE</h1>
+        <p>Invoice #${invoiceData.invoiceNumber || 'N/A'}</p>
+      </div>
+      <div class="invoice-details">
+        <p><strong>Date:</strong> ${invoiceData.date || new Date().toLocaleDateString()}</p>
+        <p><strong>Client:</strong> ${invoiceData.clientName || 'N/A'}</p>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Description</th>
+            <th>Quantity</th>
+            <th>Price</th>
+            <th>Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${(invoiceData.items || []).map(item => `
+            <tr>
+              <td>${item.description}</td>
+              <td>${item.quantity}</td>
+              <td>${item.price}</td>
+              <td>${(item.quantity * item.price).toFixed(2)}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+        <tfoot>
+          <tr class="total">
+            <td colspan="3">Total</td>
+            <td>${invoiceData.totalAmount || '0.00'}</td>
+          </tr>
+        </tfoot>
+      </table>
+    </body>
+    </html>
+  `;
+}
+
+/**
+ * Generate report HTML template
+ */
+function generateReportHTML(reportData, reportType) {
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="UTF-8">
+      <style>
+        body { font-family: Arial, sans-serif; margin: 0; padding: 20px; }
+        h1 { color: #333; }
+        .report-meta { margin-bottom: 20px; color: #666; }
+      </style>
+    </head>
+    <body>
+      <h1>${reportType.toUpperCase()} Report</h1>
+      <div class="report-meta">
+        <p>Generated: ${new Date().toLocaleString()}</p>
+      </div>
+      <div class="content">
+        ${reportData.content || '<p>Report content</p>'}
+      </div>
+    </body>
+    </html>
+  `;
+}
+
+/**
+ * Generate statement HTML template
+ */
+function generateStatementHTML(statementData) {
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="UTF-8">
+      <style>
+        body { font-family: Arial, sans-serif; margin: 0; padding: 20px; }
+        h1 { color: #333; }
+      </style>
+    </head>
+    <body>
+      <h1>Statement</h1>
+      <p>Period: ${statementData.period || 'N/A'}</p>
+      <div>${statementData.content || '<p>Statement content</p>'}</div>
+    </body>
+    </html>
+  `;
+}
+
+/**
+ * Generate contract HTML template
+ */
+function generateContractHTML(contractData) {
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="UTF-8">
+      <style>
+        body { font-family: 'Times New Roman', serif; margin: 0; padding: 30px; line-height: 1.6; }
+        h1 { text-align: center; }
+      </style>
+    </head>
+    <body>
+      <h1>CONTRACT</h1>
+      <div>${contractData.content || '<p>Contract content</p>'}</div>
+    </body>
+    </html>
+  `;
+}
+
+// Cleanup browser on queue close
+pdfQueue.on('close', async () => {
+  if (browserInstance) {
+    await browserInstance.close();
+    browserInstance = null;
+    console.log('🔒 PDF browser instance closed');
+  }
+});
+
+module.exports = pdfQueue;

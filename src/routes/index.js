@@ -123,6 +123,7 @@ const teamRoute = require('./team.route');
 
 // Audit & Approval Routes
 const auditRoute = require('./audit.route');
+const auditLogRoute = require('./auditLog.route');
 const approvalRoute = require('./approval.route');
 
 // Permission Routes
@@ -136,6 +137,16 @@ const documentAnalysisRoute = require('./documentAnalysis.route');
 
 // Saudi Banking Integration Routes
 const saudiBankingRoute = require('./saudiBanking.route');
+
+// Webhook Routes
+const webhookRoute = require('./webhook.route');
+
+// Health Check & Monitoring Routes
+const healthRoute = require('./health.route');
+const metricsRoute = require('./metrics.route');
+
+// Queue Management Routes
+const queueRoute = require('./queue.route');
 
 module.exports = {
     // Marketplace
@@ -263,6 +274,7 @@ module.exports = {
 
     // Audit & Approvals
     auditRoute,
+    auditLogRoute,
     approvalRoute,
 
     // Permissions
@@ -275,5 +287,15 @@ module.exports = {
     documentAnalysisRoute,
 
     // Saudi Banking Integration
-    saudiBankingRoute
+    saudiBankingRoute,
+
+    // Webhooks
+    webhookRoute,
+
+    // Health Check & Monitoring
+    healthRoute,
+    metricsRoute,
+
+    // Queue Management
+    queueRoute
 };

@@ -1,0 +1,116 @@
+<h1>{{title}}</h1>
+<p class="document-number">{{receiptNumberLabel}}: <strong>{{receiptNumber}}</strong></p>
+
+<div class="icon-container">
+    <div class="icon success">✅</div>
+</div>
+
+<p>{{greeting}}</p>
+
+<p>{{messageText}}</p>
+
+<!-- Payment Information -->
+<div class="info-section">
+    <h3>{{paymentDetailsTitle}}</h3>
+    <table width="100%" cellspacing="0" cellpadding="8" style="font-size: 14px;">
+        <tr>
+            <td style="color: #6b7280;"><strong>{{amountLabel}}:</strong></td>
+            <td style="text-align: right;"><strong style="font-size: 18px; color: #059669;">{{amount}} {{currency}}</strong></td>
+        </tr>
+        <tr>
+            <td style="color: #6b7280;"><strong>{{paymentDateLabel}}:</strong></td>
+            <td style="text-align: right;">{{paymentDate}}</td>
+        </tr>
+        <tr>
+            <td style="color: #6b7280;"><strong>{{paymentMethodLabel}}:</strong></td>
+            <td style="text-align: right;">{{paymentMethod}}</td>
+        </tr>
+        {{#transactionId}}
+        <tr>
+            <td style="color: #6b7280;"><strong>{{transactionIdLabel}}:</strong></td>
+            <td style="text-align: right;"><code style="background-color: #f3f4f6; padding: 2px 8px; border-radius: 4px; font-size: 12px;">{{transactionId}}</code></td>
+        </tr>
+        {{/transactionId}}
+        {{#referenceNumber}}
+        <tr>
+            <td style="color: #6b7280;"><strong>{{referenceNumberLabel}}:</strong></td>
+            <td style="text-align: right;">{{referenceNumber}}</td>
+        </tr>
+        {{/referenceNumber}}
+    </table>
+</div>
+
+<!-- Invoice Reference -->
+{{#invoiceNumber}}
+<div class="info-section">
+    <h3>{{invoiceReferenceTitle}}</h3>
+    <p><strong>{{invoiceNumberLabel}}:</strong> {{invoiceNumber}}</p>
+    {{#invoiceDate}}<p><strong>{{invoiceDateLabel}}:</strong> {{invoiceDate}}</p>{{/invoiceDate}}
+    {{#serviceDescription}}<p><strong>{{serviceDescriptionLabel}}:</strong> {{serviceDescription}}</p>{{/serviceDescription}}
+</div>
+{{/invoiceNumber}}
+
+<!-- Payment Breakdown -->
+{{#breakdown}}
+<table class="data-table">
+    <thead>
+        <tr>
+            <th>{{descriptionLabel}}</th>
+            <th class="text-right">{{amountLabel}}</th>
+        </tr>
+    </thead>
+    <tbody>
+        {{#items}}
+        <tr>
+            <td>{{description}}</td>
+            <td class="text-right">{{amount}} {{currency}}</td>
+        </tr>
+        {{/items}}
+    </tbody>
+</table>
+
+<div class="summary">
+    <div class="summary-row total">
+        <span>{{totalPaidLabel}}:</span>
+        <span>{{totalPaid}} {{currency}}</span>
+    </div>
+</div>
+{{/breakdown}}
+
+<!-- Balance Information -->
+{{#balanceInfo}}
+<div class="info-section" style="background-color: #eff6ff;">
+    <h3 style="color: #1e40af;">{{balanceTitle}}</h3>
+    {{#previousBalance}}
+    <p><strong>{{previousBalanceLabel}}:</strong> {{previousBalance}} {{currency}}</p>
+    {{/previousBalance}}
+    <p><strong>{{currentPaymentLabel}}:</strong> {{currentPayment}} {{currency}}</p>
+    <p><strong>{{remainingBalanceLabel}}:</strong> <span style="font-size: 18px; color: {{#isPaid}}#059669{{/isPaid}}{{^isPaid}}#dc2626{{/isPaid}};">{{remainingBalance}} {{currency}}</span></p>
+    {{#isPaid}}
+    <p style="color: #059669; font-weight: 600;">✅ {{paidInFullText}}</p>
+    {{/isPaid}}
+</div>
+{{/balanceInfo}}
+
+<div style="text-align: center; margin: 30px 0;">
+    <a href="{{receiptUrl}}" class="button">{{downloadReceiptText}}</a>
+    {{#invoiceUrl}}
+    <a href="{{invoiceUrl}}" class="button" style="background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);">{{viewInvoiceText}}</a>
+    {{/invoiceUrl}}
+</div>
+
+<div class="success-box">
+    <p><strong>{{thankYouTitle}}</strong></p>
+    <p>{{thankYouText}}</p>
+</div>
+
+<hr class="divider">
+
+{{#taxReceipt}}
+<p style="font-size: 13px; color: #6b7280;">{{taxReceiptText}}</p>
+{{/taxReceipt}}
+
+<p>{{supportText}}</p>
+
+<p>{{closingText}}<br>
+<strong>{{teamName}}</strong></p>

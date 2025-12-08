@@ -3,6 +3,15 @@ const router = express.Router();
 const employeeAdvanceController = require('../controllers/employeeAdvance.controller');
 const { verifyToken } = require('../middlewares/jwt');
 const { attachFirmContext } = require('../middlewares/firmContext.middleware');
+const {
+    validateCreateAdvance,
+    validateUpdateAdvance,
+    validateReviewAdvance,
+    validateDisburseAdvance,
+    validateRecordRecovery,
+    validateIdParam,
+    validateEmployeeIdParam
+} = require('../validators/hr.validator');
 
 // Apply authentication middleware
 router.use(verifyToken);
@@ -31,7 +40,7 @@ router.post('/check-eligibility', employeeAdvanceController.checkEligibility);
 router.post('/bulk-delete', employeeAdvanceController.bulkDelete);
 
 // GET /api/hr/advances/by-employee/:employeeId - Get advances by employee
-router.get('/by-employee/:employeeId', employeeAdvanceController.getByEmployee);
+router.get('/by-employee/:employeeId', validateEmployeeIdParam, employeeAdvanceController.getByEmployee);
 
 // ═══════════════════════════════════════════════════════════════
 // CORE CRUD ROUTES
@@ -41,13 +50,13 @@ router.get('/by-employee/:employeeId', employeeAdvanceController.getByEmployee);
 router.get('/', employeeAdvanceController.getAdvances);
 
 // POST /api/hr/advances - Create new advance request
-router.post('/', employeeAdvanceController.createAdvance);
+router.post('/', validateCreateAdvance, employeeAdvanceController.createAdvance);
 
 // GET /api/hr/advances/:advanceId - Get single advance
 router.get('/:advanceId', employeeAdvanceController.getAdvance);
 
 // PATCH /api/hr/advances/:advanceId - Update advance
-router.patch('/:advanceId', employeeAdvanceController.updateAdvance);
+router.patch('/:advanceId', validateUpdateAdvance, employeeAdvanceController.updateAdvance);
 
 // DELETE /api/hr/advances/:advanceId - Delete advance
 router.delete('/:advanceId', employeeAdvanceController.deleteAdvance);
@@ -57,10 +66,10 @@ router.delete('/:advanceId', employeeAdvanceController.deleteAdvance);
 // ═══════════════════════════════════════════════════════════════
 
 // POST /api/hr/advances/:advanceId/approve - Approve advance request
-router.post('/:advanceId/approve', employeeAdvanceController.approveAdvance);
+router.post('/:advanceId/approve', validateReviewAdvance, employeeAdvanceController.approveAdvance);
 
 // POST /api/hr/advances/:advanceId/reject - Reject advance request
-router.post('/:advanceId/reject', employeeAdvanceController.rejectAdvance);
+router.post('/:advanceId/reject', validateReviewAdvance, employeeAdvanceController.rejectAdvance);
 
 // POST /api/hr/advances/:advanceId/cancel - Cancel advance request
 router.post('/:advanceId/cancel', employeeAdvanceController.cancelAdvance);
@@ -70,20 +79,20 @@ router.post('/:advanceId/cancel', employeeAdvanceController.cancelAdvance);
 // ═══════════════════════════════════════════════════════════════
 
 // POST /api/hr/advances/:advanceId/disburse - Disburse approved advance
-router.post('/:advanceId/disburse', employeeAdvanceController.disburseAdvance);
+router.post('/:advanceId/disburse', validateDisburseAdvance, employeeAdvanceController.disburseAdvance);
 
 // ═══════════════════════════════════════════════════════════════
 // RECOVERY ROUTES
 // ═══════════════════════════════════════════════════════════════
 
 // POST /api/hr/advances/:advanceId/recover - Record recovery (payment)
-router.post('/:advanceId/recover', employeeAdvanceController.recordRecovery);
+router.post('/:advanceId/recover', validateRecordRecovery, employeeAdvanceController.recordRecovery);
 
 // POST /api/hr/advances/:advanceId/payroll-deduction - Process payroll deduction
-router.post('/:advanceId/payroll-deduction', employeeAdvanceController.processPayrollDeduction);
+router.post('/:advanceId/payroll-deduction', validateRecordRecovery, employeeAdvanceController.processPayrollDeduction);
 
 // POST /api/hr/advances/:advanceId/early-recovery - Process early recovery (lump sum)
-router.post('/:advanceId/early-recovery', employeeAdvanceController.processEarlyRecovery);
+router.post('/:advanceId/early-recovery', validateRecordRecovery, employeeAdvanceController.processEarlyRecovery);
 
 // ═══════════════════════════════════════════════════════════════
 // WRITE-OFF ROUTES

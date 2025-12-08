@@ -3,6 +3,15 @@ const router = express.Router();
 const employeeBenefitController = require('../controllers/employeeBenefit.controller');
 const { verifyToken } = require('../middlewares/jwt');
 const { attachFirmContext } = require('../middlewares/firmContext.middleware');
+const {
+    validateCreateBenefit,
+    validateUpdateBenefit,
+    validateAddDependent,
+    validateAddBeneficiary,
+    validateSubmitClaim,
+    validateIdParam,
+    validateEmployeeIdParam
+} = require('../validators/hr.validator');
 
 // ═══════════════════════════════════════════════════════════════
 // MIDDLEWARE
@@ -29,56 +38,56 @@ router.get('/export', employeeBenefitController.exportBenefits);
 router.get('/', employeeBenefitController.getBenefits);
 
 // Create new benefit
-router.post('/', employeeBenefitController.createBenefit);
+router.post('/', validateCreateBenefit, employeeBenefitController.createBenefit);
 
 // Bulk delete
 router.post('/bulk-delete', employeeBenefitController.bulkDeleteBenefits);
 
 // Get benefits by employee (before :id to avoid conflict)
-router.get('/employee/:employeeId', employeeBenefitController.getEmployeeBenefits);
+router.get('/employee/:employeeId', validateEmployeeIdParam, employeeBenefitController.getEmployeeBenefits);
 
 // ═══════════════════════════════════════════════════════════════
 // SINGLE BENEFIT OPERATIONS
 // ═══════════════════════════════════════════════════════════════
 
 // Get single benefit
-router.get('/:id', employeeBenefitController.getBenefit);
+router.get('/:id', validateIdParam, employeeBenefitController.getBenefit);
 
 // Update benefit
-router.patch('/:id', employeeBenefitController.updateBenefit);
+router.patch('/:id', validateIdParam, validateUpdateBenefit, employeeBenefitController.updateBenefit);
 
 // Delete benefit
-router.delete('/:id', employeeBenefitController.deleteBenefit);
+router.delete('/:id', validateIdParam, employeeBenefitController.deleteBenefit);
 
 // ═══════════════════════════════════════════════════════════════
 // STATUS ACTIONS
 // ═══════════════════════════════════════════════════════════════
 
-router.post('/:id/activate', employeeBenefitController.activateBenefit);
-router.post('/:id/suspend', employeeBenefitController.suspendBenefit);
-router.post('/:id/terminate', employeeBenefitController.terminateBenefit);
+router.post('/:id/activate', validateIdParam, employeeBenefitController.activateBenefit);
+router.post('/:id/suspend', validateIdParam, employeeBenefitController.suspendBenefit);
+router.post('/:id/terminate', validateIdParam, employeeBenefitController.terminateBenefit);
 
 // ═══════════════════════════════════════════════════════════════
 // DEPENDENTS MANAGEMENT
 // ═══════════════════════════════════════════════════════════════
 
-router.post('/:id/dependents', employeeBenefitController.addDependent);
-router.delete('/:id/dependents/:memberId', employeeBenefitController.removeDependent);
+router.post('/:id/dependents', validateIdParam, validateAddDependent, employeeBenefitController.addDependent);
+router.delete('/:id/dependents/:memberId', validateIdParam, employeeBenefitController.removeDependent);
 
 // ═══════════════════════════════════════════════════════════════
 // BENEFICIARIES MANAGEMENT
 // ═══════════════════════════════════════════════════════════════
 
-router.post('/:id/beneficiaries', employeeBenefitController.addBeneficiary);
-router.patch('/:id/beneficiaries/:beneficiaryId', employeeBenefitController.updateBeneficiary);
-router.delete('/:id/beneficiaries/:beneficiaryId', employeeBenefitController.removeBeneficiary);
+router.post('/:id/beneficiaries', validateIdParam, validateAddBeneficiary, employeeBenefitController.addBeneficiary);
+router.patch('/:id/beneficiaries/:beneficiaryId', validateIdParam, validateAddBeneficiary, employeeBenefitController.updateBeneficiary);
+router.delete('/:id/beneficiaries/:beneficiaryId', validateIdParam, employeeBenefitController.removeBeneficiary);
 
 // ═══════════════════════════════════════════════════════════════
 // CLAIMS
 // ═══════════════════════════════════════════════════════════════
 
-router.post('/:id/claims', employeeBenefitController.submitClaim);
-router.patch('/:id/claims/:claimId', employeeBenefitController.updateClaimStatus);
+router.post('/:id/claims', validateIdParam, validateSubmitClaim, employeeBenefitController.submitClaim);
+router.patch('/:id/claims/:claimId', validateIdParam, employeeBenefitController.updateClaimStatus);
 
 // ═══════════════════════════════════════════════════════════════
 // PRE-AUTHORIZATION

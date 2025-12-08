@@ -23,6 +23,14 @@ const {
 } = require('../controllers/leaveRequest.controller');
 const { verifyToken } = require('../middlewares/jwt');
 const { attachFirmContext } = require('../middlewares/firmContext.middleware');
+const {
+    validateCreateLeaveRequest,
+    validateUpdateLeaveRequest,
+    validateReviewLeaveRequest,
+    validateRequestExtension,
+    validateIdParam,
+    validateEmployeeIdParam
+} = require('../validators/hr.validator');
 
 // All routes require authentication
 router.use(verifyToken);
@@ -36,23 +44,23 @@ router.get('/pending-approvals', getPendingApprovals);
 router.post('/check-conflicts', checkConflicts);
 
 // Balance route with employee ID
-router.get('/balance/:employeeId', getLeaveBalance);
+router.get('/balance/:employeeId', validateEmployeeIdParam, getLeaveBalance);
 
 // Single request actions (must be before generic /:id routes)
-router.post('/:id/submit', submitLeaveRequest);
-router.post('/:id/approve', approveLeaveRequest);
-router.post('/:id/reject', rejectLeaveRequest);
-router.post('/:id/cancel', cancelLeaveRequest);
-router.post('/:id/confirm-return', confirmReturn);
-router.post('/:id/request-extension', requestExtension);
-router.post('/:id/complete-handover', completeHandover);
-router.post('/:id/documents', uploadDocument);
+router.post('/:id/submit', validateIdParam, submitLeaveRequest);
+router.post('/:id/approve', validateIdParam, validateReviewLeaveRequest, approveLeaveRequest);
+router.post('/:id/reject', validateIdParam, validateReviewLeaveRequest, rejectLeaveRequest);
+router.post('/:id/cancel', validateIdParam, cancelLeaveRequest);
+router.post('/:id/confirm-return', validateIdParam, confirmReturn);
+router.post('/:id/request-extension', validateIdParam, validateRequestExtension, requestExtension);
+router.post('/:id/complete-handover', validateIdParam, completeHandover);
+router.post('/:id/documents', validateIdParam, uploadDocument);
 
 // CRUD
 router.get('/', getLeaveRequests);
-router.post('/', createLeaveRequest);
-router.get('/:id', getLeaveRequest);
-router.patch('/:id', updateLeaveRequest);
-router.delete('/:id', deleteLeaveRequest);
+router.post('/', validateCreateLeaveRequest, createLeaveRequest);
+router.get('/:id', validateIdParam, getLeaveRequest);
+router.patch('/:id', validateIdParam, validateUpdateLeaveRequest, updateLeaveRequest);
+router.delete('/:id', validateIdParam, deleteLeaveRequest);
 
 module.exports = router;

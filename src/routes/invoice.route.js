@@ -9,17 +9,23 @@
 
 const express = require('express');
 const { userMiddleware, firmFilter } = require('../middlewares');
+const { auditAction } = require('../middlewares/auditLog.middleware');
 const { authorize } = require('../middlewares/authorize.middleware');
 const {
-    validateInvoice,
-    validateUpdateInvoice,
-    validatePayment,
     validateVoid,
     validateApproval,
     validateRejection,
     validateReminder,
     validateRetainerApplication
 } = require('../middlewares/invoiceValidator.middleware');
+const {
+    validateCreateInvoice,
+    validateUpdateInvoice,
+    validateRecordPayment,
+    validateSendInvoice,
+    validateAddLineItem
+} = require('../validators/invoice.validator');
+const { validateRecordInvoicePayment } = require('../validators/payment.validator');
 const {
     // CRUD
     createInvoice,
@@ -112,7 +118,8 @@ router.patch('/confirm-payment',
 router.post('/',
     userMiddleware,
     firmFilter,
-    validateInvoice,
+    validateCreateInvoice,
+    auditAction('create_invoice', 'invoice', { severity: 'medium' }),
     createInvoice
 );
 
@@ -142,6 +149,7 @@ router.patch('/:id',
     userMiddleware,
     firmFilter,
     validateUpdateInvoice,
+    auditAction('update_invoice', 'invoice', { captureChanges: true }),
     updateInvoice
 );
 
@@ -149,6 +157,7 @@ router.patch('/:_id',
     userMiddleware,
     firmFilter,
     validateUpdateInvoice,
+    auditAction('update_invoice', 'invoice', { captureChanges: true }),
     updateInvoice
 );
 
@@ -157,6 +166,7 @@ router.put('/:id',
     userMiddleware,
     firmFilter,
     validateUpdateInvoice,
+    auditAction('update_invoice', 'invoice', { captureChanges: true }),
     updateInvoice
 );
 
@@ -164,12 +174,14 @@ router.put('/:id',
 router.delete('/:id',
     userMiddleware,
     firmFilter,
+    auditAction('delete_invoice', 'invoice', { severity: 'high' }),
     deleteInvoice
 );
 
 router.delete('/:_id',
     userMiddleware,
     firmFilter,
+    auditAction('delete_invoice', 'invoice', { severity: 'high' }),
     deleteInvoice
 );
 
@@ -179,12 +191,14 @@ router.delete('/:_id',
 router.post('/:id/send',
     userMiddleware,
     firmFilter,
+    validateSendInvoice,
     sendInvoice
 );
 
 router.post('/:_id/send',
     userMiddleware,
     firmFilter,
+    validateSendInvoice,
     sendInvoice
 );
 
@@ -192,7 +206,7 @@ router.post('/:_id/send',
 router.post('/:id/record-payment',
     userMiddleware,
     firmFilter,
-    validatePayment,
+    validateRecordPayment,
     recordPayment
 );
 
@@ -200,12 +214,14 @@ router.post('/:id/record-payment',
 router.post('/:id/payments',
     userMiddleware,
     firmFilter,
+    validateRecordInvoicePayment,
     recordInvoicePayment
 );
 
 router.post('/:_id/payments',
     userMiddleware,
     firmFilter,
+    validateRecordInvoicePayment,
     recordInvoicePayment
 );
 

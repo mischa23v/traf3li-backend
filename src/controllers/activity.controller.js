@@ -1,6 +1,7 @@
 const { BillingActivity } = require('../models');
 const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
+const apiResponse = require('../utils/apiResponse');
 
 /**
  * Get financial activities with filters
@@ -51,16 +52,20 @@ const getActivities = asyncHandler(async (req, res) => {
 
     const total = await BillingActivity.countDocuments(query);
 
-    res.status(200).json({
-        success: true,
-        data: activities,
-        pagination: {
+    // Using standardized paginated response
+    return apiResponse.paginated(
+        res,
+        activities,
+        {
             page: parseInt(page),
             limit: parseInt(limit),
             total,
-            pages: Math.ceil(total / parseInt(limit))
-        }
-    });
+            totalPages: Math.ceil(total / parseInt(limit)),
+            hasNextPage: parseInt(page) < Math.ceil(total / parseInt(limit)),
+            hasPrevPage: parseInt(page) > 1
+        },
+        'Activities retrieved successfully'
+    );
 });
 
 /**
@@ -76,17 +81,19 @@ const getActivity = asyncHandler(async (req, res) => {
         .populate('clientId', 'firstName lastName username email');
 
     if (!activity) {
-        throw CustomException('Activity not found', 404);
+        return apiResponse.notFound(res, 'Activity not found');
     }
 
     if (activity.userId._id.toString() !== lawyerId) {
-        throw CustomException('You do not have access to this activity', 403);
+        return apiResponse.forbidden(res, 'You do not have access to this activity');
     }
 
-    res.status(200).json({
-        success: true,
-        data: activity
-    });
+    // Using standardized success response
+    return apiResponse.success(
+        res,
+        { activity },
+        'Activity retrieved successfully'
+    );
 });
 
 /**
@@ -142,21 +149,25 @@ const getActivitySummary = asyncHandler(async (req, res) => {
     // Total count
     const totalCount = await BillingActivity.countDocuments(matchQuery);
 
-    res.status(200).json({
-        success: true,
-        summary: {
-            total: totalCount,
-            lastSevenDays: recentCount,
-            byType: byType.reduce((acc, item) => {
-                acc[item._id] = item.count;
-                return acc;
-            }, {}),
-            byEntity: byEntity.reduce((acc, item) => {
-                acc[item._id] = item.count;
-                return acc;
-            }, {})
-        }
-    });
+    // Using standardized success response
+    return apiResponse.success(
+        res,
+        {
+            summary: {
+                total: totalCount,
+                lastSevenDays: recentCount,
+                byType: byType.reduce((acc, item) => {
+                    acc[item._id] = item.count;
+                    return acc;
+                }, {}),
+                byEntity: byEntity.reduce((acc, item) => {
+                    acc[item._id] = item.count;
+                    return acc;
+                }, {})
+            }
+        },
+        'Activity summary retrieved successfully'
+    );
 });
 
 /**
@@ -171,7 +182,11 @@ const getEntityActivities = asyncHandler(async (req, res) => {
     const validEntityTypes = ['Invoice', 'Payment', 'TimeEntry', 'Expense', 'Retainer', 'Statement', 'BillingRate'];
 
     if (!validEntityTypes.includes(entityType)) {
-        throw CustomException('Invalid entity type', 400);
+        return apiResponse.badRequest(
+            res,
+            'Invalid entity type',
+            { validTypes: validEntityTypes }
+        );
     }
 
     const query = {
@@ -188,16 +203,20 @@ const getEntityActivities = asyncHandler(async (req, res) => {
 
     const total = await BillingActivity.countDocuments(query);
 
-    res.status(200).json({
-        success: true,
-        data: activities,
-        pagination: {
+    // Using standardized paginated response
+    return apiResponse.paginated(
+        res,
+        activities,
+        {
             page: parseInt(page),
             limit: parseInt(limit),
             total,
-            pages: Math.ceil(total / parseInt(limit))
-        }
-    });
+            totalPages: Math.ceil(total / parseInt(limit)),
+            hasNextPage: parseInt(page) < Math.ceil(total / parseInt(limit)),
+            hasPrevPage: parseInt(page) > 1
+        },
+        'Entity activities retrieved successfully'
+    );
 });
 
 module.exports = {

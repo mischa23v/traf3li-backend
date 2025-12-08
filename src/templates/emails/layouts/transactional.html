@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="{{language}}" dir="{{direction}}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <title>{{title}}</title>
+    <style>
+        /* Reset and base styles */
+        body, table, td, a { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+        table, td { mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
+        img { -ms-interpolation-mode: bicubic; border: 0; height: auto; line-height: 100%; outline: none; text-decoration: none; }
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif, 'Cairo', 'Tajawal';
+            background-color: #f4f7fa;
+            color: #333333;
+        }
+
+        .email-container {
+            max-width: 650px;
+            margin: 0 auto;
+            background-color: #ffffff;
+        }
+
+        /* Header */
+        .header {
+            background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
+            padding: 25px 30px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .logo {
+            max-width: 150px;
+            height: auto;
+        }
+
+        .header-info {
+            text-align: right;
+            color: #ffffff;
+            font-size: 14px;
+        }
+
+        /* Content */
+        .content {
+            padding: 35px 30px;
+        }
+
+        h1 {
+            color: #1e3a8a;
+            font-size: 26px;
+            font-weight: 700;
+            margin: 0 0 10px 0;
+        }
+
+        .document-number {
+            color: #6b7280;
+            font-size: 14px;
+            margin: 0 0 25px 0;
+        }
+
+        p {
+            color: #4b5563;
+            font-size: 15px;
+            line-height: 1.7;
+            margin: 0 0 15px 0;
+        }
+
+        /* Table */
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 25px 0;
+        }
+
+        .data-table th {
+            background-color: #f3f4f6;
+            color: #1f2937;
+            font-weight: 600;
+            padding: 12px;
+            text-align: left;
+            border-bottom: 2px solid #e5e7eb;
+            font-size: 14px;
+        }
+
+        .data-table td {
+            padding: 12px;
+            border-bottom: 1px solid #e5e7eb;
+            font-size: 14px;
+            color: #4b5563;
+        }
+
+        .data-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .data-table .text-right {
+            text-align: right;
+        }
+
+        .data-table .text-center {
+            text-align: center;
+        }
+
+        /* Summary Section */
+        .summary {
+            background-color: #f9fafb;
+            padding: 20px;
+            margin: 25px 0;
+            border-radius: 8px;
+            border: 1px solid #e5e7eb;
+        }
+
+        .summary-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            font-size: 15px;
+        }
+
+        .summary-row.total {
+            border-top: 2px solid #1e3a8a;
+            margin-top: 10px;
+            padding-top: 15px;
+            font-weight: 700;
+            font-size: 18px;
+            color: #1e3a8a;
+        }
+
+        /* Info boxes */
+        .info-section {
+            background-color: #eff6ff;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            border-left: 4px solid #3b82f6;
+        }
+
+        .info-section h3 {
+            color: #1e40af;
+            font-size: 16px;
+            margin: 0 0 10px 0;
+        }
+
+        .info-section p {
+            margin: 5px 0;
+            color: #1e40af;
+            font-size: 14px;
+        }
+
+        /* Button */
+        .button {
+            display: inline-block;
+            padding: 14px 32px;
+            background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
+            color: #ffffff !important;
+            text-decoration: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            margin: 20px 0;
+        }
+
+        /* Footer */
+        .footer {
+            background-color: #1f2937;
+            padding: 25px 30px;
+            text-align: center;
+            color: #9ca3af;
+            font-size: 13px;
+        }
+
+        .footer p {
+            margin: 5px 0;
+        }
+
+        .footer a {
+            color: #60a5fa;
+            text-decoration: none;
+        }
+
+        /* RTL Support */
+        [dir="rtl"] .data-table th,
+        [dir="rtl"] .data-table td {
+            text-align: right;
+        }
+
+        [dir="rtl"] .data-table .text-right {
+            text-align: left;
+        }
+
+        [dir="rtl"] .info-section {
+            border-left: none;
+            border-right: 4px solid #3b82f6;
+        }
+
+        [dir="rtl"] .header-info {
+            text-align: left;
+        }
+
+        @media only screen and (max-width: 650px) {
+            .email-container {
+                width: 100% !important;
+            }
+
+            .content {
+                padding: 25px 20px !important;
+            }
+
+            .header {
+                padding: 20px !important;
+                flex-direction: column;
+                text-align: center;
+            }
+
+            .header-info {
+                text-align: center !important;
+                margin-top: 15px;
+            }
+
+            .data-table {
+                font-size: 12px !important;
+            }
+
+            .data-table th,
+            .data-table td {
+                padding: 8px 6px !important;
+            }
+
+            .button {
+                display: block !important;
+                width: 100% !important;
+                text-align: center !important;
+            }
+        }
+    </style>
+</head>
+<body>
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+        <tr>
+            <td align="center" style="padding: 20px 0;">
+                <table class="email-container" role="presentation" width="650" cellspacing="0" cellpadding="0" border="0">
+                    <!-- Header -->
+                    <tr>
+                        <td class="header">
+                            <table width="100%" cellspacing="0" cellpadding="0">
+                                <tr>
+                                    <td>
+                                        <img src="{{logoUrl}}" alt="Traf3li" class="logo">
+                                    </td>
+                                    <td class="header-info">
+                                        {{#documentNumber}}<div>{{documentNumberLabel}}: {{documentNumber}}</div>{{/documentNumber}}
+                                        {{#date}}<div>{{dateLabel}}: {{date}}</div>{{/date}}
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+
+                    <!-- Content -->
+                    <tr>
+                        <td class="content">
+                            {{{content}}}
+                        </td>
+                    </tr>
+
+                    <!-- Footer -->
+                    <tr>
+                        <td class="footer">
+                            <p><strong>{{companyName}}</strong></p>
+                            <p>{{address}}</p>
+                            <p>{{phone}} | <a href="mailto:{{email}}">{{email}}</a></p>
+                            {{#taxNumber}}<p>{{taxNumberLabel}}: {{taxNumber}}</p>{{/taxNumber}}
+                            <p style="margin-top: 15px; font-size: 12px;">{{footerText}}</p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>

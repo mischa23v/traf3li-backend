@@ -19,6 +19,11 @@ const {
 } = require('../controllers/payrollRun.controller');
 const { verifyToken } = require('../middlewares/jwt');
 const { attachFirmContext } = require('../middlewares/firmContext.middleware');
+const {
+    validateCreatePayrollRun,
+    validateUpdatePayrollRun,
+    validateIdParam
+} = require('../validators/hr.validator');
 
 // All routes require authentication
 router.use(verifyToken);
@@ -29,26 +34,26 @@ router.get('/stats', getPayrollRunStats);
 
 // CRUD
 router.get('/', getPayrollRuns);
-router.post('/', createPayrollRun);
-router.get('/:id', getPayrollRun);
-router.patch('/:id', updatePayrollRun);
-router.delete('/:id', deletePayrollRun);
+router.post('/', validateCreatePayrollRun, createPayrollRun);
+router.get('/:id', validateIdParam, getPayrollRun);
+router.patch('/:id', validateIdParam, validateUpdatePayrollRun, updatePayrollRun);
+router.delete('/:id', validateIdParam, deletePayrollRun);
 
 // Workflow actions
-router.post('/:id/calculate', calculatePayroll);
-router.post('/:id/validate', validatePayroll);
-router.post('/:id/approve', approvePayroll);
-router.post('/:id/process-payments', processPayments);
-router.post('/:id/cancel', cancelPayroll);
+router.post('/:id/calculate', validateIdParam, calculatePayroll);
+router.post('/:id/validate', validateIdParam, validatePayroll);
+router.post('/:id/approve', validateIdParam, approvePayroll);
+router.post('/:id/process-payments', validateIdParam, processPayments);
+router.post('/:id/cancel', validateIdParam, cancelPayroll);
 
 // WPS
-router.post('/:id/generate-wps', generateWPS);
+router.post('/:id/generate-wps', validateIdParam, generateWPS);
 
 // Notifications
-router.post('/:id/send-notifications', sendNotifications);
+router.post('/:id/send-notifications', validateIdParam, sendNotifications);
 
 // Employee-specific actions
-router.post('/:id/employees/:empId/hold', holdEmployee);
-router.post('/:id/employees/:empId/unhold', unholdEmployee);
+router.post('/:id/employees/:empId/hold', validateIdParam, holdEmployee);
+router.post('/:id/employees/:empId/unhold', validateIdParam, unholdEmployee);
 
 module.exports = router;

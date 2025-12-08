@@ -1,0 +1,410 @@
+/**
+ * MongoDB Index Optimization Script
+ *
+ * Creates optimized indexes for frequently queried collections in the law firm management system.
+ * This script is idempotent - running multiple times will not create duplicate indexes.
+ *
+ * Usage: npm run db:indexes
+ */
+
+require('dotenv').config();
+const mongoose = require('mongoose');
+
+// Database connection
+const connectDB = async () => {
+    try {
+        await mongoose.connect(process.env.MONGO_URI, {
+            maxPoolSize: 10,
+            minPoolSize: 2
+        });
+        console.log('MongoDB connected for index creation...');
+    } catch (error) {
+        console.error('MongoDB connection error:', error);
+        process.exit(1);
+    }
+};
+
+/**
+ * Index definitions for each collection
+ * Format: { collection: 'name', indexes: [{ keys, options }] }
+ */
+const indexDefinitions = [
+    // ═══════════════════════════════════════════════════════════════
+    // LEAD COLLECTION
+    // ═══════════════════════════════════════════════════════════════
+    {
+        collection: 'leads',
+        indexes: [
+            // Multi-tenancy & core queries
+            { keys: { firmId: 1, status: 1, createdAt: -1 }, options: { name: 'idx_firm_status_created' } },
+            { keys: { firmId: 1, assignedTo: 1, status: 1 }, options: { name: 'idx_firm_assigned_status' } },
+            { keys: { firmId: 1, convertedToClient: 1 }, options: { name: 'idx_firm_converted' } },
+            { keys: { firmId: 1, nextFollowUpDate: 1 }, options: { name: 'idx_firm_followup' } },
+
+            // Email and phone lookups
+            { keys: { email: 1 }, options: { name: 'idx_email', sparse: true } },
+            { keys: { phone: 1 }, options: { name: 'idx_phone' } },
+
+            // Lead scoring and qualification
+            { keys: { firmId: 1, leadScore: -1 }, options: { name: 'idx_firm_leadscore' } },
+            { keys: { firmId: 1, 'source.type': 1 }, options: { name: 'idx_firm_source' } },
+
+            // Relationships
+            { keys: { clientId: 1 }, options: { name: 'idx_clientid', sparse: true } },
+            { keys: { organizationId: 1 }, options: { name: 'idx_organizationid', sparse: true } },
+            { keys: { contactId: 1 }, options: { name: 'idx_contactid', sparse: true } },
+
+            // Full-text search
+            {
+                keys: { firstName: 'text', lastName: 'text', companyName: 'text', email: 'text', phone: 'text' },
+                options: { name: 'idx_lead_textsearch' }
+            }
+        ]
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // CLIENT COLLECTION
+    // ═══════════════════════════════════════════════════════════════
+    {
+        collection: 'clients',
+        indexes: [
+            // Multi-tenancy & core queries
+            { keys: { firmId: 1, status: 1, createdAt: -1 }, options: { name: 'idx_firm_status_created' } },
+            { keys: { firmId: 1, clientTier: 1 }, options: { name: 'idx_firm_tier' } },
+            { keys: { firmId: 1, clientSource: 1 }, options: { name: 'idx_firm_source' } },
+            { keys: { firmId: 1, nextFollowUpDate: 1 }, options: { name: 'idx_firm_followup' } },
+
+            // Identity lookups
+            { keys: { email: 1 }, options: { name: 'idx_email', sparse: true } },
+            { keys: { phone: 1 }, options: { name: 'idx_phone' } },
+            { keys: { nationalId: 1 }, options: { name: 'idx_nationalid', sparse: true } },
+            { keys: { crNumber: 1 }, options: { name: 'idx_crnumber', sparse: true } },
+
+            // Assignments (for firms)
+            { keys: { 'assignments.responsibleLawyerId': 1 }, options: { name: 'idx_responsible_lawyer', sparse: true } },
+            { keys: { firmId: 1, 'assignments.responsibleLawyerId': 1 }, options: { name: 'idx_firm_responsible' } },
+
+            // Relationships
+            { keys: { leadId: 1 }, options: { name: 'idx_leadid', sparse: true } },
+            { keys: { organizationId: 1 }, options: { name: 'idx_organizationid', sparse: true } },
+            { keys: { contactId: 1 }, options: { name: 'idx_contactid', sparse: true } },
+
+            // Full-text search
+            {
+                keys: { fullNameArabic: 'text', companyName: 'text', email: 'text', phone: 'text' },
+                options: { name: 'idx_client_textsearch' }
+            }
+        ]
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // CASE COLLECTION
+    // ═══════════════════════════════════════════════════════════════
+    {
+        collection: 'cases',
+        indexes: [
+            // Multi-tenancy & core queries
+            { keys: { firmId: 1, status: 1, createdAt: -1 }, options: { name: 'idx_firm_status_created' } },
+            { keys: { firmId: 1, clientId: 1, status: 1 }, options: { name: 'idx_firm_client_status' } },
+            { keys: { firmId: 1, category: 1 }, options: { name: 'idx_firm_category' } },
+            { keys: { firmId: 1, priority: 1 }, options: { name: 'idx_firm_priority' } },
+
+            // Lawyer assignments
+            { keys: { lawyerId: 1, status: 1 }, options: { name: 'idx_lawyer_status' } },
+            { keys: { firmId: 1, lawyerId: 1, status: 1 }, options: { name: 'idx_firm_lawyer_status' } },
+
+            // Client lookups
+            { keys: { clientId: 1, status: 1 }, options: { name: 'idx_client_status' } },
+
+            // Dates
+            { keys: { nextHearing: 1 }, options: { name: 'idx_nexthearing', sparse: true } },
+            { keys: { firmId: 1, nextHearing: 1 }, options: { name: 'idx_firm_nexthearing' } },
+
+            // Rich documents (for calendar integration)
+            { keys: { 'richDocuments.showOnCalendar': 1, 'richDocuments.calendarDate': 1 }, options: { name: 'idx_docs_calendar', sparse: true } },
+
+            // Full-text search
+            {
+                keys: { title: 'text', description: 'text', caseNumber: 'text' },
+                options: { name: 'idx_case_textsearch' }
+            }
+        ]
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // PAYMENT COLLECTION
+    // ═══════════════════════════════════════════════════════════════
+    {
+        collection: 'payments',
+        indexes: [
+            // Multi-tenancy & core queries
+            { keys: { firmId: 1, paymentDate: -1 }, options: { name: 'idx_firm_paymentdate' } },
+            { keys: { firmId: 1, status: 1, paymentDate: -1 }, options: { name: 'idx_firm_status_date' } },
+            { keys: { firmId: 1, paymentMethod: 1 }, options: { name: 'idx_firm_method' } },
+
+            // Client/customer lookups
+            { keys: { clientId: 1, paymentDate: -1 }, options: { name: 'idx_client_date' } },
+            { keys: { customerId: 1, paymentDate: -1 }, options: { name: 'idx_customer_date' } },
+            { keys: { firmId: 1, clientId: 1, status: 1 }, options: { name: 'idx_firm_client_status' } },
+
+            // Invoice relationships
+            { keys: { invoiceId: 1 }, options: { name: 'idx_invoiceid', sparse: true } },
+
+            // Payment method specific
+            { keys: { paymentMethod: 1, status: 1 }, options: { name: 'idx_method_status' } },
+            { keys: { 'checkDetails.status': 1 }, options: { name: 'idx_check_status', sparse: true } },
+
+            // Reconciliation
+            { keys: { 'reconciliation.isReconciled': 1, paymentDate: -1 }, options: { name: 'idx_reconciled_date' } },
+            { keys: { firmId: 1, 'reconciliation.isReconciled': 1 }, options: { name: 'idx_firm_reconciled' } },
+
+            // Reference number lookup
+            { keys: { referenceNumber: 1 }, options: { name: 'idx_refnumber', sparse: true } }
+        ]
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // INVOICE COLLECTION
+    // ═══════════════════════════════════════════════════════════════
+    {
+        collection: 'invoices',
+        indexes: [
+            // Multi-tenancy & core queries
+            { keys: { firmId: 1, status: 1, issueDate: -1 }, options: { name: 'idx_firm_status_issue' } },
+            { keys: { firmId: 1, dueDate: 1, status: 1 }, options: { name: 'idx_firm_due_status' } },
+            { keys: { firmId: 1, clientId: 1, status: 1 }, options: { name: 'idx_firm_client_status' } },
+
+            // Client lookups
+            { keys: { clientId: 1, status: 1 }, options: { name: 'idx_client_status' } },
+            { keys: { clientId: 1, dueDate: 1 }, options: { name: 'idx_client_due' } },
+
+            // Lawyer/attorney
+            { keys: { lawyerId: 1, status: 1 }, options: { name: 'idx_lawyer_status' } },
+            { keys: { responsibleAttorneyId: 1 }, options: { name: 'idx_attorney', sparse: true } },
+
+            // Case linkage
+            { keys: { caseId: 1 }, options: { name: 'idx_caseid', sparse: true } },
+
+            // Invoice number lookup
+            { keys: { invoiceNumber: 1 }, options: { name: 'idx_invoicenumber', unique: true } },
+
+            // ZATCA e-invoice
+            { keys: { 'zatca.status': 1 }, options: { name: 'idx_zatca_status', sparse: true } },
+            { keys: { 'zatca.invoiceUUID': 1 }, options: { name: 'idx_zatca_uuid', sparse: true } },
+
+            // Overdue invoices
+            { keys: { status: 1, dueDate: 1 }, options: { name: 'idx_status_due' } }
+        ]
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // TASK COLLECTION
+    // ═══════════════════════════════════════════════════════════════
+    {
+        collection: 'tasks',
+        indexes: [
+            // Multi-tenancy & core queries
+            { keys: { firmId: 1, status: 1, dueDate: 1 }, options: { name: 'idx_firm_status_due' } },
+            { keys: { firmId: 1, assignedTo: 1, status: 1 }, options: { name: 'idx_firm_assigned_status' } },
+            { keys: { firmId: 1, priority: 1, dueDate: 1 }, options: { name: 'idx_firm_priority_due' } },
+
+            // Assignment queries
+            { keys: { assignedTo: 1, status: 1, dueDate: 1 }, options: { name: 'idx_assigned_status_due' } },
+            { keys: { createdBy: 1, status: 1 }, options: { name: 'idx_created_status' } },
+
+            // Case and client relationships
+            { keys: { caseId: 1, status: 1 }, options: { name: 'idx_case_status' } },
+            { keys: { firmId: 1, caseId: 1 }, options: { name: 'idx_firm_case' } },
+            { keys: { clientId: 1 }, options: { name: 'idx_clientid', sparse: true } },
+
+            // Due date queries
+            { keys: { dueDate: 1, status: 1 }, options: { name: 'idx_due_status' } },
+            { keys: { firmId: 1, dueDate: 1 }, options: { name: 'idx_firm_due' } },
+
+            // Task type for legal workflows
+            { keys: { taskType: 1, status: 1 }, options: { name: 'idx_type_status' } },
+            { keys: { firmId: 1, taskType: 1 }, options: { name: 'idx_firm_type' } },
+
+            // Templates
+            { keys: { isTemplate: 1, createdBy: 1 }, options: { name: 'idx_template_created' } },
+            { keys: { isTemplate: 1, isPublic: 1 }, options: { name: 'idx_template_public' } },
+
+            // Recurring tasks
+            { keys: { 'recurring.enabled': 1, 'recurring.nextDue': 1 }, options: { name: 'idx_recurring_nextdue', sparse: true } },
+
+            // Dependencies
+            { keys: { blockedBy: 1 }, options: { name: 'idx_blockedby', sparse: true } },
+            { keys: { blocks: 1 }, options: { name: 'idx_blocks', sparse: true } },
+
+            // Full-text search
+            {
+                keys: { title: 'text', description: 'text', notes: 'text' },
+                options: { name: 'idx_task_textsearch' }
+            }
+        ]
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // CRM ACTIVITY COLLECTION
+    // ═══════════════════════════════════════════════════════════════
+    {
+        collection: 'crmactivities',
+        indexes: [
+            // Multi-tenancy & core queries
+            { keys: { firmId: 1, type: 1, createdAt: -1 }, options: { name: 'idx_firm_type_created' } },
+            { keys: { firmId: 1, entityType: 1, entityId: 1, createdAt: -1 }, options: { name: 'idx_firm_entity_created' } },
+            { keys: { firmId: 1, performedBy: 1, createdAt: -1 }, options: { name: 'idx_firm_performer_created' } },
+
+            // Entity relationships
+            { keys: { entityType: 1, entityId: 1 }, options: { name: 'idx_entity' } },
+            { keys: { leadId: 1 }, options: { name: 'idx_leadid', sparse: true } },
+            { keys: { clientId: 1 }, options: { name: 'idx_clientid', sparse: true } },
+
+            // Type-specific queries
+            { keys: { type: 1, createdAt: -1 }, options: { name: 'idx_type_created' } },
+            { keys: { type: 1, status: 1 }, options: { name: 'idx_type_status' } },
+
+            // Task activities
+            { keys: { firmId: 1, 'taskData.dueDate': 1, 'taskData.status': 1 }, options: { name: 'idx_firm_taskdue_status', sparse: true } },
+            { keys: { type: 1, 'taskData.status': 1, 'taskData.dueDate': 1 }, options: { name: 'idx_type_taskstatus_due', sparse: true } },
+
+            // Scheduled activities
+            { keys: { scheduledAt: 1 }, options: { name: 'idx_scheduled', sparse: true } },
+            { keys: { firmId: 1, scheduledAt: 1 }, options: { name: 'idx_firm_scheduled' } },
+
+            // Assignment
+            { keys: { assignedTo: 1, status: 1 }, options: { name: 'idx_assigned_status', sparse: true } },
+
+            // Full-text search
+            {
+                keys: { title: 'text', description: 'text', titleAr: 'text', descriptionAr: 'text' },
+                options: { name: 'idx_activity_textsearch' }
+            }
+        ]
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // WHATSAPP CONVERSATION COLLECTION
+    // ═══════════════════════════════════════════════════════════════
+    {
+        collection: 'whatsappconversations',
+        indexes: [
+            // Multi-tenancy & core queries
+            { keys: { firmId: 1, status: 1, lastMessageAt: -1 }, options: { name: 'idx_firm_status_lastmsg' } },
+            { keys: { firmId: 1, assignedTo: 1, status: 1 }, options: { name: 'idx_firm_assigned_status' } },
+            { keys: { firmId: 1, unreadCount: -1 }, options: { name: 'idx_firm_unread' } },
+
+            // Phone number lookup
+            { keys: { phoneNumber: 1 }, options: { name: 'idx_phonenumber' } },
+            { keys: { firmId: 1, phoneNumber: 1 }, options: { name: 'idx_firm_phone' } },
+
+            // Entity relationships
+            { keys: { leadId: 1 }, options: { name: 'idx_leadid', sparse: true } },
+            { keys: { clientId: 1 }, options: { name: 'idx_clientid', sparse: true } },
+            { keys: { contactId: 1 }, options: { name: 'idx_contactid', sparse: true } },
+            { keys: { caseId: 1 }, options: { name: 'idx_caseid', sparse: true } },
+
+            // Conversation ID
+            { keys: { conversationId: 1 }, options: { name: 'idx_conversationid', unique: true } },
+
+            // 24-hour window tracking
+            { keys: { 'window.isOpen': 1, 'window.expiresAt': 1 }, options: { name: 'idx_window', sparse: true } },
+            { keys: { firmId: 1, 'window.isOpen': 1 }, options: { name: 'idx_firm_window' } },
+
+            // Status and assignment
+            { keys: { assignedTo: 1, status: 1 }, options: { name: 'idx_assigned_status', sparse: true } },
+
+            // Last message tracking
+            { keys: { lastMessageAt: -1 }, options: { name: 'idx_lastmessage' } }
+        ]
+    }
+];
+
+/**
+ * Create indexes for a collection
+ */
+const createIndexesForCollection = async (collectionName, indexes) => {
+    try {
+        const collection = mongoose.connection.collection(collectionName);
+
+        // Get existing indexes
+        const existingIndexes = await collection.indexes();
+        const existingIndexNames = new Set(existingIndexes.map(idx => idx.name));
+
+        console.log(`\n${'='.repeat(70)}`);
+        console.log(`Collection: ${collectionName}`);
+        console.log(`${'='.repeat(70)}`);
+        console.log(`Existing indexes: ${existingIndexNames.size}`);
+
+        let created = 0;
+        let skipped = 0;
+
+        for (const { keys, options } of indexes) {
+            const indexName = options.name;
+
+            if (existingIndexNames.has(indexName)) {
+                console.log(`  ✓ ${indexName} - already exists`);
+                skipped++;
+            } else {
+                try {
+                    await collection.createIndex(keys, options);
+                    console.log(`  + ${indexName} - created`);
+                    created++;
+                } catch (error) {
+                    console.error(`  ✗ ${indexName} - error: ${error.message}`);
+                }
+            }
+        }
+
+        console.log(`\nSummary: ${created} created, ${skipped} skipped`);
+
+        return { created, skipped };
+
+    } catch (error) {
+        console.error(`Error processing collection ${collectionName}:`, error.message);
+        return { created: 0, skipped: 0 };
+    }
+};
+
+/**
+ * Main execution
+ */
+const main = async () => {
+    try {
+        await connectDB();
+
+        console.log('\n');
+        console.log('╔' + '═'.repeat(68) + '╗');
+        console.log('║' + ' MongoDB Index Optimization Script'.padEnd(68) + '║');
+        console.log('╚' + '═'.repeat(68) + '╝');
+        console.log('\n');
+
+        let totalCreated = 0;
+        let totalSkipped = 0;
+
+        // Process each collection
+        for (const { collection, indexes } of indexDefinitions) {
+            const { created, skipped } = await createIndexesForCollection(collection, indexes);
+            totalCreated += created;
+            totalSkipped += skipped;
+        }
+
+        // Final summary
+        console.log('\n');
+        console.log('╔' + '═'.repeat(68) + '╗');
+        console.log('║' + ' Final Summary'.padEnd(68) + '║');
+        console.log('╚' + '═'.repeat(68) + '╝');
+        console.log(`\nTotal indexes created: ${totalCreated}`);
+        console.log(`Total indexes skipped (already exist): ${totalSkipped}`);
+        console.log(`Total indexes processed: ${totalCreated + totalSkipped}`);
+        console.log('\n✅ Index optimization completed successfully!\n');
+
+        process.exit(0);
+    } catch (error) {
+        console.error('\n❌ Index optimization failed:', error);
+        process.exit(1);
+    }
+};
+
+// Run the script
+main();

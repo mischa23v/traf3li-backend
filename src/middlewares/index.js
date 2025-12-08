@@ -25,6 +25,23 @@ const {
     requireOwner,
     logAccess
 } = require('./permission.middleware');
+const {
+    originCheck,
+    noCache,
+    validateContentType,
+    setCsrfToken,
+    validateCsrfToken,
+    securityHeaders,
+    sanitizeRequest
+} = require('./security.middleware');
+const {
+    sanitizeBody,
+    sanitizeQuery,
+    sanitizeParams,
+    sanitizeAll,
+    sanitizeString,
+    sanitizeObject
+} = require('./sanitize.middleware');
 
 module.exports = {
     userMiddleware,
@@ -52,5 +69,20 @@ module.exports = {
     requireRole,
     requireAdmin,
     requireOwner,
-    logAccess
+    logAccess,
+    // Security middleware
+    originCheck,
+    noCache,
+    validateContentType,
+    setCsrfToken,
+    validateCsrfToken,
+    securityHeaders,
+    sanitizeRequest,
+    // Input sanitization middleware (XSS and injection prevention)
+    sanitizeBody,
+    sanitizeQuery,
+    sanitizeParams,
+    sanitizeAll,
+    sanitizeString,
+    sanitizeObject
 }

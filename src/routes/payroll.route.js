@@ -16,6 +16,12 @@ const {
 } = require('../controllers/payroll.controller');
 const { verifyToken } = require('../middlewares/jwt');
 const { attachFirmContext } = require('../middlewares/firmContext.middleware');
+const {
+    validateCreateSalarySlip,
+    validateUpdateSalarySlip,
+    validateGenerateBulkPayroll,
+    validateIdParam
+} = require('../validators/hr.validator');
 
 // All routes require authentication
 router.use(verifyToken);
@@ -25,20 +31,20 @@ router.use(attachFirmContext);
 router.get('/stats', getPayrollStats);
 
 // Bulk operations
-router.post('/generate', generateBulkPayroll);
+router.post('/generate', validateGenerateBulkPayroll, generateBulkPayroll);
 router.post('/approve', bulkApprove);
 router.post('/pay', bulkPay);
 router.post('/wps/submit', submitToWPS);
 
 // Single slip actions (must be before generic /:id routes)
-router.post('/:id/approve', approveSalarySlip);
-router.post('/:id/pay', paySalarySlip);
+router.post('/:id/approve', validateIdParam, approveSalarySlip);
+router.post('/:id/pay', validateIdParam, paySalarySlip);
 
 // CRUD
 router.get('/', getSalarySlips);
-router.post('/', createSalarySlip);
-router.get('/:id', getSalarySlip);
-router.put('/:id', updateSalarySlip);
-router.delete('/:id', deleteSalarySlip);
+router.post('/', validateCreateSalarySlip, createSalarySlip);
+router.get('/:id', validateIdParam, getSalarySlip);
+router.put('/:id', validateIdParam, validateUpdateSalarySlip, updateSalarySlip);
+router.delete('/:id', validateIdParam, deleteSalarySlip);
 
 module.exports = router;

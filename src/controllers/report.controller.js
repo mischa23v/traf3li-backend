@@ -1,6 +1,7 @@
 const { Report, Invoice, Expense, TimeEntry, Payment, Case, Client } = require('../models');
 const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
+const QueueService = require('../services/queue.service');
 
 /**
  * Generate report
@@ -84,18 +85,34 @@ const generateReport = asyncHandler(async (req, res) => {
         createdBy: userId,
         outputFormat,
         emailRecipients,
-        lastRun: new Date()
+        lastRun: new Date(),
+        status: 'queued'
     });
 
-    // TODO: Generate PDF/Excel/CSV file and upload to cloud storage
-    // report.outputUrl = await generateReportFile(report, reportData);
-    // await report.save();
+    // Queue report generation for background processing
+    const job = await QueueService.generateReport(
+        {
+            firmId: req.firmId || userId,
+            reportId: report._id,
+            reportType,
+            startDate,
+            endDate,
+            filters,
+            outputFormat
+        },
+        reportType === 'financial' ? 'financial' :
+        reportType === 'time_utilization' ? 'time-utilization' :
+        reportType === 'aging' ? 'client-aging' : 'analytics',
+        { priority: 2 }
+    );
 
     res.status(201).json({
         success: true,
-        message: 'تم إنشاء التقرير بنجاح',
+        message: 'تم إنشاء التقرير وإضافته إلى قائمة الانتظار',
+        message_en: 'Report queued successfully for generation',
         report,
-        data: reportData
+        jobId: job.jobId,
+        note: 'Report is being generated in the background. You will be notified when it is ready.'
     });
 });
 

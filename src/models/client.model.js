@@ -618,6 +618,21 @@ clientSchema.statics.runConflictCheck = async function(lawyerId, clientData) {
 };
 
 // ─────────────────────────────────────────────────────────
+// ENCRYPTION PLUGIN
+// ─────────────────────────────────────────────────────────
+const encryptionPlugin = require('./plugins/encryption.plugin');
+
+// Apply encryption to sensitive fields
+clientSchema.plugin(encryptionPlugin, {
+    fields: [
+        'nationalId',  // National ID for individuals
+    ],
+    searchableFields: [
+        'nationalId',  // Allow searching by encrypted national ID
+    ]
+});
+
+// ─────────────────────────────────────────────────────────
 // INSTANCE METHODS
 // ─────────────────────────────────────────────────────────
 

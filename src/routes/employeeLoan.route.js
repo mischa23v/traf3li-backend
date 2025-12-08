@@ -3,6 +3,15 @@ const router = express.Router();
 const employeeLoanController = require('../controllers/employeeLoan.controller');
 const { verifyToken } = require('../middlewares/jwt');
 const { attachFirmContext } = require('../middlewares/firmContext.middleware');
+const {
+    validateCreateLoan,
+    validateUpdateLoan,
+    validateReviewLoan,
+    validateDisburseLoan,
+    validateRecordPayment,
+    validateRestructureLoan,
+    validateEmployeeIdParam
+} = require('../validators/hr.validator');
 
 // Apply authentication middleware
 router.use(verifyToken);
@@ -28,7 +37,7 @@ router.post('/check-eligibility', employeeLoanController.checkEligibility);
 router.post('/bulk-delete', employeeLoanController.bulkDelete);
 
 // GET /api/hr/employee-loans/by-employee/:employeeId - Get loans by employee
-router.get('/by-employee/:employeeId', employeeLoanController.getByEmployee);
+router.get('/by-employee/:employeeId', validateEmployeeIdParam, employeeLoanController.getByEmployee);
 
 // ═══════════════════════════════════════════════════════════════
 // CORE CRUD ROUTES
@@ -38,13 +47,13 @@ router.get('/by-employee/:employeeId', employeeLoanController.getByEmployee);
 router.get('/', employeeLoanController.getLoans);
 
 // POST /api/hr/employee-loans - Create new loan application
-router.post('/', employeeLoanController.createLoan);
+router.post('/', validateCreateLoan, employeeLoanController.createLoan);
 
 // GET /api/hr/employee-loans/:loanId - Get single loan
 router.get('/:loanId', employeeLoanController.getLoan);
 
 // PATCH /api/hr/employee-loans/:loanId - Update loan
-router.patch('/:loanId', employeeLoanController.updateLoan);
+router.patch('/:loanId', validateUpdateLoan, employeeLoanController.updateLoan);
 
 // DELETE /api/hr/employee-loans/:loanId - Delete loan
 router.delete('/:loanId', employeeLoanController.deleteLoan);
@@ -57,27 +66,27 @@ router.delete('/:loanId', employeeLoanController.deleteLoan);
 router.post('/:loanId/submit', employeeLoanController.submitLoan);
 
 // POST /api/hr/employee-loans/:loanId/approve - Approve loan application
-router.post('/:loanId/approve', employeeLoanController.approveLoan);
+router.post('/:loanId/approve', validateReviewLoan, employeeLoanController.approveLoan);
 
 // POST /api/hr/employee-loans/:loanId/reject - Reject loan application
-router.post('/:loanId/reject', employeeLoanController.rejectLoan);
+router.post('/:loanId/reject', validateReviewLoan, employeeLoanController.rejectLoan);
 
 // ═══════════════════════════════════════════════════════════════
 // DISBURSEMENT ROUTES
 // ═══════════════════════════════════════════════════════════════
 
 // POST /api/hr/employee-loans/:loanId/disburse - Disburse approved loan
-router.post('/:loanId/disburse', employeeLoanController.disburseLoan);
+router.post('/:loanId/disburse', validateDisburseLoan, employeeLoanController.disburseLoan);
 
 // ═══════════════════════════════════════════════════════════════
 // PAYMENT ROUTES
 // ═══════════════════════════════════════════════════════════════
 
 // POST /api/hr/employee-loans/:loanId/payments - Record payment
-router.post('/:loanId/payments', employeeLoanController.recordPayment);
+router.post('/:loanId/payments', validateRecordPayment, employeeLoanController.recordPayment);
 
 // POST /api/hr/employee-loans/:loanId/payroll-deduction - Process payroll deduction
-router.post('/:loanId/payroll-deduction', employeeLoanController.processPayrollDeduction);
+router.post('/:loanId/payroll-deduction', validateRecordPayment, employeeLoanController.processPayrollDeduction);
 
 // ═══════════════════════════════════════════════════════════════
 // EARLY SETTLEMENT ROUTES
@@ -87,7 +96,7 @@ router.post('/:loanId/payroll-deduction', employeeLoanController.processPayrollD
 router.get('/:loanId/early-settlement-calculation', employeeLoanController.calculateEarlySettlement);
 
 // POST /api/hr/employee-loans/:loanId/early-settlement - Process early settlement
-router.post('/:loanId/early-settlement', employeeLoanController.processEarlySettlement);
+router.post('/:loanId/early-settlement', validateRecordPayment, employeeLoanController.processEarlySettlement);
 
 // ═══════════════════════════════════════════════════════════════
 // DEFAULT & RESTRUCTURING ROUTES
@@ -97,7 +106,7 @@ router.post('/:loanId/early-settlement', employeeLoanController.processEarlySett
 router.post('/:loanId/default', employeeLoanController.markAsDefaulted);
 
 // POST /api/hr/employee-loans/:loanId/restructure - Restructure loan
-router.post('/:loanId/restructure', employeeLoanController.restructureLoan);
+router.post('/:loanId/restructure', validateRestructureLoan, employeeLoanController.restructureLoan);
 
 // ═══════════════════════════════════════════════════════════════
 // CLEARANCE ROUTES
