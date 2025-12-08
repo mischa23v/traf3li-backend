@@ -8,6 +8,9 @@ const {
   filterGanttData,
   getTaskHierarchy,
 
+  // Productivity (Unified View)
+  getProductivityData,
+
   // Task Operations
   updateTaskDates,
   updateTaskDuration,
@@ -62,6 +65,10 @@ const router = express.Router();
 // ═══════════════════════════════════════════════════════════════
 // GANTT DATA ROUTES
 // ═══════════════════════════════════════════════════════════════
+
+// Get unified productivity data (tasks, reminders, events)
+// This endpoint aggregates all data sources for the productivity Gantt view
+router.get('/productivity', userMiddleware, firmFilter, getProductivityData);
 
 // Filter with complex criteria (must be before parameterized routes)
 router.post('/data/filter', userMiddleware, firmFilter, filterGanttData);
