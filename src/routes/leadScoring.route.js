@@ -1,33 +1,34 @@
 const express = require('express');
 const router = express.Router();
 const leadScoringController = require('../controllers/leadScoring.controller');
-const authenticate = require('../middlewares/authenticate');
-const { authorize } = require('../middlewares/authorize.middleware');
+const { userMiddleware, firmFilter, firmAdminOnly } = require('../middlewares');
 
 // ═══════════════════════════════════════════════════════════════
 // LEAD SCORING ROUTES
 // ═══════════════════════════════════════════════════════════════
 
-// All routes require authentication
-router.use(authenticate);
+// All routes require authentication and firm context
+router.use(userMiddleware, firmFilter);
 
 // ───────────────────────────────────────────────────────────────
 // CONFIGURATION
 // ───────────────────────────────────────────────────────────────
 router.route('/config')
     .get(leadScoringController.getConfig)
-    .put(authorize('admin', 'owner'), leadScoringController.updateConfig);
+    .put(firmAdminOnly, leadScoringController.updateConfig);
 
 // ───────────────────────────────────────────────────────────────
 // SCORE CALCULATION
 // ───────────────────────────────────────────────────────────────
 router.post('/calculate/:leadId', leadScoringController.calculateScore);
-router.post('/calculate-all', authorize('admin', 'owner'), leadScoringController.calculateAllScores);
+router.post('/calculate-all', firmAdminOnly, leadScoringController.calculateAllScores);
 router.post('/calculate-batch', leadScoringController.calculateBatch);
 
 // ───────────────────────────────────────────────────────────────
 // REPORTING & ANALYTICS
 // ───────────────────────────────────────────────────────────────
+router.get('/scores', leadScoringController.getScores);
+router.get('/leaderboard', leadScoringController.getLeaderboard);
 router.get('/distribution', leadScoringController.getScoreDistribution);
 router.get('/top-leads', leadScoringController.getTopLeads);
 router.get('/by-grade/:grade', leadScoringController.getLeadsByGrade);
@@ -54,6 +55,6 @@ router.post('/track/call', leadScoringController.trackCall);
 // ───────────────────────────────────────────────────────────────
 // DECAY MANAGEMENT
 // ───────────────────────────────────────────────────────────────
-router.post('/process-decay', authorize('admin', 'owner'), leadScoringController.processDecay);
+router.post('/process-decay', firmAdminOnly, leadScoringController.processDecay);
 
 module.exports = router;

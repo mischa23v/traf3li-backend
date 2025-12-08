@@ -797,6 +797,87 @@ class LeadScoringService {
     // REPORTING
     // ═══════════════════════════════════════════════════════════
 
+    /**
+     * Get all lead scores with pagination
+     * @param {ObjectId} id - firmId or lawyerId
+     * @param {Boolean} isFirm - true if filtering by firmId, false if by lawyerId
+     * @param {Object} options - pagination options
+     */
+    static async getAllScores(id, isFirm = true, options = {}) {
+        const { page = 1, limit = 50 } = options;
+        const skip = (page - 1) * limit;
+
+        const query = isFirm ? { firmId: id } : { lawyerId: id };
+
+        // If querying by lawyerId, we need to get leads first then their scores
+        if (!isFirm) {
+            const leads = await Lead.find({ lawyerId: id }).select('_id');
+            const leadIds = leads.map(l => l._id);
+
+            const scores = await LeadScore.find({ leadId: { $in: leadIds } })
+                .populate('leadId', 'firstName lastName companyName email phone status')
+                .sort({ totalScore: -1 })
+                .skip(skip)
+                .limit(limit);
+
+            const total = await LeadScore.countDocuments({ leadId: { $in: leadIds } });
+
+            return {
+                scores,
+                pagination: {
+                    page,
+                    limit,
+                    total,
+                    pages: Math.ceil(total / limit)
+                }
+            };
+        }
+
+        const scores = await LeadScore.find(query)
+            .populate('leadId', 'firstName lastName companyName email phone status')
+            .sort({ totalScore: -1 })
+            .skip(skip)
+            .limit(limit);
+
+        const total = await LeadScore.countDocuments(query);
+
+        return {
+            scores,
+            pagination: {
+                page,
+                limit,
+                total,
+                pages: Math.ceil(total / limit)
+            }
+        };
+    }
+
+    /**
+     * Get lead scoring leaderboard (top performers)
+     * @param {ObjectId} id - firmId or lawyerId
+     * @param {Boolean} isFirm - true if filtering by firmId, false if by lawyerId
+     * @param {Number} limit - number of results
+     */
+    static async getLeaderboard(id, isFirm = true, limit = 10) {
+        if (!isFirm) {
+            // For solo lawyers, get their leads first
+            const leads = await Lead.find({ lawyerId: id }).select('_id');
+            const leadIds = leads.map(l => l._id);
+
+            return await LeadScore.find({ leadId: { $in: leadIds } })
+                .populate('leadId', 'firstName lastName companyName email phone status estimatedValue')
+                .sort({ totalScore: -1, conversionProbability: -1 })
+                .limit(limit)
+                .lean();
+        }
+
+        return await LeadScore.find({ firmId: id })
+            .populate('leadId', 'firstName lastName companyName email phone status estimatedValue')
+            .sort({ totalScore: -1, conversionProbability: -1 })
+            .limit(limit)
+            .lean();
+    }
+
     static async getScoreDistribution(firmId) {
         return await LeadScore.getScoreDistribution(firmId);
     }
