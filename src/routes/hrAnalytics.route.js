@@ -1,7 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const HRAnalyticsController = require('../controllers/hrAnalytics.controller');
-const { protect, authorize } = require('../middleware/auth');
+const authenticate = require('../middlewares/authenticate');
+const { authorize } = require('../middlewares/authorize.middleware');
 
 /**
  * HR Analytics & Predictions Routes
@@ -9,7 +10,7 @@ const { protect, authorize } = require('../middleware/auth');
  */
 
 // Apply authentication middleware to all routes
-router.use(protect);
+router.use(authenticate);
 
 // Apply HR/Admin authorization to all routes
 // Adjust roles based on your system (e.g., ['hr', 'admin', 'manager'])
