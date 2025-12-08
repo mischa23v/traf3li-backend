@@ -1,99 +1,242 @@
 const AuditLog = require('../models/auditLog.model');
+const auditLogService = require('../services/auditLog.service');
 
 /**
- * Audit logging middleware for PDPL compliance
- * Automatically logs sensitive actions to audit trail
- * 
+ * Enhanced Audit Logging Middleware for Compliance
+ *
+ * Automatically logs sensitive actions with before/after state tracking
+ *
  * Usage:
- * router.get('/judgments/:id', authenticate, auditLog('view_judgment'), getJudgment);
+ * // Basic usage
+ * router.post('/clients', authenticate, auditAction('create', 'client'), createClient);
+ *
+ * // With options
+ * router.put('/clients/:id', authenticate, auditAction('update', 'client', {
+ *   captureChanges: true,
+ *   skipGET: false
+ * }), updateClient);
+ *
+ * // Skip audit for specific routes
+ * router.get('/clients', authenticate, auditAction('read', 'client', { skip: true }), getClients);
  */
 
 /**
- * Create audit log middleware
- * @param {string} action - Action being performed (from AuditLog enum)
- * @param {object} options - Additional options
+ * Create audit log middleware with enhanced features
+ * @param {String} action - Action being performed (e.g., 'create', 'update', 'delete')
+ * @param {String} entityType - Type of entity (e.g., 'client', 'case', 'invoice')
+ * @param {Object} options - Additional options
+ * @param {Boolean} options.captureChanges - Auto-capture before/after state (default: true for updates)
+ * @param {Boolean} options.skipGET - Skip logging for GET requests (default: true)
+ * @param {Boolean} options.skip - Skip audit logging entirely (default: false)
+ * @param {Function} options.getEntityId - Custom function to extract entity ID
+ * @param {Function} options.getBeforeState - Custom function to get before state
+ * @param {String} options.severity - Override automatic severity determination
  * @returns {Function} - Express middleware
  */
-const auditLog = (action, options = {}) => {
+const auditAction = (action, entityType, options = {}) => {
   return async (req, res, next) => {
-    // Store original json method
+    // Skip if explicitly disabled
+    if (options.skip === true) {
+      return next();
+    }
+
+    // Skip GET requests if configured (default: true)
+    const skipGET = options.skipGET !== undefined ? options.skipGET : true;
+    if (skipGET && req.method === 'GET') {
+      return next();
+    }
+
+    // Determine if we should capture changes
+    const shouldCaptureChanges = options.captureChanges !== undefined
+      ? options.captureChanges
+      : ['update', 'delete', 'PUT', 'PATCH', 'DELETE'].includes(action) || ['PUT', 'PATCH', 'DELETE'].includes(req.method);
+
+    // Store before state for updates/deletes
+    let beforeState = null;
+    if (shouldCaptureChanges && options.getBeforeState) {
+      try {
+        beforeState = await options.getBeforeState(req);
+      } catch (error) {
+        console.error('Failed to capture before state:', error.message);
+      }
+    }
+
+    // Store original methods
     const originalJson = res.json.bind(res);
-    
-    // Track if response was successful
+    const originalSend = res.send.bind(res);
+
+    // Track response
     let responseStatus = 'success';
     let errorMessage = null;
-    
+    let responseData = null;
+
     // Override res.json to capture response
     res.json = function (data) {
-      // Check if response indicates error
+      responseData = data;
       if (res.statusCode >= 400) {
         responseStatus = 'failed';
         errorMessage = data.error || data.message || 'Unknown error';
       }
-      
+
       // Create audit log after response
-      createAuditLog(req, responseStatus, errorMessage);
-      
-      // Call original json method
+      createAuditLog(req, res, responseStatus, errorMessage, responseData, beforeState);
+
       return originalJson(data);
     };
-    
+
+    // Override res.send to capture response
+    res.send = function (data) {
+      if (!responseData) {
+        responseData = data;
+        if (res.statusCode >= 400) {
+          responseStatus = 'failed';
+          errorMessage = typeof data === 'string' ? data : 'Unknown error';
+        }
+
+        createAuditLog(req, res, responseStatus, errorMessage, responseData, beforeState);
+      }
+
+      return originalSend(data);
+    };
+
     // Continue to next middleware
     next();
-    
+
     /**
-     * Create audit log entry
+     * Create comprehensive audit log entry
      */
-    async function createAuditLog(req, status, error) {
+    async function createAuditLog(req, res, status, error, responseData, beforeState) {
       try {
         // Extract user info from request (set by authenticate middleware)
         const user = req.user;
-        
+
         if (!user) {
-          console.warn('⚠️  Audit log: No user found in request');
+          console.warn('Audit log: No user found in request');
           return;
         }
-        
-        // Determine resource type and ID from request
-        const resourceType = options.resourceType || detectResourceType(req);
-        const resourceId = options.resourceId || req.params.id || req.params.caseId || req.params.documentId;
-        const resourceName = options.resourceName || null;
-        
+
+        // Extract entity ID
+        let entityId = null;
+        if (options.getEntityId) {
+          entityId = options.getEntityId(req, responseData);
+        } else {
+          entityId = req.params.id
+            || req.params.clientId
+            || req.params.caseId
+            || req.params.invoiceId
+            || req.params.paymentId
+            || req.params.userId
+            || responseData?.data?._id
+            || responseData?.data?.id
+            || responseData?._id
+            || responseData?.id;
+        }
+
+        // Capture after state for creates/updates
+        let afterState = null;
+        if (shouldCaptureChanges && status === 'success') {
+          afterState = responseData?.data || responseData;
+        }
+
+        // Calculate changes for updates
+        let changes = null;
+        if (beforeState && afterState && typeof beforeState === 'object' && typeof afterState === 'object') {
+          changes = calculateChanges(beforeState, afterState);
+        }
+
         // Get IP address (considering proxies)
-        const ipAddress = req.ip || 
-                         req.headers['x-forwarded-for']?.split(',')[0] || 
-                         req.connection.remoteAddress ||
-                         'unknown';
-        
-        // Prepare log data
-        const logData = {
+        const ipAddress = req.ip
+          || req.headers['x-forwarded-for']?.split(',')[0]
+          || req.headers['x-real-ip']
+          || req.connection?.remoteAddress
+          || req.socket?.remoteAddress
+          || 'unknown';
+
+        // Build context object
+        const context = {
           userId: user._id || user.id,
           userEmail: user.email,
           userRole: user.role,
-          action: action,
-          resourceType: resourceType,
-          resourceId: resourceId,
-          resourceName: resourceName,
-          details: options.details || extractDetails(req),
+          userName: user.firstName ? `${user.firstName} ${user.lastName || ''}`.trim() : null,
+          firmId: user.firmId || req.firmId,
           ipAddress: ipAddress,
           userAgent: req.headers['user-agent'] || 'unknown',
           method: req.method,
           endpoint: req.originalUrl || req.url,
+          url: req.originalUrl || req.url,
+          sessionId: req.sessionID || req.session?.id,
           status: status,
           errorMessage: error,
+          statusCode: res.statusCode,
+          severity: options.severity,
+          details: options.details || extractDetails(req),
+          metadata: options.metadata || {},
           timestamp: new Date(),
         };
-        
-        // Create audit log (async, don't wait)
-        await AuditLog.log(logData);
-        
+
+        // Create changes object if we have before/after states
+        const changesObj = changes ? {
+          changes: changes,
+          before: beforeState,
+          after: afterState
+        } : null;
+
+        // Use the service to create audit log
+        await auditLogService.log(
+          action,
+          entityType,
+          entityId,
+          changesObj,
+          context
+        );
+
       } catch (error) {
         // Don't let audit log failure break the main operation
-        console.error('❌ Failed to create audit log:', error.message);
+        console.error('Failed to create audit log:', error.message);
       }
     }
   };
 };
+
+/**
+ * Calculate field-level changes between before and after states
+ * @param {Object} before - Before state
+ * @param {Object} after - After state
+ * @returns {Array} - Array of changes
+ */
+function calculateChanges(before, after) {
+  const changes = [];
+  const allKeys = new Set([...Object.keys(before), ...Object.keys(after)]);
+
+  // Fields to exclude from change tracking
+  const excludeFields = [
+    '_id',
+    '__v',
+    'createdAt',
+    'updatedAt',
+    'password',
+    'token',
+    'refreshToken'
+  ];
+
+  for (const key of allKeys) {
+    if (excludeFields.includes(key)) continue;
+
+    const oldValue = before[key];
+    const newValue = after[key];
+
+    // Check if values are different
+    if (JSON.stringify(oldValue) !== JSON.stringify(newValue)) {
+      changes.push({
+        field: key,
+        oldValue: oldValue,
+        newValue: newValue
+      });
+    }
+  }
+
+  return changes;
+}
 
 /**
  * Detect resource type from request path
@@ -212,7 +355,12 @@ const checkSuspiciousActivity = async (userId, ipAddress) => {
   }
 };
 
+// Export both old and new naming for backward compatibility
 module.exports = {
+  // New enhanced middleware (recommended)
+  auditAction,
+
+  // Legacy exports (backward compatibility)
   auditLog,
   logAuthEvent,
   checkSuspiciousActivity,

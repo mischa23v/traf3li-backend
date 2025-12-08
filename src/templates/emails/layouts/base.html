@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="{{language}}" dir="{{direction}}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <title>{{title}}</title>
+    <style>
+        /* Reset styles */
+        body, table, td, a { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+        table, td { mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
+        img { -ms-interpolation-mode: bicubic; border: 0; height: auto; line-height: 100%; outline: none; text-decoration: none; }
+        body { margin: 0; padding: 0; width: 100% !important; height: 100% !important; }
+
+        /* General styles */
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif, 'Cairo', 'Tajawal';
+            background-color: #f4f7fa;
+            color: #333333;
+            line-height: 1.6;
+        }
+
+        /* Container */
+        .email-container {
+            max-width: 600px;
+            margin: 0 auto;
+            background-color: #ffffff;
+        }
+
+        /* Header */
+        .header {
+            background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
+            padding: 30px 20px;
+            text-align: center;
+        }
+
+        .logo {
+            max-width: 180px;
+            height: auto;
+        }
+
+        .header-title {
+            color: #ffffff;
+            font-size: 24px;
+            font-weight: 700;
+            margin: 15px 0 0 0;
+        }
+
+        /* Content */
+        .content {
+            padding: 40px 30px;
+        }
+
+        .content h1 {
+            color: #1e3a8a;
+            font-size: 28px;
+            font-weight: 700;
+            margin: 0 0 20px 0;
+        }
+
+        .content h2 {
+            color: #1e3a8a;
+            font-size: 22px;
+            font-weight: 600;
+            margin: 25px 0 15px 0;
+        }
+
+        .content p {
+            color: #4b5563;
+            font-size: 16px;
+            line-height: 1.8;
+            margin: 0 0 15px 0;
+        }
+
+        /* Button */
+        .button {
+            display: inline-block;
+            padding: 14px 32px;
+            background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
+            color: #ffffff !important;
+            text-decoration: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            margin: 20px 0;
+            transition: all 0.3s ease;
+        }
+
+        .button:hover {
+            background: linear-gradient(135deg, #1e40af 0%, #2563eb 100%);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(30, 58, 138, 0.3);
+        }
+
+        /* Info Box */
+        .info-box {
+            background-color: #eff6ff;
+            border-left: 4px solid #3b82f6;
+            padding: 20px;
+            margin: 25px 0;
+            border-radius: 4px;
+        }
+
+        .info-box p {
+            margin: 0;
+            color: #1e40af;
+        }
+
+        /* Warning Box */
+        .warning-box {
+            background-color: #fef3c7;
+            border-left: 4px solid #f59e0b;
+            padding: 20px;
+            margin: 25px 0;
+            border-radius: 4px;
+        }
+
+        .warning-box p {
+            margin: 0;
+            color: #92400e;
+        }
+
+        /* Success Box */
+        .success-box {
+            background-color: #d1fae5;
+            border-left: 4px solid #10b981;
+            padding: 20px;
+            margin: 25px 0;
+            border-radius: 4px;
+        }
+
+        .success-box p {
+            margin: 0;
+            color: #065f46;
+        }
+
+        /* Divider */
+        .divider {
+            border: 0;
+            border-top: 1px solid #e5e7eb;
+            margin: 30px 0;
+        }
+
+        /* Footer */
+        .footer {
+            background-color: #1f2937;
+            padding: 30px 20px;
+            text-align: center;
+            color: #9ca3af;
+        }
+
+        .footer p {
+            margin: 5px 0;
+            font-size: 14px;
+        }
+
+        .footer a {
+            color: #60a5fa;
+            text-decoration: none;
+        }
+
+        .footer a:hover {
+            text-decoration: underline;
+        }
+
+        /* Social Links */
+        .social-links {
+            margin: 20px 0;
+        }
+
+        .social-links a {
+            display: inline-block;
+            margin: 0 10px;
+            color: #60a5fa;
+            font-size: 14px;
+            text-decoration: none;
+        }
+
+        .social-links a:hover {
+            color: #93c5fd;
+        }
+
+        /* Unsubscribe */
+        .unsubscribe {
+            font-size: 12px;
+            color: #6b7280;
+            margin-top: 20px;
+        }
+
+        /* RTL Support */
+        [dir="rtl"] {
+            text-align: right;
+        }
+
+        [dir="rtl"] .info-box,
+        [dir="rtl"] .warning-box,
+        [dir="rtl"] .success-box {
+            border-left: none;
+            border-right: 4px solid;
+        }
+
+        [dir="rtl"] .info-box {
+            border-right-color: #3b82f6;
+        }
+
+        [dir="rtl"] .warning-box {
+            border-right-color: #f59e0b;
+        }
+
+        [dir="rtl"] .success-box {
+            border-right-color: #10b981;
+        }
+
+        /* Responsive */
+        @media only screen and (max-width: 600px) {
+            .email-container {
+                width: 100% !important;
+            }
+
+            .content {
+                padding: 30px 20px !important;
+            }
+
+            .content h1 {
+                font-size: 24px !important;
+            }
+
+            .content h2 {
+                font-size: 20px !important;
+            }
+
+            .button {
+                display: block !important;
+                width: 100% !important;
+                text-align: center !important;
+            }
+        }
+    </style>
+</head>
+<body>
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+        <tr>
+            <td align="center" style="padding: 20px 0;">
+                <table class="email-container" role="presentation" width="600" cellspacing="0" cellpadding="0" border="0">
+                    <!-- Header -->
+                    <tr>
+                        <td class="header">
+                            <img src="{{logoUrl}}" alt="Traf3li Logo" class="logo">
+                            {{#headerTitle}}
+                            <h1 class="header-title">{{headerTitle}}</h1>
+                            {{/headerTitle}}
+                        </td>
+                    </tr>
+
+                    <!-- Content -->
+                    <tr>
+                        <td class="content">
+                            {{{content}}}
+                        </td>
+                    </tr>
+
+                    <!-- Footer -->
+                    <tr>
+                        <td class="footer">
+                            <p><strong>{{companyName}}</strong></p>
+                            <p>{{address}}</p>
+                            <p>
+                                {{#phone}}{{phoneLabel}}: {{phone}}{{/phone}}
+                                {{#email}} | {{emailLabel}}: <a href="mailto:{{email}}">{{email}}</a>{{/email}}
+                            </p>
+
+                            <div class="social-links">
+                                {{#socialLinks}}
+                                {{#twitter}}<a href="{{twitter}}">Twitter</a>{{/twitter}}
+                                {{#linkedin}}<a href="{{linkedin}}">LinkedIn</a>{{/linkedin}}
+                                {{#facebook}}<a href="{{facebook}}">Facebook</a>{{/facebook}}
+                                {{#instagram}}<a href="{{instagram}}">Instagram</a>{{/instagram}}
+                                {{/socialLinks}}
+                            </div>
+
+                            <hr class="divider" style="border-color: #374151;">
+
+                            <p style="font-size: 12px;">{{footerText}}</p>
+
+                            {{#unsubscribeUrl}}
+                            <p class="unsubscribe">
+                                <a href="{{unsubscribeUrl}}">{{unsubscribeText}}</a>
+                            </p>
+                            {{/unsubscribeUrl}}
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>

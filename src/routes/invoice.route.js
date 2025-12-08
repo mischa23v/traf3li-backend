@@ -9,6 +9,7 @@
 
 const express = require('express');
 const { userMiddleware, firmFilter } = require('../middlewares');
+const { auditAction } = require('../middlewares/auditLog.middleware');
 const { authorize } = require('../middlewares/authorize.middleware');
 const {
     validateVoid,
@@ -118,6 +119,7 @@ router.post('/',
     userMiddleware,
     firmFilter,
     validateCreateInvoice,
+    auditAction('create_invoice', 'invoice', { severity: 'medium' }),
     createInvoice
 );
 
@@ -147,6 +149,7 @@ router.patch('/:id',
     userMiddleware,
     firmFilter,
     validateUpdateInvoice,
+    auditAction('update_invoice', 'invoice', { captureChanges: true }),
     updateInvoice
 );
 
@@ -154,6 +157,7 @@ router.patch('/:_id',
     userMiddleware,
     firmFilter,
     validateUpdateInvoice,
+    auditAction('update_invoice', 'invoice', { captureChanges: true }),
     updateInvoice
 );
 
@@ -162,6 +166,7 @@ router.put('/:id',
     userMiddleware,
     firmFilter,
     validateUpdateInvoice,
+    auditAction('update_invoice', 'invoice', { captureChanges: true }),
     updateInvoice
 );
 
@@ -169,12 +174,14 @@ router.put('/:id',
 router.delete('/:id',
     userMiddleware,
     firmFilter,
+    auditAction('delete_invoice', 'invoice', { severity: 'high' }),
     deleteInvoice
 );
 
 router.delete('/:_id',
     userMiddleware,
     firmFilter,
+    auditAction('delete_invoice', 'invoice', { severity: 'high' }),
     deleteInvoice
 );
 

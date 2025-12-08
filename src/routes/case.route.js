@@ -1,5 +1,6 @@
 const express = require('express');
 const { userMiddleware, firmFilter } = require('../middlewares');
+const { cacheResponse, invalidateCache } = require('../middlewares/cache.middleware');
 const {
     validateCreateCase,
     validateUpdateCase,
@@ -72,135 +73,607 @@ const {
 } = require('../controllers/case.controller');
 const app = express.Router();
 
-// Get statistics (must be before /:_id to avoid conflict)
-app.get('/statistics', userMiddleware, firmFilter, getStatistics);
+// Cache TTL: 300 seconds (5 minutes) for case endpoints
+const CASE_CACHE_TTL = 300;
 
-// Create case
-app.post('/', userMiddleware, firmFilter, validateCreateCase, createCase);
+// Cache invalidation patterns for case mutations
+const caseInvalidationPatterns = [
+    'case:firm:{firmId}:*',         // All case caches for the firm
+    'dashboard:firm:{firmId}:*'     // Dashboard caches (case counts, stats)
+];
 
-// Get all cases
-app.get('/', userMiddleware, firmFilter, getCases);
+// Cache invalidation patterns for specific case
+const specificCaseInvalidationPatterns = [
+    'case:firm:{firmId}:{_id}:*',   // Specific case caches
+    'case:firm:{firmId}:list:*',    // Case list caches
+    'dashboard:firm:{firmId}:*'     // Dashboard caches
+];
 
-// Get single case
-app.get('/:_id', userMiddleware, firmFilter, validateObjectIdParam, getCase);
+/**
+ * @openapi
+ * /api/cases/statistics:
+ *   get:
+ *     summary: Get case statistics
+ *     description: Returns aggregated statistics about cases (by status, type, priority)
+ *     tags:
+ *       - Cases
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Statistics retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ */
+app.get('/statistics',
+    userMiddleware,
+    firmFilter,
+    cacheResponse(CASE_CACHE_TTL, (req) => `case:firm:${req.firmId || 'none'}:statistics`),
+    getStatistics
+);
 
-// Update case
-app.patch('/:_id', userMiddleware, firmFilter, validateObjectIdParam, validateUpdateCase, updateCase);
+/**
+ * @openapi
+ * /api/cases:
+ *   post:
+ *     summary: Create a new case
+ *     description: Creates a new legal case in the system
+ *     tags:
+ *       - Cases
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/CreateCaseRequest'
+ *     responses:
+ *       201:
+ *         description: Case created successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/CaseResponse'
+ *       400:
+ *         $ref: '#/components/responses/BadRequest'
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ *       422:
+ *         $ref: '#/components/responses/ValidationError'
+ */
+app.post('/',
+    userMiddleware,
+    firmFilter,
+    validateCreateCase,
+    invalidateCache(caseInvalidationPatterns),
+    createCase
+);
 
-// Delete case
-app.delete('/:_id', userMiddleware, firmFilter, validateObjectIdParam, deleteCase);
+/**
+ * @openapi
+ * /api/cases:
+ *   get:
+ *     summary: Get all cases
+ *     description: Retrieves a paginated list of cases with optional filtering
+ *     tags:
+ *       - Cases
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - $ref: '#/components/parameters/pageParam'
+ *       - $ref: '#/components/parameters/limitParam'
+ *       - $ref: '#/components/parameters/sortParam'
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           enum: [open, in_progress, pending, closed, won, lost, settled]
+ *         description: Filter by case status
+ *       - in: query
+ *         name: caseType
+ *         schema:
+ *           type: string
+ *         description: Filter by case type
+ *       - in: query
+ *         name: clientId
+ *         schema:
+ *           type: string
+ *         description: Filter by client ID
+ *     responses:
+ *       200:
+ *         description: Cases retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/CaseListResponse'
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ */
+app.get('/',
+    userMiddleware,
+    firmFilter,
+    cacheResponse(CASE_CACHE_TTL, (req) => `case:firm:${req.firmId || 'none'}:list:url:${req.originalUrl}`),
+    getCases
+);
+
+/**
+ * @openapi
+ * /api/cases/{_id}:
+ *   get:
+ *     summary: Get case by ID
+ *     description: Retrieves detailed information about a specific case
+ *     tags:
+ *       - Cases
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: _id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Case ID
+ *     responses:
+ *       200:
+ *         description: Case retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/CaseResponse'
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ */
+app.get('/:_id',
+    userMiddleware,
+    firmFilter,
+    validateObjectIdParam,
+    cacheResponse(CASE_CACHE_TTL, (req) => `case:firm:${req.firmId || 'none'}:${req.params._id}:details`),
+    getCase
+);
+
+/**
+ * @openapi
+ * /api/cases/{_id}:
+ *   patch:
+ *     summary: Update case
+ *     description: Updates an existing case's information
+ *     tags:
+ *       - Cases
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: _id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Case ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/UpdateCaseRequest'
+ *     responses:
+ *       200:
+ *         description: Case updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/CaseResponse'
+ *       400:
+ *         $ref: '#/components/responses/BadRequest'
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ */
+app.patch('/:_id',
+    userMiddleware,
+    firmFilter,
+    validateObjectIdParam,
+    validateUpdateCase,
+    invalidateCache(specificCaseInvalidationPatterns),
+    updateCase
+);
+
+/**
+ * @openapi
+ * /api/cases/{_id}:
+ *   delete:
+ *     summary: Delete case
+ *     description: Deletes a case from the system
+ *     tags:
+ *       - Cases
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: _id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Case ID
+ *     responses:
+ *       200:
+ *         description: Case deleted successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: Case deleted successfully
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ */
+app.delete('/:_id',
+    userMiddleware,
+    firmFilter,
+    validateObjectIdParam,
+    invalidateCache(specificCaseInvalidationPatterns),
+    deleteCase
+);
 
 // Update progress
-app.patch('/:_id/progress', userMiddleware, firmFilter, validateObjectIdParam, validateUpdateProgress, updateProgress);
+app.patch('/:_id/progress',
+    userMiddleware,
+    firmFilter,
+    validateObjectIdParam,
+    validateUpdateProgress,
+    invalidateCache(specificCaseInvalidationPatterns),
+    updateProgress
+);
 
 // ==================== NOTES ====================
 // Add note
-app.post('/:_id/note', userMiddleware, firmFilter, validateObjectIdParam, validateAddNote, addNote);
+app.post('/:_id/note',
+    userMiddleware,
+    firmFilter,
+    validateObjectIdParam,
+    validateAddNote,
+    invalidateCache(['case:firm:{firmId}:{_id}:*']),
+    addNote
+);
 
 // Update note
-app.patch('/:_id/notes/:noteId', userMiddleware, firmFilter, validateNestedIdParam, validateUpdateNote, updateNote);
+app.patch('/:_id/notes/:noteId',
+    userMiddleware,
+    firmFilter,
+    validateNestedIdParam,
+    validateUpdateNote,
+    invalidateCache(['case:firm:{firmId}:{_id}:*']),
+    updateNote
+);
 
 // Delete note
-app.delete('/:_id/notes/:noteId', userMiddleware, firmFilter, validateNestedIdParam, deleteNote);
+app.delete('/:_id/notes/:noteId',
+    userMiddleware,
+    firmFilter,
+    validateNestedIdParam,
+    invalidateCache(['case:firm:{firmId}:{_id}:*']),
+    deleteNote
+);
 
 // ==================== S3 DOCUMENTS ====================
 // Get upload URL
-app.post('/:_id/documents/upload-url', userMiddleware, firmFilter, validateObjectIdParam, validateDocumentUploadUrl, getDocumentUploadUrl);
+app.post('/:_id/documents/upload-url',
+    userMiddleware,
+    firmFilter,
+    validateObjectIdParam,
+    validateDocumentUploadUrl,
+    getDocumentUploadUrl
+);
 
 // Confirm upload
-app.post('/:_id/documents/confirm', userMiddleware, firmFilter, validateObjectIdParam, validateConfirmDocumentUpload, confirmDocumentUpload);
+app.post('/:_id/documents/confirm',
+    userMiddleware,
+    firmFilter,
+    validateObjectIdParam,
+    validateConfirmDocumentUpload,
+    invalidateCache(['case:firm:{firmId}:{_id}:*']),
+    confirmDocumentUpload
+);
 
 // Get download URL
-app.get('/:_id/documents/:docId/download', userMiddleware, firmFilter, validateNestedIdParam, getDocumentDownloadUrl);
+app.get('/:_id/documents/:docId/download',
+    userMiddleware,
+    firmFilter,
+    validateNestedIdParam,
+    getDocumentDownloadUrl
+);
 
 // Delete document (with S3)
-app.delete('/:_id/documents/:docId', userMiddleware, firmFilter, validateNestedIdParam, deleteDocumentWithS3);
+app.delete('/:_id/documents/:docId',
+    userMiddleware,
+    firmFilter,
+    validateNestedIdParam,
+    invalidateCache(['case:firm:{firmId}:{_id}:*']),
+    deleteDocumentWithS3
+);
 
 // Legacy document endpoints
-app.post('/:_id/document', userMiddleware, firmFilter, validateObjectIdParam, addDocument);
-app.delete('/:_id/document/:documentId', userMiddleware, firmFilter, validateNestedIdParam, deleteDocument);
+app.post('/:_id/document',
+    userMiddleware,
+    firmFilter,
+    validateObjectIdParam,
+    invalidateCache(['case:firm:{firmId}:{_id}:*']),
+    addDocument
+);
+
+app.delete('/:_id/document/:documentId',
+    userMiddleware,
+    firmFilter,
+    validateNestedIdParam,
+    invalidateCache(['case:firm:{firmId}:{_id}:*']),
+    deleteDocument
+);
 
 // ==================== HEARINGS ====================
 // Add hearing
-app.post('/:_id/hearing', userMiddleware, firmFilter, validateObjectIdParam, validateAddHearing, addHearing);
+app.post('/:_id/hearing',
+    userMiddleware,
+    firmFilter,
+    validateObjectIdParam,
+    validateAddHearing,
+    invalidateCache(['case:firm:{firmId}:{_id}:*', 'dashboard:firm:{firmId}:*']),
+    addHearing
+);
 
 // Update hearing
-app.patch('/:_id/hearings/:hearingId', userMiddleware, firmFilter, validateNestedIdParam, validateUpdateHearing, updateHearing);
+app.patch('/:_id/hearings/:hearingId',
+    userMiddleware,
+    firmFilter,
+    validateNestedIdParam,
+    validateUpdateHearing,
+    invalidateCache(['case:firm:{firmId}:{_id}:*', 'dashboard:firm:{firmId}:*']),
+    updateHearing
+);
 
 // Delete hearing
-app.delete('/:_id/hearings/:hearingId', userMiddleware, firmFilter, validateNestedIdParam, deleteHearing);
+app.delete('/:_id/hearings/:hearingId',
+    userMiddleware,
+    firmFilter,
+    validateNestedIdParam,
+    invalidateCache(['case:firm:{firmId}:{_id}:*', 'dashboard:firm:{firmId}:*']),
+    deleteHearing
+);
 
 // Legacy hearing update/delete routes
-app.patch('/:_id/hearing/:hearingId', userMiddleware, firmFilter, validateNestedIdParam, validateUpdateHearing, updateHearing);
-app.delete('/:_id/hearing/:hearingId', userMiddleware, firmFilter, validateNestedIdParam, deleteHearing);
+app.patch('/:_id/hearing/:hearingId',
+    userMiddleware,
+    firmFilter,
+    validateNestedIdParam,
+    validateUpdateHearing,
+    invalidateCache(['case:firm:{firmId}:{_id}:*', 'dashboard:firm:{firmId}:*']),
+    updateHearing
+);
+
+app.delete('/:_id/hearing/:hearingId',
+    userMiddleware,
+    firmFilter,
+    validateNestedIdParam,
+    invalidateCache(['case:firm:{firmId}:{_id}:*', 'dashboard:firm:{firmId}:*']),
+    deleteHearing
+);
 
 // ==================== TIMELINE ====================
 // Add timeline event
-app.post('/:_id/timeline', userMiddleware, firmFilter, validateObjectIdParam, validateAddTimelineEvent, addTimelineEvent);
+app.post('/:_id/timeline',
+    userMiddleware,
+    firmFilter,
+    validateObjectIdParam,
+    validateAddTimelineEvent,
+    invalidateCache(['case:firm:{firmId}:{_id}:*']),
+    addTimelineEvent
+);
 
 // Update timeline event
-app.patch('/:_id/timeline/:eventId', userMiddleware, firmFilter, validateNestedIdParam, validateUpdateTimelineEvent, updateTimelineEvent);
+app.patch('/:_id/timeline/:eventId',
+    userMiddleware,
+    firmFilter,
+    validateNestedIdParam,
+    validateUpdateTimelineEvent,
+    invalidateCache(['case:firm:{firmId}:{_id}:*']),
+    updateTimelineEvent
+);
 
 // Delete timeline event
-app.delete('/:_id/timeline/:eventId', userMiddleware, firmFilter, validateNestedIdParam, deleteTimelineEvent);
+app.delete('/:_id/timeline/:eventId',
+    userMiddleware,
+    firmFilter,
+    validateNestedIdParam,
+    invalidateCache(['case:firm:{firmId}:{_id}:*']),
+    deleteTimelineEvent
+);
 
 // ==================== CLAIMS ====================
 // Add claim
-app.post('/:_id/claim', userMiddleware, firmFilter, validateObjectIdParam, validateAddClaim, addClaim);
+app.post('/:_id/claim',
+    userMiddleware,
+    firmFilter,
+    validateObjectIdParam,
+    validateAddClaim,
+    invalidateCache(['case:firm:{firmId}:{_id}:*']),
+    addClaim
+);
 
 // Update claim
-app.patch('/:_id/claims/:claimId', userMiddleware, firmFilter, validateNestedIdParam, validateUpdateClaim, updateClaim);
+app.patch('/:_id/claims/:claimId',
+    userMiddleware,
+    firmFilter,
+    validateNestedIdParam,
+    validateUpdateClaim,
+    invalidateCache(['case:firm:{firmId}:{_id}:*']),
+    updateClaim
+);
 
 // Delete claim
-app.delete('/:_id/claims/:claimId', userMiddleware, firmFilter, validateNestedIdParam, deleteClaim);
+app.delete('/:_id/claims/:claimId',
+    userMiddleware,
+    firmFilter,
+    validateNestedIdParam,
+    invalidateCache(['case:firm:{firmId}:{_id}:*']),
+    deleteClaim
+);
 
 // Legacy claim delete route
-app.delete('/:_id/claim/:claimId', userMiddleware, firmFilter, validateNestedIdParam, deleteClaim);
+app.delete('/:_id/claim/:claimId',
+    userMiddleware,
+    firmFilter,
+    validateNestedIdParam,
+    invalidateCache(['case:firm:{firmId}:{_id}:*']),
+    deleteClaim
+);
 
 // ==================== STATUS & OUTCOME ====================
 // Update status
-app.patch('/:_id/status', userMiddleware, firmFilter, validateObjectIdParam, validateUpdateStatus, updateStatus);
+app.patch('/:_id/status',
+    userMiddleware,
+    firmFilter,
+    validateObjectIdParam,
+    validateUpdateStatus,
+    invalidateCache(specificCaseInvalidationPatterns),
+    updateStatus
+);
 
 // Update outcome
-app.patch('/:_id/outcome', userMiddleware, firmFilter, validateObjectIdParam, validateUpdateOutcome, updateOutcome);
+app.patch('/:_id/outcome',
+    userMiddleware,
+    firmFilter,
+    validateObjectIdParam,
+    validateUpdateOutcome,
+    invalidateCache(specificCaseInvalidationPatterns),
+    updateOutcome
+);
 
 // ==================== AUDIT ====================
 // Get case audit history
-app.get('/:_id/audit', userMiddleware, firmFilter, validateObjectIdParam, getCaseAudit);
+app.get('/:_id/audit',
+    userMiddleware,
+    firmFilter,
+    validateObjectIdParam,
+    cacheResponse(CASE_CACHE_TTL, (req) => `case:firm:${req.firmId || 'none'}:${req.params._id}:audit`),
+    getCaseAudit
+);
 
 // ==================== RICH DOCUMENTS (CKEditor) ====================
 // Create rich document
-app.post('/:_id/rich-documents', userMiddleware, firmFilter, validateObjectIdParam, validateCreateRichDocument, createRichDocument);
+app.post('/:_id/rich-documents',
+    userMiddleware,
+    firmFilter,
+    validateObjectIdParam,
+    validateCreateRichDocument,
+    invalidateCache(['case:firm:{firmId}:{_id}:*']),
+    createRichDocument
+);
 
 // Get all rich documents for a case
-app.get('/:_id/rich-documents', userMiddleware, firmFilter, validateObjectIdParam, getRichDocuments);
+app.get('/:_id/rich-documents',
+    userMiddleware,
+    firmFilter,
+    validateObjectIdParam,
+    cacheResponse(CASE_CACHE_TTL, (req) => `case:firm:${req.firmId || 'none'}:${req.params._id}:rich-documents:list`),
+    getRichDocuments
+);
 
 // Get single rich document
-app.get('/:_id/rich-documents/:docId', userMiddleware, firmFilter, validateNestedIdParam, getRichDocument);
+app.get('/:_id/rich-documents/:docId',
+    userMiddleware,
+    firmFilter,
+    validateNestedIdParam,
+    cacheResponse(CASE_CACHE_TTL, (req) => `case:firm:${req.firmId || 'none'}:${req.params._id}:rich-documents:${req.params.docId}`),
+    getRichDocument
+);
 
 // Update rich document
-app.patch('/:_id/rich-documents/:docId', userMiddleware, firmFilter, validateNestedIdParam, validateUpdateRichDocument, updateRichDocument);
+app.patch('/:_id/rich-documents/:docId',
+    userMiddleware,
+    firmFilter,
+    validateNestedIdParam,
+    validateUpdateRichDocument,
+    invalidateCache(['case:firm:{firmId}:{_id}:*']),
+    updateRichDocument
+);
 
 // Delete rich document
-app.delete('/:_id/rich-documents/:docId', userMiddleware, firmFilter, validateNestedIdParam, deleteRichDocument);
+app.delete('/:_id/rich-documents/:docId',
+    userMiddleware,
+    firmFilter,
+    validateNestedIdParam,
+    invalidateCache(['case:firm:{firmId}:{_id}:*']),
+    deleteRichDocument
+);
 
 // Get rich document version history
-app.get('/:_id/rich-documents/:docId/versions', userMiddleware, firmFilter, validateNestedIdParam, getRichDocumentVersions);
+app.get('/:_id/rich-documents/:docId/versions',
+    userMiddleware,
+    firmFilter,
+    validateNestedIdParam,
+    cacheResponse(CASE_CACHE_TTL, (req) => `case:firm:${req.firmId || 'none'}:${req.params._id}:rich-documents:${req.params.docId}:versions`),
+    getRichDocumentVersions
+);
 
 // Restore rich document to a previous version
-app.post('/:_id/rich-documents/:docId/versions/:versionNumber/restore', userMiddleware, firmFilter, validateNestedIdParam, restoreRichDocumentVersion);
+app.post('/:_id/rich-documents/:docId/versions/:versionNumber/restore',
+    userMiddleware,
+    firmFilter,
+    validateNestedIdParam,
+    invalidateCache(['case:firm:{firmId}:{_id}:*']),
+    restoreRichDocumentVersion
+);
 
 // ==================== RICH DOCUMENT EXPORT ====================
 // Export to PDF
-app.get('/:_id/rich-documents/:docId/export/pdf', userMiddleware, firmFilter, validateNestedIdParam, exportRichDocumentToPdf);
+app.get('/:_id/rich-documents/:docId/export/pdf',
+    userMiddleware,
+    firmFilter,
+    validateNestedIdParam,
+    exportRichDocumentToPdf
+);
 
 // Export to LaTeX
-app.get('/:_id/rich-documents/:docId/export/latex', userMiddleware, firmFilter, validateNestedIdParam, exportRichDocumentToLatex);
+app.get('/:_id/rich-documents/:docId/export/latex',
+    userMiddleware,
+    firmFilter,
+    validateNestedIdParam,
+    exportRichDocumentToLatex
+);
 
 // Export to Markdown
-app.get('/:_id/rich-documents/:docId/export/markdown', userMiddleware, firmFilter, validateNestedIdParam, exportRichDocumentToMarkdown);
+app.get('/:_id/rich-documents/:docId/export/markdown',
+    userMiddleware,
+    firmFilter,
+    validateNestedIdParam,
+    exportRichDocumentToMarkdown
+);
 
 // Get HTML preview
-app.get('/:_id/rich-documents/:docId/preview', userMiddleware, firmFilter, validateNestedIdParam, getRichDocumentPreview);
+app.get('/:_id/rich-documents/:docId/preview',
+    userMiddleware,
+    firmFilter,
+    validateNestedIdParam,
+    cacheResponse(CASE_CACHE_TTL, (req) => `case:firm:${req.firmId || 'none'}:${req.params._id}:rich-documents:${req.params.docId}:preview`),
+    getRichDocumentPreview
+);
 
 module.exports = app;

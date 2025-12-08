@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="{{language}}" dir="{{direction}}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <title>{{title}}</title>
+    <style>
+        /* Reset and base styles */
+        body, table, td, a { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+        table, td { mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
+        img { -ms-interpolation-mode: bicubic; border: 0; height: auto; line-height: 100%; outline: none; text-decoration: none; }
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif, 'Cairo', 'Tajawal';
+            background-color: #f9fafb;
+            color: #1f2937;
+        }
+
+        .container {
+            max-width: 500px;
+            margin: 40px auto;
+            background-color: #ffffff;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.07);
+        }
+
+        .header {
+            background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
+            padding: 20px;
+            text-align: center;
+        }
+
+        .logo {
+            max-width: 120px;
+            height: auto;
+        }
+
+        .content {
+            padding: 30px 25px;
+        }
+
+        .icon-container {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .icon {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 30px;
+        }
+
+        .icon.success { background-color: #d1fae5; color: #065f46; }
+        .icon.info { background-color: #dbeafe; color: #1e40af; }
+        .icon.warning { background-color: #fef3c7; color: #92400e; }
+        .icon.error { background-color: #fee2e2; color: #991b1b; }
+
+        h1 {
+            color: #1f2937;
+            font-size: 22px;
+            font-weight: 700;
+            margin: 0 0 15px 0;
+            text-align: center;
+        }
+
+        p {
+            color: #6b7280;
+            font-size: 15px;
+            line-height: 1.7;
+            margin: 0 0 15px 0;
+        }
+
+        .button {
+            display: inline-block;
+            padding: 12px 28px;
+            background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
+            color: #ffffff !important;
+            text-decoration: none;
+            border-radius: 8px;
+            font-size: 15px;
+            font-weight: 600;
+            margin: 15px 0;
+        }
+
+        .footer {
+            background-color: #f3f4f6;
+            padding: 20px;
+            text-align: center;
+            font-size: 13px;
+            color: #6b7280;
+        }
+
+        .footer a {
+            color: #3b82f6;
+            text-decoration: none;
+        }
+
+        /* RTL Support */
+        [dir="rtl"] {
+            text-align: right;
+        }
+
+        [dir="rtl"] h1,
+        [dir="rtl"] .icon-container,
+        [dir="rtl"] .footer {
+            text-align: center;
+        }
+
+        @media only screen and (max-width: 600px) {
+            .container {
+                margin: 20px 10px !important;
+            }
+            .content {
+                padding: 25px 20px !important;
+            }
+            .button {
+                display: block !important;
+                width: 100% !important;
+                text-align: center !important;
+            }
+        }
+    </style>
+</head>
+<body>
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+        <tr>
+            <td align="center">
+                <div class="container">
+                    <!-- Header -->
+                    <div class="header">
+                        <img src="{{logoUrl}}" alt="Traf3li" class="logo">
+                    </div>
+
+                    <!-- Content -->
+                    <div class="content">
+                        {{{content}}}
+                    </div>
+
+                    <!-- Footer -->
+                    <div class="footer">
+                        <p>{{footerText}}</p>
+                        {{#unsubscribeUrl}}
+                        <p><a href="{{unsubscribeUrl}}">{{unsubscribeText}}</a></p>
+                        {{/unsubscribeUrl}}
+                    </div>
+                </div>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>

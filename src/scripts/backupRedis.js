@@ -1,0 +1,534 @@
+/**
+ * Redis Backup Script
+ *
+ * Features:
+ * - Redis RDB snapshot backup
+ * - Upload to S3 bucket
+ * - Retention policy enforcement
+ * - Email notifications
+ * - Support for both local and remote Redis
+ *
+ * Usage:
+ *   node src/scripts/backupRedis.js [--dry-run]
+ */
+
+require('dotenv').config();
+const { exec } = require('child_process');
+const { promisify } = require('util');
+const fs = require('fs').promises;
+const path = require('path');
+const { S3Client, PutObjectCommand, ListObjectsV2Command, DeleteObjectCommand } = require('@aws-sdk/client-s3');
+const { Resend } = require('resend');
+const { getRedisClient, connectRedis } = require('../configs/redis');
+const backupConfig = require('../configs/backup.config');
+
+const execAsync = promisify(exec);
+
+class RedisBackupManager {
+  constructor() {
+    this.config = backupConfig;
+    this.s3Client = new S3Client({
+      region: this.config.s3.region,
+      credentials: {
+        accessKeyId: this.config.s3.accessKeyId,
+        secretAccessKey: this.config.s3.secretAccessKey,
+      },
+    });
+    this.resend = this.config.notifications.resendApiKey
+      ? new Resend(this.config.notifications.resendApiKey)
+      : null;
+    this.dryRun = process.argv.includes('--dry-run');
+  }
+
+  /**
+   * Generate backup filename with timestamp
+   */
+  generateBackupFilename() {
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const hostname = process.env.HOSTNAME || 'production';
+    return `redis-${hostname}-${timestamp}.rdb.gz`;
+  }
+
+  /**
+   * Get S3 key path for backup
+   */
+  getS3Key(filename) {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    return `${this.config.s3.prefix}/redis/${year}/${month}/${filename}`;
+  }
+
+  /**
+   * Trigger Redis BGSAVE
+   */
+  async triggerRedisSave() {
+    console.log('\n💾 Triggering Redis BGSAVE...');
+
+    if (this.dryRun) {
+      console.log('[DRY RUN] Would trigger Redis BGSAVE');
+      return;
+    }
+
+    try {
+      // Connect to Redis
+      const redisClient = await connectRedis();
+
+      // Get current save time
+      const lastSaveTime = await redisClient.lastsave();
+      console.log(`   Last save: ${new Date(lastSaveTime * 1000).toISOString()}`);
+
+      // Trigger background save
+      console.log('⏳ Starting background save...');
+      await redisClient.bgsave();
+
+      // Wait for save to complete
+      let saveInProgress = true;
+      let attempts = 0;
+      const maxAttempts = 60; // Wait up to 60 seconds
+
+      while (saveInProgress && attempts < maxAttempts) {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+
+        try {
+          const info = await redisClient.info('persistence');
+
+          // Check if save is in progress
+          if (info.includes('rdb_bgsave_in_progress:0')) {
+            saveInProgress = false;
+
+            // Check for save errors
+            if (info.includes('rdb_last_bgsave_status:ok')) {
+              console.log('✅ Redis BGSAVE completed successfully');
+            } else {
+              throw new Error('Redis BGSAVE reported an error');
+            }
+          }
+        } catch (error) {
+          console.warn('⚠️  Error checking save status:', error.message);
+        }
+
+        attempts++;
+      }
+
+      if (saveInProgress) {
+        throw new Error('Redis BGSAVE timed out after 60 seconds');
+      }
+
+      // Get new save time
+      const newSaveTime = await redisClient.lastsave();
+      console.log(`   New save: ${new Date(newSaveTime * 1000).toISOString()}`);
+
+      return newSaveTime;
+    } catch (error) {
+      console.error('❌ Redis BGSAVE failed:', error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * Copy and compress RDB file
+   */
+  async copyAndCompressRDB(filename) {
+    console.log('\n📦 Copying and compressing RDB file...');
+
+    // Ensure temp directory exists
+    await fs.mkdir(this.config.backup.tempDir, { recursive: true });
+
+    const backupPath = path.join(this.config.backup.tempDir, filename);
+
+    if (this.dryRun) {
+      console.log(`[DRY RUN] Would copy RDB and compress to: ${backupPath}`);
+      return backupPath;
+    }
+
+    try {
+      // Determine RDB file location
+      // Try to get it from Redis CONFIG GET
+      let rdbPath;
+      try {
+        const redisClient = getRedisClient();
+        const dir = await redisClient.config('GET', 'dir');
+        const dbFilename = await redisClient.config('GET', 'dbfilename');
+
+        if (dir && dir[1] && dbFilename && dbFilename[1]) {
+          rdbPath = path.join(dir[1], dbFilename[1]);
+        }
+      } catch (error) {
+        console.warn('⚠️  Could not get RDB path from Redis, using default');
+        rdbPath = path.join(this.config.redis.dataDir, this.config.redis.rdbFilename);
+      }
+
+      console.log(`   Source: ${rdbPath}`);
+
+      // Check if RDB file exists
+      try {
+        await fs.access(rdbPath);
+      } catch (error) {
+        throw new Error(`RDB file not found at: ${rdbPath}`);
+      }
+
+      // Get RDB file stats
+      const rdbStats = await fs.stat(rdbPath);
+      const rdbSizeMB = (rdbStats.size / (1024 * 1024)).toFixed(2);
+      console.log(`   RDB Size: ${rdbSizeMB} MB`);
+
+      // Copy and compress RDB file
+      const startTime = Date.now();
+      const compressCommand = `gzip -c "${rdbPath}" > "${backupPath}"`;
+
+      await execAsync(compressCommand);
+
+      const duration = ((Date.now() - startTime) / 1000).toFixed(2);
+
+      // Get compressed file stats
+      const stats = await fs.stat(backupPath);
+      const sizeMB = (stats.size / (1024 * 1024)).toFixed(2);
+      const compressionRatio = ((1 - stats.size / rdbStats.size) * 100).toFixed(1);
+
+      console.log('✅ Compression complete');
+      console.log(`   Compressed Size: ${sizeMB} MB`);
+      console.log(`   Compression: ${compressionRatio}%`);
+      console.log(`   Duration: ${duration}s`);
+      console.log(`   Path: ${backupPath}`);
+
+      return backupPath;
+    } catch (error) {
+      console.error('❌ Copy and compression failed:', error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * Upload backup to S3
+   */
+  async uploadToS3(localPath, filename) {
+    console.log('\n☁️  Uploading backup to S3...');
+
+    if (this.dryRun) {
+      console.log(`[DRY RUN] Would upload ${filename} to S3`);
+      return;
+    }
+
+    try {
+      const s3Key = this.getS3Key(filename);
+      const fileContent = await fs.readFile(localPath);
+
+      const command = new PutObjectCommand({
+        Bucket: this.config.s3.bucket,
+        Key: s3Key,
+        Body: fileContent,
+        ContentType: 'application/gzip',
+        ServerSideEncryption: 'AES256',
+        Metadata: {
+          'backup-type': 'redis',
+          'backup-date': new Date().toISOString(),
+          'environment': this.config.environment,
+        },
+        StorageClass: 'STANDARD',
+      });
+
+      await this.s3Client.send(command);
+
+      console.log('✅ Upload successful');
+      console.log(`   S3 Key: s3://${this.config.s3.bucket}/${s3Key}`);
+
+      return s3Key;
+    } catch (error) {
+      console.error('❌ S3 upload failed:', error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * Clean up local backup file
+   */
+  async cleanupLocal(localPath) {
+    if (this.dryRun) {
+      console.log(`[DRY RUN] Would delete local file: ${localPath}`);
+      return;
+    }
+
+    try {
+      await fs.unlink(localPath);
+      console.log('✅ Local backup file cleaned up');
+    } catch (error) {
+      console.warn('⚠️  Failed to clean up local file:', error.message);
+    }
+  }
+
+  /**
+   * Enforce retention policy - delete old backups
+   */
+  async enforceRetentionPolicy() {
+    console.log('\n🗑️  Enforcing retention policy for Redis backups...');
+
+    if (this.dryRun) {
+      console.log('[DRY RUN] Would enforce retention policy');
+      return;
+    }
+
+    try {
+      const prefix = `${this.config.s3.prefix}/redis/`;
+
+      const command = new ListObjectsV2Command({
+        Bucket: this.config.s3.bucket,
+        Prefix: prefix,
+      });
+
+      const response = await this.s3Client.send(command);
+
+      if (!response.Contents || response.Contents.length === 0) {
+        console.log('No backups to clean up.');
+        return;
+      }
+
+      // Sort by last modified (oldest first)
+      const backups = response.Contents.sort((a, b) => a.LastModified - b.LastModified);
+
+      // Redis backups use daily retention
+      const retentionDays = this.config.retention.dailyBackups;
+      const retentionMs = retentionDays * 24 * 60 * 60 * 1000;
+      const cutoffDate = new Date(Date.now() - retentionMs);
+
+      // Delete old backups
+      let deletedCount = 0;
+      for (const backup of backups) {
+        if (backup.LastModified < cutoffDate) {
+          const deleteCommand = new DeleteObjectCommand({
+            Bucket: this.config.s3.bucket,
+            Key: backup.Key,
+          });
+
+          await this.s3Client.send(deleteCommand);
+          console.log(`   Deleted: ${backup.Key}`);
+          deletedCount++;
+        }
+      }
+
+      if (deletedCount > 0) {
+        console.log(`✅ Deleted ${deletedCount} old backup(s)`);
+      } else {
+        console.log('✅ No backups to delete');
+      }
+    } catch (error) {
+      console.error('❌ Failed to enforce retention policy:', error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * Get Redis info for notification
+   */
+  async getRedisInfo() {
+    try {
+      const redisClient = getRedisClient();
+      const info = await redisClient.info('server');
+      const memory = await redisClient.info('memory');
+
+      const version = info.match(/redis_version:([^\r\n]+)/)?.[1] || 'unknown';
+      const usedMemory = memory.match(/used_memory_human:([^\r\n]+)/)?.[1] || 'unknown';
+
+      return { version, usedMemory };
+    } catch (error) {
+      return { version: 'unknown', usedMemory: 'unknown' };
+    }
+  }
+
+  /**
+   * Send email notification
+   */
+  async sendNotification(success, details) {
+    if (!this.config.notifications.enabled || !this.resend) {
+      return;
+    }
+
+    if (success && !this.config.notifications.notifyOnSuccess) {
+      return;
+    }
+
+    if (this.dryRun) {
+      console.log('[DRY RUN] Would send email notification');
+      return;
+    }
+
+    try {
+      const subject = success
+        ? '✅ Redis Backup Successful'
+        : '❌ Redis Backup Failed';
+
+      const htmlContent = success
+        ? this.generateSuccessEmail(details)
+        : this.generateFailureEmail(details);
+
+      await this.resend.emails.send({
+        from: `${this.config.notifications.emailFromName} <${this.config.notifications.emailFrom}>`,
+        to: this.config.notifications.email,
+        subject,
+        html: htmlContent,
+      });
+
+      console.log('✅ Notification email sent');
+    } catch (error) {
+      console.warn('⚠️  Failed to send notification:', error.message);
+    }
+  }
+
+  /**
+   * Generate success email HTML
+   */
+  generateSuccessEmail(details) {
+    return `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background-color: #10b981; color: white; padding: 20px; text-align: center; }
+          .content { background-color: #f9fafb; padding: 20px; }
+          .info { background-color: white; padding: 15px; margin: 10px 0; border-left: 4px solid #10b981; }
+          .label { font-weight: bold; color: #374151; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h2>✅ Redis Backup Completed Successfully</h2>
+          </div>
+          <div class="content">
+            <div class="info">
+              <p><span class="label">Date:</span> ${new Date().toISOString()}</p>
+              <p><span class="label">Size:</span> ${details.size || 'N/A'}</p>
+              <p><span class="label">Duration:</span> ${details.duration || 'N/A'}</p>
+              <p><span class="label">S3 Location:</span> ${details.s3Key || 'N/A'}</p>
+              <p><span class="label">Redis Version:</span> ${details.redisVersion || 'N/A'}</p>
+              <p><span class="label">Memory Used:</span> ${details.usedMemory || 'N/A'}</p>
+              <p><span class="label">Environment:</span> ${this.config.environment}</p>
+            </div>
+            <p>Your Redis backup has been successfully created and uploaded to S3.</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+  }
+
+  /**
+   * Generate failure email HTML
+   */
+  generateFailureEmail(details) {
+    return `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background-color: #ef4444; color: white; padding: 20px; text-align: center; }
+          .content { background-color: #f9fafb; padding: 20px; }
+          .info { background-color: white; padding: 15px; margin: 10px 0; border-left: 4px solid #ef4444; }
+          .error { background-color: #fee2e2; padding: 15px; margin: 10px 0; }
+          .label { font-weight: bold; color: #374151; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h2>❌ Redis Backup Failed</h2>
+          </div>
+          <div class="content">
+            <div class="info">
+              <p><span class="label">Date:</span> ${new Date().toISOString()}</p>
+              <p><span class="label">Environment:</span> ${this.config.environment}</p>
+            </div>
+            <div class="error">
+              <p><span class="label">Error:</span></p>
+              <pre>${details.error || 'Unknown error'}</pre>
+            </div>
+            <p><strong>Action Required:</strong> Please investigate and resolve the backup issue immediately.</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+  }
+
+  /**
+   * Run complete backup process
+   */
+  async run() {
+    const startTime = Date.now();
+    let details = {};
+
+    try {
+      console.log('='.repeat(60));
+      console.log('  REDIS BACKUP');
+      console.log('='.repeat(60));
+
+      if (this.dryRun) {
+        console.log('\n⚠️  DRY RUN MODE - No changes will be made\n');
+      }
+
+      // Get Redis info
+      const redisInfo = await this.getRedisInfo();
+      details.redisVersion = redisInfo.version;
+      details.usedMemory = redisInfo.usedMemory;
+
+      // Step 1: Trigger Redis BGSAVE
+      await this.triggerRedisSave();
+
+      // Step 2: Copy and compress RDB file
+      const filename = this.generateBackupFilename();
+      const localPath = await this.copyAndCompressRDB(filename);
+
+      // Get file stats for notification
+      if (!this.dryRun) {
+        const stats = await fs.stat(localPath);
+        details.size = (stats.size / (1024 * 1024)).toFixed(2) + ' MB';
+      }
+
+      // Step 3: Upload to S3
+      const s3Key = await this.uploadToS3(localPath, filename);
+      details.s3Key = s3Key;
+
+      // Step 4: Clean up local file
+      await this.cleanupLocal(localPath);
+
+      // Step 5: Enforce retention policy
+      await this.enforceRetentionPolicy();
+
+      // Calculate duration
+      const duration = ((Date.now() - startTime) / 1000).toFixed(2);
+      details.duration = duration + 's';
+
+      console.log('\n' + '='.repeat(60));
+      console.log('✅ REDIS BACKUP COMPLETED SUCCESSFULLY');
+      console.log(`   Total Duration: ${duration}s`);
+      console.log('='.repeat(60) + '\n');
+
+      // Send success notification
+      await this.sendNotification(true, details);
+
+      process.exit(0);
+    } catch (error) {
+      details.error = error.message;
+
+      console.error('\n' + '='.repeat(60));
+      console.error('❌ REDIS BACKUP FAILED');
+      console.error('='.repeat(60));
+      console.error(error);
+
+      // Send failure notification
+      await this.sendNotification(false, details);
+
+      process.exit(1);
+    }
+  }
+}
+
+// Main execution
+(async () => {
+  const manager = new RedisBackupManager();
+  await manager.run();
+})();

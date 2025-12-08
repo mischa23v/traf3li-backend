@@ -209,6 +209,20 @@ const employeeSchema = new mongoose.Schema({
 });
 
 // ═══════════════════════════════════════════════════════════════
+// ENCRYPTION PLUGIN
+// ═══════════════════════════════════════════════════════════════
+const encryptionPlugin = require('./plugins/encryption.plugin');
+
+// Apply encryption to sensitive fields
+employeeSchema.plugin(encryptionPlugin, {
+    fields: [
+        'compensation.basicSalary',      // Employee salary
+        'compensation.bankDetails.iban', // Bank IBAN
+    ],
+    searchableFields: []  // Salary and IBAN don't need to be searchable
+});
+
+// ═══════════════════════════════════════════════════════════════
 // INDEXES
 // ═══════════════════════════════════════════════════════════════
 employeeSchema.index({ firmId: 1, 'employment.employmentStatus': 1 });

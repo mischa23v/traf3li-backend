@@ -10,6 +10,7 @@ const mongoose = require('mongoose');
 const { Invoice, Case, Order, User, Payment, Retainer, BillingActivity } = require('../models');
 const { CustomException } = require('../utils');
 const asyncHandler = require('../utils/asyncHandler');
+const webhookService = require('../services/webhook.service');
 const stripe = require('stripe')(process.env.STRIPE_SECRET);
 const {
     generateQRCode,
@@ -1633,23 +1634,53 @@ const generateXML = asyncHandler(async (req, res) => {
 const generatePDF = asyncHandler(async (req, res) => {
     const { id, _id } = req.params;
     const invoiceId = id || _id;
+    const { download = false } = req.query;
 
     const invoice = await Invoice.findById(invoiceId)
-        .populate('clientId')
-        .populate('lawyerId')
-        .populate('caseId');
+        .populate('clientId', 'name email phone address')
+        .populate('lawyerId', 'name')
+        .populate('caseId', 'caseNumber title');
 
     if (!invoice) {
         throw CustomException('الفاتورة غير موجودة', 404);
     }
 
-    // TODO: Implement PDF generation using a library like PDFKit or Puppeteer
-    // For now, return invoice data for client-side PDF generation
+    // Import QueueService
+    const QueueService = require('../services/queue.service');
+
+    // Prepare invoice data for PDF generation
+    const invoiceData = {
+        invoiceNumber: invoice.invoiceNumber,
+        invoiceId: invoice._id.toString(),
+        date: invoice.issueDate,
+        dueDate: invoice.dueDate,
+        clientName: invoice.clientId?.name || 'N/A',
+        clientEmail: invoice.clientId?.email,
+        clientPhone: invoice.clientId?.phone,
+        clientAddress: invoice.clientId?.address,
+        items: invoice.items || [],
+        subtotal: invoice.subtotal,
+        vatRate: invoice.vatRate || 15,
+        vatAmount: invoice.vatAmount,
+        totalAmount: invoice.totalAmount,
+        currency: invoice.currency || 'SAR',
+        notes: invoice.notes,
+        paymentTerms: invoice.paymentTerms
+    };
+
+    // Queue PDF generation
+    const job = await QueueService.generatePDF(
+        { invoiceId: invoice._id, invoiceData },
+        'invoice',
+        { priority: download ? 1 : 3 }
+    );
 
     return res.json({
         success: true,
-        message: 'PDF generation not yet implemented. Use client-side generation.',
-        data: invoice
+        message: 'PDF generation queued successfully',
+        jobId: job.jobId,
+        queueName: job.queueName,
+        note: 'PDF will be available shortly. Check job status at /api/queues/pdf/jobs/' + job.jobId
     });
 });
 

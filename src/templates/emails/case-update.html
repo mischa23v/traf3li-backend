@@ -1,0 +1,131 @@
+<div class="icon-container">
+    <div class="icon info">📋</div>
+</div>
+
+<h1>{{title}}</h1>
+
+<p>{{greeting}}</p>
+
+<p>{{messageText}}</p>
+
+<!-- Case Information -->
+<div class="info-section">
+    <h3>{{caseInfoTitle}}</h3>
+    <table width="100%" cellspacing="0" cellpadding="8" style="font-size: 14px;">
+        <tr>
+            <td style="color: #6b7280; width: 40%;"><strong>{{caseNumberLabel}}:</strong></td>
+            <td><strong>{{caseNumber}}</strong></td>
+        </tr>
+        <tr>
+            <td style="color: #6b7280;"><strong>{{caseTitleLabel}}:</strong></td>
+            <td>{{caseTitle}}</td>
+        </tr>
+        <tr>
+            <td style="color: #6b7280;"><strong>{{caseTypeLabel}}:</strong></td>
+            <td>{{caseType}}</td>
+        </tr>
+        {{#court}}
+        <tr>
+            <td style="color: #6b7280;"><strong>{{courtLabel}}:</strong></td>
+            <td>{{court}}</td>
+        </tr>
+        {{/court}}
+    </table>
+</div>
+
+<!-- Status Update -->
+<div class="{{statusBoxClass}}" style="margin: 25px 0;">
+    <h3>{{statusUpdateTitle}}</h3>
+    <table width="100%" cellspacing="0" cellpadding="8" style="font-size: 14px;">
+        {{#previousStatus}}
+        <tr>
+            <td style="width: 40%;"><strong>{{previousStatusLabel}}:</strong></td>
+            <td><span style="display: inline-block; padding: 4px 12px; background-color: #f3f4f6; border-radius: 12px; font-size: 13px;">{{previousStatus}}</span></td>
+        </tr>
+        {{/previousStatus}}
+        <tr>
+            <td><strong>{{newStatusLabel}}:</strong></td>
+            <td><span style="display: inline-block; padding: 4px 12px; background-color: {{statusColor}}; color: white; border-radius: 12px; font-size: 13px; font-weight: 600;">{{newStatus}}</span></td>
+        </tr>
+        <tr>
+            <td><strong>{{updateDateLabel}}:</strong></td>
+            <td>{{updateDate}}</td>
+        </tr>
+        {{#updatedBy}}
+        <tr>
+            <td><strong>{{updatedByLabel}}:</strong></td>
+            <td>{{updatedBy}}</td>
+        </tr>
+        {{/updatedBy}}
+    </table>
+</div>
+
+<!-- Update Details -->
+{{#updateDetails}}
+<div class="info-section">
+    <h3>{{updateDetailsTitle}}</h3>
+    <p style="white-space: pre-line;">{{updateDetails}}</p>
+</div>
+{{/updateDetails}}
+
+<!-- Next Steps -->
+{{#nextSteps}}
+<div class="info-section" style="background-color: #fef3c7; border-left-color: #f59e0b;">
+    <h3 style="color: #92400e;">⚡ {{nextStepsTitle}}</h3>
+    <ul style="margin: 10px 0; padding-left: 20px; color: #92400e;">
+        {{#steps}}
+        <li>{{.}}</li>
+        {{/steps}}
+    </ul>
+</div>
+{{/nextSteps}}
+
+<!-- Next Hearing/Deadline -->
+{{#nextHearing}}
+<div class="warning-box">
+    <h3 style="color: #92400e; margin: 0 0 10px 0;">📅 {{nextHearingTitle}}</h3>
+    <p><strong>{{dateLabel}}:</strong> {{date}}</p>
+    <p><strong>{{timeLabel}}:</strong> {{time}}</p>
+    {{#location}}<p><strong>{{locationLabel}}:</strong> {{location}}</p>{{/location}}
+    {{#notes}}<p><strong>{{notesLabel}}:</strong> {{notes}}</p>{{/notes}}
+</div>
+{{/nextHearing}}
+
+<!-- Documents -->
+{{#documents}}
+<div class="info-section">
+    <h3>📎 {{documentsTitle}}</h3>
+    <ul style="margin: 10px 0; padding-left: 20px;">
+        {{#files}}
+        <li>
+            <a href="{{url}}" style="color: #3b82f6; text-decoration: none;">{{name}}</a>
+            {{#size}}<span style="color: #9ca3af; font-size: 13px;"> ({{size}})</span>{{/size}}
+        </li>
+        {{/files}}
+    </ul>
+</div>
+{{/documents}}
+
+<!-- Action Required -->
+{{#actionRequired}}
+<div style="background-color: #fee2e2; border-left: 4px solid #dc2626; padding: 20px; margin: 25px 0; border-radius: 4px;">
+    <p style="color: #991b1b; margin: 0;"><strong>⚠️ {{actionRequiredTitle}}</strong></p>
+    <p style="color: #991b1b; margin: 10px 0 0 0;">{{actionRequiredText}}</p>
+</div>
+{{/actionRequired}}
+
+<div style="text-align: center; margin: 30px 0;">
+    <a href="{{caseUrl}}" class="button">{{viewCaseButtonText}}</a>
+    {{#documentsUrl}}
+    <a href="{{documentsUrl}}" class="button" style="background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);">{{viewDocumentsButtonText}}</a>
+    {{/documentsUrl}}
+</div>
+
+<hr class="divider">
+
+<p>{{supportText}}</p>
+
+<p>{{closingText}}<br>
+<strong>{{lawyerName}}</strong><br>
+{{#lawyerTitle}}<em>{{lawyerTitle}}</em><br>{{/lawyerTitle}}
+{{#firmName}}<strong>{{firmName}}</strong>{{/firmName}}</p>

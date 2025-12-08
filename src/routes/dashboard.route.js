@@ -1,5 +1,6 @@
 const express = require('express');
 const { userMiddleware, firmFilter } = require('../middlewares');
+const { cacheResponse } = require('../middlewares/cache.middleware');
 const {
     getHeroStats,
     getDashboardStats,
@@ -11,22 +12,62 @@ const {
 
 const app = express.Router();
 
+// Cache TTL: 60 seconds (1 minute) for dashboard endpoints
+const DASHBOARD_CACHE_TTL = 60;
+
+// Custom key generator for dashboard endpoints
+const dashboardKeyGen = (endpoint) => (req) => {
+    const firmId = req.firmId || 'none';
+    const userId = req.userID || 'guest';
+    return `dashboard:firm:${firmId}:user:${userId}:${endpoint}`;
+};
+
 // Get hero stats (top-level metrics for dashboard header)
-app.get('/hero-stats', userMiddleware, firmFilter, getHeroStats);
+app.get('/hero-stats',
+    userMiddleware,
+    firmFilter,
+    cacheResponse(DASHBOARD_CACHE_TTL, dashboardKeyGen('hero-stats')),
+    getHeroStats
+);
 
 // Get detailed dashboard stats
-app.get('/stats', userMiddleware, firmFilter, getDashboardStats);
+app.get('/stats',
+    userMiddleware,
+    firmFilter,
+    cacheResponse(DASHBOARD_CACHE_TTL, dashboardKeyGen('stats')),
+    getDashboardStats
+);
 
 // Get financial summary
-app.get('/financial-summary', userMiddleware, firmFilter, getFinancialSummary);
+app.get('/financial-summary',
+    userMiddleware,
+    firmFilter,
+    cacheResponse(DASHBOARD_CACHE_TTL, dashboardKeyGen('financial-summary')),
+    getFinancialSummary
+);
 
 // Get today's events
-app.get('/today-events', userMiddleware, firmFilter, getTodayEvents);
+app.get('/today-events',
+    userMiddleware,
+    firmFilter,
+    cacheResponse(DASHBOARD_CACHE_TTL, dashboardKeyGen('today-events')),
+    getTodayEvents
+);
 
 // Get recent messages
-app.get('/recent-messages', userMiddleware, firmFilter, getRecentMessages);
+app.get('/recent-messages',
+    userMiddleware,
+    firmFilter,
+    cacheResponse(DASHBOARD_CACHE_TTL, dashboardKeyGen('recent-messages')),
+    getRecentMessages
+);
 
 // Get activity overview
-app.get('/activity', userMiddleware, firmFilter, getActivityOverview);
+app.get('/activity',
+    userMiddleware,
+    firmFilter,
+    cacheResponse(DASHBOARD_CACHE_TTL, dashboardKeyGen('activity')),
+    getActivityOverview
+);
 
 module.exports = app;

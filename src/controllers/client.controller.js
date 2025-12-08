@@ -4,6 +4,7 @@ const CrmActivity = require('../models/crmActivity.model');
 const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
 const wathqService = require('../services/wathqService');
+const webhookService = require('../services/webhook.service');
 
 /**
  * Create client
@@ -56,6 +57,11 @@ const createClient = asyncHandler(async (req, res) => {
             clientType: client.clientType,
             clientNumber: client.clientNumber
         }
+    });
+
+    // Trigger webhook - fire and forget (async, don't await)
+    webhookService.trigger('client.created', client.toObject(), firmId).catch(err => {
+        console.error('Webhook trigger error:', err);
     });
 
     res.status(201).json({
@@ -477,6 +483,14 @@ const updateClient = asyncHandler(async (req, res) => {
         });
     }
 
+    // Trigger webhook - fire and forget (async, don't await)
+    webhookService.trigger('client.updated', {
+        ...updatedClient.toObject(),
+        changedFields
+    }, firmId).catch(err => {
+        console.error('Webhook trigger error:', err);
+    });
+
     res.status(200).json({
         success: true,
         message: 'تم تحديث العميل بنجاح',
@@ -544,7 +558,21 @@ const deleteClient = asyncHandler(async (req, res) => {
         }
     });
 
+    // Store client data for webhook before deletion
+    const clientData = client.toObject();
+
     await Client.findByIdAndDelete(id);
+
+    // Trigger webhook - fire and forget (async, don't await)
+    webhookService.trigger('client.deleted', {
+        _id: clientData._id,
+        clientNumber: clientData.clientNumber,
+        clientType: clientData.clientType,
+        fullNameArabic: clientData.fullNameArabic,
+        companyName: clientData.companyName
+    }, firmId).catch(err => {
+        console.error('Webhook trigger error:', err);
+    });
 
     res.status(200).json({
         success: true,

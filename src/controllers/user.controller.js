@@ -1,26 +1,31 @@
 const { User } = require('../models');
-const { CustomException } = require('../utils');
+const { CustomException, apiResponse } = require('../utils');
 
 // Get user profile by ID (public)
+// UPDATED: Now uses standardized API response format
 const getUserProfile = async (request, response) => {
     const { _id } = request.params;
-    
+
     try {
         const user = await User.findById(_id).select('-password');
-        
+
         if (!user) {
-            throw CustomException('User not found!', 404);
+            return apiResponse.notFound(response, 'User not found');
         }
-        
-        return response.send({
-            error: false,
-            user
-        });
-    } catch ({ message, status = 500 }) {
-        return response.status(status).send({
-            error: true,
-            message
-        });
+
+        // Using standardized success response
+        return apiResponse.success(
+            response,
+            { user },
+            'User profile retrieved successfully'
+        );
+    } catch (error) {
+        // Using standardized error response
+        return apiResponse.internalError(
+            response,
+            error.message || 'Failed to retrieve user profile',
+            { stack: error.stack }
+        );
     }
 };
 

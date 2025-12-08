@@ -1,9 +1,24 @@
+// ============================================
+// SENTRY INITIALIZATION - Must be first!
+// ============================================
+// Initialize Sentry before any other imports for proper error tracking
+const {
+    initSentry,
+    getRequestHandler,
+    getTracingHandler,
+    getErrorHandler,
+    setUserContext: sentrySetUserContext,
+    addRequestBreadcrumb
+} = require('./configs/sentry');
+
 const express = require('express');
 const http = require('http');
 const cors = require('cors');
 const helmet = require('helmet');
 const compression = require('compression');
 const cookieParser = require('cookie-parser');
+const swaggerUi = require('swagger-ui-express');
+const swaggerSpec = require('./configs/swagger');
 const connectDB = require('./configs/db');
 const { scheduleTaskReminders } = require('./utils/taskReminders');
 const { initSocket } = require('./configs/socket');
@@ -19,6 +34,10 @@ const {
     securityHeaders,
     sanitizeRequest
 } = require('./middlewares/security.middleware');
+const {
+    apiVersionMiddleware,
+    addNonVersionedDeprecationWarning
+} = require('./middlewares/apiVersion.middleware');
 const {
     // Marketplace
     gigRoute,
@@ -145,6 +164,7 @@ const {
 
     // Audit & Approvals
     auditRoute,
+    auditLogRoute,
     approvalRoute,
 
     // Permissions
@@ -157,11 +177,38 @@ const {
     documentAnalysisRoute,
 
     // Saudi Banking Integration
-    saudiBankingRoute
+    saudiBankingRoute,
+
+    // Webhooks
+    webhookRoute,
+
+    // Health Check & Monitoring
+    healthRoute,
+    metricsRoute,
+
+    // Queue Management
+
+    queueRoute
 } = require('./routes');
+
+// Import versioned routes
+const v1Routes = require('./routes/v1');
+const v2Routes = require('./routes/v2');
 
 const app = express();
 const server = http.createServer(app);
+
+// ============================================
+// SENTRY REQUEST HANDLERS - Must be first middleware
+// ============================================
+// Initialize Sentry with the Express app
+initSentry(app);
+
+// Add Sentry request handler - tracks all incoming requests
+app.use(getRequestHandler());
+
+// Add Sentry tracing handler - performance monitoring
+app.use(getTracingHandler());
 
 // Initialize Socket.io
 initSocket(server);
@@ -285,7 +332,8 @@ const corsOptions = {
         'Cache-Control',
         'X-File-Name',
         'X-CSRF-Token', // Allow CSRF token header
-        'X-XSRF-Token'  // Alternative CSRF token header
+        'X-XSRF-Token',  // Alternative CSRF token header
+        'API-Version' // API versioning header
     ],
     exposedHeaders: ['Set-Cookie'],
     maxAge: 86400, // 24 hours - cache preflight requests
@@ -317,6 +365,12 @@ app.use(setCsrfToken);
 // ✅ SECURITY: Request logging with correlation IDs
 app.use(logger.requestMiddleware);
 
+// ✅ SENTRY: Add user context for authenticated requests
+app.use(sentrySetUserContext);
+
+// ✅ SENTRY: Add request breadcrumbs for error tracking
+app.use(addRequestBreadcrumb);
+
 // ✅ SECURITY: Global API rate limiting (all /api routes)
 app.use('/api', apiRateLimiter);
 
@@ -329,6 +383,9 @@ app.use('/api', originCheck);
 // ✅ SECURITY: CSRF token validation for state-changing operations
 // Note: Can be selectively disabled for specific routes if needed
 app.use('/api', validateCsrfToken);
+// ✅ API VERSIONING: Extract and validate API version from URL or headers
+app.use('/api', apiVersionMiddleware);
+
 
 // ✅ PERFORMANCE: Static files with caching
 app.use('/uploads', express.static('uploads', {
@@ -346,7 +403,21 @@ app.use('/uploads', express.static('uploads', {
 }));
 
 // ============================================
-// MARKETPLACE ROUTES
+// API VERSIONED ROUTES (v1, v2, etc.)
+// ============================================
+// Mount versioned routes - these are the primary endpoints going forward
+app.use('/api/v1', v1Routes);
+app.use('/api/v2', v2Routes);
+
+// ============================================
+// BACKWARD COMPATIBILITY ROUTES (LEGACY)
+// ============================================
+// Keep /api/* routes for backward compatibility (maps to v1)
+// Add deprecation warning headers to encourage migration
+app.use('/api', addNonVersionedDeprecationWarning);
+
+// ============================================
+// MARKETPLACE ROUTES (LEGACY - maps to v1)
 // ============================================
 app.use('/api/gigs', gigRoute);
 app.use('/api/auth', noCache, authRoute); // No cache for auth endpoints
@@ -491,7 +562,8 @@ app.use('/api/team', noCache, teamRoute); // No cache for team data
 // ============================================
 // AUDIT & APPROVAL ROUTES
 // ============================================
-app.use('/api/audit', noCache, auditRoute); // No cache for audit logs
+app.use('/api/audit', noCache, auditRoute); // No cache for audit logs (team activity)
+app.use('/api/audit-logs', noCache, auditLogRoute); // System-wide audit logs
 app.use('/api/approvals', noCache, approvalRoute);
 
 // ============================================
@@ -519,6 +591,11 @@ app.use('/api/document-analysis', documentAnalysisRoute);
 app.use('/api/saudi-banking', noCache, saudiBankingRoute); // No cache for banking integration
 
 // ============================================
+// WEBHOOK ROUTES (Third-Party Integrations)
+// ============================================
+app.use('/api/webhooks', noCache, webhookRoute); // No cache for webhook management
+
+// ============================================
 // ALIAS ROUTES (for frontend compatibility)
 // ============================================
 
@@ -544,17 +621,46 @@ app.get('/api/apps', (req, res) => {
         },
         message: 'Apps feature coming soon'
     });
+// ============================================
+// API DOCUMENTATION (SWAGGER)
+// ============================================
+// Swagger UI - Interactive API documentation at /api-docs
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
+    customCss: '.swagger-ui .topbar { display: none }',
+    customSiteTitle: 'Traf3li API Documentation',
+    customfavIcon: '/favicon.ico'
+}));
+
+// Swagger JSON spec endpoint
+app.get('/api-docs.json', (req, res) => {
+    res.setHeader('Content-Type', 'application/json');
+    res.send(swaggerSpec);
 });
 
-// Health check endpoint (useful for monitoring)
-app.get('/health', (req, res) => {
-    res.status(200).json({
-        status: 'healthy',
-        timestamp: new Date().toISOString(),
-        uptime: process.uptime()
-    });
 });
 
+// ============================================
+// HEALTH CHECK & MONITORING ROUTES
+// ============================================
+// Health check endpoints (no auth required for basic checks)
+// These endpoints are exempt from rate limiting, CSRF, and other middleware
+app.use('/health', healthRoute);
+
+// Metrics endpoint (requires auth)
+app.use('/metrics', metricsRoute);
+
+// Queue management endpoint (requires auth + admin)
+app.use('/api/queues', noCache, queueRoute);
+
+// ============================================
+// SENTRY ERROR HANDLER - Must be before custom error handler
+// ============================================
+// Sentry error handler - captures errors and sends to Sentry
+app.use(getErrorHandler());
+
+// ============================================
+// CUSTOM ERROR HANDLER - Must be last
+// ============================================
 // Error handling middleware
 app.use((err, req, res, next) => {
     // Log error with structured logger

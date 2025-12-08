@@ -3,6 +3,7 @@ const { CustomException } = require('../utils');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 const { getDefaultPermissions, getSoloLawyerPermissions, isSoloLawyer: checkIsSoloLawyer } = require('../config/permissions.config');
+const auditLogService = require('../services/auditLog.service');
 
 const { JWT_SECRET, NODE_ENV } = process.env;
 const saltRounds = 10;
@@ -444,6 +445,30 @@ const authLogin = async (request, response) => {
                 }
             }
 
+            // Log successful login
+            await auditLogService.log(
+                'login_success',
+                'user',
+                user._id,
+                null,
+                {
+                    userId: user._id,
+                    userEmail: user.email,
+                    userRole: user.role,
+                    userName: `${user.firstName} ${user.lastName}`,
+                    firmId: user.firmId,
+                    ipAddress: request.ip || request.headers['x-forwarded-for']?.split(',')[0] || 'unknown',
+                    userAgent: request.headers['user-agent'] || 'unknown',
+                    method: request.method,
+                    endpoint: request.originalUrl,
+                    severity: 'low',
+                    details: {
+                        lawyerWorkMode: user.lawyerWorkMode,
+                        isSoloLawyer: user.isSoloLawyer,
+                    }
+                }
+            );
+
             return response.cookie('accessToken', token, cookieConfig)
                 .status(202).send({
                     error: false,
@@ -455,6 +480,28 @@ const authLogin = async (request, response) => {
         throw CustomException('Check username or password!', 404);
     }
     catch({ message, status = 500 }) {
+        // Log failed login attempt
+        const ipAddress = request.ip || request.headers['x-forwarded-for']?.split(',')[0] || 'unknown';
+
+        await auditLogService.log(
+            'login_failed',
+            'user',
+            null,
+            null,
+            {
+                userId: null,
+                userEmail: request.body.username || 'unknown', // username field can contain email
+                userRole: 'unknown',
+                ipAddress: ipAddress,
+                userAgent: request.headers['user-agent'] || 'unknown',
+                method: request.method,
+                endpoint: request.originalUrl,
+                status: 'failed',
+                errorMessage: message,
+                severity: 'medium',
+            }
+        );
+
         return response.status(status).send({
             error: true,
             message
@@ -463,6 +510,28 @@ const authLogin = async (request, response) => {
 }
 
 const authLogout = async (request, response) => {
+    // Log logout if user is authenticated
+    if (request.user) {
+        await auditLogService.log(
+            'logout',
+            'user',
+            request.user._id || request.user.id,
+            null,
+            {
+                userId: request.user._id || request.user.id,
+                userEmail: request.user.email,
+                userRole: request.user.role,
+                userName: request.user.firstName ? `${request.user.firstName} ${request.user.lastName || ''}` : null,
+                firmId: request.user.firmId,
+                ipAddress: request.ip || request.headers['x-forwarded-for']?.split(',')[0] || 'unknown',
+                userAgent: request.headers['user-agent'] || 'unknown',
+                method: request.method,
+                endpoint: request.originalUrl,
+                severity: 'low',
+            }
+        );
+    }
+
     return response.clearCookie('accessToken', {
         httpOnly: true,
         sameSite: NODE_ENV === 'production' ? 'none' : 'strict',

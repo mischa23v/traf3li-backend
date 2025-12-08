@@ -1,0 +1,198 @@
+<div class="icon-container">
+    <div class="icon warning">⏰</div>
+</div>
+
+<h1>{{title}}</h1>
+
+<p>{{greeting}}</p>
+
+<p>{{messageText}}</p>
+
+<!-- Reminder Details -->
+<div class="warning-box">
+    <h3 style="color: #92400e; margin: 0 0 15px 0;">{{reminderDetailsTitle}}</h3>
+    <table width="100%" cellspacing="0" cellpadding="8" style="font-size: 14px;">
+        <tr>
+            <td style="color: #92400e; width: 35%;"><strong>{{typeLabel}}:</strong></td>
+            <td style="color: #92400e;"><strong>{{reminderType}}</strong></td>
+        </tr>
+        {{#subject}}
+        <tr>
+            <td style="color: #92400e;"><strong>{{subjectLabel}}:</strong></td>
+            <td style="color: #92400e;">{{subject}}</td>
+        </tr>
+        {{/subject}}
+        {{#dueDate}}
+        <tr>
+            <td style="color: #92400e;"><strong>{{dueDateLabel}}:</strong></td>
+            <td style="color: #92400e;"><strong style="font-size: 16px;">{{dueDate}}</strong></td>
+        </tr>
+        {{/dueDate}}
+        {{#dueTime}}
+        <tr>
+            <td style="color: #92400e;"><strong>{{dueTimeLabel}}:</strong></td>
+            <td style="color: #92400e;">{{dueTime}}</td>
+        </tr>
+        {{/dueTime}}
+        {{#priority}}
+        <tr>
+            <td style="color: #92400e;"><strong>{{priorityLabel}}:</strong></td>
+            <td style="color: #92400e;"><span style="display: inline-block; padding: 2px 10px; background-color: {{priorityColor}}; color: white; border-radius: 10px; font-size: 12px; font-weight: 600;">{{priority}}</span></td>
+        </tr>
+        {{/priority}}
+    </table>
+</div>
+
+<!-- Reminder Content -->
+{{#description}}
+<div class="info-section">
+    <h3>{{descriptionTitle}}</h3>
+    <p style="white-space: pre-line;">{{description}}</p>
+</div>
+{{/description}}
+
+<!-- Payment Reminder Specific -->
+{{#isPaymentReminder}}
+<div class="info-section">
+    <h3>{{paymentDetailsTitle}}</h3>
+    <table width="100%" cellspacing="0" cellpadding="8" style="font-size: 14px;">
+        <tr>
+            <td style="color: #1e40af; width: 40%;"><strong>{{invoiceNumberLabel}}:</strong></td>
+            <td style="color: #1e40af;">{{invoiceNumber}}</td>
+        </tr>
+        <tr>
+            <td style="color: #1e40af;"><strong>{{amountDueLabel}}:</strong></td>
+            <td style="color: #1e40af;"><strong style="font-size: 18px;">{{amountDue}} {{currency}}</strong></td>
+        </tr>
+        {{#originalAmount}}
+        <tr>
+            <td style="color: #1e40af;"><strong>{{originalAmountLabel}}:</strong></td>
+            <td style="color: #1e40af;">{{originalAmount}} {{currency}}</td>
+        </tr>
+        {{/originalAmount}}
+        {{#paidAmount}}
+        <tr>
+            <td style="color: #1e40af;"><strong>{{paidAmountLabel}}:</strong></td>
+            <td style="color: #1e40af;">{{paidAmount}} {{currency}}</td>
+        </tr>
+        {{/paidAmount}}
+        {{#daysOverdue}}
+        <tr>
+            <td style="color: #dc2626;"><strong>{{daysOverdueLabel}}:</strong></td>
+            <td style="color: #dc2626;"><strong>{{daysOverdue}} {{daysText}}</strong></td>
+        </tr>
+        {{/daysOverdue}}
+    </table>
+</div>
+
+{{#lateFee}}
+<div style="background-color: #fee2e2; border-left: 4px solid #dc2626; padding: 20px; margin: 25px 0; border-radius: 4px;">
+    <p style="color: #991b1b; margin: 0;"><strong>⚠️ {{lateFeeTitle}}</strong></p>
+    <p style="color: #991b1b; margin: 10px 0 0 0;">{{lateFeeText}} <strong>{{lateFeeAmount}} {{currency}}</strong></p>
+</div>
+{{/lateFee}}
+{{/isPaymentReminder}}
+
+<!-- Task Reminder Specific -->
+{{#isTaskReminder}}
+<div class="info-section">
+    <h3>{{taskDetailsTitle}}</h3>
+    <table width="100%" cellspacing="0" cellpadding="8" style="font-size: 14px;">
+        <tr>
+            <td style="color: #1e40af; width: 40%;"><strong>{{taskNameLabel}}:</strong></td>
+            <td style="color: #1e40af;"><strong>{{taskName}}</strong></td>
+        </tr>
+        {{#assignedTo}}
+        <tr>
+            <td style="color: #1e40af;"><strong>{{assignedToLabel}}:</strong></td>
+            <td style="color: #1e40af;">{{assignedTo}}</td>
+        </tr>
+        {{/assignedTo}}
+        {{#caseNumber}}
+        <tr>
+            <td style="color: #1e40af;"><strong>{{caseNumberLabel}}:</strong></td>
+            <td style="color: #1e40af;">{{caseNumber}}</td>
+        </tr>
+        {{/caseNumber}}
+        {{#progress}}
+        <tr>
+            <td style="color: #1e40af;"><strong>{{progressLabel}}:</strong></td>
+            <td style="color: #1e40af;">
+                <div style="width: 100%; background-color: #e5e7eb; border-radius: 10px; height: 20px; overflow: hidden;">
+                    <div style="width: {{progress}}%; background: linear-gradient(90deg, #3b82f6 0%, #8b5cf6 100%); height: 100%; border-radius: 10px; display: flex; align-items: center; justify-content: center; color: white; font-size: 11px; font-weight: 600;">{{progress}}%</div>
+                </div>
+            </td>
+        </tr>
+        {{/progress}}
+    </table>
+</div>
+{{/isTaskReminder}}
+
+<!-- Hearing/Appointment Reminder Specific -->
+{{#isHearingReminder}}
+<div class="info-section">
+    <h3>📅 {{hearingDetailsTitle}}</h3>
+    <table width="100%" cellspacing="0" cellpadding="8" style="font-size: 14px;">
+        {{#caseNumber}}
+        <tr>
+            <td style="color: #1e40af; width: 40%;"><strong>{{caseNumberLabel}}:</strong></td>
+            <td style="color: #1e40af;">{{caseNumber}}</td>
+        </tr>
+        {{/caseNumber}}
+        {{#court}}
+        <tr>
+            <td style="color: #1e40af;"><strong>{{courtLabel}}:</strong></td>
+            <td style="color: #1e40af;">{{court}}</td>
+        </tr>
+        {{/court}}
+        {{#location}}
+        <tr>
+            <td style="color: #1e40af;"><strong>{{locationLabel}}:</strong></td>
+            <td style="color: #1e40af;">{{location}}</td>
+        </tr>
+        {{/location}}
+        {{#judge}}
+        <tr>
+            <td style="color: #1e40af;"><strong>{{judgeLabel}}:</strong></td>
+            <td style="color: #1e40af;">{{judge}}</td>
+        </tr>
+        {{/judge}}
+    </table>
+</div>
+
+{{#requiredDocuments}}
+<div class="warning-box">
+    <h3 style="color: #92400e; margin: 0 0 10px 0;">📎 {{requiredDocumentsTitle}}</h3>
+    <ul style="margin: 5px 0; padding-left: 20px; color: #92400e;">
+        {{#documents}}
+        <li>{{.}}</li>
+        {{/documents}}
+    </ul>
+</div>
+{{/requiredDocuments}}
+{{/isHearingReminder}}
+
+<!-- Action Buttons -->
+<div style="text-align: center; margin: 30px 0;">
+    {{#primaryActionUrl}}
+    <a href="{{primaryActionUrl}}" class="button">{{primaryActionText}}</a>
+    {{/primaryActionUrl}}
+    {{#secondaryActionUrl}}
+    <a href="{{secondaryActionUrl}}" class="button" style="background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);">{{secondaryActionText}}</a>
+    {{/secondaryActionUrl}}
+</div>
+
+<!-- Additional Notes -->
+{{#notes}}
+<div class="info-section" style="background-color: #fef3c7; border-left-color: #f59e0b;">
+    <h3 style="color: #92400e;">{{notesTitle}}</h3>
+    <p style="color: #92400e; white-space: pre-line;">{{notes}}</p>
+</div>
+{{/notes}}
+
+<hr class="divider">
+
+<p>{{supportText}}</p>
+
+<p>{{closingText}}<br>
+<strong>{{teamName}}</strong></p>

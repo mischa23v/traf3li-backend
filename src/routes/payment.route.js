@@ -1,5 +1,6 @@
 const express = require('express');
 const { userMiddleware, firmFilter } = require('../middlewares');
+const { auditAction } = require('../middlewares/auditLog.middleware');
 const { paymentRateLimiter } = require('../middlewares/rateLimiter.middleware');
 const {
     validateCreatePayment,
@@ -65,7 +66,7 @@ app.delete('/bulk', userMiddleware, firmFilter, validateBulkDelete, bulkDeletePa
 // ═══════════════════════════════════════════════════════════════
 
 // Create payment
-app.post('/', userMiddleware, firmFilter, validateCreatePayment, createPayment);
+app.post('/', userMiddleware, firmFilter, validateCreatePayment, auditAction('create_payment', 'payment', { severity: 'medium' }), createPayment);
 
 // List payments with filters
 app.get('/', userMiddleware, firmFilter, getPayments);
@@ -74,10 +75,10 @@ app.get('/', userMiddleware, firmFilter, getPayments);
 app.get('/:id', userMiddleware, firmFilter, getPayment);
 
 // Update payment
-app.put('/:id', userMiddleware, firmFilter, validateUpdatePayment, updatePayment);
+app.put('/:id', userMiddleware, firmFilter, validateUpdatePayment, auditAction('update_payment', 'payment', { captureChanges: true }), updatePayment);
 
 // Delete payment
-app.delete('/:id', userMiddleware, firmFilter, deletePayment);
+app.delete('/:id', userMiddleware, firmFilter, auditAction('delete_payment', 'payment', { severity: 'high' }), deletePayment);
 
 // ═══════════════════════════════════════════════════════════════
 // PAYMENT STATUS ACTIONS
@@ -90,7 +91,7 @@ app.post('/:id/complete', userMiddleware, firmFilter, completePayment);
 app.post('/:id/fail', userMiddleware, firmFilter, failPayment);
 
 // Create refund for a payment
-app.post('/:id/refund', userMiddleware, firmFilter, validateRefund, createRefund);
+app.post('/:id/refund', userMiddleware, firmFilter, validateRefund, auditAction('refund_payment', 'payment', { severity: 'high' }), createRefund);
 
 // ═══════════════════════════════════════════════════════════════
 // RECONCILIATION

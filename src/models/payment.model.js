@@ -457,6 +457,22 @@ const paymentSchema = new mongoose.Schema({
 });
 
 // ═══════════════════════════════════════════════════════════════
+// ENCRYPTION PLUGIN
+// ═══════════════════════════════════════════════════════════════
+const encryptionPlugin = require('./plugins/encryption.plugin');
+
+// Apply encryption to sensitive payment fields
+// Note: cardDetails.lastFour is NOT encrypted as it's already masked (last 4 only)
+// We encrypt authorization codes and transaction IDs for PCI compliance
+paymentSchema.plugin(encryptionPlugin, {
+    fields: [
+        'cardDetails.authCode',      // Card authorization code
+        'cardDetails.transactionId', // Payment gateway transaction ID
+    ],
+    searchableFields: []  // These fields don't need to be searchable
+});
+
+// ═══════════════════════════════════════════════════════════════
 // INDEXES
 // ═══════════════════════════════════════════════════════════════
 paymentSchema.index({ paymentNumber: 1 });

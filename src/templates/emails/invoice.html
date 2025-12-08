@@ -1,0 +1,100 @@
+<h1>{{title}}</h1>
+<p class="document-number">{{invoiceNumberLabel}}: <strong>{{invoiceNumber}}</strong></p>
+
+<p>{{greeting}}</p>
+
+<p>{{messageText}}</p>
+
+<!-- Client Information -->
+<div class="info-section">
+    <h3>{{clientInfoTitle}}</h3>
+    <p><strong>{{clientNameLabel}}:</strong> {{clientName}}</p>
+    {{#clientEmail}}<p><strong>{{clientEmailLabel}}:</strong> {{clientEmail}}</p>{{/clientEmail}}
+    {{#clientPhone}}<p><strong>{{clientPhoneLabel}}:</strong> {{clientPhone}}</p>{{/clientPhone}}
+    {{#clientAddress}}<p><strong>{{clientAddressLabel}}:</strong> {{clientAddress}}</p>{{/clientAddress}}
+</div>
+
+<!-- Invoice Details -->
+<table class="data-table">
+    <thead>
+        <tr>
+            <th>{{descriptionLabel}}</th>
+            <th class="text-center">{{quantityLabel}}</th>
+            <th class="text-right">{{unitPriceLabel}}</th>
+            <th class="text-right">{{totalLabel}}</th>
+        </tr>
+    </thead>
+    <tbody>
+        {{#items}}
+        <tr>
+            <td>
+                <strong>{{description}}</strong>
+                {{#details}}<br><small style="color: #6b7280;">{{details}}</small>{{/details}}
+            </td>
+            <td class="text-center">{{quantity}}</td>
+            <td class="text-right">{{unitPrice}} {{currency}}</td>
+            <td class="text-right"><strong>{{total}} {{currency}}</strong></td>
+        </tr>
+        {{/items}}
+    </tbody>
+</table>
+
+<!-- Summary -->
+<div class="summary">
+    <div class="summary-row">
+        <span>{{subtotalLabel}}:</span>
+        <span>{{subtotal}} {{currency}}</span>
+    </div>
+    {{#discount}}
+    <div class="summary-row">
+        <span>{{discountLabel}} ({{discountPercent}}%):</span>
+        <span>-{{discountAmount}} {{currency}}</span>
+    </div>
+    {{/discount}}
+    {{#tax}}
+    <div class="summary-row">
+        <span>{{taxLabel}} ({{taxPercent}}%):</span>
+        <span>{{taxAmount}} {{currency}}</span>
+    </div>
+    {{/tax}}
+    <div class="summary-row total">
+        <span>{{totalLabel}}:</span>
+        <span>{{total}} {{currency}}</span>
+    </div>
+</div>
+
+<!-- Payment Information -->
+<div class="info-section">
+    <h3>{{paymentInfoTitle}}</h3>
+    <p><strong>{{dueDateLabel}}:</strong> {{dueDate}}</p>
+    {{#paymentTerms}}<p><strong>{{paymentTermsLabel}}:</strong> {{paymentTerms}}</p>{{/paymentTerms}}
+    {{#paymentMethods}}
+    <p><strong>{{paymentMethodsLabel}}:</strong></p>
+    <ul style="margin: 5px 0; padding-left: 20px;">
+        {{#methods}}
+        <li>{{.}}</li>
+        {{/methods}}
+    </ul>
+    {{/paymentMethods}}
+</div>
+
+{{#notes}}
+<div class="info-section" style="background-color: #fef3c7; border-left-color: #f59e0b;">
+    <h3 style="color: #92400e;">{{notesTitle}}</h3>
+    <p style="color: #92400e;">{{notes}}</p>
+</div>
+{{/notes}}
+
+<div style="text-align: center;">
+    <a href="{{invoiceUrl}}" class="button">{{viewButtonText}}</a>
+    {{#payNowUrl}}
+    <a href="{{payNowUrl}}" class="button" style="background: linear-gradient(135deg, #059669 0%, #10b981 100%);">{{payNowButtonText}}</a>
+    {{/payNowUrl}}
+</div>
+
+<hr class="divider">
+
+<p>{{supportText}}</p>
+
+<p>{{closingText}}<br>
+<strong>{{teamName}}</strong></p>
