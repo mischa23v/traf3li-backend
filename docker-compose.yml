@@ -1,0 +1,108 @@
+# ============================================
+# TRAF3LI BACKEND - DOCKER COMPOSE
+# ============================================
+# Run with: docker-compose up -d
+# Stop with: docker-compose down
+
+version: '3.8'
+
+services:
+  # ============================================
+  # APPLICATION
+  # ============================================
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: traf3li-backend
+    restart: unless-stopped
+    ports:
+      - "${PORT:-8080}:8080"
+    environment:
+      - NODE_ENV=${NODE_ENV:-production}
+      - PORT=8080
+      - MONGODB_URI=${MONGODB_URI:-mongodb://mongo:27017/traf3li}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379}
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+    env_file:
+      - .env
+    depends_on:
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - traf3li-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    volumes:
+      - ./logs:/app/logs
+
+  # ============================================
+  # MONGODB
+  # ============================================
+  mongo:
+    image: mongo:7.0
+    container_name: traf3li-mongo
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=${MONGO_ROOT_USER:-admin}
+      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_ROOT_PASSWORD:-changeme}
+      - MONGO_INITDB_DATABASE=traf3li
+    volumes:
+      - mongo-data:/data/db
+      - mongo-config:/data/configdb
+    networks:
+      - traf3li-network
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # ============================================
+  # REDIS (Rate Limiting & Caching)
+  # ============================================
+  redis:
+    image: redis:7-alpine
+    container_name: traf3li-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-}
+    volumes:
+      - redis-data:/data
+    networks:
+      - traf3li-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+# ============================================
+# VOLUMES
+# ============================================
+volumes:
+  mongo-data:
+    driver: local
+  mongo-config:
+    driver: local
+  redis-data:
+    driver: local
+
+# ============================================
+# NETWORKS
+# ============================================
+networks:
+  traf3li-network:
+    driver: bridge
