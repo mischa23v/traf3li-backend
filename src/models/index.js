@@ -145,6 +145,17 @@ const FirmInvitation = require('./firmInvitation.model');
 
 // Audit Models
 const AuditLog = require('./auditLog.model');
+const TeamActivityLog = require('./teamActivityLog.model');
+
+// Approval Workflow Models
+const ApprovalRule = require('./approvalRule.model');
+const ApprovalRequest = require('./approvalRequest.model');
+
+// Permission & Authorization Models
+const PermissionConfig = require('./permission.model');
+const RelationTuple = require('./relationTuple.model');
+const PolicyDecision = require('./policyDecision.model');
+const UIAccessConfig = require('./uiAccessConfig.model');
 
 // Investment & Trading Journal Models
 const Trade = require('./trade.model');
@@ -307,6 +318,17 @@ module.exports = {
 
     // Audit
     AuditLog,
+    TeamActivityLog,
+
+    // Approval Workflow
+    ApprovalRule,
+    ApprovalRequest,
+
+    // Permission & Authorization
+    PermissionConfig,
+    RelationTuple,
+    PolicyDecision,
+    UIAccessConfig,
 
     // Investment & Trading Journal
     Trade,

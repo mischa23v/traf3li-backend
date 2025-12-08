@@ -114,6 +114,16 @@ const investmentSearchRoute = require('./investmentSearch.route');
 // Invitation Routes
 const invitationRoute = require('./invitation.route');
 
+// Team Management Routes
+const teamRoute = require('./team.route');
+
+// Audit & Approval Routes
+const auditRoute = require('./audit.route');
+const approvalRoute = require('./approval.route');
+
+// Permission Routes
+const permissionRoute = require('./permission.route');
+
 module.exports = {
     // Marketplace
     gigRoute,
@@ -229,5 +239,15 @@ module.exports = {
     investmentSearchRoute,
 
     // Invitations
-    invitationRoute
+    invitationRoute,
+
+    // Team Management
+    teamRoute,
+
+    // Audit & Approvals
+    auditRoute,
+    approvalRoute,
+
+    // Permissions
+    permissionRoute
 };
