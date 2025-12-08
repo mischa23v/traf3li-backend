@@ -288,6 +288,22 @@ const bulkDeleteSchema = Joi.object({
 });
 
 /**
+ * Send receipt schema
+ * POST /api/payments/:id/send-receipt
+ */
+const sendReceiptSchema = Joi.object({
+    email: Joi.string()
+        .email()
+        .optional()
+        .messages({
+            'string.email': 'البريد الإلكتروني غير صالح / Invalid email address'
+        }),
+    includeDetails: Joi.boolean()
+        .optional()
+        .default(true)
+});
+
+/**
  * Record invoice payment schema
  * POST /api/invoices/:id/payments
  */
@@ -370,6 +386,7 @@ module.exports = {
         reconcilePayment: reconcilePaymentSchema,
         paymentQuery: paymentQuerySchema,
         bulkDelete: bulkDeleteSchema,
+        sendReceipt: sendReceiptSchema,
         recordInvoicePayment: recordInvoicePaymentSchema
     },
 
@@ -389,6 +406,7 @@ module.exports = {
     validateReconcilePayment: validate(reconcilePaymentSchema),
     validatePaymentQuery: validate(paymentQuerySchema, 'query'),
     validateBulkDelete: validate(bulkDeleteSchema),
+    validateSendReceipt: validate(sendReceiptSchema),
     validateRecordInvoicePayment: validate(recordInvoicePaymentSchema),
 
     // Generic validate function
