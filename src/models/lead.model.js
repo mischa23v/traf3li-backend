@@ -177,6 +177,20 @@ const leadSchema = new mongoose.Schema({
     commercialRegistration: String,
 
     // ═══════════════════════════════════════════════════════════════
+    // ORGANIZATION & CONTACT RELATIONSHIPS
+    // ═══════════════════════════════════════════════════════════════
+    organizationId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Organization',
+        index: true
+    },
+    contactId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Contact',
+        index: true
+    },
+
+    // ═══════════════════════════════════════════════════════════════
     // PIPELINE & STATUS
     // ═══════════════════════════════════════════════════════════════
     status: {
@@ -334,6 +348,8 @@ leadSchema.index({ lawyerId: 1, assignedTo: 1 });
 leadSchema.index({ lawyerId: 1, nextFollowUpDate: 1 });
 leadSchema.index({ lawyerId: 1, convertedToClient: 1 });
 leadSchema.index({ lawyerId: 1, createdAt: -1 });
+leadSchema.index({ lawyerId: 1, organizationId: 1 });
+leadSchema.index({ lawyerId: 1, contactId: 1 });
 leadSchema.index({ firstName: 'text', lastName: 'text', companyName: 'text', email: 'text', phone: 'text' });
 
 // ═══════════════════════════════════════════════════════════════
@@ -433,7 +449,10 @@ leadSchema.pre('save', async function(next) {
 
 // Get leads with filters
 leadSchema.statics.getLeads = async function(lawyerId, filters = {}) {
-    const query = { lawyerId: new mongoose.Types.ObjectId(lawyerId) };
+    // Build base query - prioritize firmId for multi-tenancy, fallback to lawyerId
+    const query = filters.firmId
+        ? { firmId: new mongoose.Types.ObjectId(filters.firmId) }
+        : { lawyerId: new mongoose.Types.ObjectId(lawyerId) };
 
     if (filters.status) query.status = filters.status;
     if (filters.source) query['source.type'] = filters.source;
@@ -466,6 +485,8 @@ leadSchema.statics.getLeads = async function(lawyerId, filters = {}) {
     return await this.find(query)
         .populate('assignedTo', 'firstName lastName avatar')
         .populate('source.referralId', 'name')
+        .populate('organizationId', 'legalName tradeName type')
+        .populate('contactId', 'firstName lastName email phone')
         .sort(sort)
         .limit(filters.limit || 50)
         .skip(filters.skip || 0);
@@ -473,7 +494,10 @@ leadSchema.statics.getLeads = async function(lawyerId, filters = {}) {
 
 // Get pipeline statistics
 leadSchema.statics.getPipelineStats = async function(lawyerId, dateRange = {}) {
-    const matchQuery = { lawyerId: new mongoose.Types.ObjectId(lawyerId) };
+    // Build base query - prioritize firmId for multi-tenancy, fallback to lawyerId
+    const matchQuery = dateRange.firmId
+        ? { firmId: new mongoose.Types.ObjectId(dateRange.firmId) }
+        : { lawyerId: new mongoose.Types.ObjectId(lawyerId) };
 
     if (dateRange.start) matchQuery.createdAt = { $gte: new Date(dateRange.start) };
     if (dateRange.end) matchQuery.createdAt = { ...matchQuery.createdAt, $lte: new Date(dateRange.end) };
@@ -503,12 +527,17 @@ leadSchema.statics.getPipelineStats = async function(lawyerId, dateRange = {}) {
 };
 
 // Get leads needing follow-up
-leadSchema.statics.getNeedingFollowUp = async function(lawyerId, limit = 20) {
+leadSchema.statics.getNeedingFollowUp = async function(lawyerId, limit = 20, firmId = null) {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
+    // Build base query - prioritize firmId for multi-tenancy, fallback to lawyerId
+    const baseQuery = firmId
+        ? { firmId: new mongoose.Types.ObjectId(firmId) }
+        : { lawyerId: new mongoose.Types.ObjectId(lawyerId) };
+
     return await this.find({
-        lawyerId: new mongoose.Types.ObjectId(lawyerId),
+        ...baseQuery,
         convertedToClient: false,
         status: { $nin: ['won', 'lost'] },
         $or: [
@@ -525,10 +554,99 @@ leadSchema.statics.getNeedingFollowUp = async function(lawyerId, limit = 20) {
 // INSTANCE METHODS
 // ═══════════════════════════════════════════════════════════════
 
-// Convert lead to client (comprehensive field transfer)
+// Convert lead to client (comprehensive field transfer - NO DATA LOSS)
 leadSchema.methods.convertToClient = async function(userId, options = {}) {
     const Client = mongoose.model('Client');
     const Case = mongoose.model('Case');
+    const CrmActivity = mongoose.model('CrmActivity');
+
+    // ═══════════════════════════════════════════════════════════════
+    // BUILD INTERNAL NOTES WITH BANT QUALIFICATION DATA
+    // This preserves the lead qualification data for future reference
+    // ═══════════════════════════════════════════════════════════════
+    let internalNotes = '';
+
+    if (this.qualification) {
+        internalNotes += '=== LEAD QUALIFICATION (BANT) ===\n\n';
+
+        if (this.qualification.budget) {
+            internalNotes += `Budget: ${this.qualification.budget}`;
+            if (this.qualification.budgetAmount) {
+                internalNotes += ` (${this.qualification.budgetAmount} halalas)`;
+            }
+            internalNotes += '\n';
+            if (this.qualification.budgetNotes) {
+                internalNotes += `  Notes: ${this.qualification.budgetNotes}\n`;
+            }
+        }
+
+        if (this.qualification.authority) {
+            internalNotes += `Authority: ${this.qualification.authority}\n`;
+            if (this.qualification.authorityNotes) {
+                internalNotes += `  Notes: ${this.qualification.authorityNotes}\n`;
+            }
+        }
+
+        if (this.qualification.need) {
+            internalNotes += `Need: ${this.qualification.need}\n`;
+            if (this.qualification.needDescription) {
+                internalNotes += `  Description: ${this.qualification.needDescription}\n`;
+            }
+        }
+
+        if (this.qualification.timeline) {
+            internalNotes += `Timeline: ${this.qualification.timeline}\n`;
+            if (this.qualification.timelineNotes) {
+                internalNotes += `  Notes: ${this.qualification.timelineNotes}\n`;
+            }
+        }
+
+        if (this.qualification.score !== undefined) {
+            internalNotes += `\nLead Score: ${this.qualification.score}/150\n`;
+            if (this.qualification.scoreBreakdown) {
+                internalNotes += 'Score Breakdown:\n';
+                internalNotes += `  Budget: ${this.qualification.scoreBreakdown.budgetScore || 0}/30\n`;
+                internalNotes += `  Authority: ${this.qualification.scoreBreakdown.authorityScore || 0}/30\n`;
+                internalNotes += `  Need: ${this.qualification.scoreBreakdown.needScore || 0}/30\n`;
+                internalNotes += `  Timeline: ${this.qualification.scoreBreakdown.timelineScore || 0}/30\n`;
+                internalNotes += `  Engagement: ${this.qualification.scoreBreakdown.engagementScore || 0}/15\n`;
+                internalNotes += `  Fit: ${this.qualification.scoreBreakdown.fitScore || 0}/15\n`;
+            }
+        }
+
+        if (this.qualification.notes) {
+            internalNotes += `\nQualification Notes: ${this.qualification.notes}\n`;
+        }
+
+        if (this.qualification.qualifiedAt) {
+            internalNotes += `Qualified At: ${this.qualification.qualifiedAt.toISOString()}\n`;
+        }
+
+        internalNotes += '\n';
+    }
+
+    // Add lead source details for attribution tracking
+    if (this.source) {
+        internalNotes += '=== LEAD SOURCE ATTRIBUTION ===\n\n';
+        internalNotes += `Source Type: ${this.source.type}\n`;
+        if (this.source.referralName) {
+            internalNotes += `Referral: ${this.source.referralName}\n`;
+        }
+        if (this.source.campaign) {
+            internalNotes += `Campaign: ${this.source.campaign}\n`;
+        }
+        if (this.source.medium) {
+            internalNotes += `Medium: ${this.source.medium}\n`;
+        }
+        if (this.source.notes) {
+            internalNotes += `Source Notes: ${this.source.notes}\n`;
+        }
+        internalNotes += '\n';
+    }
+
+    // Add lead ID and conversion info
+    internalNotes += `Original Lead ID: ${this.leadId || this._id}\n`;
+    internalNotes += `Converted from Lead: ${new Date().toISOString()}\n`;
 
     // ═══════════════════════════════════════════════════════════════
     // COMPREHENSIVE FIELD MAPPING: Lead → Client
@@ -536,6 +654,7 @@ leadSchema.methods.convertToClient = async function(userId, options = {}) {
     // ═══════════════════════════════════════════════════════════════
     const clientData = {
         lawyerId: this.lawyerId,
+        firmId: this.firmId,
         leadId: this._id,
         createdBy: userId,
 
@@ -564,12 +683,38 @@ leadSchema.methods.convertToClient = async function(userId, options = {}) {
         // IDs
         nationalId: this.nationalId,
 
-        // Source tracking
+        // ═══════════════════════════════════════════════════════════════
+        // SOURCE TRACKING - FULL ATTRIBUTION DATA
+        // ═══════════════════════════════════════════════════════════════
         clientSource: this.source?.type || 'referral',
         referralId: this.source?.referralId,
+        referralName: this.source?.referralName,
 
-        // Notes
-        notes: this.notes,
+        // Organization & Contact Relationships
+        organizationId: this.organizationId,
+        contactId: this.contactId,
+
+        // ═══════════════════════════════════════════════════════════════
+        // ACTIVITY TRACKING - TRANSFER ALL ACTIVITY COUNTS & DATES
+        // ═══════════════════════════════════════════════════════════════
+        lastContactedAt: this.lastContactedAt,
+        lastActivityAt: this.lastActivityAt,
+        nextFollowUpDate: this.nextFollowUpDate,
+        nextFollowUpNote: this.nextFollowUpNote,
+        activityCount: this.activityCount || 0,
+        callCount: this.callCount || 0,
+        emailCount: this.emailCount || 0,
+        meetingCount: this.meetingCount || 0,
+
+        // Notes - keep general notes in generalNotes field
+        generalNotes: this.notes,
+
+        // ═══════════════════════════════════════════════════════════════
+        // INTERNAL NOTES - BANT QUALIFICATION & SOURCE ATTRIBUTION
+        // Preserved for future reference and attribution tracking
+        // ═══════════════════════════════════════════════════════════════
+        internalNotes: internalNotes,
+
         tags: this.tags,
 
         // Billing (from lead's proposed fee)
@@ -580,14 +725,46 @@ leadSchema.methods.convertToClient = async function(userId, options = {}) {
             retainerAmount: this.proposedFeeType === 'retainer' ? this.proposedAmount : undefined
         } : undefined,
 
-        // Assignments (from lead assignment)
-        assignments: this.assignedTo ? {
-            responsibleLawyerId: this.assignedTo
-        } : undefined,
+        // ═══════════════════════════════════════════════════════════════
+        // ASSIGNMENTS - TRANSFER TEAM MEMBERS TO TEAM ASSIGNMENTS
+        // ═══════════════════════════════════════════════════════════════
+        assignments: {},
 
         // Initial status
-        status: 'active'
+        status: 'active',
+        convertedFromLead: true,
+        convertedAt: new Date()
     };
+
+    // Build assignments object with team members
+    if (this.assignedTo) {
+        clientData.assignments.responsibleLawyerId = this.assignedTo;
+    }
+
+    // Transfer team members to appropriate assignment roles
+    if (this.teamMembers && this.teamMembers.length > 0) {
+        // First team member becomes assistant lawyer if no responsible lawyer
+        if (!clientData.assignments.responsibleLawyerId && this.teamMembers[0]) {
+            clientData.assignments.responsibleLawyerId = this.teamMembers[0];
+        } else if (this.teamMembers[0]) {
+            clientData.assignments.assistantLawyerId = this.teamMembers[0];
+        }
+
+        // Second team member becomes paralegal
+        if (this.teamMembers[1]) {
+            clientData.assignments.paralegalId = this.teamMembers[1];
+        }
+
+        // Third team member becomes researcher
+        if (this.teamMembers[2]) {
+            clientData.assignments.researcherId = this.teamMembers[2];
+        }
+    }
+
+    // Remove assignments if empty
+    if (Object.keys(clientData.assignments).length === 0) {
+        delete clientData.assignments;
+    }
 
     // Remove undefined fields
     Object.keys(clientData).forEach(key => {
@@ -596,6 +773,45 @@ leadSchema.methods.convertToClient = async function(userId, options = {}) {
 
     // Create client
     const client = await Client.create(clientData);
+
+    // ═══════════════════════════════════════════════════════════════
+    // TRANSFER ACTIVITY HISTORY - UPDATE ALL LEAD ACTIVITIES TO CLIENT
+    // This preserves the complete activity timeline
+    // ═══════════════════════════════════════════════════════════════
+    try {
+        const activityUpdateResult = await CrmActivity.updateMany(
+            {
+                entityType: 'lead',
+                entityId: this._id
+            },
+            {
+                $set: {
+                    entityType: 'client',
+                    entityId: client._id,
+                    entityName: client.displayName || client.companyName
+                }
+            }
+        );
+
+        // Log the activity transfer for audit purposes
+        if (activityUpdateResult.modifiedCount > 0) {
+            await CrmActivity.create({
+                lawyerId: this.lawyerId,
+                type: 'lead_converted',
+                entityType: 'client',
+                entityId: client._id,
+                entityName: client.displayName || client.companyName,
+                title: `Lead converted to client`,
+                description: `Lead ${this.leadId} converted to client ${client.clientNumber}. ${activityUpdateResult.modifiedCount} activities transferred.`,
+                performedBy: userId,
+                status: 'completed',
+                completedAt: new Date()
+            });
+        }
+    } catch (error) {
+        console.error('Error transferring activities:', error);
+        // Continue with conversion even if activity transfer fails
+    }
 
     // ═══════════════════════════════════════════════════════════════
     // OPTIONAL: Create Case from Lead's Intake Info

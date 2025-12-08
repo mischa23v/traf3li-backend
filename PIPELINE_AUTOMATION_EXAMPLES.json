@@ -1,0 +1,404 @@
+{
+  "examples": [
+    {
+      "name": "Simple Welcome Email",
+      "description": "Send a welcome email when a lead enters the 'New' stage",
+      "autoAction": {
+        "trigger": "enter",
+        "action": "send_email",
+        "config": {
+          "to": "lead_owner",
+          "subject": "New Lead: {{entityName}}",
+          "message": "Hello {{userName}}, a new lead {{entityName}} has been added to your pipeline in the {{stageName}} stage. Please review and take appropriate action.",
+          "link": "/leads"
+        },
+        "delayHours": 0
+      }
+    },
+    {
+      "name": "Auto-Create Follow-up Task",
+      "description": "Automatically create a follow-up task when lead moves to 'Contacted' stage",
+      "autoAction": {
+        "trigger": "enter",
+        "action": "create_task",
+        "config": {
+          "title": "Follow up with {{entityName}}",
+          "description": "Contact {{entityName}} to discuss their requirements and qualification criteria.",
+          "assignedTo": "assigned_user",
+          "dueInDays": 2,
+          "priority": "high",
+          "taskType": "client_meeting"
+        },
+        "delayHours": 0
+      }
+    },
+    {
+      "name": "Delayed Reminder Email",
+      "description": "Send reminder email 24 hours after lead enters 'Proposal' stage",
+      "autoAction": {
+        "trigger": "enter",
+        "action": "send_email",
+        "config": {
+          "to": "assigned_user",
+          "subject": "Reminder: Follow up on proposal for {{entityName}}",
+          "message": "Hi {{userName}}, it's been 24 hours since you sent a proposal to {{entityName}}. Please follow up to see if they have any questions.",
+          "link": "/leads"
+        },
+        "delayHours": 24
+      }
+    },
+    {
+      "name": "In-App Notification",
+      "description": "Send in-app notification when lead is qualified",
+      "autoAction": {
+        "trigger": "enter",
+        "action": "notify_user",
+        "config": {
+          "userId": "lead_owner",
+          "title": "Lead Qualified: {{entityName}}",
+          "message": "{{entityName}} is now qualified. Time to send a proposal!",
+          "priority": "medium",
+          "icon": "✅",
+          "link": "/leads"
+        },
+        "delayHours": 0
+      }
+    },
+    {
+      "name": "Update Lead Tags",
+      "description": "Automatically tag lead as 'hot' when entering negotiation stage",
+      "autoAction": {
+        "trigger": "enter",
+        "action": "update_field",
+        "config": {
+          "field": "tags",
+          "value": "hot-lead",
+          "operation": "append"
+        },
+        "delayHours": 0
+      }
+    },
+    {
+      "name": "Exit Stage Email",
+      "description": "Send email when lead exits 'Negotiation' stage",
+      "autoAction": {
+        "trigger": "exit",
+        "action": "send_email",
+        "config": {
+          "to": "lead_owner",
+          "subject": "{{entityName}} moved out of Negotiation",
+          "message": "Lead {{entityName}} has moved out of the Negotiation stage. Check the new status.",
+          "link": "/leads"
+        },
+        "delayHours": 0
+      }
+    },
+    {
+      "name": "Win Celebration",
+      "description": "Celebrate when a lead is won with notification and task",
+      "stage": {
+        "name": "Won",
+        "isWonStage": true,
+        "autoActions": [
+          {
+            "trigger": "enter",
+            "action": "notify_user",
+            "config": {
+              "userId": "lead_owner",
+              "title": "🎉 Congratulations! {{entityName}} is Won!",
+              "message": "Great job! {{entityName}} is now a client. Time to start onboarding.",
+              "priority": "high",
+              "icon": "🎉"
+            }
+          },
+          {
+            "trigger": "enter",
+            "action": "create_task",
+            "config": {
+              "title": "Client Onboarding: {{entityName}}",
+              "description": "Start the onboarding process for new client {{entityName}}",
+              "assignedTo": "lead_owner",
+              "dueInDays": 1,
+              "priority": "critical",
+              "taskType": "client_meeting"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "Complete Sales Pipeline",
+      "description": "Full sales pipeline with automation at each stage",
+      "pipeline": {
+        "name": "Automated Sales Pipeline",
+        "type": "lead",
+        "stages": [
+          {
+            "name": "New",
+            "color": "#94a3b8",
+            "order": 0,
+            "probability": 10,
+            "autoActions": [
+              {
+                "trigger": "enter",
+                "action": "send_email",
+                "config": {
+                  "to": "lead_owner",
+                  "subject": "New Lead: {{entityName}}",
+                  "message": "You have a new lead: {{entityName}}. Please make initial contact within 24 hours."
+                }
+              },
+              {
+                "trigger": "enter",
+                "action": "create_task",
+                "config": {
+                  "title": "Initial contact: {{entityName}}",
+                  "assignedTo": "lead_owner",
+                  "dueInDays": 1,
+                  "priority": "high"
+                }
+              }
+            ]
+          },
+          {
+            "name": "Contacted",
+            "color": "#60a5fa",
+            "order": 1,
+            "probability": 20,
+            "autoActions": [
+              {
+                "trigger": "enter",
+                "action": "notify_user",
+                "config": {
+                  "userId": "lead_owner",
+                  "title": "{{entityName}} contacted",
+                  "message": "Next: Qualify the lead and assess fit"
+                }
+              }
+            ]
+          },
+          {
+            "name": "Qualified",
+            "color": "#a78bfa",
+            "order": 2,
+            "probability": 40,
+            "autoActions": [
+              {
+                "trigger": "enter",
+                "action": "create_task",
+                "config": {
+                  "title": "Prepare proposal: {{entityName}}",
+                  "assignedTo": "assigned_user",
+                  "dueInDays": 3,
+                  "priority": "high"
+                }
+              },
+              {
+                "trigger": "enter",
+                "action": "update_field",
+                "config": {
+                  "field": "tags",
+                  "value": "qualified",
+                  "operation": "append"
+                }
+              }
+            ]
+          },
+          {
+            "name": "Proposal Sent",
+            "color": "#f59e0b",
+            "order": 3,
+            "probability": 60,
+            "autoActions": [
+              {
+                "trigger": "enter",
+                "action": "send_email",
+                "config": {
+                  "to": "assigned_user",
+                  "subject": "Follow up: {{entityName}}",
+                  "message": "Check if {{entityName}} reviewed the proposal"
+                },
+                "delayHours": 48
+              },
+              {
+                "trigger": "enter",
+                "action": "create_task",
+                "config": {
+                  "title": "Follow up on proposal: {{entityName}}",
+                  "assignedTo": "assigned_user",
+                  "dueInDays": 3,
+                  "priority": "medium"
+                }
+              }
+            ]
+          },
+          {
+            "name": "Negotiation",
+            "color": "#fb923c",
+            "order": 4,
+            "probability": 80,
+            "autoActions": [
+              {
+                "trigger": "enter",
+                "action": "update_field",
+                "config": {
+                  "field": "tags",
+                  "value": "hot-lead",
+                  "operation": "append"
+                }
+              },
+              {
+                "trigger": "enter",
+                "action": "notify_user",
+                "config": {
+                  "userId": "lead_owner",
+                  "title": "Hot Lead: {{entityName}}",
+                  "message": "{{entityName}} is in negotiation. Close the deal!",
+                  "priority": "high",
+                  "icon": "🔥"
+                }
+              }
+            ]
+          },
+          {
+            "name": "Won",
+            "color": "#22c55e",
+            "order": 5,
+            "probability": 100,
+            "isWonStage": true,
+            "autoActions": [
+              {
+                "trigger": "enter",
+                "action": "notify_user",
+                "config": {
+                  "userId": "lead_owner",
+                  "title": "🎉 Lead Won: {{entityName}}",
+                  "message": "Congratulations! {{entityName}} is now a client!",
+                  "priority": "high",
+                  "icon": "🎉"
+                }
+              },
+              {
+                "trigger": "enter",
+                "action": "create_task",
+                "config": {
+                  "title": "Onboard: {{entityName}}",
+                  "assignedTo": "lead_owner",
+                  "dueInDays": 1,
+                  "priority": "critical"
+                }
+              }
+            ]
+          },
+          {
+            "name": "Lost",
+            "color": "#ef4444",
+            "order": 6,
+            "probability": 0,
+            "isLostStage": true,
+            "autoActions": [
+              {
+                "trigger": "enter",
+                "action": "create_task",
+                "config": {
+                  "title": "Follow-up check-in: {{entityName}}",
+                  "description": "Check back in 3 months to see if circumstances changed",
+                  "assignedTo": "lead_owner",
+                  "dueInDays": 90,
+                  "priority": "low"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "apiExamples": {
+    "createPipelineWithAutomation": {
+      "method": "POST",
+      "endpoint": "/api/pipelines",
+      "body": {
+        "name": "My Sales Pipeline",
+        "type": "lead",
+        "stages": [
+          {
+            "name": "New Lead",
+            "color": "#60a5fa",
+            "order": 0,
+            "probability": 10,
+            "autoActions": [
+              {
+                "trigger": "enter",
+                "action": "create_task",
+                "config": {
+                  "title": "Contact {{entityName}}",
+                  "assignedTo": "lead_owner",
+                  "dueInDays": 1,
+                  "priority": "high"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "updateStageAutomation": {
+      "method": "PUT",
+      "endpoint": "/api/pipelines/:pipelineId/stages/:stageId",
+      "body": {
+        "autoActions": [
+          {
+            "trigger": "enter",
+            "action": "send_email",
+            "config": {
+              "to": "assigned_user",
+              "subject": "New lead in {{stageName}}",
+              "message": "Take action on {{entityName}}"
+            }
+          }
+        ]
+      }
+    },
+    "moveLeadToStage": {
+      "method": "PUT",
+      "endpoint": "/api/leads/:id/stage",
+      "description": "Moving a lead to a new stage will automatically trigger configured automation",
+      "body": {
+        "stageId": "stage_123",
+        "notes": "Lead showed strong interest in our services"
+      },
+      "response": {
+        "success": true,
+        "message": "Lead moved to new stage",
+        "data": {
+          "lead": {},
+          "automation": {
+            "success": true,
+            "executed": 2,
+            "results": [
+              {
+                "action": "send_email",
+                "success": true,
+                "recipientEmail": "user@example.com"
+              },
+              {
+                "action": "create_task",
+                "success": true,
+                "taskId": "task_456"
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  "notes": [
+    "All automation is executed asynchronously and won't block stage changes",
+    "Automation failures are logged but don't prevent stage transitions",
+    "Email automation respects rate limiting (1 per user per hour)",
+    "Variables like {{entityName}} are replaced at execution time",
+    "Time-based automation requires job scheduler setup",
+    "Test automation thoroughly in development before production use"
+  ]
+}

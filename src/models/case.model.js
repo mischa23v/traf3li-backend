@@ -318,4 +318,39 @@ caseSchema.index({ 'richDocuments.showOnCalendar': 1, 'richDocuments.calendarDat
 caseSchema.index({ 'richDocuments.documentType': 1 });
 caseSchema.index({ 'richDocuments.status': 1 });
 
+// ═══════════════════════════════════════════════════════════════
+// MIDDLEWARE HOOKS
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Cascade delete documents when case is deleted
+ */
+caseSchema.post('findOneAndDelete', async function(doc) {
+    if (doc) {
+        try {
+            const Document = mongoose.model('Document');
+            const { deleteObject, BUCKETS } = require('../configs/s3');
+
+            // Find all documents associated with this case
+            const documents = await Document.find({ caseId: doc._id });
+
+            // Delete files from S3
+            for (const document of documents) {
+                try {
+                    await deleteObject(BUCKETS.general, document.fileKey);
+                } catch (err) {
+                    console.error(`S3 delete error for document ${document._id}:`, err);
+                }
+            }
+
+            // Delete document records from database
+            await Document.deleteMany({ caseId: doc._id });
+
+            console.log(`Deleted ${documents.length} documents for case ${doc._id}`);
+        } catch (error) {
+            console.error('Error cleaning up documents for deleted case:', error);
+        }
+    }
+});
+
 module.exports = mongoose.model('Case', caseSchema);

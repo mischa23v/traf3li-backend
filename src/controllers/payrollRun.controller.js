@@ -698,9 +698,18 @@ const processPayments = asyncHandler(async (req, res) => {
     // Bulk insert salary slips
     const insertedSlips = await SalarySlip.insertMany(slipsToCreate);
 
-    // Update employee list with slip references
+    // Post each salary slip to General Ledger and update employee list
     for (let i = 0; i < insertedSlips.length; i++) {
         const slip = insertedSlips[i];
+
+        // Post to GL
+        try {
+            await slip.postToGL();
+        } catch (error) {
+            console.error(`Failed to post payroll to GL for slip ${slip.slipNumber}:`, error.message);
+            // Continue processing other slips even if one fails
+        }
+
         const empIndex = payrollRun.employeeList.findIndex(
             e => e.employeeId.toString() === slip.employeeId.toString() && !e.onHold
         );

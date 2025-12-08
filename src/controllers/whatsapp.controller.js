@@ -16,7 +16,7 @@ class WhatsAppController {
      * @access  Private
      */
     sendTemplate = asyncHandler(async (req, res) => {
-        const firmId = req.user.firmId;
+        const firmId = req.firmId;
         const { phoneNumber, templateName, variables, leadId, clientId } = req.body;
 
         if (!phoneNumber || !templateName) {
@@ -34,7 +34,7 @@ class WhatsAppController {
             {
                 leadId,
                 clientId,
-                sentBy: req.user._id
+                sentBy: req.userID
             }
         );
 
@@ -51,7 +51,7 @@ class WhatsAppController {
      * @access  Private
      */
     sendText = asyncHandler(async (req, res) => {
-        const firmId = req.user.firmId;
+        const firmId = req.firmId;
         const { phoneNumber, text, leadId, clientId, replyTo } = req.body;
 
         if (!phoneNumber || !text) {
@@ -68,7 +68,7 @@ class WhatsAppController {
             {
                 leadId,
                 clientId,
-                sentBy: req.user._id,
+                sentBy: req.userID,
                 replyTo
             }
         );
@@ -86,7 +86,7 @@ class WhatsAppController {
      * @access  Private
      */
     sendMedia = asyncHandler(async (req, res) => {
-        const firmId = req.user.firmId;
+        const firmId = req.firmId;
         const { phoneNumber, type, mediaUrl, caption, fileName, leadId, clientId } = req.body;
 
         if (!phoneNumber || !type || !mediaUrl) {
@@ -113,7 +113,7 @@ class WhatsAppController {
                 fileName,
                 leadId,
                 clientId,
-                sentBy: req.user._id
+                sentBy: req.userID
             }
         );
 
@@ -130,8 +130,8 @@ class WhatsAppController {
      * @access  Private
      */
     sendLocation = asyncHandler(async (req, res) => {
-        const firmId = req.user.firmId;
-        const { phoneNumber, latitude, longitude, name, address } = req.body;
+        const firmId = req.firmId;
+        const { phoneNumber, latitude, longitude, name, address, leadId, clientId } = req.body;
 
         if (!phoneNumber || !latitude || !longitude) {
             return res.status(400).json({
@@ -146,7 +146,12 @@ class WhatsAppController {
             latitude,
             longitude,
             name,
-            address
+            address,
+            {
+                leadId,
+                clientId,
+                sentBy: req.userID
+            }
         );
 
         res.json({
@@ -166,7 +171,7 @@ class WhatsAppController {
      * @access  Private
      */
     getConversations = asyncHandler(async (req, res) => {
-        const firmId = req.user.firmId;
+        const firmId = req.firmId;
         const { assignedTo, unreadOnly, labels, limit, skip } = req.query;
 
         const conversations = await WhatsAppService.getConversations(firmId, {
@@ -193,7 +198,7 @@ class WhatsAppController {
         const { id } = req.params;
 
         const conversation = await WhatsAppService.getOrCreateConversation(
-            req.user.firmId,
+            req.firmId,
             id // This could be conversation ID or phone number
         );
 
@@ -304,7 +309,7 @@ class WhatsAppController {
         const lead = await WhatsAppService.createLeadFromConversation(
             id,
             leadData,
-            req.user._id
+            req.userID
         );
 
         res.json({
@@ -324,13 +329,13 @@ class WhatsAppController {
      * @access  Private
      */
     createTemplate = asyncHandler(async (req, res) => {
-        const firmId = req.user.firmId;
+        const firmId = req.firmId;
         const templateData = req.body;
 
         const template = await WhatsAppService.createTemplate(
             firmId,
             templateData,
-            req.user._id
+            req.userID
         );
 
         res.status(201).json({
@@ -346,7 +351,7 @@ class WhatsAppController {
      * @access  Private
      */
     getTemplates = asyncHandler(async (req, res) => {
-        const firmId = req.user.firmId;
+        const firmId = req.firmId;
         const { status, category, useCase } = req.query;
 
         const templates = await WhatsAppService.getTemplates(firmId, {
@@ -437,7 +442,7 @@ class WhatsAppController {
      * @access  Private
      */
     getAnalytics = asyncHandler(async (req, res) => {
-        const firmId = req.user.firmId;
+        const firmId = req.firmId;
         const { startDate, endDate } = req.query;
 
         const [messageStats, responseTimes, templatePerformance] = await Promise.all([
@@ -462,7 +467,7 @@ class WhatsAppController {
      * @access  Private
      */
     getStats = asyncHandler(async (req, res) => {
-        const firmId = req.user.firmId;
+        const firmId = req.firmId;
 
         const WhatsAppConversation = require('../models/whatsappConversation.model');
         const stats = await WhatsAppConversation.getStats(firmId);

@@ -103,11 +103,53 @@ const createEvent = asyncHandler(async (req, res) => {
         await event.save();
     }
 
+    // Create linked task if event type is 'task' and no taskId was provided
+    if (type === 'task' && !taskId) {
+        try {
+            // Extract due time from startDateTime if not all day
+            let dueTime = null;
+            if (!allDay) {
+                const start = new Date(startDateTime);
+                dueTime = `${String(start.getHours()).padStart(2, '0')}:${String(start.getMinutes()).padStart(2, '0')}`;
+            }
+
+            // Find assignedTo from first attendee
+            const assignedUserId = attendees && attendees.length > 0 && attendees[0].userId
+                ? attendees[0].userId
+                : userId;
+
+            const linkedTask = await Task.create({
+                title,
+                description,
+                dueDate: new Date(startDateTime),
+                dueTime,
+                assignedTo: assignedUserId,
+                createdBy: userId,
+                firmId,
+                caseId,
+                clientId,
+                priority: priority || 'medium',
+                status: 'todo',
+                tags: tags || [],
+                notes,
+                linkedEventId: event._id
+            });
+
+            // Link the task back to the event
+            event.taskId = linkedTask._id;
+            await event.save();
+        } catch (error) {
+            console.error('Error creating linked task from event:', error);
+            // Don't fail event creation if task creation fails
+        }
+    }
+
     await event.populate([
         { path: 'organizer', select: 'firstName lastName image email' },
         { path: 'attendees.userId', select: 'firstName lastName image email' },
         { path: 'caseId', select: 'title caseNumber' },
-        { path: 'clientId', select: 'firstName lastName' }
+        { path: 'clientId', select: 'firstName lastName' },
+        { path: 'taskId', select: 'title status dueDate' }
     ]);
 
     res.status(201).json({
@@ -315,10 +357,68 @@ const updateEvent = asyncHandler(async (req, res) => {
     event.lastModifiedBy = userId;
     await event.save();
 
+    // Sync with linked task if exists
+    if (event.taskId) {
+        try {
+            const linkedTask = await Task.findById(event.taskId);
+
+            if (linkedTask) {
+                // Update task fields
+                if (req.body.title !== undefined) linkedTask.title = event.title;
+                if (req.body.description !== undefined) linkedTask.description = event.description;
+
+                // Update due date and time if startDateTime changed
+                if (req.body.startDateTime !== undefined) {
+                    linkedTask.dueDate = event.startDateTime;
+
+                    // Extract time if not all day
+                    if (!event.allDay) {
+                        const start = new Date(event.startDateTime);
+                        linkedTask.dueTime = `${String(start.getHours()).padStart(2, '0')}:${String(start.getMinutes()).padStart(2, '0')}`;
+                    } else {
+                        linkedTask.dueTime = null;
+                    }
+                }
+
+                // Update other fields
+                if (req.body.caseId !== undefined) linkedTask.caseId = event.caseId;
+                if (req.body.clientId !== undefined) linkedTask.clientId = event.clientId;
+                if (req.body.priority !== undefined) linkedTask.priority = event.priority;
+                if (req.body.tags !== undefined) linkedTask.tags = event.tags;
+                if (req.body.notes !== undefined) linkedTask.notes = event.notes;
+
+                // Update status based on event status
+                if (event.status === 'completed') {
+                    linkedTask.status = 'done';
+                    linkedTask.completedAt = event.completedAt;
+                    linkedTask.completedBy = event.completedBy;
+                } else if (event.status === 'cancelled') {
+                    linkedTask.status = 'canceled';
+                } else if (linkedTask.status === 'done' || linkedTask.status === 'canceled') {
+                    // If event is not completed/cancelled but task was, reset to in_progress
+                    linkedTask.status = 'in_progress';
+                }
+
+                // Update assignedTo from first attendee if attendees changed
+                if (req.body.attendees !== undefined) {
+                    linkedTask.assignedTo = event.attendees && event.attendees.length > 0 && event.attendees[0].userId
+                        ? event.attendees[0].userId
+                        : linkedTask.createdBy;
+                }
+
+                await linkedTask.save();
+            }
+        } catch (error) {
+            console.error('Error syncing event with linked task:', error);
+            // Don't fail event update if task sync fails
+        }
+    }
+
     await event.populate([
         { path: 'organizer', select: 'firstName lastName image' },
         { path: 'attendees.userId', select: 'firstName lastName image' },
-        { path: 'caseId', select: 'title caseNumber' }
+        { path: 'caseId', select: 'title caseNumber' },
+        { path: 'taskId', select: 'title status dueDate' }
     ]);
 
     res.status(200).json({
@@ -350,6 +450,20 @@ const deleteEvent = asyncHandler(async (req, res) => {
 
     if (!canDelete) {
         throw CustomException('Only the organizer can delete this event', 403);
+    }
+
+    // Handle linked task - unlink it instead of deleting to preserve task data
+    if (event.taskId) {
+        try {
+            const linkedTask = await Task.findById(event.taskId);
+            if (linkedTask) {
+                linkedTask.linkedEventId = null;
+                await linkedTask.save();
+            }
+        } catch (error) {
+            console.error('Error unlinking task from deleted event:', error);
+            // Continue with event deletion even if unlinking fails
+        }
     }
 
     await Event.findByIdAndDelete(id);

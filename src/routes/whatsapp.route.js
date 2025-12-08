@@ -1,8 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const whatsappController = require('../controllers/whatsapp.controller');
-const authenticate = require('../middlewares/authenticate');
-const { authorize } = require('../middlewares/authorize.middleware');
+const { userMiddleware, firmFilter } = require('../middlewares');
 
 // ═══════════════════════════════════════════════════════════════
 // WHATSAPP ROUTES
@@ -15,8 +14,8 @@ router.route('/webhooks/whatsapp')
     .get(whatsappController.verifyWebhook)  // Webhook verification
     .post(whatsappController.receiveWebhook); // Receive messages/status updates
 
-// All other routes require authentication
-router.use(authenticate);
+// All other routes require authentication and firm context
+router.use(userMiddleware, firmFilter);
 
 // ───────────────────────────────────────────────────────────────
 // MESSAGE SENDING

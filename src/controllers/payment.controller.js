@@ -192,6 +192,14 @@ const createPayment = asyncHandler(async (req, res) => {
         { path: 'caseId', select: 'title caseNumber' }
     ]);
 
+    // Update client balance after payment creation
+    if (actualCustomerId) {
+        const client = await Client.findById(actualCustomerId);
+        if (client) {
+            await client.updateBalance();
+        }
+    }
+
     res.status(201).json({
         success: true,
         message: 'Payment created successfully',
@@ -450,6 +458,15 @@ const updatePayment = asyncHandler(async (req, res) => {
         userAgent: req.get('user-agent')
     });
 
+    // Update client balance after payment update
+    const clientId = updatedPayment.customerId || updatedPayment.clientId;
+    if (clientId) {
+        const client = await Client.findById(clientId);
+        if (client) {
+            await client.updateBalance();
+        }
+    }
+
     res.status(200).json({
         success: true,
         message: 'Payment updated successfully',
@@ -490,6 +507,9 @@ const deletePayment = asyncHandler(async (req, res) => {
         throw CustomException('Cannot delete a completed, reconciled, or refunded payment', 400);
     }
 
+    // Store client ID before deletion
+    const clientId = payment.customerId || payment.clientId;
+
     await Payment.findByIdAndDelete(id);
 
     // Log activity
@@ -502,6 +522,14 @@ const deletePayment = asyncHandler(async (req, res) => {
         ipAddress: req.ip,
         userAgent: req.get('user-agent')
     });
+
+    // Update client balance after payment deletion
+    if (clientId) {
+        const client = await Client.findById(clientId);
+        if (client) {
+            await client.updateBalance();
+        }
+    }
 
     res.status(200).json({
         success: true,
@@ -542,58 +570,84 @@ const completePayment = asyncHandler(async (req, res) => {
         throw CustomException('Payment already completed', 400);
     }
 
-    // Apply to invoices if provided
-    if (invoiceApplications && invoiceApplications.length > 0) {
-        await payment.applyToInvoices(invoiceApplications);
-    } else if (payment.invoiceId && payment.invoiceApplications.length === 0) {
-        // Apply to single invoice if specified and not already applied
-        await payment.applyToInvoices([{
-            invoiceId: payment.invoiceId,
-            amount: payment.amount
-        }]);
-    }
+    // Use session for transaction
+    const session = await mongoose.startSession();
+    session.startTransaction();
 
-    payment.status = 'completed';
-    payment.processedBy = lawyerId;
-    await payment.save();
-
-    // Update retainer if this is an advance/retainer payment
-    if (payment.paymentType === 'retainer' || payment.paymentType === 'advance') {
-        const retainer = await Retainer.findOne({
-            clientId: payment.customerId || payment.clientId,
-            lawyerId: payment.lawyerId,
-            status: { $in: ['active', 'depleted'] }
-        }).sort({ createdAt: -1 });
-
-        if (retainer) {
-            await retainer.replenish(payment.amount, payment._id);
+    try {
+        // Apply to invoices if provided
+        if (invoiceApplications && invoiceApplications.length > 0) {
+            await payment.applyToInvoices(invoiceApplications);
+        } else if (payment.invoiceId && payment.invoiceApplications.length === 0) {
+            // Apply to single invoice if specified and not already applied
+            await payment.applyToInvoices([{
+                invoiceId: payment.invoiceId,
+                amount: payment.amount
+            }]);
         }
+
+        payment.status = 'completed';
+        payment.processedBy = lawyerId;
+        await payment.save({ session });
+
+        // Post to General Ledger
+        const glEntry = await payment.postToGL(session);
+
+        // Update retainer if this is an advance/retainer payment
+        if (payment.paymentType === 'retainer' || payment.paymentType === 'advance') {
+            const retainer = await Retainer.findOne({
+                clientId: payment.customerId || payment.clientId,
+                lawyerId: payment.lawyerId,
+                status: { $in: ['active', 'depleted'] }
+            }).sort({ createdAt: -1 });
+
+            if (retainer) {
+                await retainer.replenish(payment.amount, payment._id);
+            }
+        }
+
+        // Log activity
+        await BillingActivity.logActivity({
+            activityType: 'payment_completed',
+            userId: lawyerId,
+            clientId: payment.customerId || payment.clientId,
+            relatedModel: 'Payment',
+            relatedId: payment._id,
+            description: `Payment ${payment.paymentNumber} completed for ${payment.amount} ${payment.currency}`,
+            amount: payment.amount,
+            ipAddress: req.ip,
+            userAgent: req.get('user-agent')
+        });
+
+        await session.commitTransaction();
+
+        await payment.populate([
+            { path: 'customerId', select: 'firstName lastName companyName email' },
+            { path: 'invoiceId', select: 'invoiceNumber totalAmount status' },
+            { path: 'invoiceApplications.invoiceId', select: 'invoiceNumber totalAmount status' }
+        ]);
+
+        // Update client balance after payment completion
+        const clientId = payment.customerId || payment.clientId;
+        if (clientId) {
+            const client = await Client.findById(clientId);
+            if (client) {
+                await client.updateBalance();
+            }
+        }
+
+        res.status(200).json({
+            success: true,
+            message: 'Payment completed successfully',
+            payment,
+            glEntryId: glEntry ? glEntry._id : null
+        });
+    } catch (error) {
+        await session.abortTransaction();
+        throw error;
+    } finally {
+        session.endSession();
     }
-
-    // Log activity
-    await BillingActivity.logActivity({
-        activityType: 'payment_completed',
-        userId: lawyerId,
-        clientId: payment.customerId || payment.clientId,
-        relatedModel: 'Payment',
-        relatedId: payment._id,
-        description: `Payment ${payment.paymentNumber} completed for ${payment.amount} ${payment.currency}`,
-        amount: payment.amount,
-        ipAddress: req.ip,
-        userAgent: req.get('user-agent')
-    });
-
-    await payment.populate([
-        { path: 'customerId', select: 'firstName lastName companyName email' },
-        { path: 'invoiceId', select: 'invoiceNumber totalAmount status' },
-        { path: 'invoiceApplications.invoiceId', select: 'invoiceNumber totalAmount status' }
-    ]);
-
-    res.status(200).json({
-        success: true,
-        message: 'Payment completed successfully',
-        payment
-    });
 });
 
 // ═══════════════════════════════════════════════════════════════
@@ -755,6 +809,15 @@ const createRefund = asyncHandler(async (req, res) => {
         { path: 'originalPaymentId', select: 'paymentNumber amount paymentDate' }
     ]);
 
+    // Update client balance after refund creation
+    const clientId = originalPayment.customerId || originalPayment.clientId;
+    if (clientId) {
+        const client = await Client.findById(clientId);
+        if (client) {
+            await client.updateBalance();
+        }
+    }
+
     res.status(201).json({
         success: true,
         message: 'Refund created successfully',
@@ -874,6 +937,15 @@ const applyPaymentToInvoices = asyncHandler(async (req, res) => {
         { path: 'invoiceApplications.invoiceId', select: 'invoiceNumber totalAmount status balanceDue' }
     ]);
 
+    // Update client balance after applying payment
+    const clientId = payment.customerId || payment.clientId;
+    if (clientId) {
+        const client = await Client.findById(clientId);
+        if (client) {
+            await client.updateBalance();
+        }
+    }
+
     res.status(200).json({
         success: true,
         message: 'Payment applied to invoices',
@@ -930,6 +1002,15 @@ const unapplyPaymentFromInvoice = asyncHandler(async (req, res) => {
     await payment.populate([
         { path: 'invoiceApplications.invoiceId', select: 'invoiceNumber totalAmount status' }
     ]);
+
+    // Update client balance after unapplying payment
+    const clientId = payment.customerId || payment.clientId;
+    if (clientId) {
+        const client = await Client.findById(clientId);
+        if (client) {
+            await client.updateBalance();
+        }
+    }
 
     res.status(200).json({
         success: true,
@@ -1304,87 +1385,114 @@ const recordInvoicePayment = asyncHandler(async (req, res) => {
         throw CustomException(`Payment amount exceeds balance due (${invoice.balanceDue} SAR)`, 400);
     }
 
-    // Create payment record
-    const payment = await Payment.create({
-        paymentType: 'customer_payment',
-        customerId: invoice.clientId,
-        clientId: invoice.clientId,
-        invoiceId: invoice._id,
-        caseId: invoice.caseId,
-        lawyerId,
-        firmId,
-        amount,
-        currency: 'SAR',
-        paymentMethod: paymentMethod || 'bank_transfer',
-        transactionId,
-        status: 'completed',
-        paymentDate: new Date(),
-        notes,
-        invoiceApplications: [{
+    // Use session for transaction
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    try {
+        // Create payment record
+        const payment = await Payment.create([{
+            paymentType: 'customer_payment',
+            customerId: invoice.clientId,
+            clientId: invoice.clientId,
             invoiceId: invoice._id,
+            caseId: invoice.caseId,
+            lawyerId,
+            firmId,
             amount,
-            appliedAt: new Date()
-        }],
-        totalApplied: amount,
-        unappliedAmount: 0,
-        createdBy: lawyerId,
-        processedBy: lawyerId
-    });
+            currency: 'SAR',
+            paymentMethod: paymentMethod || 'bank_transfer',
+            transactionId,
+            status: 'completed',
+            paymentDate: new Date(),
+            notes,
+            invoiceApplications: [{
+                invoiceId: invoice._id,
+                amount,
+                appliedAt: new Date()
+            }],
+            totalApplied: amount,
+            unappliedAmount: 0,
+            createdBy: lawyerId,
+            processedBy: lawyerId
+        }], { session });
 
-    // Update invoice
-    invoice.amountPaid = (invoice.amountPaid || 0) + amount;
-    invoice.balanceDue = invoice.totalAmount - invoice.amountPaid;
+        const paymentDoc = payment[0];
 
-    if (invoice.balanceDue <= 0) {
-        invoice.status = 'paid';
-        invoice.paidDate = new Date();
-    } else if (invoice.amountPaid > 0) {
-        invoice.status = 'partial';
-    }
+        // Post to General Ledger
+        const glEntry = await paymentDoc.postToGL(session);
 
-    if (!invoice.paymentHistory) {
-        invoice.paymentHistory = [];
-    }
-    invoice.paymentHistory.push({
-        paymentId: payment._id,
-        amount,
-        date: new Date(),
-        method: paymentMethod || 'bank_transfer'
-    });
+        // Update invoice
+        invoice.amountPaid = (invoice.amountPaid || 0) + amount;
+        invoice.balanceDue = invoice.totalAmount - invoice.amountPaid;
 
-    await invoice.save();
-
-    // Log activity
-    await BillingActivity.logActivity({
-        activityType: 'payment_received',
-        userId: lawyerId,
-        clientId: invoice.clientId,
-        relatedModel: 'Payment',
-        relatedId: payment._id,
-        description: `Payment of ${amount} SAR received for invoice ${invoice.invoiceNumber}`,
-        amount,
-        ipAddress: req.ip,
-        userAgent: req.get('user-agent')
-    });
-
-    await payment.populate([
-        { path: 'customerId', select: 'firstName lastName companyName email' },
-        { path: 'invoiceId', select: 'invoiceNumber totalAmount status balanceDue' }
-    ]);
-
-    res.status(201).json({
-        success: true,
-        message: 'Payment recorded successfully',
-        payment,
-        invoice: {
-            _id: invoice._id,
-            invoiceNumber: invoice.invoiceNumber,
-            totalAmount: invoice.totalAmount,
-            amountPaid: invoice.amountPaid,
-            balanceDue: invoice.balanceDue,
-            status: invoice.status
+        if (invoice.balanceDue <= 0) {
+            invoice.status = 'paid';
+            invoice.paidDate = new Date();
+        } else if (invoice.amountPaid > 0) {
+            invoice.status = 'partial';
         }
-    });
+
+        if (!invoice.paymentHistory) {
+            invoice.paymentHistory = [];
+        }
+        invoice.paymentHistory.push({
+            paymentId: paymentDoc._id,
+            amount,
+            date: new Date(),
+            method: paymentMethod || 'bank_transfer'
+        });
+
+        await invoice.save({ session });
+
+        // Log activity
+        await BillingActivity.logActivity({
+            activityType: 'payment_received',
+            userId: lawyerId,
+            clientId: invoice.clientId,
+            relatedModel: 'Payment',
+            relatedId: paymentDoc._id,
+            description: `Payment of ${amount} SAR received for invoice ${invoice.invoiceNumber}`,
+            amount,
+            ipAddress: req.ip,
+            userAgent: req.get('user-agent')
+        });
+
+        await session.commitTransaction();
+
+        await paymentDoc.populate([
+            { path: 'customerId', select: 'firstName lastName companyName email' },
+            { path: 'invoiceId', select: 'invoiceNumber totalAmount status balanceDue' }
+        ]);
+
+        // Update client balance after invoice payment
+        if (invoice.clientId) {
+            const client = await Client.findById(invoice.clientId);
+            if (client) {
+                await client.updateBalance();
+            }
+        }
+
+        res.status(201).json({
+            success: true,
+            message: 'Payment recorded successfully',
+            payment: paymentDoc,
+            invoice: {
+                _id: invoice._id,
+                invoiceNumber: invoice.invoiceNumber,
+                totalAmount: invoice.totalAmount,
+                amountPaid: invoice.amountPaid,
+                balanceDue: invoice.balanceDue,
+                status: invoice.status
+            },
+            glEntryId: glEntry ? glEntry._id : null
+        });
+    } catch (error) {
+        await session.abortTransaction();
+        throw error;
+    } finally {
+        session.endSession();
+    }
 });
 
 // ═══════════════════════════════════════════════════════════════

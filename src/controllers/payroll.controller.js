@@ -438,10 +438,20 @@ const paySalarySlip = asyncHandler(async (req, res) => {
 
     await salarySlip.save();
 
+    // Post to General Ledger
+    let glEntry = null;
+    try {
+        glEntry = await salarySlip.postToGL();
+    } catch (error) {
+        console.error('Failed to post payroll to GL:', error.message);
+        // Don't fail the payment if GL posting fails - log it for review
+    }
+
     return res.json({
         success: true,
         message: 'Salary slip marked as paid',
-        salarySlip
+        salarySlip,
+        glEntryId: glEntry ? glEntry._id : null
     });
 });
 
@@ -596,10 +606,34 @@ const bulkPay = asyncHandler(async (req, res) => {
         }
     );
 
+    // Post each updated slip to GL
+    const updatedSlips = await SalarySlip.find({
+        _id: { $in: ids },
+        ...baseQuery,
+        'payment.status': 'paid'
+    });
+
+    let glSuccessCount = 0;
+    let glFailCount = 0;
+    for (const slip of updatedSlips) {
+        try {
+            // Only post if not already posted
+            if (!slip.glEntryId) {
+                await slip.postToGL();
+                glSuccessCount++;
+            }
+        } catch (error) {
+            console.error(`Failed to post payroll to GL for slip ${slip.slipNumber}:`, error.message);
+            glFailCount++;
+        }
+    }
+
     return res.json({
         success: true,
         message: `Marked ${result.modifiedCount} salary slips as paid`,
-        paid: result.modifiedCount
+        paid: result.modifiedCount,
+        glPosted: glSuccessCount,
+        glFailed: glFailCount
     });
 });
 

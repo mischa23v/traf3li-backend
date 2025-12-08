@@ -3,6 +3,7 @@ const WhatsAppConversation = require('../models/whatsappConversation.model');
 const WhatsAppMessage = require('../models/whatsappMessage.model');
 const Lead = require('../models/lead.model');
 const Client = require('../models/client.model');
+const CrmActivity = require('../models/crmActivity.model');
 const axios = require('axios');
 
 // ═══════════════════════════════════════════════════════════════
@@ -116,6 +117,17 @@ class WhatsAppService {
             // Update template usage
             await template.incrementUsage('sent');
 
+            // Log CRM activity
+            await this.logWhatsAppActivity({
+                leadId: options.leadId,
+                clientId: options.clientId,
+                userId: options.sentBy,
+                subType: 'template_sent',
+                phoneNumber: formattedPhone,
+                templateName: template.name,
+                messageType: 'template'
+            });
+
             return {
                 success: true,
                 message,
@@ -185,6 +197,16 @@ class WhatsAppService {
             message.sentAt = new Date();
             await message.save();
 
+            // Log CRM activity
+            await this.logWhatsAppActivity({
+                leadId: options.leadId,
+                clientId: options.clientId,
+                userId: options.sentBy,
+                subType: 'sent',
+                phoneNumber: formattedPhone,
+                messageType: 'text'
+            });
+
             return {
                 success: true,
                 message,
@@ -246,6 +268,16 @@ class WhatsAppService {
             message.sentAt = new Date();
             await message.save();
 
+            // Log CRM activity
+            await this.logWhatsAppActivity({
+                leadId: options.leadId,
+                clientId: options.clientId,
+                userId: options.sentBy,
+                subType: 'sent',
+                phoneNumber: formattedPhone,
+                messageType: type
+            });
+
             return {
                 success: true,
                 message,
@@ -260,11 +292,14 @@ class WhatsAppService {
     /**
      * Send location message
      */
-    async sendLocationMessage(firmId, phoneNumber, latitude, longitude, name, address) {
+    async sendLocationMessage(firmId, phoneNumber, latitude, longitude, name, address, options = {}) {
         try {
             const formattedPhone = this.validatePhoneNumber(phoneNumber);
 
-            const conversation = await WhatsAppConversation.getOrCreate(firmId, formattedPhone);
+            const conversation = await WhatsAppConversation.getOrCreate(firmId, formattedPhone, {
+                leadId: options.leadId,
+                clientId: options.clientId
+            });
 
             if (!conversation.isWindowOpen()) {
                 throw new Error('24-hour messaging window closed');
@@ -280,7 +315,8 @@ class WhatsAppService {
                 },
                 senderPhone: this.getProviderPhoneNumber(),
                 recipientPhone: formattedPhone,
-                provider: this.defaultProvider,
+                sentBy: options.sentBy,
+                provider: options.provider || this.defaultProvider,
                 status: 'pending'
             });
 
@@ -302,7 +338,17 @@ class WhatsAppService {
             message.sentAt = new Date();
             await message.save();
 
-            return { success: true, message };
+            // Log CRM activity
+            await this.logWhatsAppActivity({
+                leadId: options.leadId,
+                clientId: options.clientId,
+                userId: options.sentBy,
+                subType: 'sent',
+                phoneNumber: formattedPhone,
+                messageType: 'location'
+            });
+
+            return { success: true, message, conversation };
         } catch (error) {
             console.error('Error sending location message:', error);
             throw error;
@@ -553,6 +599,31 @@ class WhatsAppService {
                 timestamp: messageData.timestamp
             });
 
+            // Log CRM activity for received message
+            let userId = conversation.assignedTo;
+
+            // If no assignedTo, try to get from lead/client
+            if (!userId) {
+                if (conversation.leadId) {
+                    const lead = await Lead.findById(conversation.leadId).select('lawyerId');
+                    userId = lead?.lawyerId;
+                } else if (conversation.clientId) {
+                    const client = await Client.findById(conversation.clientId).select('lawyerId');
+                    userId = client?.lawyerId;
+                }
+            }
+
+            if (userId) {
+                await this.logWhatsAppActivity({
+                    leadId: conversation.leadId,
+                    clientId: conversation.clientId,
+                    userId,
+                    subType: 'received',
+                    phoneNumber: messageData.fromPhone,
+                    messageType: messageData.type
+                });
+            }
+
             // Process auto-reply if configured
             await this.processAutoReply(conversation, message);
 
@@ -768,6 +839,64 @@ class WhatsAppService {
     // ═══════════════════════════════════════════════════════════
     // HELPER FUNCTIONS
     // ═══════════════════════════════════════════════════════════
+
+    /**
+     * Log WhatsApp activity to CRM
+     */
+    async logWhatsAppActivity(activityData) {
+        try {
+            const { leadId, clientId, userId, subType, phoneNumber, templateName, messageType } = activityData;
+
+            // Only log if message is linked to a lead or client
+            if (!leadId && !clientId) {
+                return;
+            }
+
+            const entityType = leadId ? 'lead' : 'client';
+            const entityId = leadId || clientId;
+
+            // Get entity name
+            let entityName = '';
+            if (leadId) {
+                const lead = await Lead.findById(leadId).select('displayName');
+                entityName = lead?.displayName || 'Unknown Lead';
+            } else if (clientId) {
+                const client = await Client.findById(clientId).select('firstName lastName');
+                entityName = client ? `${client.firstName} ${client.lastName}` : 'Unknown Client';
+            }
+
+            // Build title based on subType
+            let title = '';
+            if (subType === 'template_sent') {
+                title = `WhatsApp template message sent to ${entityName}`;
+            } else if (subType === 'sent') {
+                title = `WhatsApp message sent to ${entityName}`;
+            } else if (subType === 'received') {
+                title = `WhatsApp message received from ${entityName}`;
+            }
+
+            // Log the activity
+            await CrmActivity.logActivity({
+                lawyerId: userId,
+                type: 'whatsapp',
+                subType,
+                entityType,
+                entityId,
+                entityName,
+                title,
+                description: templateName ? `Template: ${templateName}` : `Message type: ${messageType || 'text'}`,
+                performedBy: userId,
+                metadata: {
+                    phoneNumber,
+                    messageType: messageType || 'text',
+                    templateName
+                }
+            });
+        } catch (error) {
+            console.error('Error logging WhatsApp activity:', error);
+            // Don't throw - activity logging shouldn't break the main flow
+        }
+    }
 
     validatePhoneNumber(phone) {
         // Remove all non-numeric characters

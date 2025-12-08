@@ -16,7 +16,7 @@ class LeadScoringController {
      * @access  Private
      */
     getConfig = asyncHandler(async (req, res) => {
-        const firmId = req.user.firmId;
+        const firmId = req.firmId;
 
         const config = await LeadScoringService.getConfig(firmId);
 
@@ -32,7 +32,7 @@ class LeadScoringController {
      * @access  Private (Admin only)
      */
     updateConfig = asyncHandler(async (req, res) => {
-        const firmId = req.user.firmId;
+        const firmId = req.firmId;
         const configData = req.body;
 
         const config = await LeadScoringService.updateConfig(firmId, configData);
@@ -71,7 +71,7 @@ class LeadScoringController {
      * @access  Private (Admin only)
      */
     calculateAllScores = asyncHandler(async (req, res) => {
-        const firmId = req.user.firmId;
+        const firmId = req.firmId;
 
         const results = await LeadScoringService.recalculateAllScores(firmId);
 
@@ -118,12 +118,58 @@ class LeadScoringController {
     // ═══════════════════════════════════════════════════════════
 
     /**
+     * @desc    Get all lead scores for firm
+     * @route   GET /api/lead-scoring/scores
+     * @access  Private
+     */
+    getScores = asyncHandler(async (req, res) => {
+        const firmId = req.firmId;
+        const lawyerId = req.userID;
+        const { page = 1, limit = 50 } = req.query;
+
+        // Use firmId if available, otherwise fallback to lawyerId for solo lawyers
+        const scores = await LeadScoringService.getAllScores(
+            firmId || lawyerId,
+            !!firmId,
+            { page: parseInt(page), limit: parseInt(limit) }
+        );
+
+        res.json({
+            success: true,
+            data: scores
+        });
+    });
+
+    /**
+     * @desc    Get lead scoring leaderboard
+     * @route   GET /api/lead-scoring/leaderboard
+     * @access  Private
+     */
+    getLeaderboard = asyncHandler(async (req, res) => {
+        const firmId = req.firmId;
+        const lawyerId = req.userID;
+        const limit = parseInt(req.query.limit) || 10;
+
+        // Use firmId if available, otherwise fallback to lawyerId for solo lawyers
+        const leaderboard = await LeadScoringService.getLeaderboard(
+            firmId || lawyerId,
+            !!firmId,
+            limit
+        );
+
+        res.json({
+            success: true,
+            data: leaderboard
+        });
+    });
+
+    /**
      * @desc    Get score distribution
      * @route   GET /api/lead-scoring/distribution
      * @access  Private
      */
     getScoreDistribution = asyncHandler(async (req, res) => {
-        const firmId = req.user.firmId;
+        const firmId = req.firmId;
 
         const distribution = await LeadScoringService.getScoreDistribution(firmId);
 
@@ -139,7 +185,7 @@ class LeadScoringController {
      * @access  Private
      */
     getTopLeads = asyncHandler(async (req, res) => {
-        const firmId = req.user.firmId;
+        const firmId = req.firmId;
         const limit = parseInt(req.query.limit) || 20;
 
         const leads = await LeadScoringService.getTopLeads(firmId, limit);
@@ -156,7 +202,7 @@ class LeadScoringController {
      * @access  Private
      */
     getLeadsByGrade = asyncHandler(async (req, res) => {
-        const firmId = req.user.firmId;
+        const firmId = req.firmId;
         const { grade } = req.params;
         const limit = parseInt(req.query.limit) || 50;
         const skip = parseInt(req.query.skip) || 0;
@@ -197,7 +243,7 @@ class LeadScoringController {
      * @access  Private
      */
     getScoreTrends = asyncHandler(async (req, res) => {
-        const firmId = req.user.firmId;
+        const firmId = req.firmId;
         const { startDate, endDate } = req.query;
 
         const trends = await LeadScoringService.getScoreTrends(firmId, {
@@ -217,7 +263,7 @@ class LeadScoringController {
      * @access  Private
      */
     getConversionAnalysis = asyncHandler(async (req, res) => {
-        const firmId = req.user.firmId;
+        const firmId = req.firmId;
 
         const analysis = await LeadScoringService.getConversionAnalysis(firmId);
 
@@ -336,7 +382,7 @@ class LeadScoringController {
      * @access  Private (Admin/Cron)
      */
     processDecay = asyncHandler(async (req, res) => {
-        const firmId = req.user.firmId;
+        const firmId = req.firmId;
 
         const result = await LeadScoringService.processAllDecay(firmId);
 

@@ -2,6 +2,7 @@ const { Case, Order, User, Event, Reminder } = require('../models');
 const AuditLog = require('../models/auditLog.model');
 const CaseAuditLog = require('../models/caseAuditLog.model');
 const CaseAuditService = require('../services/caseAuditService');
+const CrmActivity = require('../models/crmActivity.model');
 const { CustomException } = require('../utils');
 const { calculateLawyerScore } = require('./score.controller');
 const { getUploadPresignedUrl, getDownloadPresignedUrl, deleteFile, generateFileKey } = require('../configs/s3');
@@ -105,6 +106,27 @@ const createCase = async (request, response) => {
         }
 
         const caseDoc = await Case.create(caseData);
+
+        // Log CRM activity
+        try {
+            await CrmActivity.logActivity({
+                lawyerId: request.userID,
+                type: 'case_created',
+                entityType: 'case',
+                entityId: caseDoc._id,
+                entityName: caseDoc.title || caseDoc.caseNumber,
+                title: `New case created: ${caseDoc.title || caseDoc.caseNumber}`,
+                description: caseDoc.description,
+                performedBy: request.userID,
+                metadata: {
+                    category: caseDoc.category,
+                    status: caseDoc.status,
+                    priority: caseDoc.priority
+                }
+            });
+        } catch (activityError) {
+            console.error('Error logging case creation activity:', activityError);
+        }
 
         return response.status(201).send({
             error: false,
@@ -294,11 +316,83 @@ const updateCase = async (request, response) => {
             throw CustomException('Only the lawyer can update case details!', 403);
         }
 
+        // Track changes for activity logging
+        const changes = {};
+        Object.keys(request.body).forEach(key => {
+            if (request.body[key] !== caseDoc[key] && !['_id', 'createdAt', 'updatedAt'].includes(key)) {
+                changes[key] = {
+                    from: caseDoc[key],
+                    to: request.body[key]
+                };
+            }
+        });
+
         const updatedCase = await Case.findByIdAndUpdate(
             _id,
             { $set: request.body },
             { new: true }
         );
+
+        // Log CRM activity if there were changes
+        if (Object.keys(changes).length > 0) {
+            try {
+                // Check for assignment changes
+                if (changes.assignedTo) {
+                    await CrmActivity.logActivity({
+                        lawyerId: request.userID,
+                        type: 'assignment',
+                        entityType: 'case',
+                        entityId: updatedCase._id,
+                        entityName: updatedCase.title || updatedCase.caseNumber,
+                        title: `Case assigned to new user`,
+                        performedBy: request.userID,
+                        assignedTo: changes.assignedTo.to,
+                        metadata: {
+                            previousAssignee: changes.assignedTo.from,
+                            newAssignee: changes.assignedTo.to
+                        }
+                    });
+                }
+
+                // Check for status changes
+                if (changes.status) {
+                    await CrmActivity.logActivity({
+                        lawyerId: request.userID,
+                        type: 'status_change',
+                        entityType: 'case',
+                        entityId: updatedCase._id,
+                        entityName: updatedCase.title || updatedCase.caseNumber,
+                        title: `Case status changed from ${changes.status.from} to ${changes.status.to}`,
+                        performedBy: request.userID,
+                        metadata: {
+                            oldStatus: changes.status.from,
+                            newStatus: changes.status.to
+                        }
+                    });
+                }
+
+                // Log general update for other changes
+                const otherChanges = Object.keys(changes).filter(k => k !== 'assignedTo' && k !== 'status');
+                if (otherChanges.length > 0) {
+                    const changedFields = otherChanges.join(', ');
+                    await CrmActivity.logActivity({
+                        lawyerId: request.userID,
+                        type: 'case_updated',
+                        entityType: 'case',
+                        entityId: updatedCase._id,
+                        entityName: updatedCase.title || updatedCase.caseNumber,
+                        title: `Case updated: ${changedFields}`,
+                        description: `Updated fields: ${changedFields}`,
+                        performedBy: request.userID,
+                        metadata: {
+                            changes: Object.fromEntries(otherChanges.map(k => [k, changes[k]]))
+                        }
+                    });
+                }
+            } catch (activityError) {
+                console.error('Error logging case update activity:', activityError);
+            }
+        }
 
         return response.status(202).send({
             error: false,
@@ -487,6 +581,28 @@ const addHearing = async (request, response) => {
         // Save the case again with event/reminder references
         await caseDoc.save();
 
+        // Log CRM activity for hearing addition
+        try {
+            await CrmActivity.logActivity({
+                lawyerId: request.userID,
+                type: 'case_updated',
+                subType: 'hearing_added',
+                entityType: 'case',
+                entityId: caseDoc._id,
+                entityName: caseDoc.title || caseDoc.caseNumber,
+                title: `New hearing scheduled for ${new Date(date).toLocaleDateString()}`,
+                description: notes || `Hearing scheduled at ${location}`,
+                performedBy: request.userID,
+                metadata: {
+                    hearingDate: date,
+                    location,
+                    hearingId: newHearing._id
+                }
+            });
+        } catch (activityError) {
+            console.error('Error logging hearing addition activity:', activityError);
+        }
+
         return response.status(202).send({
             error: false,
             message: 'Hearing added successfully!',
@@ -517,11 +633,32 @@ const updateStatus = async (request, response) => {
             throw CustomException('Only the lawyer can update case status!', 403);
         }
 
+        const oldStatus = caseDoc.status;
         caseDoc.status = status;
         if (status === 'completed') {
             caseDoc.endDate = new Date();
         }
         await caseDoc.save();
+
+        // Log CRM activity for status change
+        try {
+            await CrmActivity.logActivity({
+                lawyerId: request.userID,
+                type: 'status_change',
+                entityType: 'case',
+                entityId: caseDoc._id,
+                entityName: caseDoc.title || caseDoc.caseNumber,
+                title: `Case status changed from ${oldStatus} to ${status}`,
+                performedBy: request.userID,
+                metadata: {
+                    oldStatus,
+                    newStatus: status,
+                    completedAt: status === 'completed' ? caseDoc.endDate : null
+                }
+            });
+        } catch (activityError) {
+            console.error('Error logging status change activity:', activityError);
+        }
 
         return response.status(202).send({
             error: false,
@@ -551,6 +688,7 @@ const updateOutcome = async (request, response) => {
             throw CustomException('Only the lawyer can update case outcome!', 403);
         }
 
+        const oldOutcome = caseDoc.outcome;
         caseDoc.outcome = outcome;
         caseDoc.status = 'completed';
         caseDoc.endDate = new Date();
@@ -566,6 +704,29 @@ const updateOutcome = async (request, response) => {
 
         // Recalculate lawyer score
         await calculateLawyerScore(caseDoc.lawyerId);
+
+        // Log CRM activity for outcome update
+        try {
+            await CrmActivity.logActivity({
+                lawyerId: request.userID,
+                type: 'status_change',
+                subType: 'outcome_updated',
+                entityType: 'case',
+                entityId: caseDoc._id,
+                entityName: caseDoc.title || caseDoc.caseNumber,
+                title: `Case outcome: ${outcome}`,
+                description: `Case completed with outcome: ${outcome}`,
+                performedBy: request.userID,
+                metadata: {
+                    oldOutcome,
+                    newOutcome: outcome,
+                    completedAt: caseDoc.endDate,
+                    status: 'completed'
+                }
+            });
+        } catch (activityError) {
+            console.error('Error logging outcome update activity:', activityError);
+        }
 
         return response.status(202).send({
             error: false,
@@ -763,8 +924,30 @@ const updateProgress = async (request, response) => {
             throw CustomException('Progress must be between 0 and 100!', 400);
         }
 
+        const oldProgress = caseDoc.progress;
         caseDoc.progress = progress;
         await caseDoc.save();
+
+        // Log CRM activity for progress update (milestone)
+        try {
+            await CrmActivity.logActivity({
+                lawyerId: request.userID,
+                type: 'case_updated',
+                subType: 'progress_updated',
+                entityType: 'case',
+                entityId: caseDoc._id,
+                entityName: caseDoc.title || caseDoc.caseNumber,
+                title: `Case progress updated to ${progress}%`,
+                performedBy: request.userID,
+                metadata: {
+                    oldProgress,
+                    newProgress: progress,
+                    progressChange: progress - oldProgress
+                }
+            });
+        } catch (activityError) {
+            console.error('Error logging progress update activity:', activityError);
+        }
 
         return response.status(202).send({
             error: false,
@@ -793,7 +976,32 @@ const deleteCase = async (request, response) => {
             throw CustomException('Only the lawyer can delete this case!', 403);
         }
 
+        // Store case info before deletion
+        const caseTitle = caseDoc.title || caseDoc.caseNumber;
+        const caseCategory = caseDoc.category;
+        const caseStatus = caseDoc.status;
+
         await Case.findByIdAndDelete(_id);
+
+        // Log CRM activity for case deletion
+        try {
+            await CrmActivity.logActivity({
+                lawyerId: request.userID,
+                type: 'case_deleted',
+                entityType: 'case',
+                entityId: _id,
+                entityName: caseTitle,
+                title: `Case deleted: ${caseTitle}`,
+                performedBy: request.userID,
+                metadata: {
+                    category: caseCategory,
+                    status: caseStatus,
+                    deletedAt: new Date()
+                }
+            });
+        } catch (activityError) {
+            console.error('Error logging case deletion activity:', activityError);
+        }
 
         return response.status(200).send({
             error: false,
