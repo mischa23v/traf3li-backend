@@ -362,6 +362,12 @@ app.use('/api/billing/groups', rateGroupRoute);
 // HR aliases (frontend expects routes without /hr/ prefix)
 app.use('/api/payroll-runs', payrollRunRoute);
 
+// HR Loans alias (frontend expects /api/hr/loans instead of /api/hr/employee-loans)
+app.use('/api/hr/loans', employeeLoanRoute);
+
+// Compensation alias (frontend expects /api/compensation instead of /api/hr/compensation)
+app.use('/api/compensation', compensationRewardRoute);
+
 // Apps endpoint (placeholder for app integrations)
 app.get('/api/apps', (req, res) => {
     // Return empty apps list for now - can be expanded later
