@@ -7,6 +7,8 @@ const cookieParser = require('cookie-parser');
 const connectDB = require('./configs/db');
 const { scheduleTaskReminders } = require('./utils/taskReminders');
 const { initSocket } = require('./configs/socket');
+const logger = require('./utils/logger');
+const { apiRateLimiter, speedLimiter } = require('./middlewares/rateLimiter.middleware');
 const {
     // Marketplace
     gigRoute,
@@ -238,6 +240,15 @@ app.use(express.json({ limit: '10mb' })); // Prevent large payload attacks
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(cookieParser());
 
+// ✅ SECURITY: Request logging with correlation IDs
+app.use(logger.requestMiddleware);
+
+// ✅ SECURITY: Global API rate limiting (all /api routes)
+app.use('/api', apiRateLimiter);
+
+// ✅ SECURITY: Speed limiter (progressive delay after threshold)
+app.use('/api', speedLimiter);
+
 // ✅ PERFORMANCE: Static files with caching
 app.use('/uploads', express.static('uploads', {
     maxAge: '7d', // Cache static files for 7 days
@@ -443,12 +454,13 @@ app.get('/health', (req, res) => {
 
 // Error handling middleware
 app.use((err, req, res, next) => {
-    // Log error details for debugging
-    console.error('❌ Error:', {
-        message: err.message,
-        status: err.status || err.statusCode,
-        name: err.name,
-        stack: process.env.NODE_ENV !== 'production' ? err.stack : undefined
+    // Log error with structured logger
+    logger.logError(err, {
+        requestId: req.id,
+        method: req.method,
+        url: req.originalUrl,
+        userId: req.userID,
+        firmId: req.firmId
     });
 
     // Handle Mongoose validation errors
@@ -457,6 +469,7 @@ app.use((err, req, res, next) => {
         return res.status(400).json({
             error: true,
             message: messages.join(', '),
+            requestId: req.id,
             details: process.env.NODE_ENV !== 'production' ? err.errors : undefined
         });
     }
@@ -465,7 +478,8 @@ app.use((err, req, res, next) => {
     if (err.name === 'CastError') {
         return res.status(400).json({
             error: true,
-            message: `Invalid ${err.path}: ${err.value}`
+            message: `Invalid ${err.path}: ${err.value}`,
+            requestId: req.id
         });
     }
 
@@ -474,7 +488,8 @@ app.use((err, req, res, next) => {
         const field = Object.keys(err.keyValue)[0];
         return res.status(400).json({
             error: true,
-            message: `Duplicate value for field: ${field}`
+            message: `Duplicate value for field: ${field}`,
+            requestId: req.id
         });
     }
 
@@ -485,6 +500,7 @@ app.use((err, req, res, next) => {
     res.status(status).json({
         error: true,
         message,
+        requestId: req.id,
         ...(process.env.NODE_ENV !== 'production' && { stack: err.stack })
     });
 });
@@ -494,15 +510,28 @@ const PORT = process.env.PORT || 8080;
 server.listen(PORT, () => {
     connectDB();
     scheduleTaskReminders();
-    console.log(`🚀 Server running on port ${PORT}`);
-    console.log(`⚡ Socket.io ready`);
-    console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
-    console.log(`🔐 CORS enabled for:`);
-    console.log(`   - https://traf3li.com`);
-    console.log(`   - https://dashboard.traf3li.com`);
-    console.log(`   - https://traf3li-dashboard-9e4y2s2su-mischa-alrabehs-projects.vercel.app`);
-    console.log(`   - All *.vercel.app domains (preview deployments)`);
-    console.log(`   - http://localhost:5173`);
-    console.log(`   - http://localhost:5174`);
-    console.log(`🍪 Cookie settings: httpOnly, sameSite=${process.env.NODE_ENV === 'production' ? 'none' : 'strict'}, secure=${process.env.NODE_ENV === 'production'}`);
+
+    logger.info('Server started', {
+        port: PORT,
+        environment: process.env.NODE_ENV || 'development',
+        nodeVersion: process.version,
+        pid: process.pid
+    });
+
+    logger.info('Security features enabled', {
+        helmet: true,
+        cors: true,
+        rateLimiting: true,
+        requestLogging: true
+    });
+
+    // Keep console output for development convenience
+    if (process.env.NODE_ENV !== 'production') {
+        console.log(`🚀 Server running on port ${PORT}`);
+        console.log(`⚡ Socket.io ready`);
+        console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
+        console.log(`🔐 CORS enabled for: traf3li.com, *.vercel.app, localhost`);
+        console.log(`📊 Request logging: enabled`);
+        console.log(`🛡️  Rate limiting: enabled`);
+    }
 });
