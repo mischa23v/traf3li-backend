@@ -121,6 +121,9 @@ const teamRoute = require('./team.route');
 const auditRoute = require('./audit.route');
 const approvalRoute = require('./approval.route');
 
+// Permission Routes
+const permissionRoute = require('./permission.route');
+
 module.exports = {
     // Marketplace
     gigRoute,
@@ -243,5 +246,8 @@ module.exports = {
 
     // Audit & Approvals
     auditRoute,
-    approvalRoute
+    approvalRoute,
+
+    // Permissions
+    permissionRoute
 };

@@ -129,7 +129,10 @@ const {
 
     // Audit & Approvals
     auditRoute,
-    approvalRoute
+    approvalRoute,
+
+    // Permissions
+    permissionRoute
 } = require('./routes');
 
 const app = express();
@@ -361,6 +364,9 @@ app.use('/api/team', teamRoute);
 // Audit & Approval Routes
 app.use('/api/audit', auditRoute);
 app.use('/api/approvals', approvalRoute);
+
+// Permission Routes (Enterprise Authorization)
+app.use('/api/permissions', permissionRoute);
 
 // ============================================
 // ALIAS ROUTES (for frontend compatibility)

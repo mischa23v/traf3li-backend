@@ -151,6 +151,11 @@ const TeamActivityLog = require('./teamActivityLog.model');
 const ApprovalRule = require('./approvalRule.model');
 const ApprovalRequest = require('./approvalRequest.model');
 
+// Permission & Authorization Models
+const PermissionConfig = require('./permission.model');
+const RelationTuple = require('./relationTuple.model');
+const PolicyDecision = require('./policyDecision.model');
+
 // Investment & Trading Journal Models
 const Trade = require('./trade.model');
 const Broker = require('./broker.model');
@@ -317,6 +322,11 @@ module.exports = {
     // Approval Workflow
     ApprovalRule,
     ApprovalRequest,
+
+    // Permission & Authorization
+    PermissionConfig,
+    RelationTuple,
+    PolicyDecision,
 
     // Investment & Trading Journal
     Trade,

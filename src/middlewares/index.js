@@ -13,6 +13,18 @@ const {
     financeAccessOnly,
     teamManagementOnly
 } = require('./firmFilter.middleware');
+const {
+    requirePermission,
+    requireRelation,
+    requireAnyPermission,
+    requireAllPermissions,
+    grantOnCreate,
+    revokeOnDelete,
+    requireRole,
+    requireAdmin,
+    requireOwner,
+    logAccess
+} = require('./permission.middleware');
 
 module.exports = {
     userMiddleware,
@@ -29,5 +41,16 @@ module.exports = {
     firmOwnerOnly,
     firmAdminOnly,
     financeAccessOnly,
-    teamManagementOnly
+    teamManagementOnly,
+    // Enhanced permission middleware (Casbin/Keto/Keycloak/OPA inspired)
+    requirePermission,
+    requireRelation,
+    requireAnyPermission,
+    requireAllPermissions,
+    grantOnCreate,
+    revokeOnDelete,
+    requireRole,
+    requireAdmin,
+    requireOwner,
+    logAccess
 }
