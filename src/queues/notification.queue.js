@@ -5,7 +5,15 @@
  */
 
 const { createQueue } = require('../configs/queue');
-const webpush = require('web-push'); // For push notifications (install if needed)
+
+// Optional: web-push for browser push notifications
+// Install with: npm install web-push
+let webpush = null;
+try {
+  webpush = require('web-push');
+} catch (err) {
+  console.warn('web-push not installed - push notifications disabled');
+}
 
 // Create notification queue
 const notificationQueue = createQueue('notification', {
@@ -61,6 +69,12 @@ notificationQueue.process(async (job) => {
  */
 async function sendPushNotification(data, job) {
   const { userId, subscription, title, body, icon, badge, data: notificationData } = data;
+
+  // Check if web-push is available
+  if (!webpush) {
+    console.warn('web-push not installed - skipping push notification');
+    return { success: false, error: 'web-push not installed' };
+  }
 
   await job.progress(30);
 

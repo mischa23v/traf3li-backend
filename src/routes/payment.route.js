@@ -5,12 +5,12 @@ const { paymentRateLimiter } = require('../middlewares/rateLimiter.middleware');
 const {
     validateCreatePayment,
     validateUpdatePayment,
-    validateApplyToInvoices,
-    validateRefund,
-    validateCheckStatus,
-    validateReconcile,
-    validateSendReceipt,
+    validateApplyPayment: validateApplyToInvoices,
+    validateCreateRefund: validateRefund,
+    validateUpdateCheckStatus: validateCheckStatus,
+    validateReconcilePayment: validateReconcile,
     validateBulkDelete,
+    validateSendReceipt,
     validateRecordInvoicePayment
 } = require('../validators/payment.validator');
 const {
