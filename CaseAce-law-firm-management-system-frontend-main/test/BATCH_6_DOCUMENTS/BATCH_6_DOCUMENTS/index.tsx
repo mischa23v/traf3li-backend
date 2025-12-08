@@ -441,7 +441,7 @@ function UploadDocumentDialog({
   const [file, setFile] = useState<File | null>(null);
   const [formData, setFormData] = useState({
     category: 'other' as Document['category'],
-    caseId: '',
+    caseId: 'none',
     description: '',
     tags: '',
     isConfidential: false,
@@ -576,7 +576,7 @@ function UploadDocumentDialog({
                 </SelectTrigger>
                 <SelectContent>
                   {/* Cases will be loaded from API */}
-                  <SelectItem value="">بدون قضية</SelectItem>
+                  <SelectItem value="none">بدون قضية</SelectItem>
                 </SelectContent>
               </Select>
             </div>
