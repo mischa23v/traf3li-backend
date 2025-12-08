@@ -287,6 +287,38 @@ const bulkDeleteSchema = Joi.object({
         })
 });
 
+/**
+ * Record invoice payment schema
+ * POST /api/invoices/:id/payments
+ */
+const recordInvoicePaymentSchema = Joi.object({
+    amount: Joi.number()
+        .positive()
+        .required()
+        .messages({
+            'number.positive': 'المبلغ يجب أن يكون موجباً / Amount must be positive',
+            'any.required': 'المبلغ مطلوب / Amount is required'
+        }),
+    paymentMethod: Joi.string()
+        .valid(...paymentMethods)
+        .optional()
+        .messages({
+            'any.only': 'طريقة الدفع غير صالحة / Invalid payment method'
+        }),
+    transactionId: Joi.string()
+        .max(100)
+        .optional()
+        .messages({
+            'string.max': 'رقم المعاملة طويل جداً / Transaction ID is too long'
+        }),
+    notes: Joi.string()
+        .max(500)
+        .optional()
+        .messages({
+            'string.max': 'الملاحظات طويلة جداً / Notes are too long'
+        })
+});
+
 // ============================================
 // VALIDATION MIDDLEWARE FACTORY
 // ============================================
@@ -337,7 +369,8 @@ module.exports = {
         updateCheckStatus: updateCheckStatusSchema,
         reconcilePayment: reconcilePaymentSchema,
         paymentQuery: paymentQuerySchema,
-        bulkDelete: bulkDeleteSchema
+        bulkDelete: bulkDeleteSchema,
+        recordInvoicePayment: recordInvoicePaymentSchema
     },
 
     // Enums
@@ -356,6 +389,7 @@ module.exports = {
     validateReconcilePayment: validate(reconcilePaymentSchema),
     validatePaymentQuery: validate(paymentQuerySchema, 'query'),
     validateBulkDelete: validate(bulkDeleteSchema),
+    validateRecordInvoicePayment: validate(recordInvoicePaymentSchema),
 
     // Generic validate function
     validate
