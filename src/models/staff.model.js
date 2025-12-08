@@ -96,9 +96,29 @@ const languageSchema = new mongoose.Schema({
     }
 }, { _id: false });
 
+// ═══════════════════════════════════════════════════════════════
+// MODULE PERMISSION SCHEMA (Enterprise-grade granular permissions)
+// ═══════════════════════════════════════════════════════════════
+const modulePermissionSchema = new mongoose.Schema({
+    name: {
+        type: String,
+        required: true,
+        enum: ['cases', 'clients', 'finance', 'hr', 'reports', 'documents', 'tasks', 'settings', 'team']
+    },
+    access: {
+        type: String,
+        enum: ['none', 'view', 'edit', 'full'],
+        default: 'none'
+    },
+    requiresApproval: {
+        type: Boolean,
+        default: false
+    }
+}, { _id: false });
+
 const staffSchema = new mongoose.Schema({
     // ═══════════════════════════════════════════════════════════════
-    // FIRM (Multi-Tenancy)
+    // FIRM (Multi-Tenancy) - CRITICAL for tenant isolation
     // ═══════════════════════════════════════════════════════════════
     firmId: {
         type: mongoose.Schema.Types.ObjectId,
@@ -196,26 +216,115 @@ const staffSchema = new mongoose.Schema({
     },
 
     // ═══════════════════════════════════════════════════════════════
-    // ROLE & STATUS
+    // ROLE & STATUS - Extended with enterprise roles
     // ═══════════════════════════════════════════════════════════════
     role: {
         type: String,
         enum: [
-            'partner', 'senior_associate', 'associate', 'junior_associate',
-            'paralegal', 'legal_secretary', 'admin', 'intern', 'of_counsel',
-            'accountant', 'receptionist', 'it', 'marketing', 'hr', 'other'
+            // Enterprise roles (Salesforce/SAP style)
+            'owner', 'admin', 'partner', 'senior_lawyer', 'lawyer', 'paralegal',
+            'secretary', 'accountant', 'intern',
+            // Legacy roles for backwards compatibility
+            'senior_associate', 'associate', 'junior_associate',
+            'legal_secretary', 'of_counsel',
+            'receptionist', 'it', 'marketing', 'hr', 'other'
         ],
         required: true
     },
     status: {
         type: String,
-        enum: ['active', 'inactive', 'on_leave', 'terminated', 'probation'],
+        enum: ['active', 'inactive', 'pending_approval', 'suspended', 'departed', 'on_leave', 'terminated', 'probation'],
         default: 'active'
     },
     employmentType: {
         type: String,
-        enum: ['full_time', 'part_time', 'contract', 'consultant', null],
+        enum: ['full_time', 'part_time', 'contractor', 'consultant', null],
         default: 'full_time'
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // PERMISSIONS - Enterprise-grade module permissions
+    // ═══════════════════════════════════════════════════════════════
+    permissions: {
+        modules: [modulePermissionSchema],
+        // Fine-grained permissions like 'cases.delete', 'invoices.approve'
+        customPermissions: [{
+            type: String,
+            trim: true
+        }]
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // INVITATION & ONBOARDING
+    // ═══════════════════════════════════════════════════════════════
+    invitedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
+    },
+    invitedAt: {
+        type: Date
+    },
+    invitationStatus: {
+        type: String,
+        enum: ['pending', 'accepted', 'expired', 'revoked', null],
+        default: null
+    },
+    invitationToken: {
+        type: String,
+        index: true,
+        sparse: true
+    },
+    invitationExpiresAt: {
+        type: Date
+    },
+    acceptedAt: {
+        type: Date
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // DEPARTURE TRACKING
+    // ═══════════════════════════════════════════════════════════════
+    departedAt: {
+        type: Date
+    },
+    departureReason: {
+        type: String,
+        enum: ['resignation', 'termination', 'retirement', 'transfer', null],
+        default: null
+    },
+    departureNotes: {
+        type: String,
+        maxlength: 2000
+    },
+    exitInterviewCompleted: {
+        type: Boolean,
+        default: false
+    },
+    departureProcessedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // PROFESSIONAL INFO
+    // ═══════════════════════════════════════════════════════════════
+    specialization: {
+        type: String,
+        trim: true
+    },
+    barNumber: {
+        type: String,
+        trim: true
+    },
+    barAdmissionDate: {
+        type: Date
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // ACTIVITY TRACKING
+    // ═══════════════════════════════════════════════════════════════
+    lastActiveAt: {
+        type: Date
     },
 
     // ═══════════════════════════════════════════════════════════════

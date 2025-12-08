@@ -145,6 +145,11 @@ const FirmInvitation = require('./firmInvitation.model');
 
 // Audit Models
 const AuditLog = require('./auditLog.model');
+const TeamActivityLog = require('./teamActivityLog.model');
+
+// Approval Workflow Models
+const ApprovalRule = require('./approvalRule.model');
+const ApprovalRequest = require('./approvalRequest.model');
 
 // Investment & Trading Journal Models
 const Trade = require('./trade.model');
@@ -307,6 +312,11 @@ module.exports = {
 
     // Audit
     AuditLog,
+    TeamActivityLog,
+
+    // Approval Workflow
+    ApprovalRule,
+    ApprovalRequest,
 
     // Investment & Trading Journal
     Trade,

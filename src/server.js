@@ -122,7 +122,14 @@ const {
     investmentSearchRoute,
 
     // Invitations
-    invitationRoute
+    invitationRoute,
+
+    // Team Management
+    teamRoute,
+
+    // Audit & Approvals
+    auditRoute,
+    approvalRoute
 } = require('./routes');
 
 const app = express();
@@ -347,6 +354,13 @@ app.use('/api/investment-search', investmentSearchRoute);
 
 // Invitation Routes
 app.use('/api/invitations', invitationRoute);
+
+// Team Management Routes (Enterprise User Management)
+app.use('/api/team', teamRoute);
+
+// Audit & Approval Routes
+app.use('/api/audit', auditRoute);
+app.use('/api/approvals', approvalRoute);
 
 // ============================================
 // ALIAS ROUTES (for frontend compatibility)
