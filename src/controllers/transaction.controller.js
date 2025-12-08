@@ -140,9 +140,15 @@ const getTransactions = asyncHandler(async (req, res) => {
     const total = await Transaction.countDocuments(query);
 
     // Ensure data is always an array (defensive check for frontend compatibility)
+    // Flatten pagination fields to top level for frontend compatibility
     res.status(200).json({
         success: true,
         data: Array.isArray(transactions) ? transactions : [],
+        total,
+        page: parseInt(page),
+        limit: parseInt(limit),
+        totalPages: Math.ceil(total / parseInt(limit)),
+        // Keep pagination object for backwards compatibility
         pagination: {
             page: parseInt(page),
             limit: parseInt(limit),

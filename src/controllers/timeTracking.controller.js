@@ -551,23 +551,24 @@ const getTimeEntries = asyncHandler(async (req, res) => {
         totalAmount: 0
     };
 
+    // Return data as array directly for frontend compatibility
+    // Frontend expects data to be an array (data.map, data.forEach)
     res.status(200).json({
         success: true,
-        data: {
-            entries,
-            total,
-            page: parseInt(page),
-            totalPages: Math.ceil(total / limitNum),
-            summary: {
-                totalDuration: summary.totalDuration || 0,
-                totalBillable: summary.totalBillable || 0,
-                totalAmount: summary.totalAmount || 0,
-                byTimeType: {
-                    billable: summary.billable || 0,
-                    non_billable: summary.non_billable || 0,
-                    pro_bono: summary.pro_bono || 0,
-                    internal: summary.internal || 0
-                }
+        data: Array.isArray(entries) ? entries : [],
+        total,
+        page: parseInt(page),
+        limit: limitNum,
+        totalPages: Math.ceil(total / limitNum),
+        summary: {
+            totalDuration: summary.totalDuration || 0,
+            totalBillable: summary.totalBillable || 0,
+            totalAmount: summary.totalAmount || 0,
+            byTimeType: {
+                billable: summary.billable || 0,
+                non_billable: summary.non_billable || 0,
+                pro_bono: summary.pro_bono || 0,
+                internal: summary.internal || 0
             }
         }
     });
