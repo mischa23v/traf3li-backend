@@ -11,6 +11,7 @@
 const PermissionConfig = require('../models/permission.model');
 const RelationTuple = require('../models/relationTuple.model');
 const PolicyDecision = require('../models/policyDecision.model');
+const UIAccessConfig = require('../models/uiAccessConfig.model');
 const permissionEnforcer = require('../services/permissionEnforcer.service');
 const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
@@ -699,6 +700,370 @@ const getCacheStats = asyncHandler(async (req, res) => {
     });
 });
 
+// ═══════════════════════════════════════════════════════════════
+// UI ACCESS CONTROL (Sidebar & Page Visibility)
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Get visible sidebar items for current user
+ * GET /api/permissions/ui/sidebar
+ */
+const getVisibleSidebar = asyncHandler(async (req, res) => {
+    const firmId = req.firmId;
+
+    if (!firmId) {
+        throw CustomException('يجب أن تكون عضواً في مكتب للوصول', 403);
+    }
+
+    const sidebar = await UIAccessConfig.getVisibleSidebar(
+        firmId,
+        req.userID,
+        req.firmRole
+    );
+
+    res.json({
+        success: true,
+        data: sidebar
+    });
+});
+
+/**
+ * Check page access for current user
+ * POST /api/permissions/ui/check-page
+ */
+const checkPageAccess = asyncHandler(async (req, res) => {
+    const firmId = req.firmId;
+    const { routePath } = req.body;
+
+    if (!firmId) {
+        throw CustomException('يجب أن تكون عضواً في مكتب للوصول', 403);
+    }
+
+    if (!routePath) {
+        throw CustomException('يجب تحديد مسار الصفحة', 400);
+    }
+
+    const access = await UIAccessConfig.checkPageAccess(
+        firmId,
+        req.userID,
+        req.firmRole,
+        routePath
+    );
+
+    // Log access denial if configured
+    if (!access.allowed) {
+        const config = await UIAccessConfig.getForFirm(firmId);
+        if (config.settings?.logAccessDenials) {
+            await PolicyDecision.log({
+                firmId,
+                request: {
+                    subject: { userId: req.userID, role: req.firmRole },
+                    resource: { namespace: 'ui_page', id: access.pageId },
+                    action: 'access',
+                    context: {
+                        routePath,
+                        ipAddress: req.ip,
+                        userAgent: req.headers['user-agent'],
+                        timestamp: new Date()
+                    }
+                },
+                decision: {
+                    allowed: false,
+                    reason: access.reason || 'Page access denied',
+                    effect: 'deny'
+                },
+                metrics: { evaluationTimeMs: 0, policiesChecked: 0, relationsChecked: 0 }
+            });
+        }
+    }
+
+    res.json({
+        success: true,
+        data: access
+    });
+});
+
+/**
+ * Get UI access configuration (admin only)
+ * GET /api/permissions/ui/config
+ */
+const getUIAccessConfig = asyncHandler(async (req, res) => {
+    const firmId = req.firmId;
+
+    if (!firmId) {
+        throw CustomException('يجب أن تكون عضواً في مكتب للوصول', 403);
+    }
+
+    if (!['owner', 'admin'].includes(req.firmRole)) {
+        throw CustomException('ليس لديك صلاحية لعرض إعدادات واجهة المستخدم', 403);
+    }
+
+    const config = await UIAccessConfig.getForFirm(firmId);
+
+    res.json({
+        success: true,
+        data: config
+    });
+});
+
+/**
+ * Update UI access settings
+ * PUT /api/permissions/ui/config
+ */
+const updateUIAccessConfig = asyncHandler(async (req, res) => {
+    const firmId = req.firmId;
+    const { settings } = req.body;
+
+    if (!firmId) {
+        throw CustomException('يجب أن تكون عضواً في مكتب للوصول', 403);
+    }
+
+    if (req.firmRole !== 'owner') {
+        throw CustomException('فقط مالك المكتب يمكنه تعديل إعدادات واجهة المستخدم', 403);
+    }
+
+    const config = await UIAccessConfig.findOne({ firmId });
+
+    if (!config) {
+        throw CustomException('لم يتم العثور على إعدادات واجهة المستخدم', 404);
+    }
+
+    if (settings) {
+        config.settings = { ...config.settings, ...settings };
+    }
+
+    config.version += 1;
+    config.lastModifiedBy = req.userID;
+    await config.save();
+
+    res.json({
+        success: true,
+        message: 'تم تحديث إعدادات واجهة المستخدم بنجاح',
+        data: config
+    });
+});
+
+/**
+ * Get access matrix for all roles
+ * GET /api/permissions/ui/matrix
+ */
+const getAccessMatrix = asyncHandler(async (req, res) => {
+    const firmId = req.firmId;
+
+    if (!firmId) {
+        throw CustomException('يجب أن تكون عضواً في مكتب للوصول', 403);
+    }
+
+    if (!['owner', 'admin'].includes(req.firmRole)) {
+        throw CustomException('ليس لديك صلاحية لعرض مصفوفة الوصول', 403);
+    }
+
+    const matrix = await UIAccessConfig.getAccessMatrix(firmId);
+
+    res.json({
+        success: true,
+        data: matrix
+    });
+});
+
+/**
+ * Update sidebar visibility for a role
+ * PUT /api/permissions/ui/sidebar/:itemId/visibility
+ */
+const updateSidebarVisibility = asyncHandler(async (req, res) => {
+    const firmId = req.firmId;
+    const { itemId } = req.params;
+    const { role, visible } = req.body;
+
+    if (!firmId) {
+        throw CustomException('يجب أن تكون عضواً في مكتب للوصول', 403);
+    }
+
+    if (req.firmRole !== 'owner') {
+        throw CustomException('فقط مالك المكتب يمكنه تعديل إظهار القوائم', 403);
+    }
+
+    if (!role || visible === undefined) {
+        throw CustomException('يجب تحديد الدور والإظهار', 400);
+    }
+
+    await UIAccessConfig.updateSidebarVisibility(firmId, itemId, role, visible, req.userID);
+
+    res.json({
+        success: true,
+        message: 'تم تحديث إظهار العنصر بنجاح'
+    });
+});
+
+/**
+ * Update page access for a role
+ * PUT /api/permissions/ui/pages/:pageId/access
+ */
+const updatePageAccessForRole = asyncHandler(async (req, res) => {
+    const firmId = req.firmId;
+    const { pageId } = req.params;
+    const { role, hasAccess } = req.body;
+
+    if (!firmId) {
+        throw CustomException('يجب أن تكون عضواً في مكتب للوصول', 403);
+    }
+
+    if (req.firmRole !== 'owner') {
+        throw CustomException('فقط مالك المكتب يمكنه تعديل صلاحيات الصفحات', 403);
+    }
+
+    if (!role || hasAccess === undefined) {
+        throw CustomException('يجب تحديد الدور والصلاحية', 400);
+    }
+
+    await UIAccessConfig.updatePageAccess(firmId, pageId, role, hasAccess, req.userID);
+
+    res.json({
+        success: true,
+        message: 'تم تحديث صلاحية الصفحة بنجاح'
+    });
+});
+
+/**
+ * Bulk update role visibility/access
+ * PUT /api/permissions/ui/roles/:role/bulk
+ */
+const bulkUpdateRoleAccess = asyncHandler(async (req, res) => {
+    const firmId = req.firmId;
+    const { role } = req.params;
+    const { sidebarItems, pageAccess } = req.body;
+
+    if (!firmId) {
+        throw CustomException('يجب أن تكون عضواً في مكتب للوصول', 403);
+    }
+
+    if (req.firmRole !== 'owner') {
+        throw CustomException('فقط مالك المكتب يمكنه تعديل صلاحيات الأدوار', 403);
+    }
+
+    await UIAccessConfig.bulkUpdateRoleVisibility(
+        firmId,
+        role,
+        { sidebarItems, pageAccess },
+        req.userID
+    );
+
+    res.json({
+        success: true,
+        message: 'تم تحديث صلاحيات الدور بنجاح'
+    });
+});
+
+/**
+ * Add user-specific override
+ * POST /api/permissions/ui/overrides
+ */
+const addUserOverride = asyncHandler(async (req, res) => {
+    const firmId = req.firmId;
+    const { userId, showSidebarItems, hideSidebarItems, grantPageAccess, denyPageAccess, reason, expiresAt } = req.body;
+
+    if (!firmId) {
+        throw CustomException('يجب أن تكون عضواً في مكتب للوصول', 403);
+    }
+
+    if (!['owner', 'admin'].includes(req.firmRole)) {
+        throw CustomException('ليس لديك صلاحية لإضافة استثناءات المستخدمين', 403);
+    }
+
+    if (!userId) {
+        throw CustomException('يجب تحديد المستخدم', 400);
+    }
+
+    await UIAccessConfig.addUserOverride(
+        firmId,
+        {
+            userId,
+            showSidebarItems: showSidebarItems || [],
+            hideSidebarItems: hideSidebarItems || [],
+            grantPageAccess: grantPageAccess || [],
+            denyPageAccess: denyPageAccess || [],
+            reason,
+            expiresAt
+        },
+        req.userID
+    );
+
+    res.status(201).json({
+        success: true,
+        message: 'تم إضافة استثناء المستخدم بنجاح'
+    });
+});
+
+/**
+ * Remove user-specific override
+ * DELETE /api/permissions/ui/overrides/:userId
+ */
+const removeUserOverride = asyncHandler(async (req, res) => {
+    const firmId = req.firmId;
+    const { userId } = req.params;
+
+    if (!firmId) {
+        throw CustomException('يجب أن تكون عضواً في مكتب للوصول', 403);
+    }
+
+    if (!['owner', 'admin'].includes(req.firmRole)) {
+        throw CustomException('ليس لديك صلاحية لحذف استثناءات المستخدمين', 403);
+    }
+
+    await UIAccessConfig.removeUserOverride(firmId, userId, req.userID);
+
+    res.json({
+        success: true,
+        message: 'تم حذف استثناء المستخدم بنجاح'
+    });
+});
+
+/**
+ * Get all sidebar items (for admin configuration)
+ * GET /api/permissions/ui/sidebar/all
+ */
+const getAllSidebarItems = asyncHandler(async (req, res) => {
+    const firmId = req.firmId;
+
+    if (!firmId) {
+        throw CustomException('يجب أن تكون عضواً في مكتب للوصول', 403);
+    }
+
+    if (!['owner', 'admin'].includes(req.firmRole)) {
+        throw CustomException('ليس لديك صلاحية لعرض جميع عناصر القائمة', 403);
+    }
+
+    const config = await UIAccessConfig.getForFirm(firmId);
+
+    res.json({
+        success: true,
+        data: config.sidebarItems
+    });
+});
+
+/**
+ * Get all page access rules (for admin configuration)
+ * GET /api/permissions/ui/pages/all
+ */
+const getAllPageAccess = asyncHandler(async (req, res) => {
+    const firmId = req.firmId;
+
+    if (!firmId) {
+        throw CustomException('يجب أن تكون عضواً في مكتب للوصول', 403);
+    }
+
+    if (!['owner', 'admin'].includes(req.firmRole)) {
+        throw CustomException('ليس لديك صلاحية لعرض جميع قواعد الصفحات', 403);
+    }
+
+    const config = await UIAccessConfig.getForFirm(firmId);
+
+    res.json({
+        success: true,
+        data: config.pageAccess
+    });
+});
+
 module.exports = {
     // Permission checks
     checkPermission,
@@ -730,5 +1095,19 @@ module.exports = {
 
     // Cache
     clearCache,
-    getCacheStats
+    getCacheStats,
+
+    // UI Access Control
+    getVisibleSidebar,
+    checkPageAccess,
+    getUIAccessConfig,
+    updateUIAccessConfig,
+    getAccessMatrix,
+    updateSidebarVisibility,
+    updatePageAccessForRole,
+    bulkUpdateRoleAccess,
+    addUserOverride,
+    removeUserOverride,
+    getAllSidebarItems,
+    getAllPageAccess
 };

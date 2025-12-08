@@ -155,6 +155,7 @@ const ApprovalRequest = require('./approvalRequest.model');
 const PermissionConfig = require('./permission.model');
 const RelationTuple = require('./relationTuple.model');
 const PolicyDecision = require('./policyDecision.model');
+const UIAccessConfig = require('./uiAccessConfig.model');
 
 // Investment & Trading Journal Models
 const Trade = require('./trade.model');
@@ -327,6 +328,7 @@ module.exports = {
     PermissionConfig,
     RelationTuple,
     PolicyDecision,
+    UIAccessConfig,
 
     // Investment & Trading Journal
     Trade,

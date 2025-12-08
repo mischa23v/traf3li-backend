@@ -43,7 +43,21 @@ const {
 
     // Cache
     clearCache,
-    getCacheStats
+    getCacheStats,
+
+    // UI Access Control
+    getVisibleSidebar,
+    checkPageAccess,
+    getUIAccessConfig,
+    updateUIAccessConfig,
+    getAccessMatrix,
+    updateSidebarVisibility,
+    updatePageAccessForRole,
+    bulkUpdateRoleAccess,
+    addUserOverride,
+    removeUserOverride,
+    getAllSidebarItems,
+    getAllPageAccess
 } = require('../controllers/permission.controller');
 
 const router = express.Router();
@@ -134,5 +148,45 @@ router.get('/cache/stats', getCacheStats);
 
 // POST /api/permissions/cache/clear - Clear permission cache
 router.post('/cache/clear', clearCache);
+
+// ═══════════════════════════════════════════════════════════════
+// UI ACCESS CONTROL (Sidebar & Page Visibility)
+// ═══════════════════════════════════════════════════════════════
+
+// GET /api/permissions/ui/sidebar - Get visible sidebar items for current user
+router.get('/ui/sidebar', getVisibleSidebar);
+
+// GET /api/permissions/ui/sidebar/all - Get all sidebar items (admin)
+router.get('/ui/sidebar/all', getAllSidebarItems);
+
+// PUT /api/permissions/ui/sidebar/:itemId/visibility - Update sidebar visibility for role
+router.put('/ui/sidebar/:itemId/visibility', updateSidebarVisibility);
+
+// POST /api/permissions/ui/check-page - Check page access for current user
+router.post('/ui/check-page', checkPageAccess);
+
+// GET /api/permissions/ui/pages/all - Get all page access rules (admin)
+router.get('/ui/pages/all', getAllPageAccess);
+
+// PUT /api/permissions/ui/pages/:pageId/access - Update page access for role
+router.put('/ui/pages/:pageId/access', updatePageAccessForRole);
+
+// GET /api/permissions/ui/config - Get UI access configuration (admin)
+router.get('/ui/config', getUIAccessConfig);
+
+// PUT /api/permissions/ui/config - Update UI access settings
+router.put('/ui/config', updateUIAccessConfig);
+
+// GET /api/permissions/ui/matrix - Get access matrix for all roles
+router.get('/ui/matrix', getAccessMatrix);
+
+// PUT /api/permissions/ui/roles/:role/bulk - Bulk update role access
+router.put('/ui/roles/:role/bulk', bulkUpdateRoleAccess);
+
+// POST /api/permissions/ui/overrides - Add user-specific override
+router.post('/ui/overrides', addUserOverride);
+
+// DELETE /api/permissions/ui/overrides/:userId - Remove user-specific override
+router.delete('/ui/overrides/:userId', removeUserOverride);
 
 module.exports = router;
