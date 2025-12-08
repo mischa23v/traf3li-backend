@@ -5,7 +5,7 @@
 
 const express = require('express');
 const router = express.Router();
-const { protect } = require('../middleware/auth.middleware');
+const authenticate = require('../middlewares/authenticate');
 const saudiBankingController = require('../controllers/saudiBanking.controller');
 
 // ============================================
@@ -17,7 +17,7 @@ const saudiBankingController = require('../controllers/saudiBanking.controller')
  * @desc    Get list of supported Saudi banks
  * @access  Private
  */
-router.get('/lean/banks', protect, saudiBankingController.getBanks);
+router.get('/lean/banks', authenticate, saudiBankingController.getBanks);
 
 /**
  * @route   POST /api/saudi-banking/lean/customers
@@ -25,35 +25,35 @@ router.get('/lean/banks', protect, saudiBankingController.getBanks);
  * @access  Private
  * @body    { appUserId: string }
  */
-router.post('/lean/customers', protect, saudiBankingController.createLeanCustomer);
+router.post('/lean/customers', authenticate, saudiBankingController.createLeanCustomer);
 
 /**
  * @route   GET /api/saudi-banking/lean/customers/:customerId/token
  * @desc    Get customer-scoped token for LinkSDK
  * @access  Private
  */
-router.get('/lean/customers/:customerId/token', protect, saudiBankingController.getCustomerToken);
+router.get('/lean/customers/:customerId/token', authenticate, saudiBankingController.getCustomerToken);
 
 /**
  * @route   GET /api/saudi-banking/lean/customers/:customerId/entities
  * @desc    Get connected bank accounts (entities)
  * @access  Private
  */
-router.get('/lean/customers/:customerId/entities', protect, saudiBankingController.getEntities);
+router.get('/lean/customers/:customerId/entities', authenticate, saudiBankingController.getEntities);
 
 /**
  * @route   GET /api/saudi-banking/lean/entities/:entityId/accounts
  * @desc    Get accounts for a connected entity
  * @access  Private
  */
-router.get('/lean/entities/:entityId/accounts', protect, saudiBankingController.getAccounts);
+router.get('/lean/entities/:entityId/accounts', authenticate, saudiBankingController.getAccounts);
 
 /**
  * @route   GET /api/saudi-banking/lean/accounts/:accountId/balance
  * @desc    Get account balance
  * @access  Private
  */
-router.get('/lean/accounts/:accountId/balance', protect, saudiBankingController.getBalance);
+router.get('/lean/accounts/:accountId/balance', authenticate, saudiBankingController.getBalance);
 
 /**
  * @route   GET /api/saudi-banking/lean/accounts/:accountId/transactions
@@ -61,14 +61,14 @@ router.get('/lean/accounts/:accountId/balance', protect, saudiBankingController.
  * @access  Private
  * @query   { page, pageSize, fromDate, toDate }
  */
-router.get('/lean/accounts/:accountId/transactions', protect, saudiBankingController.getTransactions);
+router.get('/lean/accounts/:accountId/transactions', authenticate, saudiBankingController.getTransactions);
 
 /**
  * @route   GET /api/saudi-banking/lean/entities/:entityId/identity
  * @desc    Get identity information for connected account
  * @access  Private
  */
-router.get('/lean/entities/:entityId/identity', protect, saudiBankingController.getIdentity);
+router.get('/lean/entities/:entityId/identity', authenticate, saudiBankingController.getIdentity);
 
 /**
  * @route   POST /api/saudi-banking/lean/payments
@@ -76,14 +76,14 @@ router.get('/lean/entities/:entityId/identity', protect, saudiBankingController.
  * @access  Private
  * @body    { amount, currency, paymentSourceId, paymentDestinationId, description }
  */
-router.post('/lean/payments', protect, saudiBankingController.initiatePayment);
+router.post('/lean/payments', authenticate, saudiBankingController.initiatePayment);
 
 /**
  * @route   DELETE /api/saudi-banking/lean/entities/:entityId
  * @desc    Disconnect a bank account
  * @access  Private
  */
-router.delete('/lean/entities/:entityId', protect, saudiBankingController.disconnectEntity);
+router.delete('/lean/entities/:entityId', authenticate, saudiBankingController.disconnectEntity);
 
 /**
  * @route   POST /api/saudi-banking/lean/webhook
@@ -102,7 +102,7 @@ router.post('/lean/webhook', saudiBankingController.handleLeanWebhook);
  * @access  Private
  * @body    { establishment, employees, paymentDate, batchReference }
  */
-router.post('/wps/generate', protect, saudiBankingController.generateWPSFile);
+router.post('/wps/generate', authenticate, saudiBankingController.generateWPSFile);
 
 /**
  * @route   POST /api/saudi-banking/wps/download
@@ -110,7 +110,7 @@ router.post('/wps/generate', protect, saudiBankingController.generateWPSFile);
  * @access  Private
  * @body    { establishment, employees, paymentDate, batchReference }
  */
-router.post('/wps/download', protect, saudiBankingController.downloadWPSFile);
+router.post('/wps/download', authenticate, saudiBankingController.downloadWPSFile);
 
 /**
  * @route   POST /api/saudi-banking/wps/validate
@@ -118,14 +118,14 @@ router.post('/wps/download', protect, saudiBankingController.downloadWPSFile);
  * @access  Private
  * @body    { establishment, employees }
  */
-router.post('/wps/validate', protect, saudiBankingController.validateWPSData);
+router.post('/wps/validate', authenticate, saudiBankingController.validateWPSData);
 
 /**
  * @route   GET /api/saudi-banking/wps/sarie-banks
  * @desc    Get SARIE bank IDs for Saudi banks
  * @access  Private
  */
-router.get('/wps/sarie-banks', protect, saudiBankingController.getSarieBankIds);
+router.get('/wps/sarie-banks', authenticate, saudiBankingController.getSarieBankIds);
 
 // ============================================
 // SADAD - Bill Payments
@@ -137,7 +137,7 @@ router.get('/wps/sarie-banks', protect, saudiBankingController.getSarieBankIds);
  * @access  Private
  * @query   { category }
  */
-router.get('/sadad/billers', protect, saudiBankingController.getSadadBillers);
+router.get('/sadad/billers', authenticate, saudiBankingController.getSadadBillers);
 
 /**
  * @route   GET /api/saudi-banking/sadad/billers/search
@@ -145,7 +145,7 @@ router.get('/sadad/billers', protect, saudiBankingController.getSadadBillers);
  * @access  Private
  * @query   { query }
  */
-router.get('/sadad/billers/search', protect, saudiBankingController.searchBillers);
+router.get('/sadad/billers/search', authenticate, saudiBankingController.searchBillers);
 
 /**
  * @route   POST /api/saudi-banking/sadad/bills/inquiry
@@ -153,7 +153,7 @@ router.get('/sadad/billers/search', protect, saudiBankingController.searchBiller
  * @access  Private
  * @body    { billerCode, billNumber }
  */
-router.post('/sadad/bills/inquiry', protect, saudiBankingController.inquireBill);
+router.post('/sadad/bills/inquiry', authenticate, saudiBankingController.inquireBill);
 
 /**
  * @route   POST /api/saudi-banking/sadad/bills/pay
@@ -161,14 +161,14 @@ router.post('/sadad/bills/inquiry', protect, saudiBankingController.inquireBill)
  * @access  Private
  * @body    { billerCode, billNumber, amount, debitAccount, reference, remarks }
  */
-router.post('/sadad/bills/pay', protect, saudiBankingController.payBill);
+router.post('/sadad/bills/pay', authenticate, saudiBankingController.payBill);
 
 /**
  * @route   GET /api/saudi-banking/sadad/payments/:transactionId/status
  * @desc    Get SADAD payment status
  * @access  Private
  */
-router.get('/sadad/payments/:transactionId/status', protect, saudiBankingController.getSadadPaymentStatus);
+router.get('/sadad/payments/:transactionId/status', authenticate, saudiBankingController.getSadadPaymentStatus);
 
 /**
  * @route   GET /api/saudi-banking/sadad/payments/history
@@ -176,7 +176,7 @@ router.get('/sadad/payments/:transactionId/status', protect, saudiBankingControl
  * @access  Private
  * @query   { fromDate, toDate, billerCode, status, page, pageSize }
  */
-router.get('/sadad/payments/history', protect, saudiBankingController.getSadadPaymentHistory);
+router.get('/sadad/payments/history', authenticate, saudiBankingController.getSadadPaymentHistory);
 
 // ============================================
 // MUDAD - Payroll Compliance
@@ -188,7 +188,7 @@ router.get('/sadad/payments/history', protect, saudiBankingController.getSadadPa
  * @access  Private
  * @body    { employees }
  */
-router.post('/mudad/payroll/calculate', protect, saudiBankingController.calculatePayroll);
+router.post('/mudad/payroll/calculate', authenticate, saudiBankingController.calculatePayroll);
 
 /**
  * @route   POST /api/saudi-banking/mudad/gosi/calculate
@@ -196,7 +196,7 @@ router.post('/mudad/payroll/calculate', protect, saudiBankingController.calculat
  * @access  Private
  * @body    { nationality, basicSalary }
  */
-router.post('/mudad/gosi/calculate', protect, saudiBankingController.calculateGOSI);
+router.post('/mudad/gosi/calculate', authenticate, saudiBankingController.calculateGOSI);
 
 /**
  * @route   POST /api/saudi-banking/mudad/wps/generate
@@ -204,7 +204,7 @@ router.post('/mudad/gosi/calculate', protect, saudiBankingController.calculateGO
  * @access  Private
  * @body    { establishment, employees, paymentDate, batchReference }
  */
-router.post('/mudad/wps/generate', protect, saudiBankingController.generateMudadWPS);
+router.post('/mudad/wps/generate', authenticate, saudiBankingController.generateMudadWPS);
 
 /**
  * @route   POST /api/saudi-banking/mudad/payroll/submit
@@ -212,14 +212,14 @@ router.post('/mudad/wps/generate', protect, saudiBankingController.generateMudad
  * @access  Private
  * @body    { establishment, employees, paymentDate }
  */
-router.post('/mudad/payroll/submit', protect, saudiBankingController.submitPayroll);
+router.post('/mudad/payroll/submit', authenticate, saudiBankingController.submitPayroll);
 
 /**
  * @route   GET /api/saudi-banking/mudad/submissions/:submissionId/status
  * @desc    Get payroll submission status
  * @access  Private
  */
-router.get('/mudad/submissions/:submissionId/status', protect, saudiBankingController.getSubmissionStatus);
+router.get('/mudad/submissions/:submissionId/status', authenticate, saudiBankingController.getSubmissionStatus);
 
 /**
  * @route   POST /api/saudi-banking/mudad/gosi/report
@@ -227,7 +227,7 @@ router.get('/mudad/submissions/:submissionId/status', protect, saudiBankingContr
  * @access  Private
  * @body    { employees, month }
  */
-router.post('/mudad/gosi/report', protect, saudiBankingController.generateGOSIReport);
+router.post('/mudad/gosi/report', authenticate, saudiBankingController.generateGOSIReport);
 
 /**
  * @route   POST /api/saudi-banking/mudad/compliance/nitaqat
@@ -235,7 +235,7 @@ router.post('/mudad/gosi/report', protect, saudiBankingController.generateGOSIRe
  * @access  Private
  * @body    { employees }
  */
-router.post('/mudad/compliance/nitaqat', protect, saudiBankingController.checkNitaqat);
+router.post('/mudad/compliance/nitaqat', authenticate, saudiBankingController.checkNitaqat);
 
 /**
  * @route   POST /api/saudi-banking/mudad/compliance/minimum-wage
@@ -243,6 +243,6 @@ router.post('/mudad/compliance/nitaqat', protect, saudiBankingController.checkNi
  * @access  Private
  * @body    { employees }
  */
-router.post('/mudad/compliance/minimum-wage', protect, saudiBankingController.checkMinimumWage);
+router.post('/mudad/compliance/minimum-wage', authenticate, saudiBankingController.checkMinimumWage);
 
 module.exports = router;

@@ -1,28 +1,28 @@
 const express = require('express');
 const router = express.Router();
 const leadScoringController = require('../controllers/leadScoring.controller');
-const { protect } = require('../middleware/auth');
-const { restrictTo } = require('../middleware/roleAuth');
+const authenticate = require('../middlewares/authenticate');
+const { authorize } = require('../middlewares/authorize.middleware');
 
 // ═══════════════════════════════════════════════════════════════
 // LEAD SCORING ROUTES
 // ═══════════════════════════════════════════════════════════════
 
 // All routes require authentication
-router.use(protect);
+router.use(authenticate);
 
 // ───────────────────────────────────────────────────────────────
 // CONFIGURATION
 // ───────────────────────────────────────────────────────────────
 router.route('/config')
     .get(leadScoringController.getConfig)
-    .put(restrictTo('admin', 'owner'), leadScoringController.updateConfig);
+    .put(authorize('admin', 'owner'), leadScoringController.updateConfig);
 
 // ───────────────────────────────────────────────────────────────
 // SCORE CALCULATION
 // ───────────────────────────────────────────────────────────────
 router.post('/calculate/:leadId', leadScoringController.calculateScore);
-router.post('/calculate-all', restrictTo('admin', 'owner'), leadScoringController.calculateAllScores);
+router.post('/calculate-all', authorize('admin', 'owner'), leadScoringController.calculateAllScores);
 router.post('/calculate-batch', leadScoringController.calculateBatch);
 
 // ───────────────────────────────────────────────────────────────
@@ -54,6 +54,6 @@ router.post('/track/call', leadScoringController.trackCall);
 // ───────────────────────────────────────────────────────────────
 // DECAY MANAGEMENT
 // ───────────────────────────────────────────────────────────────
-router.post('/process-decay', restrictTo('admin', 'owner'), leadScoringController.processDecay);
+router.post('/process-decay', authorize('admin', 'owner'), leadScoringController.processDecay);
 
 module.exports = router;
