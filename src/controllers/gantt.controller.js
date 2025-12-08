@@ -2,6 +2,9 @@ const ganttService = require('../services/gantt.service');
 const collaborationService = require('../services/collaboration.service');
 const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
+const Task = require('../models/task.model');
+const Reminder = require('../models/reminder.model');
+const Event = require('../models/event.model');
 
 /**
  * Gantt Chart Controller
@@ -110,6 +113,304 @@ const getTaskHierarchy = asyncHandler(async (req, res) => {
   res.status(200).json({
     success: true,
     data: hierarchy
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════
+// PRODUCTIVITY DATA (Unified View)
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Get unified productivity data (tasks, reminders, events)
+ * GET /api/gantt/productivity
+ *
+ * Aggregates all productivity data sources into DHTMLX Gantt format
+ * for the productivity/Gantt chart view.
+ *
+ * Query params:
+ * - startDate: Filter items starting from this date
+ * - endDate: Filter items ending before this date
+ */
+const getProductivityData = asyncHandler(async (req, res) => {
+  const userId = req.userID;
+  const firmId = req.firmId;
+  const { startDate, endDate } = req.query;
+
+  // Build date filters
+  const dateFilters = {};
+  if (startDate) {
+    dateFilters.$gte = new Date(startDate);
+  }
+  if (endDate) {
+    dateFilters.$lte = new Date(endDate);
+  }
+
+  // Fetch all data sources in parallel
+  const [tasks, reminders, events] = await Promise.all([
+    // Tasks query
+    Task.find({
+      $and: [
+        // Firm filter (if available)
+        firmId ? { firmId } : {},
+        // User access check
+        {
+          $or: [
+            { assignedTo: userId },
+            { createdBy: userId }
+          ]
+        },
+        // Exclude canceled tasks
+        { status: { $ne: 'canceled' } },
+        // Exclude templates
+        { isTemplate: { $ne: true } },
+        // Date filter on dueDate
+        ...(Object.keys(dateFilters).length > 0 ? [{ dueDate: dateFilters }] : [])
+      ]
+    })
+    .populate('assignedTo', 'name email avatar')
+    .populate('caseId', 'title caseNumber')
+    .populate('blockedBy', '_id title')
+    .sort({ dueDate: 1 }),
+
+    // Reminders query
+    Reminder.find({
+      $and: [
+        // User access check
+        {
+          $or: [
+            { userId: userId },
+            { createdBy: userId },
+            { delegatedTo: userId }
+          ]
+        },
+        // Exclude dismissed reminders
+        { status: { $ne: 'dismissed' } },
+        // Date filter on reminderDateTime
+        ...(Object.keys(dateFilters).length > 0 ? [{ reminderDateTime: dateFilters }] : [])
+      ]
+    })
+    .populate('relatedCase', 'title caseNumber')
+    .populate('relatedTask', 'title')
+    .sort({ reminderDateTime: 1 }),
+
+    // Events query
+    Event.find({
+      $and: [
+        // Firm filter (if available)
+        firmId ? { firmId } : {},
+        // User access check
+        {
+          $or: [
+            { organizer: userId },
+            { createdBy: userId },
+            { 'attendees.userId': userId }
+          ]
+        },
+        // Exclude canceled events
+        { status: { $nin: ['canceled', 'cancelled'] } },
+        // Date filter on startDateTime
+        ...(Object.keys(dateFilters).length > 0 ? [{ startDateTime: dateFilters }] : [])
+      ]
+    })
+    .populate('caseId', 'title caseNumber')
+    .populate('organizer', 'name email avatar')
+    .sort({ startDateTime: 1 })
+  ]);
+
+  // Convert to DHTMLX Gantt format
+  const ganttTasks = [];
+  const ganttLinks = [];
+
+  // Helper function to format date for Gantt (YYYY-MM-DD HH:mm)
+  const formatDate = (date) => {
+    if (!date) return null;
+    const d = new Date(date);
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    const hours = String(d.getHours()).padStart(2, '0');
+    const minutes = String(d.getMinutes()).padStart(2, '0');
+    return `${year}-${month}-${day} ${hours}:${minutes}`;
+  };
+
+  // Helper function to calculate duration in days
+  const calculateDuration = (start, end) => {
+    if (!start || !end) return 1;
+    const diffTime = Math.abs(new Date(end) - new Date(start));
+    return Math.ceil(diffTime / (1000 * 60 * 60 * 24)) || 1;
+  };
+
+  // Helper function to get task color based on priority
+  const getTaskColor = (priority) => {
+    const colors = {
+      critical: '#ef4444', // red
+      urgent: '#ef4444',   // red
+      high: '#f97316',     // orange
+      medium: '#10b981',   // green
+      low: '#64748b'       // gray
+    };
+    return colors[priority] || '#10b981';
+  };
+
+  // Add tasks
+  tasks.forEach(task => {
+    const startDate = task.startDate || task.createdAt;
+    const endDate = task.dueDate || new Date(startDate.getTime() + 24 * 60 * 60 * 1000);
+    const isOverdue = task.status !== 'done' && task.dueDate && new Date(task.dueDate) < new Date();
+
+    ganttTasks.push({
+      id: `task_${task._id}`,
+      text: task.title || task.description,
+      start_date: formatDate(startDate),
+      end_date: formatDate(endDate),
+      duration: calculateDuration(startDate, endDate),
+      progress: (task.progress || 0) / 100,
+      type: task.subtasks && task.subtasks.length > 0 ? 'project' : 'task',
+      priority: task.priority,
+      status: task.status,
+      assignee: task.assignedTo?.name || null,
+      assigneeId: task.assignedTo?._id?.toString() || null,
+      color: isOverdue ? '#ef4444' : getTaskColor(task.priority),
+      textColor: '#ffffff',
+      sourceType: 'task',
+      sourceId: task._id.toString(),
+      caseId: task.caseId?._id?.toString() || null,
+      caseName: task.caseId?.title || task.caseId?.caseNumber || null,
+      isOverdue,
+      isCritical: task.priority === 'critical' || task.priority === 'urgent',
+      subtaskCount: task.subtasks?.length || 0,
+      completedSubtaskCount: task.subtasks?.filter(st => st.completed).length || 0
+    });
+  });
+
+  // Add reminders as milestones
+  reminders.forEach(reminder => {
+    ganttTasks.push({
+      id: `reminder_${reminder._id}`,
+      text: `🔔 ${reminder.title}`,
+      start_date: formatDate(reminder.reminderDateTime),
+      end_date: formatDate(reminder.reminderDateTime),
+      duration: 0, // Milestone
+      progress: reminder.status === 'completed' ? 1 : 0,
+      type: 'milestone',
+      priority: reminder.priority,
+      status: reminder.status,
+      color: '#f59e0b', // Amber for reminders
+      textColor: '#ffffff',
+      sourceType: 'reminder',
+      sourceId: reminder._id.toString(),
+      caseId: reminder.relatedCase?._id?.toString() || null,
+      caseName: reminder.relatedCase?.title || reminder.relatedCase?.caseNumber || null,
+      relatedTaskId: reminder.relatedTask?._id?.toString() || null
+    });
+  });
+
+  // Add events
+  events.forEach(event => {
+    const startDate = event.startDateTime || event.startDate;
+    const endDate = event.endDateTime || event.endDate || startDate;
+    const duration = calculateDuration(startDate, endDate);
+
+    ganttTasks.push({
+      id: `event_${event._id}`,
+      text: `📅 ${event.title}`,
+      start_date: formatDate(startDate),
+      end_date: formatDate(endDate),
+      duration: duration,
+      progress: event.status === 'completed' ? 1 : 0,
+      type: event.allDay ? 'project' : (duration === 0 ? 'milestone' : 'task'),
+      priority: event.priority,
+      status: event.status,
+      eventType: event.type,
+      color: event.color || '#3b82f6', // Blue for events
+      textColor: '#ffffff',
+      sourceType: 'event',
+      sourceId: event._id.toString(),
+      caseId: event.caseId?._id?.toString() || null,
+      caseName: event.caseId?.title || event.caseId?.caseNumber || null,
+      organizer: event.organizer?.name || null,
+      isAllDay: event.allDay,
+      location: event.location?.name || event.locationString || null
+    });
+  });
+
+  // Add links (dependencies between tasks)
+  let linkId = 1;
+  tasks.forEach(task => {
+    // Process blockedBy relationships
+    if (task.blockedBy && task.blockedBy.length > 0) {
+      task.blockedBy.forEach(blocker => {
+        const blockerId = blocker._id?.toString() || blocker.toString();
+        ganttLinks.push({
+          id: linkId++,
+          source: `task_${blockerId}`,
+          target: `task_${task._id}`,
+          type: '0' // 0 = finish-to-start
+        });
+      });
+    }
+
+    // Process dependencies array
+    if (task.dependencies && task.dependencies.length > 0) {
+      task.dependencies.forEach(dep => {
+        if (dep.type === 'blocked_by') {
+          ganttLinks.push({
+            id: linkId++,
+            source: `task_${dep.taskId.toString()}`,
+            target: `task_${task._id}`,
+            type: '0'
+          });
+        }
+      });
+    }
+  });
+
+  // Remove duplicate links
+  const uniqueLinks = [];
+  const linkSet = new Set();
+  ganttLinks.forEach(link => {
+    const key = `${link.source}-${link.target}-${link.type}`;
+    if (!linkSet.has(key)) {
+      linkSet.add(key);
+      uniqueLinks.push(link);
+    }
+  });
+
+  // Calculate summary statistics
+  const summary = {
+    totalItems: ganttTasks.length,
+    tasks: {
+      total: tasks.length,
+      completed: tasks.filter(t => t.status === 'done').length,
+      inProgress: tasks.filter(t => t.status === 'in_progress').length,
+      overdue: tasks.filter(t => t.status !== 'done' && t.dueDate && new Date(t.dueDate) < new Date()).length
+    },
+    reminders: {
+      total: reminders.length,
+      pending: reminders.filter(r => r.status === 'pending').length,
+      completed: reminders.filter(r => r.status === 'completed').length
+    },
+    events: {
+      total: events.length,
+      upcoming: events.filter(e => new Date(e.startDateTime || e.startDate) > new Date()).length,
+      completed: events.filter(e => e.status === 'completed').length
+    }
+  };
+
+  res.status(200).json({
+    success: true,
+    data: ganttTasks,
+    links: uniqueLinks,
+    collections: {
+      priorities: ['critical', 'urgent', 'high', 'medium', 'low'],
+      types: ['task', 'reminder', 'event'],
+      statuses: {
+        task: ['backlog', 'todo', 'in_progress', 'review', 'done', 'canceled'],
+        reminder: ['pending', 'snoozed', 'completed', 'dismissed', 'delegated'],
+        event: ['scheduled', 'confirmed', 'tentative', 'canceled', 'postponed', 'completed', 'in_progress']
+      }
+    },
+    summary
   });
 });
 
@@ -786,6 +1087,9 @@ module.exports = {
   getGanttDataByAssignee,
   filterGanttData,
   getTaskHierarchy,
+
+  // Productivity (Unified View)
+  getProductivityData,
 
   // Task Operations
   updateTaskDates,
