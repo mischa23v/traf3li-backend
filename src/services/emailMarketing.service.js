@@ -5,6 +5,23 @@
 
 const { Resend } = require('resend');
 const crypto = require('crypto');
+
+/**
+ * Escape HTML entities to prevent XSS in email variable replacement
+ * This is critical for user-provided data that gets inserted into email templates
+ */
+const escapeHtml = (text) => {
+    if (text === null || text === undefined) return '';
+    const str = String(text);
+    const htmlEntities = {
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#039;'
+    };
+    return str.replace(/[&<>"']/g, char => htmlEntities[char]);
+};
 const EmailCampaign = require('../models/emailCampaign.model');
 const EmailTemplate = require('../models/emailTemplate.model');
 const EmailSubscriber = require('../models/emailSubscriber.model');
@@ -400,16 +417,18 @@ class EmailMarketingService {
 
   /**
    * Render template with variables
+   * Note: Variables are HTML-escaped to prevent XSS attacks
    */
   static async renderTemplate(template, variables) {
     let html = template.htmlContent;
     let subject = template.subject;
 
-    // Replace template variables
+    // Replace template variables with HTML-escaped values to prevent XSS
     Object.keys(variables).forEach(key => {
       const regex = new RegExp(`{{${key}}}`, 'g');
-      html = html.replace(regex, variables[key] || '');
-      subject = subject.replace(regex, variables[key] || '');
+      // HTML escape for email body, plain escape for subject
+      html = html.replace(regex, escapeHtml(variables[key] || ''));
+      subject = subject.replace(regex, (variables[key] || '').replace(/[<>]/g, ''));
     });
 
     return { html, subject };
@@ -417,6 +436,7 @@ class EmailMarketingService {
 
   /**
    * Personalize content with subscriber data
+   * Note: All subscriber data is HTML-escaped to prevent XSS attacks
    */
   static async personalizeContent(content, subscriber) {
     if (!content) return content;
@@ -430,9 +450,10 @@ class EmailMarketingService {
       phone: subscriber.phone || ''
     };
 
+    // HTML escape all variable values to prevent XSS
     Object.keys(variables).forEach(key => {
       const regex = new RegExp(`{{${key}}}`, 'g');
-      content = content.replace(regex, variables[key]);
+      content = content.replace(regex, escapeHtml(variables[key]));
     });
 
     return content;

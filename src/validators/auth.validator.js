@@ -45,12 +45,12 @@ const registerSchema = Joi.object({
     password: Joi.string()
         .min(8)
         .max(128)
-        .pattern(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/)
+        .pattern(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*(),.?":{}|<>])/)
         .required()
         .messages({
             'string.min': 'كلمة المرور يجب أن تكون 8 أحرف على الأقل / Password must be at least 8 characters',
             'string.max': 'كلمة المرور طويلة جداً / Password is too long',
-            'string.pattern.base': 'كلمة المرور يجب أن تحتوي على حرف كبير وحرف صغير ورقم / Password must contain uppercase, lowercase and number',
+            'string.pattern.base': 'كلمة المرور يجب أن تحتوي على حرف كبير وحرف صغير ورقم ورمز خاص / Password must contain uppercase, lowercase, number and special character (!@#$%^&*(),.?":{}|<>)',
             'any.required': 'كلمة المرور مطلوبة / Password is required'
         }),
     username: Joi.string()

@@ -391,17 +391,26 @@ app.use('/api', validateCsrfToken);
 app.use('/api', apiVersionMiddleware);
 
 
-// ✅ PERFORMANCE: Static files with caching
+// ✅ PERFORMANCE: Static files with caching (optimized for frontend service worker)
 app.use('/uploads', express.static('uploads', {
     maxAge: '7d', // Cache static files for 7 days
     etag: true,
     lastModified: true,
     setHeaders: (res, path) => {
-        // Set cache control headers
-        if (path.match(/\.(jpg|jpeg|png|gif|webp|svg|ico)$/i)) {
-            res.setHeader('Cache-Control', 'public, max-age=604800, immutable'); // 7 days
+        // Set cache control headers based on file type
+        // These headers coordinate with frontend service worker caching strategies
+        if (path.match(/\.(woff|woff2|ttf|otf|eot)$/i)) {
+            // Fonts: cache for 1 year (immutable - they rarely change)
+            res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+        } else if (path.match(/\.(jpg|jpeg|png|gif|webp|svg|ico)$/i)) {
+            // Images: cache for 1 month
+            res.setHeader('Cache-Control', 'public, max-age=2592000');
+        } else if (path.match(/\.(css|js)$/i)) {
+            // CSS/JS with hashes: cache for 1 year (immutable)
+            res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
         } else if (path.match(/\.(pdf|doc|docx)$/i)) {
-            res.setHeader('Cache-Control', 'public, max-age=86400'); // 1 day
+            // Documents: cache for 1 day
+            res.setHeader('Cache-Control', 'public, max-age=86400');
         }
     }
 }));

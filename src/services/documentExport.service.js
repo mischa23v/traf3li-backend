@@ -4,6 +4,59 @@
  * Uses Puppeteer for PDF generation (best for Arabic/RTL text)
  */
 
+const sanitizeHtml = require('sanitize-html');
+
+// HTML sanitization config for document export (defense-in-depth against XSS)
+const EXPORT_SANITIZE_CONFIG = {
+    allowedTags: [
+        'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+        'p', 'br', 'hr',
+        'strong', 'b', 'em', 'i', 'u', 's', 'strike',
+        'ul', 'ol', 'li',
+        'a',
+        'blockquote', 'pre', 'code',
+        'table', 'thead', 'tbody', 'tr', 'th', 'td',
+        'div', 'span', 'img'
+    ],
+    allowedAttributes: {
+        'a': ['href', 'target', 'rel'],
+        'img': ['src', 'alt', 'width', 'height', 'style'],
+        'div': ['class', 'id', 'style'],
+        'span': ['class', 'id', 'style'],
+        'p': ['class', 'id', 'style'],
+        'h1': ['class', 'id', 'style'],
+        'h2': ['class', 'id', 'style'],
+        'h3': ['class', 'id', 'style'],
+        'h4': ['class', 'id', 'style'],
+        'h5': ['class', 'id', 'style'],
+        'h6': ['class', 'id', 'style'],
+        'table': ['class', 'id', 'style'],
+        'td': ['colspan', 'rowspan', 'style'],
+        'th': ['colspan', 'rowspan', 'style'],
+        'tr': ['style'],
+        'ul': ['style'],
+        'ol': ['style'],
+        'li': ['style']
+    },
+    allowedSchemes: ['http', 'https', 'data'],
+    allowedSchemesByTag: {
+        a: ['http', 'https', 'mailto'],
+        img: ['http', 'https', 'data']
+    },
+    disallowedTagsMode: 'recursiveEscape',
+    allowProtocolRelative: false,
+    enforceHtmlBoundary: true
+};
+
+/**
+ * Sanitize HTML content for safe rendering in exports
+ * Prevents XSS attacks when rendering user content in PDF/HTML exports
+ */
+const sanitizeExportContent = (content) => {
+    if (!content) return '';
+    return sanitizeHtml(content, EXPORT_SANITIZE_CONFIG);
+};
+
 // Lazy load puppeteer - it's optional and may not be available in all environments
 let puppeteer = null;
 const getPuppeteer = () => {
@@ -197,7 +250,7 @@ const generateHtmlTemplate = (page, options = {}) => {
     </div>
 
     <div class="content">
-        ${page.content || page.contentText || ''}
+        ${sanitizeExportContent(page.content || page.contentText || '')}
     </div>
 
     ${includeAttachments && page.attachments?.length > 0 ? `
