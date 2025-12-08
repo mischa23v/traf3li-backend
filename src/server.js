@@ -142,7 +142,10 @@ const {
     biometricRoute,
     emailMarketingRoute,
     hrAnalyticsRoute,
-    documentAnalysisRoute
+    documentAnalysisRoute,
+
+    // Saudi Banking Integration
+    saudiBankingRoute
 } = require('./routes');
 
 const app = express();
@@ -397,6 +400,9 @@ app.use('/api/hr-analytics', hrAnalyticsRoute);
 
 // AI Document Analysis (Document Management 10/10)
 app.use('/api/document-analysis', documentAnalysisRoute);
+
+// Saudi Banking Integration (Lean, WPS, SADAD, Mudad)
+app.use('/api/saudi-banking', saudiBankingRoute);
 
 // ============================================
 // ALIAS ROUTES (for frontend compatibility)
