@@ -462,7 +462,7 @@ export default function ExpensesDashboard() {
                   </SelectTrigger>
                   <SelectContent dir="rtl">
                     <SelectItem value="all">جميع الفئات</SelectItem>
-                    {Array.from(new Set(expenses.map(exp => exp.category))).map(cat => (
+                    {Array.from(new Set(expenses.map(exp => exp.category))).filter(Boolean).map(cat => (
                       <SelectItem key={cat} value={cat}>{cat}</SelectItem>
                     ))}
                   </SelectContent>
@@ -477,7 +477,7 @@ export default function ExpensesDashboard() {
                   </SelectTrigger>
                   <SelectContent dir="rtl">
                     <SelectItem value="all">جميع القضايا</SelectItem>
-                    {Array.from(new Set(expenses.filter(e => e.caseNumber).map(exp => exp.caseName))).map(name => (
+                    {Array.from(new Set(expenses.filter(e => e.caseNumber).map(exp => exp.caseName))).filter(Boolean).map(name => (
                       <SelectItem key={name} value={name}>{name}</SelectItem>
                     ))}
                   </SelectContent>

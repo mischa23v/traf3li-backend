@@ -466,7 +466,7 @@ export default function InvoicesDashboard() {
                   </SelectTrigger>
                   <SelectContent dir="rtl">
                     <SelectItem value="all">جميع العملاء</SelectItem>
-                    {Array.from(new Set(invoices.map(inv => inv.clientName))).map(name => (
+                    {Array.from(new Set(invoices.map(inv => inv.clientName))).filter(Boolean).map(name => (
                       <SelectItem key={name} value={name}>{name}</SelectItem>
                     ))}
                   </SelectContent>
