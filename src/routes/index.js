@@ -134,6 +134,9 @@ const emailMarketingRoute = require('./emailMarketing.route');
 const hrAnalyticsRoute = require('./hrAnalytics.route');
 const documentAnalysisRoute = require('./documentAnalysis.route');
 
+// Saudi Banking Integration Routes
+const saudiBankingRoute = require('./saudiBanking.route');
+
 module.exports = {
     // Marketplace
     gigRoute,
@@ -269,5 +272,8 @@ module.exports = {
     biometricRoute,
     emailMarketingRoute,
     hrAnalyticsRoute,
-    documentAnalysisRoute
+    documentAnalysisRoute,
+
+    // Saudi Banking Integration
+    saudiBankingRoute
 };
