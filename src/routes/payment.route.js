@@ -1,5 +1,6 @@
 const express = require('express');
 const { userMiddleware, firmFilter } = require('../middlewares');
+const { paymentRateLimiter } = require('../middlewares/rateLimiter.middleware');
 const {
     createPayment,
     getPayments,
@@ -24,6 +25,9 @@ const {
 } = require('../controllers/payment.controller');
 
 const app = express.Router();
+
+// Apply payment-specific rate limiting to financial operations
+app.use(paymentRateLimiter);
 
 // ═══════════════════════════════════════════════════════════════
 // STATIC ROUTES (must be before parameterized routes)
