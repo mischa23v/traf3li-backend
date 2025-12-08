@@ -13,6 +13,12 @@ const {
 } = require('../controllers/hr.controller');
 const { verifyToken } = require('../middlewares/jwt');
 const { attachFirmContext } = require('../middlewares/firmContext.middleware');
+const {
+    validateCreateEmployee,
+    validateUpdateEmployee,
+    validateAddAllowance,
+    validateIdParam
+} = require('../validators/hr.validator');
 
 // All routes require authentication
 router.use(verifyToken);
@@ -25,14 +31,14 @@ router.get('/options', getFormOptions);
 router.get('/employees/stats', getEmployeeStats);
 
 // Employee CRUD
-router.post('/employees', createEmployee);
+router.post('/employees', validateCreateEmployee, createEmployee);
 router.get('/employees', getEmployees);
-router.get('/employees/:id', getEmployee);
-router.put('/employees/:id', updateEmployee);
-router.delete('/employees/:id', deleteEmployee);
+router.get('/employees/:id', validateIdParam, getEmployee);
+router.put('/employees/:id', validateIdParam, validateUpdateEmployee, updateEmployee);
+router.delete('/employees/:id', validateIdParam, deleteEmployee);
 
 // Allowances
-router.post('/employees/:id/allowances', addAllowance);
-router.delete('/employees/:id/allowances/:allowanceId', removeAllowance);
+router.post('/employees/:id/allowances', validateIdParam, validateAddAllowance, addAllowance);
+router.delete('/employees/:id/allowances/:allowanceId', validateIdParam, removeAllowance);
 
 module.exports = router;

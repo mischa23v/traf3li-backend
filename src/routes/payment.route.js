@@ -2,6 +2,17 @@ const express = require('express');
 const { userMiddleware, firmFilter } = require('../middlewares');
 const { paymentRateLimiter } = require('../middlewares/rateLimiter.middleware');
 const {
+    validateCreatePayment,
+    validateUpdatePayment,
+    validateApplyToInvoices,
+    validateRefund,
+    validateCheckStatus,
+    validateReconcile,
+    validateSendReceipt,
+    validateBulkDelete,
+    validateRecordInvoicePayment
+} = require('../validators/payment.validator');
+const {
     createPayment,
     getPayments,
     getPayment,
@@ -47,14 +58,14 @@ app.get('/unreconciled', userMiddleware, firmFilter, getUnreconciledPayments);
 app.get('/pending-checks', userMiddleware, firmFilter, getPendingChecks);
 
 // Bulk operations
-app.delete('/bulk', userMiddleware, firmFilter, bulkDeletePayments);
+app.delete('/bulk', userMiddleware, firmFilter, validateBulkDelete, bulkDeletePayments);
 
 // ═══════════════════════════════════════════════════════════════
 // CRUD ROUTES
 // ═══════════════════════════════════════════════════════════════
 
 // Create payment
-app.post('/', userMiddleware, firmFilter, createPayment);
+app.post('/', userMiddleware, firmFilter, validateCreatePayment, createPayment);
 
 // List payments with filters
 app.get('/', userMiddleware, firmFilter, getPayments);
@@ -63,7 +74,7 @@ app.get('/', userMiddleware, firmFilter, getPayments);
 app.get('/:id', userMiddleware, firmFilter, getPayment);
 
 // Update payment
-app.put('/:id', userMiddleware, firmFilter, updatePayment);
+app.put('/:id', userMiddleware, firmFilter, validateUpdatePayment, updatePayment);
 
 // Delete payment
 app.delete('/:id', userMiddleware, firmFilter, deletePayment);
@@ -79,21 +90,21 @@ app.post('/:id/complete', userMiddleware, firmFilter, completePayment);
 app.post('/:id/fail', userMiddleware, firmFilter, failPayment);
 
 // Create refund for a payment
-app.post('/:id/refund', userMiddleware, firmFilter, createRefund);
+app.post('/:id/refund', userMiddleware, firmFilter, validateRefund, createRefund);
 
 // ═══════════════════════════════════════════════════════════════
 // RECONCILIATION
 // ═══════════════════════════════════════════════════════════════
 
 // Reconcile payment with bank statement
-app.post('/:id/reconcile', userMiddleware, firmFilter, reconcilePayment);
+app.post('/:id/reconcile', userMiddleware, firmFilter, validateReconcile, reconcilePayment);
 
 // ═══════════════════════════════════════════════════════════════
 // INVOICE APPLICATION
 // ═══════════════════════════════════════════════════════════════
 
 // Apply payment to invoices
-app.put('/:id/apply', userMiddleware, firmFilter, applyPaymentToInvoices);
+app.put('/:id/apply', userMiddleware, firmFilter, validateApplyToInvoices, applyPaymentToInvoices);
 
 // Unapply payment from a specific invoice
 app.delete('/:id/unapply/:invoiceId', userMiddleware, firmFilter, unapplyPaymentFromInvoice);
@@ -103,16 +114,16 @@ app.delete('/:id/unapply/:invoiceId', userMiddleware, firmFilter, unapplyPayment
 // ═══════════════════════════════════════════════════════════════
 
 // Update check status (deposited, cleared, bounced)
-app.put('/:id/check-status', userMiddleware, firmFilter, updateCheckStatus);
+app.put('/:id/check-status', userMiddleware, firmFilter, validateCheckStatus, updateCheckStatus);
 
 // ═══════════════════════════════════════════════════════════════
 // RECEIPTS/COMMUNICATION
 // ═══════════════════════════════════════════════════════════════
 
 // Send/resend receipt email
-app.post('/:id/send-receipt', userMiddleware, firmFilter, sendReceipt);
+app.post('/:id/send-receipt', userMiddleware, firmFilter, validateSendReceipt, sendReceipt);
 
 // Legacy alias
-app.post('/:id/receipt', userMiddleware, firmFilter, sendReceipt);
+app.post('/:id/receipt', userMiddleware, firmFilter, validateSendReceipt, sendReceipt);
 
 module.exports = app;

@@ -21,7 +21,11 @@ let mongoServer;
 beforeAll(async () => {
     // Use MongoDB Memory Server for isolated tests
     const { MongoMemoryServer } = require('mongodb-memory-server');
-    mongoServer = await MongoMemoryServer.create();
+    mongoServer = await MongoMemoryServer.create({
+        binary: {
+            version: '7.0.14' // Use a stable version that's available
+        }
+    });
     const mongoUri = mongoServer.getUri();
 
     // Disconnect from any existing connection

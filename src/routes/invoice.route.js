@@ -11,15 +11,20 @@ const express = require('express');
 const { userMiddleware, firmFilter } = require('../middlewares');
 const { authorize } = require('../middlewares/authorize.middleware');
 const {
-    validateInvoice,
-    validateUpdateInvoice,
-    validatePayment,
     validateVoid,
     validateApproval,
     validateRejection,
     validateReminder,
     validateRetainerApplication
 } = require('../middlewares/invoiceValidator.middleware');
+const {
+    validateCreateInvoice,
+    validateUpdateInvoice,
+    validateRecordPayment,
+    validateSendInvoice,
+    validateAddLineItem
+} = require('../validators/invoice.validator');
+const { validateRecordInvoicePayment } = require('../validators/payment.validator');
 const {
     // CRUD
     createInvoice,
@@ -112,7 +117,7 @@ router.patch('/confirm-payment',
 router.post('/',
     userMiddleware,
     firmFilter,
-    validateInvoice,
+    validateCreateInvoice,
     createInvoice
 );
 
@@ -179,12 +184,14 @@ router.delete('/:_id',
 router.post('/:id/send',
     userMiddleware,
     firmFilter,
+    validateSendInvoice,
     sendInvoice
 );
 
 router.post('/:_id/send',
     userMiddleware,
     firmFilter,
+    validateSendInvoice,
     sendInvoice
 );
 
@@ -192,7 +199,7 @@ router.post('/:_id/send',
 router.post('/:id/record-payment',
     userMiddleware,
     firmFilter,
-    validatePayment,
+    validateRecordPayment,
     recordPayment
 );
 
@@ -200,12 +207,14 @@ router.post('/:id/record-payment',
 router.post('/:id/payments',
     userMiddleware,
     firmFilter,
+    validateRecordInvoicePayment,
     recordInvoicePayment
 );
 
 router.post('/:_id/payments',
     userMiddleware,
     firmFilter,
+    validateRecordInvoicePayment,
     recordInvoicePayment
 );
 

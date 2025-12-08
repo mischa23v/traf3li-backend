@@ -3,6 +3,16 @@ const router = express.Router();
 const attendanceController = require('../controllers/attendance.controller');
 const { verifyToken } = require('../middlewares/jwt');
 const { attachFirmContext } = require('../middlewares/firmContext.middleware');
+const {
+    validateCheckIn,
+    validateCheckOut,
+    validateCreateAttendance,
+    validateUpdateAttendance,
+    validateSubmitCorrection,
+    validateReviewCorrection,
+    validateIdParam,
+    validateEmployeeIdParam
+} = require('../validators/hr.validator');
 
 /**
  * Attendance Routes
@@ -40,10 +50,10 @@ router.get('/stats/department', attendanceController.getDepartmentStats);
 // ═══════════════════════════════════════════════════════════════
 
 // POST /api/attendance/check-in - Employee check-in
-router.post('/check-in', attendanceController.checkIn);
+router.post('/check-in', validateCheckIn, attendanceController.checkIn);
 
 // POST /api/attendance/check-out - Employee check-out
-router.post('/check-out', attendanceController.checkOut);
+router.post('/check-out', validateCheckOut, attendanceController.checkOut);
 
 // ═══════════════════════════════════════════════════════════════
 // BULK OPERATIONS ROUTES (must be before /:id)
@@ -76,16 +86,16 @@ router.get('/employee/:employeeId/date/:date', attendanceController.getAttendanc
 router.get('/', attendanceController.getAttendanceRecords);
 
 // POST /api/attendance - Create manual attendance record
-router.post('/', attendanceController.createAttendanceRecord);
+router.post('/', validateCreateAttendance, attendanceController.createAttendanceRecord);
 
 // GET /api/attendance/:id - Get single attendance record
-router.get('/:id', attendanceController.getAttendanceById);
+router.get('/:id', validateIdParam, attendanceController.getAttendanceById);
 
 // PUT /api/attendance/:id - Update attendance record
-router.put('/:id', attendanceController.updateAttendanceRecord);
+router.put('/:id', validateIdParam, validateUpdateAttendance, attendanceController.updateAttendanceRecord);
 
 // DELETE /api/attendance/:id - Delete attendance record
-router.delete('/:id', attendanceController.deleteAttendanceRecord);
+router.delete('/:id', validateIdParam, attendanceController.deleteAttendanceRecord);
 
 // ═══════════════════════════════════════════════════════════════
 // BREAK MANAGEMENT ROUTES
@@ -105,10 +115,10 @@ router.get('/:id/breaks', attendanceController.getBreaks);
 // ═══════════════════════════════════════════════════════════════
 
 // POST /api/attendance/:id/corrections - Submit correction request
-router.post('/:id/corrections', attendanceController.submitCorrection);
+router.post('/:id/corrections', validateIdParam, validateSubmitCorrection, attendanceController.submitCorrection);
 
 // PUT /api/attendance/:id/corrections/:correctionId - Review correction request
-router.put('/:id/corrections/:correctionId', attendanceController.reviewCorrection);
+router.put('/:id/corrections/:correctionId', validateIdParam, validateReviewCorrection, attendanceController.reviewCorrection);
 
 // ═══════════════════════════════════════════════════════════════
 // APPROVAL ROUTES
