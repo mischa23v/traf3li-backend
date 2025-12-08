@@ -100,6 +100,40 @@ const generateReport = asyncHandler(async (req, res) => {
 });
 
 /**
+ * Get report stats
+ * GET /api/reports/stats
+ */
+const getReportStats = asyncHandler(async (req, res) => {
+    const userId = req.userID;
+
+    // Get report counts by type
+    const reports = await Report.find({ createdBy: userId });
+
+    const byType = reports.reduce((acc, report) => {
+        acc[report.reportType] = (acc[report.reportType] || 0) + 1;
+        return acc;
+    }, {});
+
+    const scheduled = reports.filter(r => r.isScheduled).length;
+
+    res.status(200).json({
+        success: true,
+        data: {
+            totalReports: reports.length,
+            scheduledReports: scheduled,
+            byType,
+            recentReports: reports.slice(0, 5).map(r => ({
+                _id: r._id,
+                reportName: r.reportName,
+                reportType: r.reportType,
+                lastRun: r.lastRun,
+                createdAt: r.createdAt
+            }))
+        }
+    });
+});
+
+/**
  * Get reports
  * GET /api/reports
  */
@@ -1033,6 +1067,7 @@ module.exports = {
     generateReport,
     getReports,
     getReport,
+    getReportStats,
     deleteReport,
     getReportTemplates,
     scheduleReport,

@@ -4,6 +4,7 @@ const {
     generateReport,
     getReports,
     getReport,
+    getReportStats,
     deleteReport,
     getReportTemplates,
     scheduleReport,
@@ -45,6 +46,7 @@ app.post('/export', userMiddleware, exportReport);
 app.post('/generate', userMiddleware, generateReport);
 app.get('/', userMiddleware, getReports);
 app.get('/templates', userMiddleware, getReportTemplates);
+app.get('/stats', userMiddleware, getReportStats);
 app.get('/:id', userMiddleware, getReport);
 app.delete('/:id', userMiddleware, deleteReport);
 

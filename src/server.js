@@ -368,6 +368,40 @@ app.use('/api/hr/loans', employeeLoanRoute);
 // Compensation alias (frontend expects /api/compensation instead of /api/hr/compensation)
 app.use('/api/compensation', compensationRewardRoute);
 
+// HR Documents alias (frontend expects /api/hr/documents)
+app.use('/api/hr/documents', documentRoute);
+
+// HR Violations alias (frontend expects /api/hr/violations)
+// Map to attendance violations for now
+app.use('/api/hr/violations', attendanceRoute);
+
+// HR Announcements placeholder (feature not yet implemented)
+app.get('/api/hr/announcements', (req, res) => {
+    res.json({
+        success: true,
+        data: [],
+        pagination: {
+            page: 1,
+            limit: 20,
+            total: 0,
+            pages: 0
+        },
+        message: 'Announcements feature coming soon'
+    });
+});
+
+app.get('/api/hr/announcements/stats', (req, res) => {
+    res.json({
+        success: true,
+        data: {
+            total: 0,
+            published: 0,
+            draft: 0,
+            scheduled: 0
+        }
+    });
+});
+
 // Apps endpoint (placeholder for app integrations)
 app.get('/api/apps', (req, res) => {
     // Return empty apps list for now - can be expanded later
