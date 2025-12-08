@@ -360,8 +360,8 @@ module.exports = {
   // New enhanced middleware (recommended)
   auditAction,
 
-  // Legacy exports (backward compatibility)
-  auditLog,
+  // Legacy exports (backward compatibility) - auditAction is the new name
+  auditLog: auditAction,
   logAuthEvent,
   checkSuspiciousActivity,
 };

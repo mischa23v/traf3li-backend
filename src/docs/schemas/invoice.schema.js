@@ -73,7 +73,7 @@
  *           default: SAR
  *         notes:
  *           type: string
- *           example: Payment terms: Net 30 days
+ *           example: "Payment terms - Net 30 days"
  *         paymentInstructions:
  *           type: string
  *           example: Bank transfer to account IBAN...
