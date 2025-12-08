@@ -198,6 +198,11 @@ const taskSchema = new mongoose.Schema({
         ref: 'User',
         index: true
     },
+    linkedEventId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Event',
+        index: true
+    },
     parentTaskId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Task'

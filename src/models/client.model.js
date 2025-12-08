@@ -317,6 +317,19 @@ const clientSchema = new mongoose.Schema({
     convertedAt: Date,
     referralId: { type: mongoose.Schema.Types.ObjectId, ref: 'Referral' },
     referralName: String,
+
+    // Organization & Contact Relationships
+    organizationId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Organization',
+        index: true
+    },
+    contactId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Contact',
+        index: true
+    },
+
     lifetimeValue: { type: Number, default: 0 },
     clientRating: { type: Number, min: 1, max: 5 },
     clientTier: {
@@ -386,6 +399,8 @@ clientSchema.index({ lawyerId: 1, status: 1 });
 clientSchema.index({ lawyerId: 1, clientTier: 1 });
 clientSchema.index({ lawyerId: 1, clientSource: 1 });
 clientSchema.index({ lawyerId: 1, nextFollowUpDate: 1 });
+clientSchema.index({ lawyerId: 1, organizationId: 1 });
+clientSchema.index({ lawyerId: 1, contactId: 1 });
 clientSchema.index({ 'assignments.responsibleLawyerId': 1 });
 clientSchema.index({ status: 1 });
 clientSchema.index({ tags: 1 });
@@ -422,6 +437,79 @@ clientSchema.virtual('displayNameEn').get(function() {
 // Enable virtuals in JSON
 clientSchema.set('toJSON', { virtuals: true });
 clientSchema.set('toObject', { virtuals: true });
+
+// ─────────────────────────────────────────────────────────
+// MIDDLEWARE HOOKS
+// ─────────────────────────────────────────────────────────
+
+/**
+ * Cascade delete documents when client is deleted (single delete)
+ */
+clientSchema.post('findOneAndDelete', async function(doc) {
+    if (doc) {
+        try {
+            const Document = mongoose.model('Document');
+            const { deleteObject, BUCKETS } = require('../configs/s3');
+
+            // Find all documents associated with this client
+            const documents = await Document.find({ clientId: doc._id });
+
+            // Delete files from S3
+            for (const document of documents) {
+                try {
+                    await deleteObject(BUCKETS.general, document.fileKey);
+                } catch (err) {
+                    console.error(`S3 delete error for document ${document._id}:`, err);
+                }
+            }
+
+            // Delete document records from database
+            await Document.deleteMany({ clientId: doc._id });
+
+            console.log(`Deleted ${documents.length} documents for client ${doc._id}`);
+        } catch (error) {
+            console.error('Error cleaning up documents for deleted client:', error);
+        }
+    }
+});
+
+/**
+ * Cascade delete documents when clients are bulk deleted
+ */
+clientSchema.pre('deleteMany', async function() {
+    try {
+        const Document = mongoose.model('Document');
+        const { deleteObject, BUCKETS } = require('../configs/s3');
+
+        // Get the filter conditions used in deleteMany
+        const filter = this.getFilter();
+
+        // Find clients that will be deleted
+        const clients = await this.model.find(filter);
+        const clientIds = clients.map(client => client._id);
+
+        if (clientIds.length > 0) {
+            // Find all documents associated with these clients
+            const documents = await Document.find({ clientId: { $in: clientIds } });
+
+            // Delete files from S3
+            for (const document of documents) {
+                try {
+                    await deleteObject(BUCKETS.general, document.fileKey);
+                } catch (err) {
+                    console.error(`S3 delete error for document ${document._id}:`, err);
+                }
+            }
+
+            // Delete document records from database
+            await Document.deleteMany({ clientId: { $in: clientIds } });
+
+            console.log(`Deleted ${documents.length} documents for ${clientIds.length} clients`);
+        }
+    } catch (error) {
+        console.error('Error cleaning up documents for bulk deleted clients:', error);
+    }
+});
 
 // ─────────────────────────────────────────────────────────
 // STATIC METHODS
@@ -527,6 +615,103 @@ clientSchema.statics.runConflictCheck = async function(lawyerId, clientData) {
     }
 
     return conflicts;
+};
+
+// ─────────────────────────────────────────────────────────
+// INSTANCE METHODS
+// ─────────────────────────────────────────────────────────
+
+/**
+ * Update client balance based on invoices and payments
+ * Calculates: Total Invoiced - Total Payments Received = Balance Due
+ */
+clientSchema.methods.updateBalance = async function() {
+    const Invoice = mongoose.model('Invoice');
+    const Payment = mongoose.model('Payment');
+
+    // Calculate total invoiced amount (excluding void, cancelled, and draft invoices)
+    const invoiceResult = await Invoice.aggregate([
+        {
+            $match: {
+                clientId: this._id,
+                status: { $nin: ['void', 'cancelled', 'draft'] }
+            }
+        },
+        {
+            $group: {
+                _id: null,
+                totalInvoiced: { $sum: '$totalAmount' },
+                totalPaid: { $sum: '$amountPaid' }
+            }
+        }
+    ]);
+
+    // Calculate total payments received (completed payments only)
+    const paymentResult = await Payment.aggregate([
+        {
+            $match: {
+                $or: [
+                    { clientId: this._id },
+                    { customerId: this._id }
+                ],
+                status: { $in: ['completed', 'reconciled'] },
+                paymentType: 'customer_payment',
+                isRefund: { $ne: true }
+            }
+        },
+        {
+            $group: {
+                _id: null,
+                totalPayments: { $sum: '$amount' }
+            }
+        }
+    ]);
+
+    // Calculate refunds (reduce from payments)
+    const refundResult = await Payment.aggregate([
+        {
+            $match: {
+                $or: [
+                    { clientId: this._id },
+                    { customerId: this._id }
+                ],
+                status: { $in: ['completed', 'reconciled'] },
+                isRefund: true
+            }
+        },
+        {
+            $group: {
+                _id: null,
+                totalRefunds: { $sum: '$amount' }
+            }
+        }
+    ]);
+
+    const totalInvoiced = invoiceResult[0]?.totalInvoiced || 0;
+    const totalPayments = paymentResult[0]?.totalPayments || 0;
+    const totalRefunds = refundResult[0]?.totalRefunds || 0;
+
+    // Calculate balance: Total Invoiced - (Total Payments - Total Refunds)
+    const balance = totalInvoiced - (totalPayments - totalRefunds);
+
+    // Update client's billing balance
+    if (!this.billing) {
+        this.billing = {};
+    }
+    this.billing.creditBalance = balance;
+
+    // Update statistics
+    this.totalPaid = totalPayments - totalRefunds;
+    this.totalOutstanding = balance;
+
+    await this.save();
+
+    return {
+        totalInvoiced,
+        totalPayments,
+        totalRefunds,
+        balance
+    };
 };
 
 module.exports = mongoose.model('Client', clientSchema);

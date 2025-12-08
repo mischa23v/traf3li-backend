@@ -147,6 +147,8 @@ const crmActivitySchema = new mongoose.Schema({
             'lead_created',   // إنشاء عميل محتمل
             'lead_converted', // تحويل العميل المحتمل
             'case_created',   // إنشاء قضية
+            'case_updated',   // تحديث قضية
+            'case_deleted',   // حذف قضية
 
             // Other
             'other'

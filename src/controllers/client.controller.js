@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const { Client, Case, Invoice, Payment } = require('../models');
+const CrmActivity = require('../models/crmActivity.model');
 const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
 const wathqService = require('../services/wathqService');
@@ -40,6 +41,22 @@ const createClient = asyncHandler(async (req, res) => {
     };
 
     const client = await Client.create(clientData);
+
+    // Log activity
+    await CrmActivity.logActivity({
+        lawyerId,
+        type: 'note',
+        entityType: 'client',
+        entityId: client._id,
+        entityName: client.fullNameArabic || client.companyName,
+        title: `New client created: ${client.fullNameArabic || client.companyName}`,
+        description: `Client ${client.clientNumber} was created`,
+        performedBy: lawyerId,
+        metadata: {
+            clientType: client.clientType,
+            clientNumber: client.clientNumber
+        }
+    });
 
     res.status(201).json({
         success: true,
@@ -96,6 +113,8 @@ const getClients = asyncHandler(async (req, res) => {
 
     const clients = await Client.find(query)
         .populate('assignments.responsibleLawyerId', 'firstName lastName')
+        .populate('organizationId', 'legalName tradeName type')
+        .populate('contactId', 'firstName lastName email phone')
         .sort({ [sortBy]: sortOrder === 'desc' ? -1 : 1 })
         .skip((parseInt(page) - 1) * parseInt(limit))
         .limit(parseInt(limit))
@@ -133,6 +152,8 @@ const getClient = asyncHandler(async (req, res) => {
         .populate('assignments.responsibleLawyerId', 'firstName lastName email')
         .populate('assignments.assistantLawyerId', 'firstName lastName')
         .populate('assignments.paralegalId', 'firstName lastName')
+        .populate('organizationId', 'legalName tradeName type email phone address')
+        .populate('contactId', 'firstName lastName email phone title company organizationId')
         .populate('createdBy', 'firstName lastName')
         .lean();
 
@@ -421,11 +442,40 @@ const updateClient = asyncHandler(async (req, res) => {
         }
     }
 
+    // Track changed fields for activity logging
+    const changedFields = {};
+    Object.keys(req.body).forEach(key => {
+        if (client[key] !== req.body[key] && key !== 'updatedBy') {
+            changedFields[key] = {
+                old: client[key],
+                new: req.body[key]
+            };
+        }
+    });
+
     const updatedClient = await Client.findByIdAndUpdate(
         id,
         { ...req.body, updatedBy: lawyerId },
         { new: true, runValidators: true }
     );
+
+    // Log activity
+    if (Object.keys(changedFields).length > 0) {
+        await CrmActivity.logActivity({
+            lawyerId,
+            type: 'note',
+            entityType: 'client',
+            entityId: updatedClient._id,
+            entityName: updatedClient.fullNameArabic || updatedClient.companyName,
+            title: `Client updated: ${updatedClient.fullNameArabic || updatedClient.companyName}`,
+            description: `Updated fields: ${Object.keys(changedFields).join(', ')}`,
+            performedBy: lawyerId,
+            metadata: {
+                changedFields,
+                clientNumber: updatedClient.clientNumber
+            }
+        });
+    }
 
     res.status(200).json({
         success: true,
@@ -477,6 +527,22 @@ const deleteClient = asyncHandler(async (req, res) => {
     if (unpaidInvoices > 0) {
         throw CustomException('لا يمكن حذف عميل لديه فواتير غير مدفوعة', 400);
     }
+
+    // Log activity before deletion
+    await CrmActivity.logActivity({
+        lawyerId,
+        type: 'note',
+        entityType: 'client',
+        entityId: client._id,
+        entityName: client.fullNameArabic || client.companyName,
+        title: `Client deleted: ${client.fullNameArabic || client.companyName}`,
+        description: `Client ${client.clientNumber} was deleted`,
+        performedBy: lawyerId,
+        metadata: {
+            clientType: client.clientType,
+            clientNumber: client.clientNumber
+        }
+    });
 
     await Client.findByIdAndDelete(id);
 
@@ -754,9 +820,28 @@ const updateStatus = asyncHandler(async (req, res) => {
         throw CustomException('لا يمكنك الوصول إلى هذا العميل', 403);
     }
 
+    const oldStatus = client.status;
+
     client.status = status;
     client.updatedBy = lawyerId;
     await client.save();
+
+    // Log status change activity
+    await CrmActivity.logActivity({
+        lawyerId,
+        type: 'status_change',
+        entityType: 'client',
+        entityId: client._id,
+        entityName: client.fullNameArabic || client.companyName,
+        title: `Status changed from ${oldStatus} to ${status}`,
+        description: `Client status updated for ${client.clientNumber}`,
+        performedBy: lawyerId,
+        metadata: {
+            oldStatus,
+            newStatus: status,
+            clientNumber: client.clientNumber
+        }
+    });
 
     res.json({
         success: true,

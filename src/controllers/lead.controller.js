@@ -28,13 +28,40 @@ exports.createLead = async (req, res) => {
         };
 
         // Get default pipeline if not specified
+        let pipeline = null;
         if (!leadData.pipelineId) {
-            const defaultPipeline = await Pipeline.getDefault(lawyerId, 'lead');
-            leadData.pipelineId = defaultPipeline._id;
-            leadData.pipelineStageId = defaultPipeline.stages[0]?.stageId;
+            pipeline = await Pipeline.getDefault(lawyerId, 'lead');
+            leadData.pipelineId = pipeline._id;
+            leadData.pipelineStageId = pipeline.stages[0]?.stageId;
+        } else {
+            // Fetch the specified pipeline
+            pipeline = await Pipeline.findById(leadData.pipelineId);
         }
 
         const lead = await Lead.create(leadData);
+
+        // ═══════════════════════════════════════════════════════════════
+        // EXECUTE STAGE AUTOMATION - "onEnter" for initial stage
+        // ═══════════════════════════════════════════════════════════════
+        const PipelineAutomationService = require('../services/pipelineAutomation.service');
+        let automationResults = null;
+
+        if (pipeline && lead.pipelineStageId) {
+            const initialStage = pipeline.getStage(lead.pipelineStageId);
+            if (initialStage) {
+                try {
+                    const automationResult = await PipelineAutomationService.executeOnEnter(
+                        lead,
+                        initialStage,
+                        lawyerId
+                    );
+                    automationResults = automationResult;
+                } catch (automationError) {
+                    console.error('Initial stage automation error:', automationError);
+                    // Don't fail lead creation if automation fails
+                }
+            }
+        }
 
         // Log activity
         await CrmActivity.logActivity({
@@ -50,7 +77,10 @@ exports.createLead = async (req, res) => {
         res.status(201).json({
             success: true,
             message: 'Lead created successfully',
-            data: lead
+            data: {
+                lead,
+                automation: automationResults
+            }
         });
     } catch (error) {
         console.error('Error creating lead:', error);
@@ -150,6 +180,8 @@ exports.getLead = async (req, res) => {
         .populate('assignedTo', 'firstName lastName avatar email')
         .populate('teamMembers', 'firstName lastName avatar')
         .populate('source.referralId', 'name')
+        .populate('organizationId', 'legalName tradeName type email phone')
+        .populate('contactId', 'firstName lastName email phone title company')
         .populate('clientId', 'name clientId')
         .populate('caseId', 'title caseNumber');
 
@@ -389,28 +421,62 @@ exports.moveToStage = async (req, res) => {
             });
         }
 
-        const stage = pipeline.getStage(stageId);
-        if (!stage) {
+        const newStage = pipeline.getStage(stageId);
+        if (!newStage) {
             return res.status(404).json({
                 success: false,
                 message: 'Stage not found'
             });
         }
 
+        // Get old stage for exit automation
         const oldStageId = lead.pipelineStageId;
-        lead.pipelineStageId = stageId;
-        lead.probability = stage.probability;
+        const oldStage = oldStageId ? pipeline.getStage(oldStageId) : null;
 
-        if (stage.isWonStage) {
+        // ═══════════════════════════════════════════════════════════════
+        // EXECUTE STAGE AUTOMATION
+        // ═══════════════════════════════════════════════════════════════
+        const PipelineAutomationService = require('../services/pipelineAutomation.service');
+
+        // Execute "onExit" automation for old stage
+        if (oldStage) {
+            try {
+                await PipelineAutomationService.executeOnExit(lead, oldStage, lawyerId);
+            } catch (automationError) {
+                console.error('Stage exit automation error:', automationError);
+                // Don't fail the stage move if automation fails
+            }
+        }
+
+        // Update lead stage
+        lead.pipelineStageId = stageId;
+        lead.probability = newStage.probability;
+
+        if (newStage.isWonStage) {
             lead.status = 'won';
             lead.actualCloseDate = new Date();
-        } else if (stage.isLostStage) {
+        } else if (newStage.isLostStage) {
             lead.status = 'lost';
             lead.actualCloseDate = new Date();
         }
 
         lead.lastModifiedBy = lawyerId;
         await lead.save();
+
+        // Execute "onEnter" automation for new stage
+        let automationResults = null;
+        try {
+            const automationResult = await PipelineAutomationService.executeOnEnter(
+                lead,
+                newStage,
+                lawyerId,
+                oldStage
+            );
+            automationResults = automationResult;
+        } catch (automationError) {
+            console.error('Stage enter automation error:', automationError);
+            // Don't fail the stage move if automation fails
+        }
 
         // Log activity
         await CrmActivity.logActivity({
@@ -419,7 +485,7 @@ exports.moveToStage = async (req, res) => {
             entityType: 'lead',
             entityId: lead._id,
             entityName: lead.displayName,
-            title: `Moved to stage: ${stage.name}`,
+            title: `Moved to stage: ${newStage.name}`,
             description: notes,
             performedBy: lawyerId
         });
@@ -427,7 +493,10 @@ exports.moveToStage = async (req, res) => {
         res.json({
             success: true,
             message: 'Lead moved to new stage',
-            data: lead
+            data: {
+                lead,
+                automation: automationResults
+            }
         });
     } catch (error) {
         console.error('Error moving lead to stage:', error);
@@ -668,6 +737,8 @@ exports.getByPipeline = async (req, res) => {
                 convertedToClient: false
             })
             .populate('assignedTo', 'firstName lastName avatar')
+            .populate('organizationId', 'legalName tradeName type')
+            .populate('contactId', 'firstName lastName email phone')
             .sort({ createdAt: -1 })
             .limit(50);
         }
@@ -692,10 +763,19 @@ exports.getByPipeline = async (req, res) => {
 // Get leads needing follow-up
 exports.getNeedingFollowUp = async (req, res) => {
     try {
+        // Block departed users from lead operations
+        if (req.isDeparted) {
+            return res.status(403).json({
+                success: false,
+                message: 'ليس لديك صلاحية للوصول إلى العملاء المحتملين'
+            });
+        }
+
         const lawyerId = req.userID;
+        const firmId = req.firmId; // From firmFilter middleware
         const { limit = 20 } = req.query;
 
-        const leads = await Lead.getNeedingFollowUp(lawyerId, parseInt(limit));
+        const leads = await Lead.getNeedingFollowUp(lawyerId, parseInt(limit), firmId);
 
         res.json({
             success: true,

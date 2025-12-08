@@ -243,6 +243,13 @@ const salarySlipSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
         index: true
+    },
+
+    // General Ledger Integration
+    glEntryId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'GeneralLedger',
+        index: true
     }
 
 }, {
@@ -485,6 +492,164 @@ salarySlipSchema.statics.generateFromEmployee = function (employee, month, year,
         firmId,
         lawyerId
     };
+};
+
+// ═══════════════════════════════════════════════════════════════
+// INSTANCE METHODS
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Post payroll to General Ledger (called when payroll is paid)
+ * DR: Salary Expense Account (gross pay + employer GOSI)
+ * CR: Cash/Bank Account (net pay)
+ * CR: Tax Liability Account (employee GOSI + withholdings)
+ * CR: Employer Tax Liability Account (employer GOSI)
+ * @param {Session} session - MongoDB session for transactions
+ */
+salarySlipSchema.methods.postToGL = async function(session = null) {
+    const GeneralLedger = mongoose.model('GeneralLedger');
+    const Account = mongoose.model('Account');
+
+    // Check if already posted
+    if (this.glEntryId) {
+        throw new Error('Payroll already posted to GL');
+    }
+
+    // Only post paid payroll
+    if (this.payment.status !== 'paid') {
+        throw new Error('Only paid payroll can be posted to GL');
+    }
+
+    // Get accounts
+    // Salary Expense Account (5201 - Salaries & Wages)
+    const salaryExpenseAccount = await Account.findOne({ code: '5201' });
+    if (!salaryExpenseAccount) {
+        throw new Error('Salary expense account not found (code: 5201)');
+    }
+
+    // Employer Tax Expense Account (5202 - Employer Taxes)
+    const employerTaxAccount = await Account.findOne({ code: '5202' });
+    if (!employerTaxAccount) {
+        throw new Error('Employer tax expense account not found (code: 5202)');
+    }
+
+    // Bank/Cash Account (1102 - Bank Account)
+    const bankAccount = await Account.findOne({ code: '1102' });
+    if (!bankAccount) {
+        throw new Error('Bank account not found (code: 1102)');
+    }
+
+    // Tax Payable Account (2101 - Tax Payable)
+    const taxPayableAccount = await Account.findOne({ code: '2101' });
+    if (!taxPayableAccount) {
+        throw new Error('Tax payable account not found (code: 2101)');
+    }
+
+    // Convert amounts to halalas if needed
+    const { toHalalas } = require('../utils/currency');
+    const grossPay = Number.isInteger(this.earnings.totalEarnings) ?
+        this.earnings.totalEarnings : toHalalas(this.earnings.totalEarnings);
+    const netPay = Number.isInteger(this.netPay) ?
+        this.netPay : toHalalas(this.netPay);
+    const employeeGosi = Number.isInteger(this.deductions.gosi) ?
+        this.deductions.gosi : toHalalas(this.deductions.gosi);
+    const employerGosi = Number.isInteger(this.deductions.gosiEmployer) ?
+        this.deductions.gosiEmployer : toHalalas(this.deductions.gosiEmployer);
+
+    const totalDeductions = employeeGosi;
+    const totalExpense = grossPay + employerGosi;
+
+    const transactionDate = this.payPeriod.paymentDate || this.payment.paidOn || new Date();
+
+    // Create multiple GL entries for complete double-entry bookkeeping
+
+    // Entry 1: Record Salary Expense
+    // DR: Salary Expense (gross pay)
+    // CR: Bank/Cash (net pay)
+    const entry1 = await GeneralLedger.postTransaction({
+        firmId: this.firmId,
+        transactionDate,
+        description: `Payroll ${this.slipNumber} - ${this.employeeName} - Net Salary`,
+        descriptionAr: `رواتب ${this.slipNumber} - ${this.employeeNameAr || this.employeeName} - صافي الراتب`,
+        debitAccountId: salaryExpenseAccount._id,
+        creditAccountId: bankAccount._id,
+        amount: netPay,
+        referenceId: this._id,
+        referenceModel: 'Payroll',
+        referenceNumber: this.slipNumber,
+        lawyerId: this.lawyerId,
+        meta: {
+            employeeId: this.employeeId,
+            employeeName: this.employeeName,
+            employeeNumber: this.employeeNumber,
+            period: `${this.payPeriod.month}/${this.payPeriod.year}`,
+            basicSalary: this.earnings.basicSalary,
+            totalAllowances: this.earnings.totalAllowances,
+            grossPay: this.earnings.totalEarnings,
+            netPay: this.netPay
+        },
+        createdBy: this.payment.paidBy || this.lawyerId
+    }, session);
+
+    // Entry 2: Record Employee Tax Withholdings (GOSI)
+    // DR: Salary Expense (employee GOSI portion)
+    // CR: Tax Payable (employee GOSI)
+    if (employeeGosi > 0) {
+        await GeneralLedger.postTransaction({
+            firmId: this.firmId,
+            transactionDate,
+            description: `Payroll ${this.slipNumber} - ${this.employeeName} - Employee GOSI`,
+            descriptionAr: `رواتب ${this.slipNumber} - ${this.employeeNameAr || this.employeeName} - تأمينات الموظف`,
+            debitAccountId: salaryExpenseAccount._id,
+            creditAccountId: taxPayableAccount._id,
+            amount: employeeGosi,
+            referenceId: this._id,
+            referenceModel: 'Payroll',
+            referenceNumber: this.slipNumber,
+            lawyerId: this.lawyerId,
+            meta: {
+                employeeId: this.employeeId,
+                employeeName: this.employeeName,
+                period: `${this.payPeriod.month}/${this.payPeriod.year}`,
+                taxType: 'employee_gosi'
+            },
+            createdBy: this.payment.paidBy || this.lawyerId
+        }, session);
+    }
+
+    // Entry 3: Record Employer Tax Expense (Employer GOSI)
+    // DR: Employer Tax Expense
+    // CR: Tax Payable (employer GOSI)
+    if (employerGosi > 0) {
+        await GeneralLedger.postTransaction({
+            firmId: this.firmId,
+            transactionDate,
+            description: `Payroll ${this.slipNumber} - ${this.employeeName} - Employer GOSI`,
+            descriptionAr: `رواتب ${this.slipNumber} - ${this.employeeNameAr || this.employeeName} - تأمينات صاحب العمل`,
+            debitAccountId: employerTaxAccount._id,
+            creditAccountId: taxPayableAccount._id,
+            amount: employerGosi,
+            referenceId: this._id,
+            referenceModel: 'Payroll',
+            referenceNumber: this.slipNumber,
+            lawyerId: this.lawyerId,
+            meta: {
+                employeeId: this.employeeId,
+                employeeName: this.employeeName,
+                period: `${this.payPeriod.month}/${this.payPeriod.year}`,
+                taxType: 'employer_gosi'
+            },
+            createdBy: this.payment.paidBy || this.lawyerId
+        }, session);
+    }
+
+    // Store reference to the main GL entry (the first one)
+    this.glEntryId = entry1._id;
+
+    const options = session ? { session } : {};
+    await this.save(options);
+
+    return entry1;
 };
 
 module.exports = mongoose.model('SalarySlip', salarySlipSchema);

@@ -131,7 +131,7 @@ class WhatsAppController {
      */
     sendLocation = asyncHandler(async (req, res) => {
         const firmId = req.firmId;
-        const { phoneNumber, latitude, longitude, name, address } = req.body;
+        const { phoneNumber, latitude, longitude, name, address, leadId, clientId } = req.body;
 
         if (!phoneNumber || !latitude || !longitude) {
             return res.status(400).json({
@@ -146,7 +146,12 @@ class WhatsAppController {
             latitude,
             longitude,
             name,
-            address
+            address,
+            {
+                leadId,
+                clientId,
+                sentBy: req.userID
+            }
         );
 
         res.json({

@@ -1,4 +1,4 @@
-const { Task, User, Case, TaskDocumentVersion } = require('../models');
+const { Task, User, Case, TaskDocumentVersion, Event } = require('../models');
 const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
 const { deleteFile, listFileVersions, logFileAccess } = require('../configs/s3');
@@ -100,11 +100,53 @@ const createTask = asyncHandler(async (req, res) => {
     });
     await task.save();
 
+    // Create linked calendar event if task has a due date
+    if (dueDate) {
+        try {
+            const eventStartDateTime = new Date(dueDate);
+
+            // If dueTime is provided, set the time; otherwise make it all-day
+            let isAllDay = true;
+            if (dueTime) {
+                const [hours, minutes] = dueTime.split(':');
+                eventStartDateTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+                isAllDay = false;
+            }
+
+            const linkedEvent = await Event.create({
+                title: task.title,
+                type: 'task',
+                description: task.description,
+                startDateTime: eventStartDateTime,
+                endDateTime: isAllDay ? null : new Date(eventStartDateTime.getTime() + 60 * 60 * 1000), // 1 hour duration if not all-day
+                allDay: isAllDay,
+                taskId: task._id,
+                caseId: task.caseId,
+                clientId: task.clientId,
+                organizer: userId,
+                firmId,
+                createdBy: userId,
+                attendees: task.assignedTo ? [{ userId: task.assignedTo, status: 'confirmed', role: 'required' }] : [],
+                priority: task.priority,
+                color: '#10b981', // Green color for task events
+                tags: task.tags
+            });
+
+            // Link the event back to the task
+            task.linkedEventId = linkedEvent._id;
+            await task.save();
+        } catch (error) {
+            console.error('Error creating linked calendar event:', error);
+            // Don't fail task creation if event creation fails
+        }
+    }
+
     const populatedTask = await Task.findById(task._id)
         .populate('assignedTo', 'firstName lastName username email image')
         .populate('createdBy', 'firstName lastName username email image')
         .populate('caseId', 'title caseNumber')
-        .populate('clientId', 'firstName lastName');
+        .populate('clientId', 'firstName lastName')
+        .populate('linkedEventId', 'eventId title startDateTime');
 
     res.status(201).json({
         success: true,
@@ -225,7 +267,8 @@ const getTask = asyncHandler(async (req, res) => {
         .populate('clientId', 'firstName lastName email')
         .populate('completedBy', 'firstName lastName')
         .populate('comments.userId', 'firstName lastName image')
-        .populate('timeTracking.sessions.userId', 'firstName lastName');
+        .populate('timeTracking.sessions.userId', 'firstName lastName')
+        .populate('linkedEventId', 'eventId title startDateTime status');
 
     if (!task) {
         throw CustomException('Task not found', 404);
@@ -318,10 +361,109 @@ const updateTask = asyncHandler(async (req, res) => {
 
     await task.save();
 
+    // Sync with linked calendar event
+    try {
+        const hadDueDate = changes.dueDate?.from;
+        const hasDueDate = task.dueDate;
+
+        if (hasDueDate && !task.linkedEventId) {
+            // Task now has a due date but no linked event → create event
+            const eventStartDateTime = new Date(task.dueDate);
+            let isAllDay = true;
+            if (task.dueTime) {
+                const [hours, minutes] = task.dueTime.split(':');
+                eventStartDateTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+                isAllDay = false;
+            }
+
+            const linkedEvent = await Event.create({
+                title: task.title,
+                type: 'task',
+                description: task.description,
+                startDateTime: eventStartDateTime,
+                endDateTime: isAllDay ? null : new Date(eventStartDateTime.getTime() + 60 * 60 * 1000),
+                allDay: isAllDay,
+                taskId: task._id,
+                caseId: task.caseId,
+                clientId: task.clientId,
+                organizer: task.createdBy,
+                firmId,
+                createdBy: task.createdBy,
+                attendees: task.assignedTo ? [{ userId: task.assignedTo, status: 'confirmed', role: 'required' }] : [],
+                priority: task.priority,
+                color: '#10b981',
+                tags: task.tags,
+                status: task.status === 'done' ? 'completed' : 'scheduled'
+            });
+
+            task.linkedEventId = linkedEvent._id;
+            await task.save();
+
+        } else if (!hasDueDate && task.linkedEventId) {
+            // Task no longer has due date → delete linked event
+            await Event.findByIdAndDelete(task.linkedEventId);
+            task.linkedEventId = null;
+            await task.save();
+
+        } else if (hasDueDate && task.linkedEventId) {
+            // Task still has due date and linked event → update event
+            const linkedEvent = await Event.findById(task.linkedEventId);
+
+            if (linkedEvent) {
+                // Update event fields
+                linkedEvent.title = task.title;
+                linkedEvent.description = task.description;
+
+                // Update start date/time if due date or time changed
+                if (changes.dueDate || changes.dueTime) {
+                    const eventStartDateTime = new Date(task.dueDate);
+                    let isAllDay = true;
+                    if (task.dueTime) {
+                        const [hours, minutes] = task.dueTime.split(':');
+                        eventStartDateTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+                        isAllDay = false;
+                    }
+                    linkedEvent.startDateTime = eventStartDateTime;
+                    linkedEvent.endDateTime = isAllDay ? null : new Date(eventStartDateTime.getTime() + 60 * 60 * 1000);
+                    linkedEvent.allDay = isAllDay;
+                }
+
+                // Update other fields
+                linkedEvent.caseId = task.caseId;
+                linkedEvent.clientId = task.clientId;
+                linkedEvent.priority = task.priority;
+                linkedEvent.tags = task.tags;
+
+                // Update status based on task status
+                if (task.status === 'done') {
+                    linkedEvent.status = 'completed';
+                    linkedEvent.completedAt = task.completedAt;
+                    linkedEvent.completedBy = task.completedBy;
+                } else if (task.status === 'canceled') {
+                    linkedEvent.status = 'cancelled';
+                } else {
+                    linkedEvent.status = 'scheduled';
+                }
+
+                // Update attendees if assignedTo changed
+                if (changes.assignedTo) {
+                    linkedEvent.attendees = task.assignedTo ? [{ userId: task.assignedTo, status: 'confirmed', role: 'required' }] : [];
+                }
+
+                linkedEvent.lastModifiedBy = userId;
+                await linkedEvent.save();
+            }
+        }
+    } catch (error) {
+        console.error('Error syncing task with calendar event:', error);
+        // Don't fail task update if event sync fails
+    }
+
     const populatedTask = await Task.findById(task._id)
         .populate('assignedTo', 'firstName lastName username email image')
         .populate('createdBy', 'firstName lastName username email image')
-        .populate('caseId', 'title caseNumber');
+        .populate('caseId', 'title caseNumber')
+        .populate('linkedEventId', 'eventId title startDateTime');
 
     res.status(200).json({
         success: true,
@@ -349,6 +491,16 @@ const deleteTask = asyncHandler(async (req, res) => {
 
     if (!canDelete) {
         throw CustomException('Only the task creator can delete this task', 403);
+    }
+
+    // Delete linked calendar event if exists
+    if (task.linkedEventId) {
+        try {
+            await Event.findByIdAndDelete(task.linkedEventId);
+        } catch (error) {
+            console.error('Error deleting linked calendar event:', error);
+            // Continue with task deletion even if event deletion fails
+        }
     }
 
     await Task.findByIdAndDelete(id);
