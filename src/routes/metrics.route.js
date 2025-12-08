@@ -16,6 +16,7 @@ const {
     checkMemory,
     checkDiskSpace
 } = require('../services/health.service');
+const { getMetrics: getPerformanceMetrics, THRESHOLDS } = require('../middlewares/performance.middleware');
 const os = require('os');
 
 const router = express.Router();
@@ -319,6 +320,40 @@ router.get('/json', authenticate, async (req, res) => {
             error: true,
             message: 'Failed to generate metrics',
             details: error.message
+        });
+    }
+});
+
+/**
+ * GET /metrics/performance
+ * Returns detailed API performance metrics
+ * Tracks response times with target: < 300ms (per frontend requirements)
+ * Protected endpoint - requires authentication
+ */
+router.get('/performance', authenticate, (req, res) => {
+    try {
+        const performanceMetrics = getPerformanceMetrics();
+
+        res.json({
+            success: true,
+            data: {
+                ...performanceMetrics,
+                targets: {
+                    description: 'Frontend performance targets',
+                    backendApiTarget: `${THRESHOLDS.GOOD}ms`,
+                    firstContentfulPaint: '< 1.8s',
+                    timeToInteractive: '< 3.5s'
+                }
+            }
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            error: {
+                code: 'METRICS_ERROR',
+                message: 'Failed to generate performance metrics',
+                messageAr: 'فشل في إنشاء مقاييس الأداء'
+            }
         });
     }
 });

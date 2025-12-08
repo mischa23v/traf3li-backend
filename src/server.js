@@ -38,6 +38,7 @@ const {
     apiVersionMiddleware,
     addNonVersionedDeprecationWarning
 } = require('./middlewares/apiVersion.middleware');
+const performanceMiddleware = require('./middlewares/performance.middleware');
 const {
     // Marketplace
     gigRoute,
@@ -365,6 +366,9 @@ app.use(setCsrfToken);
 // ✅ SECURITY: Request logging with correlation IDs
 app.use(logger.requestMiddleware);
 
+// ✅ PERFORMANCE: Track API response times (target: < 300ms)
+app.use(performanceMiddleware);
+
 // ✅ SENTRY: Add user context for authenticated requests
 app.use(sentrySetUserContext);
 
@@ -661,7 +665,7 @@ app.use(getErrorHandler());
 // ============================================
 // CUSTOM ERROR HANDLER - Must be last
 // ============================================
-// Error handling middleware
+// Error handling middleware with bilingual support
 app.use((err, req, res, next) => {
     // Log error with structured logger
     logger.logError(err, {
@@ -672,46 +676,72 @@ app.use((err, req, res, next) => {
         firmId: req.firmId
     });
 
+    // Helper to create bilingual error response
+    const createErrorResponse = (code, message, messageAr, status, details = null) => {
+        const response = {
+            success: false,
+            error: {
+                code,
+                message,
+                messageAr
+            },
+            meta: {
+                timestamp: new Date().toISOString(),
+                requestId: req.id
+            }
+        };
+
+        if (details && process.env.NODE_ENV !== 'production') {
+            response.error.details = details;
+        }
+
+        if (process.env.NODE_ENV !== 'production' && err.stack) {
+            response.stack = err.stack;
+        }
+
+        return res.status(status).json(response);
+    };
+
     // Handle Mongoose validation errors
     if (err.name === 'ValidationError') {
         const messages = Object.values(err.errors).map(e => e.message);
-        return res.status(400).json({
-            error: true,
-            message: messages.join(', '),
-            requestId: req.id,
-            details: process.env.NODE_ENV !== 'production' ? err.errors : undefined
-        });
+        return createErrorResponse(
+            'VALIDATION_ERROR',
+            messages.join(', '),
+            'خطأ في التحقق من البيانات',
+            400,
+            err.errors
+        );
     }
 
     // Handle Mongoose CastError (invalid ObjectId)
     if (err.name === 'CastError') {
-        return res.status(400).json({
-            error: true,
-            message: `Invalid ${err.path}: ${err.value}`,
-            requestId: req.id
-        });
+        return createErrorResponse(
+            'INVALID_INPUT',
+            `Invalid ${err.path}: ${err.value}`,
+            `قيمة غير صالحة للحقل: ${err.path}`,
+            400
+        );
     }
 
     // Handle duplicate key error
     if (err.code === 11000) {
         const field = Object.keys(err.keyValue)[0];
-        return res.status(400).json({
-            error: true,
-            message: `Duplicate value for field: ${field}`,
-            requestId: req.id
-        });
+        return createErrorResponse(
+            'ALREADY_EXISTS',
+            `Duplicate value for field: ${field}`,
+            `قيمة مكررة للحقل: ${field}`,
+            400
+        );
     }
 
-    // Handle custom exceptions and other errors
+    // Handle custom exceptions with bilingual support
     const status = err.status || err.statusCode || 500;
     const message = err.message || 'Something went wrong!';
+    const messageAr = err.messageAr || 'حدث خطأ ما!';
+    const code = err.code || (status >= 500 ? 'INTERNAL_ERROR' : 'ERROR');
 
-    res.status(status).json({
-        error: true,
-        message,
-        requestId: req.id,
-        ...(process.env.NODE_ENV !== 'production' && { stack: err.stack })
-    });
+    createErrorResponse(code, message, messageAr, status);
 });
 
 const PORT = process.env.PORT || 8080;
