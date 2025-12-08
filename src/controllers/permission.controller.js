@@ -723,7 +723,9 @@ const getVisibleSidebar = asyncHandler(async (req, res) => {
 
     res.json({
         success: true,
-        data: sidebar
+        data: {
+            items: sidebar
+        }
     });
 });
 
@@ -1037,7 +1039,9 @@ const getAllSidebarItems = asyncHandler(async (req, res) => {
 
     res.json({
         success: true,
-        data: config.sidebarItems
+        data: {
+            items: config.sidebarItems || []
+        }
     });
 });
 
@@ -1060,7 +1064,9 @@ const getAllPageAccess = asyncHandler(async (req, res) => {
 
     res.json({
         success: true,
-        data: config.pageAccess
+        data: {
+            pages: config.pageAccess || []
+        }
     });
 });
 
