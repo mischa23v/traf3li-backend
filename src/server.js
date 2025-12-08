@@ -27,6 +27,7 @@ const {
     activityRoute,
     caseRoute,
     taskRoute,
+    ganttRoute,
     notificationRoute,
     eventRoute,
 
@@ -68,6 +69,7 @@ const {
     bankTransferRoute,
     bankTransactionRoute,
     bankReconciliationRoute,
+    currencyRoute,
 
     // Vendors and Bills
     vendorRoute,
@@ -80,6 +82,8 @@ const {
     referralRoute,
     crmActivityRoute,
     staffRoute,
+    leadScoringRoute,
+    whatsappRoute,
 
     // HR
     hrRoute,
@@ -132,7 +136,13 @@ const {
     approvalRoute,
 
     // Permissions
-    permissionRoute
+    permissionRoute,
+
+    // 10/10 Features
+    biometricRoute,
+    emailMarketingRoute,
+    hrAnalyticsRoute,
+    documentAnalysisRoute
 } = require('./routes');
 
 const app = express();
@@ -259,6 +269,7 @@ app.use('/api/dashboard', dashboardRoute);
 app.use('/api/activities', activityRoute);
 app.use('/api/cases', caseRoute);
 app.use('/api/tasks', taskRoute);
+app.use('/api/gantt', ganttRoute);
 app.use('/api/notifications', notificationRoute);
 app.use('/api/events', eventRoute);
 
@@ -300,6 +311,7 @@ app.use('/api/bank-accounts', bankAccountRoute);
 app.use('/api/bank-transfers', bankTransferRoute);
 app.use('/api/bank-transactions', bankTransactionRoute);
 app.use('/api/bank-reconciliations', bankReconciliationRoute);
+app.use('/api/currency', currencyRoute);
 
 // Vendor and Bills Routes
 app.use('/api/vendors', vendorRoute);
@@ -312,6 +324,8 @@ app.use('/api/crm-pipelines', crmPipelineRoute);
 app.use('/api/referrals', referralRoute);
 app.use('/api/crm-activities', crmActivityRoute);
 app.use('/api/staff', staffRoute);
+app.use('/api/lead-scoring', leadScoringRoute);
+app.use('/api/whatsapp', whatsappRoute);
 
 // HR Routes
 app.use('/api/hr', hrRoute);
@@ -367,6 +381,22 @@ app.use('/api/approvals', approvalRoute);
 
 // Permission Routes (Enterprise Authorization)
 app.use('/api/permissions', permissionRoute);
+
+// ============================================
+// 10/10 FEATURE ROUTES (Competitive Analysis)
+// ============================================
+
+// Biometric & Geo-Fencing (HR 10/10)
+app.use('/api/biometric', biometricRoute);
+
+// Email Marketing (CRM 10/10)
+app.use('/api/email-marketing', emailMarketingRoute);
+
+// HR Analytics & AI Predictions (HR 10/10)
+app.use('/api/hr-analytics', hrAnalyticsRoute);
+
+// AI Document Analysis (Document Management 10/10)
+app.use('/api/document-analysis', documentAnalysisRoute);
 
 // ============================================
 // ALIAS ROUTES (for frontend compatibility)

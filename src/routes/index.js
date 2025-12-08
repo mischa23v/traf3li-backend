@@ -17,6 +17,7 @@ const dashboardRoute = require('./dashboard.route');
 const activityRoute = require('./activity.route');
 const caseRoute = require('./case.route');
 const taskRoute = require('./task.route');
+const ganttRoute = require('./gantt.route');
 const notificationRoute = require('./notification.route');
 const eventRoute = require('./event.route');
 
@@ -58,6 +59,7 @@ const bankAccountRoute = require('./bankAccount.route');
 const bankTransferRoute = require('./bankTransfer.route');
 const bankTransactionRoute = require('./bankTransaction.route');
 const bankReconciliationRoute = require('./bankReconciliation.route');
+const currencyRoute = require('./currency.route');
 
 // Vendor and Bills Routes
 const vendorRoute = require('./vendor.route');
@@ -70,6 +72,8 @@ const crmPipelineRoute = require('./crmPipeline.route');
 const referralRoute = require('./referral.route');
 const crmActivityRoute = require('./crmActivity.route');
 const staffRoute = require('./staff.route');
+const leadScoringRoute = require('./leadScoring.route');
+const whatsappRoute = require('./whatsapp.route');
 
 // HR Routes
 const hrRoute = require('./hr.route');
@@ -124,6 +128,12 @@ const approvalRoute = require('./approval.route');
 // Permission Routes
 const permissionRoute = require('./permission.route');
 
+// 10/10 Feature Routes
+const biometricRoute = require('./biometric.route');
+const emailMarketingRoute = require('./emailMarketing.route');
+const hrAnalyticsRoute = require('./hrAnalytics.route');
+const documentAnalysisRoute = require('./documentAnalysis.route');
+
 module.exports = {
     // Marketplace
     gigRoute,
@@ -144,6 +154,7 @@ module.exports = {
     activityRoute,
     caseRoute,
     taskRoute,
+    ganttRoute,
     notificationRoute,
     eventRoute,
 
@@ -185,6 +196,7 @@ module.exports = {
     bankTransferRoute,
     bankTransactionRoute,
     bankReconciliationRoute,
+    currencyRoute,
 
     // Vendors and Bills
     vendorRoute,
@@ -197,6 +209,8 @@ module.exports = {
     referralRoute,
     crmActivityRoute,
     staffRoute,
+    leadScoringRoute,
+    whatsappRoute,
 
     // HR
     hrRoute,
@@ -249,5 +263,11 @@ module.exports = {
     approvalRoute,
 
     // Permissions
-    permissionRoute
+    permissionRoute,
+
+    // 10/10 Features
+    biometricRoute,
+    emailMarketingRoute,
+    hrAnalyticsRoute,
+    documentAnalysisRoute
 };
