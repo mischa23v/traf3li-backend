@@ -711,8 +711,16 @@ const getCacheStats = asyncHandler(async (req, res) => {
 const getVisibleSidebar = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
 
+    // For users without firmId (solo lawyers or non-firm users),
+    // return empty sidebar items instead of throwing 403
     if (!firmId) {
-        throw CustomException('يجب أن تكون عضواً في مكتب للوصول', 403);
+        return res.json({
+            success: true,
+            data: {
+                items: [],
+                reason: 'NO_FIRM_MEMBERSHIP'
+            }
+        });
     }
 
     const sidebar = await UIAccessConfig.getVisibleSidebar(
@@ -737,12 +745,20 @@ const checkPageAccess = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
     const { routePath } = req.body;
 
-    if (!firmId) {
-        throw CustomException('يجب أن تكون عضواً في مكتب للوصول', 403);
-    }
-
     if (!routePath) {
         throw CustomException('يجب تحديد مسار الصفحة', 400);
+    }
+
+    // For users without firmId (solo lawyers or non-firm users),
+    // return allowed: false for firm-specific pages instead of throwing 403
+    if (!firmId) {
+        return res.json({
+            allowed: false,
+            reason: 'NO_FIRM_MEMBERSHIP',
+            message: 'يجب أن تكون عضواً في مكتب للوصول',
+            pageId: null,
+            pageName: routePath
+        });
     }
 
     const access = await UIAccessConfig.checkPageAccess(
