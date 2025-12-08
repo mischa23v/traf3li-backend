@@ -141,7 +141,8 @@ const {
     // 10/10 Features
     biometricRoute,
     emailMarketingRoute,
-    hrAnalyticsRoute
+    hrAnalyticsRoute,
+    documentAnalysisRoute
 } = require('./routes');
 
 const app = express();
@@ -393,6 +394,9 @@ app.use('/api/email-marketing', emailMarketingRoute);
 
 // HR Analytics & AI Predictions (HR 10/10)
 app.use('/api/hr-analytics', hrAnalyticsRoute);
+
+// AI Document Analysis (Document Management 10/10)
+app.use('/api/document-analysis', documentAnalysisRoute);
 
 // ============================================
 // ALIAS ROUTES (for frontend compatibility)

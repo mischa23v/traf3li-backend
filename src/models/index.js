@@ -170,6 +170,9 @@ const InvestmentTransaction = require('./investmentTransaction.model');
 // Analytics Report Model
 const AnalyticsReport = require('./analyticsReport.model');
 
+// Document Analysis Model (AI-powered)
+const DocumentAnalysis = require('./documentAnalysis.model');
+
 module.exports = {
     // Marketplace
     User,
@@ -341,5 +344,8 @@ module.exports = {
     InvestmentTransaction,
 
     // Analytics Reports
-    AnalyticsReport
+    AnalyticsReport,
+
+    // Document Analysis
+    DocumentAnalysis
 };

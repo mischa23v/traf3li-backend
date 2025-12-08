@@ -132,6 +132,7 @@ const permissionRoute = require('./permission.route');
 const biometricRoute = require('./biometric.route');
 const emailMarketingRoute = require('./emailMarketing.route');
 const hrAnalyticsRoute = require('./hrAnalytics.route');
+const documentAnalysisRoute = require('./documentAnalysis.route');
 
 module.exports = {
     // Marketplace
@@ -267,5 +268,6 @@ module.exports = {
     // 10/10 Features
     biometricRoute,
     emailMarketingRoute,
-    hrAnalyticsRoute
+    hrAnalyticsRoute,
+    documentAnalysisRoute
 };
