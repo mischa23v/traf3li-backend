@@ -350,6 +350,7 @@ router.use('/billing/rates', billingRateRoute);
 router.use('/billing/groups', rateGroupRoute);
 router.use('/payroll-runs', noCache, payrollRunRoute);
 router.use('/bank-reconciliation', noCache, bankReconciliationRoute);
+router.use('/succession-plans', successionPlanRoute);  // Alias for frontend (also available at /hr/succession-plans)
 
 // Apps endpoint (placeholder for app integrations)
 router.get('/apps', (req, res) => {

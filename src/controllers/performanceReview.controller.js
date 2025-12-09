@@ -105,8 +105,16 @@ const getPerformanceStats = async (req, res) => {
         const { periodYear, departmentId, firmId } = req.query;
         const targetFirmId = firmId || req.user?.firmId;
 
+        // Validate firmId is present
+        if (!targetFirmId) {
+            return res.status(400).json({
+                success: false,
+                message: 'Firm ID is required'
+            });
+        }
+
         const match = {
-            firmId: mongoose.Types.ObjectId(targetFirmId),
+            firmId: new mongoose.Types.ObjectId(targetFirmId),
             isDeleted: false
         };
 
@@ -118,7 +126,7 @@ const getPerformanceStats = async (req, res) => {
         }
 
         if (departmentId) {
-            match.departmentId = mongoose.Types.ObjectId(departmentId);
+            match.departmentId = new mongoose.Types.ObjectId(departmentId);
         }
 
         const [
@@ -1466,11 +1474,19 @@ const getTeamSummary = async (req, res) => {
         const { periodYear } = req.query;
         const firmId = req.query.firmId || req.user?.firmId;
 
+        // Validate required parameters
+        if (!firmId) {
+            return res.status(400).json({
+                success: false,
+                message: 'Firm ID is required'
+            });
+        }
+
         const match = {
-            firmId: mongoose.Types.ObjectId(firmId),
+            firmId: new mongoose.Types.ObjectId(firmId),
             $or: [
-                { reviewerId: mongoose.Types.ObjectId(managerId) },
-                { managerId: mongoose.Types.ObjectId(managerId) }
+                { reviewerId: new mongoose.Types.ObjectId(managerId) },
+                { managerId: new mongoose.Types.ObjectId(managerId) }
             ],
             isDeleted: false
         };
