@@ -5,10 +5,14 @@ const {
     convertAmount,
     setManualRate,
     getSupportedCurrencies,
-    updateRatesFromAPI
+    updateRatesFromAPI,
+    getCurrencySettings
 } = require('../controllers/bankReconciliation.controller');
 
 const app = express.Router();
+
+// Get currency settings
+app.get('/settings', userMiddleware, getCurrencySettings);
 
 // Get current exchange rates
 app.get('/rates', userMiddleware, getExchangeRates);

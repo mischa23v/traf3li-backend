@@ -18,6 +18,15 @@ class LeadScoringController {
     getConfig = asyncHandler(async (req, res) => {
         const firmId = req.firmId;
 
+        // firmId is required for lead scoring configuration
+        if (!firmId) {
+            return res.status(400).json({
+                success: false,
+                error: 'Firm context is required for lead scoring configuration',
+                message: 'Please ensure you are part of a firm to access lead scoring features'
+            });
+        }
+
         const config = await LeadScoringService.getConfig(firmId);
 
         res.json({
