@@ -271,6 +271,7 @@ router.use('/hr/organizational-structure', organizationalUnitRoute);
 router.use('/hr/job-positions', jobPositionRoute);
 router.use('/hr/succession-plans', successionPlanRoute);
 router.use('/hr/compensation', noCache, compensationRewardRoute);
+router.use('/hr/compensation-rewards', noCache, compensationRewardRoute);  // Alias for frontend
 
 // ============================================
 // ANALYTICS REPORTS ROUTES
