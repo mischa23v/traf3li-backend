@@ -16,8 +16,9 @@ router.use(userMiddleware);
 router.use(firmFilter);
 
 // Apply HR/Admin authorization to all routes
-// Adjust roles based on your system (e.g., ['hr', 'admin', 'manager'])
-router.use(authorize('hr', 'admin', 'partner', 'solo'));
+// Note: User.role enum is ['client', 'lawyer', 'admin']
+// Firm-level permissions (partner, owner) are handled by firmFilter middleware
+router.use(authorize('admin', 'lawyer'));
 
 // ═══════════════════════════════════════════════════════════════
 // ANALYTICS ROUTES
