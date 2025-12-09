@@ -81,6 +81,17 @@ const documentSchema = new mongoose.Schema({
         type: String,
         required: true
     },
+    // Storage bucket (for R2/S3) - tracks which bucket the file is stored in
+    bucket: {
+        type: String,
+        default: null
+    },
+    // Module type (crm, finance, hr, documents, etc.) - for routing to correct bucket
+    module: {
+        type: String,
+        enum: ['crm', 'finance', 'hr', 'documents', 'tasks', 'judgments', 'general'],
+        default: 'documents'
+    },
     category: {
         type: String,
         enum: ['contract', 'judgment', 'evidence', 'correspondence', 'pleading', 'other'],

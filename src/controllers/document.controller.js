@@ -7,29 +7,55 @@ const { s3, getSignedUrl, deleteObject, BUCKETS } = require('../configs/s3');
 const crypto = require('crypto');
 
 /**
+ * Get the correct bucket based on module type
+ * @param {string} module - Module name ('crm', 'finance', 'hr', 'documents', etc.)
+ * @returns {string} - Bucket name from BUCKETS
+ */
+const getBucketForModule = (module) => {
+    const moduleMap = {
+        'crm': BUCKETS.crm,
+        'finance': BUCKETS.finance,
+        'hr': BUCKETS.hr,
+        'judgments': BUCKETS.judgments,
+        'tasks': BUCKETS.tasks,
+        'documents': BUCKETS.documents,
+        'general': BUCKETS.general
+    };
+    return moduleMap[module] || BUCKETS.documents;
+};
+
+/**
  * Upload document (get presigned URL)
  * POST /api/documents/upload
+ *
+ * @param {string} module - Module for bucket routing ('crm', 'finance', 'hr', 'documents')
  */
 const getUploadUrl = asyncHandler(async (req, res) => {
-    const { fileName, fileType, category, caseId, clientId, description, isConfidential } = req.body;
+    const { fileName, fileType, category, caseId, clientId, description, isConfidential, module } = req.body;
     const lawyerId = req.userID;
 
     if (!fileName || !fileType || !category) {
         throw CustomException('اسم الملف ونوعه والفئة مطلوبة', 400);
     }
 
+    // Determine bucket based on module
+    const bucket = getBucketForModule(module);
+    const modulePrefix = module || 'documents';
+
     const year = new Date().getFullYear();
     const month = String(new Date().getMonth() + 1).padStart(2, '0');
     const uniqueId = crypto.randomBytes(8).toString('hex');
-    const fileKey = `documents/${lawyerId}/${year}/${month}/${uniqueId}-${fileName}`;
+    const fileKey = `${modulePrefix}/${lawyerId}/${year}/${month}/${uniqueId}-${fileName}`;
 
-    const uploadUrl = await getSignedUrl(BUCKETS.general, fileKey, fileType, 'putObject');
+    const uploadUrl = await getSignedUrl(bucket, fileKey, fileType, 'putObject');
 
     res.status(200).json({
         success: true,
         data: {
             uploadUrl,
             fileKey,
+            bucket,
+            module: modulePrefix,
             expiresIn: 3600
         }
     });
@@ -38,11 +64,15 @@ const getUploadUrl = asyncHandler(async (req, res) => {
 /**
  * Confirm document upload
  * POST /api/documents/confirm
+ *
+ * @param {string} module - Module for bucket routing ('crm', 'finance', 'hr', 'documents')
+ * @param {string} bucket - The bucket where the file was uploaded
  */
 const confirmUpload = asyncHandler(async (req, res) => {
     const {
         fileName, originalName, fileType, fileSize, fileKey, url,
-        category, caseId, clientId, description, isConfidential, tags
+        category, caseId, clientId, description, isConfidential, tags,
+        module, bucket
     } = req.body;
     const lawyerId = req.userID;
 
@@ -50,14 +80,19 @@ const confirmUpload = asyncHandler(async (req, res) => {
         throw CustomException('بيانات الملف غير مكتملة', 400);
     }
 
+    // Determine the actual bucket used
+    const actualBucket = bucket || getBucketForModule(module);
+
     const document = await Document.create({
         lawyerId,
         fileName,
         originalName: originalName || fileName,
         fileType,
         fileSize,
-        url: url || `https://${BUCKETS.general}.s3.amazonaws.com/${fileKey}`,
+        url: url || `https://${actualBucket}.s3.amazonaws.com/${fileKey}`,
         fileKey,
+        bucket: actualBucket,
+        module: module || 'documents',
         category,
         caseId,
         clientId,
@@ -192,11 +227,12 @@ const deleteDocument = asyncHandler(async (req, res) => {
         throw CustomException('المستند غير موجود', 404);
     }
 
-    // Delete from S3
+    // Delete from storage (use stored bucket or fallback to general)
+    const bucket = document.bucket || getBucketForModule(document.module) || BUCKETS.general;
     try {
-        await deleteObject(BUCKETS.general, document.fileKey);
+        await deleteObject(bucket, document.fileKey);
     } catch (err) {
-        console.error('S3 delete error:', err);
+        console.error('Storage delete error:', err);
     }
 
     await Document.findByIdAndDelete(id);
@@ -288,7 +324,9 @@ const downloadDocument = asyncHandler(async (req, res) => {
         throw CustomException('المستند غير موجود', 404);
     }
 
-    const downloadUrl = await getSignedUrl(BUCKETS.general, document.fileKey, document.fileType, 'getObject');
+    // Use stored bucket or fallback to general
+    const bucket = document.bucket || getBucketForModule(document.module) || BUCKETS.general;
+    const downloadUrl = await getSignedUrl(bucket, document.fileKey, document.fileType, 'getObject');
 
     // Update access count
     document.accessCount += 1;
@@ -514,12 +552,13 @@ const bulkDeleteDocuments = asyncHandler(async (req, res) => {
         lawyerId
     });
 
-    // Delete from S3
+    // Delete from storage (use stored bucket for each document)
     for (const doc of documents) {
+        const bucket = doc.bucket || getBucketForModule(doc.module) || BUCKETS.general;
         try {
-            await deleteObject(BUCKETS.general, doc.fileKey);
+            await deleteObject(bucket, doc.fileKey);
         } catch (err) {
-            console.error('S3 delete error:', err);
+            console.error('Storage delete error:', err);
         }
     }
 
