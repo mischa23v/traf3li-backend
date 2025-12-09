@@ -3,13 +3,19 @@
  *
  * Centralized queue factory with Redis connection,
  * default job options, event handlers, and graceful shutdown.
+ *
+ * OPTIMIZED: Shared Redis connections to prevent memory exhaustion
  */
 
 const Queue = require('bull');
-const { getRedisClient } = require('./redis');
+const Redis = require('ioredis');
 
 // Store all queue instances for cleanup
 const queues = new Map();
+
+// Shared Redis clients for all queues (prevents connection explosion)
+let sharedClient = null;
+let sharedSubscriber = null;
 
 /**
  * Default job options for all queues
@@ -21,11 +27,12 @@ const defaultJobOptions = {
     delay: 2000
   },
   removeOnComplete: {
-    age: 86400, // Keep completed jobs for 24 hours
-    count: 1000 // Keep last 1000 completed jobs
+    age: 3600, // Keep completed jobs for 1 hour (reduced from 24h)
+    count: 100 // Keep last 100 completed jobs (reduced from 1000)
   },
   removeOnFail: {
-    age: 172800, // Keep failed jobs for 48 hours
+    age: 86400, // Keep failed jobs for 24 hours (reduced from 48h)
+    count: 50 // Keep last 50 failed jobs
   }
 };
 
@@ -44,25 +51,83 @@ const queueSettings = {
 };
 
 /**
- * Create Redis connection options for Bull
+ * Create shared Redis client with connection limits
  */
-const getRedisOptions = () => {
+const createRedisClient = (type = 'client') => {
   const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
-  const redisPassword = process.env.REDIS_PASSWORD || null;
 
   const options = {
     maxRetriesPerRequest: null, // Bull handles retries
     enableReadyCheck: false,
     enableOfflineQueue: true,
+    connectTimeout: 10000,
+    // Limit reconnection attempts to prevent memory exhaustion
+    retryStrategy: (times) => {
+      if (times > 10) {
+        console.error(`Redis ${type}: Max retries (10) reached, stopping reconnection`);
+        return null; // Stop retrying
+      }
+      const delay = Math.min(times * 500, 5000);
+      return delay;
+    },
+    // Connection pool settings
+    lazyConnect: false,
   };
 
-  if (redisPassword) {
-    options.password = redisPassword;
+  const client = new Redis(redisUrl, options);
+
+  client.on('error', (err) => {
+    // Only log once per error type to reduce log spam
+    if (!client._lastErrorMsg || client._lastErrorMsg !== err.message) {
+      client._lastErrorMsg = err.message;
+      console.error(`Redis ${type} error:`, err.message);
+    }
+  });
+
+  client.on('connect', () => {
+    console.log(`Redis ${type}: Connected`);
+  });
+
+  return client;
+};
+
+/**
+ * Get shared Redis clients for Bull queues
+ * This prevents creating 3 connections per queue (18+ connections total)
+ */
+const getSharedRedisClients = () => {
+  if (!sharedClient) {
+    sharedClient = createRedisClient('client');
   }
+  if (!sharedSubscriber) {
+    sharedSubscriber = createRedisClient('subscriber');
+  }
+  return {
+    client: sharedClient,
+    subscriber: sharedSubscriber
+  };
+};
+
+/**
+ * Create Redis connection options for Bull (uses shared clients)
+ */
+const getRedisOptions = () => {
+  const { client, subscriber } = getSharedRedisClients();
 
   return {
-    redis: redisUrl,
-    ...options
+    createClient: (type) => {
+      switch (type) {
+        case 'client':
+          return client;
+        case 'subscriber':
+          return subscriber;
+        case 'bclient':
+          // bclient needs its own connection for blocking commands
+          return createRedisClient('bclient');
+        default:
+          return client;
+      }
+    }
   };
 };
 
@@ -91,72 +156,53 @@ const createQueue = (name, options = {}) => {
     }
   });
 
-  // Event: Job completed successfully
+  // Only log in development or for important events
+  const isProduction = process.env.NODE_ENV === 'production';
+
+  // Event: Job completed successfully (only log in dev)
   queue.on('completed', (job, result) => {
-    console.log(`✅ Job ${job.id} in queue "${name}" completed`);
-    if (result) {
-      console.log(`   Result:`, JSON.stringify(result).substring(0, 100));
+    if (!isProduction) {
+      console.log(`✅ Job ${job.id} in queue "${name}" completed`);
     }
   });
 
-  // Event: Job failed
+  // Event: Job failed (always log failures)
   queue.on('failed', (job, err) => {
     console.error(`❌ Job ${job.id} in queue "${name}" failed:`, err.message);
-    console.error(`   Attempts: ${job.attemptsMade}/${job.opts.attempts}`);
-    if (job.stacktrace && job.stacktrace.length > 0) {
-      console.error(`   Last error:`, job.stacktrace[0]);
+    if (!isProduction && job.stacktrace && job.stacktrace.length > 0) {
+      console.error(`   Stack:`, job.stacktrace[0]);
     }
   });
 
-  // Event: Job stalled (worker crashed or took too long)
+  // Event: Job stalled (always log - indicates worker issues)
   queue.on('stalled', (job) => {
     console.warn(`⚠️  Job ${job.id} in queue "${name}" has stalled`);
-    console.warn(`   Stalled count: ${job.opts.maxStalledCount || 'N/A'}`);
   });
 
-  // Event: Job is waiting to be processed
-  queue.on('waiting', (jobId) => {
-    console.log(`⏳ Job ${jobId} in queue "${name}" is waiting`);
-  });
+  // Verbose events - only in development
+  if (!isProduction) {
+    queue.on('waiting', (jobId) => {
+      console.log(`⏳ Job ${jobId} in queue "${name}" is waiting`);
+    });
 
-  // Event: Job is now active (being processed)
-  queue.on('active', (job, jobPromise) => {
-    console.log(`🔄 Job ${job.id} in queue "${name}" is now active`);
-  });
+    queue.on('active', (job) => {
+      console.log(`🔄 Job ${job.id} in queue "${name}" is now active`);
+    });
 
-  // Event: Job progress updated
-  queue.on('progress', (job, progress) => {
-    console.log(`📊 Job ${job.id} progress: ${progress}%`);
-  });
+    queue.on('cleaned', (jobs, type) => {
+      console.log(`🧹 Queue "${name}" cleaned ${jobs.length} ${type} jobs`);
+    });
+  }
 
-  // Event: Job removed
-  queue.on('removed', (job) => {
-    console.log(`🗑️  Job ${job.id} in queue "${name}" was removed`);
-  });
-
-  // Event: Queue cleaned (old jobs removed)
-  queue.on('cleaned', (jobs, type) => {
-    console.log(`🧹 Queue "${name}" cleaned ${jobs.length} ${type} jobs`);
-  });
-
-  // Event: Queue drained (all waiting jobs processed)
-  queue.on('drained', () => {
-    console.log(`✨ Queue "${name}" has been drained`);
-  });
-
-  // Event: Queue paused
-  queue.on('paused', () => {
-    console.log(`⏸️  Queue "${name}" has been paused`);
-  });
-
-  // Event: Queue resumed
-  queue.on('resumed', () => {
-    console.log(`▶️  Queue "${name}" has been resumed`);
-  });
-
-  // Event: Queue error
+  // Event: Queue error - always log but deduplicate
+  let lastErrorTime = 0;
   queue.on('error', (error) => {
-    console.error(`💥 Queue "${name}" error:`, error.message);
+    const now = Date.now();
+    // Only log once per 5 seconds per queue to prevent log spam
+    if (now - lastErrorTime > 5000) {
+      lastErrorTime = now;
+      console.error(`💥 Queue "${name}" error:`, error.message);
+    }
   });
 
   // Store queue instance
@@ -197,7 +243,7 @@ const closeQueue = async (name) => {
 };
 
 /**
- * Graceful shutdown - close all queues
+ * Graceful shutdown - close all queues and shared Redis connections
  */
 const closeAllQueues = async () => {
   console.log('🛑 Closing all queues...');
@@ -215,6 +261,28 @@ const closeAllQueues = async () => {
 
   await Promise.all(closePromises);
   queues.clear();
+
+  // Close shared Redis connections
+  if (sharedClient) {
+    try {
+      await sharedClient.quit();
+      sharedClient = null;
+      console.log('   ✓ Shared Redis client closed');
+    } catch (err) {
+      console.error('   ✗ Error closing shared Redis client:', err.message);
+    }
+  }
+
+  if (sharedSubscriber) {
+    try {
+      await sharedSubscriber.quit();
+      sharedSubscriber = null;
+      console.log('   ✓ Shared Redis subscriber closed');
+    } catch (err) {
+      console.error('   ✗ Error closing shared Redis subscriber:', err.message);
+    }
+  }
+
   console.log('✅ All queues closed');
 };
 
