@@ -550,6 +550,7 @@ app.use('/api/hr/expense-claims', noCache, expenseClaimRoute);
 app.use('/api/hr/trainings', trainingRoute);
 app.use('/api/hr/asset-assignments', assetAssignmentRoute);
 app.use('/api/hr/benefits', noCache, employeeBenefitRoute);
+app.use('/api/hr/employee-benefits', noCache, employeeBenefitRoute);  // Alias for frontend
 app.use('/api/hr/grievances', noCache, grievanceRoute);
 app.use('/api/hr/organizational-structure', organizationalUnitRoute);
 app.use('/api/hr/job-positions', jobPositionRoute);
