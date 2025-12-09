@@ -634,6 +634,9 @@ app.use('/api/billing/groups', rateGroupRoute);
 // HR aliases (frontend expects routes without /hr/ prefix)
 app.use('/api/payroll-runs', noCache, payrollRunRoute); // No cache for payroll
 
+// Bank reconciliation alias (frontend expects singular form)
+app.use('/api/bank-reconciliation', noCache, bankReconciliationRoute);
+
 // Apps endpoint (placeholder for app integrations)
 app.get('/api/apps', (req, res) => {
     // Return empty apps list for now - can be expanded later
