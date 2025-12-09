@@ -2,41 +2,67 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 
-// Import S3 config - handle gracefully if not configured
-let s3Client = null;
-let BUCKETS = { tasks: 'traf3li-task-attachments' };
+// Import R2 config first (preferred), fall back to S3 if not available
+let storageClient = null;
+let BUCKETS = { tasks: 'traf3li-documents', documents: 'traf3li-documents' };
 let PRESIGNED_URL_EXPIRY = 3600;
 let multerS3 = null;
 let getSignedUrl = null;
 let GetObjectCommand = null;
+let logFileAccess = null;
+let storageType = 'local';
 
+// Try R2 first (Cloudflare)
 try {
-    const s3Config = require('./s3');
-    s3Client = s3Config.s3Client;
-    BUCKETS = s3Config.BUCKETS;
-    PRESIGNED_URL_EXPIRY = s3Config.PRESIGNED_URL_EXPIRY;
+    const r2Config = require('./r2');
+    if (r2Config.isR2Configured() && r2Config.r2Client) {
+        storageClient = r2Config.r2Client;
+        BUCKETS = r2Config.BUCKETS;
+        PRESIGNED_URL_EXPIRY = r2Config.PRESIGNED_URL_EXPIRY;
+        logFileAccess = r2Config.logFileAccess;
+        storageType = 'r2';
 
-    if (s3Client) {
         multerS3 = require('multer-s3');
         const presigner = require('@aws-sdk/s3-request-presigner');
         const s3Commands = require('@aws-sdk/client-s3');
         getSignedUrl = presigner.getSignedUrl;
         GetObjectCommand = s3Commands.GetObjectCommand;
+        console.log('Using Cloudflare R2 for task uploads');
     }
 } catch (err) {
-    console.log('S3 modules not available, using local storage only');
+    console.log('R2 not available, trying S3...');
 }
 
-// Check if S3 is configured and available
-// Supports multiple variable naming conventions
-const isS3Configured = () => {
-    return !!(
-        s3Client &&
-        process.env.AWS_ACCESS_KEY_ID &&
-        process.env.AWS_SECRET_ACCESS_KEY &&
-        (process.env.S3_BUCKET_TASKS || process.env.AWS_S3_BUCKET || process.env.AWS_S3_BUCKET_DOCUMENTS || process.env.S3_BUCKET_DOCUMENTS)
-    );
+// Fall back to S3 if R2 not configured
+if (!storageClient) {
+    try {
+        const s3Config = require('./s3');
+        if (s3Config.isS3Configured && s3Config.isS3Configured() && s3Config.s3Client) {
+            storageClient = s3Config.s3Client;
+            BUCKETS = s3Config.BUCKETS;
+            PRESIGNED_URL_EXPIRY = s3Config.PRESIGNED_URL_EXPIRY;
+            logFileAccess = s3Config.logFileAccess;
+            storageType = 's3';
+
+            multerS3 = require('multer-s3');
+            const presigner = require('@aws-sdk/s3-request-presigner');
+            const s3Commands = require('@aws-sdk/client-s3');
+            getSignedUrl = presigner.getSignedUrl;
+            GetObjectCommand = s3Commands.GetObjectCommand;
+            console.log('Using AWS S3 for task uploads');
+        }
+    } catch (err) {
+        console.log('S3 modules not available, using local storage only');
+    }
+}
+
+// Check if cloud storage is configured and available
+const isStorageConfigured = () => {
+    return !!(storageClient && storageType !== 'local');
 };
+
+// Backward compatibility alias
+const isS3Configured = isStorageConfigured;
 
 // Allowed file types for task attachments
 const allowedMimeTypes = [
@@ -94,19 +120,19 @@ if (!fs.existsSync(uploadDir)) {
 
 let taskUpload;
 
-// Server-side encryption configuration (matches s3.js)
+// Server-side encryption configuration (for S3 only, R2 handles encryption automatically)
 const SSE_CONFIG = {
-    enabled: process.env.S3_SSE_ENABLED !== 'false',
+    enabled: storageType === 's3' && process.env.S3_SSE_ENABLED !== 'false',
     algorithm: process.env.S3_SSE_ALGORITHM || 'AES256',
     kmsKeyId: process.env.S3_KMS_KEY_ID || null,
     bucketKeyEnabled: process.env.S3_BUCKET_KEY_ENABLED !== 'false'
 };
 
-if (isS3Configured() && multerS3) {
-    // S3 Storage Configuration with server-side encryption
-    const s3StorageConfig = {
-        s3: s3Client,
-        bucket: BUCKETS.tasks,
+if (isStorageConfigured() && multerS3) {
+    // Cloud Storage Configuration (R2 or S3)
+    const cloudStorageConfig = {
+        s3: storageClient,
+        bucket: BUCKETS.tasks || BUCKETS.documents,
         contentType: multerS3.AUTO_CONTENT_TYPE,
         key: (req, file, cb) => {
             const key = generateS3Key(req, file);
@@ -116,36 +142,35 @@ if (isS3Configured() && multerS3) {
             cb(null, {
                 fieldName: file.fieldname,
                 originalName: file.originalname,
-                uploadedBy: req.userID || 'unknown'
+                uploadedBy: req.userID || 'unknown',
+                storageType: storageType
             });
         }
     };
 
-    // Apply server-side encryption if enabled
-    if (SSE_CONFIG.enabled) {
-        s3StorageConfig.serverSideEncryption = SSE_CONFIG.algorithm;
+    // Apply server-side encryption if enabled (S3 only)
+    if (SSE_CONFIG.enabled && storageType === 's3') {
+        cloudStorageConfig.serverSideEncryption = SSE_CONFIG.algorithm;
 
         // If using SSE-KMS with Bucket Key
         if (SSE_CONFIG.algorithm === 'aws:kms') {
             if (SSE_CONFIG.kmsKeyId) {
-                s3StorageConfig.sseKmsKeyId = SSE_CONFIG.kmsKeyId;
+                cloudStorageConfig.sseKmsKeyId = SSE_CONFIG.kmsKeyId;
             }
-            // Note: multer-s3 doesn't directly support BucketKeyEnabled
-            // but if Bucket Key is enabled at bucket level, it will be used automatically
         }
     }
 
-    const s3Storage = multerS3(s3StorageConfig);
+    const cloudStorage = multerS3(cloudStorageConfig);
 
     taskUpload = multer({
-        storage: s3Storage,
+        storage: cloudStorage,
         limits: {
-            fileSize: 50 * 1024 * 1024 // 50MB limit for S3
+            fileSize: 50 * 1024 * 1024 // 50MB limit for cloud storage
         },
         fileFilter
     });
 
-    console.log('Task uploads configured with S3 storage');
+    console.log(`Task uploads configured with ${storageType.toUpperCase()} storage`);
 } else {
     // Local Storage Configuration (fallback)
     const localStorage = multer.diskStorage({
@@ -175,25 +200,26 @@ if (isS3Configured() && multerS3) {
 }
 
 /**
- * Get a presigned URL for downloading a file from S3
- * @param {string} fileKey - The S3 key for the file
+ * Get a presigned URL for downloading a file from cloud storage (R2 or S3)
+ * @param {string} fileKey - The storage key for the file
  * @param {string} filename - Original filename for Content-Disposition
- * @param {string} versionId - Optional S3 version ID for versioned buckets
+ * @param {string} versionId - Optional version ID for versioned buckets
  * @param {string} disposition - 'inline' for preview, 'attachment' for download (default)
  * @param {string} contentType - Optional content type for proper browser handling
+ * @param {Object} logOptions - Optional logging options { userId, remoteIp, userAgent }
  * @returns {Promise<string>} - The presigned URL
  */
-const getTaskFilePresignedUrl = async (fileKey, filename = null, versionId = null, disposition = 'attachment', contentType = null) => {
-    if (!isS3Configured() || !getSignedUrl || !GetObjectCommand) {
+const getTaskFilePresignedUrl = async (fileKey, filename = null, versionId = null, disposition = 'attachment', contentType = null, logOptions = {}) => {
+    if (!isStorageConfigured() || !getSignedUrl || !GetObjectCommand) {
         return null;
     }
 
     const commandOptions = {
-        Bucket: BUCKETS.tasks,
+        Bucket: BUCKETS.tasks || BUCKETS.documents,
         Key: fileKey
     };
 
-    // Support S3 versioning
+    // Support versioning
     if (versionId) {
         commandOptions.VersionId = versionId;
     }
@@ -212,33 +238,53 @@ const getTaskFilePresignedUrl = async (fileKey, filename = null, versionId = nul
     }
 
     const command = new GetObjectCommand(commandOptions);
-    const url = await getSignedUrl(s3Client, command, {
+    const url = await getSignedUrl(storageClient, command, {
         expiresIn: PRESIGNED_URL_EXPIRY
     });
+
+    // Log file access if logging function available and userId provided
+    if (logFileAccess && logOptions.userId) {
+        const action = disposition === 'inline' ? 'preview' : 'download';
+        logFileAccess(fileKey, 'tasks', logOptions.userId, action, {
+            remoteIp: logOptions.remoteIp,
+            userAgent: logOptions.userAgent,
+            versionId
+        }).catch(err => console.error('Failed to log file access:', err.message));
+    }
 
     return url;
 };
 
 /**
- * Check if a URL is an S3 URL
+ * Check if a URL is a cloud storage URL (R2 or S3)
  * @param {string} url - The URL to check
  * @returns {boolean}
  */
-const isS3Url = (url) => {
+const isCloudStorageUrl = (url) => {
     if (!url) return false;
-    return url.includes('.amazonaws.com') || url.includes('s3://') || url.startsWith('tasks/');
+    return (
+        url.includes('.amazonaws.com') ||
+        url.includes('s3://') ||
+        url.includes('.r2.cloudflarestorage.com') ||
+        url.includes('r2://') ||
+        url.startsWith('tasks/') ||
+        url.startsWith('cases/')
+    );
 };
 
+// Backward compatibility alias
+const isS3Url = isCloudStorageUrl;
+
 /**
- * Extract S3 key from URL or return the key if already a key
- * @param {string} urlOrKey - S3 URL or key
- * @returns {string} - The S3 key
+ * Extract storage key from URL or return the key if already a key
+ * @param {string} urlOrKey - Cloud storage URL or key
+ * @returns {string} - The storage key
  */
-const extractS3Key = (urlOrKey) => {
+const extractStorageKey = (urlOrKey) => {
     if (!urlOrKey) return null;
 
-    // If it's already a key (starts with tasks/)
-    if (urlOrKey.startsWith('tasks/')) {
+    // If it's already a key (starts with tasks/ or cases/)
+    if (urlOrKey.startsWith('tasks/') || urlOrKey.startsWith('cases/')) {
         return urlOrKey;
     }
 
@@ -248,12 +294,25 @@ const extractS3Key = (urlOrKey) => {
         return parts[1] ? decodeURIComponent(parts[1].split('?')[0]) : null;
     }
 
+    // If it's an R2 URL, extract the key
+    if (urlOrKey.includes('.r2.cloudflarestorage.com/')) {
+        const parts = urlOrKey.split('.r2.cloudflarestorage.com/');
+        return parts[1] ? decodeURIComponent(parts[1].split('?')[0]) : null;
+    }
+
     return null;
 };
 
+// Backward compatibility alias
+const extractS3Key = extractStorageKey;
+
 module.exports = taskUpload;
 module.exports.isS3Configured = isS3Configured;
+module.exports.isStorageConfigured = isStorageConfigured;
 module.exports.getTaskFilePresignedUrl = getTaskFilePresignedUrl;
 module.exports.isS3Url = isS3Url;
+module.exports.isCloudStorageUrl = isCloudStorageUrl;
 module.exports.extractS3Key = extractS3Key;
+module.exports.extractStorageKey = extractStorageKey;
 module.exports.BUCKETS = BUCKETS;
+module.exports.storageType = storageType;

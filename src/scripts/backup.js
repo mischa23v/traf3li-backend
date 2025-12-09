@@ -28,13 +28,32 @@ const execAsync = promisify(exec);
 class BackupManager {
   constructor() {
     this.config = backupConfig;
-    this.s3Client = new S3Client({
-      region: this.config.s3.region,
-      credentials: {
-        accessKeyId: this.config.s3.accessKeyId,
-        secretAccessKey: this.config.s3.secretAccessKey,
-      },
-    });
+    this.storageType = this.config.storageProvider;
+
+    // Initialize storage client based on provider
+    const storageConfig = this.config.storage;
+
+    if (this.storageType === 'none') {
+      console.warn('⚠️  No cloud storage configured (R2 or S3). Backups will only be stored locally.');
+      this.storageClient = null;
+    } else {
+      const clientConfig = {
+        region: storageConfig.region,
+        credentials: {
+          accessKeyId: storageConfig.accessKeyId,
+          secretAccessKey: storageConfig.secretAccessKey,
+        },
+      };
+
+      // Add R2 endpoint if using R2
+      if (this.storageType === 'r2' && storageConfig.endpoint) {
+        clientConfig.endpoint = storageConfig.endpoint;
+      }
+
+      this.storageClient = new S3Client(clientConfig);
+      console.log(`📦 Using ${this.storageType.toUpperCase()} for backup storage`);
+    }
+
     this.resend = this.config.notifications.resendApiKey
       ? new Resend(this.config.notifications.resendApiKey)
       : null;
@@ -51,13 +70,19 @@ class BackupManager {
   }
 
   /**
-   * Get S3 key path for backup
+   * Get storage key path for backup
    */
-  getS3Key(filename, type = 'daily') {
+  getStorageKey(filename, type = 'daily') {
     const now = new Date();
     const year = now.getFullYear();
     const month = String(now.getMonth() + 1).padStart(2, '0');
-    return `${this.config.s3.prefix}/${type}/${year}/${month}/${filename}`;
+    const prefix = this.config.storage.prefix;
+    return `${prefix}/${type}/${year}/${month}/${filename}`;
+  }
+
+  // Backward compatibility alias
+  getS3Key(filename, type = 'daily') {
+    return this.getStorageKey(filename, type);
   }
 
   /**
@@ -130,45 +155,64 @@ class BackupManager {
   }
 
   /**
-   * Upload backup to S3
+   * Upload backup to cloud storage (R2 or S3)
    */
-  async uploadToS3(localPath, filename, type = 'daily') {
-    console.log('\n☁️  Uploading backup to S3...');
+  async uploadToStorage(localPath, filename, type = 'daily') {
+    const storageLabel = this.storageType.toUpperCase();
+    console.log(`\n☁️  Uploading backup to ${storageLabel}...`);
+
+    if (!this.storageClient) {
+      console.warn('⚠️  No cloud storage configured, skipping upload');
+      return null;
+    }
 
     if (this.dryRun) {
-      console.log(`[DRY RUN] Would upload ${filename} to S3`);
+      console.log(`[DRY RUN] Would upload ${filename} to ${storageLabel}`);
       return;
     }
 
     try {
-      const s3Key = this.getS3Key(filename, type);
+      const storageKey = this.getStorageKey(filename, type);
       const fileContent = await fs.readFile(localPath);
+      const bucket = this.config.storage.bucket;
 
-      const command = new PutObjectCommand({
-        Bucket: this.config.s3.bucket,
-        Key: s3Key,
+      const commandOptions = {
+        Bucket: bucket,
+        Key: storageKey,
         Body: fileContent,
         ContentType: 'application/gzip',
-        ServerSideEncryption: 'AES256',
         Metadata: {
           'backup-type': type,
           'backup-date': new Date().toISOString(),
           'environment': this.config.environment,
           'mongodb-uri-hash': this.hashUri(this.config.mongodb.uri),
+          'storage-provider': this.storageType,
         },
-        StorageClass: type === 'monthly' ? 'STANDARD_IA' : 'STANDARD',
-      });
+      };
 
-      await this.s3Client.send(command);
+      // S3-specific options (R2 handles encryption automatically)
+      if (this.storageType === 's3') {
+        commandOptions.ServerSideEncryption = 'AES256';
+        commandOptions.StorageClass = type === 'monthly' ? 'STANDARD_IA' : 'STANDARD';
+      }
 
+      const command = new PutObjectCommand(commandOptions);
+      await this.storageClient.send(command);
+
+      const urlPrefix = this.storageType === 'r2' ? 'r2://' : 's3://';
       console.log('✅ Upload successful');
-      console.log(`   S3 Key: s3://${this.config.s3.bucket}/${s3Key}`);
+      console.log(`   Key: ${urlPrefix}${bucket}/${storageKey}`);
 
-      return s3Key;
+      return storageKey;
     } catch (error) {
-      console.error('❌ S3 upload failed:', error.message);
+      console.error(`❌ ${storageLabel} upload failed:`, error.message);
       throw error;
     }
+  }
+
+  // Backward compatibility alias
+  async uploadToS3(localPath, filename, type = 'daily') {
+    return this.uploadToStorage(localPath, filename, type);
   }
 
   /**
@@ -197,22 +241,27 @@ class BackupManager {
   }
 
   /**
-   * List all backups in S3
+   * List all backups in cloud storage
    */
   async listBackups(type = null) {
     console.log('\n📋 Listing backups...\n');
 
+    if (!this.storageClient) {
+      console.warn('⚠️  No cloud storage configured');
+      return [];
+    }
+
     try {
       const prefix = type
-        ? `${this.config.s3.prefix}/${type}/`
-        : `${this.config.s3.prefix}/`;
+        ? `${this.config.storage.prefix}/${type}/`
+        : `${this.config.storage.prefix}/`;
 
       const command = new ListObjectsV2Command({
-        Bucket: this.config.s3.bucket,
+        Bucket: this.config.storage.bucket,
         Prefix: prefix,
       });
 
-      const response = await this.s3Client.send(command);
+      const response = await this.storageClient.send(command);
 
       if (!response.Contents || response.Contents.length === 0) {
         console.log('No backups found.');
@@ -271,20 +320,25 @@ class BackupManager {
   async enforceRetentionPolicy(type = 'daily') {
     console.log(`\n🗑️  Enforcing retention policy for ${type} backups...`);
 
+    if (!this.storageClient) {
+      console.warn('⚠️  No cloud storage configured, skipping retention policy');
+      return;
+    }
+
     if (this.dryRun) {
       console.log(`[DRY RUN] Would enforce retention policy`);
       return;
     }
 
     try {
-      const prefix = `${this.config.s3.prefix}/${type}/`;
+      const prefix = `${this.config.storage.prefix}/${type}/`;
 
       const command = new ListObjectsV2Command({
-        Bucket: this.config.s3.bucket,
+        Bucket: this.config.storage.bucket,
         Prefix: prefix,
       });
 
-      const response = await this.s3Client.send(command);
+      const response = await this.storageClient.send(command);
 
       if (!response.Contents || response.Contents.length === 0) {
         console.log('No backups to clean up.');
@@ -318,11 +372,11 @@ class BackupManager {
       for (const backup of backups) {
         if (backup.LastModified < cutoffDate) {
           const deleteCommand = new DeleteObjectCommand({
-            Bucket: this.config.s3.bucket,
+            Bucket: this.config.storage.bucket,
             Key: backup.Key,
           });
 
-          await this.s3Client.send(deleteCommand);
+          await this.storageClient.send(deleteCommand);
           console.log(`   Deleted: ${backup.Key}`);
           deletedCount++;
         }
