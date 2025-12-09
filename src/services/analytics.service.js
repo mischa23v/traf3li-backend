@@ -256,15 +256,44 @@ class AnalyticsService {
     }
 }
 
+// Store interval ID for cleanup
+let flushIntervalId = null;
+
 // Start periodic flush
-setInterval(() => {
-    AnalyticsService.flush();
-}, BUFFER_FLUSH_INTERVAL);
+const startPeriodicFlush = () => {
+    if (!flushIntervalId) {
+        flushIntervalId = setInterval(() => {
+            AnalyticsService.flush();
+        }, BUFFER_FLUSH_INTERVAL);
+    }
+};
+
+// Stop periodic flush (for graceful shutdown)
+const stopPeriodicFlush = () => {
+    if (flushIntervalId) {
+        clearInterval(flushIntervalId);
+        flushIntervalId = null;
+        AnalyticsService.flush(); // Final flush
+    }
+};
+
+// Start the periodic flush
+startPeriodicFlush();
 
 // Flush on process exit
 process.on('beforeExit', () => {
-    AnalyticsService.flush();
+    stopPeriodicFlush();
+});
+
+// Graceful shutdown handlers
+process.on('SIGTERM', () => {
+    stopPeriodicFlush();
+});
+
+process.on('SIGINT', () => {
+    stopPeriodicFlush();
 });
 
 module.exports = AnalyticsService;
 module.exports.EventTypes = EventTypes;
+module.exports.stopPeriodicFlush = stopPeriodicFlush;

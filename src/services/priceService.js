@@ -1,9 +1,10 @@
 const axios = require('axios');
 const { findSymbol, ALL_SYMBOLS } = require('../data/symbols');
 
-// Simple in-memory cache
+// Simple in-memory cache with size limit to prevent memory leaks
 const priceCache = new Map();
 const CACHE_TTL = 60000; // 60 seconds
+const MAX_CACHE_SIZE = 500; // Maximum entries to prevent unbounded growth
 
 /**
  * Price Service for fetching real-time stock/crypto/forex prices
@@ -26,13 +27,47 @@ class PriceService {
     }
 
     /**
-     * Set cache
+     * Set cache with size limit enforcement
      */
     setCache(key, data) {
+        // If cache is at max size, remove oldest/expired entries
+        if (priceCache.size >= MAX_CACHE_SIZE) {
+            this.pruneCache();
+        }
+
         priceCache.set(key, {
             data,
             timestamp: Date.now()
         });
+    }
+
+    /**
+     * Remove expired entries and oldest entries if still over limit
+     */
+    pruneCache() {
+        const now = Date.now();
+        const toDelete = [];
+
+        // First pass: mark expired entries
+        priceCache.forEach((value, key) => {
+            if (now - value.timestamp >= CACHE_TTL) {
+                toDelete.push(key);
+            }
+        });
+
+        // Delete expired entries
+        toDelete.forEach(key => priceCache.delete(key));
+
+        // If still over limit, remove oldest entries (FIFO)
+        if (priceCache.size >= MAX_CACHE_SIZE) {
+            const entriesToRemove = priceCache.size - MAX_CACHE_SIZE + 100; // Remove 100 to avoid frequent pruning
+            let removed = 0;
+            for (const key of priceCache.keys()) {
+                if (removed >= entriesToRemove) break;
+                priceCache.delete(key);
+                removed++;
+            }
+        }
     }
 
     /**
