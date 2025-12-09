@@ -3,6 +3,7 @@ const router = express.Router();
 const HRAnalyticsController = require('../controllers/hrAnalytics.controller');
 const authenticate = require('../middlewares/authenticate');
 const { authorize } = require('../middlewares/authorize.middleware');
+const { attachFirmContext } = require('../middlewares/firmContext.middleware');
 
 /**
  * HR Analytics & Predictions Routes
@@ -11,6 +12,9 @@ const { authorize } = require('../middlewares/authorize.middleware');
 
 // Apply authentication middleware to all routes
 router.use(authenticate);
+
+// Apply firm context middleware to set req.firmId
+router.use(attachFirmContext);
 
 // Apply HR/Admin authorization to all routes
 // Adjust roles based on your system (e.g., ['hr', 'admin', 'manager'])
