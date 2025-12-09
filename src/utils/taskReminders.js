@@ -13,6 +13,10 @@
  */
 
 const cron = require('node-cron');
+const EventEmitter = require('events');
+
+// Increase max listeners to prevent warning (we have many cron jobs)
+EventEmitter.defaultMaxListeners = 20;
 const { Task, Case, Reminder, Notification, User, Event } = require('../models');
 const { createNotification } = require('../controllers/notification.controller');
 const NotificationDeliveryService = require('../services/notificationDelivery.service');

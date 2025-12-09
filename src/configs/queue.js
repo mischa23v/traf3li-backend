@@ -18,6 +18,26 @@ let sharedClient = null;
 let sharedSubscriber = null;
 
 /**
+ * Check if Redis is properly configured
+ */
+const isRedisConfigured = () => {
+  const redisUrl = process.env.REDIS_URL;
+  if (!redisUrl) {
+    console.warn('⚠️  REDIS_URL not set - queues will be disabled');
+    return false;
+  }
+  // Check for valid Redis URL format (redis:// or rediss://)
+  if (!redisUrl.startsWith('redis://') && !redisUrl.startsWith('rediss://')) {
+    console.warn('⚠️  REDIS_URL is invalid (must start with redis:// or rediss://) - queues will be disabled');
+    return false;
+  }
+  return true;
+};
+
+// Flag to track if Redis is available
+let redisAvailable = isRedisConfigured();
+
+/**
  * Default job options for all queues
  */
 const defaultJobOptions = {
@@ -54,7 +74,11 @@ const queueSettings = {
  * Create shared Redis client with connection limits
  */
 const createRedisClient = (type = 'client') => {
-  const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
+  if (!redisAvailable) {
+    return null;
+  }
+
+  const redisUrl = process.env.REDIS_URL;
 
   const options = {
     maxRetriesPerRequest: null, // Bull handles retries
@@ -65,6 +89,7 @@ const createRedisClient = (type = 'client') => {
     retryStrategy: (times) => {
       if (times > 10) {
         console.error(`Redis ${type}: Max retries (10) reached, stopping reconnection`);
+        redisAvailable = false;
         return null; // Stop retrying
       }
       const delay = Math.min(times * 500, 5000);
@@ -132,15 +157,57 @@ const getRedisOptions = () => {
 };
 
 /**
+ * Create a mock queue for when Redis is not available
+ * This allows the app to run without Redis, just without queue functionality
+ */
+const createMockQueue = (name) => {
+  console.warn(`⚠️  Queue "${name}" created in MOCK mode (Redis not available)`);
+  return {
+    name,
+    add: async (data, opts) => {
+      console.warn(`⚠️  Queue "${name}": Job not added (Redis not available)`);
+      return { id: `mock-${Date.now()}`, data, opts };
+    },
+    addBulk: async (jobs) => {
+      console.warn(`⚠️  Queue "${name}": Bulk jobs not added (Redis not available)`);
+      return jobs.map((j, i) => ({ id: `mock-${Date.now()}-${i}`, ...j }));
+    },
+    process: () => {},
+    on: () => {},
+    close: async () => {},
+    pause: async () => {},
+    resume: async () => {},
+    getJob: async () => null,
+    getJobs: async () => [],
+    getJobCounts: async () => ({ waiting: 0, active: 0, completed: 0, failed: 0, delayed: 0 }),
+    getWaitingCount: async () => 0,
+    getActiveCount: async () => 0,
+    getCompletedCount: async () => 0,
+    getFailedCount: async () => 0,
+    getDelayedCount: async () => 0,
+    isPaused: async () => false,
+    empty: async () => {},
+    clean: async () => []
+  };
+};
+
+/**
  * Create a new queue instance with event handlers
  * @param {string} name - Queue name
  * @param {Object} options - Additional queue options
- * @returns {Queue} Bull queue instance
+ * @returns {Queue} Bull queue instance or mock queue
  */
 const createQueue = (name, options = {}) => {
   // Return existing queue if already created
   if (queues.has(name)) {
     return queues.get(name);
+  }
+
+  // If Redis is not available, return a mock queue
+  if (!redisAvailable) {
+    const mockQueue = createMockQueue(name);
+    queues.set(name, mockQueue);
+    return mockQueue;
   }
 
   // Create new queue
