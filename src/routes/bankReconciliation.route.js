@@ -35,7 +35,12 @@ const {
     convertAmount,
     setManualRate,
     getSupportedCurrencies,
-    updateRatesFromAPI
+    updateRatesFromAPI,
+    // Feed functions
+    getBankFeeds,
+    createBankFeed,
+    updateBankFeed,
+    deleteBankFeed
 } = require('../controllers/bankReconciliation.controller');
 
 const app = express.Router();
@@ -47,6 +52,12 @@ const upload = multer({
         fileSize: 5 * 1024 * 1024 // 5MB limit
     }
 });
+
+// ============ BANK FEEDS ROUTES ============
+app.get('/feeds', userMiddleware, getBankFeeds);
+app.post('/feeds', userMiddleware, createBankFeed);
+app.put('/feeds/:id', userMiddleware, updateBankFeed);
+app.delete('/feeds/:id', userMiddleware, deleteBankFeed);
 
 // ============ IMPORT ROUTES ============
 app.post('/import/csv', userMiddleware, upload.single('file'), importCSV);

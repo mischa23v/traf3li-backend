@@ -740,6 +740,176 @@ const getRuleStatistics = asyncHandler(async (req, res) => {
     });
 });
 
+// ============ CURRENCY SETTINGS ============
+
+// Get currency settings
+const getCurrencySettings = asyncHandler(async (req, res) => {
+    const lawyerId = req.userID;
+    const firmId = req.firmId;
+
+    // Return currency configuration settings
+    // In a production system, these might be stored in a firm settings collection
+    const settings = {
+        defaultCurrency: 'SAR',
+        supportedCurrencies: ['SAR', 'USD', 'EUR', 'GBP', 'AED', 'KWD', 'BHD', 'QAR', 'OMR'],
+        multiCurrencyEnabled: true,
+        autoUpdateRates: true,
+        updateFrequency: 'daily',
+        rateSource: 'openexchangerates',
+        decimalPlaces: 2,
+        roundingMode: 'half_up',
+        displayFormat: {
+            symbolPosition: 'before',
+            thousandsSeparator: ',',
+            decimalSeparator: '.'
+        }
+    };
+
+    return res.status(200).json({
+        success: true,
+        data: settings
+    });
+});
+
+// ============ BANK FEEDS ============
+
+// Get bank feeds with sorting support
+const getBankFeeds = asyncHandler(async (req, res) => {
+    const lawyerId = req.userID;
+    const firmId = req.firmId;
+    const {
+        page = 1,
+        limit = 20,
+        sortBy = 'createdAt',
+        sortOrder = 'desc',
+        status,
+        provider,
+        bankAccountId
+    } = req.query;
+
+    // Build query
+    const query = { lawyerId };
+    if (firmId) query.firmId = firmId;
+    if (status) query.status = status;
+    if (provider) query.provider = provider;
+    if (bankAccountId) query.bankAccountId = bankAccountId;
+
+    // Validate sortBy field to prevent injection
+    const allowedSortFields = ['createdAt', 'updatedAt', 'name', 'lastImportAt', 'totalImported', 'status'];
+    const sanitizedSortBy = allowedSortFields.includes(sortBy) ? sortBy : 'createdAt';
+    const sanitizedSortOrder = sortOrder === 'asc' ? 1 : -1;
+
+    const feeds = await BankFeed.find(query)
+        .sort({ [sanitizedSortBy]: sanitizedSortOrder })
+        .limit(parseInt(limit))
+        .skip((parseInt(page) - 1) * parseInt(limit))
+        .populate('bankAccountId', 'name bankName accountNumber')
+        .populate('createdBy', 'firstName lastName email');
+
+    const total = await BankFeed.countDocuments(query);
+
+    return res.status(200).json({
+        success: true,
+        data: {
+            feeds,
+            pagination: {
+                page: parseInt(page),
+                limit: parseInt(limit),
+                total,
+                pages: Math.ceil(total / parseInt(limit))
+            },
+            sorting: {
+                sortBy: sanitizedSortBy,
+                sortOrder: sortOrder === 'asc' ? 'asc' : 'desc'
+            }
+        }
+    });
+});
+
+// Create bank feed
+const createBankFeed = asyncHandler(async (req, res) => {
+    const lawyerId = req.userID;
+    const firmId = req.firmId;
+
+    const feedData = {
+        ...req.body,
+        firmId,
+        lawyerId,
+        createdBy: lawyerId
+    };
+
+    const feed = new BankFeed(feedData);
+    await feed.save();
+
+    const populatedFeed = await BankFeed.findById(feed._id)
+        .populate('bankAccountId', 'name bankName accountNumber')
+        .populate('createdBy', 'firstName lastName email');
+
+    return res.status(201).json({
+        success: true,
+        message: 'Bank feed created successfully',
+        data: populatedFeed
+    });
+});
+
+// Update bank feed
+const updateBankFeed = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const lawyerId = req.userID;
+
+    const feed = await BankFeed.findById(id);
+
+    if (!feed) {
+        throw CustomException('Bank feed not found', 404);
+    }
+
+    if (feed.lawyerId.toString() !== lawyerId) {
+        throw CustomException('You do not have access to this bank feed', 403);
+    }
+
+    const updateData = { ...req.body };
+    delete updateData.firmId; // Prevent firmId modification
+    delete updateData.lawyerId; // Prevent lawyerId modification
+    delete updateData.createdBy; // Prevent createdBy modification
+
+    const updatedFeed = await BankFeed.findByIdAndUpdate(
+        id,
+        updateData,
+        { new: true, runValidators: true }
+    )
+        .populate('bankAccountId', 'name bankName accountNumber')
+        .populate('createdBy', 'firstName lastName email');
+
+    return res.status(200).json({
+        success: true,
+        message: 'Bank feed updated successfully',
+        data: updatedFeed
+    });
+});
+
+// Delete bank feed
+const deleteBankFeed = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const lawyerId = req.userID;
+
+    const feed = await BankFeed.findById(id);
+
+    if (!feed) {
+        throw CustomException('Bank feed not found', 404);
+    }
+
+    if (feed.lawyerId.toString() !== lawyerId) {
+        throw CustomException('You do not have access to this bank feed', 403);
+    }
+
+    await BankFeed.findByIdAndDelete(id);
+
+    return res.status(200).json({
+        success: true,
+        message: 'Bank feed deleted successfully'
+    });
+});
+
 module.exports = {
     createReconciliation,
     getReconciliations,
@@ -774,5 +944,11 @@ module.exports = {
     convertAmount,
     setManualRate,
     getSupportedCurrencies,
-    updateRatesFromAPI
+    updateRatesFromAPI,
+    getCurrencySettings,
+    // Feed functions
+    getBankFeeds,
+    createBankFeed,
+    updateBankFeed,
+    deleteBankFeed
 };

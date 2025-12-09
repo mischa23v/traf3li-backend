@@ -20,6 +20,13 @@ const saudiBankingController = require('../controllers/saudiBanking.controller')
 router.get('/lean/banks', authenticate, saudiBankingController.getBanks);
 
 /**
+ * @route   GET /api/saudi-banking/lean/customers
+ * @desc    Get all Lean customers for the authenticated user
+ * @access  Private
+ */
+router.get('/lean/customers', authenticate, saudiBankingController.getLeanCustomers);
+
+/**
  * @route   POST /api/saudi-banking/lean/customers
  * @desc    Create a Lean customer for bank linking
  * @access  Private
@@ -119,6 +126,14 @@ router.post('/wps/download', authenticate, saudiBankingController.downloadWPSFil
  * @body    { establishment, employees }
  */
 router.post('/wps/validate', authenticate, saudiBankingController.validateWPSData);
+
+/**
+ * @route   GET /api/saudi-banking/wps/files
+ * @desc    Get list of generated WPS files
+ * @access  Private
+ * @query   { page, limit, startDate, endDate }
+ */
+router.get('/wps/files', authenticate, saudiBankingController.getWPSFiles);
 
 /**
  * @route   GET /api/saudi-banking/wps/sarie-banks

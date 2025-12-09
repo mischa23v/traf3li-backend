@@ -25,6 +25,36 @@ const getBanks = asyncHandler(async (req, res) => {
 });
 
 /**
+ * Get all Lean customers for the authenticated user
+ */
+const getLeanCustomers = asyncHandler(async (req, res) => {
+    const userId = req.userID;
+    const { page = 1, limit = 20 } = req.query;
+
+    // In a production system, you would store customer mappings in the database
+    // For now, we return a placeholder response indicating how this would work
+    // The actual customer data comes from Lean's API when you have the customer IDs stored
+
+    // This endpoint would typically:
+    // 1. Query your database for stored Lean customer IDs for this user
+    // 2. Optionally fetch additional details from Lean API for each customer
+
+    res.json({
+        success: true,
+        data: {
+            customers: [],
+            message: 'Customer data should be stored in your database when created via POST /lean/customers',
+            pagination: {
+                page: parseInt(page),
+                limit: parseInt(limit),
+                total: 0,
+                pages: 0
+            }
+        },
+    });
+});
+
+/**
  * Create a Lean customer for bank linking
  */
 const createLeanCustomer = asyncHandler(async (req, res) => {
@@ -303,6 +333,33 @@ const validateWPSData = asyncHandler(async (req, res) => {
 });
 
 /**
+ * Get list of generated WPS files
+ */
+const getWPSFiles = asyncHandler(async (req, res) => {
+    const userId = req.userID;
+    const { page = 1, limit = 20, startDate, endDate, status } = req.query;
+
+    // In a production system, you would store WPS file generation records in the database
+    // This endpoint returns the history of generated WPS files
+    // Each record would include: filename, generatedAt, totalRecords, totalAmount, status, etc.
+
+    // For now, return placeholder response indicating the expected structure
+    res.json({
+        success: true,
+        data: {
+            files: [],
+            message: 'WPS file records should be stored in the database when generated via POST /wps/generate',
+            pagination: {
+                page: parseInt(page),
+                limit: parseInt(limit),
+                total: 0,
+                pages: 0
+            }
+        },
+    });
+});
+
+/**
  * Get SARIE bank IDs
  */
 const getSarieBankIds = asyncHandler(async (req, res) => {
@@ -544,6 +601,7 @@ const checkMinimumWage = asyncHandler(async (req, res) => {
 module.exports = {
     // Lean Technologies
     getBanks,
+    getLeanCustomers,
     createLeanCustomer,
     getCustomerToken,
     getEntities,
@@ -559,6 +617,7 @@ module.exports = {
     generateWPSFile,
     downloadWPSFile,
     validateWPSData,
+    getWPSFiles,
     getSarieBankIds,
 
     // SADAD
