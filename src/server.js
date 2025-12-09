@@ -200,6 +200,14 @@ const app = express();
 const server = http.createServer(app);
 
 // ============================================
+// TRUST PROXY CONFIGURATION
+// ============================================
+// Required when running behind a reverse proxy (Render, Cloudflare, etc.)
+// This allows express-rate-limit to correctly identify client IPs from X-Forwarded-For header
+// See: https://expressjs.com/en/guide/behind-proxies.html
+app.set('trust proxy', true);
+
+// ============================================
 // SENTRY REQUEST HANDLERS - Must be first middleware
 // ============================================
 // Initialize Sentry with the Express app

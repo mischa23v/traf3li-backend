@@ -166,7 +166,7 @@ const aggregationSchema = new mongoose.Schema({
     cacheEnabled: { type: Boolean, default: false },
     cacheDuration: { type: Number, default: 300 }, // seconds
     refreshOnFilter: { type: Boolean, default: true }
-}, { _id: false });
+}, { _id: false, suppressReservedKeysWarning: true });
 
 // Drill-down configuration
 const drillDownSchema = new mongoose.Schema({
@@ -895,7 +895,8 @@ const analyticsReportSchema = new mongoose.Schema({
     notesAr: String
 }, {
     versionKey: false,
-    timestamps: true
+    timestamps: true,
+    suppressReservedKeysWarning: true  // Suppress warnings for 'collection' field which is intentionally used
 });
 
 // ═══════════════════════════════════════════════════════════════
