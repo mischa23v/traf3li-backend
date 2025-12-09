@@ -314,7 +314,8 @@ const initSocket = (server) => {
         onlineUsers.delete(socket.userId);
         userPresence.delete(socket.userId);
 
-        // Remove from all active rooms
+        // Remove from all active rooms and clean up empty rooms
+        const emptyRooms = [];
         activeRooms.forEach((users, roomId) => {
           if (users.has(socket.userId)) {
             users.delete(socket.userId);
@@ -322,13 +323,40 @@ const initSocket = (server) => {
               userId: socket.userId
             });
           }
+          // Mark empty rooms for cleanup
+          if (users.size === 0) {
+            emptyRooms.push(roomId);
+          }
         });
+
+        // Clean up empty rooms to prevent memory leak
+        emptyRooms.forEach(roomId => activeRooms.delete(roomId));
 
         io.emit('user:offline', { userId: socket.userId });
         console.log(`👋 User ${socket.userId} is offline`);
       }
     });
   });
+
+  // Periodic cleanup of stale data (every 5 minutes)
+  setInterval(() => {
+    const now = Date.now();
+    const staleThreshold = 30 * 60 * 1000; // 30 minutes
+
+    // Clean up stale presence data
+    userPresence.forEach((data, oderId) => {
+      if (now - data.timestamp > staleThreshold) {
+        userPresence.delete(oderId);
+      }
+    });
+
+    // Clean up empty rooms
+    activeRooms.forEach((users, roomId) => {
+      if (users.size === 0) {
+        activeRooms.delete(roomId);
+      }
+    });
+  }, 5 * 60 * 1000);
 
   return io;
 };
