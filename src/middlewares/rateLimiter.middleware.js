@@ -197,7 +197,7 @@ const slowDown = require('express-slow-down');
 const speedLimiter = slowDown({
   windowMs: 15 * 60 * 1000, // 15 minutes
   delayAfter: 50, // Allow 50 requests per 15 min at full speed
-  delayMs: 500, // Add 500ms delay per request after limit
+  delayMs: () => 500, // Add 500ms delay per request after limit (v2 syntax)
   maxDelayMs: 20000, // Max delay of 20 seconds
 });
 
