@@ -610,8 +610,8 @@ const getExchangeRates = asyncHandler(async (req, res) => {
 
     return res.status(200).json({
         success: true,
+        data: rates,
         baseCurrency,
-        rates,
         timestamp: new Date()
     });
 });
@@ -750,11 +750,14 @@ const getCurrencySettings = asyncHandler(async (req, res) => {
     // Return currency configuration settings
     // In a production system, these might be stored in a firm settings collection
     const settings = {
-        defaultCurrency: 'SAR',
+        baseCurrency: 'SAR',
+        defaultCurrency: 'SAR',  // Keep for backward compatibility
         supportedCurrencies: ['SAR', 'USD', 'EUR', 'GBP', 'AED', 'KWD', 'BHD', 'QAR', 'OMR'],
         multiCurrencyEnabled: true,
-        autoUpdateRates: true,
-        updateFrequency: 'daily',
+        autoUpdateEnabled: true,
+        autoUpdateRates: true,  // Keep for backward compatibility
+        updateInterval: 'daily',
+        updateFrequency: 'daily',  // Keep for backward compatibility
         rateSource: 'openexchangerates',
         decimalPlaces: 2,
         roundingMode: 'half_up',
