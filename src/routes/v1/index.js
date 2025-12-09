@@ -347,6 +347,7 @@ router.use('/case-workflows', workflowRoute);
 router.use('/billing/rates', billingRateRoute);
 router.use('/billing/groups', rateGroupRoute);
 router.use('/payroll-runs', noCache, payrollRunRoute);
+router.use('/bank-reconciliation', noCache, bankReconciliationRoute);
 
 // Apps endpoint (placeholder for app integrations)
 router.get('/apps', (req, res) => {
