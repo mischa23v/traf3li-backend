@@ -10,7 +10,7 @@ services:
 
     # Build Configuration
     buildCommand: npm install
-    startCommand: node src/server.js
+    startCommand: node --max-old-space-size=512 src/server.js
 
     # Health Check
     healthCheckPath: /health

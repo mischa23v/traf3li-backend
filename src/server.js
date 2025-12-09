@@ -666,6 +666,36 @@ app.use('/metrics', metricsRoute);
 app.use('/api/queues', noCache, queueRoute);
 
 // ============================================
+// 404 HANDLER - Must be after all routes
+// ============================================
+// Handle 404 errors with CORS headers
+app.use((req, res, next) => {
+    // Set CORS headers for 404 responses
+    const origin = req.headers.origin;
+    if (origin) {
+        // Check if origin is allowed
+        const isAllowed = allowedOrigins.includes(origin) || origin.includes('.vercel.app');
+        if (isAllowed) {
+            res.setHeader('Access-Control-Allow-Origin', origin);
+            res.setHeader('Access-Control-Allow-Credentials', 'true');
+        }
+    }
+
+    res.status(404).json({
+        success: false,
+        error: {
+            code: 'NOT_FOUND',
+            message: `Route ${req.method} ${req.originalUrl} not found`,
+            messageAr: `المسار ${req.method} ${req.originalUrl} غير موجود`
+        },
+        meta: {
+            timestamp: new Date().toISOString(),
+            requestId: req.id
+        }
+    });
+});
+
+// ============================================
 // SENTRY ERROR HANDLER - Must be before custom error handler
 // ============================================
 // Sentry error handler - captures errors and sends to Sentry
@@ -676,6 +706,16 @@ app.use(getErrorHandler());
 // ============================================
 // Error handling middleware with bilingual support
 app.use((err, req, res, next) => {
+    // Set CORS headers for error responses
+    const origin = req.headers.origin;
+    if (origin) {
+        const isAllowed = allowedOrigins.includes(origin) || origin.includes('.vercel.app');
+        if (isAllowed) {
+            res.setHeader('Access-Control-Allow-Origin', origin);
+            res.setHeader('Access-Control-Allow-Credentials', 'true');
+        }
+    }
+
     // Log error with structured logger
     logger.logError(err, {
         requestId: req.id,
