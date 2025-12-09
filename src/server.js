@@ -555,6 +555,7 @@ app.use('/api/hr/grievances', noCache, grievanceRoute);
 app.use('/api/hr/organizational-structure', organizationalUnitRoute);
 app.use('/api/hr/job-positions', jobPositionRoute);
 app.use('/api/hr/succession-plans', successionPlanRoute);
+app.use('/api/succession-plans', successionPlanRoute);  // Alias for frontend (also available at /hr/succession-plans)
 app.use('/api/hr/compensation', noCache, compensationRewardRoute);
 app.use('/api/hr/compensation-rewards', noCache, compensationRewardRoute);  // Alias for frontend
 
