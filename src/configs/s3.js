@@ -1,3 +1,12 @@
+/**
+ * Unified Storage Configuration (R2 + S3)
+ *
+ * This module provides a unified interface for cloud storage.
+ * Priority: Cloudflare R2 (if configured) > AWS S3 (fallback)
+ *
+ * R2 is S3-compatible, so we use the same AWS SDK.
+ */
+
 const {
     S3Client,
     PutObjectCommand,
@@ -8,9 +17,19 @@ const {
 } = require('@aws-sdk/client-s3');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 
-// Check if S3 is configured
-// Supports multiple variable naming conventions
-const isS3Configured = () => {
+// ==================== STORAGE PROVIDER DETECTION ====================
+
+// Check if R2 is configured (preferred)
+const isR2Configured = () => {
+    return !!(
+        process.env.R2_ACCESS_KEY_ID &&
+        process.env.R2_SECRET_ACCESS_KEY &&
+        process.env.R2_ENDPOINT
+    );
+};
+
+// Check if S3 is configured (fallback)
+const isS3ConfiguredOnly = () => {
     return !!(
         process.env.AWS_ACCESS_KEY_ID &&
         process.env.AWS_SECRET_ACCESS_KEY &&
@@ -18,10 +37,29 @@ const isS3Configured = () => {
     );
 };
 
-// S3 Client configuration - only create if configured
+// Unified check - either R2 or S3 is configured
+const isS3Configured = () => isR2Configured() || isS3ConfiguredOnly();
+
+// Determine storage type
+const storageType = isR2Configured() ? 'r2' : (isS3ConfiguredOnly() ? 's3' : 'none');
+
+// ==================== CLIENT INITIALIZATION ====================
+
 let s3Client = null;
 
-if (isS3Configured()) {
+if (isR2Configured()) {
+    // Use Cloudflare R2
+    s3Client = new S3Client({
+        region: 'auto',
+        endpoint: process.env.R2_ENDPOINT,
+        credentials: {
+            accessKeyId: process.env.R2_ACCESS_KEY_ID,
+            secretAccessKey: process.env.R2_SECRET_ACCESS_KEY
+        }
+    });
+    console.log('Storage client initialized with Cloudflare R2');
+} else if (isS3ConfiguredOnly()) {
+    // Fall back to AWS S3
     s3Client = new S3Client({
         region: process.env.AWS_REGION || 'me-south-1',
         credentials: {
@@ -29,43 +67,69 @@ if (isS3Configured()) {
             secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY
         }
     });
-    console.log('S3 client initialized successfully');
+    console.log('Storage client initialized with AWS S3');
 } else {
-    console.log('S3 not configured - using local storage for file uploads');
+    console.log('No cloud storage configured - using local storage for file uploads');
 }
 
-// Bucket names - support multiple variable naming conventions
-// Priority: S3_BUCKET_* > AWS_S3_BUCKET_* > AWS_S3_BUCKET (fallback)
-const BUCKETS = {
+// ==================== BUCKET CONFIGURATION ====================
+
+// Bucket names - R2 buckets take priority over S3 buckets
+const BUCKETS = isR2Configured() ? {
+    // R2 Buckets
+    general: process.env.R2_BUCKET_DOCUMENTS || 'traf3li-documents',
+    documents: process.env.R2_BUCKET_DOCUMENTS || 'traf3li-documents',
+    judgments: process.env.R2_BUCKET_JUDGMENTS || 'traf3li-judgments',
+    tasks: process.env.R2_BUCKET_DOCUMENTS || 'traf3li-documents',
+    crm: process.env.R2_BUCKET_CRM || 'traf3li-crm',
+    finance: process.env.R2_BUCKET_FINANCE || 'traf3li-finance',
+    hr: process.env.R2_BUCKET_HR || 'traf3li-hr',
+    // R2 Logging buckets
+    documentsLogs: process.env.R2_BUCKET_DOCUMENTS_LOGS || null,
+    tasksLogs: process.env.R2_BUCKET_DOCUMENTS_LOGS || null,
+    crmLogs: process.env.R2_BUCKET_CRM_LOGS || null,
+    financeLogs: process.env.R2_BUCKET_FINANCE_LOGS || null,
+    hrLogs: process.env.R2_BUCKET_HR_LOGS || null,
+    judgmentsLogs: process.env.R2_BUCKET_JUDGMENTS_LOGS || null
+} : {
+    // S3 Buckets (fallback)
     general: process.env.S3_BUCKET_DOCUMENTS || process.env.AWS_S3_BUCKET_DOCUMENTS || process.env.AWS_S3_BUCKET || 'traf3li-legal-documents',
+    documents: process.env.S3_BUCKET_DOCUMENTS || process.env.AWS_S3_BUCKET_DOCUMENTS || 'traf3li-legal-documents',
     judgments: process.env.S3_BUCKET_JUDGMENTS || process.env.AWS_S3_JUDGMENTS_BUCKET || 'traf3li-case-judgments',
     tasks: process.env.S3_BUCKET_TASKS || process.env.AWS_S3_BUCKET || 'traf3li-task-attachments',
-    // Logging buckets for access tracking
+    crm: process.env.AWS_S3_BUCKET || 'traf3li-crm',
+    finance: process.env.AWS_S3_BUCKET || 'traf3li-finance',
+    hr: process.env.AWS_S3_BUCKET || 'traf3li-hr',
+    // S3 Logging buckets
     documentsLogs: process.env.S3_BUCKET_DOCUMENTS_LOGS || process.env.AWS_S3_BUCKET_DOCUMENTS_LOGS || null,
-    tasksLogs: process.env.S3_BUCKET_TASKS_LOGS || process.env.AWS_S3_BUCKET_TASKS_LOGS || null
+    tasksLogs: process.env.S3_BUCKET_TASKS_LOGS || process.env.AWS_S3_BUCKET_TASKS_LOGS || null,
+    crmLogs: null,
+    financeLogs: null,
+    hrLogs: null,
+    judgmentsLogs: null
 };
 
-// Check if versioning logging is enabled
-const isLoggingEnabled = () => !!(BUCKETS.documentsLogs || BUCKETS.tasksLogs);
+// Check if logging is enabled
+const isLoggingEnabled = () => !!(BUCKETS.documentsLogs || BUCKETS.tasksLogs || BUCKETS.crmLogs);
 
 // URL expiry time (in seconds)
 const PRESIGNED_URL_EXPIRY = parseInt(process.env.PRESIGNED_URL_EXPIRY) || 3600;
 
-// Server-side encryption configuration
-// Supports SSE-S3 (AES256) or SSE-KMS with Bucket Key
+// Server-side encryption configuration (S3 only - R2 handles encryption automatically)
 const SSE_CONFIG = {
-    enabled: process.env.S3_SSE_ENABLED !== 'false', // Enabled by default
-    algorithm: process.env.S3_SSE_ALGORITHM || 'AES256', // 'AES256' for SSE-S3, 'aws:kms' for SSE-KMS
-    kmsKeyId: process.env.S3_KMS_KEY_ID || null, // Required if using SSE-KMS
-    bucketKeyEnabled: process.env.S3_BUCKET_KEY_ENABLED !== 'false' // Bucket Key enabled by default for KMS
+    enabled: storageType === 's3' && process.env.S3_SSE_ENABLED !== 'false',
+    algorithm: process.env.S3_SSE_ALGORITHM || 'AES256',
+    kmsKeyId: process.env.S3_KMS_KEY_ID || null,
+    bucketKeyEnabled: process.env.S3_BUCKET_KEY_ENABLED !== 'false'
 };
 
 /**
- * Get encryption parameters for PutObject commands
+ * Get encryption parameters for PutObject commands (S3 only)
  * @returns {Object} - Encryption parameters to spread into command options
  */
 const getEncryptionParams = () => {
-    if (!SSE_CONFIG.enabled) {
+    // R2 handles encryption automatically
+    if (storageType === 'r2' || !SSE_CONFIG.enabled) {
         return {};
     }
 
@@ -73,28 +137,28 @@ const getEncryptionParams = () => {
         ServerSideEncryption: SSE_CONFIG.algorithm
     };
 
-    // If using SSE-KMS, add KMS key and Bucket Key setting
     if (SSE_CONFIG.algorithm === 'aws:kms') {
         if (SSE_CONFIG.kmsKeyId) {
             params.SSEKMSKeyId = SSE_CONFIG.kmsKeyId;
         }
-        // Enable Bucket Key to reduce KMS costs
         params.BucketKeyEnabled = SSE_CONFIG.bucketKeyEnabled;
     }
 
     return params;
 };
 
+// ==================== FILE OPERATIONS ====================
+
 /**
  * Generate a presigned URL for uploading a file
- * @param {string} fileKey - The S3 key for the file
+ * @param {string} fileKey - The storage key for the file
  * @param {string} contentType - The MIME type of the file
- * @param {string} bucket - The bucket name ('general' or 'judgments')
+ * @param {string} bucket - The bucket name ('general', 'judgments', 'crm', 'finance', 'hr')
  * @returns {Promise<string>} - The presigned URL
  */
 const getUploadPresignedUrl = async (fileKey, contentType, bucket = 'general') => {
     if (!isS3Configured() || !s3Client) {
-        throw new Error('S3 is not configured');
+        throw new Error('Cloud storage is not configured');
     }
 
     const bucketName = BUCKETS[bucket] || BUCKETS.general;
@@ -103,7 +167,7 @@ const getUploadPresignedUrl = async (fileKey, contentType, bucket = 'general') =
         Bucket: bucketName,
         Key: fileKey,
         ContentType: contentType,
-        ...getEncryptionParams() // Apply server-side encryption
+        ...getEncryptionParams()
     });
 
     const url = await getSignedUrl(s3Client, command, {
@@ -115,15 +179,15 @@ const getUploadPresignedUrl = async (fileKey, contentType, bucket = 'general') =
 
 /**
  * Generate a presigned URL for downloading a file
- * @param {string} fileKey - The S3 key for the file
- * @param {string} bucket - The bucket name ('general', 'judgments', or 'tasks')
+ * @param {string} fileKey - The storage key for the file
+ * @param {string} bucket - The bucket name
  * @param {string} filename - Original filename for Content-Disposition header
- * @param {string} versionId - Optional S3 version ID for versioned buckets
+ * @param {string} versionId - Optional version ID for versioned buckets
  * @returns {Promise<string>} - The presigned URL
  */
 const getDownloadPresignedUrl = async (fileKey, bucket = 'general', filename = null, versionId = null) => {
     if (!isS3Configured() || !s3Client) {
-        throw new Error('S3 is not configured');
+        throw new Error('Cloud storage is not configured');
     }
 
     const bucketName = BUCKETS[bucket] || BUCKETS.general;
@@ -133,7 +197,6 @@ const getDownloadPresignedUrl = async (fileKey, bucket = 'general', filename = n
         Key: fileKey
     };
 
-    // Support S3 versioning - fetch specific version if provided
     if (versionId) {
         commandOptions.VersionId = versionId;
     }
@@ -153,13 +216,13 @@ const getDownloadPresignedUrl = async (fileKey, bucket = 'general', filename = n
 
 /**
  * List all versions of a file (for versioned buckets)
- * @param {string} fileKey - The S3 key for the file
+ * @param {string} fileKey - The storage key for the file
  * @param {string} bucket - The bucket name
  * @returns {Promise<Array>} - Array of version objects
  */
 const listFileVersions = async (fileKey, bucket = 'general') => {
     if (!isS3Configured() || !s3Client) {
-        throw new Error('S3 is not configured');
+        throw new Error('Cloud storage is not configured');
     }
 
     const bucketName = BUCKETS[bucket] || BUCKETS.general;
@@ -171,7 +234,6 @@ const listFileVersions = async (fileKey, bucket = 'general') => {
 
     const response = await s3Client.send(command);
 
-    // Filter to exact key match and format response
     const versions = (response.Versions || [])
         .filter(v => v.Key === fileKey)
         .map(v => ({
@@ -187,14 +249,14 @@ const listFileVersions = async (fileKey, bucket = 'general') => {
 
 /**
  * Get file metadata including version info
- * @param {string} fileKey - The S3 key for the file
+ * @param {string} fileKey - The storage key for the file
  * @param {string} bucket - The bucket name
  * @param {string} versionId - Optional version ID
  * @returns {Promise<Object>} - File metadata
  */
 const getFileMetadata = async (fileKey, bucket = 'general', versionId = null) => {
     if (!isS3Configured() || !s3Client) {
-        throw new Error('S3 is not configured');
+        throw new Error('Cloud storage is not configured');
     }
 
     const bucketName = BUCKETS[bucket] || BUCKETS.general;
@@ -222,36 +284,76 @@ const getFileMetadata = async (fileKey, bucket = 'general', versionId = null) =>
 };
 
 /**
+ * Get the logging bucket for a given source bucket
+ * @param {string} bucket - Source bucket name
+ * @returns {string|null} - Logging bucket name or null
+ */
+const getLogBucket = (bucket) => {
+    const logBucketMap = {
+        'crm': BUCKETS.crmLogs,
+        'documents': BUCKETS.documentsLogs,
+        'general': BUCKETS.documentsLogs,
+        'finance': BUCKETS.financeLogs,
+        'hr': BUCKETS.hrLogs,
+        'judgments': BUCKETS.judgmentsLogs,
+        'tasks': BUCKETS.tasksLogs
+    };
+    return logBucketMap[bucket] || BUCKETS.documentsLogs;
+};
+
+/**
  * Log file access to the logging bucket
  * @param {string} fileKey - The accessed file key
- * @param {string} bucket - The source bucket ('documents' or 'tasks')
+ * @param {string} bucket - The source bucket
  * @param {string} userId - The user who accessed the file
- * @param {string} action - The action performed ('download', 'preview', 'delete')
+ * @param {string} action - The action performed ('download', 'upload', 'preview', 'delete')
  * @param {Object} metadata - Additional metadata to log
  */
 const logFileAccess = async (fileKey, bucket, userId, action, metadata = {}) => {
     if (!isS3Configured() || !s3Client) {
-        return; // Skip logging if S3 not configured
+        return;
     }
 
-    // Determine which logging bucket to use
-    const logBucket = bucket === 'tasks' ? BUCKETS.tasksLogs : BUCKETS.documentsLogs;
+    const logBucket = getLogBucket(bucket);
 
     if (!logBucket) {
-        return; // Skip if no logging bucket configured
+        return;
     }
 
-    const timestamp = new Date().toISOString();
+    const timestamp = new Date();
     const logEntry = {
-        timestamp,
-        fileKey,
-        sourceBucket: BUCKETS[bucket] || bucket,
-        userId,
-        action,
-        ...metadata
+        timestamp: timestamp.toISOString(),
+        requestTime: timestamp.getTime(),
+        bucket: BUCKETS[bucket] || bucket,
+        key: fileKey,
+        operation: action.toUpperCase(),
+        requesterId: userId,
+        storageType,
+        request: {
+            action,
+            userAgent: metadata.userAgent || 'traf3li-backend',
+            remoteIp: metadata.remoteIp || null
+        },
+        response: {
+            httpStatus: metadata.httpStatus || 200,
+            bytesTransferred: metadata.bytesTransferred || 0
+        },
+        versionId: metadata.versionId || null,
+        customMetadata: {
+            firmId: metadata.firmId || null,
+            caseId: metadata.caseId || null,
+            documentId: metadata.documentId || null
+        }
     };
 
-    const logKey = `logs/${new Date().toISOString().split('T')[0]}/${Date.now()}-${userId}-${action}.json`;
+    const datePrefix = [
+        timestamp.getFullYear(),
+        String(timestamp.getMonth() + 1).padStart(2, '0'),
+        String(timestamp.getDate()).padStart(2, '0'),
+        String(timestamp.getHours()).padStart(2, '0')
+    ].join('/');
+
+    const logKey = `logs/${datePrefix}/${timestamp.getTime()}-${userId}-${action}.json`;
 
     try {
         const command = new PutObjectCommand({
@@ -259,25 +361,24 @@ const logFileAccess = async (fileKey, bucket, userId, action, metadata = {}) => 
             Key: logKey,
             Body: JSON.stringify(logEntry, null, 2),
             ContentType: 'application/json',
-            ...getEncryptionParams() // Apply server-side encryption to logs
+            ...getEncryptionParams()
         });
 
         await s3Client.send(command);
     } catch (err) {
-        // Log error but don't fail the main operation
         console.error('Failed to log file access:', err.message);
     }
 };
 
 /**
- * Delete a file from S3
- * @param {string} fileKey - The S3 key for the file
- * @param {string} bucket - The bucket name ('general', 'judgments', or 'tasks')
+ * Delete a file from storage
+ * @param {string} fileKey - The storage key for the file
+ * @param {string} bucket - The bucket name
  * @returns {Promise<void>}
  */
 const deleteFile = async (fileKey, bucket = 'general') => {
     if (!isS3Configured() || !s3Client) {
-        console.log('S3 not configured, skipping S3 delete for:', fileKey);
+        console.log('Storage not configured, skipping delete for:', fileKey);
         return;
     }
 
@@ -292,7 +393,7 @@ const deleteFile = async (fileKey, bucket = 'general') => {
 };
 
 /**
- * Generate a unique file key for S3
+ * Generate a unique file key for storage
  * @param {string} caseId - The case ID
  * @param {string} category - Document category
  * @param {string} filename - Original filename
@@ -306,11 +407,15 @@ const generateFileKey = (caseId, category, filename) => {
     return `cases/${caseId}/${category}/${timestamp}-${randomString}-${sanitizedFilename}`;
 };
 
+// ==================== EXPORTS ====================
+
 module.exports = {
     s3Client,
     BUCKETS,
     SSE_CONFIG,
+    storageType,
     isS3Configured,
+    isR2Configured,
     isLoggingEnabled,
     getUploadPresignedUrl,
     getDownloadPresignedUrl,
@@ -320,5 +425,6 @@ module.exports = {
     listFileVersions,
     getFileMetadata,
     logFileAccess,
+    getLogBucket,
     PRESIGNED_URL_EXPIRY
 };
