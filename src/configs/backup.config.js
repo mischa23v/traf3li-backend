@@ -1,11 +1,40 @@
 /**
  * Backup Configuration
  *
- * Centralized configuration for database backups, S3 storage, and retention policies.
+ * Centralized configuration for database backups, cloud storage (R2/S3), and retention policies.
+ * Supports Cloudflare R2 (preferred) with fallback to AWS S3.
  */
 
+// Determine storage provider (R2 preferred, S3 fallback)
+const isR2Configured = !!(
+  process.env.R2_ACCESS_KEY_ID &&
+  process.env.R2_SECRET_ACCESS_KEY &&
+  process.env.R2_ENDPOINT
+);
+
+const isS3Configured = !!(
+  process.env.AWS_ACCESS_KEY_ID &&
+  process.env.AWS_SECRET_ACCESS_KEY
+);
+
+const storageProvider = isR2Configured ? 'r2' : (isS3Configured ? 's3' : 'none');
+
 module.exports = {
-  // S3 Configuration
+  // Storage provider indicator
+  storageProvider,
+
+  // Cloudflare R2 Configuration (preferred)
+  r2: {
+    bucket: process.env.BACKUP_R2_BUCKET || process.env.R2_BUCKET_DOCUMENTS || 'traf3li-backups',
+    endpoint: process.env.R2_ENDPOINT,
+    accessKeyId: process.env.R2_ACCESS_KEY_ID,
+    secretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
+    accountId: process.env.R2_ACCOUNT_ID,
+    // R2 path structure: backups/{type}/{year}/{month}/{filename}
+    prefix: 'backups',
+  },
+
+  // AWS S3 Configuration (fallback)
   s3: {
     bucket: process.env.BACKUP_S3_BUCKET || 'traf3li-backups',
     region: process.env.AWS_REGION || 'me-south-1',
@@ -13,6 +42,30 @@ module.exports = {
     secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
     // S3 path structure: backups/{type}/{year}/{month}/{filename}
     prefix: 'backups',
+  },
+
+  // Unified storage config getter
+  get storage() {
+    if (storageProvider === 'r2') {
+      return {
+        type: 'r2',
+        bucket: this.r2.bucket,
+        endpoint: this.r2.endpoint,
+        accessKeyId: this.r2.accessKeyId,
+        secretAccessKey: this.r2.secretAccessKey,
+        region: 'auto',
+        prefix: this.r2.prefix,
+      };
+    }
+    return {
+      type: 's3',
+      bucket: this.s3.bucket,
+      endpoint: null,
+      accessKeyId: this.s3.accessKeyId,
+      secretAccessKey: this.s3.secretAccessKey,
+      region: this.s3.region,
+      prefix: this.s3.prefix,
+    };
   },
 
   // MongoDB Configuration

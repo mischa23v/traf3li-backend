@@ -32,6 +32,40 @@ services:
       - key: STRIPE_SECRET_KEY
         sync: false
 
+      # Cloudflare R2 Storage (set in Render dashboard - secret)
+      - key: R2_ACCESS_KEY_ID
+        sync: false
+      - key: R2_SECRET_ACCESS_KEY
+        sync: false
+      - key: R2_ENDPOINT
+        sync: false
+      - key: R2_ACCOUNT_ID
+        sync: false
+
+      # R2 Bucket names (can be set here or in dashboard)
+      - key: R2_BUCKET_CRM
+        sync: false
+      - key: R2_BUCKET_DOCUMENTS
+        sync: false
+      - key: R2_BUCKET_FINANCE
+        sync: false
+      - key: R2_BUCKET_HR
+        sync: false
+      - key: R2_BUCKET_JUDGMENTS
+        sync: false
+
+      # R2 Logging Buckets (optional - for access tracking)
+      - key: R2_BUCKET_CRM_LOGS
+        sync: false
+      - key: R2_BUCKET_DOCUMENTS_LOGS
+        sync: false
+      - key: R2_BUCKET_FINANCE_LOGS
+        sync: false
+      - key: R2_BUCKET_HR_LOGS
+        sync: false
+      - key: R2_BUCKET_JUDGMENTS_LOGS
+        sync: false
+
       # Frontend URLs for CORS (optional - already in code)
       - key: CLIENT_URL
         value: https://traf3li.com
