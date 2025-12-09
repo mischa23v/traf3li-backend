@@ -266,6 +266,7 @@ router.use('/hr/expense-claims', noCache, expenseClaimRoute);
 router.use('/hr/trainings', trainingRoute);
 router.use('/hr/asset-assignments', assetAssignmentRoute);
 router.use('/hr/benefits', noCache, employeeBenefitRoute);
+router.use('/hr/employee-benefits', noCache, employeeBenefitRoute);  // Alias for frontend
 router.use('/hr/grievances', noCache, grievanceRoute);
 router.use('/hr/organizational-structure', organizationalUnitRoute);
 router.use('/hr/job-positions', jobPositionRoute);
