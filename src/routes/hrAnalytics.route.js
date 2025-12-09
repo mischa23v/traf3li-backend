@@ -1,20 +1,19 @@
 const express = require('express');
 const router = express.Router();
 const HRAnalyticsController = require('../controllers/hrAnalytics.controller');
-const authenticate = require('../middlewares/authenticate');
+const { userMiddleware, firmFilter } = require('../middlewares');
 const { authorize } = require('../middlewares/authorize.middleware');
-const { attachFirmContext } = require('../middlewares/firmContext.middleware');
 
 /**
  * HR Analytics & Predictions Routes
  * All routes require authentication and HR/Admin authorization
  */
 
-// Apply authentication middleware to all routes
-router.use(authenticate);
+// Apply authentication middleware to all routes (checks both cookies AND Authorization header)
+router.use(userMiddleware);
 
-// Apply firm context middleware to set req.firmId
-router.use(attachFirmContext);
+// Apply firm filter middleware to set req.firmId (same as finance/invoice routes)
+router.use(firmFilter);
 
 // Apply HR/Admin authorization to all routes
 // Adjust roles based on your system (e.g., ['hr', 'admin', 'manager'])
