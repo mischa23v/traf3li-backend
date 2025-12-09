@@ -383,11 +383,15 @@ app.use(sentrySetUserContext);
 // ✅ SENTRY: Add request breadcrumbs for error tracking
 app.use(addRequestBreadcrumb);
 
-// ✅ SECURITY: Global API rate limiting (all /api routes)
-app.use('/api', apiRateLimiter);
+// ✅ SECURITY: Global API rate limiting - DISABLED
+// Rate limiting removed to allow frontend dashboard to make multiple parallel API calls
+// Auth-specific rate limiting is still applied on auth routes for brute force protection
+// TODO: Consider implementing per-user rate limiting instead of global limits
+// app.use('/api', apiRateLimiter);
 
-// ✅ SECURITY: Speed limiter (progressive delay after threshold)
-app.use('/api', speedLimiter);
+// ✅ SECURITY: Speed limiter - DISABLED
+// Disabled along with rate limiting to prevent 429 errors on dashboard load
+// app.use('/api', speedLimiter);
 
 // ✅ SECURITY: Origin check for state-changing operations (CSRF defense-in-depth)
 app.use('/api', originCheck);
