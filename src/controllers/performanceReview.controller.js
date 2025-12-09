@@ -103,7 +103,7 @@ const getPerformanceReviews = async (req, res) => {
 const getPerformanceStats = async (req, res) => {
     try {
         const { periodYear, departmentId, firmId } = req.query;
-        const targetFirmId = firmId || req.user?.firmId;
+        const targetFirmId = firmId || req.firmId || req.user?.firmId;
 
         // Validate firmId is present
         if (!targetFirmId) {
@@ -1427,7 +1427,7 @@ const applyCalibration = async (req, res) => {
 const getEmployeeHistory = async (req, res) => {
     try {
         const { employeeId } = req.params;
-        const firmId = req.query.firmId || req.user?.firmId;
+        const firmId = req.query.firmId || req.firmId || req.user?.firmId;
 
         const reviews = await PerformanceReview.getEmployeeHistory(employeeId, firmId);
 
@@ -1472,7 +1472,7 @@ const getTeamSummary = async (req, res) => {
     try {
         const { managerId } = req.params;
         const { periodYear } = req.query;
-        const firmId = req.query.firmId || req.user?.firmId;
+        const firmId = req.query.firmId || req.firmId || req.user?.firmId;
 
         // Validate required parameters
         if (!firmId) {
@@ -1738,7 +1738,7 @@ const sendReminder = async (req, res) => {
  */
 const getOverdueReviews = async (req, res) => {
     try {
-        const firmId = req.query.firmId || req.user?.firmId;
+        const firmId = req.query.firmId || req.firmId || req.user?.firmId;
 
         const reviews = await PerformanceReview.getOverdueReviews(firmId);
 
