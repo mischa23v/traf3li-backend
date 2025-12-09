@@ -108,7 +108,7 @@ const employeeListItemSchema = new mongoose.Schema({
     calculationDuration: Number,
     approvedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     approvedOn: Date
-}, { _id: true });
+}, { _id: true, suppressReservedKeysWarning: true });
 
 const departmentBreakdownSchema = new mongoose.Schema({
     departmentId: String,
@@ -648,7 +648,8 @@ const payrollRunSchema = new mongoose.Schema({
 
 }, {
     timestamps: true,
-    versionKey: false
+    versionKey: false,
+    suppressReservedKeysWarning: true  // Suppress warnings for 'errors' field which is intentionally used
 });
 
 // ═══════════════════════════════════════════════════════════════
