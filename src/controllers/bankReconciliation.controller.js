@@ -795,8 +795,13 @@ const getBankFeeds = asyncHandler(async (req, res) => {
     if (bankAccountId) query.bankAccountId = bankAccountId;
 
     // Validate sortBy field to prevent injection
+    // Map frontend field names to model fields
+    const sortFieldMap = {
+        'lastReconciled': 'lastImportAt'  // Frontend uses lastReconciled, model has lastImportAt
+    };
+    const mappedSortBy = sortFieldMap[sortBy] || sortBy;
     const allowedSortFields = ['createdAt', 'updatedAt', 'name', 'lastImportAt', 'totalImported', 'status'];
-    const sanitizedSortBy = allowedSortFields.includes(sortBy) ? sortBy : 'createdAt';
+    const sanitizedSortBy = allowedSortFields.includes(mappedSortBy) ? mappedSortBy : 'createdAt';
     const sanitizedSortOrder = sortOrder === 'asc' ? 1 : -1;
 
     const feeds = await BankFeed.find(query)
@@ -810,18 +815,16 @@ const getBankFeeds = asyncHandler(async (req, res) => {
 
     return res.status(200).json({
         success: true,
-        data: {
-            feeds,
-            pagination: {
-                page: parseInt(page),
-                limit: parseInt(limit),
-                total,
-                pages: Math.ceil(total / parseInt(limit))
-            },
-            sorting: {
-                sortBy: sanitizedSortBy,
-                sortOrder: sortOrder === 'asc' ? 'asc' : 'desc'
-            }
+        data: feeds,
+        pagination: {
+            page: parseInt(page),
+            limit: parseInt(limit),
+            total,
+            pages: Math.ceil(total / parseInt(limit))
+        },
+        sorting: {
+            sortBy: sanitizedSortBy,
+            sortOrder: sortOrder === 'asc' ? 'asc' : 'desc'
         }
     });
 });
