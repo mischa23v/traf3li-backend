@@ -14,8 +14,8 @@ class HRAnalyticsController {
      * @access  Private (HR, Admin)
      */
     static getDashboard = asyncHandler(async (req, res) => {
-        const firmId = req.user.firmId;
-        const lawyerId = req.user.role === 'solo' ? req.user._id : null;
+        const firmId = req.firmId; // From firmContext middleware
+        const lawyerId = req.userID || req.userId;
 
         const filters = {
             startDate: req.query.startDate,
@@ -38,8 +38,8 @@ class HRAnalyticsController {
      * @access  Private (HR, Admin)
      */
     static getDemographics = asyncHandler(async (req, res) => {
-        const firmId = req.user.firmId;
-        const lawyerId = req.user.role === 'solo' ? req.user._id : null;
+        const firmId = req.firmId; // From firmContext middleware
+        const lawyerId = req.userID || req.userId;
 
         const filters = {
             department: req.query.department,
@@ -60,8 +60,8 @@ class HRAnalyticsController {
      * @access  Private (HR, Admin)
      */
     static getTurnover = asyncHandler(async (req, res) => {
-        const firmId = req.user.firmId;
-        const lawyerId = req.user.role === 'solo' ? req.user._id : null;
+        const firmId = req.firmId; // From firmContext middleware
+        const lawyerId = req.userID || req.userId;
 
         const filters = {
             startDate: req.query.startDate,
@@ -83,8 +83,8 @@ class HRAnalyticsController {
      * @access  Private (HR, Admin)
      */
     static getAbsenteeism = asyncHandler(async (req, res) => {
-        const firmId = req.user.firmId;
-        const lawyerId = req.user.role === 'solo' ? req.user._id : null;
+        const firmId = req.firmId; // From firmContext middleware
+        const lawyerId = req.userID || req.userId;
 
         const filters = {
             startDate: req.query.startDate,
@@ -106,8 +106,8 @@ class HRAnalyticsController {
      * @access  Private (HR, Admin)
      */
     static getAttendance = asyncHandler(async (req, res) => {
-        const firmId = req.user.firmId;
-        const lawyerId = req.user.role === 'solo' ? req.user._id : null;
+        const firmId = req.firmId; // From firmContext middleware
+        const lawyerId = req.userID || req.userId;
 
         const filters = {
             startDate: req.query.startDate,
@@ -129,8 +129,8 @@ class HRAnalyticsController {
      * @access  Private (HR, Admin)
      */
     static getPerformance = asyncHandler(async (req, res) => {
-        const firmId = req.user.firmId;
-        const lawyerId = req.user.role === 'solo' ? req.user._id : null;
+        const firmId = req.firmId; // From firmContext middleware
+        const lawyerId = req.userID || req.userId;
 
         const filters = {
             startDate: req.query.startDate,
@@ -152,8 +152,8 @@ class HRAnalyticsController {
      * @access  Private (HR, Admin)
      */
     static getRecruitment = asyncHandler(async (req, res) => {
-        const firmId = req.user.firmId;
-        const lawyerId = req.user.role === 'solo' ? req.user._id : null;
+        const firmId = req.firmId; // From firmContext middleware
+        const lawyerId = req.userID || req.userId;
 
         const filters = {
             startDate: req.query.startDate,
@@ -175,8 +175,8 @@ class HRAnalyticsController {
      * @access  Private (HR, Admin)
      */
     static getCompensation = asyncHandler(async (req, res) => {
-        const firmId = req.user.firmId;
-        const lawyerId = req.user.role === 'solo' ? req.user._id : null;
+        const firmId = req.firmId; // From firmContext middleware
+        const lawyerId = req.userID || req.userId;
 
         const filters = {
             department: req.query.department
@@ -196,8 +196,8 @@ class HRAnalyticsController {
      * @access  Private (HR, Admin)
      */
     static getTraining = asyncHandler(async (req, res) => {
-        const firmId = req.user.firmId;
-        const lawyerId = req.user.role === 'solo' ? req.user._id : null;
+        const firmId = req.firmId; // From firmContext middleware
+        const lawyerId = req.userID || req.userId;
 
         const filters = {
             startDate: req.query.startDate,
@@ -219,8 +219,8 @@ class HRAnalyticsController {
      * @access  Private (HR, Admin)
      */
     static getLeave = asyncHandler(async (req, res) => {
-        const firmId = req.user.firmId;
-        const lawyerId = req.user.role === 'solo' ? req.user._id : null;
+        const firmId = req.firmId; // From firmContext middleware
+        const lawyerId = req.userID || req.userId;
 
         const filters = {
             startDate: req.query.startDate,
@@ -242,8 +242,8 @@ class HRAnalyticsController {
      * @access  Private (HR, Admin)
      */
     static getSaudization = asyncHandler(async (req, res) => {
-        const firmId = req.user.firmId;
-        const lawyerId = req.user.role === 'solo' ? req.user._id : null;
+        const firmId = req.firmId; // From firmContext middleware
+        const lawyerId = req.userID || req.userId;
 
         const saudization = await HRAnalyticsService.getSaudizationCompliance(firmId, lawyerId);
 
@@ -259,8 +259,8 @@ class HRAnalyticsController {
      * @access  Private (HR, Admin)
      */
     static takeSnapshot = asyncHandler(async (req, res) => {
-        const firmId = req.user.firmId;
-        const lawyerId = req.user.role === 'solo' ? req.user._id : null;
+        const firmId = req.firmId; // From firmContext middleware
+        const lawyerId = req.userID || req.userId;
         const { snapshotType = 'monthly' } = req.body;
 
         const snapshot = await HRAnalyticsService.takeSnapshot(firmId, lawyerId, snapshotType);
@@ -278,8 +278,8 @@ class HRAnalyticsController {
      * @access  Private (HR, Admin)
      */
     static getTrends = asyncHandler(async (req, res) => {
-        const firmId = req.user.firmId;
-        const lawyerId = req.user.role === 'solo' ? req.user._id : null;
+        const firmId = req.firmId; // From firmContext middleware
+        const lawyerId = req.userID || req.userId;
         const { snapshotType = 'monthly', limit = 12 } = req.query;
 
         const HRAnalyticsSnapshot = require('../models/hrAnalyticsSnapshot.model');
@@ -302,8 +302,8 @@ class HRAnalyticsController {
      * @access  Private (HR, Admin)
      */
     static exportReport = asyncHandler(async (req, res) => {
-        const firmId = req.user.firmId;
-        const lawyerId = req.user.role === 'solo' ? req.user._id : null;
+        const firmId = req.firmId; // From firmContext middleware
+        const lawyerId = req.userID || req.userId;
 
         const filters = {
             startDate: req.query.startDate,
@@ -332,8 +332,8 @@ class HRAnalyticsController {
      * @access  Private (HR, Admin)
      */
     static getAttritionRisk = asyncHandler(async (req, res) => {
-        const firmId = req.user.firmId;
-        const lawyerId = req.user.role === 'solo' ? req.user._id : null;
+        const firmId = req.firmId; // From firmContext middleware
+        const lawyerId = req.userID || req.userId;
 
         const filters = {
             department: req.query.department
@@ -353,8 +353,8 @@ class HRAnalyticsController {
      * @access  Private (HR, Admin, Manager)
      */
     static getEmployeeAttritionRisk = asyncHandler(async (req, res) => {
-        const firmId = req.user.firmId;
-        const lawyerId = req.user.role === 'solo' ? req.user._id : null;
+        const firmId = req.firmId; // From firmContext middleware
+        const lawyerId = req.userID || req.userId;
         const { employeeId } = req.params;
 
         const attritionRisk = await HRPredictionsService.getEmployeeAttritionRisk(
@@ -375,8 +375,8 @@ class HRAnalyticsController {
      * @access  Private (HR, Admin)
      */
     static getWorkforceForecast = asyncHandler(async (req, res) => {
-        const firmId = req.user.firmId;
-        const lawyerId = req.user.role === 'solo' ? req.user._id : null;
+        const firmId = req.firmId; // From firmContext middleware
+        const lawyerId = req.userID || req.userId;
         const { months = 12 } = req.query;
 
         const forecast = await HRPredictionsService.getWorkforceForecast(
@@ -397,8 +397,8 @@ class HRAnalyticsController {
      * @access  Private (HR, Admin)
      */
     static getHighPotential = asyncHandler(async (req, res) => {
-        const firmId = req.user.firmId;
-        const lawyerId = req.user.role === 'solo' ? req.user._id : null;
+        const firmId = req.firmId; // From firmContext middleware
+        const lawyerId = req.userID || req.userId;
         const { limit = 20 } = req.query;
 
         const highPotential = await HRPredictionsService.getHighPotentialEmployees(
@@ -419,8 +419,8 @@ class HRAnalyticsController {
      * @access  Private (HR, Admin)
      */
     static getFlightRisk = asyncHandler(async (req, res) => {
-        const firmId = req.user.firmId;
-        const lawyerId = req.user.role === 'solo' ? req.user._id : null;
+        const firmId = req.firmId; // From firmContext middleware
+        const lawyerId = req.userID || req.userId;
 
         const engagement = await HRPredictionsService.getEngagementPredictions(firmId, lawyerId);
 
@@ -439,8 +439,8 @@ class HRAnalyticsController {
      * @access  Private (HR, Admin)
      */
     static getAbsencePredictions = asyncHandler(async (req, res) => {
-        const firmId = req.user.firmId;
-        const lawyerId = req.user.role === 'solo' ? req.user._id : null;
+        const firmId = req.firmId; // From firmContext middleware
+        const lawyerId = req.userID || req.userId;
 
         const absencePredictions = await HRPredictionsService.getAbsencePredictions(firmId, lawyerId);
 
@@ -456,8 +456,8 @@ class HRAnalyticsController {
      * @access  Private (HR, Admin)
      */
     static getEngagementPredictions = asyncHandler(async (req, res) => {
-        const firmId = req.user.firmId;
-        const lawyerId = req.user.role === 'solo' ? req.user._id : null;
+        const firmId = req.firmId; // From firmContext middleware
+        const lawyerId = req.userID || req.userId;
 
         const engagement = await HRPredictionsService.getEngagementPredictions(firmId, lawyerId);
 
