@@ -17,7 +17,8 @@ const mongoose = require('mongoose');
  */
 exports.getJobPostings = async (req, res) => {
     try {
-        const { firmId, lawyerId } = req.user;
+        const firmId = req.firmId; // From firmContext middleware
+        const lawyerId = req.userID || req.userId;
         const {
             status,
             departmentId,
@@ -32,7 +33,8 @@ exports.getJobPostings = async (req, res) => {
             sortOrder = 'desc'
         } = req.query;
 
-        const query = { firmId, lawyerId };
+        // Build query based on firmId (firm) or lawyerId (solo lawyer)
+        const query = firmId ? { firmId } : { lawyerId };
 
         // Apply filters
         if (status) query.status = status;
@@ -83,10 +85,13 @@ exports.getJobPostings = async (req, res) => {
  */
 exports.getJobPostingById = async (req, res) => {
     try {
-        const { firmId, lawyerId } = req.user;
+        const firmId = req.firmId; // From firmContext middleware
+        const lawyerId = req.userID || req.userId;
         const { id } = req.params;
 
-        const job = await JobPosting.findOne({ _id: id, firmId, lawyerId })
+        // Build query based on firmId (firm) or lawyerId (solo lawyer)
+        const baseQuery = firmId ? { firmId } : { lawyerId };
+        const job = await JobPosting.findOne({ _id: id, ...baseQuery })
             .populate('departmentId', 'name nameAr')
             .populate('recruitmentTeam.hiringManager.userId', 'name email')
             .populate('recruitmentTeam.recruiter.userId', 'name email')
@@ -109,12 +114,15 @@ exports.getJobPostingById = async (req, res) => {
  */
 exports.createJobPosting = async (req, res) => {
     try {
-        const { firmId, lawyerId, _id: userId, name: userName } = req.user;
+        const firmId = req.firmId; // From firmContext middleware
+        const lawyerId = req.userID || req.userId;
+        const userId = req.userID || req.userId;
+        const userName = req.user?.name;
 
         const jobData = {
             ...req.body,
-            firmId,
-            lawyerId,
+            firmId, // From middleware (null for solo lawyers)
+            lawyerId, // From middleware
             createdBy: userId,
             updatedBy: userId,
             statusHistory: [{
@@ -145,11 +153,15 @@ exports.createJobPosting = async (req, res) => {
  */
 exports.updateJobPosting = async (req, res) => {
     try {
-        const { firmId, lawyerId, _id: userId } = req.user;
+        const firmId = req.firmId; // From firmContext middleware
+        const lawyerId = req.userID || req.userId;
+        const userId = req.userID || req.userId;
         const { id } = req.params;
 
+        // Build query based on firmId (firm) or lawyerId (solo lawyer)
+        const baseQuery = firmId ? { firmId } : { lawyerId };
         const job = await JobPosting.findOneAndUpdate(
-            { _id: id, firmId, lawyerId },
+            { _id: id, ...baseQuery },
             { ...req.body, updatedBy: userId, updatedAt: new Date() },
             { new: true, runValidators: true }
         );
@@ -175,12 +187,16 @@ exports.updateJobPosting = async (req, res) => {
  */
 exports.deleteJobPosting = async (req, res) => {
     try {
-        const { firmId, lawyerId } = req.user;
+        const firmId = req.firmId; // From firmContext middleware
+        const lawyerId = req.userID || req.userId;
         const { id } = req.params;
+
+        // Build query based on firmId (firm) or lawyerId (solo lawyer)
+        const baseQuery = firmId ? { firmId } : { lawyerId };
 
         // Check if there are any applicants
         const applicantCount = await Applicant.countDocuments({
-            firmId,
+            ...baseQuery,
             'applications.jobPostingId': id
         });
 
@@ -191,7 +207,7 @@ exports.deleteJobPosting = async (req, res) => {
             });
         }
 
-        const job = await JobPosting.findOneAndDelete({ _id: id, firmId, lawyerId });
+        const job = await JobPosting.findOneAndDelete({ _id: id, ...baseQuery });
 
         if (!job) {
             return res.status(404).json({ success: false, message: 'Job posting not found' });
@@ -213,11 +229,16 @@ exports.deleteJobPosting = async (req, res) => {
  */
 exports.changeJobStatus = async (req, res) => {
     try {
-        const { firmId, lawyerId, _id: userId, name: userName } = req.user;
+        const firmId = req.firmId; // From firmContext middleware
+        const lawyerId = req.userID || req.userId;
+        const userId = req.userID || req.userId;
+        const userName = req.user?.name;
         const { id } = req.params;
         const { status, reason } = req.body;
 
-        const job = await JobPosting.findOne({ _id: id, firmId, lawyerId });
+        // Build query based on firmId (firm) or lawyerId (solo lawyer)
+        const baseQuery = firmId ? { firmId } : { lawyerId };
+        const job = await JobPosting.findOne({ _id: id, ...baseQuery });
 
         if (!job) {
             return res.status(404).json({ success: false, message: 'Job posting not found' });
@@ -242,11 +263,16 @@ exports.changeJobStatus = async (req, res) => {
  */
 exports.publishJob = async (req, res) => {
     try {
-        const { firmId, lawyerId, _id: userId, name: userName } = req.user;
+        const firmId = req.firmId; // From firmContext middleware
+        const lawyerId = req.userID || req.userId;
+        const userId = req.userID || req.userId;
+        const userName = req.user?.name;
         const { id } = req.params;
         const { channels } = req.body;
 
-        const job = await JobPosting.findOne({ _id: id, firmId, lawyerId });
+        // Build query based on firmId (firm) or lawyerId (solo lawyer)
+        const baseQuery = firmId ? { firmId } : { lawyerId };
+        const job = await JobPosting.findOne({ _id: id, ...baseQuery });
 
         if (!job) {
             return res.status(404).json({ success: false, message: 'Job posting not found' });
@@ -282,10 +308,14 @@ exports.publishJob = async (req, res) => {
  */
 exports.cloneJob = async (req, res) => {
     try {
-        const { firmId, lawyerId, _id: userId } = req.user;
+        const firmId = req.firmId; // From firmContext middleware
+        const lawyerId = req.userID || req.userId;
+        const userId = req.userID || req.userId;
         const { id } = req.params;
 
-        const originalJob = await JobPosting.findOne({ _id: id, firmId, lawyerId });
+        // Build query based on firmId (firm) or lawyerId (solo lawyer)
+        const baseQuery = firmId ? { firmId } : { lawyerId };
+        const originalJob = await JobPosting.findOne({ _id: id, ...baseQuery });
 
         if (!originalJob) {
             return res.status(404).json({ success: false, message: 'Job posting not found' });
@@ -332,16 +362,19 @@ exports.cloneJob = async (req, res) => {
  */
 exports.getRecruitmentStats = async (req, res) => {
     try {
-        const { firmId, lawyerId } = req.user;
+        const firmId = req.firmId; // From firmContext middleware
+        const lawyerId = req.userID || req.userId;
         const { startDate, endDate } = req.query;
 
         const dateRange = {};
         if (startDate) dateRange.startDate = startDate;
         if (endDate) dateRange.endDate = endDate;
 
+        // Pass firmId or lawyerId based on user type
+        const filterParam = firmId || lawyerId;
         const [jobStats, applicantStats] = await Promise.all([
-            JobPosting.getRecruitmentStats(firmId, dateRange),
-            Applicant.getRecruitmentStats(firmId, dateRange)
+            JobPosting.getRecruitmentStats(filterParam, dateRange),
+            Applicant.getRecruitmentStats(filterParam, dateRange)
         ]);
 
         res.json({
@@ -363,10 +396,13 @@ exports.getRecruitmentStats = async (req, res) => {
  */
 exports.getJobsNearingDeadline = async (req, res) => {
     try {
-        const { firmId } = req.user;
+        const firmId = req.firmId; // From firmContext middleware
+        const lawyerId = req.userID || req.userId;
         const { days = 7 } = req.query;
 
-        const jobs = await JobPosting.getJobsNearingDeadline(firmId, parseInt(days));
+        // Pass firmId or lawyerId based on user type
+        const filterParam = firmId || lawyerId;
+        const jobs = await JobPosting.getJobsNearingDeadline(filterParam, parseInt(days));
 
         res.json({
             success: true,
@@ -388,14 +424,17 @@ exports.getJobsNearingDeadline = async (req, res) => {
  */
 exports.getApplicantStats = async (req, res) => {
     try {
-        const { firmId, lawyerId } = req.user;
+        const firmId = req.firmId; // From firmContext middleware
+        const lawyerId = req.userID || req.userId;
         const { startDate, endDate } = req.query;
 
         const dateRange = {};
         if (startDate) dateRange.startDate = startDate;
         if (endDate) dateRange.endDate = endDate;
 
-        const stats = await Applicant.getRecruitmentStats(firmId, dateRange);
+        // Pass firmId or lawyerId based on user type
+        const filterParam = firmId || lawyerId;
+        const stats = await Applicant.getRecruitmentStats(filterParam, dateRange);
 
         res.json({
             success: true,
@@ -413,7 +452,8 @@ exports.getApplicantStats = async (req, res) => {
  */
 exports.getApplicants = async (req, res) => {
     try {
-        const { firmId, lawyerId } = req.user;
+        const firmId = req.firmId; // From firmContext middleware
+        const lawyerId = req.userID || req.userId;
         const {
             jobPostingId,
             status,
@@ -427,7 +467,8 @@ exports.getApplicants = async (req, res) => {
             sortOrder = 'desc'
         } = req.query;
 
-        const query = { firmId, lawyerId };
+        // Build query based on firmId (firm) or lawyerId (solo lawyer)
+        const query = firmId ? { firmId } : { lawyerId };
 
         // Apply filters
         if (jobPostingId) {
@@ -486,10 +527,13 @@ exports.getApplicants = async (req, res) => {
  */
 exports.getApplicantById = async (req, res) => {
     try {
-        const { firmId, lawyerId } = req.user;
+        const firmId = req.firmId; // From firmContext middleware
+        const lawyerId = req.userID || req.userId;
         const { id } = req.params;
 
-        const applicant = await Applicant.findOne({ _id: id, firmId, lawyerId })
+        // Build query based on firmId (firm) or lawyerId (solo lawyer)
+        const baseQuery = firmId ? { firmId } : { lawyerId };
+        const applicant = await Applicant.findOne({ _id: id, ...baseQuery })
             .populate('applications.jobPostingId', 'title titleAr jobId status')
             .populate('interviews.interviewers.userId', 'name email')
             .populate('notes.createdBy', 'name')
@@ -512,10 +556,16 @@ exports.getApplicantById = async (req, res) => {
  */
 exports.createApplicant = async (req, res) => {
     try {
-        const { firmId, lawyerId, _id: userId, name: userName } = req.user;
+        const firmId = req.firmId; // From firmContext middleware
+        const lawyerId = req.userID || req.userId;
+        const userId = req.userID || req.userId;
+        const userName = req.user?.name;
+
+        // Build query based on firmId (firm) or lawyerId (solo lawyer)
+        const baseQuery = firmId ? { firmId } : { lawyerId };
 
         // Check if applicant already exists by email
-        const existingApplicant = await Applicant.findOne({ firmId, email: req.body.email });
+        const existingApplicant = await Applicant.findOne({ ...baseQuery, email: req.body.email });
 
         if (existingApplicant) {
             // If applying to a new job, add the application
@@ -560,8 +610,8 @@ exports.createApplicant = async (req, res) => {
         // Create new applicant
         const applicantData = {
             ...req.body,
-            firmId,
-            lawyerId,
+            firmId, // From middleware (null for solo lawyers)
+            lawyerId, // From middleware
             createdBy: userId,
             updatedBy: userId,
             activities: [{
@@ -618,11 +668,16 @@ exports.createApplicant = async (req, res) => {
  */
 exports.updateApplicant = async (req, res) => {
     try {
-        const { firmId, lawyerId, _id: userId, name: userName } = req.user;
+        const firmId = req.firmId; // From firmContext middleware
+        const lawyerId = req.userID || req.userId;
+        const userId = req.userID || req.userId;
+        const userName = req.user?.name;
         const { id } = req.params;
 
+        // Build query based on firmId (firm) or lawyerId (solo lawyer)
+        const baseQuery = firmId ? { firmId } : { lawyerId };
         const applicant = await Applicant.findOneAndUpdate(
-            { _id: id, firmId, lawyerId },
+            { _id: id, ...baseQuery },
             { ...req.body, updatedBy: userId, updatedAt: new Date() },
             { new: true, runValidators: true }
         );
@@ -656,10 +711,13 @@ exports.updateApplicant = async (req, res) => {
  */
 exports.deleteApplicant = async (req, res) => {
     try {
-        const { firmId, lawyerId } = req.user;
+        const firmId = req.firmId; // From firmContext middleware
+        const lawyerId = req.userID || req.userId;
         const { id } = req.params;
 
-        const applicant = await Applicant.findOneAndDelete({ _id: id, firmId, lawyerId });
+        // Build query based on firmId (firm) or lawyerId (solo lawyer)
+        const baseQuery = firmId ? { firmId } : { lawyerId };
+        const applicant = await Applicant.findOneAndDelete({ _id: id, ...baseQuery });
 
         if (!applicant) {
             return res.status(404).json({ success: false, message: 'Applicant not found' });
@@ -681,11 +739,16 @@ exports.deleteApplicant = async (req, res) => {
  */
 exports.updateApplicantStage = async (req, res) => {
     try {
-        const { firmId, lawyerId, _id: userId, name: userName } = req.user;
+        const firmId = req.firmId; // From firmContext middleware
+        const lawyerId = req.userID || req.userId;
+        const userId = req.userID || req.userId;
+        const userName = req.user?.name;
         const { id } = req.params;
         const { jobPostingId, stage, outcome, notes } = req.body;
 
-        const applicant = await Applicant.findOne({ _id: id, firmId, lawyerId });
+        // Build query based on firmId (firm) or lawyerId (solo lawyer)
+        const baseQuery = firmId ? { firmId } : { lawyerId };
+        const applicant = await Applicant.findOne({ _id: id, ...baseQuery });
 
         if (!applicant) {
             return res.status(404).json({ success: false, message: 'Applicant not found' });
@@ -739,11 +802,16 @@ exports.updateApplicantStage = async (req, res) => {
  */
 exports.rejectApplicant = async (req, res) => {
     try {
-        const { firmId, lawyerId, _id: userId, name: userName } = req.user;
+        const firmId = req.firmId; // From firmContext middleware
+        const lawyerId = req.userID || req.userId;
+        const userId = req.userID || req.userId;
+        const userName = req.user?.name;
         const { id } = req.params;
         const { jobPostingId, reason, sendEmail = false } = req.body;
 
-        const applicant = await Applicant.findOne({ _id: id, firmId, lawyerId });
+        // Build query based on firmId (firm) or lawyerId (solo lawyer)
+        const baseQuery = firmId ? { firmId } : { lawyerId };
+        const applicant = await Applicant.findOne({ _id: id, ...baseQuery });
 
         if (!applicant) {
             return res.status(404).json({ success: false, message: 'Applicant not found' });
@@ -795,10 +863,16 @@ exports.rejectApplicant = async (req, res) => {
  */
 exports.getJobPipeline = async (req, res) => {
     try {
-        const { firmId } = req.user;
+        const firmId = req.firmId; // From firmContext middleware
+        const lawyerId = req.userID || req.userId;
         const { id } = req.params;
 
-        const pipelineCounts = await Applicant.getPipelineCounts(firmId, id);
+        // Pass firmId or lawyerId based on user type
+        const filterParam = firmId || lawyerId;
+        const pipelineCounts = await Applicant.getPipelineCounts(filterParam, id);
+
+        // Build query based on firmId (firm) or lawyerId (solo lawyer)
+        const baseQuery = firmId ? { firmId } : { lawyerId };
 
         // Get applicants by stage
         const stages = ['applied', 'screening', 'phone_interview', 'technical_interview',
@@ -808,7 +882,7 @@ exports.getJobPipeline = async (req, res) => {
         const pipeline = await Promise.all(
             stages.map(async (stage) => {
                 const applicants = await Applicant.find({
-                    firmId,
+                    ...baseQuery,
                     'applications': {
                         $elemMatch: {
                             jobPostingId: id,
@@ -851,10 +925,15 @@ exports.getJobPipeline = async (req, res) => {
  */
 exports.scheduleInterview = async (req, res) => {
     try {
-        const { firmId, lawyerId, _id: userId, name: userName } = req.user;
+        const firmId = req.firmId; // From firmContext middleware
+        const lawyerId = req.userID || req.userId;
+        const userId = req.userID || req.userId;
+        const userName = req.user?.name;
         const { id } = req.params;
 
-        const applicant = await Applicant.findOne({ _id: id, firmId, lawyerId });
+        // Build query based on firmId (firm) or lawyerId (solo lawyer)
+        const baseQuery = firmId ? { firmId } : { lawyerId };
+        const applicant = await Applicant.findOne({ _id: id, ...baseQuery });
 
         if (!applicant) {
             return res.status(404).json({ success: false, message: 'Applicant not found' });
@@ -888,10 +967,14 @@ exports.scheduleInterview = async (req, res) => {
  */
 exports.updateInterview = async (req, res) => {
     try {
-        const { firmId, lawyerId, _id: userId } = req.user;
+        const firmId = req.firmId; // From firmContext middleware
+        const lawyerId = req.userID || req.userId;
+        const userId = req.userID || req.userId;
         const { id, interviewId } = req.params;
 
-        const applicant = await Applicant.findOne({ _id: id, firmId, lawyerId });
+        // Build query based on firmId (firm) or lawyerId (solo lawyer)
+        const baseQuery = firmId ? { firmId } : { lawyerId };
+        const applicant = await Applicant.findOne({ _id: id, ...baseQuery });
 
         if (!applicant) {
             return res.status(404).json({ success: false, message: 'Applicant not found' });
@@ -923,10 +1006,15 @@ exports.updateInterview = async (req, res) => {
  */
 exports.submitInterviewFeedback = async (req, res) => {
     try {
-        const { firmId, lawyerId, _id: userId, name: userName } = req.user;
+        const firmId = req.firmId; // From firmContext middleware
+        const lawyerId = req.userID || req.userId;
+        const userId = req.userID || req.userId;
+        const userName = req.user?.name;
         const { id, interviewId } = req.params;
 
-        const applicant = await Applicant.findOne({ _id: id, firmId, lawyerId });
+        // Build query based on firmId (firm) or lawyerId (solo lawyer)
+        const baseQuery = firmId ? { firmId } : { lawyerId };
+        const applicant = await Applicant.findOne({ _id: id, ...baseQuery });
 
         if (!applicant) {
             return res.status(404).json({ success: false, message: 'Applicant not found' });
@@ -1003,10 +1091,15 @@ exports.submitInterviewFeedback = async (req, res) => {
  */
 exports.sendAssessment = async (req, res) => {
     try {
-        const { firmId, lawyerId, _id: userId, name: userName } = req.user;
+        const firmId = req.firmId; // From firmContext middleware
+        const lawyerId = req.userID || req.userId;
+        const userId = req.userID || req.userId;
+        const userName = req.user?.name;
         const { id } = req.params;
 
-        const applicant = await Applicant.findOne({ _id: id, firmId, lawyerId });
+        // Build query based on firmId (firm) or lawyerId (solo lawyer)
+        const baseQuery = firmId ? { firmId } : { lawyerId };
+        const applicant = await Applicant.findOne({ _id: id, ...baseQuery });
 
         if (!applicant) {
             return res.status(404).json({ success: false, message: 'Applicant not found' });
@@ -1048,10 +1141,15 @@ exports.sendAssessment = async (req, res) => {
  */
 exports.updateAssessmentResult = async (req, res) => {
     try {
-        const { firmId, lawyerId, _id: userId, name: userName } = req.user;
+        const firmId = req.firmId; // From firmContext middleware
+        const lawyerId = req.userID || req.userId;
+        const userId = req.userID || req.userId;
+        const userName = req.user?.name;
         const { id, assessmentId } = req.params;
 
-        const applicant = await Applicant.findOne({ _id: id, firmId, lawyerId });
+        // Build query based on firmId (firm) or lawyerId (solo lawyer)
+        const baseQuery = firmId ? { firmId } : { lawyerId };
+        const applicant = await Applicant.findOne({ _id: id, ...baseQuery });
 
         if (!applicant) {
             return res.status(404).json({ success: false, message: 'Applicant not found' });
@@ -1107,10 +1205,15 @@ exports.updateAssessmentResult = async (req, res) => {
  */
 exports.createOffer = async (req, res) => {
     try {
-        const { firmId, lawyerId, _id: userId, name: userName } = req.user;
+        const firmId = req.firmId; // From firmContext middleware
+        const lawyerId = req.userID || req.userId;
+        const userId = req.userID || req.userId;
+        const userName = req.user?.name;
         const { id } = req.params;
 
-        const applicant = await Applicant.findOne({ _id: id, firmId, lawyerId });
+        // Build query based on firmId (firm) or lawyerId (solo lawyer)
+        const baseQuery = firmId ? { firmId } : { lawyerId };
+        const applicant = await Applicant.findOne({ _id: id, ...baseQuery });
 
         if (!applicant) {
             return res.status(404).json({ success: false, message: 'Applicant not found' });
@@ -1144,10 +1247,15 @@ exports.createOffer = async (req, res) => {
  */
 exports.updateOffer = async (req, res) => {
     try {
-        const { firmId, lawyerId, _id: userId, name: userName } = req.user;
+        const firmId = req.firmId; // From firmContext middleware
+        const lawyerId = req.userID || req.userId;
+        const userId = req.userID || req.userId;
+        const userName = req.user?.name;
         const { id, offerId } = req.params;
 
-        const applicant = await Applicant.findOne({ _id: id, firmId, lawyerId });
+        // Build query based on firmId (firm) or lawyerId (solo lawyer)
+        const baseQuery = firmId ? { firmId } : { lawyerId };
+        const applicant = await Applicant.findOne({ _id: id, ...baseQuery });
 
         if (!applicant) {
             return res.status(404).json({ success: false, message: 'Applicant not found' });
@@ -1214,10 +1322,14 @@ exports.updateOffer = async (req, res) => {
  */
 exports.addReference = async (req, res) => {
     try {
-        const { firmId, lawyerId, _id: userId } = req.user;
+        const firmId = req.firmId; // From firmContext middleware
+        const lawyerId = req.userID || req.userId;
+        const userId = req.userID || req.userId;
         const { id } = req.params;
 
-        const applicant = await Applicant.findOne({ _id: id, firmId, lawyerId });
+        // Build query based on firmId (firm) or lawyerId (solo lawyer)
+        const baseQuery = firmId ? { firmId } : { lawyerId };
+        const applicant = await Applicant.findOne({ _id: id, ...baseQuery });
 
         if (!applicant) {
             return res.status(404).json({ success: false, message: 'Applicant not found' });
@@ -1244,10 +1356,15 @@ exports.addReference = async (req, res) => {
  */
 exports.updateReferenceCheck = async (req, res) => {
     try {
-        const { firmId, lawyerId, _id: userId, name: userName } = req.user;
+        const firmId = req.firmId; // From firmContext middleware
+        const lawyerId = req.userID || req.userId;
+        const userId = req.userID || req.userId;
+        const userName = req.user?.name;
         const { id, referenceId } = req.params;
 
-        const applicant = await Applicant.findOne({ _id: id, firmId, lawyerId });
+        // Build query based on firmId (firm) or lawyerId (solo lawyer)
+        const baseQuery = firmId ? { firmId } : { lawyerId };
+        const applicant = await Applicant.findOne({ _id: id, ...baseQuery });
 
         if (!applicant) {
             return res.status(404).json({ success: false, message: 'Applicant not found' });
@@ -1298,10 +1415,15 @@ exports.updateReferenceCheck = async (req, res) => {
  */
 exports.addNote = async (req, res) => {
     try {
-        const { firmId, lawyerId, _id: userId, name: userName } = req.user;
+        const firmId = req.firmId; // From firmContext middleware
+        const lawyerId = req.userID || req.userId;
+        const userId = req.userID || req.userId;
+        const userName = req.user?.name;
         const { id } = req.params;
 
-        const applicant = await Applicant.findOne({ _id: id, firmId, lawyerId });
+        // Build query based on firmId (firm) or lawyerId (solo lawyer)
+        const baseQuery = firmId ? { firmId } : { lawyerId };
+        const applicant = await Applicant.findOne({ _id: id, ...baseQuery });
 
         if (!applicant) {
             return res.status(404).json({ success: false, message: 'Applicant not found' });
@@ -1340,10 +1462,15 @@ exports.addNote = async (req, res) => {
  */
 exports.logCommunication = async (req, res) => {
     try {
-        const { firmId, lawyerId, _id: userId, name: userName } = req.user;
+        const firmId = req.firmId; // From firmContext middleware
+        const lawyerId = req.userID || req.userId;
+        const userId = req.userID || req.userId;
+        const userName = req.user?.name;
         const { id } = req.params;
 
-        const applicant = await Applicant.findOne({ _id: id, firmId, lawyerId });
+        // Build query based on firmId (firm) or lawyerId (solo lawyer)
+        const baseQuery = firmId ? { firmId } : { lawyerId };
+        const applicant = await Applicant.findOne({ _id: id, ...baseQuery });
 
         if (!applicant) {
             return res.status(404).json({ success: false, message: 'Applicant not found' });
@@ -1379,11 +1506,14 @@ exports.logCommunication = async (req, res) => {
  */
 exports.getTalentPool = async (req, res) => {
     try {
-        const { firmId } = req.user;
+        const firmId = req.firmId; // From firmContext middleware
+        const lawyerId = req.userID || req.userId;
         const { poolType, page = 1, limit = 20 } = req.query;
 
+        // Build query based on firmId (firm) or lawyerId (solo lawyer)
+        const baseQuery = firmId ? { firmId } : { lawyerId };
         const query = {
-            firmId,
+            ...baseQuery,
             isBlacklisted: { $ne: true },
             'consent.talentPoolRetention': true
         };
@@ -1425,11 +1555,16 @@ exports.getTalentPool = async (req, res) => {
  */
 exports.updateTalentPoolStatus = async (req, res) => {
     try {
-        const { firmId, lawyerId, _id: userId, name: userName } = req.user;
+        const firmId = req.firmId; // From firmContext middleware
+        const lawyerId = req.userID || req.userId;
+        const userId = req.userID || req.userId;
+        const userName = req.user?.name;
         const { id } = req.params;
         const { talentPool, tags } = req.body;
 
-        const applicant = await Applicant.findOne({ _id: id, firmId, lawyerId });
+        // Build query based on firmId (firm) or lawyerId (solo lawyer)
+        const baseQuery = firmId ? { firmId } : { lawyerId };
+        const applicant = await Applicant.findOne({ _id: id, ...baseQuery });
 
         if (!applicant) {
             return res.status(404).json({ success: false, message: 'Applicant not found' });
@@ -1475,8 +1610,14 @@ exports.updateTalentPoolStatus = async (req, res) => {
  */
 exports.bulkUpdateStage = async (req, res) => {
     try {
-        const { firmId, lawyerId, _id: userId, name: userName } = req.user;
+        const firmId = req.firmId; // From firmContext middleware
+        const lawyerId = req.userID || req.userId;
+        const userId = req.userID || req.userId;
+        const userName = req.user?.name;
         const { applicantIds, jobPostingId, stage, outcome, notes } = req.body;
+
+        // Build query based on firmId (firm) or lawyerId (solo lawyer)
+        const baseQuery = firmId ? { firmId } : { lawyerId };
 
         const results = {
             success: [],
@@ -1485,7 +1626,7 @@ exports.bulkUpdateStage = async (req, res) => {
 
         for (const applicantId of applicantIds) {
             try {
-                const applicant = await Applicant.findOne({ _id: applicantId, firmId, lawyerId });
+                const applicant = await Applicant.findOne({ _id: applicantId, ...baseQuery });
 
                 if (applicant) {
                     await applicant.updateApplicationStage(jobPostingId, stage, outcome, notes);
@@ -1522,8 +1663,14 @@ exports.bulkUpdateStage = async (req, res) => {
  */
 exports.bulkReject = async (req, res) => {
     try {
-        const { firmId, lawyerId, _id: userId, name: userName } = req.user;
+        const firmId = req.firmId; // From firmContext middleware
+        const lawyerId = req.userID || req.userId;
+        const userId = req.userID || req.userId;
+        const userName = req.user?.name;
         const { applicantIds, jobPostingId, reason } = req.body;
+
+        // Build query based on firmId (firm) or lawyerId (solo lawyer)
+        const baseQuery = firmId ? { firmId } : { lawyerId };
 
         const results = {
             success: [],
@@ -1532,7 +1679,7 @@ exports.bulkReject = async (req, res) => {
 
         for (const applicantId of applicantIds) {
             try {
-                const applicant = await Applicant.findOne({ _id: applicantId, firmId, lawyerId });
+                const applicant = await Applicant.findOne({ _id: applicantId, ...baseQuery });
 
                 if (applicant) {
                     const app = applicant.applications.find(
@@ -1591,10 +1738,15 @@ exports.bulkReject = async (req, res) => {
  */
 exports.initiateBackgroundCheck = async (req, res) => {
     try {
-        const { firmId, lawyerId, _id: userId, name: userName } = req.user;
+        const firmId = req.firmId; // From firmContext middleware
+        const lawyerId = req.userID || req.userId;
+        const userId = req.userID || req.userId;
+        const userName = req.user?.name;
         const { id } = req.params;
 
-        const applicant = await Applicant.findOne({ _id: id, firmId, lawyerId });
+        // Build query based on firmId (firm) or lawyerId (solo lawyer)
+        const baseQuery = firmId ? { firmId } : { lawyerId };
+        const applicant = await Applicant.findOne({ _id: id, ...baseQuery });
 
         if (!applicant) {
             return res.status(404).json({ success: false, message: 'Applicant not found' });
@@ -1635,10 +1787,15 @@ exports.initiateBackgroundCheck = async (req, res) => {
  */
 exports.updateBackgroundCheck = async (req, res) => {
     try {
-        const { firmId, lawyerId, _id: userId, name: userName } = req.user;
+        const firmId = req.firmId; // From firmContext middleware
+        const lawyerId = req.userID || req.userId;
+        const userId = req.userID || req.userId;
+        const userName = req.user?.name;
         const { id } = req.params;
 
-        const applicant = await Applicant.findOne({ _id: id, firmId, lawyerId });
+        // Build query based on firmId (firm) or lawyerId (solo lawyer)
+        const baseQuery = firmId ? { firmId } : { lawyerId };
+        const applicant = await Applicant.findOne({ _id: id, ...baseQuery });
 
         if (!applicant) {
             return res.status(404).json({ success: false, message: 'Applicant not found' });
@@ -1683,11 +1840,16 @@ exports.updateBackgroundCheck = async (req, res) => {
  */
 exports.hireApplicant = async (req, res) => {
     try {
-        const { firmId, lawyerId, _id: userId, name: userName } = req.user;
+        const firmId = req.firmId; // From firmContext middleware
+        const lawyerId = req.userID || req.userId;
+        const userId = req.userID || req.userId;
+        const userName = req.user?.name;
         const { id } = req.params;
         const { jobPostingId, startDate, employeeData } = req.body;
 
-        const applicant = await Applicant.findOne({ _id: id, firmId, lawyerId });
+        // Build query based on firmId (firm) or lawyerId (solo lawyer)
+        const baseQuery = firmId ? { firmId } : { lawyerId };
+        const applicant = await Applicant.findOne({ _id: id, ...baseQuery });
 
         if (!applicant) {
             return res.status(404).json({ success: false, message: 'Applicant not found' });
