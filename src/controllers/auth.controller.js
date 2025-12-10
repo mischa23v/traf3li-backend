@@ -352,14 +352,17 @@ const authRegister = async (request, response) => {
 }
 
 const authLogin = async (request, response) => {
-    const { username, password } = request.body;
+    const { username, email, password } = request.body;
+
+    // Support both 'username' and 'email' fields from frontend
+    const loginIdentifier = username || email;
 
     try {
         // Accept both username AND email for login
         const user = await User.findOne({
             $or: [
-                { username: username },
-                { email: username }  // Allow email in username field
+                { username: loginIdentifier },
+                { email: loginIdentifier }
             ]
         });
 
@@ -490,7 +493,7 @@ const authLogin = async (request, response) => {
             null,
             {
                 userId: null,
-                userEmail: request.body.username || 'unknown', // username field can contain email
+                userEmail: request.body.email || request.body.username || 'unknown',
                 userRole: 'unknown',
                 ipAddress: ipAddress,
                 userAgent: request.headers['user-agent'] || 'unknown',
