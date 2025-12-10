@@ -22,7 +22,13 @@ const {
     getBalanceSheetReport,
     getCaseProfitabilityReport,
     getARAgingReport,
-    getTrialBalanceReport
+    getTrialBalanceReport,
+    getBudgetVarianceReport,
+    getAPAgingReport,
+    getClientStatement,
+    getVendorLedger,
+    getGrossProfitReport,
+    getCostCenterReport
 } = require('../controllers/accountingReports.controller');
 
 const app = express.Router();
@@ -33,6 +39,13 @@ app.get('/balance-sheet', userMiddleware, getBalanceSheetReport);
 app.get('/case-profitability', userMiddleware, getCaseProfitabilityReport);
 app.get('/ar-aging', userMiddleware, getARAgingReport);
 app.get('/trial-balance', userMiddleware, getTrialBalanceReport);
+// NEW ERPNext-equivalent reports
+app.get('/budget-variance', userMiddleware, getBudgetVarianceReport);
+app.get('/ap-aging', userMiddleware, getAPAgingReport);
+app.get('/client-statement', userMiddleware, getClientStatement);
+app.get('/vendor-ledger', userMiddleware, getVendorLedger);
+app.get('/gross-profit', userMiddleware, getGrossProfitReport);
+app.get('/cost-center', userMiddleware, getCostCenterReport);
 
 // Direct report endpoints (must be before /:id routes)
 app.get('/accounts-aging', userMiddleware, getAccountsAgingReport);
