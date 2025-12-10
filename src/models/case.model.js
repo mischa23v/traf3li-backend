@@ -61,7 +61,79 @@ const caseSchema = new mongoose.Schema({
             registrationNumber: { type: String, required: false },
             address: { type: String, required: false },
             city: { type: String, required: false }
-        }
+        },
+
+        // ═══════════════════════════════════════════════════════════════
+        // NAJIZ LABOR CASE INTEGRATION
+        // ═══════════════════════════════════════════════════════════════
+        // Prerequisite checks
+        laborOfficeReferral: {
+            hasReferral: { type: Boolean, default: false },
+            referralNumber: String,  // رقم الإحالة
+            referralDate: Date,
+            settlementMinutes: String,  // محضر التسوية
+            settlementDate: Date,
+            mediatorName: String
+        },
+
+        // Employee/Plaintiff
+        employee: {
+            name: String,
+            nationalId: String,
+            iqamaNumber: String,
+            nationality: String,
+            phone: String,
+            jobTitle: String,
+            department: String,
+            employmentStartDate: Date,
+            employmentEndDate: Date,
+            lastSalary: Number,
+            contractType: { type: String, enum: ['definite', 'indefinite', 'part_time', 'seasonal'] },
+            workCity: String
+        },
+
+        // Employer/Defendant
+        employer: {
+            companyName: String,
+            crNumber: String,
+            unifiedNumber: String,
+            molNumber: String,  // رقم وزارة العمل
+            industry: String,
+            phone: String,
+            address: String,
+            city: String,
+            authorizedRep: {
+                name: String,
+                nationalId: String,
+                position: String
+            }
+        },
+
+        // Claim types
+        claimTypes: [{
+            type: { type: String, enum: [
+                'wages', 'overtime', 'end_of_service', 'leave_balance', 'work_injury',
+                'wrongful_termination', 'housing_allowance', 'transport_allowance',
+                'medical_insurance', 'gosi_subscription', 'certificate_of_experience',
+                'contract_violation', 'discrimination', 'harassment'
+            ]},
+            amount: Number,
+            period: String,  // e.g., "6 months"
+            description: String
+        }],
+
+        // GOSI (if applicable)
+        gosiComplaint: {
+            hasComplaint: { type: Boolean, default: false },
+            complaintNumber: String,
+            complaintDate: Date,
+            complaintType: String,
+            status: String
+        },
+
+        // Small claims flag (under SAR 50,000 = final, no appeal)
+        isSmallClaim: { type: Boolean, default: false },
+        totalClaimAmount: Number
     },
     
     // ✅ NEW: Case number and court
@@ -306,6 +378,490 @@ const caseSchema = new mongoose.Schema({
         type: String,
         enum: ['platform', 'external'],
         default: 'external'  // Track where case came from
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // NAJIZ INTEGRATION - Saudi Ministry of Justice
+    // ═══════════════════════════════════════════════════════════════
+    najiz: {
+        // Case Registration
+        caseNumber: String,  // رقم القضية
+        applicationNumber: String,  // رقم الطلب (before case is assigned)
+        referenceNumber: String,  // رقم المرجع
+        yearHijri: String,  // السنة الهجرية
+        yearGregorian: Number,  // السنة الميلادية
+
+        // Filing Date
+        filingDate: Date,  // تاريخ تقديم الدعوى
+        filingDateHijri: String,  // التاريخ الهجري
+        registrationDate: Date,  // تاريخ قيد الدعوى
+
+        // Classification (3-level system)
+        mainClassification: {
+            type: String,
+            enum: ['عامة', 'جزائية', 'أحوال_شخصية', 'تجارية', 'عمالية', 'تنفيذ'],
+            // English equivalents: general, criminal, personal_status, commercial, labor, enforcement
+        },
+        mainClassificationEn: {
+            type: String,
+            enum: ['general', 'criminal', 'personal_status', 'commercial', 'labor', 'enforcement']
+        },
+        subClassification: String,  // التصنيف الفرعي
+        caseType: String,  // نوع الدعوى (e.g., إخلاء عقار, حق خاص)
+        caseTypeCode: String,  // Case type code from Najiz
+
+        // Court Information
+        court: {
+            type: {
+                type: String,
+                enum: ['supreme', 'appeal', 'general', 'criminal', 'personal_status', 'commercial', 'labor', 'enforcement']
+            },
+            typeAr: String,  // نوع المحكمة بالعربي
+            name: String,  // اسم المحكمة
+            city: String,  // المدينة
+            region: String,  // المنطقة
+            circuitNumber: String,  // رقم الدائرة
+            circuitType: String  // نوع الدائرة (single judge, three judges, five judges)
+        },
+
+        // Judicial Panel
+        judicialPanel: {
+            panelNumber: String,  // رقم الهيئة القضائية
+            presidingJudge: String,  // رئيس الهيئة
+            judges: [String],  // أعضاء الهيئة
+            clerk: String  // كاتب الجلسة
+        },
+
+        // Case Status in Najiz
+        najizStatus: {
+            type: String,
+            enum: ['pending_registration', 'registered', 'scheduled', 'in_session', 'postponed', 'judgment_issued', 'appealed', 'final', 'enforcement', 'closed', 'archived']
+        },
+        statusHistory: [{
+            status: String,
+            date: Date,
+            notes: String,
+            updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
+        }],
+
+        // Sessions/Hearings
+        sessions: [{
+            sessionNumber: Number,
+            date: Date,
+            dateHijri: String,
+            time: String,
+            location: String,  // Hall number, building
+            type: { type: String, enum: ['first_session', 'follow_up', 'judgment', 'objection', 'reconciliation'] },
+            status: { type: String, enum: ['scheduled', 'held', 'postponed', 'cancelled'] },
+            postponementReason: String,
+            nextSessionDate: Date,
+            attendees: [{
+                role: String,  // plaintiff, defendant, lawyer, witness
+                name: String,
+                attended: Boolean
+            }],
+            minutes: String,  // محضر الجلسة
+            decisions: [String],
+            recordedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
+        }],
+
+        // Judgment
+        judgment: {
+            hasJudgment: { type: Boolean, default: false },
+            judgmentNumber: String,
+            judgmentDate: Date,
+            judgmentDateHijri: String,
+            judgmentType: { type: String, enum: ['in_favor', 'against', 'partial', 'dismissed', 'settled'] },
+            summary: String,
+            fullText: String,
+            awardedAmount: Number,
+            currency: { type: String, default: 'SAR' },
+            executionStatus: { type: String, enum: ['pending', 'in_execution', 'executed', 'not_applicable'] },
+            deedNumber: String,  // رقم الصك
+            deedDate: Date
+        },
+
+        // Appeal
+        appeal: {
+            hasAppeal: { type: Boolean, default: false },
+            appealNumber: String,
+            appealDate: Date,
+            appealDeadline: Date,
+            appealCourt: String,
+            appealStatus: { type: String, enum: ['filed', 'under_review', 'hearing_scheduled', 'decided', 'rejected', 'accepted'] },
+            appealResult: String,
+            supremeCourtReview: {
+                requested: { type: Boolean, default: false },
+                requestDate: Date,
+                result: String
+            }
+        },
+
+        // E-Litigation (التقاضي الإلكتروني)
+        eLitigation: {
+            enabled: { type: Boolean, default: true },
+            virtualHearing: { type: Boolean, default: false },
+            virtualHearingUrl: String,
+            electronicPleadings: [{
+                date: Date,
+                type: String,
+                content: String,
+                submittedBy: String
+            }],
+            electronicNotifications: [{
+                date: Date,
+                type: String,
+                message: String,
+                deliveryStatus: String
+            }]
+        },
+
+        // Sync Status
+        lastSyncedAt: Date,
+        syncStatus: { type: String, enum: ['synced', 'pending', 'error'] },
+        syncErrors: [{ date: Date, error: String }]
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // PLAINTIFF INFORMATION (المدعي)
+    // ═══════════════════════════════════════════════════════════════
+    plaintiff: {
+        type: { type: String, enum: ['individual', 'company', 'government'] },
+
+        // Individual fields
+        nationalId: String,  // رقم الهوية
+        identityType: { type: String, enum: ['national_id', 'iqama', 'visitor_id', 'gcc_id', 'passport'] },
+        fullNameArabic: String,  // الاسم الرباعي بالعربي
+        firstName: String,
+        fatherName: String,
+        grandfatherName: String,
+        familyName: String,
+        fullNameEnglish: String,
+        nationality: String,
+        gender: { type: String, enum: ['male', 'female'] },
+
+        // Company fields
+        crNumber: String,  // رقم السجل التجاري
+        companyName: String,
+        companyNameEnglish: String,
+        unifiedNumber: String,  // الرقم الموحد
+        authorizedRepresentative: {
+            name: String,
+            nationalId: String,
+            position: String,
+            phone: String
+        },
+
+        // Contact
+        phone: String,
+        email: String,
+
+        // National Address
+        nationalAddress: {
+            buildingNumber: String,  // رقم المبنى
+            streetName: String,  // اسم الشارع
+            district: String,  // الحي
+            city: String,  // المدينة
+            region: String,  // المنطقة
+            postalCode: String,  // الرمز البريدي (5 digits)
+            additionalNumber: String,  // الرقم الإضافي (4 digits)
+            shortAddress: String  // العنوان المختصر (e.g., RHMA3184)
+        },
+
+        // POA if represented by lawyer
+        powerOfAttorney: {
+            hasPOA: { type: Boolean, default: false },
+            poaNumber: String,
+            lawyerName: String,
+            lawyerLicenseNumber: String,
+            lawyerPhone: String,
+            issueDate: Date,
+            expiryDate: Date,
+            authorizations: [String]  // المرافعة, الصلح, الإقرار, etc.
+        }
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // DEFENDANT INFORMATION (المدعى عليه)
+    // ═══════════════════════════════════════════════════════════════
+    defendant: {
+        // Same structure as plaintiff
+        type: { type: String, enum: ['individual', 'company', 'government'] },
+
+        // Individual fields
+        nationalId: String,
+        identityType: { type: String, enum: ['national_id', 'iqama', 'visitor_id', 'gcc_id', 'passport'] },
+        fullNameArabic: String,
+        firstName: String,
+        fatherName: String,
+        grandfatherName: String,
+        familyName: String,
+        fullNameEnglish: String,
+        nationality: String,
+        gender: { type: String, enum: ['male', 'female'] },
+
+        // Company fields
+        crNumber: String,
+        companyName: String,
+        companyNameEnglish: String,
+        unifiedNumber: String,
+        authorizedRepresentative: {
+            name: String,
+            nationalId: String,
+            position: String,
+            phone: String
+        },
+
+        // Contact
+        phone: String,
+        email: String,
+
+        // National Address
+        nationalAddress: {
+            buildingNumber: String,
+            streetName: String,
+            district: String,
+            city: String,
+            region: String,
+            postalCode: String,
+            additionalNumber: String,
+            shortAddress: String
+        },
+
+        // POA
+        powerOfAttorney: {
+            hasPOA: { type: Boolean, default: false },
+            poaNumber: String,
+            lawyerName: String,
+            lawyerLicenseNumber: String,
+            lawyerPhone: String,
+            issueDate: Date,
+            expiryDate: Date,
+            authorizations: [String]
+        },
+
+        // Defendant response
+        responseStatus: { type: String, enum: ['not_notified', 'notified', 'responded', 'no_response'] },
+        responseDate: Date,
+        defenseStatement: String
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // COMMERCIAL CASE SPECIFIC (القضايا التجارية)
+    // ═══════════════════════════════════════════════════════════════
+    commercialCaseDetails: {
+        // Claim value threshold
+        claimValue: Number,
+        currency: { type: String, default: 'SAR' },
+        isAboveThreshold: { type: Boolean, default: false },  // > 100,000 SAR
+
+        // Contract details
+        contract: {
+            hasContract: { type: Boolean, default: false },
+            contractNumber: String,
+            contractDate: Date,
+            contractType: { type: String, enum: ['sale', 'lease', 'service', 'partnership', 'agency', 'franchise', 'construction', 'other'] },
+            contractValue: Number,
+            partyOneName: String,
+            partyTwoName: String
+        },
+
+        // Banking (if applicable)
+        bankingDetails: {
+            bankName: String,
+            accountNumber: String,
+            chequeNumber: String,
+            chequeDate: Date,
+            chequeAmount: Number,
+            promissoryNoteNumber: String,
+            promissoryNoteDate: Date,
+            promissoryNoteAmount: Number
+        },
+
+        // Bankruptcy (if applicable)
+        bankruptcy: {
+            isBankruptcyCase: { type: Boolean, default: false },
+            type: { type: String, enum: ['protective_settlement', 'financial_restructuring', 'liquidation'] },
+            trusteeAppointment: {
+                trusteeName: String,
+                appointmentDate: Date
+            },
+            creditorsMeeting: [{
+                date: Date,
+                outcome: String
+            }]
+        },
+
+        // Pre-filing notice requirement
+        preLitigationNotice: {
+            sent: { type: Boolean, default: false },
+            sentDate: Date,
+            method: String,
+            proofAttached: { type: Boolean, default: false }
+        },
+
+        // Attorney requirement for appeals
+        attorneyRequired: { type: Boolean, default: true }
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // PERSONAL STATUS CASE SPECIFIC (قضايا الأحوال الشخصية)
+    // ═══════════════════════════════════════════════════════════════
+    personalStatusDetails: {
+        caseCategory: {
+            type: String,
+            enum: ['marriage', 'divorce', 'custody', 'alimony', 'visitation', 'inheritance', 'guardianship', 'waqf', 'will']
+        },
+
+        // Marriage/Divorce
+        marriageInfo: {
+            marriageContractNumber: String,
+            marriageDate: Date,
+            marriageDateHijri: String,
+            divorceDate: Date,
+            divorceDateHijri: String,
+            divorceType: { type: String, enum: ['talaq', 'khula', 'judicial', 'faskh'] },
+            iddahEndDate: Date,  // عدة المرأة
+            mahr: {
+                advanced: Number,
+                deferred: Number
+            }
+        },
+
+        // Custody
+        custodyInfo: {
+            children: [{
+                name: String,
+                nationalId: String,
+                dateOfBirth: Date,
+                gender: { type: String, enum: ['male', 'female'] },
+                currentCustodian: String,
+                requestedCustodian: String
+            }],
+            visitationSchedule: String,
+            travelPermission: String
+        },
+
+        // Alimony/Support
+        supportInfo: {
+            type: { type: String, enum: ['child_support', 'wife_support', 'parent_support'] },
+            currentAmount: Number,
+            requestedAmount: Number,
+            frequency: { type: String, enum: ['monthly', 'yearly', 'one_time'] }
+        },
+
+        // Inheritance
+        inheritanceInfo: {
+            deceasedName: String,
+            deceasedNationalId: String,
+            deathDate: Date,
+            deathCertificateNumber: String,
+            heirCertificateNumber: String,  // صك حصر الورثة
+            heirs: [{
+                name: String,
+                nationalId: String,
+                relationship: String,
+                share: String  // e.g., "1/4", "1/8"
+            }],
+            estateValue: Number,
+            realEstateIncluded: { type: Boolean, default: false }
+        },
+
+        // Guardianship
+        guardianshipInfo: {
+            type: { type: String, enum: ['minor', 'interdiction', 'property'] },
+            wardName: String,
+            wardNationalId: String,
+            currentGuardian: String,
+            requestedGuardian: String,
+            guardianshipReason: String
+        },
+
+        // Fee exemption (family cases are exempt)
+        feeExempt: { type: Boolean, default: true }
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // ENFORCEMENT DETAILS (التنفيذ)
+    // ═══════════════════════════════════════════════════════════════
+    enforcementDetails: {
+        hasEnforcementRequest: { type: Boolean, default: false },
+
+        // Enforcement request
+        enforcementRequest: {
+            requestNumber: String,
+            requestDate: Date,
+            enforcementCourt: String,
+            enforcementCircuit: String
+        },
+
+        // Enforcement document
+        enforcementDocument: {
+            type: { type: String, enum: ['judgment', 'judicial_decision', 'judicial_order', 'cheque', 'promissory_note', 'bill_of_exchange', 'notarized_contract', 'settlement', 'arbitration_award', 'foreign_judgment'] },
+            documentNumber: String,
+            documentDate: Date,
+            issuingAuthority: String,
+            amount: Number,
+            currency: { type: String, default: 'SAR' }
+        },
+
+        // Enforcement actions
+        actions: [{
+            type: { type: String, enum: ['notification', 'publication', 'service_suspension', 'account_freeze', 'asset_attachment', 'travel_ban', 'id_suspension', 'property_seizure'] },
+            date: Date,
+            status: { type: String, enum: ['initiated', 'in_progress', 'completed', 'cancelled'] },
+            details: String
+        }],
+
+        // Payment/Settlement
+        paymentInfo: {
+            totalDue: Number,
+            amountPaid: Number,
+            remainingBalance: Number,
+            paymentSchedule: [{
+                dueDate: Date,
+                amount: Number,
+                paid: { type: Boolean, default: false },
+                paidDate: Date
+            }],
+            ibanNumber: String  // For receiving payments
+        },
+
+        // Debtor status
+        debtorStatus: {
+            hasAssets: Boolean,
+            assetsDescription: String,
+            isAbsconding: { type: Boolean, default: false },
+            isInsolvent: { type: Boolean, default: false },
+            insolvencyRequestDate: Date
+        }
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // COSTS & FEES (التكاليف القضائية)
+    // ═══════════════════════════════════════════════════════════════
+    judicialCosts: {
+        isExempt: { type: Boolean, default: false },
+        exemptionReason: String,  // e.g., "family case", "bankruptcy", "public right"
+
+        filingFee: {
+            amount: Number,
+            paidDate: Date,
+            receiptNumber: String,
+            paymentMethod: { type: String, enum: ['sadad', 'mada', 'credit_card'] }
+        },
+
+        additionalFees: [{
+            type: String,  // e.g., "expert fees", "translation fees"
+            amount: Number,
+            paidDate: Date,
+            receiptNumber: String
+        }],
+
+        totalPaid: Number,
+
+        // Calculated using: https://cfee.moj.gov.sa/index.html
+        calculatorUsed: { type: Boolean, default: false }
     }
 }, {
     versionKey: false,
@@ -317,6 +873,19 @@ caseSchema.index({ clientId: 1, status: 1 });
 caseSchema.index({ 'richDocuments.showOnCalendar': 1, 'richDocuments.calendarDate': 1 });
 caseSchema.index({ 'richDocuments.documentType': 1 });
 caseSchema.index({ 'richDocuments.status': 1 });
+
+// ═══════════════════════════════════════════════════════════════
+// NAJIZ INTEGRATION INDEXES
+// ═══════════════════════════════════════════════════════════════
+caseSchema.index({ 'najiz.caseNumber': 1 });
+caseSchema.index({ 'najiz.applicationNumber': 1 });
+caseSchema.index({ 'najiz.mainClassification': 1 });
+caseSchema.index({ 'najiz.court.city': 1 });
+caseSchema.index({ 'najiz.najizStatus': 1 });
+caseSchema.index({ 'plaintiff.nationalId': 1 });
+caseSchema.index({ 'defendant.nationalId': 1 });
+caseSchema.index({ 'laborCaseDetails.laborOfficeReferral.referralNumber': 1 });
+caseSchema.index({ 'enforcementDetails.enforcementRequest.requestNumber': 1 });
 
 // ═══════════════════════════════════════════════════════════════
 // MIDDLEWARE HOOKS

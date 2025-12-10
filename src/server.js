@@ -195,7 +195,13 @@ const {
     aiSettingsRoute,
 
     // AI Chat
-    aiChatRoute
+    aiChatRoute,
+
+    // CaseNotion (Notion-like case workspace)
+    caseNotionRoute,
+
+    // Legal Contracts (Najiz Integration)
+    legalContractRoute
 } = require('./routes');
 
 // Import versioned routes
@@ -629,6 +635,12 @@ app.use('/api/settings/ai', aiSettingsRoute);
 
 // AI Chat (Chat popup with Claude/GPT)
 app.use('/api/chat', aiChatRoute);
+
+// CaseNotion (Notion-like case workspace)
+app.use('/api/case-notion', caseNotionRoute);
+
+// Legal Contracts (Najiz Integration)
+app.use('/api/contracts', legalContractRoute);
 
 // Saudi Banking Integration (Lean, WPS, SADAD, Mudad)
 app.use('/api/saudi-banking', noCache, saudiBankingRoute); // No cache for banking integration

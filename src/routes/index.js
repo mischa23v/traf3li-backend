@@ -155,6 +155,12 @@ const aiSettingsRoute = require('./aiSettings.route');
 // AI Chat Routes
 const aiChatRoute = require('./aiChat.route');
 
+// CaseNotion Routes (Notion-like case workspace)
+const caseNotionRoute = require('./caseNotion.route');
+
+// Legal Contract Routes (Najiz Integration)
+const legalContractRoute = require('./legalContract.route');
+
 module.exports = {
     // Marketplace
     gigRoute,
@@ -311,5 +317,11 @@ module.exports = {
     aiSettingsRoute,
 
     // AI Chat
-    aiChatRoute
+    aiChatRoute,
+
+    // CaseNotion (Notion-like case workspace)
+    caseNotionRoute,
+
+    // Legal Contracts (Najiz Integration)
+    legalContractRoute
 };

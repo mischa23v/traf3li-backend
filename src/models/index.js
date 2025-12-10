@@ -180,6 +180,15 @@ const GeofenceZone = require('./geofenceZone.model');
 // AI Chat Models
 const ChatHistory = require('./chatHistory.model');
 
+// CaseNotion Models (Notion-like workspace)
+const CaseNotionBlock = require('./caseNotionBlock.model');
+const CaseNotionPage = require('./caseNotionPage.model');
+const CaseNotionDatabaseView = require('./caseNotionDatabaseView.model');
+const SyncedBlock = require('./syncedBlock.model');
+
+// Legal Contract Model (Najiz Integration)
+const LegalContract = require('./legalContract.model');
+
 module.exports = {
     // Marketplace
     User,
@@ -361,5 +370,14 @@ module.exports = {
     GeofenceZone,
 
     // AI Chat
-    ChatHistory
+    ChatHistory,
+
+    // CaseNotion (Notion-like workspace)
+    CaseNotionBlock,
+    CaseNotionPage,
+    CaseNotionDatabaseView,
+    SyncedBlock,
+
+    // Legal Contracts (Najiz Integration)
+    LegalContract
 };
