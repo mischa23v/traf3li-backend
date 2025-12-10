@@ -407,7 +407,9 @@ const authLogin = async (request, response) => {
                 secure: isProductionEnv, // Secure flag required for SameSite=None
                 maxAge: 60 * 60 * 24 * 7 * 1000, // 7 days
                 path: '/',
-                domain: getCookieDomain(request) // Dynamic: '.traf3li.com' for production domains, undefined for Vercel
+                domain: getCookieDomain(request), // Dynamic: '.traf3li.com' for production domains, undefined for Vercel
+                // CHIPS (Cookies Having Independent Partitioned State) - helps with Safari ITP and Chrome privacy
+                partitioned: isProductionEnv
             };
 
             // Debug logging for cookie configuration
@@ -583,7 +585,8 @@ const authLogout = async (request, response) => {
         sameSite: isProductionEnv ? 'none' : 'lax',
         secure: isProductionEnv,
         path: '/',
-        domain: getCookieDomain(request) // Dynamic: matches how cookie was set
+        domain: getCookieDomain(request), // Dynamic: matches how cookie was set
+        partitioned: isProductionEnv
     })
     .send({
         error: false,
