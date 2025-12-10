@@ -411,10 +411,17 @@ const authLogin = async (request, response) => {
             };
 
             // Debug logging for cookie configuration
-            console.log('[AUTH DEBUG] Login - setting accessToken cookie');
-            console.log('[AUTH DEBUG] Origin:', request.headers.origin);
-            console.log('[AUTH DEBUG] isProductionEnv:', isProductionEnv);
-            console.log('[AUTH DEBUG] Cookie config:', JSON.stringify(cookieConfig));
+            console.log('[AUTH LOGIN] ========== SETTING ACCESS TOKEN COOKIE ==========');
+            console.log('[AUTH LOGIN] User:', user.email);
+            console.log('[AUTH LOGIN] Origin header:', request.headers.origin);
+            console.log('[AUTH LOGIN] Referer header:', request.headers.referer);
+            console.log('[AUTH LOGIN] isProductionEnv:', isProductionEnv);
+            console.log('[AUTH LOGIN] NODE_ENV:', process.env.NODE_ENV);
+            console.log('[AUTH LOGIN] RENDER:', process.env.RENDER);
+            console.log('[AUTH LOGIN] Cookie domain:', cookieConfig.domain);
+            console.log('[AUTH LOGIN] Cookie config:', JSON.stringify(cookieConfig));
+            console.log('[AUTH LOGIN] Token (first 20 chars):', token.substring(0, 20) + '...');
+            console.log('[AUTH LOGIN] =================================================');
 
             // Build enhanced user data with solo lawyer and firm info
             const userData = {
@@ -540,6 +547,15 @@ const authLogin = async (request, response) => {
 }
 
 const authLogout = async (request, response) => {
+    // Debug logging for logout
+    console.log('[AUTH LOGOUT] ========== LOGOUT CALLED ==========');
+    console.log('[AUTH LOGOUT] Origin header:', request.headers.origin);
+    console.log('[AUTH LOGOUT] User-Agent:', request.headers['user-agent']?.substring(0, 50));
+    console.log('[AUTH LOGOUT] Has accessToken cookie:', !!request.cookies?.accessToken);
+    console.log('[AUTH LOGOUT] Request user:', request.user ? request.user.email : 'none');
+    console.log('[AUTH LOGOUT] Stack trace:', new Error().stack?.split('\n').slice(1, 5).join('\n'));
+    console.log('[AUTH LOGOUT] ================================================');
+
     // Log logout if user is authenticated
     if (request.user) {
         await auditLogService.log(
