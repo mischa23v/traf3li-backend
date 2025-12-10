@@ -19,27 +19,60 @@ const isProductionEnv = NODE_ENV === 'production' ||
 // Helper to detect if request is coming through a same-origin proxy (e.g., Vercel rewrites)
 // When frontend at dashboard.traf3li.com proxies to /api/*, the browser sees it as same-origin
 // In this case, we should use SameSite=Lax and NOT set domain (more compatible with browser privacy)
+//
+// Detection strategy (multiple signals for reliability):
+// 1. Check if Origin/Referer is from dashboard.traf3li.com (frontend with Vercel proxy)
+// 2. Check x-forwarded-host header (may be overwritten by Render's proxy)
+// 3. Check x-vercel-forwarded-for header (Vercel-specific)
 const isSameOriginProxy = (request) => {
-    const forwardedHost = request.headers['x-forwarded-host'];
     const origin = request.headers.origin || '';
+    const referer = request.headers.referer || '';
+    const forwardedHost = request.headers['x-forwarded-host'] || '';
+    const vercelForwarded = request.headers['x-vercel-forwarded-for'] || '';
 
-    // If x-forwarded-host is set and matches the origin, it's a same-origin proxy
-    // e.g., origin=https://dashboard.traf3li.com, x-forwarded-host=dashboard.traf3li.com
-    if (forwardedHost && origin) {
-        try {
-            const originHost = new URL(origin).host;
-            return originHost === forwardedHost;
-        } catch {
-            return false;
-        }
-    }
+    // Debug log all relevant headers
+    console.log('[PROXY-DETECT] Origin:', origin);
+    console.log('[PROXY-DETECT] Referer:', referer);
+    console.log('[PROXY-DETECT] x-forwarded-host:', forwardedHost);
+    console.log('[PROXY-DETECT] x-vercel-forwarded-for:', vercelForwarded);
 
-    // If no origin header but x-forwarded-host exists, browser treats it as same-origin
-    // (same-origin requests don't always send Origin header)
-    if (forwardedHost && !origin) {
+    // Strategy 1: If Origin or Referer is from dashboard.traf3li.com, it's using Vercel proxy
+    // This is the most reliable signal because:
+    // - The frontend is hosted on dashboard.traf3li.com (Vercel)
+    // - If requests come from there, they MUST be going through Vercel rewrites
+    // - Therefore, from the browser's perspective, it's same-origin
+    const dashboardPattern = /dashboard\.traf3li\.com/i;
+    if (dashboardPattern.test(origin) || dashboardPattern.test(referer)) {
+        console.log('[PROXY-DETECT] ✓ Detected via Origin/Referer - using same-origin config');
         return true;
     }
 
+    // Strategy 2: Check x-vercel-forwarded-for (Vercel-specific header)
+    if (vercelForwarded) {
+        console.log('[PROXY-DETECT] ✓ Detected via x-vercel-forwarded-for - using same-origin config');
+        return true;
+    }
+
+    // Strategy 3: Original x-forwarded-host check (fallback)
+    if (forwardedHost && origin) {
+        try {
+            const originHost = new URL(origin).host;
+            if (originHost === forwardedHost) {
+                console.log('[PROXY-DETECT] ✓ Detected via x-forwarded-host match - using same-origin config');
+                return true;
+            }
+        } catch {
+            // URL parsing failed, continue to other checks
+        }
+    }
+
+    // Strategy 4: If x-forwarded-host contains dashboard.traf3li.com
+    if (dashboardPattern.test(forwardedHost)) {
+        console.log('[PROXY-DETECT] ✓ Detected via x-forwarded-host pattern - using same-origin config');
+        return true;
+    }
+
+    console.log('[PROXY-DETECT] ✗ Not detected as same-origin proxy - using cross-origin config');
     return false;
 };
 

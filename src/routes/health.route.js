@@ -169,32 +169,50 @@ router.get('/ping', (req, res) => {
  */
 router.get('/debug-auth', (req, res) => {
     // Detect same-origin proxy (same logic as auth.controller.js)
-    const forwardedHost = req.headers['x-forwarded-host'];
     const origin = req.headers.origin || '';
-    let isSameOriginProxy = false;
+    const referer = req.headers.referer || '';
+    const forwardedHost = req.headers['x-forwarded-host'] || '';
+    const vercelForwarded = req.headers['x-vercel-forwarded-for'] || '';
 
-    if (forwardedHost && origin) {
+    // Multiple detection strategies
+    const dashboardPattern = /dashboard\.traf3li\.com/i;
+    let isSameOriginProxy = false;
+    let detectionMethod = 'none';
+
+    if (dashboardPattern.test(origin) || dashboardPattern.test(referer)) {
+        isSameOriginProxy = true;
+        detectionMethod = 'origin/referer pattern';
+    } else if (vercelForwarded) {
+        isSameOriginProxy = true;
+        detectionMethod = 'x-vercel-forwarded-for';
+    } else if (forwardedHost && origin) {
         try {
             const originHost = new URL(origin).host;
-            isSameOriginProxy = originHost === forwardedHost;
+            if (originHost === forwardedHost) {
+                isSameOriginProxy = true;
+                detectionMethod = 'x-forwarded-host match';
+            }
         } catch {
-            isSameOriginProxy = false;
+            // ignore
         }
-    } else if (forwardedHost && !origin) {
+    } else if (dashboardPattern.test(forwardedHost)) {
         isSameOriginProxy = true;
+        detectionMethod = 'x-forwarded-host pattern';
     }
 
     const debugInfo = {
         timestamp: new Date().toISOString(),
         request: {
-            origin: req.headers.origin || 'none',
-            referer: req.headers.referer || 'none',
+            origin: origin || 'none',
+            referer: referer || 'none',
             host: req.headers.host,
             forwardedHost: forwardedHost || 'none',
+            vercelForwarded: vercelForwarded || 'none',
             userAgent: (req.headers['user-agent'] || '').substring(0, 100)
         },
         proxy: {
             isSameOriginProxy,
+            detectionMethod,
             willUseSameSiteLax: isSameOriginProxy,
             willSetDomain: !isSameOriginProxy && (origin.includes('traf3li.com'))
         },
