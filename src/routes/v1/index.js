@@ -266,11 +266,13 @@ router.use('/hr/expense-claims', noCache, expenseClaimRoute);
 router.use('/hr/trainings', trainingRoute);
 router.use('/hr/asset-assignments', assetAssignmentRoute);
 router.use('/hr/benefits', noCache, employeeBenefitRoute);
+router.use('/hr/employee-benefits', noCache, employeeBenefitRoute);  // Alias for frontend
 router.use('/hr/grievances', noCache, grievanceRoute);
 router.use('/hr/organizational-structure', organizationalUnitRoute);
 router.use('/hr/job-positions', jobPositionRoute);
 router.use('/hr/succession-plans', successionPlanRoute);
 router.use('/hr/compensation', noCache, compensationRewardRoute);
+router.use('/hr/compensation-rewards', noCache, compensationRewardRoute);  // Alias for frontend
 
 // ============================================
 // ANALYTICS REPORTS ROUTES
@@ -347,6 +349,8 @@ router.use('/case-workflows', workflowRoute);
 router.use('/billing/rates', billingRateRoute);
 router.use('/billing/groups', rateGroupRoute);
 router.use('/payroll-runs', noCache, payrollRunRoute);
+router.use('/bank-reconciliation', noCache, bankReconciliationRoute);
+router.use('/succession-plans', successionPlanRoute);  // Alias for frontend (also available at /hr/succession-plans)
 
 // Apps endpoint (placeholder for app integrations)
 router.get('/apps', (req, res) => {

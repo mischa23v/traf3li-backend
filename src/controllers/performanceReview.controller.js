@@ -18,7 +18,6 @@ const mongoose = require('mongoose');
 const getPerformanceReviews = async (req, res) => {
     try {
         const {
-            firmId,
             reviewType,
             status,
             departmentId,
@@ -33,11 +32,13 @@ const getPerformanceReviews = async (req, res) => {
             sortOrder = 'desc'
         } = req.query;
 
-        const query = { isDeleted: false };
+        const firmId = req.firmId; // From firmContext middleware
+        const lawyerId = req.userID || req.userId;
 
-        // Multi-tenancy
-        if (firmId) query.firmId = firmId;
-        if (req.user?.firmId) query.firmId = req.user.firmId;
+        // Build query based on firmId (firm) or lawyerId (solo lawyer)
+        const query = firmId
+            ? { firmId, isDeleted: false }
+            : { lawyerId, isDeleted: false };
 
         // Filters
         if (reviewType) query.reviewType = reviewType;
@@ -102,13 +103,14 @@ const getPerformanceReviews = async (req, res) => {
  */
 const getPerformanceStats = async (req, res) => {
     try {
-        const { periodYear, departmentId, firmId } = req.query;
-        const targetFirmId = firmId || req.user?.firmId;
+        const { periodYear, departmentId } = req.query;
+        const firmId = req.firmId; // From firmContext middleware
+        const lawyerId = req.userID || req.userId;
 
-        const match = {
-            firmId: mongoose.Types.ObjectId(targetFirmId),
-            isDeleted: false
-        };
+        // Build match filter based on firmId (firm) or lawyerId (solo lawyer)
+        const match = firmId
+            ? { firmId: new mongoose.Types.ObjectId(firmId), isDeleted: false }
+            : { lawyerId: new mongoose.Types.ObjectId(lawyerId), isDeleted: false };
 
         if (periodYear) {
             match['reviewPeriod.startDate'] = {
@@ -118,7 +120,7 @@ const getPerformanceStats = async (req, res) => {
         }
 
         if (departmentId) {
-            match.departmentId = mongoose.Types.ObjectId(departmentId);
+            match.departmentId = new mongoose.Types.ObjectId(departmentId);
         }
 
         const [
@@ -267,10 +269,11 @@ const createPerformanceReview = async (req, res) => {
             goals,
             kpis,
             include360Feedback,
-            feedbackProviders,
-            firmId,
-            lawyerId
+            feedbackProviders
         } = req.body;
+
+        const firmId = req.firmId; // From firmContext middleware
+        const lawyerId = req.userID || req.userId;
 
         // Get employee details
         const employee = await Employee.findById(employeeId);
@@ -303,8 +306,8 @@ const createPerformanceReview = async (req, res) => {
             reviewType,
             reviewPeriod,
             templateId,
-            firmId: firmId || req.user?.firmId,
-            lawyerId: lawyerId || req.user?._id,
+            firmId, // From middleware (null for solo lawyers)
+            lawyerId, // From middleware
             createdBy: req.user?._id,
             status: 'draft',
             isAttorney: employee.employmentDetails?.jobCategory === 'legal' ||
@@ -1419,7 +1422,7 @@ const applyCalibration = async (req, res) => {
 const getEmployeeHistory = async (req, res) => {
     try {
         const { employeeId } = req.params;
-        const firmId = req.query.firmId || req.user?.firmId;
+        const firmId = req.firmId; // From firmContext middleware
 
         const reviews = await PerformanceReview.getEmployeeHistory(employeeId, firmId);
 
@@ -1464,13 +1467,19 @@ const getTeamSummary = async (req, res) => {
     try {
         const { managerId } = req.params;
         const { periodYear } = req.query;
-        const firmId = req.query.firmId || req.user?.firmId;
+        const firmId = req.firmId; // From firmContext middleware
+        const lawyerId = req.userID || req.userId;
+
+        // Build match filter based on firmId (firm) or lawyerId (solo lawyer)
+        const baseFilter = firmId
+            ? { firmId: new mongoose.Types.ObjectId(firmId) }
+            : { lawyerId: new mongoose.Types.ObjectId(lawyerId) };
 
         const match = {
-            firmId: mongoose.Types.ObjectId(firmId),
+            ...baseFilter,
             $or: [
-                { reviewerId: mongoose.Types.ObjectId(managerId) },
-                { managerId: mongoose.Types.ObjectId(managerId) }
+                { reviewerId: new mongoose.Types.ObjectId(managerId) },
+                { managerId: new mongoose.Types.ObjectId(managerId) }
             ],
             isDeleted: false
         };
@@ -1553,23 +1562,27 @@ const getTeamSummary = async (req, res) => {
  */
 const bulkCreateReviews = async (req, res) => {
     try {
-        const { departmentId, employeeIds, reviewType, reviewPeriod, templateId, firmId, lawyerId } = req.body;
+        const { departmentId, employeeIds, reviewType, reviewPeriod, templateId } = req.body;
 
-        const targetFirmId = firmId || req.user?.firmId;
+        const firmId = req.firmId; // From firmContext middleware
+        const lawyerId = req.userID || req.userId;
+
+        // Build employee filter based on firmId (firm) or lawyerId (solo lawyer)
+        const baseEmployeeFilter = firmId
+            ? { firmId, 'employmentDetails.employmentStatus': 'active' }
+            : { lawyerId, 'employmentDetails.employmentStatus': 'active' };
 
         let targetEmployees;
 
         if (employeeIds && employeeIds.length > 0) {
             targetEmployees = await Employee.find({
                 _id: { $in: employeeIds },
-                firmId: targetFirmId,
-                'employmentDetails.employmentStatus': 'active'
+                ...baseEmployeeFilter
             });
         } else if (departmentId) {
             targetEmployees = await Employee.find({
-                firmId: targetFirmId,
-                'employmentDetails.departmentId': departmentId,
-                'employmentDetails.employmentStatus': 'active'
+                ...baseEmployeeFilter,
+                'employmentDetails.departmentId': departmentId
             });
         } else {
             return res.status(400).json({
@@ -1619,8 +1632,8 @@ const bulkCreateReviews = async (req, res) => {
                     reviewType,
                     reviewPeriod,
                     templateId,
-                    firmId: targetFirmId,
-                    lawyerId: lawyerId || req.user?._id,
+                    firmId, // From middleware (null for solo lawyers)
+                    lawyerId, // From middleware
                     createdBy: req.user?._id,
                     status: 'draft',
                     isAttorney: employee.employmentDetails?.jobCategory === 'legal'
@@ -1722,7 +1735,7 @@ const sendReminder = async (req, res) => {
  */
 const getOverdueReviews = async (req, res) => {
     try {
-        const firmId = req.query.firmId || req.user?.firmId;
+        const firmId = req.firmId; // From firmContext middleware
 
         const reviews = await PerformanceReview.getOverdueReviews(firmId);
 
@@ -1751,10 +1764,14 @@ const getOverdueReviews = async (req, res) => {
  */
 const getTemplates = async (req, res) => {
     try {
-        const { reviewType, firmId } = req.query;
-        const targetFirmId = firmId || req.user?.firmId;
+        const { reviewType } = req.query;
+        const firmId = req.firmId; // From firmContext middleware
+        const lawyerId = req.userID || req.userId;
 
-        const query = { firmId: targetFirmId, isActive: true };
+        // Build query based on firmId (firm) or lawyerId (solo lawyer)
+        const query = firmId
+            ? { firmId, isActive: true }
+            : { lawyerId, isActive: true };
         if (reviewType) query.reviewType = reviewType;
 
         const templates = await ReviewTemplate.find(query).sort({ name: 1 });
@@ -1779,9 +1796,13 @@ const getTemplates = async (req, res) => {
  */
 const createTemplate = async (req, res) => {
     try {
+        const firmId = req.firmId; // From firmContext middleware
+        const lawyerId = req.userID || req.userId;
+
         const templateData = {
             ...req.body,
-            firmId: req.body.firmId || req.user?.firmId,
+            firmId, // From middleware (null for solo lawyers)
+            lawyerId, // From middleware
             createdBy: req.user?._id
         };
 
@@ -1853,10 +1874,12 @@ const updateTemplate = async (req, res) => {
  */
 const getCalibrationSessions = async (req, res) => {
     try {
-        const { periodYear, status, departmentId, firmId } = req.query;
-        const targetFirmId = firmId || req.user?.firmId;
+        const { periodYear, status, departmentId } = req.query;
+        const firmId = req.firmId; // From firmContext middleware
+        const lawyerId = req.userID || req.userId;
 
-        const query = { firmId: targetFirmId };
+        // Build query based on firmId (firm) or lawyerId (solo lawyer)
+        const query = firmId ? { firmId } : { lawyerId };
         if (periodYear) query.periodYear = parseInt(periodYear);
         if (status) query.status = status;
         if (departmentId) query.departmentId = departmentId;
@@ -1886,9 +1909,13 @@ const getCalibrationSessions = async (req, res) => {
  */
 const createCalibrationSession = async (req, res) => {
     try {
+        const firmId = req.firmId; // From firmContext middleware
+        const lawyerId = req.userID || req.userId;
+
         const sessionData = {
             ...req.body,
-            firmId: req.body.firmId || req.user?.firmId,
+            firmId, // From middleware (null for solo lawyers)
+            lawyerId, // From middleware
             createdBy: req.user?._id,
             status: 'scheduled'
         };

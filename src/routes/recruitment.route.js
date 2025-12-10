@@ -35,6 +35,9 @@ router.get('/talent-pool', recruitmentController.getTalentPool);
 // GET /api/hr/recruitment/jobs/nearing-deadline - Get jobs nearing deadline
 router.get('/jobs/nearing-deadline', recruitmentController.getJobsNearingDeadline);
 
+// GET /api/hr/recruitment/jobs/stats - Alias for frontend (maps to /stats)
+router.get('/jobs/stats', recruitmentController.getRecruitmentStats);
+
 // ═══════════════════════════════════════════════════════════════
 // JOB POSTING CRUD ROUTES
 // ═══════════════════════════════════════════════════════════════

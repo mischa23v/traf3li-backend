@@ -59,6 +59,9 @@ const firmFilter = async (req, res, next) => {
             throw CustomException('User not found', 404);
         }
 
+        // Set req.user for authorize middleware compatibility
+        req.user = user;
+
         // Handle solo lawyers - they have full permissions without needing a firm
         // Uses Casbin-style domain check: solo lawyers have no tenant/domain
         if (checkIsSoloLawyer(user)) {

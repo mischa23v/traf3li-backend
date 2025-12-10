@@ -550,11 +550,14 @@ app.use('/api/hr/expense-claims', noCache, expenseClaimRoute);
 app.use('/api/hr/trainings', trainingRoute);
 app.use('/api/hr/asset-assignments', assetAssignmentRoute);
 app.use('/api/hr/benefits', noCache, employeeBenefitRoute);
+app.use('/api/hr/employee-benefits', noCache, employeeBenefitRoute);  // Alias for frontend
 app.use('/api/hr/grievances', noCache, grievanceRoute);
 app.use('/api/hr/organizational-structure', organizationalUnitRoute);
 app.use('/api/hr/job-positions', jobPositionRoute);
 app.use('/api/hr/succession-plans', successionPlanRoute);
+app.use('/api/succession-plans', successionPlanRoute);  // Alias for frontend (also available at /hr/succession-plans)
 app.use('/api/hr/compensation', noCache, compensationRewardRoute);
+app.use('/api/hr/compensation-rewards', noCache, compensationRewardRoute);  // Alias for frontend
 
 // Analytics Reports Routes
 app.use('/api/analytics-reports', analyticsReportRoute);
@@ -633,6 +636,9 @@ app.use('/api/billing/groups', rateGroupRoute);
 
 // HR aliases (frontend expects routes without /hr/ prefix)
 app.use('/api/payroll-runs', noCache, payrollRunRoute); // No cache for payroll
+
+// Bank reconciliation alias (frontend expects singular form)
+app.use('/api/bank-reconciliation', noCache, bankReconciliationRoute);
 
 // Apps endpoint (placeholder for app integrations)
 app.get('/api/apps', (req, res) => {

@@ -153,12 +153,14 @@ const setCsrfToken = (req, res, next) => {
 
         // Set as httpOnly cookie (more secure, but still readable by frontend via document.cookie workaround)
         // For double-submit pattern, we need it to be readable by client JS
+        const isProduction = process.env.NODE_ENV === 'production';
         res.cookie('csrf-token', csrfToken, {
             httpOnly: false, // Must be false so client can read it
-            secure: process.env.NODE_ENV === 'production', // HTTPS only in production
-            sameSite: 'strict', // Strict same-site policy
+            secure: isProduction, // HTTPS only in production
+            sameSite: isProduction ? 'none' : 'lax', // 'none' for cross-origin in production, 'lax' for development
             maxAge: 24 * 60 * 60 * 1000, // 24 hours
-            path: '/'
+            path: '/',
+            domain: isProduction ? '.traf3li.com' : undefined // Share across subdomains in production
         });
     }
 

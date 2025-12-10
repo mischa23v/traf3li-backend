@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const HRAnalyticsController = require('../controllers/hrAnalytics.controller');
-const authenticate = require('../middlewares/authenticate');
+const { userMiddleware, firmFilter } = require('../middlewares');
 const { authorize } = require('../middlewares/authorize.middleware');
 
 /**
@@ -9,12 +9,16 @@ const { authorize } = require('../middlewares/authorize.middleware');
  * All routes require authentication and HR/Admin authorization
  */
 
-// Apply authentication middleware to all routes
-router.use(authenticate);
+// Apply authentication middleware to all routes (checks both cookies AND Authorization header)
+router.use(userMiddleware);
+
+// Apply firm filter middleware to set req.firmId (same as finance/invoice routes)
+router.use(firmFilter);
 
 // Apply HR/Admin authorization to all routes
-// Adjust roles based on your system (e.g., ['hr', 'admin', 'manager'])
-router.use(authorize('hr', 'admin', 'partner', 'solo'));
+// Note: User.role enum is ['client', 'lawyer', 'admin']
+// Firm-level permissions (partner, owner) are handled by firmFilter middleware
+router.use(authorize('admin', 'lawyer'));
 
 // ═══════════════════════════════════════════════════════════════
 // ANALYTICS ROUTES
