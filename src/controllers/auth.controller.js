@@ -16,17 +16,80 @@ const isProductionEnv = NODE_ENV === 'production' ||
                         process.env.VERCEL_ENV === 'production' ||
                         process.env.RAILWAY_ENVIRONMENT === 'production';
 
+// Helper to detect if request is coming through a same-origin proxy (e.g., Vercel rewrites)
+// When frontend at dashboard.traf3li.com proxies to /api/*, the browser sees it as same-origin
+// In this case, we should use SameSite=Lax and NOT set domain (more compatible with browser privacy)
+const isSameOriginProxy = (request) => {
+    const forwardedHost = request.headers['x-forwarded-host'];
+    const origin = request.headers.origin || '';
+
+    // If x-forwarded-host is set and matches the origin, it's a same-origin proxy
+    // e.g., origin=https://dashboard.traf3li.com, x-forwarded-host=dashboard.traf3li.com
+    if (forwardedHost && origin) {
+        try {
+            const originHost = new URL(origin).host;
+            return originHost === forwardedHost;
+        } catch {
+            return false;
+        }
+    }
+
+    // If no origin header but x-forwarded-host exists, browser treats it as same-origin
+    // (same-origin requests don't always send Origin header)
+    if (forwardedHost && !origin) {
+        return true;
+    }
+
+    return false;
+};
+
 // Helper to get cookie domain based on request origin
-// - For *.traf3li.com origins: use '.traf3li.com' to share cookies across subdomains
-// - For other origins (e.g., *.vercel.app): don't set domain, cookie scoped to api host
+// - For same-origin proxy requests: don't set domain (browser scopes to proxy host)
+// - For cross-origin *.traf3li.com: use '.traf3li.com' to share cookies across subdomains
+// - For other origins (e.g., *.vercel.app): don't set domain
 const getCookieDomain = (request) => {
     if (!isProductionEnv) return undefined;
+
+    // Same-origin proxy requests: don't set domain
+    if (isSameOriginProxy(request)) {
+        return undefined;
+    }
 
     const origin = request.headers.origin || request.headers.referer || '';
     if (origin.includes('.traf3li.com') || origin.includes('traf3li.com')) {
         return '.traf3li.com';
     }
-    return undefined; // No domain restriction for Vercel preview deployments
+    return undefined;
+};
+
+// Helper to get cookie config based on request context
+// Uses more permissive settings for same-origin proxy requests
+const getCookieConfig = (request) => {
+    const isSameOrigin = isSameOriginProxy(request);
+
+    if (isSameOrigin) {
+        // Same-origin via proxy: use Lax (more compatible with browser privacy)
+        return {
+            httpOnly: true,
+            sameSite: 'lax',
+            secure: isProductionEnv,
+            maxAge: 60 * 60 * 24 * 7 * 1000, // 7 days
+            path: '/'
+            // No domain - let browser scope to exact origin
+            // No partitioned - not needed for same-origin
+        };
+    }
+
+    // Cross-origin: use None with all the cross-site cookie requirements
+    return {
+        httpOnly: true,
+        sameSite: 'none',
+        secure: true, // Required for SameSite=None
+        maxAge: 60 * 60 * 24 * 7 * 1000, // 7 days
+        path: '/',
+        domain: getCookieDomain(request),
+        partitioned: true // CHIPS for Safari ITP / Chrome privacy
+    };
 };
 
 const authRegister = async (request, response) => {
@@ -401,26 +464,17 @@ const authLogin = async (request, response) => {
                 isSeller: user.isSeller
             }, JWT_SECRET, { expiresIn: '7 days' });
 
-            const cookieConfig = {
-                httpOnly: true,
-                sameSite: isProductionEnv ? 'none' : 'lax', // 'none' for cross-origin in production, 'lax' for development
-                secure: isProductionEnv, // Secure flag required for SameSite=None
-                maxAge: 60 * 60 * 24 * 7 * 1000, // 7 days
-                path: '/',
-                domain: getCookieDomain(request), // Dynamic: '.traf3li.com' for production domains, undefined for Vercel
-                // CHIPS (Cookies Having Independent Partitioned State) - helps with Safari ITP and Chrome privacy
-                partitioned: isProductionEnv
-            };
+            // Get cookie config based on request context (same-origin proxy vs cross-origin)
+            const cookieConfig = getCookieConfig(request);
 
             // Debug logging for cookie configuration
+            const isSameOrigin = isSameOriginProxy(request);
             console.log('[AUTH LOGIN] ========== SETTING ACCESS TOKEN COOKIE ==========');
             console.log('[AUTH LOGIN] User:', user.email);
-            console.log('[AUTH LOGIN] Origin header:', request.headers.origin);
-            console.log('[AUTH LOGIN] Referer header:', request.headers.referer);
+            console.log('[AUTH LOGIN] Origin header:', request.headers.origin || 'none');
+            console.log('[AUTH LOGIN] x-forwarded-host:', request.headers['x-forwarded-host'] || 'none');
+            console.log('[AUTH LOGIN] isSameOriginProxy:', isSameOrigin);
             console.log('[AUTH LOGIN] isProductionEnv:', isProductionEnv);
-            console.log('[AUTH LOGIN] NODE_ENV:', process.env.NODE_ENV);
-            console.log('[AUTH LOGIN] RENDER:', process.env.RENDER);
-            console.log('[AUTH LOGIN] Cookie domain:', cookieConfig.domain);
             console.log('[AUTH LOGIN] Cookie config:', JSON.stringify(cookieConfig));
             console.log('[AUTH LOGIN] Token (first 20 chars):', token.substring(0, 20) + '...');
             console.log('[AUTH LOGIN] =================================================');
@@ -550,12 +604,13 @@ const authLogin = async (request, response) => {
 
 const authLogout = async (request, response) => {
     // Debug logging for logout
+    const isSameOrigin = isSameOriginProxy(request);
     console.log('[AUTH LOGOUT] ========== LOGOUT CALLED ==========');
-    console.log('[AUTH LOGOUT] Origin header:', request.headers.origin);
-    console.log('[AUTH LOGOUT] User-Agent:', request.headers['user-agent']?.substring(0, 50));
+    console.log('[AUTH LOGOUT] Origin header:', request.headers.origin || 'none');
+    console.log('[AUTH LOGOUT] x-forwarded-host:', request.headers['x-forwarded-host'] || 'none');
+    console.log('[AUTH LOGOUT] isSameOriginProxy:', isSameOrigin);
     console.log('[AUTH LOGOUT] Has accessToken cookie:', !!request.cookies?.accessToken);
     console.log('[AUTH LOGOUT] Request user:', request.user ? request.user.email : 'none');
-    console.log('[AUTH LOGOUT] Stack trace:', new Error().stack?.split('\n').slice(1, 5).join('\n'));
     console.log('[AUTH LOGOUT] ================================================');
 
     // Log logout if user is authenticated
@@ -580,14 +635,10 @@ const authLogout = async (request, response) => {
         );
     }
 
-    return response.clearCookie('accessToken', {
-        httpOnly: true,
-        sameSite: isProductionEnv ? 'none' : 'lax',
-        secure: isProductionEnv,
-        path: '/',
-        domain: getCookieDomain(request), // Dynamic: matches how cookie was set
-        partitioned: isProductionEnv
-    })
+    // Use same cookie config as login to ensure cookie is properly cleared
+    const cookieConfig = getCookieConfig(request);
+
+    return response.clearCookie('accessToken', cookieConfig)
     .send({
         error: false,
         message: 'User have been logged out!'
