@@ -170,10 +170,49 @@ const setCsrfToken = (req, res, next) => {
     next();
 };
 
+// Public auth routes that should be exempt from CSRF validation
+// These are pre-authentication endpoints where users don't have a session yet
+const csrfExemptPaths = [
+    '/api/auth/login',
+    '/api/auth/register',
+    '/api/auth/send-otp',
+    '/api/auth/verify-otp',
+    '/api/auth/resend-otp',
+    '/api/auth/check-availability',
+    '/api/auth/logout',
+    // Versioned auth routes
+    '/api/v1/auth/login',
+    '/api/v1/auth/register',
+    '/api/v1/auth/send-otp',
+    '/api/v1/auth/verify-otp',
+    '/api/v1/auth/resend-otp',
+    '/api/v1/auth/check-availability',
+    '/api/v1/auth/logout',
+    '/api/v2/auth/login',
+    '/api/v2/auth/register',
+    '/api/v2/auth/send-otp',
+    '/api/v2/auth/verify-otp',
+    '/api/v2/auth/resend-otp',
+    '/api/v2/auth/check-availability',
+    '/api/v2/auth/logout',
+    // Webhook endpoints (have their own signature verification)
+    '/api/webhooks'
+];
+
 // Middleware to validate CSRF token on state-changing requests
 const validateCsrfToken = (req, res, next) => {
     // Skip for safe methods
     if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
+        return next();
+    }
+
+    // Skip CSRF validation for exempt paths (public auth endpoints)
+    const isExempt = csrfExemptPaths.some(path =>
+        req.path === path || req.path.startsWith(path + '/')
+    );
+
+    if (isExempt) {
+        logger.debug('CSRF validation skipped for exempt path', { path: req.path });
         return next();
     }
 
