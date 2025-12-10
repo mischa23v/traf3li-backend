@@ -679,6 +679,8 @@ app.get('/api/apps', (req, res) => {
         },
         message: 'Apps feature coming soon'
     });
+});
+
 // ============================================
 // API DOCUMENTATION (SWAGGER)
 // ============================================
@@ -693,8 +695,6 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
 app.get('/api-docs.json', (req, res) => {
     res.setHeader('Content-Type', 'application/json');
     res.send(swaggerSpec);
-});
-
 });
 
 // ============================================

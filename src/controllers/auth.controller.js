@@ -8,6 +8,27 @@ const auditLogService = require('../services/auditLog.service');
 const { JWT_SECRET, NODE_ENV } = process.env;
 const saltRounds = 10;
 
+// Robust production detection for cross-origin cookie settings
+// Checks multiple indicators to determine if we're in a production environment
+const isProductionEnv = NODE_ENV === 'production' ||
+                        NODE_ENV === 'prod' ||
+                        process.env.RENDER === 'true' ||
+                        process.env.VERCEL_ENV === 'production' ||
+                        process.env.RAILWAY_ENVIRONMENT === 'production';
+
+// Helper to get cookie domain based on request origin
+// - For *.traf3li.com origins: use '.traf3li.com' to share cookies across subdomains
+// - For other origins (e.g., *.vercel.app): don't set domain, cookie scoped to api host
+const getCookieDomain = (request) => {
+    if (!isProductionEnv) return undefined;
+
+    const origin = request.headers.origin || request.headers.referer || '';
+    if (origin.includes('.traf3li.com') || origin.includes('traf3li.com')) {
+        return '.traf3li.com';
+    }
+    return undefined; // No domain restriction for Vercel preview deployments
+};
+
 const authRegister = async (request, response) => {
     const {
         // Basic info
@@ -382,11 +403,11 @@ const authLogin = async (request, response) => {
 
             const cookieConfig = {
                 httpOnly: true,
-                sameSite: NODE_ENV === 'production' ? 'none' : 'strict',
-                secure: NODE_ENV === 'production',
+                sameSite: isProductionEnv ? 'none' : 'lax', // 'none' for cross-origin in production, 'lax' for development
+                secure: isProductionEnv, // Secure flag required for SameSite=None
                 maxAge: 60 * 60 * 24 * 7 * 1000, // 7 days
                 path: '/',
-                domain: NODE_ENV === 'production' ? '.traf3li.com' : undefined
+                domain: getCookieDomain(request) // Dynamic: '.traf3li.com' for production domains, undefined for Vercel
             };
 
             // Build enhanced user data with solo lawyer and firm info
@@ -537,10 +558,10 @@ const authLogout = async (request, response) => {
 
     return response.clearCookie('accessToken', {
         httpOnly: true,
-        sameSite: NODE_ENV === 'production' ? 'none' : 'strict',
-        secure: NODE_ENV === 'production',
+        sameSite: isProductionEnv ? 'none' : 'lax',
+        secure: isProductionEnv,
         path: '/',
-        domain: NODE_ENV === 'production' ? '.traf3li.com' : undefined
+        domain: getCookieDomain(request) // Dynamic: matches how cookie was set
     })
     .send({
         error: false,
