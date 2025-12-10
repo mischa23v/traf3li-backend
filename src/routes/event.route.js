@@ -25,7 +25,9 @@ const {
     getEventStats,
     checkAvailability,
     exportEventToICS,
-    importEventsFromICS
+    importEventsFromICS,
+    createEventFromNaturalLanguage,
+    createEventFromVoice
 } = require('../controllers/event.controller');
 
 const app = express.Router();
@@ -52,6 +54,10 @@ app.get('/month/:year/:month', userMiddleware, firmFilter, getEventsByMonth);
 app.get('/date/:date', userMiddleware, firmFilter, getEventsByDate);
 app.post('/availability', userMiddleware, firmFilter, checkAvailability);
 app.post('/import/ics', userMiddleware, firmFilter, icsUpload.single('file'), importEventsFromICS);
+
+// NLP & Voice endpoints
+app.post('/parse', userMiddleware, firmFilter, createEventFromNaturalLanguage);
+app.post('/voice', userMiddleware, firmFilter, createEventFromVoice);
 
 // Event CRUD
 app.post('/', userMiddleware, firmFilter, createEvent);

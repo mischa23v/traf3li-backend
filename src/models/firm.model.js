@@ -219,6 +219,45 @@ const firmSchema = new mongoose.Schema({
     },
 
     // ═══════════════════════════════════════════════════════════════
+    // AI SERVICES API KEYS (User-provided)
+    // ═══════════════════════════════════════════════════════════════
+    aiSettings: {
+        // OpenAI API Key (for Whisper speech-to-text)
+        openai: {
+            apiKey: { type: String, default: null }, // Encrypted
+            isConfigured: { type: Boolean, default: false },
+            lastValidated: Date,
+            usageThisMonth: { type: Number, default: 0 }
+        },
+        // Anthropic API Key (for Claude NLP)
+        anthropic: {
+            apiKey: { type: String, default: null }, // Encrypted
+            isConfigured: { type: Boolean, default: false },
+            lastValidated: Date,
+            usageThisMonth: { type: Number, default: 0 }
+        },
+        // Google Cloud API Key (alternative speech-to-text)
+        google: {
+            apiKey: { type: String, default: null }, // Encrypted
+            isConfigured: { type: Boolean, default: false },
+            lastValidated: Date
+        },
+        // Feature toggles (auto-enabled when API keys are configured)
+        features: {
+            nlpTaskCreation: { type: Boolean, default: false },
+            voiceToTask: { type: Boolean, default: false },
+            smartScheduling: { type: Boolean, default: false },
+            aiAssistant: { type: Boolean, default: false }
+        },
+        // Preferences
+        preferences: {
+            defaultLanguage: { type: String, default: 'ar' },
+            preferredSpeechProvider: { type: String, enum: ['openai', 'google'], default: 'openai' },
+            preferredNlpProvider: { type: String, enum: ['anthropic', 'openai'], default: 'anthropic' }
+        }
+    },
+
+    // ═══════════════════════════════════════════════════════════════
     // SUBSCRIPTION / PLAN
     // ═══════════════════════════════════════════════════════════════
     subscription: {

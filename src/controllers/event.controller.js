@@ -1,6 +1,8 @@
 const { Event, Task, Case, User } = require('../models');
 const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
+const nlpService = require('../services/nlp.service');
+const voiceToTaskService = require('../services/voiceToTask.service');
 
 /**
  * Create event
@@ -1451,6 +1453,309 @@ function sanitizeFilename(filename) {
         .substring(0, 50) || 'event';
 }
 
+// === NLP & VOICE ENDPOINTS ===
+
+/**
+ * Create event from natural language
+ * POST /api/events/parse
+ */
+const createEventFromNaturalLanguage = asyncHandler(async (req, res) => {
+    const { text } = req.body;
+    const userId = req.userID;
+    const firmId = req.firmId;
+
+    // Block departed users from creating events
+    if (req.isDeparted) {
+        throw CustomException('لم يعد لديك صلاحية إنشاء مواعيد جديدة', 403);
+    }
+
+    // Validate input
+    if (!text || typeof text !== 'string' || text.trim().length === 0) {
+        throw CustomException('Natural language text is required', 400);
+    }
+
+    // Parse the natural language input using NLP service
+    const parseResult = await nlpService.parseEventFromText(text, {
+        timezone: req.body.timezone || 'Asia/Riyadh',
+        currentDateTime: new Date()
+    });
+
+    if (!parseResult.success) {
+        throw CustomException('Failed to parse event from text', 400);
+    }
+
+    const { eventData, confidence } = parseResult;
+
+    // Validate case access if provided
+    if (eventData.caseId) {
+        const caseDoc = await Case.findById(eventData.caseId);
+        if (!caseDoc) {
+            throw CustomException('Case not found', 404);
+        }
+    }
+
+    // Prepare attendees array for event creation
+    const attendeesArray = [];
+    if (eventData.attendees && Array.isArray(eventData.attendees)) {
+        for (const attendee of eventData.attendees) {
+            // Try to find user by name or email
+            let userId = null;
+            if (attendee.email) {
+                const user = await User.findOne({ email: attendee.email });
+                if (user) userId = user._id;
+            }
+
+            attendeesArray.push({
+                userId: userId,
+                email: attendee.email || null,
+                name: attendee.name || null,
+                role: attendee.role || 'required',
+                isRequired: attendee.role !== 'optional',
+                status: 'invited'
+            });
+        }
+    }
+
+    // Prepare location data
+    let locationData = null;
+    if (eventData.location && typeof eventData.location === 'object') {
+        locationData = {
+            name: eventData.location.name || null,
+            address: eventData.location.address || null,
+            virtualLink: eventData.location.virtualLink || null,
+            virtualPlatform: eventData.location.virtualPlatform || null
+        };
+    }
+
+    // Create the event
+    const event = await Event.create({
+        title: eventData.title,
+        type: eventData.type || 'meeting',
+        description: eventData.description || null,
+        startDateTime: new Date(eventData.startDateTime),
+        endDateTime: eventData.endDateTime ? new Date(eventData.endDateTime) : null,
+        allDay: eventData.allDay || false,
+        timezone: req.body.timezone || 'Asia/Riyadh',
+        location: locationData,
+        caseId: eventData.caseId || null,
+        clientId: eventData.clientId || null,
+        organizer: userId,
+        firmId,
+        attendees: attendeesArray,
+        reminders: [],
+        recurrence: { enabled: false },
+        priority: eventData.priority || 'medium',
+        visibility: 'private',
+        color: '#3b82f6',
+        tags: eventData.tags || [],
+        notes: eventData.notes || null,
+        createdBy: userId,
+        metadata: {
+            createdVia: 'nlp',
+            originalText: text,
+            parsingConfidence: confidence,
+            tokensUsed: parseResult.tokensUsed
+        }
+    });
+
+    // Create default reminders
+    const start = new Date(eventData.startDateTime);
+
+    if (start.getTime() - Date.now() > 24 * 60 * 60 * 1000) {
+        event.reminders.push({
+            type: 'notification',
+            beforeMinutes: 24 * 60,
+            sent: false
+        });
+    }
+
+    if (start.getTime() - Date.now() > 60 * 60 * 1000) {
+        event.reminders.push({
+            type: 'notification',
+            beforeMinutes: 60,
+            sent: false
+        });
+    }
+
+    await event.save();
+
+    await event.populate([
+        { path: 'organizer', select: 'firstName lastName image email' },
+        { path: 'attendees.userId', select: 'firstName lastName image email' },
+        { path: 'caseId', select: 'title caseNumber' },
+        { path: 'clientId', select: 'firstName lastName' }
+    ]);
+
+    res.status(201).json({
+        success: true,
+        message: 'Event created successfully from natural language',
+        data: event,
+        parsing: {
+            confidence: confidence,
+            originalText: text,
+            tokensUsed: parseResult.tokensUsed
+        }
+    });
+});
+
+/**
+ * Create event from voice transcription
+ * POST /api/events/voice
+ */
+const createEventFromVoice = asyncHandler(async (req, res) => {
+    const { transcription } = req.body;
+    const userId = req.userID;
+    const firmId = req.firmId;
+
+    // Block departed users from creating events
+    if (req.isDeparted) {
+        throw CustomException('لم يعد لديك صلاحية إنشاء مواعيد جديدة', 403);
+    }
+
+    // Validate input
+    if (!transcription || typeof transcription !== 'string' || transcription.trim().length === 0) {
+        throw CustomException('Voice transcription is required', 400);
+    }
+
+    // Validate transcription quality
+    const validation = voiceToTaskService.validateTranscription(transcription);
+    if (!validation.isValid) {
+        throw CustomException(
+            `Invalid transcription: ${validation.warnings.join(', ')}`,
+            400
+        );
+    }
+
+    // Process voice transcription
+    const voiceResult = await voiceToTaskService.processVoiceTranscription(transcription, {
+        timezone: req.body.timezone || 'Asia/Riyadh',
+        currentDateTime: new Date()
+    });
+
+    if (!voiceResult.success) {
+        throw CustomException('Failed to process voice transcription', 400);
+    }
+
+    const { eventData, confidence } = voiceResult;
+
+    // Formalize the event data (clean up casual speech)
+    const formalizedData = voiceToTaskService.formalizeEventData(eventData);
+
+    // Validate case access if provided
+    if (formalizedData.caseId) {
+        const caseDoc = await Case.findById(formalizedData.caseId);
+        if (!caseDoc) {
+            throw CustomException('Case not found', 404);
+        }
+    }
+
+    // Prepare attendees array
+    const attendeesArray = [];
+    if (formalizedData.attendees && Array.isArray(formalizedData.attendees)) {
+        for (const attendee of formalizedData.attendees) {
+            let userId = null;
+            if (attendee.email) {
+                const user = await User.findOne({ email: attendee.email });
+                if (user) userId = user._id;
+            }
+
+            attendeesArray.push({
+                userId: userId,
+                email: attendee.email || null,
+                name: attendee.name || null,
+                role: attendee.role || 'required',
+                isRequired: attendee.role !== 'optional',
+                status: 'invited'
+            });
+        }
+    }
+
+    // Prepare location data
+    let locationData = null;
+    if (formalizedData.location && typeof formalizedData.location === 'object') {
+        locationData = {
+            name: formalizedData.location.name || null,
+            address: formalizedData.location.address || null,
+            virtualLink: formalizedData.location.virtualLink || null,
+            virtualPlatform: formalizedData.location.virtualPlatform || null
+        };
+    }
+
+    // Create the event
+    const event = await Event.create({
+        title: formalizedData.title,
+        type: formalizedData.type || 'meeting',
+        description: formalizedData.description || null,
+        startDateTime: new Date(formalizedData.startDateTime),
+        endDateTime: formalizedData.endDateTime ? new Date(formalizedData.endDateTime) : null,
+        allDay: formalizedData.allDay || false,
+        timezone: req.body.timezone || 'Asia/Riyadh',
+        location: locationData,
+        caseId: formalizedData.caseId || null,
+        clientId: formalizedData.clientId || null,
+        organizer: userId,
+        firmId,
+        attendees: attendeesArray,
+        reminders: [],
+        recurrence: { enabled: false },
+        priority: formalizedData.priority || 'medium',
+        visibility: 'private',
+        color: '#3b82f6',
+        tags: formalizedData.tags || [],
+        notes: formalizedData.notes || null,
+        createdBy: userId,
+        metadata: {
+            createdVia: 'voice',
+            originalTranscription: transcription,
+            cleanedTranscription: voiceResult.metadata?.cleanedTranscription,
+            parsingConfidence: confidence,
+            validationWarnings: validation.warnings
+        }
+    });
+
+    // Create default reminders
+    const start = new Date(formalizedData.startDateTime);
+
+    if (start.getTime() - Date.now() > 24 * 60 * 60 * 1000) {
+        event.reminders.push({
+            type: 'notification',
+            beforeMinutes: 24 * 60,
+            sent: false
+        });
+    }
+
+    if (start.getTime() - Date.now() > 60 * 60 * 1000) {
+        event.reminders.push({
+            type: 'notification',
+            beforeMinutes: 60,
+            sent: false
+        });
+    }
+
+    await event.save();
+
+    await event.populate([
+        { path: 'organizer', select: 'firstName lastName image email' },
+        { path: 'attendees.userId', select: 'firstName lastName image email' },
+        { path: 'caseId', select: 'title caseNumber' },
+        { path: 'clientId', select: 'firstName lastName' }
+    ]);
+
+    res.status(201).json({
+        success: true,
+        message: 'Event created successfully from voice transcription',
+        data: event,
+        parsing: {
+            confidence: confidence,
+            validationConfidence: validation.confidence,
+            warnings: validation.warnings,
+            suggestions: voiceToTaskService.generateSuggestions(transcription),
+            originalTranscription: transcription,
+            cleanedTranscription: voiceResult.metadata?.cleanedTranscription
+        }
+    });
+});
+
 module.exports = {
     createEvent,
     getEvents,
@@ -1476,5 +1781,7 @@ module.exports = {
     checkAvailability,
     syncTaskToCalendar,
     exportEventToICS,
-    importEventsFromICS
+    importEventsFromICS,
+    createEventFromNaturalLanguage,
+    createEventFromVoice
 };

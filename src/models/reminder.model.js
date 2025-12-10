@@ -155,6 +155,25 @@ const reminderSchema = new mongoose.Schema({
         nextOccurrence: Date,
         parentReminderId: { type: mongoose.Schema.Types.ObjectId, ref: 'Reminder' }
     },
+    // Location-based trigger configuration
+    locationTrigger: {
+        enabled: { type: Boolean, default: false },
+        type: { type: String, enum: ['arrive', 'leave', 'nearby'] },
+        location: {
+            name: String,
+            address: String,
+            latitude: Number,
+            longitude: Number,
+            savedLocationId: { type: mongoose.Schema.Types.ObjectId, ref: 'UserLocation' }
+        },
+        radius: { type: Number, default: 100 }, // meters
+        triggered: { type: Boolean, default: false },
+        triggeredAt: Date,
+        lastCheckedAt: Date,
+        // For repeated location triggers
+        repeatTrigger: { type: Boolean, default: false },
+        cooldownMinutes: { type: Number, default: 60 } // Don't re-trigger within this time
+    },
     // Completion details
     completedAt: Date,
     completedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
@@ -190,6 +209,7 @@ reminderSchema.index({ userId: 1, status: 1, reminderDateTime: 1 });
 reminderSchema.index({ 'recurring.enabled': 1, 'recurring.nextOccurrence': 1 });
 reminderSchema.index({ delegatedTo: 1, status: 1 });
 reminderSchema.index({ 'snooze.snoozeUntil': 1, status: 1 });
+reminderSchema.index({ 'locationTrigger.enabled': 1, 'locationTrigger.triggered': 1 });
 
 // Generate reminder ID before saving
 reminderSchema.pre('save', async function(next) {
@@ -331,6 +351,67 @@ reminderSchema.statics.getStats = async function(userId) {
         dueToday,
         dueThisWeek
     };
+};
+
+// Instance method: Check if location trigger should fire
+reminderSchema.methods.checkLocationTrigger = function(currentLat, currentLng) {
+    // Return false if location trigger is not enabled
+    if (!this.locationTrigger?.enabled) {
+        return false;
+    }
+
+    // Return false if already triggered and not set to repeat
+    if (this.locationTrigger.triggered && !this.locationTrigger.repeatTrigger) {
+        return false;
+    }
+
+    // Check cooldown period for repeated triggers
+    if (this.locationTrigger.repeatTrigger && this.locationTrigger.triggeredAt) {
+        const cooldownMs = (this.locationTrigger.cooldownMinutes || 60) * 60 * 1000;
+        const timeSinceLastTrigger = Date.now() - new Date(this.locationTrigger.triggeredAt).getTime();
+        if (timeSinceLastTrigger < cooldownMs) {
+            return false;
+        }
+    }
+
+    // Validate location coordinates
+    const targetLat = this.locationTrigger.location?.latitude;
+    const targetLng = this.locationTrigger.location?.longitude;
+
+    if (!targetLat || !targetLng || !currentLat || !currentLng) {
+        return false;
+    }
+
+    // Calculate distance using Haversine formula
+    const R = 6371e3; // Earth's radius in meters
+    const φ1 = currentLat * Math.PI / 180;
+    const φ2 = targetLat * Math.PI / 180;
+    const Δφ = (targetLat - currentLat) * Math.PI / 180;
+    const Δλ = (targetLng - currentLng) * Math.PI / 180;
+
+    const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+              Math.cos(φ1) * Math.cos(φ2) *
+              Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    const distance = R * c; // Distance in meters
+
+    const radius = this.locationTrigger.radius || 100;
+    const isWithinRadius = distance <= radius;
+
+    // Check trigger type
+    const triggerType = this.locationTrigger.type;
+
+    if (triggerType === 'arrive' || triggerType === 'nearby') {
+        // Trigger when user is within the radius
+        return isWithinRadius;
+    } else if (triggerType === 'leave') {
+        // Trigger when user is outside the radius (implementation depends on tracking previous state)
+        // For now, return true if outside radius
+        // Note: Full implementation would require tracking previous location state
+        return !isWithinRadius;
+    }
+
+    return false;
 };
 
 module.exports = mongoose.model('Reminder', reminderSchema);

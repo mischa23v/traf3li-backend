@@ -173,6 +173,13 @@ const AnalyticsReport = require('./analyticsReport.model');
 // Document Analysis Model (AI-powered)
 const DocumentAnalysis = require('./documentAnalysis.model');
 
+// Location Models
+const UserLocation = require('./userLocation.model');
+const GeofenceZone = require('./geofenceZone.model');
+
+// AI Chat Models
+const ChatHistory = require('./chatHistory.model');
+
 module.exports = {
     // Marketplace
     User,
@@ -347,5 +354,12 @@ module.exports = {
     AnalyticsReport,
 
     // Document Analysis
-    DocumentAnalysis
+    DocumentAnalysis,
+
+    // Location Services
+    UserLocation,
+    GeofenceZone,
+
+    // AI Chat
+    ChatHistory
 };

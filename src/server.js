@@ -176,6 +176,7 @@ const {
     emailMarketingRoute,
     hrAnalyticsRoute,
     documentAnalysisRoute,
+    smartSchedulingRoute,
 
     // Saudi Banking Integration
     saudiBankingRoute,
@@ -188,8 +189,13 @@ const {
     metricsRoute,
 
     // Queue Management
+    queueRoute,
 
-    queueRoute
+    // AI Settings
+    aiSettingsRoute,
+
+    // AI Chat
+    aiChatRoute
 } = require('./routes');
 
 // Import versioned routes
@@ -614,6 +620,15 @@ app.use('/api/hr-analytics', hrAnalyticsRoute);
 
 // AI Document Analysis (Document Management 10/10)
 app.use('/api/document-analysis', documentAnalysisRoute);
+
+// Smart Scheduling & NLP (Task Management 10/10)
+app.use('/api/smart-scheduling', smartSchedulingRoute);
+
+// AI Settings (API Keys Management)
+app.use('/api/settings/ai', aiSettingsRoute);
+
+// AI Chat (Chat popup with Claude/GPT)
+app.use('/api/chat', aiChatRoute);
 
 // Saudi Banking Integration (Lean, WPS, SADAD, Mudad)
 app.use('/api/saudi-banking', noCache, saudiBankingRoute); // No cache for banking integration

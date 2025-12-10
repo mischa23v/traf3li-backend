@@ -134,6 +134,7 @@ const biometricRoute = require('./biometric.route');
 const emailMarketingRoute = require('./emailMarketing.route');
 const hrAnalyticsRoute = require('./hrAnalytics.route');
 const documentAnalysisRoute = require('./documentAnalysis.route');
+const smartSchedulingRoute = require('./smartScheduling.route');
 
 // Saudi Banking Integration Routes
 const saudiBankingRoute = require('./saudiBanking.route');
@@ -147,6 +148,12 @@ const metricsRoute = require('./metrics.route');
 
 // Queue Management Routes
 const queueRoute = require('./queue.route');
+
+// AI Settings Routes
+const aiSettingsRoute = require('./aiSettings.route');
+
+// AI Chat Routes
+const aiChatRoute = require('./aiChat.route');
 
 module.exports = {
     // Marketplace
@@ -285,6 +292,7 @@ module.exports = {
     emailMarketingRoute,
     hrAnalyticsRoute,
     documentAnalysisRoute,
+    smartSchedulingRoute,
 
     // Saudi Banking Integration
     saudiBankingRoute,
@@ -297,5 +305,11 @@ module.exports = {
     metricsRoute,
 
     // Queue Management
-    queueRoute
+    queueRoute,
+
+    // AI Settings
+    aiSettingsRoute,
+
+    // AI Chat
+    aiChatRoute
 };

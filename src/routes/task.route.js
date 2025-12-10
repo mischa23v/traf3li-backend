@@ -49,6 +49,9 @@ const {
     // Voice memo functions
     addVoiceMemo,
     updateVoiceMemoTranscription,
+    // Voice-to-task conversion functions
+    processVoiceToItem,
+    batchProcessVoiceMemos,
     // Dependency functions
     addDependency,
     removeDependency,
@@ -60,7 +63,12 @@ const {
     updateOutcome,
     // Budget functions
     updateEstimate,
-    getTimeTrackingSummary
+    getTimeTrackingSummary,
+    // NLP & AI functions
+    createTaskFromNaturalLanguage,
+    createTaskFromVoice,
+    getSmartScheduleSuggestions,
+    autoScheduleTasks
 } = require('../controllers/task.controller');
 
 const app = express.Router();
@@ -86,6 +94,20 @@ app.get('/case/:caseId', userMiddleware, firmFilter, getTasksByCase);
 // Bulk operations
 app.put('/bulk', userMiddleware, firmFilter, bulkUpdateTasks);
 app.delete('/bulk', userMiddleware, firmFilter, bulkDeleteTasks);
+
+// ==============================================
+// NLP & AI-POWERED TASK ROUTES
+// ==============================================
+app.post('/parse', userMiddleware, firmFilter, createTaskFromNaturalLanguage);
+app.post('/voice', userMiddleware, firmFilter, createTaskFromVoice);
+app.get('/smart-schedule', userMiddleware, firmFilter, getSmartScheduleSuggestions);
+app.post('/auto-schedule', userMiddleware, firmFilter, autoScheduleTasks);
+
+// ==============================================
+// VOICE-TO-TASK CONVERSION ROUTES
+// ==============================================
+app.post('/voice-to-item', userMiddleware, firmFilter, processVoiceToItem);
+app.post('/voice-to-item/batch', userMiddleware, firmFilter, batchProcessVoiceMemos);
 
 // Task CRUD
 app.post('/', userMiddleware, firmFilter, createTask);

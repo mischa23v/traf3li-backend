@@ -1,6 +1,8 @@
 const { Reminder, Case, Task, Event, User } = require('../models');
 const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
+const nlpService = require('../services/nlp.service');
+const voiceToTaskService = require('../services/voiceToTask.service');
 
 /**
  * Create reminder
@@ -668,6 +670,180 @@ const bulkUpdateReminders = asyncHandler(async (req, res) => {
     });
 });
 
+/**
+ * Create reminder from natural language
+ * POST /api/reminders/parse
+ */
+const createReminderFromNaturalLanguage = asyncHandler(async (req, res) => {
+    const { text, timezone = 'Asia/Riyadh' } = req.body;
+    const userId = req.userID;
+
+    if (!text || text.trim().length === 0) {
+        throw CustomException('Natural language text is required', 400);
+    }
+
+    try {
+        // Parse natural language text using NLP service
+        const parseResult = await nlpService.parseReminderFromText(text, {
+            timezone,
+            currentDateTime: new Date(),
+            userId
+        });
+
+        if (!parseResult.success) {
+            throw CustomException('Failed to parse natural language text', 400);
+        }
+
+        const { reminderData, confidence } = parseResult;
+
+        // Validate parsed data
+        if (!reminderData.title || !reminderData.reminderDateTime) {
+            throw CustomException('Could not extract required reminder information from text', 400);
+        }
+
+        // Create reminder with parsed data
+        const reminder = await Reminder.create({
+            title: reminderData.title,
+            description: reminderData.description || null,
+            userId,
+            reminderDateTime: reminderData.reminderDateTime,
+            reminderDate: reminderData.reminderDateTime,
+            reminderTime: new Date(reminderData.reminderDateTime).toTimeString().substring(0, 5),
+            priority: reminderData.priority || 'medium',
+            type: reminderData.type || 'general',
+            tags: reminderData.tags || [],
+            notes: reminderData.notes || null,
+            status: 'pending',
+            createdBy: userId,
+            // Store NLP metadata
+            metadata: {
+                source: 'nlp',
+                originalText: text,
+                confidence: confidence.overall,
+                parsedFrom: 'natural_language'
+            }
+        });
+
+        await reminder.populate([
+            { path: 'relatedCase', select: 'title caseNumber' },
+            { path: 'relatedTask', select: 'title dueDate' },
+            { path: 'relatedEvent', select: 'title startDateTime' }
+        ]);
+
+        res.status(201).json({
+            success: true,
+            message: 'Reminder created successfully from natural language',
+            data: reminder,
+            parsing: {
+                confidence: confidence,
+                warnings: confidence.overall < 0.7 ? ['Low confidence - please review the extracted data'] : []
+            }
+        });
+    } catch (error) {
+        console.error('Natural language reminder creation error:', error);
+        throw CustomException(error.message || 'Failed to create reminder from natural language', 500);
+    }
+});
+
+/**
+ * Create reminder from voice transcription
+ * POST /api/reminders/voice
+ */
+const createReminderFromVoice = asyncHandler(async (req, res) => {
+    const { transcription, timezone = 'Asia/Riyadh', language = 'en' } = req.body;
+    const userId = req.userID;
+
+    if (!transcription || transcription.trim().length === 0) {
+        throw CustomException('Voice transcription is required', 400);
+    }
+
+    try {
+        // Process voice transcription using voice-to-task service
+        const voiceResult = await voiceToTaskService.processVoiceReminder(transcription, {
+            timezone,
+            currentDateTime: new Date(),
+            language,
+            userId
+        });
+
+        if (!voiceResult.success) {
+            throw CustomException('Failed to process voice transcription', 400);
+        }
+
+        const { reminderData, confidence, metadata } = voiceResult;
+
+        // Validate parsed data
+        if (!reminderData.title || !reminderData.reminderDateTime) {
+            throw CustomException('Could not extract required reminder information from voice', 400);
+        }
+
+        // Validate transcription quality
+        const validation = voiceToTaskService.validateTranscription(transcription);
+        const warnings = [];
+
+        if (!validation.isValid) {
+            throw CustomException('Voice transcription quality is too low. Please try again.', 400);
+        }
+
+        if (validation.warnings.length > 0) {
+            warnings.push(...validation.warnings);
+        }
+
+        if (confidence.overall < 0.6) {
+            warnings.push('Low confidence in voice parsing - please review the extracted data');
+        }
+
+        // Create reminder with parsed data
+        const reminder = await Reminder.create({
+            title: reminderData.title,
+            description: reminderData.description || null,
+            userId,
+            reminderDateTime: reminderData.reminderDateTime,
+            reminderDate: reminderData.reminderDateTime,
+            reminderTime: new Date(reminderData.reminderDateTime).toTimeString().substring(0, 5),
+            priority: reminderData.priority || 'medium',
+            type: reminderData.type || 'general',
+            tags: reminderData.tags || [],
+            notes: reminderData.notes || null,
+            status: 'pending',
+            createdBy: userId,
+            // Store voice metadata
+            metadata: {
+                source: 'voice',
+                originalTranscription: metadata.originalTranscription,
+                cleanedTranscription: metadata.cleanedTranscription,
+                confidence: confidence.overall,
+                parsedFrom: 'voice_transcription',
+                processedAt: metadata.processedAt
+            }
+        });
+
+        await reminder.populate([
+            { path: 'relatedCase', select: 'title caseNumber' },
+            { path: 'relatedTask', select: 'title dueDate' },
+            { path: 'relatedEvent', select: 'title startDateTime' }
+        ]);
+
+        // Generate suggestions for improving future voice commands
+        const suggestions = voiceToTaskService.generateSuggestions(transcription);
+
+        res.status(201).json({
+            success: true,
+            message: 'Reminder created successfully from voice transcription',
+            data: reminder,
+            parsing: {
+                confidence: confidence,
+                warnings,
+                suggestions: suggestions.length > 0 ? suggestions : undefined,
+                transcriptionQuality: validation.confidence
+            }
+        });
+    } catch (error) {
+        console.error('Voice reminder creation error:', error);
+        throw CustomException(error.message || 'Failed to create reminder from voice', 500);
+    }
+});
+
 // Helper function to calculate next reminder date
 function calculateNextReminderDate(currentDate, recurring) {
     const nextDate = new Date(currentDate);
@@ -715,5 +891,7 @@ module.exports = {
     getDelegatedReminders,
     getReminderStats,
     bulkDeleteReminders,
-    bulkUpdateReminders
+    bulkUpdateReminders,
+    createReminderFromNaturalLanguage,
+    createReminderFromVoice
 };
