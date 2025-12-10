@@ -410,6 +410,12 @@ const authLogin = async (request, response) => {
                 domain: getCookieDomain(request) // Dynamic: '.traf3li.com' for production domains, undefined for Vercel
             };
 
+            // Debug logging for cookie configuration
+            console.log('[AUTH DEBUG] Login - setting accessToken cookie');
+            console.log('[AUTH DEBUG] Origin:', request.headers.origin);
+            console.log('[AUTH DEBUG] isProductionEnv:', isProductionEnv);
+            console.log('[AUTH DEBUG] Cookie config:', JSON.stringify(cookieConfig));
+
             // Build enhanced user data with solo lawyer and firm info
             const userData = {
                 ...data,
