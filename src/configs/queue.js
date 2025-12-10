@@ -21,6 +21,13 @@ let sharedSubscriber = null;
  * Check if Redis is properly configured
  */
 const isRedisConfigured = () => {
+  // Allow disabling queues entirely via environment variable
+  // Set DISABLE_QUEUES=true to save Redis requests on free tier
+  if (process.env.DISABLE_QUEUES === 'true') {
+    console.warn('⚠️  DISABLE_QUEUES=true - queues will run in mock mode to save Redis requests');
+    return false;
+  }
+
   const redisUrl = process.env.REDIS_URL;
   if (!redisUrl) {
     console.warn('⚠️  REDIS_URL not set - queues will be disabled');
@@ -58,14 +65,24 @@ const defaultJobOptions = {
 
 /**
  * Queue configuration settings
+ * OPTIMIZED FOR UPSTASH FREE TIER (500k requests/month)
+ *
+ * Math for 6 queues:
+ * - guardInterval: 5min = 6 queues × 12/hr × 24hr × 30days = 51,840/month
+ * - stalledInterval: 15min = 6 queues × 4/hr × 24hr × 30days = 17,280/month
+ * - Total queue overhead: ~70k requests/month (14% of limit)
+ *
+ * This leaves ~430k requests/month for actual cache + job operations
+ * At 100 users doing 50 actions/day = 150k requests/month
+ * Comfortable headroom for growth!
  */
 const queueSettings = {
-  lockDuration: 30000,
-  lockRenewTime: 15000,
-  stalledInterval: 30000,
+  lockDuration: 120000,       // 2 min (jobs can take time)
+  lockRenewTime: 60000,       // 1 min
+  stalledInterval: 900000,    // 15 minutes - check for stuck jobs
   maxStalledCount: 2,
-  guardInterval: 5000,
-  retryProcessDelay: 5000,
+  guardInterval: 300000,      // 5 minutes - health check interval
+  retryProcessDelay: 60000,   // 1 min before retry
   drainDelay: 5,
   defaultJobOptions
 };

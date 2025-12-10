@@ -12,8 +12,9 @@ const {
 
 const app = express.Router();
 
-// Cache TTL: 60 seconds (1 minute) for dashboard endpoints
-const DASHBOARD_CACHE_TTL = 60;
+// Cache TTL: 5 minutes for dashboard endpoints
+// Dashboard data doesn't need real-time updates - saves Redis requests
+const DASHBOARD_CACHE_TTL = 300;
 
 // Custom key generator for dashboard endpoints
 const dashboardKeyGen = (endpoint) => (req) => {
