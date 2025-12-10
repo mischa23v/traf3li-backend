@@ -168,13 +168,53 @@ router.get('/ping', (req, res) => {
  * Helps diagnose cookie/auth issues
  */
 router.get('/debug-auth', (req, res) => {
+    // Detect same-origin proxy (same logic as auth.controller.js)
+    const origin = req.headers.origin || '';
+    const referer = req.headers.referer || '';
+    const forwardedHost = req.headers['x-forwarded-host'] || '';
+    const vercelForwarded = req.headers['x-vercel-forwarded-for'] || '';
+
+    // Multiple detection strategies
+    const dashboardPattern = /dashboard\.traf3li\.com/i;
+    let isSameOriginProxy = false;
+    let detectionMethod = 'none';
+
+    if (dashboardPattern.test(origin) || dashboardPattern.test(referer)) {
+        isSameOriginProxy = true;
+        detectionMethod = 'origin/referer pattern';
+    } else if (vercelForwarded) {
+        isSameOriginProxy = true;
+        detectionMethod = 'x-vercel-forwarded-for';
+    } else if (forwardedHost && origin) {
+        try {
+            const originHost = new URL(origin).host;
+            if (originHost === forwardedHost) {
+                isSameOriginProxy = true;
+                detectionMethod = 'x-forwarded-host match';
+            }
+        } catch {
+            // ignore
+        }
+    } else if (dashboardPattern.test(forwardedHost)) {
+        isSameOriginProxy = true;
+        detectionMethod = 'x-forwarded-host pattern';
+    }
+
     const debugInfo = {
         timestamp: new Date().toISOString(),
         request: {
-            origin: req.headers.origin || 'none',
-            referer: req.headers.referer || 'none',
+            origin: origin || 'none',
+            referer: referer || 'none',
             host: req.headers.host,
+            forwardedHost: forwardedHost || 'none',
+            vercelForwarded: vercelForwarded || 'none',
             userAgent: (req.headers['user-agent'] || '').substring(0, 100)
+        },
+        proxy: {
+            isSameOriginProxy,
+            detectionMethod,
+            willUseSameSiteLax: isSameOriginProxy,
+            willSetDomain: !isSameOriginProxy && (origin.includes('traf3li.com'))
         },
         cookies: {
             rawHeader: req.headers.cookie ? 'present' : 'MISSING',
@@ -189,7 +229,9 @@ router.get('/debug-auth', (req, res) => {
         server: {
             nodeEnv: process.env.NODE_ENV,
             isRender: process.env.RENDER === 'true',
-            expectedCookieDomain: '.traf3li.com'
+            note: isSameOriginProxy
+                ? 'Same-origin proxy detected - using SameSite=Lax, no domain'
+                : 'Cross-origin - using SameSite=None, domain=.traf3li.com'
         }
     };
 
