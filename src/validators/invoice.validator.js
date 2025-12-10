@@ -102,14 +102,14 @@ const createInvoiceSchema = Joi.object({
         .messages({
             'string.max': 'الملاحظات يجب ألا تتجاوز 2000 حرف / Notes must not exceed 2000 characters'
         }),
-    taxRate: Joi.number()
+    vatRate: Joi.number()
         .min(0)
         .max(100)
         .default(SAUDI_VAT_RATE)
         .messages({
-            'number.base': 'معدل الضريبة يجب أن يكون رقماً / Tax rate must be a number',
-            'number.min': 'معدل الضريبة يجب أن يكون صفراً أو أكثر / Tax rate must be 0 or more',
-            'number.max': 'معدل الضريبة يجب أن يكون 100 أو أقل / Tax rate must be 100 or less'
+            'number.base': 'معدل الضريبة يجب أن يكون رقماً / VAT rate must be a number',
+            'number.min': 'معدل الضريبة يجب أن يكون صفراً أو أكثر / VAT rate must be 0 or more',
+            'number.max': 'معدل الضريبة يجب أن يكون 100 أو أقل / VAT rate must be 100 or less'
         }),
     caseId: Joi.string()
         .hex()
@@ -183,13 +183,13 @@ const updateInvoiceSchema = Joi.object({
         .messages({
             'string.max': 'الملاحظات يجب ألا تتجاوز 2000 حرف / Notes must not exceed 2000 characters'
         }),
-    taxRate: Joi.number()
+    vatRate: Joi.number()
         .min(0)
         .max(100)
         .messages({
-            'number.base': 'معدل الضريبة يجب أن يكون رقماً / Tax rate must be a number',
-            'number.min': 'معدل الضريبة يجب أن يكون صفراً أو أكثر / Tax rate must be 0 or more',
-            'number.max': 'معدل الضريبة يجب أن يكون 100 أو أقل / Tax rate must be 100 or less'
+            'number.base': 'معدل الضريبة يجب أن يكون رقماً / VAT rate must be a number',
+            'number.min': 'معدل الضريبة يجب أن يكون صفراً أو أكثر / VAT rate must be 0 or more',
+            'number.max': 'معدل الضريبة يجب أن يكون 100 أو أقل / VAT rate must be 100 or less'
         }),
     status: Joi.string()
         .valid('draft', 'pending_approval', 'sent', 'viewed', 'partial', 'paid', 'overdue', 'void', 'cancelled')

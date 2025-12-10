@@ -69,7 +69,7 @@ const createPaymentSchema = Joi.object({
             'any.required': 'المبلغ مطلوب / Amount is required'
         }),
 
-    method: Joi.string()
+    paymentMethod: Joi.string()
         .valid(...paymentMethods)
         .required()
         .messages({
@@ -81,13 +81,13 @@ const createPaymentSchema = Joi.object({
         .valid(...paymentStatuses)
         .default('pending'),
 
-    reference: Joi.string()
+    referenceNumber: Joi.string()
         .max(100)
         .messages({
             'string.max': 'رقم المرجع طويل جداً / Reference number is too long'
         }),
 
-    date: Joi.date()
+    paymentDate: Joi.date()
         .max('now')
         .messages({
             'date.max': 'تاريخ الدفع لا يمكن أن يكون في المستقبل / Payment date cannot be in the future'
@@ -141,14 +141,14 @@ const updatePaymentSchema = Joi.object({
             'number.positive': 'المبلغ يجب أن يكون موجباً / Amount must be positive'
         }),
 
-    method: Joi.string()
+    paymentMethod: Joi.string()
         .valid(...paymentMethods),
 
     status: Joi.string()
         .valid(...paymentStatuses),
 
-    reference: Joi.string().max(100),
-    date: Joi.date().max('now'),
+    referenceNumber: Joi.string().max(100),
+    paymentDate: Joi.date().max('now'),
     notes: Joi.string().max(1000),
     checkNumber: Joi.string(),
     checkDate: Joi.date(),
@@ -195,10 +195,10 @@ const createRefundSchema = Joi.object({
             'string.max': 'السبب طويل جداً / Reason is too long'
         }),
 
-    method: Joi.string()
+    refundMethod: Joi.string()
         .valid(...paymentMethods),
 
-    date: Joi.date()
+    refundDate: Joi.date()
         .max('now'),
 
     notes: Joi.string()
