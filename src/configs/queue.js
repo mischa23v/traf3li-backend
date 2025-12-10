@@ -21,6 +21,13 @@ let sharedSubscriber = null;
  * Check if Redis is properly configured
  */
 const isRedisConfigured = () => {
+  // Allow disabling queues entirely via environment variable
+  // Set DISABLE_QUEUES=true to save Redis requests on free tier
+  if (process.env.DISABLE_QUEUES === 'true') {
+    console.warn('⚠️  DISABLE_QUEUES=true - queues will run in mock mode to save Redis requests');
+    return false;
+  }
+
   const redisUrl = process.env.REDIS_URL;
   if (!redisUrl) {
     console.warn('⚠️  REDIS_URL not set - queues will be disabled');
@@ -58,14 +65,17 @@ const defaultJobOptions = {
 
 /**
  * Queue configuration settings
+ * OPTIMIZED: Reduced polling intervals to minimize Redis requests
+ * - Free tier Upstash: 500k requests/month
+ * - Previous config used ~725k requests/week just for queue polling!
  */
 const queueSettings = {
-  lockDuration: 30000,
-  lockRenewTime: 15000,
-  stalledInterval: 30000,
+  lockDuration: 60000,        // 60s (was 30s)
+  lockRenewTime: 30000,       // 30s (was 15s)
+  stalledInterval: 300000,    // 5 minutes (was 30s) - massive reduction
   maxStalledCount: 2,
-  guardInterval: 5000,
-  retryProcessDelay: 5000,
+  guardInterval: 60000,       // 60s (was 5s) - 12x reduction in polling
+  retryProcessDelay: 30000,   // 30s (was 5s)
   drainDelay: 5,
   defaultJobOptions
 };

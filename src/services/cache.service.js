@@ -3,9 +3,39 @@
  *
  * Provides high-level caching operations with JSON support, TTL management,
  * pattern-based deletion, and cache-aside patterns.
+ *
+ * OPTIMIZATION: Supports in-memory fallback when DISABLE_REDIS_CACHE=true
+ * to avoid hitting Upstash free tier limits (500k requests/month)
  */
 
 const { getRedisClient } = require("../configs/redis");
+
+// In-memory cache for when Redis is disabled or unavailable
+const memoryCache = new Map();
+const memoryCacheExpiry = new Map();
+
+// Check if Redis cache is disabled
+const isRedisCacheDisabled = process.env.DISABLE_REDIS_CACHE === 'true';
+
+if (isRedisCacheDisabled) {
+  console.warn('⚠️  DISABLE_REDIS_CACHE=true - using in-memory cache to save Redis requests');
+}
+
+/**
+ * Clean expired entries from memory cache
+ */
+const cleanExpiredMemoryCache = () => {
+  const now = Date.now();
+  for (const [key, expiry] of memoryCacheExpiry.entries()) {
+    if (expiry && expiry < now) {
+      memoryCache.delete(key);
+      memoryCacheExpiry.delete(key);
+    }
+  }
+};
+
+// Clean memory cache every 5 minutes
+setInterval(cleanExpiredMemoryCache, 5 * 60 * 1000);
 
 /**
  * Get cached value
@@ -13,11 +43,30 @@ const { getRedisClient } = require("../configs/redis");
  * @returns {Promise<any|null>} - Parsed value or null if not found
  */
 const get = async (key) => {
+  // Use in-memory cache if Redis is disabled
+  if (isRedisCacheDisabled) {
+    const expiry = memoryCacheExpiry.get(key);
+    if (expiry && expiry < Date.now()) {
+      memoryCache.delete(key);
+      memoryCacheExpiry.delete(key);
+      console.log(`Cache MISS: ${key}`);
+      return null;
+    }
+    const value = memoryCache.get(key);
+    if (value !== undefined) {
+      console.log(`Cache HIT (memory): ${key}`);
+      return value;
+    }
+    console.log(`Cache MISS: ${key}`);
+    return null;
+  }
+
   try {
     const client = getRedisClient();
     const value = await client.get(key);
 
     if (!value) {
+      console.log(`Cache MISS: ${key}`);
       return null;
     }
 
@@ -29,6 +78,7 @@ const get = async (key) => {
     }
   } catch (error) {
     console.error(`Cache.get error for key "${key}":`, error.message);
+    console.log(`Cache MISS: ${key}`);
     return null;
   }
 };
@@ -41,6 +91,15 @@ const get = async (key) => {
  * @returns {Promise<boolean>} - Success status
  */
 const set = async (key, value, ttlSeconds = 300) => {
+  // Use in-memory cache if Redis is disabled
+  if (isRedisCacheDisabled) {
+    memoryCache.set(key, value);
+    if (ttlSeconds > 0) {
+      memoryCacheExpiry.set(key, Date.now() + ttlSeconds * 1000);
+    }
+    return true;
+  }
+
   try {
     const client = getRedisClient();
     const stringValue = typeof value === "object" ? JSON.stringify(value) : String(value);
@@ -64,6 +123,13 @@ const set = async (key, value, ttlSeconds = 300) => {
  * @returns {Promise<boolean>} - Success status
  */
 const del = async (key) => {
+  // Use in-memory cache if Redis is disabled
+  if (isRedisCacheDisabled) {
+    memoryCache.delete(key);
+    memoryCacheExpiry.delete(key);
+    return true;
+  }
+
   try {
     const client = getRedisClient();
     await client.del(key);
@@ -80,6 +146,20 @@ const del = async (key) => {
  * @returns {Promise<number>} - Number of keys deleted
  */
 const delPattern = async (pattern) => {
+  // Use in-memory cache if Redis is disabled
+  if (isRedisCacheDisabled) {
+    let deletedCount = 0;
+    const regexPattern = new RegExp('^' + pattern.replace(/\*/g, '.*') + '$');
+    for (const key of memoryCache.keys()) {
+      if (regexPattern.test(key)) {
+        memoryCache.delete(key);
+        memoryCacheExpiry.delete(key);
+        deletedCount++;
+      }
+    }
+    return deletedCount;
+  }
+
   try {
     const client = getRedisClient();
     let cursor = "0";
@@ -181,6 +261,17 @@ const wrap = async (key, fn, ttl = 300) => {
  * @returns {Promise<boolean>} - True if exists
  */
 const exists = async (key) => {
+  // Use in-memory cache if Redis is disabled
+  if (isRedisCacheDisabled) {
+    const expiry = memoryCacheExpiry.get(key);
+    if (expiry && expiry < Date.now()) {
+      memoryCache.delete(key);
+      memoryCacheExpiry.delete(key);
+      return false;
+    }
+    return memoryCache.has(key);
+  }
+
   try {
     const client = getRedisClient();
     const result = await client.exists(key);
