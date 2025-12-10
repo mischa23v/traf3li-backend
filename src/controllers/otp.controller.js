@@ -7,6 +7,7 @@ const { EmailOTP, User } = require('../models');
 const { generateOTP, hashOTP } = require('../utils/otp.utils');
 const NotificationDeliveryService = require('../services/notificationDelivery.service');
 const jwt = require('jsonwebtoken');
+const { getCookieConfig } = require('./auth.controller');
 
 /**
  * Send OTP to email
@@ -188,42 +189,38 @@ const verifyOTP = async (req, res) => {
       });
     }
 
-    // Generate JWT tokens
+    // Generate JWT token (same format as password login for consistency)
     const accessToken = jwt.sign(
       {
-        userId: user._id,
-        email: user.email,
-        role: user.role
+        _id: user._id,
+        isSeller: user.isSeller
       },
       process.env.JWT_SECRET,
-      { expiresIn: '1d' }
+      { expiresIn: '7 days' }  // Same as password login
     );
 
-    const refreshToken = jwt.sign(
-      { userId: user._id },
-      process.env.JWT_REFRESH_SECRET,
-      { expiresIn: '7d' }
-    );
+    // Get cookie config based on request context (same as password login)
+    const cookieConfig = getCookieConfig(req);
 
-    res.status(200).json({
-      success: true,
-      message: 'Login successful',
-      messageAr: 'تم تسجيل الدخول بنجاح',
-      accessToken,
-      refreshToken,
-      user: {
-        _id: user._id,
-        email: user.email,
-        username: user.username,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        role: user.role,
-        image: user.image,
-        phone: user.phone,
-        isSeller: user.isSeller,
-        lawyerMode: user.lawyerMode
-      }
-    });
+    // Set cookie and return response (same pattern as password login)
+    res.cookie('accessToken', accessToken, cookieConfig)
+      .status(200).json({
+        success: true,
+        message: 'Login successful',
+        messageAr: 'تم تسجيل الدخول بنجاح',
+        user: {
+          _id: user._id,
+          email: user.email,
+          username: user.username,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          role: user.role,
+          image: user.image,
+          phone: user.phone,
+          isSeller: user.isSeller,
+          lawyerMode: user.lawyerMode
+        }
+      });
 
   } catch (error) {
     console.error('Verify OTP error:', error);

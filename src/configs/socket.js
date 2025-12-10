@@ -2,10 +2,46 @@ const { Server } = require('socket.io');
 
 let io;
 
+// Allowed origins for Socket.io (matching Express CORS)
+const allowedOrigins = [
+  'https://traf3li.com',
+  'https://dashboard.traf3li.com',
+  'https://www.traf3li.com',
+  'https://www.dashboard.traf3li.com',
+  'http://localhost:5173',
+  'http://localhost:5174',
+  'http://localhost:3000',
+  'http://localhost:8080',
+  process.env.CLIENT_URL,
+  process.env.DASHBOARD_URL
+].filter(Boolean);
+
 const initSocket = (server) => {
   io = new Server(server, {
     cors: {
-      origin: process.env.CLIENT_URL || 'http://localhost:5173',
+      origin: function (origin, callback) {
+        // Allow requests with no origin (like mobile apps or curl)
+        if (!origin) {
+          return callback(null, true);
+        }
+
+        // Allow Vercel preview deployments
+        if (origin.includes('.vercel.app')) {
+          return callback(null, true);
+        }
+
+        // Check whitelist
+        if (allowedOrigins.includes(origin)) {
+          return callback(null, true);
+        }
+
+        // Allow any traf3li.com subdomain
+        if (origin.includes('.traf3li.com') || origin.includes('traf3li.com')) {
+          return callback(null, true);
+        }
+
+        callback(new Error('Not allowed by CORS'));
+      },
       credentials: true,
       methods: ['GET', 'POST']
     }
