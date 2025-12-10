@@ -1,5 +1,6 @@
 const crypto = require('crypto');
 const logger = require('../utils/logger');
+const { getCookieDomain } = require('../controllers/auth.controller');
 
 // Robust production detection for cross-origin cookie settings
 // Checks multiple indicators to determine if we're in a production environment
@@ -8,19 +9,6 @@ const isProductionEnv = process.env.NODE_ENV === 'production' ||
                         process.env.RENDER === 'true' ||
                         process.env.VERCEL_ENV === 'production' ||
                         process.env.RAILWAY_ENVIRONMENT === 'production';
-
-// Helper to get cookie domain based on request origin
-// - For *.traf3li.com origins: use '.traf3li.com' to share cookies across subdomains
-// - For other origins (e.g., *.vercel.app): don't set domain, cookie scoped to api host
-const getCookieDomain = (req) => {
-    if (!isProductionEnv) return undefined;
-
-    const origin = req.headers.origin || req.headers.referer || '';
-    if (origin.includes('.traf3li.com') || origin.includes('traf3li.com')) {
-        return '.traf3li.com';
-    }
-    return undefined; // No domain restriction for Vercel preview deployments
-};
 
 /**
  * Origin Check Middleware
@@ -178,7 +166,7 @@ const setCsrfToken = (req, res, next) => {
             httpOnly: false, // Must be false so client can read it
             secure: isProductionEnv, // HTTPS only in production
             sameSite: isProductionEnv ? 'none' : 'lax', // 'none' for cross-origin in production, 'lax' for development
-            maxAge: 24 * 60 * 60 * 1000, // 24 hours
+            maxAge: 60 * 60 * 24 * 7 * 1000, // 7 days (matching JWT token expiration)
             path: '/',
             domain: getCookieDomain(req) // Dynamic: '.traf3li.com' for production domains, undefined for Vercel
         });
