@@ -1,14 +1,6 @@
 const crypto = require('crypto');
 const logger = require('../utils/logger');
-const { getCookieDomain } = require('../controllers/auth.controller');
-
-// Robust production detection for cross-origin cookie settings
-// Checks multiple indicators to determine if we're in a production environment
-const isProductionEnv = process.env.NODE_ENV === 'production' ||
-                        process.env.NODE_ENV === 'prod' ||
-                        process.env.RENDER === 'true' ||
-                        process.env.VERCEL_ENV === 'production' ||
-                        process.env.RAILWAY_ENVIRONMENT === 'production';
+const { getCookieConfig } = require('../controllers/auth.controller');
 
 /**
  * Origin Check Middleware
@@ -160,15 +152,13 @@ const setCsrfToken = (req, res, next) => {
     if (!csrfToken) {
         csrfToken = crypto.randomBytes(32).toString('hex');
 
-        // Set as httpOnly cookie (more secure, but still readable by frontend via document.cookie workaround)
-        // For double-submit pattern, we need it to be readable by client JS
+        // Get base cookie config (same logic as accessToken for consistency)
+        const baseCookieConfig = getCookieConfig(req);
+
+        // CSRF token config: same as accessToken but httpOnly=false so JS can read it
         res.cookie('csrf-token', csrfToken, {
-            httpOnly: false, // Must be false so client can read it
-            secure: isProductionEnv, // HTTPS only in production
-            sameSite: isProductionEnv ? 'none' : 'lax', // 'none' for cross-origin in production, 'lax' for development
-            maxAge: 60 * 60 * 24 * 7 * 1000, // 7 days (matching JWT token expiration)
-            path: '/',
-            domain: getCookieDomain(req) // Dynamic: '.traf3li.com' for production domains, undefined for Vercel
+            ...baseCookieConfig,
+            httpOnly: false // Must be false so client can read it for double-submit pattern
         });
     }
 
