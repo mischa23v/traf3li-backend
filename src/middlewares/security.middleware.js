@@ -9,6 +9,19 @@ const isProductionEnv = process.env.NODE_ENV === 'production' ||
                         process.env.VERCEL_ENV === 'production' ||
                         process.env.RAILWAY_ENVIRONMENT === 'production';
 
+// Helper to get cookie domain based on request origin
+// - For *.traf3li.com origins: use '.traf3li.com' to share cookies across subdomains
+// - For other origins (e.g., *.vercel.app): don't set domain, cookie scoped to api host
+const getCookieDomain = (req) => {
+    if (!isProductionEnv) return undefined;
+
+    const origin = req.headers.origin || req.headers.referer || '';
+    if (origin.includes('.traf3li.com') || origin.includes('traf3li.com')) {
+        return '.traf3li.com';
+    }
+    return undefined; // No domain restriction for Vercel preview deployments
+};
+
 /**
  * Origin Check Middleware
  * Verifies that the Origin or Referer header matches allowed origins
@@ -167,7 +180,7 @@ const setCsrfToken = (req, res, next) => {
             sameSite: isProductionEnv ? 'none' : 'lax', // 'none' for cross-origin in production, 'lax' for development
             maxAge: 24 * 60 * 60 * 1000, // 24 hours
             path: '/',
-            domain: isProductionEnv ? '.traf3li.com' : undefined // Share across subdomains in production
+            domain: getCookieDomain(req) // Dynamic: '.traf3li.com' for production domains, undefined for Vercel
         });
     }
 
