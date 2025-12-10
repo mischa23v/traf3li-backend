@@ -13,19 +13,23 @@ const Joi = require('joi');
 
 /**
  * Login validation schema
- * Accepts username (which can be either username or email) and password
+ * Accepts either 'email' or 'username' field (one is required) and password
  */
 const loginSchema = Joi.object({
-    username: Joi.string()
-        .required()
+    email: Joi.string()
+        .email()
         .messages({
-            'any.required': 'اسم المستخدم أو البريد الإلكتروني مطلوب / Username or email is required'
+            'string.email': 'البريد الإلكتروني غير صالح / Invalid email format'
         }),
+    username: Joi.string()
+        .messages({}),
     password: Joi.string()
         .required()
         .messages({
             'any.required': 'كلمة المرور مطلوبة / Password is required'
         })
+}).or('email', 'username').messages({
+    'object.missing': 'البريد الإلكتروني أو اسم المستخدم مطلوب / Email or username is required'
 });
 
 /**
