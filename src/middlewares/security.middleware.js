@@ -172,31 +172,32 @@ const setCsrfToken = (req, res, next) => {
 
 // Public auth routes that should be exempt from CSRF validation
 // These are pre-authentication endpoints where users don't have a session yet
+// Note: These paths are relative to the /api mount point (req.path excludes /api prefix)
 const csrfExemptPaths = [
-    '/api/auth/login',
-    '/api/auth/register',
-    '/api/auth/send-otp',
-    '/api/auth/verify-otp',
-    '/api/auth/resend-otp',
-    '/api/auth/check-availability',
-    '/api/auth/logout',
+    '/auth/login',
+    '/auth/register',
+    '/auth/send-otp',
+    '/auth/verify-otp',
+    '/auth/resend-otp',
+    '/auth/check-availability',
+    '/auth/logout',
     // Versioned auth routes
-    '/api/v1/auth/login',
-    '/api/v1/auth/register',
-    '/api/v1/auth/send-otp',
-    '/api/v1/auth/verify-otp',
-    '/api/v1/auth/resend-otp',
-    '/api/v1/auth/check-availability',
-    '/api/v1/auth/logout',
-    '/api/v2/auth/login',
-    '/api/v2/auth/register',
-    '/api/v2/auth/send-otp',
-    '/api/v2/auth/verify-otp',
-    '/api/v2/auth/resend-otp',
-    '/api/v2/auth/check-availability',
-    '/api/v2/auth/logout',
+    '/v1/auth/login',
+    '/v1/auth/register',
+    '/v1/auth/send-otp',
+    '/v1/auth/verify-otp',
+    '/v1/auth/resend-otp',
+    '/v1/auth/check-availability',
+    '/v1/auth/logout',
+    '/v2/auth/login',
+    '/v2/auth/register',
+    '/v2/auth/send-otp',
+    '/v2/auth/verify-otp',
+    '/v2/auth/resend-otp',
+    '/v2/auth/check-availability',
+    '/v2/auth/logout',
     // Webhook endpoints (have their own signature verification)
-    '/api/webhooks'
+    '/webhooks'
 ];
 
 // Middleware to validate CSRF token on state-changing requests
