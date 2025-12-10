@@ -545,10 +545,10 @@ const authLogout = async (request, response) => {
 
     return response.clearCookie('accessToken', {
         httpOnly: true,
-        sameSite: NODE_ENV === 'production' ? 'none' : 'strict',
-        secure: NODE_ENV === 'production',
+        sameSite: isProductionEnv ? 'none' : 'lax',
+        secure: isProductionEnv,
         path: '/',
-        domain: NODE_ENV === 'production' ? '.traf3li.com' : undefined
+        domain: isProductionEnv ? '.traf3li.com' : undefined
     })
     .send({
         error: false,
