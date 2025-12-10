@@ -16,44 +16,34 @@ const isProductionEnv = NODE_ENV === 'production' ||
                         process.env.VERCEL_ENV === 'production' ||
                         process.env.RAILWAY_ENVIRONMENT === 'production';
 
-// Helper to detect if request is coming through a same-origin proxy (e.g., Vercel rewrites)
-// When frontend at dashboard.traf3li.com proxies to /api/*, the browser sees it as same-origin
-// In this case, we should use SameSite=Lax and NOT set domain (more compatible with browser privacy)
+// Helper to detect if request is coming through a TRUE same-origin proxy
+// A true same-origin proxy is when:
+// 1. The frontend proxies API calls through itself (e.g., Vercel rewrites /api/* to backend)
+// 2. The browser sees the API call as going to the same origin as the frontend
+//
+// IMPORTANT: Just because Origin header is "dashboard.traf3li.com" does NOT mean it's same-origin!
+// If the frontend at dashboard.traf3li.com makes a fetch() to api.traf3li.com, that's cross-origin.
+//
+// True same-origin proxy detection requires checking if the HOST of the request matches the ORIGIN.
+// With Vercel rewrites: Host=dashboard.traf3li.com, Origin=dashboard.traf3li.com (same-origin)
+// Direct cross-origin: Host=api.traf3li.com, Origin=dashboard.traf3li.com (cross-origin)
 const isSameOriginProxy = (request) => {
     const origin = request.headers.origin || '';
-    const referer = request.headers.referer || '';
-    const forwardedHost = request.headers['x-forwarded-host'] || '';
-    const vercelForwarded = request.headers['x-vercel-forwarded-for'] || '';
+    const host = request.headers.host || '';
 
-    // Check if Origin or Referer is from dashboard.traf3li.com (most reliable)
-    const dashboardPattern = /dashboard\.traf3li\.com/i;
-    if (dashboardPattern.test(origin) || dashboardPattern.test(referer)) {
-        return true;
+    // If no origin header, can't determine (treat as cross-origin for safety)
+    if (!origin || !host) {
+        return false;
     }
 
-    // Check x-vercel-forwarded-for (Vercel-specific header)
-    if (vercelForwarded) {
-        return true;
+    try {
+        const originHost = new URL(origin).host;
+        // True same-origin: the Host header matches the Origin header's host
+        // This happens when frontend proxies requests through itself (Vercel rewrites)
+        return originHost === host;
+    } catch {
+        return false;
     }
-
-    // Check x-forwarded-host matches origin
-    if (forwardedHost && origin) {
-        try {
-            const originHost = new URL(origin).host;
-            if (originHost === forwardedHost) {
-                return true;
-            }
-        } catch {
-            // URL parsing failed
-        }
-    }
-
-    // Check x-forwarded-host contains dashboard.traf3li.com
-    if (dashboardPattern.test(forwardedHost)) {
-        return true;
-    }
-
-    return false;
 };
 
 // Helper to get cookie domain based on request origin
@@ -79,9 +69,21 @@ const getCookieDomain = (request) => {
 // Uses more permissive settings for same-origin proxy requests
 const getCookieConfig = (request) => {
     const isSameOrigin = isSameOriginProxy(request);
+    const origin = request.headers.origin || '';
+    const host = request.headers.host || '';
+
+    // Debug logging for cookie configuration (helps diagnose production issues)
+    console.log('[Cookie Config Debug]', {
+        origin,
+        host,
+        isSameOrigin,
+        isProductionEnv,
+        NODE_ENV
+    });
 
     if (isSameOrigin) {
         // Same-origin via proxy: use Lax (more compatible with browser privacy)
+        console.log('[Cookie Config] Using same-origin config (SameSite=Lax)');
         return {
             httpOnly: true,
             sameSite: 'lax',
@@ -96,13 +98,15 @@ const getCookieConfig = (request) => {
     // Cross-origin: use None with all the cross-site cookie requirements
     // Note: secure must be true for SameSite=None in production
     // But for localhost development, we need secure=false to work over HTTP
+    const cookieDomain = getCookieDomain(request);
+    console.log('[Cookie Config] Using cross-origin config (SameSite=None)', { cookieDomain });
     return {
         httpOnly: true,
         sameSite: isProductionEnv ? 'none' : 'lax', // 'lax' works better for localhost
         secure: isProductionEnv, // false for localhost (HTTP), true for production (HTTPS)
         maxAge: 60 * 60 * 24 * 7 * 1000, // 7 days
         path: '/',
-        domain: getCookieDomain(request),
+        domain: cookieDomain,
         partitioned: isProductionEnv // CHIPS only needed in production
     };
 };
