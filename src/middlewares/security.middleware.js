@@ -1,6 +1,14 @@
 const crypto = require('crypto');
 const logger = require('../utils/logger');
 
+// Robust production detection for cross-origin cookie settings
+// Checks multiple indicators to determine if we're in a production environment
+const isProductionEnv = process.env.NODE_ENV === 'production' ||
+                        process.env.NODE_ENV === 'prod' ||
+                        process.env.RENDER === 'true' ||
+                        process.env.VERCEL_ENV === 'production' ||
+                        process.env.RAILWAY_ENVIRONMENT === 'production';
+
 /**
  * Origin Check Middleware
  * Verifies that the Origin or Referer header matches allowed origins
@@ -153,14 +161,13 @@ const setCsrfToken = (req, res, next) => {
 
         // Set as httpOnly cookie (more secure, but still readable by frontend via document.cookie workaround)
         // For double-submit pattern, we need it to be readable by client JS
-        const isProduction = process.env.NODE_ENV === 'production';
         res.cookie('csrf-token', csrfToken, {
             httpOnly: false, // Must be false so client can read it
-            secure: isProduction, // HTTPS only in production
-            sameSite: isProduction ? 'none' : 'lax', // 'none' for cross-origin in production, 'lax' for development
+            secure: isProductionEnv, // HTTPS only in production
+            sameSite: isProductionEnv ? 'none' : 'lax', // 'none' for cross-origin in production, 'lax' for development
             maxAge: 24 * 60 * 60 * 1000, // 24 hours
             path: '/',
-            domain: isProduction ? '.traf3li.com' : undefined // Share across subdomains in production
+            domain: isProductionEnv ? '.traf3li.com' : undefined // Share across subdomains in production
         });
     }
 

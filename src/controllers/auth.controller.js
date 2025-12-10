@@ -8,6 +8,14 @@ const auditLogService = require('../services/auditLog.service');
 const { JWT_SECRET, NODE_ENV } = process.env;
 const saltRounds = 10;
 
+// Robust production detection for cross-origin cookie settings
+// Checks multiple indicators to determine if we're in a production environment
+const isProductionEnv = NODE_ENV === 'production' ||
+                        NODE_ENV === 'prod' ||
+                        process.env.RENDER === 'true' ||
+                        process.env.VERCEL_ENV === 'production' ||
+                        process.env.RAILWAY_ENVIRONMENT === 'production';
+
 const authRegister = async (request, response) => {
     const {
         // Basic info
@@ -382,11 +390,11 @@ const authLogin = async (request, response) => {
 
             const cookieConfig = {
                 httpOnly: true,
-                sameSite: NODE_ENV === 'production' ? 'none' : 'strict',
-                secure: NODE_ENV === 'production',
+                sameSite: isProductionEnv ? 'none' : 'lax', // 'none' for cross-origin in production, 'lax' for development
+                secure: isProductionEnv, // Secure flag required for SameSite=None
                 maxAge: 60 * 60 * 24 * 7 * 1000, // 7 days
                 path: '/',
-                domain: NODE_ENV === 'production' ? '.traf3li.com' : undefined
+                domain: isProductionEnv ? '.traf3li.com' : undefined
             };
 
             // Build enhanced user data with solo lawyer and firm info
