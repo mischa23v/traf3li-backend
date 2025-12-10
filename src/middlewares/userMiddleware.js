@@ -16,7 +16,7 @@ const userMiddleware = (request, response, next) => {
 
     try {
         if(!token) {
-            throw CustomException('Unauthorized access!', 400);
+            throw CustomException('Unauthorized access!', 401);
         }
 
         const verification = jwt.verify(token, process.env.JWT_SECRET);
@@ -28,7 +28,7 @@ const userMiddleware = (request, response, next) => {
         }
 
         authLogout(request, response);
-        throw CustomException('Relogin', 400);
+        throw CustomException('Relogin', 401);
     }
     catch({message, status = 500}) {
         return response.status(status).send({
