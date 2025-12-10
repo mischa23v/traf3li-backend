@@ -766,5 +766,7 @@ module.exports = {
     authLogout,
     authRegister,
     authStatus,
-    checkAvailability
+    checkAvailability,
+    getCookieConfig,
+    getCookieDomain
 };

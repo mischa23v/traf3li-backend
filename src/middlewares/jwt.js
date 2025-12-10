@@ -14,25 +14,16 @@ const verifyToken = (req, res, next) => {
     // Check for token in both cookies and Authorization header
     let token = req.cookies?.accessToken;
 
-    // Debug logging for cookie issues
-    console.log('[AUTH DEBUG] verifyToken middleware called');
-    console.log('[AUTH DEBUG] Origin:', req.headers.origin);
-    console.log('[AUTH DEBUG] Cookie header raw:', req.headers.cookie);
-    console.log('[AUTH DEBUG] Cookies parsed:', Object.keys(req.cookies || {}));
-    console.log('[AUTH DEBUG] accessToken from cookie:', token ? 'present' : 'missing');
-
     // If no token in cookies, check Authorization header
     if (!token && req.headers.authorization) {
         const authHeader = req.headers.authorization;
         if (authHeader.startsWith('Bearer ')) {
             token = authHeader.substring(7); // Remove 'Bearer ' prefix
-            console.log('[AUTH DEBUG] accessToken from Authorization header:', 'present');
         }
     }
 
     try {
         if (!token) {
-            console.log('[AUTH DEBUG] No token found - returning 401');
             throw CustomException('Authentication required', 401);
         }
 
