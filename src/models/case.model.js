@@ -870,6 +870,10 @@ const caseSchema = new mongoose.Schema({
 
 caseSchema.index({ lawyerId: 1, status: 1 });
 caseSchema.index({ clientId: 1, status: 1 });
+// Compound indexes for multi-tenant dashboard queries
+caseSchema.index({ firmId: 1, status: 1, createdAt: -1 });
+caseSchema.index({ firmId: 1, lawyerId: 1, status: 1 });
+caseSchema.index({ firmId: 1, priority: 1, status: 1 });
 caseSchema.index({ 'richDocuments.showOnCalendar': 1, 'richDocuments.calendarDate': 1 });
 caseSchema.index({ 'richDocuments.documentType': 1 });
 caseSchema.index({ 'richDocuments.status': 1 });

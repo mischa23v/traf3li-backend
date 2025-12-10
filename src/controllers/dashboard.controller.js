@@ -94,22 +94,20 @@ const getDashboardStats = async (request, response) => {
             ? { firmId: new mongoose.Types.ObjectId(firmId) }
             : { lawyerId: new mongoose.Types.ObjectId(userId) };
 
-        // Get cases by status
-        const casesByStatus = await Case.aggregate([
-            { $match: matchFilter },
-            { $group: { _id: '$status', count: { $sum: 1 } } }
-        ]);
-
-        // Get tasks by status
-        const tasksByStatus = await Task.aggregate([
-            { $match: matchFilter },
-            { $group: { _id: '$status', count: { $sum: 1 } } }
-        ]);
-
-        // Get invoices by status
-        const invoicesByStatus = await Invoice.aggregate([
-            { $match: matchFilter },
-            { $group: { _id: '$status', count: { $sum: 1 } } }
+        // Single parallel execution for all status counts
+        const [casesByStatus, tasksByStatus, invoicesByStatus] = await Promise.all([
+            Case.aggregate([
+                { $match: matchFilter },
+                { $group: { _id: '$status', count: { $sum: 1 } } }
+            ]),
+            Task.aggregate([
+                { $match: matchFilter },
+                { $group: { _id: '$status', count: { $sum: 1 } } }
+            ]),
+            Invoice.aggregate([
+                { $match: matchFilter },
+                { $group: { _id: '$status', count: { $sum: 1 } } }
+            ])
         ]);
 
         return response.json({

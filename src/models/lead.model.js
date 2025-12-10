@@ -351,6 +351,10 @@ leadSchema.index({ lawyerId: 1, createdAt: -1 });
 leadSchema.index({ lawyerId: 1, organizationId: 1 });
 leadSchema.index({ lawyerId: 1, contactId: 1 });
 leadSchema.index({ firstName: 'text', lastName: 'text', companyName: 'text', email: 'text', phone: 'text' });
+// Compound indexes for multi-tenant dashboard queries
+leadSchema.index({ firmId: 1, status: 1, createdAt: -1 });
+leadSchema.index({ firmId: 1, lawyerId: 1, status: 1 });
+leadSchema.index({ firmId: 1, convertedToClient: 1, createdAt: -1 });
 
 // ═══════════════════════════════════════════════════════════════
 // VIRTUALS

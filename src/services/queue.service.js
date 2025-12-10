@@ -43,7 +43,7 @@ class QueueService {
       jobId: options.jobId || `${queueName}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
     });
 
-    console.log(`📌 Job ${job.id} added to queue "${queueName}"`);
+    // Removed verbose logging for performance
 
     return {
       jobId: job.id,
@@ -73,7 +73,7 @@ class QueueService {
 
     const addedJobs = await queue.addBulk(bulkJobs);
 
-    console.log(`📌 ${addedJobs.length} jobs added to queue "${queueName}"`);
+    // Removed verbose logging for performance
 
     return addedJobs.map(job => ({
       jobId: job.id,
@@ -190,7 +190,7 @@ class QueueService {
 
     await job.retry();
 
-    console.log(`🔄 Job ${jobId} in queue "${queueName}" is being retried`);
+    // Removed verbose logging for performance
 
     return {
       jobId: job.id,
@@ -220,7 +220,7 @@ class QueueService {
 
     await job.remove();
 
-    console.log(`🗑️  Job ${jobId} removed from queue "${queueName}"`);
+    // Removed verbose logging for performance
 
     return {
       jobId,
@@ -348,7 +348,7 @@ class QueueService {
 
     await queue.empty();
 
-    console.log(`🗑️  Queue "${queueName}" emptied`);
+    // Removed verbose logging for performance
 
     return {
       queueName,
