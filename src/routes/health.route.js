@@ -162,4 +162,41 @@ router.get('/ping', (req, res) => {
     });
 });
 
+/**
+ * GET /health/debug-auth
+ * Debug endpoint to see what cookies the server receives
+ * Helps diagnose cookie/auth issues
+ */
+router.get('/debug-auth', (req, res) => {
+    const debugInfo = {
+        timestamp: new Date().toISOString(),
+        request: {
+            origin: req.headers.origin || 'none',
+            referer: req.headers.referer || 'none',
+            host: req.headers.host,
+            userAgent: (req.headers['user-agent'] || '').substring(0, 100)
+        },
+        cookies: {
+            rawHeader: req.headers.cookie ? 'present' : 'MISSING',
+            rawLength: req.headers.cookie ? req.headers.cookie.length : 0,
+            parsed: Object.keys(req.cookies || {}),
+            hasAccessToken: !!req.cookies?.accessToken,
+            hasCsrfToken: !!req.cookies?.['csrf-token'],
+            // Don't expose actual token values for security
+            accessTokenLength: req.cookies?.accessToken?.length || 0,
+            csrfTokenLength: req.cookies?.['csrf-token']?.length || 0
+        },
+        server: {
+            nodeEnv: process.env.NODE_ENV,
+            isRender: process.env.RENDER === 'true',
+            expectedCookieDomain: '.traf3li.com'
+        }
+    };
+
+    // Log for server-side debugging
+    console.log('[DEBUG-AUTH]', JSON.stringify(debugInfo, null, 2));
+
+    res.status(200).json(debugInfo);
+});
+
 module.exports = router;
