@@ -94,14 +94,16 @@ const getCookieConfig = (request) => {
     }
 
     // Cross-origin: use None with all the cross-site cookie requirements
+    // Note: secure must be true for SameSite=None in production
+    // But for localhost development, we need secure=false to work over HTTP
     return {
         httpOnly: true,
-        sameSite: 'none',
-        secure: true, // Required for SameSite=None
+        sameSite: isProductionEnv ? 'none' : 'lax', // 'lax' works better for localhost
+        secure: isProductionEnv, // false for localhost (HTTP), true for production (HTTPS)
         maxAge: 60 * 60 * 24 * 7 * 1000, // 7 days
         path: '/',
         domain: getCookieDomain(request),
-        partitioned: true // CHIPS for Safari ITP / Chrome privacy
+        partitioned: isProductionEnv // CHIPS only needed in production
     };
 };
 
