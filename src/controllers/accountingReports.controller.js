@@ -32,44 +32,58 @@ const getProfitLossReport = asyncHandler(async (req, res) => {
         matchStage.caseId = mongoose.Types.ObjectId.createFromHexString(caseId);
     }
 
-    // Get all accounts by type
-    const incomeAccounts = await Account.find({ type: 'Income', isActive: true });
-    const expenseAccounts = await Account.find({ type: 'Expense', isActive: true });
+    // Get all accounts by type (single query with lean)
+    const [incomeAccounts, expenseAccounts] = await Promise.all([
+        Account.find({ type: 'Income', isActive: true }).lean(),
+        Account.find({ type: 'Expense', isActive: true }).lean()
+    ]);
+
+    const incomeAccountIds = incomeAccounts.map(a => a._id);
+    const expenseAccountIds = expenseAccounts.map(a => a._id);
+    const allAccountIds = [...incomeAccountIds, ...expenseAccountIds];
+
+    // Single aggregation for all accounts - eliminates N+1 queries
+    const accountBalances = await GeneralLedger.aggregate([
+        {
+            $match: {
+                ...matchStage,
+                $or: [
+                    { creditAccountId: { $in: allAccountIds } },
+                    { debitAccountId: { $in: allAccountIds } }
+                ]
+            }
+        },
+        {
+            $facet: {
+                credits: [
+                    { $group: { _id: '$creditAccountId', total: { $sum: '$amount' } } }
+                ],
+                debits: [
+                    { $group: { _id: '$debitAccountId', total: { $sum: '$amount' } } }
+                ]
+            }
+        }
+    ]);
+
+    // Build lookup maps for quick access
+    const creditMap = new Map();
+    const debitMap = new Map();
+
+    (accountBalances[0]?.credits || []).forEach(c => {
+        if (c._id) creditMap.set(c._id.toString(), c.total);
+    });
+    (accountBalances[0]?.debits || []).forEach(d => {
+        if (d._id) debitMap.set(d._id.toString(), d.total);
+    });
 
     // Calculate income totals
     const incomeDetails = [];
     let totalIncome = 0;
 
     for (const account of incomeAccounts) {
-        const result = await GeneralLedger.aggregate([
-            {
-                $match: {
-                    ...matchStage,
-                    $or: [
-                        { creditAccountId: account._id },
-                        { debitAccountId: account._id }
-                    ]
-                }
-            },
-            {
-                $group: {
-                    _id: null,
-                    credits: {
-                        $sum: {
-                            $cond: [{ $eq: ['$creditAccountId', account._id] }, '$amount', 0]
-                        }
-                    },
-                    debits: {
-                        $sum: {
-                            $cond: [{ $eq: ['$debitAccountId', account._id] }, '$amount', 0]
-                        }
-                    }
-                }
-            }
-        ]);
-
-        const credits = result[0]?.credits || 0;
-        const debits = result[0]?.debits || 0;
+        const accountIdStr = account._id.toString();
+        const credits = creditMap.get(accountIdStr) || 0;
+        const debits = debitMap.get(accountIdStr) || 0;
         const balance = credits - debits; // Income has credit normal balance
 
         if (balance !== 0) {
@@ -89,35 +103,9 @@ const getProfitLossReport = asyncHandler(async (req, res) => {
     let totalExpenses = 0;
 
     for (const account of expenseAccounts) {
-        const result = await GeneralLedger.aggregate([
-            {
-                $match: {
-                    ...matchStage,
-                    $or: [
-                        { creditAccountId: account._id },
-                        { debitAccountId: account._id }
-                    ]
-                }
-            },
-            {
-                $group: {
-                    _id: null,
-                    credits: {
-                        $sum: {
-                            $cond: [{ $eq: ['$creditAccountId', account._id] }, '$amount', 0]
-                        }
-                    },
-                    debits: {
-                        $sum: {
-                            $cond: [{ $eq: ['$debitAccountId', account._id] }, '$amount', 0]
-                        }
-                    }
-                }
-            }
-        ]);
-
-        const credits = result[0]?.credits || 0;
-        const debits = result[0]?.debits || 0;
+        const accountIdStr = account._id.toString();
+        const credits = creditMap.get(accountIdStr) || 0;
+        const debits = debitMap.get(accountIdStr) || 0;
         const balance = debits - credits; // Expense has debit normal balance
 
         if (balance !== 0) {
@@ -180,45 +168,60 @@ const getBalanceSheetReport = asyncHandler(async (req, res) => {
         transactionDate: { $lte: upToDate }
     };
 
-    // Get accounts by type
-    const assetAccounts = await Account.find({ type: 'Asset', isActive: true });
-    const liabilityAccounts = await Account.find({ type: 'Liability', isActive: true });
-    const equityAccounts = await Account.find({ type: 'Equity', isActive: true });
+    // Get all accounts by type in parallel (with lean)
+    const [assetAccounts, liabilityAccounts, equityAccounts] = await Promise.all([
+        Account.find({ type: 'Asset', isActive: true }).lean(),
+        Account.find({ type: 'Liability', isActive: true }).lean(),
+        Account.find({ type: 'Equity', isActive: true }).lean()
+    ]);
+
+    const assetAccountIds = assetAccounts.map(a => a._id);
+    const liabilityAccountIds = liabilityAccounts.map(a => a._id);
+    const equityAccountIds = equityAccounts.map(a => a._id);
+    const allAccountIds = [...assetAccountIds, ...liabilityAccountIds, ...equityAccountIds];
+
+    // Single aggregation for all accounts - eliminates N+1 queries
+    const accountBalances = await GeneralLedger.aggregate([
+        {
+            $match: {
+                ...matchStage,
+                $or: [
+                    { creditAccountId: { $in: allAccountIds } },
+                    { debitAccountId: { $in: allAccountIds } }
+                ]
+            }
+        },
+        {
+            $facet: {
+                credits: [
+                    { $group: { _id: '$creditAccountId', total: { $sum: '$amount' } } }
+                ],
+                debits: [
+                    { $group: { _id: '$debitAccountId', total: { $sum: '$amount' } } }
+                ]
+            }
+        }
+    ]);
+
+    // Build lookup maps for quick access
+    const creditMap = new Map();
+    const debitMap = new Map();
+
+    (accountBalances[0]?.credits || []).forEach(c => {
+        if (c._id) creditMap.set(c._id.toString(), c.total);
+    });
+    (accountBalances[0]?.debits || []).forEach(d => {
+        if (d._id) debitMap.set(d._id.toString(), d.total);
+    });
 
     // Calculate asset balances
     const assetDetails = [];
     let totalAssets = 0;
 
     for (const account of assetAccounts) {
-        const result = await GeneralLedger.aggregate([
-            {
-                $match: {
-                    ...matchStage,
-                    $or: [
-                        { creditAccountId: account._id },
-                        { debitAccountId: account._id }
-                    ]
-                }
-            },
-            {
-                $group: {
-                    _id: null,
-                    credits: {
-                        $sum: {
-                            $cond: [{ $eq: ['$creditAccountId', account._id] }, '$amount', 0]
-                        }
-                    },
-                    debits: {
-                        $sum: {
-                            $cond: [{ $eq: ['$debitAccountId', account._id] }, '$amount', 0]
-                        }
-                    }
-                }
-            }
-        ]);
-
-        const credits = result[0]?.credits || 0;
-        const debits = result[0]?.debits || 0;
+        const accountIdStr = account._id.toString();
+        const credits = creditMap.get(accountIdStr) || 0;
+        const debits = debitMap.get(accountIdStr) || 0;
         const balance = debits - credits; // Assets have debit normal balance
 
         if (balance !== 0) {
@@ -239,35 +242,9 @@ const getBalanceSheetReport = asyncHandler(async (req, res) => {
     let totalLiabilities = 0;
 
     for (const account of liabilityAccounts) {
-        const result = await GeneralLedger.aggregate([
-            {
-                $match: {
-                    ...matchStage,
-                    $or: [
-                        { creditAccountId: account._id },
-                        { debitAccountId: account._id }
-                    ]
-                }
-            },
-            {
-                $group: {
-                    _id: null,
-                    credits: {
-                        $sum: {
-                            $cond: [{ $eq: ['$creditAccountId', account._id] }, '$amount', 0]
-                        }
-                    },
-                    debits: {
-                        $sum: {
-                            $cond: [{ $eq: ['$debitAccountId', account._id] }, '$amount', 0]
-                        }
-                    }
-                }
-            }
-        ]);
-
-        const credits = result[0]?.credits || 0;
-        const debits = result[0]?.debits || 0;
+        const accountIdStr = account._id.toString();
+        const credits = creditMap.get(accountIdStr) || 0;
+        const debits = debitMap.get(accountIdStr) || 0;
         const balance = credits - debits; // Liabilities have credit normal balance
 
         if (balance !== 0) {
@@ -288,35 +265,9 @@ const getBalanceSheetReport = asyncHandler(async (req, res) => {
     let totalEquity = 0;
 
     for (const account of equityAccounts) {
-        const result = await GeneralLedger.aggregate([
-            {
-                $match: {
-                    ...matchStage,
-                    $or: [
-                        { creditAccountId: account._id },
-                        { debitAccountId: account._id }
-                    ]
-                }
-            },
-            {
-                $group: {
-                    _id: null,
-                    credits: {
-                        $sum: {
-                            $cond: [{ $eq: ['$creditAccountId', account._id] }, '$amount', 0]
-                        }
-                    },
-                    debits: {
-                        $sum: {
-                            $cond: [{ $eq: ['$debitAccountId', account._id] }, '$amount', 0]
-                        }
-                    }
-                }
-            }
-        ]);
-
-        const credits = result[0]?.credits || 0;
-        const debits = result[0]?.debits || 0;
+        const accountIdStr = account._id.toString();
+        const credits = creditMap.get(accountIdStr) || 0;
+        const debits = debitMap.get(accountIdStr) || 0;
         const balance = credits - debits; // Equity has credit normal balance
 
         if (balance !== 0) {
@@ -745,21 +696,59 @@ const getBudgetVarianceReport = asyncHandler(async (req, res) => {
         transactionDate: { $gte: startDate, $lte: endDate }
     };
 
-    // Get all Income and Expense accounts
-    const incomeAccounts = await Account.find({ type: 'Income', isActive: true });
-    const expenseAccounts = await Account.find({ type: 'Expense', isActive: true });
+    // Get all Income and Expense accounts in parallel (with lean)
+    const [incomeAccounts, expenseAccounts] = await Promise.all([
+        Account.find({ type: 'Income', isActive: true }).lean(),
+        Account.find({ type: 'Expense', isActive: true }).lean()
+    ]);
+
+    const incomeAccountIds = incomeAccounts.map(a => a._id);
+    const expenseAccountIds = expenseAccounts.map(a => a._id);
+    const allAccountIds = [...incomeAccountIds, ...expenseAccountIds];
+
+    // Single aggregation for all accounts - eliminates N+1 queries
+    const accountBalances = await GeneralLedger.aggregate([
+        {
+            $match: {
+                ...matchStage,
+                $or: [
+                    { creditAccountId: { $in: allAccountIds } },
+                    { debitAccountId: { $in: allAccountIds } }
+                ]
+            }
+        },
+        {
+            $facet: {
+                credits: [
+                    { $group: { _id: '$creditAccountId', total: { $sum: '$amount' } } }
+                ],
+                debits: [
+                    { $group: { _id: '$debitAccountId', total: { $sum: '$amount' } } }
+                ]
+            }
+        }
+    ]);
+
+    // Build lookup maps for quick access
+    const creditMap = new Map();
+    const debitMap = new Map();
+
+    (accountBalances[0]?.credits || []).forEach(c => {
+        if (c._id) creditMap.set(c._id.toString(), c.total);
+    });
+    (accountBalances[0]?.debits || []).forEach(d => {
+        if (d._id) debitMap.set(d._id.toString(), d.total);
+    });
 
     const incomeDetails = [];
     let totalIncomeActual = 0;
     let totalIncomeBudget = 0;
 
     for (const account of incomeAccounts) {
-        const result = await GeneralLedger.aggregate([
-            { $match: { ...matchStage, $or: [{ creditAccountId: account._id }, { debitAccountId: account._id }] } },
-            { $group: { _id: null, credits: { $sum: { $cond: [{ $eq: ['$creditAccountId', account._id] }, '$amount', 0] } }, debits: { $sum: { $cond: [{ $eq: ['$debitAccountId', account._id] }, '$amount', 0] } } } }
-        ]);
-
-        const actualAmount = (result[0]?.credits || 0) - (result[0]?.debits || 0);
+        const accountIdStr = account._id.toString();
+        const credits = creditMap.get(accountIdStr) || 0;
+        const debits = debitMap.get(accountIdStr) || 0;
+        const actualAmount = credits - debits;
         const budgetedAmount = 0; // TODO: Fetch from Budget model when available
 
         if (actualAmount !== 0 || budgetedAmount !== 0) {
@@ -785,12 +774,10 @@ const getBudgetVarianceReport = asyncHandler(async (req, res) => {
     let totalExpenseBudget = 0;
 
     for (const account of expenseAccounts) {
-        const result = await GeneralLedger.aggregate([
-            { $match: { ...matchStage, $or: [{ creditAccountId: account._id }, { debitAccountId: account._id }] } },
-            { $group: { _id: null, credits: { $sum: { $cond: [{ $eq: ['$creditAccountId', account._id] }, '$amount', 0] } }, debits: { $sum: { $cond: [{ $eq: ['$debitAccountId', account._id] }, '$amount', 0] } } } }
-        ]);
-
-        const actualAmount = (result[0]?.debits || 0) - (result[0]?.credits || 0);
+        const accountIdStr = account._id.toString();
+        const credits = creditMap.get(accountIdStr) || 0;
+        const debits = debitMap.get(accountIdStr) || 0;
+        const actualAmount = debits - credits;
         const budgetedAmount = 0;
 
         if (actualAmount !== 0 || budgetedAmount !== 0) {

@@ -495,6 +495,10 @@ invoiceSchema.index({ dueDate: 1, status: 1 });
 invoiceSchema.index({ createdAt: -1 });
 invoiceSchema.index({ 'zatca.status': 1 });
 invoiceSchema.index({ responsibleAttorneyId: 1 });
+// Compound indexes for multi-tenant dashboard queries
+invoiceSchema.index({ firmId: 1, status: 1, dueDate: -1 });
+invoiceSchema.index({ firmId: 1, status: 1, createdAt: -1 });
+invoiceSchema.index({ firmId: 1, lawyerId: 1, status: 1 });
 
 // ============ VIRTUALS ============
 invoiceSchema.virtual('isOverdue').get(function() {

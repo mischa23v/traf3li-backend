@@ -369,7 +369,7 @@ async function generateRevenueReport(userId, startDate, endDate, filters) {
     if (filters.clientId) query.clientId = filters.clientId;
     if (filters.caseId) query.caseId = filters.caseId;
 
-    const invoices = await Invoice.find(query).populate('clientId', 'name');
+    const invoices = await Invoice.find(query).populate('clientId', 'name').lean();
 
     const totalRevenue = invoices.reduce((sum, inv) => sum + inv.totalAmount, 0);
     const totalCollected = invoices.reduce((sum, inv) => sum + (inv.amountPaid || 0), 0);
@@ -410,7 +410,7 @@ async function generateAgingReport(userId, filters) {
 
     if (filters.clientId) query.clientId = filters.clientId;
 
-    const invoices = await Invoice.find(query).populate('clientId', 'name email');
+    const invoices = await Invoice.find(query).populate('clientId', 'name email').lean();
 
     const now = new Date();
     const aging = {
@@ -471,7 +471,8 @@ async function generateCollectionsReport(userId, startDate, endDate, filters) {
 
     const payments = await Payment.find(query)
         .populate('invoiceId', 'invoiceNumber')
-        .populate('clientId', 'name');
+        .populate('clientId', 'name')
+        .lean();
 
     const totalCollected = payments.reduce((sum, pay) => sum + pay.amount, 0);
 
@@ -514,7 +515,7 @@ async function generateProductivityReport(userId, startDate, endDate, filters) {
 
     if (filters.caseId) query.caseId = filters.caseId;
 
-    const timeEntries = await TimeEntry.find(query).populate('caseId', 'caseNumber title');
+    const timeEntries = await TimeEntry.find(query).populate('caseId', 'caseNumber title').lean();
 
     const totalHours = timeEntries.reduce((sum, entry) => sum + entry.hours, 0);
     const totalBillableAmount = timeEntries.reduce((sum, entry) => sum + (entry.billableAmount || 0), 0);
@@ -560,7 +561,7 @@ async function generateProfitabilityReport(userId, startDate, endDate, filters) 
     if (filters.caseId) invoiceQuery.caseId = filters.caseId;
     if (filters.clientId) invoiceQuery.clientId = filters.clientId;
 
-    const invoices = await Invoice.find(invoiceQuery);
+    const invoices = await Invoice.find(invoiceQuery).lean();
     const totalRevenue = invoices.reduce((sum, inv) => sum + (inv.amountPaid || 0), 0);
 
     // Get expenses
@@ -568,7 +569,7 @@ async function generateProfitabilityReport(userId, startDate, endDate, filters) 
     if (dateQuery.$gte) expenseQuery.date = dateQuery;
     if (filters.caseId) expenseQuery.caseId = filters.caseId;
 
-    const expenses = await Expense.find(expenseQuery);
+    const expenses = await Expense.find(expenseQuery).lean();
     const totalExpenses = expenses.reduce((sum, exp) => sum + exp.amount, 0);
 
     const netProfit = totalRevenue - totalExpenses;
@@ -601,7 +602,7 @@ async function generateTimeUtilizationReport(userId, startDate, endDate, filters
         };
     }
 
-    const timeEntries = await TimeEntry.find(query);
+    const timeEntries = await TimeEntry.find(query).lean();
 
     const totalHours = timeEntries.reduce((sum, entry) => sum + entry.hours, 0);
     const billableHours = timeEntries.filter(e => e.isBillable).reduce((sum, e) => sum + e.hours, 0);
@@ -644,7 +645,7 @@ async function generateTaxReport(userId, startDate, endDate, filters) {
         };
     }
 
-    const invoices = await Invoice.find(query);
+    const invoices = await Invoice.find(query).lean();
 
     const totalSales = invoices.reduce((sum, inv) => sum + inv.subtotal, 0);
     const totalVAT = invoices.reduce((sum, inv) => sum + (inv.vatAmount || 0), 0);
@@ -659,7 +660,7 @@ async function generateTaxReport(userId, startDate, endDate, filters) {
         };
     }
 
-    const expenses = await Expense.find(expenseQuery);
+    const expenses = await Expense.find(expenseQuery).lean();
     const deductibleVAT = expenses.reduce((sum, exp) => {
         // Assuming 15% VAT on expenses
         return sum + (exp.amount * 0.15);
@@ -726,7 +727,8 @@ const getRevenueByClientReport = asyncHandler(async (req, res) => {
     }
 
     const invoices = await Invoice.find({ lawyerId, ...dateQuery })
-        .populate('clientId', 'firstName lastName username email');
+        .populate('clientId', 'firstName lastName username email')
+        .lean();
 
     // Group by client
     const byClient = {};
@@ -792,7 +794,8 @@ const getOutstandingInvoicesReport = asyncHandler(async (req, res) => {
     const invoices = await Invoice.find(query)
         .populate('clientId', 'firstName lastName username email')
         .populate('caseId', 'title caseNumber')
-        .sort({ dueDate: 1 });
+        .sort({ dueDate: 1 })
+        .lean();
 
     // Calculate outstanding amounts and filter
     let outstandingInvoices = invoices.map(inv => {
@@ -881,12 +884,13 @@ const getTimeEntriesReport = asyncHandler(async (req, res) => {
         .populate('caseId', 'title caseNumber')
         .sort({ date: -1 })
         .limit(parseInt(limit))
-        .skip((parseInt(page) - 1) * parseInt(limit));
+        .skip((parseInt(page) - 1) * parseInt(limit))
+        .lean();
 
     const total = await TimeEntry.countDocuments(query);
 
     // Calculate totals
-    const allEntries = await TimeEntry.find(query);
+    const allEntries = await TimeEntry.find(query).lean();
     const totalHours = allEntries.reduce((sum, e) => sum + (e.hours || 0), 0);
     const billableHours = allEntries.filter(e => e.isBillable).reduce((sum, e) => sum + (e.hours || 0), 0);
     const totalBillableAmount = allEntries.reduce((sum, e) => sum + (e.billableAmount || 0), 0);

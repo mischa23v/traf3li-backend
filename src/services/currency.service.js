@@ -36,14 +36,12 @@ class CurrencyService {
             return await ExchangeRate.getRate(fromCurrency, toCurrency, date, firmId);
         } catch (error) {
             // If no rate found, try to fetch from API
-            console.log(`No stored rate found for ${fromCurrency} to ${toCurrency}, attempting to fetch from API`);
             try {
                 await this.updateRatesFromAPI(fromCurrency);
                 return await ExchangeRate.getRate(fromCurrency, toCurrency, date, firmId);
             } catch (apiError) {
                 // Use default rates as last resort
                 if (this.defaultRates[fromCurrency] && this.defaultRates[fromCurrency][toCurrency]) {
-                    console.log(`Using default rate for ${fromCurrency} to ${toCurrency}`);
                     return this.defaultRates[fromCurrency][toCurrency];
                 }
                 throw new Error(`Exchange rate not available for ${fromCurrency} to ${toCurrency}`);
@@ -79,10 +77,9 @@ class CurrencyService {
             }
 
             // Use default rates
-            console.log('No API key configured, using default rates');
             return this.defaultRates[baseCurrency] || {};
         } catch (error) {
-            console.error('Error fetching live rates:', error.message);
+            // Silently fall back to default rates
             return this.defaultRates[baseCurrency] || {};
         }
     }
@@ -139,12 +136,8 @@ class CurrencyService {
             }
 
             const results = await ExchangeRate.bulkUpdateRates(baseCurrency, rates, 'api');
-
-            console.log(`Updated ${results.updated} exchange rates for ${baseCurrency}`);
-
             return results;
         } catch (error) {
-            console.error('Error updating rates from API:', error.message);
             throw error;
         }
     }
@@ -158,7 +151,6 @@ class CurrencyService {
             return rate;
         } catch (error) {
             // If historical rate not available, use current rate as fallback
-            console.log(`Historical rate not found, using current rate`);
             return await this.getExchangeRate(fromCurrency, toCurrency, new Date(), firmId);
         }
     }
@@ -331,8 +323,6 @@ class CurrencyService {
      * Initialize default rates in database
      */
     async initializeDefaultRates() {
-        console.log('Initializing default exchange rates...');
-
         for (const [baseCurrency, rates] of Object.entries(this.defaultRates)) {
             for (const [targetCurrency, rate] of Object.entries(rates)) {
                 try {
@@ -353,37 +343,30 @@ class CurrencyService {
                             effectiveDate: new Date(),
                             isActive: true
                         });
-                        console.log(`Created rate: ${baseCurrency} -> ${targetCurrency} = ${rate}`);
                     }
                 } catch (error) {
-                    console.error(`Error creating rate ${baseCurrency}/${targetCurrency}:`, error.message);
+                    // Silently continue on individual rate errors
                 }
             }
         }
-
-        console.log('Default rates initialization completed');
     }
 
     /**
      * Scheduled task to update rates daily
      */
     async updateRatesScheduled() {
-        console.log('Running scheduled exchange rate update...');
-
         const baseCurrencies = ['SAR', 'USD', 'EUR', 'GBP', 'AED'];
 
         for (const currency of baseCurrencies) {
             try {
                 await this.updateRatesFromAPI(currency);
-                console.log(`Updated rates for ${currency}`);
             } catch (error) {
-                console.error(`Failed to update rates for ${currency}:`, error.message);
+                // Continue with other currencies on error
             }
         }
 
         // Clean expired rates
-        const cleaned = await ExchangeRate.cleanExpiredRates();
-        console.log(`Cleaned ${cleaned} expired rates`);
+        await ExchangeRate.cleanExpiredRates();
     }
 
     /**
