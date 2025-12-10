@@ -65,17 +65,24 @@ const defaultJobOptions = {
 
 /**
  * Queue configuration settings
- * OPTIMIZED: Reduced polling intervals to minimize Redis requests
- * - Free tier Upstash: 500k requests/month
- * - Previous config used ~725k requests/week just for queue polling!
+ * OPTIMIZED FOR UPSTASH FREE TIER (500k requests/month)
+ *
+ * Math for 6 queues:
+ * - guardInterval: 5min = 6 queues × 12/hr × 24hr × 30days = 51,840/month
+ * - stalledInterval: 15min = 6 queues × 4/hr × 24hr × 30days = 17,280/month
+ * - Total queue overhead: ~70k requests/month (14% of limit)
+ *
+ * This leaves ~430k requests/month for actual cache + job operations
+ * At 100 users doing 50 actions/day = 150k requests/month
+ * Comfortable headroom for growth!
  */
 const queueSettings = {
-  lockDuration: 60000,        // 60s (was 30s)
-  lockRenewTime: 30000,       // 30s (was 15s)
-  stalledInterval: 300000,    // 5 minutes (was 30s) - massive reduction
+  lockDuration: 120000,       // 2 min (jobs can take time)
+  lockRenewTime: 60000,       // 1 min
+  stalledInterval: 900000,    // 15 minutes - check for stuck jobs
   maxStalledCount: 2,
-  guardInterval: 60000,       // 60s (was 5s) - 12x reduction in polling
-  retryProcessDelay: 30000,   // 30s (was 5s)
+  guardInterval: 300000,      // 5 minutes - health check interval
+  retryProcessDelay: 60000,   // 1 min before retry
   drainDelay: 5,
   defaultJobOptions
 };
