@@ -19,60 +19,40 @@ const isProductionEnv = NODE_ENV === 'production' ||
 // Helper to detect if request is coming through a same-origin proxy (e.g., Vercel rewrites)
 // When frontend at dashboard.traf3li.com proxies to /api/*, the browser sees it as same-origin
 // In this case, we should use SameSite=Lax and NOT set domain (more compatible with browser privacy)
-//
-// Detection strategy (multiple signals for reliability):
-// 1. Check if Origin/Referer is from dashboard.traf3li.com (frontend with Vercel proxy)
-// 2. Check x-forwarded-host header (may be overwritten by Render's proxy)
-// 3. Check x-vercel-forwarded-for header (Vercel-specific)
 const isSameOriginProxy = (request) => {
     const origin = request.headers.origin || '';
     const referer = request.headers.referer || '';
     const forwardedHost = request.headers['x-forwarded-host'] || '';
     const vercelForwarded = request.headers['x-vercel-forwarded-for'] || '';
 
-    // Debug log all relevant headers
-    console.log('[PROXY-DETECT] Origin:', origin);
-    console.log('[PROXY-DETECT] Referer:', referer);
-    console.log('[PROXY-DETECT] x-forwarded-host:', forwardedHost);
-    console.log('[PROXY-DETECT] x-vercel-forwarded-for:', vercelForwarded);
-
-    // Strategy 1: If Origin or Referer is from dashboard.traf3li.com, it's using Vercel proxy
-    // This is the most reliable signal because:
-    // - The frontend is hosted on dashboard.traf3li.com (Vercel)
-    // - If requests come from there, they MUST be going through Vercel rewrites
-    // - Therefore, from the browser's perspective, it's same-origin
+    // Check if Origin or Referer is from dashboard.traf3li.com (most reliable)
     const dashboardPattern = /dashboard\.traf3li\.com/i;
     if (dashboardPattern.test(origin) || dashboardPattern.test(referer)) {
-        console.log('[PROXY-DETECT] ✓ Detected via Origin/Referer - using same-origin config');
         return true;
     }
 
-    // Strategy 2: Check x-vercel-forwarded-for (Vercel-specific header)
+    // Check x-vercel-forwarded-for (Vercel-specific header)
     if (vercelForwarded) {
-        console.log('[PROXY-DETECT] ✓ Detected via x-vercel-forwarded-for - using same-origin config');
         return true;
     }
 
-    // Strategy 3: Original x-forwarded-host check (fallback)
+    // Check x-forwarded-host matches origin
     if (forwardedHost && origin) {
         try {
             const originHost = new URL(origin).host;
             if (originHost === forwardedHost) {
-                console.log('[PROXY-DETECT] ✓ Detected via x-forwarded-host match - using same-origin config');
                 return true;
             }
         } catch {
-            // URL parsing failed, continue to other checks
+            // URL parsing failed
         }
     }
 
-    // Strategy 4: If x-forwarded-host contains dashboard.traf3li.com
+    // Check x-forwarded-host contains dashboard.traf3li.com
     if (dashboardPattern.test(forwardedHost)) {
-        console.log('[PROXY-DETECT] ✓ Detected via x-forwarded-host pattern - using same-origin config');
         return true;
     }
 
-    console.log('[PROXY-DETECT] ✗ Not detected as same-origin proxy - using cross-origin config');
     return false;
 };
 
@@ -500,18 +480,6 @@ const authLogin = async (request, response) => {
             // Get cookie config based on request context (same-origin proxy vs cross-origin)
             const cookieConfig = getCookieConfig(request);
 
-            // Debug logging for cookie configuration
-            const isSameOrigin = isSameOriginProxy(request);
-            console.log('[AUTH LOGIN] ========== SETTING ACCESS TOKEN COOKIE ==========');
-            console.log('[AUTH LOGIN] User:', user.email);
-            console.log('[AUTH LOGIN] Origin header:', request.headers.origin || 'none');
-            console.log('[AUTH LOGIN] x-forwarded-host:', request.headers['x-forwarded-host'] || 'none');
-            console.log('[AUTH LOGIN] isSameOriginProxy:', isSameOrigin);
-            console.log('[AUTH LOGIN] isProductionEnv:', isProductionEnv);
-            console.log('[AUTH LOGIN] Cookie config:', JSON.stringify(cookieConfig));
-            console.log('[AUTH LOGIN] Token (first 20 chars):', token.substring(0, 20) + '...');
-            console.log('[AUTH LOGIN] =================================================');
-
             // Build enhanced user data with solo lawyer and firm info
             const userData = {
                 ...data,
@@ -636,16 +604,6 @@ const authLogin = async (request, response) => {
 }
 
 const authLogout = async (request, response) => {
-    // Debug logging for logout
-    const isSameOrigin = isSameOriginProxy(request);
-    console.log('[AUTH LOGOUT] ========== LOGOUT CALLED ==========');
-    console.log('[AUTH LOGOUT] Origin header:', request.headers.origin || 'none');
-    console.log('[AUTH LOGOUT] x-forwarded-host:', request.headers['x-forwarded-host'] || 'none');
-    console.log('[AUTH LOGOUT] isSameOriginProxy:', isSameOrigin);
-    console.log('[AUTH LOGOUT] Has accessToken cookie:', !!request.cookies?.accessToken);
-    console.log('[AUTH LOGOUT] Request user:', request.user ? request.user.email : 'none');
-    console.log('[AUTH LOGOUT] ================================================');
-
     // Log logout if user is authenticated
     if (request.user) {
         await auditLogService.log(
