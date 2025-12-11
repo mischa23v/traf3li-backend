@@ -34,13 +34,21 @@ const listTemplates = async (req, res) => {
             order = 'desc'
         } = req.query;
 
+        // Whitelist allowed sort fields to prevent information disclosure
+        const allowedSortFields = ['createdAt', 'updatedAt', 'name', 'category', 'type'];
+        const sanitizedSort = allowedSortFields.includes(sort) ? sort : 'createdAt';
+
+        // Validate and sanitize pagination parameters
+        const sanitizedLimit = Math.min(Math.max(parseInt(limit) || 50, 1), 100);
+        const sanitizedSkip = Math.max(parseInt(skip) || 0, 0);
+
         const options = {
             category,
             type,
             isActive: isActive !== 'false',
-            limit: parseInt(limit),
-            skip: parseInt(skip),
-            sort: { [sort]: order === 'desc' ? -1 : 1 }
+            limit: sanitizedLimit,
+            skip: sanitizedSkip,
+            sort: { [sanitizedSort]: order === 'desc' ? -1 : 1 }
         };
 
         const result = await PdfmeService.listTemplates(lawyerId, options);
@@ -315,6 +323,19 @@ const cloneTemplate = async (req, res) => {
             });
         }
 
+        // Verify source template exists and user has access
+        const sourceTemplate = await PdfmeTemplate.findOne({ _id: id, lawyerId });
+        if (!sourceTemplate) {
+            return res.status(404).json({
+                success: false,
+                error: {
+                    code: 'NOT_FOUND',
+                    message: 'Template not found or access denied',
+                    messageAr: 'القالب غير موجود أو تم رفض الوصول'
+                }
+            });
+        }
+
         const template = await PdfmeService.cloneTemplate(id, name, lawyerId);
 
         res.status(201).json({
@@ -352,6 +373,19 @@ const setDefaultTemplate = async (req, res) => {
                     code: 'INVALID_ID',
                     message: 'Invalid template ID',
                     messageAr: 'معرف القالب غير صالح'
+                }
+            });
+        }
+
+        // Verify template exists and user has access
+        const existingTemplate = await PdfmeTemplate.findOne({ _id: id, lawyerId });
+        if (!existingTemplate) {
+            return res.status(404).json({
+                success: false,
+                error: {
+                    code: 'NOT_FOUND',
+                    message: 'Template not found or access denied',
+                    messageAr: 'القالب غير موجود أو تم رفض الوصول'
                 }
             });
         }
@@ -463,6 +497,46 @@ const generatePDFAsync = async (req, res) => {
             });
         }
 
+        // Validate inputs
+        if (!inputs || (Array.isArray(inputs) && inputs.length === 0)) {
+            return res.status(400).json({
+                success: false,
+                error: {
+                    code: 'VALIDATION_ERROR',
+                    message: 'Inputs are required',
+                    messageAr: 'البيانات مطلوبة'
+                }
+            });
+        }
+
+        // Validate priority (must be between 1 and 10)
+        const sanitizedPriority = Math.min(Math.max(parseInt(priority) || 3, 1), 10);
+
+        // Verify template ownership if templateId provided
+        if (templateId) {
+            if (!mongoose.Types.ObjectId.isValid(templateId)) {
+                return res.status(400).json({
+                    success: false,
+                    error: {
+                        code: 'INVALID_ID',
+                        message: 'Invalid template ID',
+                        messageAr: 'معرف القالب غير صالح'
+                    }
+                });
+            }
+            const templateExists = await PdfmeTemplate.findOne({ _id: templateId, lawyerId });
+            if (!templateExists) {
+                return res.status(404).json({
+                    success: false,
+                    error: {
+                        code: 'NOT_FOUND',
+                        message: 'Template not found or access denied',
+                        messageAr: 'القالب غير موجود أو تم رفض الوصول'
+                    }
+                });
+            }
+        }
+
         // Queue the job
         const job = await QueueService.addJob('pdf', {
             type: 'pdfme',
@@ -474,7 +548,7 @@ const generatePDFAsync = async (req, res) => {
                 lawyerId
             }
         }, {
-            priority
+            priority: sanitizedPriority
         });
 
         res.json({
@@ -689,9 +763,13 @@ const downloadPDF = async (req, res) => {
         const path = require('path');
         const fs = require('fs').promises;
 
+        // Whitelist allowed subdirectories to prevent directory traversal
+        const allowedSubDirs = ['pdfs', 'invoices', 'contracts', 'receipts'];
+        const sanitizedSubDir = allowedSubDirs.includes(subDir) ? subDir : 'pdfs';
+
         // Sanitize filename to prevent directory traversal
         const sanitizedFileName = path.basename(fileName);
-        const filePath = path.join(__dirname, '../../uploads', subDir, sanitizedFileName);
+        const filePath = path.join(__dirname, '../../uploads', sanitizedSubDir, sanitizedFileName);
 
         // Check if file exists
         try {

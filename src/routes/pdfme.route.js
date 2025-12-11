@@ -8,6 +8,18 @@ const express = require('express');
 const router = express.Router();
 const authenticate = require('../middlewares/authenticate');
 const pdfmeController = require('../controllers/pdfme.controller');
+const {
+    validateCreateTemplate,
+    validateUpdateTemplate,
+    validateCloneTemplate,
+    validateGeneratePdf,
+    validateGeneratePdfAsync,
+    validateGenerateInvoicePdf,
+    validateGenerateContractPdf,
+    validateGenerateReceiptPdf,
+    validatePreviewTemplate,
+    validateListTemplatesQuery
+} = require('../validators/pdfme.validator');
 
 /**
  * @swagger
@@ -42,7 +54,7 @@ const pdfmeController = require('../controllers/pdfme.controller');
  *       200:
  *         description: List of templates
  */
-router.get('/templates', authenticate, pdfmeController.listTemplates);
+router.get('/templates', authenticate, validateListTemplatesQuery, pdfmeController.listTemplates);
 
 /**
  * @swagger
@@ -119,7 +131,7 @@ router.get('/templates/:id', authenticate, pdfmeController.getTemplate);
  *       201:
  *         description: Template created successfully
  */
-router.post('/templates', authenticate, pdfmeController.createTemplate);
+router.post('/templates', authenticate, validateCreateTemplate, pdfmeController.createTemplate);
 
 /**
  * @swagger
@@ -145,7 +157,7 @@ router.post('/templates', authenticate, pdfmeController.createTemplate);
  *       200:
  *         description: Template updated successfully
  */
-router.put('/templates/:id', authenticate, pdfmeController.updateTemplate);
+router.put('/templates/:id', authenticate, validateUpdateTemplate, pdfmeController.updateTemplate);
 
 /**
  * @swagger
@@ -193,7 +205,7 @@ router.delete('/templates/:id', authenticate, pdfmeController.deleteTemplate);
  *       201:
  *         description: Template cloned successfully
  */
-router.post('/templates/:id/clone', authenticate, pdfmeController.cloneTemplate);
+router.post('/templates/:id/clone', authenticate, validateCloneTemplate, pdfmeController.cloneTemplate);
 
 /**
  * @swagger
@@ -241,7 +253,7 @@ router.post('/templates/:id/set-default', authenticate, pdfmeController.setDefau
  *       200:
  *         description: PDF preview as base64
  */
-router.post('/templates/:id/preview', authenticate, pdfmeController.previewTemplate);
+router.post('/templates/:id/preview', authenticate, validatePreviewTemplate, pdfmeController.previewTemplate);
 
 /**
  * @swagger
@@ -270,7 +282,7 @@ router.post('/templates/:id/preview', authenticate, pdfmeController.previewTempl
  *       200:
  *         description: PDF generated successfully
  */
-router.post('/generate', authenticate, pdfmeController.generatePDF);
+router.post('/generate', authenticate, validateGeneratePdf, pdfmeController.generatePDF);
 
 /**
  * @swagger
@@ -302,7 +314,7 @@ router.post('/generate', authenticate, pdfmeController.generatePDF);
  *       200:
  *         description: PDF generation job queued
  */
-router.post('/generate/async', authenticate, pdfmeController.generatePDFAsync);
+router.post('/generate/async', authenticate, validateGeneratePdfAsync, pdfmeController.generatePDFAsync);
 
 /**
  * @swagger
@@ -333,7 +345,7 @@ router.post('/generate/async', authenticate, pdfmeController.generatePDFAsync);
  *       200:
  *         description: Invoice PDF generated
  */
-router.post('/generate/invoice', authenticate, pdfmeController.generateInvoicePDF);
+router.post('/generate/invoice', authenticate, validateGenerateInvoicePdf, pdfmeController.generateInvoicePDF);
 
 /**
  * @swagger
@@ -360,7 +372,7 @@ router.post('/generate/invoice', authenticate, pdfmeController.generateInvoicePD
  *       200:
  *         description: Contract PDF generated
  */
-router.post('/generate/contract', authenticate, pdfmeController.generateContractPDF);
+router.post('/generate/contract', authenticate, validateGenerateContractPdf, pdfmeController.generateContractPDF);
 
 /**
  * @swagger
@@ -387,7 +399,7 @@ router.post('/generate/contract', authenticate, pdfmeController.generateContract
  *       200:
  *         description: Receipt PDF generated
  */
-router.post('/generate/receipt', authenticate, pdfmeController.generateReceiptPDF);
+router.post('/generate/receipt', authenticate, validateGenerateReceiptPdf, pdfmeController.generateReceiptPDF);
 
 /**
  * @swagger
