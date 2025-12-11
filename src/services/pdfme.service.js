@@ -45,38 +45,60 @@ class PdfmeService {
      * @param {Object} options.template - Direct template object (alternative to templateId)
      * @param {Array} options.inputs - Array of input data for each page
      * @param {Object} options.options - Additional PDFMe options
+     * @param {string} options.lawyerId - Optional lawyer ID for ownership verification
      * @returns {Promise<Buffer>} PDF buffer
      */
-    static async generatePDF({ templateId, template, inputs, options = {} }) {
-        let pdfmeTemplate;
+    static async generatePDF({ templateId, template, inputs, options = {}, lawyerId }) {
+        try {
+            let pdfmeTemplate;
 
-        if (templateId) {
-            // Load template from database
-            const dbTemplate = await PdfmeTemplate.getForGeneration(templateId);
-            pdfmeTemplate = dbTemplate.toPdfmeFormat();
-        } else if (template) {
-            // Use provided template directly
-            pdfmeTemplate = template;
-        } else {
-            throw new Error('Either templateId or template must be provided');
-        }
-
-        // Resolve basePdf
-        if (pdfmeTemplate.basePdf === 'BLANK_PDF') {
-            pdfmeTemplate.basePdf = BLANK_PDF;
-        }
-
-        // Generate PDF
-        const pdf = await generate({
-            template: pdfmeTemplate,
-            inputs: Array.isArray(inputs) ? inputs : [inputs],
-            plugins,
-            options: {
-                ...options
+            if (templateId) {
+                // Load template from database with optional ownership check
+                const query = { _id: templateId };
+                if (lawyerId) {
+                    query.lawyerId = lawyerId;
+                }
+                const dbTemplate = await PdfmeTemplate.findOne(query);
+                if (!dbTemplate) {
+                    throw new Error('Template not found or access denied');
+                }
+                // Update usage tracking
+                dbTemplate.usageCount = (dbTemplate.usageCount || 0) + 1;
+                dbTemplate.lastUsedAt = new Date();
+                await dbTemplate.save();
+                pdfmeTemplate = dbTemplate.toPdfmeFormat();
+            } else if (template) {
+                // Use provided template directly
+                pdfmeTemplate = template;
+            } else {
+                throw new Error('Either templateId or template must be provided');
             }
-        });
 
-        return Buffer.from(pdf);
+            // Validate inputs
+            if (!inputs || (Array.isArray(inputs) && inputs.length === 0)) {
+                throw new Error('Inputs are required for PDF generation');
+            }
+
+            // Resolve basePdf
+            if (pdfmeTemplate.basePdf === 'BLANK_PDF') {
+                pdfmeTemplate.basePdf = BLANK_PDF;
+            }
+
+            // Generate PDF with timeout protection
+            const pdf = await generate({
+                template: pdfmeTemplate,
+                inputs: Array.isArray(inputs) ? inputs : [inputs],
+                plugins,
+                options: {
+                    ...options
+                }
+            });
+
+            return Buffer.from(pdf);
+        } catch (error) {
+            console.error('PDF generation error:', error.message);
+            throw error;
+        }
     }
 
     /**
@@ -87,25 +109,41 @@ class PdfmeService {
      * @returns {Promise<Buffer>} PDF buffer
      */
     static async generateInvoicePDF(invoiceData, templateId, lawyerId) {
-        let template;
+        try {
+            let template;
 
-        if (templateId) {
-            template = await PdfmeTemplate.findById(templateId);
-        } else if (lawyerId) {
-            template = await PdfmeTemplate.getDefault(lawyerId, 'invoice');
+            if (templateId) {
+                // Verify ownership when templateId is provided
+                const query = { _id: templateId };
+                if (lawyerId) {
+                    query.lawyerId = lawyerId;
+                }
+                const dbTemplate = await PdfmeTemplate.findOne(query);
+                if (dbTemplate) {
+                    template = dbTemplate.toPdfmeFormat();
+                }
+            }
+
+            if (!template && lawyerId) {
+                const defaultTemplate = await PdfmeTemplate.getDefault(lawyerId, 'invoice');
+                if (defaultTemplate) {
+                    template = defaultTemplate.toPdfmeFormat();
+                }
+            }
+
+            // If no template found, use default invoice template
+            if (!template) {
+                template = this.getDefaultInvoiceTemplate();
+            }
+
+            // Map invoice data to template inputs
+            const inputs = this.mapInvoiceToInputs(invoiceData);
+
+            return this.generatePDF({ template, inputs });
+        } catch (error) {
+            console.error('Invoice PDF generation error:', error.message);
+            throw error;
         }
-
-        // If no template found, use default invoice template
-        if (!template) {
-            template = this.getDefaultInvoiceTemplate();
-        } else {
-            template = template.toPdfmeFormat();
-        }
-
-        // Map invoice data to template inputs
-        const inputs = this.mapInvoiceToInputs(invoiceData);
-
-        return this.generatePDF({ template, inputs });
     }
 
     /**
@@ -566,22 +604,38 @@ class PdfmeService {
      * Generate contract PDF using PDFMe
      */
     static async generateContractPDF(contractData, templateId, lawyerId) {
-        let template;
+        try {
+            let template;
 
-        if (templateId) {
-            template = await PdfmeTemplate.findById(templateId);
-        } else if (lawyerId) {
-            template = await PdfmeTemplate.getDefault(lawyerId, 'contract');
+            if (templateId) {
+                // Verify ownership when templateId is provided
+                const query = { _id: templateId };
+                if (lawyerId) {
+                    query.lawyerId = lawyerId;
+                }
+                const dbTemplate = await PdfmeTemplate.findOne(query);
+                if (dbTemplate) {
+                    template = dbTemplate.toPdfmeFormat();
+                }
+            }
+
+            if (!template && lawyerId) {
+                const defaultTemplate = await PdfmeTemplate.getDefault(lawyerId, 'contract');
+                if (defaultTemplate) {
+                    template = defaultTemplate.toPdfmeFormat();
+                }
+            }
+
+            if (!template) {
+                template = this.getDefaultContractTemplate();
+            }
+
+            const inputs = this.mapContractToInputs(contractData);
+            return this.generatePDF({ template, inputs });
+        } catch (error) {
+            console.error('Contract PDF generation error:', error.message);
+            throw error;
         }
-
-        if (!template) {
-            template = this.getDefaultContractTemplate();
-        } else {
-            template = template.toPdfmeFormat();
-        }
-
-        const inputs = this.mapContractToInputs(contractData);
-        return this.generatePDF({ template, inputs });
     }
 
     /**
@@ -733,22 +787,38 @@ class PdfmeService {
      * Generate receipt PDF
      */
     static async generateReceiptPDF(receiptData, templateId, lawyerId) {
-        let template;
+        try {
+            let template;
 
-        if (templateId) {
-            template = await PdfmeTemplate.findById(templateId);
-        } else if (lawyerId) {
-            template = await PdfmeTemplate.getDefault(lawyerId, 'receipt');
+            if (templateId) {
+                // Verify ownership when templateId is provided
+                const query = { _id: templateId };
+                if (lawyerId) {
+                    query.lawyerId = lawyerId;
+                }
+                const dbTemplate = await PdfmeTemplate.findOne(query);
+                if (dbTemplate) {
+                    template = dbTemplate.toPdfmeFormat();
+                }
+            }
+
+            if (!template && lawyerId) {
+                const defaultTemplate = await PdfmeTemplate.getDefault(lawyerId, 'receipt');
+                if (defaultTemplate) {
+                    template = defaultTemplate.toPdfmeFormat();
+                }
+            }
+
+            if (!template) {
+                template = this.getDefaultReceiptTemplate();
+            }
+
+            const inputs = this.mapReceiptToInputs(receiptData);
+            return this.generatePDF({ template, inputs });
+        } catch (error) {
+            console.error('Receipt PDF generation error:', error.message);
+            throw error;
         }
-
-        if (!template) {
-            template = this.getDefaultReceiptTemplate();
-        } else {
-            template = template.toPdfmeFormat();
-        }
-
-        const inputs = this.mapReceiptToInputs(receiptData);
-        return this.generatePDF({ template, inputs });
     }
 
     /**
@@ -978,13 +1048,25 @@ class PdfmeService {
      * Save generated PDF to file system
      */
     static async savePDF(pdfBuffer, fileName, subDir = 'pdfs') {
-        const uploadsDir = path.join(__dirname, '../../uploads', subDir);
-        await fs.mkdir(uploadsDir, { recursive: true });
+        try {
+            // Whitelist allowed subdirectories
+            const allowedSubDirs = ['pdfs', 'invoices', 'contracts', 'receipts'];
+            const sanitizedSubDir = allowedSubDirs.includes(subDir) ? subDir : 'pdfs';
 
-        const filePath = path.join(uploadsDir, fileName);
-        await fs.writeFile(filePath, pdfBuffer);
+            // Sanitize filename
+            const sanitizedFileName = path.basename(fileName);
 
-        return filePath;
+            const uploadsDir = path.join(__dirname, '../../uploads', sanitizedSubDir);
+            await fs.mkdir(uploadsDir, { recursive: true });
+
+            const filePath = path.join(uploadsDir, sanitizedFileName);
+            await fs.writeFile(filePath, pdfBuffer);
+
+            return filePath;
+        } catch (error) {
+            console.error('Error saving PDF:', error.message);
+            throw new Error('Failed to save PDF file');
+        }
     }
 
     /**
