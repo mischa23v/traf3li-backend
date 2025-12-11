@@ -459,23 +459,6 @@ describe('Client Integration Tests', () => {
             expect(client.vatRegistration.vatNumber).toBe('300123456789003');
         });
 
-        it('should handle Yakeen verification fields', async () => {
-            const client = await Client.create({
-                clientType: 'individual',
-                nationalId: '1234567890',
-                firstName: 'Yakeen',
-                lastName: 'Verified',
-                phone: '+966500000015',
-                lawyerId: testLawyer._id,
-                firmId: testFirm._id,
-                yakeenVerified: true,
-                yakeenVerifiedAt: new Date()
-            });
-
-            expect(client.yakeenVerified).toBe(true);
-            expect(client.yakeenVerifiedAt).toBeInstanceOf(Date);
-        });
-
         it('should handle Wathq verification for companies', async () => {
             const client = await Client.create({
                 clientType: 'company',

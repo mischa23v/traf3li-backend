@@ -27,7 +27,7 @@ const clientSchema = new mongoose.Schema({
     },
 
     // ─────────────────────────────────────────────────────────
-    // INDIVIDUAL FIELDS (from Yakeen API)
+    // INDIVIDUAL FIELDS
     // ─────────────────────────────────────────────────────────
     nationalId: {
         type: String,
@@ -46,8 +46,6 @@ const clientSchema = new mongoose.Schema({
     idStatus: String,
     idIssueDate: Date,
     idExpiryDate: Date,
-    yakeenVerified: { type: Boolean, default: false },
-    yakeenVerifiedAt: Date,
 
     // ─────────────────────────────────────────────────────────
     // COMPANY FIELDS (from Wathq API)
