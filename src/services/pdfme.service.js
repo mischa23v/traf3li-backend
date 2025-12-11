@@ -7,26 +7,34 @@
 
 const { generate } = require('@pdfme/generator');
 const { BLANK_PDF } = require('@pdfme/common');
-const { text, image, barcodes, line, rectangle, ellipse } = require('@pdfme/schemas');
+const { text, image, barcodes, line, rectangle, ellipse, table } = require('@pdfme/schemas');
 const PdfmeTemplate = require('../models/pdfmeTemplate.model.js');
 const fs = require('fs').promises;
 const path = require('path');
 
-// Available plugins for PDFMe
+// Available plugins for PDFMe - all supported schema types
 const plugins = {
+    // Basic types
     text,
     image,
+    table,
+    // Shapes
+    line,
+    rectangle,
+    ellipse,
+    // All barcode types
     qrcode: barcodes.qrcode,
     ean13: barcodes.ean13,
+    ean8: barcodes.ean8,
     code128: barcodes.code128,
     code39: barcodes.code39,
     upca: barcodes.upca,
     upce: barcodes.upce,
     itf14: barcodes.itf14,
+    nw7: barcodes.nw7,
+    japanpost: barcodes.japanpost,
     gs1datamatrix: barcodes.gs1datamatrix,
-    line,
-    rectangle,
-    ellipse
+    pdf417: barcodes.pdf417
 };
 
 class PdfmeService {

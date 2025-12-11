@@ -16,7 +16,13 @@ const SchemaFieldSchema = new Schema({
     },
     type: {
         type: String,
-        enum: ['text', 'image', 'qrcode', 'barcode', 'line', 'rectangle', 'ellipse', 'svg', 'table', 'multiVariableText'],
+        enum: [
+            'text', 'image', 'table', 'multiVariableText',
+            'line', 'rectangle', 'ellipse', 'svg',
+            'qrcode', 'ean13', 'ean8', 'code128', 'code39',
+            'upca', 'upce', 'itf14', 'nw7', 'japanpost',
+            'gs1datamatrix', 'pdf417', 'barcode'
+        ],
         required: true
     },
     position: {
