@@ -11,14 +11,14 @@ const whatsappTemplateSchema = new mongoose.Schema({
     firmId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Firm',
-        required: true,
+        required: false,
         index: true
     },
 
     // Internal name for reference
     name: {
         type: String,
-        required: true,
+        required: false,
         trim: true
     },
 
@@ -43,7 +43,7 @@ const whatsappTemplateSchema = new mongoose.Schema({
 
     category: {
         type: String,
-        required: true,
+        required: false,
         enum: [
             'marketing',      // Promotional messages
             'utility',        // Transactional/utility messages (appointments, updates)
@@ -69,12 +69,12 @@ const whatsappTemplateSchema = new mongoose.Schema({
     body: {
         text: {
             type: String,
-            required: true,
+            required: false,
             maxlength: 1024
         },
         // Variables in format {{1}}, {{2}}, etc.
         variables: [{
-            position: { type: Number, required: true }, // 1, 2, 3, etc.
+            position: { type: Number, required: false }, // 1, 2, 3, etc.
             name: String, // Friendly name: "client_name", "appointment_date"
             example: String, // Example value for approval
             description: String // What this variable represents
@@ -93,11 +93,11 @@ const whatsappTemplateSchema = new mongoose.Schema({
         type: {
             type: String,
             enum: ['quick_reply', 'url', 'phone'],
-            required: true
+            required: false
         },
         text: {
             type: String,
-            required: true,
+            required: false,
             maxlength: 25
         },
         // For URL buttons
@@ -178,7 +178,7 @@ const whatsappTemplateSchema = new mongoose.Schema({
     createdBy: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
-        required: true
+        required: false
     },
     lastModifiedBy: {
         type: mongoose.Schema.Types.ObjectId,

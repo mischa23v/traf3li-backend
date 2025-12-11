@@ -1,18 +1,18 @@
 const mongoose = require('mongoose');
 
 const emailEventSchema = new mongoose.Schema({
-  firmId: { type: mongoose.Schema.Types.ObjectId, ref: 'Firm', required: true, index: true },
+  firmId: { type: mongoose.Schema.Types.ObjectId, ref: 'Firm', required: false, index: true },
 
   // Campaign & Subscriber
   campaignId: { type: mongoose.Schema.Types.ObjectId, ref: 'EmailCampaign', index: true },
   subscriberId: { type: mongoose.Schema.Types.ObjectId, ref: 'EmailSubscriber', index: true },
-  email: { type: String, required: true, trim: true, lowercase: true },
+  email: { type: String, required: false, trim: true, lowercase: true },
 
   // Event Type
   eventType: {
     type: String,
     enum: ['sent', 'delivered', 'opened', 'clicked', 'bounced', 'unsubscribed', 'complained', 'failed'],
-    required: true,
+    required: false,
     index: true
   },
 

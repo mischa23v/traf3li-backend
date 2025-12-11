@@ -1,8 +1,8 @@
 const mongoose = require('mongoose');
 
 const emailCampaignSchema = new mongoose.Schema({
-  firmId: { type: mongoose.Schema.Types.ObjectId, ref: 'Firm', required: true, index: true },
-  name: { type: String, required: true, trim: true },
+  firmId: { type: mongoose.Schema.Types.ObjectId, ref: 'Firm', required: false, index: true },
+  name: { type: String, required: false, trim: true },
   description: { type: String, trim: true },
 
   // Campaign Type
@@ -20,7 +20,7 @@ const emailCampaignSchema = new mongoose.Schema({
   },
 
   // Email Content
-  subject: { type: String, required: true, trim: true },
+  subject: { type: String, required: false, trim: true },
   previewText: { type: String, trim: true },
   templateId: { type: mongoose.Schema.Types.ObjectId, ref: 'EmailTemplate' },
   htmlContent: String,
@@ -123,7 +123,7 @@ const emailCampaignSchema = new mongoose.Schema({
   tags: [{ type: String, trim: true }],
   folderId: { type: mongoose.Schema.Types.ObjectId, ref: 'EmailFolder' },
 
-  createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: false },
   updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
 }, { timestamps: true });
 

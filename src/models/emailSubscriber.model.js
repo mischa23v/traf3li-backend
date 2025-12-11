@@ -1,10 +1,10 @@
 const mongoose = require('mongoose');
 
 const emailSubscriberSchema = new mongoose.Schema({
-  firmId: { type: mongoose.Schema.Types.ObjectId, ref: 'Firm', required: true, index: true },
+  firmId: { type: mongoose.Schema.Types.ObjectId, ref: 'Firm', required: false, index: true },
 
   // Email (unique per firm)
-  email: { type: String, required: true, trim: true, lowercase: true },
+  email: { type: String, required: false, trim: true, lowercase: true },
 
   // Related Entities
   leadId: { type: mongoose.Schema.Types.ObjectId, ref: 'Lead', index: true },

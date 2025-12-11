@@ -1,21 +1,21 @@
 const mongoose = require('mongoose');
 
 const emailSegmentSchema = new mongoose.Schema({
-  firmId: { type: mongoose.Schema.Types.ObjectId, ref: 'Firm', required: true, index: true },
-  name: { type: String, required: true, trim: true },
+  firmId: { type: mongoose.Schema.Types.ObjectId, ref: 'Firm', required: false, index: true },
+  name: { type: String, required: false, trim: true },
   description: { type: String, trim: true },
 
   // Segment Conditions
   conditions: [{
     field: {
       type: String,
-      required: true,
+      required: false,
       // Examples: 'status', 'tags', 'engagement.engagementScore', 'engagement.lastOpenedAt', etc.
     },
     operator: {
       type: String,
       enum: ['equals', 'not_equals', 'contains', 'not_contains', 'greater_than', 'less_than', 'in', 'not_in', 'exists', 'not_exists', 'between'],
-      required: true
+      required: false
     },
     value: mongoose.Schema.Types.Mixed, // Can be string, number, array, date, etc.
     value2: mongoose.Schema.Types.Mixed // For 'between' operator
@@ -55,7 +55,7 @@ const emailSegmentSchema = new mongoose.Schema({
   tags: [{ type: String, trim: true }],
   color: { type: String, default: '#3B82F6' }, // For UI display
 
-  createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: false },
   updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
 }, { timestamps: true });
 

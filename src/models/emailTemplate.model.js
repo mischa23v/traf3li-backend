@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 
 const emailTemplateSchema = new mongoose.Schema({
   firmId: { type: mongoose.Schema.Types.ObjectId, ref: 'Firm', index: true },
-  name: { type: String, required: true, trim: true },
+  name: { type: String, required: false, trim: true },
 
   category: {
     type: String,
@@ -11,14 +11,14 @@ const emailTemplateSchema = new mongoose.Schema({
   },
 
   // Email Content
-  subject: { type: String, required: true, trim: true },
+  subject: { type: String, required: false, trim: true },
   previewText: { type: String, trim: true },
-  htmlContent: { type: String, required: true },
+  htmlContent: { type: String, required: false },
   textContent: String, // Plain text version for email clients that don't support HTML
 
   // Template Variables
   variables: [{
-    name: { type: String, required: true, trim: true }, // e.g., 'firstName', 'companyName'
+    name: { type: String, required: false, trim: true }, // e.g., 'firstName', 'companyName'
     defaultValue: { type: String, trim: true },
     required: { type: Boolean, default: false },
     description: { type: String, trim: true }
@@ -46,7 +46,7 @@ const emailTemplateSchema = new mongoose.Schema({
   tags: [{ type: String, trim: true }],
   notes: { type: String, trim: true },
 
-  createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: false },
   updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
 }, { timestamps: true });
 
