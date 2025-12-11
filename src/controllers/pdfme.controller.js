@@ -769,6 +769,33 @@ const downloadPDF = async (req, res) => {
 
         // Sanitize filename to prevent directory traversal
         const sanitizedFileName = path.basename(fileName);
+
+        // Security: Only allow PDF file extensions
+        const fileExt = path.extname(sanitizedFileName).toLowerCase();
+        if (fileExt !== '.pdf') {
+            return res.status(400).json({
+                success: false,
+                error: {
+                    code: 'INVALID_FILE_TYPE',
+                    message: 'Only PDF files can be downloaded',
+                    messageAr: 'يمكن تنزيل ملفات PDF فقط'
+                }
+            });
+        }
+
+        // Security: Validate filename format (alphanumeric, hyphens, underscores only)
+        const fileNameWithoutExt = path.basename(sanitizedFileName, '.pdf');
+        if (!/^[a-zA-Z0-9_-]+$/.test(fileNameWithoutExt)) {
+            return res.status(400).json({
+                success: false,
+                error: {
+                    code: 'INVALID_FILENAME',
+                    message: 'Invalid filename format',
+                    messageAr: 'تنسيق اسم الملف غير صالح'
+                }
+            });
+        }
+
         const filePath = path.join(__dirname, '../../uploads', sanitizedSubDir, sanitizedFileName);
 
         // Check if file exists
@@ -784,6 +811,10 @@ const downloadPDF = async (req, res) => {
                 }
             });
         }
+
+        // Set security headers for download
+        res.setHeader('X-Content-Type-Options', 'nosniff');
+        res.setHeader('Content-Disposition', `attachment; filename="${sanitizedFileName}"`);
 
         res.download(filePath, sanitizedFileName);
     } catch (error) {
