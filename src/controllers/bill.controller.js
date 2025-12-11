@@ -613,6 +613,214 @@ const exportBills = asyncHandler(async (req, res) => {
     });
 });
 
+// Approve bill
+const approveBill = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const lawyerId = req.userID;
+    const { notes } = req.body;
+
+    const bill = await Bill.findById(id);
+    if (!bill) {
+        throw CustomException('Bill not found', 404);
+    }
+
+    if (bill.lawyerId.toString() !== lawyerId) {
+        throw CustomException('Access denied', 403);
+    }
+
+    if (bill.status !== 'pending_approval' && bill.status !== 'draft') {
+        throw CustomException(`Cannot approve bill with status: ${bill.status}`, 400);
+    }
+
+    bill.status = 'approved';
+    bill.approvedBy = lawyerId;
+    bill.approvedAt = new Date();
+    bill.history.push({
+        action: 'approved',
+        performedBy: lawyerId,
+        performedAt: new Date(),
+        notes
+    });
+
+    await bill.save();
+
+    const populatedBill = await Bill.findById(bill._id)
+        .populate('vendorId', 'name vendorId email')
+        .populate('caseId', 'title caseNumber');
+
+    await BillingActivity.logActivity({
+        activityType: 'bill_approved',
+        userId: lawyerId,
+        relatedModel: 'Bill',
+        relatedId: bill._id,
+        description: `Bill ${bill.billNumber} approved`,
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent')
+    });
+
+    return res.json({
+        success: true,
+        message: 'Bill approved successfully',
+        messageAr: 'تمت الموافقة على الفاتورة بنجاح',
+        bill: populatedBill
+    });
+});
+
+// Pay bill (record payment)
+const payBill = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const lawyerId = req.userID;
+    const {
+        amount,
+        paymentMethod,
+        paymentDate,
+        reference,
+        notes,
+        bankAccountId
+    } = req.body;
+
+    const bill = await Bill.findById(id);
+    if (!bill) {
+        throw CustomException('Bill not found', 404);
+    }
+
+    if (bill.lawyerId.toString() !== lawyerId) {
+        throw CustomException('Access denied', 403);
+    }
+
+    if (bill.status === 'paid' || bill.status === 'cancelled' || bill.status === 'void') {
+        throw CustomException(`Cannot pay bill with status: ${bill.status}`, 400);
+    }
+
+    const paymentAmount = amount || bill.balanceDue;
+
+    if (paymentAmount <= 0) {
+        throw CustomException('Payment amount must be greater than 0', 400);
+    }
+
+    if (paymentAmount > bill.balanceDue) {
+        throw CustomException(`Payment amount (${paymentAmount}) exceeds balance due (${bill.balanceDue})`, 400);
+    }
+
+    // Record the payment
+    const payment = {
+        amount: paymentAmount,
+        paymentMethod: paymentMethod || 'bank_transfer',
+        paymentDate: paymentDate ? new Date(paymentDate) : new Date(),
+        reference,
+        notes,
+        bankAccountId,
+        recordedBy: lawyerId,
+        recordedAt: new Date()
+    };
+
+    if (!bill.payments) {
+        bill.payments = [];
+    }
+    bill.payments.push(payment);
+
+    // Update totals
+    bill.paidAmount = (bill.paidAmount || 0) + paymentAmount;
+    bill.balanceDue = bill.totalAmount - bill.paidAmount;
+
+    // Update status
+    if (bill.balanceDue <= 0) {
+        bill.status = 'paid';
+        bill.paidAt = new Date();
+    } else {
+        bill.status = 'partial';
+    }
+
+    bill.history.push({
+        action: 'payment_recorded',
+        performedBy: lawyerId,
+        performedAt: new Date(),
+        notes: `Payment of ${paymentAmount} recorded. Balance due: ${bill.balanceDue}`
+    });
+
+    await bill.save();
+
+    const populatedBill = await Bill.findById(bill._id)
+        .populate('vendorId', 'name vendorId email')
+        .populate('caseId', 'title caseNumber');
+
+    await BillingActivity.logActivity({
+        activityType: 'bill_payment',
+        userId: lawyerId,
+        relatedModel: 'Bill',
+        relatedId: bill._id,
+        description: `Payment of ${paymentAmount} recorded for bill ${bill.billNumber}`,
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent')
+    });
+
+    return res.json({
+        success: true,
+        message: 'Payment recorded successfully',
+        messageAr: 'تم تسجيل الدفع بنجاح',
+        bill: populatedBill
+    });
+});
+
+// Post bill to General Ledger
+const postToGL = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const lawyerId = req.userID;
+    const { journalDate, notes } = req.body;
+
+    const bill = await Bill.findById(id);
+    if (!bill) {
+        throw CustomException('Bill not found', 404);
+    }
+
+    if (bill.lawyerId.toString() !== lawyerId) {
+        throw CustomException('Access denied', 403);
+    }
+
+    if (bill.postedToGL) {
+        throw CustomException('Bill has already been posted to GL', 400);
+    }
+
+    if (bill.status === 'draft' || bill.status === 'cancelled' || bill.status === 'void') {
+        throw CustomException(`Cannot post bill with status: ${bill.status} to GL`, 400);
+    }
+
+    // Mark as posted to GL
+    bill.postedToGL = true;
+    bill.postedToGLAt = journalDate ? new Date(journalDate) : new Date();
+    bill.postedToGLBy = lawyerId;
+
+    bill.history.push({
+        action: 'posted_to_gl',
+        performedBy: lawyerId,
+        performedAt: new Date(),
+        notes: notes || 'Posted to General Ledger'
+    });
+
+    await bill.save();
+
+    const populatedBill = await Bill.findById(bill._id)
+        .populate('vendorId', 'name vendorId email')
+        .populate('caseId', 'title caseNumber');
+
+    await BillingActivity.logActivity({
+        activityType: 'bill_posted_gl',
+        userId: lawyerId,
+        relatedModel: 'Bill',
+        relatedId: bill._id,
+        description: `Bill ${bill.billNumber} posted to General Ledger`,
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent')
+    });
+
+    return res.json({
+        success: true,
+        message: 'Bill posted to General Ledger successfully',
+        messageAr: 'تم ترحيل الفاتورة إلى دفتر الأستاذ العام بنجاح',
+        bill: populatedBill
+    });
+});
+
 module.exports = {
     createBill,
     getBills,
@@ -630,5 +838,8 @@ module.exports = {
     stopRecurring,
     generateNextBill,
     getAgingReport,
-    exportBills
+    exportBills,
+    approveBill,
+    payBill,
+    postToGL
 };
