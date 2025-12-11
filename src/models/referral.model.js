@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 
 // Referral fee payment schema
 const feePaymentSchema = new mongoose.Schema({
-    amount: { type: Number, required: true },
+    amount: { type: Number },
     currency: { type: String, default: 'SAR' },
     paidAt: { type: Date, default: Date.now },
     method: {
@@ -36,7 +36,7 @@ const referralSchema = new mongoose.Schema({
     lawyerId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
-        required: true,
+        required: false,
         index: true
     },
 
@@ -50,7 +50,7 @@ const referralSchema = new mongoose.Schema({
     },
     referrerName: {
         type: String,
-        required: true,
+        required: false,
         trim: true
     },
     referrerContactId: {
@@ -84,7 +84,7 @@ const referralSchema = new mongoose.Schema({
     },
     referredName: {
         type: String,
-        required: true,
+        required: false,
         trim: true
     },
     referredEmail: {
@@ -301,7 +301,7 @@ const referralSchema = new mongoose.Schema({
     createdBy: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
-        required: true
+        required: false
     },
     lastModifiedBy: {
         type: mongoose.Schema.Types.ObjectId,
