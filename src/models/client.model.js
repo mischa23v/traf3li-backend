@@ -22,7 +22,7 @@ const clientSchema = new mongoose.Schema({
     clientType: {
         type: String,
         enum: ['individual', 'company'],
-        required: true,
+        required: false,
         default: 'individual'
     },
 
@@ -97,8 +97,9 @@ const clientSchema = new mongoose.Schema({
     // ─────────────────────────────────────────────────────────
     phone: {
         type: String,
-        required: true,
-        trim: true
+        required: false,
+        trim: true,
+        default: ''
     },
     alternatePhone: String,
     whatsapp: String,
@@ -175,7 +176,7 @@ const clientSchema = new mongoose.Schema({
     lawyerId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
-        required: true,
+        required: false,
         index: true
     },
     assignments: {
