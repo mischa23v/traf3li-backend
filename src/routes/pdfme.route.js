@@ -8,6 +8,7 @@ const express = require('express');
 const router = express.Router();
 const authenticate = require('../middlewares/authenticate');
 const pdfmeController = require('../controllers/pdfme.controller');
+const { createRateLimiter } = require('../middlewares/rateLimiter.middleware');
 const {
     validateCreateTemplate,
     validateUpdateTemplate,
@@ -20,6 +21,24 @@ const {
     validatePreviewTemplate,
     validateListTemplatesQuery
 } = require('../validators/pdfme.validator');
+
+/**
+ * Rate limiter for PDF generation (resource-intensive operations)
+ * 30 PDF generations per 15 minutes per user
+ */
+const pdfGenerationLimiter = createRateLimiter({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 30, // 30 PDF generations per window
+    message: {
+        success: false,
+        error: {
+            code: 'PDF_RATE_LIMIT_EXCEEDED',
+            message: 'Too many PDF generation requests. Please try again later.',
+            messageAr: 'طلبات إنشاء PDF كثيرة جداً. يرجى المحاولة لاحقاً.'
+        }
+    },
+    keyGenerator: (req) => req.userID || req.ip
+});
 
 /**
  * @swagger
@@ -282,7 +301,7 @@ router.post('/templates/:id/preview', authenticate, validatePreviewTemplate, pdf
  *       200:
  *         description: PDF generated successfully
  */
-router.post('/generate', authenticate, validateGeneratePdf, pdfmeController.generatePDF);
+router.post('/generate', authenticate, pdfGenerationLimiter, validateGeneratePdf, pdfmeController.generatePDF);
 
 /**
  * @swagger
@@ -314,7 +333,7 @@ router.post('/generate', authenticate, validateGeneratePdf, pdfmeController.gene
  *       200:
  *         description: PDF generation job queued
  */
-router.post('/generate/async', authenticate, validateGeneratePdfAsync, pdfmeController.generatePDFAsync);
+router.post('/generate/async', authenticate, pdfGenerationLimiter, validateGeneratePdfAsync, pdfmeController.generatePDFAsync);
 
 /**
  * @swagger
@@ -345,7 +364,7 @@ router.post('/generate/async', authenticate, validateGeneratePdfAsync, pdfmeCont
  *       200:
  *         description: Invoice PDF generated
  */
-router.post('/generate/invoice', authenticate, validateGenerateInvoicePdf, pdfmeController.generateInvoicePDF);
+router.post('/generate/invoice', authenticate, pdfGenerationLimiter, validateGenerateInvoicePdf, pdfmeController.generateInvoicePDF);
 
 /**
  * @swagger
@@ -372,7 +391,7 @@ router.post('/generate/invoice', authenticate, validateGenerateInvoicePdf, pdfme
  *       200:
  *         description: Contract PDF generated
  */
-router.post('/generate/contract', authenticate, validateGenerateContractPdf, pdfmeController.generateContractPDF);
+router.post('/generate/contract', authenticate, pdfGenerationLimiter, validateGenerateContractPdf, pdfmeController.generateContractPDF);
 
 /**
  * @swagger
@@ -399,7 +418,7 @@ router.post('/generate/contract', authenticate, validateGenerateContractPdf, pdf
  *       200:
  *         description: Receipt PDF generated
  */
-router.post('/generate/receipt', authenticate, validateGenerateReceiptPdf, pdfmeController.generateReceiptPDF);
+router.post('/generate/receipt', authenticate, pdfGenerationLimiter, validateGenerateReceiptPdf, pdfmeController.generateReceiptPDF);
 
 /**
  * @swagger
