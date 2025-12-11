@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const { Task, User, Case, TaskDocumentVersion, Event } = require('../models');
 const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
@@ -999,15 +1000,35 @@ const bulkDeleteTasks = asyncHandler(async (req, res) => {
         throw CustomException('Task IDs are required', 400);
     }
 
+    // Validate ObjectIds format
+    const invalidIds = taskIds.filter(id => !mongoose.Types.ObjectId.isValid(id));
+    if (invalidIds.length > 0) {
+        return res.status(400).json({
+            success: false,
+            message: `Invalid task ID format`,
+            invalidIds
+        });
+    }
+
     // Verify ownership of all tasks - firmId first, then creator-only
     const accessQuery = firmId
         ? { _id: { $in: taskIds }, firmId }
         : { _id: { $in: taskIds }, createdBy: userId };
 
-    const tasks = await Task.find(accessQuery);
+    const tasks = await Task.find(accessQuery).select('_id');
+    const foundTaskIds = tasks.map(t => t._id.toString());
 
-    if (tasks.length !== taskIds.length) {
-        throw CustomException('Some tasks cannot be deleted', 403);
+    // Find which IDs failed authorization
+    const failedIds = taskIds.filter(id => !foundTaskIds.includes(id));
+
+    if (failedIds.length > 0) {
+        return res.status(403).json({
+            success: false,
+            message: `Cannot delete ${failedIds.length} task(s): not found or no permission`,
+            failedIds,
+            validCount: foundTaskIds.length,
+            requestedCount: taskIds.length
+        });
     }
 
     await Task.deleteMany({ _id: { $in: taskIds } });
