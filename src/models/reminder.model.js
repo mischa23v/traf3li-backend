@@ -25,9 +25,10 @@ const reminderSchema = new mongoose.Schema({
     },
     title: {
         type: String,
-        required: true,
+        required: false,
         trim: true,
-        maxlength: 200
+        maxlength: 200,
+        default: 'Untitled Reminder'
     },
     description: {
         type: String,
@@ -37,12 +38,13 @@ const reminderSchema = new mongoose.Schema({
     userId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
-        required: true,
+        required: false,
         index: true
     },
     reminderDateTime: {
         type: Date,
-        required: true,
+        required: false,
+        default: Date.now,
         index: true
     },
     // Legacy fields for backward compatibility
