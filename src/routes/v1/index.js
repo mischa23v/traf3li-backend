@@ -152,6 +152,9 @@ const saudiBankingRoute = require('../saudiBanking.route');
 const healthRoute = require('../health.route');
 const metricsRoute = require('../metrics.route');
 
+// Settings Routes
+const settingsRoute = require('../settings.route');
+
 // Import security middleware
 const { noCache } = require('../../middlewares/security.middleware');
 
@@ -322,6 +325,11 @@ router.use('/approvals', noCache, approvalRoute);
 // PERMISSION ROUTES
 // ============================================
 router.use('/permissions', noCache, permissionRoute);
+
+// ============================================
+// SETTINGS ROUTES
+// ============================================
+router.use('/settings', noCache, settingsRoute);
 
 // ============================================
 // 10/10 FEATURE ROUTES

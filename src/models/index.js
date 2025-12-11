@@ -189,6 +189,13 @@ const SyncedBlock = require('./syncedBlock.model');
 // Legal Contract Model (Najiz Integration)
 const LegalContract = require('./legalContract.model');
 
+// Settings Models
+const UserSettings = require('./userSettings.model');
+const CompanySettings = require('./companySettings.model');
+const Tax = require('./tax.model');
+const PaymentMode = require('./paymentMode.model');
+const FinanceSettings = require('./financeSettings.model');
+
 module.exports = {
     // Marketplace
     User,
@@ -379,5 +386,12 @@ module.exports = {
     SyncedBlock,
 
     // Legal Contracts (Najiz Integration)
-    LegalContract
+    LegalContract,
+
+    // Settings
+    UserSettings,
+    CompanySettings,
+    Tax,
+    PaymentMode,
+    FinanceSettings
 };
