@@ -21,6 +21,7 @@ const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./configs/swagger');
 const connectDB = require('./configs/db');
 const { scheduleTaskReminders } = require('./utils/taskReminders');
+const { schedulePdfCleanup } = require('./utils/pdfCleanup');
 const { initSocket } = require('./configs/socket');
 const logger = require('./utils/logger');
 const { apiRateLimiter, speedLimiter } = require('./middlewares/rateLimiter.middleware');
@@ -849,6 +850,7 @@ const PORT = process.env.PORT || 8080;
 server.listen(PORT, () => {
     connectDB();
     scheduleTaskReminders();
+    schedulePdfCleanup();
 
     logger.info('Server started', {
         port: PORT,

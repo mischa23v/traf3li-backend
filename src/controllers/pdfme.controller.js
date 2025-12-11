@@ -9,6 +9,7 @@ const PdfmeTemplate = require('../models/pdfmeTemplate.model');
 const QueueService = require('../services/queue.service');
 const { CustomException } = require('../utils');
 const mongoose = require('mongoose');
+const { runManualCleanup, getDirectoryStats } = require('../utils/pdfCleanup');
 
 /**
  * Sanitize a string to be safe for use in filenames
@@ -970,6 +971,143 @@ const getDefaultTemplate = async (req, res) => {
     }
 };
 
+// ==================== ADMIN ENDPOINTS ====================
+
+/**
+ * Get PDF storage statistics
+ * GET /api/pdfme/admin/storage-stats
+ */
+const getStorageStats = async (req, res) => {
+    try {
+        const stats = getDirectoryStats();
+
+        res.json({
+            success: true,
+            data: stats,
+            message: 'Storage statistics retrieved successfully',
+            messageAr: 'تم استرداد إحصائيات التخزين بنجاح'
+        });
+    } catch (error) {
+        console.error('Error getting storage stats:', error);
+        res.status(500).json({
+            success: false,
+            error: {
+                code: 'STORAGE_STATS_ERROR',
+                message: error.message,
+                messageAr: 'فشل في استرداد إحصائيات التخزين'
+            }
+        });
+    }
+};
+
+/**
+ * Trigger manual PDF cleanup
+ * POST /api/pdfme/admin/cleanup
+ */
+const triggerCleanup = async (req, res) => {
+    try {
+        const { maxAgeHours = 24 } = req.body;
+
+        // Validate maxAgeHours
+        const sanitizedMaxAgeHours = Math.min(Math.max(parseInt(maxAgeHours) || 24, 1), 168); // 1 hour to 7 days
+
+        const stats = runManualCleanup(sanitizedMaxAgeHours);
+
+        res.json({
+            success: true,
+            data: stats,
+            message: `Cleanup completed. Deleted ${stats.deleted} files, freed ${stats.freedBytesFormatted}.`,
+            messageAr: `اكتمل التنظيف. تم حذف ${stats.deleted} ملفات، تم تحرير ${stats.freedBytesFormatted}.`
+        });
+    } catch (error) {
+        console.error('Error triggering cleanup:', error);
+        res.status(500).json({
+            success: false,
+            error: {
+                code: 'CLEANUP_ERROR',
+                message: error.message,
+                messageAr: 'فشل في تنفيذ التنظيف'
+            }
+        });
+    }
+};
+
+/**
+ * Get async job status
+ * GET /api/pdfme/jobs/:jobId/status
+ */
+const getJobStatusEndpoint = async (req, res) => {
+    try {
+        const { jobId } = req.params;
+
+        if (!jobId) {
+            return res.status(400).json({
+                success: false,
+                error: {
+                    code: 'VALIDATION_ERROR',
+                    message: 'Job ID is required',
+                    messageAr: 'معرف المهمة مطلوب'
+                }
+            });
+        }
+
+        const status = await QueueService.getJobStatus('pdf', jobId);
+
+        res.json({
+            success: true,
+            data: status
+        });
+    } catch (error) {
+        console.error('Error getting job status:', error);
+
+        // Handle not found errors
+        if (error.message.includes('not found')) {
+            return res.status(404).json({
+                success: false,
+                error: {
+                    code: 'JOB_NOT_FOUND',
+                    message: 'Job not found',
+                    messageAr: 'المهمة غير موجودة'
+                }
+            });
+        }
+
+        res.status(500).json({
+            success: false,
+            error: {
+                code: 'JOB_STATUS_ERROR',
+                message: error.message,
+                messageAr: 'فشل في استرداد حالة المهمة'
+            }
+        });
+    }
+};
+
+/**
+ * Get queue statistics
+ * GET /api/pdfme/admin/queue-stats
+ */
+const getQueueStatsEndpoint = async (req, res) => {
+    try {
+        const stats = await QueueService.getQueueStats('pdf');
+
+        res.json({
+            success: true,
+            data: stats
+        });
+    } catch (error) {
+        console.error('Error getting queue stats:', error);
+        res.status(500).json({
+            success: false,
+            error: {
+                code: 'QUEUE_STATS_ERROR',
+                message: error.message,
+                messageAr: 'فشل في استرداد إحصائيات قائمة الانتظار'
+            }
+        });
+    }
+};
+
 module.exports = {
     // Template CRUD
     listTemplates,
@@ -988,5 +1126,11 @@ module.exports = {
     generateInvoicePDF,
     generateContractPDF,
     generateReceiptPDF,
-    downloadPDF
+    downloadPDF,
+
+    // Admin & Job Status
+    getStorageStats,
+    triggerCleanup,
+    getJobStatusEndpoint,
+    getQueueStatsEndpoint
 };

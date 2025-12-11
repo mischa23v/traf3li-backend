@@ -6,6 +6,7 @@
 
 const express = require('express');
 const router = express.Router();
+const slowDown = require('express-slow-down');
 const authenticate = require('../middlewares/authenticate');
 const pdfmeController = require('../controllers/pdfme.controller');
 const { createRateLimiter } = require('../middlewares/rateLimiter.middleware');
@@ -22,26 +23,57 @@ const {
     validateListTemplatesQuery
 } = require('../validators/pdfme.validator');
 
+// ==================== RATE LIMITERS ====================
+
 /**
- * Rate limiter for PDF generation (resource-intensive operations)
- * 30 PDF generations per 15 minutes per user
- * Note: All PDF routes require authentication, so userID is always available
+ * General limiter for template operations (100 requests per 15 min)
+ * Used for CRUD operations on templates
  */
-const pdfGenerationLimiter = createRateLimiter({
+const templateLimiter = createRateLimiter({
     windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 30, // 30 PDF generations per window
+    max: 100,
     message: {
         success: false,
         error: {
-            code: 'PDF_RATE_LIMIT_EXCEEDED',
-            message: 'Too many PDF generation requests. Please try again later.',
-            messageAr: 'طلبات إنشاء PDF كثيرة جداً. يرجى المحاولة لاحقاً.'
+            code: 'TEMPLATE_RATE_LIMIT_EXCEEDED',
+            message: 'Too many requests. Please try again later.',
+            messageAr: 'طلبات كثيرة جداً. يرجى المحاولة لاحقاً.'
+        }
+    },
+    keyGenerator: (req) => req.userID ? req.userID.toString() : 'anonymous',
+    skip: (req) => !req.userID
+});
+
+/**
+ * Strict limiter for PDF generation (10 requests per minute per user)
+ * Used for CPU-intensive PDF generation operations
+ */
+const generateLimiter = createRateLimiter({
+    windowMs: 60 * 1000, // 1 minute
+    max: 10, // 10 PDF generations per minute
+    message: {
+        success: false,
+        error: {
+            code: 'PDF_GENERATION_RATE_LIMIT_EXCEEDED',
+            message: 'PDF generation limit reached. Please wait 1 minute.',
+            messageAr: 'تم الوصول إلى حد إنشاء PDF. يرجى الانتظار دقيقة واحدة.'
         }
     },
     // Use userID for rate limiting (always available after authenticate middleware)
     // This avoids IPv6 validation issues since we don't fall back to IP
     keyGenerator: (req) => req.userID ? req.userID.toString() : 'anonymous',
     skip: (req) => !req.userID // Skip rate limiting if somehow unauthenticated (shouldn't happen)
+});
+
+/**
+ * Speed limiter - slow down after 5 requests
+ * Adds progressive delay to prevent burst requests
+ */
+const generateSlowDown = slowDown({
+    windowMs: 60 * 1000, // 1 minute
+    delayAfter: 5, // Allow 5 requests per minute at full speed
+    delayMs: (hits) => hits * 500, // Add 500ms delay per request after limit
+    maxDelayMs: 5000 // Max 5 second delay
 });
 
 /**
@@ -77,7 +109,7 @@ const pdfGenerationLimiter = createRateLimiter({
  *       200:
  *         description: List of templates
  */
-router.get('/templates', authenticate, validateListTemplatesQuery, pdfmeController.listTemplates);
+router.get('/templates', authenticate, templateLimiter, validateListTemplatesQuery, pdfmeController.listTemplates);
 
 /**
  * @swagger
@@ -98,7 +130,7 @@ router.get('/templates', authenticate, validateListTemplatesQuery, pdfmeControll
  *       200:
  *         description: Default template for the category
  */
-router.get('/templates/default/:category', authenticate, pdfmeController.getDefaultTemplate);
+router.get('/templates/default/:category', authenticate, templateLimiter, pdfmeController.getDefaultTemplate);
 
 /**
  * @swagger
@@ -120,7 +152,7 @@ router.get('/templates/default/:category', authenticate, pdfmeController.getDefa
  *       404:
  *         description: Template not found
  */
-router.get('/templates/:id', authenticate, pdfmeController.getTemplate);
+router.get('/templates/:id', authenticate, templateLimiter, pdfmeController.getTemplate);
 
 /**
  * @swagger
@@ -154,7 +186,7 @@ router.get('/templates/:id', authenticate, pdfmeController.getTemplate);
  *       201:
  *         description: Template created successfully
  */
-router.post('/templates', authenticate, validateCreateTemplate, pdfmeController.createTemplate);
+router.post('/templates', authenticate, templateLimiter, validateCreateTemplate, pdfmeController.createTemplate);
 
 /**
  * @swagger
@@ -180,7 +212,7 @@ router.post('/templates', authenticate, validateCreateTemplate, pdfmeController.
  *       200:
  *         description: Template updated successfully
  */
-router.put('/templates/:id', authenticate, validateUpdateTemplate, pdfmeController.updateTemplate);
+router.put('/templates/:id', authenticate, templateLimiter, validateUpdateTemplate, pdfmeController.updateTemplate);
 
 /**
  * @swagger
@@ -200,7 +232,7 @@ router.put('/templates/:id', authenticate, validateUpdateTemplate, pdfmeControll
  *       200:
  *         description: Template deleted successfully
  */
-router.delete('/templates/:id', authenticate, pdfmeController.deleteTemplate);
+router.delete('/templates/:id', authenticate, templateLimiter, pdfmeController.deleteTemplate);
 
 /**
  * @swagger
@@ -228,7 +260,7 @@ router.delete('/templates/:id', authenticate, pdfmeController.deleteTemplate);
  *       201:
  *         description: Template cloned successfully
  */
-router.post('/templates/:id/clone', authenticate, validateCloneTemplate, pdfmeController.cloneTemplate);
+router.post('/templates/:id/clone', authenticate, templateLimiter, validateCloneTemplate, pdfmeController.cloneTemplate);
 
 /**
  * @swagger
@@ -248,7 +280,7 @@ router.post('/templates/:id/clone', authenticate, validateCloneTemplate, pdfmeCo
  *       200:
  *         description: Template set as default
  */
-router.post('/templates/:id/set-default', authenticate, pdfmeController.setDefaultTemplate);
+router.post('/templates/:id/set-default', authenticate, templateLimiter, pdfmeController.setDefaultTemplate);
 
 /**
  * @swagger
@@ -276,7 +308,8 @@ router.post('/templates/:id/set-default', authenticate, pdfmeController.setDefau
  *       200:
  *         description: PDF preview as base64
  */
-router.post('/templates/:id/preview', authenticate, validatePreviewTemplate, pdfmeController.previewTemplate);
+// Preview with generation limiter (generates PDF)
+router.post('/templates/:id/preview', authenticate, generateSlowDown, generateLimiter, validatePreviewTemplate, pdfmeController.previewTemplate);
 
 /**
  * @swagger
@@ -305,7 +338,9 @@ router.post('/templates/:id/preview', authenticate, validatePreviewTemplate, pdf
  *       200:
  *         description: PDF generated successfully
  */
-router.post('/generate', authenticate, pdfGenerationLimiter, validateGeneratePdf, pdfmeController.generatePDF);
+// ==================== PDF GENERATION ROUTES (STRICT LIMITS) ====================
+
+router.post('/generate', authenticate, generateSlowDown, generateLimiter, validateGeneratePdf, pdfmeController.generatePDF);
 
 /**
  * @swagger
@@ -337,7 +372,7 @@ router.post('/generate', authenticate, pdfGenerationLimiter, validateGeneratePdf
  *       200:
  *         description: PDF generation job queued
  */
-router.post('/generate/async', authenticate, pdfGenerationLimiter, validateGeneratePdfAsync, pdfmeController.generatePDFAsync);
+router.post('/generate/async', authenticate, generateSlowDown, generateLimiter, validateGeneratePdfAsync, pdfmeController.generatePDFAsync);
 
 /**
  * @swagger
@@ -368,7 +403,7 @@ router.post('/generate/async', authenticate, pdfGenerationLimiter, validateGener
  *       200:
  *         description: Invoice PDF generated
  */
-router.post('/generate/invoice', authenticate, pdfGenerationLimiter, validateGenerateInvoicePdf, pdfmeController.generateInvoicePDF);
+router.post('/generate/invoice', authenticate, generateSlowDown, generateLimiter, validateGenerateInvoicePdf, pdfmeController.generateInvoicePDF);
 
 /**
  * @swagger
@@ -395,7 +430,7 @@ router.post('/generate/invoice', authenticate, pdfGenerationLimiter, validateGen
  *       200:
  *         description: Contract PDF generated
  */
-router.post('/generate/contract', authenticate, pdfGenerationLimiter, validateGenerateContractPdf, pdfmeController.generateContractPDF);
+router.post('/generate/contract', authenticate, generateSlowDown, generateLimiter, validateGenerateContractPdf, pdfmeController.generateContractPDF);
 
 /**
  * @swagger
@@ -422,7 +457,7 @@ router.post('/generate/contract', authenticate, pdfGenerationLimiter, validateGe
  *       200:
  *         description: Receipt PDF generated
  */
-router.post('/generate/receipt', authenticate, pdfGenerationLimiter, validateGenerateReceiptPdf, pdfmeController.generateReceiptPDF);
+router.post('/generate/receipt', authenticate, generateSlowDown, generateLimiter, validateGenerateReceiptPdf, pdfmeController.generateReceiptPDF);
 
 /**
  * @swagger
@@ -449,6 +484,85 @@ router.post('/generate/receipt', authenticate, pdfGenerationLimiter, validateGen
  *       404:
  *         description: File not found
  */
-router.get('/download/:fileName', authenticate, pdfmeController.downloadPDF);
+// Download - moderate limits
+router.get('/download/:fileName', authenticate, templateLimiter, pdfmeController.downloadPDF);
+
+// ==================== JOB STATUS ROUTES ====================
+
+/**
+ * @swagger
+ * /api/pdfme/jobs/{jobId}/status:
+ *   get:
+ *     summary: Get async PDF generation job status
+ *     tags: [PDFMe]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: jobId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Job status
+ *       404:
+ *         description: Job not found
+ */
+router.get('/jobs/:jobId/status', authenticate, pdfmeController.getJobStatusEndpoint);
+
+// ==================== ADMIN ROUTES ====================
+
+/**
+ * @swagger
+ * /api/pdfme/admin/storage-stats:
+ *   get:
+ *     summary: Get PDF storage statistics
+ *     tags: [PDFMe Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Storage statistics
+ */
+router.get('/admin/storage-stats', authenticate, pdfmeController.getStorageStats);
+
+/**
+ * @swagger
+ * /api/pdfme/admin/cleanup:
+ *   post:
+ *     summary: Trigger manual PDF cleanup
+ *     tags: [PDFMe Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               maxAgeHours:
+ *                 type: integer
+ *                 default: 24
+ *                 description: Delete files older than this many hours
+ *     responses:
+ *       200:
+ *         description: Cleanup completed
+ */
+router.post('/admin/cleanup', authenticate, pdfmeController.triggerCleanup);
+
+/**
+ * @swagger
+ * /api/pdfme/admin/queue-stats:
+ *   get:
+ *     summary: Get PDF queue statistics
+ *     tags: [PDFMe Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Queue statistics
+ */
+router.get('/admin/queue-stats', authenticate, pdfmeController.getQueueStatsEndpoint);
 
 module.exports = router;
