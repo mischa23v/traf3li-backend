@@ -270,7 +270,7 @@ const contactSchema = new mongoose.Schema({
     lawyerId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
-        required: true,
+        required: false,
         index: true
     },
 
@@ -289,9 +289,10 @@ const contactSchema = new mongoose.Schema({
     },
     firstName: {
         type: String,
-        required: true,
+        required: false,
         trim: true,
-        maxlength: 100
+        maxlength: 100,
+        default: 'Unknown'
     },
     middleName: {
         type: String,
@@ -300,9 +301,10 @@ const contactSchema = new mongoose.Schema({
     },
     lastName: {
         type: String,
-        required: true,
+        required: false,
         trim: true,
-        maxlength: 100
+        maxlength: 100,
+        default: 'Contact'
     },
     preferredName: {
         type: String,
@@ -377,7 +379,7 @@ const contactSchema = new mongoose.Schema({
     type: {
         type: String,
         enum: ['individual', 'organization', 'court', 'attorney', 'expert', 'government', 'other'],
-        required: true,
+        required: false,
         default: 'individual'
     },
     primaryRole: {
