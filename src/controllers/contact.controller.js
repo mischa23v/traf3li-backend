@@ -27,6 +27,32 @@ const createContact = asyncHandler(async (req, res) => {
     if (!contactData.type) {
         contactData.type = 'individual';
     }
+
+    // Handle Arabic 4-part name (الاسم الرباعي)
+    // If arabicName is provided, use it; otherwise create from firstName/lastName for backwards compatibility
+    if (contactData.arabicName) {
+        // Build fullName from parts if not provided
+        if (!contactData.arabicName.fullName) {
+            const nameParts = [
+                contactData.arabicName.firstName,
+                contactData.arabicName.fatherName,
+                contactData.arabicName.grandfatherName,
+                contactData.arabicName.familyName
+            ].filter(Boolean);
+            if (nameParts.length > 0) {
+                contactData.arabicName.fullName = nameParts.join(' ');
+            }
+        }
+        // Also populate legacy firstName/lastName for backwards compatibility
+        if (!contactData.firstName && contactData.arabicName.firstName) {
+            contactData.firstName = contactData.arabicName.firstName;
+        }
+        if (!contactData.lastName && contactData.arabicName.familyName) {
+            contactData.lastName = contactData.arabicName.familyName;
+        }
+    }
+
+    // Set defaults if still not provided
     if (!contactData.firstName) {
         contactData.firstName = 'Unknown';
     }
@@ -158,7 +184,8 @@ const updateContact = asyncHandler(async (req, res) => {
 
     // Fields that can be updated
     const allowedFields = [
-        'salutation', 'firstName', 'middleName', 'lastName', 'preferredName', 'suffix', 'fullNameArabic',
+        'salutation', 'salutationAr', 'firstName', 'middleName', 'lastName', 'preferredName', 'suffix', 'fullNameArabic',
+        'arabicName', // الاسم الرباعي - 4-part Arabic name structure
         'type', 'primaryRole', 'relationshipTypes',
         'email', 'phone', 'alternatePhone', 'emails', 'phones',
         'company', 'organizationId', 'title', 'department',
@@ -177,6 +204,31 @@ const updateContact = asyncHandler(async (req, res) => {
             contact[field] = req.body[field];
         }
     });
+
+    // Handle Arabic 4-part name (الاسم الرباعي) - auto-generate fullName
+    if (req.body.arabicName && contact.arabicName) {
+        if (!contact.arabicName.fullName) {
+            const nameParts = [
+                contact.arabicName.firstName,
+                contact.arabicName.fatherName,
+                contact.arabicName.grandfatherName,
+                contact.arabicName.familyName
+            ].filter(Boolean);
+            if (nameParts.length > 0) {
+                contact.arabicName.fullName = nameParts.join(' ');
+            }
+        }
+        // Sync to legacy fields
+        if (contact.arabicName.firstName && !contact.firstName) {
+            contact.firstName = contact.arabicName.firstName;
+        }
+        if (contact.arabicName.familyName && !contact.lastName) {
+            contact.lastName = contact.arabicName.familyName;
+        }
+        if (contact.arabicName.fullName && !contact.fullNameArabic) {
+            contact.fullNameArabic = contact.arabicName.fullName;
+        }
+    }
 
     contact.updatedBy = lawyerId;
     await contact.save();
