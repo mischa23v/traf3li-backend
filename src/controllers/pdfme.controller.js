@@ -11,6 +11,17 @@ const { CustomException } = require('../utils');
 const mongoose = require('mongoose');
 
 /**
+ * Sanitize a string to be safe for use in filenames
+ * Only allows alphanumeric characters, hyphens, and underscores
+ * @param {string} str - String to sanitize
+ * @returns {string} Sanitized string
+ */
+const sanitizeForFilename = (str) => {
+    if (!str) return '';
+    return String(str).replace(/[^a-zA-Z0-9_-]/g, '-').replace(/-+/g, '-');
+};
+
+/**
  * @swagger
  * tags:
  *   name: PDFMe
@@ -448,8 +459,8 @@ const generatePDF = async (req, res) => {
             inputs
         });
 
-        // Generate filename
-        const fileName = `${type}-${Date.now()}.pdf`;
+        // Generate filename (sanitize type to prevent invalid characters)
+        const fileName = `${sanitizeForFilename(type)}-${Date.now()}.pdf`;
 
         // Save to file system
         const filePath = await PdfmeService.savePDF(pdfBuffer, fileName);
@@ -610,8 +621,8 @@ const generateInvoicePDF = async (req, res) => {
             );
         }
 
-        // Generate filename
-        const invoiceNumber = invoiceData.invoiceNumber || Date.now();
+        // Generate filename (sanitize invoice number to prevent invalid characters)
+        const invoiceNumber = sanitizeForFilename(invoiceData.invoiceNumber) || Date.now();
         const fileName = `invoice-${invoiceNumber}.pdf`;
 
         // Save to file system
@@ -666,8 +677,8 @@ const generateContractPDF = async (req, res) => {
             lawyerId
         );
 
-        // Generate filename
-        const contractNumber = contractData.contractNumber || Date.now();
+        // Generate filename (sanitize contract number to prevent invalid characters)
+        const contractNumber = sanitizeForFilename(contractData.contractNumber) || Date.now();
         const fileName = `contract-${contractNumber}.pdf`;
 
         // Save to file system
@@ -722,8 +733,8 @@ const generateReceiptPDF = async (req, res) => {
             lawyerId
         );
 
-        // Generate filename
-        const receiptNumber = receiptData.receiptNumber || Date.now();
+        // Generate filename (sanitize receipt number to prevent invalid characters)
+        const receiptNumber = sanitizeForFilename(receiptData.receiptNumber) || Date.now();
         const fileName = `receipt-${receiptNumber}.pdf`;
 
         // Save to file system
