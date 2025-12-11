@@ -5,7 +5,7 @@ const leadSourceSchema = new mongoose.Schema({
     type: {
         type: String,
         enum: ['website', 'referral', 'social_media', 'advertising', 'cold_call', 'walk_in', 'event', 'other'],
-        required: true
+        required: false
     },
     referralId: { type: mongoose.Schema.Types.ObjectId, ref: 'Referral' },
     referralName: String,
@@ -114,7 +114,7 @@ const leadSchema = new mongoose.Schema({
     lawyerId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
-        required: true,
+        required: false,
         index: true
     },
 
@@ -156,7 +156,7 @@ const leadSchema = new mongoose.Schema({
     },
     phone: {
         type: String,
-        required: true,
+        required: false,
         trim: true
     },
     alternatePhone: {
@@ -328,7 +328,7 @@ const leadSchema = new mongoose.Schema({
     createdBy: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
-        required: true
+        required: false
     },
     lastModifiedBy: {
         type: mongoose.Schema.Types.ObjectId,

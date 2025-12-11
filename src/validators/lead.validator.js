@@ -35,10 +35,8 @@ const futureDateValidator = Joi.date().greater('now').messages({
 const leadSourceSchema = Joi.object({
     type: Joi.string()
         .valid('website', 'referral', 'social_media', 'advertising', 'cold_call', 'walk_in', 'event', 'other')
-        .required()
         .messages({
-            'any.only': 'نوع المصدر غير صالح / Invalid source type',
-            'any.required': 'نوع المصدر مطلوب / Source type is required'
+            'any.only': 'نوع المصدر غير صالح / Invalid source type'
         }),
     referralId: objectIdValidator,
     referralName: Joi.string().max(100),
@@ -97,14 +95,8 @@ const createLeadSchema = Joi.object({
     // Individual fields
     firstName: Joi.string()
         .max(50)
-        .when('type', {
-            is: 'individual',
-            then: Joi.required(),
-            otherwise: Joi.optional()
-        })
         .messages({
-            'string.max': 'الاسم الأول طويل جداً / First name is too long',
-            'any.required': 'الاسم الأول مطلوب / First name is required'
+            'string.max': 'الاسم الأول طويل جداً / First name is too long'
         }),
     lastName: Joi.string()
         .max(50)
@@ -115,14 +107,8 @@ const createLeadSchema = Joi.object({
     // Company fields
     companyName: Joi.string()
         .max(200)
-        .when('type', {
-            is: 'company',
-            then: Joi.required(),
-            otherwise: Joi.optional()
-        })
         .messages({
-            'string.max': 'اسم الشركة طويل جداً / Company name is too long',
-            'any.required': 'اسم الشركة مطلوب / Company name is required'
+            'string.max': 'اسم الشركة طويل جداً / Company name is too long'
         }),
     companyNameAr: Joi.string().max(200),
     contactPerson: Joi.string().max(100),
@@ -138,10 +124,9 @@ const createLeadSchema = Joi.object({
         }),
     phone: Joi.string()
         .pattern(/^(\+966|00966|0)?[0-9]{9,10}$/)
-        .required()
+        .allow('', null)
         .messages({
-            'string.pattern.base': 'رقم الهاتف غير صالح (مثال: +966501234567) / Invalid phone number (example: +966501234567)',
-            'any.required': 'رقم الهاتف مطلوب / Phone number is required'
+            'string.pattern.base': 'رقم الهاتف غير صالح (مثال: +966501234567) / Invalid phone number (example: +966501234567)'
         }),
     alternatePhone: Joi.string()
         .pattern(/^(\+966|00966|0)?[0-9]{9,10}$/)
@@ -311,24 +296,16 @@ const updateLeadSchema = Joi.object({
 const updateStatusSchema = Joi.object({
     status: Joi.string()
         .valid('new', 'contacted', 'qualified', 'proposal', 'negotiation', 'won', 'lost', 'dormant')
-        .required()
         .messages({
-            'any.only': 'الحالة غير صالحة / Invalid status',
-            'any.required': 'الحالة مطلوبة / Status is required'
+            'any.only': 'الحالة غير صالحة / Invalid status'
         }),
     notes: Joi.string().max(1000).allow('', null).messages({
         'string.max': 'الملاحظات طويلة جداً / Notes are too long'
     }),
     lostReason: Joi.string()
         .valid('price', 'competitor', 'no_response', 'not_qualified', 'timing', 'other')
-        .when('status', {
-            is: 'lost',
-            then: Joi.required(),
-            otherwise: Joi.optional()
-        })
         .messages({
-            'any.only': 'سبب الخسارة غير صالح / Invalid lost reason',
-            'any.required': 'سبب الخسارة مطلوب عند تحديد الحالة كخاسر / Lost reason is required when status is lost'
+            'any.only': 'سبب الخسارة غير صالح / Invalid lost reason'
         })
 });
 
@@ -336,9 +313,7 @@ const updateStatusSchema = Joi.object({
  * Move to stage validation schema
  */
 const moveToStageSchema = Joi.object({
-    stageId: objectIdValidator.required().messages({
-        'any.required': 'معرف المرحلة مطلوب / Stage ID is required'
-    }),
+    stageId: objectIdValidator,
     notes: Joi.string().max(1000).allow('', null).messages({
         'string.max': 'الملاحظات طويلة جداً / Notes are too long'
     })
@@ -353,14 +328,8 @@ const convertToClientSchema = Joi.object({
     }),
     caseTitle: Joi.string()
         .max(200)
-        .when('createCase', {
-            is: true,
-            then: Joi.required(),
-            otherwise: Joi.optional()
-        })
         .messages({
-            'string.max': 'عنوان القضية طويل جداً / Case title is too long',
-            'any.required': 'عنوان القضية مطلوب عند إنشاء قضية / Case title is required when creating a case'
+            'string.max': 'عنوان القضية طويل جداً / Case title is too long'
         })
 });
 
@@ -370,17 +339,13 @@ const convertToClientSchema = Joi.object({
 const logActivitySchema = Joi.object({
     type: Joi.string()
         .valid('call', 'email', 'meeting', 'note', 'task', 'whatsapp', 'sms', 'other')
-        .required()
         .messages({
-            'any.only': 'نوع النشاط غير صالح / Invalid activity type',
-            'any.required': 'نوع النشاط مطلوب / Activity type is required'
+            'any.only': 'نوع النشاط غير صالح / Invalid activity type'
         }),
     title: Joi.string()
         .max(200)
-        .required()
         .messages({
-            'string.max': 'العنوان طويل جداً / Title is too long',
-            'any.required': 'العنوان مطلوب / Title is required'
+            'string.max': 'العنوان طويل جداً / Title is too long'
         }),
     description: Joi.string().max(2000).allow('', null).messages({
         'string.max': 'الوصف طويل جداً / Description is too long'
@@ -413,9 +378,7 @@ const logActivitySchema = Joi.object({
  * Schedule follow-up validation schema
  */
 const scheduleFollowUpSchema = Joi.object({
-    date: futureDateValidator.required().messages({
-        'any.required': 'التاريخ مطلوب / Date is required'
-    }),
+    date: Joi.date().allow(null),
     note: Joi.string().max(500).allow('', null).messages({
         'string.max': 'الملاحظة طويلة جداً / Note is too long'
     }),
