@@ -201,7 +201,10 @@ const {
     caseNotionRoute,
 
     // Legal Contracts (Najiz Integration)
-    legalContractRoute
+    legalContractRoute,
+
+    // PDFMe (Template-based PDF generation)
+    pdfmeRoute
 } = require('./routes');
 
 // Import versioned routes
@@ -641,6 +644,9 @@ app.use('/api/case-notion', caseNotionRoute);
 
 // Legal Contracts (Najiz Integration)
 app.use('/api/contracts', legalContractRoute);
+
+// PDFMe (Template-based PDF generation)
+app.use('/api/pdfme', pdfmeRoute);
 
 // Saudi Banking Integration (Lean, WPS, SADAD, Mudad)
 app.use('/api/saudi-banking', noCache, saudiBankingRoute); // No cache for banking integration
