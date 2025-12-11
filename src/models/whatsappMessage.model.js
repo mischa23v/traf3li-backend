@@ -11,14 +11,14 @@ const whatsappMessageSchema = new mongoose.Schema({
     firmId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Firm',
-        required: true,
+        required: false,
         index: true
     },
 
     conversationId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'WhatsAppConversation',
-        required: true,
+        required: false,
         index: true
     },
 
@@ -36,7 +36,7 @@ const whatsappMessageSchema = new mongoose.Schema({
     direction: {
         type: String,
         enum: ['inbound', 'outbound'],
-        required: true,
+        required: false,
         index: true
     },
 
@@ -56,7 +56,7 @@ const whatsappMessageSchema = new mongoose.Schema({
             'reaction',
             'unknown'
         ],
-        required: true,
+        required: false,
         default: 'text'
     },
 
@@ -140,12 +140,12 @@ const whatsappMessageSchema = new mongoose.Schema({
     // ═══════════════════════════════════════════════════════════════
     senderPhone: {
         type: String,
-        required: true
+        required: false
     },
 
     recipientPhone: {
         type: String,
-        required: true
+        required: false
     },
 
     // For outbound messages

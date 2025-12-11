@@ -11,7 +11,7 @@ const whatsappConversationSchema = new mongoose.Schema({
     firmId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Firm',
-        required: true,
+        required: false,
         index: true
     },
 
@@ -54,7 +54,7 @@ const whatsappConversationSchema = new mongoose.Schema({
     // ═══════════════════════════════════════════════════════════════
     phoneNumber: {
         type: String,
-        required: true,
+        required: false,
         index: true,
         trim: true
     },
