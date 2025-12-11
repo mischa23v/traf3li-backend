@@ -25,6 +25,7 @@ const {
 /**
  * Rate limiter for PDF generation (resource-intensive operations)
  * 30 PDF generations per 15 minutes per user
+ * Note: All PDF routes require authentication, so userID is always available
  */
 const pdfGenerationLimiter = createRateLimiter({
     windowMs: 15 * 60 * 1000, // 15 minutes
@@ -37,7 +38,10 @@ const pdfGenerationLimiter = createRateLimiter({
             messageAr: 'طلبات إنشاء PDF كثيرة جداً. يرجى المحاولة لاحقاً.'
         }
     },
-    keyGenerator: (req) => req.userID || req.ip
+    // Use userID for rate limiting (always available after authenticate middleware)
+    // This avoids IPv6 validation issues since we don't fall back to IP
+    keyGenerator: (req) => req.userID ? req.userID.toString() : 'anonymous',
+    skip: (req) => !req.userID // Skip rate limiting if somehow unauthenticated (shouldn't happen)
 });
 
 /**
