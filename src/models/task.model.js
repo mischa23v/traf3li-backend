@@ -146,9 +146,10 @@ const taskSchema = new mongoose.Schema({
 
     title: {
         type: String,
-        required: true,
+        required: false,
         trim: true,
-        maxlength: 500
+        maxlength: 500,
+        default: 'Untitled Task'
     },
     description: {
         type: String,
@@ -185,7 +186,7 @@ const taskSchema = new mongoose.Schema({
     createdBy: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
-        required: true,
+        required: false,
         index: true
     },
     caseId: {

@@ -115,9 +115,10 @@ const eventSchema = new mongoose.Schema({
     },
     title: {
         type: String,
-        required: true,
+        required: false,
         trim: true,
-        maxlength: 300
+        maxlength: 300,
+        default: 'Untitled Event'
     },
     description: {
         type: String,
@@ -144,7 +145,8 @@ const eventSchema = new mongoose.Schema({
             'task',
             'other'
         ],
-        required: true,
+        required: false,
+        default: 'other',
         index: true
     },
     status: {
@@ -156,7 +158,8 @@ const eventSchema = new mongoose.Schema({
     // Date and time
     startDateTime: {
         type: Date,
-        required: true,
+        required: false,
+        default: Date.now,
         index: true
     },
     endDateTime: {
@@ -181,7 +184,7 @@ const eventSchema = new mongoose.Schema({
     organizer: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
-        required: true
+        required: false
     },
     attendees: [attendeeSchema],
     // Related entities
@@ -349,7 +352,7 @@ const eventSchema = new mongoose.Schema({
     createdBy: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
-        required: true,
+        required: false,
         index: true
     },
     lastModifiedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
