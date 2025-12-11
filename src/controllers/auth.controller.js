@@ -24,23 +24,49 @@ const isProductionEnv = NODE_ENV === 'production' ||
 // IMPORTANT: Just because Origin header is "dashboard.traf3li.com" does NOT mean it's same-origin!
 // If the frontend at dashboard.traf3li.com makes a fetch() to api.traf3li.com, that's cross-origin.
 //
-// True same-origin proxy detection requires checking if the HOST of the request matches the ORIGIN.
-// With Vercel rewrites: Host=dashboard.traf3li.com, Origin=dashboard.traf3li.com (same-origin)
-// Direct cross-origin: Host=api.traf3li.com, Origin=dashboard.traf3li.com (cross-origin)
+// Detection strategy (in order of preference):
+// 1. X-Forwarded-Host: Set by reverse proxies (Vercel, Nginx, etc.) with original host
+// 2. Host: Direct request host (may be backend's host when proxied)
+//
+// With Vercel rewrites:
+//   - Origin=https://dashboard.traf3li.com
+//   - Host=backend-server.render.com (or similar)
+//   - X-Forwarded-Host=dashboard.traf3li.com (original host)
+// Direct cross-origin:
+//   - Origin=https://dashboard.traf3li.com
+//   - Host=api.traf3li.com (no X-Forwarded-Host)
 const isSameOriginProxy = (request) => {
     const origin = request.headers.origin || '';
+    // Prefer X-Forwarded-Host (set by reverse proxies) over Host header
+    // This is crucial for Vercel rewrites where Host is the backend's host
+    const forwardedHost = request.headers['x-forwarded-host'] || '';
     const host = request.headers.host || '';
 
+    // Use forwarded host if available (indicates proxy), otherwise use direct host
+    const effectiveHost = forwardedHost || host;
+
     // If no origin header, can't determine (treat as cross-origin for safety)
-    if (!origin || !host) {
+    if (!origin || !effectiveHost) {
         return false;
     }
 
     try {
         const originHost = new URL(origin).host;
-        // True same-origin: the Host header matches the Origin header's host
+        // True same-origin: the effective host matches the Origin header's host
         // This happens when frontend proxies requests through itself (Vercel rewrites)
-        return originHost === host;
+        const isSame = originHost === effectiveHost;
+
+        // Debug logging
+        console.log('[isSameOriginProxy Debug]', {
+            origin,
+            host,
+            forwardedHost,
+            effectiveHost,
+            originHost,
+            isSame
+        });
+
+        return isSame;
     } catch {
         return false;
     }
@@ -71,11 +97,14 @@ const getCookieConfig = (request) => {
     const isSameOrigin = isSameOriginProxy(request);
     const origin = request.headers.origin || '';
     const host = request.headers.host || '';
+    const forwardedHost = request.headers['x-forwarded-host'] || '';
 
     // Debug logging for cookie configuration (helps diagnose production issues)
     console.log('[Cookie Config Debug]', {
         origin,
         host,
+        forwardedHost,
+        effectiveHost: forwardedHost || host,
         isSameOrigin,
         isProductionEnv,
         NODE_ENV
