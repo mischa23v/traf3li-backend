@@ -100,13 +100,12 @@ const addressSchema = Joi.object({
  * Create client validation schema
  */
 const createClientSchema = Joi.object({
-    // Client Type (required)
+    // Client Type (optional - defaults to 'individual')
     clientType: Joi.string()
         .valid('individual', 'company')
-        .required()
+        .default('individual')
         .messages({
-            'any.only': 'نوع العميل يجب أن يكون فرد أو شركة / Client type must be individual or company',
-            'any.required': 'نوع العميل مطلوب / Client type is required'
+            'any.only': 'نوع العميل يجب أن يكون فرد أو شركة / Client type must be individual or company'
         }),
 
     // Individual Fields
@@ -127,9 +126,8 @@ const createClientSchema = Joi.object({
     }),
     fullNameArabic: Joi.when('clientType', {
         is: 'individual',
-        then: Joi.string().required().max(150).messages({
-            'string.max': 'الاسم الكامل بالعربية طويل جداً / Full Arabic name is too long',
-            'any.required': 'الاسم الكامل بالعربية مطلوب / Full Arabic name is required'
+        then: Joi.string().max(150).messages({
+            'string.max': 'الاسم الكامل بالعربية طويل جداً / Full Arabic name is too long'
         })
     }),
     fullNameEnglish: Joi.string().max(150).messages({
@@ -137,7 +135,7 @@ const createClientSchema = Joi.object({
     }),
     nationalId: Joi.when('clientType', {
         is: 'individual',
-        then: nationalIdSchema.required()
+        then: nationalIdSchema
     }),
     gender: Joi.string().valid('male', 'female').messages({
         'any.only': 'الجنس يجب أن يكون ذكر أو أنثى / Gender must be male or female'
@@ -152,9 +150,8 @@ const createClientSchema = Joi.object({
     // Company Fields
     companyName: Joi.when('clientType', {
         is: 'company',
-        then: Joi.string().required().max(200).messages({
-            'string.max': 'اسم الشركة طويل جداً / Company name is too long',
-            'any.required': 'اسم الشركة مطلوب / Company name is required'
+        then: Joi.string().max(200).messages({
+            'string.max': 'اسم الشركة طويل جداً / Company name is too long'
         })
     }),
     companyNameEnglish: Joi.string().max(200).messages({
@@ -162,7 +159,7 @@ const createClientSchema = Joi.object({
     }),
     crNumber: Joi.when('clientType', {
         is: 'company',
-        then: crNumberSchema.required()
+        then: crNumberSchema
     }),
     unifiedNumber: Joi.string().max(20).messages({
         'string.max': 'الرقم الموحد طويل جداً / Unified number is too long'
@@ -174,8 +171,8 @@ const createClientSchema = Joi.object({
         'string.uri': 'رابط الموقع غير صالح / Invalid website URL'
     }),
 
-    // Contact Info (Required)
-    phone: phoneSchema.required(),
+    // Contact Info (optional for testing)
+    phone: phoneSchema,
     alternatePhone: phoneSchema,
     whatsapp: phoneSchema,
     email: emailSchema,
