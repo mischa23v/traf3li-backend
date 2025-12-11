@@ -17,7 +17,10 @@ const {
     stopRecurring,
     generateNextBill,
     getAgingReport,
-    exportBills
+    exportBills,
+    approveBill,
+    payBill,
+    postToGL
 } = require('../controllers/bill.controller');
 
 const app = express.Router();
@@ -44,6 +47,9 @@ app.post('/:id/cancel', userMiddleware, cancelBill);
 app.post('/:id/duplicate', userMiddleware, duplicateBill);
 app.post('/:id/stop-recurring', userMiddleware, stopRecurring);
 app.post('/:id/generate-next', userMiddleware, generateNextBill);
+app.post('/:id/approve', userMiddleware, approveBill);
+app.post('/:id/pay', userMiddleware, payBill);
+app.post('/:id/post-to-gl', userMiddleware, postToGL);
 
 // Attachment routes
 app.post('/:id/attachments', userMiddleware, uploadAttachment);
