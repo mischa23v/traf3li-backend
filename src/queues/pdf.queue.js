@@ -2,13 +2,21 @@
  * PDF Queue Processor
  *
  * Handles asynchronous PDF generation for invoices, reports, and documents.
- * Uses Puppeteer for rendering HTML to PDF.
+ * Uses Puppeteer for rendering HTML to PDF and PDFMe for template-based generation.
  */
 
 const { createQueue } = require('../configs/queue');
 const puppeteer = require('puppeteer');
 const fs = require('fs').promises;
 const path = require('path');
+
+// PDFMe imports for template-based PDF generation
+let PdfmeService = null;
+try {
+    PdfmeService = require('../services/pdfme.service');
+} catch (err) {
+    console.log('PDFMe service not available, template-based PDF generation disabled');
+}
 
 // Create PDF queue
 const pdfQueue = createQueue('pdf', {
@@ -74,6 +82,19 @@ pdfQueue.process(async (job) => {
 
       case 'custom':
         return await generateCustomPDF(data, job);
+
+      // PDFMe template-based generation
+      case 'pdfme':
+        return await generatePdfmePDF(data, job);
+
+      case 'pdfme-invoice':
+        return await generatePdfmeInvoicePDF(data, job);
+
+      case 'pdfme-contract':
+        return await generatePdfmeContractPDF(data, job);
+
+      case 'pdfme-receipt':
+        return await generatePdfmeReceiptPDF(data, job);
 
       default:
         throw new Error(`Unknown PDF type: ${type}`);
@@ -440,6 +461,164 @@ function generateContractHTML(contractData) {
     </body>
     </html>
   `;
+}
+
+// ============ PDFME GENERATION FUNCTIONS ============
+
+/**
+ * Generate PDF using PDFMe (template-based)
+ */
+async function generatePdfmePDF(data, job) {
+  if (!PdfmeService) {
+    throw new Error('PDFMe service not available');
+  }
+
+  const { templateId, template, inputs, docType = 'custom', lawyerId } = data;
+
+  await job.progress(10);
+
+  const pdfBuffer = await PdfmeService.generatePDF({
+    templateId,
+    template,
+    inputs
+  });
+
+  await job.progress(80);
+
+  const fileName = `${docType}-${Date.now()}.pdf`;
+  const filePath = await PdfmeService.savePDF(pdfBuffer, fileName);
+
+  await job.progress(100);
+
+  console.log(`✅ PDFMe PDF generated: ${fileName}`);
+  return {
+    success: true,
+    fileName,
+    filePath,
+    size: pdfBuffer.length,
+    generator: 'pdfme'
+  };
+}
+
+/**
+ * Generate invoice PDF using PDFMe
+ */
+async function generatePdfmeInvoicePDF(data, job) {
+  if (!PdfmeService) {
+    throw new Error('PDFMe service not available');
+  }
+
+  const { invoiceData, templateId, lawyerId, includeQR, qrData } = data;
+
+  await job.progress(10);
+
+  let pdfBuffer;
+  if (includeQR && qrData) {
+    pdfBuffer = await PdfmeService.generateInvoiceWithQR(
+      invoiceData,
+      qrData,
+      templateId,
+      lawyerId
+    );
+  } else {
+    pdfBuffer = await PdfmeService.generateInvoicePDF(
+      invoiceData,
+      templateId,
+      lawyerId
+    );
+  }
+
+  await job.progress(80);
+
+  const invoiceNumber = invoiceData.invoiceNumber || Date.now();
+  const fileName = `invoice-${invoiceNumber}-${Date.now()}.pdf`;
+  const filePath = await PdfmeService.savePDF(pdfBuffer, fileName, 'invoices');
+
+  await job.progress(100);
+
+  console.log(`✅ PDFMe Invoice PDF generated: ${fileName}`);
+  return {
+    success: true,
+    invoiceNumber,
+    fileName,
+    filePath,
+    size: pdfBuffer.length,
+    generator: 'pdfme'
+  };
+}
+
+/**
+ * Generate contract PDF using PDFMe
+ */
+async function generatePdfmeContractPDF(data, job) {
+  if (!PdfmeService) {
+    throw new Error('PDFMe service not available');
+  }
+
+  const { contractData, templateId, lawyerId } = data;
+
+  await job.progress(10);
+
+  const pdfBuffer = await PdfmeService.generateContractPDF(
+    contractData,
+    templateId,
+    lawyerId
+  );
+
+  await job.progress(80);
+
+  const contractNumber = contractData.contractNumber || Date.now();
+  const fileName = `contract-${contractNumber}-${Date.now()}.pdf`;
+  const filePath = await PdfmeService.savePDF(pdfBuffer, fileName, 'contracts');
+
+  await job.progress(100);
+
+  console.log(`✅ PDFMe Contract PDF generated: ${fileName}`);
+  return {
+    success: true,
+    contractNumber,
+    fileName,
+    filePath,
+    size: pdfBuffer.length,
+    generator: 'pdfme'
+  };
+}
+
+/**
+ * Generate receipt PDF using PDFMe
+ */
+async function generatePdfmeReceiptPDF(data, job) {
+  if (!PdfmeService) {
+    throw new Error('PDFMe service not available');
+  }
+
+  const { receiptData, templateId, lawyerId } = data;
+
+  await job.progress(10);
+
+  const pdfBuffer = await PdfmeService.generateReceiptPDF(
+    receiptData,
+    templateId,
+    lawyerId
+  );
+
+  await job.progress(80);
+
+  const receiptNumber = receiptData.receiptNumber || Date.now();
+  const fileName = `receipt-${receiptNumber}-${Date.now()}.pdf`;
+  const filePath = await PdfmeService.savePDF(pdfBuffer, fileName, 'receipts');
+
+  await job.progress(100);
+
+  console.log(`✅ PDFMe Receipt PDF generated: ${fileName}`);
+  return {
+    success: true,
+    receiptNumber,
+    fileName,
+    filePath,
+    size: pdfBuffer.length,
+    generator: 'pdfme'
+  };
 }
 
 // Cleanup browser on queue close

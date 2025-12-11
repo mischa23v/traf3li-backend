@@ -161,6 +161,9 @@ const caseNotionRoute = require('./caseNotion.route');
 // Legal Contract Routes (Najiz Integration)
 const legalContractRoute = require('./legalContract.route');
 
+// PDFMe Routes (Template-based PDF generation)
+const pdfmeRoute = require('./pdfme.route');
+
 module.exports = {
     // Marketplace
     gigRoute,
@@ -323,5 +326,8 @@ module.exports = {
     caseNotionRoute,
 
     // Legal Contracts (Najiz Integration)
-    legalContractRoute
+    legalContractRoute,
+
+    // PDFMe (Template-based PDF generation)
+    pdfmeRoute
 };
