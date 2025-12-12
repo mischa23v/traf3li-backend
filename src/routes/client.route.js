@@ -392,8 +392,10 @@ app.get('/:id/payments',
 );
 
 // ─────────────────────────────────────────────────────────
-// VERIFICATION (Saudi Government Portals)
+// VERIFICATION (Saudi Government Portals - Najiz Integration)
 // ─────────────────────────────────────────────────────────
+
+// Wathq - Commercial Registration Verification
 app.post('/:id/verify/wathq',
     userMiddleware,
     firmFilter,
@@ -409,6 +411,92 @@ app.get('/:id/wathq/:dataType',
     validateIdParam,
     cacheResponse(CLIENT_CACHE_TTL, (req) => `client:firm:${req.firmId || 'none'}:${req.params.id}:wathq:${req.params.dataType}`),
     getWathqData
+);
+
+// Absher - National ID / Iqama Verification (Najiz)
+app.post('/:id/verify/absher',
+    userMiddleware,
+    firmFilter,
+    validateIdParam,
+    invalidateCache(['client:firm:{firmId}:{id}:*']),
+    async (req, res) => {
+        try {
+            const Client = require('../models/client.model');
+            const client = await Client.findById(req.params.id);
+
+            if (!client) {
+                return res.status(404).json({ success: false, message: 'Client not found' });
+            }
+
+            // TODO: Integrate with actual Absher API
+            // For now, mark as manually verified
+            client.isVerified = true;
+            client.verificationSource = 'absher';
+            client.verifiedAt = new Date();
+            client.verificationData = {
+                method: 'manual',
+                verifiedBy: req.userID,
+                nationalId: req.body.nationalId || client.nationalId,
+                iqamaNumber: req.body.iqamaNumber || client.iqamaNumber
+            };
+            await client.save();
+
+            res.json({
+                success: true,
+                message: 'Verification recorded',
+                data: {
+                    isVerified: client.isVerified,
+                    verificationSource: client.verificationSource,
+                    verifiedAt: client.verifiedAt
+                }
+            });
+        } catch (error) {
+            res.status(500).json({ success: false, message: error.message });
+        }
+    }
+);
+
+// Saudi Post - National Address Verification (Najiz)
+app.post('/:id/verify/address',
+    userMiddleware,
+    firmFilter,
+    validateIdParam,
+    invalidateCache(['client:firm:{firmId}:{id}:*']),
+    async (req, res) => {
+        try {
+            const Client = require('../models/client.model');
+            const client = await Client.findById(req.params.id);
+
+            if (!client) {
+                return res.status(404).json({ success: false, message: 'Client not found' });
+            }
+
+            // TODO: Integrate with actual Saudi Post API
+            // For now, mark address as manually verified
+            if (!client.nationalAddress) {
+                client.nationalAddress = {};
+            }
+
+            // Update address with request data if provided
+            if (req.body) {
+                Object.assign(client.nationalAddress, req.body);
+            }
+
+            client.nationalAddress.isVerified = true;
+            client.nationalAddress.verifiedAt = new Date();
+            await client.save();
+
+            res.json({
+                success: true,
+                message: 'Address verification recorded',
+                data: {
+                    nationalAddress: client.nationalAddress
+                }
+            });
+        } catch (error) {
+            res.status(500).json({ success: false, message: error.message });
+        }
+    }
 );
 
 // ─────────────────────────────────────────────────────────
