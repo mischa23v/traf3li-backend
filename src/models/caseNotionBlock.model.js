@@ -190,6 +190,207 @@ const caseNotionBlockSchema = new mongoose.Schema({
     },
 
     // ═══════════════════════════════════════════════════════════════
+    // SHAPE TYPE SYSTEM (Excalidraw/tldraw inspired)
+    // ═══════════════════════════════════════════════════════════════
+
+    /**
+     * Shape type for whiteboard elements
+     * 'note' = existing document block (default)
+     */
+    shapeType: {
+        type: String,
+        enum: ['note', 'rectangle', 'ellipse', 'diamond', 'triangle', 'hexagon',
+               'star', 'arrow', 'line', 'sticky', 'frame', 'image', 'embed', 'text_shape'],
+        default: 'note'
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // ROTATION & OPACITY
+    // ═══════════════════════════════════════════════════════════════
+
+    /**
+     * Rotation angle in radians (0 to 2π)
+     */
+    angle: {
+        type: Number,
+        default: 0,
+        min: 0,
+        max: 6.283185  // 2π radians (full rotation)
+    },
+
+    /**
+     * Opacity level (0-100%)
+     */
+    opacity: {
+        type: Number,
+        default: 100,
+        min: 0,
+        max: 100
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // LAYERING (Fractional Z-Index)
+    // ═══════════════════════════════════════════════════════════════
+
+    /**
+     * Fractional indexing for z-order (like Excalidraw)
+     * Uses string-based fractional indexing for efficient reordering
+     */
+    zIndex: {
+        type: String,
+        default: 'a0'
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // ENHANCED VISUAL STYLING (Excalidraw-inspired)
+    // ═══════════════════════════════════════════════════════════════
+
+    /**
+     * Stroke/border color (hex format)
+     */
+    strokeColor: {
+        type: String,
+        default: '#000000'
+    },
+
+    /**
+     * Stroke width in pixels
+     */
+    strokeWidth: {
+        type: Number,
+        default: 2,
+        min: 1,
+        max: 20
+    },
+
+    /**
+     * Fill style for shapes
+     */
+    fillStyle: {
+        type: String,
+        enum: ['solid', 'hachure', 'cross-hatch', 'none'],
+        default: 'solid'
+    },
+
+    /**
+     * Roughness level (0=clean, 2=hand-drawn)
+     */
+    roughness: {
+        type: Number,
+        default: 0,
+        min: 0,
+        max: 2
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // VERSION CONTROL FOR COLLABORATION
+    // ═══════════════════════════════════════════════════════════════
+
+    /**
+     * Version number for optimistic locking
+     */
+    version: {
+        type: Number,
+        default: 1
+    },
+
+    /**
+     * Random nonce for version detection
+     */
+    versionNonce: {
+        type: Number,
+        default: () => Math.floor(Math.random() * 1000000)
+    },
+
+    /**
+     * Soft delete flag for collaboration
+     */
+    isDeleted: {
+        type: Boolean,
+        default: false,
+        index: true
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // FRAME SUPPORT (Container for other blocks)
+    // ═══════════════════════════════════════════════════════════════
+
+    /**
+     * Whether this block is a frame (container)
+     */
+    isFrame: {
+        type: Boolean,
+        default: false
+    },
+
+    /**
+     * Child blocks within this frame
+     */
+    frameChildren: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'CaseNotionBlock'
+    }],
+
+    /**
+     * Display name for the frame
+     */
+    frameName: {
+        type: String,
+        maxlength: 100
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // CONNECTION SYSTEM (Bidirectional connections)
+    // ═══════════════════════════════════════════════════════════════
+
+    /**
+     * Elements bound to this block (arrows, lines, text)
+     */
+    boundElements: [{
+        id: { type: mongoose.Schema.Types.ObjectId, ref: 'BlockConnection' },
+        type: { type: String, enum: ['arrow', 'line', 'text'] }
+    }],
+
+    /**
+     * Connection handles for this block
+     */
+    handles: [{
+        id: { type: String, required: true },
+        position: { type: String, enum: ['top', 'right', 'bottom', 'left', 'center'], required: true },
+        type: { type: String, enum: ['source', 'target', 'both'], default: 'both' },
+        offsetX: { type: Number, default: 0 },
+        offsetY: { type: Number, default: 0 }
+    }],
+
+    // ═══════════════════════════════════════════════════════════════
+    // ARROW-SPECIFIC FIELDS (for shapeType='arrow')
+    // ═══════════════════════════════════════════════════════════════
+
+    /**
+     * Arrow start configuration
+     */
+    arrowStart: {
+        type: { type: String, enum: ['none', 'arrow', 'triangle', 'circle', 'diamond', 'bar'] },
+        boundElementId: mongoose.Schema.Types.ObjectId
+    },
+
+    /**
+     * Arrow end configuration
+     */
+    arrowEnd: {
+        type: { type: String, enum: ['none', 'arrow', 'triangle', 'circle', 'diamond', 'bar'] },
+        boundElementId: mongoose.Schema.Types.ObjectId
+    },
+
+    /**
+     * Arrow path points (for curved/multi-segment arrows)
+     */
+    arrowPoints: [{
+        x: Number,
+        y: Number
+    }],
+
+    // ═══════════════════════════════════════════════════════════════
     // ENTITY LINKING (WHITEBOARD)
     // ═══════════════════════════════════════════════════════════════
 
@@ -271,6 +472,11 @@ caseNotionBlockSchema.index({ linkedTaskId: 1 });
 caseNotionBlockSchema.index({ linkedHearingId: 1 });
 caseNotionBlockSchema.index({ linkedDocumentId: 1 });
 caseNotionBlockSchema.index({ groupId: 1 });
+
+// New whiteboard indexes (for z-ordering, soft deletes, and frames)
+caseNotionBlockSchema.index({ pageId: 1, zIndex: 1 });
+caseNotionBlockSchema.index({ pageId: 1, isDeleted: 1 });
+caseNotionBlockSchema.index({ isFrame: 1, frameChildren: 1 });
 
 // ═══════════════════════════════════════════════════════════════
 // EXPORTS

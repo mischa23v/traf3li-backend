@@ -145,6 +145,24 @@ const createBlockSchema = Joi.object({
 const BLOCK_COLORS = ['default', 'red', 'orange', 'yellow', 'green', 'blue', 'purple', 'pink', 'gray'];
 const PRIORITY_LEVELS = ['low', 'medium', 'high', 'urgent'];
 
+// Shape types enum
+const SHAPE_TYPES = [
+    'note', 'rectangle', 'ellipse', 'diamond', 'triangle', 'hexagon',
+    'star', 'arrow', 'line', 'sticky', 'frame', 'image', 'embed', 'text_shape'
+];
+
+// Fill styles enum
+const FILL_STYLES = ['solid', 'hachure', 'cross-hatch', 'none'];
+
+// Arrow head types
+const ARROW_HEAD_TYPES = ['none', 'arrow', 'triangle', 'circle', 'diamond', 'bar'];
+
+// Handle positions
+const HANDLE_POSITIONS = ['top', 'right', 'bottom', 'left', 'center'];
+
+// Path types for connections
+const PATH_TYPES = ['straight', 'bezier', 'smoothstep', 'step'];
+
 const updateBlockSchema = Joi.object({
     // Support nested data wrapper format
     data: Joi.object().optional(),
@@ -287,6 +305,116 @@ const blockIdParamSchema = Joi.object({
     blockId: Joi.string().pattern(MONGO_ID_PATTERN).required()
 }).unknown(true);
 
+// Create shape schema
+const createShapeSchema = Joi.object({
+    shapeType: Joi.string().valid(...SHAPE_TYPES).required(),
+    x: Joi.number().min(0).max(10000).required(),
+    y: Joi.number().min(0).max(10000).required(),
+    width: Joi.number().min(10).max(2000).default(200),
+    height: Joi.number().min(10).max(2000).default(150),
+    angle: Joi.number().min(0).max(6.283185).default(0),
+    opacity: Joi.number().min(0).max(100).default(100),
+    strokeColor: Joi.string().pattern(/^#[0-9A-Fa-f]{6}$/).default('#000000'),
+    strokeWidth: Joi.number().min(1).max(20).default(2),
+    fillStyle: Joi.string().valid(...FILL_STYLES).default('solid'),
+    blockColor: Joi.string().valid('default', 'red', 'orange', 'yellow', 'green', 'blue', 'purple', 'pink', 'gray').default('default'),
+    text: Joi.string().max(5000).optional(),
+    roughness: Joi.number().min(0).max(2).default(0),
+    handles: Joi.array().items(Joi.object({
+        id: Joi.string().required(),
+        position: Joi.string().valid(...HANDLE_POSITIONS).required(),
+        type: Joi.string().valid('source', 'target', 'both').default('both'),
+        offsetX: Joi.number().default(0),
+        offsetY: Joi.number().default(0)
+    })).optional()
+});
+
+// Create arrow schema
+const createArrowSchema = Joi.object({
+    startX: Joi.number().min(0).max(10000).required(),
+    startY: Joi.number().min(0).max(10000).required(),
+    endX: Joi.number().min(0).max(10000).required(),
+    endY: Joi.number().min(0).max(10000).required(),
+    startType: Joi.string().valid(...ARROW_HEAD_TYPES).default('none'),
+    endType: Joi.string().valid(...ARROW_HEAD_TYPES).default('arrow'),
+    strokeColor: Joi.string().pattern(/^#[0-9A-Fa-f]{6}$/).default('#000000'),
+    strokeWidth: Joi.number().min(1).max(10).default(2),
+    sourceBlockId: Joi.string().pattern(MONGO_ID_PATTERN).optional(),
+    targetBlockId: Joi.string().pattern(MONGO_ID_PATTERN).optional(),
+    sourceHandle: Joi.string().valid(...HANDLE_POSITIONS).optional(),
+    targetHandle: Joi.string().valid(...HANDLE_POSITIONS).optional()
+});
+
+// Create frame schema
+const createFrameSchema = Joi.object({
+    x: Joi.number().min(0).max(10000).default(0),
+    y: Joi.number().min(0).max(10000).default(0),
+    width: Joi.number().min(100).max(5000).default(500),
+    height: Joi.number().min(100).max(5000).default(400),
+    name: Joi.string().max(100).default('Frame'),
+    backgroundColor: Joi.string().valid('default', 'red', 'orange', 'yellow', 'green', 'blue', 'purple', 'pink', 'gray').default('default')
+});
+
+// Z-index update schema
+const updateZIndexSchema = Joi.object({
+    action: Joi.string().valid('front', 'back', 'forward', 'backward').required()
+});
+
+// Batch update schema
+const batchUpdateSchema = Joi.object({
+    updates: Joi.array().items(Joi.object({
+        id: Joi.string().pattern(MONGO_ID_PATTERN).required(),
+        changes: Joi.object({
+            canvasX: Joi.number().min(0).max(10000).optional(),
+            canvasY: Joi.number().min(0).max(10000).optional(),
+            canvasWidth: Joi.number().min(10).max(2000).optional(),
+            canvasHeight: Joi.number().min(10).max(2000).optional(),
+            angle: Joi.number().min(0).max(6.283185).optional(),
+            opacity: Joi.number().min(0).max(100).optional()
+        }).required()
+    })).min(1).required()
+});
+
+// Enhanced connection schema
+const createConnectionSchema = Joi.object({
+    sourceBlockId: Joi.string().pattern(MONGO_ID_PATTERN).required(),
+    targetBlockId: Joi.string().pattern(MONGO_ID_PATTERN).required(),
+    sourceHandle: Joi.object({
+        id: Joi.string().optional(),
+        position: Joi.string().valid(...HANDLE_POSITIONS).default('right')
+    }).optional(),
+    targetHandle: Joi.object({
+        id: Joi.string().optional(),
+        position: Joi.string().valid(...HANDLE_POSITIONS).default('left')
+    }).optional(),
+    connectionType: Joi.string().valid('arrow', 'line', 'dashed', 'bidirectional').default('arrow'),
+    pathType: Joi.string().valid(...PATH_TYPES).default('bezier'),
+    label: Joi.string().max(100).optional(),
+    color: Joi.string().pattern(/^#[0-9A-Fa-f]{6}$/).default('#6b7280'),
+    strokeWidth: Joi.number().min(1).max(10).default(2),
+    animated: Joi.boolean().default(false),
+    markerStart: Joi.object({
+        type: Joi.string().valid('none', 'arrow', 'arrowclosed', 'circle', 'diamond').default('none'),
+        color: Joi.string().optional(),
+        width: Joi.number().optional(),
+        height: Joi.number().optional()
+    }).optional(),
+    markerEnd: Joi.object({
+        type: Joi.string().valid('none', 'arrow', 'arrowclosed', 'circle', 'diamond').default('arrow'),
+        color: Joi.string().optional(),
+        width: Joi.number().optional(),
+        height: Joi.number().optional()
+    }).optional()
+});
+
+// Style update schema
+const updateStyleSchema = Joi.object({
+    strokeColor: Joi.string().pattern(/^#[0-9A-Fa-f]{6}$/).optional(),
+    strokeWidth: Joi.number().min(1).max(20).optional(),
+    fillStyle: Joi.string().valid(...FILL_STYLES).optional(),
+    roughness: Joi.number().min(0).max(2).optional()
+});
+
 // ═══════════════════════════════════════════════════════════════
 // VALIDATION MIDDLEWARE FACTORY
 // ═══════════════════════════════════════════════════════════════
@@ -334,7 +462,14 @@ module.exports = {
         linkTask: linkTaskSchema,
         applyTemplate: applyTemplateSchema,
         pageIdParam: pageIdParamSchema,
-        blockIdParam: blockIdParamSchema
+        blockIdParam: blockIdParamSchema,
+        createShape: createShapeSchema,
+        createArrow: createArrowSchema,
+        createFrame: createFrameSchema,
+        updateZIndex: updateZIndexSchema,
+        batchUpdate: batchUpdateSchema,
+        createConnection: createConnectionSchema,
+        updateStyle: updateStyleSchema
     },
 
     // Middleware
@@ -354,6 +489,20 @@ module.exports = {
     // Constants
     PAGE_TYPES,
     BLOCK_TYPES,
+    SHAPE_TYPES,
+    FILL_STYLES,
+    ARROW_HEAD_TYPES,
+    HANDLE_POSITIONS,
+    PATH_TYPES,
+
+    // Shape validation
+    validateCreateShape: validate(createShapeSchema),
+    validateCreateArrow: validate(createArrowSchema),
+    validateCreateFrame: validate(createFrameSchema),
+    validateUpdateZIndex: validate(updateZIndexSchema),
+    validateBatchUpdate: validate(batchUpdateSchema),
+    validateCreateConnection: validate(createConnectionSchema),
+    validateUpdateStyle: validate(updateStyleSchema),
 
     // Generic validate function
     validate

@@ -8,6 +8,7 @@ const BlockComment = require('../models/blockComment.model');
 const PageActivity = require('../models/pageActivity.model');
 const Task = require('../models/task.model');
 const Case = require('../models/case.model');
+const PageHistory = require('../models/pageHistory.model');
 
 // ═══════════════════════════════════════════════════════════════
 // CASE LIST WITH NOTION STATS (for /dashboard/notion page)
@@ -249,21 +250,85 @@ exports.getPage = async (req, res) => {
             return res.status(404).json({ error: true, message: 'Page not found' });
         }
 
-        // Get blocks for this page
-        const blocks = await CaseNotionBlock.find({ pageId })
-            .sort({ order: 1 })
+        // Get blocks with all whiteboard fields
+        // Sort by zIndex for whiteboard, by order for document
+        const sortField = page.viewMode === 'whiteboard' ? { zIndex: 1, order: 1 } : { order: 1 };
+
+        const blocks = await CaseNotionBlock.find({
+            pageId,
+            isDeleted: { $ne: true }
+        })
+            .sort(sortField)
             .populate('lastEditedBy', 'firstName lastName')
             .populate('lockedBy', 'firstName lastName')
-            .populate('linkedTaskId', 'title status priority');
+            .populate('linkedTaskId', 'title status priority')
+            .populate('boundElements.id')
+            .populate('frameChildren', 'canvasX canvasY canvasWidth canvasHeight shapeType');
 
-        // Get connections for this page (for whiteboard view)
-        const connections = await BlockConnection.find({ pageId });
+        // Get connections with populated source/target
+        const connections = await BlockConnection.find({
+            pageId,
+            isDeleted: { $ne: true }
+        })
+            .populate('sourceBlockId', 'canvasX canvasY canvasWidth canvasHeight handles shapeType')
+            .populate('targetBlockId', 'canvasX canvasY canvasWidth canvasHeight handles shapeType')
+            .populate('createdBy', 'firstName lastName');
+
+        // Transform blocks for frontend
+        const transformedBlocks = blocks.map(block => {
+            const blockObj = block.toObject();
+
+            // For whiteboard mode, ensure all canvas fields are present
+            if (page.viewMode === 'whiteboard') {
+                return {
+                    ...blockObj,
+                    // Ensure these fields exist with defaults
+                    canvasX: blockObj.canvasX ?? 0,
+                    canvasY: blockObj.canvasY ?? 0,
+                    canvasWidth: blockObj.canvasWidth ?? 200,
+                    canvasHeight: blockObj.canvasHeight ?? 150,
+                    angle: blockObj.angle ?? 0,
+                    opacity: blockObj.opacity ?? 100,
+                    zIndex: blockObj.zIndex ?? 'a0',
+                    shapeType: blockObj.shapeType ?? 'note',
+                    strokeColor: blockObj.strokeColor ?? '#000000',
+                    strokeWidth: blockObj.strokeWidth ?? 2,
+                    fillStyle: blockObj.fillStyle ?? 'solid',
+                    handles: blockObj.handles ?? [
+                        { id: 'top', position: 'top', type: 'both' },
+                        { id: 'right', position: 'right', type: 'both' },
+                        { id: 'bottom', position: 'bottom', type: 'both' },
+                        { id: 'left', position: 'left', type: 'both' }
+                    ],
+                    boundElements: blockObj.boundElements ?? []
+                };
+            }
+
+            return blockObj;
+        });
 
         res.json({
             success: true,
-            data: { ...page.toObject(), blocks, connections }
+            data: {
+                ...page.toObject(),
+                blocks: transformedBlocks,
+                connections,
+                // Include whiteboard config with defaults
+                whiteboardConfig: {
+                    canvasWidth: 5000,
+                    canvasHeight: 5000,
+                    zoom: 1,
+                    panX: 0,
+                    panY: 0,
+                    gridEnabled: true,
+                    snapToGrid: true,
+                    gridSize: 20,
+                    ...page.whiteboardConfig
+                }
+            }
         });
     } catch (error) {
+        console.error('Error getting page:', error);
         res.status(500).json({ error: true, message: error.message });
     }
 };
@@ -1856,79 +1921,93 @@ exports.getConnections = async (req, res) => {
 };
 
 /**
- * Create a new connection between blocks
+ * Create connection with bidirectional binding
  * POST /api/v1/cases/:caseId/notion/pages/:pageId/connections
  */
 exports.createConnection = async (req, res) => {
     try {
         const { pageId } = req.params;
-        const { sourceBlockId, targetBlockId, connectionType, label, color } = req.body;
+        const {
+            sourceBlockId,
+            targetBlockId,
+            sourceHandle,
+            targetHandle,
+            connectionType,
+            pathType,
+            label,
+            color,
+            strokeWidth,
+            animated,
+            markerStart,
+            markerEnd
+        } = req.body;
 
-        // Validate required fields
-        if (!sourceBlockId || !targetBlockId) {
-            return res.status(400).json({
-                error: true,
-                message: 'sourceBlockId and targetBlockId are required'
-            });
-        }
-
-        // Prevent self-referencing
-        if (sourceBlockId === targetBlockId) {
-            return res.status(400).json({
-                error: true,
-                message: 'Cannot create connection from a block to itself'
-            });
-        }
-
-        // Check if both blocks exist and belong to this page
+        // Validate blocks exist
         const [sourceBlock, targetBlock] = await Promise.all([
-            CaseNotionBlock.findOne({ _id: sourceBlockId, pageId }),
-            CaseNotionBlock.findOne({ _id: targetBlockId, pageId })
+            CaseNotionBlock.findById(sourceBlockId),
+            CaseNotionBlock.findById(targetBlockId)
         ]);
 
         if (!sourceBlock || !targetBlock) {
-            return res.status(400).json({
-                error: true,
-                message: 'Both blocks must exist and belong to this page'
-            });
+            return res.status(404).json({ error: true, message: 'Source or target block not found' });
         }
 
-        // Check for existing connection (in either direction for non-bidirectional)
+        // Prevent self-connection
+        if (sourceBlockId === targetBlockId) {
+            return res.status(400).json({ error: true, message: 'Cannot connect block to itself' });
+        }
+
+        // Check for existing connection
         const existingConnection = await BlockConnection.findOne({
-            pageId,
-            $or: [
-                { sourceBlockId, targetBlockId },
-                { sourceBlockId: targetBlockId, targetBlockId: sourceBlockId }
-            ]
-        });
-
-        if (existingConnection) {
-            return res.status(409).json({
-                error: true,
-                message: 'Connection already exists between these blocks'
-            });
-        }
-
-        const connection = new BlockConnection({
             pageId,
             sourceBlockId,
             targetBlockId,
-            connectionType: connectionType || 'arrow',
-            label,
-            color,
-            createdBy: req.user._id
+            isDeleted: { $ne: true }
         });
 
-        await connection.save();
-
-        res.status(201).json({ success: true, data: connection });
-    } catch (error) {
-        if (error.code === 11000) {
-            return res.status(409).json({
-                error: true,
-                message: 'Connection already exists'
-            });
+        if (existingConnection) {
+            return res.status(400).json({ error: true, message: 'Connection already exists' });
         }
+
+        // Create connection
+        const connection = await BlockConnection.create({
+            pageId,
+            sourceBlockId,
+            targetBlockId,
+            sourceHandle: sourceHandle || { position: 'right' },
+            targetHandle: targetHandle || { position: 'left' },
+            connectionType: connectionType || 'arrow',
+            pathType: pathType || 'bezier',
+            label,
+            color: color || '#6b7280',
+            strokeWidth: strokeWidth || 2,
+            animated: animated || false,
+            markerStart: markerStart || { type: 'none' },
+            markerEnd: markerEnd || { type: 'arrow' },
+            createdBy: req.user._id,
+            version: 1
+        });
+
+        // Update boundElements on both blocks (bidirectional binding)
+        await Promise.all([
+            CaseNotionBlock.findByIdAndUpdate(sourceBlockId, {
+                $push: { boundElements: { id: connection._id, type: 'arrow' } },
+                $inc: { version: 1 }
+            }),
+            CaseNotionBlock.findByIdAndUpdate(targetBlockId, {
+                $push: { boundElements: { id: connection._id, type: 'arrow' } },
+                $inc: { version: 1 }
+            })
+        ]);
+
+        // Populate and return
+        const populatedConnection = await BlockConnection.findById(connection._id)
+            .populate('sourceBlockId', 'canvasX canvasY canvasWidth canvasHeight handles')
+            .populate('targetBlockId', 'canvasX canvasY canvasWidth canvasHeight handles');
+
+        res.status(201).json({ success: true, data: populatedConnection });
+    } catch (error) {
+        console.error('Error creating connection:', error);
         res.status(500).json({ error: true, message: error.message });
     }
 };
@@ -1964,20 +2043,60 @@ exports.updateConnection = async (req, res) => {
 };
 
 /**
- * Delete a connection
+ * Delete connection and remove from boundElements
  * DELETE /api/v1/cases/:caseId/notion/connections/:connectionId
  */
 exports.deleteConnection = async (req, res) => {
     try {
         const { connectionId } = req.params;
 
-        const connection = await BlockConnection.findByIdAndDelete(connectionId);
-
+        const connection = await BlockConnection.findById(connectionId);
         if (!connection) {
             return res.status(404).json({ error: true, message: 'Connection not found' });
         }
 
+        // Remove from boundElements on both blocks
+        await Promise.all([
+            CaseNotionBlock.findByIdAndUpdate(connection.sourceBlockId, {
+                $pull: { boundElements: { id: connection._id } },
+                $inc: { version: 1 }
+            }),
+            CaseNotionBlock.findByIdAndUpdate(connection.targetBlockId, {
+                $pull: { boundElements: { id: connection._id } },
+                $inc: { version: 1 }
+            })
+        ]);
+
+        // Soft delete or hard delete
+        await BlockConnection.findByIdAndDelete(connectionId);
+
         res.json({ success: true, message: 'Connection deleted' });
+    } catch (error) {
+        console.error('Error deleting connection:', error);
+        res.status(500).json({ error: true, message: error.message });
+    }
+};
+
+/**
+ * Update connection path when connected elements move
+ * This should be called when dragging elements
+ * GET /api/v1/cases/:caseId/notion/blocks/:blockId/connections
+ */
+exports.updateConnectionPaths = async (req, res) => {
+    try {
+        const { blockId } = req.params;
+
+        // Find all connections where this block is source or target
+        const connections = await BlockConnection.find({
+            $or: [
+                { sourceBlockId: blockId },
+                { targetBlockId: blockId }
+            ],
+            isDeleted: { $ne: true }
+        }).populate('sourceBlockId targetBlockId');
+
+        // Return updated connection data for frontend to recalculate paths
+        res.json({ success: true, data: connections });
     } catch (error) {
         res.status(500).json({ error: true, message: error.message });
     }
@@ -2117,6 +2236,839 @@ exports.updateWhiteboardConfig = async (req, res) => {
 };
 
 // ═══════════════════════════════════════════════════════════════
+// WHITEBOARD - FRAME MANAGEMENT CONTROLLERS
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Add element to frame
+ * POST /api/v1/cases/:caseId/notion/frames/:frameId/children
+ */
+exports.addToFrame = async (req, res) => {
+    try {
+        const { frameId } = req.params;
+        const { elementId } = req.body;
+
+        const frame = await CaseNotionBlock.findById(frameId);
+        if (!frame || !frame.isFrame) {
+            return res.status(404).json({ error: true, message: 'Frame not found' });
+        }
+
+        const element = await CaseNotionBlock.findById(elementId);
+        if (!element) {
+            return res.status(404).json({ error: true, message: 'Element not found' });
+        }
+
+        // Add to frame children if not already there
+        if (!frame.frameChildren.includes(elementId)) {
+            frame.frameChildren.push(elementId);
+            frame.version += 1;
+            await frame.save();
+        }
+
+        res.json({ success: true, data: frame });
+    } catch (error) {
+        res.status(500).json({ error: true, message: error.message });
+    }
+};
+
+/**
+ * Remove element from frame
+ * DELETE /api/v1/cases/:caseId/notion/frames/:frameId/children/:elementId
+ */
+exports.removeFromFrame = async (req, res) => {
+    try {
+        const { frameId, elementId } = req.params;
+
+        const frame = await CaseNotionBlock.findById(frameId);
+        if (!frame || !frame.isFrame) {
+            return res.status(404).json({ error: true, message: 'Frame not found' });
+        }
+
+        frame.frameChildren = frame.frameChildren.filter(
+            id => id.toString() !== elementId
+        );
+        frame.version += 1;
+        await frame.save();
+
+        res.json({ success: true, data: frame });
+    } catch (error) {
+        res.status(500).json({ error: true, message: error.message });
+    }
+};
+
+/**
+ * Get all elements in a frame
+ * GET /api/v1/cases/:caseId/notion/frames/:frameId/children
+ */
+exports.getFrameChildren = async (req, res) => {
+    try {
+        const { frameId } = req.params;
+
+        const frame = await CaseNotionBlock.findById(frameId)
+            .populate('frameChildren');
+
+        if (!frame || !frame.isFrame) {
+            return res.status(404).json({ error: true, message: 'Frame not found' });
+        }
+
+        res.json({ success: true, data: frame.frameChildren });
+    } catch (error) {
+        res.status(500).json({ error: true, message: error.message });
+    }
+};
+
+/**
+ * Auto-detect elements inside frame bounds
+ * POST /api/v1/cases/:caseId/notion/frames/:frameId/auto-detect
+ */
+exports.autoDetectFrameChildren = async (req, res) => {
+    try {
+        const { frameId } = req.params;
+
+        const frame = await CaseNotionBlock.findById(frameId);
+        if (!frame || !frame.isFrame) {
+            return res.status(404).json({ error: true, message: 'Frame not found' });
+        }
+
+        // Find all elements that are within the frame bounds
+        const elementsInBounds = await CaseNotionBlock.find({
+            pageId: frame.pageId,
+            _id: { $ne: frameId },
+            isFrame: { $ne: true },
+            isDeleted: { $ne: true },
+            canvasX: { $gte: frame.canvasX, $lte: frame.canvasX + frame.canvasWidth },
+            canvasY: { $gte: frame.canvasY, $lte: frame.canvasY + frame.canvasHeight }
+        });
+
+        // Update frame children
+        frame.frameChildren = elementsInBounds.map(e => e._id);
+        frame.version += 1;
+        await frame.save();
+
+        res.json({
+            success: true,
+            data: frame,
+            childCount: elementsInBounds.length
+        });
+    } catch (error) {
+        res.status(500).json({ error: true, message: error.message });
+    }
+};
+
+/**
+ * Move frame with all children
+ * PATCH /api/v1/cases/:caseId/notion/frames/:frameId/move
+ */
+exports.moveFrameWithChildren = async (req, res) => {
+    try {
+        const { frameId } = req.params;
+        const { deltaX, deltaY } = req.body;
+
+        const frame = await CaseNotionBlock.findById(frameId)
+            .populate('frameChildren');
+
+        if (!frame || !frame.isFrame) {
+            return res.status(404).json({ error: true, message: 'Frame not found' });
+        }
+
+        // Move frame
+        const bulkOps = [{
+            updateOne: {
+                filter: { _id: frameId },
+                update: {
+                    $set: {
+                        canvasX: frame.canvasX + deltaX,
+                        canvasY: frame.canvasY + deltaY
+                    },
+                    $inc: { version: 1 }
+                }
+            }
+        }];
+
+        // Move all children
+        for (const child of frame.frameChildren) {
+            bulkOps.push({
+                updateOne: {
+                    filter: { _id: child._id },
+                    update: {
+                        $set: {
+                            canvasX: child.canvasX + deltaX,
+                            canvasY: child.canvasY + deltaY
+                        },
+                        $inc: { version: 1 }
+                    }
+                }
+            });
+        }
+
+        await CaseNotionBlock.bulkWrite(bulkOps);
+
+        // Return updated frame with children
+        const updatedFrame = await CaseNotionBlock.findById(frameId)
+            .populate('frameChildren');
+
+        res.json({ success: true, data: updatedFrame });
+    } catch (error) {
+        res.status(500).json({ error: true, message: error.message });
+    }
+};
+
+// ═══════════════════════════════════════════════════════════════
+// WHITEBOARD - UNDO/REDO CONTROLLERS
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Record an action for undo/redo
+ * Internal helper function
+ */
+async function recordHistory(pageId, userId, actionType, elementIds, connectionIds, previousState, newState) {
+    try {
+        // Get next sequence number
+        const lastHistory = await PageHistory.findOne({ pageId, userId })
+            .sort({ sequence: -1 });
+        const sequence = (lastHistory?.sequence || 0) + 1;
+
+        // Clear any redo stack (actions after current position)
+        await PageHistory.deleteMany({
+            pageId,
+            userId,
+            isUndone: true
+        });
+
+        // Create history entry
+        await PageHistory.create({
+            pageId,
+            userId,
+            actionType,
+            elementIds,
+            connectionIds,
+            previousState,
+            newState,
+            sequence
+        });
+
+        // Cleanup old history
+        await PageHistory.cleanupOldHistory(pageId, userId);
+    } catch (error) {
+        console.error('Error recording history:', error);
+    }
+}
+
+/**
+ * Undo last action
+ * POST /api/v1/cases/:caseId/notion/pages/:pageId/undo
+ */
+exports.undo = async (req, res) => {
+    try {
+        const { pageId } = req.params;
+        const userId = req.user._id;
+
+        // Get last non-undone action
+        const lastAction = await PageHistory.findOne({
+            pageId,
+            userId,
+            isUndone: false
+        }).sort({ sequence: -1 });
+
+        if (!lastAction) {
+            return res.status(400).json({
+                error: true,
+                message: 'Nothing to undo'
+            });
+        }
+
+        // Apply previous state
+        const { actionType, elementIds, connectionIds, previousState } = lastAction;
+
+        switch (actionType) {
+            case 'create_element':
+                // Delete the created elements
+                await CaseNotionBlock.updateMany(
+                    { _id: { $in: elementIds } },
+                    { $set: { isDeleted: true } }
+                );
+                break;
+
+            case 'delete_element':
+                // Restore deleted elements
+                await CaseNotionBlock.updateMany(
+                    { _id: { $in: elementIds } },
+                    { $set: { isDeleted: false } }
+                );
+                break;
+
+            case 'update_element':
+            case 'move_element':
+            case 'resize_element':
+            case 'rotate_element':
+            case 'style_element':
+                // Restore previous state for each element
+                for (const state of previousState) {
+                    await CaseNotionBlock.findByIdAndUpdate(
+                        state._id,
+                        { $set: state }
+                    );
+                }
+                break;
+
+            case 'create_connection':
+                await BlockConnection.updateMany(
+                    { _id: { $in: connectionIds } },
+                    { $set: { isDeleted: true } }
+                );
+                break;
+
+            case 'delete_connection':
+                await BlockConnection.updateMany(
+                    { _id: { $in: connectionIds } },
+                    { $set: { isDeleted: false } }
+                );
+                break;
+
+            case 'batch_update':
+                for (const state of previousState) {
+                    await CaseNotionBlock.findByIdAndUpdate(
+                        state._id,
+                        { $set: state }
+                    );
+                }
+                break;
+
+            case 'group':
+                await CaseNotionBlock.updateMany(
+                    { _id: { $in: elementIds } },
+                    { $set: { groupId: null, groupName: null } }
+                );
+                break;
+
+            case 'ungroup':
+                for (const state of previousState) {
+                    await CaseNotionBlock.findByIdAndUpdate(
+                        state._id,
+                        { $set: { groupId: state.groupId, groupName: state.groupName } }
+                    );
+                }
+                break;
+        }
+
+        // Mark action as undone
+        lastAction.isUndone = true;
+        await lastAction.save();
+
+        res.json({
+            success: true,
+            message: `Undid: ${actionType}`,
+            actionType
+        });
+    } catch (error) {
+        console.error('Error in undo:', error);
+        res.status(500).json({ error: true, message: error.message });
+    }
+};
+
+/**
+ * Redo last undone action
+ * POST /api/v1/cases/:caseId/notion/pages/:pageId/redo
+ */
+exports.redo = async (req, res) => {
+    try {
+        const { pageId } = req.params;
+        const userId = req.user._id;
+
+        // Get last undone action
+        const lastUndone = await PageHistory.findOne({
+            pageId,
+            userId,
+            isUndone: true
+        }).sort({ sequence: -1 });
+
+        if (!lastUndone) {
+            return res.status(400).json({
+                error: true,
+                message: 'Nothing to redo'
+            });
+        }
+
+        // Apply new state
+        const { actionType, elementIds, connectionIds, newState } = lastUndone;
+
+        switch (actionType) {
+            case 'create_element':
+                await CaseNotionBlock.updateMany(
+                    { _id: { $in: elementIds } },
+                    { $set: { isDeleted: false } }
+                );
+                break;
+
+            case 'delete_element':
+                await CaseNotionBlock.updateMany(
+                    { _id: { $in: elementIds } },
+                    { $set: { isDeleted: true } }
+                );
+                break;
+
+            case 'update_element':
+            case 'move_element':
+            case 'resize_element':
+            case 'rotate_element':
+            case 'style_element':
+            case 'batch_update':
+                for (const state of newState) {
+                    await CaseNotionBlock.findByIdAndUpdate(
+                        state._id,
+                        { $set: state }
+                    );
+                }
+                break;
+
+            case 'create_connection':
+                await BlockConnection.updateMany(
+                    { _id: { $in: connectionIds } },
+                    { $set: { isDeleted: false } }
+                );
+                break;
+
+            case 'delete_connection':
+                await BlockConnection.updateMany(
+                    { _id: { $in: connectionIds } },
+                    { $set: { isDeleted: true } }
+                );
+                break;
+
+            case 'group':
+                for (const state of newState) {
+                    await CaseNotionBlock.findByIdAndUpdate(
+                        state._id,
+                        { $set: { groupId: state.groupId, groupName: state.groupName } }
+                    );
+                }
+                break;
+
+            case 'ungroup':
+                await CaseNotionBlock.updateMany(
+                    { _id: { $in: elementIds } },
+                    { $set: { groupId: null, groupName: null } }
+                );
+                break;
+        }
+
+        // Mark action as not undone
+        lastUndone.isUndone = false;
+        await lastUndone.save();
+
+        res.json({
+            success: true,
+            message: `Redid: ${actionType}`,
+            actionType
+        });
+    } catch (error) {
+        console.error('Error in redo:', error);
+        res.status(500).json({ error: true, message: error.message });
+    }
+};
+
+/**
+ * Get undo/redo stack status
+ * GET /api/v1/cases/:caseId/notion/pages/:pageId/history-status
+ */
+exports.getHistoryStatus = async (req, res) => {
+    try {
+        const { pageId } = req.params;
+        const userId = req.user._id;
+
+        const [undoStack, redoStack] = await Promise.all([
+            PageHistory.getUndoStack(pageId, userId, 10),
+            PageHistory.getRedoStack(pageId, userId, 10)
+        ]);
+
+        res.json({
+            success: true,
+            data: {
+                canUndo: undoStack.length > 0,
+                canRedo: redoStack.length > 0,
+                undoCount: undoStack.length,
+                redoCount: redoStack.length,
+                lastUndoAction: undoStack[0]?.actionType || null,
+                lastRedoAction: redoStack[0]?.actionType || null
+            }
+        });
+    } catch (error) {
+        res.status(500).json({ error: true, message: error.message });
+    }
+};
+
+
+// ═══════════════════════════════════════════════════════════════
+// WHITEBOARD - MULTI-SELECT OPERATIONS
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Duplicate selected elements
+ * POST /api/v1/cases/:caseId/notion/pages/:pageId/duplicate
+ */
+exports.duplicateElements = async (req, res) => {
+    try {
+        const { pageId } = req.params;
+        const { elementIds, offsetX = 50, offsetY = 50 } = req.body;
+
+        if (!Array.isArray(elementIds) || elementIds.length === 0) {
+            return res.status(400).json({ error: true, message: 'elementIds array required' });
+        }
+
+        const elements = await CaseNotionBlock.find({
+            _id: { $in: elementIds },
+            pageId
+        });
+
+        if (elements.length === 0) {
+            return res.status(404).json({ error: true, message: 'No elements found' });
+        }
+
+        // Generate new IDs and offset positions
+        const duplicates = elements.map(el => {
+            const duplicate = el.toObject();
+            delete duplicate._id;
+            delete duplicate.__v;
+            duplicate.canvasX = (duplicate.canvasX || 0) + offsetX;
+            duplicate.canvasY = (duplicate.canvasY || 0) + offsetY;
+            duplicate.zIndex = incrementZIndex(duplicate.zIndex || 'a0');
+            duplicate.version = 1;
+            duplicate.versionNonce = Math.floor(Math.random() * 1000000);
+            duplicate.lastEditedBy = req.user._id;
+            duplicate.lastEditedAt = new Date();
+            duplicate.boundElements = []; // Don't copy connections
+            return duplicate;
+        });
+
+        const newElements = await CaseNotionBlock.insertMany(duplicates);
+
+        res.status(201).json({ success: true, data: newElements });
+    } catch (error) {
+        res.status(500).json({ error: true, message: error.message });
+    }
+};
+
+/**
+ * Delete selected elements
+ * DELETE /api/v1/cases/:caseId/notion/pages/:pageId/bulk-delete
+ */
+exports.bulkDeleteElements = async (req, res) => {
+    try {
+        const { pageId } = req.params;
+        const { elementIds, permanent = false } = req.body;
+
+        if (!Array.isArray(elementIds) || elementIds.length === 0) {
+            return res.status(400).json({ error: true, message: 'elementIds array required' });
+        }
+
+        // Get all connections involving these elements
+        const connections = await BlockConnection.find({
+            pageId,
+            $or: [
+                { sourceBlockId: { $in: elementIds } },
+                { targetBlockId: { $in: elementIds } }
+            ]
+        });
+
+        // Remove connections from boundElements of connected blocks
+        const connectionIds = connections.map(c => c._id);
+        await CaseNotionBlock.updateMany(
+            { pageId, boundElements: { $elemMatch: { id: { $in: connectionIds } } } },
+            { $pull: { boundElements: { id: { $in: connectionIds } } } }
+        );
+
+        if (permanent) {
+            // Hard delete
+            await CaseNotionBlock.deleteMany({
+                _id: { $in: elementIds },
+                pageId
+            });
+            await BlockConnection.deleteMany({
+                _id: { $in: connectionIds }
+            });
+        } else {
+            // Soft delete
+            await CaseNotionBlock.updateMany(
+                { _id: { $in: elementIds }, pageId },
+                { $set: { isDeleted: true }, $inc: { version: 1 } }
+            );
+            await BlockConnection.updateMany(
+                { _id: { $in: connectionIds } },
+                { $set: { isDeleted: true } }
+            );
+        }
+
+        res.json({
+            success: true,
+            message: `Deleted ${elementIds.length} elements and ${connections.length} connections`
+        });
+    } catch (error) {
+        res.status(500).json({ error: true, message: error.message });
+    }
+};
+
+/**
+ * Group selected elements
+ * POST /api/v1/cases/:caseId/notion/pages/:pageId/group
+ */
+exports.groupElements = async (req, res) => {
+    try {
+        const { pageId } = req.params;
+        const { elementIds, groupName } = req.body;
+
+        if (!Array.isArray(elementIds) || elementIds.length < 2) {
+            return res.status(400).json({ error: true, message: 'At least 2 elements required to group' });
+        }
+
+        // Generate group ID
+        const groupId = new mongoose.Types.ObjectId().toString();
+
+        // Update all elements with group info
+        await CaseNotionBlock.updateMany(
+            { _id: { $in: elementIds }, pageId },
+            {
+                $set: {
+                    groupId,
+                    groupName: groupName || 'Group'
+                },
+                $inc: { version: 1 }
+            }
+        );
+
+        // Get updated elements
+        const elements = await CaseNotionBlock.find({
+            _id: { $in: elementIds },
+            pageId
+        });
+
+        res.json({ success: true, data: { groupId, elements } });
+    } catch (error) {
+        res.status(500).json({ error: true, message: error.message });
+    }
+};
+
+/**
+ * Ungroup elements
+ * POST /api/v1/cases/:caseId/notion/pages/:pageId/ungroup
+ */
+exports.ungroupElements = async (req, res) => {
+    try {
+        const { pageId } = req.params;
+        const { groupId } = req.body;
+
+        if (!groupId) {
+            return res.status(400).json({ error: true, message: 'groupId required' });
+        }
+
+        await CaseNotionBlock.updateMany(
+            { groupId, pageId },
+            {
+                $set: { groupId: null, groupName: null },
+                $inc: { version: 1 }
+            }
+        );
+
+        res.json({ success: true, message: 'Elements ungrouped' });
+    } catch (error) {
+        res.status(500).json({ error: true, message: error.message });
+    }
+};
+
+/**
+ * Align selected elements
+ * POST /api/v1/cases/:caseId/notion/pages/:pageId/align
+ */
+exports.alignElements = async (req, res) => {
+    try {
+        const { pageId } = req.params;
+        const { elementIds, alignment } = req.body;
+        // alignment: 'left', 'right', 'top', 'bottom', 'center-h', 'center-v'
+
+        if (!Array.isArray(elementIds) || elementIds.length < 2) {
+            return res.status(400).json({ error: true, message: 'At least 2 elements required' });
+        }
+
+        const elements = await CaseNotionBlock.find({
+            _id: { $in: elementIds },
+            pageId
+        });
+
+        if (elements.length < 2) {
+            return res.status(404).json({ error: true, message: 'Elements not found' });
+        }
+
+        // Calculate alignment reference
+        let referenceValue;
+        const bulkOps = [];
+
+        switch (alignment) {
+            case 'left':
+                referenceValue = Math.min(...elements.map(e => e.canvasX));
+                elements.forEach(el => {
+                    bulkOps.push({
+                        updateOne: {
+                            filter: { _id: el._id },
+                            update: { $set: { canvasX: referenceValue }, $inc: { version: 1 } }
+                        }
+                    });
+                });
+                break;
+            case 'right':
+                referenceValue = Math.max(...elements.map(e => e.canvasX + e.canvasWidth));
+                elements.forEach(el => {
+                    bulkOps.push({
+                        updateOne: {
+                            filter: { _id: el._id },
+                            update: { $set: { canvasX: referenceValue - el.canvasWidth }, $inc: { version: 1 } }
+                        }
+                    });
+                });
+                break;
+            case 'top':
+                referenceValue = Math.min(...elements.map(e => e.canvasY));
+                elements.forEach(el => {
+                    bulkOps.push({
+                        updateOne: {
+                            filter: { _id: el._id },
+                            update: { $set: { canvasY: referenceValue }, $inc: { version: 1 } }
+                        }
+                    });
+                });
+                break;
+            case 'bottom':
+                referenceValue = Math.max(...elements.map(e => e.canvasY + e.canvasHeight));
+                elements.forEach(el => {
+                    bulkOps.push({
+                        updateOne: {
+                            filter: { _id: el._id },
+                            update: { $set: { canvasY: referenceValue - el.canvasHeight }, $inc: { version: 1 } }
+                        }
+                    });
+                });
+                break;
+            case 'center-h':
+                const avgX = elements.reduce((sum, e) => sum + e.canvasX + e.canvasWidth / 2, 0) / elements.length;
+                elements.forEach(el => {
+                    bulkOps.push({
+                        updateOne: {
+                            filter: { _id: el._id },
+                            update: { $set: { canvasX: avgX - el.canvasWidth / 2 }, $inc: { version: 1 } }
+                        }
+                    });
+                });
+                break;
+            case 'center-v':
+                const avgY = elements.reduce((sum, e) => sum + e.canvasY + e.canvasHeight / 2, 0) / elements.length;
+                elements.forEach(el => {
+                    bulkOps.push({
+                        updateOne: {
+                            filter: { _id: el._id },
+                            update: { $set: { canvasY: avgY - el.canvasHeight / 2 }, $inc: { version: 1 } }
+                        }
+                    });
+                });
+                break;
+            default:
+                return res.status(400).json({ error: true, message: 'Invalid alignment' });
+        }
+
+        await CaseNotionBlock.bulkWrite(bulkOps);
+
+        const updatedElements = await CaseNotionBlock.find({
+            _id: { $in: elementIds },
+            pageId
+        });
+
+        res.json({ success: true, data: updatedElements });
+    } catch (error) {
+        res.status(500).json({ error: true, message: error.message });
+    }
+};
+
+/**
+ * Distribute elements evenly
+ * POST /api/v1/cases/:caseId/notion/pages/:pageId/distribute
+ */
+exports.distributeElements = async (req, res) => {
+    try {
+        const { pageId } = req.params;
+        const { elementIds, direction } = req.body;
+        // direction: 'horizontal', 'vertical'
+
+        if (!Array.isArray(elementIds) || elementIds.length < 3) {
+            return res.status(400).json({ error: true, message: 'At least 3 elements required' });
+        }
+
+        const elements = await CaseNotionBlock.find({
+            _id: { $in: elementIds },
+            pageId
+        });
+
+        if (elements.length < 3) {
+            return res.status(404).json({ error: true, message: 'Elements not found' });
+        }
+
+        const bulkOps = [];
+
+        if (direction === 'horizontal') {
+            // Sort by X position
+            elements.sort((a, b) => a.canvasX - b.canvasX);
+            const first = elements[0];
+            const last = elements[elements.length - 1];
+            const totalWidth = elements.reduce((sum, e) => sum + e.canvasWidth, 0);
+            const availableSpace = (last.canvasX + last.canvasWidth) - first.canvasX - totalWidth;
+            const gap = availableSpace / (elements.length - 1);
+
+            let currentX = first.canvasX;
+            elements.forEach((el, idx) => {
+                if (idx > 0) {
+                    currentX += elements[idx - 1].canvasWidth + gap;
+                }
+                bulkOps.push({
+                    updateOne: {
+                        filter: { _id: el._id },
+                        update: { $set: { canvasX: currentX }, $inc: { version: 1 } }
+                    }
+                });
+            });
+        } else if (direction === 'vertical') {
+            // Sort by Y position
+            elements.sort((a, b) => a.canvasY - b.canvasY);
+            const first = elements[0];
+            const last = elements[elements.length - 1];
+            const totalHeight = elements.reduce((sum, e) => sum + e.canvasHeight, 0);
+            const availableSpace = (last.canvasY + last.canvasHeight) - first.canvasY - totalHeight;
+            const gap = availableSpace / (elements.length - 1);
+
+            let currentY = first.canvasY;
+            elements.forEach((el, idx) => {
+                if (idx > 0) {
+                    currentY += elements[idx - 1].canvasHeight + gap;
+                }
+                bulkOps.push({
+                    updateOne: {
+                        filter: { _id: el._id },
+                        update: { $set: { canvasY: currentY }, $inc: { version: 1 } }
+                    }
+                });
+            });
+        } else {
+            return res.status(400).json({ error: true, message: 'Invalid direction' });
+        }
+
+        await CaseNotionBlock.bulkWrite(bulkOps);
+
+        const updatedElements = await CaseNotionBlock.find({
+            _id: { $in: elementIds },
+            pageId
+        });
+
+        res.json({ success: true, data: updatedElements });
+    } catch (error) {
+        res.status(500).json({ error: true, message: error.message });
+    }
+};
+// ═══════════════════════════════════════════════════════════════
 // HELPER FUNCTIONS
 // ═══════════════════════════════════════════════════════════════
 
@@ -2169,4 +3121,317 @@ async function applyTemplateToPage(pageId, templateId, userId) {
     }
 
     await PageTemplate.findByIdAndUpdate(templateId, { $inc: { usageCount: 1 } });
+}
+
+// Export recordHistory for use by other controllers
+exports.recordHistory = recordHistory;
+
+// ═══════════════════════════════════════════════════════════════
+// WHITEBOARD - SHAPE CREATION CONTROLLERS
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Create a canvas shape (not a document block)
+ * POST /api/v1/cases/:caseId/notion/pages/:pageId/shapes
+ */
+exports.createShape = async (req, res) => {
+    try {
+        const { pageId } = req.params;
+        const {
+            shapeType, x, y, width, height,
+            angle, opacity, strokeColor, fillStyle, strokeWidth,
+            blockColor, text, handles
+        } = req.body;
+
+        // Validate page exists and is in whiteboard mode
+        const page = await CaseNotionPage.findById(pageId);
+        if (!page) {
+            return res.status(404).json({ error: true, message: 'Page not found' });
+        }
+        if (page.viewMode !== 'whiteboard') {
+            return res.status(400).json({
+                error: true,
+                message: 'Page must be in whiteboard mode to create shapes'
+            });
+        }
+
+        // Generate fractional zIndex
+        const lastBlock = await CaseNotionBlock.findOne({ pageId, isDeleted: { $ne: true } })
+            .sort({ zIndex: -1 });
+        const newZIndex = lastBlock?.zIndex ? incrementZIndex(lastBlock.zIndex) : 'a0';
+
+        // Default handles based on shape type
+        const defaultHandles = [
+            { id: 'top', position: 'top', type: 'both' },
+            { id: 'right', position: 'right', type: 'both' },
+            { id: 'bottom', position: 'bottom', type: 'both' },
+            { id: 'left', position: 'left', type: 'both' }
+        ];
+
+        const shape = await CaseNotionBlock.create({
+            pageId,
+            type: 'text',  // Base type for content
+            shapeType: shapeType || 'rectangle',
+            canvasX: x || 100,
+            canvasY: y || 100,
+            canvasWidth: width || 200,
+            canvasHeight: height || 150,
+            angle: angle || 0,
+            opacity: opacity ?? 100,
+            strokeColor: strokeColor || '#000000',
+            fillStyle: fillStyle || 'solid',
+            strokeWidth: strokeWidth || 2,
+            blockColor: blockColor || 'default',
+            zIndex: newZIndex,
+            handles: handles || defaultHandles,
+            content: text ? [{ type: 'text', text: { content: text } }] : [],
+            lastEditedBy: req.user._id,
+            lastEditedAt: new Date(),
+            version: 1,
+            versionNonce: Math.floor(Math.random() * 1000000)
+        });
+
+        res.status(201).json({ success: true, data: shape });
+    } catch (error) {
+        console.error('Error creating shape:', error);
+        res.status(500).json({ error: true, message: error.message });
+    }
+};
+
+/**
+ * Create an arrow/connector shape
+ * POST /api/v1/cases/:caseId/notion/pages/:pageId/arrows
+ */
+exports.createArrow = async (req, res) => {
+    try {
+        const { pageId } = req.params;
+        const {
+            startX, startY, endX, endY,
+            startType, endType,
+            strokeColor, strokeWidth,
+            sourceBlockId, targetBlockId,
+            sourceHandle, targetHandle
+        } = req.body;
+
+        const page = await CaseNotionPage.findById(pageId);
+        if (!page || page.viewMode !== 'whiteboard') {
+            return res.status(400).json({ error: true, message: 'Invalid page or not in whiteboard mode' });
+        }
+
+        // Calculate arrow points
+        const arrowPoints = [
+            { x: 0, y: 0 },  // Relative start
+            { x: (endX || 100) - (startX || 0), y: (endY || 100) - (startY || 0) }  // Relative end
+        ];
+
+        // Generate zIndex
+        const lastBlock = await CaseNotionBlock.findOne({ pageId, isDeleted: { $ne: true } })
+            .sort({ zIndex: -1 });
+        const newZIndex = lastBlock?.zIndex ? incrementZIndex(lastBlock.zIndex) : 'a0';
+
+        const arrow = await CaseNotionBlock.create({
+            pageId,
+            type: 'text',
+            shapeType: 'arrow',
+            canvasX: startX || 0,
+            canvasY: startY || 0,
+            canvasWidth: Math.abs((endX || 100) - (startX || 0)) || 100,
+            canvasHeight: Math.abs((endY || 100) - (startY || 0)) || 100,
+            strokeColor: strokeColor || '#000000',
+            strokeWidth: strokeWidth || 2,
+            zIndex: newZIndex,
+            arrowStart: {
+                type: startType || 'none',
+                boundElementId: sourceBlockId || null
+            },
+            arrowEnd: {
+                type: endType || 'arrow',
+                boundElementId: targetBlockId || null
+            },
+            arrowPoints,
+            lastEditedBy: req.user._id,
+            version: 1
+        });
+
+        // Update bound elements on source and target if specified
+        if (sourceBlockId) {
+            await CaseNotionBlock.findByIdAndUpdate(sourceBlockId, {
+                $push: { boundElements: { id: arrow._id, type: 'arrow' } }
+            });
+        }
+        if (targetBlockId) {
+            await CaseNotionBlock.findByIdAndUpdate(targetBlockId, {
+                $push: { boundElements: { id: arrow._id, type: 'arrow' } }
+            });
+        }
+
+        res.status(201).json({ success: true, data: arrow });
+    } catch (error) {
+        console.error('Error creating arrow:', error);
+        res.status(500).json({ error: true, message: error.message });
+    }
+};
+
+/**
+ * Create a frame (container for other elements)
+ * POST /api/v1/cases/:caseId/notion/pages/:pageId/frames
+ */
+exports.createFrame = async (req, res) => {
+    try {
+        const { pageId } = req.params;
+        const { x, y, width, height, name, backgroundColor } = req.body;
+
+        const page = await CaseNotionPage.findById(pageId);
+        if (!page || page.viewMode !== 'whiteboard') {
+            return res.status(400).json({ error: true, message: 'Invalid page or not in whiteboard mode' });
+        }
+
+        // Frames should be at the back (low zIndex)
+        const frame = await CaseNotionBlock.create({
+            pageId,
+            type: 'text',
+            shapeType: 'frame',
+            isFrame: true,
+            frameName: name || 'Frame',
+            canvasX: x || 0,
+            canvasY: y || 0,
+            canvasWidth: width || 500,
+            canvasHeight: height || 400,
+            blockColor: backgroundColor || 'default',
+            zIndex: '0',  // Frames at back
+            strokeColor: '#d1d5db',
+            strokeWidth: 2,
+            fillStyle: 'none',
+            lastEditedBy: req.user._id,
+            version: 1
+        });
+
+        res.status(201).json({ success: true, data: frame });
+    } catch (error) {
+        console.error('Error creating frame:', error);
+        res.status(500).json({ error: true, message: error.message });
+    }
+};
+
+/**
+ * Update element z-index (bring to front, send to back)
+ * PATCH /api/v1/cases/:caseId/notion/blocks/:blockId/z-index
+ */
+exports.updateZIndex = async (req, res) => {
+    try {
+        const { blockId } = req.params;
+        const { action } = req.body;  // 'front', 'back', 'forward', 'backward'
+
+        const block = await CaseNotionBlock.findById(blockId);
+        if (!block) {
+            return res.status(404).json({ error: true, message: 'Block not found' });
+        }
+
+        let newZIndex;
+        const pageBlocks = await CaseNotionBlock.find({
+            pageId: block.pageId,
+            isDeleted: { $ne: true }
+        }).sort({ zIndex: 1 });
+
+        switch (action) {
+            case 'front':
+                const lastBlock = pageBlocks[pageBlocks.length - 1];
+                newZIndex = lastBlock ? incrementZIndex(lastBlock.zIndex) : 'z9';
+                break;
+            case 'back':
+                newZIndex = '0';
+                break;
+            case 'forward':
+                const currentIdx = pageBlocks.findIndex(b => b._id.equals(block._id));
+                if (currentIdx < pageBlocks.length - 1) {
+                    const nextBlock = pageBlocks[currentIdx + 1];
+                    newZIndex = incrementZIndex(block.zIndex);
+                } else {
+                    newZIndex = block.zIndex;
+                }
+                break;
+            case 'backward':
+                const curIdx = pageBlocks.findIndex(b => b._id.equals(block._id));
+                if (curIdx > 0) {
+                    const prevBlock = pageBlocks[curIdx - 1];
+                    newZIndex = decrementZIndex(block.zIndex);
+                } else {
+                    newZIndex = block.zIndex;
+                }
+                break;
+            default:
+                return res.status(400).json({ error: true, message: 'Invalid action' });
+        }
+
+        block.zIndex = newZIndex;
+        block.version += 1;
+        block.versionNonce = Math.floor(Math.random() * 1000000);
+        await block.save();
+
+        res.json({ success: true, data: block });
+    } catch (error) {
+        res.status(500).json({ error: true, message: error.message });
+    }
+};
+
+/**
+ * Batch update multiple elements (for efficient drag operations)
+ * PATCH /api/v1/cases/:caseId/notion/pages/:pageId/batch-update
+ */
+exports.batchUpdateElements = async (req, res) => {
+    try {
+        const { pageId } = req.params;
+        const { updates } = req.body;  // Array of { id, changes: { canvasX, canvasY, ... } }
+
+        if (!Array.isArray(updates) || updates.length === 0) {
+            return res.status(400).json({ error: true, message: 'Updates array required' });
+        }
+
+        const bulkOps = updates.map(({ id, changes }) => ({
+            updateOne: {
+                filter: { _id: id, pageId },
+                update: {
+                    $set: {
+                        ...changes,
+                        lastEditedBy: req.user._id,
+                        lastEditedAt: new Date()
+                    },
+                    $inc: { version: 1 }
+                }
+            }
+        }));
+
+        await CaseNotionBlock.bulkWrite(bulkOps);
+
+        res.json({ success: true, message: `Updated ${updates.length} elements` });
+    } catch (error) {
+        res.status(500).json({ error: true, message: error.message });
+    }
+};
+
+// Helper function for fractional indexing
+function incrementZIndex(current) {
+    if (!current) return 'a0';
+    const lastChar = current.slice(-1);
+    if (lastChar === '9') {
+        return current + 'a0';
+    } else if (lastChar >= 'a' && lastChar < 'z') {
+        return current.slice(0, -1) + String.fromCharCode(lastChar.charCodeAt(0) + 1);
+    } else if (lastChar >= '0' && lastChar < '9') {
+        return current.slice(0, -1) + String(parseInt(lastChar) + 1);
+    }
+    return current + '0';
+}
+
+function decrementZIndex(current) {
+    if (!current || current === '0' || current === 'a0') return '0';
+    const lastChar = current.slice(-1);
+    if (lastChar === '0') {
+        return current.slice(0, -2) || '0';
+    } else if (lastChar > 'a' && lastChar <= 'z') {
+        return current.slice(0, -1) + String.fromCharCode(lastChar.charCodeAt(0) - 1);
+    } else if (lastChar > '0' && lastChar <= '9') {
+        return current.slice(0, -1) + String(parseInt(lastChar) - 1);
+    }
+    return '0';
 }
