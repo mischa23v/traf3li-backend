@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const CaseNotionPage = require('../models/caseNotionPage.model');
 const CaseNotionBlock = require('../models/caseNotionBlock.model');
 const SyncedBlock = require('../models/syncedBlock.model');
@@ -5,6 +6,122 @@ const PageTemplate = require('../models/pageTemplate.model');
 const BlockComment = require('../models/blockComment.model');
 const PageActivity = require('../models/pageActivity.model');
 const Task = require('../models/task.model');
+const Case = require('../models/case.model');
+
+// ═══════════════════════════════════════════════════════════════
+// CASE LIST WITH NOTION STATS (for /dashboard/notion page)
+// ═══════════════════════════════════════════════════════════════
+
+exports.listCasesWithNotion = async (req, res) => {
+    try {
+        const { search, status, sortBy = 'updatedAt', sortOrder = 'desc', page = 1, limit = 20 } = req.query;
+
+        const matchStage = {
+            deletedAt: null
+        };
+
+        // Add firm/lawyer filter
+        if (req.user.firmId) {
+            matchStage.firmId = new mongoose.Types.ObjectId(req.user.firmId);
+        } else {
+            matchStage.lawyerId = new mongoose.Types.ObjectId(req.user._id);
+        }
+
+        if (search) {
+            matchStage.$or = [
+                { title: { $regex: search, $options: 'i' } },
+                { caseNumber: { $regex: search, $options: 'i' } }
+            ];
+        }
+
+        if (status && status !== 'all') {
+            matchStage.status = status;
+        }
+
+        // Sort options
+        const sortStage = {};
+        sortStage[sortBy] = sortOrder === 'asc' ? 1 : -1;
+
+        const cases = await Case.aggregate([
+            { $match: matchStage },
+            { $sort: sortStage },
+            { $skip: (parseInt(page) - 1) * parseInt(limit) },
+            { $limit: parseInt(limit) },
+            {
+                $lookup: {
+                    from: 'clients',
+                    localField: 'clientId',
+                    foreignField: '_id',
+                    as: 'client'
+                }
+            },
+            { $unwind: { path: '$client', preserveNullAndEmptyArrays: true } },
+            {
+                $lookup: {
+                    from: 'users',
+                    localField: 'lawyerId',
+                    foreignField: '_id',
+                    as: 'assignedTo'
+                }
+            },
+            { $unwind: { path: '$assignedTo', preserveNullAndEmptyArrays: true } },
+            {
+                $lookup: {
+                    from: 'casenotionpages',
+                    let: { caseId: '$_id' },
+                    pipeline: [
+                        {
+                            $match: {
+                                $expr: { $eq: ['$caseId', '$$caseId'] },
+                                deletedAt: null,
+                                archivedAt: null
+                            }
+                        },
+                        { $count: 'count' }
+                    ],
+                    as: 'notionStats'
+                }
+            },
+            {
+                $project: {
+                    _id: 1,
+                    title: 1,
+                    caseNumber: 1,
+                    status: 1,
+                    category: 1,
+                    createdAt: 1,
+                    updatedAt: 1,
+                    clientId: {
+                        _id: '$client._id',
+                        name: { $ifNull: ['$client.companyName', { $concat: ['$client.firstName', ' ', '$client.lastName'] }] }
+                    },
+                    assignedTo: {
+                        _id: '$assignedTo._id',
+                        firstName: '$assignedTo.firstName',
+                        lastName: '$assignedTo.lastName'
+                    },
+                    notionPagesCount: {
+                        $ifNull: [{ $arrayElemAt: ['$notionStats.count', 0] }, 0]
+                    }
+                }
+            }
+        ]);
+
+        const total = await Case.countDocuments(matchStage);
+
+        res.json({
+            success: true,
+            data: {
+                cases,
+                total,
+                page: parseInt(page),
+                totalPages: Math.ceil(total / parseInt(limit))
+            }
+        });
+    } catch (error) {
+        res.status(500).json({ error: true, message: error.message });
+    }
+};
 
 // ═══════════════════════════════════════════════════════════════
 // PAGE CONTROLLERS

@@ -865,7 +865,21 @@ const caseSchema = new mongoose.Schema({
     }
 }, {
     versionKey: false,
-    timestamps: true
+    timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true }
+});
+
+// ═══════════════════════════════════════════════════════════════
+// VIRTUAL: notionPagesCount
+// Count of CaseNotion pages for this case (used by CaseNotion list page)
+// ═══════════════════════════════════════════════════════════════
+caseSchema.virtual('notionPagesCount', {
+    ref: 'CaseNotionPage',
+    localField: '_id',
+    foreignField: 'caseId',
+    count: true,
+    match: { deletedAt: null, archivedAt: null }
 });
 
 caseSchema.index({ lawyerId: 1, status: 1 });
