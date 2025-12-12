@@ -10,38 +10,62 @@ const documentExportService = require('../services/documentExport.service');
 
 // Helper function to check firm access for a case
 const checkCaseAccess = (caseDoc, userId, firmId, requireLawyer = false, isSoloLawyer = false) => {
+    // DEBUG: Log all inputs
+    console.log('=== checkCaseAccess DEBUG ===');
+    console.log('Case ID:', caseDoc._id?.toString());
+    console.log('Case lawyerId:', caseDoc.lawyerId?.toString());
+    console.log('Case clientId:', caseDoc.clientId?.toString());
+    console.log('Case firmId:', caseDoc.firmId?.toString());
+    console.log('User ID:', userId);
+    console.log('User firmId:', firmId?.toString());
+    console.log('requireLawyer:', requireLawyer);
+    console.log('isSoloLawyer:', isSoloLawyer);
+
     const isLawyer = caseDoc.lawyerId && caseDoc.lawyerId.toString() === userId;
     const isClient = caseDoc.clientId && caseDoc.clientId.toString() === userId;
 
+    console.log('isLawyer:', isLawyer);
+    console.log('isClient:', isClient);
+
     // Solo lawyers can only access their own cases (where they are the lawyer)
     if (isSoloLawyer) {
-        if (requireLawyer) return isLawyer;
-        return isLawyer || isClient;
+        const result = requireLawyer ? isLawyer : (isLawyer || isClient);
+        console.log('Solo lawyer path, result:', result);
+        return result;
     }
 
     // Check firm-level access if firmId is available
     if (firmId) {
+        const caseFirmIdStr = caseDoc.firmId?.toString();
+        const userFirmIdStr = firmId.toString();
+        const sameFirm = caseDoc.firmId && caseFirmIdStr === userFirmIdStr;
+        console.log('Firm check - caseFirmId:', caseFirmIdStr, 'userFirmId:', userFirmIdStr, 'sameFirm:', sameFirm);
+
         // Case belongs to the same firm - allow access for viewing
-        if (caseDoc.firmId && caseDoc.firmId.toString() === firmId.toString()) {
-            if (requireLawyer) return isLawyer; // Only actual lawyer can modify
-            return true; // Firm members can view
+        if (sameFirm) {
+            const result = requireLawyer ? isLawyer : true;
+            console.log('Same firm, result:', result);
+            return result;
         }
 
         // Case doesn't have firmId (legacy case) but user is in a firm
         // Check if user is the lawyer or client of this case
         if (!caseDoc.firmId) {
-            if (requireLawyer) return isLawyer;
-            return isLawyer || isClient;
+            const result = requireLawyer ? isLawyer : (isLawyer || isClient);
+            console.log('Legacy case (no firmId), result:', result);
+            return result;
         }
 
         // Case belongs to a different firm - deny unless user is lawyer/client
-        if (requireLawyer) return isLawyer;
-        return isLawyer || isClient;
+        const result = requireLawyer ? isLawyer : (isLawyer || isClient);
+        console.log('Different firm, result:', result);
+        return result;
     }
 
     // No firmId (legacy user or user without firm) - fall back to individual access
-    if (requireLawyer) return isLawyer;
-    return isLawyer || isClient;
+    const result = requireLawyer ? isLawyer : (isLawyer || isClient);
+    console.log('No user firmId, result:', result);
+    return result;
 };
 
 // Create case (from contract OR standalone)
@@ -283,6 +307,14 @@ const getCases = async (request, response) => {
 const getCase = async (request, response) => {
     const { _id } = request.params;
     try {
+        // DEBUG: Log all request context
+        console.log('=== getCase DEBUG ===');
+        console.log('Case ID requested:', _id);
+        console.log('request.userID:', request.userID);
+        console.log('request.firmId:', request.firmId);
+        console.log('request.isSoloLawyer:', request.isSoloLawyer);
+        console.log('request.user:', JSON.stringify(request.user, null, 2));
+
         const firmId = request.firmId;
         const isSoloLawyer = request.isSoloLawyer || false;
 
@@ -293,19 +325,30 @@ const getCase = async (request, response) => {
             .populate('documents.uploadedBy', 'username firstName lastName');
 
         if (!caseDoc) {
+            console.log('Case not found!');
             throw CustomException('Case not found!', 404);
         }
 
+        console.log('Case found - lawyerId:', caseDoc.lawyerId?._id?.toString() || caseDoc.lawyerId?.toString());
+        console.log('Case found - clientId:', caseDoc.clientId?._id?.toString() || caseDoc.clientId?.toString());
+        console.log('Case found - firmId:', caseDoc.firmId?.toString());
+
         // Check access using helper function
-        if (!checkCaseAccess(caseDoc, request.userID, firmId, false, isSoloLawyer)) {
+        const hasAccess = checkCaseAccess(caseDoc, request.userID, firmId, false, isSoloLawyer);
+        console.log('checkCaseAccess returned:', hasAccess);
+
+        if (!hasAccess) {
+            console.log('ACCESS DENIED - throwing 403');
             throw CustomException('You do not have access to this case!', 403);
         }
 
+        console.log('ACCESS GRANTED - returning case');
         return response.send({
             error: false,
             case: caseDoc
         });
     } catch ({ message, status = 500 }) {
+        console.log('getCase error:', message, 'status:', status);
         return response.status(status).send({
             error: true,
             message
