@@ -146,6 +146,9 @@ const emailMarketingRoute = require('../emailMarketing.route');
 const hrAnalyticsRoute = require('../hrAnalytics.route');
 const documentAnalysisRoute = require('../documentAnalysis.route');
 
+// PDFMe Routes (Template-based PDF generation)
+const pdfmeRoute = require('../pdfme.route');
+
 // Saudi Banking Integration Routes
 const saudiBankingRoute = require('../saudiBanking.route');
 
@@ -332,6 +335,11 @@ router.use('/biometric', biometricRoute);
 router.use('/email-marketing', emailMarketingRoute);
 router.use('/hr-analytics', hrAnalyticsRoute);
 router.use('/document-analysis', documentAnalysisRoute);
+
+// ============================================
+// PDFMe (Template-based PDF generation)
+// ============================================
+router.use('/pdfme', pdfmeRoute);
 
 // ============================================
 // SAUDI BANKING INTEGRATION
