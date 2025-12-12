@@ -673,7 +673,9 @@ exports.createBlock = async (req, res) => {
 exports.updateBlock = async (req, res) => {
     try {
         const { blockId } = req.params;
-        const updateData = req.body;
+
+        // Handle both formats: direct fields or wrapped in 'data' object
+        const inputData = req.body.data || req.body;
 
         const block = await CaseNotionBlock.findById(blockId);
         if (!block) {
@@ -688,12 +690,73 @@ exports.updateBlock = async (req, res) => {
             });
         }
 
-        // Update block
-        Object.assign(block, updateData, {
+        // Build update object
+        const updateData = {
             lastEditedBy: req.user._id,
             lastEditedAt: new Date()
-        });
+        };
 
+        // Handle standard block fields
+        if (inputData.content !== undefined) updateData.content = inputData.content;
+        if (inputData.type !== undefined) updateData.type = inputData.type;
+        if (inputData.order !== undefined) updateData.order = inputData.order;
+        if (inputData.indent !== undefined) updateData.indent = inputData.indent;
+        if (inputData.isCollapsed !== undefined) updateData.isCollapsed = inputData.isCollapsed;
+        if (inputData.checked !== undefined) updateData.checked = inputData.checked;
+        if (inputData.language !== undefined) updateData.language = inputData.language;
+        if (inputData.icon !== undefined) updateData.icon = inputData.icon;
+        if (inputData.color !== undefined) updateData.color = inputData.color;
+        if (inputData.tableData !== undefined) updateData.tableData = inputData.tableData;
+        if (inputData.fileUrl !== undefined) updateData.fileUrl = inputData.fileUrl;
+        if (inputData.fileName !== undefined) updateData.fileName = inputData.fileName;
+        if (inputData.caption !== undefined) updateData.caption = inputData.caption;
+
+        // Handle whiteboard fields from top-level
+        if (inputData.canvasX !== undefined) updateData.canvasX = inputData.canvasX;
+        if (inputData.canvasY !== undefined) updateData.canvasY = inputData.canvasY;
+        if (inputData.canvasWidth !== undefined) updateData.canvasWidth = inputData.canvasWidth;
+        if (inputData.canvasHeight !== undefined) updateData.canvasHeight = inputData.canvasHeight;
+        if (inputData.blockColor !== undefined) updateData.blockColor = inputData.blockColor;
+        if (inputData.priority !== undefined) updateData.priority = inputData.priority;
+        if (inputData.linkedEventId !== undefined) updateData.linkedEventId = inputData.linkedEventId;
+        if (inputData.linkedTaskId !== undefined) updateData.linkedTaskId = inputData.linkedTaskId;
+        if (inputData.linkedHearingId !== undefined) updateData.linkedHearingId = inputData.linkedHearingId;
+        if (inputData.linkedDocumentId !== undefined) updateData.linkedDocumentId = inputData.linkedDocumentId;
+        if (inputData.groupId !== undefined) updateData.groupId = inputData.groupId;
+        if (inputData.groupName !== undefined) updateData.groupName = inputData.groupName;
+
+        // Handle legal-specific fields
+        if (inputData.partyType !== undefined) updateData.partyType = inputData.partyType;
+        if (inputData.statementDate !== undefined) updateData.statementDate = inputData.statementDate;
+        if (inputData.evidenceType !== undefined) updateData.evidenceType = inputData.evidenceType;
+        if (inputData.evidenceDate !== undefined) updateData.evidenceDate = inputData.evidenceDate;
+        if (inputData.evidenceSource !== undefined) updateData.evidenceSource = inputData.evidenceSource;
+        if (inputData.citationType !== undefined) updateData.citationType = inputData.citationType;
+        if (inputData.citationReference !== undefined) updateData.citationReference = inputData.citationReference;
+        if (inputData.eventDate !== undefined) updateData.eventDate = inputData.eventDate;
+        if (inputData.eventType !== undefined) updateData.eventType = inputData.eventType;
+
+        // Also handle nested 'properties' object for backwards compatibility
+        if (inputData.properties) {
+            const props = inputData.properties;
+            if (props.canvasX !== undefined) updateData.canvasX = props.canvasX;
+            if (props.canvasY !== undefined) updateData.canvasY = props.canvasY;
+            if (props.canvasWidth !== undefined) updateData.canvasWidth = props.canvasWidth;
+            if (props.canvasHeight !== undefined) updateData.canvasHeight = props.canvasHeight;
+            if (props.blockColor !== undefined) updateData.blockColor = props.blockColor;
+            if (props.priority !== undefined) updateData.priority = props.priority;
+            if (props.linkedEventId !== undefined) updateData.linkedEventId = props.linkedEventId;
+            if (props.linkedTaskId !== undefined) updateData.linkedTaskId = props.linkedTaskId;
+            if (props.linkedHearingId !== undefined) updateData.linkedHearingId = props.linkedHearingId;
+            if (props.linkedDocumentId !== undefined) updateData.linkedDocumentId = props.linkedDocumentId;
+            if (props.groupId !== undefined) updateData.groupId = props.groupId;
+            if (props.groupName !== undefined) updateData.groupName = props.groupName;
+            if (props.eventDate !== undefined) updateData.eventDate = props.eventDate;
+            if (props.partyType !== undefined) updateData.partyType = props.partyType;
+            if (props.evidenceType !== undefined) updateData.evidenceType = props.evidenceType;
+        }
+
+        Object.assign(block, updateData);
         await block.save();
 
         // If this is a synced block original, update all synced copies
