@@ -862,6 +862,56 @@ const caseSchema = new mongoose.Schema({
 
         // Calculated using: https://cfee.moj.gov.sa/index.html
         calculatorUsed: { type: Boolean, default: false }
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // CASE PIPELINE FIELDS
+    // ═══════════════════════════════════════════════════════════════
+
+    // Current stage in the pipeline (e.g., 'filing', 'friendly_settlement_1', 'labor_court')
+    currentStage: {
+        type: String,
+        default: 'filing',
+        index: true
+    },
+
+    // When the case entered the current stage
+    stageEnteredAt: {
+        type: Date,
+        default: Date.now
+    },
+
+    // Stage history for tracking progression
+    stageHistory: [{
+        stage: String,
+        enteredAt: Date,
+        exitedAt: Date,
+        notes: String,
+        changedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
+    }],
+
+    // Case end details
+    endDetails: {
+        endDate: Date,
+        endReason: {
+            type: String,
+            enum: ['final_judgment', 'settlement', 'withdrawal', 'dismissal', 'reconciliation', 'execution_complete', 'other']
+        },
+        finalAmount: Number,
+        notes: String,
+        endedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
+    },
+
+    // Parties (for display on pipeline cards)
+    plaintiffName: String,
+    defendantName: String,
+
+    // Linked items counts (can be computed or stored)
+    linkedCounts: {
+        tasks: { type: Number, default: 0 },
+        notionPages: { type: Number, default: 0 },
+        reminders: { type: Number, default: 0 },
+        events: { type: Number, default: 0 }
     }
 }, {
     versionKey: false,
@@ -904,6 +954,15 @@ caseSchema.index({ 'plaintiff.nationalId': 1 });
 caseSchema.index({ 'defendant.nationalId': 1 });
 caseSchema.index({ 'laborCaseDetails.laborOfficeReferral.referralNumber': 1 });
 caseSchema.index({ 'enforcementDetails.enforcementRequest.requestNumber': 1 });
+
+// ═══════════════════════════════════════════════════════════════
+// PIPELINE INDEXES
+// ═══════════════════════════════════════════════════════════════
+caseSchema.index({ category: 1, currentStage: 1 });
+caseSchema.index({ category: 1, outcome: 1 });
+caseSchema.index({ stageEnteredAt: 1 });
+caseSchema.index({ firmId: 1, category: 1, currentStage: 1 });
+caseSchema.index({ firmId: 1, category: 1, outcome: 1 });
 
 // ═══════════════════════════════════════════════════════════════
 // MIDDLEWARE HOOKS

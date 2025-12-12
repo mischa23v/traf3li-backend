@@ -872,6 +872,62 @@ const nestedIdParamSchema = Joi.object({
 }).unknown(true); // Allow other params to pass through
 
 // ============================================
+// PIPELINE VALIDATION SCHEMAS
+// ============================================
+
+/**
+ * Move case to stage validation schema
+ */
+const moveCaseToStageSchema = Joi.object({
+    newStage: Joi.string()
+        .required()
+        .messages({
+            'any.required': 'المرحلة الجديدة مطلوبة / New stage is required',
+            'string.empty': 'المرحلة الجديدة مطلوبة / New stage is required'
+        }),
+    notes: Joi.string()
+        .max(1000)
+        .allow('')
+        .messages({
+            'string.max': 'الملاحظات طويلة جداً / Notes are too long'
+        })
+});
+
+/**
+ * End case validation schema
+ */
+const endCaseSchema = Joi.object({
+    outcome: Joi.string()
+        .valid('won', 'lost', 'settled')
+        .required()
+        .messages({
+            'any.only': 'نتيجة القضية غير صالحة / Invalid case outcome',
+            'any.required': 'نتيجة القضية مطلوبة / Case outcome is required'
+        }),
+    endReason: Joi.string()
+        .valid('final_judgment', 'settlement', 'withdrawal', 'dismissal', 'reconciliation', 'execution_complete', 'other')
+        .messages({
+            'any.only': 'سبب الإنهاء غير صالح / Invalid end reason'
+        }),
+    finalAmount: Joi.number()
+        .min(0)
+        .messages({
+            'number.base': 'المبلغ النهائي يجب أن يكون رقماً / Final amount must be a number',
+            'number.min': 'المبلغ النهائي لا يمكن أن يكون سالباً / Final amount cannot be negative'
+        }),
+    notes: Joi.string()
+        .max(2000)
+        .allow('')
+        .messages({
+            'string.max': 'الملاحظات طويلة جداً / Notes are too long'
+        }),
+    endDate: Joi.date()
+        .messages({
+            'date.base': 'تاريخ الإنهاء غير صالح / Invalid end date'
+        })
+});
+
+// ============================================
 // VALIDATION MIDDLEWARE FACTORY
 // ============================================
 
@@ -934,7 +990,9 @@ module.exports = {
         createRichDocument: createRichDocumentSchema,
         updateRichDocument: updateRichDocumentSchema,
         objectIdParam: objectIdParamSchema,
-        nestedIdParam: nestedIdParamSchema
+        nestedIdParam: nestedIdParamSchema,
+        moveCaseToStage: moveCaseToStageSchema,
+        endCase: endCaseSchema
     },
 
     // Middleware (for route use)
@@ -960,6 +1018,8 @@ module.exports = {
     validateUpdateRichDocument: validate(updateRichDocumentSchema),
     validateObjectIdParam: validate(objectIdParamSchema, 'params'),
     validateNestedIdParam: validate(nestedIdParamSchema, 'params'),
+    validateMoveCaseToStage: validate(moveCaseToStageSchema),
+    validateEndCase: validate(endCaseSchema),
 
     // Generic validate function
     validate
