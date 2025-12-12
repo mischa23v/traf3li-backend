@@ -27,6 +27,7 @@ const firmRoute = require('../firm.route');
 const dashboardRoute = require('../dashboard.route');
 const activityRoute = require('../activity.route');
 const caseRoute = require('../case.route');
+const caseNotionRoute = require('../caseNotion.route');
 const taskRoute = require('../task.route');
 const ganttRoute = require('../gantt.route');
 const notificationRoute = require('../notification.route');
@@ -177,6 +178,7 @@ router.use('/firms', firmRoute);
 router.use('/dashboard', noCache, dashboardRoute);
 router.use('/activities', activityRoute);
 router.use('/cases', caseRoute);
+router.use('/', caseNotionRoute);  // CaseNotion routes under /cases/:caseId/notion/*
 router.use('/tasks', taskRoute);
 router.use('/gantt', ganttRoute);
 router.use('/notifications', noCache, notificationRoute);

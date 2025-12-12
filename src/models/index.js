@@ -183,8 +183,10 @@ const ChatHistory = require('./chatHistory.model');
 // CaseNotion Models (Notion-like workspace)
 const CaseNotionBlock = require('./caseNotionBlock.model');
 const CaseNotionPage = require('./caseNotionPage.model');
-const CaseNotionDatabaseView = require('./caseNotionDatabaseView.model');
 const SyncedBlock = require('./syncedBlock.model');
+const PageTemplate = require('./pageTemplate.model');
+const BlockComment = require('./blockComment.model');
+const PageActivity = require('./pageActivity.model');
 
 // Legal Contract Model (Najiz Integration)
 const LegalContract = require('./legalContract.model');
@@ -381,8 +383,10 @@ module.exports = {
     // CaseNotion (Notion-like workspace)
     CaseNotionBlock,
     CaseNotionPage,
-    CaseNotionDatabaseView,
     SyncedBlock,
+    PageTemplate,
+    BlockComment,
+    PageActivity,
 
     // Legal Contracts (Najiz Integration)
     LegalContract,

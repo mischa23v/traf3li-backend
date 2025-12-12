@@ -1,29 +1,32 @@
 const mongoose = require('mongoose');
 
 // ═══════════════════════════════════════════════════════════════
-// SYNCED BLOCK MODEL
-// Manages block synchronization across pages
+// BLOCK COMMENT MODEL
+// Comments and discussions on blocks
 // ═══════════════════════════════════════════════════════════════
 
-const syncedBlockSchema = new mongoose.Schema({
-    originalBlockId: {
+const blockCommentSchema = new mongoose.Schema({
+    blockId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'CaseNotionBlock',
         required: true,
         index: true
     },
-    originalPageId: {
+    pageId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'CaseNotionPage',
         required: true,
         index: true
     },
-    syncedToPages: [{
-        pageId: { type: mongoose.Schema.Types.ObjectId, ref: 'CaseNotionPage' },
-        blockId: { type: mongoose.Schema.Types.ObjectId, ref: 'CaseNotionBlock' }
-    }],
-    content: [mongoose.Schema.Types.Mixed],
-    properties: { type: mongoose.Schema.Types.Mixed, default: {} },
+
+    content: { type: String, required: true, maxlength: 5000 },
+    parentCommentId: { type: mongoose.Schema.Types.ObjectId, ref: 'BlockComment' },
+    mentions: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+
+    isResolved: { type: Boolean, default: false },
+    resolvedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    resolvedAt: Date,
+
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true }
 }, { timestamps: true });
 
@@ -31,7 +34,8 @@ const syncedBlockSchema = new mongoose.Schema({
 // INDEXES
 // ═══════════════════════════════════════════════════════════════
 
-syncedBlockSchema.index({ 'syncedToPages.pageId': 1 });
-syncedBlockSchema.index({ 'syncedToPages.blockId': 1 });
+blockCommentSchema.index({ blockId: 1, createdAt: -1 });
+blockCommentSchema.index({ pageId: 1, isResolved: 1 });
+blockCommentSchema.index({ parentCommentId: 1 });
 
-module.exports = mongoose.model('SyncedBlock', syncedBlockSchema);
+module.exports = mongoose.model('BlockComment', blockCommentSchema);
