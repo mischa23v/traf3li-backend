@@ -23,8 +23,11 @@ const {
     validateCreateRichDocument,
     validateUpdateRichDocument,
     validateObjectIdParam,
-    validateNestedIdParam
+    validateNestedIdParam,
+    validateMoveCaseToStage,
+    validateEndCase
 } = require('../validators/case.validator');
+const casePipelineController = require('../controllers/casePipeline.controller');
 const {
     createCase,
     getCases,
@@ -674,6 +677,221 @@ app.get('/:_id/rich-documents/:docId/preview',
     validateNestedIdParam,
     cacheResponse(CASE_CACHE_TTL, (req) => `case:firm:${req.firmId || 'none'}:${req.params._id}:rich-documents:${req.params.docId}:preview`),
     getRichDocumentPreview
+);
+
+// ==================== PIPELINE ====================
+/**
+ * @openapi
+ * /api/cases/pipeline:
+ *   get:
+ *     summary: Get cases for pipeline view
+ *     description: Returns cases formatted for pipeline kanban view with linked item counts
+ *     tags:
+ *       - Cases
+ *       - Pipeline
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: category
+ *         schema:
+ *           type: string
+ *         description: Filter by case category (labor, commercial, civil, etc.)
+ *       - in: query
+ *         name: outcome
+ *         schema:
+ *           type: string
+ *           enum: [ongoing, won, lost, settled]
+ *         description: Filter by outcome
+ *       - in: query
+ *         name: priority
+ *         schema:
+ *           type: string
+ *           enum: [low, medium, high, critical]
+ *         description: Filter by priority
+ *     responses:
+ *       200:
+ *         description: Cases retrieved successfully with pipeline data
+ */
+app.get('/pipeline',
+    userMiddleware,
+    firmFilter,
+    cacheResponse(CASE_CACHE_TTL, (req) => `case:firm:${req.firmId || 'none'}:pipeline:${req.originalUrl}`),
+    casePipelineController.getCasesForPipeline
+);
+
+/**
+ * @openapi
+ * /api/cases/pipeline/statistics:
+ *   get:
+ *     summary: Get pipeline statistics
+ *     description: Returns aggregated statistics for pipeline view
+ *     tags:
+ *       - Cases
+ *       - Pipeline
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: category
+ *         schema:
+ *           type: string
+ *         description: Filter by case category
+ *       - in: query
+ *         name: dateFrom
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Start date filter
+ *       - in: query
+ *         name: dateTo
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: End date filter
+ *     responses:
+ *       200:
+ *         description: Statistics retrieved successfully
+ */
+app.get('/pipeline/statistics',
+    userMiddleware,
+    firmFilter,
+    cacheResponse(CASE_CACHE_TTL, (req) => `case:firm:${req.firmId || 'none'}:pipeline:statistics:${req.originalUrl}`),
+    casePipelineController.getPipelineStatistics
+);
+
+/**
+ * @openapi
+ * /api/cases/pipeline/stages/{category}:
+ *   get:
+ *     summary: Get valid stages for category
+ *     description: Returns the valid stage IDs for a given case category
+ *     tags:
+ *       - Cases
+ *       - Pipeline
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: category
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Case category (labor, commercial, civil, etc.)
+ *     responses:
+ *       200:
+ *         description: Valid stages retrieved successfully
+ */
+app.get('/pipeline/stages/:category',
+    userMiddleware,
+    casePipelineController.getValidStages
+);
+
+/**
+ * @openapi
+ * /api/cases/{_id}/stage:
+ *   patch:
+ *     summary: Move case to stage
+ *     description: Move a case to a different stage in the pipeline
+ *     tags:
+ *       - Cases
+ *       - Pipeline
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: _id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Case ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - newStage
+ *             properties:
+ *               newStage:
+ *                 type: string
+ *                 description: Target stage ID
+ *               notes:
+ *                 type: string
+ *                 description: Optional notes about the stage change
+ *     responses:
+ *       200:
+ *         description: Case moved successfully
+ *       400:
+ *         description: Invalid stage for case category
+ *       404:
+ *         description: Case not found
+ */
+app.patch('/:_id/stage',
+    userMiddleware,
+    firmFilter,
+    validateObjectIdParam,
+    validateMoveCaseToStage,
+    invalidateCache(specificCaseInvalidationPatterns),
+    casePipelineController.moveCaseToStage
+);
+
+/**
+ * @openapi
+ * /api/cases/{_id}/end:
+ *   patch:
+ *     summary: End case
+ *     description: End a case with final outcome
+ *     tags:
+ *       - Cases
+ *       - Pipeline
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: _id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Case ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - outcome
+ *             properties:
+ *               outcome:
+ *                 type: string
+ *                 enum: [won, lost, settled]
+ *               endReason:
+ *                 type: string
+ *                 enum: [final_judgment, settlement, withdrawal, dismissal, reconciliation, execution_complete, other]
+ *               finalAmount:
+ *                 type: number
+ *               notes:
+ *                 type: string
+ *               endDate:
+ *                 type: string
+ *                 format: date
+ *     responses:
+ *       200:
+ *         description: Case ended successfully
+ *       400:
+ *         description: Case already ended or validation error
+ *       404:
+ *         description: Case not found
+ */
+app.patch('/:_id/end',
+    userMiddleware,
+    firmFilter,
+    validateObjectIdParam,
+    validateEndCase,
+    invalidateCache(specificCaseInvalidationPatterns),
+    casePipelineController.endCase
 );
 
 module.exports = app;
