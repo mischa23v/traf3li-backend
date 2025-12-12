@@ -1,1199 +1,1275 @@
-const asyncHandler = require('../utils/asyncHandler');
-const CustomException = require('../utils/CustomException');
-const CaseNotionService = require('../services/caseNotion.service');
-
-// ============================================
-// PAGE ENDPOINTS
-// ============================================
-
-/**
- * Create a new page
- * POST /api/case-notion/pages
- */
-const createPage = asyncHandler(async (req, res) => {
-  const { caseId, title, parentId, icon, cover } = req.body;
-  const userId = req.userID;
-  const firmId = req.firmId;
-
-  if (!caseId || !title) {
-    throw new CustomException('Case ID and title are required', 400);
-  }
-
-  const page = await CaseNotionService.createPage({
-    caseId,
-    title,
-    parentId,
-    icon,
-    cover,
-    userId,
-    firmId
-  });
-
-  res.status(201).json({
-    success: true,
-    data: page
-  });
-});
-
-/**
- * Get a single page with all blocks
- * GET /api/case-notion/pages/:pageId
- */
-const getPage = asyncHandler(async (req, res) => {
-  const { pageId } = req.params;
-  const userId = req.userID;
-  const firmId = req.firmId;
-
-  if (!pageId) {
-    throw new CustomException('Page ID is required', 400);
-  }
-
-  const page = await CaseNotionService.getPage(pageId, userId, firmId);
-
-  res.status(200).json({
-    success: true,
-    data: page
-  });
-});
-
-/**
- * Update page metadata
- * PATCH /api/case-notion/pages/:pageId
- */
-const updatePage = asyncHandler(async (req, res) => {
-  const { pageId } = req.params;
-  const { title, icon, cover, properties } = req.body;
-  const userId = req.userID;
-  const firmId = req.firmId;
-
-  if (!pageId) {
-    throw new CustomException('Page ID is required', 400);
-  }
-
-  const updatedPage = await CaseNotionService.updatePage(
-    pageId,
-    { title, icon, cover, properties },
-    userId,
-    firmId
-  );
-
-  res.status(200).json({
-    success: true,
-    data: updatedPage
-  });
-});
-
-/**
- * Delete (archive) a page
- * DELETE /api/case-notion/pages/:pageId
- */
-const deletePage = asyncHandler(async (req, res) => {
-  const { pageId } = req.params;
-  const userId = req.userID;
-  const firmId = req.firmId;
-
-  if (!pageId) {
-    throw new CustomException('Page ID is required', 400);
-  }
-
-  await CaseNotionService.deletePage(pageId, userId, firmId);
-
-  res.status(200).json({
-    success: true,
-    data: { message: 'Page archived successfully' }
-  });
-});
-
-/**
- * Duplicate a page
- * POST /api/case-notion/pages/:pageId/duplicate
- */
-const duplicatePage = asyncHandler(async (req, res) => {
-  const { pageId } = req.params;
-  const userId = req.userID;
-  const firmId = req.firmId;
-
-  if (!pageId) {
-    throw new CustomException('Page ID is required', 400);
-  }
-
-  const duplicatedPage = await CaseNotionService.duplicatePage(pageId, userId, firmId);
-
-  res.status(201).json({
-    success: true,
-    data: duplicatedPage
-  });
-});
-
-/**
- * Move a page to a new parent
- * POST /api/case-notion/pages/:pageId/move
- */
-const movePage = asyncHandler(async (req, res) => {
-  const { pageId } = req.params;
-  const { newParentId, newOrder } = req.body;
-  const userId = req.userID;
-  const firmId = req.firmId;
-
-  if (!pageId) {
-    throw new CustomException('Page ID is required', 400);
-  }
-
-  const movedPage = await CaseNotionService.movePage(
-    pageId,
-    newParentId,
-    newOrder,
-    userId,
-    firmId
-  );
-
-  res.status(200).json({
-    success: true,
-    data: movedPage
-  });
-});
-
-/**
- * Get all pages for a case (page tree for sidebar)
- * GET /api/case-notion/cases/:caseId/pages
- */
-const getCasePages = asyncHandler(async (req, res) => {
-  const { caseId } = req.params;
-  const userId = req.userID;
-  const firmId = req.firmId;
-
-  if (!caseId) {
-    throw new CustomException('Case ID is required', 400);
-  }
-
-  const pages = await CaseNotionService.getCasePages(caseId, userId, firmId);
-
-  res.status(200).json({
-    success: true,
-    data: pages
-  });
-});
-
-/**
- * Search pages within a case
- * GET /api/case-notion/cases/:caseId/search
- */
-const searchPages = asyncHandler(async (req, res) => {
-  const { caseId } = req.params;
-  const { q } = req.query;
-  const userId = req.userID;
-  const firmId = req.firmId;
-
-  if (!caseId) {
-    throw new CustomException('Case ID is required', 400);
-  }
-
-  if (!q) {
-    throw new CustomException('Search query is required', 400);
-  }
-
-  const results = await CaseNotionService.searchPages(caseId, q, userId, firmId);
-
-  res.status(200).json({
-    success: true,
-    data: results
-  });
-});
-
-/**
- * Get recently accessed pages
- * GET /api/case-notion/pages/recent
- */
-const getRecentPages = asyncHandler(async (req, res) => {
-  const userId = req.userID;
-  const firmId = req.firmId;
-
-  const recentPages = await CaseNotionService.getRecentPages(userId, firmId);
-
-  res.status(200).json({
-    success: true,
-    data: recentPages
-  });
-});
-
-/**
- * Toggle favorite status for a page
- * POST /api/case-notion/pages/:pageId/favorite
- */
-const toggleFavorite = asyncHandler(async (req, res) => {
-  const { pageId } = req.params;
-  const userId = req.userID;
-  const firmId = req.firmId;
-
-  if (!pageId) {
-    throw new CustomException('Page ID is required', 400);
-  }
-
-  const result = await CaseNotionService.toggleFavorite(pageId, userId, firmId);
-
-  res.status(200).json({
-    success: true,
-    data: result
-  });
-});
-
-// ============================================
-// BLOCK ENDPOINTS
-// ============================================
-
-/**
- * Create a new block in a page
- * POST /api/case-notion/pages/:pageId/blocks
- */
-const createBlock = asyncHandler(async (req, res) => {
-  const { pageId } = req.params;
-  const { type, content, parentId, order } = req.body;
-  const userId = req.userID;
-  const firmId = req.firmId;
-
-  if (!pageId || !type) {
-    throw new CustomException('Page ID and block type are required', 400);
-  }
-
-  const block = await CaseNotionService.createBlock({
-    pageId,
-    type,
-    content,
-    parentId,
-    order,
-    userId,
-    firmId
-  });
-
-  res.status(201).json({
-    success: true,
-    data: block
-  });
-});
-
-/**
- * Update a block
- * PATCH /api/case-notion/blocks/:blockId
- */
-const updateBlock = asyncHandler(async (req, res) => {
-  const { blockId } = req.params;
-  const { content, properties } = req.body;
-  const userId = req.userID;
-  const firmId = req.firmId;
-
-  if (!blockId) {
-    throw new CustomException('Block ID is required', 400);
-  }
-
-  const updatedBlock = await CaseNotionService.updateBlock(
-    blockId,
-    { content, properties },
-    userId,
-    firmId
-  );
-
-  res.status(200).json({
-    success: true,
-    data: updatedBlock
-  });
-});
-
-/**
- * Delete a block
- * DELETE /api/case-notion/blocks/:blockId
- */
-const deleteBlock = asyncHandler(async (req, res) => {
-  const { blockId } = req.params;
-  const userId = req.userID;
-  const firmId = req.firmId;
-
-  if (!blockId) {
-    throw new CustomException('Block ID is required', 400);
-  }
-
-  await CaseNotionService.deleteBlock(blockId, userId, firmId);
-
-  res.status(200).json({
-    success: true,
-    data: { message: 'Block deleted successfully' }
-  });
-});
-
-/**
- * Move a block to a different location
- * POST /api/case-notion/blocks/:blockId/move
- */
-const moveBlock = asyncHandler(async (req, res) => {
-  const { blockId } = req.params;
-  const { targetPageId, targetParentId, newOrder } = req.body;
-  const userId = req.userID;
-  const firmId = req.firmId;
-
-  if (!blockId) {
-    throw new CustomException('Block ID is required', 400);
-  }
-
-  const movedBlock = await CaseNotionService.moveBlock(
-    blockId,
-    { targetPageId, targetParentId, newOrder },
-    userId,
-    firmId
-  );
-
-  res.status(200).json({
-    success: true,
-    data: movedBlock
-  });
-});
-
-/**
- * Duplicate a block
- * POST /api/case-notion/blocks/:blockId/duplicate
- */
-const duplicateBlock = asyncHandler(async (req, res) => {
-  const { blockId } = req.params;
-  const userId = req.userID;
-  const firmId = req.firmId;
-
-  if (!blockId) {
-    throw new CustomException('Block ID is required', 400);
-  }
-
-  const duplicatedBlock = await CaseNotionService.duplicateBlock(blockId, userId, firmId);
-
-  res.status(201).json({
-    success: true,
-    data: duplicatedBlock
-  });
-});
-
-/**
- * Get all blocks for a page
- * GET /api/case-notion/pages/:pageId/blocks
- */
-const getPageBlocks = asyncHandler(async (req, res) => {
-  const { pageId } = req.params;
-  const userId = req.userID;
-  const firmId = req.firmId;
-
-  if (!pageId) {
-    throw new CustomException('Page ID is required', 400);
-  }
-
-  const blocks = await CaseNotionService.getPageBlocks(pageId, userId, firmId);
-
-  res.status(200).json({
-    success: true,
-    data: blocks
-  });
-});
-
-/**
- * Convert a block to a different type
- * POST /api/case-notion/blocks/:blockId/convert
- */
-const convertBlockType = asyncHandler(async (req, res) => {
-  const { blockId } = req.params;
-  const { newType } = req.body;
-  const userId = req.userID;
-  const firmId = req.firmId;
-
-  if (!blockId || !newType) {
-    throw new CustomException('Block ID and new type are required', 400);
-  }
-
-  const convertedBlock = await CaseNotionService.convertBlockType(
-    blockId,
-    newType,
-    userId,
-    firmId
-  );
-
-  res.status(200).json({
-    success: true,
-    data: convertedBlock
-  });
-});
-
-/**
- * Nest a block under another block
- * POST /api/case-notion/blocks/:blockId/nest
- */
-const nestBlock = asyncHandler(async (req, res) => {
-  const { blockId } = req.params;
-  const { parentBlockId } = req.body;
-  const userId = req.userID;
-  const firmId = req.firmId;
-
-  if (!blockId || !parentBlockId) {
-    throw new CustomException('Block ID and parent block ID are required', 400);
-  }
-
-  const nestedBlock = await CaseNotionService.nestBlock(
-    blockId,
-    parentBlockId,
-    userId,
-    firmId
-  );
-
-  res.status(200).json({
-    success: true,
-    data: nestedBlock
-  });
-});
-
-/**
- * Unnest a block (move to parent's level)
- * POST /api/case-notion/blocks/:blockId/unnest
- */
-const unnestBlock = asyncHandler(async (req, res) => {
-  const { blockId } = req.params;
-  const userId = req.userID;
-  const firmId = req.firmId;
-
-  if (!blockId) {
-    throw new CustomException('Block ID is required', 400);
-  }
-
-  const unnestedBlock = await CaseNotionService.unnestBlock(blockId, userId, firmId);
-
-  res.status(200).json({
-    success: true,
-    data: unnestedBlock
-  });
-});
-
-/**
- * Search blocks within a case
- * GET /api/case-notion/cases/:caseId/blocks/search
- */
-const searchBlocks = asyncHandler(async (req, res) => {
-  const { caseId } = req.params;
-  const { q } = req.query;
-  const userId = req.userID;
-  const firmId = req.firmId;
-
-  if (!caseId) {
-    throw new CustomException('Case ID is required', 400);
-  }
-
-  if (!q) {
-    throw new CustomException('Search query is required', 400);
-  }
-
-  const results = await CaseNotionService.searchBlocks(caseId, q, userId, firmId);
-
-  res.status(200).json({
-    success: true,
-    data: results
-  });
-});
-
-// ============================================
-// SYNCED BLOCK ENDPOINTS
-// ============================================
-
-/**
- * Create a new synced block template
- * POST /api/case-notion/synced-blocks
- */
-const createSyncedBlock = asyncHandler(async (req, res) => {
-  const { name, content, category, description } = req.body;
-  const userId = req.userID;
-  const firmId = req.firmId;
-
-  if (!name || !content) {
-    throw new CustomException('Name and content are required', 400);
-  }
-
-  const syncedBlock = await CaseNotionService.createSyncedBlock({
-    name,
-    content,
-    category,
-    description,
-    userId,
-    firmId
-  });
-
-  res.status(201).json({
-    success: true,
-    data: syncedBlock
-  });
-});
-
-/**
- * Get all synced blocks
- * GET /api/case-notion/synced-blocks
- */
-const getSyncedBlocks = asyncHandler(async (req, res) => {
-  const { category } = req.query;
-  const userId = req.userID;
-  const firmId = req.firmId;
-
-  const syncedBlocks = await CaseNotionService.getSyncedBlocks(category, userId, firmId);
-
-  res.status(200).json({
-    success: true,
-    data: syncedBlocks
-  });
-});
-
-/**
- * Get a single synced block
- * GET /api/case-notion/synced-blocks/:syncedBlockId
- */
-const getSyncedBlock = asyncHandler(async (req, res) => {
-  const { syncedBlockId } = req.params;
-  const userId = req.userID;
-  const firmId = req.firmId;
-
-  if (!syncedBlockId) {
-    throw new CustomException('Synced block ID is required', 400);
-  }
-
-  const syncedBlock = await CaseNotionService.getSyncedBlock(syncedBlockId, userId, firmId);
-
-  res.status(200).json({
-    success: true,
-    data: syncedBlock
-  });
-});
-
-/**
- * Update a synced block
- * PATCH /api/case-notion/synced-blocks/:syncedBlockId
- */
-const updateSyncedBlock = asyncHandler(async (req, res) => {
-  const { syncedBlockId } = req.params;
-  const { content, name } = req.body;
-  const userId = req.userID;
-  const firmId = req.firmId;
-
-  if (!syncedBlockId) {
-    throw new CustomException('Synced block ID is required', 400);
-  }
-
-  const updatedSyncedBlock = await CaseNotionService.updateSyncedBlock(
-    syncedBlockId,
-    { content, name },
-    userId,
-    firmId
-  );
-
-  res.status(200).json({
-    success: true,
-    data: updatedSyncedBlock
-  });
-});
-
-/**
- * Delete a synced block
- * DELETE /api/case-notion/synced-blocks/:syncedBlockId
- */
-const deleteSyncedBlock = asyncHandler(async (req, res) => {
-  const { syncedBlockId } = req.params;
-  const userId = req.userID;
-  const firmId = req.firmId;
-
-  if (!syncedBlockId) {
-    throw new CustomException('Synced block ID is required', 400);
-  }
-
-  await CaseNotionService.deleteSyncedBlock(syncedBlockId, userId, firmId);
-
-  res.status(200).json({
-    success: true,
-    data: { message: 'Synced block deleted successfully' }
-  });
-});
-
-/**
- * Insert a synced block into a page
- * POST /api/case-notion/synced-blocks/:syncedBlockId/insert
- */
-const insertSyncedBlock = asyncHandler(async (req, res) => {
-  const { syncedBlockId } = req.params;
-  const { pageId, order } = req.body;
-  const userId = req.userID;
-  const firmId = req.firmId;
-
-  if (!syncedBlockId || !pageId) {
-    throw new CustomException('Synced block ID and page ID are required', 400);
-  }
-
-  const insertedBlock = await CaseNotionService.insertSyncedBlock(
-    syncedBlockId,
-    pageId,
-    order,
-    userId,
-    firmId
-  );
-
-  res.status(201).json({
-    success: true,
-    data: insertedBlock
-  });
-});
-
-/**
- * Get all instances of a synced block
- * GET /api/case-notion/synced-blocks/:syncedBlockId/instances
- */
-const getSyncedBlockInstances = asyncHandler(async (req, res) => {
-  const { syncedBlockId } = req.params;
-  const userId = req.userID;
-  const firmId = req.firmId;
-
-  if (!syncedBlockId) {
-    throw new CustomException('Synced block ID is required', 400);
-  }
-
-  const instances = await CaseNotionService.getSyncedBlockInstances(
-    syncedBlockId,
-    userId,
-    firmId
-  );
-
-  res.status(200).json({
-    success: true,
-    data: instances
-  });
-});
-
-// ============================================
-// DATABASE VIEW ENDPOINTS
-// ============================================
-
-/**
- * Create a new database view
- * POST /api/case-notion/pages/:pageId/views
- */
-const createView = asyncHandler(async (req, res) => {
-  const { pageId } = req.params;
-  const { name, type, dataSource, properties, filters, sorts } = req.body;
-  const userId = req.userID;
-  const firmId = req.firmId;
-
-  if (!pageId || !name || !type || !dataSource) {
-    throw new CustomException('Page ID, name, type, and data source are required', 400);
-  }
-
-  const view = await CaseNotionService.createView({
-    pageId,
-    name,
-    type,
-    dataSource,
-    properties,
-    filters,
-    sorts,
-    userId,
-    firmId
-  });
-
-  res.status(201).json({
-    success: true,
-    data: view
-  });
-});
-
-/**
- * Get all views for a page
- * GET /api/case-notion/pages/:pageId/views
- */
-const getViews = asyncHandler(async (req, res) => {
-  const { pageId } = req.params;
-  const userId = req.userID;
-  const firmId = req.firmId;
-
-  if (!pageId) {
-    throw new CustomException('Page ID is required', 400);
-  }
-
-  const views = await CaseNotionService.getViews(pageId, userId, firmId);
-
-  res.status(200).json({
-    success: true,
-    data: views
-  });
-});
-
-/**
- * Get a single view
- * GET /api/case-notion/views/:viewId
- */
-const getView = asyncHandler(async (req, res) => {
-  const { viewId } = req.params;
-  const userId = req.userID;
-  const firmId = req.firmId;
-
-  if (!viewId) {
-    throw new CustomException('View ID is required', 400);
-  }
-
-  const view = await CaseNotionService.getView(viewId, userId, firmId);
-
-  res.status(200).json({
-    success: true,
-    data: view
-  });
-});
-
-/**
- * Update a view
- * PATCH /api/case-notion/views/:viewId
- */
-const updateView = asyncHandler(async (req, res) => {
-  const { viewId } = req.params;
-  const updates = req.body;
-  const userId = req.userID;
-  const firmId = req.firmId;
-
-  if (!viewId) {
-    throw new CustomException('View ID is required', 400);
-  }
-
-  const updatedView = await CaseNotionService.updateView(viewId, updates, userId, firmId);
-
-  res.status(200).json({
-    success: true,
-    data: updatedView
-  });
-});
-
-/**
- * Delete a view
- * DELETE /api/case-notion/views/:viewId
- */
-const deleteView = asyncHandler(async (req, res) => {
-  const { viewId } = req.params;
-  const userId = req.userID;
-  const firmId = req.firmId;
-
-  if (!viewId) {
-    throw new CustomException('View ID is required', 400);
-  }
-
-  await CaseNotionService.deleteView(viewId, userId, firmId);
-
-  res.status(200).json({
-    success: true,
-    data: { message: 'View deleted successfully' }
-  });
-});
-
-/**
- * Execute a view and get the formatted data
- * GET /api/case-notion/views/:viewId/data
- */
-const executeView = asyncHandler(async (req, res) => {
-  const { viewId } = req.params;
-  const userId = req.userID;
-  const firmId = req.firmId;
-
-  if (!viewId) {
-    throw new CustomException('View ID is required', 400);
-  }
-
-  const data = await CaseNotionService.executeView(viewId, userId, firmId);
-
-  res.status(200).json({
-    success: true,
-    data
-  });
-});
-
-/**
- * Set a view as default for its page
- * POST /api/case-notion/views/:viewId/set-default
- */
-const setDefaultView = asyncHandler(async (req, res) => {
-  const { viewId } = req.params;
-  const userId = req.userID;
-  const firmId = req.firmId;
-
-  if (!viewId) {
-    throw new CustomException('View ID is required', 400);
-  }
-
-  const view = await CaseNotionService.setDefaultView(viewId, userId, firmId);
-
-  res.status(200).json({
-    success: true,
-    data: view
-  });
-});
-
-// ============================================
-// TEMPLATE ENDPOINTS
-// ============================================
-
-/**
- * Save a page as a template
- * POST /api/case-notion/pages/:pageId/save-as-template
- */
-const createTemplate = asyncHandler(async (req, res) => {
-  const { pageId } = req.params;
-  const { name, category, description } = req.body;
-  const userId = req.userID;
-  const firmId = req.firmId;
-
-  if (!pageId || !name) {
-    throw new CustomException('Page ID and template name are required', 400);
-  }
-
-  const template = await CaseNotionService.createTemplate(
-    pageId,
-    { name, category, description },
-    userId,
-    firmId
-  );
-
-  res.status(201).json({
-    success: true,
-    data: template
-  });
-});
-
-/**
- * Get all templates
- * GET /api/case-notion/templates
- */
-const getTemplates = asyncHandler(async (req, res) => {
-  const { category } = req.query;
-  const userId = req.userID;
-  const firmId = req.firmId;
-
-  const templates = await CaseNotionService.getTemplates(category, userId, firmId);
-
-  res.status(200).json({
-    success: true,
-    data: templates
-  });
-});
-
-/**
- * Create a new page from a template
- * POST /api/case-notion/templates/:templateId/use
- */
-const createFromTemplate = asyncHandler(async (req, res) => {
-  const { templateId } = req.params;
-  const { caseId, title } = req.body;
-  const userId = req.userID;
-  const firmId = req.firmId;
-
-  if (!templateId || !caseId) {
-    throw new CustomException('Template ID and case ID are required', 400);
-  }
-
-  const page = await CaseNotionService.createFromTemplate(
-    templateId,
-    caseId,
-    title,
-    userId,
-    firmId
-  );
-
-  res.status(201).json({
-    success: true,
-    data: page
-  });
-});
-
-// ============================================
-// AI ENDPOINTS
-// ============================================
-
-/**
- * AI autofill for a block
- * POST /api/case-notion/blocks/:blockId/ai-autofill
- */
-const aiAutofill = asyncHandler(async (req, res) => {
-  const { blockId } = req.params;
-  const userId = req.userID;
-  const firmId = req.firmId;
-
-  if (!blockId) {
-    throw new CustomException('Block ID is required', 400);
-  }
-
-  const result = await CaseNotionService.aiAutofill(blockId, userId, firmId);
-
-  res.status(200).json({
-    success: true,
-    data: result
-  });
-});
-
-/**
- * AI summarize a page
- * POST /api/case-notion/pages/:pageId/ai-summarize
- */
-const aiSummarize = asyncHandler(async (req, res) => {
-  const { pageId } = req.params;
-  const userId = req.userID;
-  const firmId = req.firmId;
-
-  if (!pageId) {
-    throw new CustomException('Page ID is required', 400);
-  }
-
-  const summary = await CaseNotionService.aiSummarize(pageId, userId, firmId);
-
-  res.status(200).json({
-    success: true,
-    data: summary
-  });
-});
-
-/**
- * AI answer a question about case data
- * POST /api/case-notion/cases/:caseId/ai-answer
- */
-const aiAnswer = asyncHandler(async (req, res) => {
-  const { caseId } = req.params;
-  const { question } = req.body;
-  const userId = req.userID;
-  const firmId = req.firmId;
-
-  if (!caseId || !question) {
-    throw new CustomException('Case ID and question are required', 400);
-  }
-
-  const answer = await CaseNotionService.aiAnswer(caseId, question, userId, firmId);
-
-  res.status(200).json({
-    success: true,
-    data: answer
-  });
-});
-
-/**
- * AI suggest content for a page
- * POST /api/case-notion/pages/:pageId/ai-suggest
- */
-const aiSuggestContent = asyncHandler(async (req, res) => {
-  const { pageId } = req.params;
-  const { prompt } = req.body;
-  const userId = req.userID;
-  const firmId = req.firmId;
-
-  if (!pageId || !prompt) {
-    throw new CustomException('Page ID and prompt are required', 400);
-  }
-
-  const suggestions = await CaseNotionService.aiSuggestContent(pageId, prompt, userId, firmId);
-
-  res.status(200).json({
-    success: true,
-    data: suggestions
-  });
-});
-
-// ============================================
-// REAL-TIME/COLLABORATION ENDPOINTS
-// ============================================
-
-/**
- * Lock a block for editing
- * POST /api/case-notion/blocks/:blockId/lock
- */
-const lockBlock = asyncHandler(async (req, res) => {
-  const { blockId } = req.params;
-  const userId = req.userID;
-  const firmId = req.firmId;
-
-  if (!blockId) {
-    throw new CustomException('Block ID is required', 400);
-  }
-
-  const lock = await CaseNotionService.lockBlock(blockId, userId, firmId);
-
-  res.status(200).json({
-    success: true,
-    data: lock
-  });
-});
-
-/**
- * Unlock a block
- * POST /api/case-notion/blocks/:blockId/unlock
- */
-const unlockBlock = asyncHandler(async (req, res) => {
-  const { blockId } = req.params;
-  const userId = req.userID;
-  const firmId = req.firmId;
-
-  if (!blockId) {
-    throw new CustomException('Block ID is required', 400);
-  }
-
-  await CaseNotionService.unlockBlock(blockId, userId, firmId);
-
-  res.status(200).json({
-    success: true,
-    data: { message: 'Block unlocked successfully' }
-  });
-});
-
-/**
- * Get all active locks for a page
- * GET /api/case-notion/pages/:pageId/locks
- */
-const getActiveLocks = asyncHandler(async (req, res) => {
-  const { pageId } = req.params;
-  const userId = req.userID;
-  const firmId = req.firmId;
-
-  if (!pageId) {
-    throw new CustomException('Page ID is required', 400);
-  }
-
-  const locks = await CaseNotionService.getActiveLocks(pageId, userId, firmId);
-
-  res.status(200).json({
-    success: true,
-    data: locks
-  });
-});
-
-// ============================================
-// EXPORT/IMPORT ENDPOINTS
-// ============================================
-
-/**
- * Export a page in various formats
- * GET /api/case-notion/pages/:pageId/export
- */
-const exportPage = asyncHandler(async (req, res) => {
-  const { pageId } = req.params;
-  const { format } = req.query;
-  const userId = req.userID;
-  const firmId = req.firmId;
-
-  if (!pageId) {
-    throw new CustomException('Page ID is required', 400);
-  }
-
-  if (!format || !['markdown', 'html', 'pdf'].includes(format)) {
-    throw new CustomException('Valid format (markdown, html, pdf) is required', 400);
-  }
-
-  const exported = await CaseNotionService.exportPage(pageId, format, userId, firmId);
-
-  res.status(200).json({
-    success: true,
-    data: exported
-  });
-});
-
-/**
- * Import markdown content as a page
- * POST /api/case-notion/cases/:caseId/import
- */
-const importMarkdown = asyncHandler(async (req, res) => {
-  const { caseId } = req.params;
-  const { markdown, title } = req.body;
-  const userId = req.userID;
-  const firmId = req.firmId;
-
-  if (!caseId || !markdown) {
-    throw new CustomException('Case ID and markdown content are required', 400);
-  }
-
-  const page = await CaseNotionService.importMarkdown(caseId, markdown, title, userId, firmId);
-
-  res.status(201).json({
-    success: true,
-    data: page
-  });
-});
-
-/**
- * Get all backlinks to a page
- * GET /api/case-notion/pages/:pageId/backlinks
- */
-const getBacklinks = asyncHandler(async (req, res) => {
-  const { pageId } = req.params;
-  const userId = req.userID;
-  const firmId = req.firmId;
-
-  if (!pageId) {
-    throw new CustomException('Page ID is required', 400);
-  }
-
-  const backlinks = await CaseNotionService.getBacklinks(pageId, userId, firmId);
-
-  res.status(200).json({
-    success: true,
-    data: backlinks
-  });
-});
-
-// ============================================
-// EXPORTS
-// ============================================
-
-module.exports = {
-  // Page endpoints
-  createPage,
-  getPage,
-  updatePage,
-  deletePage,
-  duplicatePage,
-  movePage,
-  getCasePages,
-  searchPages,
-  getRecentPages,
-  toggleFavorite,
-
-  // Block endpoints
-  createBlock,
-  updateBlock,
-  deleteBlock,
-  moveBlock,
-  duplicateBlock,
-  getPageBlocks,
-  convertBlockType,
-  nestBlock,
-  unnestBlock,
-  searchBlocks,
-
-  // Synced block endpoints
-  createSyncedBlock,
-  getSyncedBlocks,
-  getSyncedBlock,
-  updateSyncedBlock,
-  deleteSyncedBlock,
-  insertSyncedBlock,
-  getSyncedBlockInstances,
-
-  // Database view endpoints
-  createView,
-  getViews,
-  getView,
-  updateView,
-  deleteView,
-  executeView,
-  setDefaultView,
-
-  // Template endpoints
-  createTemplate,
-  getTemplates,
-  createFromTemplate,
-
-  // AI endpoints
-  aiAutofill,
-  aiSummarize,
-  aiAnswer,
-  aiSuggestContent,
-
-  // Real-time/collaboration endpoints
-  lockBlock,
-  unlockBlock,
-  getActiveLocks,
-
-  // Export/import endpoints
-  exportPage,
-  importMarkdown,
-  getBacklinks
+const CaseNotionPage = require('../models/caseNotionPage.model');
+const CaseNotionBlock = require('../models/caseNotionBlock.model');
+const SyncedBlock = require('../models/syncedBlock.model');
+const PageTemplate = require('../models/pageTemplate.model');
+const BlockComment = require('../models/blockComment.model');
+const PageActivity = require('../models/pageActivity.model');
+const Task = require('../models/task.model');
+
+// ═══════════════════════════════════════════════════════════════
+// PAGE CONTROLLERS
+// ═══════════════════════════════════════════════════════════════
+
+exports.listPages = async (req, res) => {
+    try {
+        const { caseId } = req.params;
+        const { pageType, search, isFavorite, isPinned, isArchived, page = 1, limit = 50 } = req.query;
+
+        const query = {
+            caseId,
+            deletedAt: null
+        };
+
+        // Add firm/lawyer filter
+        if (req.user.firmId) {
+            query.firmId = req.user.firmId;
+        } else {
+            query.lawyerId = req.user._id;
+        }
+
+        if (pageType) query.pageType = pageType;
+        if (isFavorite !== undefined) query.isFavorite = isFavorite === 'true';
+        if (isPinned !== undefined) query.isPinned = isPinned === 'true';
+        if (isArchived !== undefined) {
+            query.archivedAt = isArchived === 'true' ? { $ne: null } : null;
+        } else {
+            query.archivedAt = null;
+        }
+
+        if (search) {
+            query.$text = { $search: search };
+        }
+
+        const pages = await CaseNotionPage.find(query)
+            .sort({ isPinned: -1, isFavorite: -1, updatedAt: -1 })
+            .skip((page - 1) * limit)
+            .limit(parseInt(limit))
+            .populate('createdBy', 'firstName lastName')
+            .populate('lastEditedBy', 'firstName lastName');
+
+        const count = await CaseNotionPage.countDocuments(query);
+
+        res.json({
+            success: true,
+            data: { pages, count, totalPages: Math.ceil(count / limit) }
+        });
+    } catch (error) {
+        res.status(500).json({ error: true, message: error.message });
+    }
 };
+
+exports.getPage = async (req, res) => {
+    try {
+        const { caseId, pageId } = req.params;
+
+        const query = {
+            _id: pageId,
+            caseId,
+            deletedAt: null
+        };
+
+        if (req.user.firmId) {
+            query.firmId = req.user.firmId;
+        } else {
+            query.lawyerId = req.user._id;
+        }
+
+        const page = await CaseNotionPage.findOne(query)
+            .populate('createdBy', 'firstName lastName')
+            .populate('lastEditedBy', 'firstName lastName')
+            .populate('parentPageId', 'title titleAr')
+            .populate('childPageIds', 'title titleAr icon');
+
+        if (!page) {
+            return res.status(404).json({ error: true, message: 'Page not found' });
+        }
+
+        // Get blocks for this page
+        const blocks = await CaseNotionBlock.find({ pageId })
+            .sort({ order: 1 })
+            .populate('lastEditedBy', 'firstName lastName')
+            .populate('lockedBy', 'firstName lastName');
+
+        res.json({
+            success: true,
+            data: { ...page.toObject(), blocks }
+        });
+    } catch (error) {
+        res.status(500).json({ error: true, message: error.message });
+    }
+};
+
+exports.createPage = async (req, res) => {
+    try {
+        const { caseId } = req.params;
+        const { title, titleAr, pageType, icon, cover, parentPageId, templateId } = req.body;
+
+        const pageData = {
+            caseId,
+            title,
+            titleAr,
+            pageType: pageType || 'general',
+            icon,
+            cover,
+            parentPageId,
+            createdBy: req.user._id,
+            lastEditedBy: req.user._id
+        };
+
+        if (req.user.firmId) {
+            pageData.firmId = req.user.firmId;
+        } else {
+            pageData.lawyerId = req.user._id;
+        }
+
+        const page = new CaseNotionPage(pageData);
+        await page.save();
+
+        // If templateId provided, apply template
+        if (templateId) {
+            await applyTemplateToPage(page._id, templateId, req.user._id);
+        }
+
+        // Update parent's childPageIds if has parent
+        if (parentPageId) {
+            await CaseNotionPage.findByIdAndUpdate(parentPageId, {
+                $push: { childPageIds: page._id }
+            });
+        }
+
+        // Log activity
+        await PageActivity.create({
+            pageId: page._id,
+            userId: req.user._id,
+            userName: `${req.user.firstName} ${req.user.lastName}`,
+            action: 'created'
+        });
+
+        res.status(201).json({ success: true, data: page });
+    } catch (error) {
+        res.status(500).json({ error: true, message: error.message });
+    }
+};
+
+exports.updatePage = async (req, res) => {
+    try {
+        const { pageId } = req.params;
+        const updateData = req.body;
+
+        const page = await CaseNotionPage.findByIdAndUpdate(
+            pageId,
+            {
+                ...updateData,
+                lastEditedBy: req.user._id,
+                version: { $inc: 1 },
+                lastVersionAt: new Date()
+            },
+            { new: true }
+        );
+
+        if (!page) {
+            return res.status(404).json({ error: true, message: 'Page not found' });
+        }
+
+        // Log activity
+        await PageActivity.create({
+            pageId: page._id,
+            userId: req.user._id,
+            userName: `${req.user.firstName} ${req.user.lastName}`,
+            action: 'edited',
+            details: { fields: Object.keys(updateData) }
+        });
+
+        res.json({ success: true, data: page });
+    } catch (error) {
+        res.status(500).json({ error: true, message: error.message });
+    }
+};
+
+exports.deletePage = async (req, res) => {
+    try {
+        const { pageId } = req.params;
+
+        const page = await CaseNotionPage.findByIdAndUpdate(
+            pageId,
+            { deletedAt: new Date() },
+            { new: true }
+        );
+
+        if (!page) {
+            return res.status(404).json({ error: true, message: 'Page not found' });
+        }
+
+        // Log activity
+        await PageActivity.create({
+            pageId: page._id,
+            userId: req.user._id,
+            userName: `${req.user.firstName} ${req.user.lastName}`,
+            action: 'deleted'
+        });
+
+        res.json({ success: true, message: 'Page deleted' });
+    } catch (error) {
+        res.status(500).json({ error: true, message: error.message });
+    }
+};
+
+exports.archivePage = async (req, res) => {
+    try {
+        const { pageId } = req.params;
+
+        const page = await CaseNotionPage.findByIdAndUpdate(
+            pageId,
+            { archivedAt: new Date() },
+            { new: true }
+        );
+
+        if (!page) {
+            return res.status(404).json({ error: true, message: 'Page not found' });
+        }
+
+        await PageActivity.create({
+            pageId: page._id,
+            userId: req.user._id,
+            userName: `${req.user.firstName} ${req.user.lastName}`,
+            action: 'archived'
+        });
+
+        res.json({ success: true, data: page });
+    } catch (error) {
+        res.status(500).json({ error: true, message: error.message });
+    }
+};
+
+exports.restorePage = async (req, res) => {
+    try {
+        const { pageId } = req.params;
+
+        const page = await CaseNotionPage.findByIdAndUpdate(
+            pageId,
+            { archivedAt: null, deletedAt: null },
+            { new: true }
+        );
+
+        if (!page) {
+            return res.status(404).json({ error: true, message: 'Page not found' });
+        }
+
+        await PageActivity.create({
+            pageId: page._id,
+            userId: req.user._id,
+            userName: `${req.user.firstName} ${req.user.lastName}`,
+            action: 'restored'
+        });
+
+        res.json({ success: true, data: page });
+    } catch (error) {
+        res.status(500).json({ error: true, message: error.message });
+    }
+};
+
+exports.duplicatePage = async (req, res) => {
+    try {
+        const { caseId, pageId } = req.params;
+        const { newTitle } = req.body;
+
+        const originalPage = await CaseNotionPage.findById(pageId);
+        if (!originalPage) {
+            return res.status(404).json({ error: true, message: 'Page not found' });
+        }
+
+        // Create new page
+        const pageData = {
+            caseId,
+            title: newTitle || `${originalPage.title} (Copy)`,
+            titleAr: originalPage.titleAr ? `${originalPage.titleAr} (نسخة)` : undefined,
+            pageType: originalPage.pageType,
+            icon: originalPage.icon,
+            cover: originalPage.cover,
+            createdBy: req.user._id,
+            lastEditedBy: req.user._id
+        };
+
+        if (req.user.firmId) {
+            pageData.firmId = req.user.firmId;
+        } else {
+            pageData.lawyerId = req.user._id;
+        }
+
+        const newPage = await CaseNotionPage.create(pageData);
+
+        // Copy blocks
+        const blocks = await CaseNotionBlock.find({ pageId });
+        let order = 0;
+        for (const block of blocks) {
+            const newBlock = block.toObject();
+            delete newBlock._id;
+            newBlock.pageId = newPage._id;
+            newBlock.order = order++;
+            await CaseNotionBlock.create(newBlock);
+        }
+
+        res.status(201).json({ success: true, data: newPage });
+    } catch (error) {
+        res.status(500).json({ error: true, message: error.message });
+    }
+};
+
+exports.toggleFavorite = async (req, res) => {
+    try {
+        const { pageId } = req.params;
+
+        const page = await CaseNotionPage.findById(pageId);
+        if (!page) {
+            return res.status(404).json({ error: true, message: 'Page not found' });
+        }
+
+        page.isFavorite = !page.isFavorite;
+        await page.save();
+
+        await PageActivity.create({
+            pageId: page._id,
+            userId: req.user._id,
+            userName: `${req.user.firstName} ${req.user.lastName}`,
+            action: 'favorited',
+            details: { isFavorite: page.isFavorite }
+        });
+
+        res.json({ success: true, data: { isFavorite: page.isFavorite } });
+    } catch (error) {
+        res.status(500).json({ error: true, message: error.message });
+    }
+};
+
+exports.togglePin = async (req, res) => {
+    try {
+        const { pageId } = req.params;
+
+        const page = await CaseNotionPage.findById(pageId);
+        if (!page) {
+            return res.status(404).json({ error: true, message: 'Page not found' });
+        }
+
+        page.isPinned = !page.isPinned;
+        await page.save();
+
+        await PageActivity.create({
+            pageId: page._id,
+            userId: req.user._id,
+            userName: `${req.user.firstName} ${req.user.lastName}`,
+            action: 'pinned',
+            details: { isPinned: page.isPinned }
+        });
+
+        res.json({ success: true, data: { isPinned: page.isPinned } });
+    } catch (error) {
+        res.status(500).json({ error: true, message: error.message });
+    }
+};
+
+exports.mergePages = async (req, res) => {
+    try {
+        const { caseId } = req.params;
+        const { sourcePageIds, targetTitle, deleteSourcePages } = req.body;
+
+        const pageData = {
+            caseId,
+            title: targetTitle,
+            pageType: 'general',
+            createdBy: req.user._id,
+            lastEditedBy: req.user._id
+        };
+
+        if (req.user.firmId) {
+            pageData.firmId = req.user.firmId;
+        } else {
+            pageData.lawyerId = req.user._id;
+        }
+
+        const mergedPage = await CaseNotionPage.create(pageData);
+
+        let blockOrder = 0;
+        for (const sourcePageId of sourcePageIds) {
+            const sourcePage = await CaseNotionPage.findById(sourcePageId);
+            if (!sourcePage) continue;
+
+            // Add page title as heading
+            await CaseNotionBlock.create({
+                pageId: mergedPage._id,
+                type: 'heading_2',
+                content: [{ type: 'text', text: { content: sourcePage.title }, plainText: sourcePage.title }],
+                order: blockOrder++
+            });
+
+            // Copy blocks
+            const blocks = await CaseNotionBlock.find({ pageId: sourcePageId }).sort({ order: 1 });
+            for (const block of blocks) {
+                const newBlock = block.toObject();
+                delete newBlock._id;
+                newBlock.pageId = mergedPage._id;
+                newBlock.order = blockOrder++;
+                await CaseNotionBlock.create(newBlock);
+            }
+
+            // Add divider
+            await CaseNotionBlock.create({
+                pageId: mergedPage._id,
+                type: 'divider',
+                content: [],
+                order: blockOrder++
+            });
+        }
+
+        if (deleteSourcePages) {
+            await CaseNotionPage.updateMany(
+                { _id: { $in: sourcePageIds } },
+                { deletedAt: new Date() }
+            );
+        }
+
+        res.json({ success: true, data: mergedPage });
+    } catch (error) {
+        res.status(500).json({ error: true, message: error.message });
+    }
+};
+
+// ═══════════════════════════════════════════════════════════════
+// BLOCK CONTROLLERS
+// ═══════════════════════════════════════════════════════════════
+
+exports.getBlocks = async (req, res) => {
+    try {
+        const { pageId } = req.params;
+
+        const blocks = await CaseNotionBlock.find({ pageId })
+            .sort({ order: 1 })
+            .populate('lastEditedBy', 'firstName lastName')
+            .populate('lockedBy', 'firstName lastName');
+
+        res.json({ success: true, data: blocks });
+    } catch (error) {
+        res.status(500).json({ error: true, message: error.message });
+    }
+};
+
+exports.createBlock = async (req, res) => {
+    try {
+        const { pageId } = req.params;
+        const { type, content, properties, parentId, afterBlockId } = req.body;
+
+        // Determine order
+        let order = 0;
+        if (afterBlockId) {
+            const afterBlock = await CaseNotionBlock.findById(afterBlockId);
+            if (afterBlock) {
+                order = afterBlock.order + 1;
+                // Shift subsequent blocks
+                await CaseNotionBlock.updateMany(
+                    { pageId, order: { $gte: order } },
+                    { $inc: { order: 1 } }
+                );
+            }
+        } else {
+            const lastBlock = await CaseNotionBlock.findOne({ pageId }).sort({ order: -1 });
+            order = lastBlock ? lastBlock.order + 1 : 0;
+        }
+
+        const block = await CaseNotionBlock.create({
+            pageId,
+            type,
+            content,
+            properties,
+            parentId,
+            order,
+            lastEditedBy: req.user._id,
+            lastEditedAt: new Date()
+        });
+
+        // Log activity
+        await PageActivity.create({
+            pageId,
+            userId: req.user._id,
+            userName: `${req.user.firstName} ${req.user.lastName}`,
+            action: 'block_added',
+            blockId: block._id,
+            details: { blockType: type }
+        });
+
+        res.status(201).json({ success: true, data: block });
+    } catch (error) {
+        res.status(500).json({ error: true, message: error.message });
+    }
+};
+
+exports.updateBlock = async (req, res) => {
+    try {
+        const { blockId } = req.params;
+        const updateData = req.body;
+
+        const block = await CaseNotionBlock.findById(blockId);
+        if (!block) {
+            return res.status(404).json({ error: true, message: 'Block not found' });
+        }
+
+        // Check if block is locked by another user
+        if (block.lockedBy && block.lockedBy.toString() !== req.user._id.toString()) {
+            return res.status(423).json({
+                error: true,
+                message: 'Block is being edited by another user'
+            });
+        }
+
+        // Update block
+        Object.assign(block, updateData, {
+            lastEditedBy: req.user._id,
+            lastEditedAt: new Date()
+        });
+
+        await block.save();
+
+        // If this is a synced block original, update all synced copies
+        if (block.isSyncedBlock) {
+            await updateSyncedBlocks(block._id, updateData);
+        }
+
+        res.json({ success: true, data: block });
+    } catch (error) {
+        res.status(500).json({ error: true, message: error.message });
+    }
+};
+
+exports.deleteBlock = async (req, res) => {
+    try {
+        const { blockId } = req.params;
+
+        const block = await CaseNotionBlock.findById(blockId);
+        if (!block) {
+            return res.status(404).json({ error: true, message: 'Block not found' });
+        }
+
+        const pageId = block.pageId;
+        await block.deleteOne();
+
+        // Reorder remaining blocks
+        await CaseNotionBlock.updateMany(
+            { pageId, order: { $gt: block.order } },
+            { $inc: { order: -1 } }
+        );
+
+        // Log activity
+        await PageActivity.create({
+            pageId,
+            userId: req.user._id,
+            userName: `${req.user.firstName} ${req.user.lastName}`,
+            action: 'block_deleted',
+            details: { blockType: block.type }
+        });
+
+        res.json({ success: true, message: 'Block deleted' });
+    } catch (error) {
+        res.status(500).json({ error: true, message: error.message });
+    }
+};
+
+exports.moveBlock = async (req, res) => {
+    try {
+        const { blockId } = req.params;
+        const { targetPageId, afterBlockId, parentId } = req.body;
+
+        const block = await CaseNotionBlock.findById(blockId);
+        if (!block) {
+            return res.status(404).json({ error: true, message: 'Block not found' });
+        }
+
+        const oldPageId = block.pageId;
+        const oldOrder = block.order;
+
+        // Determine new order
+        let newOrder = 0;
+        if (afterBlockId) {
+            const afterBlock = await CaseNotionBlock.findById(afterBlockId);
+            if (afterBlock) {
+                newOrder = afterBlock.order + 1;
+            }
+        }
+
+        // Update orders in old page
+        await CaseNotionBlock.updateMany(
+            { pageId: oldPageId, order: { $gt: oldOrder } },
+            { $inc: { order: -1 } }
+        );
+
+        // Update orders in new page
+        const newPageId = targetPageId || oldPageId;
+        await CaseNotionBlock.updateMany(
+            { pageId: newPageId, order: { $gte: newOrder } },
+            { $inc: { order: 1 } }
+        );
+
+        // Update block
+        block.pageId = newPageId;
+        block.order = newOrder;
+        if (parentId !== undefined) block.parentId = parentId;
+        await block.save();
+
+        // Log activity
+        await PageActivity.create({
+            pageId: newPageId,
+            userId: req.user._id,
+            userName: `${req.user.firstName} ${req.user.lastName}`,
+            action: 'block_moved',
+            blockId: block._id
+        });
+
+        res.json({ success: true, data: block });
+    } catch (error) {
+        res.status(500).json({ error: true, message: error.message });
+    }
+};
+
+exports.lockBlock = async (req, res) => {
+    try {
+        const { blockId } = req.params;
+
+        const block = await CaseNotionBlock.findById(blockId);
+        if (!block) {
+            return res.status(404).json({ error: true, message: 'Block not found' });
+        }
+
+        // Check if already locked by another user
+        if (block.lockedBy && block.lockedBy.toString() !== req.user._id.toString()) {
+            return res.status(423).json({
+                error: true,
+                message: 'Block is locked by another user'
+            });
+        }
+
+        block.lockedBy = req.user._id;
+        block.lockedAt = new Date();
+        await block.save();
+
+        res.json({ success: true, data: { locked: true } });
+    } catch (error) {
+        res.status(500).json({ error: true, message: error.message });
+    }
+};
+
+exports.unlockBlock = async (req, res) => {
+    try {
+        const { blockId } = req.params;
+
+        const block = await CaseNotionBlock.findById(blockId);
+        if (!block) {
+            return res.status(404).json({ error: true, message: 'Block not found' });
+        }
+
+        block.lockedBy = undefined;
+        block.lockedAt = undefined;
+        await block.save();
+
+        res.json({ success: true, data: { locked: false } });
+    } catch (error) {
+        res.status(500).json({ error: true, message: error.message });
+    }
+};
+
+// ═══════════════════════════════════════════════════════════════
+// SYNCED BLOCK CONTROLLERS
+// ═══════════════════════════════════════════════════════════════
+
+exports.createSyncedBlock = async (req, res) => {
+    try {
+        const { originalBlockId, targetPageId } = req.body;
+
+        const originalBlock = await CaseNotionBlock.findById(originalBlockId);
+        if (!originalBlock) {
+            return res.status(404).json({ error: true, message: 'Original block not found' });
+        }
+
+        // Mark original as synced block
+        originalBlock.isSyncedBlock = true;
+        await originalBlock.save();
+
+        // Create synced copy in target page
+        const syncedCopy = await CaseNotionBlock.create({
+            pageId: targetPageId,
+            type: originalBlock.type,
+            content: originalBlock.content,
+            properties: originalBlock.properties,
+            syncedFromBlockId: originalBlockId,
+            order: 0,
+            lastEditedBy: req.user._id,
+            lastEditedAt: new Date()
+        });
+
+        // Create or update synced block record
+        let syncedRecord = await SyncedBlock.findOne({ originalBlockId });
+        if (!syncedRecord) {
+            syncedRecord = await SyncedBlock.create({
+                originalBlockId,
+                originalPageId: originalBlock.pageId,
+                syncedToPages: [{ pageId: targetPageId, blockId: syncedCopy._id }],
+                content: originalBlock.content,
+                properties: originalBlock.properties,
+                createdBy: req.user._id
+            });
+        } else {
+            syncedRecord.syncedToPages.push({ pageId: targetPageId, blockId: syncedCopy._id });
+            await syncedRecord.save();
+        }
+
+        res.status(201).json({ success: true, data: syncedCopy });
+    } catch (error) {
+        res.status(500).json({ error: true, message: error.message });
+    }
+};
+
+exports.getSyncedBlock = async (req, res) => {
+    try {
+        const { blockId } = req.params;
+
+        const syncedRecord = await SyncedBlock.findOne({ originalBlockId: blockId })
+            .populate('originalBlockId')
+            .populate('syncedToPages.pageId', 'title');
+
+        if (!syncedRecord) {
+            return res.status(404).json({ error: true, message: 'Synced block not found' });
+        }
+
+        res.json({ success: true, data: syncedRecord });
+    } catch (error) {
+        res.status(500).json({ error: true, message: error.message });
+    }
+};
+
+exports.unsyncBlock = async (req, res) => {
+    try {
+        const { blockId } = req.params;
+
+        const block = await CaseNotionBlock.findById(blockId);
+        if (!block) {
+            return res.status(404).json({ error: true, message: 'Block not found' });
+        }
+
+        // Remove from synced block record
+        if (block.syncedFromBlockId) {
+            await SyncedBlock.updateOne(
+                { originalBlockId: block.syncedFromBlockId },
+                { $pull: { syncedToPages: { blockId } } }
+            );
+        }
+
+        block.syncedFromBlockId = undefined;
+        await block.save();
+
+        res.json({ success: true, message: 'Block unsynced' });
+    } catch (error) {
+        res.status(500).json({ error: true, message: error.message });
+    }
+};
+
+// ═══════════════════════════════════════════════════════════════
+// COMMENT CONTROLLERS
+// ═══════════════════════════════════════════════════════════════
+
+exports.getComments = async (req, res) => {
+    try {
+        const { blockId } = req.params;
+
+        const comments = await BlockComment.find({ blockId })
+            .sort({ createdAt: -1 })
+            .populate('createdBy', 'firstName lastName')
+            .populate('mentions', 'firstName lastName');
+
+        res.json({ success: true, data: comments });
+    } catch (error) {
+        res.status(500).json({ error: true, message: error.message });
+    }
+};
+
+exports.addComment = async (req, res) => {
+    try {
+        const { blockId } = req.params;
+        const { content, parentCommentId, mentions } = req.body;
+
+        const block = await CaseNotionBlock.findById(blockId);
+        if (!block) {
+            return res.status(404).json({ error: true, message: 'Block not found' });
+        }
+
+        const comment = await BlockComment.create({
+            blockId,
+            pageId: block.pageId,
+            content,
+            parentCommentId,
+            mentions,
+            createdBy: req.user._id
+        });
+
+        await PageActivity.create({
+            pageId: block.pageId,
+            userId: req.user._id,
+            userName: `${req.user.firstName} ${req.user.lastName}`,
+            action: 'commented',
+            blockId,
+            details: { commentId: comment._id }
+        });
+
+        res.status(201).json({ success: true, data: comment });
+    } catch (error) {
+        res.status(500).json({ error: true, message: error.message });
+    }
+};
+
+exports.resolveComment = async (req, res) => {
+    try {
+        const { commentId } = req.params;
+
+        const comment = await BlockComment.findByIdAndUpdate(
+            commentId,
+            {
+                isResolved: true,
+                resolvedBy: req.user._id,
+                resolvedAt: new Date()
+            },
+            { new: true }
+        );
+
+        if (!comment) {
+            return res.status(404).json({ error: true, message: 'Comment not found' });
+        }
+
+        res.json({ success: true, data: comment });
+    } catch (error) {
+        res.status(500).json({ error: true, message: error.message });
+    }
+};
+
+exports.deleteComment = async (req, res) => {
+    try {
+        const { commentId } = req.params;
+
+        const comment = await BlockComment.findById(commentId);
+        if (!comment) {
+            return res.status(404).json({ error: true, message: 'Comment not found' });
+        }
+
+        // Only creator can delete
+        if (comment.createdBy.toString() !== req.user._id.toString()) {
+            return res.status(403).json({ error: true, message: 'Not authorized' });
+        }
+
+        await comment.deleteOne();
+        res.json({ success: true, message: 'Comment deleted' });
+    } catch (error) {
+        res.status(500).json({ error: true, message: error.message });
+    }
+};
+
+// ═══════════════════════════════════════════════════════════════
+// ACTIVITY CONTROLLERS
+// ═══════════════════════════════════════════════════════════════
+
+exports.getPageActivity = async (req, res) => {
+    try {
+        const { pageId } = req.params;
+        const { page = 1, limit = 50 } = req.query;
+
+        const activities = await PageActivity.find({ pageId })
+            .sort({ createdAt: -1 })
+            .skip((page - 1) * limit)
+            .limit(parseInt(limit))
+            .populate('userId', 'firstName lastName');
+
+        const count = await PageActivity.countDocuments({ pageId });
+
+        res.json({
+            success: true,
+            data: { activities, count, totalPages: Math.ceil(count / limit) }
+        });
+    } catch (error) {
+        res.status(500).json({ error: true, message: error.message });
+    }
+};
+
+// ═══════════════════════════════════════════════════════════════
+// SEARCH CONTROLLERS
+// ═══════════════════════════════════════════════════════════════
+
+exports.search = async (req, res) => {
+    try {
+        const { caseId } = req.params;
+        const { q } = req.query;
+
+        if (!q || q.length < 2) {
+            return res.json({ success: true, data: { results: [], count: 0 } });
+        }
+
+        const query = {
+            caseId,
+            deletedAt: null,
+            archivedAt: null
+        };
+
+        if (req.user.firmId) {
+            query.firmId = req.user.firmId;
+        } else {
+            query.lawyerId = req.user._id;
+        }
+
+        // Search in page titles
+        const pageMatches = await CaseNotionPage.find({
+            ...query,
+            $text: { $search: q }
+        }, { score: { $meta: 'textScore' } })
+            .sort({ score: { $meta: 'textScore' } })
+            .limit(10)
+            .select('title titleAr');
+
+        // Search in block content
+        const pageIds = await CaseNotionPage.find(query).distinct('_id');
+        const blockMatches = await CaseNotionBlock.find({
+            pageId: { $in: pageIds },
+            'content.plainText': { $regex: q, $options: 'i' }
+        })
+            .limit(20)
+            .populate('pageId', 'title titleAr');
+
+        const results = [
+            ...pageMatches.map(p => ({
+                pageId: p._id,
+                pageTitle: p.title,
+                matchType: 'title',
+                score: p._doc.score || 1
+            })),
+            ...blockMatches
+                .filter(b => b.pageId)
+                .map(b => ({
+                    pageId: b.pageId._id,
+                    pageTitle: b.pageId.title,
+                    blockId: b._id,
+                    blockContent: b.content[0]?.plainText?.substring(0, 100),
+                    matchType: 'content',
+                    score: 0.5
+                }))
+        ];
+
+        // Dedupe and sort
+        const uniqueResults = [...new Map(results.map(r =>
+            [r.pageId.toString() + (r.blockId || ''), r]
+        )).values()].sort((a, b) => b.score - a.score);
+
+        res.json({
+            success: true,
+            data: { results: uniqueResults, count: uniqueResults.length }
+        });
+    } catch (error) {
+        res.status(500).json({ error: true, message: error.message });
+    }
+};
+
+// ═══════════════════════════════════════════════════════════════
+// EXPORT CONTROLLERS
+// ═══════════════════════════════════════════════════════════════
+
+exports.exportPdf = async (req, res) => {
+    try {
+        const { pageId } = req.params;
+
+        const page = await CaseNotionPage.findById(pageId);
+        if (!page) {
+            return res.status(404).json({ error: true, message: 'Page not found' });
+        }
+
+        const blocks = await CaseNotionBlock.find({ pageId }).sort({ order: 1 });
+        const pageWithBlocks = { ...page.toObject(), blocks };
+
+        const { exportPageToPdf } = require('../services/pdfExporter.service');
+        const pdfBuffer = await exportPageToPdf(pageWithBlocks);
+
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename="${page.title}.pdf"`);
+        res.send(pdfBuffer);
+    } catch (error) {
+        res.status(500).json({ error: true, message: error.message });
+    }
+};
+
+exports.exportMarkdown = async (req, res) => {
+    try {
+        const { pageId } = req.params;
+
+        const page = await CaseNotionPage.findById(pageId);
+        if (!page) {
+            return res.status(404).json({ error: true, message: 'Page not found' });
+        }
+
+        const blocks = await CaseNotionBlock.find({ pageId }).sort({ order: 1 });
+        const pageWithBlocks = { ...page.toObject(), blocks };
+
+        const { exportPageToMarkdown } = require('../services/markdownExporter.service');
+        const markdown = exportPageToMarkdown(pageWithBlocks);
+
+        res.setHeader('Content-Type', 'text/markdown');
+        res.setHeader('Content-Disposition', `attachment; filename="${page.title}.md"`);
+        res.send(markdown);
+    } catch (error) {
+        res.status(500).json({ error: true, message: error.message });
+    }
+};
+
+exports.exportHtml = async (req, res) => {
+    try {
+        const { pageId } = req.params;
+
+        const page = await CaseNotionPage.findById(pageId);
+        if (!page) {
+            return res.status(404).json({ error: true, message: 'Page not found' });
+        }
+
+        const blocks = await CaseNotionBlock.find({ pageId }).sort({ order: 1 });
+        const pageWithBlocks = { ...page.toObject(), blocks };
+
+        const { generateHtmlFromBlocks } = require('../services/pdfExporter.service');
+        const html = generateHtmlFromBlocks(pageWithBlocks);
+
+        res.setHeader('Content-Type', 'text/html');
+        res.setHeader('Content-Disposition', `attachment; filename="${page.title}.html"`);
+        res.send(html);
+    } catch (error) {
+        res.status(500).json({ error: true, message: error.message });
+    }
+};
+
+// ═══════════════════════════════════════════════════════════════
+// TEMPLATE CONTROLLERS
+// ═══════════════════════════════════════════════════════════════
+
+exports.getTemplates = async (req, res) => {
+    try {
+        const { category } = req.query;
+
+        const query = {
+            isActive: true,
+            $or: [
+                { isGlobal: true }
+            ]
+        };
+
+        if (req.user.firmId) {
+            query.$or.push({ firmId: req.user.firmId });
+        } else {
+            query.$or.push({ lawyerId: req.user._id });
+        }
+
+        if (category) {
+            query.category = category;
+        }
+
+        const templates = await PageTemplate.find(query)
+            .sort({ usageCount: -1, name: 1 })
+            .populate('createdBy', 'firstName lastName');
+
+        res.json({ success: true, data: templates });
+    } catch (error) {
+        res.status(500).json({ error: true, message: error.message });
+    }
+};
+
+exports.applyTemplate = async (req, res) => {
+    try {
+        const { pageId } = req.params;
+        const { templateId } = req.body;
+
+        await applyTemplateToPage(pageId, templateId, req.user._id);
+
+        await PageActivity.create({
+            pageId,
+            userId: req.user._id,
+            userName: `${req.user.firstName} ${req.user.lastName}`,
+            action: 'template_applied',
+            details: { templateId }
+        });
+
+        const page = await CaseNotionPage.findById(pageId);
+        const blocks = await CaseNotionBlock.find({ pageId }).sort({ order: 1 });
+
+        res.json({ success: true, data: { ...page.toObject(), blocks } });
+    } catch (error) {
+        res.status(500).json({ error: true, message: error.message });
+    }
+};
+
+exports.saveAsTemplate = async (req, res) => {
+    try {
+        const { pageId } = req.params;
+        const { name, nameAr, description, descriptionAr, category, isGlobal } = req.body;
+
+        const page = await CaseNotionPage.findById(pageId);
+        if (!page) {
+            return res.status(404).json({ error: true, message: 'Page not found' });
+        }
+
+        const blocks = await CaseNotionBlock.find({ pageId }).sort({ order: 1 });
+
+        const templateData = {
+            name,
+            nameAr,
+            description,
+            descriptionAr,
+            category: category || 'custom',
+            icon: page.icon,
+            blocks: blocks.map(b => ({
+                type: b.type,
+                content: b.content,
+                properties: b.properties,
+                icon: b.icon,
+                color: b.color
+            })),
+            isGlobal: isGlobal && req.user.role === 'admin',
+            createdBy: req.user._id
+        };
+
+        if (req.user.firmId) {
+            templateData.firmId = req.user.firmId;
+        } else {
+            templateData.lawyerId = req.user._id;
+        }
+
+        const template = await PageTemplate.create(templateData);
+
+        res.status(201).json({ success: true, data: template });
+    } catch (error) {
+        res.status(500).json({ error: true, message: error.message });
+    }
+};
+
+// ═══════════════════════════════════════════════════════════════
+// TASK LINKING CONTROLLERS
+// ═══════════════════════════════════════════════════════════════
+
+exports.linkTask = async (req, res) => {
+    try {
+        const { blockId } = req.params;
+        const { taskId } = req.body;
+
+        const block = await CaseNotionBlock.findById(blockId);
+        if (!block) {
+            return res.status(404).json({ error: true, message: 'Block not found' });
+        }
+
+        if (!block.linkedTaskIds.includes(taskId)) {
+            block.linkedTaskIds.push(taskId);
+            await block.save();
+        }
+
+        res.json({ success: true, data: block });
+    } catch (error) {
+        res.status(500).json({ error: true, message: error.message });
+    }
+};
+
+exports.unlinkTask = async (req, res) => {
+    try {
+        const { blockId } = req.params;
+        const { taskId } = req.body;
+
+        const block = await CaseNotionBlock.findByIdAndUpdate(
+            blockId,
+            { $pull: { linkedTaskIds: taskId } },
+            { new: true }
+        );
+
+        if (!block) {
+            return res.status(404).json({ error: true, message: 'Block not found' });
+        }
+
+        res.json({ success: true, data: block });
+    } catch (error) {
+        res.status(500).json({ error: true, message: error.message });
+    }
+};
+
+exports.createTaskFromBlock = async (req, res) => {
+    try {
+        const { caseId, blockId } = req.params;
+        const { title, dueDate, assignedTo, priority } = req.body;
+
+        const block = await CaseNotionBlock.findById(blockId);
+        if (!block) {
+            return res.status(404).json({ error: true, message: 'Block not found' });
+        }
+
+        const blockContent = block.content?.map(c => c.plainText || c.text?.content || '').join('') || '';
+
+        const taskData = {
+            caseId,
+            title: title || blockContent.substring(0, 100),
+            description: blockContent,
+            dueDate,
+            assignedTo,
+            priority: priority || 'medium',
+            status: 'pending',
+            createdBy: req.user._id
+        };
+
+        if (req.user.firmId) {
+            taskData.firmId = req.user.firmId;
+        } else {
+            taskData.lawyerId = req.user._id;
+        }
+
+        const task = await Task.create(taskData);
+
+        // Link task to block
+        block.linkedTaskIds.push(task._id);
+        await block.save();
+
+        res.status(201).json({ success: true, data: task });
+    } catch (error) {
+        res.status(500).json({ error: true, message: error.message });
+    }
+};
+
+// ═══════════════════════════════════════════════════════════════
+// HELPER FUNCTIONS
+// ═══════════════════════════════════════════════════════════════
+
+async function updateSyncedBlocks(originalBlockId, updateData) {
+    const syncedRecord = await SyncedBlock.findOne({ originalBlockId });
+
+    if (syncedRecord) {
+        syncedRecord.content = updateData.content || syncedRecord.content;
+        syncedRecord.properties = updateData.properties || syncedRecord.properties;
+        await syncedRecord.save();
+
+        for (const synced of syncedRecord.syncedToPages) {
+            await CaseNotionBlock.findByIdAndUpdate(synced.blockId, {
+                content: syncedRecord.content,
+                properties: syncedRecord.properties,
+                lastEditedAt: new Date()
+            });
+        }
+    }
+}
+
+async function applyTemplateToPage(pageId, templateId, userId) {
+    const template = await PageTemplate.findById(templateId);
+    if (!template) return;
+
+    // Get existing max order
+    const lastBlock = await CaseNotionBlock.findOne({ pageId }).sort({ order: -1 });
+    let order = lastBlock ? lastBlock.order + 1 : 0;
+
+    for (const blockTemplate of template.blocks) {
+        const block = { ...blockTemplate };
+        delete block._id;
+        block.pageId = pageId;
+        block.order = order++;
+        block.lastEditedBy = userId;
+        block.lastEditedAt = new Date();
+        await CaseNotionBlock.create(block);
+    }
+
+    await PageTemplate.findByIdAndUpdate(templateId, { $inc: { usageCount: 1 } });
+}
