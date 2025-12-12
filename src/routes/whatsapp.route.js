@@ -25,6 +25,9 @@ router.post('/send/text', whatsappController.sendText);
 router.post('/send/media', whatsappController.sendMedia);
 router.post('/send/location', whatsappController.sendLocation);
 
+// Unified message sending endpoint (for frontend compatibility)
+router.post('/messages/send', whatsappController.sendMessage);
+
 // ───────────────────────────────────────────────────────────────
 // CONVERSATIONS
 // ───────────────────────────────────────────────────────────────
