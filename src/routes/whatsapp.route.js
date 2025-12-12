@@ -55,4 +55,29 @@ router.post('/templates/:id/submit', whatsappController.submitTemplate);
 router.get('/analytics', whatsappController.getAnalytics);
 router.get('/stats', whatsappController.getStats);
 
+// ───────────────────────────────────────────────────────────────
+// BROADCASTS
+// ───────────────────────────────────────────────────────────────
+router.get('/broadcasts/stats', whatsappController.getBroadcastStats); // Must be before :id routes
+
+router.route('/broadcasts')
+    .get(whatsappController.getBroadcasts)
+    .post(whatsappController.createBroadcast);
+
+router.route('/broadcasts/:id')
+    .get(whatsappController.getBroadcast)
+    .put(whatsappController.updateBroadcast)
+    .delete(whatsappController.deleteBroadcast);
+
+router.post('/broadcasts/:id/duplicate', whatsappController.duplicateBroadcast);
+router.post('/broadcasts/:id/recipients', whatsappController.addRecipients);
+router.delete('/broadcasts/:id/recipients', whatsappController.removeRecipients);
+router.post('/broadcasts/:id/schedule', whatsappController.scheduleBroadcast);
+router.post('/broadcasts/:id/send', whatsappController.sendBroadcast);
+router.post('/broadcasts/:id/pause', whatsappController.pauseBroadcast);
+router.post('/broadcasts/:id/resume', whatsappController.resumeBroadcast);
+router.post('/broadcasts/:id/cancel', whatsappController.cancelBroadcast);
+router.get('/broadcasts/:id/analytics', whatsappController.getBroadcastAnalytics);
+router.post('/broadcasts/:id/test', whatsappController.testBroadcast);
+
 module.exports = router;
