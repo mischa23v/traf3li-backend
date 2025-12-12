@@ -59,45 +59,51 @@ const databaseConfigSchema = new mongoose.Schema({
 // ═══════════════════════════════════════════════════════════════
 
 const whiteboardConfigSchema = new mongoose.Schema({
-    /**
-     * Total canvas width (default 5000px)
-     */
+    // Canvas dimensions
     canvasWidth: { type: Number, default: 5000 },
-
-    /**
-     * Total canvas height (default 5000px)
-     */
     canvasHeight: { type: Number, default: 5000 },
 
-    /**
-     * Current zoom level (0.25 to 2.0)
-     */
-    zoom: { type: Number, default: 1, min: 0.25, max: 2 },
-
-    /**
-     * Current horizontal pan position
-     */
+    // Viewport/Camera state (like tldraw's TLCamera)
+    zoom: { type: Number, default: 1, min: 0.1, max: 4 },
     panX: { type: Number, default: 0 },
-
-    /**
-     * Current vertical pan position
-     */
     panY: { type: Number, default: 0 },
 
-    /**
-     * Whether grid is visible
-     */
+    // Grid system
     gridEnabled: { type: Boolean, default: true },
-
-    /**
-     * Whether blocks snap to grid
-     */
     snapToGrid: { type: Boolean, default: true },
+    gridSize: { type: Number, default: 20 },
+    gridColor: { type: String, default: '#e5e7eb' },
 
-    /**
-     * Grid cell size in pixels
-     */
-    gridSize: { type: Number, default: 20 }
+    // Snap settings (like ReactFlow)
+    snapToObjects: { type: Boolean, default: true },
+    snapDistance: { type: Number, default: 5 },
+
+    // Background
+    backgroundColor: { type: String, default: '#ffffff' },
+    backgroundPattern: {
+        type: String,
+        enum: ['none', 'dots', 'lines', 'cross'],
+        default: 'dots'
+    },
+
+    // Constraints (like ReactFlow translateExtent)
+    minZoom: { type: Number, default: 0.1 },
+    maxZoom: { type: Number, default: 4 },
+    panBounds: {
+        minX: { type: Number, default: -10000 },
+        maxX: { type: Number, default: 10000 },
+        minY: { type: Number, default: -10000 },
+        maxY: { type: Number, default: 10000 }
+    },
+
+    // Default element settings
+    defaultStrokeColor: { type: String, default: '#000000' },
+    defaultFillColor: { type: String, default: '#ffffff' },
+    defaultStrokeWidth: { type: Number, default: 2 },
+
+    // Collaboration
+    showOtherCursors: { type: Boolean, default: true },
+    showOtherSelections: { type: Boolean, default: true }
 }, { _id: false });
 
 const VIEW_MODES = ['document', 'whiteboard'];

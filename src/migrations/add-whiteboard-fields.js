@@ -34,22 +34,58 @@ const migrateWhiteboardFields = async () => {
     let totalUpdated = 0;
 
     // ═══════════════════════════════════════════════════════════════
-    // 1. Add default canvas position values to blocks
+    // 1. Add default canvas position values to blocks (spread them out)
     // ═══════════════════════════════════════════════════════════════
     console.log('1. Adding default canvas position values to blocks...');
-    const blockPositionResult = await CaseNotionBlock.updateMany(
-        { canvasX: { $exists: false } },
-        {
-            $set: {
-                canvasX: 0,
-                canvasY: 0,
-                canvasWidth: 200,
-                canvasHeight: 150
-            }
+
+    // Get all blocks without canvas position, grouped by page
+    const blocksWithoutPosition = await CaseNotionBlock.find({
+        canvasX: { $exists: false }
+    }).sort({ pageId: 1, order: 1 });
+
+    console.log(`   Found ${blocksWithoutPosition.length} blocks without canvas position`);
+
+    // Group by pageId and assign spread-out positions
+    const blocksByPage = {};
+    blocksWithoutPosition.forEach(block => {
+        const pageId = block.pageId.toString();
+        if (!blocksByPage[pageId]) blocksByPage[pageId] = [];
+        blocksByPage[pageId].push(block);
+    });
+
+    let blockPositionUpdates = 0;
+    const GRID_COLS = 4;  // 4 blocks per row
+    const BLOCK_WIDTH = 250;
+    const BLOCK_HEIGHT = 200;
+    const GAP_X = 50;
+    const GAP_Y = 50;
+    const START_X = 100;
+    const START_Y = 100;
+
+    for (const pageId of Object.keys(blocksByPage)) {
+        const pageBlocks = blocksByPage[pageId];
+        for (let i = 0; i < pageBlocks.length; i++) {
+            const col = i % GRID_COLS;
+            const row = Math.floor(i / GRID_COLS);
+            const canvasX = START_X + col * (BLOCK_WIDTH + GAP_X);
+            const canvasY = START_Y + row * (BLOCK_HEIGHT + GAP_Y);
+
+            await CaseNotionBlock.updateOne(
+                { _id: pageBlocks[i]._id },
+                {
+                    $set: {
+                        canvasX,
+                        canvasY,
+                        canvasWidth: 200,
+                        canvasHeight: 150
+                    }
+                }
+            );
+            blockPositionUpdates++;
         }
-    );
-    console.log(`   Updated ${blockPositionResult.modifiedCount} blocks with canvas position values`);
-    totalUpdated += blockPositionResult.modifiedCount;
+    }
+    console.log(`   Updated ${blockPositionUpdates} blocks with spread-out canvas positions`);
+    totalUpdated += blockPositionUpdates;
 
     // ═══════════════════════════════════════════════════════════════
     // 2. Add default visual styling values to blocks

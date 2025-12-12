@@ -17,6 +17,7 @@ const {
 } = require('../validators/caseNotion.validator');
 const { canAccessCase, canEditPage } = require('../middlewares/caseNotion.middleware');
 const caseNotionController = require('../controllers/caseNotion.controller');
+const CaseNotionBlock = require('../models/caseNotionBlock.model');
 
 const router = express.Router();
 
@@ -424,6 +425,297 @@ router.patch('/cases/:caseId/notion/pages/:pageId/whiteboard-config',
     userMiddleware, firmFilter, canAccessCase, canEditPage, validatePageIdParam,
     invalidateCache(['notion:page:{pageId}:*']),
     caseNotionController.updateWhiteboardConfig
+);
+
+// ═══════════════════════════════════════════════════════════════
+// WHITEBOARD SHAPE ROUTES
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Create a canvas shape
+ */
+router.post('/cases/:caseId/notion/pages/:pageId/shapes',
+    userMiddleware, firmFilter, canAccessCase,
+    caseNotionController.createShape
+);
+
+/**
+ * Create an arrow/connector shape
+ */
+router.post('/cases/:caseId/notion/pages/:pageId/arrows',
+    userMiddleware, firmFilter, canAccessCase,
+    caseNotionController.createArrow
+);
+
+/**
+ * Create a frame (container)
+ */
+router.post('/cases/:caseId/notion/pages/:pageId/frames',
+    userMiddleware, firmFilter, canAccessCase,
+    caseNotionController.createFrame
+);
+
+/**
+ * Update element z-index
+ */
+router.patch('/cases/:caseId/notion/blocks/:blockId/z-index',
+    userMiddleware, firmFilter, canAccessCase, validateBlockIdParam,
+    caseNotionController.updateZIndex
+);
+
+/**
+ * Batch update multiple elements
+ */
+router.patch('/cases/:caseId/notion/pages/:pageId/batch-update',
+    userMiddleware, firmFilter, canAccessCase,
+    caseNotionController.batchUpdateElements
+);
+
+/**
+ * Get connections affected by element move
+ */
+router.get('/cases/:caseId/notion/blocks/:blockId/connections',
+    userMiddleware, firmFilter, canAccessCase, validateBlockIdParam,
+    caseNotionController.updateConnectionPaths
+);
+
+/**
+ * Update element rotation
+ */
+router.patch('/cases/:caseId/notion/blocks/:blockId/rotation',
+    userMiddleware, firmFilter, canAccessCase, validateBlockIdParam,
+    async (req, res) => {
+        try {
+            const { blockId } = req.params;
+            const { angle } = req.body;
+
+            if (angle < 0 || angle > 6.283185) {
+                return res.status(400).json({
+                    error: true,
+                    message: 'Angle must be between 0 and 2π radians'
+                });
+            }
+
+            const block = await CaseNotionBlock.findByIdAndUpdate(
+                blockId,
+                {
+                    angle,
+                    lastEditedBy: req.user._id,
+                    lastEditedAt: new Date(),
+                    $inc: { version: 1 }
+                },
+                { new: true }
+            );
+
+            if (!block) {
+                return res.status(404).json({ error: true, message: 'Block not found' });
+            }
+
+            res.json({ success: true, data: block });
+        } catch (error) {
+            res.status(500).json({ error: true, message: error.message });
+        }
+    }
+);
+
+/**
+ * Update element opacity
+ */
+router.patch('/cases/:caseId/notion/blocks/:blockId/opacity',
+    userMiddleware, firmFilter, canAccessCase, validateBlockIdParam,
+    async (req, res) => {
+        try {
+            const { blockId } = req.params;
+            const { opacity } = req.body;
+
+            if (opacity < 0 || opacity > 100) {
+                return res.status(400).json({
+                    error: true,
+                    message: 'Opacity must be between 0 and 100'
+                });
+            }
+
+            const block = await CaseNotionBlock.findByIdAndUpdate(
+                blockId,
+                {
+                    opacity,
+                    lastEditedBy: req.user._id,
+                    lastEditedAt: new Date(),
+                    $inc: { version: 1 }
+                },
+                { new: true }
+            );
+
+            if (!block) {
+                return res.status(404).json({ error: true, message: 'Block not found' });
+            }
+
+            res.json({ success: true, data: block });
+        } catch (error) {
+            res.status(500).json({ error: true, message: error.message });
+        }
+    }
+);
+
+/**
+ * Update element stroke/fill styling
+ */
+router.patch('/cases/:caseId/notion/blocks/:blockId/style',
+    userMiddleware, firmFilter, canAccessCase, validateBlockIdParam,
+    async (req, res) => {
+        try {
+            const { blockId } = req.params;
+            const { strokeColor, strokeWidth, fillStyle, roughness } = req.body;
+
+            const updateData = {
+                lastEditedBy: req.user._id,
+                lastEditedAt: new Date()
+            };
+
+            if (strokeColor) updateData.strokeColor = strokeColor;
+            if (strokeWidth) updateData.strokeWidth = strokeWidth;
+            if (fillStyle) updateData.fillStyle = fillStyle;
+            if (roughness !== undefined) updateData.roughness = roughness;
+
+            const block = await CaseNotionBlock.findByIdAndUpdate(
+                blockId,
+                { $set: updateData, $inc: { version: 1 } },
+                { new: true }
+            );
+
+            if (!block) {
+                return res.status(404).json({ error: true, message: 'Block not found' });
+            }
+
+            res.json({ success: true, data: block });
+        } catch (error) {
+            res.status(500).json({ error: true, message: error.message });
+        }
+    }
+);
+
+// ═══════════════════════════════════════════════════════════════
+// FRAME MANAGEMENT ROUTES
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Add element to frame
+ */
+router.post('/cases/:caseId/notion/frames/:frameId/children',
+    userMiddleware, firmFilter, canAccessCase,
+    caseNotionController.addToFrame
+);
+
+/**
+ * Remove element from frame
+ */
+router.delete('/cases/:caseId/notion/frames/:frameId/children/:elementId',
+    userMiddleware, firmFilter, canAccessCase,
+    caseNotionController.removeFromFrame
+);
+
+/**
+ * Get all elements in a frame
+ */
+router.get('/cases/:caseId/notion/frames/:frameId/children',
+    userMiddleware, firmFilter, canAccessCase,
+    caseNotionController.getFrameChildren
+);
+
+/**
+ * Auto-detect elements inside frame bounds
+ */
+router.post('/cases/:caseId/notion/frames/:frameId/auto-detect',
+    userMiddleware, firmFilter, canAccessCase,
+    caseNotionController.autoDetectFrameChildren
+);
+
+/**
+ * Move frame with all children
+ */
+router.patch('/cases/:caseId/notion/frames/:frameId/move',
+    userMiddleware, firmFilter, canAccessCase,
+    caseNotionController.moveFrameWithChildren
+);
+
+// ═══════════════════════════════════════════════════════════════
+// UNDO/REDO ROUTES
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Undo last action
+ */
+router.post('/cases/:caseId/notion/pages/:pageId/undo',
+    userMiddleware, firmFilter, canAccessCase,
+    caseNotionController.undo
+);
+
+/**
+ * Redo last undone action
+ */
+router.post('/cases/:caseId/notion/pages/:pageId/redo',
+    userMiddleware, firmFilter, canAccessCase,
+    caseNotionController.redo
+);
+
+/**
+ * Get undo/redo status
+ */
+router.get('/cases/:caseId/notion/pages/:pageId/history-status',
+    userMiddleware, firmFilter, canAccessCase,
+    caseNotionController.getHistoryStatus
+);
+
+// ═══════════════════════════════════════════════════════════════
+// MULTI-SELECT OPERATION ROUTES
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Duplicate selected elements
+ */
+router.post('/cases/:caseId/notion/pages/:pageId/duplicate',
+    userMiddleware, firmFilter, canAccessCase,
+    caseNotionController.duplicateElements
+);
+
+/**
+ * Delete selected elements
+ */
+router.delete('/cases/:caseId/notion/pages/:pageId/bulk-delete',
+    userMiddleware, firmFilter, canAccessCase,
+    caseNotionController.bulkDeleteElements
+);
+
+/**
+ * Group selected elements
+ */
+router.post('/cases/:caseId/notion/pages/:pageId/group',
+    userMiddleware, firmFilter, canAccessCase,
+    caseNotionController.groupElements
+);
+
+/**
+ * Ungroup elements
+ */
+router.post('/cases/:caseId/notion/pages/:pageId/ungroup',
+    userMiddleware, firmFilter, canAccessCase,
+    caseNotionController.ungroupElements
+);
+
+/**
+ * Align selected elements
+ */
+router.post('/cases/:caseId/notion/pages/:pageId/align',
+    userMiddleware, firmFilter, canAccessCase,
+    caseNotionController.alignElements
+);
+
+/**
+ * Distribute elements evenly
+ */
+router.post('/cases/:caseId/notion/pages/:pageId/distribute',
+    userMiddleware, firmFilter, canAccessCase,
+    caseNotionController.distributeElements
 );
 
 module.exports = router;
