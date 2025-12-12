@@ -253,7 +253,9 @@ class WhatsAppController {
                         lastMessageAt: new Date(),
                         lastMessageText: messageText,
                         lastMessageDirection: 'outbound',
-                        firstMessageAt: new Date()
+                        firstMessageAt: new Date(),
+                        assignedTo: userId,
+                        assignedAt: new Date()
                     });
                 }
 
@@ -278,9 +280,15 @@ class WhatsAppController {
                 conversation.messageCount = (conversation.messageCount || 0) + 1;
                 await conversation.save();
             } catch (dbError) {
-                // Database operation failed - return mock response for testing
-                console.log('Database error (returning mock):', dbError.message);
-                message = { _id: `mock_${Date.now()}`, status: 'mock' };
+                // Database operation failed - include error details for debugging
+                console.error('Database error details:', dbError);
+                message = {
+                    _id: `mock_${Date.now()}`,
+                    status: 'mock',
+                    dbError: dbError.message,
+                    firmId: firmId || 'null',
+                    userId: userId || 'null'
+                };
                 conversation = { _id: `mock_conv_${Date.now()}` };
             }
         }
@@ -328,15 +336,31 @@ class WhatsAppController {
      */
     getConversations = asyncHandler(async (req, res) => {
         const firmId = req.firmId;
-        const { assignedTo, unreadOnly, labels, limit, skip } = req.query;
+        const { assignedTo, unreadOnly, labels, limit, skip, status } = req.query;
 
-        const conversations = await WhatsAppService.getConversations(firmId, {
-            assignedTo,
-            unreadOnly: unreadOnly === 'true',
-            labels: labels ? labels.split(',') : undefined,
-            limit: parseInt(limit) || 50,
-            skip: parseInt(skip) || 0
-        });
+        let conversations = [];
+
+        if (firmId) {
+            // Use service method for firm users
+            conversations = await WhatsAppService.getConversations(firmId, {
+                assignedTo,
+                unreadOnly: unreadOnly === 'true',
+                labels: labels ? labels.split(',') : undefined,
+                limit: parseInt(limit) || 50,
+                skip: parseInt(skip) || 0
+            });
+        } else {
+            // Direct query for solo lawyers or users without firm
+            // Show all conversations without firmId (solo user conversations)
+            const query = { firmId: { $in: [null, undefined] } };
+            if (status) query.status = status;
+            if (assignedTo) query.assignedTo = assignedTo;
+
+            conversations = await WhatsAppConversation.find(query)
+                .sort({ lastMessageAt: -1 })
+                .limit(parseInt(limit) || 50)
+                .skip(parseInt(skip) || 0);
+        }
 
         res.json({
             success: true,
