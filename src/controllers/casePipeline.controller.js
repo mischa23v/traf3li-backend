@@ -327,8 +327,9 @@ exports.moveCaseToStage = async (req, res) => {
             changedBy: req.user._id
         });
 
-        // Update current stage
+        // Update current stage and sync pipelineStage alias
         caseDoc.currentStage = newStage;
+        caseDoc.pipelineStage = newStage; // Keep in sync for backwards compatibility
         caseDoc.stageEnteredAt = now;
 
         await caseDoc.save();
@@ -641,3 +642,405 @@ exports.getValidStages = async (req, res) => {
 
 // Export valid stages constant for use in validators
 exports.VALID_STAGES = VALID_STAGES;
+
+// ═══════════════════════════════════════════════════════════════
+// GET CASES GROUPED BY STAGE (KANBAN BOARD VIEW)
+// ═══════════════════════════════════════════════════════════════
+
+exports.getCasesByStage = async (req, res) => {
+    try {
+        const { category, status = 'active' } = req.query;
+        const userId = req.userID || req.user?._id;
+
+        // Build query with $and to avoid conflicts
+        const andConditions = [{ deletedAt: null }];
+
+        // Multi-tenant filter
+        if (req.user?.firmId) {
+            andConditions.push({
+                $or: [
+                    { firmId: new mongoose.Types.ObjectId(req.user.firmId) },
+                    { lawyerId: new mongoose.Types.ObjectId(userId) }
+                ]
+            });
+        } else {
+            andConditions.push({ lawyerId: new mongoose.Types.ObjectId(userId) });
+        }
+
+        if (category && category !== 'all') {
+            andConditions.push({ category });
+        }
+
+        // Filter by status
+        if (status === 'active') {
+            andConditions.push({ status: { $nin: ['closed', 'completed', 'archived'] } });
+            andConditions.push({ outcome: { $nin: ['won', 'lost', 'settled'] } });
+        } else if (status === 'closed') {
+            andConditions.push({
+                $or: [
+                    { status: { $in: ['closed', 'completed'] } },
+                    { outcome: { $in: ['won', 'lost', 'settled'] } }
+                ]
+            });
+        }
+
+        const query = { $and: andConditions };
+
+        // Get cases with latest note
+        const cases = await Case.find(query)
+            .populate('clientId', 'name firstName lastName companyName phone')
+            .select({
+                title: 1,
+                caseNumber: 1,
+                category: 1,
+                status: 1,
+                priority: 1,
+                plaintiffName: 1,
+                defendantName: 1,
+                'laborCaseDetails.plaintiff.name': 1,
+                'laborCaseDetails.company.name': 1,
+                court: 1,
+                claimAmount: 1,
+                currentStage: 1,
+                pipelineStage: 1,
+                stageEnteredAt: 1,
+                nextHearing: 1,
+                outcome: 1,
+                notes: { $slice: -1 }, // Get only latest note
+                updatedAt: 1,
+                createdAt: 1
+            })
+            .sort({ updatedAt: -1 });
+
+        // Group by stage
+        const grouped = {};
+        cases.forEach(caseDoc => {
+            const stageId = caseDoc.currentStage || caseDoc.pipelineStage || 'filing';
+            if (!grouped[stageId]) {
+                grouped[stageId] = [];
+            }
+
+            // Calculate days in stage
+            const daysInStage = caseDoc.stageEnteredAt
+                ? Math.floor((new Date() - new Date(caseDoc.stageEnteredAt)) / (1000 * 60 * 60 * 24))
+                : 0;
+
+            // Get plaintiff and defendant names with fallbacks
+            const plaintiffName = caseDoc.plaintiffName ||
+                caseDoc.laborCaseDetails?.plaintiff?.name ||
+                '';
+            const defendantName = caseDoc.defendantName ||
+                caseDoc.laborCaseDetails?.company?.name ||
+                '';
+
+            grouped[stageId].push({
+                _id: caseDoc._id,
+                title: caseDoc.title,
+                caseNumber: caseDoc.caseNumber,
+                category: caseDoc.category,
+                status: caseDoc.status,
+                priority: caseDoc.priority,
+                plaintiffName,
+                defendantName,
+                clientId: caseDoc.clientId,
+                court: caseDoc.court,
+                claimAmount: caseDoc.claimAmount,
+                currentStage: stageId,
+                stageEnteredAt: caseDoc.stageEnteredAt,
+                daysInStage,
+                nextHearing: caseDoc.nextHearing,
+                outcome: caseDoc.outcome,
+                latestNote: caseDoc.notes?.[0]?.text || null,
+                updatedAt: caseDoc.updatedAt,
+                createdAt: caseDoc.createdAt
+            });
+        });
+
+        res.json({
+            success: true,
+            data: grouped
+        });
+    } catch (error) {
+        console.error('Error getting cases by stage:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to get cases'
+        });
+    }
+};
+
+// ═══════════════════════════════════════════════════════════════
+// GET NOTES FOR A CASE
+// ═══════════════════════════════════════════════════════════════
+
+exports.getNotes = async (req, res) => {
+    try {
+        const { _id: id } = req.params;
+        const { limit = 50, offset = 0, sort = '-date' } = req.query;
+        const userId = req.userID || req.user?._id;
+
+        // Find the case
+        const caseDoc = await Case.findById(id)
+            .populate('notes.createdBy', 'name firstName lastName email')
+            .select('notes lawyerId firmId');
+
+        if (!caseDoc) {
+            return res.status(404).json({
+                success: false,
+                message: 'Case not found'
+            });
+        }
+
+        // Check access
+        const isLawyer = caseDoc.lawyerId && caseDoc.lawyerId.toString() === userId?.toString();
+        const sameFirm = req.user?.firmId && caseDoc.firmId && caseDoc.firmId.toString() === req.user.firmId.toString();
+        const hasAccess = sameFirm || isLawyer;
+
+        if (!hasAccess) {
+            return res.status(403).json({
+                success: false,
+                message: 'Unauthorized'
+            });
+        }
+
+        // Get notes array
+        let notes = caseDoc.notes || [];
+
+        // Filter private notes if user is not the creator
+        notes = notes.filter(note => {
+            if (note.isPrivate) {
+                return note.createdBy?._id?.toString() === userId?.toString() ||
+                       note.createdBy?.toString() === userId?.toString();
+            }
+            return true;
+        });
+
+        // Sort notes
+        const sortField = sort.startsWith('-') ? sort.slice(1) : sort;
+        const sortOrder = sort.startsWith('-') ? -1 : 1;
+        notes.sort((a, b) => {
+            const aVal = a[sortField] || a.createdAt || a.date;
+            const bVal = b[sortField] || b.createdAt || b.date;
+            if (aVal < bVal) return -sortOrder;
+            if (aVal > bVal) return sortOrder;
+            return 0;
+        });
+
+        // Apply pagination
+        const total = notes.length;
+        notes = notes.slice(parseInt(offset), parseInt(offset) + parseInt(limit));
+
+        res.json({
+            success: true,
+            data: notes,
+            pagination: {
+                total,
+                limit: parseInt(limit),
+                offset: parseInt(offset)
+            }
+        });
+    } catch (error) {
+        console.error('Error getting notes:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to get notes'
+        });
+    }
+};
+
+// ═══════════════════════════════════════════════════════════════
+// ADD NOTE TO CASE (Enhanced version with isPrivate and stageId)
+// ═══════════════════════════════════════════════════════════════
+
+exports.addNote = async (req, res) => {
+    try {
+        const { _id: id } = req.params;
+        const { text, isPrivate = false, stageId } = req.body;
+        const userId = req.userID || req.user?._id;
+
+        if (!text || text.trim().length === 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'Note text is required'
+            });
+        }
+
+        const caseDoc = await Case.findById(id);
+        if (!caseDoc) {
+            return res.status(404).json({
+                success: false,
+                message: 'Case not found'
+            });
+        }
+
+        // Check access
+        const isLawyer = caseDoc.lawyerId && caseDoc.lawyerId.toString() === userId?.toString();
+        const sameFirm = req.user?.firmId && caseDoc.firmId && caseDoc.firmId.toString() === req.user.firmId.toString();
+        const hasAccess = sameFirm || isLawyer;
+
+        if (!hasAccess) {
+            return res.status(403).json({
+                success: false,
+                message: 'Unauthorized'
+            });
+        }
+
+        // Add note to beginning of array (newest first)
+        const newNote = {
+            text: text.trim(),
+            date: new Date(),
+            createdBy: req.user._id,
+            createdAt: new Date(),
+            isPrivate,
+            stageId: stageId || caseDoc.currentStage
+        };
+
+        caseDoc.notes.unshift(newNote);
+        caseDoc.updatedAt = new Date();
+        await caseDoc.save();
+
+        res.json({
+            success: true,
+            data: caseDoc.notes[0]
+        });
+    } catch (error) {
+        console.error('Error adding note:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to add note'
+        });
+    }
+};
+
+// ═══════════════════════════════════════════════════════════════
+// UPDATE NOTE
+// ═══════════════════════════════════════════════════════════════
+
+exports.updateNote = async (req, res) => {
+    try {
+        const { _id: id, noteId } = req.params;
+        const { text, isPrivate } = req.body;
+        const userId = req.userID || req.user?._id;
+
+        const caseDoc = await Case.findById(id);
+        if (!caseDoc) {
+            return res.status(404).json({
+                success: false,
+                message: 'Case not found'
+            });
+        }
+
+        // Check access
+        const isLawyer = caseDoc.lawyerId && caseDoc.lawyerId.toString() === userId?.toString();
+        const sameFirm = req.user?.firmId && caseDoc.firmId && caseDoc.firmId.toString() === req.user.firmId.toString();
+        const hasAccess = sameFirm || isLawyer;
+
+        if (!hasAccess) {
+            return res.status(403).json({
+                success: false,
+                message: 'Unauthorized'
+            });
+        }
+
+        // Find the note
+        const note = caseDoc.notes.id(noteId);
+        if (!note) {
+            return res.status(404).json({
+                success: false,
+                message: 'Note not found'
+            });
+        }
+
+        // Only the creator can edit a note
+        const isCreator = note.createdBy?.toString() === userId?.toString();
+        if (!isCreator) {
+            return res.status(403).json({
+                success: false,
+                message: 'Only the note creator can edit this note'
+            });
+        }
+
+        // Update note
+        if (text !== undefined) note.text = text.trim();
+        if (isPrivate !== undefined) note.isPrivate = isPrivate;
+
+        caseDoc.updatedAt = new Date();
+        await caseDoc.save();
+
+        res.json({
+            success: true,
+            data: note
+        });
+    } catch (error) {
+        console.error('Error updating note:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to update note'
+        });
+    }
+};
+
+// ═══════════════════════════════════════════════════════════════
+// DELETE NOTE
+// ═══════════════════════════════════════════════════════════════
+
+exports.deleteNote = async (req, res) => {
+    try {
+        const { _id: id, noteId } = req.params;
+        const userId = req.userID || req.user?._id;
+
+        const caseDoc = await Case.findById(id);
+        if (!caseDoc) {
+            return res.status(404).json({
+                success: false,
+                message: 'Case not found'
+            });
+        }
+
+        // Check access
+        const isLawyer = caseDoc.lawyerId && caseDoc.lawyerId.toString() === userId?.toString();
+        const sameFirm = req.user?.firmId && caseDoc.firmId && caseDoc.firmId.toString() === req.user.firmId.toString();
+        const hasAccess = sameFirm || isLawyer;
+
+        if (!hasAccess) {
+            return res.status(403).json({
+                success: false,
+                message: 'Unauthorized'
+            });
+        }
+
+        // Find the note
+        const note = caseDoc.notes.id(noteId);
+        if (!note) {
+            return res.status(404).json({
+                success: false,
+                message: 'Note not found'
+            });
+        }
+
+        // Only the creator can delete a note
+        const isCreator = note.createdBy?.toString() === userId?.toString();
+        if (!isCreator) {
+            return res.status(403).json({
+                success: false,
+                message: 'Only the note creator can delete this note'
+            });
+        }
+
+        // Remove note
+        caseDoc.notes.pull(noteId);
+        caseDoc.updatedAt = new Date();
+        await caseDoc.save();
+
+        res.json({
+            success: true,
+            message: 'Note deleted successfully'
+        });
+    } catch (error) {
+        console.error('Error deleting note:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to delete note'
+        });
+    }
+};
