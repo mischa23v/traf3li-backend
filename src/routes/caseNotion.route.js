@@ -24,6 +24,17 @@ const router = express.Router();
 const NOTION_CACHE_TTL = 300;
 
 // ═══════════════════════════════════════════════════════════════
+// CASE LIST WITH NOTION STATS (for /dashboard/notion page)
+// ═══════════════════════════════════════════════════════════════
+
+// List all cases with notion pages count
+router.get('/notion/cases',
+    userMiddleware, firmFilter,
+    cacheResponse(NOTION_CACHE_TTL),
+    caseNotionController.listCasesWithNotion
+);
+
+// ═══════════════════════════════════════════════════════════════
 // PAGE ROUTES
 // ═══════════════════════════════════════════════════════════════
 
