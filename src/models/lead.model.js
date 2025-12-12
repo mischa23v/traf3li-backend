@@ -798,6 +798,63 @@ leadSchema.methods.convertToClient = async function(userId, options = {}) {
         nationalId: this.nationalId,
 
         // ═══════════════════════════════════════════════════════════════
+        // NAJIZ IDENTITY FIELDS - SAUDI GOVERNMENT PORTAL COMPLIANCE
+        // ═══════════════════════════════════════════════════════════════
+        arabicName: this.arabicName,
+        identityType: this.identityType,
+        iqamaNumber: this.iqamaNumber,
+        gccId: this.gccId,
+        gccCountry: this.gccCountry,
+        passportNumber: this.passportNumber,
+        passportCountry: this.passportCountry,
+        passportExpiryDate: this.passportExpiryDate,
+        borderNumber: this.borderNumber,
+        dateOfBirth: this.dateOfBirth,
+        dateOfBirthHijri: this.dateOfBirthHijri,
+        gender: this.gender,
+        maritalStatus: this.maritalStatus,
+        nationality: this.nationality,
+        nationalityCode: this.nationalityCode,
+        sponsor: this.sponsor,
+
+        // ═══════════════════════════════════════════════════════════════
+        // NAJIZ COMPANY FIELDS
+        // ═══════════════════════════════════════════════════════════════
+        companyNameAr: this.companyNameAr,
+        legalForm: this.legalForm,
+        authorizedPerson: this.authorizedPerson,
+        capital: this.capital,
+        vatNumber: this.vatNumber,
+        unifiedNumber: this.unifiedNumber,
+
+        // ═══════════════════════════════════════════════════════════════
+        // NAJIZ NATIONAL ADDRESSES
+        // ═══════════════════════════════════════════════════════════════
+        nationalAddress: this.nationalAddress,
+        workAddress: this.workAddress,
+        headquartersAddress: this.headquartersAddress,
+        poBox: this.poBox,
+
+        // ═══════════════════════════════════════════════════════════════
+        // NAJIZ COMMUNICATION PREFERENCES
+        // ═══════════════════════════════════════════════════════════════
+        doNotContact: this.doNotContact,
+        doNotEmail: this.doNotEmail,
+        doNotCall: this.doNotCall,
+        doNotSMS: this.doNotSMS,
+
+        // ═══════════════════════════════════════════════════════════════
+        // NAJIZ RISK & VERIFICATION
+        // ═══════════════════════════════════════════════════════════════
+        riskLevel: this.riskLevel,
+        conflictCheckStatus: this.conflictCheckStatus,
+        conflictNotes: this.conflictNotes,
+        conflictCheckDate: this.conflictCheckDate,
+        isVerified: this.isVerified,
+        verificationSource: this.verificationSource,
+        verifiedAt: this.verifiedAt,
+
+        // ═══════════════════════════════════════════════════════════════
         // SOURCE TRACKING - FULL ATTRIBUTION DATA
         // ═══════════════════════════════════════════════════════════════
         clientSource: this.source?.type || 'referral',
