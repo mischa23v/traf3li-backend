@@ -589,13 +589,34 @@ invoiceSchema.statics.getClientBalance = async function(clientId) {
 
 // ============ PRE-SAVE MIDDLEWARE ============
 invoiceSchema.pre('save', async function(next) {
+    const { toHalalas, addAmounts, subtractAmounts, calculatePercentage } = require('../utils/currency');
+
+    const normalizeHalalas = (value = 0) => Number.isInteger(value) ? value : toHalalas(value);
+    const multiplyToHalalas = (quantity = 0, unitPrice = 0) => toHalalas((quantity || 0) * (unitPrice || 0));
+
     // Auto-generate invoice number if not provided
     if (this.isNew && !this.invoiceNumber) {
         this.invoiceNumber = await this.constructor.generateInvoiceNumber();
     }
 
+    // Normalize incoming numeric fields to halalas so all arithmetic stays in smallest unit
+    this.depositAmount = normalizeHalalas(this.depositAmount);
+    this.amountPaid = normalizeHalalas(this.amountPaid);
+    this.applyFromRetainer = normalizeHalalas(this.applyFromRetainer);
+
+    // Normalize line items ahead of calculation
+    this.items = (this.items || []).map(item => {
+        const normalizedItem = item?.toObject ? item.toObject() : item;
+        return {
+            ...normalizedItem,
+            quantity: normalizedItem.quantity || 0,
+            unitPrice: normalizeHalalas(normalizedItem.unitPrice),
+            discountValue: normalizeHalalas(normalizedItem.discountValue)
+        };
+    });
+
     // Calculate totals
-    this.calculateTotals();
+    this.calculateTotals({ addAmounts, subtractAmounts, calculatePercentage, multiplyToHalalas, normalizeHalalas });
 
     // Update status if overdue
     if (this.isOverdue && this.status === 'sent') {
@@ -606,47 +627,54 @@ invoiceSchema.pre('save', async function(next) {
 });
 
 // ============ METHODS ============
-invoiceSchema.methods.calculateTotals = function() {
+invoiceSchema.methods.calculateTotals = function({ addAmounts, subtractAmounts, calculatePercentage, multiplyToHalalas, normalizeHalalas } = {}) {
+    const currencyUtils = require('../utils/currency');
+    const add = addAmounts || currencyUtils.addAmounts;
+    const subtract = subtractAmounts || currencyUtils.subtractAmounts;
+    const percentage = calculatePercentage || currencyUtils.calculatePercentage;
+    const multiply = multiplyToHalalas || ((qty, price) => currencyUtils.toHalalas((qty || 0) * (price || 0)));
+    const normalize = normalizeHalalas || (value => Number.isInteger(value) ? value : currencyUtils.toHalalas(value));
+
     // Calculate subtotal from line items
     this.subtotal = this.items.reduce((sum, item) => {
         if (item.type === 'discount' || item.type === 'comment' || item.type === 'subtotal') {
             return sum;
         }
-        return sum + (item.quantity * item.unitPrice);
+        return add(sum, multiply(item.quantity, item.unitPrice));
     }, 0);
 
     // Calculate item-level discounts
     const itemDiscounts = this.items.reduce((sum, item) => {
         if (!item.discountValue || item.type === 'comment' || item.type === 'subtotal') return sum;
-        const lineSubtotal = item.quantity * item.unitPrice;
+        const lineSubtotal = multiply(item.quantity, item.unitPrice);
         if (item.discountType === 'percentage') {
-            return sum + (lineSubtotal * (item.discountValue / 100));
+            return add(sum, percentage(lineSubtotal, item.discountValue));
         }
-        return sum + item.discountValue;
+        return add(sum, normalize(item.discountValue));
     }, 0);
 
     // Calculate discount items (type === 'discount')
     const discountItems = this.items.reduce((sum, item) => {
         if (item.type !== 'discount') return sum;
-        return sum + Math.abs(item.unitPrice);
+        return add(sum, normalize(Math.abs(item.unitPrice)));
     }, 0);
 
     // Calculate invoice-level discount
     let invoiceDiscount = 0;
-    const afterItemDiscounts = this.subtotal - itemDiscounts - discountItems;
+    const afterItemDiscounts = subtract(subtract(this.subtotal, itemDiscounts), discountItems);
     if (this.discountType === 'percentage') {
-        invoiceDiscount = afterItemDiscounts * (this.discountValue / 100);
+        invoiceDiscount = percentage(afterItemDiscounts, this.discountValue || 0);
     } else {
-        invoiceDiscount = this.discountValue || 0;
+        invoiceDiscount = normalize(this.discountValue || 0);
     }
 
-    this.discountAmount = itemDiscounts + discountItems + invoiceDiscount;
-    this.taxableAmount = this.subtotal - this.discountAmount;
-    this.vatAmount = this.taxableAmount * (this.vatRate / 100);
-    this.totalAmount = this.taxableAmount + this.vatAmount;
+    this.discountAmount = add(add(itemDiscounts, discountItems), invoiceDiscount);
+    this.taxableAmount = subtract(this.subtotal, this.discountAmount);
+    this.vatAmount = percentage(this.taxableAmount, this.vatRate || 0);
+    this.totalAmount = add(this.taxableAmount, this.vatAmount);
 
     // Calculate balance due
-    this.balanceDue = this.totalAmount - this.depositAmount - this.amountPaid - this.applyFromRetainer;
+    this.balanceDue = subtract(subtract(subtract(this.totalAmount, this.depositAmount), this.amountPaid), this.applyFromRetainer);
 
     // Recalculate line totals
     this.items.forEach(item => {
@@ -655,15 +683,15 @@ invoiceSchema.methods.calculateTotals = function() {
             return;
         }
         if (item.type === 'discount') {
-            item.lineTotal = -Math.abs(item.unitPrice);
+            item.lineTotal = -Math.abs(normalize(item.unitPrice));
             return;
         }
-        let lineTotal = item.quantity * item.unitPrice;
+        let lineTotal = multiply(item.quantity, item.unitPrice);
         if (item.discountValue) {
             if (item.discountType === 'percentage') {
-                lineTotal -= lineTotal * (item.discountValue / 100);
+                lineTotal = subtract(lineTotal, percentage(lineTotal, item.discountValue));
             } else {
-                lineTotal -= item.discountValue;
+                lineTotal = subtract(lineTotal, normalize(item.discountValue));
             }
         }
         item.lineTotal = lineTotal;
@@ -770,7 +798,7 @@ invoiceSchema.methods.recordPayment = async function(paymentData, session = null
     }
 
     // Convert amount to halalas if needed
-    const { toHalalas, addAmounts } = require('../utils/currency');
+    const { toHalalas, addAmounts, subtractAmounts } = require('../utils/currency');
     const amountHalalas = Number.isInteger(amount) ? amount : toHalalas(amount);
 
     // Create payment record
@@ -815,7 +843,7 @@ invoiceSchema.methods.recordPayment = async function(paymentData, session = null
 
     // Update invoice payment tracking
     this.amountPaid = addAmounts(this.amountPaid || 0, amountHalalas);
-    this.balanceDue = this.totalAmount - this.amountPaid;
+    this.balanceDue = subtractAmounts ? subtractAmounts(this.totalAmount, this.amountPaid) : (this.totalAmount - this.amountPaid);
 
     // Update invoice status
     if (this.balanceDue <= 0) {
@@ -876,7 +904,7 @@ invoiceSchema.methods.voidInvoice = async function(reason, userId) {
  */
 invoiceSchema.methods.applyRetainer = async function(amount, retainerId, userId) {
     const Retainer = mongoose.model('Retainer');
-    const { toHalalas, addAmounts } = require('../utils/currency');
+    const { toHalalas, addAmounts, subtractAmounts } = require('../utils/currency');
 
     const amountHalalas = Number.isInteger(amount) ? amount : toHalalas(amount);
 
@@ -895,7 +923,10 @@ invoiceSchema.methods.applyRetainer = async function(amount, retainerId, userId)
     // Update invoice
     this.applyFromRetainer = addAmounts(this.applyFromRetainer || 0, amountHalalas);
     this.retainerTransactionId = retainerId;
-    this.balanceDue = this.totalAmount - this.depositAmount - this.amountPaid - this.applyFromRetainer;
+    this.balanceDue = subtractAmounts(
+        subtractAmounts(subtractAmounts(this.totalAmount, this.depositAmount), this.amountPaid),
+        this.applyFromRetainer
+    );
 
     if (this.balanceDue <= 0) {
         this.status = 'paid';
