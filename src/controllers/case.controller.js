@@ -9,20 +9,37 @@ const { getUploadPresignedUrl, getDownloadPresignedUrl, deleteFile, generateFile
 const documentExportService = require('../services/documentExport.service');
 
 // Helper function to check firm access for a case
-const checkCaseAccess = (caseDoc, userId, firmId, requireLawyer = false) => {
-    const isLawyer = caseDoc.lawyerId.toString() === userId;
+const checkCaseAccess = (caseDoc, userId, firmId, requireLawyer = false, isSoloLawyer = false) => {
+    const isLawyer = caseDoc.lawyerId && caseDoc.lawyerId.toString() === userId;
     const isClient = caseDoc.clientId && caseDoc.clientId.toString() === userId;
+
+    // Solo lawyers can only access their own cases (where they are the lawyer)
+    if (isSoloLawyer) {
+        if (requireLawyer) return isLawyer;
+        return isLawyer || isClient;
+    }
 
     // Check firm-level access if firmId is available
     if (firmId) {
-        const hasFirmAccess = caseDoc.firmId && caseDoc.firmId.toString() === firmId.toString();
-        if (hasFirmAccess) {
-            if (requireLawyer) return isLawyer || true; // Firm members can act as lawyers
-            return true;
+        // Case belongs to the same firm - allow access for viewing
+        if (caseDoc.firmId && caseDoc.firmId.toString() === firmId.toString()) {
+            if (requireLawyer) return isLawyer; // Only actual lawyer can modify
+            return true; // Firm members can view
         }
+
+        // Case doesn't have firmId (legacy case) but user is in a firm
+        // Check if user is the lawyer or client of this case
+        if (!caseDoc.firmId) {
+            if (requireLawyer) return isLawyer;
+            return isLawyer || isClient;
+        }
+
+        // Case belongs to a different firm - deny unless user is lawyer/client
+        if (requireLawyer) return isLawyer;
+        return isLawyer || isClient;
     }
 
-    // Fall back to individual access
+    // No firmId (legacy user or user without firm) - fall back to individual access
     if (requireLawyer) return isLawyer;
     return isLawyer || isClient;
 };
@@ -267,6 +284,7 @@ const getCase = async (request, response) => {
     const { _id } = request.params;
     try {
         const firmId = request.firmId;
+        const isSoloLawyer = request.isSoloLawyer || false;
 
         const caseDoc = await Case.findById(_id)
             .populate('lawyerId', 'username firstName lastName image email lawyerProfile')
@@ -279,7 +297,7 @@ const getCase = async (request, response) => {
         }
 
         // Check access using helper function
-        if (!checkCaseAccess(caseDoc, request.userID, firmId)) {
+        if (!checkCaseAccess(caseDoc, request.userID, firmId, false, isSoloLawyer)) {
             throw CustomException('You do not have access to this case!', 403);
         }
 
@@ -305,6 +323,7 @@ const updateCase = async (request, response) => {
         }
 
         const firmId = request.firmId;
+        const isSoloLawyer = request.isSoloLawyer || false;
         const caseDoc = await Case.findById(_id);
 
         if (!caseDoc) {
@@ -312,7 +331,7 @@ const updateCase = async (request, response) => {
         }
 
         // Check access (requires lawyer-level permissions)
-        if (!checkCaseAccess(caseDoc, request.userID, firmId, true)) {
+        if (!checkCaseAccess(caseDoc, request.userID, firmId, true, isSoloLawyer)) {
             throw CustomException('Only the lawyer can update case details!', 403);
         }
 
@@ -413,13 +432,14 @@ const addNote = async (request, response) => {
     const { text } = request.body;
     try {
         const firmId = request.firmId;
+        const isSoloLawyer = request.isSoloLawyer || false;
         const caseDoc = await Case.findById(_id);
 
         if (!caseDoc) {
             throw CustomException('Case not found!', 404);
         }
 
-        if (!checkCaseAccess(caseDoc, request.userID, firmId, true)) {
+        if (!checkCaseAccess(caseDoc, request.userID, firmId, true, isSoloLawyer)) {
             throw CustomException('Only the lawyer can add notes!', 403);
         }
 
@@ -449,13 +469,14 @@ const addDocument = async (request, response) => {
     const { name, filename, url, type, size, category } = request.body;
     try {
         const firmId = request.firmId;
+        const isSoloLawyer = request.isSoloLawyer || false;
         const caseDoc = await Case.findById(_id);
 
         if (!caseDoc) {
             throw CustomException('Case not found!', 404);
         }
 
-        if (!checkCaseAccess(caseDoc, request.userID, firmId)) {
+        if (!checkCaseAccess(caseDoc, request.userID, firmId, false, isSoloLawyer)) {
             throw CustomException('You do not have access to this case!', 403);
         }
 
@@ -489,13 +510,14 @@ const addHearing = async (request, response) => {
     const { date, location, notes } = request.body;
     try {
         const firmId = request.firmId;
+        const isSoloLawyer = request.isSoloLawyer || false;
         const caseDoc = await Case.findById(_id);
 
         if (!caseDoc) {
             throw CustomException('Case not found!', 404);
         }
 
-        if (!checkCaseAccess(caseDoc, request.userID, firmId, true)) {
+        if (!checkCaseAccess(caseDoc, request.userID, firmId, true, isSoloLawyer)) {
             throw CustomException('Only the lawyer can add hearings!', 403);
         }
 

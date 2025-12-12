@@ -27,15 +27,19 @@ const VALID_STAGES = {
 exports.getCasesForPipeline = async (req, res) => {
     try {
         const { category, outcome, priority, page = 1, limit = 100 } = req.query;
+        const userId = req.userID || req.user?._id;
 
         // Build match stage
         const matchStage = { deletedAt: null };
 
-        // Multi-tenant filter
-        if (req.user.firmId) {
-            matchStage.firmId = new mongoose.Types.ObjectId(req.user.firmId);
+        // Multi-tenant filter - include cases from firm OR where user is the lawyer
+        if (req.user?.firmId) {
+            matchStage.$or = [
+                { firmId: new mongoose.Types.ObjectId(req.user.firmId) },
+                { lawyerId: new mongoose.Types.ObjectId(userId) }
+            ];
         } else {
-            matchStage.lawyerId = new mongoose.Types.ObjectId(req.user._id);
+            matchStage.lawyerId = new mongoose.Types.ObjectId(userId);
         }
 
         // Apply filters
@@ -235,6 +239,7 @@ exports.moveCaseToStage = async (req, res) => {
     try {
         const { id } = req.params;
         const { newStage, notes } = req.body;
+        const userId = req.userID || req.user?._id;
 
         // Find the case
         const caseDoc = await Case.findById(id);
@@ -246,10 +251,10 @@ exports.moveCaseToStage = async (req, res) => {
             });
         }
 
-        // Check access
-        const hasAccess = req.user.firmId
-            ? caseDoc.firmId && caseDoc.firmId.toString() === req.user.firmId.toString()
-            : caseDoc.lawyerId.toString() === req.user._id.toString();
+        // Check access - firm members can access firm cases OR their own cases
+        const isLawyer = caseDoc.lawyerId && caseDoc.lawyerId.toString() === userId?.toString();
+        const sameFirm = req.user?.firmId && caseDoc.firmId && caseDoc.firmId.toString() === req.user.firmId.toString();
+        const hasAccess = sameFirm || isLawyer;
 
         if (!hasAccess) {
             return res.status(403).json({
@@ -348,6 +353,7 @@ exports.endCase = async (req, res) => {
     try {
         const { id } = req.params;
         const { outcome, endReason, finalAmount, notes, endDate } = req.body;
+        const userId = req.userID || req.user?._id;
 
         // Find the case
         const caseDoc = await Case.findById(id);
@@ -359,10 +365,10 @@ exports.endCase = async (req, res) => {
             });
         }
 
-        // Check access
-        const hasAccess = req.user.firmId
-            ? caseDoc.firmId && caseDoc.firmId.toString() === req.user.firmId.toString()
-            : caseDoc.lawyerId.toString() === req.user._id.toString();
+        // Check access - firm members can access firm cases OR their own cases
+        const isLawyer = caseDoc.lawyerId && caseDoc.lawyerId.toString() === userId?.toString();
+        const sameFirm = req.user?.firmId && caseDoc.firmId && caseDoc.firmId.toString() === req.user.firmId.toString();
+        const hasAccess = sameFirm || isLawyer;
 
         if (!hasAccess) {
             return res.status(403).json({
@@ -448,15 +454,19 @@ exports.endCase = async (req, res) => {
 exports.getPipelineStatistics = async (req, res) => {
     try {
         const { category, dateFrom, dateTo } = req.query;
+        const userId = req.userID || req.user?._id;
 
         // Build match stage
         const matchStage = { deletedAt: null };
 
-        // Multi-tenant filter
-        if (req.user.firmId) {
-            matchStage.firmId = new mongoose.Types.ObjectId(req.user.firmId);
+        // Multi-tenant filter - include cases from firm OR where user is the lawyer
+        if (req.user?.firmId) {
+            matchStage.$or = [
+                { firmId: new mongoose.Types.ObjectId(req.user.firmId) },
+                { lawyerId: new mongoose.Types.ObjectId(userId) }
+            ];
         } else {
-            matchStage.lawyerId = new mongoose.Types.ObjectId(req.user._id);
+            matchStage.lawyerId = new mongoose.Types.ObjectId(userId);
         }
 
         if (category && category !== 'all') {

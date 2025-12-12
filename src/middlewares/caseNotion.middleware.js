@@ -11,23 +11,43 @@ const CaseNotionPage = require('../models/caseNotionPage.model');
 exports.canAccessCase = async (req, res, next) => {
     try {
         const { caseId } = req.params;
+        const userId = req.userID || req.user?._id;
 
-        const query = { _id: caseId };
+        // First, find the case
+        const caseDoc = await Case.findById(caseId);
 
-        // Add firm/lawyer filter
-        if (req.user.firmId) {
-            query.firmId = req.user.firmId;
-        } else {
-            query.$or = [
-                { lawyerId: req.user._id },
-                { teamMembers: req.user._id },
-                { createdBy: req.user._id }
-            ];
+        if (!caseDoc) {
+            return res.status(404).json({
+                error: true,
+                message: 'Case not found'
+            });
         }
 
-        const caseDoc = await Case.findOne(query);
+        // Admin bypass
+        if (req.user?.role === 'admin') {
+            req.case = caseDoc;
+            return next();
+        }
 
-        if (!caseDoc && req.user.role !== 'admin') {
+        // Check access based on user context
+        let hasAccess = false;
+
+        // Check if user is the lawyer or client
+        const isLawyer = caseDoc.lawyerId && caseDoc.lawyerId.toString() === userId?.toString();
+        const isClient = caseDoc.clientId && caseDoc.clientId.toString() === userId?.toString();
+        const isTeamMember = caseDoc.teamMembers?.some(m => m.toString() === userId?.toString());
+        const isCreator = caseDoc.createdBy && caseDoc.createdBy.toString() === userId?.toString();
+
+        if (req.user?.firmId) {
+            // Firm user: can access if case belongs to same firm OR user is lawyer/client/team member
+            const sameFirm = caseDoc.firmId && caseDoc.firmId.toString() === req.user.firmId.toString();
+            hasAccess = sameFirm || isLawyer || isClient || isTeamMember || isCreator;
+        } else {
+            // Solo lawyer / non-firm user: can access if they are lawyer/client/team member/creator
+            hasAccess = isLawyer || isClient || isTeamMember || isCreator;
+        }
+
+        if (!hasAccess) {
             return res.status(403).json({
                 error: true,
                 message: 'Access denied to this case'
