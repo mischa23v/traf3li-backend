@@ -1,4 +1,5 @@
 const WhatsAppService = require('../services/whatsapp.service');
+const WhatsAppBroadcast = require('../models/whatsappBroadcast.model');
 const asyncHandler = require('express-async-handler');
 
 // ═══════════════════════════════════════════════════════════════
@@ -475,6 +476,703 @@ class WhatsAppController {
         res.json({
             success: true,
             data: stats
+        });
+    });
+
+    // ═══════════════════════════════════════════════════════════
+    // BROADCASTS
+    // ═══════════════════════════════════════════════════════════
+
+    /**
+     * @desc    Create broadcast
+     * @route   POST /api/whatsapp/broadcasts
+     * @access  Private
+     */
+    createBroadcast = asyncHandler(async (req, res) => {
+        const firmId = req.firmId;
+        const userId = req.userID;
+
+        const broadcast = await WhatsAppService.createBroadcast(firmId, req.body, userId);
+
+        res.status(201).json({
+            success: true,
+            message: 'Broadcast created successfully',
+            data: broadcast
+        });
+    });
+
+    /**
+     * @desc    Get all broadcasts
+     * @route   GET /api/whatsapp/broadcasts
+     * @access  Private
+     */
+    getBroadcasts = asyncHandler(async (req, res) => {
+        const firmId = req.firmId;
+        const { status, type, page = 1, limit = 20, sortBy = 'createdAt', sortOrder = 'desc' } = req.query;
+
+        const query = { firmId };
+        if (status) query.status = status;
+        if (type) query.type = type;
+
+        const sort = {};
+        sort[sortBy] = sortOrder === 'asc' ? 1 : -1;
+
+        const broadcasts = await WhatsAppBroadcast.find(query)
+            .populate('template.templateId', 'name category')
+            .populate('createdBy', 'firstName lastName')
+            .sort(sort)
+            .limit(parseInt(limit))
+            .skip((parseInt(page) - 1) * parseInt(limit));
+
+        const total = await WhatsAppBroadcast.countDocuments(query);
+
+        res.json({
+            success: true,
+            data: broadcasts,
+            pagination: {
+                page: parseInt(page),
+                limit: parseInt(limit),
+                total,
+                pages: Math.ceil(total / limit)
+            }
+        });
+    });
+
+    /**
+     * @desc    Get single broadcast
+     * @route   GET /api/whatsapp/broadcasts/:id
+     * @access  Private
+     */
+    getBroadcast = asyncHandler(async (req, res) => {
+        const { id } = req.params;
+        const firmId = req.firmId;
+
+        const broadcast = await WhatsAppBroadcast.findOne({ _id: id, firmId })
+            .populate('template.templateId')
+            .populate('createdBy', 'firstName lastName')
+            .populate('recipients.leadId', 'firstName lastName')
+            .populate('recipients.clientId', 'firstName lastName');
+
+        if (!broadcast) {
+            return res.status(404).json({
+                success: false,
+                message: 'Broadcast not found'
+            });
+        }
+
+        res.json({
+            success: true,
+            data: broadcast
+        });
+    });
+
+    /**
+     * @desc    Update broadcast
+     * @route   PUT /api/whatsapp/broadcasts/:id
+     * @access  Private
+     */
+    updateBroadcast = asyncHandler(async (req, res) => {
+        const { id } = req.params;
+        const firmId = req.firmId;
+        const userId = req.userID;
+
+        const broadcast = await WhatsAppBroadcast.findOne({ _id: id, firmId });
+
+        if (!broadcast) {
+            return res.status(404).json({
+                success: false,
+                message: 'Broadcast not found'
+            });
+        }
+
+        // Only allow updates if broadcast is in draft status
+        if (!['draft', 'scheduled'].includes(broadcast.status)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Cannot update broadcast that is already sending or completed'
+            });
+        }
+
+        Object.assign(broadcast, req.body);
+        broadcast.updatedBy = userId;
+        await broadcast.save();
+
+        res.json({
+            success: true,
+            message: 'Broadcast updated successfully',
+            data: broadcast
+        });
+    });
+
+    /**
+     * @desc    Delete broadcast
+     * @route   DELETE /api/whatsapp/broadcasts/:id
+     * @access  Private
+     */
+    deleteBroadcast = asyncHandler(async (req, res) => {
+        const { id } = req.params;
+        const firmId = req.firmId;
+
+        const broadcast = await WhatsAppBroadcast.findOne({ _id: id, firmId });
+
+        if (!broadcast) {
+            return res.status(404).json({
+                success: false,
+                message: 'Broadcast not found'
+            });
+        }
+
+        // Only allow deletion if broadcast is in draft status
+        if (!['draft', 'cancelled'].includes(broadcast.status)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Cannot delete broadcast that has been sent. Cancel it first.'
+            });
+        }
+
+        await broadcast.deleteOne();
+
+        res.json({
+            success: true,
+            message: 'Broadcast deleted successfully'
+        });
+    });
+
+    /**
+     * @desc    Duplicate broadcast
+     * @route   POST /api/whatsapp/broadcasts/:id/duplicate
+     * @access  Private
+     */
+    duplicateBroadcast = asyncHandler(async (req, res) => {
+        const { id } = req.params;
+        const firmId = req.firmId;
+        const userId = req.userID;
+
+        const original = await WhatsAppBroadcast.findOne({ _id: id, firmId });
+
+        if (!original) {
+            return res.status(404).json({
+                success: false,
+                message: 'Broadcast not found'
+            });
+        }
+
+        const duplicate = new WhatsAppBroadcast({
+            firmId,
+            name: `${original.name} (Copy)`,
+            description: original.description,
+            type: original.type,
+            template: original.template,
+            textContent: original.textContent,
+            mediaContent: original.mediaContent,
+            locationContent: original.locationContent,
+            audienceType: original.audienceType,
+            segmentId: original.segmentId,
+            targetTags: original.targetTags,
+            tagLogic: original.tagLogic,
+            excludeNumbers: original.excludeNumbers,
+            sendingOptions: original.sendingOptions,
+            tags: original.tags,
+            provider: original.provider,
+            createdBy: userId,
+            status: 'draft'
+        });
+
+        await duplicate.save();
+
+        res.status(201).json({
+            success: true,
+            message: 'Broadcast duplicated successfully',
+            data: duplicate
+        });
+    });
+
+    /**
+     * @desc    Add recipients to broadcast
+     * @route   POST /api/whatsapp/broadcasts/:id/recipients
+     * @access  Private
+     */
+    addRecipients = asyncHandler(async (req, res) => {
+        const { id } = req.params;
+        const firmId = req.firmId;
+        const { recipients, leadIds, clientIds } = req.body;
+
+        const broadcast = await WhatsAppBroadcast.findOne({ _id: id, firmId });
+
+        if (!broadcast) {
+            return res.status(404).json({
+                success: false,
+                message: 'Broadcast not found'
+            });
+        }
+
+        if (broadcast.status !== 'draft') {
+            return res.status(400).json({
+                success: false,
+                message: 'Can only add recipients to draft broadcasts'
+            });
+        }
+
+        let addedCount = 0;
+
+        // Add from lead IDs
+        if (leadIds && leadIds.length > 0) {
+            addedCount += await broadcast.addLeadRecipients(leadIds);
+        }
+
+        // Add from client IDs
+        if (clientIds && clientIds.length > 0) {
+            addedCount += await broadcast.addClientRecipients(clientIds);
+        }
+
+        // Add custom recipients
+        if (recipients && recipients.length > 0) {
+            const existingNumbers = broadcast.recipients.map(r => r.phoneNumber);
+            const newRecipients = recipients.filter(r =>
+                r.phoneNumber &&
+                !existingNumbers.includes(r.phoneNumber) &&
+                !broadcast.excludeNumbers.includes(r.phoneNumber)
+            ).map(r => ({
+                phoneNumber: r.phoneNumber,
+                name: r.name,
+                customData: r.customData,
+                status: 'pending'
+            }));
+
+            broadcast.recipients.push(...newRecipients);
+            addedCount += newRecipients.length;
+        }
+
+        await broadcast.save();
+
+        res.json({
+            success: true,
+            message: `${addedCount} recipients added successfully`,
+            data: {
+                addedCount,
+                totalRecipients: broadcast.recipients.length
+            }
+        });
+    });
+
+    /**
+     * @desc    Remove recipients from broadcast
+     * @route   DELETE /api/whatsapp/broadcasts/:id/recipients
+     * @access  Private
+     */
+    removeRecipients = asyncHandler(async (req, res) => {
+        const { id } = req.params;
+        const firmId = req.firmId;
+        const { phoneNumbers } = req.body;
+
+        const broadcast = await WhatsAppBroadcast.findOne({ _id: id, firmId });
+
+        if (!broadcast) {
+            return res.status(404).json({
+                success: false,
+                message: 'Broadcast not found'
+            });
+        }
+
+        if (broadcast.status !== 'draft') {
+            return res.status(400).json({
+                success: false,
+                message: 'Can only remove recipients from draft broadcasts'
+            });
+        }
+
+        const initialCount = broadcast.recipients.length;
+        broadcast.recipients = broadcast.recipients.filter(
+            r => !phoneNumbers.includes(r.phoneNumber)
+        );
+        const removedCount = initialCount - broadcast.recipients.length;
+
+        await broadcast.save();
+
+        res.json({
+            success: true,
+            message: `${removedCount} recipients removed`,
+            data: {
+                removedCount,
+                totalRecipients: broadcast.recipients.length
+            }
+        });
+    });
+
+    /**
+     * @desc    Schedule broadcast
+     * @route   POST /api/whatsapp/broadcasts/:id/schedule
+     * @access  Private
+     */
+    scheduleBroadcast = asyncHandler(async (req, res) => {
+        const { id } = req.params;
+        const firmId = req.firmId;
+        const { scheduledAt, timezone } = req.body;
+
+        const broadcast = await WhatsAppBroadcast.findOne({ _id: id, firmId });
+
+        if (!broadcast) {
+            return res.status(404).json({
+                success: false,
+                message: 'Broadcast not found'
+            });
+        }
+
+        if (!['draft', 'scheduled'].includes(broadcast.status)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Can only schedule draft or already scheduled broadcasts'
+            });
+        }
+
+        if (broadcast.recipients.length === 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'Cannot schedule broadcast with no recipients'
+            });
+        }
+
+        broadcast.scheduledAt = new Date(scheduledAt);
+        if (timezone) broadcast.timezone = timezone;
+        broadcast.status = 'scheduled';
+        await broadcast.save();
+
+        res.json({
+            success: true,
+            message: 'Broadcast scheduled successfully',
+            data: broadcast
+        });
+    });
+
+    /**
+     * @desc    Send broadcast immediately
+     * @route   POST /api/whatsapp/broadcasts/:id/send
+     * @access  Private
+     */
+    sendBroadcast = asyncHandler(async (req, res) => {
+        const { id } = req.params;
+        const firmId = req.firmId;
+
+        const broadcast = await WhatsAppBroadcast.findOne({ _id: id, firmId });
+
+        if (!broadcast) {
+            return res.status(404).json({
+                success: false,
+                message: 'Broadcast not found'
+            });
+        }
+
+        if (!['draft', 'scheduled'].includes(broadcast.status)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Can only send draft or scheduled broadcasts'
+            });
+        }
+
+        if (broadcast.recipients.length === 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'Cannot send broadcast with no recipients'
+            });
+        }
+
+        // Start sending process
+        broadcast.status = 'sending';
+        broadcast.startedAt = new Date();
+        await broadcast.save();
+
+        // Start async sending process
+        WhatsAppService.processBroadcast(broadcast._id).catch(error => {
+            console.error('Error processing broadcast:', error);
+        });
+
+        res.json({
+            success: true,
+            message: 'Broadcast sending started',
+            data: broadcast
+        });
+    });
+
+    /**
+     * @desc    Pause broadcast
+     * @route   POST /api/whatsapp/broadcasts/:id/pause
+     * @access  Private
+     */
+    pauseBroadcast = asyncHandler(async (req, res) => {
+        const { id } = req.params;
+        const firmId = req.firmId;
+        const userId = req.userID;
+
+        const broadcast = await WhatsAppBroadcast.findOne({ _id: id, firmId });
+
+        if (!broadcast) {
+            return res.status(404).json({
+                success: false,
+                message: 'Broadcast not found'
+            });
+        }
+
+        if (broadcast.status !== 'sending') {
+            return res.status(400).json({
+                success: false,
+                message: 'Can only pause broadcasts that are currently sending'
+            });
+        }
+
+        await broadcast.pause(userId);
+
+        res.json({
+            success: true,
+            message: 'Broadcast paused',
+            data: broadcast
+        });
+    });
+
+    /**
+     * @desc    Resume broadcast
+     * @route   POST /api/whatsapp/broadcasts/:id/resume
+     * @access  Private
+     */
+    resumeBroadcast = asyncHandler(async (req, res) => {
+        const { id } = req.params;
+        const firmId = req.firmId;
+        const userId = req.userID;
+
+        const broadcast = await WhatsAppBroadcast.findOne({ _id: id, firmId });
+
+        if (!broadcast) {
+            return res.status(404).json({
+                success: false,
+                message: 'Broadcast not found'
+            });
+        }
+
+        if (broadcast.status !== 'paused') {
+            return res.status(400).json({
+                success: false,
+                message: 'Can only resume paused broadcasts'
+            });
+        }
+
+        await broadcast.resume(userId);
+
+        // Continue sending process
+        WhatsAppService.processBroadcast(broadcast._id).catch(error => {
+            console.error('Error processing broadcast:', error);
+        });
+
+        res.json({
+            success: true,
+            message: 'Broadcast resumed',
+            data: broadcast
+        });
+    });
+
+    /**
+     * @desc    Cancel broadcast
+     * @route   POST /api/whatsapp/broadcasts/:id/cancel
+     * @access  Private
+     */
+    cancelBroadcast = asyncHandler(async (req, res) => {
+        const { id } = req.params;
+        const firmId = req.firmId;
+        const userId = req.userID;
+
+        const broadcast = await WhatsAppBroadcast.findOne({ _id: id, firmId });
+
+        if (!broadcast) {
+            return res.status(404).json({
+                success: false,
+                message: 'Broadcast not found'
+            });
+        }
+
+        if (['completed', 'cancelled'].includes(broadcast.status)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Broadcast is already completed or cancelled'
+            });
+        }
+
+        await broadcast.cancel(userId);
+
+        res.json({
+            success: true,
+            message: 'Broadcast cancelled',
+            data: broadcast
+        });
+    });
+
+    /**
+     * @desc    Get broadcast analytics
+     * @route   GET /api/whatsapp/broadcasts/:id/analytics
+     * @access  Private
+     */
+    getBroadcastAnalytics = asyncHandler(async (req, res) => {
+        const { id } = req.params;
+        const firmId = req.firmId;
+
+        const broadcast = await WhatsAppBroadcast.findOne({ _id: id, firmId });
+
+        if (!broadcast) {
+            return res.status(404).json({
+                success: false,
+                message: 'Broadcast not found'
+            });
+        }
+
+        // Get detailed analytics
+        const statusBreakdown = {
+            pending: broadcast.recipients.filter(r => r.status === 'pending').length,
+            sent: broadcast.recipients.filter(r => r.status === 'sent').length,
+            delivered: broadcast.recipients.filter(r => r.status === 'delivered').length,
+            read: broadcast.recipients.filter(r => r.status === 'read').length,
+            failed: broadcast.recipients.filter(r => r.status === 'failed').length,
+            skipped: broadcast.recipients.filter(r => r.status === 'skipped').length
+        };
+
+        // Get failure reasons
+        const failureReasons = {};
+        broadcast.recipients
+            .filter(r => r.status === 'failed')
+            .forEach(r => {
+                const reason = r.errorMessage || 'Unknown';
+                failureReasons[reason] = (failureReasons[reason] || 0) + 1;
+            });
+
+        res.json({
+            success: true,
+            data: {
+                broadcastId: broadcast.broadcastId,
+                name: broadcast.name,
+                status: broadcast.status,
+                stats: broadcast.stats,
+                rates: {
+                    deliveryRate: broadcast.deliveryRate,
+                    readRate: broadcast.readRate,
+                    failureRate: broadcast.failureRate
+                },
+                statusBreakdown,
+                failureReasons,
+                progress: broadcast.getProgress(),
+                timing: {
+                    createdAt: broadcast.createdAt,
+                    scheduledAt: broadcast.scheduledAt,
+                    startedAt: broadcast.startedAt,
+                    completedAt: broadcast.completedAt
+                }
+            }
+        });
+    });
+
+    /**
+     * @desc    Get broadcast statistics for firm
+     * @route   GET /api/whatsapp/broadcasts/stats
+     * @access  Private
+     */
+    getBroadcastStats = asyncHandler(async (req, res) => {
+        const firmId = req.firmId;
+        const { startDate, endDate } = req.query;
+
+        const stats = await WhatsAppBroadcast.getFirmStats(firmId, {
+            start: startDate,
+            end: endDate
+        });
+
+        res.json({
+            success: true,
+            data: stats
+        });
+    });
+
+    /**
+     * @desc    Test broadcast with single recipient
+     * @route   POST /api/whatsapp/broadcasts/:id/test
+     * @access  Private
+     */
+    testBroadcast = asyncHandler(async (req, res) => {
+        const { id } = req.params;
+        const firmId = req.firmId;
+        const { phoneNumber } = req.body;
+
+        if (!phoneNumber) {
+            return res.status(400).json({
+                success: false,
+                message: 'phoneNumber is required for test'
+            });
+        }
+
+        const broadcast = await WhatsAppBroadcast.findOne({ _id: id, firmId })
+            .populate('template.templateId');
+
+        if (!broadcast) {
+            return res.status(404).json({
+                success: false,
+                message: 'Broadcast not found'
+            });
+        }
+
+        // Send test message based on broadcast type
+        let result;
+        const testData = {
+            firstName: 'Test',
+            lastName: 'User',
+            companyName: 'Test Company'
+        };
+
+        if (broadcast.type === 'template' && broadcast.template.templateId) {
+            const variables = {};
+            broadcast.template.variables.forEach(v => {
+                if (v.type === 'static') {
+                    variables[v.position] = v.value;
+                } else {
+                    variables[v.position] = testData[v.fieldName] || v.value;
+                }
+            });
+
+            result = await WhatsAppService.sendTemplateMessage(
+                firmId,
+                phoneNumber,
+                broadcast.template.templateName,
+                variables,
+                { sentBy: req.userID }
+            );
+        } else if (broadcast.type === 'text') {
+            let text = broadcast.textContent.text;
+            if (broadcast.textContent.usePersonalization) {
+                broadcast.textContent.personalizedFields.forEach(field => {
+                    text = text.replace(new RegExp(`{{${field}}}`, 'g'), testData[field] || '');
+                });
+            }
+            result = await WhatsAppService.sendTextMessage(firmId, phoneNumber, text, { sentBy: req.userID });
+        } else if (broadcast.type === 'media') {
+            result = await WhatsAppService.sendMediaMessage(
+                firmId,
+                phoneNumber,
+                broadcast.mediaContent.type,
+                broadcast.mediaContent.mediaUrl,
+                {
+                    caption: broadcast.mediaContent.caption,
+                    fileName: broadcast.mediaContent.fileName,
+                    sentBy: req.userID
+                }
+            );
+        } else if (broadcast.type === 'location') {
+            result = await WhatsAppService.sendLocationMessage(
+                firmId,
+                phoneNumber,
+                broadcast.locationContent.latitude,
+                broadcast.locationContent.longitude,
+                broadcast.locationContent.name,
+                broadcast.locationContent.address,
+                { sentBy: req.userID }
+            );
+        }
+
+        res.json({
+            success: true,
+            message: `Test message sent to ${phoneNumber}`,
+            data: result
         });
     });
 }

@@ -1,6 +1,7 @@
 const WhatsAppTemplate = require('../models/whatsappTemplate.model');
 const WhatsAppConversation = require('../models/whatsappConversation.model');
 const WhatsAppMessage = require('../models/whatsappMessage.model');
+const WhatsAppBroadcast = require('../models/whatsappBroadcast.model');
 const Lead = require('../models/lead.model');
 const Client = require('../models/client.model');
 const CrmActivity = require('../models/crmActivity.model');
@@ -834,6 +835,335 @@ class WhatsAppService {
 
     async getTemplatePerformance(firmId) {
         return await WhatsAppTemplate.getAnalytics(firmId);
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // BROADCASTS
+    // ═══════════════════════════════════════════════════════════
+
+    /**
+     * Create a new broadcast
+     */
+    async createBroadcast(firmId, broadcastData, userId) {
+        const broadcast = await WhatsAppBroadcast.create({
+            ...broadcastData,
+            firmId,
+            createdBy: userId,
+            status: 'draft'
+        });
+
+        return broadcast;
+    }
+
+    /**
+     * Process broadcast - send messages to all recipients
+     */
+    async processBroadcast(broadcastId) {
+        const broadcast = await WhatsAppBroadcast.findById(broadcastId)
+            .populate('template.templateId');
+
+        if (!broadcast) {
+            throw new Error('Broadcast not found');
+        }
+
+        if (!['sending', 'paused'].includes(broadcast.status)) {
+            throw new Error('Broadcast is not in sending state');
+        }
+
+        const { batchSize, messagesPerMinute, delayBetweenBatches } = broadcast.sendingOptions;
+        const delayBetweenMessages = Math.ceil(60000 / messagesPerMinute); // ms
+
+        try {
+            while (true) {
+                // Check if paused or cancelled
+                const currentBroadcast = await WhatsAppBroadcast.findById(broadcastId);
+                if (currentBroadcast.status === 'paused' || currentBroadcast.status === 'cancelled') {
+                    console.log(`Broadcast ${broadcastId} is ${currentBroadcast.status}, stopping`);
+                    break;
+                }
+
+                // Get pending recipients
+                const pendingRecipients = currentBroadcast.getPendingRecipients(batchSize);
+
+                if (pendingRecipients.length === 0) {
+                    // All done
+                    await currentBroadcast.complete();
+                    console.log(`Broadcast ${broadcastId} completed`);
+                    break;
+                }
+
+                // Process batch
+                for (const recipient of pendingRecipients) {
+                    try {
+                        await this.sendBroadcastMessage(currentBroadcast, recipient);
+                        await this.delay(delayBetweenMessages);
+                    } catch (error) {
+                        console.error(`Error sending to ${recipient.phoneNumber}:`, error.message);
+                    }
+                }
+
+                // Delay between batches
+                if (delayBetweenBatches > 0) {
+                    await this.delay(delayBetweenBatches * 1000);
+                }
+            }
+        } catch (error) {
+            console.error(`Error processing broadcast ${broadcastId}:`, error);
+            broadcast.status = 'failed';
+            await broadcast.save();
+            throw error;
+        }
+    }
+
+    /**
+     * Send single message as part of broadcast
+     */
+    async sendBroadcastMessage(broadcast, recipient) {
+        try {
+            let result;
+            const customData = recipient.customData || {};
+
+            if (broadcast.type === 'template' && broadcast.template.templateId) {
+                // Build variables from template configuration
+                const variables = {};
+                broadcast.template.variables.forEach(v => {
+                    if (v.type === 'static') {
+                        variables[v.position] = v.value;
+                    } else if (v.type === 'dynamic' && v.fieldName) {
+                        variables[v.position] = customData[v.fieldName] || v.value || '';
+                    }
+                });
+
+                result = await this.sendTemplateMessage(
+                    broadcast.firmId,
+                    recipient.phoneNumber,
+                    broadcast.template.templateName,
+                    variables,
+                    {
+                        leadId: recipient.leadId,
+                        clientId: recipient.clientId
+                    }
+                );
+            } else if (broadcast.type === 'text') {
+                // Check if window is open for text messages
+                const conversation = await WhatsAppConversation.findOne({
+                    firmId: broadcast.firmId,
+                    phoneNumber: recipient.phoneNumber
+                });
+
+                if (!conversation?.isWindowOpen() && broadcast.sendingOptions.respectWindowOnly) {
+                    // Skip - window not open
+                    await broadcast.updateRecipientStatus(recipient.phoneNumber, 'skipped', {
+                        errorMessage: '24-hour window not open'
+                    });
+                    return;
+                }
+
+                // Personalize text if enabled
+                let text = broadcast.textContent.text;
+                if (broadcast.textContent.usePersonalization) {
+                    broadcast.textContent.personalizedFields.forEach(field => {
+                        const value = customData[field] || '';
+                        text = text.replace(new RegExp(`{{${field}}}`, 'g'), value);
+                    });
+                }
+
+                result = await this.sendTextMessage(
+                    broadcast.firmId,
+                    recipient.phoneNumber,
+                    text,
+                    {
+                        leadId: recipient.leadId,
+                        clientId: recipient.clientId
+                    }
+                );
+            } else if (broadcast.type === 'media') {
+                result = await this.sendMediaMessage(
+                    broadcast.firmId,
+                    recipient.phoneNumber,
+                    broadcast.mediaContent.type,
+                    broadcast.mediaContent.mediaUrl,
+                    {
+                        caption: broadcast.mediaContent.caption,
+                        fileName: broadcast.mediaContent.fileName,
+                        leadId: recipient.leadId,
+                        clientId: recipient.clientId
+                    }
+                );
+            } else if (broadcast.type === 'location') {
+                result = await this.sendLocationMessage(
+                    broadcast.firmId,
+                    recipient.phoneNumber,
+                    broadcast.locationContent.latitude,
+                    broadcast.locationContent.longitude,
+                    broadcast.locationContent.name,
+                    broadcast.locationContent.address,
+                    {
+                        leadId: recipient.leadId,
+                        clientId: recipient.clientId
+                    }
+                );
+            }
+
+            // Update recipient status
+            await broadcast.updateRecipientStatus(recipient.phoneNumber, 'sent', {
+                messageId: result?.message?._id
+            });
+
+        } catch (error) {
+            // Update recipient as failed
+            await broadcast.updateRecipientStatus(recipient.phoneNumber, 'failed', {
+                errorCode: error.code,
+                errorMessage: error.message
+            });
+        }
+    }
+
+    /**
+     * Helper function for delays
+     */
+    delay(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    /**
+     * Load recipients from audience settings
+     */
+    async loadBroadcastRecipients(broadcastId) {
+        const broadcast = await WhatsAppBroadcast.findById(broadcastId);
+        if (!broadcast) {
+            throw new Error('Broadcast not found');
+        }
+
+        let addedCount = 0;
+
+        switch (broadcast.audienceType) {
+            case 'all_leads':
+                const leads = await Lead.find({
+                    firmId: broadcast.firmId,
+                    $or: [
+                        { phone: { $exists: true, $ne: '' } },
+                        { whatsapp: { $exists: true, $ne: '' } }
+                    ]
+                }).select('_id firstName lastName phone whatsapp companyName');
+
+                for (const lead of leads) {
+                    const phoneNumber = lead.whatsapp || lead.phone;
+                    if (!broadcast.recipients.find(r => r.phoneNumber === phoneNumber)) {
+                        broadcast.recipients.push({
+                            phoneNumber,
+                            name: `${lead.firstName || ''} ${lead.lastName || ''}`.trim(),
+                            leadId: lead._id,
+                            customData: {
+                                firstName: lead.firstName,
+                                lastName: lead.lastName,
+                                companyName: lead.companyName
+                            },
+                            status: 'pending'
+                        });
+                        addedCount++;
+                    }
+                }
+                break;
+
+            case 'all_clients':
+                const clients = await Client.find({
+                    firmId: broadcast.firmId,
+                    $or: [
+                        { phone: { $exists: true, $ne: '' } },
+                        { whatsapp: { $exists: true, $ne: '' } }
+                    ]
+                }).select('_id firstName lastName phone whatsapp companyName');
+
+                for (const client of clients) {
+                    const phoneNumber = client.whatsapp || client.phone;
+                    if (!broadcast.recipients.find(r => r.phoneNumber === phoneNumber)) {
+                        broadcast.recipients.push({
+                            phoneNumber,
+                            name: `${client.firstName || ''} ${client.lastName || ''}`.trim(),
+                            clientId: client._id,
+                            customData: {
+                                firstName: client.firstName,
+                                lastName: client.lastName,
+                                companyName: client.companyName
+                            },
+                            status: 'pending'
+                        });
+                        addedCount++;
+                    }
+                }
+                break;
+
+            case 'tags':
+                if (broadcast.targetTags && broadcast.targetTags.length > 0) {
+                    const tagQuery = broadcast.tagLogic === 'AND'
+                        ? { tags: { $all: broadcast.targetTags } }
+                        : { tags: { $in: broadcast.targetTags } };
+
+                    const taggedLeads = await Lead.find({
+                        firmId: broadcast.firmId,
+                        ...tagQuery,
+                        $or: [
+                            { phone: { $exists: true, $ne: '' } },
+                            { whatsapp: { $exists: true, $ne: '' } }
+                        ]
+                    }).select('_id firstName lastName phone whatsapp companyName');
+
+                    for (const lead of taggedLeads) {
+                        const phoneNumber = lead.whatsapp || lead.phone;
+                        if (!broadcast.recipients.find(r => r.phoneNumber === phoneNumber)) {
+                            broadcast.recipients.push({
+                                phoneNumber,
+                                name: `${lead.firstName || ''} ${lead.lastName || ''}`.trim(),
+                                leadId: lead._id,
+                                customData: {
+                                    firstName: lead.firstName,
+                                    lastName: lead.lastName,
+                                    companyName: lead.companyName
+                                },
+                                status: 'pending'
+                            });
+                            addedCount++;
+                        }
+                    }
+                }
+                break;
+
+            case 'segment':
+                if (broadcast.segmentId) {
+                    const EmailSegment = require('../models/emailSegment.model');
+                    const segment = await EmailSegment.findById(broadcast.segmentId);
+                    if (segment) {
+                        const subscribers = await segment.getSubscribers();
+                        for (const subscriber of subscribers) {
+                            if (subscriber.phone && !broadcast.recipients.find(r => r.phoneNumber === subscriber.phone)) {
+                                broadcast.recipients.push({
+                                    phoneNumber: subscriber.phone,
+                                    name: subscriber.displayName || subscriber.email,
+                                    customData: {
+                                        firstName: subscriber.firstName,
+                                        lastName: subscriber.lastName,
+                                        companyName: subscriber.companyName
+                                    },
+                                    status: 'pending'
+                                });
+                                addedCount++;
+                            }
+                        }
+                    }
+                }
+                break;
+        }
+
+        // Remove excluded numbers
+        if (broadcast.excludeNumbers && broadcast.excludeNumbers.length > 0) {
+            broadcast.recipients = broadcast.recipients.filter(
+                r => !broadcast.excludeNumbers.includes(r.phoneNumber)
+            );
+        }
+
+        await broadcast.save();
+        return { addedCount, totalRecipients: broadcast.recipients.length };
     }
 
     // ═══════════════════════════════════════════════════════════

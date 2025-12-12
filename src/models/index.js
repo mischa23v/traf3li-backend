@@ -189,6 +189,12 @@ const SyncedBlock = require('./syncedBlock.model');
 // Legal Contract Model (Najiz Integration)
 const LegalContract = require('./legalContract.model');
 
+// WhatsApp Models
+const WhatsAppMessage = require('./whatsappMessage.model');
+const WhatsAppConversation = require('./whatsappConversation.model');
+const WhatsAppTemplate = require('./whatsappTemplate.model');
+const WhatsAppBroadcast = require('./whatsappBroadcast.model');
+
 module.exports = {
     // Marketplace
     User,
@@ -379,5 +385,11 @@ module.exports = {
     SyncedBlock,
 
     // Legal Contracts (Najiz Integration)
-    LegalContract
+    LegalContract,
+
+    // WhatsApp
+    WhatsAppMessage,
+    WhatsAppConversation,
+    WhatsAppTemplate,
+    WhatsAppBroadcast
 };
