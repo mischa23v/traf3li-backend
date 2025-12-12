@@ -185,7 +185,7 @@ const caseNotionBlockSchema = new mongoose.Schema({
      */
     priority: {
         type: String,
-        enum: PRIORITY_LEVELS,
+        enum: [...PRIORITY_LEVELS, null],
         default: null
     },
 
