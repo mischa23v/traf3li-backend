@@ -328,10 +328,12 @@ exports.updatePage = async (req, res) => {
         const page = await CaseNotionPage.findByIdAndUpdate(
             pageId,
             {
-                ...updateData,
-                lastEditedBy: req.user._id,
-                version: { $inc: 1 },
-                lastVersionAt: new Date()
+                $set: {
+                    ...updateData,
+                    lastEditedBy: req.user._id,
+                    lastVersionAt: new Date()
+                },
+                $inc: { version: 1 }
             },
             { new: true }
         );
