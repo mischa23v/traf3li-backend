@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 const CaseNotionPage = require('../models/caseNotionPage.model');
 const CaseNotionBlock = require('../models/caseNotionBlock.model');
+const BlockConnection = require('../models/blockConnection.model');
 const SyncedBlock = require('../models/syncedBlock.model');
 const PageTemplate = require('../models/pageTemplate.model');
 const BlockComment = require('../models/blockComment.model');
@@ -252,11 +253,15 @@ exports.getPage = async (req, res) => {
         const blocks = await CaseNotionBlock.find({ pageId })
             .sort({ order: 1 })
             .populate('lastEditedBy', 'firstName lastName')
-            .populate('lockedBy', 'firstName lastName');
+            .populate('lockedBy', 'firstName lastName')
+            .populate('linkedTaskId', 'title status priority');
+
+        // Get connections for this page (for whiteboard view)
+        const connections = await BlockConnection.find({ pageId });
 
         res.json({
             success: true,
-            data: { ...page.toObject(), blocks }
+            data: { ...page.toObject(), blocks, connections }
         });
     } catch (error) {
         res.status(500).json({ error: true, message: error.message });
@@ -712,6 +717,10 @@ exports.deleteBlock = async (req, res) => {
         }
 
         const pageId = block.pageId;
+
+        // Delete all connections associated with this block (whiteboard feature)
+        await deleteBlockConnections(blockId);
+
         await block.deleteOne();
 
         // Reorder remaining blocks
@@ -1405,8 +1414,575 @@ exports.createTaskFromBlock = async (req, res) => {
 };
 
 // ═══════════════════════════════════════════════════════════════
+// WHITEBOARD - BLOCK POSITION/SIZE/STYLING CONTROLLERS
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Update block canvas position
+ * PATCH /api/v1/cases/:caseId/notion/blocks/:blockId/position
+ */
+exports.updateBlockPosition = async (req, res) => {
+    try {
+        const { blockId } = req.params;
+        const { canvasX, canvasY } = req.body;
+
+        // Validate coordinates
+        if (canvasX < 0 || canvasX > 10000 || canvasY < 0 || canvasY > 10000) {
+            return res.status(400).json({
+                error: true,
+                message: 'Invalid position coordinates. Must be between 0 and 10000.'
+            });
+        }
+
+        const block = await CaseNotionBlock.findByIdAndUpdate(
+            blockId,
+            {
+                canvasX: Math.round(canvasX),
+                canvasY: Math.round(canvasY),
+                lastEditedBy: req.user._id,
+                lastEditedAt: new Date()
+            },
+            { new: true }
+        );
+
+        if (!block) {
+            return res.status(404).json({ error: true, message: 'Block not found' });
+        }
+
+        res.json({ success: true, data: block });
+    } catch (error) {
+        res.status(500).json({ error: true, message: error.message });
+    }
+};
+
+/**
+ * Update block canvas size
+ * PATCH /api/v1/cases/:caseId/notion/blocks/:blockId/size
+ */
+exports.updateBlockSize = async (req, res) => {
+    try {
+        const { blockId } = req.params;
+        const { canvasWidth, canvasHeight } = req.body;
+
+        // Validate dimensions
+        if (canvasWidth !== undefined && (canvasWidth < 150 || canvasWidth > 800)) {
+            return res.status(400).json({
+                error: true,
+                message: 'Width must be between 150 and 800 pixels'
+            });
+        }
+        if (canvasHeight !== undefined && (canvasHeight < 100 || canvasHeight > 600)) {
+            return res.status(400).json({
+                error: true,
+                message: 'Height must be between 100 and 600 pixels'
+            });
+        }
+
+        const updateData = {
+            lastEditedBy: req.user._id,
+            lastEditedAt: new Date()
+        };
+
+        if (canvasWidth !== undefined) updateData.canvasWidth = Math.round(canvasWidth);
+        if (canvasHeight !== undefined) updateData.canvasHeight = Math.round(canvasHeight);
+
+        const block = await CaseNotionBlock.findByIdAndUpdate(
+            blockId,
+            updateData,
+            { new: true }
+        );
+
+        if (!block) {
+            return res.status(404).json({ error: true, message: 'Block not found' });
+        }
+
+        res.json({ success: true, data: block });
+    } catch (error) {
+        res.status(500).json({ error: true, message: error.message });
+    }
+};
+
+/**
+ * Update block color
+ * PATCH /api/v1/cases/:caseId/notion/blocks/:blockId/color
+ */
+exports.updateBlockColor = async (req, res) => {
+    try {
+        const { blockId } = req.params;
+        const { blockColor } = req.body;
+
+        const validColors = ['default', 'red', 'orange', 'yellow', 'green', 'blue', 'purple', 'pink', 'gray'];
+        if (!validColors.includes(blockColor)) {
+            return res.status(400).json({
+                error: true,
+                message: `Invalid color. Must be one of: ${validColors.join(', ')}`
+            });
+        }
+
+        const block = await CaseNotionBlock.findByIdAndUpdate(
+            blockId,
+            {
+                blockColor,
+                lastEditedBy: req.user._id,
+                lastEditedAt: new Date()
+            },
+            { new: true }
+        );
+
+        if (!block) {
+            return res.status(404).json({ error: true, message: 'Block not found' });
+        }
+
+        res.json({ success: true, data: block });
+    } catch (error) {
+        res.status(500).json({ error: true, message: error.message });
+    }
+};
+
+/**
+ * Update block priority
+ * PATCH /api/v1/cases/:caseId/notion/blocks/:blockId/priority
+ */
+exports.updateBlockPriority = async (req, res) => {
+    try {
+        const { blockId } = req.params;
+        const { priority } = req.body;
+
+        const validPriorities = ['low', 'medium', 'high', 'urgent', null];
+        if (!validPriorities.includes(priority)) {
+            return res.status(400).json({
+                error: true,
+                message: 'Invalid priority. Must be one of: low, medium, high, urgent, or null'
+            });
+        }
+
+        const block = await CaseNotionBlock.findByIdAndUpdate(
+            blockId,
+            {
+                priority,
+                lastEditedBy: req.user._id,
+                lastEditedAt: new Date()
+            },
+            { new: true }
+        );
+
+        if (!block) {
+            return res.status(404).json({ error: true, message: 'Block not found' });
+        }
+
+        res.json({ success: true, data: block });
+    } catch (error) {
+        res.status(500).json({ error: true, message: error.message });
+    }
+};
+
+// ═══════════════════════════════════════════════════════════════
+// WHITEBOARD - ENTITY LINKING CONTROLLERS
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Link block to a case event
+ * POST /api/v1/cases/:caseId/notion/blocks/:blockId/link-event
+ */
+exports.linkBlockToEvent = async (req, res) => {
+    try {
+        const { caseId, blockId } = req.params;
+        const { eventId } = req.body;
+
+        // Verify event belongs to this case
+        const caseDoc = await Case.findById(caseId);
+        if (!caseDoc) {
+            return res.status(404).json({ error: true, message: 'Case not found' });
+        }
+
+        const eventExists = caseDoc.timeline?.some(e => e._id.toString() === eventId);
+        if (!eventExists) {
+            return res.status(400).json({
+                error: true,
+                message: 'Event not found in this case'
+            });
+        }
+
+        const block = await CaseNotionBlock.findByIdAndUpdate(
+            blockId,
+            {
+                linkedEventId: eventId,
+                lastEditedBy: req.user._id,
+                lastEditedAt: new Date()
+            },
+            { new: true }
+        );
+
+        if (!block) {
+            return res.status(404).json({ error: true, message: 'Block not found' });
+        }
+
+        res.json({ success: true, data: block });
+    } catch (error) {
+        res.status(500).json({ error: true, message: error.message });
+    }
+};
+
+/**
+ * Link block to a case hearing
+ * POST /api/v1/cases/:caseId/notion/blocks/:blockId/link-hearing
+ */
+exports.linkBlockToHearing = async (req, res) => {
+    try {
+        const { caseId, blockId } = req.params;
+        const { hearingId } = req.body;
+
+        // Verify hearing belongs to this case
+        const caseDoc = await Case.findById(caseId);
+        if (!caseDoc) {
+            return res.status(404).json({ error: true, message: 'Case not found' });
+        }
+
+        const hearingExists = caseDoc.hearings?.some(h => h._id.toString() === hearingId);
+        if (!hearingExists) {
+            return res.status(400).json({
+                error: true,
+                message: 'Hearing not found in this case'
+            });
+        }
+
+        const block = await CaseNotionBlock.findByIdAndUpdate(
+            blockId,
+            {
+                linkedHearingId: hearingId,
+                lastEditedBy: req.user._id,
+                lastEditedAt: new Date()
+            },
+            { new: true }
+        );
+
+        if (!block) {
+            return res.status(404).json({ error: true, message: 'Block not found' });
+        }
+
+        res.json({ success: true, data: block });
+    } catch (error) {
+        res.status(500).json({ error: true, message: error.message });
+    }
+};
+
+/**
+ * Link block to a case document
+ * POST /api/v1/cases/:caseId/notion/blocks/:blockId/link-document
+ */
+exports.linkBlockToDocument = async (req, res) => {
+    try {
+        const { caseId, blockId } = req.params;
+        const { documentId } = req.body;
+
+        // Verify document belongs to this case
+        const caseDoc = await Case.findById(caseId);
+        if (!caseDoc) {
+            return res.status(404).json({ error: true, message: 'Case not found' });
+        }
+
+        const documentExists = caseDoc.documents?.some(d => d._id.toString() === documentId);
+        if (!documentExists) {
+            return res.status(400).json({
+                error: true,
+                message: 'Document not found in this case'
+            });
+        }
+
+        const block = await CaseNotionBlock.findByIdAndUpdate(
+            blockId,
+            {
+                linkedDocumentId: documentId,
+                lastEditedBy: req.user._id,
+                lastEditedAt: new Date()
+            },
+            { new: true }
+        );
+
+        if (!block) {
+            return res.status(404).json({ error: true, message: 'Block not found' });
+        }
+
+        res.json({ success: true, data: block });
+    } catch (error) {
+        res.status(500).json({ error: true, message: error.message });
+    }
+};
+
+/**
+ * Remove all entity links from a block
+ * DELETE /api/v1/cases/:caseId/notion/blocks/:blockId/unlink
+ */
+exports.unlinkBlock = async (req, res) => {
+    try {
+        const { blockId } = req.params;
+
+        const block = await CaseNotionBlock.findByIdAndUpdate(
+            blockId,
+            {
+                linkedEventId: null,
+                linkedTaskId: null,
+                linkedHearingId: null,
+                linkedDocumentId: null,
+                lastEditedBy: req.user._id,
+                lastEditedAt: new Date()
+            },
+            { new: true }
+        );
+
+        if (!block) {
+            return res.status(404).json({ error: true, message: 'Block not found' });
+        }
+
+        res.json({ success: true, data: block });
+    } catch (error) {
+        res.status(500).json({ error: true, message: error.message });
+    }
+};
+
+// ═══════════════════════════════════════════════════════════════
+// WHITEBOARD - CONNECTION CONTROLLERS
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Get all connections for a page
+ * GET /api/v1/cases/:caseId/notion/pages/:pageId/connections
+ */
+exports.getConnections = async (req, res) => {
+    try {
+        const { pageId } = req.params;
+
+        const connections = await BlockConnection.find({ pageId })
+            .populate('sourceBlockId', 'type content')
+            .populate('targetBlockId', 'type content')
+            .populate('createdBy', 'firstName lastName');
+
+        res.json({ success: true, data: connections });
+    } catch (error) {
+        res.status(500).json({ error: true, message: error.message });
+    }
+};
+
+/**
+ * Create a new connection between blocks
+ * POST /api/v1/cases/:caseId/notion/pages/:pageId/connections
+ */
+exports.createConnection = async (req, res) => {
+    try {
+        const { pageId } = req.params;
+        const { sourceBlockId, targetBlockId, connectionType, label, color } = req.body;
+
+        // Validate required fields
+        if (!sourceBlockId || !targetBlockId) {
+            return res.status(400).json({
+                error: true,
+                message: 'sourceBlockId and targetBlockId are required'
+            });
+        }
+
+        // Prevent self-referencing
+        if (sourceBlockId === targetBlockId) {
+            return res.status(400).json({
+                error: true,
+                message: 'Cannot create connection from a block to itself'
+            });
+        }
+
+        // Check if both blocks exist and belong to this page
+        const [sourceBlock, targetBlock] = await Promise.all([
+            CaseNotionBlock.findOne({ _id: sourceBlockId, pageId }),
+            CaseNotionBlock.findOne({ _id: targetBlockId, pageId })
+        ]);
+
+        if (!sourceBlock || !targetBlock) {
+            return res.status(400).json({
+                error: true,
+                message: 'Both blocks must exist and belong to this page'
+            });
+        }
+
+        // Check for existing connection (in either direction for non-bidirectional)
+        const existingConnection = await BlockConnection.findOne({
+            pageId,
+            $or: [
+                { sourceBlockId, targetBlockId },
+                { sourceBlockId: targetBlockId, targetBlockId: sourceBlockId }
+            ]
+        });
+
+        if (existingConnection) {
+            return res.status(409).json({
+                error: true,
+                message: 'Connection already exists between these blocks'
+            });
+        }
+
+        const connection = new BlockConnection({
+            pageId,
+            sourceBlockId,
+            targetBlockId,
+            connectionType: connectionType || 'arrow',
+            label,
+            color,
+            createdBy: req.user._id
+        });
+
+        await connection.save();
+
+        res.status(201).json({ success: true, data: connection });
+    } catch (error) {
+        if (error.code === 11000) {
+            return res.status(409).json({
+                error: true,
+                message: 'Connection already exists'
+            });
+        }
+        res.status(500).json({ error: true, message: error.message });
+    }
+};
+
+/**
+ * Update a connection
+ * PATCH /api/v1/cases/:caseId/notion/connections/:connectionId
+ */
+exports.updateConnection = async (req, res) => {
+    try {
+        const { connectionId } = req.params;
+        const { connectionType, label, color } = req.body;
+
+        const updateData = {};
+        if (connectionType !== undefined) updateData.connectionType = connectionType;
+        if (label !== undefined) updateData.label = label;
+        if (color !== undefined) updateData.color = color;
+
+        const connection = await BlockConnection.findByIdAndUpdate(
+            connectionId,
+            updateData,
+            { new: true }
+        );
+
+        if (!connection) {
+            return res.status(404).json({ error: true, message: 'Connection not found' });
+        }
+
+        res.json({ success: true, data: connection });
+    } catch (error) {
+        res.status(500).json({ error: true, message: error.message });
+    }
+};
+
+/**
+ * Delete a connection
+ * DELETE /api/v1/cases/:caseId/notion/connections/:connectionId
+ */
+exports.deleteConnection = async (req, res) => {
+    try {
+        const { connectionId } = req.params;
+
+        const connection = await BlockConnection.findByIdAndDelete(connectionId);
+
+        if (!connection) {
+            return res.status(404).json({ error: true, message: 'Connection not found' });
+        }
+
+        res.json({ success: true, message: 'Connection deleted' });
+    } catch (error) {
+        res.status(500).json({ error: true, message: error.message });
+    }
+};
+
+// ═══════════════════════════════════════════════════════════════
+// WHITEBOARD - PAGE VIEW MODE CONTROLLERS
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Update page view mode
+ * PATCH /api/v1/cases/:caseId/notion/pages/:pageId/view-mode
+ */
+exports.updateViewMode = async (req, res) => {
+    try {
+        const { pageId } = req.params;
+        const { viewMode } = req.body;
+
+        if (!['document', 'whiteboard'].includes(viewMode)) {
+            return res.status(400).json({
+                error: true,
+                message: 'viewMode must be either "document" or "whiteboard"'
+            });
+        }
+
+        const page = await CaseNotionPage.findByIdAndUpdate(
+            pageId,
+            {
+                viewMode,
+                lastEditedBy: req.user._id
+            },
+            { new: true }
+        );
+
+        if (!page) {
+            return res.status(404).json({ error: true, message: 'Page not found' });
+        }
+
+        res.json({ success: true, data: page });
+    } catch (error) {
+        res.status(500).json({ error: true, message: error.message });
+    }
+};
+
+/**
+ * Update whiteboard configuration
+ * PATCH /api/v1/cases/:caseId/notion/pages/:pageId/whiteboard-config
+ */
+exports.updateWhiteboardConfig = async (req, res) => {
+    try {
+        const { pageId } = req.params;
+        const { canvasWidth, canvasHeight, zoom, panX, panY, gridEnabled, snapToGrid, gridSize } = req.body;
+
+        const page = await CaseNotionPage.findById(pageId);
+        if (!page) {
+            return res.status(404).json({ error: true, message: 'Page not found' });
+        }
+
+        // Merge with existing config
+        const whiteboardConfig = {
+            ...page.whiteboardConfig?.toObject?.() || {},
+        };
+
+        if (canvasWidth !== undefined) whiteboardConfig.canvasWidth = canvasWidth;
+        if (canvasHeight !== undefined) whiteboardConfig.canvasHeight = canvasHeight;
+        if (zoom !== undefined) whiteboardConfig.zoom = Math.max(0.25, Math.min(2, zoom));
+        if (panX !== undefined) whiteboardConfig.panX = panX;
+        if (panY !== undefined) whiteboardConfig.panY = panY;
+        if (gridEnabled !== undefined) whiteboardConfig.gridEnabled = gridEnabled;
+        if (snapToGrid !== undefined) whiteboardConfig.snapToGrid = snapToGrid;
+        if (gridSize !== undefined) whiteboardConfig.gridSize = Math.max(10, Math.min(50, gridSize));
+
+        page.whiteboardConfig = whiteboardConfig;
+        page.lastEditedBy = req.user._id;
+        await page.save();
+
+        res.json({ success: true, data: page });
+    } catch (error) {
+        res.status(500).json({ error: true, message: error.message });
+    }
+};
+
+// ═══════════════════════════════════════════════════════════════
 // HELPER FUNCTIONS
 // ═══════════════════════════════════════════════════════════════
+
+/**
+ * Delete all connections for a block (helper function)
+ */
+async function deleteBlockConnections(blockId) {
+    await BlockConnection.deleteMany({
+        $or: [
+            { sourceBlockId: blockId },
+            { targetBlockId: blockId }
+        ]
+    });
+}
 
 async function updateSyncedBlocks(originalBlockId, updateData) {
     const syncedRecord = await SyncedBlock.findOne({ originalBlockId });

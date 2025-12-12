@@ -314,4 +314,116 @@ router.post('/cases/:caseId/notion/blocks/:blockId/create-task',
     caseNotionController.createTaskFromBlock
 );
 
+// ═══════════════════════════════════════════════════════════════
+// WHITEBOARD - BLOCK POSITION/SIZE/STYLING ROUTES
+// ═══════════════════════════════════════════════════════════════
+
+// Update block position
+router.patch('/cases/:caseId/notion/blocks/:blockId/position',
+    userMiddleware, firmFilter, canAccessCase, validateBlockIdParam,
+    invalidateCache(['notion:block:{blockId}:*']),
+    caseNotionController.updateBlockPosition
+);
+
+// Update block size
+router.patch('/cases/:caseId/notion/blocks/:blockId/size',
+    userMiddleware, firmFilter, canAccessCase, validateBlockIdParam,
+    invalidateCache(['notion:block:{blockId}:*']),
+    caseNotionController.updateBlockSize
+);
+
+// Update block color
+router.patch('/cases/:caseId/notion/blocks/:blockId/color',
+    userMiddleware, firmFilter, canAccessCase, validateBlockIdParam,
+    invalidateCache(['notion:block:{blockId}:*']),
+    caseNotionController.updateBlockColor
+);
+
+// Update block priority
+router.patch('/cases/:caseId/notion/blocks/:blockId/priority',
+    userMiddleware, firmFilter, canAccessCase, validateBlockIdParam,
+    invalidateCache(['notion:block:{blockId}:*']),
+    caseNotionController.updateBlockPriority
+);
+
+// ═══════════════════════════════════════════════════════════════
+// WHITEBOARD - ENTITY LINKING ROUTES
+// ═══════════════════════════════════════════════════════════════
+
+// Link block to event
+router.post('/cases/:caseId/notion/blocks/:blockId/link-event',
+    userMiddleware, firmFilter, canAccessCase, validateBlockIdParam,
+    invalidateCache(['notion:block:{blockId}:*']),
+    caseNotionController.linkBlockToEvent
+);
+
+// Link block to hearing
+router.post('/cases/:caseId/notion/blocks/:blockId/link-hearing',
+    userMiddleware, firmFilter, canAccessCase, validateBlockIdParam,
+    invalidateCache(['notion:block:{blockId}:*']),
+    caseNotionController.linkBlockToHearing
+);
+
+// Link block to document
+router.post('/cases/:caseId/notion/blocks/:blockId/link-document',
+    userMiddleware, firmFilter, canAccessCase, validateBlockIdParam,
+    invalidateCache(['notion:block:{blockId}:*']),
+    caseNotionController.linkBlockToDocument
+);
+
+// Unlink all entities from block
+router.delete('/cases/:caseId/notion/blocks/:blockId/unlink',
+    userMiddleware, firmFilter, canAccessCase, validateBlockIdParam,
+    invalidateCache(['notion:block:{blockId}:*']),
+    caseNotionController.unlinkBlock
+);
+
+// ═══════════════════════════════════════════════════════════════
+// WHITEBOARD - CONNECTION ROUTES
+// ═══════════════════════════════════════════════════════════════
+
+// Get connections for page
+router.get('/cases/:caseId/notion/pages/:pageId/connections',
+    userMiddleware, firmFilter, canAccessCase, validatePageIdParam,
+    cacheResponse(NOTION_CACHE_TTL),
+    caseNotionController.getConnections
+);
+
+// Create connection
+router.post('/cases/:caseId/notion/pages/:pageId/connections',
+    userMiddleware, firmFilter, canAccessCase, canEditPage, validatePageIdParam,
+    invalidateCache(['notion:page:{pageId}:*']),
+    caseNotionController.createConnection
+);
+
+// Update connection
+router.patch('/cases/:caseId/notion/connections/:connectionId',
+    userMiddleware, firmFilter, canAccessCase,
+    caseNotionController.updateConnection
+);
+
+// Delete connection
+router.delete('/cases/:caseId/notion/connections/:connectionId',
+    userMiddleware, firmFilter, canAccessCase,
+    caseNotionController.deleteConnection
+);
+
+// ═══════════════════════════════════════════════════════════════
+// WHITEBOARD - PAGE VIEW MODE ROUTES
+// ═══════════════════════════════════════════════════════════════
+
+// Update page view mode
+router.patch('/cases/:caseId/notion/pages/:pageId/view-mode',
+    userMiddleware, firmFilter, canAccessCase, canEditPage, validatePageIdParam,
+    invalidateCache(['notion:page:{pageId}:*']),
+    caseNotionController.updateViewMode
+);
+
+// Update whiteboard config
+router.patch('/cases/:caseId/notion/pages/:pageId/whiteboard-config',
+    userMiddleware, firmFilter, canAccessCase, canEditPage, validatePageIdParam,
+    invalidateCache(['notion:page:{pageId}:*']),
+    caseNotionController.updateWhiteboardConfig
+);
+
 module.exports = router;
