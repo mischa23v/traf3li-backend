@@ -626,7 +626,13 @@ exports.getBlocks = async (req, res) => {
 exports.createBlock = async (req, res) => {
     try {
         const { pageId } = req.params;
-        const { type, content, properties, parentId, afterBlockId } = req.body;
+        const { type, content, properties, parentId, afterBlockId, canvasX, canvasY, canvasWidth, canvasHeight, blockColor } = req.body;
+
+        // Get page to check if it's whiteboard mode
+        const page = await CaseNotionPage.findById(pageId);
+        if (!page) {
+            return res.status(404).json({ error: true, message: 'Page not found' });
+        }
 
         // Determine order
         let order = 0;
@@ -645,7 +651,8 @@ exports.createBlock = async (req, res) => {
             order = lastBlock ? lastBlock.order + 1 : 0;
         }
 
-        const block = await CaseNotionBlock.create({
+        // Build block data
+        const blockData = {
             pageId,
             type,
             content,
@@ -654,7 +661,27 @@ exports.createBlock = async (req, res) => {
             order,
             lastEditedBy: req.user._id,
             lastEditedAt: new Date()
-        });
+        };
+
+        // Auto-calculate canvas position for whiteboard mode if not provided
+        if (page.viewMode === 'whiteboard') {
+            const GRID_COLS = 4;
+            const BLOCK_WIDTH = 250;
+            const BLOCK_HEIGHT = 200;
+            const GAP_X = 50;
+            const GAP_Y = 50;
+            const START_X = 100;
+            const START_Y = 100;
+
+            // Use provided position or calculate based on order
+            blockData.canvasX = canvasX !== undefined ? canvasX : START_X + (order % GRID_COLS) * (BLOCK_WIDTH + GAP_X);
+            blockData.canvasY = canvasY !== undefined ? canvasY : START_Y + Math.floor(order / GRID_COLS) * (BLOCK_HEIGHT + GAP_Y);
+            blockData.canvasWidth = canvasWidth || 200;
+            blockData.canvasHeight = canvasHeight || 150;
+            blockData.blockColor = blockColor || 'default';
+        }
+
+        const block = await CaseNotionBlock.create(blockData);
 
         // Log activity
         await PageActivity.create({
@@ -1989,7 +2016,63 @@ exports.updateViewMode = async (req, res) => {
             return res.status(404).json({ error: true, message: 'Page not found' });
         }
 
-        res.json({ success: true, data: page });
+        // When switching to whiteboard mode, auto-position blocks that are all at 0,0
+        let updatedBlocks = [];
+        if (viewMode === 'whiteboard') {
+            const blocks = await CaseNotionBlock.find({ pageId }).sort({ order: 1 });
+
+            // Check if all blocks are stacked at 0,0 (need repositioning)
+            const allAtOrigin = blocks.every(b => (b.canvasX === 0 || b.canvasX === undefined) && (b.canvasY === 0 || b.canvasY === undefined));
+
+            if (allAtOrigin && blocks.length > 0) {
+                const GRID_COLS = 4;
+                const BLOCK_WIDTH = 250;
+                const BLOCK_HEIGHT = 200;
+                const GAP_X = 50;
+                const GAP_Y = 50;
+                const START_X = 100;
+                const START_Y = 100;
+
+                // Spread blocks across the canvas
+                const bulkOps = blocks.map((block, i) => ({
+                    updateOne: {
+                        filter: { _id: block._id },
+                        update: {
+                            $set: {
+                                canvasX: START_X + (i % GRID_COLS) * (BLOCK_WIDTH + GAP_X),
+                                canvasY: START_Y + Math.floor(i / GRID_COLS) * (BLOCK_HEIGHT + GAP_Y),
+                                canvasWidth: block.canvasWidth || 200,
+                                canvasHeight: block.canvasHeight || 150,
+                                blockColor: block.blockColor || 'default'
+                            }
+                        }
+                    }
+                }));
+
+                await CaseNotionBlock.bulkWrite(bulkOps);
+            }
+
+            // Fetch updated blocks with new positions
+            updatedBlocks = await CaseNotionBlock.find({ pageId })
+                .sort({ order: 1 })
+                .populate('lastEditedBy', 'firstName lastName')
+                .populate('lockedBy', 'firstName lastName')
+                .populate('linkedTaskId', 'title status priority');
+        }
+
+        // Get connections for whiteboard view
+        const connections = viewMode === 'whiteboard'
+            ? await BlockConnection.find({ pageId })
+            : [];
+
+        res.json({
+            success: true,
+            data: {
+                ...page.toObject(),
+                blocks: updatedBlocks,
+                connections
+            }
+        });
     } catch (error) {
         res.status(500).json({ error: true, message: error.message });
     }
