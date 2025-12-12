@@ -1,4 +1,19 @@
 const mongoose = require('mongoose');
+const {
+    arabicNameSchema,
+    nationalAddressSchema,
+    sponsorSchema,
+    poBoxSchema,
+    IDENTITY_TYPES,
+    GCC_COUNTRIES,
+    GENDERS,
+    MARITAL_STATUSES,
+    LEGAL_FORMS,
+    RISK_LEVELS,
+    CONFLICT_CHECK_STATUSES,
+    VERIFICATION_SOURCES,
+    PREFERRED_CONTACT_METHODS
+} = require('./schemas/najiz.schema');
 
 const clientSchema = new mongoose.Schema({
     // ─────────────────────────────────────────────────────────
@@ -48,6 +63,30 @@ const clientSchema = new mongoose.Schema({
     idExpiryDate: Date,
 
     // ─────────────────────────────────────────────────────────
+    // NAJIZ IDENTITY FIELDS
+    // ─────────────────────────────────────────────────────────
+    arabicName: arabicNameSchema,
+    salutationAr: { type: String, maxlength: 50 },
+    identityType: { type: String, enum: IDENTITY_TYPES, default: 'national_id' },
+    iqamaNumber: { type: String, match: /^2\d{9}$/, sparse: true, index: true },
+    gccId: { type: String, maxlength: 20 },
+    gccCountry: { type: String, enum: GCC_COUNTRIES },
+    borderNumber: { type: String, maxlength: 20 },
+    visitorId: { type: String, maxlength: 20 },
+    passportNumber: { type: String, maxlength: 20 },
+    passportCountry: { type: String, maxlength: 100 },
+    passportIssueDate: Date,
+    passportExpiryDate: Date,
+    identityIssueDate: Date,
+    identityExpiryDate: Date,
+    placeOfBirth: { type: String, maxlength: 100 },
+    maritalStatus: { type: String, enum: MARITAL_STATUSES },
+    nationalityCode: { type: String, maxlength: 3 },
+
+    // Sponsor (for Iqama holders)
+    sponsor: sponsorSchema,
+
+    // ─────────────────────────────────────────────────────────
     // COMPANY FIELDS (from Wathq API)
     // ─────────────────────────────────────────────────────────
     crNumber: {
@@ -91,6 +130,18 @@ const clientSchema = new mongoose.Schema({
         phone: String,
         email: String
     },
+
+    // ─────────────────────────────────────────────────────────
+    // NAJIZ COMPANY FIELDS
+    // ─────────────────────────────────────────────────────────
+    companyNameAr: { type: String, maxlength: 200 },
+    legalForm: { type: String, enum: LEGAL_FORMS },
+    legalFormAr: { type: String, maxlength: 100 },
+    capitalCurrency: { type: String, default: 'SAR' },
+    authorizedPerson: { type: String, maxlength: 200 },
+    authorizedPersonAr: { type: String, maxlength: 200 },
+    authorizedPersonIdentityType: { type: String, enum: IDENTITY_TYPES },
+    authorizedPersonIdentityNumber: { type: String, maxlength: 20 },
 
     // ─────────────────────────────────────────────────────────
     // CONTACT INFO
@@ -144,6 +195,39 @@ const clientSchema = new mongoose.Schema({
         city: String,
         fullAddress: String
     },
+
+    // ─────────────────────────────────────────────────────────
+    // NAJIZ NATIONAL ADDRESSES
+    // ─────────────────────────────────────────────────────────
+    nationalAddress: nationalAddressSchema,
+    workAddress: nationalAddressSchema,
+    headquartersAddress: nationalAddressSchema,
+    branchAddresses: [nationalAddressSchema],
+    poBox: poBoxSchema,
+
+    // ─────────────────────────────────────────────────────────
+    // NAJIZ COMMUNICATION PREFERENCES
+    // ─────────────────────────────────────────────────────────
+    doNotContact: { type: Boolean, default: false },
+    doNotEmail: { type: Boolean, default: false },
+    doNotCall: { type: Boolean, default: false },
+    doNotSMS: { type: Boolean, default: false },
+
+    // ─────────────────────────────────────────────────────────
+    // NAJIZ RISK & VERIFICATION
+    // ─────────────────────────────────────────────────────────
+    riskLevel: { type: String, enum: RISK_LEVELS },
+    conflictCheckStatus: {
+        type: String,
+        enum: CONFLICT_CHECK_STATUSES,
+        default: 'not_checked'
+    },
+    conflictNotes: String,
+    conflictCheckDate: Date,
+    isVerified: { type: Boolean, default: false },
+    verificationSource: { type: String, enum: VERIFICATION_SOURCES },
+    verifiedAt: Date,
+    verificationData: mongoose.Schema.Types.Mixed,
 
     // ─────────────────────────────────────────────────────────
     // POWER OF ATTORNEY (from MOJ API)
@@ -404,6 +488,16 @@ clientSchema.index({ 'assignments.responsibleLawyerId': 1 });
 clientSchema.index({ status: 1 });
 clientSchema.index({ tags: 1 });
 clientSchema.index({ fullNameArabic: 'text', companyName: 'text', email: 'text' });
+
+// Najiz Indexes
+clientSchema.index({ iqamaNumber: 1 }, { sparse: true });
+clientSchema.index({ 'vatRegistration.vatNumber': 1 }, { sparse: true });
+clientSchema.index({ 'arabicName.fullName': 'text' });
+clientSchema.index({ 'nationalAddress.regionCode': 1 });
+clientSchema.index({ identityType: 1 });
+clientSchema.index({ conflictCheckStatus: 1 });
+clientSchema.index({ isVerified: 1 });
+clientSchema.index({ riskLevel: 1 });
 
 // ─────────────────────────────────────────────────────────
 // GENERATE CLIENT NUMBER

@@ -1,4 +1,18 @@
 const mongoose = require('mongoose');
+const {
+    arabicNameSchema,
+    nationalAddressSchema,
+    sponsorSchema,
+    poBoxSchema,
+    IDENTITY_TYPES,
+    GCC_COUNTRIES,
+    GENDERS,
+    MARITAL_STATUSES,
+    LEGAL_FORMS,
+    RISK_LEVELS,
+    CONFLICT_CHECK_STATUSES,
+    VERIFICATION_SOURCES
+} = require('./schemas/najiz.schema');
 
 // Lead source tracking
 const leadSourceSchema = new mongoose.Schema({
@@ -175,6 +189,90 @@ const leadSchema = new mongoose.Schema({
     },
     nationalId: String,
     commercialRegistration: String,
+
+    // ═══════════════════════════════════════════════════════════════
+    // NAJIZ IDENTITY FIELDS
+    // ═══════════════════════════════════════════════════════════════
+    fullNameArabic: { type: String, maxlength: 200 },
+    fullNameEnglish: { type: String, maxlength: 200 },
+    arabicName: arabicNameSchema,
+    salutationAr: { type: String, maxlength: 50 },
+    identityType: { type: String, enum: IDENTITY_TYPES, default: 'national_id' },
+    iqamaNumber: { type: String, match: /^2\d{9}$/, sparse: true, index: true },
+    gccId: { type: String, maxlength: 20 },
+    gccCountry: { type: String, enum: GCC_COUNTRIES },
+    borderNumber: { type: String, maxlength: 20 },
+    visitorId: { type: String, maxlength: 20 },
+    passportNumber: { type: String, maxlength: 20 },
+    passportCountry: { type: String, maxlength: 100 },
+    passportIssueDate: Date,
+    passportExpiryDate: Date,
+    identityIssueDate: Date,
+    identityExpiryDate: Date,
+
+    // Personal details
+    dateOfBirth: Date,
+    dateOfBirthHijri: { type: String, match: /^1[34]\d{2}\/(0[1-9]|1[0-2])\/(0[1-9]|[12]\d|30)$/ },
+    placeOfBirth: { type: String, maxlength: 100 },
+    gender: { type: String, enum: GENDERS },
+    maritalStatus: { type: String, enum: MARITAL_STATUSES },
+    nationality: { type: String, maxlength: 100 },
+    nationalityCode: { type: String, maxlength: 3 },
+
+    // Sponsor (for Iqama holders)
+    sponsor: sponsorSchema,
+
+    // ═══════════════════════════════════════════════════════════════
+    // NAJIZ COMPANY FIELDS
+    // ═══════════════════════════════════════════════════════════════
+    crNumber: { type: String, match: /^\d{10}$/, sparse: true, index: true },
+    unifiedNumber: { type: String, maxlength: 20 },
+    vatNumber: { type: String, match: /^3\d{14}$/ },
+    legalForm: { type: String, enum: LEGAL_FORMS },
+    legalFormAr: { type: String, maxlength: 100 },
+    capital: { type: Number, min: 0 },
+    capitalCurrency: { type: String, default: 'SAR' },
+    crExpiryDate: Date,
+    authorizedPerson: { type: String, maxlength: 200 },
+    authorizedPersonAr: { type: String, maxlength: 200 },
+    authorizedPersonIdentityType: { type: String, enum: IDENTITY_TYPES },
+    authorizedPersonIdentityNumber: { type: String, maxlength: 20 },
+
+    // ═══════════════════════════════════════════════════════════════
+    // NAJIZ ADDRESSES
+    // ═══════════════════════════════════════════════════════════════
+    nationalAddress: nationalAddressSchema,
+    workAddress: nationalAddressSchema,
+    headquartersAddress: nationalAddressSchema,
+    branchAddresses: [nationalAddressSchema],
+    poBox: poBoxSchema,
+
+    // ═══════════════════════════════════════════════════════════════
+    // NAJIZ COMMUNICATION & RISK
+    // ═══════════════════════════════════════════════════════════════
+    preferredLanguage: { type: String, enum: ['ar', 'en'], default: 'ar' },
+    doNotContact: { type: Boolean, default: false },
+    doNotEmail: { type: Boolean, default: false },
+    doNotCall: { type: Boolean, default: false },
+    doNotSMS: { type: Boolean, default: false },
+    riskLevel: { type: String, enum: RISK_LEVELS },
+    isBlacklisted: { type: Boolean, default: false },
+    blacklistReason: String,
+    conflictCheckStatus: {
+        type: String,
+        enum: CONFLICT_CHECK_STATUSES,
+        default: 'not_checked'
+    },
+    conflictNotes: String,
+    conflictCheckDate: Date,
+
+    // ═══════════════════════════════════════════════════════════════
+    // NAJIZ VERIFICATION
+    // ═══════════════════════════════════════════════════════════════
+    isVerified: { type: Boolean, default: false },
+    verificationSource: { type: String, enum: VERIFICATION_SOURCES },
+    verifiedAt: Date,
+    verificationData: mongoose.Schema.Types.Mixed,
 
     // ═══════════════════════════════════════════════════════════════
     // ORGANIZATION & CONTACT RELATIONSHIPS
@@ -355,6 +453,18 @@ leadSchema.index({ firstName: 'text', lastName: 'text', companyName: 'text', ema
 leadSchema.index({ firmId: 1, status: 1, createdAt: -1 });
 leadSchema.index({ firmId: 1, lawyerId: 1, status: 1 });
 leadSchema.index({ firmId: 1, convertedToClient: 1, createdAt: -1 });
+
+// Najiz Indexes
+leadSchema.index({ nationalId: 1 }, { sparse: true });
+leadSchema.index({ iqamaNumber: 1 }, { sparse: true });
+leadSchema.index({ crNumber: 1 }, { sparse: true });
+leadSchema.index({ vatNumber: 1 }, { sparse: true });
+leadSchema.index({ 'arabicName.fullName': 'text' });
+leadSchema.index({ 'nationalAddress.regionCode': 1 });
+leadSchema.index({ identityType: 1 });
+leadSchema.index({ conflictCheckStatus: 1 });
+leadSchema.index({ isVerified: 1 });
+leadSchema.index({ riskLevel: 1 });
 
 // ═══════════════════════════════════════════════════════════════
 // VIRTUALS

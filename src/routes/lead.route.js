@@ -45,4 +45,181 @@ router.get('/:id/activities', validateLeadIdParam, validateGetActivitiesQuery, l
 router.post('/:id/activities', validateLeadIdParam, validateLogActivity, leadController.logActivity);
 router.post('/:id/follow-up', validateLeadIdParam, validateScheduleFollowUp, leadController.scheduleFollowUp);
 
+// ============================================
+// NAJIZ VERIFICATION ROUTES
+// ============================================
+
+// Wathq - Commercial Registration Verification
+router.post('/:id/verify/wathq', validateLeadIdParam, async (req, res) => {
+    try {
+        const Lead = require('../models/lead.model');
+        const lead = await Lead.findById(req.params.id);
+
+        if (!lead) {
+            return res.status(404).json({ success: false, message: 'Lead not found' });
+        }
+
+        // TODO: Integrate with actual Wathq API
+        lead.isVerified = true;
+        lead.verificationSource = 'wathq';
+        lead.verifiedAt = new Date();
+        lead.verificationData = {
+            method: 'manual',
+            verifiedBy: req.userID,
+            crNumber: req.body.crNumber || lead.crNumber
+        };
+        await lead.save();
+
+        res.json({
+            success: true,
+            message: 'Wathq verification recorded',
+            data: {
+                isVerified: lead.isVerified,
+                verificationSource: lead.verificationSource,
+                verifiedAt: lead.verifiedAt
+            }
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// Absher - National ID / Iqama Verification
+router.post('/:id/verify/absher', validateLeadIdParam, async (req, res) => {
+    try {
+        const Lead = require('../models/lead.model');
+        const lead = await Lead.findById(req.params.id);
+
+        if (!lead) {
+            return res.status(404).json({ success: false, message: 'Lead not found' });
+        }
+
+        // TODO: Integrate with actual Absher API
+        lead.isVerified = true;
+        lead.verificationSource = 'absher';
+        lead.verifiedAt = new Date();
+        lead.verificationData = {
+            method: 'manual',
+            verifiedBy: req.userID,
+            nationalId: req.body.nationalId || lead.nationalId,
+            iqamaNumber: req.body.iqamaNumber || lead.iqamaNumber
+        };
+        await lead.save();
+
+        res.json({
+            success: true,
+            message: 'Absher verification recorded',
+            data: {
+                isVerified: lead.isVerified,
+                verificationSource: lead.verificationSource,
+                verifiedAt: lead.verifiedAt
+            }
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// Saudi Post - National Address Verification
+router.post('/:id/verify/address', validateLeadIdParam, async (req, res) => {
+    try {
+        const Lead = require('../models/lead.model');
+        const lead = await Lead.findById(req.params.id);
+
+        if (!lead) {
+            return res.status(404).json({ success: false, message: 'Lead not found' });
+        }
+
+        // TODO: Integrate with actual Saudi Post API
+        if (!lead.nationalAddress) {
+            lead.nationalAddress = {};
+        }
+
+        if (req.body) {
+            Object.assign(lead.nationalAddress, req.body);
+        }
+
+        lead.nationalAddress.isVerified = true;
+        lead.nationalAddress.verifiedAt = new Date();
+        await lead.save();
+
+        res.json({
+            success: true,
+            message: 'Address verification recorded',
+            data: {
+                nationalAddress: lead.nationalAddress
+            }
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// Conflict Check
+router.post('/:id/conflict-check', validateLeadIdParam, async (req, res) => {
+    try {
+        const Lead = require('../models/lead.model');
+        const lead = await Lead.findById(req.params.id);
+
+        if (!lead) {
+            return res.status(404).json({ success: false, message: 'Lead not found' });
+        }
+
+        // Run conflict check against existing clients and leads
+        const Client = require('../models/client.model');
+        const conflicts = [];
+
+        // Check by national ID
+        if (lead.nationalId) {
+            const existingClient = await Client.findOne({
+                firmId: lead.firmId,
+                nationalId: lead.nationalId,
+                _id: { $ne: lead._id }
+            });
+            if (existingClient) {
+                conflicts.push({
+                    type: 'nationalId',
+                    entity: 'client',
+                    entityId: existingClient._id,
+                    message: 'Client exists with same National ID'
+                });
+            }
+        }
+
+        // Check by CR number
+        if (lead.crNumber) {
+            const existingClient = await Client.findOne({
+                firmId: lead.firmId,
+                crNumber: lead.crNumber,
+                _id: { $ne: lead._id }
+            });
+            if (existingClient) {
+                conflicts.push({
+                    type: 'crNumber',
+                    entity: 'client',
+                    entityId: existingClient._id,
+                    message: 'Client exists with same CR Number'
+                });
+            }
+        }
+
+        lead.conflictCheckStatus = conflicts.length > 0 ? 'potential_conflict' : 'clear';
+        lead.conflictCheckDate = new Date();
+        lead.conflictNotes = conflicts.length > 0 ? JSON.stringify(conflicts) : 'No conflicts found';
+        await lead.save();
+
+        res.json({
+            success: true,
+            hasConflict: conflicts.length > 0,
+            conflicts,
+            data: {
+                conflictCheckStatus: lead.conflictCheckStatus,
+                conflictCheckDate: lead.conflictCheckDate
+            }
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
 module.exports = router;
