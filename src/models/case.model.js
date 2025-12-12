@@ -216,12 +216,32 @@ const caseSchema = new mongoose.Schema({
         description: String
     }],
     notes: [{
-        text: String,
+        text: {
+            type: String,
+            required: true,
+            maxlength: 5000
+        },
+        date: {
+            type: Date,
+            default: Date.now
+        },
         createdBy: {
             type: mongoose.Schema.Types.ObjectId,
             ref: 'User'
         },
-        createdAt: { type: Date, default: Date.now }
+        createdAt: { type: Date, default: Date.now },
+        isPrivate: {
+            type: Boolean,
+            default: false
+        },
+        // Optional: link note to a specific stage
+        stageId: String,
+        // Optional: attachments
+        attachments: [{
+            filename: String,
+            url: String,
+            size: Number
+        }]
     }],
     documents: [{
         filename: String,
@@ -870,6 +890,13 @@ const caseSchema = new mongoose.Schema({
 
     // Current stage in the pipeline (e.g., 'filing', 'friendly_settlement_1', 'labor_court')
     currentStage: {
+        type: String,
+        default: 'filing',
+        index: true
+    },
+
+    // Alias for backwards compatibility (synced with currentStage)
+    pipelineStage: {
         type: String,
         default: 'filing',
         index: true

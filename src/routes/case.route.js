@@ -210,6 +210,148 @@ app.get('/',
     getCases
 );
 
+// ==================== PIPELINE (defined before /:_id routes) ====================
+/**
+ * @openapi
+ * /api/cases/pipeline:
+ *   get:
+ *     summary: Get cases for pipeline view
+ *     description: Returns cases formatted for pipeline kanban view with linked item counts
+ *     tags:
+ *       - Cases
+ *       - Pipeline
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: category
+ *         schema:
+ *           type: string
+ *         description: Filter by case category (labor, commercial, civil, etc.)
+ *       - in: query
+ *         name: outcome
+ *         schema:
+ *           type: string
+ *           enum: [ongoing, won, lost, settled]
+ *         description: Filter by outcome
+ *       - in: query
+ *         name: priority
+ *         schema:
+ *           type: string
+ *           enum: [low, medium, high, critical]
+ *         description: Filter by priority
+ *     responses:
+ *       200:
+ *         description: Cases retrieved successfully with pipeline data
+ */
+app.get('/pipeline',
+    userMiddleware,
+    firmFilter,
+    cacheResponse(CASE_CACHE_TTL, (req) => `case:firm:${req.firmId || 'none'}:pipeline:${req.originalUrl}`),
+    casePipelineController.getCasesForPipeline
+);
+
+/**
+ * @openapi
+ * /api/cases/pipeline/statistics:
+ *   get:
+ *     summary: Get pipeline statistics
+ *     description: Returns aggregated statistics for pipeline view
+ *     tags:
+ *       - Cases
+ *       - Pipeline
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: category
+ *         schema:
+ *           type: string
+ *         description: Filter by case category
+ *       - in: query
+ *         name: dateFrom
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Start date filter
+ *       - in: query
+ *         name: dateTo
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: End date filter
+ *     responses:
+ *       200:
+ *         description: Statistics retrieved successfully
+ */
+app.get('/pipeline/statistics',
+    userMiddleware,
+    firmFilter,
+    cacheResponse(CASE_CACHE_TTL, (req) => `case:firm:${req.firmId || 'none'}:pipeline:statistics:${req.originalUrl}`),
+    casePipelineController.getPipelineStatistics
+);
+
+/**
+ * @openapi
+ * /api/cases/pipeline/stages/{category}:
+ *   get:
+ *     summary: Get valid stages for category
+ *     description: Returns the valid stage IDs for a given case category
+ *     tags:
+ *       - Cases
+ *       - Pipeline
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: category
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Case category (labor, commercial, civil, etc.)
+ *     responses:
+ *       200:
+ *         description: Valid stages retrieved successfully
+ */
+app.get('/pipeline/stages/:category',
+    userMiddleware,
+    casePipelineController.getValidStages
+);
+
+/**
+ * @openapi
+ * /api/cases/pipeline/grouped:
+ *   get:
+ *     summary: Get cases grouped by stage (Kanban board)
+ *     description: Returns cases grouped by pipeline stage for Kanban board view
+ *     tags:
+ *       - Cases
+ *       - Pipeline
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: category
+ *         schema:
+ *           type: string
+ *         description: Filter by case category
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           enum: [active, closed, all]
+ *         description: Filter by status (active excludes closed/completed)
+ *     responses:
+ *       200:
+ *         description: Cases grouped by stage successfully
+ */
+app.get('/pipeline/grouped',
+    userMiddleware,
+    firmFilter,
+    cacheResponse(CASE_CACHE_TTL, (req) => `case:firm:${req.firmId || 'none'}:pipeline:grouped:${req.originalUrl}`),
+    casePipelineController.getCasesByStage
+);
+
 /**
  * @openapi
  * /api/cases/{_id}:
@@ -348,7 +490,104 @@ app.patch('/:_id/progress',
 );
 
 // ==================== NOTES ====================
-// Add note
+/**
+ * @openapi
+ * /api/cases/{_id}/notes:
+ *   get:
+ *     summary: Get notes for a case
+ *     description: Returns all notes for a case with pagination
+ *     tags:
+ *       - Cases
+ *       - Notes
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: _id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Case ID
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: number
+ *           default: 50
+ *         description: Max notes to return
+ *       - in: query
+ *         name: offset
+ *         schema:
+ *           type: number
+ *           default: 0
+ *         description: Skip notes
+ *       - in: query
+ *         name: sort
+ *         schema:
+ *           type: string
+ *           default: -date
+ *         description: Sort field (prefix with - for descending)
+ *     responses:
+ *       200:
+ *         description: Notes retrieved successfully
+ */
+app.get('/:_id/notes',
+    userMiddleware,
+    firmFilter,
+    validateObjectIdParam,
+    cacheResponse(CASE_CACHE_TTL, (req) => `case:firm:${req.firmId || 'none'}:${req.params._id}:notes`),
+    casePipelineController.getNotes
+);
+
+/**
+ * @openapi
+ * /api/cases/{_id}/notes:
+ *   post:
+ *     summary: Add a note to a case
+ *     description: Add a new note with optional privacy and stage linking
+ *     tags:
+ *       - Cases
+ *       - Notes
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: _id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Case ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - text
+ *             properties:
+ *               text:
+ *                 type: string
+ *                 description: Note text content
+ *               isPrivate:
+ *                 type: boolean
+ *                 default: false
+ *                 description: Whether note is private to creator
+ *               stageId:
+ *                 type: string
+ *                 description: Link note to specific stage
+ *     responses:
+ *       200:
+ *         description: Note added successfully
+ */
+app.post('/:_id/notes',
+    userMiddleware,
+    firmFilter,
+    validateObjectIdParam,
+    invalidateCache(['case:firm:{firmId}:{_id}:*']),
+    casePipelineController.addNote
+);
+
+// Legacy add note endpoint
 app.post('/:_id/note',
     userMiddleware,
     firmFilter,
@@ -358,7 +597,54 @@ app.post('/:_id/note',
     addNote
 );
 
-// Update note
+/**
+ * @openapi
+ * /api/cases/{_id}/notes/{noteId}:
+ *   put:
+ *     summary: Update a note
+ *     description: Update note text or privacy setting
+ *     tags:
+ *       - Cases
+ *       - Notes
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: _id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Case ID
+ *       - in: path
+ *         name: noteId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Note ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               text:
+ *                 type: string
+ *               isPrivate:
+ *                 type: boolean
+ *     responses:
+ *       200:
+ *         description: Note updated successfully
+ */
+app.put('/:_id/notes/:noteId',
+    userMiddleware,
+    firmFilter,
+    validateNestedIdParam,
+    invalidateCache(['case:firm:{firmId}:{_id}:*']),
+    casePipelineController.updateNote
+);
+
+// Update note (PATCH)
 app.patch('/:_id/notes/:noteId',
     userMiddleware,
     firmFilter,
@@ -368,7 +654,32 @@ app.patch('/:_id/notes/:noteId',
     updateNote
 );
 
-// Delete note
+/**
+ * @openapi
+ * /api/cases/{_id}/notes/{noteId}:
+ *   delete:
+ *     summary: Delete a note
+ *     description: Delete a note from a case
+ *     tags:
+ *       - Cases
+ *       - Notes
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: _id
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: path
+ *         name: noteId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Note deleted successfully
+ */
 app.delete('/:_id/notes/:noteId',
     userMiddleware,
     firmFilter,
@@ -679,114 +990,7 @@ app.get('/:_id/rich-documents/:docId/preview',
     getRichDocumentPreview
 );
 
-// ==================== PIPELINE ====================
-/**
- * @openapi
- * /api/cases/pipeline:
- *   get:
- *     summary: Get cases for pipeline view
- *     description: Returns cases formatted for pipeline kanban view with linked item counts
- *     tags:
- *       - Cases
- *       - Pipeline
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: query
- *         name: category
- *         schema:
- *           type: string
- *         description: Filter by case category (labor, commercial, civil, etc.)
- *       - in: query
- *         name: outcome
- *         schema:
- *           type: string
- *           enum: [ongoing, won, lost, settled]
- *         description: Filter by outcome
- *       - in: query
- *         name: priority
- *         schema:
- *           type: string
- *           enum: [low, medium, high, critical]
- *         description: Filter by priority
- *     responses:
- *       200:
- *         description: Cases retrieved successfully with pipeline data
- */
-app.get('/pipeline',
-    userMiddleware,
-    firmFilter,
-    cacheResponse(CASE_CACHE_TTL, (req) => `case:firm:${req.firmId || 'none'}:pipeline:${req.originalUrl}`),
-    casePipelineController.getCasesForPipeline
-);
-
-/**
- * @openapi
- * /api/cases/pipeline/statistics:
- *   get:
- *     summary: Get pipeline statistics
- *     description: Returns aggregated statistics for pipeline view
- *     tags:
- *       - Cases
- *       - Pipeline
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: query
- *         name: category
- *         schema:
- *           type: string
- *         description: Filter by case category
- *       - in: query
- *         name: dateFrom
- *         schema:
- *           type: string
- *           format: date
- *         description: Start date filter
- *       - in: query
- *         name: dateTo
- *         schema:
- *           type: string
- *           format: date
- *         description: End date filter
- *     responses:
- *       200:
- *         description: Statistics retrieved successfully
- */
-app.get('/pipeline/statistics',
-    userMiddleware,
-    firmFilter,
-    cacheResponse(CASE_CACHE_TTL, (req) => `case:firm:${req.firmId || 'none'}:pipeline:statistics:${req.originalUrl}`),
-    casePipelineController.getPipelineStatistics
-);
-
-/**
- * @openapi
- * /api/cases/pipeline/stages/{category}:
- *   get:
- *     summary: Get valid stages for category
- *     description: Returns the valid stage IDs for a given case category
- *     tags:
- *       - Cases
- *       - Pipeline
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: category
- *         required: true
- *         schema:
- *           type: string
- *         description: Case category (labor, commercial, civil, etc.)
- *     responses:
- *       200:
- *         description: Valid stages retrieved successfully
- */
-app.get('/pipeline/stages/:category',
-    userMiddleware,
-    casePipelineController.getValidStages
-);
-
+// ==================== PIPELINE CASE ACTIONS ====================
 /**
  * @openapi
  * /api/cases/{_id}/stage:
