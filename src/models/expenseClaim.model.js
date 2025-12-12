@@ -1220,6 +1220,16 @@ expenseClaimSchema.index({ 'payment.paymentStatus': 1 });
 
 // Generate claim ID and calculate totals
 expenseClaimSchema.pre('save', async function(next) {
+    const { toHalalas, addAmounts, subtractAmounts } = require('../utils/currency');
+    const normalizeHalalas = (value = 0) => Number.isInteger(value) ? value : toHalalas(value);
+
+    // Ensure nested objects exist before mutation
+    this.totals = this.totals || {};
+    this.payment = this.payment || {};
+    this.advanceSettlement = this.advanceSettlement || {};
+    this.travelDetails = this.travelDetails || {};
+    this.mileageClaim = this.mileageClaim || {};
+
     // Generate claim ID: EXP-{YYYYMM}-{####}
     if (!this.claimId) {
         const now = new Date();
@@ -1257,33 +1267,34 @@ expenseClaimSchema.pre('save', async function(next) {
 
         for (const item of this.lineItems) {
             // Calculate item totals
-            const itemAmount = item.amount || 0;
-            const itemVat = item.vatAmount || 0;
-            item.totalAmount = itemAmount + itemVat;
+            const itemAmount = normalizeHalalas(item.amount || 0);
+            const itemVat = normalizeHalalas(item.vatAmount || 0);
+            item.totalAmount = addAmounts(itemAmount, itemVat);
 
             // Convert to SAR if needed
             if (item.currency && item.currency !== 'SAR' && item.exchangeRate) {
-                item.amountInSAR = item.totalAmount * item.exchangeRate;
+                const itemSar = toHalalas((item.totalAmount / 100) * item.exchangeRate);
+                item.amountInSAR = itemSar;
             } else {
                 item.amountInSAR = item.totalAmount;
             }
 
-            subtotal += itemAmount;
-            vatTotal += itemVat;
+            subtotal = addAmounts(subtotal, itemAmount);
+            vatTotal = addAmounts(vatTotal, itemVat);
 
             // Track by category
             const category = item.category || 'other';
             if (!categoryAmounts[category]) {
                 categoryAmounts[category] = { amount: 0, count: 0 };
             }
-            categoryAmounts[category].amount += item.totalAmount;
+            categoryAmounts[category].amount = addAmounts(categoryAmounts[category].amount, item.totalAmount);
             categoryAmounts[category].count += 1;
 
             // Track billable
             if (item.isBillable) {
-                billableAmount += item.totalAmount;
+                billableAmount = addAmounts(billableAmount, item.totalAmount);
             } else {
-                nonBillableAmount += item.totalAmount;
+                nonBillableAmount = addAmounts(nonBillableAmount, item.totalAmount);
             }
 
             // Track missing receipts
@@ -1294,7 +1305,7 @@ expenseClaimSchema.pre('save', async function(next) {
 
         this.totals.subtotal = subtotal;
         this.totals.vatTotal = vatTotal;
-        this.totals.grandTotal = subtotal + vatTotal;
+        this.totals.grandTotal = addAmounts(subtotal, vatTotal);
         this.totals.billableAmount = billableAmount;
         this.totals.nonBillableAmount = nonBillableAmount;
         this.totals.amountsByCategory = Object.entries(categoryAmounts).map(([category, data]) => ({
@@ -1307,26 +1318,43 @@ expenseClaimSchema.pre('save', async function(next) {
         this.allReceiptsAttached = missingReceiptsCount === 0;
 
         // Calculate pending amount
-        this.totals.pendingAmount = this.totals.grandTotal - (this.totals.paidAmount || 0);
+        const approvedAmount = normalizeHalalas(this.totals.approvedAmount || this.payment.approvedAmount || this.totals.grandTotal);
+        const paidAmount = normalizeHalalas(this.totals.paidAmount || 0);
+        const advanceApplied = normalizeHalalas(this.advanceSettlement.advanceAmount || 0);
+        const refundDue = normalizeHalalas(this.advanceSettlement.refundDue || 0);
+        const additionalClaim = normalizeHalalas(this.advanceSettlement.additionalClaim || 0);
+        const totalDeductions = normalizeHalalas(this.payment.totalDeductions || 0);
+        let pendingAmount = addAmounts(approvedAmount, additionalClaim);
+        pendingAmount = subtractAmounts(pendingAmount, paidAmount);
+        pendingAmount = subtractAmounts(pendingAmount, advanceApplied);
+        pendingAmount = subtractAmounts(pendingAmount, totalDeductions);
+        pendingAmount = subtractAmounts(pendingAmount, refundDue);
+        this.totals.pendingAmount = pendingAmount;
     }
 
     // Calculate travel totals
     if (this.travelDetails?.isTravelClaim) {
+        const addHalalas = (...values) => values.reduce((sum, value) => addAmounts(sum, normalizeHalalas(value || 0)), 0);
+
         this.travelDetails.totalFlightCost = (this.travelDetails.flights || [])
-            .reduce((sum, f) => sum + (f.ticketCost || 0) + (f.baggageCost || 0), 0);
+            .reduce((sum, f) => addAmounts(sum, addHalalas(f.ticketCost, f.baggageCost)), 0);
 
         this.travelDetails.totalAccommodationCost = (this.travelDetails.accommodation || [])
-            .reduce((sum, a) => sum + (a.totalCost || 0), 0);
+            .reduce((sum, a) => addAmounts(sum, normalizeHalalas(a.totalCost || 0)), 0);
 
         this.travelDetails.totalTransportationCost = (this.travelDetails.groundTransport || [])
-            .reduce((sum, t) => sum + (t.amount || 0), 0);
+            .reduce((sum, t) => addAmounts(sum, normalizeHalalas(t.amount || 0)), 0);
 
-        this.travelDetails.totalTravelCost =
-            this.travelDetails.totalFlightCost +
-            this.travelDetails.totalAccommodationCost +
-            this.travelDetails.totalTransportationCost +
-            (this.travelDetails.perDiem?.totalPerDiem || 0) +
-            (this.travelDetails.visaFees?.totalVisaFees || 0);
+        const perDiemTotal = normalizeHalalas(this.travelDetails.perDiem?.totalPerDiem || 0);
+        const visaFeesTotal = normalizeHalalas(this.travelDetails.visaFees?.totalVisaFees || 0);
+
+        this.travelDetails.totalTravelCost = addHalalas(
+            this.travelDetails.totalFlightCost,
+            this.travelDetails.totalAccommodationCost,
+            this.travelDetails.totalTransportationCost,
+            perDiemTotal,
+            visaFeesTotal
+        );
     }
 
     // Calculate mileage totals
@@ -1338,7 +1366,7 @@ expenseClaimSchema.pre('save', async function(next) {
         }, 0);
 
         this.mileageClaim.totalMileageAmount = journeys.reduce((sum, j) => {
-            return sum + (j.mileageAmount || 0);
+            return addAmounts(sum, normalizeHalalas(j.mileageAmount || 0));
         }, 0);
     }
 
@@ -1360,24 +1388,25 @@ expenseClaimSchema.pre('save', async function(next) {
         };
 
         for (const txn of transactions) {
-            summary.totalAmount += txn.billedAmount || 0;
+            const billedAmount = normalizeHalalas(txn.billedAmount || 0);
+            summary.totalAmount = addAmounts(summary.totalAmount, billedAmount);
 
             if (txn.isReconciled) {
                 summary.reconciledTransactions += 1;
-                summary.reconciledAmount += txn.billedAmount || 0;
+                summary.reconciledAmount = addAmounts(summary.reconciledAmount, billedAmount);
             } else {
                 summary.unreconciledTransactions += 1;
-                summary.unreconciledAmount += txn.billedAmount || 0;
+                summary.unreconciledAmount = addAmounts(summary.unreconciledAmount, billedAmount);
             }
 
             if (txn.personalTransaction?.isPersonal) {
                 summary.personalTransactions += 1;
-                summary.personalAmount += txn.billedAmount || 0;
+                summary.personalAmount = addAmounts(summary.personalAmount, billedAmount);
             }
 
             if (txn.isDisputed) {
                 summary.disputedTransactions += 1;
-                summary.disputedAmount += txn.billedAmount || 0;
+                summary.disputedAmount = addAmounts(summary.disputedAmount, billedAmount);
             }
         }
 

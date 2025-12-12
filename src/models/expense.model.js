@@ -479,6 +479,9 @@ expenseSchema.index({ expenseType: 1, reimbursementStatus: 1 });
 // PRE-SAVE HOOKS
 // ═══════════════════════════════════════════════════════════════
 expenseSchema.pre('save', async function(next) {
+    const { toHalalas, addAmounts, calculatePercentage } = require('../utils/currency');
+    const normalizeHalalas = (value = 0) => Number.isInteger(value) ? value : toHalalas(value);
+
     // Generate expense ID
     if (!this.expenseId) {
         const date = new Date();
@@ -499,15 +502,21 @@ expenseSchema.pre('save', async function(next) {
         this.expenseNumber = this.expenseId;
     }
 
+    this.amount = normalizeHalalas(this.amount);
+    this.taxAmount = normalizeHalalas(this.taxAmount);
+
     // Calculate totalAmount
-    this.totalAmount = (this.amount || 0) + (this.taxAmount || 0);
+    this.totalAmount = addAmounts(this.amount || 0, this.taxAmount || 0);
 
     // Calculate billable amount with markup
     if (this.isBillable) {
         if (this.markupType === 'percentage') {
-            this.billableAmount = this.totalAmount * (1 + (this.markupValue || 0) / 100);
+            this.billableAmount = addAmounts(
+                this.totalAmount,
+                calculatePercentage(this.totalAmount, this.markupValue || 0)
+            );
         } else if (this.markupType === 'fixed') {
-            this.billableAmount = this.totalAmount + (this.markupValue || 0);
+            this.billableAmount = addAmounts(this.totalAmount, normalizeHalalas(this.markupValue || 0));
         } else {
             this.billableAmount = this.totalAmount;
         }
@@ -519,7 +528,7 @@ expenseSchema.pre('save', async function(next) {
     if (this.travelDetails && this.travelDetails.mileage) {
         const mileage = this.travelDetails.mileage;
         if (mileage.distance && mileage.rate) {
-            this.travelDetails.mileage.amount = mileage.distance * mileage.rate;
+            this.travelDetails.mileage.amount = normalizeHalalas(mileage.distance * mileage.rate);
         }
     }
 
@@ -527,7 +536,7 @@ expenseSchema.pre('save', async function(next) {
     if (this.travelDetails && this.travelDetails.perDiem && this.travelDetails.perDiem.enabled) {
         const perDiem = this.travelDetails.perDiem;
         if (perDiem.rate && perDiem.days) {
-            this.travelDetails.perDiem.amount = perDiem.rate * perDiem.days;
+            this.travelDetails.perDiem.amount = normalizeHalalas(perDiem.rate * perDiem.days);
         }
     }
 
