@@ -146,6 +146,16 @@ exports.listPages = async (req, res) => {
         const { pageType, search, isFavorite, isPinned, isArchived, page = 1, limit = 50 } = req.query;
         const userId = req.userID || req.user?._id;
 
+        // DEBUG: Log all inputs
+        console.log('=== caseNotion.listPages DEBUG ===');
+        console.log('URL:', req.originalUrl);
+        console.log('caseId:', caseId);
+        console.log('req.userID:', req.userID);
+        console.log('req.user?._id:', req.user?._id?.toString());
+        console.log('userId resolved to:', userId?.toString());
+        console.log('req.user?.firmId:', req.user?.firmId?.toString());
+        console.log('req.case (from middleware):', req.case?._id?.toString());
+
         const query = {
             caseId,
             deletedAt: null
@@ -158,11 +168,13 @@ exports.listPages = async (req, res) => {
                 { lawyerId: userId },
                 { createdBy: userId }
             ];
+            console.log('Firm user - using $or filter');
         } else {
             query.$or = [
                 { lawyerId: userId },
                 { createdBy: userId }
             ];
+            console.log('Non-firm user - using $or filter with lawyerId/createdBy');
         }
 
         if (pageType) query.pageType = pageType;
@@ -178,6 +190,8 @@ exports.listPages = async (req, res) => {
             query.$text = { $search: search };
         }
 
+        console.log('Final query:', JSON.stringify(query, null, 2));
+
         const pages = await CaseNotionPage.find(query)
             .sort({ isPinned: -1, isFavorite: -1, updatedAt: -1 })
             .skip((page - 1) * limit)
@@ -187,11 +201,14 @@ exports.listPages = async (req, res) => {
 
         const count = await CaseNotionPage.countDocuments(query);
 
+        console.log('Found', count, 'pages');
+
         res.json({
             success: true,
             data: { pages, count, totalPages: Math.ceil(count / limit) }
         });
     } catch (error) {
+        console.log('listPages ERROR:', error.message);
         res.status(500).json({ error: true, message: error.message });
     }
 };

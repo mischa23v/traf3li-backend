@@ -29,6 +29,17 @@ exports.getCasesForPipeline = async (req, res) => {
         const { category, outcome, priority, page = 1, limit = 100 } = req.query;
         const userId = req.userID || req.user?._id;
 
+        // DEBUG: Log all inputs
+        console.log('=== getCasesForPipeline DEBUG ===');
+        console.log('URL:', req.originalUrl);
+        console.log('req.userID:', req.userID);
+        console.log('req.user?._id:', req.user?._id?.toString());
+        console.log('userId resolved to:', userId?.toString());
+        console.log('req.user?.firmId:', req.user?.firmId?.toString());
+        console.log('req.firmId:', req.firmId?.toString());
+        console.log('req.isSoloLawyer:', req.isSoloLawyer);
+        console.log('Query params:', { category, outcome, priority, page, limit });
+
         // Build match stage
         const matchStage = { deletedAt: null };
 
@@ -38,8 +49,10 @@ exports.getCasesForPipeline = async (req, res) => {
                 { firmId: new mongoose.Types.ObjectId(req.user.firmId) },
                 { lawyerId: new mongoose.Types.ObjectId(userId) }
             ];
+            console.log('Firm user - using $or filter with firmId:', req.user.firmId, 'and lawyerId:', userId);
         } else {
             matchStage.lawyerId = new mongoose.Types.ObjectId(userId);
+            console.log('Non-firm user - filtering by lawyerId only:', userId);
         }
 
         // Apply filters
@@ -52,6 +65,8 @@ exports.getCasesForPipeline = async (req, res) => {
         if (priority && priority !== 'all') {
             matchStage.priority = priority;
         }
+
+        console.log('Final matchStage:', JSON.stringify(matchStage, null, 2));
 
         // Aggregation pipeline
         const cases = await Case.aggregate([
