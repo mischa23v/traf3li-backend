@@ -15,23 +15,36 @@ const Case = require('../models/case.model');
 exports.listCasesWithNotion = async (req, res) => {
     try {
         const { search, status, sortBy = 'updatedAt', sortOrder = 'desc', page = 1, limit = 20 } = req.query;
+        const userId = req.userID || req.user?._id;
 
         const matchStage = {
             deletedAt: null
         };
 
-        // Add firm/lawyer filter
-        if (req.user.firmId) {
-            matchStage.firmId = new mongoose.Types.ObjectId(req.user.firmId);
+        // Add firm/lawyer filter - include cases from firm OR where user is the lawyer
+        if (req.user?.firmId) {
+            matchStage.$or = [
+                { firmId: new mongoose.Types.ObjectId(req.user.firmId) },
+                { lawyerId: new mongoose.Types.ObjectId(userId) }
+            ];
         } else {
-            matchStage.lawyerId = new mongoose.Types.ObjectId(req.user._id);
+            matchStage.lawyerId = new mongoose.Types.ObjectId(userId);
         }
 
         if (search) {
-            matchStage.$or = [
-                { title: { $regex: search, $options: 'i' } },
-                { caseNumber: { $regex: search, $options: 'i' } }
-            ];
+            // If we already have $or for firm/lawyer filter, we need to use $and
+            const searchCondition = {
+                $or: [
+                    { title: { $regex: search, $options: 'i' } },
+                    { caseNumber: { $regex: search, $options: 'i' } }
+                ]
+            };
+            if (matchStage.$or) {
+                matchStage.$and = [{ $or: matchStage.$or }, searchCondition];
+                delete matchStage.$or;
+            } else {
+                matchStage.$or = searchCondition.$or;
+            }
         }
 
         if (status && status !== 'all') {
@@ -131,17 +144,25 @@ exports.listPages = async (req, res) => {
     try {
         const { caseId } = req.params;
         const { pageType, search, isFavorite, isPinned, isArchived, page = 1, limit = 50 } = req.query;
+        const userId = req.userID || req.user?._id;
 
         const query = {
             caseId,
             deletedAt: null
         };
 
-        // Add firm/lawyer filter
-        if (req.user.firmId) {
-            query.firmId = req.user.firmId;
+        // Add firm/lawyer filter - include pages from firm OR created by user
+        if (req.user?.firmId) {
+            query.$or = [
+                { firmId: req.user.firmId },
+                { lawyerId: userId },
+                { createdBy: userId }
+            ];
         } else {
-            query.lawyerId = req.user._id;
+            query.$or = [
+                { lawyerId: userId },
+                { createdBy: userId }
+            ];
         }
 
         if (pageType) query.pageType = pageType;
@@ -178,6 +199,7 @@ exports.listPages = async (req, res) => {
 exports.getPage = async (req, res) => {
     try {
         const { caseId, pageId } = req.params;
+        const userId = req.userID || req.user?._id;
 
         const query = {
             _id: pageId,
@@ -185,10 +207,18 @@ exports.getPage = async (req, res) => {
             deletedAt: null
         };
 
-        if (req.user.firmId) {
-            query.firmId = req.user.firmId;
+        // Add firm/lawyer filter - include pages from firm OR created by user
+        if (req.user?.firmId) {
+            query.$or = [
+                { firmId: req.user.firmId },
+                { lawyerId: userId },
+                { createdBy: userId }
+            ];
         } else {
-            query.lawyerId = req.user._id;
+            query.$or = [
+                { lawyerId: userId },
+                { createdBy: userId }
+            ];
         }
 
         const page = await CaseNotionPage.findOne(query)
@@ -1017,6 +1047,7 @@ exports.search = async (req, res) => {
     try {
         const { caseId } = req.params;
         const { q } = req.query;
+        const userId = req.userID || req.user?._id;
 
         if (!q || q.length < 2) {
             return res.json({ success: true, data: { results: [], count: 0 } });
@@ -1028,10 +1059,18 @@ exports.search = async (req, res) => {
             archivedAt: null
         };
 
-        if (req.user.firmId) {
-            query.firmId = req.user.firmId;
+        // Add firm/lawyer filter - include pages from firm OR created by user
+        if (req.user?.firmId) {
+            query.$or = [
+                { firmId: req.user.firmId },
+                { lawyerId: userId },
+                { createdBy: userId }
+            ];
         } else {
-            query.lawyerId = req.user._id;
+            query.$or = [
+                { lawyerId: userId },
+                { createdBy: userId }
+            ];
         }
 
         // Search in page titles
