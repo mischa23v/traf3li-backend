@@ -13,16 +13,22 @@ const checkCaseAccess = (caseDoc, userId, firmId, requireLawyer = false, isSoloL
     // DEBUG: Log all inputs
     console.log('=== checkCaseAccess DEBUG ===');
     console.log('Case ID:', caseDoc._id?.toString());
-    console.log('Case lawyerId:', caseDoc.lawyerId?.toString());
-    console.log('Case clientId:', caseDoc.clientId?.toString());
-    console.log('Case firmId:', caseDoc.firmId?.toString());
     console.log('User ID:', userId);
     console.log('User firmId:', firmId?.toString());
     console.log('requireLawyer:', requireLawyer);
     console.log('isSoloLawyer:', isSoloLawyer);
 
-    const isLawyer = caseDoc.lawyerId && caseDoc.lawyerId.toString() === userId;
-    const isClient = caseDoc.clientId && caseDoc.clientId.toString() === userId;
+    // Handle both populated and non-populated lawyerId/clientId
+    // When populated, lawyerId is an object with _id; when not, it's just an ObjectId
+    const caseLawyerId = caseDoc.lawyerId?._id?.toString() || caseDoc.lawyerId?.toString();
+    const caseClientId = caseDoc.clientId?._id?.toString() || caseDoc.clientId?.toString();
+
+    console.log('Case lawyerId (resolved):', caseLawyerId);
+    console.log('Case clientId (resolved):', caseClientId);
+    console.log('Case firmId:', caseDoc.firmId?.toString());
+
+    const isLawyer = caseLawyerId && caseLawyerId === userId;
+    const isClient = caseClientId && caseClientId === userId;
 
     console.log('isLawyer:', isLawyer);
     console.log('isClient:', isClient);
