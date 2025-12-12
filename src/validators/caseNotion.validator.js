@@ -141,7 +141,15 @@ const createBlockSchema = Joi.object({
     eventType: Joi.string().optional()
 });
 
+// Block colors and priority for whiteboard
+const BLOCK_COLORS = ['default', 'red', 'orange', 'yellow', 'green', 'blue', 'purple', 'pink', 'gray'];
+const PRIORITY_LEVELS = ['low', 'medium', 'high', 'urgent'];
+
 const updateBlockSchema = Joi.object({
+    // Support nested data wrapper format
+    data: Joi.object().optional(),
+
+    // Basic block fields
     type: Joi.string()
         .optional()
         .valid(...BLOCK_TYPES),
@@ -156,12 +164,39 @@ const updateBlockSchema = Joi.object({
     fileUrl: Joi.string().optional(),
     fileName: Joi.string().optional(),
     caption: Joi.string().optional(),
+    order: Joi.number().optional(),
+    indent: Joi.number().min(0).max(10).optional(),
+
+    // Legal-specific fields
     partyType: Joi.string().valid('plaintiff', 'defendant', 'witness', 'expert', 'judge').optional(),
     statementDate: Joi.date().optional(),
     evidenceType: Joi.string().valid('document', 'testimony', 'physical', 'digital', 'expert_opinion').optional(),
+    evidenceDate: Joi.date().optional(),
+    evidenceSource: Joi.string().optional(),
     citationType: Joi.string().valid('law', 'regulation', 'case_precedent', 'legal_principle').optional(),
     citationReference: Joi.string().optional(),
-    eventDate: Joi.date().optional()
+    eventDate: Joi.date().optional(),
+    eventType: Joi.string().optional(),
+
+    // Whiteboard canvas positioning
+    canvasX: Joi.number().min(0).max(10000).optional(),
+    canvasY: Joi.number().min(0).max(10000).optional(),
+    canvasWidth: Joi.number().min(150).max(800).optional(),
+    canvasHeight: Joi.number().min(100).max(600).optional(),
+
+    // Whiteboard visual styling
+    blockColor: Joi.string().valid(...BLOCK_COLORS).optional(),
+    priority: Joi.string().valid(...PRIORITY_LEVELS, null).allow(null).optional(),
+
+    // Entity linking
+    linkedEventId: Joi.string().pattern(MONGO_ID_PATTERN).allow(null).optional(),
+    linkedTaskId: Joi.string().pattern(MONGO_ID_PATTERN).allow(null).optional(),
+    linkedHearingId: Joi.string().pattern(MONGO_ID_PATTERN).allow(null).optional(),
+    linkedDocumentId: Joi.string().pattern(MONGO_ID_PATTERN).allow(null).optional(),
+
+    // Grouping
+    groupId: Joi.string().allow(null).optional(),
+    groupName: Joi.string().allow(null).optional()
 });
 
 const moveBlockSchema = Joi.object({
