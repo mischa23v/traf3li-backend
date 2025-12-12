@@ -54,6 +54,54 @@ const databaseConfigSchema = new mongoose.Schema({
     groupBy: String
 }, { _id: false });
 
+// ═══════════════════════════════════════════════════════════════
+// WHITEBOARD CONFIGURATION SCHEMA
+// ═══════════════════════════════════════════════════════════════
+
+const whiteboardConfigSchema = new mongoose.Schema({
+    /**
+     * Total canvas width (default 5000px)
+     */
+    canvasWidth: { type: Number, default: 5000 },
+
+    /**
+     * Total canvas height (default 5000px)
+     */
+    canvasHeight: { type: Number, default: 5000 },
+
+    /**
+     * Current zoom level (0.25 to 2.0)
+     */
+    zoom: { type: Number, default: 1, min: 0.25, max: 2 },
+
+    /**
+     * Current horizontal pan position
+     */
+    panX: { type: Number, default: 0 },
+
+    /**
+     * Current vertical pan position
+     */
+    panY: { type: Number, default: 0 },
+
+    /**
+     * Whether grid is visible
+     */
+    gridEnabled: { type: Boolean, default: true },
+
+    /**
+     * Whether blocks snap to grid
+     */
+    snapToGrid: { type: Boolean, default: true },
+
+    /**
+     * Grid cell size in pixels
+     */
+    gridSize: { type: Number, default: 20 }
+}, { _id: false });
+
+const VIEW_MODES = ['document', 'whiteboard'];
+
 const PAGE_TYPES = [
     'general', 'strategy', 'timeline', 'evidence', 'arguments',
     'research', 'meeting_notes', 'correspondence', 'witnesses',
@@ -98,6 +146,27 @@ const caseNotionPageSchema = new mongoose.Schema({
     // Database views
     hasDatabase: { type: Boolean, default: false },
     databaseConfig: databaseConfigSchema,
+
+    // ═══════════════════════════════════════════════════════════════
+    // WHITEBOARD CONFIGURATION
+    // ═══════════════════════════════════════════════════════════════
+
+    /**
+     * View mode: document (traditional) or whiteboard (canvas)
+     */
+    viewMode: {
+        type: String,
+        enum: VIEW_MODES,
+        default: 'document'
+    },
+
+    /**
+     * Whiteboard canvas configuration
+     */
+    whiteboardConfig: {
+        type: whiteboardConfigSchema,
+        default: () => ({})
+    },
 
     // Template
     isTemplate: { type: Boolean, default: false },
@@ -157,3 +226,4 @@ caseNotionPageSchema.virtual('blocks', {
 
 module.exports = mongoose.model('CaseNotionPage', caseNotionPageSchema);
 module.exports.PAGE_TYPES = PAGE_TYPES;
+module.exports.VIEW_MODES = VIEW_MODES;
