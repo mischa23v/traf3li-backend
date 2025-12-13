@@ -37,19 +37,19 @@ const getFormOptions = asyncHandler(async (req, res) => {
 
         fieldsByOfficeType: {
             solo: {
-                required: ['fullNameArabic', 'nationalId', 'gender', 'mobile', 'email', 'jobTitleArabic', 'hireDate', 'basicSalary'],
+                required: [],
                 hidden: ['branch', 'team', 'supervisor', 'costCenter', 'department']
             },
             small: {
-                required: ['fullNameArabic', 'nationalId', 'gender', 'mobile', 'email', 'jobTitleArabic', 'hireDate', 'basicSalary'],
+                required: [],
                 hidden: ['costCenter']
             },
             medium: {
-                required: ['fullNameArabic', 'nationalId', 'gender', 'mobile', 'email', 'jobTitleArabic', 'hireDate', 'basicSalary', 'department'],
+                required: [],
                 hidden: []
             },
             firm: {
-                required: ['fullNameArabic', 'nationalId', 'gender', 'mobile', 'email', 'jobTitleArabic', 'hireDate', 'basicSalary', 'department', 'branch'],
+                required: [],
                 hidden: []
             }
         },
@@ -120,43 +120,15 @@ const createEmployee = asyncHandler(async (req, res) => {
         leave
     } = req.body;
 
-    // Validate required fields from personalInfo
-    if (!personalInfo?.fullNameArabic) {
-        throw CustomException('Full name in Arabic is required', 400);
-    }
-    if (!personalInfo?.nationalId) {
-        throw CustomException('National ID is required', 400);
-    }
-    if (!personalInfo?.gender) {
-        throw CustomException('Gender is required', 400);
-    }
-    if (!personalInfo?.mobile) {
-        throw CustomException('Mobile number is required', 400);
-    }
-    if (!personalInfo?.email) {
-        throw CustomException('Email is required', 400);
-    }
-
-    // Validate required fields from employment
-    if (!employment?.jobTitleArabic) {
-        throw CustomException('Job title in Arabic is required', 400);
-    }
-    if (!employment?.hireDate) {
-        throw CustomException('Hire date is required', 400);
-    }
-
-    // Validate required fields from compensation
-    if (compensation?.basicSalary === undefined || compensation?.basicSalary < 0) {
-        throw CustomException('Basic salary is required and must be a positive number', 400);
-    }
-
-    // Check duplicate national ID
-    const existing = await Employee.findOne({
-        'personalInfo.nationalId': personalInfo.nationalId,
-        $or: [{ firmId }, { lawyerId }]
-    });
-    if (existing) {
-        throw CustomException('Employee with this National ID already exists', 400);
+    // Check duplicate national ID (only if nationalId is provided)
+    if (personalInfo?.nationalId) {
+        const existing = await Employee.findOne({
+            'personalInfo.nationalId': personalInfo.nationalId,
+            $or: [{ firmId }, { lawyerId }]
+        });
+        if (existing) {
+            throw CustomException('Employee with this National ID already exists', 400);
+        }
     }
 
     // Prepare employee data
