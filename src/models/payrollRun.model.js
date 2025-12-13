@@ -50,7 +50,7 @@ const employeeWarningSchema = new mongoose.Schema({
 }, { _id: false });
 
 const employeeListItemSchema = new mongoose.Schema({
-    employeeId: { type: mongoose.Schema.Types.ObjectId, ref: 'Employee', required: true },
+    employeeId: { type: mongoose.Schema.Types.ObjectId, ref: 'Employee', required: false },
     employeeNumber: String,
     employeeName: String,
     employeeNameAr: String,
@@ -219,17 +219,17 @@ const payrollRunSchema = new mongoose.Schema({
     // Identification
     runId: { type: String, unique: true, sparse: true },
     runNumber: String,
-    runName: { type: String, required: true },
+    runName: { type: String, required: false },
     runNameAr: String,
 
     // Period
     payPeriod: {
-        month: { type: Number, required: true, min: 1, max: 12 },
-        year: { type: Number, required: true },
+        month: { type: Number, required: false, min: 1, max: 12 },
+        year: { type: Number, required: false },
         calendarType: { type: String, enum: ['hijri', 'gregorian'], default: 'gregorian' },
-        periodStart: { type: Date, required: true },
-        periodEnd: { type: Date, required: true },
-        paymentDate: { type: Date, required: true },
+        periodStart: { type: Date, required: false },
+        periodEnd: { type: Date, required: false },
+        paymentDate: { type: Date, required: false },
         cutoffDate: Date
     },
 
@@ -639,7 +639,7 @@ const payrollRunSchema = new mongoose.Schema({
     createdBy: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
-        required: true
+        required: false
     },
     lastModifiedBy: {
         type: mongoose.Schema.Types.ObjectId,

@@ -12,12 +12,12 @@ const mongoose = require('mongoose');
 
 // Installment schema for repayment schedule
 const installmentSchema = new mongoose.Schema({
-    installmentNumber: { type: Number, required: true },
-    dueDate: { type: Date, required: true },
-    principalAmount: { type: Number, required: true },
+    installmentNumber: { type: Number, required: false },
+    dueDate: { type: Date, required: false },
+    principalAmount: { type: Number, required: false },
     interestAmount: { type: Number, default: 0 }, // Usually 0 for Islamic finance
     processingFeeAmount: { type: Number, default: 0 },
-    installmentAmount: { type: Number, required: true },
+    installmentAmount: { type: Number, required: false },
     status: {
         type: String,
         enum: ['pending', 'paid', 'partial', 'missed', 'waived'],
@@ -30,7 +30,7 @@ const installmentSchema = new mongoose.Schema({
         enum: ['payroll_deduction', 'bank_transfer', 'cash', 'check']
     },
     paymentReference: String,
-    remainingBalance: { type: Number, required: true },
+    remainingBalance: { type: Number, required: false },
     lateFee: { type: Number, default: 0 },
     lateDays: { type: Number, default: 0 },
     notes: String
@@ -38,10 +38,10 @@ const installmentSchema = new mongoose.Schema({
 
 // Approval step schema for workflow
 const approvalStepSchema = new mongoose.Schema({
-    stepNumber: { type: Number, required: true },
-    stepName: { type: String, required: true },
+    stepNumber: { type: Number, required: false },
+    stepName: { type: String, required: false },
     stepNameAr: String,
-    approverRole: { type: String, required: true },
+    approverRole: { type: String, required: false },
     approverId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     approverName: String,
     status: {
@@ -64,22 +64,22 @@ const approvalStepSchema = new mongoose.Schema({
 
 // Payment history schema
 const paymentHistorySchema = new mongoose.Schema({
-    paymentId: { type: String, required: true },
-    paymentDate: { type: Date, required: true },
+    paymentId: { type: String, required: false },
+    paymentDate: { type: Date, required: false },
     installmentNumber: Number,
-    principalPaid: { type: Number, required: true },
+    principalPaid: { type: Number, required: false },
     interestPaid: { type: Number, default: 0 },
     feesPaid: { type: Number, default: 0 },
     lateFeesPaid: { type: Number, default: 0 },
-    totalPaid: { type: Number, required: true },
+    totalPaid: { type: Number, required: false },
     paymentMethod: {
         type: String,
         enum: ['payroll_deduction', 'bank_transfer', 'cash', 'check'],
-        required: true
+        required: false
     },
     paymentReference: String,
     processedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-    remainingBalance: { type: Number, required: true },
+    remainingBalance: { type: Number, required: false },
     receiptNumber: String,
     receiptUrl: String,
     notes: String
@@ -128,7 +128,7 @@ const supportingDocumentSchema = new mongoose.Schema({
 // Guarantor schema
 const guarantorSchema = new mongoose.Schema({
     guarantorId: { type: mongoose.Schema.Types.ObjectId, ref: 'Employee' },
-    guarantorName: { type: String, required: true },
+    guarantorName: { type: String, required: false },
     guarantorNameAr: String,
     relationship: String,
     nationalId: String,
@@ -256,10 +256,10 @@ const employeeLoanSchema = new mongoose.Schema({
     employeeId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Employee',
-        required: true
+        required: false
     },
     employeeNumber: String,
-    employeeName: { type: String, required: true },
+    employeeName: { type: String, required: false },
     employeeNameAr: String,
     nationalId: String,
     department: String,
@@ -273,7 +273,7 @@ const employeeLoanSchema = new mongoose.Schema({
         enum: ['personal', 'housing', 'vehicle', 'education', 'emergency',
             'marriage', 'medical', 'hajj', 'furniture', 'computer',
             'travel', 'debt_consolidation', 'other'],
-        required: true
+        required: false
     },
     loanTypeAr: String,
     loanCategory: {
@@ -281,7 +281,7 @@ const employeeLoanSchema = new mongoose.Schema({
         enum: ['regular', 'emergency', 'special'],
         default: 'regular'
     },
-    loanAmount: { type: Number, required: true, min: 0 },
+    loanAmount: { type: Number, required: false, min: 0 },
     approvedAmount: Number,
     currency: { type: String, default: 'SAR' },
 
@@ -299,14 +299,14 @@ const employeeLoanSchema = new mongoose.Schema({
     // REPAYMENT SCHEDULE
     // ═══════════════════════════════════════════════════════════════
     repayment: {
-        installments: { type: Number, required: true },
-        installmentAmount: { type: Number, required: true },
+        installments: { type: Number, required: false },
+        installmentAmount: { type: Number, required: false },
         installmentFrequency: {
             type: String,
             enum: ['monthly', 'bi_weekly', 'quarterly'],
             default: 'monthly'
         },
-        firstInstallmentDate: { type: Date, required: true },
+        firstInstallmentDate: { type: Date, required: false },
         lastInstallmentDate: Date,
         paymentDay: { type: Number, min: 1, max: 28 },
         deductionMethod: {
@@ -320,9 +320,9 @@ const employeeLoanSchema = new mongoose.Schema({
     // CURRENT BALANCE
     // ═══════════════════════════════════════════════════════════════
     balance: {
-        originalAmount: { type: Number, required: true },
+        originalAmount: { type: Number, required: false },
         paidAmount: { type: Number, default: 0 },
-        remainingBalance: { type: Number, required: true },
+        remainingBalance: { type: Number, required: false },
         completionPercentage: { type: Number, default: 0 }
     },
 

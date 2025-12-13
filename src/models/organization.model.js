@@ -29,7 +29,7 @@ const organizationSchema = new mongoose.Schema({
     lawyerId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
-        required: true,
+        required: false,
         index: true
     },
 
@@ -38,7 +38,7 @@ const organizationSchema = new mongoose.Schema({
     // ═══════════════════════════════════════════════════════════════
     legalName: {
         type: String,
-        required: true,
+        required: false,
         trim: true,
         maxlength: 200
     },
@@ -77,7 +77,7 @@ const organizationSchema = new mongoose.Schema({
             'branch', 'government', 'nonprofit', 'professional', 'holding',
             'company', 'court', 'law_firm', 'other'
         ],
-        required: true
+        required: false
     },
     status: {
         type: String,

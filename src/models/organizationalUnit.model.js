@@ -176,7 +176,7 @@ const documentSchema = new mongoose.Schema({
 const organizationalUnitSchema = new mongoose.Schema({
     // ==================== IDENTIFICATION ====================
     unitId: { type: String, unique: true, sparse: true },
-    unitCode: { type: String, required: true },
+    unitCode: { type: String, required: false },
 
     // ==================== MULTI-TENANCY ====================
     firmId: { type: mongoose.Schema.Types.ObjectId, ref: 'Firm', index: true },
@@ -188,7 +188,7 @@ const organizationalUnitSchema = new mongoose.Schema({
         enum: ['company', 'legal_entity', 'division', 'business_unit', 'department',
                'subdepartment', 'team', 'section', 'branch', 'office', 'subsidiary',
                'region', 'project_team', 'committee', 'other'],
-        required: true
+        required: false
     },
     unitTypeAr: String,
     unitCategory: {
@@ -196,7 +196,7 @@ const organizationalUnitSchema = new mongoose.Schema({
         enum: ['operational', 'support', 'administrative', 'strategic', 'project_based', 'temporary', 'permanent'],
         default: 'permanent'
     },
-    unitName: { type: String, required: true },
+    unitName: { type: String, required: false },
     unitNameAr: String,
     officialName: String,
     officialNameAr: String,

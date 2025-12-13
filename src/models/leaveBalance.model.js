@@ -11,14 +11,14 @@ const LeaveBalanceSchema = new Schema({
     employeeId: {
         type: Schema.Types.ObjectId,
         ref: 'Employee',
-        required: true
+        required: false
     },
     employeeName: String,
     employeeNameAr: String,
     employeeNumber: String,
 
     // Year
-    year: { type: Number, required: true },
+    year: { type: Number, required: false },
     yearOfService: Number,
 
     // Annual Leave (المادة 109)

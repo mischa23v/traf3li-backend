@@ -13,11 +13,11 @@ const AllowanceSchema = new mongoose.Schema({
                'hazard', 'technical', 'responsibility', 'travel', 'remote_work',
                'shift', 'overtime_base', 'cost_of_living', 'professional', 'language',
                'relocation', 'utilities', 'other'],
-        required: true
+        required: false
     },
-    allowanceName: { type: String, required: true },
+    allowanceName: { type: String, required: false },
     allowanceNameAr: String,
-    amount: { type: Number, required: true },
+    amount: { type: Number, required: false },
     calculationType: {
         type: String,
         enum: ['fixed', 'percentage_of_basic', 'percentage_of_gross', 'daily_rate', 'hourly_rate'],
@@ -37,7 +37,7 @@ const AllowanceSchema = new mongoose.Schema({
 // Bonus History Schema
 const BonusHistorySchema = new mongoose.Schema({
     bonusId: { type: String, default: () => new mongoose.Types.ObjectId().toString() },
-    year: { type: Number, required: true },
+    year: { type: Number, required: false },
     fiscalYear: String,
     targetBonus: Number,
     actualBonus: Number,
@@ -54,7 +54,7 @@ const BonusHistorySchema = new mongoose.Schema({
 // Salary History Schema
 const SalaryHistorySchema = new mongoose.Schema({
     changeId: { type: String, default: () => new mongoose.Types.ObjectId().toString() },
-    effectiveDate: { type: Date, required: true },
+    effectiveDate: { type: Date, required: false },
     previousBasicSalary: Number,
     newBasicSalary: Number,
     previousGrossSalary: Number,
@@ -217,11 +217,11 @@ const CompensationRewardSchema = new mongoose.Schema({
     employeeId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Employee',
-        required: true,
+        required: false,
         index: true
     },
-    employeeNumber: { type: String, required: true },
-    employeeName: { type: String, required: true },
+    employeeNumber: { type: String, required: false },
+    employeeName: { type: String, required: false },
     employeeNameAr: String,
 
     // ==================== POSITION INFO ====================
@@ -232,16 +232,16 @@ const CompensationRewardSchema = new mongoose.Schema({
     positionId: String,
 
     // ==================== CURRENT COMPENSATION ====================
-    basicSalary: { type: Number, required: true },
+    basicSalary: { type: Number, required: false },
     totalAllowances: { type: Number, default: 0 },
-    grossSalary: { type: Number, required: true },
+    grossSalary: { type: Number, required: false },
     currency: { type: String, default: 'SAR' },
 
     // ==================== PAY GRADE ====================
-    payGrade: { type: String, required: true },
-    salaryRangeMin: { type: Number, required: true },
+    payGrade: { type: String, required: false },
+    salaryRangeMin: { type: Number, required: false },
     salaryRangeMid: Number,
-    salaryRangeMax: { type: Number, required: true },
+    salaryRangeMax: { type: Number, required: false },
 
     // ==================== POSITION IN RANGE ====================
     compaRatio: { type: Number, default: 1 },
@@ -269,7 +269,7 @@ const CompensationRewardSchema = new mongoose.Schema({
     },
 
     // ==================== DATES ====================
-    effectiveDate: { type: Date, required: true, index: true },
+    effectiveDate: { type: Date, required: false, index: true },
     reviewDate: Date,
     nextReviewDate: Date,
 

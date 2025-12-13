@@ -17,12 +17,12 @@ const providerContactSchema = new mongoose.Schema({
 // Covered Dependent Schema
 const coveredDependentSchema = new mongoose.Schema({
     memberId: String,
-    name: { type: String, required: true },
+    name: { type: String, required: false },
     nameAr: String,
     relationship: {
         type: String,
         enum: ['spouse', 'child', 'parent', 'other'],
-        required: true
+        required: false
     },
     dateOfBirth: Date,
     age: Number,
@@ -50,9 +50,9 @@ const beneficiarySchema = new mongoose.Schema({
     beneficiaryType: {
         type: String,
         enum: ['primary', 'contingent'],
-        required: true
+        required: false
     },
-    name: { type: String, required: true },
+    name: { type: String, required: false },
     nameAr: String,
     relationship: String,
     dateOfBirth: Date,
@@ -60,7 +60,7 @@ const beneficiarySchema = new mongoose.Schema({
     contactPhone: String,
     contactEmail: String,
     address: String,
-    percentage: { type: Number, min: 0, max: 100, required: true },
+    percentage: { type: Number, min: 0, max: 100, required: false },
     designation: Number,
     documents: [{
         documentType: String,
@@ -216,11 +216,11 @@ const employeeBenefitSchema = new mongoose.Schema({
     employeeId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Employee',
-        required: true,
+        required: false,
         index: true
     },
     employeeNumber: String,
-    employeeName: { type: String, required: true },
+    employeeName: { type: String, required: false },
     employeeNameAr: String,
     department: String,
 
@@ -231,15 +231,15 @@ const employeeBenefitSchema = new mongoose.Schema({
                'vision_insurance', 'pension', 'savings_plan', 'education_allowance',
                'transportation', 'housing', 'meal_allowance', 'mobile_allowance',
                'gym_membership', 'professional_membership', 'other'],
-        required: true,
+        required: false,
         index: true
     },
     benefitCategory: {
         type: String,
         enum: ['insurance', 'allowance', 'retirement', 'perks', 'flexible_benefits', 'mandatory', 'voluntary'],
-        required: true
+        required: false
     },
-    benefitName: { type: String, required: true },
+    benefitName: { type: String, required: false },
     benefitNameAr: String,
     benefitDescription: String,
     benefitDescriptionAr: String,
@@ -267,10 +267,10 @@ const employeeBenefitSchema = new mongoose.Schema({
     enrollmentType: {
         type: String,
         enum: ['new_hire', 'annual_enrollment', 'qualifying_event', 'mid_year_change', 're_enrollment'],
-        required: true
+        required: false
     },
-    enrollmentDate: { type: Date, required: true },
-    effectiveDate: { type: Date, required: true, index: true },
+    enrollmentDate: { type: Date, required: false },
+    effectiveDate: { type: Date, required: false, index: true },
     coverageEndDate: Date,
     enrolledBy: {
         type: String,
@@ -302,8 +302,8 @@ const employeeBenefitSchema = new mongoose.Schema({
     statusReason: String,
 
     // ==================== COST ====================
-    employerCost: { type: Number, required: true, default: 0 },
-    employeeCost: { type: Number, required: true, default: 0 },
+    employerCost: { type: Number, required: false, default: 0 },
+    employeeCost: { type: Number, required: false, default: 0 },
     totalCost: Number,
     currency: { type: String, default: 'SAR' },
 

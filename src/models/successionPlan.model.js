@@ -73,7 +73,7 @@ const qualificationGapSchema = new mongoose.Schema({
 // Development Objective Schema
 const developmentObjectiveSchema = new mongoose.Schema({
     objectiveId: String,
-    objective: { type: String, required: true },
+    objective: { type: String, required: false },
     objectiveAr: String,
     objectiveType: {
         type: String,
@@ -133,10 +133,10 @@ const stretchAssignmentSchema = new mongoose.Schema({
 
 // Successor Schema
 const successorSchema = new mongoose.Schema({
-    successorId: { type: String, required: true },
+    successorId: { type: String, required: false },
     employeeId: { type: mongoose.Schema.Types.ObjectId, ref: 'Employee' },
     employeeNumber: String,
-    employeeName: { type: String, required: true },
+    employeeName: { type: String, required: false },
     employeeNameAr: String,
     currentJobTitle: String,
     currentDepartment: String,
@@ -161,7 +161,7 @@ const successorSchema = new mongoose.Schema({
 
     // Ranking
     successorRanking: {
-        rank: { type: Number, required: true },
+        rank: { type: Number, required: false },
         rankingType: {
             type: String,
             enum: ['primary', 'backup', 'emergency', 'long_term']
@@ -544,9 +544,9 @@ const successionPlanSchema = new mongoose.Schema({
 
     // ==================== CRITICAL POSITION ====================
     criticalPosition: {
-        positionId: { type: mongoose.Schema.Types.ObjectId, ref: 'JobPosition', required: true, index: true },
+        positionId: { type: mongoose.Schema.Types.ObjectId, ref: 'JobPosition', required: false, index: true },
         positionNumber: String,
-        positionTitle: { type: String, required: true },
+        positionTitle: { type: String, required: false },
         positionTitleAr: String,
         jobLevel: String,
         jobGrade: String,
@@ -573,7 +573,7 @@ const successionPlanSchema = new mongoose.Schema({
             criticalityLevel: {
                 type: String,
                 enum: ['critical', 'important', 'standard', 'low'],
-                required: true
+                required: false
             },
             criticalityRating: { type: Number, min: 1, max: 10 },
             criticalityFactors: [criticalityFactorSchema],
@@ -591,7 +591,7 @@ const successionPlanSchema = new mongoose.Schema({
 
         // Vacancy Risk
         vacancyRisk: {
-            riskLevel: { type: String, enum: ['high', 'medium', 'low'], required: true },
+            riskLevel: { type: String, enum: ['high', 'medium', 'low'], required: false },
             riskFactors: [riskFactorSchema],
             estimatedTimeToReplace: {
                 timeframe: Number,
@@ -609,9 +609,9 @@ const successionPlanSchema = new mongoose.Schema({
 
     // ==================== INCUMBENT ====================
     incumbent: {
-        employeeId: { type: mongoose.Schema.Types.ObjectId, ref: 'Employee', required: true, index: true },
+        employeeId: { type: mongoose.Schema.Types.ObjectId, ref: 'Employee', required: false, index: true },
         employeeNumber: String,
-        employeeName: { type: String, required: true },
+        employeeName: { type: String, required: false },
         employeeNameAr: String,
         nationalId: String,
         email: String,

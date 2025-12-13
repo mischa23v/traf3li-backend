@@ -4,35 +4,35 @@ const jobSchema = new mongoose.Schema({
     userID: {  // ✅ CHANGED from clientId
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
-        required: true
+        required: false
     },
     title: {
         type: String,
-        required: true,
+        required: false,
         trim: true
     },
     description: {
         type: String,
-        required: true
+        required: false
     },
     category: {
         type: String,
         enum: ['labor', 'commercial', 'personal-status', 'criminal', 'real-estate', 'traffic', 'administrative', 'other'],  // ✅ Added missing categories
-        required: true
+        required: false
     },
     budget: {
         min: {
             type: Number,
-            required: true
+            required: false
         },
         max: {
             type: Number,
-            required: true
+            required: false
         }
     },
     deadline: {
         type: Date,
-        required: true
+        required: false
     },
     location: {
         type: String,
