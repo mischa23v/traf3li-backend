@@ -15,6 +15,31 @@ const connect = async () => {
 
         console.log('✅ Connected to MongoDB');
 
+        // Clean up stale indexes that may cause duplicate key errors
+        // This removes old indexes from previous schema versions
+        try {
+            const db = mongoose.connection.db;
+            const clientCollection = db.collection('clients');
+
+            // Get all indexes on the clients collection
+            const indexes = await clientCollection.indexes();
+            console.log('📋 [DB] Current indexes on clients collection:', indexes.map(i => i.name));
+
+            // Drop stale 'clientId' index if it exists (from old schema)
+            const staleIndexes = ['clientId_1', 'clientId'];
+            for (const indexName of staleIndexes) {
+                const hasIndex = indexes.some(i => i.name === indexName);
+                if (hasIndex) {
+                    console.log(`🗑️  [DB] Dropping stale index: ${indexName}`);
+                    await clientCollection.dropIndex(indexName);
+                    console.log(`✅ [DB] Dropped stale index: ${indexName}`);
+                }
+            }
+        } catch (indexErr) {
+            console.warn('⚠️  Index cleanup warning:', indexErr.message);
+            // Non-fatal: continue with startup
+        }
+
         // Initialize counters for atomic sequence generation
         // This ensures client numbers don't collide with existing data
         try {
