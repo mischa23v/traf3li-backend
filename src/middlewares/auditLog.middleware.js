@@ -35,31 +35,16 @@ const auditLogService = require('../services/auditLog.service');
  */
 const auditAction = (action, entityType, options = {}) => {
   return async (req, res, next) => {
-    // ══════════════════════════════════════════════════════════════════
-    // 🔍 DEBUG: Audit Log Middleware
-    // ══════════════════════════════════════════════════════════════════
-    console.log('\n' + '─'.repeat(80));
-    console.log('📝 [AUDIT] Starting audit action middleware...');
-    console.log('📍 Route:', req.method, req.originalUrl);
-    console.log('🎯 Action:', action);
-    console.log('📦 Entity Type:', entityType);
-    console.log('⚙️ Options:', JSON.stringify(options));
-    console.log('─'.repeat(80));
-
     // Skip if explicitly disabled
     if (options.skip === true) {
-      console.log('⏭️ [AUDIT] Skipped - options.skip is true');
       return next();
     }
 
     // Skip GET requests if configured (default: true)
     const skipGET = options.skipGET !== undefined ? options.skipGET : true;
     if (skipGET && req.method === 'GET') {
-      console.log('⏭️ [AUDIT] Skipped - GET request with skipGET enabled');
       return next();
     }
-
-    console.log('✅ [AUDIT] Audit logging enabled for this request');
 
     // Determine if we should capture changes
     const shouldCaptureChanges = options.captureChanges !== undefined
@@ -87,14 +72,10 @@ const auditAction = (action, entityType, options = {}) => {
 
     // Override res.json to capture response
     res.json = function (data) {
-      console.log('📤 [AUDIT] res.json() called with status:', res.statusCode);
       responseData = data;
       if (res.statusCode >= 400) {
         responseStatus = 'failed';
         errorMessage = data.error || data.message || 'Unknown error';
-        console.log('❌ [AUDIT] Response indicates failure:', errorMessage);
-      } else {
-        console.log('✅ [AUDIT] Response indicates success');
       }
 
       // Create audit log after response
@@ -105,15 +86,11 @@ const auditAction = (action, entityType, options = {}) => {
 
     // Override res.send to capture response
     res.send = function (data) {
-      console.log('📤 [AUDIT] res.send() called with status:', res.statusCode);
       if (!responseData) {
         responseData = data;
         if (res.statusCode >= 400) {
           responseStatus = 'failed';
           errorMessage = typeof data === 'string' ? data : 'Unknown error';
-          console.log('❌ [AUDIT] Response indicates failure:', errorMessage);
-        } else {
-          console.log('✅ [AUDIT] Response indicates success');
         }
 
         createAuditLog(req, res, responseStatus, errorMessage, responseData, beforeState);
@@ -123,8 +100,6 @@ const auditAction = (action, entityType, options = {}) => {
     };
 
     // Continue to next middleware
-    console.log('✅ [AUDIT] Middleware setup complete - calling next()');
-    console.log('─'.repeat(80) + '\n');
     next();
 
     /**

@@ -509,8 +509,6 @@ clientSchema.pre('save', async function(next) {
         // Use atomic counter to prevent race conditions
         // The counter will auto-initialize on first use
         this.clientNumber = await Counter.getNextFormattedSequence('client', 'CLT-', 5);
-
-        console.log('🔢 [CLIENT] Generated clientNumber:', this.clientNumber);
     }
     next();
 });
