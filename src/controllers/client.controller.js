@@ -11,39 +11,13 @@ const webhookService = require('../services/webhook.service');
  * POST /api/clients
  */
 const createClient = asyncHandler(async (req, res) => {
-    // ══════════════════════════════════════════════════════════════════
-    // 🔍 DEBUG: START - Client Creation
-    // ══════════════════════════════════════════════════════════════════
-    console.log('\n' + '═'.repeat(80));
-    console.log('🚀 [CLIENT CREATE] Starting client creation...');
-    console.log('═'.repeat(80));
-    console.log('📅 Timestamp:', new Date().toISOString());
-    console.log('🆔 Request ID:', req.id || 'N/A');
-    console.log('👤 User ID:', req.userID);
-    console.log('🏢 Firm ID:', req.firmId);
-    console.log('👨‍💼 Is Solo Lawyer:', req.isSoloLawyer);
-    console.log('🚫 Is Departed:', req.isDeparted);
-    console.log('📋 Request Headers:', JSON.stringify(req.headers, null, 2));
-    console.log('📦 Request Body:', JSON.stringify(req.body, null, 2));
-    console.log('─'.repeat(80));
-
     // Block departed users from client operations
     if (req.isDeparted) {
-        console.log('❌ [CLIENT CREATE] BLOCKED - User is departed');
         throw CustomException('ليس لديك صلاحية للوصول إلى العملاء', 403);
     }
 
     const lawyerId = req.userID;
     const firmId = req.firmId; // From firmFilter middleware
-
-    console.log('✅ [CLIENT CREATE] User authorization passed');
-    console.log('📝 Lawyer ID:', lawyerId);
-    console.log('📝 Firm ID:', firmId);
-
-    // Note: Required field validation removed for testing flexibility
-    // Fields will use defaults if not provided
-
-    // Note: Conflict check removed for testing flexibility - allows duplicate clients
 
     const clientData = {
         ...req.body,
@@ -52,33 +26,9 @@ const createClient = asyncHandler(async (req, res) => {
         createdBy: lawyerId
     };
 
-    console.log('📋 [CLIENT CREATE] Client data to be created:', JSON.stringify(clientData, null, 2));
-    console.log('─'.repeat(80));
-
-    let client;
-    try {
-        console.log('💾 [CLIENT CREATE] Attempting to save client to database...');
-        client = await Client.create(clientData);
-        console.log('✅ [CLIENT CREATE] Client saved successfully!');
-        console.log('🆔 Client ID:', client._id);
-        console.log('📄 Client Number:', client.clientNumber);
-    } catch (dbError) {
-        console.log('❌ [CLIENT CREATE] DATABASE ERROR!');
-        console.log('🔴 Error Name:', dbError.name);
-        console.log('🔴 Error Message:', dbError.message);
-        console.log('🔴 Error Code:', dbError.code);
-        if (dbError.errors) {
-            console.log('🔴 Validation Errors:', JSON.stringify(dbError.errors, null, 2));
-        }
-        if (dbError.keyValue) {
-            console.log('🔴 Duplicate Key:', JSON.stringify(dbError.keyValue, null, 2));
-        }
-        console.log('🔴 Full Error Stack:', dbError.stack);
-        throw dbError;
-    }
+    const client = await Client.create(clientData);
 
     // Log activity
-    console.log('📝 [CLIENT CREATE] Logging CRM activity...');
     try {
         await CrmActivity.logActivity({
             lawyerId,
@@ -94,21 +44,12 @@ const createClient = asyncHandler(async (req, res) => {
                 clientNumber: client.clientNumber
             }
         });
-        console.log('✅ [CLIENT CREATE] CRM activity logged successfully');
     } catch (activityError) {
-        console.log('⚠️ [CLIENT CREATE] CRM activity logging failed (non-fatal):', activityError.message);
+        // Non-fatal: continue if activity logging fails
     }
 
     // Trigger webhook - fire and forget (async, don't await)
-    console.log('🔔 [CLIENT CREATE] Triggering webhook...');
-    webhookService.trigger('client.created', client.toObject(), firmId).catch(err => {
-        console.error('⚠️ [CLIENT CREATE] Webhook trigger error:', err);
-    });
-
-    console.log('✅ [CLIENT CREATE] Sending success response...');
-    console.log('═'.repeat(80));
-    console.log('🎉 [CLIENT CREATE] COMPLETED SUCCESSFULLY');
-    console.log('═'.repeat(80) + '\n');
+    webhookService.trigger('client.created', client.toObject(), firmId).catch(() => {});
 
     res.status(201).json({
         success: true,

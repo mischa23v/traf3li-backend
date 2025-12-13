@@ -636,16 +636,6 @@ const idParamSchema = Joi.object({
  */
 const validate = (schema, source = 'body') => {
     return (req, res, next) => {
-        // ══════════════════════════════════════════════════════════════════
-        // 🔍 DEBUG: Client Validation Middleware
-        // ══════════════════════════════════════════════════════════════════
-        console.log('\n' + '─'.repeat(80));
-        console.log('🔍 [VALIDATOR] Starting validation...');
-        console.log('📍 Route:', req.method, req.originalUrl);
-        console.log('📦 Source:', source);
-        console.log('📋 Data to validate:', JSON.stringify(req[source], null, 2));
-        console.log('─'.repeat(80));
-
         const { error, value } = schema.validate(req[source], {
             abortEarly: false, // Return all errors, not just the first
             stripUnknown: true // Remove unknown fields
@@ -657,21 +647,12 @@ const validate = (schema, source = 'body') => {
                 message: detail.message
             }));
 
-            console.log('❌ [VALIDATOR] VALIDATION FAILED!');
-            console.log('🔴 Validation Errors:', JSON.stringify(errors, null, 2));
-            console.log('🔴 Full Joi Error:', JSON.stringify(error.details, null, 2));
-            console.log('─'.repeat(80) + '\n');
-
             return res.status(400).json({
                 success: false,
                 message: 'خطأ في التحقق / Validation error',
                 errors
             });
         }
-
-        console.log('✅ [VALIDATOR] Validation PASSED');
-        console.log('📋 Validated/Sanitized Data:', JSON.stringify(value, null, 2));
-        console.log('─'.repeat(80) + '\n');
 
         // Replace request data with validated/sanitized data
         req[source] = value;
