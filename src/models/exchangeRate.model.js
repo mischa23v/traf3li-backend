@@ -9,7 +9,7 @@ const exchangeRateSchema = new mongoose.Schema({
     },
     baseCurrency: {
         type: String,
-        required: true,
+        required: false,
         default: 'SAR',
         uppercase: true,
         trim: true,
@@ -19,7 +19,7 @@ const exchangeRateSchema = new mongoose.Schema({
     },
     targetCurrency: {
         type: String,
-        required: true,
+        required: false,
         uppercase: true,
         trim: true,
         minlength: 3,
@@ -28,30 +28,24 @@ const exchangeRateSchema = new mongoose.Schema({
     },
     rate: {
         type: Number,
-        required: true,
-        min: 0.0001,
-        validate: {
-            validator: function(v) {
-                return v > 0;
-            },
-            message: 'Exchange rate must be greater than 0'
-        }
+        required: false,
+        min: 0.0001
     },
     inverseRate: {
         type: Number,
-        required: true,
+        required: false,
         min: 0.0001
     },
     source: {
         type: String,
         enum: ['manual', 'api', 'bank', 'ecb', 'openexchange', 'currencyapi', 'sama'],
-        required: true,
+        required: false,
         default: 'manual',
         index: true
     },
     effectiveDate: {
         type: Date,
-        required: true,
+        required: false,
         default: Date.now,
         index: true
     },

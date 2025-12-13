@@ -54,27 +54,21 @@ const checkStatuses = [
  */
 const createPaymentSchema = Joi.object({
     clientId: Joi.string()
-        .required()
         .messages({
-            'any.required': 'معرف العميل مطلوب / Client ID is required',
             'string.empty': 'معرف العميل لا يمكن أن يكون فارغاً / Client ID cannot be empty'
         }),
 
     amount: Joi.number()
         .positive()
-        .required()
         .messages({
             'number.base': 'المبلغ يجب أن يكون رقماً / Amount must be a number',
-            'number.positive': 'المبلغ يجب أن يكون موجباً / Amount must be positive',
-            'any.required': 'المبلغ مطلوب / Amount is required'
+            'number.positive': 'المبلغ يجب أن يكون موجباً / Amount must be positive'
         }),
 
     paymentMethod: Joi.string()
         .valid(...paymentMethods)
-        .required()
         .messages({
-            'any.only': 'طريقة الدفع غير صالحة / Invalid payment method',
-            'any.required': 'طريقة الدفع مطلوبة / Payment method is required'
+            'any.only': 'طريقة الدفع غير صالحة / Invalid payment method'
         }),
 
     status: Joi.string()
@@ -101,21 +95,11 @@ const createPaymentSchema = Joi.object({
 
     // Check-specific fields
     checkNumber: Joi.string()
-        .when('method', {
-            is: 'check',
-            then: Joi.required(),
-            otherwise: Joi.optional()
-        })
         .messages({
-            'any.required': 'رقم الشيك مطلوب عند الدفع بالشيك / Check number is required for check payments'
+            'string.empty': 'رقم الشيك لا يمكن أن يكون فارغاً / Check number cannot be empty'
         }),
 
-    checkDate: Joi.date()
-        .when('method', {
-            is: 'check',
-            then: Joi.required(),
-            otherwise: Joi.optional()
-        }),
+    checkDate: Joi.date(),
 
     bankName: Joi.string()
         .max(100),
@@ -123,8 +107,8 @@ const createPaymentSchema = Joi.object({
     // Invoice application
     invoices: Joi.array()
         .items(Joi.object({
-            invoiceId: Joi.string().required(),
-            amount: Joi.number().positive().required()
+            invoiceId: Joi.string(),
+            amount: Joi.number().positive()
         })),
 
     // Metadata
@@ -164,14 +148,11 @@ const updatePaymentSchema = Joi.object({
 const applyPaymentSchema = Joi.object({
     invoices: Joi.array()
         .items(Joi.object({
-            invoiceId: Joi.string().required(),
-            amount: Joi.number().positive().required()
+            invoiceId: Joi.string(),
+            amount: Joi.number().positive()
         }))
-        .min(1)
-        .required()
         .messages({
-            'array.min': 'يجب تطبيق الدفع على فاتورة واحدة على الأقل / Must apply payment to at least one invoice',
-            'any.required': 'قائمة الفواتير مطلوبة / Invoices list is required'
+            'array.base': 'قائمة الفواتير يجب أن تكون مصفوفة / Invoices must be an array'
         })
 });
 
@@ -181,17 +162,13 @@ const applyPaymentSchema = Joi.object({
 const createRefundSchema = Joi.object({
     amount: Joi.number()
         .positive()
-        .required()
         .messages({
-            'number.positive': 'مبلغ الاسترداد يجب أن يكون موجباً / Refund amount must be positive',
-            'any.required': 'مبلغ الاسترداد مطلوب / Refund amount is required'
+            'number.positive': 'مبلغ الاسترداد يجب أن يكون موجباً / Refund amount must be positive'
         }),
 
     reason: Joi.string()
-        .required()
         .max(500)
         .messages({
-            'any.required': 'سبب الاسترداد مطلوب / Refund reason is required',
             'string.max': 'السبب طويل جداً / Reason is too long'
         }),
 
@@ -211,10 +188,8 @@ const createRefundSchema = Joi.object({
 const updateCheckStatusSchema = Joi.object({
     status: Joi.string()
         .valid(...checkStatuses)
-        .required()
         .messages({
-            'any.only': 'حالة الشيك غير صالحة / Invalid check status',
-            'any.required': 'حالة الشيك مطلوبة / Check status is required'
+            'any.only': 'حالة الشيك غير صالحة / Invalid check status'
         }),
 
     statusDate: Joi.date()
@@ -225,13 +200,8 @@ const updateCheckStatusSchema = Joi.object({
         .max(1000),
 
     bounceReason: Joi.string()
-        .when('status', {
-            is: 'bounced',
-            then: Joi.required(),
-            otherwise: Joi.optional()
-        })
         .messages({
-            'any.required': 'سبب ارتداد الشيك مطلوب / Bounce reason is required for bounced checks'
+            'string.empty': 'سبب ارتداد الشيك لا يمكن أن يكون فارغاً / Bounce reason cannot be empty'
         })
 });
 
@@ -240,9 +210,8 @@ const updateCheckStatusSchema = Joi.object({
  */
 const reconcilePaymentSchema = Joi.object({
     bankTransactionId: Joi.string()
-        .required()
         .messages({
-            'any.required': 'معرف العملية البنكية مطلوب / Bank transaction ID is required'
+            'string.empty': 'معرف العملية البنكية لا يمكن أن يكون فارغاً / Bank transaction ID cannot be empty'
         }),
 
     reconciledDate: Joi.date()
@@ -277,13 +246,9 @@ const paymentQuerySchema = Joi.object({
 const bulkDeleteSchema = Joi.object({
     ids: Joi.array()
         .items(Joi.string())
-        .min(1)
         .max(100)
-        .required()
         .messages({
-            'array.min': 'يجب تحديد دفعة واحدة على الأقل / Must select at least one payment',
-            'array.max': 'لا يمكن حذف أكثر من 100 دفعة في وقت واحد / Cannot delete more than 100 payments at once',
-            'any.required': 'قائمة المعرفات مطلوبة / IDs list is required'
+            'array.max': 'لا يمكن حذف أكثر من 100 دفعة في وقت واحد / Cannot delete more than 100 payments at once'
         })
 });
 
@@ -310,10 +275,8 @@ const sendReceiptSchema = Joi.object({
 const recordInvoicePaymentSchema = Joi.object({
     amount: Joi.number()
         .positive()
-        .required()
         .messages({
-            'number.positive': 'المبلغ يجب أن يكون موجباً / Amount must be positive',
-            'any.required': 'المبلغ مطلوب / Amount is required'
+            'number.positive': 'المبلغ يجب أن يكون موجباً / Amount must be positive'
         }),
     paymentMethod: Joi.string()
         .valid(...paymentMethods)

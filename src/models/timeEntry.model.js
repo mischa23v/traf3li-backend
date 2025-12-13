@@ -78,8 +78,8 @@ const timeEntrySchema = new mongoose.Schema({
     // ═══════════════════════════════════════════════════════════════
     description: {
         type: String,
-        required: [true, 'Description is required'],
-        minlength: [10, 'Description must be at least 10 characters'],
+        required: false,
+        minlength: 1,
         maxlength: 500,
         trim: true
     },
@@ -91,14 +91,14 @@ const timeEntrySchema = new mongoose.Schema({
     assigneeId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
-        required: true,
+        required: false,
         index: true
     },
     // User who created the entry (may be different from assignee)
     userId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
-        required: true,
+        required: false,
         index: true
     },
     // Legacy field - kept for backwards compatibility (alias for assigneeId)
@@ -114,7 +114,7 @@ const timeEntrySchema = new mongoose.Schema({
     clientId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Client',
-        required: [true, 'Client is required'],
+        required: false,
         index: true
     },
     caseId: {
@@ -128,15 +128,8 @@ const timeEntrySchema = new mongoose.Schema({
     // ═══════════════════════════════════════════════════════════════
     date: {
         type: Date,
-        required: [true, 'Date is required'],
-        index: true,
-        validate: {
-            validator: function(v) {
-                // Cannot be in the future
-                return v <= new Date();
-            },
-            message: 'Date cannot be in the future'
-        }
+        required: false,
+        index: true
     },
     startTime: {
         type: String,  // HH:mm format
@@ -165,9 +158,9 @@ const timeEntrySchema = new mongoose.Schema({
     },
     duration: {
         type: Number,  // In minutes
-        required: [true, 'Duration is required'],
-        min: [1, 'Duration must be at least 1 minute'],
-        max: [1440, 'Duration cannot exceed 24 hours (1440 minutes)']
+        required: false,
+        min: 0,
+        max: 1440
     },
     hours: {
         type: Number,  // Computed: duration / 60
@@ -211,7 +204,7 @@ const timeEntrySchema = new mongoose.Schema({
     // ═══════════════════════════════════════════════════════════════
     hourlyRate: {
         type: Number,  // In halalas (SAR * 100)
-        required: [true, 'Hourly rate is required'],
+        required: false,
         min: 0
     },
     totalAmount: {

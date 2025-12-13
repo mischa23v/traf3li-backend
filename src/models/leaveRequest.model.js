@@ -51,7 +51,7 @@ const medicalCertificateSchema = new Schema({
 // Work Handover Task Sub-Schema
 const handoverTaskSchema = new Schema({
     taskId: String,
-    taskName: { type: String, required: true },
+    taskName: { type: String, required: false },
     taskDescription: String,
     priority: { type: String, enum: ['low', 'medium', 'high', 'urgent'], default: 'medium' },
     dueDate: Date,
@@ -137,9 +137,9 @@ const leaveDocumentSchema = new Schema({
 
 // Dates Sub-Schema
 const datesSchema = new Schema({
-    startDate: { type: Date, required: true },
-    endDate: { type: Date, required: true },
-    totalDays: { type: Number, required: true },
+    startDate: { type: Date, required: false },
+    endDate: { type: Date, required: false },
+    totalDays: { type: Number, required: false },
     workingDays: Number,
     halfDay: { type: Boolean, default: false },
     halfDayPeriod: { type: String, enum: ['first_half', 'second_half'] },
@@ -403,7 +403,7 @@ const leaveRequestSchema = new Schema({
     requestNumber: { type: String, unique: true, sparse: true },
 
     // Employee Information
-    employeeId: { type: Schema.Types.ObjectId, ref: 'Employee', required: true },
+    employeeId: { type: Schema.Types.ObjectId, ref: 'Employee', required: false },
     employeeNumber: String,
     employeeName: String,
     employeeNameAr: String,
@@ -415,7 +415,7 @@ const leaveRequestSchema = new Schema({
     leaveType: {
         type: String,
         enum: ['annual', 'sick', 'hajj', 'marriage', 'birth', 'death', 'eid', 'maternity', 'paternity', 'exam', 'unpaid'],
-        required: true
+        required: false
     },
     leaveTypeName: String,
     leaveTypeNameAr: String,

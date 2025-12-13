@@ -40,18 +40,14 @@ const createEmployeeSchema = Joi.object({
     name: Joi.string()
         .min(2)
         .max(100)
-        .required()
         .messages({
             'string.min': 'الاسم قصير جداً / Name is too short',
-            'string.max': 'الاسم طويل جداً / Name is too long',
-            'any.required': 'الاسم مطلوب / Name is required'
+            'string.max': 'الاسم طويل جداً / Name is too long'
         }),
     email: Joi.string()
         .email()
-        .required()
         .messages({
-            'string.email': 'البريد الإلكتروني غير صالح / Invalid email format',
-            'any.required': 'البريد الإلكتروني مطلوب / Email is required'
+            'string.email': 'البريد الإلكتروني غير صالح / Invalid email format'
         }),
     phone: Joi.string()
         .pattern(saudiPhonePattern)
@@ -140,8 +136,8 @@ const createEmployeeSchema = Joi.object({
     }),
     allowances: Joi.array().items(
         Joi.object({
-            type: Joi.string().required(),
-            amount: Joi.number().positive().required(),
+            type: Joi.string(),
+            amount: Joi.number().positive(),
             startDate: Joi.date().iso()
         })
     )
@@ -208,18 +204,14 @@ const updateEmployeeSchema = Joi.object({
  */
 const addAllowanceSchema = Joi.object({
     type: Joi.string()
-        .required()
         .valid('housing', 'transportation', 'food', 'phone', 'other')
         .messages({
-            'any.required': 'نوع البدل مطلوب / Allowance type is required',
             'any.only': 'نوع البدل غير صالح / Invalid allowance type'
         }),
     amount: Joi.number()
         .positive()
-        .required()
         .messages({
-            'number.positive': 'المبلغ يجب أن يكون رقماً موجباً / Amount must be a positive number',
-            'any.required': 'المبلغ مطلوب / Amount is required'
+            'number.positive': 'المبلغ يجب أن يكون رقماً موجباً / Amount must be a positive number'
         }),
     description: Joi.string()
         .max(500)
@@ -252,21 +244,17 @@ const createPayrollRunSchema = Joi.object({
         .integer()
         .min(1)
         .max(12)
-        .required()
         .messages({
             'number.min': 'الشهر يجب أن يكون بين 1 و 12 / Month must be between 1 and 12',
-            'number.max': 'الشهر يجب أن يكون بين 1 و 12 / Month must be between 1 and 12',
-            'any.required': 'الشهر مطلوب / Month is required'
+            'number.max': 'الشهر يجب أن يكون بين 1 و 12 / Month must be between 1 and 12'
         }),
     year: Joi.number()
         .integer()
         .min(2020)
         .max(2100)
-        .required()
         .messages({
             'number.min': 'السنة غير صالحة / Invalid year',
-            'number.max': 'السنة غير صالحة / Invalid year',
-            'any.required': 'السنة مطلوبة / Year is required'
+            'number.max': 'السنة غير صالحة / Invalid year'
         }),
     employeeIds: Joi.array()
         .items(Joi.string())
@@ -307,9 +295,7 @@ const updatePayrollRunSchema = Joi.object({
  */
 const approvePayrollSchema = Joi.object({
     payrollRunId: Joi.string()
-        .required()
         .messages({
-            'any.required': 'معرف دورة الرواتب مطلوب / Payroll run ID is required'
         }),
     approvalNotes: Joi.string()
         .max(1000)
@@ -325,13 +311,11 @@ const generateBulkPayrollSchema = Joi.object({
     month: Joi.number()
         .integer()
         .min(1)
-        .max(12)
-        .required(),
+        .max(12),
     year: Joi.number()
         .integer()
         .min(2020)
-        .max(2100)
-        .required(),
+        .max(2100),
     employeeIds: Joi.array()
         .items(Joi.string())
         .min(1)
@@ -345,37 +329,31 @@ const generateBulkPayrollSchema = Joi.object({
  */
 const createSalarySlipSchema = Joi.object({
     employeeId: Joi.string()
-        .required()
         .messages({
-            'any.required': 'معرف الموظف مطلوب / Employee ID is required'
         }),
     month: Joi.number()
         .integer()
         .min(1)
-        .max(12)
-        .required(),
+        .max(12),
     year: Joi.number()
         .integer()
         .min(2020)
-        .max(2100)
-        .required(),
+        .max(2100),
     basicSalary: Joi.number()
         .positive()
-        .required()
         .messages({
-            'number.positive': 'الراتب الأساسي يجب أن يكون رقماً موجباً / Basic salary must be a positive number',
-            'any.required': 'الراتب الأساسي مطلوب / Basic salary is required'
+            'number.positive': 'الراتب الأساسي يجب أن يكون رقماً موجباً / Basic salary must be a positive number'
         }),
     allowances: Joi.array().items(
         Joi.object({
-            type: Joi.string().required(),
-            amount: Joi.number().positive().required()
+            type: Joi.string(),
+            amount: Joi.number().positive()
         })
     ),
     deductions: Joi.array().items(
         Joi.object({
-            type: Joi.string().required(),
-            amount: Joi.number().positive().required()
+            type: Joi.string(),
+            amount: Joi.number().positive()
         })
     ),
     paymentDate: Joi.date().iso(),
@@ -389,20 +367,20 @@ const updateSalarySlipSchema = Joi.object({
     basicSalary: Joi.number().positive(),
     allowances: Joi.array().items(
         Joi.object({
-            type: Joi.string().required(),
-            amount: Joi.number().positive().required()
+            type: Joi.string(),
+            amount: Joi.number().positive()
         })
     ),
     deductions: Joi.array().items(
         Joi.object({
-            type: Joi.string().required(),
-            amount: Joi.number().positive().required()
+            type: Joi.string(),
+            amount: Joi.number().positive()
         })
     ),
     paymentDate: Joi.date().iso(),
     notes: Joi.string().max(1000),
     status: Joi.string().valid('draft', 'approved', 'paid', 'cancelled')
-}).min(1).messages({
+}).messages({
     'object.min': 'يجب تقديم حقل واحد على الأقل للتحديث / At least one field must be provided for update'
 });
 
@@ -419,26 +397,20 @@ const createLeaveRequestSchema = Joi.object({
             'string.base': 'معرف الموظف غير صالح / Invalid employee ID'
         }),
     type: Joi.string()
-        .required()
         .valid('annual', 'sick', 'unpaid', 'maternity', 'paternity', 'hajj', 'emergency', 'bereavement', 'study', 'compassionate')
         .messages({
-            'any.required': 'نوع الإجازة مطلوب / Leave type is required',
             'any.only': 'نوع الإجازة غير صالح / Invalid leave type'
         }),
     startDate: Joi.date()
         .iso()
-        .required()
         .messages({
-            'date.format': 'تاريخ البداية غير صالح / Invalid start date format',
-            'any.required': 'تاريخ البداية مطلوب / Start date is required'
+            'date.format': 'تاريخ البداية غير صالح / Invalid start date format'
         }),
     endDate: Joi.date()
         .iso()
-        .required()
         .greater(Joi.ref('startDate'))
         .messages({
             'date.format': 'تاريخ النهاية غير صالح / Invalid end date format',
-            'any.required': 'تاريخ النهاية مطلوب / End date is required',
             'date.greater': 'تاريخ النهاية يجب أن يكون بعد تاريخ البداية / End date must be after start date'
         }),
     reason: Joi.string()
@@ -514,16 +486,12 @@ const reviewLeaveRequestSchema = Joi.object({
 const requestExtensionSchema = Joi.object({
     newEndDate: Joi.date()
         .iso()
-        .required()
         .messages({
-            'any.required': 'تاريخ النهاية الجديد مطلوب / New end date is required'
         }),
     extensionReason: Joi.string()
         .min(10)
         .max(1000)
-        .required()
         .messages({
-            'any.required': 'سبب التمديد مطلوب / Extension reason is required',
             'string.min': 'سبب التمديد قصير جداً / Extension reason is too short'
         }),
     attachments: Joi.array().items(Joi.string())
@@ -594,16 +562,12 @@ const checkOutSchema = Joi.object({
  */
 const createAttendanceSchema = Joi.object({
     employeeId: Joi.string()
-        .required()
         .messages({
-            'any.required': 'معرف الموظف مطلوب / Employee ID is required'
         }),
     date: Joi.date()
         .iso()
-        .required()
         .max('now')
         .messages({
-            'any.required': 'التاريخ مطلوب / Date is required',
             'date.format': 'التاريخ غير صالح / Invalid date format',
             'date.max': 'التاريخ لا يمكن أن يكون في المستقبل / Date cannot be in the future'
         }),
@@ -618,10 +582,8 @@ const createAttendanceSchema = Joi.object({
             'string.pattern.base': 'وقت الانصراف غير صالح (HH:MM) / Invalid check-out time (HH:MM)'
         }),
     status: Joi.string()
-        .required()
         .valid('present', 'absent', 'late', 'half-day', 'on-leave', 'holiday', 'weekend')
         .messages({
-            'any.required': 'الحالة مطلوبة / Status is required',
             'any.only': 'الحالة غير صالحة / Invalid status'
         }),
     workHours: Joi.number()
@@ -667,25 +629,19 @@ const updateAttendanceSchema = Joi.object({
  */
 const submitCorrectionSchema = Joi.object({
     field: Joi.string()
-        .required()
         .valid('checkIn', 'checkOut', 'status', 'workHours', 'overtimeHours')
         .messages({
-            'any.required': 'الحقل المراد تصحيحه مطلوب / Field to correct is required',
             'any.only': 'الحقل غير صالح / Invalid field'
         }),
     oldValue: Joi.alternatives().try(Joi.string(), Joi.number()),
     newValue: Joi.alternatives()
         .try(Joi.string(), Joi.number())
-        .required()
         .messages({
-            'any.required': 'القيمة الجديدة مطلوبة / New value is required'
         }),
     reason: Joi.string()
         .min(10)
         .max(1000)
-        .required()
         .messages({
-            'any.required': 'سبب التصحيح مطلوب / Correction reason is required',
             'string.min': 'سبب التصحيح قصير جداً / Correction reason is too short'
         }),
     attachments: Joi.array().items(Joi.string())
@@ -696,10 +652,8 @@ const submitCorrectionSchema = Joi.object({
  */
 const reviewCorrectionSchema = Joi.object({
     status: Joi.string()
-        .required()
         .valid('approved', 'rejected')
         .messages({
-            'any.required': 'حالة المراجعة مطلوبة / Review status is required',
             'any.only': 'حالة المراجعة غير صالحة / Invalid review status'
         }),
     reviewNotes: Joi.string()
@@ -718,23 +672,17 @@ const reviewCorrectionSchema = Joi.object({
  */
 const createAdvanceSchema = Joi.object({
     employeeId: Joi.string()
-        .required()
         .messages({
-            'any.required': 'معرف الموظف مطلوب / Employee ID is required'
         }),
     amount: Joi.number()
         .positive()
-        .required()
         .messages({
-            'number.positive': 'المبلغ يجب أن يكون رقماً موجباً / Amount must be a positive number',
-            'any.required': 'المبلغ مطلوب / Amount is required'
+            'number.positive': 'المبلغ يجب أن يكون رقماً موجباً / Amount must be a positive number'
         }),
     reason: Joi.string()
         .min(10)
         .max(1000)
-        .required()
         .messages({
-            'any.required': 'السبب مطلوب / Reason is required',
             'string.min': 'السبب قصير جداً / Reason is too short'
         }),
     requestDate: Joi.date()
@@ -814,10 +762,8 @@ const disburseAdvanceSchema = Joi.object({
             'date.max': 'تاريخ الصرف لا يمكن أن يكون في المستقبل / Disbursement date cannot be in the future'
         }),
     disbursementMethod: Joi.string()
-        .required()
         .valid('bank-transfer', 'cash', 'check')
         .messages({
-            'any.required': 'طريقة الصرف مطلوبة / Disbursement method is required',
             'any.only': 'طريقة الصرف غير صالحة / Invalid disbursement method'
         }),
     referenceNumber: Joi.string()
@@ -834,10 +780,8 @@ const disburseAdvanceSchema = Joi.object({
 const recordRecoverySchema = Joi.object({
     amount: Joi.number()
         .positive()
-        .required()
         .messages({
-            'number.positive': 'مبلغ الاسترداد يجب أن يكون رقماً موجباً / Recovery amount must be a positive number',
-            'any.required': 'مبلغ الاسترداد مطلوب / Recovery amount is required'
+            'number.positive': 'مبلغ الاسترداد يجب أن يكون رقماً موجباً / Recovery amount must be a positive number'
         }),
     recoveryDate: Joi.date()
         .iso()
@@ -847,10 +791,8 @@ const recordRecoverySchema = Joi.object({
             'date.max': 'تاريخ الاسترداد لا يمكن أن يكون في المستقبل / Recovery date cannot be in the future'
         }),
     method: Joi.string()
-        .required()
         .valid('salary-deduction', 'cash', 'bank-transfer')
         .messages({
-            'any.required': 'طريقة الاسترداد مطلوبة / Recovery method is required'
         }),
     notes: Joi.string().max(1000)
 });
@@ -864,23 +806,17 @@ const recordRecoverySchema = Joi.object({
  */
 const createLoanSchema = Joi.object({
     employeeId: Joi.string()
-        .required()
         .messages({
-            'any.required': 'معرف الموظف مطلوب / Employee ID is required'
         }),
     loanType: Joi.string()
-        .required()
         .valid('personal', 'housing', 'education', 'medical', 'vehicle', 'emergency', 'other')
         .messages({
-            'any.required': 'نوع القرض مطلوب / Loan type is required',
             'any.only': 'نوع القرض غير صالح / Invalid loan type'
         }),
     amount: Joi.number()
         .positive()
-        .required()
         .messages({
-            'number.positive': 'مبلغ القرض يجب أن يكون رقماً موجباً / Loan amount must be a positive number',
-            'any.required': 'مبلغ القرض مطلوب / Loan amount is required'
+            'number.positive': 'مبلغ القرض يجب أن يكون رقماً موجباً / Loan amount must be a positive number'
         }),
     interestRate: Joi.number()
         .min(0)
@@ -894,18 +830,14 @@ const createLoanSchema = Joi.object({
         .integer()
         .positive()
         .max(60)
-        .required()
         .messages({
             'number.positive': 'عدد الأقساط يجب أن يكون رقماً موجباً / Number of installments must be positive',
-            'number.max': 'عدد الأقساط لا يمكن أن يتجاوز 60 / Number of installments cannot exceed 60',
-            'any.required': 'عدد الأقساط مطلوب / Number of installments is required'
+            'number.max': 'عدد الأقساط لا يمكن أن يتجاوز 60 / Number of installments cannot exceed 60'
         }),
     purpose: Joi.string()
         .min(20)
         .max(2000)
-        .required()
         .messages({
-            'any.required': 'الغرض من القرض مطلوب / Loan purpose is required',
             'string.min': 'الغرض من القرض قصير جداً / Loan purpose is too short'
         }),
     startDate: Joi.date()
@@ -916,9 +848,9 @@ const createLoanSchema = Joi.object({
         }),
     guarantors: Joi.array().items(
         Joi.object({
-            name: Joi.string().required(),
+            name: Joi.string(),
             nationalId: Joi.string().pattern(saudiNationalIdPattern),
-            relationship: Joi.string().required(),
+            relationship: Joi.string(),
             phone: Joi.string().pattern(saudiPhonePattern)
         })
     ),
@@ -943,9 +875,9 @@ const updateLoanSchema = Joi.object({
     startDate: Joi.date().iso().min('now'),
     guarantors: Joi.array().items(
         Joi.object({
-            name: Joi.string().required(),
+            name: Joi.string(),
             nationalId: Joi.string().pattern(saudiNationalIdPattern),
-            relationship: Joi.string().required(),
+            relationship: Joi.string(),
             phone: Joi.string().pattern(saudiPhonePattern)
         })
     ),
@@ -994,10 +926,8 @@ const disburseLoanSchema = Joi.object({
             'date.max': 'تاريخ الصرف لا يمكن أن يكون في المستقبل / Disbursement date cannot be in the future'
         }),
     disbursementMethod: Joi.string()
-        .required()
         .valid('bank-transfer', 'check')
         .messages({
-            'any.required': 'طريقة الصرف مطلوبة / Disbursement method is required'
         }),
     bankAccount: Joi.string()
         .pattern(saudiIBANPattern)
@@ -1014,10 +944,8 @@ const disburseLoanSchema = Joi.object({
 const recordPaymentSchema = Joi.object({
     amount: Joi.number()
         .positive()
-        .required()
         .messages({
-            'number.positive': 'مبلغ الدفع يجب أن يكون رقماً موجباً / Payment amount must be a positive number',
-            'any.required': 'مبلغ الدفع مطلوب / Payment amount is required'
+            'number.positive': 'مبلغ الدفع يجب أن يكون رقماً موجباً / Payment amount must be a positive number'
         }),
     paymentDate: Joi.date()
         .iso()
@@ -1027,10 +955,8 @@ const recordPaymentSchema = Joi.object({
             'date.max': 'تاريخ الدفع لا يمكن أن يكون في المستقبل / Payment date cannot be in the future'
         }),
     method: Joi.string()
-        .required()
         .valid('salary-deduction', 'cash', 'bank-transfer', 'check')
         .messages({
-            'any.required': 'طريقة الدفع مطلوبة / Payment method is required'
         }),
     referenceNumber: Joi.string().max(100),
     notes: Joi.string().max(1000)
@@ -1044,9 +970,7 @@ const restructureLoanSchema = Joi.object({
         .integer()
         .positive()
         .max(60)
-        .required()
         .messages({
-            'any.required': 'عدد الأقساط الجديد مطلوب / New number of installments is required',
             'number.max': 'عدد الأقساط لا يمكن أن يتجاوز 60 / Number of installments cannot exceed 60'
         }),
     newInterestRate: Joi.number()
@@ -1059,9 +983,7 @@ const restructureLoanSchema = Joi.object({
     reason: Joi.string()
         .min(20)
         .max(1000)
-        .required()
         .messages({
-            'any.required': 'سبب إعادة الهيكلة مطلوب / Restructuring reason is required',
             'string.min': 'سبب إعادة الهيكلة قصير جداً / Restructuring reason is too short'
         }),
     effectiveDate: Joi.date()
@@ -1081,15 +1003,11 @@ const restructureLoanSchema = Joi.object({
  */
 const createBenefitSchema = Joi.object({
     employeeId: Joi.string()
-        .required()
         .messages({
-            'any.required': 'معرف الموظف مطلوب / Employee ID is required'
         }),
     benefitType: Joi.string()
-        .required()
         .valid('health-insurance', 'life-insurance', 'dental', 'vision', 'retirement', 'stock-options', 'gym-membership', 'transportation', 'education', 'other')
         .messages({
-            'any.required': 'نوع الميزة مطلوب / Benefit type is required',
             'any.only': 'نوع الميزة غير صالح / Invalid benefit type'
         }),
     provider: Joi.string()
@@ -1104,9 +1022,7 @@ const createBenefitSchema = Joi.object({
         }),
     startDate: Joi.date()
         .iso()
-        .required()
         .messages({
-            'any.required': 'تاريخ البداية مطلوب / Start date is required'
         }),
     endDate: Joi.date()
         .iso()
@@ -1133,8 +1049,8 @@ const createBenefitSchema = Joi.object({
         }),
     dependents: Joi.array().items(
         Joi.object({
-            name: Joi.string().required().max(100),
-            relationship: Joi.string().required().valid('spouse', 'child', 'parent', 'sibling', 'other'),
+            name: Joi.string().max(100),
+            relationship: Joi.string().valid('spouse', 'child', 'parent', 'sibling', 'other'),
             dateOfBirth: Joi.date().iso().max('now'),
             nationalId: Joi.string().pattern(saudiNationalIdPattern)
         })
@@ -1170,17 +1086,13 @@ const updateBenefitSchema = Joi.object({
  */
 const addDependentSchema = Joi.object({
     name: Joi.string()
-        .required()
         .max(100)
         .messages({
-            'any.required': 'اسم التابع مطلوب / Dependent name is required',
             'string.max': 'الاسم طويل جداً / Name is too long'
         }),
     relationship: Joi.string()
-        .required()
         .valid('spouse', 'child', 'parent', 'sibling', 'other')
         .messages({
-            'any.required': 'العلاقة مطلوبة / Relationship is required',
             'any.only': 'العلاقة غير صالحة / Invalid relationship'
         }),
     dateOfBirth: Joi.date()
@@ -1202,24 +1114,18 @@ const addDependentSchema = Joi.object({
  */
 const addBeneficiarySchema = Joi.object({
     name: Joi.string()
-        .required()
         .max(100)
         .messages({
-            'any.required': 'اسم المستفيد مطلوب / Beneficiary name is required',
             'string.max': 'الاسم طويل جداً / Name is too long'
         }),
     relationship: Joi.string()
-        .required()
         .max(50)
         .messages({
-            'any.required': 'العلاقة مطلوبة / Relationship is required'
         }),
     percentage: Joi.number()
         .min(0)
         .max(100)
-        .required()
         .messages({
-            'any.required': 'النسبة المئوية مطلوبة / Percentage is required',
             'number.min': 'النسبة المئوية لا يمكن أن تكون سالبة / Percentage cannot be negative',
             'number.max': 'النسبة المئوية لا يمكن أن تتجاوز 100 / Percentage cannot exceed 100'
         }),
@@ -1241,26 +1147,20 @@ const addBeneficiarySchema = Joi.object({
  */
 const submitClaimSchema = Joi.object({
     claimType: Joi.string()
-        .required()
         .valid('medical', 'dental', 'vision', 'prescription', 'hospital', 'emergency', 'preventive', 'other')
         .messages({
-            'any.required': 'نوع المطالبة مطلوب / Claim type is required',
             'any.only': 'نوع المطالبة غير صالح / Invalid claim type'
         }),
     claimDate: Joi.date()
         .iso()
         .max('now')
-        .required()
         .messages({
-            'any.required': 'تاريخ المطالبة مطلوب / Claim date is required',
             'date.max': 'تاريخ المطالبة لا يمكن أن يكون في المستقبل / Claim date cannot be in the future'
         }),
     amount: Joi.number()
         .positive()
-        .required()
         .messages({
-            'number.positive': 'مبلغ المطالبة يجب أن يكون رقماً موجباً / Claim amount must be a positive number',
-            'any.required': 'مبلغ المطالبة مطلوب / Claim amount is required'
+            'number.positive': 'مبلغ المطالبة يجب أن يكون رقماً موجباً / Claim amount must be a positive number'
         }),
     provider: Joi.string()
         .max(200)
@@ -1297,10 +1197,8 @@ const submitClaimSchema = Joi.object({
 const idParamSchema = Joi.object({
     id: Joi.string()
         .pattern(/^[0-9a-fA-F]{24}$/)
-        .required()
         .messages({
-            'string.pattern.base': 'معرف غير صالح / Invalid ID format',
-            'any.required': 'المعرف مطلوب / ID is required'
+            'string.pattern.base': 'معرف غير صالح / Invalid ID format'
         })
 });
 
@@ -1310,10 +1208,8 @@ const idParamSchema = Joi.object({
 const employeeIdParamSchema = Joi.object({
     employeeId: Joi.string()
         .pattern(/^[0-9a-fA-F]{24}$/)
-        .required()
         .messages({
-            'string.pattern.base': 'معرف الموظف غير صالح / Invalid employee ID format',
-            'any.required': 'معرف الموظف مطلوب / Employee ID is required'
+            'string.pattern.base': 'معرف الموظف غير صالح / Invalid employee ID format'
         })
 });
 

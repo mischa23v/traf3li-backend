@@ -38,10 +38,10 @@ const TRAINING_POLICIES = {
 
 // Approval workflow step schema
 const approvalStepSchema = new mongoose.Schema({
-    stepNumber: { type: Number, required: true },
-    stepName: { type: String, required: true },
+    stepNumber: { type: Number, required: false },
+    stepName: { type: String, required: false },
     stepNameAr: String,
-    approverRole: { type: String, required: true },
+    approverRole: { type: String, required: false },
     approverId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     approverName: String,
     status: {
@@ -65,8 +65,8 @@ const approvalStepSchema = new mongoose.Schema({
 
 // Session/Schedule schema
 const sessionSchema = new mongoose.Schema({
-    sessionNumber: { type: Number, required: true },
-    sessionDate: { type: Date, required: true },
+    sessionNumber: { type: Number, required: false },
+    sessionDate: { type: Date, required: false },
     startTime: String,
     endTime: String,
     duration: Number, // Hours
@@ -91,13 +91,13 @@ const sessionSchema = new mongoose.Schema({
 
 // Assessment schema
 const assessmentSchema = new mongoose.Schema({
-    assessmentId: { type: String, required: true },
+    assessmentId: { type: String, required: false },
     assessmentType: {
         type: String,
         enum: ['pre_assessment', 'quiz', 'mid_term', 'final_exam', 'project', 'presentation', 'practical', 'post_assessment'],
-        required: true
+        required: false
     },
-    assessmentTitle: { type: String, required: true },
+    assessmentTitle: { type: String, required: false },
     assessmentDate: Date,
     attemptNumber: { type: Number, default: 1 },
     maxAttempts: Number,
@@ -175,18 +175,18 @@ const communicationSchema = new mongoose.Schema({
 
 // Payment record schema
 const paymentRecordSchema = new mongoose.Schema({
-    paymentDate: { type: Date, required: true },
-    amount: { type: Number, required: true },
+    paymentDate: { type: Date, required: false },
+    amount: { type: Number, required: false },
     paymentMethod: {
         type: String,
         enum: ['bank_transfer', 'credit_card', 'check', 'invoice'],
-        required: true
+        required: false
     },
     paymentReference: String,
     paidBy: {
         type: String,
         enum: ['company', 'employee'],
-        required: true
+        required: false
     },
     receiptUrl: String
 }, { _id: true });
@@ -199,7 +199,7 @@ const additionalCostSchema = new mongoose.Schema({
             'travel', 'accommodation', 'meals', 'equipment', 'software', 'other']
     },
     description: String,
-    amount: { type: Number, required: true },
+    amount: { type: Number, required: false },
     billable: { type: Boolean, default: false }
 }, { _id: true });
 
@@ -235,15 +235,15 @@ const trainingSchema = new mongoose.Schema({
     // ═══════════════════════════════════════════════════════════════
     // IDENTIFICATION
     // ═══════════════════════════════════════════════════════════════
-    trainingId: { type: String, unique: true, required: true },
-    trainingNumber: { type: String, unique: true, required: true },
+    trainingId: { type: String, unique: true, required: false },
+    trainingNumber: { type: String, unique: true, required: false },
 
     // ═══════════════════════════════════════════════════════════════
     // EMPLOYEE INFORMATION
     // ═══════════════════════════════════════════════════════════════
-    employeeId: { type: mongoose.Schema.Types.ObjectId, ref: 'Employee', required: true },
-    employeeNumber: { type: String, required: true },
-    employeeName: { type: String, required: true },
+    employeeId: { type: mongoose.Schema.Types.ObjectId, ref: 'Employee', required: false },
+    employeeNumber: { type: String, required: false },
+    employeeName: { type: String, required: false },
     employeeNameAr: String,
     department: String,
     jobTitle: String,
@@ -251,21 +251,21 @@ const trainingSchema = new mongoose.Schema({
     // ═══════════════════════════════════════════════════════════════
     // TRAINING DETAILS
     // ═══════════════════════════════════════════════════════════════
-    trainingTitle: { type: String, required: true },
+    trainingTitle: { type: String, required: false },
     trainingTitleAr: String,
     trainingDescription: String,
     trainingDescriptionAr: String,
     trainingType: {
         type: String,
         enum: ['internal', 'external', 'online', 'certification', 'conference', 'workshop', 'mentoring', 'on_the_job'],
-        required: true
+        required: false
     },
     trainingCategory: {
         type: String,
         enum: ['technical', 'soft_skills', 'leadership', 'management', 'compliance',
             'safety', 'product_knowledge', 'systems', 'legal_professional',
             'business_development', 'language', 'other'],
-        required: true
+        required: false
     },
     deliveryMethod: {
         type: String,
@@ -334,10 +334,10 @@ const trainingSchema = new mongoose.Schema({
     // ═══════════════════════════════════════════════════════════════
     // DATES & DURATION
     // ═══════════════════════════════════════════════════════════════
-    startDate: { type: Date, required: true },
-    endDate: { type: Date, required: true },
+    startDate: { type: Date, required: false },
+    endDate: { type: Date, required: false },
     duration: {
-        totalHours: { type: Number, required: true },
+        totalHours: { type: Number, required: false },
         totalDays: Number,
         sessionsCount: Number,
         hoursPerSession: Number,

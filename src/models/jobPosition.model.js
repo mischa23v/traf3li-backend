@@ -7,7 +7,7 @@ const mongoose = require('mongoose');
 // Responsibility Schema
 const responsibilitySchema = new mongoose.Schema({
     responsibilityId: String,
-    responsibility: { type: String, required: true },
+    responsibility: { type: String, required: false },
     responsibilityAr: String,
     category: {
         type: String,
@@ -243,7 +243,7 @@ const jobPositionSchema = new mongoose.Schema({
     // ==================== JOB IDENTIFICATION ====================
     jobId: String,                          // Link to job template
     jobCode: String,
-    jobTitle: { type: String, required: true },
+    jobTitle: { type: String, required: false },
     jobTitleAr: String,
     workingTitle: String,                   // If different from official
     workingTitleAr: String,
@@ -281,7 +281,7 @@ const jobPositionSchema = new mongoose.Schema({
         type: String,
         enum: ['legal', 'finance', 'hr', 'it', 'operations', 'marketing',
                'sales', 'administration', 'management', 'support', 'other'],
-        required: true
+        required: false
     },
     jobFamilyAr: String,
     jobSubFamily: String,
@@ -290,7 +290,7 @@ const jobPositionSchema = new mongoose.Schema({
         type: String,
         enum: ['executive', 'management', 'professional', 'technical',
                'administrative', 'operational', 'support'],
-        required: true
+        required: false
     },
     occupationalCategoryAr: String,
     iscoCode: String,                       // International Standard Classification
@@ -303,11 +303,11 @@ const jobPositionSchema = new mongoose.Schema({
         enum: ['entry', 'junior', 'mid', 'senior', 'lead', 'manager',
                'senior_manager', 'director', 'senior_director', 'vp',
                'svp', 'evp', 'c_level'],
-        required: true
+        required: false
     },
     jobLevelAr: String,
     levelNumber: Number,                    // 1-15 scale
-    jobGrade: { type: String, required: true },
+    jobGrade: { type: String, required: false },
     gradeNumber: Number,
     careerBand: {
         type: String,
@@ -464,7 +464,7 @@ const jobPositionSchema = new mongoose.Schema({
             minimumEducation: {
                 type: String,
                 enum: ['high_school', 'diploma', 'bachelors', 'masters', 'doctorate', 'professional'],
-                required: true
+                required: false
             },
             minimumEducationAr: String,
             requiredDegrees: [{
@@ -487,7 +487,7 @@ const jobPositionSchema = new mongoose.Schema({
 
         // Experience
         experience: {
-            minimumYears: { type: Number, required: true, default: 0 },
+            minimumYears: { type: Number, required: false, default: 0 },
             preferredYears: Number,
             experienceTypes: [{
                 type: {
@@ -859,7 +859,7 @@ const jobPositionSchema = new mongoose.Schema({
 
     // ==================== COMPENSATION ====================
     compensation: {
-        salaryGrade: { type: String, required: true },
+        salaryGrade: { type: String, required: false },
         gradeLevel: Number,
         salaryRange: {
             minimum: Number,

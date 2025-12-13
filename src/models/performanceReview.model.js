@@ -16,13 +16,13 @@ const ReviewPeriodSchema = new Schema({
     periodType: {
         type: String,
         enum: ['annual', 'mid_year', 'quarterly', 'probation', 'project', 'ad_hoc'],
-        required: true
+        required: false
     },
     periodName: String, // "2025 Annual Review", "Q1 2025"
     periodNameAr: String,
-    startDate: { type: Date, required: true },
-    endDate: { type: Date, required: true },
-    reviewDueDate: { type: Date, required: true },
+    startDate: { type: Date, required: false },
+    endDate: { type: Date, required: false },
+    reviewDueDate: { type: Date, required: false },
     selfAssessmentDueDate: Date
 }, { _id: false });
 
@@ -78,14 +78,14 @@ const SelfAssessmentSchema = new Schema({
 
 // Competency Rating Schema
 const CompetencyRatingSchema = new Schema({
-    competencyId: { type: String, required: true },
-    competencyName: { type: String, required: true },
+    competencyId: { type: String, required: false },
+    competencyName: { type: String, required: false },
     competencyNameAr: String,
 
     competencyCategory: {
         type: String,
         enum: ['core', 'leadership', 'technical', 'behavioral', 'functional', 'legal', 'client_service'],
-        required: true
+        required: false
     },
 
     competencyDescription: String,
@@ -127,8 +127,8 @@ const CompetencyRatingSchema = new Schema({
 
 // Goal Schema
 const GoalSchema = new Schema({
-    goalId: { type: String, required: true },
-    goalName: { type: String, required: true },
+    goalId: { type: String, required: false },
+    goalName: { type: String, required: false },
     goalNameAr: String,
 
     goalType: {
@@ -191,8 +191,8 @@ const GoalSchema = new Schema({
 
 // KPI Schema
 const KPISchema = new Schema({
-    kpiId: { type: String, required: true },
-    kpiName: { type: String, required: true },
+    kpiId: { type: String, required: false },
+    kpiName: { type: String, required: false },
     kpiNameAr: String,
 
     kpiCategory: {
@@ -205,7 +205,7 @@ const KPISchema = new Schema({
     unit: String,
 
     // Targets
-    target: { type: Number, required: true },
+    target: { type: Number, required: false },
     threshold: Number, // Minimum acceptable
     stretch: Number, // Exceptional performance
 
@@ -346,7 +346,7 @@ const AttorneyMetricsSchema = new Schema({
 // Strength Schema
 const StrengthSchema = new Schema({
     strengthId: String,
-    strengthArea: { type: String, required: true },
+    strengthArea: { type: String, required: false },
     strengthAreaAr: String,
 
     category: {
@@ -369,7 +369,7 @@ const StrengthSchema = new Schema({
 // Area for Improvement Schema
 const ImprovementAreaSchema = new Schema({
     improvementId: String,
-    improvementArea: { type: String, required: true },
+    improvementArea: { type: String, required: false },
     improvementAreaAr: String,
 
     category: {
@@ -406,7 +406,7 @@ const ImprovementAreaSchema = new Schema({
 // Development Plan Item Schema
 const DevelopmentPlanItemSchema = new Schema({
     itemId: String,
-    objectiveName: { type: String, required: true },
+    objectiveName: { type: String, required: false },
     objectiveNameAr: String,
 
     category: {
@@ -517,7 +517,7 @@ const DevelopmentPlanSchema = new Schema({
 
 // Feedback Provider Schema (360)
 const FeedbackProviderSchema = new Schema({
-    providerId: { type: Schema.Types.ObjectId, ref: 'Employee', required: true },
+    providerId: { type: Schema.Types.ObjectId, ref: 'Employee', required: false },
     providerName: String,
     providerNameAr: String,
     providerRole: String,
@@ -525,7 +525,7 @@ const FeedbackProviderSchema = new Schema({
     relationship: {
         type: String,
         enum: ['peer', 'direct_report', 'cross_functional', 'client', 'subordinate'],
-        required: true
+        required: false
     },
 
     requestedAt: { type: Date, default: Date.now },
@@ -542,7 +542,7 @@ const FeedbackProviderSchema = new Schema({
 
 // Feedback Response Schema (360)
 const FeedbackResponseSchema = new Schema({
-    providerId: { type: Schema.Types.ObjectId, ref: 'Employee', required: true },
+    providerId: { type: Schema.Types.ObjectId, ref: 'Employee', required: false },
 
     ratings: [{
         competencyId: String,
@@ -765,10 +765,10 @@ const DisputeSchema = new Schema({
 
 // Approval Step Schema
 const ApprovalStepSchema = new Schema({
-    stepNumber: { type: Number, required: true },
+    stepNumber: { type: Number, required: false },
     stepName: String,
 
-    approverRole: { type: String, required: true },
+    approverRole: { type: String, required: false },
     approverId: { type: Schema.Types.ObjectId, ref: 'User' },
     approverName: String,
 
@@ -872,7 +872,7 @@ const PerformanceReviewSchema = new Schema({
     employeeId: {
         type: Schema.Types.ObjectId,
         ref: 'Employee',
-        required: true,
+        required: false,
         index: true
     },
     employeeName: String,
@@ -892,7 +892,7 @@ const PerformanceReviewSchema = new Schema({
     reviewerId: {
         type: Schema.Types.ObjectId,
         ref: 'Employee',
-        required: true,
+        required: false,
         index: true
     },
     reviewerName: String,
@@ -910,7 +910,7 @@ const PerformanceReviewSchema = new Schema({
     reviewType: {
         type: String,
         enum: ['annual', 'mid_year', 'quarterly', 'monthly', 'probation', 'project_completion', '360_degree', 'peer_review', 'ad_hoc'],
-        required: true,
+        required: false,
         index: true
     },
 
@@ -1147,7 +1147,7 @@ const PerformanceReviewSchema = new Schema({
     firmId: {
         type: Schema.Types.ObjectId,
         ref: 'Firm',
-        required: true,
+        required: false,
         index: true
     },
     lawyerId: {
@@ -1159,7 +1159,7 @@ const PerformanceReviewSchema = new Schema({
     // ─────────────────────────────────────────────────────────────
     // Audit
     // ─────────────────────────────────────────────────────────────
-    createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+    createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: false },
     lastModifiedBy: { type: Schema.Types.ObjectId, ref: 'User' },
     lastModifiedAt: Date,
 

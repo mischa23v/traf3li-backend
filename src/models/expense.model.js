@@ -112,15 +112,15 @@ const expenseSchema = new mongoose.Schema({
     },
     description: {
         type: String,
-        required: true,
-        minlength: 10,
+        required: false,
+        minlength: 1,
         maxlength: 500,
         trim: true
     },
     // Amount in halalas (SAR subunit)
     amount: {
         type: Number,
-        required: true,
+        required: false,
         min: 0
     },
     taxAmount: {
@@ -136,12 +136,12 @@ const expenseSchema = new mongoose.Schema({
     category: {
         type: String,
         enum: EXPENSE_CATEGORIES,
-        required: true,
+        required: false,
         default: 'other'
     },
     date: {
         type: Date,
-        required: true,
+        required: false,
         index: true
     },
     paymentMethod: {
@@ -446,7 +446,7 @@ const expenseSchema = new mongoose.Schema({
     lawyerId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
-        required: true,
+        required: false,
         index: true
     },
     createdBy: {

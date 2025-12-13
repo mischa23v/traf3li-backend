@@ -11,9 +11,9 @@ const mongoose = require('mongoose');
 // ═══════════════════════════════════════════════════════════════
 
 const allowanceSchema = new mongoose.Schema({
-    name: { type: String, required: true },
+    name: { type: String, required: false },
     nameAr: { type: String },
-    amount: { type: Number, required: true, default: 0 },
+    amount: { type: Number, required: false, default: 0 },
     taxable: { type: Boolean, default: true },
     includedInEOSB: { type: Boolean, default: true },
     includedInGOSI: { type: Boolean, default: false }
@@ -66,9 +66,9 @@ const employeeSchema = new mongoose.Schema({
     // PERSONAL INFO - البيانات الشخصية
     // ═══════════════════════════════════════════════════════════════
     personalInfo: {
-        fullNameArabic: { type: String, required: true, trim: true },
+        fullNameArabic: { type: String, required: false, trim: true },
         fullNameEnglish: { type: String, trim: true },
-        nationalId: { type: String, required: true },
+        nationalId: { type: String, required: false },
         nationalIdType: {
             type: String,
             enum: ['saudi_id', 'iqama', 'gcc_id', 'passport'],
@@ -80,11 +80,11 @@ const employeeSchema = new mongoose.Schema({
         gender: {
             type: String,
             enum: ['male', 'female'],
-            required: true
+            required: false
         },
         dateOfBirth: Date,
-        mobile: { type: String, required: true },
-        email: { type: String, required: true, lowercase: true, trim: true },
+        mobile: { type: String, required: false },
+        email: { type: String, required: false, lowercase: true, trim: true },
         personalEmail: { type: String, lowercase: true, trim: true },
         currentAddress: addressSchema,
         emergencyContact: emergencyContactSchema,
@@ -106,7 +106,7 @@ const employeeSchema = new mongoose.Schema({
             default: 'active'
         },
         jobTitle: String,
-        jobTitleArabic: { type: String, required: true },
+        jobTitleArabic: { type: String, required: false },
         employmentType: {
             type: String,
             enum: ['full_time', 'part_time', 'contract', 'temporary'],
@@ -119,7 +119,7 @@ const employeeSchema = new mongoose.Schema({
         },
         contractStartDate: Date,
         contractEndDate: Date,
-        hireDate: { type: Date, required: true },
+        hireDate: { type: Date, required: false },
         probationPeriod: { type: Number, default: 90 }, // Days
         onProbation: { type: Boolean, default: true },
         workSchedule: workScheduleSchema,
@@ -136,7 +136,7 @@ const employeeSchema = new mongoose.Schema({
     // COMPENSATION - الراتب والبدلات
     // ═══════════════════════════════════════════════════════════════
     compensation: {
-        basicSalary: { type: Number, required: true, default: 0 },
+        basicSalary: { type: Number, required: false, default: 0 },
         currency: { type: String, default: 'SAR' },
         allowances: [allowanceSchema],
         paymentFrequency: {

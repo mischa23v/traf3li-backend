@@ -13,9 +13,9 @@ const mongoose = require('mongoose');
 
 // Repayment installment schema
 const repaymentInstallmentSchema = new mongoose.Schema({
-    installmentNumber: { type: Number, required: true },
-    dueDate: { type: Date, required: true },
-    installmentAmount: { type: Number, required: true },
+    installmentNumber: { type: Number, required: false },
+    dueDate: { type: Date, required: false },
+    installmentAmount: { type: Number, required: false },
     status: {
         type: String,
         enum: ['pending', 'paid', 'partial', 'missed', 'waived'],
@@ -35,18 +35,18 @@ const repaymentInstallmentSchema = new mongoose.Schema({
 
 // Recovery history schema
 const recoveryHistorySchema = new mongoose.Schema({
-    recoveryId: { type: String, required: true },
-    recoveryDate: { type: Date, required: true },
+    recoveryId: { type: String, required: false },
+    recoveryDate: { type: Date, required: false },
     installmentNumber: Number,
-    recoveredAmount: { type: Number, required: true },
+    recoveredAmount: { type: Number, required: false },
     recoveryMethod: {
         type: String,
         enum: ['payroll_deduction', 'bank_transfer', 'cash', 'final_settlement', 'lump_sum'],
-        required: true
+        required: false
     },
     recoveryReference: String,
     processedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-    remainingBalance: { type: Number, required: true },
+    remainingBalance: { type: Number, required: false },
     receiptNumber: String,
     receiptUrl: String,
     notes: String
@@ -54,10 +54,10 @@ const recoveryHistorySchema = new mongoose.Schema({
 
 // Approval step schema
 const approvalStepSchema = new mongoose.Schema({
-    stepNumber: { type: Number, required: true },
-    stepName: { type: String, required: true },
+    stepNumber: { type: Number, required: false },
+    stepName: { type: String, required: false },
     stepNameAr: String,
-    approverRole: { type: String, required: true },
+    approverRole: { type: String, required: false },
     approverId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     approverName: String,
     status: {
@@ -184,10 +184,10 @@ const employeeAdvanceSchema = new mongoose.Schema({
     employeeId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Employee',
-        required: true
+        required: false
     },
     employeeNumber: String,
-    employeeName: { type: String, required: true },
+    employeeName: { type: String, required: false },
     employeeNameAr: String,
     nationalId: String,
     department: String,
@@ -200,7 +200,7 @@ const employeeAdvanceSchema = new mongoose.Schema({
         type: String,
         enum: ['salary', 'emergency', 'travel', 'relocation', 'medical',
             'education', 'housing', 'end_of_year', 'other'],
-        required: true
+        required: false
     },
     advanceTypeAr: String,
     advanceCategory: {
@@ -208,7 +208,7 @@ const employeeAdvanceSchema = new mongoose.Schema({
         enum: ['regular', 'emergency', 'special'],
         default: 'regular'
     },
-    advanceAmount: { type: Number, required: true, min: 0 },
+    advanceAmount: { type: Number, required: false, min: 0 },
     approvedAmount: Number,
     currency: { type: String, default: 'SAR' },
 
@@ -239,14 +239,14 @@ const employeeAdvanceSchema = new mongoose.Schema({
     // REPAYMENT TERMS
     // ═══════════════════════════════════════════════════════════════
     repayment: {
-        installments: { type: Number, required: true, min: 1, max: 6 },
-        installmentAmount: { type: Number, required: true },
+        installments: { type: Number, required: false, min: 1, max: 6 },
+        installmentAmount: { type: Number, required: false },
         repaymentFrequency: {
             type: String,
             enum: ['monthly', 'bi_weekly'],
             default: 'monthly'
         },
-        startDate: { type: Date, required: true },
+        startDate: { type: Date, required: false },
         endDate: Date,
         deductionDay: { type: Number, min: 1, max: 28 },
         deductionMethod: {
@@ -260,9 +260,9 @@ const employeeAdvanceSchema = new mongoose.Schema({
     // CURRENT BALANCE
     // ═══════════════════════════════════════════════════════════════
     balance: {
-        originalAmount: { type: Number, required: true },
+        originalAmount: { type: Number, required: false },
         recoveredAmount: { type: Number, default: 0 },
-        remainingBalance: { type: Number, required: true },
+        remainingBalance: { type: Number, required: false },
         completionPercentage: { type: Number, default: 0 }
     },
 

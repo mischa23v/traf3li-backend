@@ -62,10 +62,10 @@ const BreakSchema = new Schema({
     type: {
         type: String,
         enum: ['prayer', 'lunch', 'personal', 'medical', 'other'],
-        required: true
+        required: false
     },
     typeAr: String,
-    startTime: { type: Date, required: true },
+    startTime: { type: Date, required: false },
     endTime: Date,
     duration: Number, // in minutes
     isPaid: { type: Boolean, default: true },
@@ -193,7 +193,7 @@ const ViolationSchema = new Schema({
             'proxy_attendance',
             'other'
         ],
-        required: true
+        required: false
     },
     typeAr: String,
     severity: {
@@ -266,11 +266,11 @@ const CorrectionRequestSchema = new Schema({
     field: {
         type: String,
         enum: ['checkIn', 'checkOut', 'breaks', 'overtime', 'status', 'other'],
-        required: true
+        required: false
     },
     originalValue: Schema.Types.Mixed,
     requestedValue: Schema.Types.Mixed,
-    reason: { type: String, required: true },
+    reason: { type: String, required: false },
     reasonAr: String,
     supportingDocument: String,
     status: {
@@ -327,7 +327,7 @@ const AttendanceRecordSchema = new Schema({
     employeeId: {
         type: Schema.Types.ObjectId,
         ref: 'Employee',
-        required: true,
+        required: false,
         index: true
     },
     employeeName: String,
@@ -343,7 +343,7 @@ const AttendanceRecordSchema = new Schema({
     // ─────────────────────────────────────────────────────────────
     date: {
         type: Date,
-        required: true,
+        required: false,
         index: true
     },
     dayOfWeek: {
@@ -542,7 +542,7 @@ const AttendanceRecordSchema = new Schema({
     firmId: {
         type: Schema.Types.ObjectId,
         ref: 'Firm',
-        required: true,
+        required: false,
         index: true
     },
     lawyerId: {
