@@ -18,18 +18,14 @@ const createCaseSchema = Joi.object({
     title: Joi.string()
         .min(3)
         .max(200)
-        .required()
         .messages({
             'string.min': 'عنوان القضية قصير جداً / Case title is too short',
-            'string.max': 'عنوان القضية طويل جداً / Case title is too long',
-            'any.required': 'عنوان القضية مطلوب / Case title is required'
+            'string.max': 'عنوان القضية طويل جداً / Case title is too long'
         }),
     clientId: Joi.string()
         .pattern(/^[0-9a-fA-F]{24}$/)
-        .required()
         .messages({
-            'string.pattern.base': 'معرف العميل غير صالح / Invalid client ID format',
-            'any.required': 'معرف العميل مطلوب / Client ID is required'
+            'string.pattern.base': 'معرف العميل غير صالح / Invalid client ID format'
         }),
     caseType: Joi.string()
         .max(100)
