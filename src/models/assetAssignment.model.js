@@ -51,13 +51,13 @@ const photoSchema = new mongoose.Schema({
 
 // Custom specification schema
 const customSpecSchema = new mongoose.Schema({
-    specName: { type: String, required: true },
-    specValue: { type: String, required: true }
+    specName: { type: String },
+    specValue: { type: String }
 }, { _id: false });
 
 // Accessory schema
 const accessorySchema = new mongoose.Schema({
-    accessoryType: { type: String, required: true },
+    accessoryType: { type: String },
     description: String,
     serialNumber: String,
     quantity: { type: Number, default: 1 },
@@ -68,20 +68,19 @@ const accessorySchema = new mongoose.Schema({
 
 // Checklist item schema
 const checklistItemSchema = new mongoose.Schema({
-    item: { type: String, required: true },
+    item: { type: String },
     checked: { type: Boolean, default: false },
     notes: String
 }, { _id: true });
 
 // Maintenance history schema
 const maintenanceHistorySchema = new mongoose.Schema({
-    maintenanceId: { type: String, required: true },
+    maintenanceId: { type: String },
     maintenanceType: {
         type: String,
-        enum: ['preventive', 'corrective', 'inspection', 'upgrade'],
-        required: true
+        enum: ['preventive', 'corrective', 'inspection', 'upgrade']
     },
-    maintenanceDate: { type: Date, required: true },
+    maintenanceDate: { type: Date },
     performedBy: {
         type: String,
         enum: ['internal', 'vendor', 'manufacturer']
@@ -89,7 +88,7 @@ const maintenanceHistorySchema = new mongoose.Schema({
     technician: String,
     vendorName: String,
     workOrder: String,
-    description: { type: String, required: true },
+    description: { type: String },
     mileageAtMaintenance: Number, // For vehicles
     partsReplaced: [{
         partName: String,
@@ -113,14 +112,13 @@ const maintenanceHistorySchema = new mongoose.Schema({
 
 // Repair schema
 const repairSchema = new mongoose.Schema({
-    repairId: { type: String, required: true },
-    reportedDate: { type: Date, required: true },
+    repairId: { type: String },
+    reportedDate: { type: Date },
     reportedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-    issueDescription: { type: String, required: true },
+    issueDescription: { type: String },
     severity: {
         type: String,
-        enum: ['minor', 'moderate', 'major', 'critical'],
-        required: true
+        enum: ['minor', 'moderate', 'major', 'critical']
     },
     causeOfDamage: {
         type: String,
@@ -187,16 +185,15 @@ const repairSchema = new mongoose.Schema({
 
 // Incident schema
 const incidentSchema = new mongoose.Schema({
-    incidentId: { type: String, required: true },
+    incidentId: { type: String },
     incidentType: {
         type: String,
-        enum: ['loss', 'theft', 'damage', 'malfunction', 'data_breach', 'unauthorized_access', 'misuse', 'accident'],
-        required: true
+        enum: ['loss', 'theft', 'damage', 'malfunction', 'data_breach', 'unauthorized_access', 'misuse', 'accident']
     },
-    incidentDate: { type: Date, required: true },
+    incidentDate: { type: Date },
     reportedDate: { type: Date, default: Date.now },
     reportedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-    incidentDescription: { type: String, required: true },
+    incidentDescription: { type: String },
     location: String,
     circumstances: {
         howItHappened: String,
@@ -312,13 +309,12 @@ const documentSchema = new mongoose.Schema({
 
 // Transfer schema
 const transferSchema = new mongoose.Schema({
-    transferId: { type: String, required: true },
+    transferId: { type: String },
     transferType: {
         type: String,
-        enum: ['employee_transfer', 'department_transfer', 'location_transfer', 'temporary_reassignment'],
-        required: true
+        enum: ['employee_transfer', 'department_transfer', 'location_transfer', 'temporary_reassignment']
     },
-    transferDate: { type: Date, required: true },
+    transferDate: { type: Date },
     transferFrom: {
         employeeId: { type: mongoose.Schema.Types.ObjectId, ref: 'Employee' },
         employeeName: String,
@@ -379,15 +375,15 @@ const assetAssignmentSchema = new mongoose.Schema({
     // ═══════════════════════════════════════════════════════════════
     // IDENTIFICATION
     // ═══════════════════════════════════════════════════════════════
-    assignmentId: { type: String, unique: true, required: true },
-    assignmentNumber: { type: String, unique: true, required: true },
+    assignmentId: { type: String, unique: true },
+    assignmentNumber: { type: String, unique: true },
 
     // ═══════════════════════════════════════════════════════════════
     // EMPLOYEE INFORMATION
     // ═══════════════════════════════════════════════════════════════
-    employeeId: { type: mongoose.Schema.Types.ObjectId, ref: 'Employee', required: true },
-    employeeNumber: { type: String, required: true },
-    employeeName: { type: String, required: true },
+    employeeId: { type: mongoose.Schema.Types.ObjectId, ref: 'Employee' },
+    employeeNumber: { type: String },
+    employeeName: { type: String },
     employeeNameAr: String,
     nationalId: String,
     email: String,
@@ -413,26 +409,24 @@ const assetAssignmentSchema = new mongoose.Schema({
     // ASSET DETAILS
     // ═══════════════════════════════════════════════════════════════
     assetId: String,
-    assetTag: { type: String, required: true, index: true },
+    assetTag: { type: String, index: true },
     assetNumber: String,
     serialNumber: String,
     modelNumber: String,
-    assetName: { type: String, required: true },
+    assetName: { type: String },
     assetNameAr: String,
     assetType: {
         type: String,
         enum: ['laptop', 'desktop', 'mobile_phone', 'tablet', 'monitor', 'keyboard',
             'mouse', 'headset', 'printer', 'scanner', 'vehicle', 'access_card',
             'id_badge', 'keys', 'uniform', 'tools', 'equipment', 'furniture',
-            'books', 'software_license', 'other'],
-        required: true
+            'books', 'software_license', 'other']
     },
     assetTypeAr: String,
     assetCategory: {
         type: String,
         enum: ['IT_equipment', 'office_equipment', 'vehicle', 'security_items',
-            'tools', 'furniture', 'mobile_devices', 'software', 'other'],
-        required: true
+            'tools', 'furniture', 'mobile_devices', 'software', 'other']
     },
     assetCategoryAr: String,
     brand: String,
@@ -468,8 +462,7 @@ const assetAssignmentSchema = new mongoose.Schema({
     },
     conditionAtAssignment: {
         type: String,
-        enum: ['new', 'excellent', 'good', 'fair', 'poor'],
-        required: true
+        enum: ['new', 'excellent', 'good', 'fair', 'poor']
     },
     conditionNotes: String,
     photos: [photoSchema],
@@ -595,10 +588,9 @@ const assetAssignmentSchema = new mongoose.Schema({
     // ═══════════════════════════════════════════════════════════════
     assignmentType: {
         type: String,
-        enum: ['permanent', 'temporary', 'project_based', 'pool'],
-        required: true
+        enum: ['permanent', 'temporary', 'project_based', 'pool']
     },
-    assignedDate: { type: Date, required: true },
+    assignedDate: { type: Date },
     expectedReturnDate: Date,
     indefiniteAssignment: { type: Boolean, default: false },
     assignmentPurpose: String,
@@ -753,8 +745,7 @@ const assetAssignmentSchema = new mongoose.Schema({
     status: {
         type: String,
         enum: ['assigned', 'in_use', 'returned', 'lost', 'damaged', 'maintenance', 'stolen', 'retired'],
-        default: 'assigned',
-        required: true
+        default: 'assigned'
     },
     statusDate: { type: Date, default: Date.now },
 

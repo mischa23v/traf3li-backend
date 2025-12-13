@@ -15,12 +15,11 @@ const Schema = mongoose.Schema;
 const EducationSchema = new Schema({
     degree: {
         type: String,
-        enum: ['high_school', 'diploma', 'bachelor', 'master', 'phd', 'professional', 'other'],
-        required: true
+        enum: ['high_school', 'diploma', 'bachelor', 'master', 'phd', 'professional', 'other']
     },
     degreeName: String,
     degreeNameAr: String,
-    institution: { type: String, required: true },
+    institution: { type: String },
     institutionAr: String,
     country: String,
     countryAr: String,
@@ -40,10 +39,10 @@ const EducationSchema = new Schema({
 
 // Work Experience Schema
 const WorkExperienceSchema = new Schema({
-    company: { type: String, required: true },
+    company: { type: String },
     companyAr: String,
     industry: String,
-    position: { type: String, required: true },
+    position: { type: String },
     positionAr: String,
     department: String,
     departmentAr: String,
@@ -55,7 +54,7 @@ const WorkExperienceSchema = new Schema({
         enum: ['full_time', 'part_time', 'contract', 'internship', 'freelance'],
         default: 'full_time'
     },
-    startDate: { type: Date, required: true },
+    startDate: { type: Date },
     endDate: Date,
     isCurrent: { type: Boolean, default: false },
     responsibilities: [String],
@@ -74,7 +73,7 @@ const WorkExperienceSchema = new Schema({
 
 // Skill Schema
 const ApplicantSkillSchema = new Schema({
-    skillName: { type: String, required: true },
+    skillName: { type: String },
     skillNameAr: String,
     category: {
         type: String,
@@ -94,7 +93,7 @@ const ApplicantSkillSchema = new Schema({
 
 // Language Schema
 const LanguageSchema = new Schema({
-    language: { type: String, required: true },
+    language: { type: String },
     languageAr: String,
     readingLevel: {
         type: String,
@@ -121,7 +120,7 @@ const LanguageSchema = new Schema({
 
 // Certification Schema
 const CertificationSchema = new Schema({
-    name: { type: String, required: true },
+    name: { type: String },
     nameAr: String,
     issuingOrganization: String,
     issuingOrganizationAr: String,
@@ -135,12 +134,11 @@ const CertificationSchema = new Schema({
 
 // Reference Schema
 const ReferenceSchema = new Schema({
-    name: { type: String, required: true },
+    name: { type: String },
     nameAr: String,
     relationship: {
         type: String,
-        enum: ['supervisor', 'colleague', 'client', 'professor', 'mentor', 'other'],
-        required: true
+        enum: ['supervisor', 'colleague', 'client', 'professor', 'mentor', 'other']
     },
     company: String,
     companyAr: String,
@@ -179,8 +177,7 @@ const ApplicantDocumentSchema = new Schema({
         type: String,
         enum: ['resume', 'cover_letter', 'portfolio', 'certificate', 'transcript',
                'id', 'passport', 'visa', 'work_permit', 'driving_license',
-               'reference_letter', 'writing_sample', 'other'],
-        required: true
+               'reference_letter', 'writing_sample', 'other']
     },
     documentName: String,
     documentNameAr: String,
@@ -203,10 +200,9 @@ const InterviewSchema = new Schema({
     stageOrder: Number,
     interviewType: {
         type: String,
-        enum: ['phone', 'video', 'in_person', 'panel', 'technical', 'hr', 'final'],
-        required: true
+        enum: ['phone', 'video', 'in_person', 'panel', 'technical', 'hr', 'final']
     },
-    scheduledDate: { type: Date, required: true },
+    scheduledDate: { type: Date },
     scheduledEndTime: Date,
     duration: Number, // Minutes
     timezone: { type: String, default: 'Asia/Riyadh' },
@@ -263,8 +259,7 @@ const AssessmentSchema = new Schema({
         type: String,
         enum: ['technical_test', 'aptitude_test', 'personality_test',
                'case_study', 'coding_challenge', 'writing_sample',
-               'presentation', 'group_exercise', 'simulation'],
-        required: true
+               'presentation', 'group_exercise', 'simulation']
     },
     assessmentName: String,
     assessmentNameAr: String,
@@ -363,10 +358,9 @@ const ApplicantActivitySchema = new Schema({
                'interview_scheduled', 'interview_completed', 'assessment_sent',
                'assessment_completed', 'reference_checked', 'offer_sent',
                'offer_accepted', 'offer_declined', 'hired', 'rejected', 'withdrawn',
-               'tag_added', 'tag_removed', 'rating_updated', 'assigned', 'other'],
-        required: true
+               'tag_added', 'tag_removed', 'rating_updated', 'assigned', 'other']
     },
-    description: { type: String, required: true },
+    description: { type: String },
     descriptionAr: String,
     previousValue: String,
     newValue: String,
@@ -383,10 +377,10 @@ const ApplicantNoteSchema = new Schema({
         enum: ['general', 'interview', 'assessment', 'reference', 'offer', 'concern', 'private'],
         default: 'general'
     },
-    content: { type: String, required: true },
+    content: { type: String },
     contentAr: String,
     isPrivate: { type: Boolean, default: false },
-    createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+    createdBy: { type: Schema.Types.ObjectId, ref: 'User' },
     createdByName: String,
     createdAt: { type: Date, default: Date.now },
     updatedAt: Date
@@ -396,13 +390,11 @@ const ApplicantNoteSchema = new Schema({
 const CommunicationSchema = new Schema({
     type: {
         type: String,
-        enum: ['email', 'phone', 'sms', 'whatsapp', 'in_person', 'video_call'],
-        required: true
+        enum: ['email', 'phone', 'sms', 'whatsapp', 'in_person', 'video_call']
     },
     direction: {
         type: String,
-        enum: ['inbound', 'outbound'],
-        required: true
+        enum: ['inbound', 'outbound']
     },
     subject: String,
     content: String,
@@ -433,25 +425,24 @@ const ApplicantSchema = new Schema({
     // Unique Applicant ID
     applicantId: {
         type: String,
-        unique: true,
-        required: true
+        unique: true
     },
 
     // ─────────────────────────────────────────────────────────────
     // PERSONAL INFORMATION
     // ─────────────────────────────────────────────────────────────
-    firstName: { type: String, required: true },
+    firstName: { type: String },
     firstNameAr: String,
-    lastName: { type: String, required: true },
+    lastName: { type: String },
     lastNameAr: String,
     middleName: String,
     middleNameAr: String,
     fullName: String, // Auto-generated
     fullNameAr: String,
 
-    email: { type: String, required: true, lowercase: true },
+    email: { type: String, lowercase: true },
     emailSecondary: String,
-    phone: { type: String, required: true },
+    phone: { type: String },
     phoneSecondary: String,
     whatsapp: String,
 
@@ -561,7 +552,7 @@ const ApplicantSchema = new Schema({
     // JOB APPLICATIONS
     // ─────────────────────────────────────────────────────────────
     applications: [{
-        jobPostingId: { type: Schema.Types.ObjectId, ref: 'JobPosting', required: true },
+        jobPostingId: { type: Schema.Types.ObjectId, ref: 'JobPosting' },
         jobTitle: String,
         jobTitleAr: String,
         appliedAt: { type: Date, default: Date.now },
