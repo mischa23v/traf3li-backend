@@ -1,14 +1,13 @@
 const mongoose = require('mongoose');
 
 const biometricLogSchema = new mongoose.Schema({
-  firmId: { type: mongoose.Schema.Types.ObjectId, ref: 'Firm', required: true },
+  firmId: { type: mongoose.Schema.Types.ObjectId, ref: 'Firm' },
   employeeId: { type: mongoose.Schema.Types.ObjectId, ref: 'Employee' },
-  deviceId: { type: mongoose.Schema.Types.ObjectId, ref: 'BiometricDevice', required: true },
+  deviceId: { type: mongoose.Schema.Types.ObjectId, ref: 'BiometricDevice' },
 
   eventType: {
     type: String,
-    enum: ['check_in', 'check_out', 'break_start', 'break_end', 'verify_success', 'verify_fail', 'identify_success', 'identify_fail', 'enrollment', 'device_error', 'spoofing_detected'],
-    required: true
+    enum: ['check_in', 'check_out', 'break_start', 'break_end', 'verify_success', 'verify_fail', 'identify_success', 'identify_fail', 'enrollment', 'device_error', 'spoofing_detected']
   },
 
   verificationMethod: {

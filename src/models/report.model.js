@@ -2,8 +2,7 @@ const mongoose = require('mongoose');
 
 const reportSchema = new mongoose.Schema({
     reportName: {
-        type: String,
-        required: true
+        type: String
     },
     reportType: {
         type: String,
@@ -17,16 +16,14 @@ const reportSchema = new mongoose.Schema({
             'time_utilization',
             'tax',
             'custom'
-        ],
-        required: true
+        ]
     },
     startDate: Date,
     endDate: Date,
     filters: mongoose.Schema.Types.Mixed,
     createdBy: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'User',
-        required: true
+        ref: 'User'
     },
     isPublic: {
         type: Boolean,

@@ -221,11 +221,10 @@ const grievanceSchema = new mongoose.Schema({
     employeeId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Employee',
-        required: true,
         index: true
     },
     employeeNumber: String,
-    employeeName: { type: String, required: true },
+    employeeName: { type: String },
     employeeNameAr: String,
     department: String,
     departmentId: String,
@@ -236,7 +235,6 @@ const grievanceSchema = new mongoose.Schema({
     // ==================== GRIEVANCE DETAILS ====================
     grievanceType: {
         type: String,
-        required: true,
         enum: ['compensation', 'benefits', 'working_conditions', 'safety', 'harassment',
                'discrimination', 'bullying', 'retaliation', 'wrongful_termination',
                'disciplinary_action', 'performance_evaluation', 'promotion', 'transfer',
@@ -250,9 +248,9 @@ const grievanceSchema = new mongoose.Schema({
         enum: ['individual', 'collective', 'policy_related', 'legal_violation', 'ethical_violation'],
         default: 'individual'
     },
-    grievanceSubject: { type: String, required: true },
+    grievanceSubject: { type: String },
     grievanceSubjectAr: String,
-    grievanceDescription: { type: String, required: true },
+    grievanceDescription: { type: String },
     grievanceDescriptionAr: String,
     detailedDescription: String,
 
@@ -282,7 +280,7 @@ const grievanceSchema = new mongoose.Schema({
     },
 
     // ==================== DATES ====================
-    filedDate: { type: Date, required: true, index: true },
+    filedDate: { type: Date, index: true },
     incidentDate: Date,
 
     // ==================== STATUS ====================

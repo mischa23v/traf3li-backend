@@ -1,8 +1,8 @@
 const mongoose = require('mongoose');
 
 const geofenceZoneSchema = new mongoose.Schema({
-  firmId: { type: mongoose.Schema.Types.ObjectId, ref: 'Firm', required: true },
-  name: { type: String, required: true },
+  firmId: { type: mongoose.Schema.Types.ObjectId, ref: 'Firm' },
+  name: { type: String },
   nameAr: String,
   description: String,
 
@@ -10,8 +10,8 @@ const geofenceZoneSchema = new mongoose.Schema({
 
   // For circle type
   center: {
-    latitude: { type: Number, required: true },
-    longitude: { type: Number, required: true }
+    latitude: { type: Number },
+    longitude: { type: Number }
   },
   radius: { type: Number, default: 100 }, // meters
 

@@ -1,13 +1,12 @@
 const mongoose = require('mongoose');
 
 const biometricDeviceSchema = new mongoose.Schema({
-  firmId: { type: mongoose.Schema.Types.ObjectId, ref: 'Firm', required: true },
-  deviceId: { type: String, required: true, unique: true },
-  deviceName: { type: String, required: true },
+  firmId: { type: mongoose.Schema.Types.ObjectId, ref: 'Firm' },
+  deviceId: { type: String, unique: true },
+  deviceName: { type: String },
   deviceType: {
     type: String,
-    enum: ['fingerprint', 'facial', 'card_reader', 'iris', 'palm', 'multi_modal'],
-    required: true
+    enum: ['fingerprint', 'facial', 'card_reader', 'iris', 'palm', 'multi_modal']
   },
   manufacturer: { type: String, enum: ['zkteco', 'suprema', 'hikvision', 'dahua', 'generic'] },
   model: String,

@@ -16,8 +16,7 @@ const documentSchema = new mongoose.Schema({
         type: String,
         enum: ['national_id', 'passport', 'iqama', 'degree', 'certificate',
             'bar_admission', 'medical_certificate', 'vaccine_certificate',
-            'bank_letter', 'photo', 'other'],
-        required: true
+            'bank_letter', 'photo', 'other']
     },
     documentName: String,
     documentNameAr: String,
@@ -35,7 +34,7 @@ const documentSchema = new mongoose.Schema({
 // Pre-boarding task schema
 const preboardingTaskSchema = new mongoose.Schema({
     taskId: String,
-    taskName: { type: String, required: true },
+    taskName: { type: String },
     taskNameAr: String,
     category: {
         type: String,
@@ -71,7 +70,7 @@ const equipmentSchema = new mongoose.Schema({
 
 // System access schema
 const systemAccessSchema = new mongoose.Schema({
-    systemName: { type: String, required: true },
+    systemName: { type: String },
     accessGranted: { type: Boolean, default: false },
     firstLogin: { type: Boolean, default: false },
     firstLoginDate: Date,
@@ -81,14 +80,14 @@ const systemAccessSchema = new mongoose.Schema({
 
 // Topic covered schema
 const topicCoveredSchema = new mongoose.Schema({
-    topic: { type: String, required: true },
+    topic: { type: String },
     topicAr: String,
     covered: { type: Boolean, default: false }
 }, { _id: false });
 
 // Policy schema
 const policySchema = new mongoose.Schema({
-    policyName: { type: String, required: true },
+    policyName: { type: String },
     policyNameAr: String,
     category: {
         type: String,
@@ -141,7 +140,7 @@ const trainingSessionSchema = new mongoose.Schema({
 // Goal schema
 const goalSchema = new mongoose.Schema({
     goalId: String,
-    goalName: { type: String, required: true },
+    goalName: { type: String },
     goalType: {
         type: String,
         enum: ['30_day', '60_day', '90_day', 'probation'],
@@ -160,7 +159,7 @@ const goalSchema = new mongoose.Schema({
 // Checklist task schema
 const checklistTaskSchema = new mongoose.Schema({
     taskId: String,
-    taskName: { type: String, required: true },
+    taskName: { type: String },
     taskNameAr: String,
     description: String,
     responsible: {
@@ -193,7 +192,7 @@ const checklistTaskSchema = new mongoose.Schema({
 // Checklist category schema
 const checklistCategorySchema = new mongoose.Schema({
     categoryId: String,
-    categoryName: { type: String, required: true },
+    categoryName: { type: String },
     categoryNameAr: String,
     tasks: [checklistTaskSchema],
     completionPercentage: { type: Number, default: 0 }
@@ -204,11 +203,10 @@ const probationReviewSchema = new mongoose.Schema({
     reviewId: String,
     reviewType: {
         type: String,
-        enum: ['30_day', '60_day', '90_day', 'final', 'ad_hoc'],
-        required: true
+        enum: ['30_day', '60_day', '90_day', 'final', 'ad_hoc']
     },
     reviewDay: Number,
-    scheduledDate: { type: Date, required: true },
+    scheduledDate: { type: Date },
     conducted: { type: Boolean, default: false },
     conductedDate: Date,
     conductedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
@@ -337,17 +335,16 @@ const onboardingSchema = new mongoose.Schema({
     // ═══════════════════════════════════════════════════════════════
     employeeId: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'Employee',
-        required: true
+        ref: 'Employee'
     },
     employeeNumber: String,
-    employeeName: { type: String, required: true },
+    employeeName: { type: String },
     employeeNameAr: String,
     nationalId: String,
     email: String,
     phone: String,
 
-    jobTitle: { type: String, required: true },
+    jobTitle: { type: String },
     jobTitleAr: String,
     department: String,
     location: String,
@@ -368,10 +365,9 @@ const onboardingSchema = new mongoose.Schema({
     // Manager info
     managerId: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'User',
-        required: true
+        ref: 'User'
     },
-    managerName: { type: String, required: true },
+    managerName: { type: String },
     managerEmail: String,
 
     // Transfer/promotion
@@ -383,7 +379,7 @@ const onboardingSchema = new mongoose.Schema({
     // ═══════════════════════════════════════════════════════════════
     // DATES
     // ═══════════════════════════════════════════════════════════════
-    startDate: { type: Date, required: true },
+    startDate: { type: Date },
     completionTargetDate: Date,
 
     // ═══════════════════════════════════════════════════════════════

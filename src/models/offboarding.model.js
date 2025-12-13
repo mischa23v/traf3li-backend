@@ -121,18 +121,17 @@ const offboardingSchema = new mongoose.Schema({
     // ═══════════════════════════════════════════════════════════════
     employeeId: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'Employee',
-        required: true
+        ref: 'Employee'
     },
     employeeNumber: String,
-    employeeName: { type: String, required: true },
+    employeeName: { type: String },
     employeeNameAr: String,
-    nationalId: { type: String, required: true },
+    nationalId: { type: String },
     email: String,
     phone: String,
 
     department: String,
-    jobTitle: { type: String, required: true },
+    jobTitle: { type: String },
     jobTitleAr: String,
     location: String,
 
@@ -162,8 +161,7 @@ const offboardingSchema = new mongoose.Schema({
     exitType: {
         type: String,
         enum: ['resignation', 'termination', 'contract_end', 'retirement',
-            'death', 'mutual_agreement', 'medical', 'other'],
-        required: true
+            'death', 'mutual_agreement', 'medical', 'other']
     },
 
     exitCategory: {
@@ -183,7 +181,7 @@ const offboardingSchema = new mongoose.Schema({
     // ═══════════════════════════════════════════════════════════════
     dates: {
         noticeDate: Date,
-        lastWorkingDay: { type: Date, required: true },
+        lastWorkingDay: { type: Date },
         exitEffectiveDate: Date
     },
 
