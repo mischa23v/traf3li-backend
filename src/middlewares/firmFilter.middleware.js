@@ -45,26 +45,48 @@ const {
  * Also handles solo lawyers who work independently without a firm
  */
 const firmFilter = async (req, res, next) => {
+    // ══════════════════════════════════════════════════════════════════
+    // 🔍 DEBUG: Firm Filter Middleware
+    // ══════════════════════════════════════════════════════════════════
+    console.log('\n' + '─'.repeat(80));
+    console.log('🏢 [FIRM FILTER] Starting firm filter middleware...');
+    console.log('📍 Route:', req.method, req.originalUrl);
+    console.log('👤 User ID from token:', req.userID);
+    console.log('─'.repeat(80));
+
     try {
         const userId = req.userID;
 
         if (!userId) {
+            console.log('❌ [FIRM FILTER] No user ID - user not authenticated');
             throw CustomException('User not authenticated', 401);
         }
 
+        console.log('🔍 [FIRM FILTER] Looking up user in database...');
         // Get user with firmId and solo lawyer info
         const user = await User.findById(userId).select('firmId firmRole firmStatus isSoloLawyer lawyerWorkMode role').lean();
+        console.log('📋 [FIRM FILTER] User data:', JSON.stringify(user, null, 2));
 
         if (!user) {
+            console.log('❌ [FIRM FILTER] User not found in database!');
             throw CustomException('User not found', 404);
         }
+
+        console.log('✅ [FIRM FILTER] User found in database');
 
         // Set req.user for authorize middleware compatibility
         req.user = user;
 
         // Handle solo lawyers - they have full permissions without needing a firm
         // Uses Casbin-style domain check: solo lawyers have no tenant/domain
+        console.log('🔍 [FIRM FILTER] Checking if user is solo lawyer...');
+        console.log('📋 isSoloLawyer flag:', user.isSoloLawyer);
+        console.log('📋 lawyerWorkMode:', user.lawyerWorkMode);
+        console.log('📋 firmId:', user.firmId);
+        console.log('📋 role:', user.role);
+
         if (checkIsSoloLawyer(user)) {
+            console.log('✅ [FIRM FILTER] User is SOLO LAWYER - granting full permissions');
             req.firmId = null;
             req.firmRole = null;
             req.firmStatus = null;
@@ -104,23 +126,33 @@ const firmFilter = async (req, res, next) => {
                 return enforce(req.subject, resource, action, null);
             };
 
+            console.log('✅ [FIRM FILTER] Solo lawyer setup complete - calling next()');
+            console.log('─'.repeat(80) + '\n');
             return next();
         }
 
+        console.log('🔍 [FIRM FILTER] User is NOT a solo lawyer - checking firm membership...');
+
         // If user has firmId, use it for filtering
         if (user.firmId) {
+            console.log('✅ [FIRM FILTER] User has firmId:', user.firmId);
             req.firmId = user.firmId;
             req.firmRole = user.firmRole;
             req.firmStatus = user.firmStatus || 'active';
 
             // Check if user is departed
             req.isDeparted = user.firmRole === 'departed' || user.firmStatus === 'departed';
+            console.log('📋 [FIRM FILTER] Firm Role:', req.firmRole);
+            console.log('📋 [FIRM FILTER] Firm Status:', req.firmStatus);
+            console.log('📋 [FIRM FILTER] Is Departed:', req.isDeparted);
 
             // Create a query filter that can be spread into find queries
             req.firmQuery = { firmId: user.firmId };
 
             // Get member details from firm for permissions
+            console.log('🔍 [FIRM FILTER] Looking up firm details...');
             const firm = await Firm.findById(user.firmId).select('members ownerId').lean();
+            console.log('📋 [FIRM FILTER] Firm found:', firm ? 'YES' : 'NO');
             if (firm) {
                 const member = firm.members.find(m => m.userId.toString() === userId);
                 if (member) {
@@ -205,9 +237,12 @@ const firmFilter = async (req, res, next) => {
             req.enforce = (resource, action) => {
                 return enforce(req.subject, resource, action, user.firmId);
             };
+
+            console.log('✅ [FIRM FILTER] Firm member setup complete');
         } else {
             // For backwards compatibility with users without firmId
             // Fall back to lawyerId-based filtering (treat as solo lawyer)
+            console.log('⚠️ [FIRM FILTER] User has NO firmId - falling back to legacy mode');
             req.firmId = null;
             req.firmRole = null;
             req.firmStatus = null;
@@ -218,6 +253,8 @@ const firmFilter = async (req, res, next) => {
             req.hasPermission = () => true; // Allow all for non-firm users
             req.hasSpecialPermission = () => true;
             req.canAccessCase = () => true;
+            console.log('📋 [FIRM FILTER] Legacy mode - isSoloLawyer:', req.isSoloLawyer);
+            console.log('📋 [FIRM FILTER] Legacy mode - firmQuery:', JSON.stringify(req.firmQuery));
         }
 
         // Helper function to add firmId to new documents
@@ -228,8 +265,23 @@ const firmFilter = async (req, res, next) => {
             return data;
         };
 
+        console.log('✅ [FIRM FILTER] Middleware complete - calling next()');
+        console.log('📋 [FIRM FILTER] Final state:');
+        console.log('  - firmId:', req.firmId);
+        console.log('  - firmRole:', req.firmRole);
+        console.log('  - isDeparted:', req.isDeparted);
+        console.log('  - isSoloLawyer:', req.isSoloLawyer);
+        console.log('─'.repeat(80) + '\n');
+
         next();
     } catch (error) {
+        console.log('❌ [FIRM FILTER] ERROR!');
+        console.log('🔴 Error Name:', error.name);
+        console.log('🔴 Error Message:', error.message);
+        console.log('🔴 Error Status:', error.status);
+        console.log('🔴 Error Stack:', error.stack);
+        console.log('─'.repeat(80) + '\n');
+
         if (error.status) {
             return res.status(error.status).json({
                 success: false,
