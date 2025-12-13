@@ -500,15 +500,48 @@ clientSchema.index({ isVerified: 1 });
 clientSchema.index({ riskLevel: 1 });
 
 // ─────────────────────────────────────────────────────────
-// GENERATE CLIENT NUMBER
+// GENERATE CLIENT NUMBER (Atomic Counter)
 // ─────────────────────────────────────────────────────────
 clientSchema.pre('save', async function(next) {
     if (this.isNew && !this.clientNumber) {
-        const count = await this.constructor.countDocuments() + 1;
-        this.clientNumber = `CLT-${String(count).padStart(5, '0')}`;
+        const Counter = require('./counter.model');
+
+        // Use atomic counter to prevent race conditions
+        // The counter will auto-initialize on first use
+        this.clientNumber = await Counter.getNextFormattedSequence('client', 'CLT-', 5);
+
+        console.log('🔢 [CLIENT] Generated clientNumber:', this.clientNumber);
     }
     next();
 });
+
+/**
+ * Initialize client counter from existing data
+ * Run this once during server startup or migration
+ */
+clientSchema.statics.initializeCounter = async function() {
+    const Counter = require('./counter.model');
+
+    // Find the highest existing client number
+    const lastClient = await this.findOne({
+        clientNumber: { $regex: /^CLT-\d+$/ }
+    }).sort({ clientNumber: -1 });
+
+    if (lastClient && lastClient.clientNumber) {
+        // Extract the numeric part: "CLT-00123" -> 123
+        const match = lastClient.clientNumber.match(/CLT-(\d+)/);
+        if (match) {
+            const currentMax = parseInt(match[1], 10);
+            await Counter.initializeCounter('client', currentMax);
+            console.log('📊 [CLIENT] Counter initialized to:', currentMax);
+            return currentMax;
+        }
+    }
+
+    // No existing clients, counter will start at 1
+    console.log('📊 [CLIENT] No existing clients, counter will start at 1');
+    return 0;
+};
 
 // ─────────────────────────────────────────────────────────
 // VIRTUAL: DISPLAY NAME
