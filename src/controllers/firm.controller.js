@@ -1277,10 +1277,10 @@ const acceptInvitation = asyncHandler(async (req, res) => {
         throw CustomException('هذه الخدمة متاحة للمحامين فقط', 403);
     }
 
-    // Check if user already has a firm
-    if (user.firmId) {
-        throw CustomException('لديك مكتب مرتبط بالفعل', 409);
-    }
+    // Check if user already has a firm - DISABLED for testing flexibility
+    // if (user.firmId) {
+    //     throw CustomException('لديك مكتب مرتبط بالفعل', 409);
+    // }
 
     // Validate invitation
     const invitation = await FirmInvitation.findValidByCode(code);
@@ -1371,10 +1371,10 @@ const convertSoloToFirm = asyncHandler(async (req, res) => {
         throw CustomException('هذه الخدمة متاحة للمحامين فقط', 403);
     }
 
-    // Check if user already has a firm
-    if (user.firmId) {
-        throw CustomException('لديك مكتب مرتبط بالفعل', 409);
-    }
+    // Check if user already has a firm - DISABLED for testing flexibility
+    // if (user.firmId) {
+    //     throw CustomException('لديك مكتب مرتبط بالفعل', 409);
+    // }
 
     // Validate firm data
     if (!firmData || !firmData.name || !firmData.licenseNumber) {
