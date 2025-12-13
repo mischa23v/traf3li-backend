@@ -48,7 +48,7 @@ const EXPENSE_POLICIES = {
 
 // Line item schema for individual expenses
 const lineItemSchema = new mongoose.Schema({
-    lineItemId: { type: String, required: true },
+    lineItemId: { type: String, required: false },
     category: {
         type: String,
         enum: ['travel', 'meals', 'accommodation', 'transportation',
@@ -61,7 +61,7 @@ const lineItemSchema = new mongoose.Schema({
     expenseDate: Date,
     vendor: String,
     vendorAr: String,
-    amount: { type: Number, required: true },
+    amount: { type: Number, required: false },
     vatAmount: { type: Number, default: 0 },
     totalAmount: Number,
     currency: { type: String, default: 'SAR' },
@@ -181,7 +181,7 @@ const journeySchema = new mongoose.Schema({
     toLocation: String,
     purpose: String,
     purposeAr: String,
-    distanceKm: Number,
+    distanceKm: { type: Number, required: false },
     roundTrip: { type: Boolean, default: false },
     vehicleType: { type: String, enum: ['personal_car', 'company_car', 'rental'] },
     vehiclePlate: String,
@@ -411,10 +411,10 @@ const expenseClaimSchema = new mongoose.Schema({
     employeeId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Employee',
-        required: true
+        required: false
     },
     employeeNumber: String,
-    employeeName: { type: String, required: true },
+    employeeName: { type: String, required: false },
     employeeNameAr: String,
     department: String,
     departmentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Department' },
@@ -437,12 +437,12 @@ const expenseClaimSchema = new mongoose.Schema({
     // ═══════════════════════════════════════════════════════════════
     // CLAIM HEADER
     // ═══════════════════════════════════════════════════════════════
-    claimTitle: { type: String, required: true },
+    claimTitle: { type: String, required: false },
     claimTitleAr: String,
     expenseType: {
         type: String,
         enum: ['reimbursement', 'corporate_card', 'petty_cash', 'advance_settlement'],
-        required: true
+        required: false
     },
     claimCategory: {
         type: String,

@@ -4,20 +4,20 @@ const reconciliationTransactionSchema = new mongoose.Schema({
     transactionId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'BankTransaction',
-        required: true
+        required: false
     },
     amount: {
         type: Number,
-        required: true
+        required: false
     },
     date: {
         type: Date,
-        required: true
+        required: false
     },
     type: {
         type: String,
         enum: ['credit', 'debit'],
-        required: true
+        required: false
     },
     description: String,
     isCleared: {
@@ -40,20 +40,20 @@ const bankReconciliationSchema = new mongoose.Schema({
     accountId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'BankAccount',
-        required: true,
+        required: false,
         index: true
     },
     startDate: {
         type: Date,
-        required: true
+        required: false
     },
     endDate: {
         type: Date,
-        required: true
+        required: false
     },
     openingBalance: {
         type: Number,
-        required: true
+        required: false
     },
     closingBalance: {
         type: Number,
@@ -61,7 +61,7 @@ const bankReconciliationSchema = new mongoose.Schema({
     },
     statementBalance: {
         type: Number,
-        required: true
+        required: false
     },
     difference: {
         type: Number,
@@ -93,7 +93,7 @@ const bankReconciliationSchema = new mongoose.Schema({
     startedBy: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
-        required: true
+        required: false
     },
     startedAt: {
         type: Date,
@@ -117,7 +117,7 @@ const bankReconciliationSchema = new mongoose.Schema({
     lawyerId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
-        required: true,
+        required: false,
         index: true
     }
 }, {

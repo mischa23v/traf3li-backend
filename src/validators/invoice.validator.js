@@ -24,12 +24,10 @@ const SAUDI_VAT_RATE = 15;
  */
 const invoiceItemSchema = Joi.object({
     description: Joi.string()
-        .required()
         .min(1)
         .max(1000)
         .messages({
             'string.empty': 'وصف البند مطلوب / Item description is required',
-            'any.required': 'وصف البند مطلوب / Item description is required',
             'string.min': 'وصف البند مطلوب / Item description is required',
             'string.max': 'وصف البند يجب ألا يتجاوز 1000 حرف / Item description must not exceed 1000 characters'
         }),
@@ -42,11 +40,9 @@ const invoiceItemSchema = Joi.object({
         }),
     rate: Joi.number()
         .positive()
-        .required()
         .messages({
             'number.base': 'السعر يجب أن يكون رقماً / Rate must be a number',
-            'number.positive': 'السعر يجب أن يكون رقماً موجباً / Rate must be a positive number',
-            'any.required': 'السعر مطلوب / Rate is required'
+            'number.positive': 'السعر يجب أن يكون رقماً موجباً / Rate must be a positive number'
         }),
     taxable: Joi.boolean()
         .default(true)
@@ -66,29 +62,19 @@ const createInvoiceSchema = Joi.object({
     clientId: Joi.string()
         .hex()
         .length(24)
-        .required()
         .messages({
             'string.hex': 'معرف العميل غير صالح / Invalid client ID format',
-            'string.length': 'معرف العميل غير صالح / Invalid client ID format',
-            'any.required': 'معرف العميل مطلوب / Client ID is required'
+            'string.length': 'معرف العميل غير صالح / Invalid client ID format'
         }),
     items: Joi.array()
         .items(invoiceItemSchema)
-        .min(1)
-        .required()
         .messages({
-            'array.base': 'البنود يجب أن تكون مصفوفة / Items must be an array',
-            'array.min': 'الفاتورة يجب أن تحتوي على بند واحد على الأقل / Invoice must contain at least one item',
-            'any.required': 'بنود الفاتورة مطلوبة / Invoice items are required'
+            'array.base': 'البنود يجب أن تكون مصفوفة / Items must be an array'
         }),
     dueDate: Joi.date()
         .iso()
-        .min('now')
-        .required()
         .messages({
-            'date.base': 'تاريخ الاستحقاق غير صالح / Invalid due date',
-            'date.min': 'تاريخ الاستحقاق يجب أن يكون في المستقبل / Due date must be in the future',
-            'any.required': 'تاريخ الاستحقاق مطلوب / Due date is required'
+            'date.base': 'تاريخ الاستحقاق غير صالح / Invalid due date'
         }),
     issueDate: Joi.date()
         .iso()
@@ -242,11 +228,8 @@ const addLineItemSchema = invoiceItemSchema;
 const sendInvoiceSchema = Joi.object({
     email: Joi.string()
         .email()
-        .required()
         .messages({
-            'string.email': 'البريد الإلكتروني غير صالح / Invalid email format',
-            'any.required': 'البريد الإلكتروني مطلوب / Email is required',
-            'string.empty': 'البريد الإلكتروني مطلوب / Email is required'
+            'string.email': 'البريد الإلكتروني غير صالح / Invalid email format'
         }),
     message: Joi.string()
         .max(2000)
@@ -274,18 +257,14 @@ const sendInvoiceSchema = Joi.object({
 const recordPaymentSchema = Joi.object({
     amount: Joi.number()
         .positive()
-        .required()
         .messages({
             'number.base': 'المبلغ يجب أن يكون رقماً / Amount must be a number',
-            'number.positive': 'المبلغ يجب أن يكون رقماً موجباً / Amount must be a positive number',
-            'any.required': 'المبلغ مطلوب / Amount is required'
+            'number.positive': 'المبلغ يجب أن يكون رقماً موجباً / Amount must be a positive number'
         }),
     method: Joi.string()
         .valid('cash', 'bank_transfer', 'credit_card', 'debit_card', 'check', 'online', 'retainer', 'mada', 'stc_pay', 'apple_pay')
-        .required()
         .messages({
-            'any.only': 'طريقة الدفع غير صالحة / Invalid payment method',
-            'any.required': 'طريقة الدفع مطلوبة / Payment method is required'
+            'any.only': 'طريقة الدفع غير صالحة / Invalid payment method'
         }),
     reference: Joi.string()
         .max(100)
