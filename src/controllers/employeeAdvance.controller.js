@@ -1443,10 +1443,6 @@ const bulkDelete = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
     const { ids } = req.body;
 
-    if (!ids || !Array.isArray(ids) || ids.length === 0) {
-        throw CustomException('IDs array is required', 400);
-    }
-
     // Build query to ensure access
     const query = {
         _id: { $in: ids },

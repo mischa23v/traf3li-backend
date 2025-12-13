@@ -155,26 +155,6 @@ const createOnboarding = asyncHandler(async (req, res) => {
         notes
     } = req.body;
 
-    // Validate required fields
-    if (!employeeId) {
-        throw CustomException('Employee ID is required', 400);
-    }
-    if (!employeeName) {
-        throw CustomException('Employee name is required', 400);
-    }
-    if (!jobTitle) {
-        throw CustomException('Job title is required', 400);
-    }
-    if (!managerId) {
-        throw CustomException('Manager ID is required', 400);
-    }
-    if (!managerName) {
-        throw CustomException('Manager name is required', 400);
-    }
-    if (!startDate) {
-        throw CustomException('Start date is required', 400);
-    }
-
     // Validate probation period (Saudi Labor Law Article 53 - max 180 days)
     if (probationPeriod > 180) {
         throw CustomException('Probation period cannot exceed 180 days as per Saudi Labor Law Article 53', 400);
@@ -545,14 +525,6 @@ const addProbationReview = asyncHandler(async (req, res) => {
         throw CustomException('Access denied', 403);
     }
 
-    // Validate required fields
-    if (!reviewType) {
-        throw CustomException('Review type is required', 400);
-    }
-    if (!scheduledDate) {
-        throw CustomException('Scheduled date is required', 400);
-    }
-
     // Create review object
     const review = {
         reviewId: `REV-${Date.now()}`,
@@ -630,17 +602,6 @@ const completeProbation = asyncHandler(async (req, res) => {
 
     if (!hasAccess) {
         throw CustomException('Access denied', 403);
-    }
-
-    // Validate decision
-    if (!decision) {
-        throw CustomException('Decision is required', 400);
-    }
-    if (!['confirm', 'terminate'].includes(decision)) {
-        throw CustomException('Decision must be either "confirm" or "terminate" (extension not allowed per Saudi Labor Law Article 53)', 400);
-    }
-    if (!decisionReason) {
-        throw CustomException('Decision reason is required', 400);
     }
 
     // Check if probation is active
@@ -1059,10 +1020,6 @@ const bulkDelete = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
     const { ids } = req.body;
 
-    if (!ids || !Array.isArray(ids) || ids.length === 0) {
-        throw CustomException('IDs array is required', 400);
-    }
-
     // Build query to ensure access
     const query = {
         _id: { $in: ids },
@@ -1154,10 +1111,6 @@ const addChecklistCategory = asyncHandler(async (req, res) => {
         throw CustomException('Access denied', 403);
     }
 
-    if (!categoryName) {
-        throw CustomException('Category name is required', 400);
-    }
-
     const category = {
         categoryId: `CAT-${Date.now()}`,
         categoryName,
@@ -1212,10 +1165,6 @@ const addChecklistTask = asyncHandler(async (req, res) => {
 
     if (!hasAccess) {
         throw CustomException('Access denied', 403);
-    }
-
-    if (!taskName) {
-        throw CustomException('Task name is required', 400);
     }
 
     const category = onboarding.onboardingChecklist?.categories?.find(
