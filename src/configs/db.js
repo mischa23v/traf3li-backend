@@ -15,6 +15,17 @@ const connect = async () => {
 
         console.log('✅ Connected to MongoDB');
 
+        // Initialize counters for atomic sequence generation
+        // This ensures client numbers don't collide with existing data
+        try {
+            const Client = require('../models/client.model');
+            await Client.initializeCounter();
+            console.log('✅ Counters initialized');
+        } catch (counterErr) {
+            console.warn('⚠️  Counter initialization warning:', counterErr.message);
+            // Non-fatal: counter will auto-initialize on first use
+        }
+
         // Monitor connection events
         mongoose.connection.on('error', (err) => {
             console.error('❌ MongoDB connection error:', err);
