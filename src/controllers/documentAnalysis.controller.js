@@ -27,19 +27,19 @@ const analyzeDocument = asyncHandler(async (req, res) => {
     throw CustomException('المستند غير موجود', 404);
   }
 
-  // Check if analysis already exists and is in progress
-  const existingAnalysis = await DocumentAnalysis.findOne({
-    documentId,
-    status: { $in: ['pending', 'processing'] }
-  });
+  // Check if analysis already exists and is in progress - DISABLED for testing flexibility
+  // const existingAnalysis = await DocumentAnalysis.findOne({
+  //   documentId,
+  //   status: { $in: ['pending', 'processing'] }
+  // });
 
-  if (existingAnalysis) {
-    return res.status(409).json({
-      success: false,
-      message: 'التحليل قيد التنفيذ بالفعل',
-      data: existingAnalysis
-    });
-  }
+  // if (existingAnalysis) {
+  //   return res.status(409).json({
+  //     success: false,
+  //     message: 'التحليل قيد التنفيذ بالفعل',
+  //     data: existingAnalysis
+  //   });
+  // }
 
   if (async) {
     // Queue for background processing
