@@ -10,7 +10,11 @@ const {
     getActivityOverview,
     getCRMStats,
     getHRStats,
-    getFinanceStats
+    getFinanceStats,
+    getUpcomingHearings,
+    getUpcomingDeadlines,
+    getBillableHoursSummary,
+    getPendingDocuments
 } = require('../controllers/dashboard.controller');
 
 const app = express.Router();
@@ -96,6 +100,42 @@ app.get('/finance-stats',
     firmFilter,
     cacheResponse(DASHBOARD_CACHE_TTL, dashboardKeyGen('finance-stats')),
     getFinanceStats
+);
+
+// ═══════════════════════════════════════════════════════════════
+// LAWYER-FOCUSED DASHBOARD ENDPOINTS
+// ═══════════════════════════════════════════════════════════════
+
+// Get upcoming hearings/court dates
+app.get('/hearings/upcoming',
+    userMiddleware,
+    firmFilter,
+    cacheResponse(DASHBOARD_CACHE_TTL, dashboardKeyGen('hearings-upcoming')),
+    getUpcomingHearings
+);
+
+// Get upcoming case deadlines
+app.get('/deadlines/upcoming',
+    userMiddleware,
+    firmFilter,
+    cacheResponse(DASHBOARD_CACHE_TTL, dashboardKeyGen('deadlines-upcoming')),
+    getUpcomingDeadlines
+);
+
+// Get billable hours summary
+app.get('/time-entries/summary',
+    userMiddleware,
+    firmFilter,
+    cacheResponse(DASHBOARD_CACHE_TTL, dashboardKeyGen('time-entries-summary')),
+    getBillableHoursSummary
+);
+
+// Get documents pending action
+app.get('/documents/pending',
+    userMiddleware,
+    firmFilter,
+    cacheResponse(DASHBOARD_CACHE_TTL, dashboardKeyGen('documents-pending')),
+    getPendingDocuments
 );
 
 module.exports = app;

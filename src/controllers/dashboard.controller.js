@@ -13,7 +13,8 @@ const {
     Lead,
     Employee,
     LeaveRequest,
-    Attendance
+    Attendance,
+    Document
 } = require('../models');
 const { CustomException } = require('../utils');
 
@@ -639,6 +640,403 @@ const getFinanceStats = async (request, response) => {
     }
 };
 
+// Get upcoming hearings/court dates
+const getUpcomingHearings = async (request, response) => {
+    try {
+        const userId = request.userID;
+        const firmId = request.firmId;
+        const days = parseInt(request.query.days) || 7;
+
+        // Build match filter
+        const matchFilter = firmId
+            ? { firmId: new mongoose.Types.ObjectId(firmId) }
+            : { lawyerId: new mongoose.Types.ObjectId(userId) };
+
+        // Calculate date range
+        const now = new Date();
+        const futureDate = new Date();
+        futureDate.setDate(futureDate.getDate() + days);
+
+        // Get cases with upcoming hearings
+        const casesWithHearings = await Case.aggregate([
+            { $match: matchFilter },
+            { $unwind: '$hearings' },
+            {
+                $match: {
+                    'hearings.date': { $gte: now, $lte: futureDate },
+                    'hearings.status': { $ne: 'cancelled' }
+                }
+            },
+            {
+                $project: {
+                    _id: '$hearings._id',
+                    caseId: '$_id',
+                    caseName: '$title',
+                    caseNumber: '$caseNumber',
+                    court: '$hearings.location',
+                    courtRoom: '$hearings.courtRoom',
+                    date: '$hearings.date',
+                    type: '$hearings.type',
+                    notes: '$hearings.notes',
+                    status: '$hearings.status'
+                }
+            },
+            { $sort: { date: 1 } },
+            { $limit: 20 }
+        ]);
+
+        // Also get court-related events
+        const courtEvents = await Event.find({
+            ...matchFilter,
+            eventType: { $in: ['court_hearing', 'hearing', 'court_date', 'trial'] },
+            startTime: { $gte: now, $lte: futureDate },
+            status: { $ne: 'cancelled' }
+        })
+        .populate('caseId', 'title caseNumber')
+        .sort({ startTime: 1 })
+        .limit(20)
+        .lean();
+
+        // Combine and format
+        const hearings = [
+            ...casesWithHearings.map(h => ({
+                ...h,
+                source: 'case'
+            })),
+            ...courtEvents.map(e => ({
+                _id: e._id,
+                caseId: e.caseId?._id,
+                caseName: e.caseId?.title || e.title,
+                caseNumber: e.caseId?.caseNumber,
+                court: e.location,
+                courtRoom: e.courtRoom,
+                date: e.startTime,
+                type: e.eventType,
+                notes: e.description,
+                status: e.status,
+                source: 'event'
+            }))
+        ].sort((a, b) => new Date(a.date) - new Date(b.date));
+
+        return response.json({
+            error: false,
+            hearings: hearings.slice(0, 20),
+            total: hearings.length
+        });
+    } catch (error) {
+        console.error('getUpcomingHearings ERROR:', error);
+        return response.status(500).json({
+            error: true,
+            message: error.message || 'Failed to fetch upcoming hearings'
+        });
+    }
+};
+
+// Get upcoming case deadlines
+const getUpcomingDeadlines = async (request, response) => {
+    try {
+        const userId = request.userID;
+        const firmId = request.firmId;
+        const days = parseInt(request.query.days) || 14;
+
+        // Build match filter
+        const matchFilter = firmId
+            ? { firmId: new mongoose.Types.ObjectId(firmId) }
+            : { lawyerId: new mongoose.Types.ObjectId(userId) };
+
+        // Calculate date range
+        const now = new Date();
+        const futureDate = new Date();
+        futureDate.setDate(futureDate.getDate() + days);
+
+        // Get deadline-type tasks
+        const deadlineTasks = await Task.find({
+            ...matchFilter,
+            taskType: { $in: ['filing_deadline', 'appeal_deadline', 'discovery', 'deposition', 'response'] },
+            dueDate: { $gte: now, $lte: futureDate },
+            status: { $nin: ['done', 'canceled'] }
+        })
+        .populate('caseId', 'title caseNumber')
+        .sort({ dueDate: 1 })
+        .limit(30)
+        .lean();
+
+        // Get all tasks with upcoming due dates that are high priority
+        const urgentTasks = await Task.find({
+            ...matchFilter,
+            priority: { $in: ['high', 'urgent'] },
+            dueDate: { $gte: now, $lte: futureDate },
+            status: { $nin: ['done', 'canceled'] },
+            taskType: { $nin: ['filing_deadline', 'appeal_deadline', 'discovery', 'deposition', 'response'] }
+        })
+        .populate('caseId', 'title caseNumber')
+        .sort({ dueDate: 1 })
+        .limit(20)
+        .lean();
+
+        // Combine and format
+        const allDeadlines = [...deadlineTasks, ...urgentTasks];
+
+        const deadlines = allDeadlines.map(task => {
+            const daysRemaining = Math.ceil((new Date(task.dueDate) - now) / (1000 * 60 * 60 * 24));
+            return {
+                _id: task._id,
+                caseId: task.caseId?._id,
+                caseName: task.caseId?.title || 'غير محدد',
+                caseNumber: task.caseId?.caseNumber,
+                title: task.title,
+                description: task.description,
+                dueDate: task.dueDate,
+                type: task.taskType || 'general',
+                priority: task.priority || 'medium',
+                daysRemaining,
+                status: task.status
+            };
+        }).sort((a, b) => a.daysRemaining - b.daysRemaining);
+
+        return response.json({
+            error: false,
+            deadlines,
+            total: deadlines.length
+        });
+    } catch (error) {
+        console.error('getUpcomingDeadlines ERROR:', error);
+        return response.status(500).json({
+            error: true,
+            message: error.message || 'Failed to fetch upcoming deadlines'
+        });
+    }
+};
+
+// Get billable hours summary
+const getBillableHoursSummary = async (request, response) => {
+    try {
+        const userId = request.userID;
+        const firmId = request.firmId;
+
+        // Build match filter
+        const matchFilter = firmId
+            ? { firmId: new mongoose.Types.ObjectId(firmId) }
+            : { lawyerId: new mongoose.Types.ObjectId(userId) };
+
+        // Date calculations
+        const now = new Date();
+        const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const todayEnd = new Date(todayStart);
+        todayEnd.setDate(todayEnd.getDate() + 1);
+
+        // Week start (Sunday)
+        const weekStart = new Date(todayStart);
+        weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+
+        // Month start
+        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+        // Execute all queries in parallel
+        const [todayStats, weekStats, monthStats, unbilledStats, rateStats] = await Promise.all([
+            // Today's entries
+            TimeEntry.aggregate([
+                {
+                    $match: {
+                        ...matchFilter,
+                        date: { $gte: todayStart, $lt: todayEnd }
+                    }
+                },
+                {
+                    $group: {
+                        _id: null,
+                        hours: { $sum: { $divide: ['$duration', 60] } },
+                        amount: { $sum: '$finalAmount' }
+                    }
+                }
+            ]),
+            // This week's entries
+            TimeEntry.aggregate([
+                {
+                    $match: {
+                        ...matchFilter,
+                        date: { $gte: weekStart }
+                    }
+                },
+                {
+                    $group: {
+                        _id: null,
+                        hours: { $sum: { $divide: ['$duration', 60] } },
+                        amount: { $sum: '$finalAmount' }
+                    }
+                }
+            ]),
+            // This month's entries
+            TimeEntry.aggregate([
+                {
+                    $match: {
+                        ...matchFilter,
+                        date: { $gte: monthStart }
+                    }
+                },
+                {
+                    $group: {
+                        _id: null,
+                        hours: { $sum: { $divide: ['$duration', 60] } },
+                        amount: { $sum: '$finalAmount' }
+                    }
+                }
+            ]),
+            // Unbilled entries
+            TimeEntry.aggregate([
+                {
+                    $match: {
+                        ...matchFilter,
+                        billStatus: { $in: ['unbilled', 'pending'] }
+                    }
+                },
+                {
+                    $group: {
+                        _id: null,
+                        hours: { $sum: { $divide: ['$duration', 60] } },
+                        amount: { $sum: '$finalAmount' }
+                    }
+                }
+            ]),
+            // Average hourly rate
+            TimeEntry.aggregate([
+                { $match: matchFilter },
+                {
+                    $group: {
+                        _id: null,
+                        avgRate: { $avg: '$hourlyRate' }
+                    }
+                }
+            ])
+        ]);
+
+        return response.json({
+            error: false,
+            summary: {
+                today: {
+                    hours: parseFloat((todayStats[0]?.hours || 0).toFixed(2)),
+                    amount: Math.round(todayStats[0]?.amount || 0)
+                },
+                thisWeek: {
+                    hours: parseFloat((weekStats[0]?.hours || 0).toFixed(2)),
+                    amount: Math.round(weekStats[0]?.amount || 0)
+                },
+                thisMonth: {
+                    hours: parseFloat((monthStats[0]?.hours || 0).toFixed(2)),
+                    amount: Math.round(monthStats[0]?.amount || 0)
+                },
+                unbilled: {
+                    hours: parseFloat((unbilledStats[0]?.hours || 0).toFixed(2)),
+                    amount: Math.round(unbilledStats[0]?.amount || 0)
+                },
+                hourlyRate: Math.round(rateStats[0]?.avgRate || 0)
+            }
+        });
+    } catch (error) {
+        console.error('getBillableHoursSummary ERROR:', error);
+        return response.status(500).json({
+            error: true,
+            message: error.message || 'Failed to fetch billable hours summary'
+        });
+    }
+};
+
+// Get documents pending action
+const getPendingDocuments = async (request, response) => {
+    try {
+        const userId = request.userID;
+        const firmId = request.firmId;
+
+        // Build match filter
+        const matchFilter = firmId
+            ? { firmId: new mongoose.Types.ObjectId(firmId) }
+            : { lawyerId: new mongoose.Types.ObjectId(userId) };
+
+        const now = new Date();
+
+        // Get documents needing review (recently uploaded, no access)
+        const recentDocs = await Document.find({
+            ...matchFilter,
+            createdAt: { $gte: new Date(now - 30 * 24 * 60 * 60 * 1000) }, // Last 30 days
+            accessCount: 0 // Never accessed/reviewed
+        })
+        .populate('caseId', 'title caseNumber')
+        .populate('clientId', 'firstName lastName')
+        .sort({ createdAt: -1 })
+        .limit(20)
+        .lean();
+
+        // Get shared documents awaiting client response
+        const sharedDocs = await Document.find({
+            ...matchFilter,
+            shareToken: { $exists: true, $ne: null },
+            shareExpiresAt: { $gt: now }
+        })
+        .populate('caseId', 'title caseNumber')
+        .populate('clientId', 'firstName lastName')
+        .sort({ createdAt: -1 })
+        .limit(20)
+        .lean();
+
+        // Get contract documents (likely needing signatures)
+        const contractDocs = await Document.find({
+            ...matchFilter,
+            category: 'contract',
+            createdAt: { $gte: new Date(now - 30 * 24 * 60 * 60 * 1000) }
+        })
+        .populate('caseId', 'title caseNumber')
+        .populate('clientId', 'firstName lastName')
+        .sort({ createdAt: -1 })
+        .limit(10)
+        .lean();
+
+        // Format documents
+        const formatDoc = (doc, status) => ({
+            _id: doc._id,
+            name: doc.originalName || doc.fileName,
+            caseId: doc.caseId?._id,
+            caseName: doc.caseId?.title,
+            clientName: doc.clientId ? `${doc.clientId.firstName} ${doc.clientId.lastName}` : null,
+            category: doc.category,
+            status,
+            createdAt: doc.createdAt,
+            daysWaiting: Math.ceil((now - new Date(doc.createdAt)) / (1000 * 60 * 60 * 24))
+        });
+
+        const documents = [
+            ...recentDocs.map(d => formatDoc(d, 'awaiting_review')),
+            ...sharedDocs.map(d => formatDoc(d, 'awaiting_client')),
+            ...contractDocs.filter(d => !recentDocs.find(r => r._id.equals(d._id)))
+                .map(d => formatDoc(d, 'awaiting_signature'))
+        ];
+
+        // Remove duplicates
+        const uniqueDocs = documents.filter((doc, index, self) =>
+            index === self.findIndex(d => d._id.toString() === doc._id.toString())
+        );
+
+        // Count by status
+        const counts = {
+            awaitingSignature: uniqueDocs.filter(d => d.status === 'awaiting_signature').length,
+            awaitingReview: uniqueDocs.filter(d => d.status === 'awaiting_review').length,
+            awaitingClient: uniqueDocs.filter(d => d.status === 'awaiting_client').length
+        };
+
+        return response.json({
+            error: false,
+            documents: uniqueDocs.slice(0, 20),
+            counts,
+            total: uniqueDocs.length
+        });
+    } catch (error) {
+        console.error('getPendingDocuments ERROR:', error);
+        return response.status(500).json({
+            error: true,
+            message: error.message || 'Failed to fetch pending documents'
+        });
+    }
+};
+
 module.exports = {
     getHeroStats,
     getDashboardStats,
@@ -648,5 +1046,9 @@ module.exports = {
     getActivityOverview,
     getCRMStats,
     getHRStats,
-    getFinanceStats
+    getFinanceStats,
+    getUpcomingHearings,
+    getUpcomingDeadlines,
+    getBillableHoursSummary,
+    getPendingDocuments
 };
