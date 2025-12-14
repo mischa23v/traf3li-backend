@@ -112,10 +112,10 @@ const getMessages = async (request, response) => {
 // Mark messages as read
 const markAsRead = async (request, response) => {
     const { conversationID } = request.params;
-    
+
     try {
         await Message.updateMany(
-            { 
+            {
                 conversationID,
                 userID: { $ne: request.userID },
                 'readBy.userId': { $ne: request.userID }
@@ -147,8 +147,61 @@ const markAsRead = async (request, response) => {
     }
 };
 
+// Get message stats
+const getMessageStats = async (request, response) => {
+    const userId = request.userID;
+
+    try {
+        // Get all conversations where user is a participant
+        const conversations = await Conversation.find({
+            $or: [
+                { sellerID: userId },
+                { buyerID: userId }
+            ]
+        });
+
+        const conversationIds = conversations.map(c => c.conversationID);
+        const totalConversations = conversations.length;
+
+        // Count unread conversations (where the read flag for current user is false)
+        const unreadConversations = conversations.filter(conv => {
+            const isSeller = conv.sellerID.toString() === userId.toString();
+            return isSeller ? !conv.readBySeller : !conv.readByBuyer;
+        }).length;
+
+        // Count total unread messages (messages not sent by user and not in readBy)
+        const unreadMessages = await Message.countDocuments({
+            conversationID: { $in: conversationIds },
+            userID: { $ne: userId },
+            'readBy.userId': { $ne: userId }
+        });
+
+        // Count total messages in user's conversations
+        const totalMessages = await Message.countDocuments({
+            conversationID: { $in: conversationIds }
+        });
+
+        return response.send({
+            success: true,
+            data: {
+                unreadMessages,
+                unreadConversations,
+                totalConversations,
+                totalMessages
+            }
+        });
+    }
+    catch({message, status = 500}) {
+        return response.status(status).send({
+            error: true,
+            message
+        })
+    }
+};
+
 module.exports = {
     createMessage,
     getMessages,
-    markAsRead
+    markAsRead,
+    getMessageStats
 };
