@@ -259,12 +259,44 @@ const getStats = asyncHandler(async (req, res) => {
     });
 });
 
+/**
+ * Bulk delete staff members
+ * POST /api/staff/bulk-delete
+ */
+const bulkDeleteStaff = asyncHandler(async (req, res) => {
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية للوصول', 403);
+    }
+
+    const { ids } = req.body;
+    const lawyerId = req.userID;
+    const firmId = req.firmId;
+
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+        throw CustomException('يجب توفير قائمة المعرفات / IDs list is required', 400);
+    }
+
+    // Build access query
+    const accessQuery = firmId
+        ? { _id: { $in: ids }, firmId }
+        : { _id: { $in: ids }, lawyerId };
+
+    const result = await Staff.deleteMany(accessQuery);
+
+    res.json({
+        success: true,
+        message: `تم حذف ${result.deletedCount} عضو فريق بنجاح / ${result.deletedCount} staff member(s) deleted successfully`,
+        deletedCount: result.deletedCount
+    });
+});
+
 module.exports = {
     createStaff,
     getStaff,
     getStaffById,
     updateStaff,
     deleteStaff,
+    bulkDeleteStaff,
     getTeam,
     getStats
 };

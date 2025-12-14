@@ -6,6 +6,7 @@ const {
     createLeaveRequest,
     updateLeaveRequest,
     deleteLeaveRequest,
+    bulkDeleteLeaveRequests,
     submitLeaveRequest,
     approveLeaveRequest,
     rejectLeaveRequest,
@@ -42,6 +43,7 @@ router.get('/stats', getLeaveStats);
 router.get('/calendar', getTeamCalendar);
 router.get('/pending-approvals', getPendingApprovals);
 router.post('/check-conflicts', checkConflicts);
+router.post('/bulk-delete', bulkDeleteLeaveRequests);
 
 // Balance route with employee ID
 router.get('/balance/:employeeId', validateEmployeeIdParam, getLeaveBalance);

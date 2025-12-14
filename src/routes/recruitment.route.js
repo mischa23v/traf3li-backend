@@ -83,6 +83,9 @@ router.post('/applicants/bulk-stage-update', recruitmentController.bulkUpdateSta
 // POST /api/hr/recruitment/applicants/bulk-reject - Bulk reject applicants
 router.post('/applicants/bulk-reject', recruitmentController.bulkReject);
 
+// POST /api/hr/recruitment/applicants/bulk-delete - Bulk delete applicants
+router.post('/applicants/bulk-delete', recruitmentController.bulkDeleteApplicants);
+
 // GET /api/hr/recruitment/applicants/stats - Get applicant statistics (must be before :id)
 router.get('/applicants/stats', recruitmentController.getApplicantStats);
 
