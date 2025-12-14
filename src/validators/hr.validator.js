@@ -113,16 +113,20 @@ const createEmployeeSchema = Joi.object({
             'number.min': 'الراتب لا يمكن أن يكون سالباً / Salary cannot be negative'
         }),
         currency: Joi.string().valid('SAR', 'USD', 'EUR', 'GBP').allow('', null),
-        allowances: Joi.array().items(
-            Joi.object({
-                name: Joi.string().max(100).allow('', null),
-                nameAr: Joi.string().max(100).allow('', null),
-                amount: Joi.number().min(0).allow(null),
-                taxable: Joi.boolean().allow(null),
-                includedInEOSB: Joi.boolean().allow(null),
-                includedInGOSI: Joi.boolean().allow(null)
-            })
-        ).allow(null).empty('').default([]),
+        allowances: Joi.alternatives().try(
+            Joi.array().items(
+                Joi.object({
+                    name: Joi.string().max(100).allow('', null),
+                    nameAr: Joi.string().max(100).allow('', null),
+                    amount: Joi.number().min(0).allow(null),
+                    taxable: Joi.boolean().allow(null),
+                    includedInEOSB: Joi.boolean().allow(null),
+                    includedInGOSI: Joi.boolean().allow(null)
+                })
+            ),
+            Joi.string().allow(''),
+            Joi.allow(null)
+        ).default([]),
         paymentFrequency: Joi.string().valid('monthly', 'bi_weekly', 'weekly').allow('', null),
         paymentMethod: Joi.string().valid('bank_transfer', 'cash', 'check').allow('', null),
         bankDetails: Joi.object({
@@ -221,16 +225,20 @@ const updateEmployeeSchema = Joi.object({
     compensation: Joi.object({
         basicSalary: Joi.number().min(0).allow(null, '').empty(''),
         currency: Joi.string().valid('SAR', 'USD', 'EUR', 'GBP').allow('', null),
-        allowances: Joi.array().items(
-            Joi.object({
-                name: Joi.string().max(100).allow('', null),
-                nameAr: Joi.string().max(100).allow('', null),
-                amount: Joi.number().min(0).allow(null),
-                taxable: Joi.boolean().allow(null),
-                includedInEOSB: Joi.boolean().allow(null),
-                includedInGOSI: Joi.boolean().allow(null)
-            })
-        ).allow(null).empty('').default([]),
+        allowances: Joi.alternatives().try(
+            Joi.array().items(
+                Joi.object({
+                    name: Joi.string().max(100).allow('', null),
+                    nameAr: Joi.string().max(100).allow('', null),
+                    amount: Joi.number().min(0).allow(null),
+                    taxable: Joi.boolean().allow(null),
+                    includedInEOSB: Joi.boolean().allow(null),
+                    includedInGOSI: Joi.boolean().allow(null)
+                })
+            ),
+            Joi.string().allow(''),
+            Joi.allow(null)
+        ).default([]),
         paymentFrequency: Joi.string().valid('monthly', 'bi_weekly', 'weekly').allow('', null),
         paymentMethod: Joi.string().valid('bank_transfer', 'cash', 'check').allow('', null),
         bankDetails: Joi.object({
