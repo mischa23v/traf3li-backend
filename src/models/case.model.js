@@ -141,10 +141,61 @@ const caseSchema = new mongoose.Schema({
         type: String,
         required: false
     },
+
+    // ═══════════════════════════════════════════════════════════════
+    // ENTITY TYPE (نوع الجهة)
+    // Determines whether case is in court, committee, or arbitration
+    // ═══════════════════════════════════════════════════════════════
+    entityType: {
+        type: String,
+        enum: ['court', 'committee', 'arbitration'],
+        default: 'court'
+    },
+
+    // Court field (when entityType = 'court')
     court: {
         type: String,
         required: false
     },
+
+    // Committee field (when entityType = 'committee')
+    // اللجان شبه القضائية
+    committee: {
+        type: String,
+        enum: ['banking', 'securities', 'insurance', 'customs', 'tax', 'zakat',
+               'real_estate', 'competition', 'capital_market', 'intellectual_property', null],
+        required: false
+    },
+
+    // Arbitration Center field (when entityType = 'arbitration')
+    // مركز التحكيم
+    arbitrationCenter: {
+        type: String,
+        enum: ['scca', 'sba_arbitration', 'riyadh_chamber', 'jeddah_chamber',
+               'eastern_chamber', 'gcc_commercial', 'other', null],
+        required: false
+    },
+
+    // Region (المنطقة الإدارية)
+    region: {
+        type: String,
+        enum: ['riyadh', 'makkah', 'madinah', 'qassim', 'eastern', 'asir',
+               'tabuk', 'hail', 'northern', 'jazan', 'najran', 'baha', 'jawf', null],
+        required: false
+    },
+
+    // City (المدينة)
+    city: {
+        type: String,
+        required: false
+    },
+
+    // Circuit Number (رقم الدائرة)
+    circuitNumber: {
+        type: String,
+        required: false
+    },
+
     judge: {
         type: String,
         required: false
@@ -398,6 +449,47 @@ const caseSchema = new mongoose.Schema({
         type: String,
         enum: ['platform', 'external'],
         default: 'external'  // Track where case came from
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // INTERNAL REFERENCE (الرقم المرجعي الداخلي)
+    // Auto-generated in format: YYYY/XXXX
+    // ═══════════════════════════════════════════════════════════════
+    internalReference: {
+        type: String,
+        unique: true,
+        sparse: true  // Allow multiple nulls
+    },
+
+    // Filing Date (تاريخ التقديم)
+    filingDate: {
+        type: Date,
+        required: false
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // CASE SUBJECT AND LEGAL BASIS (موضوع الدعوى والسند النظامي)
+    // ═══════════════════════════════════════════════════════════════
+    caseSubject: {
+        type: String,
+        required: false
+    },
+    legalBasis: {
+        type: String,
+        required: false
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // POWER OF ATTORNEY (الوكالة الشرعية) - Case Level
+    // ═══════════════════════════════════════════════════════════════
+    powerOfAttorney: {
+        number: String,        // رقم الوكالة
+        date: Date,            // تاريخ الوكالة
+        expiry: Date,          // تاريخ انتهاء الوكالة
+        scope: {
+            type: String,
+            enum: ['general', 'specific', 'litigation', null]  // نطاق الوكالة
+        }
     },
 
     // ═══════════════════════════════════════════════════════════════
@@ -990,6 +1082,18 @@ caseSchema.index({ category: 1, outcome: 1 });
 caseSchema.index({ stageEnteredAt: 1 });
 caseSchema.index({ firmId: 1, category: 1, currentStage: 1 });
 caseSchema.index({ firmId: 1, category: 1, outcome: 1 });
+
+// ═══════════════════════════════════════════════════════════════
+// ENTITY TYPE INDEXES
+// ═══════════════════════════════════════════════════════════════
+caseSchema.index({ entityType: 1 });
+caseSchema.index({ firmId: 1, entityType: 1 });
+caseSchema.index({ committee: 1 });
+caseSchema.index({ arbitrationCenter: 1 });
+caseSchema.index({ region: 1 });
+caseSchema.index({ internalReference: 1 });
+caseSchema.index({ 'plaintiff.unifiedNumber': 1 });
+caseSchema.index({ 'defendant.unifiedNumber': 1 });
 
 // ═══════════════════════════════════════════════════════════════
 // MIDDLEWARE HOOKS

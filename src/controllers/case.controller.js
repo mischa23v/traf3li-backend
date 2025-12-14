@@ -7,6 +7,44 @@ const { CustomException } = require('../utils');
 const { calculateLawyerScore } = require('./score.controller');
 const { getUploadPresignedUrl, getDownloadPresignedUrl, deleteFile, generateFileKey } = require('../configs/s3');
 const documentExportService = require('../services/documentExport.service');
+const {
+    ENTITY_TYPES,
+    COURTS,
+    COMMITTEES,
+    ARBITRATION_CENTERS,
+    REGIONS,
+    getLabel
+} = require('../configs/caseConstants');
+
+/**
+ * Generate internal reference for a case
+ * Format: YYYY/XXXX (e.g., 2025/0001, 2025/0002)
+ * @param {string} firmId - The firm ID for scoping the sequence
+ * @returns {Promise<string>} - The generated internal reference
+ */
+const generateInternalReference = async (firmId) => {
+    const year = new Date().getFullYear();
+    const prefix = `${year}/`;
+
+    // Find the last case with internal reference for this year (and optionally firm)
+    const query = { internalReference: { $regex: `^${year}/` } };
+    if (firmId) {
+        query.firmId = firmId;
+    }
+
+    const lastCase = await Case.findOne(query)
+        .sort({ internalReference: -1 })
+        .select('internalReference')
+        .lean();
+
+    let sequence = 1;
+    if (lastCase?.internalReference) {
+        const [, lastSeq] = lastCase.internalReference.split('/');
+        sequence = parseInt(lastSeq, 10) + 1;
+    }
+
+    return `${year}/${sequence.toString().padStart(4, '0')}`;
+};
 
 // Helper function to check firm access for a case
 const checkCaseAccess = (caseDoc, userId, firmId, requireLawyer = false, isSoloLawyer = false) => {
@@ -84,11 +122,74 @@ const createCase = async (request, response) => {
         title,
         description,
         category,
-        laborCaseDetails,  // ✅ NEW
-        caseNumber,        // ✅ NEW
-        court,             // ✅ NEW
-        startDate,         // ✅ NEW
-        documents          // ✅ NEW
+        subCategory,
+        laborCaseDetails,
+        commercialCaseDetails,
+        personalStatusDetails,
+        caseNumber,
+        court,
+        startDate,
+        documents,
+        // Entity Type fields
+        entityType,
+        committee,
+        arbitrationCenter,
+        region,
+        city,
+        circuitNumber,
+        judge,
+        // Internal Reference
+        internalReference,
+        filingDate,
+        // Case Subject
+        caseSubject,
+        legalBasis,
+        // Power of Attorney
+        poaNumber,
+        poaDate,
+        poaExpiry,
+        poaScope,
+        powerOfAttorney,
+        // Plaintiff fields
+        plaintiff,
+        plaintiffType,
+        plaintiffName,
+        plaintiffNationalId,
+        plaintiffPhone,
+        plaintiffEmail,
+        plaintiffAddress,
+        plaintiffCompanyName,
+        plaintiffUnifiedNumber,
+        plaintiffCrNumber,
+        plaintiffCompanyAddress,
+        plaintiffRepresentativeName,
+        plaintiffRepresentativePosition,
+        plaintiffGovEntity,
+        plaintiffGovRepresentative,
+        // Defendant fields
+        defendant,
+        defendantType,
+        defendantName,
+        defendantNationalId,
+        defendantPhone,
+        defendantEmail,
+        defendantAddress,
+        defendantCompanyName,
+        defendantUnifiedNumber,
+        defendantCrNumber,
+        defendantCompanyAddress,
+        defendantRepresentativeName,
+        defendantRepresentativePosition,
+        defendantGovEntity,
+        defendantGovRepresentative,
+        // Claims
+        claims,
+        claimAmount,
+        expectedWinAmount,
+        // Other fields
+        priority,
+        status,
+        nextHearing
     } = request.body;
 
     try {
@@ -105,17 +206,103 @@ const createCase = async (request, response) => {
 
         const firmId = request.firmId; // From firmFilter middleware
 
+        // Build plaintiff object from flat fields if not provided as nested object
+        const plaintiffData = plaintiff || {};
+        if (plaintiffType) plaintiffData.type = plaintiffType;
+        if (plaintiffName) plaintiffData.fullNameArabic = plaintiffName;
+        if (plaintiffNationalId) plaintiffData.nationalId = plaintiffNationalId;
+        if (plaintiffPhone) plaintiffData.phone = plaintiffPhone;
+        if (plaintiffEmail) plaintiffData.email = plaintiffEmail;
+        if (plaintiffAddress && typeof plaintiffAddress === 'string') {
+            plaintiffData.nationalAddress = { ...plaintiffData.nationalAddress, streetName: plaintiffAddress };
+        }
+        if (plaintiffCompanyName) plaintiffData.companyName = plaintiffCompanyName;
+        if (plaintiffUnifiedNumber) plaintiffData.unifiedNumber = plaintiffUnifiedNumber;
+        if (plaintiffCrNumber) plaintiffData.crNumber = plaintiffCrNumber;
+        if (plaintiffCompanyAddress && typeof plaintiffCompanyAddress === 'string') {
+            plaintiffData.nationalAddress = { ...plaintiffData.nationalAddress, streetName: plaintiffCompanyAddress };
+        }
+        if (plaintiffRepresentativeName || plaintiffRepresentativePosition) {
+            plaintiffData.authorizedRepresentative = {
+                ...(plaintiffRepresentativeName && { name: plaintiffRepresentativeName }),
+                ...(plaintiffRepresentativePosition && { position: plaintiffRepresentativePosition })
+            };
+        }
+
+        // Build defendant object from flat fields if not provided as nested object
+        const defendantData = defendant || {};
+        if (defendantType) defendantData.type = defendantType;
+        if (defendantName) defendantData.fullNameArabic = defendantName;
+        if (defendantNationalId) defendantData.nationalId = defendantNationalId;
+        if (defendantPhone) defendantData.phone = defendantPhone;
+        if (defendantEmail) defendantData.email = defendantEmail;
+        if (defendantAddress && typeof defendantAddress === 'string') {
+            defendantData.nationalAddress = { ...defendantData.nationalAddress, streetName: defendantAddress };
+        }
+        if (defendantCompanyName) defendantData.companyName = defendantCompanyName;
+        if (defendantUnifiedNumber) defendantData.unifiedNumber = defendantUnifiedNumber;
+        if (defendantCrNumber) defendantData.crNumber = defendantCrNumber;
+        if (defendantCompanyAddress && typeof defendantCompanyAddress === 'string') {
+            defendantData.nationalAddress = { ...defendantData.nationalAddress, streetName: defendantCompanyAddress };
+        }
+        if (defendantRepresentativeName || defendantRepresentativePosition) {
+            defendantData.authorizedRepresentative = {
+                ...(defendantRepresentativeName && { name: defendantRepresentativeName }),
+                ...(defendantRepresentativePosition && { position: defendantRepresentativePosition })
+            };
+        }
+
+        // Build power of attorney object
+        const poaData = powerOfAttorney || {};
+        if (poaNumber) poaData.number = poaNumber;
+        if (poaDate) poaData.date = poaDate;
+        if (poaExpiry) poaData.expiry = poaExpiry;
+        if (poaScope) poaData.scope = poaScope;
+
         let caseData = {
             lawyerId: request.userID,
-            firmId, // Add firmId for multi-tenancy
+            firmId,
             title,
             description,
             category,
-            ...(laborCaseDetails && { laborCaseDetails }),  // ✅ NEW
-            ...(caseNumber && { caseNumber }),              // ✅ NEW
-            ...(court && { court }),                        // ✅ NEW
-            ...(startDate && { startDate }),                // ✅ NEW
-            ...(documents && { documents })                 // ✅ NEW
+            ...(subCategory && { subCategory }),
+            ...(laborCaseDetails && { laborCaseDetails }),
+            ...(commercialCaseDetails && { commercialCaseDetails }),
+            ...(personalStatusDetails && { personalStatusDetails }),
+            ...(caseNumber && { caseNumber }),
+            ...(court && { court }),
+            ...(startDate && { startDate }),
+            ...(documents && { documents }),
+            // Entity Type fields
+            ...(entityType && { entityType }),
+            ...(committee && { committee }),
+            ...(arbitrationCenter && { arbitrationCenter }),
+            ...(region && { region }),
+            ...(city && { city }),
+            ...(circuitNumber && { circuitNumber }),
+            ...(judge && { judge }),
+            // Internal Reference
+            ...(internalReference && { internalReference }),
+            ...(filingDate && { filingDate }),
+            // Case Subject
+            ...(caseSubject && { caseSubject }),
+            ...(legalBasis && { legalBasis }),
+            // Power of Attorney
+            ...(Object.keys(poaData).length > 0 && { powerOfAttorney: poaData }),
+            // Plaintiff and Defendant
+            ...(Object.keys(plaintiffData).length > 0 && { plaintiff: plaintiffData }),
+            ...(Object.keys(defendantData).length > 0 && { defendant: defendantData }),
+            // Set plaintiffName and defendantName for display
+            ...(plaintiffName && { plaintiffName }),
+            ...(defendantName && { defendantName }),
+            // Claims
+            ...(claims && { claims }),
+            ...(claimAmount && { claimAmount }),
+            ...(expectedWinAmount && { expectedWinAmount }),
+            // Other fields
+            ...(priority && { priority }),
+            ...(status && { status }),
+            ...(nextHearing && { nextHearing })
         };
 
         // CASE 1: Platform case (with contract)
@@ -151,6 +338,11 @@ const createCase = async (request, response) => {
                 // No client info provided - allowed for testing flexibility
                 caseData.source = 'external';
             }
+        }
+
+        // Auto-generate internal reference if not provided
+        if (!caseData.internalReference) {
+            caseData.internalReference = await generateInternalReference(firmId);
         }
 
         const caseDoc = await Case.create(caseData);
@@ -204,7 +396,13 @@ const getCases = async (request, response) => {
         page = 1,
         limit = 20,
         sortBy = 'createdAt',
-        sortOrder = 'desc'
+        sortOrder = 'desc',
+        // New filter fields
+        entityType,
+        court,
+        committee,
+        arbitrationCenter,
+        region
     } = request.query;
 
     try {
@@ -240,6 +438,13 @@ const getCases = async (request, response) => {
         if (outcome) filters.outcome = outcome;
         if (category) filters.category = category;
         if (priority) filters.priority = priority;
+
+        // Entity type filters
+        if (entityType) filters.entityType = entityType;
+        if (court) filters.court = court;
+        if (committee) filters.committee = committee;
+        if (arbitrationCenter) filters.arbitrationCenter = arbitrationCenter;
+        if (region) filters.region = region;
 
         // Filter by specific lawyer or client
         if (lawyerId) {

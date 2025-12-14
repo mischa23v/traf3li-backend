@@ -6,6 +6,55 @@
  */
 
 const Joi = require('joi');
+const {
+    ENTITY_TYPES,
+    COURTS,
+    COMMITTEES,
+    ARBITRATION_CENTERS,
+    REGIONS,
+    CASE_CATEGORIES,
+    POA_SCOPE,
+    PARTY_TYPES,
+    VALIDATION_PATTERNS,
+    VALIDATION_MESSAGES
+} = require('../configs/caseConstants');
+
+// ============================================
+// CUSTOM VALIDATION HELPERS
+// ============================================
+
+/**
+ * Custom validation for unified national number
+ * Must start with 7 and be exactly 10 digits
+ */
+const unifiedNumberValidator = Joi.string()
+    .pattern(/^7\d{9}$/)
+    .allow('', null)
+    .messages({
+        'string.pattern.base': VALIDATION_MESSAGES.unifiedNumber.ar + ' / ' + VALIDATION_MESSAGES.unifiedNumber.en
+    });
+
+/**
+ * Custom validation for national ID
+ * Must start with 1 or 2 and be exactly 10 digits
+ */
+const nationalIdValidator = Joi.string()
+    .pattern(/^[12]\d{9}$/)
+    .allow('', null)
+    .messages({
+        'string.pattern.base': VALIDATION_MESSAGES.nationalId.ar + ' / ' + VALIDATION_MESSAGES.nationalId.en
+    });
+
+/**
+ * Custom validation for commercial registration number
+ * Must be exactly 10 digits
+ */
+const crNumberValidator = Joi.string()
+    .pattern(/^\d{10}$/)
+    .allow('', null)
+    .messages({
+        'string.pattern.base': VALIDATION_MESSAGES.crNumber.ar + ' / ' + VALIDATION_MESSAGES.crNumber.en
+    });
 
 // ============================================
 // VALIDATION SCHEMAS
@@ -15,6 +64,9 @@ const Joi = require('joi');
  * Create case validation schema
  */
 const createCaseSchema = Joi.object({
+    // ═══════════════════════════════════════════════════════════════
+    // BASIC INFO (الخطوة 1: المعلومات الأساسية)
+    // ═══════════════════════════════════════════════════════════════
     title: Joi.string()
         .min(3)
         .max(200)
@@ -27,56 +79,366 @@ const createCaseSchema = Joi.object({
         .messages({
             'string.pattern.base': 'معرف العميل غير صالح / Invalid client ID format'
         }),
+    category: Joi.string()
+        .valid(...Object.keys(CASE_CATEGORIES))
+        .messages({
+            'any.only': 'تصنيف القضية غير صالح / Invalid case category'
+        }),
+    subCategory: Joi.string()
+        .max(100)
+        .messages({
+            'string.max': 'التصنيف الفرعي طويل جداً / Sub-category is too long'
+        }),
     caseType: Joi.string()
         .max(100)
         .messages({
             'string.max': 'نوع القضية طويل جداً / Case type is too long'
-        }),
-    court: Joi.string()
-        .max(200)
-        .messages({
-            'string.max': 'اسم المحكمة طويل جداً / Court name is too long'
         }),
     caseNumber: Joi.string()
         .max(100)
         .messages({
             'string.max': 'رقم القضية طويل جداً / Case number is too long'
         }),
+    internalReference: Joi.string()
+        .max(20)
+        .messages({
+            'string.max': 'الرقم المرجعي الداخلي طويل جداً / Internal reference is too long'
+        }),
     status: Joi.string()
-        .valid('open', 'in_progress', 'pending', 'closed', 'won', 'lost')
+        .valid('open', 'in_progress', 'pending', 'closed', 'won', 'lost', 'active', 'appeal', 'settlement', 'on-hold', 'completed', 'settled')
         .default('open')
         .messages({
             'any.only': 'حالة القضية غير صالحة / Invalid case status'
         }),
     priority: Joi.string()
-        .valid('low', 'medium', 'high', 'urgent')
+        .valid('low', 'medium', 'high', 'urgent', 'critical')
         .messages({
             'any.only': 'أولوية القضية غير صالحة / Invalid case priority'
         }),
     description: Joi.string()
-        .max(2000)
+        .max(5000)
         .allow('')
         .messages({
             'string.max': 'وصف القضية طويل جداً / Case description is too long'
-        }),
-    assignedLawyer: Joi.string()
-        .pattern(/^[0-9a-fA-F]{24}$/)
-        .messages({
-            'string.pattern.base': 'معرف المحامي غير صالح / Invalid lawyer ID format'
         }),
     filingDate: Joi.date()
         .messages({
             'date.base': 'تاريخ التقديم غير صالح / Invalid filing date'
         }),
+
+    // ═══════════════════════════════════════════════════════════════
+    // ENTITY TYPE (نوع الجهة - محكمة/لجنة/تحكيم)
+    // ═══════════════════════════════════════════════════════════════
+    entityType: Joi.string()
+        .valid(...Object.keys(ENTITY_TYPES))
+        .default('court')
+        .messages({
+            'any.only': 'نوع الجهة غير صالح / Invalid entity type'
+        }),
+    court: Joi.string()
+        .max(200)
+        .allow('', null)
+        .messages({
+            'string.max': 'اسم المحكمة طويل جداً / Court name is too long'
+        }),
+    committee: Joi.string()
+        .valid(...Object.keys(COMMITTEES), '', null)
+        .messages({
+            'any.only': 'اللجنة غير صالحة / Invalid committee'
+        }),
+    arbitrationCenter: Joi.string()
+        .valid(...Object.keys(ARBITRATION_CENTERS), '', null)
+        .messages({
+            'any.only': 'مركز التحكيم غير صالح / Invalid arbitration center'
+        }),
+    region: Joi.string()
+        .valid(...Object.keys(REGIONS), '', null)
+        .messages({
+            'any.only': 'المنطقة غير صالحة / Invalid region'
+        }),
+    city: Joi.string()
+        .max(100)
+        .allow('', null)
+        .messages({
+            'string.max': 'اسم المدينة طويل جداً / City name is too long'
+        }),
+    circuitNumber: Joi.string()
+        .max(50)
+        .allow('', null)
+        .messages({
+            'string.max': 'رقم الدائرة طويل جداً / Circuit number is too long'
+        }),
+    judge: Joi.string()
+        .max(200)
+        .allow('', null)
+        .messages({
+            'string.max': 'اسم القاضي طويل جداً / Judge name is too long'
+        }),
+
+    // ═══════════════════════════════════════════════════════════════
+    // PLAINTIFF INFO (الخطوة 2: المدعي)
+    // ═══════════════════════════════════════════════════════════════
+    plaintiffType: Joi.string()
+        .valid(...Object.keys(PARTY_TYPES))
+        .messages({
+            'any.only': 'نوع المدعي غير صالح / Invalid plaintiff type'
+        }),
+    plaintiffName: Joi.string()
+        .max(255)
+        .allow('', null)
+        .messages({
+            'string.max': 'اسم المدعي طويل جداً / Plaintiff name is too long'
+        }),
+    plaintiffNationalId: nationalIdValidator,
+    plaintiffPhone: Joi.string()
+        .max(20)
+        .allow('', null)
+        .messages({
+            'string.max': 'رقم هاتف المدعي طويل جداً / Plaintiff phone is too long'
+        }),
+    plaintiffEmail: Joi.string()
+        .email()
+        .allow('', null)
+        .messages({
+            'string.email': 'البريد الإلكتروني للمدعي غير صالح / Invalid plaintiff email'
+        }),
+    plaintiffAddress: Joi.string()
+        .max(500)
+        .allow('', null)
+        .messages({
+            'string.max': 'عنوان المدعي طويل جداً / Plaintiff address is too long'
+        }),
+    // Company plaintiff fields
+    plaintiffCompanyName: Joi.string()
+        .max(255)
+        .allow('', null)
+        .messages({
+            'string.max': 'اسم شركة المدعي طويل جداً / Plaintiff company name is too long'
+        }),
+    plaintiffUnifiedNumber: unifiedNumberValidator,
+    plaintiffCrNumber: crNumberValidator,
+    plaintiffCompanyAddress: Joi.string()
+        .max(500)
+        .allow('', null)
+        .messages({
+            'string.max': 'عنوان شركة المدعي طويل جداً / Plaintiff company address is too long'
+        }),
+    plaintiffRepresentativeName: Joi.string()
+        .max(255)
+        .allow('', null)
+        .messages({
+            'string.max': 'اسم ممثل المدعي طويل جداً / Plaintiff representative name is too long'
+        }),
+    plaintiffRepresentativePosition: Joi.string()
+        .max(100)
+        .allow('', null)
+        .messages({
+            'string.max': 'صفة ممثل المدعي طويلة جداً / Plaintiff representative position is too long'
+        }),
+    // Government plaintiff fields
+    plaintiffGovEntity: Joi.string()
+        .max(255)
+        .allow('', null)
+        .messages({
+            'string.max': 'اسم الجهة الحكومية طويل جداً / Government entity name is too long'
+        }),
+    plaintiffGovRepresentative: Joi.string()
+        .max(255)
+        .allow('', null)
+        .messages({
+            'string.max': 'اسم ممثل الجهة الحكومية طويل جداً / Government representative name is too long'
+        }),
+
+    // ═══════════════════════════════════════════════════════════════
+    // DEFENDANT INFO (الخطوة 2: المدعى عليه)
+    // ═══════════════════════════════════════════════════════════════
+    defendantType: Joi.string()
+        .valid(...Object.keys(PARTY_TYPES))
+        .messages({
+            'any.only': 'نوع المدعى عليه غير صالح / Invalid defendant type'
+        }),
+    defendantName: Joi.string()
+        .max(255)
+        .allow('', null)
+        .messages({
+            'string.max': 'اسم المدعى عليه طويل جداً / Defendant name is too long'
+        }),
+    defendantNationalId: nationalIdValidator,
+    defendantPhone: Joi.string()
+        .max(20)
+        .allow('', null)
+        .messages({
+            'string.max': 'رقم هاتف المدعى عليه طويل جداً / Defendant phone is too long'
+        }),
+    defendantEmail: Joi.string()
+        .email()
+        .allow('', null)
+        .messages({
+            'string.email': 'البريد الإلكتروني للمدعى عليه غير صالح / Invalid defendant email'
+        }),
+    defendantAddress: Joi.string()
+        .max(500)
+        .allow('', null)
+        .messages({
+            'string.max': 'عنوان المدعى عليه طويل جداً / Defendant address is too long'
+        }),
+    // Company defendant fields
+    defendantCompanyName: Joi.string()
+        .max(255)
+        .allow('', null)
+        .messages({
+            'string.max': 'اسم شركة المدعى عليه طويل جداً / Defendant company name is too long'
+        }),
+    defendantUnifiedNumber: unifiedNumberValidator,
+    defendantCrNumber: crNumberValidator,
+    defendantCompanyAddress: Joi.string()
+        .max(500)
+        .allow('', null)
+        .messages({
+            'string.max': 'عنوان شركة المدعى عليه طويل جداً / Defendant company address is too long'
+        }),
+    defendantRepresentativeName: Joi.string()
+        .max(255)
+        .allow('', null)
+        .messages({
+            'string.max': 'اسم ممثل المدعى عليه طويل جداً / Defendant representative name is too long'
+        }),
+    defendantRepresentativePosition: Joi.string()
+        .max(100)
+        .allow('', null)
+        .messages({
+            'string.max': 'صفة ممثل المدعى عليه طويلة جداً / Defendant representative position is too long'
+        }),
+    // Government defendant fields
+    defendantGovEntity: Joi.string()
+        .max(255)
+        .allow('', null)
+        .messages({
+            'string.max': 'اسم الجهة الحكومية طويل جداً / Government entity name is too long'
+        }),
+    defendantGovRepresentative: Joi.string()
+        .max(255)
+        .allow('', null)
+        .messages({
+            'string.max': 'اسم ممثل الجهة الحكومية طويل جداً / Government representative name is too long'
+        }),
+
+    // ═══════════════════════════════════════════════════════════════
+    // CASE DETAILS (الخطوة 3: تفاصيل القضية)
+    // ═══════════════════════════════════════════════════════════════
+    caseSubject: Joi.string()
+        .max(5000)
+        .allow('', null)
+        .messages({
+            'string.max': 'موضوع الدعوى طويل جداً / Case subject is too long'
+        }),
+    legalBasis: Joi.string()
+        .max(5000)
+        .allow('', null)
+        .messages({
+            'string.max': 'السند النظامي طويل جداً / Legal basis is too long'
+        }),
+    claims: Joi.array()
+        .items(Joi.object({
+            type: Joi.string().max(100),
+            amount: Joi.number().min(0),
+            period: Joi.string().max(100).allow('', null),
+            description: Joi.string().max(1000).allow('', null)
+        }))
+        .messages({
+            'array.base': 'المطالبات يجب أن تكون مصفوفة / Claims must be an array'
+        }),
+
+    // Labor Details (if category === 'labor')
+    jobTitle: Joi.string().max(200).allow('', null),
+    monthlySalary: Joi.number().min(0).allow(null),
+    employmentStartDate: Joi.date().allow(null),
+    employmentEndDate: Joi.date().allow(null),
+    terminationReason: Joi.string().max(1000).allow('', null),
+
+    // Family Details (if category === 'family')
+    marriageDate: Joi.date().allow(null),
+    marriageCity: Joi.string().max(100).allow('', null),
+    childrenCount: Joi.number().integer().min(0).allow(null),
+
+    // Commercial Details (if category === 'commercial')
+    contractDate: Joi.date().allow(null),
+    contractValue: Joi.number().min(0).allow(null),
+
+    // ═══════════════════════════════════════════════════════════════
+    // POWER OF ATTORNEY (الخطوة 4: الوكالة الشرعية)
+    // ═══════════════════════════════════════════════════════════════
+    poaNumber: Joi.string()
+        .max(100)
+        .allow('', null)
+        .messages({
+            'string.max': 'رقم الوكالة طويل جداً / POA number is too long'
+        }),
+    poaDate: Joi.date()
+        .allow(null)
+        .messages({
+            'date.base': 'تاريخ الوكالة غير صالح / Invalid POA date'
+        }),
+    poaExpiry: Joi.date()
+        .allow(null)
+        .messages({
+            'date.base': 'تاريخ انتهاء الوكالة غير صالح / Invalid POA expiry date'
+        }),
+    poaScope: Joi.string()
+        .valid(...Object.keys(POA_SCOPE), '', null)
+        .messages({
+            'any.only': 'نطاق الوكالة غير صالح / Invalid POA scope'
+        }),
+
+    // ═══════════════════════════════════════════════════════════════
+    // TEAM ASSIGNMENT (الخطوة 4: الفريق)
+    // ═══════════════════════════════════════════════════════════════
+    assignedLawyer: Joi.string()
+        .pattern(/^[0-9a-fA-F]{24}$/)
+        .allow('', null)
+        .messages({
+            'string.pattern.base': 'معرف المحامي غير صالح / Invalid lawyer ID format'
+        }),
+    lawyerId: Joi.string()
+        .pattern(/^[0-9a-fA-F]{24}$/)
+        .allow('', null)
+        .messages({
+            'string.pattern.base': 'معرف المحامي غير صالح / Invalid lawyer ID format'
+        }),
+
+    // ═══════════════════════════════════════════════════════════════
+    // ADDITIONAL FIELDS (حقول إضافية)
+    // ═══════════════════════════════════════════════════════════════
     nextHearingDate: Joi.date()
+        .allow(null)
+        .messages({
+            'date.base': 'تاريخ الجلسة القادمة غير صالح / Invalid next hearing date'
+        }),
+    nextHearing: Joi.date()
+        .allow(null)
         .messages({
             'date.base': 'تاريخ الجلسة القادمة غير صالح / Invalid next hearing date'
         }),
     estimatedValue: Joi.number()
         .min(0)
+        .allow(null)
         .messages({
             'number.base': 'القيمة التقديرية يجب أن تكون رقماً / Estimated value must be a number',
             'number.min': 'القيمة التقديرية لا يمكن أن تكون سالبة / Estimated value cannot be negative'
+        }),
+    claimAmount: Joi.number()
+        .min(0)
+        .allow(null)
+        .messages({
+            'number.base': 'مبلغ المطالبة يجب أن يكون رقماً / Claim amount must be a number',
+            'number.min': 'مبلغ المطالبة لا يمكن أن تكون سالبة / Claim amount cannot be negative'
+        }),
+    expectedWinAmount: Joi.number()
+        .min(0)
+        .allow(null)
+        .messages({
+            'number.base': 'المبلغ المتوقع يجب أن يكون رقماً / Expected amount must be a number',
+            'number.min': 'المبلغ المتوقع لا يمكن أن يكون سالباً / Expected amount cannot be negative'
         }),
     tags: Joi.array()
         .items(Joi.string().max(50))
@@ -86,87 +448,45 @@ const createCaseSchema = Joi.object({
     customFields: Joi.object()
         .messages({
             'object.base': 'الحقول المخصصة يجب أن تكون كائن / Custom fields must be an object'
-        })
+        }),
+
+    // Allow nested objects for plaintiff/defendant data
+    plaintiff: Joi.object().unknown(true),
+    defendant: Joi.object().unknown(true),
+    laborCaseDetails: Joi.object().unknown(true),
+    commercialCaseDetails: Joi.object().unknown(true),
+    personalStatusDetails: Joi.object().unknown(true),
+    powerOfAttorney: Joi.object({
+        number: Joi.string().max(100).allow('', null),
+        date: Joi.date().allow(null),
+        expiry: Joi.date().allow(null),
+        scope: Joi.string().valid(...Object.keys(POA_SCOPE), '', null)
+    }),
+
+    // Allow other fields to pass through
+    startDate: Joi.date().allow(null),
+    source: Joi.string().valid('platform', 'external'),
+    clientName: Joi.string().max(255).allow('', null),
+    clientPhone: Joi.string().max(20).allow('', null),
+    documents: Joi.array()
+}).custom((value, helpers) => {
+    // Custom validation: arbitrationCenter is required when entityType is 'arbitration'
+    if (value.entityType === 'arbitration' && !value.arbitrationCenter) {
+        return helpers.message({
+            custom: VALIDATION_MESSAGES.arbitrationCenterRequired.ar + ' / ' + VALIDATION_MESSAGES.arbitrationCenterRequired.en
+        });
+    }
+    return value;
 });
 
 /**
  * Update case validation schema (partial)
+ * Inherits all fields from createCaseSchema with min(1) requirement
  */
-const updateCaseSchema = Joi.object({
-    title: Joi.string()
-        .min(3)
-        .max(200)
-        .messages({
-            'string.min': 'عنوان القضية قصير جداً / Case title is too short',
-            'string.max': 'عنوان القضية طويل جداً / Case title is too long'
-        }),
-    clientId: Joi.string()
-        .pattern(/^[0-9a-fA-F]{24}$/)
-        .messages({
-            'string.pattern.base': 'معرف العميل غير صالح / Invalid client ID format'
-        }),
-    caseType: Joi.string()
-        .max(100)
-        .messages({
-            'string.max': 'نوع القضية طويل جداً / Case type is too long'
-        }),
-    court: Joi.string()
-        .max(200)
-        .messages({
-            'string.max': 'اسم المحكمة طويل جداً / Court name is too long'
-        }),
-    caseNumber: Joi.string()
-        .max(100)
-        .messages({
-            'string.max': 'رقم القضية طويل جداً / Case number is too long'
-        }),
-    status: Joi.string()
-        .valid('open', 'in_progress', 'pending', 'closed', 'won', 'lost')
-        .messages({
-            'any.only': 'حالة القضية غير صالحة / Invalid case status'
-        }),
-    priority: Joi.string()
-        .valid('low', 'medium', 'high', 'urgent')
-        .messages({
-            'any.only': 'أولوية القضية غير صالحة / Invalid case priority'
-        }),
-    description: Joi.string()
-        .max(2000)
-        .allow('')
-        .messages({
-            'string.max': 'وصف القضية طويل جداً / Case description is too long'
-        }),
-    assignedLawyer: Joi.string()
-        .pattern(/^[0-9a-fA-F]{24}$/)
-        .allow(null)
-        .messages({
-            'string.pattern.base': 'معرف المحامي غير صالح / Invalid lawyer ID format'
-        }),
-    filingDate: Joi.date()
-        .messages({
-            'date.base': 'تاريخ التقديم غير صالح / Invalid filing date'
-        }),
-    nextHearingDate: Joi.date()
-        .allow(null)
-        .messages({
-            'date.base': 'تاريخ الجلسة القادمة غير صالح / Invalid next hearing date'
-        }),
-    estimatedValue: Joi.number()
-        .min(0)
-        .messages({
-            'number.base': 'القيمة التقديرية يجب أن تكون رقماً / Estimated value must be a number',
-            'number.min': 'القيمة التقديرية لا يمكن أن تكون سالبة / Estimated value cannot be negative'
-        }),
-    tags: Joi.array()
-        .items(Joi.string().max(50))
-        .messages({
-            'array.base': 'الوسوم يجب أن تكون مصفوفة / Tags must be an array'
-        }),
-    customFields: Joi.object()
-        .messages({
-            'object.base': 'الحقول المخصصة يجب أن تكون كائن / Custom fields must be an object'
-        })
-}).min(1).messages({
+const updateCaseSchema = createCaseSchema.fork(
+    Object.keys(createCaseSchema.describe().keys),
+    (schema) => schema.optional()
+).min(1).messages({
     'object.min': 'يجب تقديم حقل واحد على الأقل للتحديث / At least one field is required for update'
 });
 
@@ -1018,5 +1338,12 @@ module.exports = {
     validateEndCase: validate(endCaseSchema),
 
     // Generic validate function
-    validate
+    validate,
+
+    // Custom validators
+    customValidators: {
+        unifiedNumberValidator,
+        nationalIdValidator,
+        crNumberValidator
+    }
 };
