@@ -120,17 +120,6 @@ const createSalarySlip = asyncHandler(async (req, res) => {
         payment
     } = req.body;
 
-    // Validate required fields
-    if (!employeeId) {
-        throw CustomException('Employee ID is required', 400);
-    }
-    if (!payPeriod?.month || !payPeriod?.year) {
-        throw CustomException('Pay period month and year are required', 400);
-    }
-    if (!earnings?.basicSalary && earnings?.basicSalary !== 0) {
-        throw CustomException('Basic salary is required', 400);
-    }
-
     // Fetch employee
     const employee = await Employee.findById(employeeId);
     if (!employee) {

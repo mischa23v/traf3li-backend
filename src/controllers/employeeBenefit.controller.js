@@ -384,12 +384,6 @@ const createBenefit = asyncHandler(async (req, res) => {
         throw CustomException('Employee not found', 404);
     }
 
-    // Check eligibility
-    const eligibility = await checkEmployeeEligibility(employee);
-    if (!eligibility.eligible) {
-        throw CustomException(`Employee is not eligible: ${eligibility.issues.join(', ')}`, 400);
-    }
-
     // Check for duplicate active benefit of same type
     const existingBenefit = await EmployeeBenefit.findOne({
         employeeId,

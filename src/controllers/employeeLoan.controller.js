@@ -328,14 +328,7 @@ const checkEligibility = asyncHandler(async (req, res) => {
 
     const { employeeId, requestedAmount } = req.body;
 
-    if (!employeeId) {
-        throw CustomException('Employee ID is required', 400);
-    }
-    if (!requestedAmount || requestedAmount <= 0) {
-        throw CustomException('Valid requested amount is required', 400);
-    }
-
-    const eligibility = await checkLoanEligibility(employeeId, requestedAmount, firmId, lawyerId);
+    const eligibility = await checkLoanEligibility(employeeId, requestedAmount || 0, firmId, lawyerId);
 
     return res.json({
         success: true,
@@ -363,23 +356,6 @@ const createLoan = asyncHandler(async (req, res) => {
         notes,
         skipEligibilityCheck
     } = req.body;
-
-    // Validate required fields
-    if (!employeeId) {
-        throw CustomException('Employee ID is required', 400);
-    }
-    if (!loanType) {
-        throw CustomException('Loan type is required', 400);
-    }
-    if (!loanAmount || loanAmount <= 0) {
-        throw CustomException('Valid loan amount is required', 400);
-    }
-    if (!installments || installments <= 0) {
-        throw CustomException('Valid number of installments is required', 400);
-    }
-    if (!firstInstallmentDate) {
-        throw CustomException('First installment date is required', 400);
-    }
 
     // Fetch employee
     const employee = await Employee.findById(employeeId);
@@ -757,10 +733,6 @@ const rejectLoan = asyncHandler(async (req, res) => {
 
     const { rejectionReason, comments } = req.body;
 
-    if (!rejectionReason) {
-        throw CustomException('Rejection reason is required', 400);
-    }
-
     const loan = await EmployeeLoan.findById(loanId);
 
     if (!loan) {
@@ -942,13 +914,6 @@ const recordPayment = asyncHandler(async (req, res) => {
         paymentReference,
         notes
     } = req.body;
-
-    if (!amount || amount <= 0) {
-        throw CustomException('Valid payment amount is required', 400);
-    }
-    if (!paymentMethod) {
-        throw CustomException('Payment method is required', 400);
-    }
 
     const loan = await EmployeeLoan.findById(loanId);
 
@@ -1549,10 +1514,6 @@ const bulkDelete = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
     const { ids } = req.body;
-
-    if (!ids || !Array.isArray(ids) || ids.length === 0) {
-        throw CustomException('IDs array is required', 400);
-    }
 
     // Build query to ensure access
     const query = {

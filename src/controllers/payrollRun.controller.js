@@ -117,16 +117,6 @@ const createPayrollRun = asyncHandler(async (req, res) => {
         notes
     } = req.body;
 
-    if (!runName) {
-        throw CustomException('Run name is required', 400);
-    }
-    if (!payPeriod?.month || !payPeriod?.year) {
-        throw CustomException('Pay period month and year are required', 400);
-    }
-    if (!payPeriod?.periodStart || !payPeriod?.periodEnd || !payPeriod?.paymentDate) {
-        throw CustomException('Period start, end, and payment date are required', 400);
-    }
-
     const payrollRun = await PayrollRun.create({
         runName,
         runNameAr,

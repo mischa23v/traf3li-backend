@@ -196,26 +196,6 @@ const createOffboarding = asyncHandler(async (req, res) => {
         notes
     } = req.body;
 
-    // Validate required fields
-    if (!employeeId) {
-        throw CustomException('Employee ID is required', 400);
-    }
-    if (!employeeName) {
-        throw CustomException('Employee name is required', 400);
-    }
-    if (!nationalId) {
-        throw CustomException('National ID is required', 400);
-    }
-    if (!jobTitle) {
-        throw CustomException('Job title is required', 400);
-    }
-    if (!exitType) {
-        throw CustomException('Exit type is required', 400);
-    }
-    if (!lastWorkingDay) {
-        throw CustomException('Last working day is required', 400);
-    }
-
     // Fetch employee
     const employee = await Employee.findById(employeeId);
     if (!employee) {
@@ -1089,10 +1069,6 @@ const processPayment = asyncHandler(async (req, res) => {
         throw CustomException('Settlement has not been approved yet', 400);
     }
 
-    if (!paymentMethod) {
-        throw CustomException('Payment method is required', 400);
-    }
-
     offboarding.finalSettlement.payment = {
         paymentMethod,
         bankDetails: bankDetails || offboarding.finalSettlement.payment?.bankDetails,
@@ -1297,10 +1273,6 @@ const bulkDelete = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
     const { ids } = req.body;
 
-    if (!ids || !Array.isArray(ids) || ids.length === 0) {
-        throw CustomException('IDs array is required', 400);
-    }
-
     const query = {
         _id: { $in: ids },
         status: { $in: ['initiated', 'cancelled'] }
@@ -1443,10 +1415,6 @@ const updateRehireEligibility = asyncHandler(async (req, res) => {
         throw CustomException('Access denied', 403);
     }
 
-    if (!eligibilityCategory) {
-        throw CustomException('Eligibility category is required', 400);
-    }
-
     offboarding.rehireEligibility = {
         eligible: eligibilityCategory === 'eligible',
         eligibilityCategory,
@@ -1506,10 +1474,6 @@ const addClearanceItem = asyncHandler(async (req, res) => {
 
     if (!hasAccess) {
         throw CustomException('Access denied', 403);
-    }
-
-    if (!itemType || !itemDescription) {
-        throw CustomException('Item type and description are required', 400);
     }
 
     const newItem = {

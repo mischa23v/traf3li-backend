@@ -346,14 +346,7 @@ const checkEligibility = asyncHandler(async (req, res) => {
 
     const { employeeId, requestedAmount } = req.body;
 
-    if (!employeeId) {
-        throw CustomException('Employee ID is required', 400);
-    }
-    if (!requestedAmount || requestedAmount <= 0) {
-        throw CustomException('Valid requested amount is required', 400);
-    }
-
-    const eligibility = await checkAdvanceEligibility(employeeId, requestedAmount, firmId, lawyerId);
+    const eligibility = await checkAdvanceEligibility(employeeId, requestedAmount || 0, firmId, lawyerId);
 
     return res.json({
         success: true,
@@ -383,23 +376,6 @@ const createAdvance = asyncHandler(async (req, res) => {
         notes,
         skipEligibilityCheck
     } = req.body;
-
-    // Validate required fields
-    if (!employeeId) {
-        throw CustomException('Employee ID is required', 400);
-    }
-    if (!advanceType) {
-        throw CustomException('Advance type is required', 400);
-    }
-    if (!advanceAmount || advanceAmount <= 0) {
-        throw CustomException('Valid advance amount is required', 400);
-    }
-    if (!installments || installments <= 0 || installments > ADVANCE_POLICIES.maxInstallments) {
-        throw CustomException(`Installments must be between 1 and ${ADVANCE_POLICIES.maxInstallments}`, 400);
-    }
-    if (!startDate) {
-        throw CustomException('Start date is required', 400);
-    }
 
     // Fetch employee
     const employee = await Employee.findById(employeeId);
@@ -747,10 +723,6 @@ const rejectAdvance = asyncHandler(async (req, res) => {
 
     const { rejectionReason, comments } = req.body;
 
-    if (!rejectionReason) {
-        throw CustomException('Rejection reason is required', 400);
-    }
-
     const advance = await EmployeeAdvance.findById(advanceId);
 
     if (!advance) {
@@ -940,13 +912,6 @@ const recordRecovery = asyncHandler(async (req, res) => {
         recoveryReference,
         notes
     } = req.body;
-
-    if (!amount || amount <= 0) {
-        throw CustomException('Valid recovery amount is required', 400);
-    }
-    if (!recoveryMethod) {
-        throw CustomException('Recovery method is required', 400);
-    }
 
     const advance = await EmployeeAdvance.findById(advanceId);
 
@@ -1365,10 +1330,6 @@ const writeOffAdvance = asyncHandler(async (req, res) => {
 
     const { writeOffReason, detailedReason } = req.body;
 
-    if (!writeOffReason) {
-        throw CustomException('Write-off reason is required', 400);
-    }
-
     const advance = await EmployeeAdvance.findById(advanceId);
 
     if (!advance) {
@@ -1481,10 +1442,6 @@ const bulkDelete = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
     const { ids } = req.body;
-
-    if (!ids || !Array.isArray(ids) || ids.length === 0) {
-        throw CustomException('IDs array is required', 400);
-    }
 
     // Build query to ensure access
     const query = {

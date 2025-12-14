@@ -134,17 +134,6 @@ const createLeaveRequest = asyncHandler(async (req, res) => {
         notes
     } = req.body;
 
-    // Validate required fields
-    if (!employeeId) {
-        throw CustomException('Employee ID is required', 400);
-    }
-    if (!leaveType) {
-        throw CustomException('Leave type is required', 400);
-    }
-    if (!dates?.startDate || !dates?.endDate) {
-        throw CustomException('Start date and end date are required', 400);
-    }
-
     // Fetch employee
     const employee = await Employee.findById(employeeId);
     if (!employee) {
@@ -735,10 +724,6 @@ const requestExtension = asyncHandler(async (req, res) => {
         throw CustomException('Only approved leave requests can be extended', 400);
     }
 
-    if (!newEndDate) {
-        throw CustomException('New end date is required', 400);
-    }
-
     const newEnd = new Date(newEndDate);
     if (newEnd <= leaveRequest.dates.endDate) {
         throw CustomException('New end date must be after current end date', 400);
@@ -809,10 +794,6 @@ const completeHandover = asyncHandler(async (req, res) => {
         throw CustomException('Access denied', 403);
     }
 
-    if (!leaveRequest.workHandover?.required) {
-        throw CustomException('Handover is not required for this leave request', 400);
-    }
-
     leaveRequest.workHandover.handoverCompleted = true;
     leaveRequest.workHandover.handoverCompletedOn = new Date();
 
@@ -852,10 +833,6 @@ const uploadDocument = asyncHandler(async (req, res) => {
 
     if (!hasAccess) {
         throw CustomException('Access denied', 403);
-    }
-
-    if (!documentType || !fileUrl) {
-        throw CustomException('Document type and file URL are required', 400);
     }
 
     leaveRequest.documents.push({
@@ -960,10 +937,6 @@ const getTeamCalendar = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
     const { startDate, endDate, department } = req.query;
 
-    if (!startDate || !endDate) {
-        throw CustomException('Start date and end date are required', 400);
-    }
-
     const query = firmId ? { firmId } : { lawyerId };
     query.status = { $in: ['approved', 'completed'] };
     query.$or = [
@@ -1022,10 +995,6 @@ const checkConflicts = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
     const { employeeId, startDate, endDate, excludeRequestId } = req.body;
-
-    if (!employeeId || !startDate || !endDate) {
-        throw CustomException('Employee ID, start date, and end date are required', 400);
-    }
 
     const conflicts = await LeaveRequest.checkConflicts(
         employeeId,
