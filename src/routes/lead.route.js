@@ -22,6 +22,9 @@ router.use(userMiddleware, firmFilter);
 // LEAD ROUTES
 // ============================================
 
+// Bulk delete (must be before /:id routes)
+router.post('/bulk-delete', leadController.bulkDeleteLeads);
+
 // CRUD
 router.post('/', validateCreateLead, leadController.createLead);
 router.get('/', validateGetLeadsQuery, leadController.getLeads);

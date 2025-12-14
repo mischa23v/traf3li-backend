@@ -6,6 +6,7 @@ const {
     createSalarySlip,
     updateSalarySlip,
     deleteSalarySlip,
+    bulkDeleteSalarySlips,
     approveSalarySlip,
     paySalarySlip,
     getPayrollStats,
@@ -34,6 +35,7 @@ router.get('/stats', getPayrollStats);
 router.post('/generate', validateGenerateBulkPayroll, generateBulkPayroll);
 router.post('/approve', bulkApprove);
 router.post('/pay', bulkPay);
+router.post('/bulk-delete', bulkDeleteSalarySlips);
 router.post('/wps/submit', submitToWPS);
 
 // Single slip actions (must be before generic /:id routes)

@@ -6,6 +6,7 @@ const {
     getEmployee,
     updateEmployee,
     deleteEmployee,
+    bulkDeleteEmployees,
     getEmployeeStats,
     addAllowance,
     removeAllowance,
@@ -29,6 +30,9 @@ router.get('/options', getFormOptions);
 
 // Employee stats
 router.get('/employees/stats', getEmployeeStats);
+
+// Bulk delete employees (must be before /:id routes)
+router.post('/employees/bulk-delete', bulkDeleteEmployees);
 
 // Employee CRUD
 router.post('/employees', validateCreateEmployee, createEmployee);

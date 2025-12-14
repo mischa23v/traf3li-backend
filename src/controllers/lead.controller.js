@@ -327,6 +327,50 @@ exports.deleteLead = async (req, res) => {
     }
 };
 
+// Bulk delete leads
+exports.bulkDeleteLeads = async (req, res) => {
+    try {
+        // Block departed users from lead operations
+        if (req.isDeparted) {
+            return res.status(403).json({
+                success: false,
+                message: 'ليس لديك صلاحية لحذف العملاء المحتملين'
+            });
+        }
+
+        const { ids } = req.body;
+        const lawyerId = req.userID;
+        const firmId = req.firmId;
+
+        if (!ids || !Array.isArray(ids) || ids.length === 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'يجب توفير قائمة المعرفات / IDs list is required'
+            });
+        }
+
+        // Build access query - only delete non-converted leads
+        const accessQuery = firmId
+            ? { _id: { $in: ids }, firmId, convertedToClient: false }
+            : { _id: { $in: ids }, lawyerId, convertedToClient: false };
+
+        const result = await Lead.deleteMany(accessQuery);
+
+        res.json({
+            success: true,
+            message: `تم حذف ${result.deletedCount} عميل محتمل بنجاح / ${result.deletedCount} lead(s) deleted successfully`,
+            deletedCount: result.deletedCount
+        });
+    } catch (error) {
+        console.error('Error bulk deleting leads:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error bulk deleting leads',
+            error: error.message
+        });
+    }
+};
+
 // ============================================
 // LEAD STATUS & PIPELINE OPERATIONS
 // ============================================

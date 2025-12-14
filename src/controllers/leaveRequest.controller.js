@@ -1063,12 +1063,40 @@ const getLeaveTypes = asyncHandler(async (req, res) => {
     });
 });
 
+// ═══════════════════════════════════════════════════════════════
+// BULK DELETE LEAVE REQUESTS
+// POST /api/leave-requests/bulk-delete
+// ═══════════════════════════════════════════════════════════════
+const bulkDeleteLeaveRequests = asyncHandler(async (req, res) => {
+    const { ids } = req.body;
+    const lawyerId = req.userID;
+    const firmId = req.firmId;
+
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+        throw CustomException('يجب توفير قائمة المعرفات / IDs list is required', 400);
+    }
+
+    // Build access query - only delete draft leave requests
+    const accessQuery = firmId
+        ? { _id: { $in: ids }, firmId, status: 'draft' }
+        : { _id: { $in: ids }, lawyerId, status: 'draft' };
+
+    const result = await LeaveRequest.deleteMany(accessQuery);
+
+    return res.json({
+        success: true,
+        message: `تم حذف ${result.deletedCount} طلب إجازة بنجاح / ${result.deletedCount} leave request(s) deleted successfully`,
+        deletedCount: result.deletedCount
+    });
+});
+
 module.exports = {
     getLeaveRequests,
     getLeaveRequest,
     createLeaveRequest,
     updateLeaveRequest,
     deleteLeaveRequest,
+    bulkDeleteLeaveRequests,
     submitLeaveRequest,
     approveLeaveRequest,
     rejectLeaveRequest,

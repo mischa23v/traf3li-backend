@@ -1893,3 +1893,42 @@ exports.hireApplicant = async (req, res) => {
         res.status(500).json({ success: false, message: 'Error hiring applicant', error: error.message });
     }
 };
+
+/**
+ * Bulk delete applicants
+ * POST /api/hr/recruitment/applicants/bulk-delete
+ */
+exports.bulkDeleteApplicants = async (req, res) => {
+    try {
+        const { ids } = req.body;
+        const firmId = req.firmId;
+        const lawyerId = req.userID || req.userId;
+
+        if (!ids || !Array.isArray(ids) || ids.length === 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'يجب توفير قائمة المعرفات / IDs list is required'
+            });
+        }
+
+        // Build access query
+        const accessQuery = firmId
+            ? { _id: { $in: ids }, firmId }
+            : { _id: { $in: ids }, lawyerId };
+
+        const result = await Applicant.deleteMany(accessQuery);
+
+        res.json({
+            success: true,
+            message: `تم حذف ${result.deletedCount} متقدم بنجاح / ${result.deletedCount} applicant(s) deleted successfully`,
+            deletedCount: result.deletedCount
+        });
+    } catch (error) {
+        console.error('Error bulk deleting applicants:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error bulk deleting applicants',
+            error: error.message
+        });
+    }
+};

@@ -1986,6 +1986,54 @@ const completeCalibrationSession = async (req, res) => {
 };
 
 // ═══════════════════════════════════════════════════════════════
+// BULK DELETE PERFORMANCE REVIEWS
+// POST /api/hr/performance-reviews/bulk-delete
+// ═══════════════════════════════════════════════════════════════
+const bulkDeletePerformanceReviews = async (req, res) => {
+    try {
+        const { ids } = req.body;
+        const lawyerId = req.userID;
+        const firmId = req.firmId;
+
+        if (!ids || !Array.isArray(ids) || ids.length === 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'يجب توفير قائمة المعرفات / IDs list is required'
+            });
+        }
+
+        // Build access query - soft delete (mark as deleted)
+        const accessQuery = firmId
+            ? { _id: { $in: ids }, firmId }
+            : { _id: { $in: ids }, lawyerId };
+
+        const result = await PerformanceReview.updateMany(
+            accessQuery,
+            {
+                $set: {
+                    isDeleted: true,
+                    deletedAt: new Date(),
+                    deletedBy: req.user?._id
+                }
+            }
+        );
+
+        res.json({
+            success: true,
+            message: `تم حذف ${result.modifiedCount} مراجعة أداء بنجاح / ${result.modifiedCount} performance review(s) deleted successfully`,
+            deletedCount: result.modifiedCount
+        });
+    } catch (error) {
+        console.error('Error bulk deleting performance reviews:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error bulk deleting performance reviews',
+            error: error.message
+        });
+    }
+};
+
+// ═══════════════════════════════════════════════════════════════
 // EXPORTS
 // ═══════════════════════════════════════════════════════════════
 
@@ -1997,6 +2045,7 @@ module.exports = {
     createPerformanceReview,
     updatePerformanceReview,
     deletePerformanceReview,
+    bulkDeletePerformanceReviews,
 
     // Self-assessment
     submitSelfAssessment,

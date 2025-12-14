@@ -559,12 +559,48 @@ const removeAllowance = asyncHandler(async (req, res) => {
     });
 });
 
+// ═══════════════════════════════════════════════════════════════
+// BULK DELETE EMPLOYEES
+// POST /api/hr/employees/bulk-delete
+// ═══════════════════════════════════════════════════════════════
+const bulkDeleteEmployees = asyncHandler(async (req, res) => {
+    const { ids } = req.body;
+    const lawyerId = req.userID;
+    const firmId = req.firmId;
+
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+        throw CustomException('يجب توفير قائمة المعرفات / IDs list is required', 400);
+    }
+
+    // Build access query
+    const accessQuery = firmId
+        ? { _id: { $in: ids }, firmId }
+        : { _id: { $in: ids }, lawyerId };
+
+    // Find employees that belong to the user
+    const employees = await Employee.find(accessQuery);
+
+    if (employees.length === 0) {
+        throw CustomException('لم يتم العثور على موظفين / No employees found', 404);
+    }
+
+    // Delete all found employees
+    const result = await Employee.deleteMany(accessQuery);
+
+    return res.json({
+        success: true,
+        message: `تم حذف ${result.deletedCount} موظف بنجاح / ${result.deletedCount} employee(s) deleted successfully`,
+        deletedCount: result.deletedCount
+    });
+});
+
 module.exports = {
     createEmployee,
     getEmployees,
     getEmployee,
     updateEmployee,
     deleteEmployee,
+    bulkDeleteEmployees,
     getEmployeeStats,
     addAllowance,
     removeAllowance,

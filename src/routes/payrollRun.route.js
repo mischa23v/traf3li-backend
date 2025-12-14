@@ -7,6 +7,7 @@ const {
     createPayrollRun,
     updatePayrollRun,
     deletePayrollRun,
+    bulkDeletePayrollRuns,
     calculatePayroll,
     validatePayroll,
     approvePayroll,
@@ -31,6 +32,9 @@ router.use(attachFirmContext);
 
 // Stats (must be before /:id)
 router.get('/stats', getPayrollRunStats);
+
+// Bulk delete (must be before /:id)
+router.post('/bulk-delete', bulkDeletePayrollRuns);
 
 // CRUD
 router.get('/', getPayrollRuns);

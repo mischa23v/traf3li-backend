@@ -669,12 +669,40 @@ const submitToWPS = asyncHandler(async (req, res) => {
     });
 });
 
+// ═══════════════════════════════════════════════════════════════
+// BULK DELETE SALARY SLIPS
+// POST /api/hr/payroll/bulk-delete
+// ═══════════════════════════════════════════════════════════════
+const bulkDeleteSalarySlips = asyncHandler(async (req, res) => {
+    const { ids } = req.body;
+    const lawyerId = req.userID;
+    const firmId = req.firmId;
+
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+        throw CustomException('يجب توفير قائمة المعرفات / IDs list is required', 400);
+    }
+
+    // Build access query - only delete draft salary slips
+    const accessQuery = firmId
+        ? { _id: { $in: ids }, firmId, 'payment.status': 'draft' }
+        : { _id: { $in: ids }, lawyerId, 'payment.status': 'draft' };
+
+    const result = await SalarySlip.deleteMany(accessQuery);
+
+    return res.json({
+        success: true,
+        message: `تم حذف ${result.deletedCount} قسيمة راتب بنجاح / ${result.deletedCount} salary slip(s) deleted successfully`,
+        deletedCount: result.deletedCount
+    });
+});
+
 module.exports = {
     getSalarySlips,
     getSalarySlip,
     createSalarySlip,
     updateSalarySlip,
     deleteSalarySlip,
+    bulkDeleteSalarySlips,
     approveSalarySlip,
     paySalarySlip,
     getPayrollStats,

@@ -6,6 +6,7 @@ const {
     getStaffById,
     updateStaff,
     deleteStaff,
+    bulkDeleteStaff,
     getTeam,
     getStats
 } = require('../controllers/staff.controller');
@@ -20,6 +21,7 @@ router.use(userMiddleware, firmFilter);
 // ============================================
 router.get('/team', getTeam);
 router.get('/stats', getStats);
+router.post('/bulk-delete', bulkDeleteStaff);
 
 // ============================================
 // CRUD OPERATIONS

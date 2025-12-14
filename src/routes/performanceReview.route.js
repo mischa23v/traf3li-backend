@@ -57,6 +57,9 @@ router.post('/calibration-sessions/:id/complete', performanceReviewController.co
 // POST /api/hr/performance-reviews/bulk-create - Bulk create reviews
 router.post('/bulk-create', performanceReviewController.bulkCreateReviews);
 
+// POST /api/hr/performance-reviews/bulk-delete - Bulk delete reviews
+router.post('/bulk-delete', performanceReviewController.bulkDeletePerformanceReviews);
+
 // ═══════════════════════════════════════════════════════════════
 // EMPLOYEE HISTORY (must be before :id routes)
 // ═══════════════════════════════════════════════════════════════

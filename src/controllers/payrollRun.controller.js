@@ -985,6 +985,33 @@ const sendNotifications = asyncHandler(async (req, res) => {
     });
 });
 
+// ═══════════════════════════════════════════════════════════════
+// BULK DELETE PAYROLL RUNS
+// POST /api/hr/payroll-runs/bulk-delete
+// ═══════════════════════════════════════════════════════════════
+const bulkDeletePayrollRuns = asyncHandler(async (req, res) => {
+    const { ids } = req.body;
+    const lawyerId = req.userID;
+    const firmId = req.firmId;
+
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+        throw CustomException('يجب توفير قائمة المعرفات / IDs list is required', 400);
+    }
+
+    // Build access query - only delete draft payroll runs
+    const accessQuery = firmId
+        ? { _id: { $in: ids }, firmId, status: 'draft' }
+        : { _id: { $in: ids }, lawyerId, status: 'draft' };
+
+    const result = await PayrollRun.deleteMany(accessQuery);
+
+    return res.json({
+        success: true,
+        message: `تم حذف ${result.deletedCount} دورة رواتب بنجاح / ${result.deletedCount} payroll run(s) deleted successfully`,
+        deletedCount: result.deletedCount
+    });
+});
+
 module.exports = {
     getPayrollRuns,
     getPayrollRunStats,
@@ -992,6 +1019,7 @@ module.exports = {
     createPayrollRun,
     updatePayrollRun,
     deletePayrollRun,
+    bulkDeletePayrollRuns,
     calculatePayroll,
     validatePayroll,
     approvePayroll,

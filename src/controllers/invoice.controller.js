@@ -1903,6 +1903,63 @@ const getOpenInvoices = asyncHandler(async (req, res) => {
     });
 });
 
+// ============ BULK DELETE ============
+
+/**
+ * Bulk delete invoices
+ * POST /api/invoices/bulk-delete
+ */
+const bulkDeleteInvoices = asyncHandler(async (req, res) => {
+    // Block departed users from financial operations
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية لحذف الفواتير', 403);
+    }
+
+    const { ids } = req.body;
+    const lawyerId = req.userID;
+    const firmId = req.firmId;
+
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+        throw CustomException('يجب توفير قائمة المعرفات / IDs list is required', 400);
+    }
+
+    // Build access query - can only delete draft or sent invoices (not paid/partial)
+    const accessQuery = firmId
+        ? { _id: { $in: ids }, firmId, status: { $nin: ['paid', 'partial'] } }
+        : { _id: { $in: ids }, lawyerId, status: { $nin: ['paid', 'partial'] } };
+
+    // Find invoices to check retainer applications
+    const invoices = await Invoice.find(accessQuery);
+
+    // Reverse retainer applications for all invoices being deleted
+    for (const invoice of invoices) {
+        if (invoice.applyFromRetainer > 0 && invoice.retainerTransactionId) {
+            const retainer = await Retainer.findById(invoice.retainerTransactionId);
+            if (retainer) {
+                await retainer.deposit(invoice.applyFromRetainer);
+            }
+        }
+    }
+
+    const result = await Invoice.deleteMany(accessQuery);
+
+    // Log activity
+    await BillingActivity.logActivity({
+        activityType: 'invoices_bulk_deleted',
+        userId: lawyerId,
+        relatedModel: 'Invoice',
+        description: `${result.deletedCount} invoices bulk deleted`,
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent')
+    });
+
+    return res.json({
+        success: true,
+        message: `تم حذف ${result.deletedCount} فاتورة بنجاح / ${result.deletedCount} invoice(s) deleted successfully`,
+        deletedCount: result.deletedCount
+    });
+});
+
 module.exports = {
     // CRUD
     createInvoice,
@@ -1910,6 +1967,7 @@ module.exports = {
     getInvoice,
     updateInvoice,
     deleteInvoice,
+    bulkDeleteInvoices,
 
     // Actions
     sendInvoice,
