@@ -13,8 +13,13 @@ const {
     getRevenueByClientReport,
     getOutstandingInvoicesReport,
     getTimeEntriesReport,
-    exportReport
+    exportReport,
+    // Chart endpoints
+    getCasesChart,
+    getRevenueChart,
+    getTasksChart
 } = require('../controllers/report.controller');
+const { firmFilter } = require('../middlewares');
 
 // Accounting reports
 const {
@@ -53,6 +58,11 @@ app.get('/revenue-by-client', userMiddleware, getRevenueByClientReport);
 app.get('/outstanding-invoices', userMiddleware, getOutstandingInvoicesReport);
 app.get('/time-entries', userMiddleware, getTimeEntriesReport);
 app.post('/export', userMiddleware, exportReport);
+
+// Chart endpoints for dashboard (must be before /:id routes)
+app.get('/cases-chart', userMiddleware, firmFilter, getCasesChart);
+app.get('/revenue-chart', userMiddleware, firmFilter, getRevenueChart);
+app.get('/tasks-chart', userMiddleware, firmFilter, getTasksChart);
 
 // Report operations
 app.post('/generate', userMiddleware, generateReport);

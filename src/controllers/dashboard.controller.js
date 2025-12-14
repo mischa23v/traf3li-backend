@@ -9,7 +9,11 @@ const {
     Expense,
     Payment,
     TimeEntry,
-    Client
+    Client,
+    Lead,
+    Employee,
+    LeaveRequest,
+    Attendance
 } = require('../models');
 const { CustomException } = require('../utils');
 
@@ -369,11 +373,280 @@ const getActivityOverview = async (request, response) => {
     }
 };
 
+// Get CRM stats for dashboard
+const getCRMStats = async (request, response) => {
+    try {
+        const userId = request.userID;
+        const firmId = request.firmId;
+
+        // Build match filter
+        const matchFilter = firmId
+            ? { firmId: new mongoose.Types.ObjectId(firmId) }
+            : { lawyerId: new mongoose.Types.ObjectId(userId) };
+
+        // Get start of current month
+        const startOfMonth = new Date();
+        startOfMonth.setDate(1);
+        startOfMonth.setHours(0, 0, 0, 0);
+
+        const [
+            totalClients,
+            newClientsThisMonth,
+            activeClients,
+            clientsByStatus,
+            leadStats,
+            leadsByStatus
+        ] = await Promise.all([
+            // Total clients
+            Client.countDocuments(matchFilter),
+            // New clients this month
+            Client.countDocuments({
+                ...matchFilter,
+                createdAt: { $gte: startOfMonth }
+            }),
+            // Active clients
+            Client.countDocuments({ ...matchFilter, status: 'active' }),
+            // Clients by status
+            Client.aggregate([
+                { $match: matchFilter },
+                { $group: { _id: '$status', count: { $sum: 1 } } }
+            ]),
+            // Lead stats (if Lead model exists)
+            Lead ? Lead.countDocuments(matchFilter).catch(() => 0) : Promise.resolve(0),
+            // Leads by status
+            Lead ? Lead.aggregate([
+                { $match: matchFilter },
+                { $group: { _id: '$status', count: { $sum: 1 } } }
+            ]).catch(() => []) : Promise.resolve([])
+        ]);
+
+        // Calculate conversion rate (leads converted to clients this month)
+        const convertedLeads = leadsByStatus.find(s => s._id === 'converted')?.count || 0;
+        const totalLeads = leadStats || 0;
+        const conversionRate = totalLeads > 0 ? ((convertedLeads / totalLeads) * 100).toFixed(1) : 0;
+
+        // Count active leads (not converted, not lost)
+        const activeLeads = leadsByStatus
+            .filter(s => !['converted', 'lost', 'closed'].includes(s._id))
+            .reduce((sum, s) => sum + s.count, 0);
+
+        return response.json({
+            error: false,
+            stats: {
+                totalClients,
+                newClientsThisMonth,
+                activeLeads,
+                conversionRate: parseFloat(conversionRate),
+                clientsByStatus: clientsByStatus.reduce((acc, item) => {
+                    acc[item._id || 'unknown'] = item.count;
+                    return acc;
+                }, {}),
+                leadsByStatus: leadsByStatus.reduce((acc, item) => {
+                    acc[item._id || 'unknown'] = item.count;
+                    return acc;
+                }, {})
+            }
+        });
+    } catch (error) {
+        console.error('getCRMStats ERROR:', error);
+        return response.status(500).json({
+            error: true,
+            message: error.message || 'Failed to fetch CRM stats'
+        });
+    }
+};
+
+// Get HR stats for dashboard
+const getHRStats = async (request, response) => {
+    try {
+        const userId = request.userID;
+        const firmId = request.firmId;
+
+        // Build match filter
+        const matchFilter = firmId
+            ? { firmId: new mongoose.Types.ObjectId(firmId) }
+            : { lawyerId: new mongoose.Types.ObjectId(userId) };
+
+        // Get today's date range
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const tomorrow = new Date(today);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+
+        // Get start of current month
+        const startOfMonth = new Date();
+        startOfMonth.setDate(1);
+        startOfMonth.setHours(0, 0, 0, 0);
+
+        let totalEmployees = 0;
+        let activeEmployees = 0;
+        let attendanceToday = 0;
+        let pendingLeaves = 0;
+        let openPositions = 0;
+
+        // Try to get employee stats (if Employee model exists)
+        if (Employee) {
+            try {
+                const employeeStats = await Employee.aggregate([
+                    { $match: matchFilter },
+                    {
+                        $facet: {
+                            total: [{ $count: 'count' }],
+                            active: [
+                                { $match: { status: { $in: ['active', 'Active'] } } },
+                                { $count: 'count' }
+                            ],
+                            openPositions: [
+                                { $match: { status: { $in: ['open', 'vacant', 'hiring'] } } },
+                                { $count: 'count' }
+                            ]
+                        }
+                    }
+                ]);
+
+                totalEmployees = employeeStats[0]?.total[0]?.count || 0;
+                activeEmployees = employeeStats[0]?.active[0]?.count || 0;
+            } catch (e) {
+                console.log('Employee model query failed:', e.message);
+            }
+        }
+
+        // Try to get attendance stats (if Attendance model exists)
+        if (Attendance) {
+            try {
+                attendanceToday = await Attendance.countDocuments({
+                    ...matchFilter,
+                    date: { $gte: today, $lt: tomorrow },
+                    status: { $in: ['present', 'Present', 'checked_in'] }
+                });
+            } catch (e) {
+                console.log('Attendance model query failed:', e.message);
+            }
+        }
+
+        // Try to get leave request stats (if LeaveRequest model exists)
+        if (LeaveRequest) {
+            try {
+                pendingLeaves = await LeaveRequest.countDocuments({
+                    ...matchFilter,
+                    status: { $in: ['pending', 'Pending', 'submitted'] }
+                });
+            } catch (e) {
+                console.log('LeaveRequest model query failed:', e.message);
+            }
+        }
+
+        // Calculate attendance rate
+        const attendanceRate = activeEmployees > 0
+            ? ((attendanceToday / activeEmployees) * 100).toFixed(1)
+            : 0;
+
+        return response.json({
+            error: false,
+            stats: {
+                totalEmployees,
+                attendanceRate: parseFloat(attendanceRate),
+                pendingLeaves,
+                openPositions,
+                activeEmployees,
+                presentToday: attendanceToday
+            }
+        });
+    } catch (error) {
+        console.error('getHRStats ERROR:', error);
+        return response.status(500).json({
+            error: true,
+            message: error.message || 'Failed to fetch HR stats'
+        });
+    }
+};
+
+// Get Finance stats for dashboard (formatted for frontend cards)
+const getFinanceStats = async (request, response) => {
+    try {
+        const userId = request.userID;
+        const firmId = request.firmId;
+
+        // Build match filter
+        const matchFilter = firmId
+            ? { firmId: new mongoose.Types.ObjectId(firmId) }
+            : { lawyerId: new mongoose.Types.ObjectId(userId) };
+
+        const [
+            revenueData,
+            expenseData,
+            pendingInvoicesData,
+            paidInvoicesCount
+        ] = await Promise.all([
+            // Total revenue from paid invoices
+            Invoice.aggregate([
+                { $match: { ...matchFilter, status: 'paid' } },
+                { $group: { _id: null, total: { $sum: '$totalAmount' } } }
+            ]),
+            // Total expenses
+            Expense.aggregate([
+                { $match: matchFilter },
+                { $group: { _id: null, total: { $sum: '$amount' } } }
+            ]),
+            // Pending invoices total and count
+            Invoice.aggregate([
+                {
+                    $match: {
+                        ...matchFilter,
+                        status: { $in: ['pending', 'sent', 'overdue', 'partial'] }
+                    }
+                },
+                {
+                    $group: {
+                        _id: null,
+                        total: { $sum: '$balanceDue' },
+                        count: { $sum: 1 }
+                    }
+                }
+            ]),
+            // Paid invoices count
+            Invoice.countDocuments({ ...matchFilter, status: 'paid' })
+        ]);
+
+        const totalRevenue = revenueData[0]?.total || 0;
+        const totalExpenses = expenseData[0]?.total || 0;
+        const pendingInvoices = pendingInvoicesData[0]?.total || 0;
+        const pendingInvoicesCount = pendingInvoicesData[0]?.count || 0;
+
+        // Calculate profit margin
+        const profitMargin = totalRevenue > 0
+            ? (((totalRevenue - totalExpenses) / totalRevenue) * 100).toFixed(1)
+            : 0;
+
+        return response.json({
+            error: false,
+            stats: {
+                totalRevenue,
+                expenses: totalExpenses,
+                profitMargin: parseFloat(profitMargin),
+                pendingInvoices,
+                pendingInvoicesCount,
+                paidInvoicesCount,
+                netProfit: totalRevenue - totalExpenses
+            }
+        });
+    } catch (error) {
+        console.error('getFinanceStats ERROR:', error);
+        return response.status(500).json({
+            error: true,
+            message: error.message || 'Failed to fetch finance stats'
+        });
+    }
+};
+
 module.exports = {
     getHeroStats,
     getDashboardStats,
     getFinancialSummary,
     getTodayEvents,
     getRecentMessages,
-    getActivityOverview
+    getActivityOverview,
+    getCRMStats,
+    getHRStats,
+    getFinanceStats
 };
