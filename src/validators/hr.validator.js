@@ -113,20 +113,20 @@ const createEmployeeSchema = Joi.object({
             'number.min': 'الراتب لا يمكن أن يكون سالباً / Salary cannot be negative'
         }),
         currency: Joi.string().valid('SAR', 'USD', 'EUR', 'GBP').allow('', null),
-        allowances: Joi.alternatives().try(
-            Joi.array().items(
-                Joi.object({
-                    name: Joi.string().max(100).allow('', null),
-                    nameAr: Joi.string().max(100).allow('', null),
-                    amount: Joi.number().min(0).allow(null),
-                    taxable: Joi.boolean().allow(null),
-                    includedInEOSB: Joi.boolean().allow(null),
-                    includedInGOSI: Joi.boolean().allow(null)
-                })
-            ),
-            Joi.string().allow(''),
-            Joi.allow(null)
+        allowances: Joi.array().items(
+            Joi.object({
+                allowanceName: Joi.string().max(100).allow('', null),
+                allowanceNameAr: Joi.string().max(100).allow('', null),
+                name: Joi.string().max(100).allow('', null),
+                nameAr: Joi.string().max(100).allow('', null),
+                amount: Joi.number().min(0).allow(null),
+                taxable: Joi.boolean().allow(null).default(true),
+                includedInEOSB: Joi.boolean().allow(null).default(true),
+                includedInGOSI: Joi.boolean().allow(null).default(false)
+            })
         ).default([]),
+        totalAllowances: Joi.number().min(0).allow(null),
+        grossSalary: Joi.number().min(0).allow(null),
         paymentFrequency: Joi.string().valid('monthly', 'bi_weekly', 'weekly').allow('', null),
         paymentMethod: Joi.string().valid('bank_transfer', 'cash', 'check').allow('', null),
         bankDetails: Joi.object({
@@ -134,6 +134,9 @@ const createEmployeeSchema = Joi.object({
             iban: Joi.string().pattern(saudiIBANPattern).allow('', null).messages({
                 'string.pattern.base': 'رقم الآيبان غير صالح / Invalid IBAN'
             })
+        }).allow(null),
+        wps: Joi.object({
+            registered: Joi.boolean().allow(null)
         }).allow(null)
     }).allow(null),
 
@@ -225,25 +228,28 @@ const updateEmployeeSchema = Joi.object({
     compensation: Joi.object({
         basicSalary: Joi.number().min(0).allow(null, '').empty(''),
         currency: Joi.string().valid('SAR', 'USD', 'EUR', 'GBP').allow('', null),
-        allowances: Joi.alternatives().try(
-            Joi.array().items(
-                Joi.object({
-                    name: Joi.string().max(100).allow('', null),
-                    nameAr: Joi.string().max(100).allow('', null),
-                    amount: Joi.number().min(0).allow(null),
-                    taxable: Joi.boolean().allow(null),
-                    includedInEOSB: Joi.boolean().allow(null),
-                    includedInGOSI: Joi.boolean().allow(null)
-                })
-            ),
-            Joi.string().allow(''),
-            Joi.allow(null)
+        allowances: Joi.array().items(
+            Joi.object({
+                allowanceName: Joi.string().max(100).allow('', null),
+                allowanceNameAr: Joi.string().max(100).allow('', null),
+                name: Joi.string().max(100).allow('', null),
+                nameAr: Joi.string().max(100).allow('', null),
+                amount: Joi.number().min(0).allow(null),
+                taxable: Joi.boolean().allow(null).default(true),
+                includedInEOSB: Joi.boolean().allow(null).default(true),
+                includedInGOSI: Joi.boolean().allow(null).default(false)
+            })
         ).default([]),
+        totalAllowances: Joi.number().min(0).allow(null),
+        grossSalary: Joi.number().min(0).allow(null),
         paymentFrequency: Joi.string().valid('monthly', 'bi_weekly', 'weekly').allow('', null),
         paymentMethod: Joi.string().valid('bank_transfer', 'cash', 'check').allow('', null),
         bankDetails: Joi.object({
             bankName: Joi.string().max(100).allow('', null),
             iban: Joi.string().pattern(saudiIBANPattern).allow('', null)
+        }).allow(null),
+        wps: Joi.object({
+            registered: Joi.boolean().allow(null)
         }).allow(null)
     }).allow(null),
 
