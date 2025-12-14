@@ -36,32 +36,34 @@ const saudiPhonePattern = /^(\+966|966|05)[0-9]{8,9}$/;
 /**
  * Create Employee validation schema
  * Matches the nested structure expected by the HR controller
+ * All fields are optional and allow empty strings
  */
 const createEmployeeSchema = Joi.object({
     // Office type
     officeType: Joi.string()
         .valid('solo', 'small', 'medium', 'firm')
+        .allow('', null)
         .messages({
             'any.only': 'نوع المكتب غير صالح / Invalid office type'
         }),
 
     // Personal Info - nested structure
     personalInfo: Joi.object({
-        fullNameArabic: Joi.string().max(200).messages({
+        fullNameArabic: Joi.string().max(200).allow('', null).messages({
             'string.max': 'الاسم بالعربية طويل جداً / Arabic name is too long'
         }),
-        fullNameEnglish: Joi.string().max(200).messages({
+        fullNameEnglish: Joi.string().max(200).allow('', null).messages({
             'string.max': 'الاسم بالإنجليزية طويل جداً / English name is too long'
         }),
         nationalId: Joi.string().pattern(saudiNationalIdPattern).allow('', null).messages({
             'string.pattern.base': 'رقم الهوية غير صالح (10 أرقام تبدأ بـ 1 أو 2) / Invalid National ID (10 digits starting with 1 or 2)'
         }),
-        nationalIdType: Joi.string().valid('saudi_id', 'iqama', 'gcc_id', 'passport'),
-        nationalIdExpiry: Joi.date().iso().allow(null),
-        nationality: Joi.string().max(50),
-        isSaudi: Joi.boolean(),
-        gender: Joi.string().valid('male', 'female'),
-        dateOfBirth: Joi.date().iso().max('now').allow(null),
+        nationalIdType: Joi.string().valid('saudi_id', 'iqama', 'gcc_id', 'passport').allow('', null),
+        nationalIdExpiry: Joi.date().iso().allow('', null),
+        nationality: Joi.string().max(50).allow('', null),
+        isSaudi: Joi.boolean().allow(null),
+        gender: Joi.string().valid('male', 'female').allow('', null),
+        dateOfBirth: Joi.date().iso().max('now').allow('', null),
         mobile: Joi.string().pattern(saudiPhonePattern).allow('', null).messages({
             'string.pattern.base': 'رقم الهاتف غير صالح / Invalid phone number'
         }),
@@ -70,74 +72,74 @@ const createEmployeeSchema = Joi.object({
         }),
         personalEmail: Joi.string().email().allow('', null),
         currentAddress: Joi.object({
-            city: Joi.string().max(100),
-            region: Joi.string().max(100),
-            country: Joi.string().max(100)
-        }),
+            city: Joi.string().max(100).allow('', null),
+            region: Joi.string().max(100).allow('', null),
+            country: Joi.string().max(100).allow('', null)
+        }).allow(null),
         emergencyContact: Joi.object({
-            name: Joi.string().max(100),
-            relationship: Joi.string().max(50),
+            name: Joi.string().max(100).allow('', null),
+            relationship: Joi.string().max(50).allow('', null),
             phone: Joi.string().pattern(saudiPhonePattern).allow('', null)
-        }),
-        maritalStatus: Joi.string().valid('single', 'married', 'divorced', 'widowed'),
-        numberOfDependents: Joi.number().integer().min(0)
-    }),
+        }).allow(null),
+        maritalStatus: Joi.string().valid('single', 'married', 'divorced', 'widowed').allow('', null),
+        numberOfDependents: Joi.number().integer().min(0).allow(null)
+    }).allow(null),
 
     // Employment - nested structure
     employment: Joi.object({
-        employmentStatus: Joi.string().valid('active', 'on_leave', 'suspended', 'terminated', 'resigned'),
-        jobTitle: Joi.string().max(100),
-        jobTitleArabic: Joi.string().max(100),
-        employmentType: Joi.string().valid('full_time', 'part_time', 'contract', 'temporary'),
-        contractType: Joi.string().valid('indefinite', 'fixed_term'),
-        contractStartDate: Joi.date().iso().allow(null),
-        contractEndDate: Joi.date().iso().allow(null),
-        hireDate: Joi.date().iso().allow(null),
-        probationPeriod: Joi.number().integer().min(0).max(365),
-        onProbation: Joi.boolean(),
+        employmentStatus: Joi.string().valid('active', 'on_leave', 'suspended', 'terminated', 'resigned').allow('', null),
+        jobTitle: Joi.string().max(100).allow('', null),
+        jobTitleArabic: Joi.string().max(100).allow('', null),
+        employmentType: Joi.string().valid('full_time', 'part_time', 'contract', 'temporary').allow('', null),
+        contractType: Joi.string().valid('indefinite', 'fixed_term').allow('', null),
+        contractStartDate: Joi.date().iso().allow('', null),
+        contractEndDate: Joi.date().iso().allow('', null),
+        hireDate: Joi.date().iso().allow('', null),
+        probationPeriod: Joi.number().integer().min(0).max(365).allow(null),
+        onProbation: Joi.boolean().allow(null),
         workSchedule: Joi.object({
-            weeklyHours: Joi.number().min(0).max(168),
-            dailyHours: Joi.number().min(0).max(24),
-            workDays: Joi.array().items(Joi.string()),
-            restDay: Joi.string()
-        }),
+            weeklyHours: Joi.number().min(0).max(168).allow(null),
+            dailyHours: Joi.number().min(0).max(24).allow(null),
+            workDays: Joi.array().items(Joi.string().allow('')).allow(null),
+            restDay: Joi.string().allow('', null)
+        }).allow(null),
         reportsTo: Joi.string().pattern(/^[0-9a-fA-F]{24}$/).allow(null, ''),
-        departmentName: Joi.string().max(100)
-    }),
+        departmentName: Joi.string().max(100).allow('', null)
+    }).allow(null),
 
     // Compensation - nested structure
     compensation: Joi.object({
-        basicSalary: Joi.number().min(0).messages({
+        basicSalary: Joi.number().min(0).allow(null).messages({
             'number.min': 'الراتب لا يمكن أن يكون سالباً / Salary cannot be negative'
         }),
-        currency: Joi.string().valid('SAR', 'USD', 'EUR', 'GBP'),
+        currency: Joi.string().valid('SAR', 'USD', 'EUR', 'GBP').allow('', null),
         allowances: Joi.array().items(
             Joi.object({
-                name: Joi.string().max(100),
-                nameAr: Joi.string().max(100),
-                amount: Joi.number().min(0),
-                taxable: Joi.boolean(),
-                includedInEOSB: Joi.boolean(),
-                includedInGOSI: Joi.boolean()
+                name: Joi.string().max(100).allow('', null),
+                nameAr: Joi.string().max(100).allow('', null),
+                amount: Joi.number().min(0).allow(null),
+                taxable: Joi.boolean().allow(null),
+                includedInEOSB: Joi.boolean().allow(null),
+                includedInGOSI: Joi.boolean().allow(null)
             })
-        ),
-        paymentFrequency: Joi.string().valid('monthly', 'bi_weekly', 'weekly'),
-        paymentMethod: Joi.string().valid('bank_transfer', 'cash', 'check'),
+        ).allow(null),
+        paymentFrequency: Joi.string().valid('monthly', 'bi_weekly', 'weekly').allow('', null),
+        paymentMethod: Joi.string().valid('bank_transfer', 'cash', 'check').allow('', null),
         bankDetails: Joi.object({
-            bankName: Joi.string().max(100),
+            bankName: Joi.string().max(100).allow('', null),
             iban: Joi.string().pattern(saudiIBANPattern).allow('', null).messages({
                 'string.pattern.base': 'رقم الآيبان غير صالح / Invalid IBAN'
             })
-        })
-    }),
+        }).allow(null)
+    }).allow(null),
 
     // GOSI - nested structure
     gosi: Joi.object({
-        registered: Joi.boolean(),
+        registered: Joi.boolean().allow(null),
         gosiNumber: Joi.string().max(50).allow('', null),
-        employeeContribution: Joi.number().min(0).max(100),
-        employerContribution: Joi.number().min(0).max(100)
-    }),
+        employeeContribution: Joi.number().min(0).max(100).allow(null),
+        employerContribution: Joi.number().min(0).max(100).allow(null)
+    }).allow(null),
 
     // Organization - nested structure (for medium/firm)
     organization: Joi.object({
@@ -146,103 +148,104 @@ const createEmployeeSchema = Joi.object({
         teamId: Joi.string().max(100).allow('', null),
         supervisorId: Joi.string().pattern(/^[0-9a-fA-F]{24}$/).allow(null, ''),
         costCenter: Joi.string().max(100).allow('', null)
-    }),
+    }).allow(null),
 
     // Leave - nested structure
     leave: Joi.object({
-        annualLeaveEntitlement: Joi.number().integer().min(0).max(365)
-    })
+        annualLeaveEntitlement: Joi.number().integer().min(0).max(365).allow(null)
+    }).allow(null)
 });
 
 /**
  * Update Employee validation schema (partial)
  * Matches the nested structure expected by the HR controller
+ * All fields are optional and allow empty strings
  */
 const updateEmployeeSchema = Joi.object({
     // Office type
-    officeType: Joi.string().valid('solo', 'small', 'medium', 'firm'),
+    officeType: Joi.string().valid('solo', 'small', 'medium', 'firm').allow('', null),
 
     // Personal Info - nested structure
     personalInfo: Joi.object({
-        fullNameArabic: Joi.string().max(200),
-        fullNameEnglish: Joi.string().max(200),
+        fullNameArabic: Joi.string().max(200).allow('', null),
+        fullNameEnglish: Joi.string().max(200).allow('', null),
         nationalId: Joi.string().pattern(saudiNationalIdPattern).allow('', null),
-        nationalIdType: Joi.string().valid('saudi_id', 'iqama', 'gcc_id', 'passport'),
-        nationalIdExpiry: Joi.date().iso().allow(null),
-        nationality: Joi.string().max(50),
-        isSaudi: Joi.boolean(),
-        gender: Joi.string().valid('male', 'female'),
-        dateOfBirth: Joi.date().iso().max('now').allow(null),
+        nationalIdType: Joi.string().valid('saudi_id', 'iqama', 'gcc_id', 'passport').allow('', null),
+        nationalIdExpiry: Joi.date().iso().allow('', null),
+        nationality: Joi.string().max(50).allow('', null),
+        isSaudi: Joi.boolean().allow(null),
+        gender: Joi.string().valid('male', 'female').allow('', null),
+        dateOfBirth: Joi.date().iso().max('now').allow('', null),
         mobile: Joi.string().pattern(saudiPhonePattern).allow('', null),
         email: Joi.string().email().allow('', null),
         personalEmail: Joi.string().email().allow('', null),
         currentAddress: Joi.object({
-            city: Joi.string().max(100),
-            region: Joi.string().max(100),
-            country: Joi.string().max(100)
-        }),
+            city: Joi.string().max(100).allow('', null),
+            region: Joi.string().max(100).allow('', null),
+            country: Joi.string().max(100).allow('', null)
+        }).allow(null),
         emergencyContact: Joi.object({
-            name: Joi.string().max(100),
-            relationship: Joi.string().max(50),
+            name: Joi.string().max(100).allow('', null),
+            relationship: Joi.string().max(50).allow('', null),
             phone: Joi.string().pattern(saudiPhonePattern).allow('', null)
-        }),
-        maritalStatus: Joi.string().valid('single', 'married', 'divorced', 'widowed'),
-        numberOfDependents: Joi.number().integer().min(0)
-    }),
+        }).allow(null),
+        maritalStatus: Joi.string().valid('single', 'married', 'divorced', 'widowed').allow('', null),
+        numberOfDependents: Joi.number().integer().min(0).allow(null)
+    }).allow(null),
 
     // Employment - nested structure
     employment: Joi.object({
-        employmentStatus: Joi.string().valid('active', 'on_leave', 'suspended', 'terminated', 'resigned'),
-        jobTitle: Joi.string().max(100),
-        jobTitleArabic: Joi.string().max(100),
-        employmentType: Joi.string().valid('full_time', 'part_time', 'contract', 'temporary'),
-        contractType: Joi.string().valid('indefinite', 'fixed_term'),
-        contractStartDate: Joi.date().iso().allow(null),
-        contractEndDate: Joi.date().iso().allow(null),
-        hireDate: Joi.date().iso().allow(null),
-        probationPeriod: Joi.number().integer().min(0).max(365),
-        onProbation: Joi.boolean(),
+        employmentStatus: Joi.string().valid('active', 'on_leave', 'suspended', 'terminated', 'resigned').allow('', null),
+        jobTitle: Joi.string().max(100).allow('', null),
+        jobTitleArabic: Joi.string().max(100).allow('', null),
+        employmentType: Joi.string().valid('full_time', 'part_time', 'contract', 'temporary').allow('', null),
+        contractType: Joi.string().valid('indefinite', 'fixed_term').allow('', null),
+        contractStartDate: Joi.date().iso().allow('', null),
+        contractEndDate: Joi.date().iso().allow('', null),
+        hireDate: Joi.date().iso().allow('', null),
+        probationPeriod: Joi.number().integer().min(0).max(365).allow(null),
+        onProbation: Joi.boolean().allow(null),
         workSchedule: Joi.object({
-            weeklyHours: Joi.number().min(0).max(168),
-            dailyHours: Joi.number().min(0).max(24),
-            workDays: Joi.array().items(Joi.string()),
-            restDay: Joi.string()
-        }),
+            weeklyHours: Joi.number().min(0).max(168).allow(null),
+            dailyHours: Joi.number().min(0).max(24).allow(null),
+            workDays: Joi.array().items(Joi.string().allow('')).allow(null),
+            restDay: Joi.string().allow('', null)
+        }).allow(null),
         reportsTo: Joi.string().pattern(/^[0-9a-fA-F]{24}$/).allow(null, ''),
-        departmentName: Joi.string().max(100),
-        terminationDate: Joi.date().iso().allow(null),
-        terminationReason: Joi.string().max(500)
-    }),
+        departmentName: Joi.string().max(100).allow('', null),
+        terminationDate: Joi.date().iso().allow('', null),
+        terminationReason: Joi.string().max(500).allow('', null)
+    }).allow(null),
 
     // Compensation - nested structure
     compensation: Joi.object({
-        basicSalary: Joi.number().min(0),
-        currency: Joi.string().valid('SAR', 'USD', 'EUR', 'GBP'),
+        basicSalary: Joi.number().min(0).allow(null),
+        currency: Joi.string().valid('SAR', 'USD', 'EUR', 'GBP').allow('', null),
         allowances: Joi.array().items(
             Joi.object({
-                name: Joi.string().max(100),
-                nameAr: Joi.string().max(100),
-                amount: Joi.number().min(0),
-                taxable: Joi.boolean(),
-                includedInEOSB: Joi.boolean(),
-                includedInGOSI: Joi.boolean()
+                name: Joi.string().max(100).allow('', null),
+                nameAr: Joi.string().max(100).allow('', null),
+                amount: Joi.number().min(0).allow(null),
+                taxable: Joi.boolean().allow(null),
+                includedInEOSB: Joi.boolean().allow(null),
+                includedInGOSI: Joi.boolean().allow(null)
             })
-        ),
-        paymentFrequency: Joi.string().valid('monthly', 'bi_weekly', 'weekly'),
-        paymentMethod: Joi.string().valid('bank_transfer', 'cash', 'check'),
+        ).allow(null),
+        paymentFrequency: Joi.string().valid('monthly', 'bi_weekly', 'weekly').allow('', null),
+        paymentMethod: Joi.string().valid('bank_transfer', 'cash', 'check').allow('', null),
         bankDetails: Joi.object({
-            bankName: Joi.string().max(100),
+            bankName: Joi.string().max(100).allow('', null),
             iban: Joi.string().pattern(saudiIBANPattern).allow('', null)
-        })
-    }),
+        }).allow(null)
+    }).allow(null),
 
     // GOSI - nested structure
     gosi: Joi.object({
-        registered: Joi.boolean(),
+        registered: Joi.boolean().allow(null),
         gosiNumber: Joi.string().max(50).allow('', null),
-        employeeContribution: Joi.number().min(0).max(100),
-        employerContribution: Joi.number().min(0).max(100)
-    }),
+        employeeContribution: Joi.number().min(0).max(100).allow(null),
+        employerContribution: Joi.number().min(0).max(100).allow(null)
+    }).allow(null),
 
     // Organization - nested structure
     organization: Joi.object({
@@ -251,14 +254,12 @@ const updateEmployeeSchema = Joi.object({
         teamId: Joi.string().max(100).allow('', null),
         supervisorId: Joi.string().pattern(/^[0-9a-fA-F]{24}$/).allow(null, ''),
         costCenter: Joi.string().max(100).allow('', null)
-    }),
+    }).allow(null),
 
     // Leave - nested structure
     leave: Joi.object({
-        annualLeaveEntitlement: Joi.number().integer().min(0).max(365)
-    })
-}).min(1).messages({
-    'object.min': 'يجب تقديم حقل واحد على الأقل للتحديث / At least one field must be provided for update'
+        annualLeaveEntitlement: Joi.number().integer().min(0).max(365).allow(null)
+    }).allow(null)
 });
 
 /**
