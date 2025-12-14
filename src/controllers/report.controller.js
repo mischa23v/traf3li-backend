@@ -1050,6 +1050,297 @@ const exportReport = asyncHandler(async (req, res) => {
     }
 });
 
+// ==================== Chart Endpoints for Dashboard ====================
+
+/**
+ * Get cases chart data (monthly case counts)
+ * GET /api/reports/cases-chart
+ */
+const getCasesChart = asyncHandler(async (req, res) => {
+    const { months = 12 } = req.query;
+    const lawyerId = req.userID;
+    const firmId = req.firmId;
+
+    // Build match filter
+    const matchFilter = firmId
+        ? { firmId: require('mongoose').Types.ObjectId.createFromHexString(firmId) }
+        : { lawyerId: require('mongoose').Types.ObjectId.createFromHexString(lawyerId) };
+
+    // Calculate start date
+    const startDate = new Date();
+    startDate.setMonth(startDate.getMonth() - parseInt(months));
+    startDate.setDate(1);
+    startDate.setHours(0, 0, 0, 0);
+
+    // Aggregate cases by month and status
+    const casesData = await Case.aggregate([
+        {
+            $match: {
+                ...matchFilter,
+                createdAt: { $gte: startDate }
+            }
+        },
+        {
+            $group: {
+                _id: {
+                    year: { $year: '$createdAt' },
+                    month: { $month: '$createdAt' },
+                    status: '$status'
+                },
+                count: { $sum: 1 }
+            }
+        },
+        {
+            $group: {
+                _id: { year: '$_id.year', month: '$_id.month' },
+                statuses: {
+                    $push: {
+                        status: '$_id.status',
+                        count: '$count'
+                    }
+                },
+                total: { $sum: '$count' }
+            }
+        },
+        { $sort: { '_id.year': 1, '_id.month': 1 } }
+    ]);
+
+    // Format data for chart
+    const chartData = casesData.map(item => {
+        const monthStr = `${item._id.year}-${String(item._id.month).padStart(2, '0')}`;
+        const statusCounts = item.statuses.reduce((acc, s) => {
+            acc[s.status] = s.count;
+            return acc;
+        }, {});
+
+        return {
+            month: monthStr,
+            label: new Date(item._id.year, item._id.month - 1).toLocaleString('default', { month: 'short', year: 'numeric' }),
+            total: item.total,
+            opened: statusCounts.open || statusCounts.active || statusCounts.in_progress || 0,
+            closed: statusCounts.closed || statusCounts.completed || statusCounts.resolved || 0,
+            pending: statusCounts.pending || statusCounts.on_hold || 0,
+            ...statusCounts
+        };
+    });
+
+    res.status(200).json({
+        success: true,
+        report: 'cases-chart',
+        period: { months: parseInt(months), startDate },
+        generatedAt: new Date(),
+        data: chartData
+    });
+});
+
+/**
+ * Get revenue chart data (monthly revenue)
+ * GET /api/reports/revenue-chart
+ */
+const getRevenueChart = asyncHandler(async (req, res) => {
+    const { months = 12 } = req.query;
+    const lawyerId = req.userID;
+    const firmId = req.firmId;
+
+    // Build match filter
+    const matchFilter = firmId
+        ? { firmId: require('mongoose').Types.ObjectId.createFromHexString(firmId) }
+        : { lawyerId: require('mongoose').Types.ObjectId.createFromHexString(lawyerId) };
+
+    // Calculate start date
+    const startDate = new Date();
+    startDate.setMonth(startDate.getMonth() - parseInt(months));
+    startDate.setDate(1);
+    startDate.setHours(0, 0, 0, 0);
+
+    // Aggregate revenue by month
+    const revenueData = await Invoice.aggregate([
+        {
+            $match: {
+                ...matchFilter,
+                issueDate: { $gte: startDate }
+            }
+        },
+        {
+            $group: {
+                _id: {
+                    year: { $year: '$issueDate' },
+                    month: { $month: '$issueDate' }
+                },
+                totalInvoiced: { $sum: '$totalAmount' },
+                totalPaid: { $sum: '$amountPaid' },
+                invoiceCount: { $sum: 1 },
+                paidCount: {
+                    $sum: { $cond: [{ $eq: ['$status', 'paid'] }, 1, 0] }
+                }
+            }
+        },
+        { $sort: { '_id.year': 1, '_id.month': 1 } }
+    ]);
+
+    // Get expenses by month
+    const expenseData = await Expense.aggregate([
+        {
+            $match: {
+                ...matchFilter,
+                date: { $gte: startDate }
+            }
+        },
+        {
+            $group: {
+                _id: {
+                    year: { $year: '$date' },
+                    month: { $month: '$date' }
+                },
+                totalExpenses: { $sum: '$amount' },
+                expenseCount: { $sum: 1 }
+            }
+        },
+        { $sort: { '_id.year': 1, '_id.month': 1 } }
+    ]);
+
+    // Create a map of expenses by month
+    const expenseMap = expenseData.reduce((acc, item) => {
+        const key = `${item._id.year}-${String(item._id.month).padStart(2, '0')}`;
+        acc[key] = item;
+        return acc;
+    }, {});
+
+    // Format data for chart
+    const chartData = revenueData.map(item => {
+        const monthStr = `${item._id.year}-${String(item._id.month).padStart(2, '0')}`;
+        const expenses = expenseMap[monthStr]?.totalExpenses || 0;
+
+        return {
+            month: monthStr,
+            label: new Date(item._id.year, item._id.month - 1).toLocaleString('default', { month: 'short', year: 'numeric' }),
+            revenue: item.totalInvoiced,
+            collected: item.totalPaid,
+            expenses: expenses,
+            profit: item.totalPaid - expenses,
+            invoiceCount: item.invoiceCount,
+            collectionRate: item.totalInvoiced > 0
+                ? parseFloat(((item.totalPaid / item.totalInvoiced) * 100).toFixed(1))
+                : 0
+        };
+    });
+
+    // Calculate totals
+    const totals = chartData.reduce((acc, item) => {
+        acc.totalRevenue += item.revenue;
+        acc.totalCollected += item.collected;
+        acc.totalExpenses += item.expenses;
+        acc.totalProfit += item.profit;
+        return acc;
+    }, { totalRevenue: 0, totalCollected: 0, totalExpenses: 0, totalProfit: 0 });
+
+    res.status(200).json({
+        success: true,
+        report: 'revenue-chart',
+        period: { months: parseInt(months), startDate },
+        generatedAt: new Date(),
+        data: chartData,
+        summary: totals
+    });
+});
+
+/**
+ * Get tasks chart data (task completion rates over time)
+ * GET /api/reports/tasks-chart
+ */
+const getTasksChart = asyncHandler(async (req, res) => {
+    const { months = 12 } = req.query;
+    const lawyerId = req.userID;
+    const firmId = req.firmId;
+
+    const Task = require('../models').Task;
+
+    // Build match filter
+    const matchFilter = firmId
+        ? { firmId: require('mongoose').Types.ObjectId.createFromHexString(firmId) }
+        : { lawyerId: require('mongoose').Types.ObjectId.createFromHexString(lawyerId) };
+
+    // Calculate start date
+    const startDate = new Date();
+    startDate.setMonth(startDate.getMonth() - parseInt(months));
+    startDate.setDate(1);
+    startDate.setHours(0, 0, 0, 0);
+
+    // Aggregate tasks by month and status
+    const tasksData = await Task.aggregate([
+        {
+            $match: {
+                ...matchFilter,
+                createdAt: { $gte: startDate }
+            }
+        },
+        {
+            $group: {
+                _id: {
+                    year: { $year: '$createdAt' },
+                    month: { $month: '$createdAt' }
+                },
+                total: { $sum: 1 },
+                completed: {
+                    $sum: { $cond: [{ $in: ['$status', ['completed', 'done', 'Completed']] }, 1, 0] }
+                },
+                inProgress: {
+                    $sum: { $cond: [{ $in: ['$status', ['in_progress', 'in-progress', 'InProgress']] }, 1, 0] }
+                },
+                pending: {
+                    $sum: { $cond: [{ $in: ['$status', ['pending', 'todo', 'Pending', 'open']] }, 1, 0] }
+                },
+                overdue: {
+                    $sum: { $cond: [{ $in: ['$status', ['overdue', 'Overdue']] }, 1, 0] }
+                }
+            }
+        },
+        { $sort: { '_id.year': 1, '_id.month': 1 } }
+    ]);
+
+    // Format data for chart
+    const chartData = tasksData.map(item => {
+        const monthStr = `${item._id.year}-${String(item._id.month).padStart(2, '0')}`;
+        const completionRate = item.total > 0
+            ? parseFloat(((item.completed / item.total) * 100).toFixed(1))
+            : 0;
+
+        return {
+            month: monthStr,
+            label: new Date(item._id.year, item._id.month - 1).toLocaleString('default', { month: 'short', year: 'numeric' }),
+            total: item.total,
+            completed: item.completed,
+            inProgress: item.inProgress,
+            pending: item.pending,
+            overdue: item.overdue,
+            completionRate
+        };
+    });
+
+    // Calculate overall stats
+    const totals = chartData.reduce((acc, item) => {
+        acc.total += item.total;
+        acc.completed += item.completed;
+        acc.inProgress += item.inProgress;
+        acc.pending += item.pending;
+        acc.overdue += item.overdue;
+        return acc;
+    }, { total: 0, completed: 0, inProgress: 0, pending: 0, overdue: 0 });
+
+    totals.overallCompletionRate = totals.total > 0
+        ? parseFloat(((totals.completed / totals.total) * 100).toFixed(1))
+        : 0;
+
+    res.status(200).json({
+        success: true,
+        report: 'tasks-chart',
+        period: { months: parseInt(months), startDate },
+        generatedAt: new Date(),
+        data: chartData,
+        summary: totals
+    });
+});
+
 module.exports = {
     generateReport,
     getReports,
@@ -1063,5 +1354,9 @@ module.exports = {
     getRevenueByClientReport,
     getOutstandingInvoicesReport,
     getTimeEntriesReport,
-    exportReport
+    exportReport,
+    // Chart endpoints
+    getCasesChart,
+    getRevenueChart,
+    getTasksChart
 };

@@ -7,7 +7,10 @@ const {
     getFinancialSummary,
     getTodayEvents,
     getRecentMessages,
-    getActivityOverview
+    getActivityOverview,
+    getCRMStats,
+    getHRStats,
+    getFinanceStats
 } = require('../controllers/dashboard.controller');
 
 const app = express.Router();
@@ -69,6 +72,30 @@ app.get('/activity',
     firmFilter,
     cacheResponse(DASHBOARD_CACHE_TTL, dashboardKeyGen('activity')),
     getActivityOverview
+);
+
+// Get CRM stats (for Analytics tab)
+app.get('/crm-stats',
+    userMiddleware,
+    firmFilter,
+    cacheResponse(DASHBOARD_CACHE_TTL, dashboardKeyGen('crm-stats')),
+    getCRMStats
+);
+
+// Get HR stats (for Analytics tab)
+app.get('/hr-stats',
+    userMiddleware,
+    firmFilter,
+    cacheResponse(DASHBOARD_CACHE_TTL, dashboardKeyGen('hr-stats')),
+    getHRStats
+);
+
+// Get Finance stats (for Analytics tab)
+app.get('/finance-stats',
+    userMiddleware,
+    firmFilter,
+    cacheResponse(DASHBOARD_CACHE_TTL, dashboardKeyGen('finance-stats')),
+    getFinanceStats
 );
 
 module.exports = app;
