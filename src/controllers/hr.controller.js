@@ -230,6 +230,16 @@ const getEmployees = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
+    // Ensure we have at least one ownership identifier
+    if (!firmId && !lawyerId) {
+        return res.status(400).json({
+            success: false,
+            message: 'Authentication context missing',
+            employees: [],
+            pagination: { page: 1, limit: 20, total: 0, pages: 0 }
+        });
+    }
+
     const {
         status,
         department,
@@ -259,25 +269,37 @@ const getEmployees = asyncHandler(async (req, res) => {
         ];
     }
 
-    const employees = await Employee.find(query)
-        .populate('employment.reportsTo', 'personalInfo.fullNameArabic personalInfo.fullNameEnglish')
-        .populate('organization.supervisorId', 'personalInfo.fullNameArabic personalInfo.fullNameEnglish')
-        .sort({ createdAt: -1 })
-        .limit(parseInt(limit))
-        .skip((parseInt(page) - 1) * parseInt(limit));
+    try {
+        const employees = await Employee.find(query)
+            .populate('employment.reportsTo', 'personalInfo.fullNameArabic personalInfo.fullNameEnglish')
+            .populate('organization.supervisorId', 'personalInfo.fullNameArabic personalInfo.fullNameEnglish')
+            .sort({ createdAt: -1 })
+            .limit(parseInt(limit))
+            .skip((parseInt(page) - 1) * parseInt(limit))
+            .lean(); // Use lean() for better performance and to avoid encryption issues
 
-    const total = await Employee.countDocuments(query);
+        const total = await Employee.countDocuments(query);
 
-    return res.json({
-        success: true,
-        employees,
-        pagination: {
-            page: parseInt(page),
-            limit: parseInt(limit),
-            total,
-            pages: Math.ceil(total / parseInt(limit))
-        }
-    });
+        return res.json({
+            success: true,
+            employees,
+            pagination: {
+                page: parseInt(page),
+                limit: parseInt(limit),
+                total,
+                pages: Math.ceil(total / parseInt(limit))
+            }
+        });
+    } catch (dbError) {
+        console.error('Employee fetch error:', dbError);
+        return res.status(500).json({
+            success: false,
+            message: 'Failed to fetch employees',
+            error: process.env.NODE_ENV !== 'production' ? dbError.message : undefined,
+            employees: [],
+            pagination: { page: 1, limit: 20, total: 0, pages: 0 }
+        });
+    }
 });
 
 // ═══════════════════════════════════════════════════════════════
