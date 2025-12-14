@@ -109,7 +109,7 @@ const createEmployeeSchema = Joi.object({
 
     // Compensation - nested structure
     compensation: Joi.object({
-        basicSalary: Joi.number().min(0).allow(null).messages({
+        basicSalary: Joi.number().min(0).allow(null, '').empty('').messages({
             'number.min': 'الراتب لا يمكن أن يكون سالباً / Salary cannot be negative'
         }),
         currency: Joi.string().valid('SAR', 'USD', 'EUR', 'GBP').allow('', null),
@@ -122,7 +122,7 @@ const createEmployeeSchema = Joi.object({
                 includedInEOSB: Joi.boolean().allow(null),
                 includedInGOSI: Joi.boolean().allow(null)
             })
-        ).allow(null),
+        ).allow(null).empty('').default([]),
         paymentFrequency: Joi.string().valid('monthly', 'bi_weekly', 'weekly').allow('', null),
         paymentMethod: Joi.string().valid('bank_transfer', 'cash', 'check').allow('', null),
         bankDetails: Joi.object({
@@ -219,7 +219,7 @@ const updateEmployeeSchema = Joi.object({
 
     // Compensation - nested structure
     compensation: Joi.object({
-        basicSalary: Joi.number().min(0).allow(null),
+        basicSalary: Joi.number().min(0).allow(null, '').empty(''),
         currency: Joi.string().valid('SAR', 'USD', 'EUR', 'GBP').allow('', null),
         allowances: Joi.array().items(
             Joi.object({
@@ -230,7 +230,7 @@ const updateEmployeeSchema = Joi.object({
                 includedInEOSB: Joi.boolean().allow(null),
                 includedInGOSI: Joi.boolean().allow(null)
             })
-        ).allow(null),
+        ).allow(null).empty('').default([]),
         paymentFrequency: Joi.string().valid('monthly', 'bi_weekly', 'weekly').allow('', null),
         paymentMethod: Joi.string().valid('bank_transfer', 'cash', 'check').allow('', null),
         bankDetails: Joi.object({
