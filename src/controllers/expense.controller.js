@@ -1071,12 +1071,67 @@ const getNewExpenseDefaults = asyncHandler(async (req, res) => {
     });
 });
 
+// ═══════════════════════════════════════════════════════════════
+// BULK DELETE EXPENSES
+// POST /api/expenses/bulk-delete
+// ═══════════════════════════════════════════════════════════════
+const bulkDeleteExpenses = asyncHandler(async (req, res) => {
+    // Block departed users from financial operations
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية لحذف المصروفات', 403);
+    }
+
+    const { ids } = req.body;
+    const lawyerId = req.userID;
+    const firmId = req.firmId;
+
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+        throw CustomException('يجب توفير قائمة المعرفات / IDs list is required', 400);
+    }
+
+    // Build access query - can only delete draft/pending/rejected expenses (not approved/paid/invoiced)
+    const accessQuery = firmId
+        ? {
+            _id: { $in: ids },
+            firmId,
+            status: { $nin: ['approved', 'paid'] },
+            reimbursementStatus: { $ne: 'paid' },
+            invoiceId: { $exists: false }
+          }
+        : {
+            _id: { $in: ids },
+            lawyerId,
+            status: { $nin: ['approved', 'paid'] },
+            reimbursementStatus: { $ne: 'paid' },
+            invoiceId: { $exists: false }
+          };
+
+    const result = await Expense.deleteMany(accessQuery);
+
+    // Log activity
+    await BillingActivity.logActivity({
+        activityType: 'expenses_bulk_deleted',
+        userId: lawyerId,
+        relatedModel: 'Expense',
+        description: `${result.deletedCount} expenses bulk deleted`,
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent')
+    });
+
+    return res.json({
+        success: true,
+        message: `تم حذف ${result.deletedCount} مصروف بنجاح / ${result.deletedCount} expense(s) deleted successfully`,
+        deletedCount: result.deletedCount
+    });
+});
+
 module.exports = {
     createExpense,
     getExpenses,
     getExpense,
     updateExpense,
     deleteExpense,
+    bulkDeleteExpenses,
     submitExpense,
     approveExpense,
     rejectExpense,

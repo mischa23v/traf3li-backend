@@ -33,6 +33,7 @@ const {
     getInvoice,
     updateInvoice,
     deleteInvoice,
+    bulkDeleteInvoices,
 
     // Actions
     sendInvoice,
@@ -110,6 +111,14 @@ router.patch('/confirm-payment',
     userMiddleware,
     firmFilter,
     confirmPayment
+);
+
+// Bulk delete invoices
+router.post('/bulk-delete',
+    userMiddleware,
+    firmFilter,
+    auditAction('bulk_delete_invoices', 'invoice', { severity: 'high' }),
+    bulkDeleteInvoices
 );
 
 // ============ CRUD OPERATIONS ============

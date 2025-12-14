@@ -6,6 +6,7 @@ const {
     getExpense,
     updateExpense,
     deleteExpense,
+    bulkDeleteExpenses,
     submitExpense,
     approveExpense,
     rejectExpense,
@@ -40,6 +41,7 @@ app.get('/by-category', userMiddleware, firmFilter, getExpensesByCategory);
 
 // Bulk operations
 app.post('/bulk-approve', userMiddleware, firmFilter, bulkApproveExpenses);
+app.post('/bulk-delete', userMiddleware, firmFilter, bulkDeleteExpenses);
 
 // ═══════════════════════════════════════════════════════════════
 // CRUD ROUTES
