@@ -35,165 +35,227 @@ const saudiPhonePattern = /^(\+966|966|05)[0-9]{8,9}$/;
 
 /**
  * Create Employee validation schema
+ * Matches the nested structure expected by the HR controller
  */
 const createEmployeeSchema = Joi.object({
-    name: Joi.string()
-        .min(2)
-        .max(100)
+    // Office type
+    officeType: Joi.string()
+        .valid('solo', 'small', 'medium', 'firm')
         .messages({
-            'string.min': 'الاسم قصير جداً / Name is too short',
-            'string.max': 'الاسم طويل جداً / Name is too long'
+            'any.only': 'نوع المكتب غير صالح / Invalid office type'
         }),
-    email: Joi.string()
-        .email()
-        .messages({
-            'string.email': 'البريد الإلكتروني غير صالح / Invalid email format'
+
+    // Personal Info - nested structure
+    personalInfo: Joi.object({
+        fullNameArabic: Joi.string().max(200).messages({
+            'string.max': 'الاسم بالعربية طويل جداً / Arabic name is too long'
         }),
-    phone: Joi.string()
-        .pattern(saudiPhonePattern)
-        .messages({
-            'string.pattern.base': 'رقم الهاتف غير صالح (يجب أن يبدأ بـ +966 أو 05) / Invalid phone number (must start with +966 or 05)'
+        fullNameEnglish: Joi.string().max(200).messages({
+            'string.max': 'الاسم بالإنجليزية طويل جداً / English name is too long'
         }),
-    nationalId: Joi.string()
-        .pattern(saudiNationalIdPattern)
-        .messages({
+        nationalId: Joi.string().pattern(saudiNationalIdPattern).allow('', null).messages({
             'string.pattern.base': 'رقم الهوية غير صالح (10 أرقام تبدأ بـ 1 أو 2) / Invalid National ID (10 digits starting with 1 or 2)'
         }),
-    department: Joi.string()
-        .max(100)
-        .messages({
-            'string.max': 'اسم القسم طويل جداً / Department name is too long'
+        nationalIdType: Joi.string().valid('saudi_id', 'iqama', 'gcc_id', 'passport'),
+        nationalIdExpiry: Joi.date().iso().allow(null),
+        nationality: Joi.string().max(50),
+        isSaudi: Joi.boolean(),
+        gender: Joi.string().valid('male', 'female'),
+        dateOfBirth: Joi.date().iso().max('now').allow(null),
+        mobile: Joi.string().pattern(saudiPhonePattern).allow('', null).messages({
+            'string.pattern.base': 'رقم الهاتف غير صالح / Invalid phone number'
         }),
-    position: Joi.string()
-        .max(100)
-        .messages({
-            'string.max': 'المسمى الوظيفي طويل جداً / Position title is too long'
+        email: Joi.string().email().allow('', null).messages({
+            'string.email': 'البريد الإلكتروني غير صالح / Invalid email format'
         }),
-    salary: Joi.number()
-        .positive()
-        .messages({
-            'number.positive': 'الراتب يجب أن يكون رقماً موجباً / Salary must be a positive number',
-            'number.base': 'الراتب يجب أن يكون رقماً / Salary must be a number'
+        personalEmail: Joi.string().email().allow('', null),
+        currentAddress: Joi.object({
+            city: Joi.string().max(100),
+            region: Joi.string().max(100),
+            country: Joi.string().max(100)
         }),
-    startDate: Joi.date()
-        .iso()
-        .messages({
-            'date.format': 'تاريخ البداية غير صالح / Invalid start date format',
-            'date.base': 'تاريخ البداية غير صالح / Invalid start date'
+        emergencyContact: Joi.object({
+            name: Joi.string().max(100),
+            relationship: Joi.string().max(50),
+            phone: Joi.string().pattern(saudiPhonePattern).allow('', null)
         }),
-    bankAccount: Joi.string()
-        .pattern(saudiIBANPattern)
-        .messages({
-            'string.pattern.base': 'رقم الآيبان غير صالح (يجب أن يبدأ بـ SA ويتبعه 22 رقم) / Invalid IBAN (must start with SA followed by 22 digits)'
-        }),
-    status: Joi.string()
-        .valid('active', 'inactive', 'on-leave', 'terminated')
-        .default('active')
-        .messages({
-            'any.only': 'الحالة غير صالحة / Invalid status'
-        }),
-    contractType: Joi.string()
-        .valid('full-time', 'part-time', 'contract', 'temporary')
-        .messages({
-            'any.only': 'نوع العقد غير صالح / Invalid contract type'
-        }),
-    employeeNumber: Joi.string()
-        .max(50)
-        .messages({
-            'string.max': 'رقم الموظف طويل جداً / Employee number is too long'
-        }),
-    nationality: Joi.string()
-        .max(50)
-        .messages({
-            'string.max': 'الجنسية طويلة جداً / Nationality is too long'
-        }),
-    gender: Joi.string()
-        .valid('male', 'female')
-        .messages({
-            'any.only': 'الجنس غير صالح / Invalid gender'
-        }),
-    dateOfBirth: Joi.date()
-        .iso()
-        .max('now')
-        .messages({
-            'date.format': 'تاريخ الميلاد غير صالح / Invalid date of birth format',
-            'date.max': 'تاريخ الميلاد لا يمكن أن يكون في المستقبل / Date of birth cannot be in the future'
-        }),
-    maritalStatus: Joi.string()
-        .valid('single', 'married', 'divorced', 'widowed')
-        .messages({
-            'any.only': 'الحالة الاجتماعية غير صالحة / Invalid marital status'
-        }),
-    address: Joi.string()
-        .max(500)
-        .messages({
-            'string.max': 'العنوان طويل جداً / Address is too long'
-        }),
-    emergencyContact: Joi.object({
-        name: Joi.string().max(100),
-        relationship: Joi.string().max(50),
-        phone: Joi.string().pattern(saudiPhonePattern)
+        maritalStatus: Joi.string().valid('single', 'married', 'divorced', 'widowed'),
+        numberOfDependents: Joi.number().integer().min(0)
     }),
-    allowances: Joi.array().items(
-        Joi.object({
-            type: Joi.string(),
-            amount: Joi.number().positive(),
-            startDate: Joi.date().iso()
+
+    // Employment - nested structure
+    employment: Joi.object({
+        employmentStatus: Joi.string().valid('active', 'on_leave', 'suspended', 'terminated', 'resigned'),
+        jobTitle: Joi.string().max(100),
+        jobTitleArabic: Joi.string().max(100),
+        employmentType: Joi.string().valid('full_time', 'part_time', 'contract', 'temporary'),
+        contractType: Joi.string().valid('indefinite', 'fixed_term'),
+        contractStartDate: Joi.date().iso().allow(null),
+        contractEndDate: Joi.date().iso().allow(null),
+        hireDate: Joi.date().iso().allow(null),
+        probationPeriod: Joi.number().integer().min(0).max(365),
+        onProbation: Joi.boolean(),
+        workSchedule: Joi.object({
+            weeklyHours: Joi.number().min(0).max(168),
+            dailyHours: Joi.number().min(0).max(24),
+            workDays: Joi.array().items(Joi.string()),
+            restDay: Joi.string()
+        }),
+        reportsTo: Joi.string().pattern(/^[0-9a-fA-F]{24}$/).allow(null, ''),
+        departmentName: Joi.string().max(100)
+    }),
+
+    // Compensation - nested structure
+    compensation: Joi.object({
+        basicSalary: Joi.number().min(0).messages({
+            'number.min': 'الراتب لا يمكن أن يكون سالباً / Salary cannot be negative'
+        }),
+        currency: Joi.string().valid('SAR', 'USD', 'EUR', 'GBP'),
+        allowances: Joi.array().items(
+            Joi.object({
+                name: Joi.string().max(100),
+                nameAr: Joi.string().max(100),
+                amount: Joi.number().min(0),
+                taxable: Joi.boolean(),
+                includedInEOSB: Joi.boolean(),
+                includedInGOSI: Joi.boolean()
+            })
+        ),
+        paymentFrequency: Joi.string().valid('monthly', 'bi_weekly', 'weekly'),
+        paymentMethod: Joi.string().valid('bank_transfer', 'cash', 'check'),
+        bankDetails: Joi.object({
+            bankName: Joi.string().max(100),
+            iban: Joi.string().pattern(saudiIBANPattern).allow('', null).messages({
+                'string.pattern.base': 'رقم الآيبان غير صالح / Invalid IBAN'
+            })
         })
-    )
+    }),
+
+    // GOSI - nested structure
+    gosi: Joi.object({
+        registered: Joi.boolean(),
+        gosiNumber: Joi.string().max(50).allow('', null),
+        employeeContribution: Joi.number().min(0).max(100),
+        employerContribution: Joi.number().min(0).max(100)
+    }),
+
+    // Organization - nested structure (for medium/firm)
+    organization: Joi.object({
+        branchId: Joi.string().max(100).allow('', null),
+        departmentName: Joi.string().max(100).allow('', null),
+        teamId: Joi.string().max(100).allow('', null),
+        supervisorId: Joi.string().pattern(/^[0-9a-fA-F]{24}$/).allow(null, ''),
+        costCenter: Joi.string().max(100).allow('', null)
+    }),
+
+    // Leave - nested structure
+    leave: Joi.object({
+        annualLeaveEntitlement: Joi.number().integer().min(0).max(365)
+    })
 });
 
 /**
  * Update Employee validation schema (partial)
+ * Matches the nested structure expected by the HR controller
  */
 const updateEmployeeSchema = Joi.object({
-    name: Joi.string()
-        .min(2)
-        .max(100)
-        .messages({
-            'string.min': 'الاسم قصير جداً / Name is too short',
-            'string.max': 'الاسم طويل جداً / Name is too long'
+    // Office type
+    officeType: Joi.string().valid('solo', 'small', 'medium', 'firm'),
+
+    // Personal Info - nested structure
+    personalInfo: Joi.object({
+        fullNameArabic: Joi.string().max(200),
+        fullNameEnglish: Joi.string().max(200),
+        nationalId: Joi.string().pattern(saudiNationalIdPattern).allow('', null),
+        nationalIdType: Joi.string().valid('saudi_id', 'iqama', 'gcc_id', 'passport'),
+        nationalIdExpiry: Joi.date().iso().allow(null),
+        nationality: Joi.string().max(50),
+        isSaudi: Joi.boolean(),
+        gender: Joi.string().valid('male', 'female'),
+        dateOfBirth: Joi.date().iso().max('now').allow(null),
+        mobile: Joi.string().pattern(saudiPhonePattern).allow('', null),
+        email: Joi.string().email().allow('', null),
+        personalEmail: Joi.string().email().allow('', null),
+        currentAddress: Joi.object({
+            city: Joi.string().max(100),
+            region: Joi.string().max(100),
+            country: Joi.string().max(100)
         }),
-    email: Joi.string()
-        .email()
-        .messages({
-            'string.email': 'البريد الإلكتروني غير صالح / Invalid email format'
+        emergencyContact: Joi.object({
+            name: Joi.string().max(100),
+            relationship: Joi.string().max(50),
+            phone: Joi.string().pattern(saudiPhonePattern).allow('', null)
         }),
-    phone: Joi.string()
-        .pattern(saudiPhonePattern)
-        .messages({
-            'string.pattern.base': 'رقم الهاتف غير صالح / Invalid phone number'
+        maritalStatus: Joi.string().valid('single', 'married', 'divorced', 'widowed'),
+        numberOfDependents: Joi.number().integer().min(0)
+    }),
+
+    // Employment - nested structure
+    employment: Joi.object({
+        employmentStatus: Joi.string().valid('active', 'on_leave', 'suspended', 'terminated', 'resigned'),
+        jobTitle: Joi.string().max(100),
+        jobTitleArabic: Joi.string().max(100),
+        employmentType: Joi.string().valid('full_time', 'part_time', 'contract', 'temporary'),
+        contractType: Joi.string().valid('indefinite', 'fixed_term'),
+        contractStartDate: Joi.date().iso().allow(null),
+        contractEndDate: Joi.date().iso().allow(null),
+        hireDate: Joi.date().iso().allow(null),
+        probationPeriod: Joi.number().integer().min(0).max(365),
+        onProbation: Joi.boolean(),
+        workSchedule: Joi.object({
+            weeklyHours: Joi.number().min(0).max(168),
+            dailyHours: Joi.number().min(0).max(24),
+            workDays: Joi.array().items(Joi.string()),
+            restDay: Joi.string()
         }),
-    nationalId: Joi.string()
-        .pattern(saudiNationalIdPattern)
-        .messages({
-            'string.pattern.base': 'رقم الهوية غير صالح / Invalid National ID'
-        }),
-    department: Joi.string().max(100),
-    position: Joi.string().max(100),
-    salary: Joi.number().positive(),
-    startDate: Joi.date().iso(),
-    bankAccount: Joi.string()
-        .pattern(saudiIBANPattern)
-        .messages({
-            'string.pattern.base': 'رقم الآيبان غير صالح / Invalid IBAN'
-        }),
-    status: Joi.string()
-        .valid('active', 'inactive', 'on-leave', 'terminated')
-        .messages({
-            'any.only': 'الحالة غير صالحة / Invalid status'
-        }),
-    contractType: Joi.string()
-        .valid('full-time', 'part-time', 'contract', 'temporary'),
-    nationality: Joi.string().max(50),
-    gender: Joi.string().valid('male', 'female'),
-    dateOfBirth: Joi.date().iso().max('now'),
-    maritalStatus: Joi.string().valid('single', 'married', 'divorced', 'widowed'),
-    address: Joi.string().max(500),
-    emergencyContact: Joi.object({
-        name: Joi.string().max(100),
-        relationship: Joi.string().max(50),
-        phone: Joi.string().pattern(saudiPhonePattern)
+        reportsTo: Joi.string().pattern(/^[0-9a-fA-F]{24}$/).allow(null, ''),
+        departmentName: Joi.string().max(100),
+        terminationDate: Joi.date().iso().allow(null),
+        terminationReason: Joi.string().max(500)
+    }),
+
+    // Compensation - nested structure
+    compensation: Joi.object({
+        basicSalary: Joi.number().min(0),
+        currency: Joi.string().valid('SAR', 'USD', 'EUR', 'GBP'),
+        allowances: Joi.array().items(
+            Joi.object({
+                name: Joi.string().max(100),
+                nameAr: Joi.string().max(100),
+                amount: Joi.number().min(0),
+                taxable: Joi.boolean(),
+                includedInEOSB: Joi.boolean(),
+                includedInGOSI: Joi.boolean()
+            })
+        ),
+        paymentFrequency: Joi.string().valid('monthly', 'bi_weekly', 'weekly'),
+        paymentMethod: Joi.string().valid('bank_transfer', 'cash', 'check'),
+        bankDetails: Joi.object({
+            bankName: Joi.string().max(100),
+            iban: Joi.string().pattern(saudiIBANPattern).allow('', null)
+        })
+    }),
+
+    // GOSI - nested structure
+    gosi: Joi.object({
+        registered: Joi.boolean(),
+        gosiNumber: Joi.string().max(50).allow('', null),
+        employeeContribution: Joi.number().min(0).max(100),
+        employerContribution: Joi.number().min(0).max(100)
+    }),
+
+    // Organization - nested structure
+    organization: Joi.object({
+        branchId: Joi.string().max(100).allow('', null),
+        departmentName: Joi.string().max(100).allow('', null),
+        teamId: Joi.string().max(100).allow('', null),
+        supervisorId: Joi.string().pattern(/^[0-9a-fA-F]{24}$/).allow(null, ''),
+        costCenter: Joi.string().max(100).allow('', null)
+    }),
+
+    // Leave - nested structure
+    leave: Joi.object({
+        annualLeaveEntitlement: Joi.number().integer().min(0).max(365)
     })
 }).min(1).messages({
     'object.min': 'يجب تقديم حقل واحد على الأقل للتحديث / At least one field must be provided for update'
