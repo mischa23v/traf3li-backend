@@ -39,8 +39,8 @@ const TIME_TYPES = ['billable', 'non_billable', 'pro_bono', 'internal'];
 // Bill status
 const BILL_STATUSES = ['draft', 'unbilled', 'billed', 'written_off'];
 
-// Entry status
-const ENTRY_STATUSES = ['pending', 'approved', 'rejected'];
+// Entry status (extended for full workflow)
+const ENTRY_STATUSES = ['draft', 'pending', 'submitted', 'approved', 'rejected', 'billed', 'locked'];
 
 // Legacy activity codes for backwards compatibility
 const LEGACY_ACTIVITY_CODES = [
@@ -344,20 +344,43 @@ const timeEntrySchema = new mongoose.Schema({
     status: {
         type: String,
         enum: ENTRY_STATUSES,
-        default: 'pending',
+        default: 'draft',
         index: true
     },
+    // Submission tracking
+    submittedAt: Date,
+    submittedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
+    },
+    // Manager assigned for approval
+    assignedManager: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
+    },
+    // Approval tracking
     approvedBy: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User'
     },
     approvedAt: Date,
+    // Rejection tracking
     rejectedBy: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User'
     },
     rejectedAt: Date,
     rejectionReason: {
+        type: String,
+        maxlength: 500
+    },
+    // Locking tracking (for closed fiscal periods)
+    lockedAt: Date,
+    lockedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
+    },
+    lockReason: {
         type: String,
         maxlength: 500
     },
@@ -821,6 +844,192 @@ timeEntrySchema.methods.reject = async function(reason, userId) {
     });
 
     return await this.save();
+};
+
+/**
+ * Submit this time entry for approval
+ */
+timeEntrySchema.methods.submit = async function(userId, managerId = null) {
+    if (this.status !== 'draft' && this.status !== 'rejected') {
+        throw new Error('Only draft or rejected entries can be submitted');
+    }
+
+    this.status = 'submitted';
+    this.submittedAt = new Date();
+    this.submittedBy = userId;
+
+    if (managerId) {
+        this.assignedManager = managerId;
+    }
+
+    this.history.push({
+        action: 'submitted',
+        performedBy: userId,
+        timestamp: new Date()
+    });
+
+    return await this.save();
+};
+
+/**
+ * Lock this time entry (for closed fiscal periods)
+ */
+timeEntrySchema.methods.lock = async function(reason, userId) {
+    if (this.status === 'locked') {
+        throw new Error('Time entry already locked');
+    }
+
+    if (this.status !== 'approved' && this.status !== 'billed') {
+        throw new Error('Only approved or billed entries can be locked');
+    }
+
+    this.status = 'locked';
+    this.lockedAt = new Date();
+    this.lockedBy = userId;
+    this.lockReason = reason;
+
+    this.history.push({
+        action: 'locked',
+        performedBy: userId,
+        timestamp: new Date(),
+        details: { reason }
+    });
+
+    return await this.save();
+};
+
+/**
+ * Unlock this time entry (admin only)
+ */
+timeEntrySchema.methods.unlock = async function(userId) {
+    if (this.status !== 'locked') {
+        throw new Error('Time entry is not locked');
+    }
+
+    // Restore to approved status
+    this.status = 'approved';
+
+    this.history.push({
+        action: 'unlocked',
+        performedBy: userId,
+        timestamp: new Date(),
+        details: { previousLockReason: this.lockReason }
+    });
+
+    this.lockedAt = null;
+    this.lockedBy = null;
+    this.lockReason = null;
+
+    return await this.save();
+};
+
+/**
+ * Get pending approval entries for a manager
+ */
+timeEntrySchema.statics.getPendingApproval = async function(firmId, managerId = null) {
+    const query = {
+        firmId: new mongoose.Types.ObjectId(firmId),
+        status: 'submitted'
+    };
+
+    if (managerId) {
+        query.assignedManager = new mongoose.Types.ObjectId(managerId);
+    }
+
+    return await this.find(query)
+        .populate('assigneeId', 'name email')
+        .populate('clientId', 'firstName lastName companyName')
+        .populate('caseId', 'caseNumber title')
+        .sort({ submittedAt: -1 });
+};
+
+/**
+ * Bulk approve time entries
+ */
+timeEntrySchema.statics.bulkApprove = async function(entryIds, userId) {
+    const result = await this.updateMany(
+        {
+            _id: { $in: entryIds },
+            status: 'submitted'
+        },
+        {
+            $set: {
+                status: 'approved',
+                approvedAt: new Date(),
+                approvedBy: userId,
+                billStatus: 'unbilled'
+            },
+            $push: {
+                history: {
+                    action: 'approved',
+                    performedBy: userId,
+                    timestamp: new Date(),
+                    details: { bulkApproval: true }
+                }
+            }
+        }
+    );
+    return result;
+};
+
+/**
+ * Bulk reject time entries
+ */
+timeEntrySchema.statics.bulkReject = async function(entryIds, reason, userId) {
+    const result = await this.updateMany(
+        {
+            _id: { $in: entryIds },
+            status: 'submitted'
+        },
+        {
+            $set: {
+                status: 'rejected',
+                rejectedAt: new Date(),
+                rejectedBy: userId,
+                rejectionReason: reason
+            },
+            $push: {
+                history: {
+                    action: 'rejected',
+                    performedBy: userId,
+                    timestamp: new Date(),
+                    details: { reason, bulkRejection: true }
+                }
+            }
+        }
+    );
+    return result;
+};
+
+/**
+ * Lock entries for a closed fiscal period
+ */
+timeEntrySchema.statics.lockForPeriod = async function(firmId, startDate, endDate, reason, userId) {
+    const result = await this.updateMany(
+        {
+            firmId: new mongoose.Types.ObjectId(firmId),
+            date: { $gte: startDate, $lte: endDate },
+            status: { $in: ['approved', 'billed'] },
+            lockedAt: { $exists: false }
+        },
+        {
+            $set: {
+                status: 'locked',
+                lockedAt: new Date(),
+                lockedBy: userId,
+                lockReason: reason
+            },
+            $push: {
+                history: {
+                    action: 'locked',
+                    performedBy: userId,
+                    timestamp: new Date(),
+                    details: { reason, periodLock: true }
+                }
+            }
+        }
+    );
+    return result;
 };
 
 // ═══════════════════════════════════════════════════════════════

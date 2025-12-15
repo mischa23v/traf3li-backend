@@ -59,6 +59,13 @@ const journalEntryLineSchema = new mongoose.Schema(
  */
 const journalEntrySchema = new mongoose.Schema(
   {
+    // Multi-tenancy
+    firmId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Firm",
+      index: true
+    },
+
     // Auto-generated entry number (JE-YYYYMM-00001)
     entryNumber: {
       type: String,
@@ -156,6 +163,20 @@ const journalEntrySchema = new mongoose.Schema(
       trim: true
     },
 
+    // Reversal tracking
+    isReversal: {
+      type: Boolean,
+      default: false
+    },
+    reversedEntryId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "JournalEntry"
+    },
+    reversalEntryId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "JournalEntry"
+    },
+
     // Additional notes
     notes: {
       type: String,
@@ -198,10 +219,14 @@ const journalEntrySchema = new mongoose.Schema(
 
 // Indexes
 journalEntrySchema.index({ entryNumber: 1 }, { unique: true });
+journalEntrySchema.index({ firmId: 1, date: -1 });
+journalEntrySchema.index({ firmId: 1, status: 1 });
 journalEntrySchema.index({ date: 1, status: 1 });
 journalEntrySchema.index({ status: 1 });
 journalEntrySchema.index({ entryType: 1 });
 journalEntrySchema.index({ createdBy: 1 });
+journalEntrySchema.index({ reversedEntryId: 1 });
+journalEntrySchema.index({ reversalEntryId: 1 });
 
 // Virtual: Total debits
 journalEntrySchema.virtual("totalDebit").get(function () {
@@ -465,6 +490,62 @@ journalEntrySchema.methods.validateEntry = function () {
     isValid: errors.length === 0,
     errors
   };
+};
+
+/**
+ * Instance method: Create a reversal entry
+ * Creates a new entry with debits and credits swapped
+ */
+journalEntrySchema.methods.reverse = async function (reason, userId, session = null) {
+  if (this.status !== "posted") {
+    throw new Error("Only posted entries can be reversed");
+  }
+
+  if (this.reversalEntryId) {
+    throw new Error("This entry has already been reversed");
+  }
+
+  const options = session ? { session } : {};
+
+  // Create reversal lines (swap debits and credits)
+  const reversalLines = this.lines.map(line => ({
+    accountId: line.accountId,
+    debit: line.credit, // Swap
+    credit: line.debit, // Swap
+    description: `Reversal: ${line.description || ''}`,
+    caseId: line.caseId,
+    notes: line.notes
+  }));
+
+  // Create reversal entry
+  const reversalEntry = new this.constructor({
+    firmId: this.firmId,
+    date: new Date(),
+    description: `Reversal of ${this.entryNumber}: ${reason}`,
+    descriptionAr: this.descriptionAr ? `عكس ${this.entryNumber}` : undefined,
+    lines: reversalLines,
+    entryType: "reversal",
+    isReversal: true,
+    reversedEntryId: this._id,
+    notes: reason,
+    createdBy: userId
+  });
+
+  await reversalEntry.save(options);
+
+  // Post the reversal entry
+  await reversalEntry.post(userId, session);
+
+  // Update original entry
+  this.reversalEntryId = reversalEntry._id;
+  this.status = "void";
+  this.voidedAt = new Date();
+  this.voidedBy = userId;
+  this.voidReason = `Reversed: ${reason}`;
+
+  await this.save(options);
+
+  return { original: this, reversal: reversalEntry };
 };
 
 /**

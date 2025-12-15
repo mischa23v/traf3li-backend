@@ -22,6 +22,7 @@ const swaggerSpec = require('./configs/swagger');
 const connectDB = require('./configs/db');
 const { scheduleTaskReminders } = require('./utils/taskReminders');
 const { startRecurringInvoiceJobs } = require('./jobs/recurringInvoice.job');
+const { startTimeEntryJobs } = require('./jobs/timeEntryLocking.job');
 const { initSocket } = require('./configs/socket');
 const logger = require('./utils/logger');
 const { apiRateLimiter, speedLimiter } = require('./middlewares/rateLimiter.middleware');
@@ -157,6 +158,9 @@ const {
     paymentTermsRoute,
     expensePolicyRoute,
     corporateCardRoute,
+    paymentReceiptRoute,
+    invoiceApprovalRoute,
+    notificationSettingsRoute,
 
     // Investment & Trading Journal
     tradesRoute,
@@ -605,6 +609,9 @@ app.use('/api/recurring-invoices', noCache, recurringInvoiceRoute);
 app.use('/api/payment-terms', paymentTermsRoute);
 app.use('/api/expense-policies', expensePolicyRoute);
 app.use('/api/corporate-cards', noCache, corporateCardRoute);
+app.use('/api/payment-receipts', noCache, paymentReceiptRoute);
+app.use('/api/invoice-approvals', noCache, invoiceApprovalRoute);
+app.use('/api/notification-settings', noCache, notificationSettingsRoute);
 
 // Investment & Trading Journal Routes
 app.use('/api/v1/trades', tradesRoute);
@@ -871,6 +878,7 @@ server.listen(PORT, () => {
     connectDB();
     scheduleTaskReminders();
     startRecurringInvoiceJobs();
+    startTimeEntryJobs();
 
     logger.info('Server started', {
         port: PORT,
