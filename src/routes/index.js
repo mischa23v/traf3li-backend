@@ -114,6 +114,9 @@ const recurringInvoiceRoute = require('./recurringInvoice.route');
 const paymentTermsRoute = require('./paymentTerms.route');
 const expensePolicyRoute = require('./expensePolicy.route');
 const corporateCardRoute = require('./corporateCard.route');
+const paymentReceiptRoute = require('./paymentReceipt.route');
+const invoiceApprovalRoute = require('./invoiceApproval.route');
+const notificationSettingsRoute = require('./notificationSettings.route');
 
 // Investment & Trading Journal Routes
 const tradesRoute = require('./trades.route');
@@ -290,6 +293,9 @@ module.exports = {
     paymentTermsRoute,
     expensePolicyRoute,
     corporateCardRoute,
+    paymentReceiptRoute,
+    invoiceApprovalRoute,
+    notificationSettingsRoute,
 
     // Investment & Trading Journal
     tradesRoute,
