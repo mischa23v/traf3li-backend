@@ -117,4 +117,118 @@ router.post('/entries/:id/approve', userMiddleware, firmFilter, approveTimeEntry
 // Body: { reason: string }
 router.post('/entries/:id/reject', userMiddleware, firmFilter, rejectTimeEntry);
 
+// ═══════════════════════════════════════════════════════════════
+// COMPLETION STATUS ROUTES (ERPNext Parity)
+// ═══════════════════════════════════════════════════════════════
+
+// Mark entry as completed
+// POST /api/time-tracking/entries/:id/complete
+router.post('/entries/:id/complete', userMiddleware, firmFilter, async (req, res) => {
+    try {
+        const TimeEntry = require('../models/timeEntry.model');
+        const entry = await TimeEntry.findByIdAndUpdate(
+            req.params.id,
+            {
+                $set: {
+                    isCompleted: true,
+                    completedAt: new Date(),
+                    completedBy: req.user._id
+                }
+            },
+            { new: true }
+        );
+        if (!entry) {
+            return res.status(404).json({ success: false, error: 'Time entry not found' });
+        }
+        res.json({ success: true, data: entry });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// Mark entry as incomplete
+// POST /api/time-tracking/entries/:id/incomplete
+router.post('/entries/:id/incomplete', userMiddleware, firmFilter, async (req, res) => {
+    try {
+        const TimeEntry = require('../models/timeEntry.model');
+        const entry = await TimeEntry.findByIdAndUpdate(
+            req.params.id,
+            {
+                $set: { isCompleted: false },
+                $unset: { completedAt: '', completedBy: '' }
+            },
+            { new: true }
+        );
+        if (!entry) {
+            return res.status(404).json({ success: false, error: 'Time entry not found' });
+        }
+        res.json({ success: true, data: entry });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// Bulk mark entries as completed
+// POST /api/time-tracking/entries/bulk-complete
+router.post('/entries/bulk-complete', userMiddleware, firmFilter, async (req, res) => {
+    try {
+        const { ids } = req.body;
+        if (!ids || !Array.isArray(ids)) {
+            return res.status(400).json({ success: false, error: 'ids array is required' });
+        }
+        const TimeEntry = require('../models/timeEntry.model');
+        await TimeEntry.bulkMarkCompleted(ids, req.user._id);
+        res.json({ success: true, count: ids.length });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// Get case completion stats
+// GET /api/time-tracking/case/:caseId/completion-stats
+router.get('/case/:caseId/completion-stats', userMiddleware, firmFilter, async (req, res) => {
+    try {
+        const TimeEntry = require('../models/timeEntry.model');
+        const stats = await TimeEntry.getCaseCompletionStats(req.params.caseId);
+        res.json({ success: true, data: stats });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// ═══════════════════════════════════════════════════════════════
+// BILLING HISTORY ROUTES (ERPNext Parity)
+// ═══════════════════════════════════════════════════════════════
+
+// Get billing history for a time entry
+// GET /api/time-tracking/entries/:id/billing-history
+router.get('/entries/:id/billing-history', userMiddleware, firmFilter, async (req, res) => {
+    try {
+        const TimeEntry = require('../models/timeEntry.model');
+        const history = await TimeEntry.getBillingHistory(req.params.id);
+        if (!history) {
+            return res.status(404).json({ success: false, error: 'Time entry not found' });
+        }
+        res.json({ success: true, data: history });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// Get unbilled entries grouped by case
+// GET /api/time-tracking/unbilled-grouped
+router.get('/unbilled-grouped', userMiddleware, firmFilter, async (req, res) => {
+    try {
+        const { clientId, caseId } = req.query;
+        const TimeEntry = require('../models/timeEntry.model');
+        const filters = { firmId: req.firmId };
+        if (clientId) filters.clientId = clientId;
+        if (caseId) filters.caseId = caseId;
+        const grouped = await TimeEntry.getUnbilledEntriesGrouped(filters);
+        res.json({ success: true, data: grouped });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
 module.exports = router;

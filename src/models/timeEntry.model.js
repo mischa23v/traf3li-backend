@@ -235,6 +235,91 @@ const timeEntrySchema = new mongoose.Schema({
     invoicedAt: Date,
 
     // ═══════════════════════════════════════════════════════════════
+    // SALES INVOICE REFERENCE (ERPNext: sales_invoice)
+    // ═══════════════════════════════════════════════════════════════
+    salesInvoiceRef: {
+        type: String,
+        trim: true,
+        index: true
+        // Stores invoice number for quick reference
+    },
+    billedDate: {
+        type: Date
+    },
+    billedAmount: {
+        type: Number,
+        min: 0
+        // Amount included in invoice (may differ from totalAmount due to discounts)
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // BILLING HOURS OVERRIDE (ERPNext: billing_hours)
+    // ═══════════════════════════════════════════════════════════════
+    billingHours: {
+        type: Number,
+        min: 0
+        // Override hours for billing (may differ from actual)
+    },
+    billingMinutes: {
+        type: Number,
+        min: 0,
+        max: 59,
+        default: 0
+    },
+    isBillableOverride: {
+        type: Boolean,
+        default: false
+        // True when billing hours differ from actual hours
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // COSTING (ERPNext: costing_rate, costing_amount)
+    // ═══════════════════════════════════════════════════════════════
+    costingRate: {
+        type: Number,
+        min: 0,
+        default: 0
+        // Internal cost rate per hour (in halalas)
+    },
+    costingAmount: {
+        type: Number,
+        min: 0,
+        default: 0
+        // Calculated: actualHours * costingRate
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // EXPECTED HOURS (ERPNext: expected_hours)
+    // ═══════════════════════════════════════════════════════════════
+    expectedHours: {
+        type: Number,
+        min: 0,
+        default: 0
+    },
+    expectedMinutes: {
+        type: Number,
+        min: 0,
+        max: 59,
+        default: 0
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // COMPLETION STATUS (ERPNext: completed)
+    // ═══════════════════════════════════════════════════════════════
+    isCompleted: {
+        type: Boolean,
+        default: false,
+        index: true
+    },
+    completedAt: {
+        type: Date
+    },
+    completedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
+    },
+
+    // ═══════════════════════════════════════════════════════════════
     // WRITE-OFF / WRITE-DOWN
     // ═══════════════════════════════════════════════════════════════
     writeOff: {
@@ -458,6 +543,10 @@ timeEntrySchema.index({ caseId: 1, date: -1 });
 timeEntrySchema.index({ lawyerId: 1, date: -1 });
 timeEntrySchema.index({ isBilled: 1, isBillable: 1 });
 timeEntrySchema.index({ date: -1 });
+// ERPNext parity indexes
+timeEntrySchema.index({ isBilled: 1, caseId: 1, date: -1 });
+timeEntrySchema.index({ isCompleted: 1, caseId: 1 });
+timeEntrySchema.index({ salesInvoiceRef: 1 });
 
 // ═══════════════════════════════════════════════════════════════
 // PRE-SAVE HOOK
@@ -491,9 +580,28 @@ timeEntrySchema.pre('save', async function(next) {
     // Calculate amounts
     if (this.isModified('duration') || this.isModified('hourlyRate') ||
         this.isModified('writeOff') || this.isModified('writeDownAmount') ||
-        this.isModified('timeType')) {
+        this.isModified('timeType') || this.isModified('billingHours') ||
+        this.isModified('billingMinutes') || this.isModified('isBillableOverride') ||
+        this.isModified('costingRate')) {
 
+        // Calculate base amount from actual duration
         const baseAmount = Math.round((this.duration / 60) * this.hourlyRate);
+
+        // Calculate billing amount (may use override hours)
+        let billableMinutes;
+        if (this.isBillableOverride && (this.billingHours !== undefined || this.billingMinutes)) {
+            billableMinutes = ((this.billingHours || 0) * 60) + (this.billingMinutes || 0);
+        } else {
+            billableMinutes = this.duration;
+        }
+        const billingAmount = Math.round((billableMinutes / 60) * this.hourlyRate);
+
+        // Calculate costing amount (always uses actual hours)
+        if (this.costingRate > 0) {
+            this.costingAmount = Math.round((this.duration / 60) * this.costingRate);
+        } else {
+            this.costingAmount = 0;
+        }
 
         if (this.writeOff) {
             // Written off - no amount
@@ -503,12 +611,12 @@ timeEntrySchema.pre('save', async function(next) {
             this.billStatus = 'written_off';
         } else if (this.writeDown && this.writeDownAmount > 0) {
             // Written down - reduced amount
-            this.totalAmount = baseAmount;
-            this.finalAmount = Math.max(0, baseAmount - this.writeDownAmount);
+            this.totalAmount = this.isBillableOverride ? billingAmount : baseAmount;
+            this.finalAmount = Math.max(0, this.totalAmount - this.writeDownAmount);
         } else if (this.timeType === 'billable') {
-            // Normal billable
-            this.totalAmount = baseAmount;
-            this.finalAmount = baseAmount;
+            // Normal billable (use billing override if enabled)
+            this.totalAmount = this.isBillableOverride ? billingAmount : baseAmount;
+            this.finalAmount = this.totalAmount;
         } else {
             // Non-billable types
             this.totalAmount = baseAmount;
@@ -672,9 +780,10 @@ timeEntrySchema.statics.getTimeByCase = async function(filters = {}) {
 };
 
 /**
- * Mark entries as billed
+ * Mark entries as billed (ERPNext parity: includes sales_invoice reference)
  */
-timeEntrySchema.statics.markAsBilled = async function(entryIds, invoiceId, userId) {
+timeEntrySchema.statics.markAsBilled = async function(entryIds, invoiceId, invoiceNumber, userId, session = null) {
+    const options = session ? { session } : {};
     const result = await this.updateMany(
         { _id: { $in: entryIds } },
         {
@@ -682,19 +791,44 @@ timeEntrySchema.statics.markAsBilled = async function(entryIds, invoiceId, userI
                 isBilled: true,
                 billStatus: 'billed',
                 invoiceId: invoiceId,
-                invoicedAt: new Date()
+                salesInvoiceRef: invoiceNumber,
+                invoicedAt: new Date(),
+                billedDate: new Date()
             },
             $push: {
                 history: {
                     action: 'billed',
                     performedBy: userId,
                     timestamp: new Date(),
-                    details: { invoiceId }
+                    details: { invoiceId, invoiceNumber }
                 }
             }
-        }
+        },
+        options
     );
     return result;
+};
+
+/**
+ * Reverse billing when invoice is cancelled/voided (ERPNext parity)
+ */
+timeEntrySchema.statics.unmarkAsBilled = async function(invoiceId, session = null) {
+    const options = session ? { session } : {};
+    return await this.updateMany(
+        { invoiceId: invoiceId },
+        {
+            $set: {
+                isBilled: false,
+                billStatus: 'unbilled'
+            },
+            $unset: {
+                salesInvoiceRef: '',
+                billedDate: '',
+                billedAmount: ''
+            }
+        },
+        options
+    );
 };
 
 /**
@@ -728,6 +862,146 @@ timeEntrySchema.statics.generateEntryId = async function(firmId) {
         entryId: new RegExp(`^TE-${year}-`)
     });
     return `TE-${year}-${String(count + 1).padStart(4, '0')}`;
+};
+
+/**
+ * Get unbilled entries grouped by case for invoice creation (ERPNext parity)
+ */
+timeEntrySchema.statics.getUnbilledEntriesGrouped = async function(filters = {}) {
+    const matchStage = {
+        isBillable: true,
+        isBilled: false,
+        billStatus: { $nin: ['written_off', 'billed'] }
+    };
+
+    if (filters.firmId) matchStage.firmId = new mongoose.Types.ObjectId(filters.firmId);
+    if (filters.clientId) matchStage.clientId = new mongoose.Types.ObjectId(filters.clientId);
+    if (filters.caseId) matchStage.caseId = new mongoose.Types.ObjectId(filters.caseId);
+
+    const entries = await this.find(matchStage)
+        .populate('assigneeId', 'firstName lastName hourlyRate')
+        .populate('caseId', 'caseNumber title')
+        .sort({ date: -1 });
+
+    // Group by case
+    const grouped = entries.reduce((acc, entry) => {
+        const key = entry.caseId?._id?.toString() || 'no-case';
+        if (!acc[key]) {
+            acc[key] = {
+                caseId: entry.caseId?._id,
+                caseNumber: entry.caseId?.caseNumber,
+                caseName: entry.caseId?.title,
+                entries: [],
+                totalAmount: 0,
+                totalHours: 0
+            };
+        }
+        acc[key].entries.push(entry);
+        acc[key].totalAmount += entry.finalAmount || entry.totalAmount || 0;
+        acc[key].totalHours += (entry.duration || 0) / 60;
+        return acc;
+    }, {});
+
+    return Object.values(grouped);
+};
+
+/**
+ * Bulk mark entries as completed (ERPNext parity)
+ */
+timeEntrySchema.statics.bulkMarkCompleted = async function(entryIds, userId) {
+    return await this.updateMany(
+        { _id: { $in: entryIds } },
+        {
+            $set: {
+                isCompleted: true,
+                completedAt: new Date(),
+                completedBy: userId
+            }
+        }
+    );
+};
+
+/**
+ * Bulk mark entries as incomplete (ERPNext parity)
+ */
+timeEntrySchema.statics.bulkMarkIncomplete = async function(entryIds) {
+    return await this.updateMany(
+        { _id: { $in: entryIds } },
+        {
+            $set: { isCompleted: false },
+            $unset: { completedAt: '', completedBy: '' }
+        }
+    );
+};
+
+/**
+ * Get case completion statistics (ERPNext parity)
+ */
+timeEntrySchema.statics.getCaseCompletionStats = async function(caseId) {
+    const stats = await this.aggregate([
+        { $match: { caseId: new mongoose.Types.ObjectId(caseId) } },
+        {
+            $group: {
+                _id: null,
+                totalEntries: { $sum: 1 },
+                completedEntries: { $sum: { $cond: ['$isCompleted', 1, 0] } },
+                totalHours: { $sum: { $add: [{ $ifNull: ['$duration', 0] }] } },
+                completedHours: {
+                    $sum: {
+                        $cond: [
+                            '$isCompleted',
+                            { $add: [{ $ifNull: ['$duration', 0] }] },
+                            0
+                        ]
+                    }
+                },
+                totalAmount: { $sum: { $ifNull: ['$finalAmount', 0] } },
+                billedAmount: {
+                    $sum: {
+                        $cond: [
+                            '$isBilled',
+                            { $ifNull: ['$finalAmount', 0] },
+                            0
+                        ]
+                    }
+                }
+            }
+        }
+    ]);
+
+    if (!stats.length) return null;
+
+    const result = stats[0];
+    return {
+        totalEntries: result.totalEntries,
+        completedEntries: result.completedEntries,
+        completionPercentage: result.totalEntries > 0
+            ? Math.round((result.completedEntries / result.totalEntries) * 100)
+            : 0,
+        totalHours: Math.round((result.totalHours / 60) * 10) / 10,
+        completedHours: Math.round((result.completedHours / 60) * 10) / 10,
+        totalAmount: result.totalAmount,
+        billedAmount: result.billedAmount,
+        unbilledAmount: result.totalAmount - result.billedAmount
+    };
+};
+
+/**
+ * Get billing history for a time entry (ERPNext parity)
+ */
+timeEntrySchema.statics.getBillingHistory = async function(entryId) {
+    const entry = await this.findById(entryId)
+        .populate('invoiceId', 'invoiceNumber issueDate status totalAmount');
+
+    if (!entry) return null;
+
+    return {
+        isBilled: entry.isBilled,
+        billedDate: entry.billedDate,
+        salesInvoiceRef: entry.salesInvoiceRef,
+        billedAmount: entry.billedAmount,
+        invoice: entry.invoiceId
+    };
 };
 
 // ═══════════════════════════════════════════════════════════════

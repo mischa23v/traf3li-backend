@@ -1164,6 +1164,84 @@ employeeAdvanceSchema.statics.getByEmployee = async function(employeeId, firmId,
         .sort({ createdAt: -1 });
 };
 
+/**
+ * Get available advances for expense allocation (ERPNext parity)
+ * Returns advances that have unclaimed amounts available for expense claims
+ */
+employeeAdvanceSchema.statics.getAvailableAdvancesForExpense = async function(employeeId) {
+    // Find advances that are disbursed/recovering and have remaining balance
+    const advances = await this.find({
+        employeeId,
+        status: { $in: ['disbursed', 'recovering'] },
+        'balance.remainingBalance': { $gt: 0 }
+    }).sort({ disbursementDate: -1, requestDate: -1 });
+
+    return advances.map(adv => ({
+        id: adv._id,
+        advanceId: adv._id,
+        advanceRef: adv.advanceNumber || adv.advanceId,
+        advanceDate: adv.disbursementDate || adv.requestDate,
+        totalAmount: adv.advanceAmount || adv.balance?.originalAmount || 0,
+        allocatedAmount: adv.balance?.recoveredAmount || 0,
+        unclaimedAmount: adv.balance?.remainingBalance || 0,
+        purpose: adv.reason || adv.detailedReason,
+        advanceType: adv.advanceType
+    }));
+};
+
+/**
+ * Allocate amount from advance to expense claim (ERPNext parity)
+ */
+employeeAdvanceSchema.statics.allocateToExpenseClaim = async function(advanceId, expenseId, expenseRef, amount, session = null) {
+    const options = session ? { session } : {};
+
+    const advance = await this.findById(advanceId);
+    if (!advance) {
+        throw new Error('Advance not found');
+    }
+
+    const available = advance.balance?.remainingBalance || 0;
+    if (amount > available) {
+        throw new Error(`Cannot allocate ${amount}. Only ${available} available.`);
+    }
+
+    // Update balance
+    advance.balance.recoveredAmount = (advance.balance.recoveredAmount || 0) + amount;
+    advance.balance.remainingBalance = (advance.balance.originalAmount || advance.advanceAmount) -
+        advance.balance.recoveredAmount;
+
+    // Update completion percentage
+    if (advance.balance.originalAmount > 0) {
+        advance.balance.completionPercentage = Math.round(
+            (advance.balance.recoveredAmount / advance.balance.originalAmount) * 100
+        );
+    }
+
+    // Add to recovery history
+    if (!advance.recoveryHistory) advance.recoveryHistory = [];
+    advance.recoveryHistory.push({
+        recoveryId: `EXP-${expenseId}`,
+        recoveryDate: new Date(),
+        recoveredAmount: amount,
+        recoveryMethod: 'expense_claim',
+        recoveryReference: expenseRef,
+        remainingBalance: advance.balance.remainingBalance,
+        notes: `Allocated to expense claim ${expenseRef}`
+    });
+
+    // Update status if fully recovered
+    if (advance.balance.remainingBalance <= 0) {
+        advance.status = 'completed';
+        advance.completion = advance.completion || {};
+        advance.completion.advanceCompleted = true;
+        advance.completion.completionDate = new Date();
+        advance.completion.completionMethod = 'full_recovery';
+    }
+
+    await advance.save(options);
+    return advance;
+};
+
 // Ensure virtuals are included in JSON
 employeeAdvanceSchema.set('toJSON', { virtuals: true });
 employeeAdvanceSchema.set('toObject', { virtuals: true });

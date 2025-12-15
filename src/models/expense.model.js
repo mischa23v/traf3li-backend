@@ -86,6 +86,49 @@ const GOVERNMENT_ENTITIES = [
     'other'
 ];
 
+// Approval statuses (ERPNext: approval_status)
+const APPROVAL_STATUSES = ['pending', 'approved', 'rejected'];
+
+// Payment modes for expense clearance
+const EXPENSE_PAYMENT_MODES = ['bank_transfer', 'cash', 'check', 'payroll'];
+
+// ═══════════════════════════════════════════════════════════════
+// EMPLOYEE ADVANCE ALLOCATION SCHEMA (ERPNext: advances child table)
+// ═══════════════════════════════════════════════════════════════
+const AdvanceAllocationSchema = new mongoose.Schema({
+    advanceId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'EmployeeAdvance',
+        required: true
+    },
+    advanceRef: {
+        type: String,
+        required: true
+    },
+    advanceDate: {
+        type: Date
+    },
+    totalAmount: {
+        type: Number,
+        min: 0
+    },
+    unclaimedAmount: {
+        type: Number,
+        min: 0
+    },
+    allocatedAmount: {
+        type: Number,
+        min: 0,
+        required: true
+    },
+    returnAmount: {
+        type: Number,
+        min: 0,
+        default: 0
+        // Amount to be returned to company (if advance > expenses)
+    }
+}, { _id: false });
+
 const expenseSchema = new mongoose.Schema({
     // ═══════════════════════════════════════════════════════════════
     // FIRM (Multi-Tenancy)
@@ -398,6 +441,88 @@ const expenseSchema = new mongoose.Schema({
     },
 
     // ═══════════════════════════════════════════════════════════════
+    // APPROVAL WORKFLOW (ERPNext: expense_approver, approval_status)
+    // ═══════════════════════════════════════════════════════════════
+    expenseApproverId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        index: true
+        // Designated approver for this expense
+    },
+    approvalStatus: {
+        type: String,
+        enum: APPROVAL_STATUSES,
+        default: 'pending',
+        index: true
+    },
+    approvalDate: {
+        type: Date
+    },
+    sanctionedAmount: {
+        type: Number,
+        min: 0
+        // Approved amount (may differ from claimed amount)
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // PAYABLE ACCOUNT & JOURNAL ENTRY (ERPNext: payable_account)
+    // ═══════════════════════════════════════════════════════════════
+    payableAccount: {
+        type: String,
+        trim: true
+        // Account code for payable (e.g., employee payable)
+    },
+    journalEntryRef: {
+        type: String,
+        trim: true
+    },
+    journalEntryId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'JournalEntry'
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // PAYMENT STATUS (ERPNext parity)
+    // ═══════════════════════════════════════════════════════════════
+    isPaid: {
+        type: Boolean,
+        default: false
+    },
+    modeOfPayment: {
+        type: String,
+        enum: EXPENSE_PAYMENT_MODES
+    },
+    clearanceDate: {
+        type: Date
+    },
+    paymentReference: {
+        type: String,
+        trim: true
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // EMPLOYEE ADVANCE ALLOCATION (ERPNext: advances child table)
+    // ═══════════════════════════════════════════════════════════════
+    advances: {
+        type: [AdvanceAllocationSchema],
+        default: []
+    },
+    totalAdvanceAllocated: {
+        type: Number,
+        min: 0,
+        default: 0
+    },
+    totalReturnAmount: {
+        type: Number,
+        min: 0,
+        default: 0
+    },
+    netClaimAmount: {
+        type: Number
+        // Calculated: totalAmount - totalAdvanceAllocated
+    },
+
+    // ═══════════════════════════════════════════════════════════════
     // NOTES
     // ═══════════════════════════════════════════════════════════════
     notes: {
@@ -546,6 +671,39 @@ expenseSchema.pre('save', async function(next) {
         const returnDate = new Date(this.travelDetails.returnDate);
         const diffTime = Math.abs(returnDate - departure);
         this.travelDetails.numberOfDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+    }
+
+    // Calculate employee advance allocation totals
+    if (this.advances && this.advances.length > 0) {
+        this.totalAdvanceAllocated = this.advances.reduce((sum, adv) => {
+            return addAmounts(sum, normalizeHalalas(adv.allocatedAmount || 0));
+        }, 0);
+        this.totalReturnAmount = this.advances.reduce((sum, adv) => {
+            return addAmounts(sum, normalizeHalalas(adv.returnAmount || 0));
+        }, 0);
+    } else {
+        this.totalAdvanceAllocated = 0;
+        this.totalReturnAmount = 0;
+    }
+
+    // Calculate net claim amount (amount owed to employee after advance allocation)
+    this.netClaimAmount = this.totalAmount - this.totalAdvanceAllocated;
+
+    // Sync approvalStatus with status for backwards compatibility
+    if (this.isModified('status')) {
+        if (this.status === 'approved') {
+            this.approvalStatus = 'approved';
+            this.approvalDate = this.approvalDate || new Date();
+        } else if (this.status === 'rejected') {
+            this.approvalStatus = 'rejected';
+        } else if (this.status === 'pending_approval') {
+            this.approvalStatus = 'pending';
+        }
+    }
+
+    // Initialize sanctionedAmount to totalAmount if approved and not set
+    if (this.approvalStatus === 'approved' && !this.sanctionedAmount) {
+        this.sanctionedAmount = this.totalAmount;
     }
 
     next();
@@ -960,5 +1118,7 @@ expenseSchema.statics.EXPENSE_CATEGORIES = EXPENSE_CATEGORIES;
 expenseSchema.statics.PAYMENT_METHODS = PAYMENT_METHODS;
 expenseSchema.statics.TRIP_PURPOSES = TRIP_PURPOSES;
 expenseSchema.statics.GOVERNMENT_ENTITIES = GOVERNMENT_ENTITIES;
+expenseSchema.statics.APPROVAL_STATUSES = APPROVAL_STATUSES;
+expenseSchema.statics.EXPENSE_PAYMENT_MODES = EXPENSE_PAYMENT_MODES;
 
 module.exports = mongoose.model('Expense', expenseSchema);

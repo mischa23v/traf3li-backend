@@ -100,6 +100,71 @@ const ApprovalSchema = new Schema({
     notes: String
 });
 
+// ============ SHIPPING ADDRESS SCHEMA (ERPNext: shipping_address_name, shipping_address) ============
+const ShippingAddressSchema = new Schema({
+    line1: { type: String, maxlength: 500, trim: true },
+    line2: { type: String, maxlength: 500, trim: true },
+    city: { type: String, maxlength: 100, trim: true },
+    postalCode: {
+        type: String,
+        maxlength: 20,
+        validate: {
+            validator: function(v) {
+                if (!v) return true;
+                // Saudi postal codes are 5 digits
+                return /^[0-9]{5}$/.test(v);
+            },
+            message: 'Saudi postal code must be 5 digits'
+        }
+    },
+    country: { type: String, default: 'SA', maxlength: 2 }
+}, { _id: false });
+
+// ============ SALES TEAM SCHEMA (ERPNext: sales_team child table) ============
+const SalesTeamSchema = new Schema({
+    salesPersonId: {
+        type: Schema.Types.ObjectId,
+        ref: 'User',
+        required: true
+    },
+    salesPersonName: {
+        type: String,
+        trim: true
+    },
+    commissionRate: {
+        type: Number,
+        min: 0,
+        max: 100,
+        default: 0
+    },
+    commissionAmount: {
+        type: Number,
+        min: 0,
+        default: 0
+    }
+}, { _id: false });
+
+// ============ ADVANCE ALLOCATION SCHEMA (ERPNext: advances child table) ============
+const AdvanceAllocationSchema = new Schema({
+    advancePaymentId: {
+        type: Schema.Types.ObjectId,
+        ref: 'Payment',
+        required: true
+    },
+    referenceNumber: {
+        type: String,
+        required: true
+    },
+    paymentDate: {
+        type: Date
+    },
+    allocatedAmount: {
+        type: Number,
+        min: 0,
+        required: true
+    }
+}, { _id: false });
+
 // ============ MAIN INVOICE SCHEMA ============
 const invoiceSchema = new Schema({
     // ============ FIRM (Multi-Tenancy) ============
@@ -156,6 +221,84 @@ const invoiceSchema = new Schema({
     responsibleAttorneyId: {
         type: Schema.Types.ObjectId,
         ref: 'User'
+    },
+
+    // ============ CONTACT PERSON (ERPNext: contact_person, contact_display, contact_email, contact_mobile) ============
+    contactPersonName: {
+        type: String,
+        trim: true,
+        maxlength: 200
+    },
+    contactEmail: {
+        type: String,
+        trim: true,
+        lowercase: true,
+        validate: {
+            validator: (v) => !v || /^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$/.test(v),
+            message: 'Invalid email format'
+        }
+    },
+    contactMobile: {
+        type: String,
+        trim: true,
+        validate: {
+            validator: (v) => !v || /^\+?[0-9]{10,15}$/.test(v),
+            message: 'Invalid mobile number'
+        }
+    },
+
+    // ============ SHIPPING ADDRESS (ERPNext: shipping_address_name, shipping_address) ============
+    shippingAddress: {
+        type: ShippingAddressSchema,
+        default: null
+    },
+
+    // ============ SALES TEAM (ERPNext: sales_team child table) ============
+    salesTeam: {
+        type: [SalesTeamSchema],
+        default: []
+    },
+
+    // ============ ADVANCE PAYMENTS (ERPNext: advances child table) ============
+    advances: {
+        type: [AdvanceAllocationSchema],
+        default: []
+    },
+    totalAdvanceAllocated: {
+        type: Number,
+        min: 0,
+        default: 0
+    },
+
+    // ============ CREDIT NOTE / RETURN (ERPNext: is_return, return_against, is_debit_note) ============
+    isReturn: {
+        type: Boolean,
+        default: false,
+        index: true
+    },
+    returnAgainst: {
+        type: Schema.Types.ObjectId,
+        ref: 'Invoice'
+        // Reference to original invoice being returned/credited
+    },
+    returnAgainstNumber: {
+        type: String
+        // Stored for quick reference without population
+    },
+    isDebitNote: {
+        type: Boolean,
+        default: false
+        // True when this is a rate adjustment (Debit Note) vs a full return (Credit Note)
+    },
+    returnReason: {
+        type: String,
+        maxlength: 1000,
+        trim: true
+    },
+    outstandingAmount: {
+        type: Number,
+        default: 0
+        // Tracks remaining amount after credit notes applied
     },
 
     // ============ DATES ============
@@ -499,6 +642,9 @@ invoiceSchema.index({ responsibleAttorneyId: 1 });
 invoiceSchema.index({ firmId: 1, status: 1, dueDate: -1 });
 invoiceSchema.index({ firmId: 1, status: 1, createdAt: -1 });
 invoiceSchema.index({ firmId: 1, lawyerId: 1, status: 1 });
+// Credit note indexes
+invoiceSchema.index({ isReturn: 1, returnAgainst: 1 });
+invoiceSchema.index({ isReturn: 1, clientId: 1, createdAt: -1 });
 
 // ============ VIRTUALS ============
 invoiceSchema.virtual('isOverdue').get(function() {
@@ -587,6 +733,81 @@ invoiceSchema.statics.getClientBalance = async function(clientId) {
     return result[0]?.totalDue || 0;
 };
 
+/**
+ * Generate credit note number (CN-YYYYMM-XXXX)
+ */
+invoiceSchema.statics.generateCreditNoteNumber = async function() {
+    const date = new Date();
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+
+    const lastCN = await this.findOne({
+        isReturn: true,
+        invoiceNumber: { $regex: `^CN-${year}${month}` }
+    }).sort({ invoiceNumber: -1 });
+
+    const lastNum = lastCN
+        ? parseInt(lastCN.invoiceNumber.split('-')[2]) || 0
+        : 0;
+
+    return `CN-${year}${month}-${String(lastNum + 1).padStart(4, '0')}`;
+};
+
+/**
+ * Generate debit note number (DN-YYYYMM-XXXX)
+ */
+invoiceSchema.statics.generateDebitNoteNumber = async function() {
+    const date = new Date();
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+
+    const lastDN = await this.findOne({
+        isDebitNote: true,
+        invoiceNumber: { $regex: `^DN-${year}${month}` }
+    }).sort({ invoiceNumber: -1 });
+
+    const lastNum = lastDN
+        ? parseInt(lastDN.invoiceNumber.split('-')[2]) || 0
+        : 0;
+
+    return `DN-${year}${month}-${String(lastNum + 1).padStart(4, '0')}`;
+};
+
+/**
+ * Get ZATCA invoice type code
+ * 388 = Standard Tax Invoice
+ * 386 = Prepayment Invoice
+ * 383 = Debit Note
+ * 381 = Credit Note
+ */
+invoiceSchema.statics.getZatcaInvoiceTypeCode = function(invoice) {
+    if (invoice.isReturn) {
+        return invoice.isDebitNote ? '383' : '381';
+    }
+    return invoice.zatca?.invoiceType || '388';
+};
+
+/**
+ * Get credit notes for an invoice
+ */
+invoiceSchema.statics.getCreditNotesForInvoice = async function(invoiceId) {
+    return await this.find({
+        returnAgainst: invoiceId,
+        isReturn: true
+    }).sort({ createdAt: -1 });
+};
+
+/**
+ * Get total credited amount for an invoice
+ */
+invoiceSchema.statics.getTotalCreditedAmount = async function(invoiceId) {
+    const result = await this.aggregate([
+        { $match: { returnAgainst: new mongoose.Types.ObjectId(invoiceId), isReturn: true } },
+        { $group: { _id: null, total: { $sum: { $abs: '$totalAmount' } } } }
+    ]);
+    return result[0]?.total || 0;
+};
+
 // ============ PRE-SAVE MIDDLEWARE ============
 invoiceSchema.pre('save', async function(next) {
     const { toHalalas, addAmounts, subtractAmounts, calculatePercentage } = require('../utils/currency');
@@ -596,13 +817,28 @@ invoiceSchema.pre('save', async function(next) {
 
     // Auto-generate invoice number if not provided
     if (this.isNew && !this.invoiceNumber) {
-        this.invoiceNumber = await this.constructor.generateInvoiceNumber();
+        // Generate appropriate number based on invoice type
+        if (this.isReturn && this.isDebitNote) {
+            this.invoiceNumber = await this.constructor.generateDebitNoteNumber();
+        } else if (this.isReturn) {
+            this.invoiceNumber = await this.constructor.generateCreditNoteNumber();
+        } else {
+            this.invoiceNumber = await this.constructor.generateInvoiceNumber();
+        }
     }
 
     // Normalize incoming numeric fields to halalas so all arithmetic stays in smallest unit
     this.depositAmount = normalizeHalalas(this.depositAmount);
     this.amountPaid = normalizeHalalas(this.amountPaid);
     this.applyFromRetainer = normalizeHalalas(this.applyFromRetainer);
+    this.totalAdvanceAllocated = normalizeHalalas(this.totalAdvanceAllocated);
+
+    // Calculate total advance allocated from advances array
+    if (this.advances && this.advances.length > 0) {
+        this.totalAdvanceAllocated = this.advances.reduce((sum, adv) => {
+            return addAmounts(sum, normalizeHalalas(adv.allocatedAmount || 0));
+        }, 0);
+    }
 
     // Normalize line items ahead of calculation
     this.items = (this.items || []).map(item => {
@@ -617,6 +853,25 @@ invoiceSchema.pre('save', async function(next) {
 
     // Calculate totals
     this.calculateTotals({ addAmounts, subtractAmounts, calculatePercentage, multiplyToHalalas, normalizeHalalas });
+
+    // Calculate sales commission amounts
+    if (this.salesTeam && this.salesTeam.length > 0) {
+        const baseForCommission = subtractAmounts(this.subtotal, this.discountAmount || 0);
+        this.salesTeam = this.salesTeam.map(member => ({
+            ...member,
+            commissionAmount: calculatePercentage(baseForCommission, member.commissionRate || 0)
+        }));
+    }
+
+    // Initialize outstandingAmount if new
+    if (this.isNew && !this.isReturn) {
+        this.outstandingAmount = this.totalAmount;
+    }
+
+    // Update balanceDue to account for advances
+    if (this.totalAdvanceAllocated > 0) {
+        this.balanceDue = subtractAmounts(this.balanceDue, this.totalAdvanceAllocated);
+    }
 
     // Update status if overdue
     if (this.isOverdue && this.status === 'sent') {

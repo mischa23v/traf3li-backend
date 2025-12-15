@@ -58,6 +58,63 @@ app.get('/unreconciled', userMiddleware, firmFilter, getUnreconciledPayments);
 // Pending checks
 app.get('/pending-checks', userMiddleware, firmFilter, getPendingChecks);
 
+// ═══════════════════════════════════════════════════════════════
+// ADVANCE PAYMENTS (ERPNext Parity)
+// ═══════════════════════════════════════════════════════════════
+
+// Get available advance payments for a client (for invoice allocation)
+// GET /api/payments/advances/available/:clientId
+app.get('/advances/available/:clientId', userMiddleware, firmFilter, async (req, res) => {
+    try {
+        const Payment = require('../models/payment.model');
+        const advances = await Payment.getAvailableAdvances(req.params.clientId);
+        res.json({ success: true, data: advances });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// Allocate advance to invoice
+// POST /api/payments/advances/:paymentId/allocate
+app.post('/advances/:paymentId/allocate', userMiddleware, firmFilter, async (req, res) => {
+    try {
+        const { invoiceId, amount } = req.body;
+        if (!invoiceId || !amount) {
+            return res.status(400).json({ success: false, error: 'invoiceId and amount are required' });
+        }
+        const Payment = require('../models/payment.model');
+        const result = await Payment.allocateAdvanceToInvoice(req.params.paymentId, invoiceId, amount);
+        res.json({ success: true, data: result });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// Get deduction accounts configuration
+// GET /api/payments/deduction-accounts
+app.get('/deduction-accounts', userMiddleware, firmFilter, async (req, res) => {
+    try {
+        const { getAllDeductionAccounts, DEDUCTION_CATEGORIES } = require('../config/deductionAccounts.config');
+        const { paymentType } = req.query;
+
+        let accounts = getAllDeductionAccounts();
+        if (paymentType) {
+            const { getDeductionsByPaymentType } = require('../config/deductionAccounts.config');
+            accounts = getDeductionsByPaymentType(paymentType);
+        }
+
+        res.json({
+            success: true,
+            data: {
+                accounts,
+                categories: DEDUCTION_CATEGORIES
+            }
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
 // Bulk operations
 app.delete('/bulk', userMiddleware, firmFilter, validateBulkDelete, bulkDeletePayments);
 

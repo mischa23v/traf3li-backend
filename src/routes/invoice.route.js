@@ -90,6 +90,45 @@ router.get('/overdue',
     getOverdueInvoices
 );
 
+// Get all credit notes (ERPNext parity)
+// GET /api/invoices/credit-notes
+router.get('/credit-notes',
+    userMiddleware,
+    firmFilter,
+    async (req, res) => {
+        try {
+            const Invoice = require('../models/invoice.model');
+            const { page = 1, limit = 20, clientId } = req.query;
+
+            const query = { isReturn: true, firmId: req.firmId };
+            if (req.lawyerId) query.lawyerId = req.lawyerId;
+            if (clientId) query.clientId = clientId;
+
+            const creditNotes = await Invoice.find(query)
+                .populate('returnAgainst', 'invoiceNumber totalAmount')
+                .populate('clientId', 'firstName lastName companyName')
+                .sort({ createdAt: -1 })
+                .skip((parseInt(page) - 1) * parseInt(limit))
+                .limit(parseInt(limit));
+
+            const total = await Invoice.countDocuments(query);
+
+            res.json({
+                success: true,
+                data: creditNotes,
+                pagination: {
+                    page: parseInt(page),
+                    limit: parseInt(limit),
+                    total,
+                    pages: Math.ceil(total / parseInt(limit))
+                }
+            });
+        } catch (error) {
+            res.status(500).json({ success: false, error: error.message });
+        }
+    }
+);
+
 // ============ UNIFIED DATA (No Duplicate Entry) ============
 
 // Get billable items (unbilled time entries, expenses, tasks)
@@ -262,6 +301,22 @@ router.post('/:id/convert-to-credit-note',
     userMiddleware,
     firmFilter,
     convertToCreditNote
+);
+
+// Get credit notes for an invoice (ERPNext parity)
+// GET /api/invoices/:id/credit-notes
+router.get('/:id/credit-notes',
+    userMiddleware,
+    firmFilter,
+    async (req, res) => {
+        try {
+            const Invoice = require('../models/invoice.model');
+            const creditNotes = await Invoice.getCreditNotesForInvoice(req.params.id);
+            res.json({ success: true, data: creditNotes });
+        } catch (error) {
+            res.status(500).json({ success: false, error: error.message });
+        }
+    }
 );
 
 // Apply retainer to invoice

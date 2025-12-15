@@ -61,6 +61,46 @@ const CARD_TYPES = [
     'mada'
 ];
 
+// Party types (ERPNext: party_type)
+const PARTY_TYPES = [
+    'customer',
+    'supplier',
+    'employee'
+];
+
+// ═══════════════════════════════════════════════════════════════
+// DEDUCTION SCHEMA (ERPNext: deductions child table - for tax withholding)
+// ═══════════════════════════════════════════════════════════════
+const DeductionSchema = new mongoose.Schema({
+    accountId: {
+        type: String,
+        required: true
+        // Reference to Chart of Accounts
+    },
+    accountName: {
+        type: String,
+        required: true
+    },
+    accountNameAr: {
+        type: String
+    },
+    amount: {
+        type: Number,
+        required: true,
+        min: 0
+    },
+    rate: {
+        type: Number,
+        min: 0,
+        max: 100
+        // Optional: rate used to calculate the deduction
+    },
+    description: {
+        type: String,
+        maxlength: 500
+    }
+}, { _id: false });
+
 const paymentSchema = new mongoose.Schema({
     // ═══════════════════════════════════════════════════════════════
     // FIRM (Multi-Tenancy)
@@ -151,6 +191,29 @@ const paymentSchema = new mongoose.Schema({
         ref: 'User',
         required: true,
         index: true
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // PARTY TYPE (ERPNext: party_type)
+    // ═══════════════════════════════════════════════════════════════
+    partyType: {
+        type: String,
+        enum: PARTY_TYPES,
+        default: 'customer'
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // GL ACCOUNTS (ERPNext: paid_from, paid_to)
+    // ═══════════════════════════════════════════════════════════════
+    paidFromAccount: {
+        type: String,
+        trim: true
+        // Source account code (e.g., Receivables for customer payment)
+    },
+    paidToAccount: {
+        type: String,
+        trim: true
+        // Destination account code (e.g., Bank for customer payment)
     },
 
     // ═══════════════════════════════════════════════════════════════
@@ -287,6 +350,34 @@ const paymentSchema = new mongoose.Schema({
     netAmount: {
         type: Number,
         default: 0
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // DEDUCTIONS (ERPNext: deductions child table - for tax withholding)
+    // ═══════════════════════════════════════════════════════════════
+    deductions: {
+        type: [DeductionSchema],
+        default: []
+    },
+    totalDeductions: {
+        type: Number,
+        min: 0,
+        default: 0
+    },
+    netAmountAfterDeductions: {
+        type: Number,
+        min: 0
+        // Calculated: amount - totalDeductions
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // ADVANCE PAYMENT TRACKING (ERPNext: for advance/retainer payments)
+    // ═══════════════════════════════════════════════════════════════
+    allocatedAmount: {
+        type: Number,
+        min: 0,
+        default: 0
+        // Amount already allocated to invoices (for advance/retainer payments)
     },
 
     // ═══════════════════════════════════════════════════════════════
@@ -524,6 +615,37 @@ paymentSchema.pre('save', async function(next) {
         this.netAmount = this.amount - (this.fees.totalFees || 0);
     } else {
         this.netAmount = this.amount;
+    }
+
+    // Calculate totalDeductions and netAmountAfterDeductions
+    if (this.deductions && this.deductions.length > 0) {
+        this.totalDeductions = this.deductions.reduce((sum, ded) => sum + (ded.amount || 0), 0);
+    } else {
+        this.totalDeductions = 0;
+    }
+    this.netAmountAfterDeductions = this.netAmount - this.totalDeductions;
+
+    // Auto-assign default GL accounts based on payment type if not set
+    if (!this.paidFromAccount || !this.paidToAccount) {
+        switch (this.paymentType) {
+            case 'customer_payment':
+                this.paidFromAccount = this.paidFromAccount || '1110'; // Accounts Receivable
+                this.paidToAccount = this.paidToAccount || '1102';    // Bank Account
+                break;
+            case 'vendor_payment':
+                this.paidFromAccount = this.paidFromAccount || '1102'; // Bank Account
+                this.paidToAccount = this.paidToAccount || '2000';    // Accounts Payable
+                break;
+            case 'advance':
+            case 'retainer':
+                this.paidFromAccount = this.paidFromAccount || '1102'; // Bank Account
+                this.paidToAccount = this.paidToAccount || '2120';    // Advances from Customers
+                break;
+            case 'refund':
+                this.paidFromAccount = this.paidFromAccount || '1102'; // Bank Account
+                this.paidToAccount = this.paidToAccount || '1110';    // Accounts Receivable
+                break;
+        }
     }
 
     // Calculate totalApplied from invoiceApplications
@@ -977,6 +1099,51 @@ paymentSchema.methods.handleOverpayment = async function(action) {
     return this;
 };
 
+/**
+ * Get available advance payments for a client
+ * Returns advance/retainer payments that are not fully allocated to invoices
+ */
+paymentSchema.statics.getAvailableAdvances = async function(clientId) {
+    const advances = await this.find({
+        customerId: clientId,
+        paymentType: { $in: ['advance', 'retainer'] },
+        status: 'completed',
+        $expr: { $gt: ['$amount', '$allocatedAmount'] }
+    }).select('_id paymentNumber paymentDate amount allocatedAmount').sort({ paymentDate: -1 });
+
+    return advances.map(adv => ({
+        id: adv._id,
+        advancePaymentId: adv._id,
+        referenceNumber: adv.paymentNumber,
+        paymentDate: adv.paymentDate,
+        amount: adv.amount,
+        allocatedAmount: adv.allocatedAmount || 0,
+        availableAmount: adv.amount - (adv.allocatedAmount || 0)
+    }));
+};
+
+/**
+ * Allocate amount from advance payment to invoice
+ */
+paymentSchema.statics.allocateAdvanceToInvoice = async function(advancePaymentId, amount, session = null) {
+    const options = session ? { session } : {};
+
+    const payment = await this.findById(advancePaymentId);
+    if (!payment) {
+        throw new Error('Advance payment not found');
+    }
+
+    const available = payment.amount - (payment.allocatedAmount || 0);
+    if (amount > available) {
+        throw new Error(`Cannot allocate ${amount}. Only ${available} available.`);
+    }
+
+    payment.allocatedAmount = (payment.allocatedAmount || 0) + amount;
+    await payment.save(options);
+
+    return payment;
+};
+
 // Export constants for use in controllers
 paymentSchema.statics.PAYMENT_TYPES = PAYMENT_TYPES;
 paymentSchema.statics.PAYMENT_METHODS = PAYMENT_METHODS;
@@ -984,5 +1151,6 @@ paymentSchema.statics.PAYMENT_STATUSES = PAYMENT_STATUSES;
 paymentSchema.statics.CHECK_STATUSES = CHECK_STATUSES;
 paymentSchema.statics.REFUND_REASONS = REFUND_REASONS;
 paymentSchema.statics.CARD_TYPES = CARD_TYPES;
+paymentSchema.statics.PARTY_TYPES = PARTY_TYPES;
 
 module.exports = mongoose.model('Payment', paymentSchema);

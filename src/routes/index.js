@@ -108,6 +108,7 @@ const fiscalPeriodRoute = require('./fiscalPeriod.route');
 
 // Finance Management Routes
 const financeSetupRoute = require('./financeSetup.route');
+const commissionRoute = require('./commission.route');
 const creditNoteRoute = require('./creditNote.route');
 const debitNoteRoute = require('./debitNote.route');
 const recurringInvoiceRoute = require('./recurringInvoice.route');
@@ -287,6 +288,7 @@ module.exports = {
 
     // Finance Management
     financeSetupRoute,
+    commissionRoute,
     creditNoteRoute,
     debitNoteRoute,
     recurringInvoiceRoute,
