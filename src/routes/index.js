@@ -106,6 +106,15 @@ const recurringTransactionRoute = require('./recurringTransaction.route');
 const priceLevelRoute = require('./priceLevel.route');
 const fiscalPeriodRoute = require('./fiscalPeriod.route');
 
+// Finance Management Routes
+const financeSetupRoute = require('./financeSetup.route');
+const creditNoteRoute = require('./creditNote.route');
+const debitNoteRoute = require('./debitNote.route');
+const recurringInvoiceRoute = require('./recurringInvoice.route');
+const paymentTermsRoute = require('./paymentTerms.route');
+const expensePolicyRoute = require('./expensePolicy.route');
+const corporateCardRoute = require('./corporateCard.route');
+
 // Investment & Trading Journal Routes
 const tradesRoute = require('./trades.route');
 const brokersRoute = require('./brokers.route');
@@ -272,6 +281,15 @@ module.exports = {
     recurringTransactionRoute,
     priceLevelRoute,
     fiscalPeriodRoute,
+
+    // Finance Management
+    financeSetupRoute,
+    creditNoteRoute,
+    debitNoteRoute,
+    recurringInvoiceRoute,
+    paymentTermsRoute,
+    expensePolicyRoute,
+    corporateCardRoute,
 
     // Investment & Trading Journal
     tradesRoute,
