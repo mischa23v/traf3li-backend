@@ -87,6 +87,18 @@ const staffRoute = require('../staff.route');
 const leadScoringRoute = require('../leadScoring.route');
 const whatsappRoute = require('../whatsapp.route');
 
+// CRM Enhanced Routes
+const crmSettingsRoute = require('../crmSettings.route');
+const territoryRoute = require('../territory.route');
+const salesPersonRoute = require('../salesPerson.route');
+const leadSourceRoute = require('../leadSource.route');
+const salesStageRoute = require('../salesStage.route');
+const lostReasonRoute = require('../lostReason.route');
+const competitorRoute = require('../competitor.route');
+const appointmentRoute = require('../appointment.route');
+const crmReportsRoute = require('../crmReports.route');
+const leadConversionRoute = require('../leadConversion.route');
+
 // HR Routes
 const hrRoute = require('../hr.route');
 const payrollRoute = require('../payroll.route');
@@ -252,6 +264,18 @@ router.use('/crm-activities', crmActivityRoute);
 router.use('/staff', staffRoute);
 router.use('/lead-scoring', leadScoringRoute);
 router.use('/whatsapp', whatsappRoute);
+
+// CRM Enhanced Routes
+router.use('/crm-settings', crmSettingsRoute);
+router.use('/territories', territoryRoute);
+router.use('/sales-persons', salesPersonRoute);
+router.use('/lead-sources', leadSourceRoute);
+router.use('/sales-stages', salesStageRoute);
+router.use('/lost-reasons', lostReasonRoute);
+router.use('/competitors', competitorRoute);
+router.use('/appointments', appointmentRoute);
+router.use('/reports/crm', crmReportsRoute);
+router.use('/lead-conversion', leadConversionRoute);
 
 // ============================================
 // HR ROUTES
