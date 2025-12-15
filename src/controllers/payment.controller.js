@@ -1497,6 +1497,69 @@ const recordInvoicePayment = asyncHandler(async (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════════════
+// GET AVAILABLE ADVANCE PAYMENTS (ERPNext parity)
+// GET /api/payments/advances/available/:clientId
+// ═══════════════════════════════════════════════════════════════
+const getAvailableAdvances = asyncHandler(async (req, res) => {
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية للوصول إلى الدفعات', 403);
+    }
+
+    const { clientId } = req.params;
+    const firmId = req.firmId;
+
+    // Find advance/retainer payments with unallocated amounts
+    const query = {
+        $or: [
+            { customerId: clientId },
+            { clientId: clientId }
+        ],
+        paymentType: { $in: ['advance', 'retainer'] },
+        status: 'completed',
+        $expr: { $gt: ['$amount', { $ifNull: ['$allocatedAmount', 0] }] }
+    };
+
+    if (firmId) {
+        query.firmId = firmId;
+    }
+
+    const advances = await Payment.find(query)
+        .select('_id paymentNumber paymentDate amount allocatedAmount currency')
+        .sort({ paymentDate: -1 });
+
+    const data = advances.map(adv => ({
+        id: adv._id,
+        referenceNumber: adv.paymentNumber,
+        paymentDate: adv.paymentDate,
+        amount: adv.amount,
+        allocatedAmount: adv.allocatedAmount || 0,
+        availableAmount: adv.amount - (adv.allocatedAmount || 0),
+        currency: adv.currency
+    }));
+
+    res.status(200).json({
+        success: true,
+        data,
+        total: data.length,
+        totalAvailable: data.reduce((sum, a) => sum + a.availableAmount, 0)
+    });
+});
+
+// ═══════════════════════════════════════════════════════════════
+// GET DEDUCTION ACCOUNTS (ERPNext parity)
+// GET /api/deduction-accounts
+// ═══════════════════════════════════════════════════════════════
+const getDeductionAccounts = asyncHandler(async (req, res) => {
+    // Return standard deduction accounts for Saudi Arabia
+    const deductionAccounts = Payment.DEDUCTION_ACCOUNTS;
+
+    res.status(200).json({
+        success: true,
+        data: deductionAccounts
+    });
+});
+
+// ═══════════════════════════════════════════════════════════════
 // BULK DELETE PAYMENTS
 // DELETE /api/payments/bulk
 // ═══════════════════════════════════════════════════════════════
@@ -1558,5 +1621,8 @@ module.exports = {
     getUnreconciledPayments,
     getPendingChecks,
     recordInvoicePayment,
-    bulkDeletePayments
+    bulkDeletePayments,
+    // ERPNext parity endpoints
+    getAvailableAdvances,
+    getDeductionAccounts
 };

@@ -398,6 +398,31 @@ const expenseSchema = new mongoose.Schema({
     },
 
     // ═══════════════════════════════════════════════════════════════
+    // APPROVAL WORKFLOW (ERPNext: expense_approver, approval_status)
+    // ═══════════════════════════════════════════════════════════════
+    // Assigned expense approver
+    expenseApproverId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        index: true
+    },
+    // Approval status (ERPNext: approval_status)
+    approvalStatus: {
+        type: String,
+        enum: ['pending', 'approved', 'rejected'],
+        default: 'pending',
+        index: true
+    },
+    approvalDate: {
+        type: Date
+    },
+    // Sanctioned Amount (ERPNext: sanctioned_amount - may differ from claimed)
+    sanctionedAmount: {
+        type: Number,
+        min: 0
+    },
+
+    // ═══════════════════════════════════════════════════════════════
     // NOTES
     // ═══════════════════════════════════════════════════════════════
     notes: {
@@ -438,6 +463,38 @@ const expenseSchema = new mongoose.Schema({
     glEntryId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'GeneralLedger'
+    },
+    // Payable Account (ERPNext: payable_account)
+    payableAccount: {
+        type: String,
+        trim: true
+    },
+    // Journal Entry Reference (ERPNext: journal_entry)
+    journalEntryRef: {
+        type: String,
+        trim: true
+    },
+    journalEntryId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'JournalEntry'
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // PAYMENT STATUS (ERPNext parity)
+    // ═══════════════════════════════════════════════════════════════
+    isPaid: {
+        type: Boolean,
+        default: false
+    },
+    modeOfPayment: {
+        type: String,
+        enum: ['bank_transfer', 'cash', 'check', 'payroll']
+    },
+    clearanceDate: {
+        type: Date
+    },
+    paymentReference: {
+        type: String
     },
 
     // ═══════════════════════════════════════════════════════════════

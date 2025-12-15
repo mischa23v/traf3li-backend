@@ -100,6 +100,53 @@ const ApprovalSchema = new Schema({
     notes: String
 });
 
+// ============ ADDRESS SCHEMA (for shipping) ============
+const AddressSchema = new Schema({
+    line1: { type: String, maxlength: 500 },
+    line2: { type: String, maxlength: 500 },
+    city: { type: String, maxlength: 100 },
+    postalCode: { type: String, maxlength: 20 },
+    country: { type: String, default: 'SA', maxlength: 2 }
+}, { _id: false });
+
+// ============ SALES TEAM SCHEMA (ERPNext: sales_team) ============
+const SalesTeamSchema = new Schema({
+    salesPersonId: {
+        type: Schema.Types.ObjectId,
+        ref: 'User',
+        required: true
+    },
+    commissionRate: {
+        type: Number,
+        min: 0,
+        max: 100,
+        default: 0
+    },
+    commissionAmount: {
+        type: Number,
+        min: 0,
+        default: 0
+    }
+}, { _id: false });
+
+// ============ ADVANCE ALLOCATION SCHEMA (ERPNext: advances) ============
+const AdvanceAllocationSchema = new Schema({
+    advancePaymentId: {
+        type: Schema.Types.ObjectId,
+        ref: 'Payment',
+        required: true
+    },
+    referenceNumber: {
+        type: String,
+        required: true
+    },
+    allocatedAmount: {
+        type: Number,
+        min: 0,
+        required: true
+    }
+}, { _id: false });
+
 // ============ MAIN INVOICE SCHEMA ============
 const invoiceSchema = new Schema({
     // ============ FIRM (Multi-Tenancy) ============
@@ -136,6 +183,41 @@ const invoiceSchema = new Schema({
         enum: ['individual', 'corporate', 'government'],
         default: 'individual'
     },
+
+    // ============ CONTACT PERSON (ERPNext: contact_person, contact_display, contact_email, contact_mobile) ============
+    contactPersonName: {
+        type: String,
+        trim: true,
+        maxlength: 200
+    },
+    contactEmail: {
+        type: String,
+        trim: true,
+        lowercase: true,
+        validate: {
+            validator: (v) => !v || /^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$/.test(v),
+            message: 'Invalid email format'
+        }
+    },
+    contactMobile: {
+        type: String,
+        trim: true,
+        validate: {
+            validator: (v) => !v || /^\+?[0-9]{10,15}$/.test(v),
+            message: 'Invalid mobile number'
+        }
+    },
+
+    // ============ SHIPPING ADDRESS (ERPNext: shipping_address_name, shipping_address) ============
+    shippingAddress: {
+        type: AddressSchema,
+        default: null
+    },
+    useShippingAddress: {
+        type: Boolean,
+        default: false
+    },
+
     caseId: {
         type: Schema.Types.ObjectId,
         ref: 'Case',
@@ -235,6 +317,23 @@ const invoiceSchema = new Schema({
     },
     totalAmount: {
         type: Number,
+        default: 0
+    },
+
+    // ============ SALES TEAM (ERPNext: sales_team child table) ============
+    salesTeam: {
+        type: [SalesTeamSchema],
+        default: []
+    },
+
+    // ============ ADVANCE PAYMENTS (ERPNext: advances child table) ============
+    advances: {
+        type: [AdvanceAllocationSchema],
+        default: []
+    },
+    totalAdvanceAllocated: {
+        type: Number,
+        min: 0,
         default: 0
     },
 
@@ -673,8 +772,16 @@ invoiceSchema.methods.calculateTotals = function({ addAmounts, subtractAmounts, 
     this.vatAmount = percentage(this.taxableAmount, this.vatRate || 0);
     this.totalAmount = add(this.taxableAmount, this.vatAmount);
 
-    // Calculate balance due
-    this.balanceDue = subtract(subtract(subtract(this.totalAmount, this.depositAmount), this.amountPaid), this.applyFromRetainer);
+    // Calculate balance due (including advance payments)
+    const advanceTotal = this.totalAdvanceAllocated || 0;
+    this.balanceDue = subtract(subtract(subtract(subtract(this.totalAmount, this.depositAmount), this.amountPaid), this.applyFromRetainer), advanceTotal);
+
+    // Calculate sales team commissions (commission on subtotal after discount, before tax)
+    if (this.salesTeam && this.salesTeam.length > 0) {
+        for (const member of this.salesTeam) {
+            member.commissionAmount = Math.round(this.taxableAmount * (member.commissionRate / 100));
+        }
+    }
 
     // Recalculate line totals
     this.items.forEach(item => {
@@ -942,6 +1049,121 @@ invoiceSchema.methods.applyRetainer = async function(amount, retainerId, userId)
 
     await this.save();
     return this;
+};
+
+/**
+ * Apply advance payments to invoice
+ * Updates the advance payment's allocated amount
+ * @param {Array} advanceAllocations - Array of { advancePaymentId, referenceNumber, allocatedAmount }
+ * @param {ObjectId} userId - User performing the action
+ */
+invoiceSchema.methods.applyAdvancePayments = async function(advanceAllocations, userId) {
+    const Payment = mongoose.model('Payment');
+    const mongoose = require('mongoose');
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    const { toHalalas, addAmounts, subtractAmounts } = require('../utils/currency');
+
+    try {
+        let totalAllocated = 0;
+        const newAdvances = [];
+
+        for (const allocation of advanceAllocations) {
+            const amountHalalas = Number.isInteger(allocation.allocatedAmount)
+                ? allocation.allocatedAmount
+                : toHalalas(allocation.allocatedAmount);
+
+            // Get the advance payment
+            const payment = await Payment.findById(allocation.advancePaymentId).session(session);
+
+            if (!payment) {
+                throw new Error(`Advance payment ${allocation.advancePaymentId} not found`);
+            }
+
+            // Check if enough unallocated amount
+            const currentAllocated = payment.allocatedAmount || 0;
+            const available = payment.amount - currentAllocated;
+
+            if (amountHalalas > available) {
+                throw new Error(`Cannot allocate ${amountHalalas}. Only ${available} available from payment ${payment.paymentNumber}`);
+            }
+
+            // Update the advance payment's allocated amount
+            payment.allocatedAmount = addAmounts(currentAllocated, amountHalalas);
+            await payment.save({ session });
+
+            // Add to invoice advances
+            newAdvances.push({
+                advancePaymentId: allocation.advancePaymentId,
+                referenceNumber: allocation.referenceNumber || payment.paymentNumber,
+                allocatedAmount: amountHalalas
+            });
+
+            totalAllocated = addAmounts(totalAllocated, amountHalalas);
+        }
+
+        // Update invoice
+        this.advances = [...(this.advances || []), ...newAdvances];
+        this.totalAdvanceAllocated = addAmounts(this.totalAdvanceAllocated || 0, totalAllocated);
+        this.balanceDue = subtractAmounts(
+            subtractAmounts(subtractAmounts(subtractAmounts(this.totalAmount, this.depositAmount), this.amountPaid), this.applyFromRetainer),
+            this.totalAdvanceAllocated
+        );
+
+        // Update status based on balance
+        if (this.balanceDue <= 0) {
+            this.status = 'paid';
+            this.paidDate = new Date();
+        }
+
+        // Add to history
+        this.history.push({
+            action: 'payment_received',
+            date: new Date(),
+            user: userId,
+            note: `Advance payments applied: ${totalAllocated}`
+        });
+
+        await this.save({ session });
+        await session.commitTransaction();
+
+        return this;
+
+    } catch (error) {
+        await session.abortTransaction();
+        throw error;
+    } finally {
+        session.endSession();
+    }
+};
+
+/**
+ * Get available advance payments for a client
+ * @param {ObjectId} clientId - Client ID
+ * @returns {Array} Available advance payments
+ */
+invoiceSchema.statics.getAvailableAdvances = async function(clientId) {
+    const Payment = mongoose.model('Payment');
+
+    const advances = await Payment.find({
+        $or: [
+            { customerId: clientId },
+            { clientId: clientId }
+        ],
+        paymentType: { $in: ['advance', 'retainer'] },
+        status: 'completed',
+        $expr: { $gt: ['$amount', { $ifNull: ['$allocatedAmount', 0] }] }
+    }).select('_id paymentNumber paymentDate amount allocatedAmount');
+
+    return advances.map(adv => ({
+        id: adv._id,
+        referenceNumber: adv.paymentNumber,
+        paymentDate: adv.paymentDate,
+        amount: adv.amount,
+        allocatedAmount: adv.allocatedAmount || 0,
+        availableAmount: adv.amount - (adv.allocatedAmount || 0)
+    }));
 };
 
 module.exports = mongoose.model('Invoice', invoiceSchema);

@@ -1072,6 +1072,285 @@ const getNewExpenseDefaults = asyncHandler(async (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════════════
+// GET EXPENSES PENDING MY APPROVAL (ERPNext parity)
+// GET /api/expenses/pending-approval
+// ═══════════════════════════════════════════════════════════════
+const getPendingApproval = asyncHandler(async (req, res) => {
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية للوصول إلى المصروفات', 403);
+    }
+
+    const userId = req.userID;
+    const firmId = req.firmId;
+
+    // Find expenses assigned to this user for approval
+    const query = {
+        expenseApproverId: userId,
+        approvalStatus: 'pending',
+        status: 'pending_approval'
+    };
+
+    if (firmId) {
+        query.firmId = firmId;
+    }
+
+    const expenses = await Expense.find(query)
+        .populate('employeeId', 'firstName lastName email')
+        .populate('lawyerId', 'firstName lastName')
+        .populate('clientId', 'firstName lastName companyName')
+        .populate('caseId', 'title caseNumber')
+        .sort({ createdAt: -1 });
+
+    return res.json({
+        success: true,
+        data: expenses,
+        count: expenses.length
+    });
+});
+
+// ═══════════════════════════════════════════════════════════════
+// APPROVE EXPENSE WITH SANCTIONED AMOUNT (ERPNext parity)
+// POST /api/expenses/:id/approve-sanctioned
+// ═══════════════════════════════════════════════════════════════
+const approveSanctionedExpense = asyncHandler(async (req, res) => {
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية للموافقة على المصروفات', 403);
+    }
+
+    const { id } = req.params;
+    const { sanctionedAmount } = req.body;
+    const userId = req.userID;
+    const firmId = req.firmId;
+
+    const expense = await Expense.findById(id);
+
+    if (!expense) {
+        throw CustomException('Expense not found', 404);
+    }
+
+    // Check if user is the assigned approver
+    if (expense.expenseApproverId && expense.expenseApproverId.toString() !== userId.toString()) {
+        throw CustomException('Not authorized to approve this expense', 403);
+    }
+
+    // Check firm access
+    if (firmId && expense.firmId && expense.firmId.toString() !== firmId.toString()) {
+        throw CustomException('You do not have access to this expense', 403);
+    }
+
+    // Update approval fields
+    expense.approvalStatus = 'approved';
+    expense.approvalDate = new Date();
+    expense.approvedBy = userId;
+    expense.approvedAt = new Date();
+    expense.sanctionedAmount = sanctionedAmount || expense.totalAmount;
+    expense.status = 'approved';
+
+    // If reimbursable, also approve the reimbursement
+    if (expense.expenseType === 'reimbursable' || expense.expenseType === 'personal') {
+        expense.reimbursementStatus = 'approved';
+    }
+
+    await expense.save();
+
+    // Send notification to the employee
+    try {
+        const Notification = mongoose.model('Notification');
+        await Notification.createNotification({
+            firmId: expense.firmId,
+            userId: expense.employeeId || expense.lawyerId,
+            type: 'expense_approved',
+            title: 'تم اعتماد المصروف',
+            titleAr: 'تم اعتماد المصروف',
+            message: `Expense ${expense.expenseId} approved with amount ${expense.sanctionedAmount / 100} SAR`,
+            messageAr: `تم اعتماد مصروفك بمبلغ ${expense.sanctionedAmount / 100} ر.س`,
+            entityType: 'expense',
+            entityId: expense._id,
+            channels: ['in_app', 'email']
+        });
+    } catch (notifError) {
+        console.error('Failed to send expense approval notification:', notifError);
+    }
+
+    // Log activity
+    await BillingActivity.logActivity({
+        activityType: 'expense_approved',
+        userId,
+        relatedModel: 'Expense',
+        relatedId: expense._id,
+        description: `Expense ${expense.expenseId} approved with sanctioned amount ${expense.sanctionedAmount}`,
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent')
+    });
+
+    await expense.populate([
+        { path: 'employeeId', select: 'firstName lastName email' },
+        { path: 'approvedBy', select: 'firstName lastName' }
+    ]);
+
+    return res.json({
+        success: true,
+        message: 'Expense approved successfully',
+        data: expense
+    });
+});
+
+// ═══════════════════════════════════════════════════════════════
+// REJECT EXPENSE WITH NOTIFICATION (ERPNext parity)
+// POST /api/expenses/:id/reject-with-notification
+// ═══════════════════════════════════════════════════════════════
+const rejectExpenseWithNotification = asyncHandler(async (req, res) => {
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية لرفض المصروفات', 403);
+    }
+
+    const { id } = req.params;
+    const { rejectionReason } = req.body;
+    const userId = req.userID;
+    const firmId = req.firmId;
+
+    if (!rejectionReason) {
+        throw CustomException('Rejection reason is required', 400);
+    }
+
+    const expense = await Expense.findById(id);
+
+    if (!expense) {
+        throw CustomException('Expense not found', 404);
+    }
+
+    // Check if user is the assigned approver
+    if (expense.expenseApproverId && expense.expenseApproverId.toString() !== userId.toString()) {
+        throw CustomException('Not authorized to reject this expense', 403);
+    }
+
+    // Check firm access
+    if (firmId && expense.firmId && expense.firmId.toString() !== firmId.toString()) {
+        throw CustomException('You do not have access to this expense', 403);
+    }
+
+    // Update rejection fields
+    expense.approvalStatus = 'rejected';
+    expense.approvalDate = new Date();
+    expense.rejectionReason = rejectionReason;
+    expense.status = 'rejected';
+
+    if (expense.expenseType === 'reimbursable' || expense.expenseType === 'personal') {
+        expense.reimbursementStatus = 'rejected';
+    }
+
+    await expense.save();
+
+    // Send notification to the employee
+    try {
+        const Notification = mongoose.model('Notification');
+        await Notification.createNotification({
+            firmId: expense.firmId,
+            userId: expense.employeeId || expense.lawyerId,
+            type: 'expense_rejected',
+            title: 'تم رفض المصروف',
+            titleAr: 'تم رفض المصروف',
+            message: `Expense ${expense.expenseId} rejected. Reason: ${rejectionReason}`,
+            messageAr: `تم رفض مصروفك. السبب: ${rejectionReason}`,
+            entityType: 'expense',
+            entityId: expense._id,
+            channels: ['in_app', 'email']
+        });
+    } catch (notifError) {
+        console.error('Failed to send expense rejection notification:', notifError);
+    }
+
+    // Log activity
+    await BillingActivity.logActivity({
+        activityType: 'expense_rejected',
+        userId,
+        relatedModel: 'Expense',
+        relatedId: expense._id,
+        description: `Expense ${expense.expenseId} rejected: ${rejectionReason}`,
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent')
+    });
+
+    await expense.populate([
+        { path: 'employeeId', select: 'firstName lastName email' }
+    ]);
+
+    return res.json({
+        success: true,
+        message: 'Expense rejected',
+        data: expense
+    });
+});
+
+// ═══════════════════════════════════════════════════════════════
+// MARK EXPENSE AS PAID (ERPNext parity)
+// POST /api/expenses/:id/pay
+// ═══════════════════════════════════════════════════════════════
+const markExpenseAsPaid = asyncHandler(async (req, res) => {
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية للوصول إلى المصروفات', 403);
+    }
+
+    const { id } = req.params;
+    const { modeOfPayment, paymentReference, clearanceDate } = req.body;
+    const userId = req.userID;
+    const firmId = req.firmId;
+
+    const expense = await Expense.findById(id);
+
+    if (!expense) {
+        throw CustomException('Expense not found', 404);
+    }
+
+    // Check firm access
+    if (firmId && expense.firmId && expense.firmId.toString() !== firmId.toString()) {
+        throw CustomException('You do not have access to this expense', 403);
+    }
+
+    if (expense.status !== 'approved') {
+        throw CustomException('Only approved expenses can be marked as paid', 400);
+    }
+
+    // Update payment fields
+    expense.isPaid = true;
+    expense.modeOfPayment = modeOfPayment || 'bank_transfer';
+    expense.paymentReference = paymentReference;
+    expense.clearanceDate = clearanceDate ? new Date(clearanceDate) : new Date();
+    expense.status = 'paid';
+
+    if (expense.expenseType === 'reimbursable' || expense.expenseType === 'personal') {
+        expense.reimbursementStatus = 'paid';
+        expense.reimbursedAmount = expense.sanctionedAmount || expense.totalAmount;
+        expense.reimbursedAt = new Date();
+    }
+
+    expense.updatedBy = userId;
+    await expense.save();
+
+    // Log activity
+    await BillingActivity.logActivity({
+        activityType: 'expense_paid',
+        userId,
+        relatedModel: 'Expense',
+        relatedId: expense._id,
+        description: `Expense ${expense.expenseId} marked as paid via ${modeOfPayment}`,
+        amount: expense.sanctionedAmount || expense.totalAmount,
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent')
+    });
+
+    await expense.populate([
+        { path: 'employeeId', select: 'firstName lastName email' }
+    ]);
+
+    return res.json({
+        success: true,
+        message: 'Expense marked as paid',
+        data: expense
+    });
+});
+
+// ═══════════════════════════════════════════════════════════════
 // BULK DELETE EXPENSES
 // POST /api/expenses/bulk-delete
 // ═══════════════════════════════════════════════════════════════
@@ -1142,5 +1421,10 @@ module.exports = {
     suggestCategory,
     getExpenseCategories,
     bulkApproveExpenses,
-    getNewExpenseDefaults
+    getNewExpenseDefaults,
+    // ERPNext parity endpoints
+    getPendingApproval,
+    approveSanctionedExpense,
+    rejectExpenseWithNotification,
+    markExpenseAsPaid
 };

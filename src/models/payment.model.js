@@ -61,6 +61,36 @@ const CARD_TYPES = [
     'mada'
 ];
 
+// Party types for GL integration (ERPNext: party_type)
+const PARTY_TYPES = [
+    'customer',
+    'supplier',
+    'employee'
+];
+
+// ═══════════════════════════════════════════════════════════════
+// DEDUCTION SCHEMA (ERPNext: deductions child table)
+// ═══════════════════════════════════════════════════════════════
+const deductionSchema = new mongoose.Schema({
+    accountId: {
+        type: String,
+        required: true
+    },
+    accountName: {
+        type: String,
+        required: true
+    },
+    amount: {
+        type: Number,
+        required: true,
+        min: 0
+    },
+    description: {
+        type: String,
+        maxlength: 500
+    }
+}, { _id: false });
+
 const paymentSchema = new mongoose.Schema({
     // ═══════════════════════════════════════════════════════════════
     // FIRM (Multi-Tenancy)
@@ -124,6 +154,51 @@ const paymentSchema = new mongoose.Schema({
     },
     amountInBaseCurrency: {
         type: Number,
+        default: 0
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // GL ACCOUNTS (ERPNext: paid_from, paid_to)
+    // ═══════════════════════════════════════════════════════════════
+    paidFromAccount: {
+        type: String,
+        trim: true
+    },
+    paidToAccount: {
+        type: String,
+        trim: true
+    },
+    // Party Type (ERPNext: party_type)
+    partyType: {
+        type: String,
+        enum: PARTY_TYPES,
+        default: 'customer'
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // DEDUCTIONS (ERPNext: deductions child table - Tax Withholding)
+    // ═══════════════════════════════════════════════════════════════
+    deductions: {
+        type: [deductionSchema],
+        default: []
+    },
+    totalDeductions: {
+        type: Number,
+        min: 0,
+        default: 0
+    },
+    netAmountAfterDeductions: {
+        type: Number,
+        min: 0
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // ADVANCE PAYMENT TRACKING
+    // ═══════════════════════════════════════════════════════════════
+    // Amount allocated to invoices (for advance/retainer payments)
+    allocatedAmount: {
+        type: Number,
+        min: 0,
         default: 0
     },
 
@@ -524,6 +599,15 @@ paymentSchema.pre('save', async function(next) {
         this.netAmount = this.amount - (this.fees.totalFees || 0);
     } else {
         this.netAmount = this.amount;
+    }
+
+    // Calculate deductions total and net amount after deductions (ERPNext parity)
+    if (this.deductions && this.deductions.length > 0) {
+        this.totalDeductions = this.deductions.reduce((sum, ded) => sum + (ded.amount || 0), 0);
+        this.netAmountAfterDeductions = this.amount - this.totalDeductions;
+    } else {
+        this.totalDeductions = 0;
+        this.netAmountAfterDeductions = this.amount;
     }
 
     // Calculate totalApplied from invoiceApplications
@@ -977,6 +1061,14 @@ paymentSchema.methods.handleOverpayment = async function(action) {
     return this;
 };
 
+// Common deduction accounts for Saudi Arabia
+paymentSchema.statics.DEDUCTION_ACCOUNTS = [
+    { code: '2210', name: 'ضريبة الاستقطاع المستحقة', nameEn: 'Withholding Tax Payable', rate: 5 },
+    { code: '2220', name: 'ضريبة القيمة المضافة', nameEn: 'VAT Payable', rate: 15 },
+    { code: '2230', name: 'التأمينات الاجتماعية', nameEn: 'GOSI Payable', rate: 9.75 },
+    { code: '2240', name: 'رسوم إدارية', nameEn: 'Administrative Fees', rate: null },
+];
+
 // Export constants for use in controllers
 paymentSchema.statics.PAYMENT_TYPES = PAYMENT_TYPES;
 paymentSchema.statics.PAYMENT_METHODS = PAYMENT_METHODS;
@@ -984,5 +1076,6 @@ paymentSchema.statics.PAYMENT_STATUSES = PAYMENT_STATUSES;
 paymentSchema.statics.CHECK_STATUSES = CHECK_STATUSES;
 paymentSchema.statics.REFUND_REASONS = REFUND_REASONS;
 paymentSchema.statics.CARD_TYPES = CARD_TYPES;
+paymentSchema.statics.PARTY_TYPES = PARTY_TYPES;
 
 module.exports = mongoose.model('Payment', paymentSchema);

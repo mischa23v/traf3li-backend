@@ -33,7 +33,10 @@ const {
     getUnreconciledPayments,
     getPendingChecks,
     recordInvoicePayment,
-    bulkDeletePayments
+    bulkDeletePayments,
+    // ERPNext parity endpoints
+    getAvailableAdvances,
+    getDeductionAccounts
 } = require('../controllers/payment.controller');
 
 const app = express.Router();
@@ -60,6 +63,16 @@ app.get('/pending-checks', userMiddleware, firmFilter, getPendingChecks);
 
 // Bulk operations
 app.delete('/bulk', userMiddleware, firmFilter, validateBulkDelete, bulkDeletePayments);
+
+// ═══════════════════════════════════════════════════════════════
+// ERPNext PARITY - ADVANCE PAYMENTS & DEDUCTIONS
+// ═══════════════════════════════════════════════════════════════
+
+// Get available advance payments for a client (for invoice allocation)
+app.get('/advances/available/:clientId', userMiddleware, firmFilter, getAvailableAdvances);
+
+// Get standard deduction accounts (for tax withholding)
+app.get('/deduction-accounts', userMiddleware, firmFilter, getDeductionAccounts);
 
 // ═══════════════════════════════════════════════════════════════
 // CRUD ROUTES

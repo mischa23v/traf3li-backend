@@ -17,7 +17,12 @@ const {
     suggestCategory,
     getExpenseCategories,
     bulkApproveExpenses,
-    getNewExpenseDefaults
+    getNewExpenseDefaults,
+    // ERPNext parity endpoints
+    getPendingApproval,
+    approveSanctionedExpense,
+    rejectExpenseWithNotification,
+    markExpenseAsPaid
 } = require('../controllers/expense.controller');
 
 const app = express.Router();
@@ -42,6 +47,13 @@ app.get('/by-category', userMiddleware, firmFilter, getExpensesByCategory);
 // Bulk operations
 app.post('/bulk-approve', userMiddleware, firmFilter, bulkApproveExpenses);
 app.post('/bulk-delete', userMiddleware, firmFilter, bulkDeleteExpenses);
+
+// ═══════════════════════════════════════════════════════════════
+// APPROVAL WORKFLOW (ERPNext parity)
+// ═══════════════════════════════════════════════════════════════
+
+// Get expenses pending my approval (as assigned approver)
+app.get('/pending-approval', userMiddleware, firmFilter, getPendingApproval);
 
 // ═══════════════════════════════════════════════════════════════
 // CRUD ROUTES
@@ -77,6 +89,19 @@ app.post('/:id/reject', userMiddleware, firmFilter, rejectExpense);
 
 // Mark as reimbursed
 app.post('/:id/reimburse', userMiddleware, firmFilter, markAsReimbursed);
+
+// ═══════════════════════════════════════════════════════════════
+// ERPNext PARITY WORKFLOW ACTIONS
+// ═══════════════════════════════════════════════════════════════
+
+// Approve with sanctioned amount (may differ from claimed)
+app.post('/:id/approve-sanctioned', userMiddleware, firmFilter, approveSanctionedExpense);
+
+// Reject with notification to employee
+app.post('/:id/reject-with-notification', userMiddleware, firmFilter, rejectExpenseWithNotification);
+
+// Mark expense as paid (for approved expenses)
+app.post('/:id/pay', userMiddleware, firmFilter, markExpenseAsPaid);
 
 // ═══════════════════════════════════════════════════════════════
 // ATTACHMENTS

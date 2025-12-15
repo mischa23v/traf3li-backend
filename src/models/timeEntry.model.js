@@ -168,6 +168,78 @@ const timeEntrySchema = new mongoose.Schema({
     },
 
     // ═══════════════════════════════════════════════════════════════
+    // ACTUAL TIME (ERPNext parity - explicit actual hours/minutes)
+    // ═══════════════════════════════════════════════════════════════
+    actualHours: {
+        type: Number,
+        min: 0,
+        default: 0
+    },
+    actualMinutes: {
+        type: Number,
+        min: 0,
+        max: 59,
+        default: 0
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // BILLING HOURS OVERRIDE (ERPNext: billing_hours)
+    // ═══════════════════════════════════════════════════════════════
+    // Billing hours may differ from actual hours
+    billingHours: {
+        type: Number,
+        min: 0
+    },
+    billingMinutes: {
+        type: Number,
+        min: 0,
+        max: 59,
+        default: 0
+    },
+    isBillableOverride: {
+        type: Boolean,
+        default: false
+    },
+    // Billing rate and amount (explicit ERPNext fields)
+    billingRate: {
+        type: Number,
+        min: 0
+    },
+    billingAmount: {
+        type: Number,
+        min: 0
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // COSTING (ERPNext: costing_rate, costing_amount)
+    // ═══════════════════════════════════════════════════════════════
+    costingRate: {
+        type: Number,
+        min: 0,
+        default: 0
+    },
+    costingAmount: {
+        type: Number,
+        min: 0,
+        default: 0
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // EXPECTED HOURS (ERPNext: expected_hours)
+    // ═══════════════════════════════════════════════════════════════
+    expectedHours: {
+        type: Number,
+        min: 0,
+        default: 0
+    },
+    expectedMinutes: {
+        type: Number,
+        min: 0,
+        max: 59,
+        default: 0
+    },
+
+    // ═══════════════════════════════════════════════════════════════
     // ACTIVITY & CLASSIFICATION
     // ═══════════════════════════════════════════════════════════════
     activityCode: {
@@ -541,6 +613,45 @@ timeEntrySchema.pre('save', async function(next) {
                 this.duration = calculatedMinutes;
             }
         }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // ERPNext PARITY CALCULATIONS
+    // ═══════════════════════════════════════════════════════════════
+
+    // Calculate actual hours/minutes from duration
+    if (this.duration) {
+        this.actualHours = Math.floor(this.duration / 60);
+        this.actualMinutes = this.duration % 60;
+    }
+
+    // Sync billingRate with hourlyRate
+    if (this.hourlyRate && !this.billingRate) {
+        this.billingRate = this.hourlyRate;
+    }
+    if (this.billingRate && !this.hourlyRate) {
+        this.hourlyRate = this.billingRate;
+    }
+
+    // Calculate billing amount based on billing hours override or actual hours
+    if (this.isBillable || this.timeType === 'billable') {
+        const rate = this.billingRate || this.hourlyRate || 0;
+        let billableMinutes;
+
+        if (this.isBillableOverride && (this.billingHours !== null && this.billingHours !== undefined)) {
+            // Use override billing hours
+            billableMinutes = (this.billingHours * 60) + (this.billingMinutes || 0);
+        } else {
+            // Use actual hours
+            billableMinutes = this.duration || 0;
+        }
+
+        this.billingAmount = Math.round((billableMinutes / 60) * rate);
+    }
+
+    // Calculate costing amount (for profitability/margin analysis)
+    if (this.costingRate > 0 && this.duration) {
+        this.costingAmount = Math.round((this.duration / 60) * this.costingRate);
     }
 
     next();
