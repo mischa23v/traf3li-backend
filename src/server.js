@@ -21,6 +21,7 @@ const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./configs/swagger');
 const connectDB = require('./configs/db');
 const { scheduleTaskReminders } = require('./utils/taskReminders');
+const { startRecurringInvoiceJobs } = require('./jobs/recurringInvoice.job');
 const { initSocket } = require('./configs/socket');
 const logger = require('./utils/logger');
 const { apiRateLimiter, speedLimiter } = require('./middlewares/rateLimiter.middleware');
@@ -147,6 +148,15 @@ const {
     recurringTransactionRoute,
     priceLevelRoute,
     fiscalPeriodRoute,
+
+    // Finance Management
+    financeSetupRoute,
+    creditNoteRoute,
+    debitNoteRoute,
+    recurringInvoiceRoute,
+    paymentTermsRoute,
+    expensePolicyRoute,
+    corporateCardRoute,
 
     // Investment & Trading Journal
     tradesRoute,
@@ -585,6 +595,17 @@ app.use('/api/recurring-transactions', recurringTransactionRoute);
 app.use('/api/price-levels', priceLevelRoute);
 app.use('/api/fiscal-periods', fiscalPeriodRoute);
 
+// ============================================
+// FINANCE MANAGEMENT ROUTES
+// ============================================
+app.use('/api/finance-setup', noCache, financeSetupRoute);
+app.use('/api/credit-notes', noCache, creditNoteRoute);
+app.use('/api/debit-notes', noCache, debitNoteRoute);
+app.use('/api/recurring-invoices', noCache, recurringInvoiceRoute);
+app.use('/api/payment-terms', paymentTermsRoute);
+app.use('/api/expense-policies', expensePolicyRoute);
+app.use('/api/corporate-cards', noCache, corporateCardRoute);
+
 // Investment & Trading Journal Routes
 app.use('/api/v1/trades', tradesRoute);
 app.use('/api/v1/brokers', brokersRoute);
@@ -849,6 +870,7 @@ const PORT = process.env.PORT || 8080;
 server.listen(PORT, () => {
     connectDB();
     scheduleTaskReminders();
+    startRecurringInvoiceJobs();
 
     logger.info('Server started', {
         port: PORT,
