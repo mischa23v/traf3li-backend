@@ -274,6 +274,11 @@ const firmSchema = new mongoose.Schema({
         trialEndsAt: Date,
         currentPeriodStart: Date,
         currentPeriodEnd: Date,
+        billingCycle: {
+            type: String,
+            enum: ['monthly', 'annual'],
+            default: 'monthly'
+        },
         maxUsers: { type: Number, default: 3 },
         maxCases: { type: Number, default: 50 },
         maxClients: { type: Number, default: 100 },
@@ -285,6 +290,94 @@ const firmSchema = new mongoose.Schema({
             apiAccess: { type: Boolean, default: false },
             customBranding: { type: Boolean, default: false }
         }
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // USAGE TRACKING
+    // ═══════════════════════════════════════════════════════════════
+    usage: {
+        cases: { type: Number, default: 0 },
+        clients: { type: Number, default: 0 },
+        users: { type: Number, default: 0 },
+        storageUsedMB: { type: Number, default: 0 },
+        documentsCount: { type: Number, default: 0 },
+        apiCallsThisMonth: { type: Number, default: 0 },
+        lastResetDate: { type: Date, default: Date.now }
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // ENTERPRISE SETTINGS
+    // ═══════════════════════════════════════════════════════════════
+    enterpriseSettings: {
+        // SSO/SAML Configuration
+        ssoEnabled: { type: Boolean, default: false },
+        ssoProvider: {
+            type: String,
+            enum: ['azure', 'okta', 'google', 'custom', null],
+            default: null
+        },
+        ssoEntityId: String,
+        ssoSsoUrl: String,
+        ssoCertificate: String,
+        ssoMetadataUrl: String,
+
+        // Security Settings
+        enforce2FA: { type: Boolean, default: false },
+        passwordPolicy: {
+            minLength: { type: Number, default: 8 },
+            requireUppercase: { type: Boolean, default: false },
+            requireLowercase: { type: Boolean, default: false },
+            requireNumbers: { type: Boolean, default: false },
+            requireSpecialChars: { type: Boolean, default: false },
+            maxAge: { type: Number, default: 90 }, // Days before password expires
+            preventReuse: { type: Number, default: 0 } // Number of previous passwords to prevent reuse
+        },
+        sessionTimeoutMinutes: { type: Number, default: 30 },
+        ipWhitelist: [String],
+        ipWhitelistEnabled: { type: Boolean, default: false },
+
+        // Branding (White Label)
+        customLogo: String,
+        customFavicon: String,
+        primaryColor: { type: String, default: '#3b82f6' },
+        secondaryColor: { type: String, default: '#1e40af' },
+        whiteLabelEnabled: { type: Boolean, default: false },
+        companyDisplayName: String,
+        companyDisplayNameAr: String,
+        customEmailDomain: String,
+        customSupportEmail: String,
+
+        // Data & Privacy
+        dataRetentionDays: { type: Number, default: 365 },
+        autoDeleteOldData: { type: Boolean, default: false },
+        gdprToolsEnabled: { type: Boolean, default: false },
+        dataExportEnabled: { type: Boolean, default: true }
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // BILLING
+    // ═══════════════════════════════════════════════════════════════
+    billing: {
+        stripeCustomerId: String,
+        stripeSubscriptionId: String,
+        paymentMethod: {
+            type: String,
+            enum: ['card', 'bank_transfer', 'invoice', null],
+            default: null
+        },
+        lastPaymentDate: Date,
+        lastPaymentAmount: Number,
+        nextBillingDate: Date,
+        invoiceEmail: String,
+        billingAddress: {
+            street: String,
+            city: String,
+            region: String,
+            postalCode: String,
+            country: { type: String, default: 'Saudi Arabia' }
+        },
+        taxId: String, // VAT number
+        autoRenew: { type: Boolean, default: true }
     },
 
     // ═══════════════════════════════════════════════════════════════

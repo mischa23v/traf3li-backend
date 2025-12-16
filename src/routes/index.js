@@ -188,6 +188,10 @@ const hrExtendedRoute = require('./hrExtended.route');
 // Unified Data Flow Routes
 const unifiedDataRoute = require('./unifiedData.route');
 
+// Plan & Subscription Routes
+const planRoute = require('./plan.route');
+const apiKeyRoute = require('./apiKey.route');
+
 module.exports = {
     // Marketplace
     gigRoute,
@@ -377,5 +381,9 @@ module.exports = {
     hrExtendedRoute,
 
     // Unified Data Flow
-    unifiedDataRoute
+    unifiedDataRoute,
+
+    // Plan & Subscription
+    planRoute,
+    apiKeyRoute
 };
