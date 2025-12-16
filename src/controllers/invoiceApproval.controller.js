@@ -2,7 +2,7 @@ const InvoiceApproval = require('../models/invoiceApproval.model');
 const Invoice = require('../models/invoice.model');
 const Notification = require('../models/notification.model');
 const asyncHandler = require('../utils/asyncHandler');
-const CustomException = require('../exceptions/customException');
+const CustomException = require('../utils/CustomException');
 
 /**
  * Submit invoice for approval
