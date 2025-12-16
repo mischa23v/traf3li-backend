@@ -57,8 +57,8 @@ COPY --from=builder /app/node_modules ./node_modules
 # Copy application code
 COPY --chown=nodejs:nodejs . .
 
-# Create logs directory
-RUN mkdir -p logs && chown -R nodejs:nodejs logs
+# Create logs and uploads directories
+RUN mkdir -p logs uploads/messages && chown -R nodejs:nodejs logs uploads
 
 # Switch to non-root user
 USER nodejs

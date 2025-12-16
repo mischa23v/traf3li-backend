@@ -2,10 +2,17 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 
-// Ensure uploads directory exists
-const uploadDir = 'uploads/messages';
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
+// Use absolute path from project root for container compatibility
+const uploadDir = path.join(process.cwd(), 'uploads', 'messages');
+
+// Ensure uploads directory exists (may already exist from Dockerfile)
+try {
+  if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir, { recursive: true });
+  }
+} catch (err) {
+  console.warn(`Warning: Could not create upload directory ${uploadDir}:`, err.message);
+  // Directory should be pre-created in Dockerfile for production
 }
 
 // Configure storage
