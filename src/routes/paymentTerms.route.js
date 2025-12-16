@@ -6,7 +6,7 @@
 
 const express = require('express');
 const router = express.Router();
-const { userMiddleware } = require('../middlewares/authenticate.middleware');
+const { userMiddleware } = require('../middlewares');
 const { firmFilter, checkFirmPermission, firmAdminOnly, financeAccessOnly } = require('../middlewares/firmFilter.middleware');
 const {
     getPaymentTerms,
