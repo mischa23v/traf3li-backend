@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
-const { Client, Case, Invoice, Payment } = require('../models');
+const { Client, Case, Invoice, Payment, Firm } = require('../models');
 const CrmActivity = require('../models/crmActivity.model');
 const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
@@ -27,6 +27,13 @@ const createClient = asyncHandler(async (req, res) => {
     };
 
     const client = await Client.create(clientData);
+
+    // Increment usage counter for firm
+    if (firmId) {
+        await Firm.findByIdAndUpdate(firmId, {
+            $inc: { 'usage.clients': 1 }
+        }).catch(err => console.error('Error updating client usage:', err.message));
+    }
 
     // Log activity
     try {
@@ -552,6 +559,13 @@ const deleteClient = asyncHandler(async (req, res) => {
     const clientData = client.toObject();
 
     await Client.findByIdAndDelete(id);
+
+    // Decrement usage counter for firm
+    if (firmId) {
+        await Firm.findByIdAndUpdate(firmId, {
+            $inc: { 'usage.clients': -1 }
+        }).catch(err => console.error('Error updating client usage:', err.message));
+    }
 
     // Trigger webhook - fire and forget (async, don't await)
     webhookService.trigger('client.deleted', {

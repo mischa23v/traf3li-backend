@@ -1,4 +1,4 @@
-const { Document, Case, Client } = require('../models');
+const { Document, Case, Client, Firm } = require('../models');
 const DocumentVersion = require('../models/documentVersion.model');
 const DocumentVersionService = require('../services/documentVersionService');
 const asyncHandler = require('../utils/asyncHandler');
@@ -83,8 +83,11 @@ const confirmUpload = asyncHandler(async (req, res) => {
     // Determine the actual bucket used
     const actualBucket = bucket || getBucketForModule(module);
 
+    const firmId = req.firmId; // From firmFilter middleware
+
     const document = await Document.create({
         lawyerId,
+        firmId, // Add firmId for multi-tenancy
         fileName,
         originalName: originalName || fileName,
         fileType,
@@ -101,6 +104,17 @@ const confirmUpload = asyncHandler(async (req, res) => {
         tags: tags || [],
         uploadedBy: lawyerId
     });
+
+    // Increment usage counter for firm
+    if (firmId) {
+        const fileSizeMB = fileSize ? fileSize / (1024 * 1024) : 0;
+        await Firm.findByIdAndUpdate(firmId, {
+            $inc: {
+                'usage.documentsCount': 1,
+                'usage.storageUsedMB': fileSizeMB
+            }
+        }).catch(err => console.error('Error updating document usage:', err.message));
+    }
 
     res.status(201).json({
         success: true,
@@ -235,7 +249,22 @@ const deleteDocument = asyncHandler(async (req, res) => {
         console.error('Storage delete error:', err);
     }
 
+    // Store fileSize before deletion for usage tracking
+    const fileSize = document.fileSize || 0;
+    const firmId = document.firmId || req.firmId;
+
     await Document.findByIdAndDelete(id);
+
+    // Decrement usage counter for firm
+    if (firmId) {
+        const fileSizeMB = fileSize / (1024 * 1024);
+        await Firm.findByIdAndUpdate(firmId, {
+            $inc: {
+                'usage.documentsCount': -1,
+                'usage.storageUsedMB': -fileSizeMB
+            }
+        }).catch(err => console.error('Error updating document usage:', err.message));
+    }
 
     res.status(200).json({
         success: true,

@@ -1,4 +1,4 @@
-const { Case, Order, User, Event, Reminder } = require('../models');
+const { Case, Order, User, Event, Reminder, Firm } = require('../models');
 const AuditLog = require('../models/auditLog.model');
 const CaseAuditLog = require('../models/caseAuditLog.model');
 const CaseAuditService = require('../services/caseAuditService');
@@ -346,6 +346,13 @@ const createCase = async (request, response) => {
         }
 
         const caseDoc = await Case.create(caseData);
+
+        // Increment usage counter for firm
+        if (firmId) {
+            await Firm.findByIdAndUpdate(firmId, {
+                $inc: { 'usage.cases': 1 }
+            }).catch(err => console.error('Error updating case usage:', err.message));
+        }
 
         // Log CRM activity
         try {
@@ -1336,6 +1343,13 @@ const deleteCase = async (request, response) => {
         const caseStatus = caseDoc.status;
 
         await Case.findByIdAndDelete(_id);
+
+        // Decrement usage counter for firm
+        if (caseDoc.firmId) {
+            await Firm.findByIdAndUpdate(caseDoc.firmId, {
+                $inc: { 'usage.cases': -1 }
+            }).catch(err => console.error('Error updating case usage:', err.message));
+        }
 
         // Log CRM activity for case deletion
         try {

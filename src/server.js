@@ -23,6 +23,7 @@ const connectDB = require('./configs/db');
 const { scheduleTaskReminders } = require('./utils/taskReminders');
 const { startRecurringInvoiceJobs } = require('./jobs/recurringInvoice.job');
 const { startTimeEntryJobs } = require('./jobs/timeEntryLocking.job');
+const { startPlanJobs } = require('./jobs/planExpiration.job');
 const { initSocket } = require('./configs/socket');
 const logger = require('./utils/logger');
 const { apiRateLimiter, speedLimiter } = require('./middlewares/rateLimiter.middleware');
@@ -230,7 +231,11 @@ const {
     hrExtendedRoute,
 
     // Unified Data Flow
-    unifiedDataRoute
+    unifiedDataRoute,
+
+    // Plan & Subscription
+    planRoute,
+    apiKeyRoute
 } = require('./routes');
 
 // Import versioned routes
@@ -718,6 +723,10 @@ app.use('/api/hr/extended', noCache, hrExtendedRoute);
 // Consolidated data endpoints for dashboard integration
 app.use('/api/unified', noCache, unifiedDataRoute);
 
+// Plan & Subscription Routes
+app.use('/api/plans', planRoute);
+app.use('/api/api-keys', apiKeyRoute);
+
 // ============================================
 // WEBHOOK ROUTES (Third-Party Integrations)
 // ============================================
@@ -918,6 +927,7 @@ server.listen(PORT, () => {
     scheduleTaskReminders();
     startRecurringInvoiceJobs();
     startTimeEntryJobs();
+    startPlanJobs();
 
     logger.info('Server started', {
         port: PORT,

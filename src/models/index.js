@@ -197,6 +197,12 @@ const WhatsAppConversation = require('./whatsappConversation.model');
 const WhatsAppTemplate = require('./whatsappTemplate.model');
 const WhatsAppBroadcast = require('./whatsappBroadcast.model');
 
+// API Key Model
+const ApiKey = require('./apiKey.model');
+
+// Webhook Model
+const Webhook = require('./webhook.model');
+
 module.exports = {
     // Marketplace
     User,
@@ -395,5 +401,11 @@ module.exports = {
     WhatsAppMessage,
     WhatsAppConversation,
     WhatsAppTemplate,
-    WhatsAppBroadcast
+    WhatsAppBroadcast,
+
+    // API Keys
+    ApiKey,
+
+    // Webhooks
+    Webhook
 };
