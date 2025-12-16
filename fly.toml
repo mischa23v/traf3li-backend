@@ -1,10 +1,10 @@
-# fly.toml app configuration file generated for traf3li-backend on 2025-12-16T11:58:59Z
+# fly.toml app configuration file generated for traf3li-backend-w1ufww on 2025-12-16T12:31:42Z
 #
 # See https://fly.io/docs/reference/configuration/ for information about how to use this file.
 #
 
-app = 'traf3li-backend'
-primary_region = 'dxb'
+app = 'traf3li-backend-w1ufww'
+primary_region = 'cdg'
 
 [build]
 
