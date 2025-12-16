@@ -1,7 +1,7 @@
 const PaymentReceipt = require('../models/paymentReceipt.model');
 const Payment = require('../models/payment.model');
 const asyncHandler = require('../utils/asyncHandler');
-const CustomException = require('../exceptions/customException');
+const CustomException = require('../utils/CustomException');
 
 /**
  * Get all payment receipts

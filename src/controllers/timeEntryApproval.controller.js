@@ -1,7 +1,7 @@
 const TimeEntry = require('../models/timeEntry.model');
 const Notification = require('../models/notification.model');
 const asyncHandler = require('../utils/asyncHandler');
-const CustomException = require('../exceptions/customException');
+const CustomException = require('../utils/CustomException');
 
 /**
  * Submit time entry for approval
