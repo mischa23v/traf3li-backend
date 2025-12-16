@@ -4,7 +4,7 @@
 #
 
 app = 'traf3li-backend'
-primary_region = 'cdg'
+primary_region = 'dxb'
 
 [build]
 
