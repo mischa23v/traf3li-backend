@@ -42,6 +42,24 @@ const {
     sanitizeString,
     sanitizeObject
 } = require('./sanitize.middleware');
+const {
+    getEffectivePlan,
+    requireFeature,
+    requirePlan,
+    checkResourceLimit,
+    requireApiAccess,
+    attachPlanInfo,
+    requireAnyFeature,
+    requireAllFeatures,
+    checkStorageLimit
+} = require('./planCheck.middleware');
+const {
+    apiKeyAuth,
+    requireScope,
+    requireAnyScope,
+    apiKeyRateLimit,
+    flexibleAuth
+} = require('./apiKeyAuth.middleware');
 
 module.exports = {
     userMiddleware,
@@ -84,5 +102,21 @@ module.exports = {
     sanitizeParams,
     sanitizeAll,
     sanitizeString,
-    sanitizeObject
+    sanitizeObject,
+    // Plan check middleware (tier system)
+    getEffectivePlan,
+    requireFeature,
+    requirePlan,
+    checkResourceLimit,
+    requireApiAccess,
+    attachPlanInfo,
+    requireAnyFeature,
+    requireAllFeatures,
+    checkStorageLimit,
+    // API key authentication middleware
+    apiKeyAuth,
+    requireScope,
+    requireAnyScope,
+    apiKeyRateLimit,
+    flexibleAuth
 }
