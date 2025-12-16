@@ -9,11 +9,13 @@ const router = require('express').Router();
 const ShiftType = require('../models/shiftType.model');
 const ShiftAssignment = require('../models/shiftAssignment.model');
 const Employee = require('../models/employee.model');
-const { authenticateJWT } = require('../middlewares/authenticate');
+const { verifyToken } = require('../middlewares/jwt');
+const { attachFirmContext } = require('../middlewares/firmContext.middleware');
 const asyncHandler = require('express-async-handler');
 
 // All routes require authentication
-router.use(authenticateJWT);
+router.use(verifyToken);
+router.use(attachFirmContext);
 
 // ═══════════════════════════════════════════════════════════════
 // SHIFT TYPE ROUTES

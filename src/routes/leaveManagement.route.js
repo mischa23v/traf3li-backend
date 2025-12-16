@@ -7,9 +7,8 @@
 
 const express = require('express');
 const router = express.Router();
-const { protect } = require('../middleware/auth');
-const { checkPermission } = require('../middleware/permission');
-const userMiddleware = require('../middleware/userMiddleware');
+const { verifyToken } = require('../middlewares/jwt');
+const { attachFirmContext } = require('../middlewares/firmContext.middleware');
 const LeavePeriod = require('../models/leavePeriod.model');
 const LeavePolicy = require('../models/leavePolicy.model');
 const LeaveAllocation = require('../models/leaveAllocation.model');
@@ -17,8 +16,8 @@ const LeaveType = require('../models/leaveType.model');
 const Employee = require('../models/employee.model');
 
 // Apply authentication to all routes
-router.use(protect);
-router.use(userMiddleware);
+router.use(verifyToken);
+router.use(attachFirmContext);
 
 // ==================== LEAVE PERIODS ====================
 
@@ -27,10 +26,10 @@ router.use(userMiddleware);
  * @desc    Get all leave periods
  * @access  Private
  */
-router.get('/leave-periods', checkPermission('leave_period', 'read'), async (req, res) => {
+router.get('/leave-periods', async (req, res) => {
   try {
     const { status, isCurrent, year } = req.query;
-    const query = { firmId: req.user.firmId };
+    const query = { firmId: req.firmId };
 
     if (status) query.status = status;
     if (isCurrent === 'true') {
@@ -67,9 +66,9 @@ router.get('/leave-periods', checkPermission('leave_period', 'read'), async (req
  * @desc    Get current active leave period
  * @access  Private
  */
-router.get('/leave-periods/current', checkPermission('leave_period', 'read'), async (req, res) => {
+router.get('/leave-periods/current', async (req, res) => {
   try {
-    const period = await LeavePeriod.getCurrentPeriod(req.user.firmId);
+    const period = await LeavePeriod.getCurrentPeriod(req.firmId);
 
     if (!period) {
       return res.status(404).json({
@@ -97,11 +96,11 @@ router.get('/leave-periods/current', checkPermission('leave_period', 'read'), as
  * @desc    Get leave period by ID
  * @access  Private
  */
-router.get('/leave-periods/:id', checkPermission('leave_period', 'read'), async (req, res) => {
+router.get('/leave-periods/:id', async (req, res) => {
   try {
     const period = await LeavePeriod.findOne({
       _id: req.params.id,
-      firmId: req.user.firmId
+      firmId: req.firmId
     }).populate('createdBy', 'name email');
 
     if (!period) {
@@ -130,12 +129,12 @@ router.get('/leave-periods/:id', checkPermission('leave_period', 'read'), async 
  * @desc    Create new leave period
  * @access  Private (Admin/HR)
  */
-router.post('/leave-periods', checkPermission('leave_period', 'create'), async (req, res) => {
+router.post('/leave-periods', async (req, res) => {
   try {
     const periodData = {
       ...req.body,
-      firmId: req.user.firmId,
-      createdBy: req.user._id
+      firmId: req.firmId,
+      createdBy: req.userID
     };
 
     const period = await LeavePeriod.create(periodData);
@@ -160,11 +159,11 @@ router.post('/leave-periods', checkPermission('leave_period', 'create'), async (
  * @desc    Update leave period
  * @access  Private (Admin/HR)
  */
-router.put('/leave-periods/:id', checkPermission('leave_period', 'update'), async (req, res) => {
+router.put('/leave-periods/:id', async (req, res) => {
   try {
     const period = await LeavePeriod.findOneAndUpdate(
-      { _id: req.params.id, firmId: req.user.firmId },
-      { ...req.body, updatedBy: req.user._id },
+      { _id: req.params.id, firmId: req.firmId },
+      { ...req.body, updatedBy: req.userID },
       { new: true, runValidators: true }
     );
 
@@ -195,12 +194,12 @@ router.put('/leave-periods/:id', checkPermission('leave_period', 'update'), asyn
  * @desc    Delete leave period
  * @access  Private (Admin)
  */
-router.delete('/leave-periods/:id', checkPermission('leave_period', 'delete'), async (req, res) => {
+router.delete('/leave-periods/:id', async (req, res) => {
   try {
     // Check if any allocations exist for this period
     const allocationsExist = await LeaveAllocation.exists({
       leavePeriodId: req.params.id,
-      firmId: req.user.firmId
+      firmId: req.firmId
     });
 
     if (allocationsExist) {
@@ -212,7 +211,7 @@ router.delete('/leave-periods/:id', checkPermission('leave_period', 'delete'), a
 
     const period = await LeavePeriod.findOneAndDelete({
       _id: req.params.id,
-      firmId: req.user.firmId
+      firmId: req.firmId
     });
 
     if (!period) {
@@ -241,11 +240,11 @@ router.delete('/leave-periods/:id', checkPermission('leave_period', 'delete'), a
  * @desc    Activate a leave period
  * @access  Private (Admin/HR)
  */
-router.post('/leave-periods/:id/activate', checkPermission('leave_period', 'update'), async (req, res) => {
+router.post('/leave-periods/:id/activate', async (req, res) => {
   try {
     const period = await LeavePeriod.findOne({
       _id: req.params.id,
-      firmId: req.user.firmId
+      firmId: req.firmId
     });
 
     if (!period) {
@@ -256,7 +255,7 @@ router.post('/leave-periods/:id/activate', checkPermission('leave_period', 'upda
     }
 
     period.status = 'active';
-    period.updatedBy = req.user._id;
+    period.updatedBy = req.userID;
     await period.save();
 
     res.json({
@@ -279,11 +278,11 @@ router.post('/leave-periods/:id/activate', checkPermission('leave_period', 'upda
  * @desc    Close a leave period
  * @access  Private (Admin/HR)
  */
-router.post('/leave-periods/:id/close', checkPermission('leave_period', 'update'), async (req, res) => {
+router.post('/leave-periods/:id/close', async (req, res) => {
   try {
     const period = await LeavePeriod.findOne({
       _id: req.params.id,
-      firmId: req.user.firmId
+      firmId: req.firmId
     });
 
     if (!period) {
@@ -294,7 +293,7 @@ router.post('/leave-periods/:id/close', checkPermission('leave_period', 'update'
     }
 
     period.status = 'closed';
-    period.updatedBy = req.user._id;
+    period.updatedBy = req.userID;
     await period.save();
 
     res.json({
@@ -319,10 +318,10 @@ router.post('/leave-periods/:id/close', checkPermission('leave_period', 'update'
  * @desc    Get all leave policies
  * @access  Private
  */
-router.get('/leave-policies', checkPermission('leave_policy', 'read'), async (req, res) => {
+router.get('/leave-policies', async (req, res) => {
   try {
     const { isActive, isDefault, applyToAllEmployees } = req.query;
-    const query = { firmId: req.user.firmId };
+    const query = { firmId: req.firmId };
 
     if (isActive !== undefined) query.isActive = isActive === 'true';
     if (isDefault !== undefined) query.isDefault = isDefault === 'true';
@@ -355,9 +354,9 @@ router.get('/leave-policies', checkPermission('leave_policy', 'read'), async (re
  * @desc    Get default leave policy
  * @access  Private
  */
-router.get('/leave-policies/default', checkPermission('leave_policy', 'read'), async (req, res) => {
+router.get('/leave-policies/default', async (req, res) => {
   try {
-    const policy = await LeavePolicy.getDefaultPolicy(req.user.firmId);
+    const policy = await LeavePolicy.getDefaultPolicy(req.firmId);
 
     if (!policy) {
       return res.status(404).json({
@@ -385,11 +384,11 @@ router.get('/leave-policies/default', checkPermission('leave_policy', 'read'), a
  * @desc    Get leave policy by ID
  * @access  Private
  */
-router.get('/leave-policies/:id', checkPermission('leave_policy', 'read'), async (req, res) => {
+router.get('/leave-policies/:id', async (req, res) => {
   try {
     const policy = await LeavePolicy.findOne({
       _id: req.params.id,
-      firmId: req.user.firmId
+      firmId: req.firmId
     })
       .populate('leaveTypeAllocations.leaveTypeId', 'name nameAr code')
       .populate('applicableDepartments', 'name')
@@ -422,12 +421,12 @@ router.get('/leave-policies/:id', checkPermission('leave_policy', 'read'), async
  * @desc    Create new leave policy
  * @access  Private (Admin/HR)
  */
-router.post('/leave-policies', checkPermission('leave_policy', 'create'), async (req, res) => {
+router.post('/leave-policies', async (req, res) => {
   try {
     const policyData = {
       ...req.body,
-      firmId: req.user.firmId,
-      createdBy: req.user._id
+      firmId: req.firmId,
+      createdBy: req.userID
     };
 
     const policy = await LeavePolicy.create(policyData);
@@ -459,11 +458,11 @@ router.post('/leave-policies', checkPermission('leave_policy', 'create'), async 
  * @desc    Update leave policy
  * @access  Private (Admin/HR)
  */
-router.put('/leave-policies/:id', checkPermission('leave_policy', 'update'), async (req, res) => {
+router.put('/leave-policies/:id', async (req, res) => {
   try {
     const policy = await LeavePolicy.findOneAndUpdate(
-      { _id: req.params.id, firmId: req.user.firmId },
-      { ...req.body, updatedBy: req.user._id },
+      { _id: req.params.id, firmId: req.firmId },
+      { ...req.body, updatedBy: req.userID },
       { new: true, runValidators: true }
     )
       .populate('leaveTypeAllocations.leaveTypeId', 'name nameAr code')
@@ -497,12 +496,12 @@ router.put('/leave-policies/:id', checkPermission('leave_policy', 'update'), asy
  * @desc    Delete leave policy
  * @access  Private (Admin)
  */
-router.delete('/leave-policies/:id', checkPermission('leave_policy', 'delete'), async (req, res) => {
+router.delete('/leave-policies/:id', async (req, res) => {
   try {
     // Check if policy is default
     const policy = await LeavePolicy.findOne({
       _id: req.params.id,
-      firmId: req.user.firmId
+      firmId: req.firmId
     });
 
     if (!policy) {
@@ -522,7 +521,7 @@ router.delete('/leave-policies/:id', checkPermission('leave_policy', 'delete'), 
     // Check if any allocations use this policy
     const allocationsExist = await LeaveAllocation.exists({
       leavePolicyId: req.params.id,
-      firmId: req.user.firmId
+      firmId: req.firmId
     });
 
     if (allocationsExist) {
@@ -553,11 +552,11 @@ router.delete('/leave-policies/:id', checkPermission('leave_policy', 'delete'), 
  * @desc    Clone a leave policy
  * @access  Private (Admin/HR)
  */
-router.post('/leave-policies/:id/clone', checkPermission('leave_policy', 'create'), async (req, res) => {
+router.post('/leave-policies/:id/clone', async (req, res) => {
   try {
     const sourcePolicy = await LeavePolicy.findOne({
       _id: req.params.id,
-      firmId: req.user.firmId
+      firmId: req.firmId
     });
 
     if (!sourcePolicy) {
@@ -576,7 +575,7 @@ router.post('/leave-policies/:id/clone', checkPermission('leave_policy', 'create
     clonedData.name = req.body.name || `${sourcePolicy.name} (Copy)`;
     clonedData.nameAr = req.body.nameAr || `${sourcePolicy.nameAr} (نسخة)`;
     clonedData.isDefault = false;
-    clonedData.createdBy = req.user._id;
+    clonedData.createdBy = req.userID;
 
     const newPolicy = await LeavePolicy.create(clonedData);
 
@@ -602,10 +601,10 @@ router.post('/leave-policies/:id/clone', checkPermission('leave_policy', 'create
  * @desc    Get all leave allocations
  * @access  Private
  */
-router.get('/leave-allocations', checkPermission('leave_allocation', 'read'), async (req, res) => {
+router.get('/leave-allocations', async (req, res) => {
   try {
     const { employeeId, leaveTypeId, leavePeriodId, status } = req.query;
-    const query = { firmId: req.user.firmId };
+    const query = { firmId: req.firmId };
 
     if (employeeId) query.employeeId = employeeId;
     if (leaveTypeId) query.leaveTypeId = leaveTypeId;
@@ -640,12 +639,12 @@ router.get('/leave-allocations', checkPermission('leave_allocation', 'read'), as
  * @desc    Get all allocations for an employee
  * @access  Private
  */
-router.get('/leave-allocations/employee/:employeeId', checkPermission('leave_allocation', 'read'), async (req, res) => {
+router.get('/leave-allocations/employee/:employeeId', async (req, res) => {
   try {
     const { leavePeriodId } = req.query;
 
     const allocations = await LeaveAllocation.getEmployeeAllocations(
-      req.user.firmId,
+      req.firmId,
       req.params.employeeId,
       leavePeriodId
     );
@@ -670,10 +669,10 @@ router.get('/leave-allocations/employee/:employeeId', checkPermission('leave_all
  * @desc    Get current balance for an employee and leave type
  * @access  Private
  */
-router.get('/leave-allocations/balance/:employeeId/:leaveTypeId', checkPermission('leave_allocation', 'read'), async (req, res) => {
+router.get('/leave-allocations/balance/:employeeId/:leaveTypeId', async (req, res) => {
   try {
     const balance = await LeaveAllocation.getEmployeeBalance(
-      req.user.firmId,
+      req.firmId,
       req.params.employeeId,
       req.params.leaveTypeId
     );
@@ -697,11 +696,11 @@ router.get('/leave-allocations/balance/:employeeId/:leaveTypeId', checkPermissio
  * @desc    Get leave allocation by ID
  * @access  Private
  */
-router.get('/leave-allocations/:id', checkPermission('leave_allocation', 'read'), async (req, res) => {
+router.get('/leave-allocations/:id', async (req, res) => {
   try {
     const allocation = await LeaveAllocation.findOne({
       _id: req.params.id,
-      firmId: req.user.firmId
+      firmId: req.firmId
     })
       .populate('employeeId', 'employeeId firstName lastName')
       .populate('leaveTypeId', 'name nameAr code')
@@ -736,12 +735,12 @@ router.get('/leave-allocations/:id', checkPermission('leave_allocation', 'read')
  * @desc    Create new leave allocation
  * @access  Private (Admin/HR)
  */
-router.post('/leave-allocations', checkPermission('leave_allocation', 'create'), async (req, res) => {
+router.post('/leave-allocations', async (req, res) => {
   try {
     const allocationData = {
       ...req.body,
-      firmId: req.user.firmId,
-      createdBy: req.user._id
+      firmId: req.firmId,
+      createdBy: req.userID
     };
 
     const allocation = await LeaveAllocation.create(allocationData);
@@ -772,7 +771,7 @@ router.post('/leave-allocations', checkPermission('leave_allocation', 'create'),
  * @desc    Bulk create leave allocations
  * @access  Private (Admin/HR)
  */
-router.post('/leave-allocations/bulk', checkPermission('leave_allocation', 'create'), async (req, res) => {
+router.post('/leave-allocations/bulk', async (req, res) => {
   try {
     const { leavePeriodId, allocations } = req.body;
 
@@ -784,10 +783,10 @@ router.post('/leave-allocations/bulk', checkPermission('leave_allocation', 'crea
     }
 
     const createdAllocations = await LeaveAllocation.bulkAllocate(
-      req.user.firmId,
+      req.firmId,
       leavePeriodId,
       allocations,
-      req.user._id
+      req.userID
     );
 
     res.status(201).json({
@@ -811,11 +810,11 @@ router.post('/leave-allocations/bulk', checkPermission('leave_allocation', 'crea
  * @desc    Update leave allocation
  * @access  Private (Admin/HR)
  */
-router.put('/leave-allocations/:id', checkPermission('leave_allocation', 'update'), async (req, res) => {
+router.put('/leave-allocations/:id', async (req, res) => {
   try {
     const allocation = await LeaveAllocation.findOneAndUpdate(
-      { _id: req.params.id, firmId: req.user.firmId },
-      { ...req.body, updatedBy: req.user._id },
+      { _id: req.params.id, firmId: req.firmId },
+      { ...req.body, updatedBy: req.userID },
       { new: true, runValidators: true }
     )
       .populate('employeeId', 'employeeId firstName lastName')
@@ -849,11 +848,11 @@ router.put('/leave-allocations/:id', checkPermission('leave_allocation', 'update
  * @desc    Delete leave allocation
  * @access  Private (Admin)
  */
-router.delete('/leave-allocations/:id', checkPermission('leave_allocation', 'delete'), async (req, res) => {
+router.delete('/leave-allocations/:id', async (req, res) => {
   try {
     const allocation = await LeaveAllocation.findOne({
       _id: req.params.id,
-      firmId: req.user.firmId
+      firmId: req.firmId
     });
 
     if (!allocation) {
@@ -892,11 +891,11 @@ router.delete('/leave-allocations/:id', checkPermission('leave_allocation', 'del
  * @desc    Approve leave allocation
  * @access  Private (Admin/HR/Manager)
  */
-router.post('/leave-allocations/:id/approve', checkPermission('leave_allocation', 'update'), async (req, res) => {
+router.post('/leave-allocations/:id/approve', async (req, res) => {
   try {
     const allocation = await LeaveAllocation.findOne({
       _id: req.params.id,
-      firmId: req.user.firmId
+      firmId: req.firmId
     });
 
     if (!allocation) {
@@ -907,9 +906,9 @@ router.post('/leave-allocations/:id/approve', checkPermission('leave_allocation'
     }
 
     allocation.status = 'approved';
-    allocation.approvedBy = req.user._id;
+    allocation.approvedBy = req.userID;
     allocation.approvedAt = new Date();
-    allocation.updatedBy = req.user._id;
+    allocation.updatedBy = req.userID;
     await allocation.save();
 
     await allocation.populate([
@@ -938,7 +937,7 @@ router.post('/leave-allocations/:id/approve', checkPermission('leave_allocation'
  * @desc    Adjust leave allocation
  * @access  Private (Admin/HR)
  */
-router.post('/leave-allocations/:id/adjust', checkPermission('leave_allocation', 'update'), async (req, res) => {
+router.post('/leave-allocations/:id/adjust', async (req, res) => {
   try {
     const { type, days, reason } = req.body;
 
@@ -951,7 +950,7 @@ router.post('/leave-allocations/:id/adjust', checkPermission('leave_allocation',
 
     const allocation = await LeaveAllocation.findOne({
       _id: req.params.id,
-      firmId: req.user.firmId
+      firmId: req.firmId
     });
 
     if (!allocation) {
@@ -961,7 +960,7 @@ router.post('/leave-allocations/:id/adjust', checkPermission('leave_allocation',
       });
     }
 
-    await allocation.adjustAllocation(type, days, reason, req.user._id);
+    await allocation.adjustAllocation(type, days, reason, req.userID);
 
     await allocation.populate([
       { path: 'employeeId', select: 'employeeId firstName lastName' },
@@ -989,7 +988,7 @@ router.post('/leave-allocations/:id/adjust', checkPermission('leave_allocation',
  * @desc    Auto-generate leave allocations for a period based on policies
  * @access  Private (Admin/HR)
  */
-router.post('/leave-allocations/generate', checkPermission('leave_allocation', 'create'), async (req, res) => {
+router.post('/leave-allocations/generate', async (req, res) => {
   try {
     const { leavePeriodId, employeeIds } = req.body;
 
@@ -1003,7 +1002,7 @@ router.post('/leave-allocations/generate', checkPermission('leave_allocation', '
     // Get the leave period
     const leavePeriod = await LeavePeriod.findOne({
       _id: leavePeriodId,
-      firmId: req.user.firmId
+      firmId: req.firmId
     });
 
     if (!leavePeriod) {
@@ -1014,7 +1013,7 @@ router.post('/leave-allocations/generate', checkPermission('leave_allocation', '
     }
 
     // Get default policy
-    const defaultPolicy = await LeavePolicy.getDefaultPolicy(req.user.firmId);
+    const defaultPolicy = await LeavePolicy.getDefaultPolicy(req.firmId);
 
     if (!defaultPolicy) {
       return res.status(400).json({
@@ -1024,7 +1023,7 @@ router.post('/leave-allocations/generate', checkPermission('leave_allocation', '
     }
 
     // Get employees
-    const employeeQuery = { firmId: req.user.firmId, status: 'active' };
+    const employeeQuery = { firmId: req.firmId, status: 'active' };
     if (employeeIds && employeeIds.length > 0) {
       employeeQuery._id = { $in: employeeIds };
     }
@@ -1046,7 +1045,7 @@ router.post('/leave-allocations/generate', checkPermission('leave_allocation', '
 
         // Check if allocation already exists
         const existingAllocation = await LeaveAllocation.findOne({
-          firmId: req.user.firmId,
+          firmId: req.firmId,
           employeeId: employee._id,
           leaveTypeId: leaveTypeAlloc.leaveTypeId,
           leavePeriodId
@@ -1069,7 +1068,7 @@ router.post('/leave-allocations/generate', checkPermission('leave_allocation', '
 
         try {
           const allocation = await LeaveAllocation.create({
-            firmId: req.user.firmId,
+            firmId: req.firmId,
             employeeId: employee._id,
             leaveTypeId: leaveTypeAlloc.leaveTypeId,
             leavePeriodId,
@@ -1078,9 +1077,9 @@ router.post('/leave-allocations/generate', checkPermission('leave_allocation', '
             fromDate: leavePeriod.startDate,
             toDate: leavePeriod.endDate,
             status: 'approved',
-            approvedBy: req.user._id,
+            approvedBy: req.userID,
             approvedAt: new Date(),
-            createdBy: req.user._id,
+            createdBy: req.userID,
             allocationReason: 'Auto-generated from leave policy'
           });
 

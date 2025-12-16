@@ -15,9 +15,8 @@
 const express = require('express');
 const router = express.Router();
 const mongoose = require('mongoose');
-const { protect } = require('../middleware/auth');
-const { checkPermission } = require('../middleware/permission');
-const userMiddleware = require('../middleware/userMiddleware');
+const { verifyToken } = require('../middlewares/jwt');
+const { attachFirmContext } = require('../middlewares/firmContext.middleware');
 
 // Models
 const TimeEntry = require('../models/timeEntry.model');
@@ -31,8 +30,8 @@ const Attendance = require('../models/attendance.model');
 const PayrollRun = require('../models/payrollRun.model');
 
 // Apply authentication to all routes
-router.use(protect);
-router.use(userMiddleware);
+router.use(verifyToken);
+router.use(attachFirmContext);
 
 // ==================== BILLABLE ITEMS ====================
 
@@ -41,12 +40,12 @@ router.use(userMiddleware);
  * @desc    Get all unbilled time entries and expenses
  * @access  Private
  */
-router.get('/billable-items', checkPermission('time_entry', 'read'), async (req, res) => {
+router.get('/billable-items', async (req, res) => {
   try {
     const { clientId, caseId, startDate, endDate } = req.query;
 
     const query = {
-      firmId: req.user.firmId,
+      firmId: req.firmId,
       isBillable: true,
       status: { $in: ['approved', 'submitted'] },
       invoiceId: { $exists: false }
@@ -113,12 +112,12 @@ router.get('/billable-items', checkPermission('time_entry', 'read'), async (req,
  * @desc    Get all unpaid invoices with aging analysis
  * @access  Private
  */
-router.get('/open-invoices', checkPermission('invoice', 'read'), async (req, res) => {
+router.get('/open-invoices', async (req, res) => {
   try {
     const { clientId } = req.query;
 
     const query = {
-      firmId: req.user.firmId,
+      firmId: req.firmId,
       status: { $in: ['sent', 'overdue', 'partially_paid'] }
     };
 
@@ -192,10 +191,10 @@ router.get('/open-invoices', checkPermission('invoice', 'read'), async (req, res
  * @desc    Get comprehensive financial summary
  * @access  Private
  */
-router.get('/financial-summary', checkPermission('invoice', 'read'), async (req, res) => {
+router.get('/financial-summary', async (req, res) => {
   try {
     const { year, month } = req.query;
-    const firmId = mongoose.Types.ObjectId(req.user.firmId);
+    const firmId = mongoose.Types.ObjectId(req.firmId);
 
     // Date range for current period
     const currentYear = parseInt(year) || new Date().getFullYear();
@@ -373,10 +372,10 @@ router.get('/financial-summary', checkPermission('invoice', 'read'), async (req,
  * @desc    Get complete client portfolio with all related data
  * @access  Private
  */
-router.get('/client-portfolio/:clientId', checkPermission('client', 'read'), async (req, res) => {
+router.get('/client-portfolio/:clientId', async (req, res) => {
   try {
     const { clientId } = req.params;
-    const firmId = req.user.firmId;
+    const firmId = req.firmId;
 
     // Get client details
     const client = await Client.findOne({ _id: clientId, firmId });
@@ -461,9 +460,9 @@ router.get('/client-portfolio/:clientId', checkPermission('client', 'read'), asy
  * @desc    Get comprehensive HR dashboard data
  * @access  Private
  */
-router.get('/hr-dashboard', checkPermission('employee', 'read'), async (req, res) => {
+router.get('/hr-dashboard', async (req, res) => {
   try {
-    const firmId = mongoose.Types.ObjectId(req.user.firmId);
+    const firmId = mongoose.Types.ObjectId(req.firmId);
     const today = new Date();
     const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
     const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
@@ -556,7 +555,7 @@ router.get('/hr-dashboard', checkPermission('employee', 'read'), async (req, res
 
     // Probation ending (next 30 days)
     const probationEnding = await Employee.find({
-      firmId: req.user.firmId,
+      firmId: req.firmId,
       status: 'active',
       probationEndDate: {
         $gte: today,
@@ -568,7 +567,7 @@ router.get('/hr-dashboard', checkPermission('employee', 'read'), async (req, res
       .limit(10);
 
     // Recent payroll
-    const recentPayroll = await PayrollRun.find({ firmId: req.user.firmId })
+    const recentPayroll = await PayrollRun.find({ firmId: req.firmId })
       .select('periodStart periodEnd status totalNetPay employeeCount')
       .sort({ createdAt: -1 })
       .limit(3);
@@ -610,10 +609,10 @@ router.get('/hr-dashboard', checkPermission('employee', 'read'), async (req, res
  * @desc    Get financial summary for a specific case
  * @access  Private
  */
-router.get('/case-financials/:caseId', checkPermission('case', 'read'), async (req, res) => {
+router.get('/case-financials/:caseId', async (req, res) => {
   try {
     const { caseId } = req.params;
-    const firmId = req.user.firmId;
+    const firmId = req.firmId;
 
     // Get case details
     const caseDoc = await Case.findOne({ _id: caseId, firmId })

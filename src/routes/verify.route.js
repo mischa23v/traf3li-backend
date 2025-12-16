@@ -9,10 +9,10 @@ const router = require('express').Router();
 const yakeenService = require('../services/yakeenService');
 const wathqService = require('../services/wathqService');
 const mojService = require('../services/mojService');
-const { authenticateJWT } = require('../middlewares/authenticate');
+const { verifyToken } = require('../middlewares/jwt');
 
 // All routes require authentication
-router.use(authenticateJWT);
+router.use(verifyToken);
 
 // ═══════════════════════════════════════════════════════════════
 // YAKEEN API ROUTES (National ID Verification)
