@@ -11,12 +11,10 @@ const {
     getApprovalStats,
     getNeedingEscalation
 } = require('../controllers/invoiceApproval.controller');
-const { protect } = require('../middlewares/auth.middleware');
-const { firmFilter } = require('../middlewares/firmFilter.middleware');
-const { checkFirmPermission } = require('../middlewares/checkPermission.middleware');
+const { authenticate, firmFilter, checkFirmPermission } = require('../middlewares');
 
 // Apply authentication and firm filter to all routes
-router.use(protect);
+router.use(authenticate);
 router.use(firmFilter);
 
 /**
