@@ -26,7 +26,7 @@ const Case = require('../models/case.model');
 const Client = require('../models/client.model');
 const Employee = require('../models/employee.model');
 const LeaveRequest = require('../models/leaveRequest.model');
-const Attendance = require('../models/attendance.model');
+const Attendance = require('../models/attendanceRecord.model');
 const PayrollRun = require('../models/payrollRun.model');
 
 // Apply authentication to all routes
