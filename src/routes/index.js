@@ -176,6 +176,17 @@ const legalContractRoute = require('./legalContract.route');
 // PDFMe Routes (Template-based PDF generation)
 const pdfmeRoute = require('./pdfme.route');
 
+// Saudi Government API Integration Routes
+const verifyRoute = require('./verify.route');
+
+// Extended HR Routes (ERPNext HRMS parity)
+const shiftRoute = require('./shift.route');
+const leaveManagementRoute = require('./leaveManagement.route');
+const hrExtendedRoute = require('./hrExtended.route');
+
+// Unified Data Flow Routes
+const unifiedDataRoute = require('./unifiedData.route');
+
 module.exports = {
     // Marketplace
     gigRoute,
@@ -353,5 +364,16 @@ module.exports = {
     legalContractRoute,
 
     // PDFMe (Template-based PDF generation)
-    pdfmeRoute
+    pdfmeRoute,
+
+    // Saudi Government API Integration
+    verifyRoute,
+
+    // Extended HR (ERPNext HRMS parity)
+    shiftRoute,
+    leaveManagementRoute,
+    hrExtendedRoute,
+
+    // Unified Data Flow
+    unifiedDataRoute
 };

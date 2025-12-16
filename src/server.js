@@ -218,7 +218,18 @@ const {
     legalContractRoute,
 
     // PDFMe (Template-based PDF generation)
-    pdfmeRoute
+    pdfmeRoute,
+
+    // Saudi Government API Integration
+    verifyRoute,
+
+    // Extended HR (ERPNext HRMS parity)
+    shiftRoute,
+    leaveManagementRoute,
+    hrExtendedRoute,
+
+    // Unified Data Flow
+    unifiedDataRoute
 } = require('./routes');
 
 // Import versioned routes
@@ -678,6 +689,30 @@ app.use('/api/pdfme', pdfmeRoute);
 
 // Saudi Banking Integration (Lean, WPS, SADAD, Mudad)
 app.use('/api/saudi-banking', noCache, saudiBankingRoute); // No cache for banking integration
+
+// ============================================
+// SAUDI GOVERNMENT API INTEGRATION ROUTES
+// ============================================
+// Yakeen, Wathq, MOJ verification endpoints
+app.use('/api/verify', noCache, verifyRoute); // No cache for verification data
+
+// ============================================
+// EXTENDED HR ROUTES (ERPNext HRMS Parity)
+// ============================================
+// Shift management (shift types, assignments)
+app.use('/api/hr/shifts', noCache, shiftRoute);
+
+// Leave management (periods, policies, allocations)
+app.use('/api/hr/leave-management', noCache, leaveManagementRoute);
+
+// Extended HR features (encashment, compensatory, promotions, transfers, etc.)
+app.use('/api/hr/extended', noCache, hrExtendedRoute);
+
+// ============================================
+// UNIFIED DATA FLOW ROUTES
+// ============================================
+// Consolidated data endpoints for dashboard integration
+app.use('/api/unified', noCache, unifiedDataRoute);
 
 // ============================================
 // WEBHOOK ROUTES (Third-Party Integrations)
