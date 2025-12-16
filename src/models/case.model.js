@@ -445,6 +445,36 @@ const caseSchema = new mongoose.Schema({
         type: Date,
         required: false
     },
+
+    // ═══════════════════════════════════════════════════════════════
+    // KPI TRACKING FIELDS
+    // For case throughput and cycle time analytics
+    // ═══════════════════════════════════════════════════════════════
+    dateOpened: {
+        type: Date,
+        default: Date.now,
+        index: true
+    },
+    dateClosed: {
+        type: Date,
+        index: true
+    },
+    closedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
+    },
+    // Computed field - days case has been open (updated on save)
+    daysOpen: {
+        type: Number,
+        default: 0
+    },
+    // Status history for tracking transitions (separate from stageHistory)
+    statusHistory: [{
+        status: String,
+        changedAt: { type: Date, default: Date.now },
+        changedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+        notes: String
+    }],
     source: {
         type: String,
         enum: ['platform', 'external'],
@@ -1128,6 +1158,23 @@ caseSchema.post('findOneAndDelete', async function(doc) {
             console.error('Error cleaning up documents for deleted case:', error);
         }
     }
+});
+
+// Pre-save hook to calculate daysOpen for KPI tracking
+caseSchema.pre('save', function(next) {
+    const openedDate = this.dateOpened || this.startDate || this.createdAt;
+    if (openedDate) {
+        if (this.dateClosed) {
+            this.daysOpen = Math.ceil(
+                (this.dateClosed - openedDate) / (1000 * 60 * 60 * 24)
+            );
+        } else {
+            this.daysOpen = Math.ceil(
+                (Date.now() - openedDate) / (1000 * 60 * 60 * 24)
+            );
+        }
+    }
+    next();
 });
 
 module.exports = mongoose.model('Case', caseSchema);

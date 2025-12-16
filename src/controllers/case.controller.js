@@ -950,6 +950,83 @@ const updateStatus = async (request, response) => {
     }
 };
 
+// Close case - specifically for KPI tracking
+const closeCase = async (request, response) => {
+    const { _id } = request.params;
+    const { outcome, notes } = request.body;
+    try {
+        const firmId = request.firmId;
+        const isSoloLawyer = request.isSoloLawyer || false;
+        const caseDoc = await Case.findById(_id);
+
+        if (!caseDoc) {
+            throw CustomException('Case not found!', 404);
+        }
+
+        // Check access (requires lawyer-level permissions)
+        if (!checkCaseAccess(caseDoc, request.userID, firmId, true, isSoloLawyer)) {
+            throw CustomException('Only the lawyer can close this case!', 403);
+        }
+
+        const oldStatus = caseDoc.status;
+
+        // Update case
+        caseDoc.status = 'closed';
+        caseDoc.dateClosed = new Date();
+        caseDoc.closedBy = request.userID;
+        caseDoc.endDate = new Date();
+        if (outcome) {
+            caseDoc.outcome = outcome;
+        }
+
+        // Add to status history for tracking
+        caseDoc.statusHistory.push({
+            status: 'closed',
+            changedAt: new Date(),
+            changedBy: request.userID,
+            notes
+        });
+
+        await caseDoc.save();
+
+        // Log CRM activity for case closure
+        try {
+            await CrmActivity.logActivity({
+                lawyerId: request.userID,
+                type: 'status_change',
+                subType: 'case_closed',
+                entityType: 'case',
+                entityId: caseDoc._id,
+                entityName: caseDoc.title || caseDoc.caseNumber,
+                title: `Case closed${outcome ? ` with outcome: ${outcome}` : ''}`,
+                description: notes || `Case closed after ${caseDoc.daysOpen} days`,
+                performedBy: request.userID,
+                metadata: {
+                    oldStatus,
+                    newStatus: 'closed',
+                    outcome,
+                    daysToClose: caseDoc.daysOpen,
+                    closedAt: caseDoc.dateClosed
+                }
+            });
+        } catch (activityError) {
+            console.error('Error logging case closure activity:', activityError);
+        }
+
+        return response.status(200).send({
+            error: false,
+            message: 'Case closed successfully!',
+            case: caseDoc,
+            daysToClose: caseDoc.daysOpen
+        });
+    } catch ({ message, status = 500 }) {
+        return response.status(status).send({
+            error: true,
+            message
+        });
+    }
+};
+
 // Update case outcome
 const updateOutcome = async (request, response) => {
     const { _id } = request.params;
@@ -2666,6 +2743,7 @@ module.exports = {
     addHearing,
     updateStatus,
     updateOutcome,
+    closeCase,
     addTimelineEvent,
     addClaim,
     updateHearing,

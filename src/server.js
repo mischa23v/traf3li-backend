@@ -141,6 +141,7 @@ const {
     successionPlanRoute,
     compensationRewardRoute,
     analyticsReportRoute,
+    kpiAnalyticsRoute,
 
     // Accounting
     accountRoute,
@@ -601,6 +602,9 @@ app.use('/api/hr/compensation-rewards', noCache, compensationRewardRoute);  // A
 
 // Analytics Reports Routes
 app.use('/api/analytics-reports', analyticsReportRoute);
+
+// KPI Analytics Routes
+app.use('/api/analytics', kpiAnalyticsRoute);
 
 // Accounting Routes
 app.use('/api/accounts', accountRoute);
