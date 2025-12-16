@@ -38,6 +38,7 @@ const {
     addHearing,
     updateStatus,
     updateOutcome,
+    closeCase,
     addTimelineEvent,
     addClaim,
     updateHearing,
@@ -878,6 +879,15 @@ app.patch('/:_id/outcome',
     validateUpdateOutcome,
     invalidateCache(specificCaseInvalidationPatterns),
     updateOutcome
+);
+
+// Close case (for KPI tracking)
+app.put('/:_id/close',
+    userMiddleware,
+    firmFilter,
+    validateObjectIdParam,
+    invalidateCache(specificCaseInvalidationPatterns),
+    closeCase
 );
 
 // ==================== AUDIT ====================
