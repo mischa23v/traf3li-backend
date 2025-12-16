@@ -9,7 +9,7 @@ const router = express.Router();
 const crmSettingsController = require('../controllers/crmSettings.controller');
 const { validateUpdateCRMSettings } = require('../validators/crm.validator');
 const { verifyToken } = require('../middlewares/jwt');
-const firmFilter = require('../middlewares/firmFilter.middleware');
+const { firmFilter } = require('../middlewares/firmFilter.middleware');
 
 // Apply authentication and firm filter middleware
 router.use(verifyToken, firmFilter);
