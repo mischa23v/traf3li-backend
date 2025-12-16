@@ -1,6 +1,6 @@
 const PaymentReceipt = require('../models/paymentReceipt.model');
 const Payment = require('../models/payment.model');
-const asyncHandler = require('../middlewares/asyncHandler.middleware');
+const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../exceptions/customException');
 
 /**

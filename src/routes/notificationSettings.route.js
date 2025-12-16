@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const NotificationSettings = require('../models/notificationSettings.model');
-const asyncHandler = require('../middlewares/asyncHandler.middleware');
+const asyncHandler = require('../utils/asyncHandler');
 const { protect } = require('../middlewares/auth.middleware');
 const { firmFilter } = require('../middlewares/firmFilter.middleware');
 
