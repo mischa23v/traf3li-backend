@@ -1,7 +1,7 @@
 const InvoiceApproval = require('../models/invoiceApproval.model');
 const Invoice = require('../models/invoice.model');
 const Notification = require('../models/notification.model');
-const asyncHandler = require('../middlewares/asyncHandler.middleware');
+const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../exceptions/customException');
 
 /**

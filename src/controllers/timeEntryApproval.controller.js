@@ -1,6 +1,6 @@
 const TimeEntry = require('../models/timeEntry.model');
 const Notification = require('../models/notification.model');
-const asyncHandler = require('../middlewares/asyncHandler.middleware');
+const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../exceptions/customException');
 
 /**
