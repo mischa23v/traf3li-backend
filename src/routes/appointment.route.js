@@ -15,7 +15,7 @@ const {
     validateGetAvailableSlots
 } = require('../validators/crm.validator');
 const { verifyToken } = require('../middlewares/jwt');
-const firmFilter = require('../middlewares/firmFilter.middleware');
+const { firmFilter } = require('../middlewares/firmFilter.middleware');
 
 // ═══════════════════════════════════════════════════════════════
 // PUBLIC ROUTES (no auth required)
