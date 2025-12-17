@@ -664,16 +664,15 @@ const getDashboardSummary = async (request, response) => {
         tomorrow.setDate(tomorrow.getDate() + 1);
 
         // Import models needed for this endpoint
-        const { Conversation, Reminder } = require('../models');
+        const { Reminder } = require('../models');
 
         // Execute ALL queries in parallel - this is the key optimization
+        // REMOVED: Heavy conversation/messages aggregate (#3) - frontend will fetch separately
         const [
             // Case stats
             caseStatsResult,
             // Task stats
             taskStatsResult,
-            // Message stats (unread count)
-            conversationsData,
             // Reminder stats
             reminderStatsResult,
             // Today's events
@@ -682,9 +681,7 @@ const getDashboardSummary = async (request, response) => {
             revenueData,
             expenseData,
             pendingInvoicesData,
-            overdueInvoicesData,
-            // Recent messages
-            recentMessagesData
+            overdueInvoicesData
         ] = await Promise.all([
             // 1. Case stats - aggregate by status
             Case.aggregate([
@@ -715,56 +712,7 @@ const getDashboardSummary = async (request, response) => {
                 }
             ]),
 
-            // 3. Conversations with unread messages
-            Conversation.aggregate([
-                {
-                    $match: {
-                        $or: [
-                            { sellerID: new mongoose.Types.ObjectId(userId) },
-                            { buyerID: new mongoose.Types.ObjectId(userId) }
-                        ]
-                    }
-                },
-                {
-                    $lookup: {
-                        from: 'messages',
-                        localField: 'conversationID',
-                        foreignField: 'conversationID',
-                        as: 'messages'
-                    }
-                },
-                {
-                    $project: {
-                        conversationID: 1,
-                        totalMessages: { $size: '$messages' },
-                        unreadMessages: {
-                            $size: {
-                                $filter: {
-                                    input: '$messages',
-                                    as: 'msg',
-                                    cond: {
-                                        $and: [
-                                            { $ne: ['$$msg.userID', new mongoose.Types.ObjectId(userId)] },
-                                            { $ne: ['$$msg.read', true] }
-                                        ]
-                                    }
-                                }
-                            }
-                        }
-                    }
-                },
-                {
-                    $group: {
-                        _id: null,
-                        totalConversations: { $sum: 1 },
-                        totalMessages: { $sum: '$totalMessages' },
-                        unreadMessages: { $sum: '$unreadMessages' },
-                        unreadConversations: { $sum: { $cond: [{ $gt: ['$unreadMessages', 0] }, 1, 0] } }
-                    }
-                }
-            ]),
-
-            // 4. Reminder stats using static method logic
+            // 3. Reminder stats
             Reminder.aggregate([
                 { $match: userFilter },
                 {
@@ -778,7 +726,7 @@ const getDashboardSummary = async (request, response) => {
                 }
             ]),
 
-            // 5. Today's events
+            // 4. Today's events
             Event.find({
                 ...(firmId ? { firmId } : { lawyerId: userId }),
                 startTime: { $gte: today, $lt: tomorrow }
@@ -788,59 +736,34 @@ const getDashboardSummary = async (request, response) => {
             .select('_id title startTime endTime location type status')
             .lean(),
 
-            // 6. Financial - Revenue (paid invoices)
+            // 5. Financial - Revenue (paid invoices)
             Invoice.aggregate([
                 { $match: { ...matchFilter, status: 'paid' } },
                 { $group: { _id: null, total: { $sum: '$totalAmount' } } }
             ]),
 
-            // 7. Financial - Expenses
+            // 6. Financial - Expenses
             Expense.aggregate([
                 { $match: matchFilter },
                 { $group: { _id: null, total: { $sum: '$amount' } } }
             ]),
 
-            // 8. Financial - Pending invoices
+            // 7. Financial - Pending invoices
             Invoice.aggregate([
                 { $match: { ...matchFilter, status: { $in: ['pending', 'sent', 'partial'] } } },
                 { $group: { _id: null, total: { $sum: '$balanceDue' } } }
             ]),
 
-            // 9. Financial - Overdue invoices
+            // 8. Financial - Overdue invoices
             Invoice.aggregate([
                 { $match: { ...matchFilter, status: 'overdue' } },
                 { $group: { _id: null, total: { $sum: '$balanceDue' } } }
-            ]),
-
-            // 10. Recent messages (reusing existing logic)
-            (async () => {
-                const conversations = await Conversation.find({
-                    $or: [
-                        { sellerID: userId },
-                        { buyerID: userId }
-                    ]
-                }).lean();
-
-                const conversationIDs = conversations.map(conv => conv.conversationID);
-
-                if (conversationIDs.length === 0) {
-                    return [];
-                }
-
-                return await Message.find({
-                    conversationID: { $in: conversationIDs }
-                })
-                .populate('userID', 'username image')
-                .sort({ createdAt: -1 })
-                .limit(3)
-                .lean();
-            })()
+            ])
         ]);
 
         // Build response matching frontend expected schema
         const caseStats = caseStatsResult[0] || { total: 0, active: 0, closed: 0, pending: 0 };
         const taskStats = taskStatsResult[0] || { total: 0, todo: 0, in_progress: 0, completed: 0, cancelled: 0 };
-        const messageData = conversationsData[0] || { unreadMessages: 0, unreadConversations: 0, totalConversations: 0, totalMessages: 0 };
         const reminderStats = reminderStatsResult[0] || { total: 0, pending: 0, completed: 0, snoozed: 0 };
 
         const totalRevenue = revenueData[0]?.total || 0;
@@ -866,12 +789,6 @@ const getDashboardSummary = async (request, response) => {
                         cancelled: taskStats.cancelled
                     }
                 },
-                messageStats: {
-                    unreadMessages: messageData.unreadMessages,
-                    unreadConversations: messageData.unreadConversations,
-                    totalConversations: messageData.totalConversations,
-                    totalMessages: messageData.totalMessages
-                },
                 reminderStats: {
                     total: reminderStats.total,
                     byStatus: {
@@ -894,14 +811,7 @@ const getDashboardSummary = async (request, response) => {
                     totalExpenses,
                     pendingAmount,
                     overdueAmount
-                },
-                recentMessages: recentMessagesData.map(msg => ({
-                    _id: msg._id,
-                    text: msg.text,
-                    conversationID: msg.conversationID,
-                    userID: msg.userID,
-                    createdAt: msg.createdAt
-                }))
+                }
             }
         });
     } catch (error) {
