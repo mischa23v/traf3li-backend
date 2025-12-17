@@ -222,10 +222,17 @@ const checkRateLimit = async (userId, action, limit = 5, windowMs = 15 * 60 * 10
  * Authenticated user rate limiter
  * Uses user ID for authenticated requests, IP for unauthenticated
  * More fair than IP-only limiting for shared networks
+ *
+ * 400 req/min rationale for SPA:
+ * - Page load: ~10-15 requests
+ * - Navigation (3 pages/min): ~30 requests
+ * - Background refreshes: ~10 requests
+ * - Filters/actions: ~50 requests
+ * - Buffer for complex operations: ~100 requests
  */
 const authenticatedRateLimiter = createRateLimiter({
   windowMs: 1 * 60 * 1000, // 1 minute
-  max: 100, // 100 requests per minute for authenticated users
+  max: 400, // 400 requests per minute for authenticated users
   keyGenerator: (req) => {
     // Use user ID if authenticated, otherwise use IP
     return req.userID || req.user?._id?.toString() || req.ip;
@@ -248,7 +255,7 @@ const authenticatedRateLimiter = createRateLimiter({
  */
 const unauthenticatedRateLimiter = createRateLimiter({
   windowMs: 1 * 60 * 1000, // 1 minute
-  max: 20, // 20 requests per minute for unauthenticated
+  max: 30, // 30 requests per minute for unauthenticated
   message: {
     success: false,
     error: 'طلبات كثيرة جداً - حاول مرة أخرى بعد دقيقة',
