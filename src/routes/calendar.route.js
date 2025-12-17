@@ -11,10 +11,21 @@ const {
     getCalendarGridSummary,
     getCalendarGridItems,
     getCalendarItemDetails,
-    getCalendarListView
+    getCalendarListView,
+    // Aggregated endpoints
+    getSidebarData
 } = require('../controllers/calendar.controller');
 
 const app = express.Router();
+
+// ==========================================
+// AGGREGATED ENDPOINTS (GOLD STANDARD - Use these for best performance)
+// ==========================================
+
+// Get sidebar data - Combined calendar events + upcoming reminders
+// Replaces 2 separate API calls with 1 parallel query
+// Query: ?startDate=&endDate=&reminderDays=7
+app.get('/sidebar-data', userMiddleware, getSidebarData);
 
 // ==========================================
 // OPTIMIZED ENDPOINTS (Use these for better performance)
