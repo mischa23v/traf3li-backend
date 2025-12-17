@@ -162,6 +162,9 @@ const metricsRoute = require('./metrics.route');
 // Security Incident Routes (NCA ECC-2:2024 Compliance)
 const securityIncidentRoute = require('./securityIncident.route');
 
+// PDPL Consent Routes
+const consentRoute = require('./consent.route');
+
 // Queue Management Routes
 const queueRoute = require('./queue.route');
 
@@ -359,6 +362,9 @@ module.exports = {
 
     // Security Incident Reporting (NCA ECC-2:2024 Compliance)
     securityIncidentRoute,
+
+    // PDPL Consent Management
+    consentRoute,
 
     // Queue Management
     queueRoute,

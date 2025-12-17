@@ -24,6 +24,7 @@ const { scheduleTaskReminders } = require('./utils/taskReminders');
 const { startRecurringInvoiceJobs } = require('./jobs/recurringInvoice.job');
 const { startTimeEntryJobs } = require('./jobs/timeEntryLocking.job');
 const { startPlanJobs } = require('./jobs/planExpiration.job');
+const { startDataRetentionJob } = require('./jobs/dataRetention.job');
 const { initSocket } = require('./configs/socket');
 const logger = require('./utils/logger');
 const { apiRateLimiter, speedLimiter, smartRateLimiter, authRateLimiter } = require('./middlewares/rateLimiter.middleware');
@@ -207,6 +208,9 @@ const {
 
     // Security Incident Reporting (NCA ECC-2:2024 Compliance)
     securityIncidentRoute,
+
+    // PDPL Consent Management
+    consentRoute,
 
     // Queue Management
     queueRoute,
@@ -835,6 +839,9 @@ app.use('/metrics', metricsRoute);
 // Security Incident Reporting (NCA ECC-2:2024 Compliance)
 app.use('/api/security', noCache, securityIncidentRoute);
 
+// PDPL Consent Management (NCA ECC-2:2024 & PDPL Compliance)
+app.use('/api/consent', noCache, consentRoute);
+
 // Queue management endpoint (requires auth + admin)
 app.use('/api/queues', noCache, queueRoute);
 
@@ -974,6 +981,7 @@ server.listen(PORT, () => {
     startRecurringInvoiceJobs();
     startTimeEntryJobs();
     startPlanJobs();
+    startDataRetentionJob();
 
     logger.info('Server started', {
         port: PORT,
