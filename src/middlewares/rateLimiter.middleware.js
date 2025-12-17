@@ -277,12 +277,54 @@ const unauthenticatedRateLimiter = createRateLimiter({
 });
 
 /**
+ * Extract user ID from JWT token without full authentication
+ * This allows rate limiting to work correctly before auth middleware runs
+ */
+const jwt = require('jsonwebtoken');
+
+const extractUserIdFromToken = (req) => {
+  try {
+    // Check for token in cookies first
+    let token = req.cookies?.accessToken;
+
+    // If no token in cookies, check Authorization header
+    if (!token && req.headers.authorization) {
+      const authHeader = req.headers.authorization;
+      if (authHeader.startsWith('Bearer ')) {
+        token = authHeader.substring(7);
+      }
+    }
+
+    if (!token) {
+      return null;
+    }
+
+    // Verify and decode the token
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    return decoded?._id || null;
+  } catch (error) {
+    // Token is invalid or expired - treat as unauthenticated for rate limiting
+    // Don't log here to avoid noise - auth middleware will handle actual auth errors
+    return null;
+  }
+};
+
+/**
  * Smart rate limiter middleware
  * Applies different limits based on authentication status
+ *
+ * IMPORTANT: This extracts user ID from JWT BEFORE auth middleware runs,
+ * so authenticated users get the correct (higher) rate limit even on first request.
  */
 const smartRateLimiter = (req, res, next) => {
-  // Check if user is authenticated (userID is set by userMiddleware)
-  if (req.userID || req.user) {
+  // Check if user is already authenticated (userID set by earlier middleware)
+  // OR extract user ID from JWT token to determine auth status
+  const userId = req.userID || req.user?._id || extractUserIdFromToken(req);
+
+  if (userId) {
+    // Set userID on request so authenticatedRateLimiter can use it for key generation
+    // This won't interfere with userMiddleware which will set it again
+    req.userID = req.userID || userId;
     return authenticatedRateLimiter(req, res, next);
   }
   return unauthenticatedRateLimiter(req, res, next);
