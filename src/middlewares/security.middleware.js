@@ -63,10 +63,13 @@ const originCheck = (req, res, next) => {
         originHostname === allowed || originHostname.startsWith(allowed)
     );
 
-    // Special handling for Vercel preview deployments
+    // Special handling for Cloudflare Pages preview deployments
+    const isCloudflarePreview = originHostname.includes('.pages.dev');
+
+    // Special handling for Vercel preview deployments (backward compatibility)
     const isVercelPreview = originHostname.includes('.vercel.app');
 
-    if (isAllowed || isVercelPreview) {
+    if (isAllowed || isCloudflarePreview || isVercelPreview) {
         return next();
     }
 
