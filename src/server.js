@@ -345,16 +345,23 @@ app.use(helmet({
 // ✅ SECURITY: Additional security headers
 app.use(securityHeaders);
 
-// ✅ PERFORMANCE: Response compression (gzip)
+// ✅ PERFORMANCE: Response compression (gzip with optimized settings)
 app.use(compression({
     filter: (req, res) => {
         if (req.headers['x-no-compression']) {
             return false;
         }
+        // Skip compression for already compressed responses
+        const contentType = res.getHeader('Content-Type');
+        if (contentType && /image|video|audio|font/.test(contentType)) {
+            return false;
+        }
         return compression.filter(req, res);
     },
-    level: 6, // Balanced compression level (1-9, 6 is default)
-    threshold: 1024 // Only compress responses > 1KB
+    level: 6, // Balanced compression level (1-9)
+    threshold: 512, // Compress responses > 512 bytes for API responses
+    memLevel: 8, // Higher memory for better compression
+    chunkSize: 16384 // 16KB chunks for streaming
 }));
 
 // ✅ ENHANCED CORS CONFIGURATION - Supports Cloudflare Pages deployments

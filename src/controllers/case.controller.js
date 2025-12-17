@@ -497,10 +497,11 @@ const getCases = async (request, response) => {
             Case.find(filters)
                 .populate('lawyerId', 'username firstName lastName image email')
                 .populate('clientId', 'username firstName lastName image email')
-                .populate('contractId')
+                .populate('contractId', 'title totalAmount status')
                 .sort(sort)
                 .skip(skip)
-                .limit(limitNum),
+                .limit(limitNum)
+                .lean(),
             Case.countDocuments(filters)
         ]);
 

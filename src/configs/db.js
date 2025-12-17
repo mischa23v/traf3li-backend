@@ -2,6 +2,41 @@ const mongoose = require('mongoose');
 
 mongoose.set('strictQuery', true);
 
+// Slow query threshold in milliseconds
+const SLOW_QUERY_THRESHOLD_MS = parseInt(process.env.SLOW_QUERY_THRESHOLD_MS) || 100;
+
+// Enable debug mode for slow query logging in non-production or when explicitly enabled
+if (process.env.NODE_ENV !== 'production' || process.env.ENABLE_SLOW_QUERY_LOG === 'true') {
+  mongoose.set('debug', (collectionName, method, query, doc, options) => {
+    const start = Date.now();
+    // Log after execution - Mongoose debug doesn't give us timing easily
+    // so we just log the query details for manual analysis
+    console.log(`[MongoDB] ${collectionName}.${method}`, JSON.stringify(query).slice(0, 200));
+  });
+}
+
+// Profile slow queries using mongoose middleware
+mongoose.plugin((schema) => {
+  // Pre-hook to mark start time
+  const methods = ['find', 'findOne', 'findOneAndUpdate', 'findOneAndDelete', 'aggregate', 'countDocuments'];
+
+  methods.forEach(method => {
+    schema.pre(method, function() {
+      this._startTime = Date.now();
+    });
+
+    schema.post(method, function() {
+      if (this._startTime) {
+        const duration = Date.now() - this._startTime;
+        if (duration > SLOW_QUERY_THRESHOLD_MS) {
+          const queryInfo = this.getQuery ? JSON.stringify(this.getQuery()).slice(0, 300) : 'N/A';
+          console.warn(`⚠️  [SLOW QUERY] ${method} took ${duration}ms - Query: ${queryInfo}`);
+        }
+      }
+    });
+  });
+});
+
 // ✅ PERFORMANCE: MongoDB connection pooling and optimizations
 const connect = async () => {
     try {

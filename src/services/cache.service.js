@@ -17,6 +17,14 @@ const memoryCacheExpiry = new Map();
 // Check if Redis cache is disabled
 const isRedisCacheDisabled = process.env.DISABLE_REDIS_CACHE === 'true';
 
+// Cache hit rate metrics
+const cacheMetrics = {
+  hits: 0,
+  misses: 0,
+  errors: 0,
+  lastReset: Date.now()
+};
+
 if (isRedisCacheDisabled) {
   console.warn('⚠️  DISABLE_REDIS_CACHE=true - using in-memory cache to save Redis requests');
 }
@@ -49,15 +57,15 @@ const get = async (key) => {
     if (expiry && expiry < Date.now()) {
       memoryCache.delete(key);
       memoryCacheExpiry.delete(key);
-      console.log(`Cache MISS: ${key}`);
+      cacheMetrics.misses++;
       return null;
     }
     const value = memoryCache.get(key);
     if (value !== undefined) {
-      console.log(`Cache HIT (memory): ${key}`);
+      cacheMetrics.hits++;
       return value;
     }
-    console.log(`Cache MISS: ${key}`);
+    cacheMetrics.misses++;
     return null;
   }
 
@@ -66,10 +74,11 @@ const get = async (key) => {
     const value = await client.get(key);
 
     if (!value) {
-      console.log(`Cache MISS: ${key}`);
+      cacheMetrics.misses++;
       return null;
     }
 
+    cacheMetrics.hits++;
     // Try to parse JSON, return raw string if parsing fails
     try {
       return JSON.parse(value);
@@ -78,7 +87,8 @@ const get = async (key) => {
     }
   } catch (error) {
     console.error(`Cache.get error for key "${key}":`, error.message);
-    console.log(`Cache MISS: ${key}`);
+    cacheMetrics.errors++;
+    cacheMetrics.misses++;
     return null;
   }
 };
@@ -370,6 +380,38 @@ const decrement = async (key, amount = 1) => {
   }
 };
 
+/**
+ * Get cache hit rate statistics
+ * @returns {Object} - Cache statistics with hit rate
+ */
+const getStats = () => {
+  const total = cacheMetrics.hits + cacheMetrics.misses;
+  const hitRate = total > 0 ? (cacheMetrics.hits / total * 100).toFixed(2) : 0;
+  const uptimeSeconds = Math.floor((Date.now() - cacheMetrics.lastReset) / 1000);
+
+  return {
+    hits: cacheMetrics.hits,
+    misses: cacheMetrics.misses,
+    errors: cacheMetrics.errors,
+    total,
+    hitRate: parseFloat(hitRate),
+    hitRatePercent: `${hitRate}%`,
+    uptimeSeconds,
+    uptimeFormatted: `${Math.floor(uptimeSeconds / 3600)}h ${Math.floor((uptimeSeconds % 3600) / 60)}m ${uptimeSeconds % 60}s`,
+    cacheType: isRedisCacheDisabled ? 'memory' : 'redis'
+  };
+};
+
+/**
+ * Reset cache statistics
+ */
+const resetStats = () => {
+  cacheMetrics.hits = 0;
+  cacheMetrics.misses = 0;
+  cacheMetrics.errors = 0;
+  cacheMetrics.lastReset = Date.now();
+};
+
 module.exports = {
   get,
   set,
@@ -383,5 +425,7 @@ module.exports = {
   setMultiple,
   getMultiple,
   increment,
-  decrement
+  decrement,
+  getStats,
+  resetStats
 };

@@ -140,7 +140,8 @@ const getBills = asyncHandler(async (req, res) => {
         .populate('caseId', 'title caseNumber')
         .sort({ billDate: -1, createdAt: -1 })
         .limit(parseInt(limit))
-        .skip((parseInt(page) - 1) * parseInt(limit));
+        .skip((parseInt(page) - 1) * parseInt(limit))
+        .lean();
 
     const total = await Bill.countDocuments(filters);
 

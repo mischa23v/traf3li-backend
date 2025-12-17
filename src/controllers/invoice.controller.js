@@ -354,7 +354,8 @@ const getInvoices = asyncHandler(async (req, res) => {
             .populate('responsibleAttorneyId', 'firstName lastName')
             .sort(sort)
             .skip(skip)
-            .limit(parseInt(limit)),
+            .limit(parseInt(limit))
+            .lean(),
         Invoice.countDocuments(filters)
     ]);
 
