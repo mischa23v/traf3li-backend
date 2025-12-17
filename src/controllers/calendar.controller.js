@@ -1,11 +1,58 @@
 const { Event, Task, Reminder, Case } = require('../models');
 const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
+const cache = require('../services/cache.service');
 
 // Valid filter types as Set for O(1) lookup
 const VALID_CALENDAR_TYPES = new Set(['event', 'task', 'reminder', 'case-document']);
 const VALID_PRIORITIES = new Set(['low', 'medium', 'high', 'critical', 'urgent']);
 const VALID_STATUSES = new Set(['pending', 'in_progress', 'done', 'cancelled', 'completed', 'scheduled', 'confirmed']);
+
+// Cache TTL constants (in seconds)
+const CACHE_TTL = {
+    GRID_SUMMARY: 60,      // 1 minute - counts change frequently
+    GRID_ITEMS: 120,       // 2 minutes - items list
+    ITEM_DETAILS: 300,     // 5 minutes - individual item details
+    LIST_VIEW: 60,         // 1 minute - paginated list
+    STATS: 180             // 3 minutes - statistics
+};
+
+// Cache key generators
+const cacheKeys = {
+    gridSummary: (userId, start, end, types) =>
+        `calendar:summary:${userId}:${start}:${end}:${types || 'all'}`,
+    gridItems: (userId, start, end, types, caseId) =>
+        `calendar:items:${userId}:${start}:${end}:${types || 'all'}:${caseId || 'none'}`,
+    itemDetails: (type, id) =>
+        `calendar:item:${type}:${id}`,
+    listView: (userId, cursor, types, start, end, priority, status) =>
+        `calendar:list:${userId}:${cursor || 'start'}:${types || 'all'}:${start}:${end}:${priority || 'any'}:${status || 'any'}`,
+    userPattern: (userId) =>
+        `calendar:*:${userId}:*`
+};
+
+/**
+ * Invalidate all calendar cache for a user
+ * Call this when events/tasks/reminders are created/updated/deleted
+ */
+const invalidateUserCalendarCache = async (userId) => {
+    try {
+        await cache.delPattern(`calendar:*:${userId}:*`);
+    } catch (error) {
+        console.error('Error invalidating calendar cache:', error.message);
+    }
+};
+
+/**
+ * Invalidate specific item cache
+ */
+const invalidateItemCache = async (type, id) => {
+    try {
+        await cache.del(cacheKeys.itemDetails(type, id));
+    } catch (error) {
+        console.error('Error invalidating item cache:', error.message);
+    }
+};
 
 /**
  * Get unified calendar view (events + tasks + reminders)
@@ -834,6 +881,19 @@ const getCalendarGridSummary = asyncHandler(async (req, res) => {
     const start = startDate ? new Date(startDate) : new Date(new Date().getFullYear(), new Date().getMonth(), 1);
     const end = endDate ? new Date(endDate) : new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0, 23, 59, 59);
 
+    // Generate cache key
+    const cacheKey = cacheKeys.gridSummary(userId, start.toISOString().split('T')[0], end.toISOString().split('T')[0], types);
+
+    // Try to get from cache first
+    const cachedData = await cache.get(cacheKey);
+    if (cachedData) {
+        return res.status(200).json({
+            success: true,
+            data: cachedData,
+            cached: true
+        });
+    }
+
     // Parse and validate types using Set for O(1) lookup
     const requestedTypes = types
         ? new Set(types.split(',').filter(t => VALID_CALENDAR_TYPES.has(t.trim())))
@@ -1004,13 +1064,19 @@ const getCalendarGridSummary = asyncHandler(async (req, res) => {
     // Filter out empty days for efficiency
     const nonEmptyDays = Object.values(daySummary).filter(day => day.total > 0);
 
+    // Prepare response data
+    const responseData = {
+        days: nonEmptyDays,
+        totalDays: nonEmptyDays.length,
+        dateRange: { start, end }
+    };
+
+    // Cache the result
+    await cache.set(cacheKey, responseData, CACHE_TTL.GRID_SUMMARY);
+
     res.status(200).json({
         success: true,
-        data: {
-            days: nonEmptyDays,
-            totalDays: nonEmptyDays.length,
-            dateRange: { start, end }
-        }
+        data: responseData
     });
 });
 
@@ -1030,6 +1096,21 @@ const getCalendarGridItems = asyncHandler(async (req, res) => {
 
     const start = new Date(startDate);
     const end = new Date(endDate);
+
+    // Generate cache key
+    const cacheKey = cacheKeys.gridItems(userId, start.toISOString().split('T')[0], end.toISOString().split('T')[0], types, caseId);
+
+    // Try to get from cache first
+    const cachedData = await cache.get(cacheKey);
+    if (cachedData) {
+        return res.status(200).json({
+            success: true,
+            data: cachedData.data,
+            count: cachedData.count,
+            dateRange: cachedData.dateRange,
+            cached: true
+        });
+    }
 
     // Parse types using Set for O(1) lookup
     const requestedTypes = types
@@ -1183,6 +1264,16 @@ const getCalendarGridItems = asyncHandler(async (req, res) => {
     // Sort by start date
     items.sort((a, b) => new Date(a.startDate) - new Date(b.startDate));
 
+    // Prepare response data for caching
+    const responseData = {
+        data: items,
+        count: items.length,
+        dateRange: { start, end }
+    };
+
+    // Cache the result
+    await cache.set(cacheKey, responseData, CACHE_TTL.GRID_ITEMS);
+
     res.status(200).json({
         success: true,
         data: items,
@@ -1203,6 +1294,22 @@ const getCalendarItemDetails = asyncHandler(async (req, res) => {
     // Validate type using Set for O(1) lookup
     if (!VALID_CALENDAR_TYPES.has(type)) {
         throw CustomException('Invalid item type. Must be: event, task, reminder, or case-document', 400);
+    }
+
+    // Generate cache key
+    const cacheKey = cacheKeys.itemDetails(type, id);
+
+    // Try to get from cache first (but skip for case-document as access check is complex)
+    if (type !== 'case-document') {
+        const cachedData = await cache.get(cacheKey);
+        if (cachedData) {
+            return res.status(200).json({
+                success: true,
+                data: cachedData,
+                type,
+                cached: true
+            });
+        }
     }
 
     let item = null;
@@ -1290,6 +1397,10 @@ const getCalendarItemDetails = asyncHandler(async (req, res) => {
             };
             break;
     }
+
+    // Cache the result (convert Mongoose doc to plain object for caching)
+    const itemToCache = item.toObject ? item.toObject() : item;
+    await cache.set(cacheKey, itemToCache, CACHE_TTL.ITEM_DETAILS);
 
     res.status(200).json({
         success: true,
@@ -1557,9 +1668,13 @@ module.exports = {
     getCalendarGridItems,
     getCalendarItemDetails,
     getCalendarListView,
+    // Cache invalidation helpers (call when events/tasks/reminders are modified)
+    invalidateUserCalendarCache,
+    invalidateItemCache,
     // Helper exports
     isValidCalendarType,
     VALID_CALENDAR_TYPES,
     VALID_PRIORITIES,
-    VALID_STATUSES
+    VALID_STATUSES,
+    CACHE_TTL
 };
