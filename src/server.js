@@ -274,10 +274,33 @@ app.use(helmet({
     contentSecurityPolicy: {
         directives: {
             defaultSrc: ["'self'"],
-            scriptSrc: ["'self'", "'unsafe-inline'"], // Allow inline scripts for API responses
+            scriptSrc: [
+                "'self'",
+                "'unsafe-inline'",
+                "'unsafe-eval'", // Required for some analytics
+                "https://www.googletagmanager.com",
+                "https://www.google-analytics.com",
+                "https://ssl.google-analytics.com",
+                "https://static.cloudflareinsights.com"
+            ],
             styleSrc: ["'self'", "'unsafe-inline'"],
-            imgSrc: ["'self'", "data:", "https:", "blob:"],
-            connectSrc: ["'self'", "wss:", "ws:"], // Allow WebSocket for Socket.io
+            imgSrc: [
+                "'self'",
+                "data:",
+                "https:",
+                "blob:",
+                "https://www.googletagmanager.com",
+                "https://www.google-analytics.com"
+            ],
+            connectSrc: [
+                "'self'",
+                "wss:",
+                "ws:",
+                "https://www.google-analytics.com",
+                "https://analytics.google.com",
+                "https://region1.google-analytics.com",
+                "https://cloudflareinsights.com"
+            ],
             fontSrc: ["'self'", "data:"],
             objectSrc: ["'none'"],
             mediaSrc: ["'self'"],
@@ -333,16 +356,13 @@ app.use(compression({
     threshold: 1024 // Only compress responses > 1KB
 }));
 
-// ✅ ENHANCED CORS CONFIGURATION - Supports Vercel deployments
+// ✅ ENHANCED CORS CONFIGURATION - Supports Cloudflare Pages deployments
 const allowedOrigins = [
     // Production URLs
     'https://traf3li.com',
     'https://dashboard.traf3li.com',
     'https://www.traf3li.com',
     'https://www.dashboard.traf3li.com',
-
-    // Vercel Deployments
-    'https://traf3li-dashboard-9e4y2s2su-mischa-alrabehs-projects.vercel.app',
 
     // Development URLs
     'http://localhost:5173',
@@ -362,7 +382,12 @@ const corsOptions = {
             return callback(null, true);
         }
 
-        // Allow all Vercel preview deployments
+        // Allow Cloudflare Pages preview deployments (*.pages.dev)
+        if (origin.includes('.pages.dev')) {
+            return callback(null, true);
+        }
+
+        // Allow Vercel preview deployments (for backward compatibility)
         if (origin.includes('.vercel.app')) {
             return callback(null, true);
         }
@@ -801,7 +826,7 @@ app.use((req, res, next) => {
     const origin = req.headers.origin;
     if (origin) {
         // Check if origin is allowed
-        const isAllowed = allowedOrigins.includes(origin) || origin.includes('.vercel.app');
+        const isAllowed = allowedOrigins.includes(origin) || origin.includes('.pages.dev') || origin.includes('.vercel.app');
         if (isAllowed) {
             res.setHeader('Access-Control-Allow-Origin', origin);
             res.setHeader('Access-Control-Allow-Credentials', 'true');
@@ -836,7 +861,7 @@ app.use((err, req, res, next) => {
     // Set CORS headers for error responses
     const origin = req.headers.origin;
     if (origin) {
-        const isAllowed = allowedOrigins.includes(origin) || origin.includes('.vercel.app');
+        const isAllowed = allowedOrigins.includes(origin) || origin.includes('.pages.dev') || origin.includes('.vercel.app');
         if (isAllowed) {
             res.setHeader('Access-Control-Allow-Origin', origin);
             res.setHeader('Access-Control-Allow-Credentials', 'true');
@@ -954,7 +979,7 @@ server.listen(PORT, () => {
         console.log(`🚀 Server running on port ${PORT}`);
         console.log(`⚡ Socket.io ready`);
         console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
-        console.log(`🔐 CORS enabled for: traf3li.com, *.vercel.app, localhost`);
+        console.log(`🔐 CORS enabled for: traf3li.com, *.pages.dev, *.vercel.app, localhost`);
         console.log(`📊 Request logging: enabled`);
         console.log(`🛡️  Rate limiting: enabled`);
     }
