@@ -1,5 +1,0 @@
-<?php
-
-include("listcases.php");
-
-?>
