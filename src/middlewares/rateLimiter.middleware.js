@@ -1,4 +1,5 @@
 const rateLimit = require('express-rate-limit');
+const { ipKeyGenerator } = require('express-rate-limit');
 const MongoStore = require('rate-limit-mongo');
 
 /**
@@ -154,7 +155,7 @@ const userRateLimiter = (options = {}) => {
     ...options,
     keyGenerator: (req) => {
       // Use user ID if authenticated, otherwise fall back to IP
-      return req.user ? req.user._id.toString() : req.ip;
+      return req.user ? req.user._id.toString() : ipKeyGenerator(req);
     },
   });
 };
@@ -180,7 +181,7 @@ const roleBasedRateLimiter = () => {
       windowMs: 15 * 60 * 1000,
       max: maxRequests,
       keyGenerator: (req) => {
-        return req.user ? req.user._id.toString() : req.ip;
+        return req.user ? req.user._id.toString() : ipKeyGenerator(req);
       },
     });
 
@@ -235,7 +236,7 @@ const authenticatedRateLimiter = createRateLimiter({
   max: 400, // 400 requests per minute for authenticated users
   keyGenerator: (req) => {
     // Use user ID if authenticated, otherwise use IP
-    return req.userID || req.user?._id?.toString() || req.ip;
+    return req.userID || req.user?._id?.toString() || ipKeyGenerator(req);
   },
   skip: (req) => {
     // Skip rate limiting for health checks
