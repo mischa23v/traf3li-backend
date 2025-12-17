@@ -639,6 +639,280 @@ const getFinanceStats = async (request, response) => {
     }
 };
 
+/**
+ * Get combined dashboard summary - GOLD STANDARD single API call
+ * Replaces 7 separate API calls with one parallel-executed query
+ * Target response time: < 200ms
+ */
+const getDashboardSummary = async (request, response) => {
+    try {
+        const userId = request.userID;
+        const firmId = request.firmId;
+
+        // Build match filter
+        const matchFilter = firmId
+            ? { firmId: new mongoose.Types.ObjectId(firmId) }
+            : { lawyerId: new mongoose.Types.ObjectId(userId) };
+
+        // User-specific filter for reminders and messages
+        const userFilter = { userId: new mongoose.Types.ObjectId(userId) };
+
+        // Today's date range for events
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const tomorrow = new Date(today);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+
+        // Import models needed for this endpoint
+        const { Conversation, Reminder } = require('../models');
+
+        // Execute ALL queries in parallel - this is the key optimization
+        const [
+            // Case stats
+            caseStatsResult,
+            // Task stats
+            taskStatsResult,
+            // Message stats (unread count)
+            conversationsData,
+            // Reminder stats
+            reminderStatsResult,
+            // Today's events
+            todayEventsResult,
+            // Financial summary
+            revenueData,
+            expenseData,
+            pendingInvoicesData,
+            paidInvoicesData,
+            // Recent messages
+            recentMessagesData
+        ] = await Promise.all([
+            // 1. Case stats - aggregate by status
+            Case.aggregate([
+                { $match: matchFilter },
+                {
+                    $group: {
+                        _id: null,
+                        total: { $sum: 1 },
+                        active: { $sum: { $cond: [{ $in: ['$status', ['active', 'in_progress', 'open']] }, 1, 0] } },
+                        closed: { $sum: { $cond: [{ $eq: ['$status', 'closed'] }, 1, 0] } },
+                        pending: { $sum: { $cond: [{ $eq: ['$status', 'pending'] }, 1, 0] } }
+                    }
+                }
+            ]),
+
+            // 2. Task stats - aggregate by status
+            Task.aggregate([
+                { $match: matchFilter },
+                {
+                    $group: {
+                        _id: null,
+                        total: { $sum: 1 },
+                        todo: { $sum: { $cond: [{ $in: ['$status', ['todo', 'pending', 'not_started']] }, 1, 0] } },
+                        in_progress: { $sum: { $cond: [{ $eq: ['$status', 'in_progress'] }, 1, 0] } },
+                        completed: { $sum: { $cond: [{ $in: ['$status', ['completed', 'done']] }, 1, 0] } },
+                        cancelled: { $sum: { $cond: [{ $eq: ['$status', 'cancelled'] }, 1, 0] } }
+                    }
+                }
+            ]),
+
+            // 3. Conversations with unread messages
+            Conversation.aggregate([
+                {
+                    $match: {
+                        $or: [
+                            { sellerID: new mongoose.Types.ObjectId(userId) },
+                            { buyerID: new mongoose.Types.ObjectId(userId) }
+                        ]
+                    }
+                },
+                {
+                    $lookup: {
+                        from: 'messages',
+                        localField: 'conversationID',
+                        foreignField: 'conversationID',
+                        as: 'messages'
+                    }
+                },
+                {
+                    $project: {
+                        conversationID: 1,
+                        totalMessages: { $size: '$messages' },
+                        unreadMessages: {
+                            $size: {
+                                $filter: {
+                                    input: '$messages',
+                                    as: 'msg',
+                                    cond: {
+                                        $and: [
+                                            { $ne: ['$$msg.userID', new mongoose.Types.ObjectId(userId)] },
+                                            { $ne: ['$$msg.read', true] }
+                                        ]
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                {
+                    $group: {
+                        _id: null,
+                        totalConversations: { $sum: 1 },
+                        totalMessages: { $sum: '$totalMessages' },
+                        unreadMessages: { $sum: '$unreadMessages' },
+                        unreadConversations: { $sum: { $cond: [{ $gt: ['$unreadMessages', 0] }, 1, 0] } }
+                    }
+                }
+            ]),
+
+            // 4. Reminder stats using static method logic
+            Reminder.aggregate([
+                { $match: userFilter },
+                {
+                    $group: {
+                        _id: null,
+                        total: { $sum: 1 },
+                        pending: { $sum: { $cond: [{ $eq: ['$status', 'pending'] }, 1, 0] } },
+                        completed: { $sum: { $cond: [{ $eq: ['$status', 'completed'] }, 1, 0] } },
+                        snoozed: { $sum: { $cond: [{ $eq: ['$status', 'snoozed'] }, 1, 0] } }
+                    }
+                }
+            ]),
+
+            // 5. Today's events
+            Event.find({
+                ...(firmId ? { firmId } : { lawyerId: userId }),
+                startTime: { $gte: today, $lt: tomorrow }
+            })
+            .sort({ startTime: 1 })
+            .limit(10)
+            .select('_id title startTime endTime location type status')
+            .lean(),
+
+            // 6. Financial - Revenue (paid invoices)
+            Invoice.aggregate([
+                { $match: { ...matchFilter, status: 'paid' } },
+                { $group: { _id: null, total: { $sum: '$totalAmount' } } }
+            ]),
+
+            // 7. Financial - Expenses
+            Expense.aggregate([
+                { $match: matchFilter },
+                { $group: { _id: null, total: { $sum: '$amount' } } }
+            ]),
+
+            // 8. Financial - Pending invoices
+            Invoice.aggregate([
+                { $match: { ...matchFilter, status: { $in: ['pending', 'sent', 'overdue', 'partial'] } } },
+                { $group: { _id: null, total: { $sum: '$balanceDue' } } }
+            ]),
+
+            // 9. Financial - Paid invoices total
+            Invoice.aggregate([
+                { $match: { ...matchFilter, status: 'paid' } },
+                { $group: { _id: null, total: { $sum: '$totalAmount' } } }
+            ]),
+
+            // 10. Recent messages (reusing existing logic)
+            (async () => {
+                const conversations = await Conversation.find({
+                    $or: [
+                        { sellerID: userId },
+                        { buyerID: userId }
+                    ]
+                }).lean();
+
+                const conversationIDs = conversations.map(conv => conv.conversationID);
+
+                if (conversationIDs.length === 0) {
+                    return [];
+                }
+
+                return await Message.find({
+                    conversationID: { $in: conversationIDs }
+                })
+                .populate('userID', 'username image')
+                .sort({ createdAt: -1 })
+                .limit(3)
+                .lean();
+            })()
+        ]);
+
+        // Build response matching frontend expected schema
+        const caseStats = caseStatsResult[0] || { total: 0, active: 0, closed: 0, pending: 0 };
+        const taskStats = taskStatsResult[0] || { total: 0, todo: 0, in_progress: 0, completed: 0, cancelled: 0 };
+        const messageData = conversationsData[0] || { unreadMessages: 0, unreadConversations: 0, totalConversations: 0, totalMessages: 0 };
+        const reminderStats = reminderStatsResult[0] || { total: 0, pending: 0, completed: 0, snoozed: 0 };
+
+        const revenue = revenueData[0]?.total || 0;
+        const expenses = expenseData[0]?.total || 0;
+        const pendingInvoices = pendingInvoicesData[0]?.total || 0;
+        const paidInvoices = paidInvoicesData[0]?.total || 0;
+
+        return response.json({
+            error: false,
+            caseStats: {
+                total: caseStats.total,
+                active: caseStats.active,
+                closed: caseStats.closed,
+                pending: caseStats.pending
+            },
+            taskStats: {
+                total: taskStats.total,
+                byStatus: {
+                    todo: taskStats.todo,
+                    in_progress: taskStats.in_progress,
+                    completed: taskStats.completed,
+                    cancelled: taskStats.cancelled
+                }
+            },
+            messageStats: {
+                unreadMessages: messageData.unreadMessages,
+                unreadConversations: messageData.unreadConversations,
+                totalConversations: messageData.totalConversations,
+                totalMessages: messageData.totalMessages
+            },
+            reminderStats: {
+                total: reminderStats.total,
+                byStatus: {
+                    pending: reminderStats.pending,
+                    completed: reminderStats.completed,
+                    snoozed: reminderStats.snoozed
+                }
+            },
+            todayEvents: todayEventsResult.map(event => ({
+                _id: event._id,
+                title: event.title,
+                startDate: event.startTime,
+                endDate: event.endTime,
+                location: event.location,
+                type: event.type,
+                status: event.status
+            })),
+            financialSummary: {
+                revenue,
+                expenses,
+                profit: revenue - expenses,
+                pendingInvoices,
+                paidInvoices,
+                netIncome: revenue - expenses
+            },
+            recentMessages: recentMessagesData.map(msg => ({
+                _id: msg._id,
+                text: msg.text,
+                conversationID: msg.conversationID,
+                userID: msg.userID,
+                createdAt: msg.createdAt
+            }))
+        });
+    } catch (error) {
+        console.error('getDashboardSummary ERROR:', error);
+        return response.status(500).json({
+            error: true,
+            message: error.message || 'Failed to fetch dashboard summary'
+        });
+    }
+};
+
 module.exports = {
     getHeroStats,
     getDashboardStats,
@@ -648,5 +922,6 @@ module.exports = {
     getActivityOverview,
     getCRMStats,
     getHRStats,
-    getFinanceStats
+    getFinanceStats,
+    getDashboardSummary
 };
