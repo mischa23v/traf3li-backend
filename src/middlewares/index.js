@@ -60,6 +60,13 @@ const {
     apiKeyRateLimit,
     flexibleAuth
 } = require('./apiKeyAuth.middleware');
+const {
+    checkSessionTimeout,
+    recordActivity,
+    clearSessionActivity,
+    getSessionInfo,
+    SESSION_POLICY
+} = require('./sessionTimeout.middleware');
 
 module.exports = {
     userMiddleware,
@@ -118,5 +125,11 @@ module.exports = {
     requireScope,
     requireAnyScope,
     apiKeyRateLimit,
-    flexibleAuth
+    flexibleAuth,
+    // Session timeout middleware
+    checkSessionTimeout,
+    recordActivity,
+    clearSessionActivity,
+    getSessionInfo,
+    SESSION_POLICY
 }

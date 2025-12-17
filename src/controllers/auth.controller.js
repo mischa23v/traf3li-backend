@@ -4,9 +4,14 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 const { getDefaultPermissions, getSoloLawyerPermissions, isSoloLawyer: checkIsSoloLawyer } = require('../config/permissions.config');
 const auditLogService = require('../services/auditLog.service');
+const accountLockoutService = require('../services/accountLockout.service');
+const { validatePassword } = require('../utils/passwordPolicy');
+const { recordActivity, clearSessionActivity } = require('../middlewares/sessionTimeout.middleware');
 
 const { JWT_SECRET, NODE_ENV } = process.env;
-const saltRounds = 10;
+
+// Password hashing rounds - OWASP recommends minimum 10, we use 12 for better security
+const saltRounds = 12;
 
 // Robust production detection for cross-origin cookie settings
 // Checks multiple indicators to determine if we're in a production environment
@@ -194,11 +199,22 @@ const authRegister = async (request, response) => {
             });
         }
 
-        // Password validation
-        if (password.length < 8) {
+        // Password policy validation
+        const passwordValidation = validatePassword(password, {
+            email,
+            username,
+            firstName,
+            lastName,
+            phone
+        });
+
+        if (!passwordValidation.valid) {
             return response.status(400).send({
                 error: true,
-                message: 'كلمة المرور يجب أن تكون 8 أحرف على الأقل'
+                message: passwordValidation.errorsAr.join('. '),
+                messageEn: passwordValidation.errors.join('. '),
+                code: 'WEAK_PASSWORD',
+                errors: passwordValidation.errors
             });
         }
 
@@ -488,8 +504,42 @@ const authLogin = async (request, response) => {
 
     // Support both 'username' and 'email' fields from frontend
     const loginIdentifier = username || email;
+    const ipAddress = request.ip || request.headers['x-forwarded-for']?.split(',')[0] || 'unknown';
+    const userAgent = request.headers['user-agent'] || 'unknown';
 
     try {
+        // Check if account is locked BEFORE any database queries
+        const lockStatus = await accountLockoutService.isAccountLocked(loginIdentifier, ipAddress);
+        if (lockStatus.locked) {
+            // Log the blocked attempt
+            await auditLogService.log(
+                'login_failed',
+                'user',
+                null,
+                null,
+                {
+                    userId: null,
+                    userEmail: loginIdentifier,
+                    userRole: 'unknown',
+                    ipAddress,
+                    userAgent,
+                    method: request.method,
+                    endpoint: request.originalUrl,
+                    status: 'blocked',
+                    errorMessage: 'Account locked due to too many failed attempts',
+                    severity: 'high',
+                }
+            );
+
+            return response.status(423).json({
+                error: true,
+                message: lockStatus.message || 'الحساب مقفل مؤقتاً بسبب محاولات تسجيل دخول فاشلة متعددة',
+                messageEn: lockStatus.messageEn || 'Account temporarily locked due to multiple failed login attempts',
+                code: 'ACCOUNT_LOCKED',
+                remainingTime: lockStatus.remainingTime,
+            });
+        }
+
         // Accept both username AND email for login
         const user = await User.findOne({
             $or: [
@@ -499,12 +549,55 @@ const authLogin = async (request, response) => {
         });
 
         if(!user) {
+            // Record failed attempt
+            const failResult = await accountLockoutService.recordFailedAttempt(loginIdentifier, ipAddress, userAgent);
+
+            // Log failed attempt with remaining attempts info
+            await auditLogService.log(
+                'login_failed',
+                'user',
+                null,
+                null,
+                {
+                    userId: null,
+                    userEmail: loginIdentifier,
+                    userRole: 'unknown',
+                    ipAddress,
+                    userAgent,
+                    method: request.method,
+                    endpoint: request.originalUrl,
+                    status: 'failed',
+                    errorMessage: 'User not found',
+                    severity: 'medium',
+                    details: {
+                        attemptsRemaining: failResult.attemptsRemaining,
+                    }
+                }
+            );
+
+            // Return appropriate error based on lockout status
+            if (failResult.locked) {
+                return response.status(423).json({
+                    error: true,
+                    message: failResult.message,
+                    messageEn: failResult.messageEn,
+                    code: 'ACCOUNT_LOCKED',
+                    remainingTime: failResult.remainingTime,
+                });
+            }
+
             throw CustomException('Check username or password!', 404);
         }
 
         const match = bcrypt.compareSync(password, user.password);
 
         if(match) {
+            // Clear failed attempts on successful login
+            await accountLockoutService.clearFailedAttempts(user.email, ipAddress);
+
+            // Record session activity for timeout tracking
+            recordActivity(user._id.toString());
+
             const { password: pwd, ...data } = user._doc;
 
             const token = jwt.sign({
@@ -606,31 +699,46 @@ const authLogin = async (request, response) => {
                 });
         }
 
-        throw CustomException('Check username or password!', 404);
-    }
-    catch({ message, status = 500 }) {
-        // Log failed login attempt
-        const ipAddress = request.ip || request.headers['x-forwarded-for']?.split(',')[0] || 'unknown';
+        // Password mismatch - record failed attempt
+        const failResult = await accountLockoutService.recordFailedAttempt(user.email, ipAddress, userAgent);
 
+        // Log failed attempt
         await auditLogService.log(
             'login_failed',
             'user',
-            null,
+            user._id,
             null,
             {
-                userId: null,
-                userEmail: request.body.email || request.body.username || 'unknown',
-                userRole: 'unknown',
-                ipAddress: ipAddress,
-                userAgent: request.headers['user-agent'] || 'unknown',
+                userId: user._id,
+                userEmail: user.email,
+                userRole: user.role,
+                ipAddress,
+                userAgent,
                 method: request.method,
                 endpoint: request.originalUrl,
                 status: 'failed',
-                errorMessage: message,
+                errorMessage: 'Invalid password',
                 severity: 'medium',
+                details: {
+                    attemptsRemaining: failResult.attemptsRemaining,
+                }
             }
         );
 
+        // Return appropriate error based on lockout status
+        if (failResult.locked) {
+            return response.status(423).json({
+                error: true,
+                message: failResult.message,
+                messageEn: failResult.messageEn,
+                code: 'ACCOUNT_LOCKED',
+                remainingTime: failResult.remainingTime,
+            });
+        }
+
+        throw CustomException('Check username or password!', 404);
+    }
+    catch({ message, status = 500 }) {
         return response.status(status).send({
             error: true,
             message
@@ -641,13 +749,18 @@ const authLogin = async (request, response) => {
 const authLogout = async (request, response) => {
     // Log logout if user is authenticated
     if (request.user) {
+        const userId = request.user._id || request.user.id;
+
+        // Clear session activity tracking
+        clearSessionActivity(userId?.toString());
+
         await auditLogService.log(
             'logout',
             'user',
-            request.user._id || request.user.id,
+            userId,
             null,
             {
-                userId: request.user._id || request.user.id,
+                userId: userId,
                 userEmail: request.user.email,
                 userRole: request.user.role,
                 userName: request.user.firstName ? `${request.user.firstName} ${request.user.lastName || ''}` : null,

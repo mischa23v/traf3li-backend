@@ -209,13 +209,64 @@ const checkRateLimit = async (userId, action, limit = 5, windowMs = 15 * 60 * 10
     // This would query your rate limit store
     // Implementation depends on your rate limit storage
     // Return true if limit exceeded, false otherwise
-    
+
     // Placeholder implementation
     return false;
   } catch (error) {
     console.error('❌ Rate limit check error:', error.message);
     return false;
   }
+};
+
+/**
+ * Authenticated user rate limiter
+ * Uses user ID for authenticated requests, IP for unauthenticated
+ * More fair than IP-only limiting for shared networks
+ */
+const authenticatedRateLimiter = createRateLimiter({
+  windowMs: 1 * 60 * 1000, // 1 minute
+  max: 100, // 100 requests per minute for authenticated users
+  keyGenerator: (req) => {
+    // Use user ID if authenticated, otherwise use IP
+    return req.userID || req.user?._id?.toString() || req.ip;
+  },
+  skip: (req) => {
+    // Skip rate limiting for health checks
+    return req.path === '/health' || req.path.startsWith('/health/');
+  },
+  message: {
+    success: false,
+    error: 'طلبات كثيرة جداً - حاول مرة أخرى بعد دقيقة',
+    error_en: 'Too many requests - Please try again after 1 minute',
+    code: 'RATE_LIMIT_EXCEEDED',
+  },
+});
+
+/**
+ * Unauthenticated rate limiter (stricter)
+ * For public endpoints before authentication
+ */
+const unauthenticatedRateLimiter = createRateLimiter({
+  windowMs: 1 * 60 * 1000, // 1 minute
+  max: 20, // 20 requests per minute for unauthenticated
+  message: {
+    success: false,
+    error: 'طلبات كثيرة جداً - حاول مرة أخرى بعد دقيقة',
+    error_en: 'Too many requests - Please try again after 1 minute',
+    code: 'RATE_LIMIT_EXCEEDED',
+  },
+});
+
+/**
+ * Smart rate limiter middleware
+ * Applies different limits based on authentication status
+ */
+const smartRateLimiter = (req, res, next) => {
+  // Check if user is authenticated (userID is set by userMiddleware)
+  if (req.userID || req.user) {
+    return authenticatedRateLimiter(req, res, next);
+  }
+  return unauthenticatedRateLimiter(req, res, next);
 };
 
 module.exports = {
@@ -228,12 +279,17 @@ module.exports = {
   paymentRateLimiter,
   searchRateLimiter,
   speedLimiter,
-  
+
+  // Smart limiters (recommended)
+  smartRateLimiter,
+  authenticatedRateLimiter,
+  unauthenticatedRateLimiter,
+
   // Custom limiters
   createRateLimiter,
   userRateLimiter,
   roleBasedRateLimiter,
-  
+
   // Utilities
   checkRateLimit,
 };
