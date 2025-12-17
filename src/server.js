@@ -205,6 +205,9 @@ const {
     healthRoute,
     metricsRoute,
 
+    // Security Incident Reporting (NCA ECC-2:2024 Compliance)
+    securityIncidentRoute,
+
     // Queue Management
     queueRoute,
 
@@ -828,6 +831,9 @@ app.use('/health', healthRoute);
 
 // Metrics endpoint (requires auth)
 app.use('/metrics', metricsRoute);
+
+// Security Incident Reporting (NCA ECC-2:2024 Compliance)
+app.use('/api/security', noCache, securityIncidentRoute);
 
 // Queue management endpoint (requires auth + admin)
 app.use('/api/queues', noCache, queueRoute);
