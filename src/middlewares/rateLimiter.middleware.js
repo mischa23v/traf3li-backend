@@ -247,7 +247,8 @@ const authenticatedRateLimiter = createRateLimiter({
   max: 400, // 400 requests per minute for authenticated users
   keyGenerator: (req) => {
     // Use user ID if authenticated, otherwise use IP
-    return req.userID || req.user?._id?.toString() || ipKeyGenerator(req);
+    // _rateLimitUserId is set by smartRateLimiter from JWT extraction
+    return req.userID || req._rateLimitUserId || req.user?._id?.toString() || ipKeyGenerator(req);
   },
   skip: (req) => {
     // Skip rate limiting for health checks
@@ -315,6 +316,10 @@ const extractUserIdFromToken = (req) => {
  *
  * IMPORTANT: This extracts user ID from JWT BEFORE auth middleware runs,
  * so authenticated users get the correct (higher) rate limit even on first request.
+ *
+ * NOTE: We do NOT set req.userID here - that would interfere with session timeout
+ * middleware which checks req.userID to determine if auth checks should run.
+ * The rate limiter only needs the ID for its own key generation.
  */
 const smartRateLimiter = (req, res, next) => {
   // Check if user is already authenticated (userID set by earlier middleware)
@@ -322,9 +327,11 @@ const smartRateLimiter = (req, res, next) => {
   const userId = req.userID || req.user?._id || extractUserIdFromToken(req);
 
   if (userId) {
-    // Set userID on request so authenticatedRateLimiter can use it for key generation
-    // This won't interfere with userMiddleware which will set it again
-    req.userID = req.userID || userId;
+    // Store the extracted user ID for rate limiter key generation ONLY
+    // Do NOT set req.userID - that's the auth middleware's job
+    // Setting it here would cause sessionTimeout middleware to run auth checks
+    // on unauthenticated routes like /login
+    req._rateLimitUserId = userId;
     return authenticatedRateLimiter(req, res, next);
   }
   return unauthenticatedRateLimiter(req, res, next);
