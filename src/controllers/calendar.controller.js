@@ -1668,6 +1668,83 @@ const getCalendarListView = asyncHandler(async (req, res) => {
  */
 const isValidCalendarType = (type) => VALID_CALENDAR_TYPES.has(type);
 
+/**
+ * Get sidebar data - Combined calendar events and upcoming reminders
+ * GET /api/calendar/sidebar-data
+ * Query params: startDate, endDate, reminderDays (default: 7)
+ *
+ * OPTIMIZED: Replaces 2 separate API calls with 1 parallel query
+ */
+const getSidebarData = asyncHandler(async (req, res) => {
+    const { startDate, endDate, reminderDays = 7 } = req.query;
+    const userId = req.userID;
+    const userObjectId = toObjectId(userId);
+
+    // Default date range: today + 5 days for events
+    const now = new Date();
+    const start = startDate ? new Date(startDate) : new Date(now.setHours(0, 0, 0, 0));
+    const end = endDate ? new Date(endDate) : new Date(Date.now() + 5 * 24 * 60 * 60 * 1000);
+
+    // Reminder date range: next N days
+    const reminderEnd = new Date(Date.now() + parseInt(reminderDays) * 24 * 60 * 60 * 1000);
+
+    // Execute both queries in parallel
+    const [calendarEvents, upcomingReminders] = await Promise.all([
+        // Calendar events in date range
+        Event.find({
+            $or: [
+                { createdBy: userObjectId },
+                { 'attendees.userId': userObjectId }
+            ],
+            startDateTime: { $gte: start, $lte: end },
+            status: { $nin: ['cancelled', 'completed'] }
+        })
+        .select('_id title startDateTime endDateTime allDay type status priority color location')
+        .sort({ startDateTime: 1 })
+        .limit(10)
+        .lean(),
+
+        // Upcoming reminders (pending only)
+        Reminder.find({
+            userId: userObjectId,
+            status: 'pending',
+            reminderDateTime: { $gte: new Date(), $lte: reminderEnd }
+        })
+        .select('_id title reminderDateTime priority type status relatedCase relatedTask')
+        .populate('relatedCase', 'title caseNumber')
+        .populate('relatedTask', 'title')
+        .sort({ reminderDateTime: 1 })
+        .limit(10)
+        .lean()
+    ]);
+
+    res.status(200).json({
+        success: true,
+        calendarEvents: calendarEvents.map(event => ({
+            _id: event._id,
+            title: event.title,
+            startDate: event.startDateTime,
+            endDate: event.endDateTime,
+            allDay: event.allDay,
+            type: event.type,
+            status: event.status,
+            priority: event.priority,
+            color: event.color,
+            location: event.location
+        })),
+        upcomingReminders: upcomingReminders.map(reminder => ({
+            _id: reminder._id,
+            title: reminder.title,
+            dueDate: reminder.reminderDateTime,
+            priority: reminder.priority,
+            type: reminder.type,
+            status: reminder.status,
+            relatedCase: reminder.relatedCase,
+            relatedTask: reminder.relatedTask
+        }))
+    });
+});
+
 module.exports = {
     getCalendarView,
     getCalendarByDate,
@@ -1680,6 +1757,8 @@ module.exports = {
     getCalendarGridItems,
     getCalendarItemDetails,
     getCalendarListView,
+    // Aggregated endpoints (GOLD STANDARD)
+    getSidebarData,
     // Cache invalidation helpers (call when events/tasks/reminders are modified)
     invalidateUserCalendarCache,
     invalidateItemCache,

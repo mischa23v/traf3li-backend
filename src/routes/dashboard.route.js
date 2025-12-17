@@ -10,7 +10,8 @@ const {
     getActivityOverview,
     getCRMStats,
     getHRStats,
-    getFinanceStats
+    getFinanceStats,
+    getDashboardSummary
 } = require('../controllers/dashboard.controller');
 
 const app = express.Router();
@@ -25,6 +26,18 @@ const dashboardKeyGen = (endpoint) => (req) => {
     const userId = req.userID || 'guest';
     return `dashboard:firm:${firmId}:user:${userId}:${endpoint}`;
 };
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// GOLD STANDARD: Combined dashboard summary endpoint
+// Replaces 7 separate API calls with one parallel-executed query
+// Frontend should use this endpoint for initial dashboard load
+// ═══════════════════════════════════════════════════════════════════════════════
+app.get('/summary',
+    userMiddleware,
+    firmFilter,
+    cacheResponse(60, dashboardKeyGen('summary')), // 60 second cache for summary
+    getDashboardSummary
+);
 
 // Get hero stats (top-level metrics for dashboard header)
 app.get('/hero-stats',

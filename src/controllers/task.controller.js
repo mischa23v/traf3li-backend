@@ -3539,6 +3539,123 @@ const autoScheduleTasks = asyncHandler(async (req, res) => {
     });
 });
 
+/**
+ * Get task with all related data (GOLD STANDARD - single API call)
+ * GET /api/tasks/:id/full
+ * Replaces 3-4 separate API calls with 1 parallel query
+ */
+const getTaskFull = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const userId = req.userID;
+
+    // Fetch task with full population
+    const task = await Task.findById(id)
+        .populate('assignedTo', 'username firstName lastName image email')
+        .populate('createdBy', 'username firstName lastName image email')
+        .populate('caseId', 'title caseNumber category')
+        .populate('clientId', 'firstName lastName email phone')
+        .populate('attachments.uploadedBy', 'firstName lastName')
+        .populate('attachments.lastEditedBy', 'firstName lastName')
+        .populate('timeTracking.sessions.userId', 'firstName lastName');
+
+    if (!task) {
+        throw CustomException('Task not found', 404);
+    }
+
+    // Verify user has access
+    const isCreator = task.createdBy && task.createdBy._id.toString() === userId;
+    const isAssignee = task.assignedTo && task.assignedTo._id.toString() === userId;
+
+    if (!isCreator && !isAssignee) {
+        throw CustomException('You do not have access to this task', 403);
+    }
+
+    // Calculate time tracking summary
+    const estimatedMinutes = task.timeTracking?.estimatedMinutes || 0;
+    const actualMinutes = task.timeTracking?.actualMinutes || 0;
+    const sessions = task.timeTracking?.sessions || [];
+
+    // Calculate time by user
+    const timeByUser = {};
+    for (const session of sessions) {
+        if (session.endedAt && session.userId) {
+            const oderId = session.userId._id?.toString() || session.userId.toString();
+            if (!timeByUser[oderId]) {
+                timeByUser[oderId] = {
+                    userId: oderId,
+                    name: session.userId.firstName
+                        ? `${session.userId.firstName} ${session.userId.lastName}`
+                        : 'Unknown',
+                    minutes: 0
+                };
+            }
+            timeByUser[oderId].minutes += session.duration || 0;
+        }
+    }
+
+    // Filter documents (TipTap editable documents)
+    const documents = (task.attachments || [])
+        .filter(attachment => attachment.isEditable === true)
+        .map(doc => ({
+            _id: doc._id,
+            fileName: doc.fileName,
+            fileType: doc.fileType,
+            fileSize: doc.fileSize,
+            contentFormat: doc.contentFormat || 'html',
+            createdAt: doc.uploadedAt,
+            updatedAt: doc.lastEditedAt,
+            uploadedBy: doc.uploadedBy,
+            lastEditedBy: doc.lastEditedBy
+        }));
+
+    // Build response
+    res.status(200).json({
+        success: true,
+        task: {
+            _id: task._id,
+            title: task.title,
+            description: task.description,
+            priority: task.priority,
+            status: task.status,
+            label: task.label,
+            tags: task.tags,
+            dueDate: task.dueDate,
+            dueTime: task.dueTime,
+            startDate: task.startDate,
+            assignedTo: task.assignedTo,
+            createdBy: task.createdBy,
+            caseId: task.caseId,
+            clientId: task.clientId,
+            subtasks: task.subtasks,
+            checklists: task.checklists,
+            recurring: task.recurring,
+            notes: task.notes,
+            progress: task.progress,
+            createdAt: task.createdAt,
+            updatedAt: task.updatedAt
+        },
+        timeTracking: {
+            totalHours: Math.round((actualMinutes / 60) * 100) / 100,
+            estimatedHours: Math.round((estimatedMinutes / 60) * 100) / 100,
+            remainingHours: Math.round((Math.max(0, estimatedMinutes - actualMinutes) / 60) * 100) / 100,
+            percentComplete: estimatedMinutes > 0
+                ? Math.round((actualMinutes / estimatedMinutes) * 100)
+                : 0,
+            isOverBudget: actualMinutes > estimatedMinutes,
+            entries: sessions.map(s => ({
+                _id: s._id,
+                userId: s.userId,
+                startedAt: s.startedAt,
+                endedAt: s.endedAt,
+                duration: s.duration,
+                description: s.description
+            })),
+            byUser: Object.values(timeByUser)
+        },
+        documents
+    });
+});
+
 module.exports = {
     createTask,
     getTasks,
@@ -3606,5 +3723,7 @@ module.exports = {
     createTaskFromNaturalLanguage,
     createTaskFromVoice,
     getSmartScheduleSuggestions,
-    autoScheduleTasks
+    autoScheduleTasks,
+    // Aggregated endpoints (GOLD STANDARD)
+    getTaskFull
 };

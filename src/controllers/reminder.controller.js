@@ -121,6 +121,7 @@ const createReminder = asyncHandler(async (req, res) => {
 /**
  * Get reminders with filters
  * GET /api/reminders
+ * Supports ?includeStats=true for aggregated stats (GOLD STANDARD)
  */
 const getReminders = asyncHandler(async (req, res) => {
     const {
@@ -134,16 +135,18 @@ const getReminders = asyncHandler(async (req, res) => {
         page = 1,
         limit = 50,
         sortBy = 'reminderDateTime',
-        sortOrder = 'asc'
+        sortOrder = 'asc',
+        includeStats = 'false' // NEW: Include stats in response
     } = req.query;
 
     const userId = req.userID;
-    const query = {
+    const baseQuery = {
         $or: [
             { userId },
             { delegatedTo: userId }
         ]
     };
+    const query = { ...baseQuery };
 
     if (status) query.status = status;
     if (priority) query.priority = priority;
@@ -160,19 +163,55 @@ const getReminders = asyncHandler(async (req, res) => {
     const sortOptions = {};
     sortOptions[sortBy] = sortOrder === 'desc' ? -1 : 1;
 
-    const reminders = await Reminder.find(query)
-        .populate('relatedCase', 'title caseNumber')
-        .populate('relatedTask', 'title dueDate')
-        .populate('relatedEvent', 'title startDateTime')
-        .populate('clientId', 'firstName lastName')
-        .populate('delegatedTo', 'firstName lastName')
-        .sort(sortOptions)
-        .limit(parseInt(limit))
-        .skip((parseInt(page) - 1) * parseInt(limit));
+    // Build promises array
+    const promises = [
+        Reminder.find(query)
+            .populate('relatedCase', 'title caseNumber')
+            .populate('relatedTask', 'title dueDate')
+            .populate('relatedEvent', 'title startDateTime')
+            .populate('clientId', 'firstName lastName')
+            .populate('delegatedTo', 'firstName lastName')
+            .sort(sortOptions)
+            .limit(parseInt(limit))
+            .skip((parseInt(page) - 1) * parseInt(limit)),
+        Reminder.countDocuments(query)
+    ];
 
-    const total = await Reminder.countDocuments(query);
+    // If includeStats=true, add stats aggregation (runs in parallel)
+    if (includeStats === 'true') {
+        const now = new Date();
+        promises.push(
+            Reminder.aggregate([
+                { $match: baseQuery },
+                {
+                    $group: {
+                        _id: null,
+                        total: { $sum: 1 },
+                        pending: { $sum: { $cond: [{ $eq: ['$status', 'pending'] }, 1, 0] } },
+                        completed: { $sum: { $cond: [{ $eq: ['$status', 'completed'] }, 1, 0] } },
+                        snoozed: { $sum: { $cond: [{ $eq: ['$status', 'snoozed'] }, 1, 0] } },
+                        overdue: {
+                            $sum: {
+                                $cond: [
+                                    { $and: [
+                                        { $eq: ['$status', 'pending'] },
+                                        { $lt: ['$reminderDateTime', now] }
+                                    ]},
+                                    1,
+                                    0
+                                ]
+                            }
+                        }
+                    }
+                }
+            ])
+        );
+    }
 
-    res.status(200).json({
+    const results = await Promise.all(promises);
+    const [reminders, total] = results;
+
+    const response = {
         success: true,
         data: reminders,
         pagination: {
@@ -181,7 +220,22 @@ const getReminders = asyncHandler(async (req, res) => {
             total,
             pages: Math.ceil(total / parseInt(limit))
         }
-    });
+    };
+
+    // Add stats if requested
+    if (includeStats === 'true') {
+        const statsResult = results[2];
+        const stats = statsResult[0] || { total: 0, pending: 0, completed: 0, snoozed: 0, overdue: 0 };
+        response.stats = {
+            total: stats.total,
+            pending: stats.pending,
+            completed: stats.completed,
+            snoozed: stats.snoozed,
+            overdue: stats.overdue
+        };
+    }
+
+    res.status(200).json(response);
 });
 
 /**

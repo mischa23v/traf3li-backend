@@ -68,7 +68,9 @@ const {
     createTaskFromNaturalLanguage,
     createTaskFromVoice,
     getSmartScheduleSuggestions,
-    autoScheduleTasks
+    autoScheduleTasks,
+    // Aggregated endpoints
+    getTaskFull
 } = require('../controllers/task.controller');
 
 const app = express.Router();
@@ -112,6 +114,13 @@ app.post('/voice-to-item/batch', userMiddleware, firmFilter, batchProcessVoiceMe
 // Task CRUD
 app.post('/', userMiddleware, firmFilter, createTask);
 app.get('/', userMiddleware, firmFilter, getTasks);
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// AGGREGATED ENDPOINT (GOLD STANDARD)
+// Get task with all related data (time tracking + documents) in 1 call
+// ═══════════════════════════════════════════════════════════════════════════════
+app.get('/:id/full', userMiddleware, firmFilter, getTaskFull);
+
 app.get('/:id', userMiddleware, firmFilter, getTask);
 app.put('/:id', userMiddleware, firmFilter, updateTask);
 app.patch('/:id', userMiddleware, firmFilter, updateTask);

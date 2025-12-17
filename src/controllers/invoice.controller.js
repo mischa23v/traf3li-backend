@@ -305,7 +305,8 @@ const getInvoices = asyncHandler(async (req, res) => {
         sortBy = 'createdAt',
         sortOrder = 'desc',
         page = 1,
-        limit = 20
+        limit = 20,
+        includeStats = 'false' // NEW: Include stats in response for aggregated data
     } = req.query;
 
     // Block departed users from financial operations
@@ -327,6 +328,9 @@ const getInvoices = asyncHandler(async (req, res) => {
         filters = { clientId: req.userID };
     }
 
+    // Store base filter for stats (before applying specific filters)
+    const baseFilters = { ...filters };
+
     if (status) filters.status = status;
     if (clientId) filters.clientId = clientId;
     if (caseId) filters.caseId = caseId;
@@ -346,7 +350,8 @@ const getInvoices = asyncHandler(async (req, res) => {
     const skip = (parseInt(page) - 1) * parseInt(limit);
     const sort = { [sortBy]: sortOrder === 'desc' ? -1 : 1 };
 
-    const [invoices, total] = await Promise.all([
+    // Build promises array - invoices + total count
+    const promises = [
         Invoice.find(filters)
             .populate('lawyerId', 'firstName lastName username image email')
             .populate('clientId', 'firstName lastName username image email')
@@ -357,9 +362,54 @@ const getInvoices = asyncHandler(async (req, res) => {
             .limit(parseInt(limit))
             .lean(),
         Invoice.countDocuments(filters)
-    ]);
+    ];
 
-    return res.json({
+    // If includeStats=true, add stats aggregation (runs in parallel)
+    if (includeStats === 'true') {
+        const now = new Date();
+        promises.push(
+            Invoice.aggregate([
+                { $match: baseFilters },
+                {
+                    $group: {
+                        _id: null,
+                        total: { $sum: 1 },
+                        paid: { $sum: { $cond: [{ $eq: ['$status', 'paid'] }, 1, 0] } },
+                        pending: { $sum: { $cond: [{ $in: ['$status', ['pending', 'sent', 'partial']] }, 1, 0] } },
+                        overdue: {
+                            $sum: {
+                                $cond: [
+                                    { $and: [
+                                        { $in: ['$status', ['pending', 'sent', 'partial']] },
+                                        { $lt: ['$dueDate', now] }
+                                    ]},
+                                    1,
+                                    0
+                                ]
+                            }
+                        },
+                        overdueAmount: {
+                            $sum: {
+                                $cond: [
+                                    { $and: [
+                                        { $in: ['$status', ['pending', 'sent', 'partial']] },
+                                        { $lt: ['$dueDate', now] }
+                                    ]},
+                                    '$balanceDue',
+                                    0
+                                ]
+                            }
+                        }
+                    }
+                }
+            ])
+        );
+    }
+
+    const results = await Promise.all(promises);
+    const [invoices, total] = results;
+
+    const response = {
         success: true,
         data: invoices,
         pagination: {
@@ -368,7 +418,22 @@ const getInvoices = asyncHandler(async (req, res) => {
             total,
             pages: Math.ceil(total / parseInt(limit))
         }
-    });
+    };
+
+    // Add stats if requested
+    if (includeStats === 'true') {
+        const statsResult = results[2];
+        const stats = statsResult[0] || { total: 0, paid: 0, pending: 0, overdue: 0, overdueAmount: 0 };
+        response.stats = {
+            total: stats.total,
+            paid: stats.paid,
+            pending: stats.pending,
+            overdue: stats.overdue,
+            overdueAmount: stats.overdueAmount
+        };
+    }
+
+    return res.json(response);
 });
 
 /**

@@ -174,19 +174,20 @@ const getEvents = asyncHandler(async (req, res) => {
         page = 1,
         limit = 50,
         sortBy = 'startDateTime',
-        sortOrder = 'asc'
+        sortOrder = 'asc',
+        includeStats = 'false' // NEW: Include stats in response (GOLD STANDARD)
     } = req.query;
 
     const userId = req.userID;
     const firmId = req.firmId; // From firmFilter middleware
     const isDeparted = req.isDeparted; // From firmFilter middleware
 
-    // Build query - firmId first, then user-based
-    let query;
+    // Build base query - firmId first, then user-based
+    let baseQuery;
     if (firmId) {
         if (isDeparted) {
             // Departed users can only see events they organized or attended
-            query = {
+            baseQuery = {
                 firmId,
                 $or: [
                     { createdBy: userId },
@@ -196,10 +197,10 @@ const getEvents = asyncHandler(async (req, res) => {
             };
         } else {
             // Active firm members see all firm events
-            query = { firmId };
+            baseQuery = { firmId };
         }
     } else {
-        query = {
+        baseQuery = {
             $or: [
                 { createdBy: userId },
                 { organizer: userId },
@@ -207,6 +208,9 @@ const getEvents = asyncHandler(async (req, res) => {
             ]
         };
     }
+
+    // Copy base query for filtering
+    const query = { ...baseQuery };
 
     // Date range filter
     if (startDate || endDate) {
@@ -223,16 +227,58 @@ const getEvents = asyncHandler(async (req, res) => {
     const sortOptions = {};
     sortOptions[sortBy] = sortOrder === 'desc' ? -1 : 1;
 
-    const events = await Event.find(query)
-        .populate('organizer', 'firstName lastName image')
-        .populate('attendees.userId', 'firstName lastName image')
-        .populate('caseId', 'title caseNumber')
-        .populate('clientId', 'firstName lastName')
-        .sort(sortOptions)
-        .limit(parseInt(limit))
-        .skip((parseInt(page) - 1) * parseInt(limit));
+    // Build promises array
+    const promises = [
+        Event.find(query)
+            .populate('organizer', 'firstName lastName image')
+            .populate('attendees.userId', 'firstName lastName image')
+            .populate('caseId', 'title caseNumber')
+            .populate('clientId', 'firstName lastName')
+            .sort(sortOptions)
+            .limit(parseInt(limit))
+            .skip((parseInt(page) - 1) * parseInt(limit)),
+        Event.countDocuments(query)
+    ];
 
-    const total = await Event.countDocuments(query);
+    // If includeStats=true, add stats aggregation (runs in parallel)
+    if (includeStats === 'true') {
+        const now = new Date();
+        const todayStart = new Date(now.setHours(0, 0, 0, 0));
+        const todayEnd = new Date(new Date().setHours(23, 59, 59, 999));
+
+        promises.push(
+            Event.aggregate([
+                { $match: baseQuery },
+                {
+                    $group: {
+                        _id: null,
+                        total: { $sum: 1 },
+                        upcoming: { $sum: { $cond: [{ $gt: ['$startDateTime', new Date()] }, 1, 0] } },
+                        past: { $sum: { $cond: [{ $lt: ['$endDateTime', new Date()] }, 1, 0] } },
+                        today: {
+                            $sum: {
+                                $cond: [
+                                    { $and: [
+                                        { $gte: ['$startDateTime', todayStart] },
+                                        { $lte: ['$startDateTime', todayEnd] }
+                                    ]},
+                                    1,
+                                    0
+                                ]
+                            }
+                        },
+                        meeting: { $sum: { $cond: [{ $eq: ['$type', 'meeting'] }, 1, 0] } },
+                        session: { $sum: { $cond: [{ $eq: ['$type', 'session'] }, 1, 0] } },
+                        hearing: { $sum: { $cond: [{ $eq: ['$type', 'hearing'] }, 1, 0] } },
+                        deadline: { $sum: { $cond: [{ $eq: ['$type', 'deadline'] }, 1, 0] } }
+                    }
+                }
+            ])
+        );
+    }
+
+    const results = await Promise.all(promises);
+    const [events, total] = results;
 
     // Also get tasks due in this date range
     let tasks = [];
@@ -253,7 +299,7 @@ const getEvents = asyncHandler(async (req, res) => {
             .sort({ dueDate: 1 });
     }
 
-    res.status(200).json({
+    const response = {
         success: true,
         events: events || [],
         tasks: tasks || [],
@@ -267,7 +313,30 @@ const getEvents = asyncHandler(async (req, res) => {
             pages: Math.ceil(total / parseInt(limit)),
             hasMore: (parseInt(page) * parseInt(limit)) < total
         }
-    });
+    };
+
+    // Add stats if requested
+    if (includeStats === 'true') {
+        const statsResult = results[2];
+        const stats = statsResult[0] || {
+            total: 0, upcoming: 0, past: 0, today: 0,
+            meeting: 0, session: 0, hearing: 0, deadline: 0
+        };
+        response.stats = {
+            total: stats.total,
+            upcoming: stats.upcoming,
+            past: stats.past,
+            today: stats.today,
+            byType: {
+                meeting: stats.meeting,
+                session: stats.session,
+                hearing: stats.hearing,
+                deadline: stats.deadline
+            }
+        };
+    }
+
+    res.status(200).json(response);
 });
 
 /**
