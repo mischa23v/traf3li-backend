@@ -682,7 +682,7 @@ const getDashboardSummary = async (request, response) => {
             revenueData,
             expenseData,
             pendingInvoicesData,
-            paidInvoicesData,
+            overdueInvoicesData,
             // Recent messages
             recentMessagesData
         ] = await Promise.all([
@@ -802,14 +802,14 @@ const getDashboardSummary = async (request, response) => {
 
             // 8. Financial - Pending invoices
             Invoice.aggregate([
-                { $match: { ...matchFilter, status: { $in: ['pending', 'sent', 'overdue', 'partial'] } } },
+                { $match: { ...matchFilter, status: { $in: ['pending', 'sent', 'partial'] } } },
                 { $group: { _id: null, total: { $sum: '$balanceDue' } } }
             ]),
 
-            // 9. Financial - Paid invoices total
+            // 9. Financial - Overdue invoices
             Invoice.aggregate([
-                { $match: { ...matchFilter, status: 'paid' } },
-                { $group: { _id: null, total: { $sum: '$totalAmount' } } }
+                { $match: { ...matchFilter, status: 'overdue' } },
+                { $group: { _id: null, total: { $sum: '$balanceDue' } } }
             ]),
 
             // 10. Recent messages (reusing existing logic)
@@ -846,13 +846,7 @@ const getDashboardSummary = async (request, response) => {
         const totalRevenue = revenueData[0]?.total || 0;
         const totalExpenses = expenseData[0]?.total || 0;
         const pendingAmount = pendingInvoicesData[0]?.total || 0;
-
-        // Calculate overdue amount from pending invoices that are past due
-        const overdueInvoices = await Invoice.aggregate([
-            { $match: { ...matchFilter, status: 'overdue' } },
-            { $group: { _id: null, total: { $sum: '$balanceDue' } } }
-        ]);
-        const overdueAmount = overdueInvoices[0]?.total || 0;
+        const overdueAmount = overdueInvoicesData[0]?.total || 0;
 
         return response.json({
             success: true,
