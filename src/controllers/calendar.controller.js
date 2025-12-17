@@ -1,7 +1,18 @@
+const mongoose = require('mongoose');
 const { Event, Task, Reminder, Case } = require('../models');
 const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
 const cache = require('../services/cache.service');
+
+// Helper to convert userId to ObjectId for aggregation pipelines
+const toObjectId = (id) => {
+    if (id instanceof mongoose.Types.ObjectId) return id;
+    try {
+        return new mongoose.Types.ObjectId(id);
+    } catch {
+        return id;
+    }
+};
 
 // Valid filter types as Set for O(1) lookup
 const VALID_CALENDAR_TYPES = new Set(['event', 'task', 'reminder', 'case-document']);
@@ -920,6 +931,7 @@ const getCalendarGridSummary = asyncHandler(async (req, res) => {
 
     // Use aggregation pipeline for efficient counting
     const promises = [];
+    const userObjectId = toObjectId(userId);
 
     // Count events by day
     if (requestedTypes.has('event')) {
@@ -928,8 +940,8 @@ const getCalendarGridSummary = asyncHandler(async (req, res) => {
                 {
                     $match: {
                         $or: [
-                            { createdBy: userId },
-                            { 'attendees.userId': userId }
+                            { createdBy: userObjectId },
+                            { 'attendees.userId': userObjectId }
                         ],
                         startDateTime: { $gte: start, $lte: end }
                     }
@@ -961,8 +973,8 @@ const getCalendarGridSummary = asyncHandler(async (req, res) => {
                 {
                     $match: {
                         $or: [
-                            { assignedTo: userId },
-                            { createdBy: userId }
+                            { assignedTo: userObjectId },
+                            { createdBy: userObjectId }
                         ],
                         dueDate: { $gte: start, $lte: end }
                     }
@@ -1002,7 +1014,7 @@ const getCalendarGridSummary = asyncHandler(async (req, res) => {
             Reminder.aggregate([
                 {
                     $match: {
-                        userId,
+                        userId: userObjectId,
                         reminderDateTime: { $gte: start, $lte: end }
                     }
                 },
@@ -1031,7 +1043,7 @@ const getCalendarGridSummary = asyncHandler(async (req, res) => {
             Case.aggregate([
                 {
                     $match: {
-                        lawyerId: userId,
+                        lawyerId: userObjectId,
                         'richDocuments.showOnCalendar': true
                     }
                 },
