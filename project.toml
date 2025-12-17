@@ -1,25 +1,6 @@
 # Cloud Build configuration
-# Explicitly specify Node.js buildpack to avoid detection issues
+# Simple project descriptor - let Google auto-detect Node.js from package.json
 
 [project]
 id = "traf3li-backend"
 name = "Traf3li Backend API"
-
-[build]
-# Exclude directories that might confuse buildpack detection
-exclude = [
-  "CaseAce-law-firm-management-system-frontend-main",
-  "*.csproj",
-  "*.sln",
-  "tests",
-  "__tests__",
-  "coverage",
-  ".git"
-]
-
-[[build.buildpacks]]
-id = "google.nodejs.npm"
-
-[[build.env]]
-name = "GOOGLE_NODEJS_VERSION"
-value = "22"
