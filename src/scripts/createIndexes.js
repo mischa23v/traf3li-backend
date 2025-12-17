@@ -30,6 +30,88 @@ const connectDB = async () => {
  */
 const indexDefinitions = [
     // ═══════════════════════════════════════════════════════════════
+    // USER COLLECTION - Critical for auth performance
+    // ═══════════════════════════════════════════════════════════════
+    {
+        collection: 'users',
+        indexes: [
+            // Primary lookups (auth/me endpoint)
+            { keys: { email: 1 }, options: { name: 'idx_email', unique: true } },
+            { keys: { username: 1 }, options: { name: 'idx_username', unique: true } },
+
+            // Firm membership queries
+            { keys: { firmId: 1, firmStatus: 1 }, options: { name: 'idx_firm_status' } },
+            { keys: { firmId: 1, firmRole: 1 }, options: { name: 'idx_firm_role' } },
+
+            // Role-based queries
+            { keys: { role: 1, 'lawyerProfile.verified': 1 }, options: { name: 'idx_role_verified' } },
+            { keys: { role: 1, lawyerMode: 1 }, options: { name: 'idx_role_mode' } },
+
+            // Marketplace searches
+            { keys: { lawyerMode: 1, 'lawyerProfile.rating': -1 }, options: { name: 'idx_marketplace_rating' } },
+            { keys: { lawyerMode: 1, region: 1, 'lawyerProfile.specialization': 1 }, options: { name: 'idx_marketplace_region_spec' } }
+        ]
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // REMINDER COLLECTION - Critical for cron job performance
+    // ═══════════════════════════════════════════════════════════════
+    {
+        collection: 'reminders',
+        indexes: [
+            // Core reminder queries
+            { keys: { userId: 1, status: 1, reminderDateTime: 1 }, options: { name: 'idx_user_status_datetime' } },
+            { keys: { status: 1, reminderDateTime: 1 }, options: { name: 'idx_status_datetime' } },
+
+            // Notification trigger query (cron job)
+            { keys: { status: 1, reminderDateTime: 1, 'notification.sent': 1 }, options: { name: 'idx_pending_notifications' } },
+
+            // Advance notifications query
+            { keys: { status: 1, 'notification.advanceNotifications.sent': 1 }, options: { name: 'idx_advance_notifications' } },
+
+            // Escalation query
+            { keys: { status: 1, 'notification.sent': 1, 'notification.escalation.enabled': 1, 'notification.escalation.escalated': 1 }, options: { name: 'idx_escalation' } },
+
+            // Snoozed reminders query
+            { keys: { status: 1, 'snooze.snoozeUntil': 1 }, options: { name: 'idx_snoozed' } },
+
+            // Related entity queries
+            { keys: { relatedCase: 1, status: 1 }, options: { name: 'idx_case_status', sparse: true } },
+            { keys: { relatedTask: 1, status: 1 }, options: { name: 'idx_task_status', sparse: true } },
+            { keys: { relatedEvent: 1, status: 1 }, options: { name: 'idx_event_status', sparse: true } },
+
+            // Recurring reminders
+            { keys: { 'recurring.enabled': 1, 'recurring.nextOccurrence': 1 }, options: { name: 'idx_recurring' } },
+
+            // Delegated reminders
+            { keys: { delegatedTo: 1, status: 1 }, options: { name: 'idx_delegated', sparse: true } }
+        ]
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // COUNTER COLLECTION - Atomic sequences
+    // ═══════════════════════════════════════════════════════════════
+    {
+        collection: 'counters',
+        indexes: [
+            // _id is already indexed by default, but ensure seq lookup is fast
+            { keys: { _id: 1, seq: 1 }, options: { name: 'idx_id_seq' } }
+        ]
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // FIRM COLLECTION - Multi-tenancy
+    // ═══════════════════════════════════════════════════════════════
+    {
+        collection: 'firms',
+        indexes: [
+            { keys: { 'members.userId': 1 }, options: { name: 'idx_member_userid' } },
+            { keys: { status: 1, 'subscription.status': 1 }, options: { name: 'idx_status_subscription' } },
+            { keys: { licenseNumber: 1 }, options: { name: 'idx_license', sparse: true } }
+        ]
+    },
+
+    // ═══════════════════════════════════════════════════════════════
     // LEAD COLLECTION
     // ═══════════════════════════════════════════════════════════════
     {
