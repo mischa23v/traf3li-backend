@@ -202,6 +202,30 @@ router.get('/circuits', authenticate, async (req, res) => {
 });
 
 /**
+ * GET /health/cache
+ * Cache performance statistics
+ * Shows hit rate, total requests, and cache type
+ */
+router.get('/cache', authenticate, async (req, res) => {
+    try {
+        const { getStats } = require('../services/cache.service');
+        const stats = getStats();
+
+        res.status(200).json({
+            status: 'ok',
+            timestamp: new Date().toISOString(),
+            cache: stats
+        });
+    } catch (error) {
+        res.status(500).json({
+            status: 'error',
+            timestamp: new Date().toISOString(),
+            error: error.message
+        });
+    }
+});
+
+/**
  * GET /health/debug-auth
  * Debug endpoint to see what cookies the server receives
  * Helps diagnose cookie/auth issues

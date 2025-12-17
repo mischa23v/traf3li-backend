@@ -203,6 +203,9 @@ const ApiKey = require('./apiKey.model');
 // Webhook Model
 const Webhook = require('./webhook.model');
 
+// PDPL Consent Model
+const Consent = require('./consent.model');
+
 module.exports = {
     // Marketplace
     User,
@@ -407,5 +410,8 @@ module.exports = {
     ApiKey,
 
     // Webhooks
-    Webhook
+    Webhook,
+
+    // PDPL Consent
+    Consent
 };

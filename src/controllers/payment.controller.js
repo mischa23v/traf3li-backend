@@ -278,7 +278,8 @@ const getPayments = asyncHandler(async (req, res) => {
         .populate('reconciliation.reconciledBy', 'firstName lastName')
         .sort(sort)
         .limit(parseInt(limit))
-        .skip((parseInt(page) - 1) * parseInt(limit));
+        .skip((parseInt(page) - 1) * parseInt(limit))
+        .lean();
 
     const total = await Payment.countDocuments(query);
 

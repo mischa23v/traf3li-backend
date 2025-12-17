@@ -29,7 +29,11 @@
     "docker:build": "docker build -t traf3li-backend .",
     "docker:run": "docker run -p 8080:8080 --env-file .env traf3li-backend",
     "lint": "eslint src/",
-    "lint:fix": "eslint src/ --fix"
+    "lint:fix": "eslint src/ --fix",
+    "security:audit": "npm audit --audit-level=high",
+    "security:audit:fix": "npm audit fix",
+    "security:audit:report": "npm audit --json > security-audit-report.json",
+    "security:check": "npm audit --audit-level=high && echo '✅ Security audit passed'"
   },
   "keywords": [],
   "author": "",

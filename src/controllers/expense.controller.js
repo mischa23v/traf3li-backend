@@ -275,7 +275,8 @@ const getExpenses = asyncHandler(async (req, res) => {
         .populate('invoiceId', 'invoiceNumber')
         .sort(sort)
         .limit(parseInt(limit))
-        .skip((parseInt(page) - 1) * parseInt(limit));
+        .skip((parseInt(page) - 1) * parseInt(limit))
+        .lean();
 
     const total = await Expense.countDocuments(filters);
 

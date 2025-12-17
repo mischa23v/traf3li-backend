@@ -239,7 +239,8 @@ const getTasks = asyncHandler(async (req, res) => {
         .populate('clientId', 'firstName lastName')
         .sort(sortOptions)
         .limit(parseInt(limit))
-        .skip((parseInt(page) - 1) * parseInt(limit));
+        .skip((parseInt(page) - 1) * parseInt(limit))
+        .lean();
 
     const total = await Task.countDocuments(query);
 
