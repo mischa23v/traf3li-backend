@@ -14,6 +14,9 @@ const allowedOrigins = [
     'https://www.traf3li.com',
     'https://www.dashboard.traf3li.com',
 
+    // Cloudflare Pages
+    'https://traf3li-dashboard.pages.dev',
+
     // Development URLs
     'http://localhost:5173',
     'http://localhost:5174',
