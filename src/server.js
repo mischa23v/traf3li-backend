@@ -26,7 +26,7 @@ const { startTimeEntryJobs } = require('./jobs/timeEntryLocking.job');
 const { startPlanJobs } = require('./jobs/planExpiration.job');
 const { initSocket } = require('./configs/socket');
 const logger = require('./utils/logger');
-const { apiRateLimiter, speedLimiter } = require('./middlewares/rateLimiter.middleware');
+const { apiRateLimiter, speedLimiter, smartRateLimiter, authRateLimiter } = require('./middlewares/rateLimiter.middleware');
 const { sanitizeAll } = require('./middlewares/sanitize.middleware');
 const {
     originCheck,
@@ -37,6 +37,7 @@ const {
     securityHeaders,
     sanitizeRequest
 } = require('./middlewares/security.middleware');
+const { checkSessionTimeout } = require('./middlewares/sessionTimeout.middleware');
 const {
     apiVersionMiddleware,
     addNonVersionedDeprecationWarning
@@ -457,14 +458,13 @@ app.use(sentrySetUserContext);
 // ✅ SENTRY: Add request breadcrumbs for error tracking
 app.use(addRequestBreadcrumb);
 
-// ✅ SECURITY: Global API rate limiting - DISABLED
-// Rate limiting removed to allow frontend dashboard to make multiple parallel API calls
-// Auth-specific rate limiting is still applied on auth routes for brute force protection
-// TODO: Consider implementing per-user rate limiting instead of global limits
-// app.use('/api', apiRateLimiter);
+// ✅ SECURITY: Smart API rate limiting (per-user for authenticated, per-IP for unauthenticated)
+// Uses user ID for authenticated requests (100 req/min), IP for unauthenticated (20 req/min)
+// This allows dashboard parallel API calls while still protecting against abuse
+app.use('/api', smartRateLimiter);
 
-// ✅ SECURITY: Speed limiter - DISABLED
-// Disabled along with rate limiting to prevent 429 errors on dashboard load
+// ✅ SECURITY: Speed limiter - adds progressive delay after 50 requests
+// Disabled to avoid latency issues - rate limiting alone should be sufficient
 // app.use('/api', speedLimiter);
 
 // ✅ SECURITY: Origin check for state-changing operations (CSRF defense-in-depth)
@@ -473,6 +473,11 @@ app.use('/api', originCheck);
 // ✅ SECURITY: CSRF token validation for state-changing operations
 // Note: Can be selectively disabled for specific routes if needed
 app.use('/api', validateCsrfToken);
+
+// ✅ SECURITY: Session timeout check (30 min idle, 24 hour absolute)
+// Validates session hasn't exceeded idle or absolute timeout limits
+app.use('/api', checkSessionTimeout);
+
 // ✅ API VERSIONING: Extract and validate API version from URL or headers
 app.use('/api', apiVersionMiddleware);
 
