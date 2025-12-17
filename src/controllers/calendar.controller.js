@@ -2,6 +2,11 @@ const { Event, Task, Reminder, Case } = require('../models');
 const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
 
+// Valid filter types as Set for O(1) lookup
+const VALID_CALENDAR_TYPES = new Set(['event', 'task', 'reminder', 'case-document']);
+const VALID_PRIORITIES = new Set(['low', 'medium', 'high', 'critical', 'urgent']);
+const VALID_STATUSES = new Set(['pending', 'in_progress', 'done', 'cancelled', 'completed', 'scheduled', 'confirmed']);
+
 /**
  * Get unified calendar view (events + tasks + reminders)
  * GET /api/calendar
@@ -815,11 +820,746 @@ function getReminderColor(priority, status) {
     }
 }
 
+/**
+ * Get calendar grid summary (counts only - optimized for calendar cells)
+ * GET /api/calendar/grid-summary
+ * Returns only counts per day, no full event objects
+ * Query params: startDate, endDate, types (comma-separated)
+ */
+const getCalendarGridSummary = asyncHandler(async (req, res) => {
+    const { startDate, endDate, types } = req.query;
+    const userId = req.userID;
+
+    // Default to current month if no dates provided
+    const start = startDate ? new Date(startDate) : new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+    const end = endDate ? new Date(endDate) : new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0, 23, 59, 59);
+
+    // Parse and validate types using Set for O(1) lookup
+    const requestedTypes = types
+        ? new Set(types.split(',').filter(t => VALID_CALENDAR_TYPES.has(t.trim())))
+        : VALID_CALENDAR_TYPES;
+
+    const daySummary = {};
+
+    // Initialize all days in range
+    const currentDate = new Date(start);
+    while (currentDate <= end) {
+        const dateKey = currentDate.toISOString().split('T')[0];
+        daySummary[dateKey] = {
+            date: dateKey,
+            total: 0,
+            events: 0,
+            tasks: 0,
+            reminders: 0,
+            caseDocuments: 0,
+            hasHighPriority: false,
+            hasOverdue: false
+        };
+        currentDate.setDate(currentDate.getDate() + 1);
+    }
+
+    // Use aggregation pipeline for efficient counting
+    const promises = [];
+
+    // Count events by day
+    if (requestedTypes.has('event')) {
+        promises.push(
+            Event.aggregate([
+                {
+                    $match: {
+                        $or: [
+                            { createdBy: userId },
+                            { 'attendees.userId': userId }
+                        ],
+                        startDateTime: { $gte: start, $lte: end }
+                    }
+                },
+                {
+                    $group: {
+                        _id: { $dateToString: { format: '%Y-%m-%d', date: '$startDateTime' } },
+                        count: { $sum: 1 },
+                        hasHighPriority: { $max: { $in: ['$priority', ['high', 'critical', 'urgent']] } }
+                    }
+                }
+            ]).then(results => {
+                results.forEach(r => {
+                    if (daySummary[r._id]) {
+                        daySummary[r._id].events = r.count;
+                        daySummary[r._id].total += r.count;
+                        if (r.hasHighPriority) daySummary[r._id].hasHighPriority = true;
+                    }
+                });
+            })
+        );
+    }
+
+    // Count tasks by day
+    if (requestedTypes.has('task')) {
+        const now = new Date();
+        promises.push(
+            Task.aggregate([
+                {
+                    $match: {
+                        $or: [
+                            { assignedTo: userId },
+                            { createdBy: userId }
+                        ],
+                        dueDate: { $gte: start, $lte: end }
+                    }
+                },
+                {
+                    $group: {
+                        _id: { $dateToString: { format: '%Y-%m-%d', date: '$dueDate' } },
+                        count: { $sum: 1 },
+                        hasHighPriority: { $max: { $in: ['$priority', ['high', 'critical', 'urgent']] } },
+                        overdueCount: {
+                            $sum: {
+                                $cond: [
+                                    { $and: [{ $lt: ['$dueDate', now] }, { $ne: ['$status', 'done'] }] },
+                                    1,
+                                    0
+                                ]
+                            }
+                        }
+                    }
+                }
+            ]).then(results => {
+                results.forEach(r => {
+                    if (daySummary[r._id]) {
+                        daySummary[r._id].tasks = r.count;
+                        daySummary[r._id].total += r.count;
+                        if (r.hasHighPriority) daySummary[r._id].hasHighPriority = true;
+                        if (r.overdueCount > 0) daySummary[r._id].hasOverdue = true;
+                    }
+                });
+            })
+        );
+    }
+
+    // Count reminders by day
+    if (requestedTypes.has('reminder')) {
+        promises.push(
+            Reminder.aggregate([
+                {
+                    $match: {
+                        userId,
+                        reminderDateTime: { $gte: start, $lte: end }
+                    }
+                },
+                {
+                    $group: {
+                        _id: { $dateToString: { format: '%Y-%m-%d', date: '$reminderDateTime' } },
+                        count: { $sum: 1 },
+                        hasHighPriority: { $max: { $in: ['$priority', ['high', 'critical', 'urgent']] } }
+                    }
+                }
+            ]).then(results => {
+                results.forEach(r => {
+                    if (daySummary[r._id]) {
+                        daySummary[r._id].reminders = r.count;
+                        daySummary[r._id].total += r.count;
+                        if (r.hasHighPriority) daySummary[r._id].hasHighPriority = true;
+                    }
+                });
+            })
+        );
+    }
+
+    // Count case documents
+    if (requestedTypes.has('case-document')) {
+        promises.push(
+            Case.aggregate([
+                {
+                    $match: {
+                        lawyerId: userId,
+                        'richDocuments.showOnCalendar': true
+                    }
+                },
+                { $unwind: '$richDocuments' },
+                {
+                    $match: {
+                        'richDocuments.showOnCalendar': true,
+                        'richDocuments.calendarDate': { $gte: start, $lte: end }
+                    }
+                },
+                {
+                    $group: {
+                        _id: { $dateToString: { format: '%Y-%m-%d', date: '$richDocuments.calendarDate' } },
+                        count: { $sum: 1 }
+                    }
+                }
+            ]).then(results => {
+                results.forEach(r => {
+                    if (daySummary[r._id]) {
+                        daySummary[r._id].caseDocuments = r.count;
+                        daySummary[r._id].total += r.count;
+                    }
+                });
+            })
+        );
+    }
+
+    await Promise.all(promises);
+
+    // Filter out empty days for efficiency
+    const nonEmptyDays = Object.values(daySummary).filter(day => day.total > 0);
+
+    res.status(200).json({
+        success: true,
+        data: {
+            days: nonEmptyDays,
+            totalDays: nonEmptyDays.length,
+            dateRange: { start, end }
+        }
+    });
+});
+
+/**
+ * Get minimal event list for calendar grid (lazy-load optimization)
+ * GET /api/calendar/grid-items
+ * Returns only id, title, startDate, type, color, priority for grid display
+ * Full details fetched on demand via /api/calendar/item/:type/:id
+ */
+const getCalendarGridItems = asyncHandler(async (req, res) => {
+    const { startDate, endDate, types, caseId } = req.query;
+    const userId = req.userID;
+
+    if (!startDate || !endDate) {
+        throw CustomException('Start date and end date are required', 400);
+    }
+
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+
+    // Parse types using Set for O(1) lookup
+    const requestedTypes = types
+        ? new Set(types.split(',').filter(t => VALID_CALENDAR_TYPES.has(t.trim())))
+        : VALID_CALENDAR_TYPES;
+
+    const caseFilter = caseId ? { caseId } : {};
+    const items = [];
+
+    const promises = [];
+
+    // Fetch minimal event data
+    if (requestedTypes.has('event')) {
+        promises.push(
+            Event.find({
+                $or: [
+                    { createdBy: userId },
+                    { 'attendees.userId': userId }
+                ],
+                startDateTime: { $gte: start, $lte: end },
+                ...caseFilter
+            })
+                .select('_id title startDateTime endDateTime allDay type status priority color')
+                .lean()
+                .then(events => {
+                    events.forEach(e => {
+                        items.push({
+                            id: e._id,
+                            type: 'event',
+                            title: e.title,
+                            startDate: e.startDateTime,
+                            endDate: e.endDateTime,
+                            allDay: e.allDay,
+                            eventType: e.type,
+                            status: e.status,
+                            priority: e.priority || 'medium',
+                            color: e.color || '#3b82f6'
+                        });
+                    });
+                })
+        );
+    }
+
+    // Fetch minimal task data
+    if (requestedTypes.has('task')) {
+        promises.push(
+            Task.find({
+                $or: [
+                    { assignedTo: userId },
+                    { createdBy: userId }
+                ],
+                dueDate: { $gte: start, $lte: end },
+                ...caseFilter
+            })
+                .select('_id title dueDate status priority')
+                .lean()
+                .then(tasks => {
+                    const now = new Date();
+                    tasks.forEach(t => {
+                        items.push({
+                            id: t._id,
+                            type: 'task',
+                            title: t.title,
+                            startDate: t.dueDate,
+                            endDate: t.dueDate,
+                            allDay: true,
+                            status: t.status,
+                            priority: t.priority || 'medium',
+                            color: getTaskColor(t.status, t.priority),
+                            isOverdue: t.status !== 'done' && new Date(t.dueDate) < now
+                        });
+                    });
+                })
+        );
+    }
+
+    // Fetch minimal reminder data
+    if (requestedTypes.has('reminder')) {
+        const reminderQuery = {
+            userId,
+            reminderDateTime: { $gte: start, $lte: end }
+        };
+        if (caseId) reminderQuery.relatedCase = caseId;
+
+        promises.push(
+            Reminder.find(reminderQuery)
+                .select('_id title reminderDateTime reminderTime status priority type')
+                .lean()
+                .then(reminders => {
+                    reminders.forEach(r => {
+                        items.push({
+                            id: r._id,
+                            type: 'reminder',
+                            title: r.title,
+                            startDate: r.reminderDateTime,
+                            endDate: r.reminderDateTime,
+                            allDay: false,
+                            reminderTime: r.reminderTime,
+                            status: r.status,
+                            priority: r.priority || 'medium',
+                            reminderType: r.type,
+                            color: getReminderColor(r.priority, r.status)
+                        });
+                    });
+                })
+        );
+    }
+
+    // Fetch minimal case document data
+    if (requestedTypes.has('case-document')) {
+        const caseQuery = {
+            lawyerId: userId,
+            'richDocuments.showOnCalendar': true
+        };
+        if (caseId) caseQuery._id = caseId;
+
+        promises.push(
+            Case.find(caseQuery)
+                .select('_id title caseNumber richDocuments._id richDocuments.title richDocuments.calendarDate richDocuments.calendarColor richDocuments.showOnCalendar richDocuments.documentType')
+                .lean()
+                .then(cases => {
+                    cases.forEach(caseDoc => {
+                        if (caseDoc.richDocuments) {
+                            caseDoc.richDocuments.forEach(doc => {
+                                if (doc.showOnCalendar && doc.calendarDate) {
+                                    const docDate = new Date(doc.calendarDate);
+                                    if (docDate >= start && docDate <= end) {
+                                        items.push({
+                                            id: doc._id,
+                                            type: 'case-document',
+                                            title: doc.title,
+                                            startDate: doc.calendarDate,
+                                            endDate: doc.calendarDate,
+                                            allDay: true,
+                                            documentType: doc.documentType,
+                                            color: doc.calendarColor || '#3b82f6',
+                                            caseId: caseDoc._id,
+                                            caseNumber: caseDoc.caseNumber
+                                        });
+                                    }
+                                }
+                            });
+                        }
+                    });
+                })
+        );
+    }
+
+    await Promise.all(promises);
+
+    // Sort by start date
+    items.sort((a, b) => new Date(a.startDate) - new Date(b.startDate));
+
+    res.status(200).json({
+        success: true,
+        data: items,
+        count: items.length,
+        dateRange: { start, end }
+    });
+});
+
+/**
+ * Get full details for a single calendar item (lazy-load on click)
+ * GET /api/calendar/item/:type/:id
+ * Fetches complete details including relations, attendees, etc.
+ */
+const getCalendarItemDetails = asyncHandler(async (req, res) => {
+    const { type, id } = req.params;
+    const userId = req.userID;
+
+    // Validate type using Set for O(1) lookup
+    if (!VALID_CALENDAR_TYPES.has(type)) {
+        throw CustomException('Invalid item type. Must be: event, task, reminder, or case-document', 400);
+    }
+
+    let item = null;
+
+    switch (type) {
+        case 'event':
+            item = await Event.findById(id)
+                .populate('createdBy', 'username firstName lastName image email')
+                .populate('organizer', 'username firstName lastName image email')
+                .populate('attendees.userId', 'username firstName lastName image email')
+                .populate('caseId', 'title caseNumber category')
+                .populate('clientId', 'firstName lastName email phone')
+                .populate('taskId', 'title status dueDate')
+                .populate('agenda.presenter', 'firstName lastName')
+                .populate('actionItems.assignedTo', 'firstName lastName');
+
+            if (!item) {
+                throw CustomException('Event not found', 404);
+            }
+
+            // Check access
+            const hasEventAccess = item.createdBy._id.toString() === userId ||
+                item.organizer._id.toString() === userId ||
+                item.isUserAttendee(userId);
+
+            if (!hasEventAccess) {
+                throw CustomException('You do not have access to this event', 403);
+            }
+            break;
+
+        case 'task':
+            item = await Task.findById(id)
+                .populate('assignedTo', 'username firstName lastName image email')
+                .populate('createdBy', 'username firstName lastName image email')
+                .populate('caseId', 'title caseNumber category')
+                .populate('clientId', 'firstName lastName email phone')
+                .populate('linkedEventId', 'title startDateTime');
+
+            if (!item) {
+                throw CustomException('Task not found', 404);
+            }
+
+            // Check access
+            const hasTaskAccess = item.assignedTo?._id?.toString() === userId ||
+                item.createdBy._id.toString() === userId;
+
+            if (!hasTaskAccess) {
+                throw CustomException('You do not have access to this task', 403);
+            }
+            break;
+
+        case 'reminder':
+            item = await Reminder.findById(id)
+                .populate('relatedCase', 'title caseNumber category')
+                .populate('relatedTask', 'title status dueDate')
+                .populate('relatedEvent', 'title startDateTime');
+
+            if (!item) {
+                throw CustomException('Reminder not found', 404);
+            }
+
+            if (item.userId.toString() !== userId) {
+                throw CustomException('You do not have access to this reminder', 403);
+            }
+            break;
+
+        case 'case-document':
+            const caseDoc = await Case.findOne({
+                lawyerId: userId,
+                'richDocuments._id': id
+            })
+                .populate('richDocuments.createdBy', 'firstName lastName')
+                .select('_id title caseNumber category richDocuments.$');
+
+            if (!caseDoc || !caseDoc.richDocuments || caseDoc.richDocuments.length === 0) {
+                throw CustomException('Document not found', 404);
+            }
+
+            item = {
+                ...caseDoc.richDocuments[0].toObject(),
+                caseId: caseDoc._id,
+                caseName: caseDoc.title,
+                caseNumber: caseDoc.caseNumber,
+                caseCategory: caseDoc.category
+            };
+            break;
+    }
+
+    res.status(200).json({
+        success: true,
+        data: item,
+        type
+    });
+});
+
+/**
+ * Get virtualized list view with cursor-based pagination
+ * GET /api/calendar/list
+ * Optimized for list view with heavy usage - supports infinite scroll
+ * Query params: cursor, limit, types, startDate, endDate, sortBy, sortOrder
+ */
+const getCalendarListView = asyncHandler(async (req, res) => {
+    const {
+        cursor,
+        limit = 20,
+        types,
+        startDate,
+        endDate,
+        sortBy = 'startDate',
+        sortOrder = 'asc',
+        caseId,
+        priority,
+        status
+    } = req.query;
+    const userId = req.userID;
+
+    const parsedLimit = Math.min(parseInt(limit) || 20, 100); // Max 100 items per request
+
+    // Default date range if not provided
+    const start = startDate ? new Date(startDate) : new Date(new Date().setHours(0, 0, 0, 0));
+    const end = endDate ? new Date(endDate) : new Date(new Date().setFullYear(new Date().getFullYear() + 1));
+
+    // Parse filters using Sets for O(1) lookup
+    const requestedTypes = types
+        ? new Set(types.split(',').filter(t => VALID_CALENDAR_TYPES.has(t.trim())))
+        : VALID_CALENDAR_TYPES;
+
+    const priorityFilter = priority && VALID_PRIORITIES.has(priority) ? priority : null;
+    const statusFilter = status && VALID_STATUSES.has(status) ? status : null;
+
+    // Decode cursor for pagination
+    let cursorDate = null;
+    let cursorId = null;
+    if (cursor) {
+        try {
+            const decoded = JSON.parse(Buffer.from(cursor, 'base64').toString('utf8'));
+            cursorDate = new Date(decoded.date);
+            cursorId = decoded.id;
+        } catch (e) {
+            // Invalid cursor, start from beginning
+        }
+    }
+
+    const items = [];
+    const caseFilter = caseId ? { caseId } : {};
+
+    // Build cursor condition for each type
+    const buildCursorCondition = (dateField, cursorDate, cursorId, sortOrder) => {
+        if (!cursorDate) return {};
+        const op = sortOrder === 'asc' ? '$gt' : '$lt';
+        return {
+            $or: [
+                { [dateField]: { [op]: cursorDate } },
+                { [dateField]: cursorDate, _id: { [op]: cursorId } }
+            ]
+        };
+    };
+
+    const promises = [];
+
+    // Fetch events
+    if (requestedTypes.has('event')) {
+        const eventQuery = {
+            $or: [
+                { createdBy: userId },
+                { 'attendees.userId': userId }
+            ],
+            startDateTime: { $gte: start, $lte: end },
+            ...caseFilter,
+            ...(priorityFilter && { priority: priorityFilter }),
+            ...(statusFilter && { status: statusFilter }),
+            ...buildCursorCondition('startDateTime', cursorDate, cursorId, sortOrder)
+        };
+
+        promises.push(
+            Event.find(eventQuery)
+                .select('_id title startDateTime endDateTime allDay type status priority color caseId')
+                .populate('caseId', 'title caseNumber')
+                .sort({ startDateTime: sortOrder === 'asc' ? 1 : -1, _id: 1 })
+                .limit(parsedLimit + 1)
+                .lean()
+                .then(events => {
+                    events.forEach(e => {
+                        items.push({
+                            id: e._id,
+                            type: 'event',
+                            title: e.title,
+                            startDate: e.startDateTime,
+                            endDate: e.endDateTime,
+                            allDay: e.allDay,
+                            eventType: e.type,
+                            status: e.status,
+                            priority: e.priority || 'medium',
+                            color: e.color || '#3b82f6',
+                            caseId: e.caseId?._id,
+                            caseName: e.caseId?.title,
+                            caseNumber: e.caseId?.caseNumber,
+                            _sortDate: e.startDateTime
+                        });
+                    });
+                })
+        );
+    }
+
+    // Fetch tasks
+    if (requestedTypes.has('task')) {
+        const taskQuery = {
+            $or: [
+                { assignedTo: userId },
+                { createdBy: userId }
+            ],
+            dueDate: { $gte: start, $lte: end },
+            ...caseFilter,
+            ...(priorityFilter && { priority: priorityFilter }),
+            ...(statusFilter && { status: statusFilter }),
+            ...buildCursorCondition('dueDate', cursorDate, cursorId, sortOrder)
+        };
+
+        promises.push(
+            Task.find(taskQuery)
+                .select('_id title dueDate status priority caseId')
+                .populate('caseId', 'title caseNumber')
+                .sort({ dueDate: sortOrder === 'asc' ? 1 : -1, _id: 1 })
+                .limit(parsedLimit + 1)
+                .lean()
+                .then(tasks => {
+                    const now = new Date();
+                    tasks.forEach(t => {
+                        items.push({
+                            id: t._id,
+                            type: 'task',
+                            title: t.title,
+                            startDate: t.dueDate,
+                            endDate: t.dueDate,
+                            allDay: true,
+                            status: t.status,
+                            priority: t.priority || 'medium',
+                            color: getTaskColor(t.status, t.priority),
+                            isOverdue: t.status !== 'done' && new Date(t.dueDate) < now,
+                            caseId: t.caseId?._id,
+                            caseName: t.caseId?.title,
+                            caseNumber: t.caseId?.caseNumber,
+                            _sortDate: t.dueDate
+                        });
+                    });
+                })
+        );
+    }
+
+    // Fetch reminders
+    if (requestedTypes.has('reminder')) {
+        const reminderQuery = {
+            userId,
+            reminderDateTime: { $gte: start, $lte: end },
+            ...(caseId && { relatedCase: caseId }),
+            ...(priorityFilter && { priority: priorityFilter }),
+            ...(statusFilter && { status: statusFilter }),
+            ...buildCursorCondition('reminderDateTime', cursorDate, cursorId, sortOrder)
+        };
+
+        promises.push(
+            Reminder.find(reminderQuery)
+                .select('_id title reminderDateTime status priority type relatedCase')
+                .populate('relatedCase', 'title caseNumber')
+                .sort({ reminderDateTime: sortOrder === 'asc' ? 1 : -1, _id: 1 })
+                .limit(parsedLimit + 1)
+                .lean()
+                .then(reminders => {
+                    reminders.forEach(r => {
+                        items.push({
+                            id: r._id,
+                            type: 'reminder',
+                            title: r.title,
+                            startDate: r.reminderDateTime,
+                            endDate: r.reminderDateTime,
+                            allDay: false,
+                            status: r.status,
+                            priority: r.priority || 'medium',
+                            reminderType: r.type,
+                            color: getReminderColor(r.priority, r.status),
+                            caseId: r.relatedCase?._id,
+                            caseName: r.relatedCase?.title,
+                            caseNumber: r.relatedCase?.caseNumber,
+                            _sortDate: r.reminderDateTime
+                        });
+                    });
+                })
+        );
+    }
+
+    await Promise.all(promises);
+
+    // Sort all items by date
+    items.sort((a, b) => {
+        const dateA = new Date(a._sortDate);
+        const dateB = new Date(b._sortDate);
+        const diff = sortOrder === 'asc' ? dateA - dateB : dateB - dateA;
+        if (diff !== 0) return diff;
+        return a.id.toString().localeCompare(b.id.toString());
+    });
+
+    // Check if there are more items
+    const hasMore = items.length > parsedLimit;
+    const resultItems = items.slice(0, parsedLimit);
+
+    // Generate next cursor
+    let nextCursor = null;
+    if (hasMore && resultItems.length > 0) {
+        const lastItem = resultItems[resultItems.length - 1];
+        nextCursor = Buffer.from(JSON.stringify({
+            date: lastItem._sortDate,
+            id: lastItem.id
+        })).toString('base64');
+    }
+
+    // Remove internal _sortDate field from response
+    resultItems.forEach(item => delete item._sortDate);
+
+    res.status(200).json({
+        success: true,
+        data: resultItems,
+        pagination: {
+            cursor: nextCursor,
+            hasMore,
+            limit: parsedLimit,
+            count: resultItems.length
+        },
+        filters: {
+            types: Array.from(requestedTypes),
+            priority: priorityFilter,
+            status: statusFilter,
+            dateRange: { start, end }
+        }
+    });
+});
+
+/**
+ * Validate if a type is valid calendar type
+ * Helper function exported for use in other controllers
+ */
+const isValidCalendarType = (type) => VALID_CALENDAR_TYPES.has(type);
+
 module.exports = {
     getCalendarView,
     getCalendarByDate,
     getCalendarByMonth,
     getUpcomingItems,
     getOverdueItems,
-    getCalendarStats
+    getCalendarStats,
+    // Optimized endpoints
+    getCalendarGridSummary,
+    getCalendarGridItems,
+    getCalendarItemDetails,
+    getCalendarListView,
+    // Helper exports
+    isValidCalendarType,
+    VALID_CALENDAR_TYPES,
+    VALID_PRIORITIES,
+    VALID_STATUSES
 };
