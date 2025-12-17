@@ -142,6 +142,11 @@ const auditLogSchema = new mongoose.Schema(
         'import',
         'approve',
         'reject',
+
+        // Security events
+        'suspicious_activity',
+        'session_hijack_attempt',
+        'brute_force_detected',
       ],
     },
 
@@ -251,8 +256,32 @@ const auditLogSchema = new mongoose.Schema(
     // Compliance tags for easier filtering
     complianceTags: [{
       type: String,
-      enum: ['PDPL', 'GDPR', 'SOX', 'HIPAA', 'PCI-DSS', 'ISO27001'],
+      enum: ['PDPL', 'GDPR', 'SOX', 'HIPAA', 'PCI-DSS', 'ISO27001', 'NCA-ECC', 'session-security', 'data-retention', 'data-deletion', 'data-portability'],
     }],
+
+    // ═══════════════════════════════════════════════════════════════
+    // INTEGRITY (Hash Chain for NCA ECC-2:2024 Compliance)
+    // ═══════════════════════════════════════════════════════════════
+    integrity: {
+      previousHash: {
+        type: String,
+      },
+      hash: {
+        type: String,
+        index: true,
+      },
+      signature: {
+        type: String,
+      },
+      algorithm: {
+        type: String,
+        default: 'sha256',
+      },
+      version: {
+        type: String,
+        default: '1.0',
+      },
+    },
 
     // ═══════════════════════════════════════════════════════════════
     // TIMESTAMP
