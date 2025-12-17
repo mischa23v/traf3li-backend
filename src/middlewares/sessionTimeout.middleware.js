@@ -66,12 +66,21 @@ const checkSessionTimeout = (req, res, next) => {
             // Clear the last activity record
             lastActivityStore.delete(sessionKey);
 
+            // Clear the auth cookie (true server-side logout)
+            res.clearCookie('accessToken', {
+                httpOnly: true,
+                secure: process.env.NODE_ENV === 'production',
+                sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+                path: '/',
+            });
+
             return res.status(401).json({
                 error: true,
                 message: 'انتهت صلاحية الجلسة. الرجاء تسجيل الدخول مرة أخرى',
                 messageEn: 'Session expired. Please log in again',
                 code: 'SESSION_ABSOLUTE_TIMEOUT',
                 reason: 'absolute_timeout',
+                loggedOut: true,
             });
         }
 
@@ -83,12 +92,21 @@ const checkSessionTimeout = (req, res, next) => {
             // Clear the last activity record
             lastActivityStore.delete(sessionKey);
 
+            // Clear the auth cookie (true server-side logout)
+            res.clearCookie('accessToken', {
+                httpOnly: true,
+                secure: process.env.NODE_ENV === 'production',
+                sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+                path: '/',
+            });
+
             return res.status(401).json({
                 error: true,
                 message: 'انتهت صلاحية الجلسة بسبب عدم النشاط. الرجاء تسجيل الدخول مرة أخرى',
                 messageEn: 'Session expired due to inactivity. Please log in again',
                 code: 'SESSION_IDLE_TIMEOUT',
                 reason: 'idle_timeout',
+                loggedOut: true,
             });
         }
 
