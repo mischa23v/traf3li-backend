@@ -843,66 +843,72 @@ const getDashboardSummary = async (request, response) => {
         const messageData = conversationsData[0] || { unreadMessages: 0, unreadConversations: 0, totalConversations: 0, totalMessages: 0 };
         const reminderStats = reminderStatsResult[0] || { total: 0, pending: 0, completed: 0, snoozed: 0 };
 
-        const revenue = revenueData[0]?.total || 0;
-        const expenses = expenseData[0]?.total || 0;
-        const pendingInvoices = pendingInvoicesData[0]?.total || 0;
-        const paidInvoices = paidInvoicesData[0]?.total || 0;
+        const totalRevenue = revenueData[0]?.total || 0;
+        const totalExpenses = expenseData[0]?.total || 0;
+        const pendingAmount = pendingInvoicesData[0]?.total || 0;
+
+        // Calculate overdue amount from pending invoices that are past due
+        const overdueInvoices = await Invoice.aggregate([
+            { $match: { ...matchFilter, status: 'overdue' } },
+            { $group: { _id: null, total: { $sum: '$balanceDue' } } }
+        ]);
+        const overdueAmount = overdueInvoices[0]?.total || 0;
 
         return response.json({
-            error: false,
-            caseStats: {
-                total: caseStats.total,
-                active: caseStats.active,
-                closed: caseStats.closed,
-                pending: caseStats.pending
-            },
-            taskStats: {
-                total: taskStats.total,
-                byStatus: {
-                    todo: taskStats.todo,
-                    in_progress: taskStats.in_progress,
-                    completed: taskStats.completed,
-                    cancelled: taskStats.cancelled
-                }
-            },
-            messageStats: {
-                unreadMessages: messageData.unreadMessages,
-                unreadConversations: messageData.unreadConversations,
-                totalConversations: messageData.totalConversations,
-                totalMessages: messageData.totalMessages
-            },
-            reminderStats: {
-                total: reminderStats.total,
-                byStatus: {
-                    pending: reminderStats.pending,
-                    completed: reminderStats.completed,
-                    snoozed: reminderStats.snoozed
-                }
-            },
-            todayEvents: todayEventsResult.map(event => ({
-                _id: event._id,
-                title: event.title,
-                startDate: event.startTime,
-                endDate: event.endTime,
-                location: event.location,
-                type: event.type,
-                status: event.status
-            })),
-            financialSummary: {
-                revenue,
-                expenses,
-                profit: revenue - expenses,
-                pendingInvoices,
-                paidInvoices,
-                netIncome: revenue - expenses
-            },
-            recentMessages: recentMessagesData.map(msg => ({
-                _id: msg._id,
-                text: msg.text,
-                conversationID: msg.conversationID,
-                userID: msg.userID,
-                createdAt: msg.createdAt
-            }))
+            success: true,
+            data: {
+                caseStats: {
+                    total: caseStats.total,
+                    active: caseStats.active,
+                    pending: caseStats.pending,
+                    closed: caseStats.closed
+                },
+                taskStats: {
+                    total: taskStats.total,
+                    byStatus: {
+                        todo: taskStats.todo,
+                        in_progress: taskStats.in_progress,
+                        completed: taskStats.completed,
+                        cancelled: taskStats.cancelled
+                    }
+                },
+                messageStats: {
+                    unreadMessages: messageData.unreadMessages,
+                    unreadConversations: messageData.unreadConversations,
+                    totalConversations: messageData.totalConversations,
+                    totalMessages: messageData.totalMessages
+                },
+                reminderStats: {
+                    total: reminderStats.total,
+                    byStatus: {
+                        pending: reminderStats.pending,
+                        completed: reminderStats.completed,
+                        snoozed: reminderStats.snoozed
+                    }
+                },
+                todayEvents: todayEventsResult.map(event => ({
+                    _id: event._id,
+                    title: event.title,
+                    startDate: event.startTime,
+                    endDate: event.endTime,
+                    location: event.location,
+                    type: event.type,
+                    status: event.status
+                })),
+                financialSummary: {
+                    totalRevenue,
+                    totalExpenses,
+                    pendingAmount,
+                    overdueAmount
+                },
+                recentMessages: recentMessagesData.map(msg => ({
+                    _id: msg._id,
+                    text: msg.text,
+                    conversationID: msg.conversationID,
+                    userID: msg.userID,
+                    createdAt: msg.createdAt
+                }))
+            }
         });
     } catch (error) {
         console.error('getDashboardSummary ERROR:', error);
