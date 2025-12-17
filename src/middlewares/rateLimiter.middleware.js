@@ -195,11 +195,22 @@ const roleBasedRateLimiter = () => {
  */
 const slowDown = require('express-slow-down');
 
+/**
+ * Speed limiter - Progressive delay after threshold
+ * Tuned for SPA usage patterns:
+ * - Higher threshold (200 requests) before delays kick in
+ * - Lower initial delay (200ms) for better UX
+ * - Lower max delay (5s) to avoid blocking legitimate users
+ */
 const speedLimiter = slowDown({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  delayAfter: 50, // Allow 50 requests per 15 min at full speed
-  delayMs: () => 500, // Add 500ms delay per request after limit (v2 syntax)
-  maxDelayMs: 20000, // Max delay of 20 seconds
+  windowMs: 1 * 60 * 1000, // 1 minute window (matches rate limiter)
+  delayAfter: 200, // Allow 200 requests per minute at full speed
+  delayMs: () => 200, // Add 200ms delay per request after limit
+  maxDelayMs: 5000, // Max delay of 5 seconds
+  skip: (req) => {
+    // Skip health checks
+    return req.path === '/health' || req.path.startsWith('/health/');
+  },
 });
 
 /**

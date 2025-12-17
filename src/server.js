@@ -463,9 +463,9 @@ app.use(addRequestBreadcrumb);
 // This allows dashboard parallel API calls while still protecting against abuse
 app.use('/api', smartRateLimiter);
 
-// ✅ SECURITY: Speed limiter - adds progressive delay after 50 requests
-// Disabled to avoid latency issues - rate limiting alone should be sufficient
-// app.use('/api', speedLimiter);
+// ✅ SECURITY: Speed limiter - adds progressive delay after threshold
+// Tuned for SPA: 200 requests/min at full speed, then 200ms delays (max 5s)
+app.use('/api', speedLimiter);
 
 // ✅ SECURITY: Origin check for state-changing operations (CSRF defense-in-depth)
 app.use('/api', originCheck);

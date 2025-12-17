@@ -7,9 +7,12 @@
  * - Remember me: 7 days (existing behavior)
  *
  * Security compliance: Nafath, DocuSign, OWASP session management
+ *
+ * UPDATED: Now uses Redis for horizontal scaling across multiple instances
  */
 
 const jwt = require('jsonwebtoken');
+const cacheService = require('../services/cache.service');
 
 // Session timeout configuration
 const SESSION_POLICY = {
@@ -19,25 +22,17 @@ const SESSION_POLICY = {
     warningBefore: 5 * 60 * 1000,     // Warn 5 minutes before expiry
 };
 
-// In-memory store for last activity (for single instance)
-// For production, use Redis or session store
-const lastActivityStore = new Map();
+// Cache key prefix for session activity
+const SESSION_KEY_PREFIX = 'session:activity:';
 
-// Cleanup old entries every 5 minutes
-setInterval(() => {
-    const now = Date.now();
-    for (const [key, timestamp] of lastActivityStore.entries()) {
-        if (now - timestamp > SESSION_POLICY.absoluteTimeout) {
-            lastActivityStore.delete(key);
-        }
-    }
-}, 5 * 60 * 1000);
+// TTL for session activity records (24 hours in seconds)
+const SESSION_TTL_SECONDS = 24 * 60 * 60;
 
 /**
  * Session timeout check middleware
  * Validates that the session hasn't exceeded idle or absolute timeout
  */
-const checkSessionTimeout = (req, res, next) => {
+const checkSessionTimeout = async (req, res, next) => {
     try {
         // Skip if no user (not authenticated)
         if (!req.userID) {
@@ -56,15 +51,15 @@ const checkSessionTimeout = (req, res, next) => {
         }
 
         const now = Date.now();
-        const sessionKey = `session:${req.userID}`;
+        const sessionKey = `${SESSION_KEY_PREFIX}${req.userID}`;
 
         // Check absolute timeout (24 hours since token was issued)
         const tokenIssuedAt = decoded.iat * 1000; // JWT iat is in seconds
         const absoluteExpiry = tokenIssuedAt + SESSION_POLICY.absoluteTimeout;
 
         if (now > absoluteExpiry) {
-            // Clear the last activity record
-            lastActivityStore.delete(sessionKey);
+            // Clear the last activity record from Redis
+            await cacheService.del(sessionKey);
 
             // Clear the auth cookie (true server-side logout)
             res.clearCookie('accessToken', {
@@ -85,12 +80,12 @@ const checkSessionTimeout = (req, res, next) => {
         }
 
         // Check idle timeout (30 minutes since last activity)
-        const lastActivity = lastActivityStore.get(sessionKey) || tokenIssuedAt;
+        const lastActivity = await cacheService.get(sessionKey) || tokenIssuedAt;
         const idleExpiry = lastActivity + SESSION_POLICY.idleTimeout;
 
         if (now > idleExpiry) {
-            // Clear the last activity record
-            lastActivityStore.delete(sessionKey);
+            // Clear the last activity record from Redis
+            await cacheService.del(sessionKey);
 
             // Clear the auth cookie (true server-side logout)
             res.clearCookie('accessToken', {
@@ -110,8 +105,8 @@ const checkSessionTimeout = (req, res, next) => {
             });
         }
 
-        // Update last activity timestamp
-        lastActivityStore.set(sessionKey, now);
+        // Update last activity timestamp in Redis
+        await cacheService.set(sessionKey, now, SESSION_TTL_SECONDS);
 
         // Add session info to response headers (for frontend to display warnings)
         const idleRemaining = Math.max(0, idleExpiry - now);
@@ -140,9 +135,13 @@ const checkSessionTimeout = (req, res, next) => {
  * Record activity for a user (call on successful auth)
  * @param {string} userId - User ID
  */
-function recordActivity(userId) {
+async function recordActivity(userId) {
     if (userId) {
-        lastActivityStore.set(`session:${userId}`, Date.now());
+        try {
+            await cacheService.set(`${SESSION_KEY_PREFIX}${userId}`, Date.now(), SESSION_TTL_SECONDS);
+        } catch (error) {
+            console.error('Error recording session activity:', error.message);
+        }
     }
 }
 
@@ -150,9 +149,13 @@ function recordActivity(userId) {
  * Clear session activity (call on logout)
  * @param {string} userId - User ID
  */
-function clearSessionActivity(userId) {
+async function clearSessionActivity(userId) {
     if (userId) {
-        lastActivityStore.delete(`session:${userId}`);
+        try {
+            await cacheService.del(`${SESSION_KEY_PREFIX}${userId}`);
+        } catch (error) {
+            console.error('Error clearing session activity:', error.message);
+        }
     }
 }
 
@@ -160,12 +163,12 @@ function clearSessionActivity(userId) {
  * Get session info for a user
  * @param {string} userId - User ID
  * @param {object} tokenData - Decoded JWT data
- * @returns {object} Session information
+ * @returns {Promise<object>} Session information
  */
-function getSessionInfo(userId, tokenData) {
+async function getSessionInfo(userId, tokenData) {
     const now = Date.now();
-    const sessionKey = `session:${userId}`;
-    const lastActivity = lastActivityStore.get(sessionKey);
+    const sessionKey = `${SESSION_KEY_PREFIX}${userId}`;
+    const lastActivity = await cacheService.get(sessionKey);
     const tokenIssuedAt = tokenData?.iat ? tokenData.iat * 1000 : now;
 
     const idleRemaining = lastActivity
