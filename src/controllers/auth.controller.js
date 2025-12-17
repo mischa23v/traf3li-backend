@@ -829,15 +829,23 @@ const checkAvailability = async (request, response) => {
 
 const authStatus = async (request, response) => {
     try {
-        const user = await User.findOne({ _id: request.userID }).select('-password');
+        // ═══════════════════════════════════════════════════════════════
+        // PERFORMANCE: Use lean() for faster query - returns plain JS object
+        // findById is faster than findOne for _id lookups
+        // ═══════════════════════════════════════════════════════════════
+        const user = await User.findById(request.userID)
+            .select('-password')
+            .lean()
+            .exec();
 
         if(!user) {
             throw CustomException('User not found!', 404);
         }
 
         // Build enhanced user data with solo lawyer and firm info
+        // Note: With lean(), user is already a plain object (no _doc needed)
         const userData = {
-            ...user._doc,
+            ...user,
             isSoloLawyer: user.isSoloLawyer || false,
             lawyerWorkMode: user.lawyerWorkMode || null
         };
@@ -846,8 +854,11 @@ const authStatus = async (request, response) => {
         if (user.role === 'lawyer' || user.isSeller) {
             if (user.firmId) {
                 try {
+                    // PERFORMANCE: Use lean() for faster query
                     const firm = await Firm.findById(user.firmId)
-                        .select('name nameEnglish licenseNumber status members subscription');
+                        .select('name nameEnglish licenseNumber status members subscription')
+                        .lean()
+                        .exec();
 
                     if (firm) {
                         const member = firm.members.find(

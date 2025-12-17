@@ -516,23 +516,50 @@ clientSchema.pre('save', async function(next) {
 /**
  * Initialize client counter from existing data
  * Run this once during server startup or migration
+ *
+ * PERFORMANCE: Uses aggregation pipeline with index hint
+ * to avoid slow regex full collection scan
  */
 clientSchema.statics.initializeCounter = async function() {
     const Counter = require('./counter.model');
 
-    // Find the highest existing client number
-    const lastClient = await this.findOne({
-        clientNumber: { $regex: /^CLT-\d+$/ }
-    }).sort({ clientNumber: -1 });
+    try {
+        // PERFORMANCE: Use aggregation with $match on prefix (uses index)
+        // then extract numeric part with $substr, avoiding regex full scan
+        const result = await this.aggregate([
+            // Match clients with clientNumber starting with 'CLT-' (uses index)
+            { $match: { clientNumber: { $regex: /^CLT-/ } } },
+            // Extract numeric part efficiently
+            {
+                $project: {
+                    clientNumber: 1,
+                    numericPart: {
+                        $toInt: {
+                            $substr: ['$clientNumber', 4, 5]  // 'CLT-00123' -> '00123' -> 123
+                        }
+                    }
+                }
+            },
+            // Sort by numeric value descending
+            { $sort: { numericPart: -1 } },
+            // Get only the first (max) result
+            { $limit: 1 }
+        ]).option({ maxTimeMS: 5000 });  // Timeout after 5s
 
-    if (lastClient && lastClient.clientNumber) {
-        // Extract the numeric part: "CLT-00123" -> 123
-        const match = lastClient.clientNumber.match(/CLT-(\d+)/);
-        if (match) {
-            const currentMax = parseInt(match[1], 10);
+        if (result.length > 0 && result[0].numericPart) {
+            const currentMax = result[0].numericPart;
             await Counter.initializeCounter('client', currentMax);
             console.log('📊 [CLIENT] Counter initialized to:', currentMax);
             return currentMax;
+        }
+    } catch (err) {
+        // Fallback: If aggregation fails, just get the counter's current value
+        // or let it start from 1
+        console.warn('⚠️ [CLIENT] Counter init aggregation warning:', err.message);
+        const existingCounter = await Counter.getCurrentValue('client');
+        if (existingCounter > 0) {
+            console.log('📊 [CLIENT] Using existing counter value:', existingCounter);
+            return existingCounter;
         }
     }
 

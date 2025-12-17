@@ -975,13 +975,40 @@ app.use((err, req, res, next) => {
 
 const PORT = process.env.PORT || 8080;
 
+// ═══════════════════════════════════════════════════════════════
+// AGGRESSIVE STARTUP OPTIMIZATION
+// ═══════════════════════════════════════════════════════════════
+// 1. Start server immediately (for health checks)
+// 2. Connect to DB with warmup
+// 3. Delay cron jobs to allow connections to stabilize
+const startServer = async () => {
+    try {
+        // Connect to DB first with warmup
+        await connectDB();
+
+        // Small delay to ensure all connections are warm before cron jobs
+        // This prevents "cold query" on first cron execution
+        const CRON_STARTUP_DELAY_MS = parseInt(process.env.CRON_STARTUP_DELAY_MS) || 3000;
+
+        setTimeout(() => {
+            console.log('🕐 Starting scheduled jobs after warmup delay...');
+            scheduleTaskReminders();
+            startRecurringInvoiceJobs();
+            startTimeEntryJobs();
+            startPlanJobs();
+            startDataRetentionJob();
+            console.log('✅ All scheduled jobs started');
+        }, CRON_STARTUP_DELAY_MS);
+
+    } catch (err) {
+        console.error('❌ Failed to initialize server:', err.message);
+        // Continue running - health checks should still work
+    }
+};
+
 server.listen(PORT, () => {
-    connectDB();
-    scheduleTaskReminders();
-    startRecurringInvoiceJobs();
-    startTimeEntryJobs();
-    startPlanJobs();
-    startDataRetentionJob();
+    // Start DB and cron jobs asynchronously
+    startServer();
 
     logger.info('Server started', {
         port: PORT,

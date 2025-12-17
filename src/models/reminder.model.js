@@ -204,13 +204,43 @@ const reminderSchema = new mongoose.Schema({
     timestamps: true
 });
 
-// Indexes for performance
+// ═══════════════════════════════════════════════════════════════
+// AGGRESSIVE INDEXES FOR CRON JOB PERFORMANCE
+// ═══════════════════════════════════════════════════════════════
+
+// Core reminder queries
 reminderSchema.index({ userId: 1, reminderDateTime: 1 });
 reminderSchema.index({ status: 1, reminderDateTime: 1 });
 reminderSchema.index({ userId: 1, status: 1, reminderDateTime: 1 });
+
+// Cron job: Pending notifications trigger (every minute)
+// Query: { status: 'pending', reminderDateTime: { $lte }, 'notification.sent': { $ne: true } }
+reminderSchema.index({ status: 1, reminderDateTime: 1, 'notification.sent': 1 });
+
+// Cron job: Advance notifications (every minute)
+// Query: { status: 'pending', 'notification.advanceNotifications.sent': { $ne: true } }
+reminderSchema.index({ status: 1, 'notification.advanceNotifications.sent': 1 });
+
+// Cron job: Escalation checker (every 5 min)
+// Query: { status: 'pending', 'notification.sent': true, 'notification.escalation.enabled': true, 'notification.escalation.escalated': { $ne: true } }
+reminderSchema.index({
+    status: 1,
+    'notification.sent': 1,
+    'notification.escalation.enabled': 1,
+    'notification.escalation.escalated': 1
+});
+
+// Cron job: Snoozed reminders (every minute)
+// Query: { status: 'snoozed', 'snooze.snoozeUntil': { $lte } }
+reminderSchema.index({ status: 1, 'snooze.snoozeUntil': 1 });
+
+// Recurring reminders
 reminderSchema.index({ 'recurring.enabled': 1, 'recurring.nextOccurrence': 1 });
+
+// Delegated reminders
 reminderSchema.index({ delegatedTo: 1, status: 1 });
-reminderSchema.index({ 'snooze.snoozeUntil': 1, status: 1 });
+
+// Location-based reminders
 reminderSchema.index({ 'locationTrigger.enabled': 1, 'locationTrigger.triggered': 1 });
 
 // Generate reminder ID before saving
