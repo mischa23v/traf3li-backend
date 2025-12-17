@@ -113,12 +113,12 @@ const checkIdempotency = (options = {}) => {
         });
       }
 
-      // Store original json method
+      // Store original methods
       const originalJson = res.json.bind(res);
+      const originalSend = res.send.bind(res);
 
-      // Override json to capture response
-      res.json = async (data) => {
-        // Store complete response
+      // Helper to cache response
+      const cacheResponse = async (data) => {
         try {
           await setWithExpiry(
             redisKey,
@@ -133,12 +133,23 @@ const checkIdempotency = (options = {}) => {
         } catch (cacheError) {
           console.error("Error caching idempotency response:", cacheError);
         }
-
         // Set header to indicate fresh response
         res.set("Idempotency-Key-Status", "fresh");
+      };
 
-        // Call original json
+      // Override json to capture response
+      res.json = async (data) => {
+        await cacheResponse(data);
         return originalJson(data);
+      };
+
+      // Override send to capture response (for non-JSON responses)
+      res.send = async (data) => {
+        // Only cache if it looks like JSON data
+        if (typeof data === 'object' && data !== null) {
+          await cacheResponse(data);
+        }
+        return originalSend(data);
       };
 
       next();

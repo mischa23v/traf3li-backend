@@ -1,0 +1,202 @@
+/**
+ * Circuit Breaker Utility
+ *
+ * Implements the circuit breaker pattern for external service calls.
+ * Prevents cascade failures when external services are down.
+ *
+ * States:
+ * - CLOSED: Normal operation, requests pass through
+ * - OPEN: Service is down, requests fail fast
+ * - HALF_OPEN: Testing if service has recovered
+ */
+
+const CircuitBreaker = require('opossum');
+
+// Default options for circuit breakers
+const DEFAULT_OPTIONS = {
+  timeout: 30000,                    // 30 seconds - time before a call is considered failed
+  errorThresholdPercentage: 50,      // Open circuit when 50% of requests fail
+  resetTimeout: 30000,               // 30 seconds - time to wait before testing again
+  volumeThreshold: 5,                // Minimum requests before calculating error percentage
+  rollingCountTimeout: 10000,        // 10 seconds - time window for statistics
+  rollingCountBuckets: 10,           // Number of buckets for rolling window
+};
+
+// Store for circuit breaker instances
+const breakers = new Map();
+
+/**
+ * Create or get a circuit breaker for a service
+ * @param {string} name - Unique name for the service
+ * @param {Function} fn - The async function to wrap
+ * @param {Object} options - Circuit breaker options
+ * @returns {CircuitBreaker} - The circuit breaker instance
+ */
+function createBreaker(name, fn, options = {}) {
+  if (breakers.has(name)) {
+    return breakers.get(name);
+  }
+
+  const breakerOptions = {
+    ...DEFAULT_OPTIONS,
+    ...options,
+    name,
+  };
+
+  const breaker = new CircuitBreaker(fn, breakerOptions);
+
+  // Event handlers for monitoring
+  breaker.on('success', () => {
+    // Request succeeded
+  });
+
+  breaker.on('timeout', () => {
+    console.warn(`[CircuitBreaker] ${name}: Request timed out`);
+  });
+
+  breaker.on('reject', () => {
+    console.warn(`[CircuitBreaker] ${name}: Request rejected (circuit open)`);
+  });
+
+  breaker.on('open', () => {
+    console.error(`[CircuitBreaker] ${name}: Circuit OPENED - service appears down`);
+  });
+
+  breaker.on('halfOpen', () => {
+    console.info(`[CircuitBreaker] ${name}: Circuit HALF-OPEN - testing service`);
+  });
+
+  breaker.on('close', () => {
+    console.info(`[CircuitBreaker] ${name}: Circuit CLOSED - service recovered`);
+  });
+
+  breaker.on('fallback', (result) => {
+    console.warn(`[CircuitBreaker] ${name}: Fallback executed`);
+  });
+
+  breakers.set(name, breaker);
+  return breaker;
+}
+
+/**
+ * Get circuit breaker stats for monitoring
+ * @param {string} name - Service name
+ * @returns {Object} - Circuit breaker statistics
+ */
+function getStats(name) {
+  const breaker = breakers.get(name);
+  if (!breaker) {
+    return null;
+  }
+
+  return {
+    name,
+    state: breaker.status.state,
+    stats: breaker.stats,
+    options: {
+      timeout: breaker.options.timeout,
+      errorThresholdPercentage: breaker.options.errorThresholdPercentage,
+      resetTimeout: breaker.options.resetTimeout,
+      volumeThreshold: breaker.options.volumeThreshold,
+    },
+  };
+}
+
+/**
+ * Get all circuit breaker stats
+ * @returns {Array} - Array of all circuit breaker statistics
+ */
+function getAllStats() {
+  const stats = [];
+  for (const name of breakers.keys()) {
+    stats.push(getStats(name));
+  }
+  return stats;
+}
+
+/**
+ * Reset a circuit breaker (force close)
+ * @param {string} name - Service name
+ */
+function resetBreaker(name) {
+  const breaker = breakers.get(name);
+  if (breaker) {
+    breaker.close();
+    console.info(`[CircuitBreaker] ${name}: Circuit manually reset to CLOSED`);
+  }
+}
+
+/**
+ * Create a wrapped function with circuit breaker
+ * @param {string} name - Unique name for the service
+ * @param {Function} fn - The async function to wrap
+ * @param {Object} options - Circuit breaker options
+ * @param {Function} fallback - Optional fallback function
+ * @returns {Function} - Wrapped function with circuit breaker
+ */
+function withCircuitBreaker(name, fn, options = {}, fallback = null) {
+  const breaker = createBreaker(name, fn, options);
+
+  if (fallback) {
+    breaker.fallback(fallback);
+  }
+
+  return async (...args) => {
+    return breaker.fire(...args);
+  };
+}
+
+/**
+ * Pre-configured circuit breaker options for different service types
+ */
+const SERVICE_CONFIGS = {
+  // Government APIs (MOJ, Wathq, Yakeen) - slower, more tolerant
+  government: {
+    timeout: 45000,                  // 45 seconds
+    errorThresholdPercentage: 60,    // 60% failure rate
+    resetTimeout: 60000,             // 1 minute recovery
+    volumeThreshold: 3,              // Low volume
+  },
+
+  // Payment services - critical, fast failure
+  payment: {
+    timeout: 30000,                  // 30 seconds
+    errorThresholdPercentage: 40,    // 40% failure rate
+    resetTimeout: 30000,             // 30 seconds recovery
+    volumeThreshold: 5,
+  },
+
+  // AI services - longer timeout, more tolerant
+  ai: {
+    timeout: 90000,                  // 90 seconds
+    errorThresholdPercentage: 70,    // 70% failure rate
+    resetTimeout: 45000,             // 45 seconds recovery
+    volumeThreshold: 3,
+  },
+
+  // General external APIs
+  external: {
+    timeout: 30000,                  // 30 seconds
+    errorThresholdPercentage: 50,    // 50% failure rate
+    resetTimeout: 30000,             // 30 seconds recovery
+    volumeThreshold: 5,
+  },
+
+  // Webhooks - fire and forget, fast failure
+  webhook: {
+    timeout: 15000,                  // 15 seconds
+    errorThresholdPercentage: 70,    // 70% failure rate
+    resetTimeout: 15000,             // 15 seconds recovery
+    volumeThreshold: 10,
+  },
+};
+
+module.exports = {
+  createBreaker,
+  withCircuitBreaker,
+  getStats,
+  getAllStats,
+  resetBreaker,
+  SERVICE_CONFIGS,
+  DEFAULT_OPTIONS,
+};

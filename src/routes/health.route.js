@@ -163,6 +163,45 @@ router.get('/ping', (req, res) => {
 });
 
 /**
+ * GET /health/circuits
+ * Circuit breaker status for external services
+ * Shows which services are healthy, degraded, or down
+ */
+router.get('/circuits', authenticate, async (req, res) => {
+    try {
+        const { getAllServicesHealth } = require('../utils/externalServiceWrapper');
+        const { getAllStats } = require('../utils/circuitBreaker');
+
+        const servicesHealth = getAllServicesHealth();
+        const circuitStats = getAllStats();
+
+        // Determine overall status
+        const hasOpenCircuit = circuitStats.some(s => s?.state === 'open');
+        const hasHalfOpenCircuit = circuitStats.some(s => s?.state === 'halfOpen');
+
+        let overallStatus = 'healthy';
+        if (hasOpenCircuit) {
+            overallStatus = 'degraded';
+        } else if (hasHalfOpenCircuit) {
+            overallStatus = 'recovering';
+        }
+
+        res.status(200).json({
+            status: overallStatus,
+            timestamp: new Date().toISOString(),
+            services: servicesHealth,
+            circuits: circuitStats.filter(s => s !== null)
+        });
+    } catch (error) {
+        res.status(500).json({
+            status: 'error',
+            timestamp: new Date().toISOString(),
+            error: error.message
+        });
+    }
+});
+
+/**
  * GET /health/debug-auth
  * Debug endpoint to see what cookies the server receives
  * Helps diagnose cookie/auth issues

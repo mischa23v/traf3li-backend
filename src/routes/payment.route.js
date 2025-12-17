@@ -2,6 +2,7 @@ const express = require('express');
 const { userMiddleware, firmFilter } = require('../middlewares');
 const { auditAction } = require('../middlewares/auditLog.middleware');
 const { paymentRateLimiter } = require('../middlewares/rateLimiter.middleware');
+const { requiredIdempotency } = require('../middlewares/idempotency');
 const {
     validateCreatePayment,
     validateUpdatePayment,
@@ -59,14 +60,14 @@ app.get('/unreconciled', userMiddleware, firmFilter, getUnreconciledPayments);
 app.get('/pending-checks', userMiddleware, firmFilter, getPendingChecks);
 
 // Bulk operations
-app.delete('/bulk', userMiddleware, firmFilter, validateBulkDelete, bulkDeletePayments);
+app.delete('/bulk', userMiddleware, firmFilter, requiredIdempotency, validateBulkDelete, bulkDeletePayments);
 
 // ═══════════════════════════════════════════════════════════════
 // CRUD ROUTES
 // ═══════════════════════════════════════════════════════════════
 
 // Create payment
-app.post('/', userMiddleware, firmFilter, validateCreatePayment, auditAction('create_payment', 'payment', { severity: 'medium' }), createPayment);
+app.post('/', userMiddleware, firmFilter, requiredIdempotency, validateCreatePayment, auditAction('create_payment', 'payment', { severity: 'medium' }), createPayment);
 
 // List payments with filters
 app.get('/', userMiddleware, firmFilter, getPayments);
@@ -75,47 +76,47 @@ app.get('/', userMiddleware, firmFilter, getPayments);
 app.get('/:id', userMiddleware, firmFilter, getPayment);
 
 // Update payment
-app.put('/:id', userMiddleware, firmFilter, validateUpdatePayment, auditAction('update_payment', 'payment', { captureChanges: true }), updatePayment);
+app.put('/:id', userMiddleware, firmFilter, requiredIdempotency, validateUpdatePayment, auditAction('update_payment', 'payment', { captureChanges: true }), updatePayment);
 
 // Delete payment
-app.delete('/:id', userMiddleware, firmFilter, auditAction('delete_payment', 'payment', { severity: 'high' }), deletePayment);
+app.delete('/:id', userMiddleware, firmFilter, requiredIdempotency, auditAction('delete_payment', 'payment', { severity: 'high' }), deletePayment);
 
 // ═══════════════════════════════════════════════════════════════
 // PAYMENT STATUS ACTIONS
 // ═══════════════════════════════════════════════════════════════
 
 // Complete payment (mark as completed and apply to invoices)
-app.post('/:id/complete', userMiddleware, firmFilter, completePayment);
+app.post('/:id/complete', userMiddleware, firmFilter, requiredIdempotency, completePayment);
 
 // Mark payment as failed
-app.post('/:id/fail', userMiddleware, firmFilter, failPayment);
+app.post('/:id/fail', userMiddleware, firmFilter, requiredIdempotency, failPayment);
 
 // Create refund for a payment
-app.post('/:id/refund', userMiddleware, firmFilter, validateRefund, auditAction('refund_payment', 'payment', { severity: 'high' }), createRefund);
+app.post('/:id/refund', userMiddleware, firmFilter, requiredIdempotency, validateRefund, auditAction('refund_payment', 'payment', { severity: 'high' }), createRefund);
 
 // ═══════════════════════════════════════════════════════════════
 // RECONCILIATION
 // ═══════════════════════════════════════════════════════════════
 
 // Reconcile payment with bank statement
-app.post('/:id/reconcile', userMiddleware, firmFilter, validateReconcile, reconcilePayment);
+app.post('/:id/reconcile', userMiddleware, firmFilter, requiredIdempotency, validateReconcile, reconcilePayment);
 
 // ═══════════════════════════════════════════════════════════════
 // INVOICE APPLICATION
 // ═══════════════════════════════════════════════════════════════
 
 // Apply payment to invoices
-app.put('/:id/apply', userMiddleware, firmFilter, validateApplyToInvoices, applyPaymentToInvoices);
+app.put('/:id/apply', userMiddleware, firmFilter, requiredIdempotency, validateApplyToInvoices, applyPaymentToInvoices);
 
 // Unapply payment from a specific invoice
-app.delete('/:id/unapply/:invoiceId', userMiddleware, firmFilter, unapplyPaymentFromInvoice);
+app.delete('/:id/unapply/:invoiceId', userMiddleware, firmFilter, requiredIdempotency, unapplyPaymentFromInvoice);
 
 // ═══════════════════════════════════════════════════════════════
 // CHECK MANAGEMENT
 // ═══════════════════════════════════════════════════════════════
 
 // Update check status (deposited, cleared, bounced)
-app.put('/:id/check-status', userMiddleware, firmFilter, validateCheckStatus, updateCheckStatus);
+app.put('/:id/check-status', userMiddleware, firmFilter, requiredIdempotency, validateCheckStatus, updateCheckStatus);
 
 // ═══════════════════════════════════════════════════════════════
 // RECEIPTS/COMMUNICATION
