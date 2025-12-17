@@ -1,0 +1,30 @@
+# Ignore files for Google Cloud Build
+# This prevents buildpack from detecting wrong project type
+
+# Ignore old .NET/C# projects that confuse the buildpack
+CaseAce-law-firm-management-system-frontend-main/
+OpenLawOffice-master/
+*.csproj
+*.sln
+
+# Standard ignores
+.git/
+.gitignore
+node_modules/
+.env
+.env.*
+*.log
+*.md
+!README.md
+tests/
+__tests__/
+coverage/
+.nyc_output/
+.vscode/
+.idea/
+
+# Development files
+nodemon.json
+jest.config.js
+.eslintrc*
+.prettierrc*
