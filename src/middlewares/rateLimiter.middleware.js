@@ -47,12 +47,17 @@ const createRateLimiter = (options = {}) => {
 
 /**
  * Strict rate limiter for authentication endpoints
- * Prevents brute force attacks
+ * Prevents brute force attacks while allowing reasonable login attempts
+ *
+ * 15 attempts per 15 minutes rationale:
+ * - Allows users who mistype passwords a few times
+ * - Still provides brute force protection (max 60 attempts/hour)
+ * - skipSuccessfulRequests ensures successful logins don't count against limit
  */
 const authRateLimiter = createRateLimiter({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 5, // 5 attempts per 15 minutes
-  skipSuccessfulRequests: false, // Count all requests
+  max: 15, // 15 attempts per 15 minutes
+  skipSuccessfulRequests: true, // Don't count successful logins against limit
   message: {
     success: false,
     error: 'محاولات كثيرة جداً - حاول مرة أخرى بعد 15 دقيقة',
