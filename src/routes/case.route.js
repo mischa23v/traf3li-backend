@@ -73,7 +73,10 @@ const {
     exportRichDocumentToPdf,
     exportRichDocumentToLatex,
     exportRichDocumentToMarkdown,
-    getRichDocumentPreview
+    getRichDocumentPreview,
+    // Batch endpoints
+    getCasesOverview,
+    getCaseFull
 } = require('../controllers/case.controller');
 const app = express.Router();
 
@@ -92,6 +95,17 @@ const specificCaseInvalidationPatterns = [
     'case:firm:{firmId}:list:*',    // Case list caches
     'dashboard:firm:{firmId}:*'     // Dashboard caches
 ];
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// BATCH ENDPOINT: Cases Overview - Replaces 4 separate API calls
+// Returns: cases list, statistics, pipeline stats, client stats
+// ═══════════════════════════════════════════════════════════════════════════════
+app.get('/overview',
+    userMiddleware,
+    firmFilter,
+    cacheResponse(CASE_CACHE_TTL, (req) => `case:firm:${req.firmId || 'none'}:overview:${req.originalUrl}`),
+    getCasesOverview
+);
 
 /**
  * @openapi
@@ -351,6 +365,18 @@ app.get('/pipeline/grouped',
     firmFilter,
     cacheResponse(CASE_CACHE_TTL, (req) => `case:firm:${req.firmId || 'none'}:pipeline:grouped:${req.originalUrl}`),
     casePipelineController.getCasesByStage
+);
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// BATCH ENDPOINT: Case Full Details - Replaces 3 separate API calls
+// Returns: case details, audit log, related tasks, documents
+// ═══════════════════════════════════════════════════════════════════════════════
+app.get('/:_id/full',
+    userMiddleware,
+    firmFilter,
+    validateObjectIdParam,
+    cacheResponse(CASE_CACHE_TTL, (req) => `case:firm:${req.firmId || 'none'}:${req.params._id}:full`),
+    getCaseFull
 );
 
 /**

@@ -823,6 +823,260 @@ const getDashboardSummary = async (request, response) => {
     }
 };
 
+/**
+ * GET /api/dashboard/analytics
+ * Consolidated analytics endpoint - replaces 9 separate API calls
+ * Returns: revenue, clients, cases, invoices data in one response
+ */
+const getAnalytics = async (request, response) => {
+    try {
+        const userId = request.userID;
+        const firmId = request.firmId;
+
+        const matchFilter = firmId
+            ? { firmId: new mongoose.Types.ObjectId(firmId) }
+            : { lawyerId: new mongoose.Types.ObjectId(userId) };
+
+        // Get date ranges
+        const now = new Date();
+        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+        const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+        const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0);
+
+        const [
+            // Revenue data
+            totalRevenueData,
+            monthlyRevenueData,
+            lastMonthRevenueData,
+            // Client data
+            totalClients,
+            newClientsThisMonth,
+            newClientsLastMonth,
+            // Case data
+            caseStats,
+            // Invoice data
+            invoiceStats
+        ] = await Promise.all([
+            // Total revenue (all time)
+            Invoice.aggregate([
+                { $match: { ...matchFilter, status: 'paid' } },
+                { $group: { _id: null, total: { $sum: '$totalAmount' } } }
+            ]),
+            // Monthly revenue (this month)
+            Invoice.aggregate([
+                { $match: { ...matchFilter, status: 'paid', paidDate: { $gte: startOfMonth } } },
+                { $group: { _id: null, total: { $sum: '$totalAmount' } } }
+            ]),
+            // Last month revenue
+            Invoice.aggregate([
+                { $match: { ...matchFilter, status: 'paid', paidDate: { $gte: startOfLastMonth, $lte: endOfLastMonth } } },
+                { $group: { _id: null, total: { $sum: '$totalAmount' } } }
+            ]),
+            // Total clients
+            Client.countDocuments(matchFilter),
+            // New clients this month
+            Client.countDocuments({ ...matchFilter, createdAt: { $gte: startOfMonth } }),
+            // New clients last month
+            Client.countDocuments({ ...matchFilter, createdAt: { $gte: startOfLastMonth, $lte: endOfLastMonth } }),
+            // Case stats
+            Case.aggregate([
+                { $match: matchFilter },
+                {
+                    $group: {
+                        _id: null,
+                        total: { $sum: 1 },
+                        open: { $sum: { $cond: [{ $in: ['$status', ['active', 'in_progress', 'open', 'pending']] }, 1, 0] } },
+                        closed: { $sum: { $cond: [{ $eq: ['$status', 'closed'] }, 1, 0] } },
+                        won: { $sum: { $cond: [{ $eq: ['$outcome', 'won'] }, 1, 0] } },
+                        lost: { $sum: { $cond: [{ $eq: ['$outcome', 'lost'] }, 1, 0] } }
+                    }
+                }
+            ]),
+            // Invoice stats
+            Invoice.aggregate([
+                { $match: matchFilter },
+                {
+                    $group: {
+                        _id: null,
+                        pending: { $sum: { $cond: [{ $in: ['$status', ['pending', 'sent']] }, '$balanceDue', 0] } },
+                        overdue: { $sum: { $cond: [{ $eq: ['$status', 'overdue'] }, '$balanceDue', 0] } },
+                        collected: { $sum: { $cond: [{ $eq: ['$status', 'paid'] }, '$totalAmount', 0] } }
+                    }
+                }
+            ])
+        ]);
+
+        const totalRevenue = totalRevenueData[0]?.total || 0;
+        const monthlyRevenue = monthlyRevenueData[0]?.total || 0;
+        const lastMonthRevenue = lastMonthRevenueData[0]?.total || 0;
+        const revenueGrowth = lastMonthRevenue > 0
+            ? (((monthlyRevenue - lastMonthRevenue) / lastMonthRevenue) * 100).toFixed(1)
+            : 0;
+
+        const clientGrowth = newClientsLastMonth > 0
+            ? (((newClientsThisMonth - newClientsLastMonth) / newClientsLastMonth) * 100).toFixed(1)
+            : 0;
+
+        const cases = caseStats[0] || { total: 0, open: 0, closed: 0, won: 0, lost: 0 };
+        const completionRate = cases.total > 0
+            ? ((cases.closed / cases.total) * 100).toFixed(1)
+            : 0;
+
+        const invoices = invoiceStats[0] || { pending: 0, overdue: 0, collected: 0 };
+
+        return response.json({
+            success: true,
+            data: {
+                revenue: {
+                    total: totalRevenue,
+                    monthly: monthlyRevenue,
+                    growth: parseFloat(revenueGrowth)
+                },
+                clients: {
+                    total: totalClients,
+                    new: newClientsThisMonth,
+                    growth: parseFloat(clientGrowth)
+                },
+                cases: {
+                    total: cases.total,
+                    open: cases.open,
+                    closed: cases.closed,
+                    completionRate: parseFloat(completionRate)
+                },
+                invoices: {
+                    pending: invoices.pending,
+                    overdue: invoices.overdue,
+                    collected: invoices.collected
+                }
+            }
+        });
+    } catch (error) {
+        console.error('getAnalytics ERROR:', error);
+        return response.status(500).json({
+            error: true,
+            message: error.message || 'Failed to fetch analytics'
+        });
+    }
+};
+
+/**
+ * GET /api/dashboard/reports?period=month|week|quarter|year
+ * Consolidated reports endpoint - replaces 3 separate chart API calls
+ * Returns: casesChart, revenueChart, tasksChart with totals
+ */
+const getReports = async (request, response) => {
+    try {
+        const userId = request.userID;
+        const firmId = request.firmId;
+        const period = request.query.period || 'month';
+
+        const matchFilter = firmId
+            ? { firmId: new mongoose.Types.ObjectId(firmId) }
+            : { lawyerId: new mongoose.Types.ObjectId(userId) };
+
+        // Calculate date range based on period
+        const now = new Date();
+        let startDate, groupFormat, labels;
+
+        switch (period) {
+            case 'week':
+                startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+                groupFormat = { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } };
+                labels = Array.from({ length: 7 }, (_, i) => {
+                    const d = new Date(now.getTime() - (6 - i) * 24 * 60 * 60 * 1000);
+                    return d.toISOString().split('T')[0];
+                });
+                break;
+            case 'quarter':
+                startDate = new Date(now.getFullYear(), now.getMonth() - 3, 1);
+                groupFormat = { $dateToString: { format: '%Y-%m', date: '$createdAt' } };
+                labels = Array.from({ length: 3 }, (_, i) => {
+                    const d = new Date(now.getFullYear(), now.getMonth() - 2 + i, 1);
+                    return d.toISOString().slice(0, 7);
+                });
+                break;
+            case 'year':
+                startDate = new Date(now.getFullYear(), 0, 1);
+                groupFormat = { $dateToString: { format: '%Y-%m', date: '$createdAt' } };
+                labels = Array.from({ length: 12 }, (_, i) => {
+                    const d = new Date(now.getFullYear(), i, 1);
+                    return d.toISOString().slice(0, 7);
+                });
+                break;
+            default: // month
+                startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+                groupFormat = { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } };
+                const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+                labels = Array.from({ length: daysInMonth }, (_, i) => {
+                    const d = new Date(now.getFullYear(), now.getMonth(), i + 1);
+                    return d.toISOString().split('T')[0];
+                });
+        }
+
+        const [casesData, revenueData, tasksData] = await Promise.all([
+            // Cases by date
+            Case.aggregate([
+                { $match: { ...matchFilter, createdAt: { $gte: startDate } } },
+                { $group: { _id: groupFormat, count: { $sum: 1 } } },
+                { $sort: { _id: 1 } }
+            ]),
+            // Revenue by date (from paid invoices)
+            Invoice.aggregate([
+                { $match: { ...matchFilter, status: 'paid', paidDate: { $gte: startDate } } },
+                { $group: { _id: { $dateToString: { format: period === 'week' || period === 'month' ? '%Y-%m-%d' : '%Y-%m', date: '$paidDate' } }, total: { $sum: '$totalAmount' } } },
+                { $sort: { _id: 1 } }
+            ]),
+            // Tasks by date
+            Task.aggregate([
+                { $match: { ...matchFilter, createdAt: { $gte: startDate } } },
+                { $group: { _id: groupFormat, count: { $sum: 1 }, completed: { $sum: { $cond: [{ $in: ['$status', ['completed', 'done']] }, 1, 0] } } } },
+                { $sort: { _id: 1 } }
+            ])
+        ]);
+
+        // Map data to labels
+        const casesMap = Object.fromEntries(casesData.map(d => [d._id, d.count]));
+        const revenueMap = Object.fromEntries(revenueData.map(d => [d._id, d.total]));
+        const tasksMap = Object.fromEntries(tasksData.map(d => [d._id, { count: d.count, completed: d.completed }]));
+
+        return response.json({
+            success: true,
+            data: {
+                period,
+                casesChart: {
+                    labels,
+                    data: labels.map(l => casesMap[l] || 0),
+                    totals: {
+                        total: casesData.reduce((sum, d) => sum + d.count, 0)
+                    }
+                },
+                revenueChart: {
+                    labels,
+                    data: labels.map(l => revenueMap[l] || 0),
+                    totals: {
+                        total: revenueData.reduce((sum, d) => sum + d.total, 0)
+                    }
+                },
+                tasksChart: {
+                    labels,
+                    data: labels.map(l => tasksMap[l]?.count || 0),
+                    completed: labels.map(l => tasksMap[l]?.completed || 0),
+                    totals: {
+                        total: tasksData.reduce((sum, d) => sum + d.count, 0),
+                        completed: tasksData.reduce((sum, d) => sum + d.completed, 0)
+                    }
+                }
+            }
+        });
+    } catch (error) {
+        console.error('getReports ERROR:', error);
+        return response.status(500).json({
+            error: true,
+            message: error.message || 'Failed to fetch reports'
+        });
+    }
+};
+
 module.exports = {
     getHeroStats,
     getDashboardStats,
@@ -833,5 +1087,7 @@ module.exports = {
     getCRMStats,
     getHRStats,
     getFinanceStats,
-    getDashboardSummary
+    getDashboardSummary,
+    getAnalytics,
+    getReports
 };

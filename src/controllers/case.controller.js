@@ -2748,6 +2748,213 @@ const getRichDocumentPreview = async (request, response) => {
     }
 };
 
+/**
+ * GET /api/cases/overview
+ * Consolidated endpoint - replaces 4 separate API calls
+ * Returns: cases list, statistics, pipeline stats, client stats
+ */
+const getCasesOverview = async (request, response) => {
+    try {
+        const userId = request.userID;
+        const firmId = request.firmId;
+        const isSoloLawyer = request.isSoloLawyer;
+        const { page = 1, limit = 20, status, priority, category } = request.query;
+
+        // Build filter
+        const filter = {};
+        if (firmId) {
+            filter.firmId = firmId;
+        } else if (isSoloLawyer) {
+            filter.lawyerId = userId;
+        }
+        if (status) filter.status = status;
+        if (priority) filter.priority = priority;
+        if (category) filter.category = category;
+
+        const mongoose = require('mongoose');
+        const Task = require('../models/task.model');
+        const Client = require('../models/client.model');
+
+        const matchFilter = firmId
+            ? { firmId: new mongoose.Types.ObjectId(firmId) }
+            : { lawyerId: new mongoose.Types.ObjectId(userId) };
+
+        const [cases, totalCount, statistics, pipelineStats, topClients] = await Promise.all([
+            // Paginated cases list
+            Case.find(filter)
+                .populate('clientId', 'name email phone clientType')
+                .populate('lawyerId', 'firstName lastName email')
+                .sort({ updatedAt: -1 })
+                .skip((page - 1) * limit)
+                .limit(parseInt(limit))
+                .lean(),
+
+            // Total count for pagination
+            Case.countDocuments(filter),
+
+            // Statistics by status/outcome
+            Case.aggregate([
+                { $match: matchFilter },
+                {
+                    $group: {
+                        _id: null,
+                        total: { $sum: 1 },
+                        open: { $sum: { $cond: [{ $in: ['$status', ['active', 'in_progress', 'open']] }, 1, 0] } },
+                        pending: { $sum: { $cond: [{ $eq: ['$status', 'pending'] }, 1, 0] } },
+                        closed: { $sum: { $cond: [{ $eq: ['$status', 'closed'] }, 1, 0] } },
+                        won: { $sum: { $cond: [{ $eq: ['$outcome', 'won'] }, 1, 0] } },
+                        lost: { $sum: { $cond: [{ $eq: ['$outcome', 'lost'] }, 1, 0] } },
+                        settled: { $sum: { $cond: [{ $eq: ['$outcome', 'settled'] }, 1, 0] } }
+                    }
+                }
+            ]),
+
+            // Pipeline stats by stage
+            Case.aggregate([
+                { $match: matchFilter },
+                {
+                    $group: {
+                        _id: '$pipelineStage',
+                        count: { $sum: 1 }
+                    }
+                }
+            ]),
+
+            // Top clients by case count
+            Case.aggregate([
+                { $match: matchFilter },
+                { $group: { _id: '$clientId', caseCount: { $sum: 1 } } },
+                { $sort: { caseCount: -1 } },
+                { $limit: 5 },
+                {
+                    $lookup: {
+                        from: 'clients',
+                        localField: '_id',
+                        foreignField: '_id',
+                        as: 'client'
+                    }
+                },
+                { $unwind: { path: '$client', preserveNullAndEmptyArrays: true } },
+                {
+                    $project: {
+                        _id: 1,
+                        caseCount: 1,
+                        clientName: '$client.name',
+                        clientType: '$client.clientType'
+                    }
+                }
+            ])
+        ]);
+
+        const stats = statistics[0] || { total: 0, open: 0, pending: 0, closed: 0, won: 0, lost: 0, settled: 0 };
+        const byStage = Object.fromEntries(pipelineStats.map(s => [s._id || 'unknown', s.count]));
+
+        return response.json({
+            success: true,
+            data: {
+                cases,
+                pagination: {
+                    page: parseInt(page),
+                    limit: parseInt(limit),
+                    total: totalCount,
+                    pages: Math.ceil(totalCount / limit)
+                },
+                statistics: {
+                    total: stats.total,
+                    open: stats.open,
+                    pending: stats.pending,
+                    closed: stats.closed,
+                    won: stats.won,
+                    lost: stats.lost,
+                    settled: stats.settled
+                },
+                pipelineStats: {
+                    byStage
+                },
+                clientStats: {
+                    topClients
+                }
+            }
+        });
+    } catch (error) {
+        console.error('getCasesOverview ERROR:', error);
+        return response.status(500).json({
+            error: true,
+            message: error.message || 'Failed to fetch cases overview'
+        });
+    }
+};
+
+/**
+ * GET /api/cases/:id/full
+ * Consolidated endpoint - replaces 3 separate API calls
+ * Returns: case details, audit log, related tasks, documents
+ */
+const getCaseFull = async (request, response) => {
+    try {
+        const { _id } = request.params;
+        const userId = request.userID;
+        const firmId = request.firmId;
+        const isSoloLawyer = request.isSoloLawyer;
+
+        const Task = require('../models/task.model');
+
+        const [caseDoc, auditLog, relatedTasks] = await Promise.all([
+            // Full case with populated fields
+            Case.findById(_id)
+                .populate('clientId', 'name email phone clientType nationalId crNumber address')
+                .populate('lawyerId', 'firstName lastName email phone image')
+                .populate('assignedLawyers', 'firstName lastName email')
+                .lean(),
+
+            // Audit log (last 50 entries)
+            CaseAuditLog.find({ caseId: _id })
+                .populate('userId', 'firstName lastName email')
+                .sort({ createdAt: -1 })
+                .limit(50)
+                .lean(),
+
+            // Related tasks
+            Task.find({ caseId: _id })
+                .populate('assignedTo', 'firstName lastName email')
+                .sort({ dueDate: 1 })
+                .lean()
+        ]);
+
+        if (!caseDoc) {
+            return response.status(404).json({
+                error: true,
+                message: 'Case not found'
+            });
+        }
+
+        // Check access
+        if (!checkCaseAccess(caseDoc, userId, firmId, false, isSoloLawyer)) {
+            return response.status(403).json({
+                error: true,
+                message: 'You do not have access to this case'
+            });
+        }
+
+        return response.json({
+            success: true,
+            data: {
+                case: caseDoc,
+                auditLog,
+                relatedTasks,
+                documents: caseDoc.documents || [],
+                richDocuments: caseDoc.richDocuments || []
+            }
+        });
+    } catch (error) {
+        console.error('getCaseFull ERROR:', error);
+        return response.status(500).json({
+            error: true,
+            message: error.message || 'Failed to fetch case details'
+        });
+    }
+};
+
 module.exports = {
     createCase,
     getCases,
@@ -2793,5 +3000,8 @@ module.exports = {
     exportRichDocumentToPdf,
     exportRichDocumentToLatex,
     exportRichDocumentToMarkdown,
-    getRichDocumentPreview
+    getRichDocumentPreview,
+    // Batch endpoints
+    getCasesOverview,
+    getCaseFull
 };

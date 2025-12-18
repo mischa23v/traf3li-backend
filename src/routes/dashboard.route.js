@@ -11,7 +11,9 @@ const {
     getCRMStats,
     getHRStats,
     getFinanceStats,
-    getDashboardSummary
+    getDashboardSummary,
+    getAnalytics,
+    getReports
 } = require('../controllers/dashboard.controller');
 
 const app = express.Router();
@@ -37,6 +39,29 @@ app.get('/summary',
     firmFilter,
     cacheResponse(60, dashboardKeyGen('summary')), // 60 second cache for summary
     getDashboardSummary
+);
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// BATCH ENDPOINT: Analytics - Replaces 9 separate API calls
+// Returns: revenue, clients, cases, invoices data in one response
+// ═══════════════════════════════════════════════════════════════════════════════
+app.get('/analytics',
+    userMiddleware,
+    firmFilter,
+    cacheResponse(DASHBOARD_CACHE_TTL, dashboardKeyGen('analytics')),
+    getAnalytics
+);
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// BATCH ENDPOINT: Reports - Replaces 3 chart API calls
+// Query: ?period=week|month|quarter|year
+// Returns: casesChart, revenueChart, tasksChart with totals
+// ═══════════════════════════════════════════════════════════════════════════════
+app.get('/reports',
+    userMiddleware,
+    firmFilter,
+    cacheResponse(DASHBOARD_CACHE_TTL, (req) => `dashboard:firm:${req.firmId || 'none'}:user:${req.userID || 'guest'}:reports:${req.query.period || 'month'}`),
+    getReports
 );
 
 // Get hero stats (top-level metrics for dashboard header)

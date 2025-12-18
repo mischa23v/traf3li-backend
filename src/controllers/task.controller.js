@@ -3656,6 +3656,118 @@ const getTaskFull = asyncHandler(async (req, res) => {
     });
 });
 
+/**
+ * GET /api/tasks/overview
+ * Consolidated endpoint - replaces 4 separate API calls
+ * Returns: tasks list, summary stats, priorities, upcoming tasks
+ */
+const getTasksOverview = asyncHandler(async (req, res) => {
+    const userId = req.userID;
+    const firmId = req.firmId;
+    const isSoloLawyer = req.isSoloLawyer;
+    const { page = 1, limit = 20, status, priority, caseId } = req.query;
+
+    // Build filter
+    const filter = {};
+    if (firmId) {
+        filter.firmId = firmId;
+    } else if (isSoloLawyer) {
+        filter.$or = [{ createdBy: userId }, { assignedTo: userId }];
+    }
+    if (status) filter.status = status;
+    if (priority) filter.priority = priority;
+    if (caseId) filter.caseId = caseId;
+
+    const mongoose = require('mongoose');
+    const matchFilter = firmId
+        ? { firmId: new mongoose.Types.ObjectId(firmId) }
+        : { $or: [{ createdBy: new mongoose.Types.ObjectId(userId) }, { assignedTo: new mongoose.Types.ObjectId(userId) }] };
+
+    // Get date for upcoming tasks
+    const now = new Date();
+    const nextWeek = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+    const [tasks, totalCount, summary, priorityStats, upcomingTasks] = await Promise.all([
+        // Paginated tasks list
+        Task.find(filter)
+            .populate('assignedTo', 'firstName lastName email image')
+            .populate('caseId', 'title caseNumber')
+            .sort({ dueDate: 1, priority: -1 })
+            .skip((page - 1) * limit)
+            .limit(parseInt(limit))
+            .lean(),
+
+        // Total count for pagination
+        Task.countDocuments(filter),
+
+        // Summary by status
+        Task.aggregate([
+            { $match: matchFilter },
+            {
+                $group: {
+                    _id: null,
+                    total: { $sum: 1 },
+                    pending: { $sum: { $cond: [{ $in: ['$status', ['todo', 'pending', 'not_started']] }, 1, 0] } },
+                    inProgress: { $sum: { $cond: [{ $eq: ['$status', 'in_progress'] }, 1, 0] } },
+                    completed: { $sum: { $cond: [{ $in: ['$status', ['completed', 'done']] }, 1, 0] } },
+                    overdue: { $sum: { $cond: [{ $and: [{ $lt: ['$dueDate', now] }, { $nin: ['$status', ['completed', 'done', 'cancelled']] }] }, 1, 0] } }
+                }
+            }
+        ]),
+
+        // Stats by priority
+        Task.aggregate([
+            { $match: matchFilter },
+            {
+                $group: {
+                    _id: '$priority',
+                    count: { $sum: 1 }
+                }
+            }
+        ]),
+
+        // Upcoming tasks (due in next 7 days)
+        Task.find({
+            ...filter,
+            dueDate: { $gte: now, $lte: nextWeek },
+            status: { $nin: ['completed', 'done', 'cancelled'] }
+        })
+            .populate('assignedTo', 'firstName lastName')
+            .sort({ dueDate: 1 })
+            .limit(10)
+            .lean()
+    ]);
+
+    const stats = summary[0] || { total: 0, pending: 0, inProgress: 0, completed: 0, overdue: 0 };
+    const byPriority = Object.fromEntries(priorityStats.map(p => [p._id || 'none', p.count]));
+
+    res.json({
+        success: true,
+        data: {
+            tasks,
+            pagination: {
+                page: parseInt(page),
+                limit: parseInt(limit),
+                total: totalCount,
+                pages: Math.ceil(totalCount / limit)
+            },
+            summary: {
+                total: stats.total,
+                pending: stats.pending,
+                inProgress: stats.inProgress,
+                completed: stats.completed,
+                overdue: stats.overdue
+            },
+            priorities: {
+                high: byPriority.high || 0,
+                medium: byPriority.medium || 0,
+                low: byPriority.low || 0
+            },
+            upcoming: upcomingTasks
+        }
+    });
+});
+
 module.exports = {
     createTask,
     getTasks,
@@ -3725,5 +3837,6 @@ module.exports = {
     getSmartScheduleSuggestions,
     autoScheduleTasks,
     // Aggregated endpoints (GOLD STANDARD)
-    getTaskFull
+    getTaskFull,
+    getTasksOverview
 };

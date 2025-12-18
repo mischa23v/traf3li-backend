@@ -35,7 +35,8 @@ const {
     uploadAttachments,
     deleteAttachment,
     verifyWathq,
-    getWathqData
+    getWathqData,
+    getClientFull
 } = require('../controllers/client.controller');
 
 const app = express.Router();
@@ -241,6 +242,18 @@ app.get('/top-revenue',
 // ─────────────────────────────────────────────────────────
 // SINGLE CLIENT
 // ─────────────────────────────────────────────────────────
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// BATCH ENDPOINT: Client Full Details - Replaces 3 separate API calls
+// Returns: client details, cases, invoices, payments with summary stats
+// ═══════════════════════════════════════════════════════════════════════════════
+app.get('/:id/full',
+    userMiddleware,
+    firmFilter,
+    validateIdParam,
+    cacheResponse(CLIENT_CACHE_TTL, (req) => `client:firm:${req.firmId || 'none'}:${req.params.id}:full`),
+    getClientFull
+);
 
 /**
  * @openapi
