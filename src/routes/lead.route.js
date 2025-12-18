@@ -19,6 +19,11 @@ const {
 router.use(userMiddleware, firmFilter);
 
 // ============================================
+// BATCH ENDPOINT: CRM OVERVIEW
+// ============================================
+router.get('/overview', leadController.getCrmOverview);
+
+// ============================================
 // LEAD ROUTES
 // ============================================
 

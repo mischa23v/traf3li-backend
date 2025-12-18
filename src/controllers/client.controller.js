@@ -1196,6 +1196,95 @@ const getWathqData = asyncHandler(async (req, res) => {
     });
 });
 
+/**
+ * GET /api/clients/:id/full
+ * Consolidated endpoint - replaces 3 separate API calls
+ * Returns: client details, cases, invoices, payments
+ */
+const getClientFull = asyncHandler(async (req, res) => {
+    // Block departed users from client operations
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية للوصول إلى العملاء', 403);
+    }
+
+    const { id } = req.params;
+    const lawyerId = req.userID;
+    const firmId = req.firmId;
+
+    // Build filter for related data
+    const dataFilter = firmId ? { firmId } : { lawyerId };
+
+    const [client, cases, invoices, payments] = await Promise.all([
+        // Client with full details
+        Client.findById(id).lean(),
+
+        // Client's cases (last 20)
+        Case.find({ clientId: id, ...dataFilter })
+            .populate('lawyerId', 'firstName lastName email')
+            .sort({ createdAt: -1 })
+            .limit(20)
+            .lean(),
+
+        // Client's invoices (last 20)
+        Invoice.find({ clientId: id, ...dataFilter })
+            .sort({ createdAt: -1 })
+            .limit(20)
+            .lean(),
+
+        // Client's payments (last 20)
+        Payment.find({ clientId: id, ...dataFilter })
+            .sort({ createdAt: -1 })
+            .limit(20)
+            .lean()
+    ]);
+
+    if (!client) {
+        throw CustomException('العميل غير موجود', 404);
+    }
+
+    // Check access
+    const hasAccess = firmId
+        ? client.firmId && client.firmId.toString() === firmId.toString()
+        : client.lawyerId && client.lawyerId.toString() === lawyerId;
+
+    if (!hasAccess) {
+        throw CustomException('لا يمكنك الوصول إلى هذا العميل', 403);
+    }
+
+    // Calculate summary statistics
+    const caseStats = {
+        total: cases.length,
+        active: cases.filter(c => ['active', 'in_progress', 'open'].includes(c.status)).length,
+        closed: cases.filter(c => c.status === 'closed').length
+    };
+
+    const invoiceStats = {
+        total: invoices.length,
+        totalAmount: invoices.reduce((sum, inv) => sum + (inv.totalAmount || 0), 0),
+        paid: invoices.filter(inv => inv.status === 'paid').reduce((sum, inv) => sum + (inv.totalAmount || 0), 0),
+        pending: invoices.filter(inv => ['pending', 'sent', 'partial'].includes(inv.status)).reduce((sum, inv) => sum + (inv.balanceDue || 0), 0)
+    };
+
+    const paymentStats = {
+        total: payments.length,
+        totalAmount: payments.reduce((sum, pmt) => sum + (pmt.amount || 0), 0)
+    };
+
+    res.json({
+        success: true,
+        data: {
+            client,
+            cases,
+            invoices,
+            payments,
+            summary: {
+                cases: caseStats,
+                invoices: invoiceStats,
+                payments: paymentStats
+            }
+        }
+    });
+});
 
 module.exports = {
     createClient,
@@ -1217,5 +1306,6 @@ module.exports = {
     uploadAttachments,
     deleteAttachment,
     verifyWathq,
-    getWathqData
+    getWathqData,
+    getClientFull
 };

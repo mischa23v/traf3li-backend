@@ -70,7 +70,8 @@ const {
     getSmartScheduleSuggestions,
     autoScheduleTasks,
     // Aggregated endpoints
-    getTaskFull
+    getTaskFull,
+    getTasksOverview
 } = require('../controllers/task.controller');
 
 const app = express.Router();
@@ -85,6 +86,12 @@ app.put('/templates/:templateId', userMiddleware, firmFilter, updateTemplate);
 app.patch('/templates/:templateId', userMiddleware, firmFilter, updateTemplate);
 app.delete('/templates/:templateId', userMiddleware, firmFilter, deleteTemplate);
 app.post('/templates/:templateId/create', userMiddleware, firmFilter, createFromTemplate);
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// BATCH ENDPOINT: Tasks Overview - Replaces 4 separate API calls
+// Returns: tasks list, summary stats, priorities, upcoming tasks
+// ═══════════════════════════════════════════════════════════════════════════════
+app.get('/overview', userMiddleware, firmFilter, getTasksOverview);
 
 // Static routes (must be before parameterized routes)
 app.get('/stats', userMiddleware, firmFilter, getTaskStats);

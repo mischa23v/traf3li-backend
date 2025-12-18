@@ -1010,3 +1010,170 @@ exports.scheduleFollowUp = async (req, res) => {
         });
     }
 };
+
+// ============================================
+// BATCH ENDPOINT: CRM OVERVIEW
+// ============================================
+
+/**
+ * GET /api/crm/overview
+ * Consolidated endpoint - replaces 4 separate API calls
+ * Returns: leads stats, activities, pipeline, performance
+ */
+exports.getCrmOverview = async (req, res) => {
+    try {
+        const lawyerId = req.userID;
+        const firmId = req.firmId;
+        const mongoose = require('mongoose');
+
+        const matchFilter = firmId
+            ? { firmId: new mongoose.Types.ObjectId(firmId) }
+            : { lawyerId: new mongoose.Types.ObjectId(lawyerId) };
+
+        // Get date ranges
+        const now = new Date();
+        const startOfWeek = new Date(now);
+        startOfWeek.setDate(now.getDate() - now.getDay());
+        startOfWeek.setHours(0, 0, 0, 0);
+
+        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+        const [
+            leadStats,
+            activityStats,
+            pipelineStats,
+            teamPerformance,
+            recentActivities,
+            upcomingFollowUps
+        ] = await Promise.all([
+            // Lead counts
+            Lead.aggregate([
+                { $match: matchFilter },
+                {
+                    $group: {
+                        _id: null,
+                        total: { $sum: 1 },
+                        new: { $sum: { $cond: [{ $gte: ['$createdAt', startOfMonth] }, 1, 0] } },
+                        converted: { $sum: { $cond: ['$convertedToClient', 1, 0] } },
+                        qualified: { $sum: { $cond: [{ $eq: ['$status', 'qualified'] }, 1, 0] } },
+                        totalValue: { $sum: { $ifNull: ['$estimatedValue', 0] } }
+                    }
+                }
+            ]),
+
+            // Activity counts
+            CrmActivity.aggregate([
+                { $match: { lawyerId: new mongoose.Types.ObjectId(lawyerId) } },
+                {
+                    $facet: {
+                        today: [
+                            { $match: { createdAt: { $gte: new Date(now.setHours(0, 0, 0, 0)) } } },
+                            { $count: 'count' }
+                        ],
+                        week: [
+                            { $match: { createdAt: { $gte: startOfWeek } } },
+                            { $count: 'count' }
+                        ],
+                        upcoming: [
+                            { $match: { scheduledAt: { $gte: now }, status: 'scheduled' } },
+                            { $count: 'count' }
+                        ]
+                    }
+                }
+            ]),
+
+            // Pipeline stats by stage
+            Lead.aggregate([
+                { $match: { ...matchFilter, convertedToClient: false } },
+                {
+                    $group: {
+                        _id: '$pipelineStageId',
+                        count: { $sum: 1 },
+                        value: { $sum: { $ifNull: ['$estimatedValue', 0] } }
+                    }
+                }
+            ]),
+
+            // Team performance (leads by assignee)
+            Lead.aggregate([
+                { $match: matchFilter },
+                { $group: { _id: '$assignedTo', count: { $sum: 1 }, converted: { $sum: { $cond: ['$convertedToClient', 1, 0] } } } },
+                { $sort: { count: -1 } },
+                { $limit: 10 },
+                {
+                    $lookup: {
+                        from: 'users',
+                        localField: '_id',
+                        foreignField: '_id',
+                        as: 'user'
+                    }
+                },
+                { $unwind: { path: '$user', preserveNullAndEmptyArrays: true } },
+                {
+                    $project: {
+                        _id: 1,
+                        count: 1,
+                        converted: 1,
+                        userName: { $concat: ['$user.firstName', ' ', '$user.lastName'] }
+                    }
+                }
+            ]),
+
+            // Recent activities (last 10)
+            CrmActivity.find({ lawyerId })
+                .sort({ createdAt: -1 })
+                .limit(10)
+                .populate('performedBy', 'firstName lastName')
+                .lean(),
+
+            // Upcoming follow-ups
+            Lead.find({
+                ...matchFilter,
+                nextFollowUpDate: { $gte: now },
+                convertedToClient: false
+            })
+                .sort({ nextFollowUpDate: 1 })
+                .limit(10)
+                .select('leadId displayName nextFollowUpDate nextFollowUpNote status')
+                .lean()
+        ]);
+
+        const leads = leadStats[0] || { total: 0, new: 0, converted: 0, qualified: 0, totalValue: 0 };
+        const activities = activityStats[0] || { today: [], week: [], upcoming: [] };
+        const conversionRate = leads.total > 0 ? ((leads.converted / leads.total) * 100).toFixed(1) : 0;
+
+        res.json({
+            success: true,
+            data: {
+                leads: {
+                    total: leads.total,
+                    new: leads.new,
+                    converted: leads.converted,
+                    qualified: leads.qualified,
+                    totalValue: leads.totalValue,
+                    conversionRate: parseFloat(conversionRate)
+                },
+                activities: {
+                    today: activities.today[0]?.count || 0,
+                    week: activities.week[0]?.count || 0,
+                    upcoming: activities.upcoming[0]?.count || 0
+                },
+                pipeline: {
+                    byStage: Object.fromEntries(pipelineStats.map(s => [s._id || 'unknown', { count: s.count, value: s.value }]))
+                },
+                performance: {
+                    team: teamPerformance
+                },
+                recentActivities,
+                upcomingFollowUps
+            }
+        });
+    } catch (error) {
+        console.error('getCrmOverview ERROR:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error getting CRM overview',
+            error: error.message
+        });
+    }
+};
