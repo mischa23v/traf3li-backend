@@ -321,6 +321,9 @@ taskSchema.index({ blockedBy: 1 });
 taskSchema.index({ blocks: 1 });
 taskSchema.index({ taskType: 1 });
 taskSchema.index({ createdAt: -1 });
+// Dashboard query indexes
+taskSchema.index({ firmId: 1, status: 1 });
+taskSchema.index({ firmId: 1, status: 1, createdAt: -1 });
 
 // Pre-save hook to calculate progress from subtasks and budget
 taskSchema.pre('save', function (next) {
