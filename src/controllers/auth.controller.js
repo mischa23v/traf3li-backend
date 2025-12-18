@@ -509,10 +509,11 @@ const authLogin = async (request, response) => {
 
     try {
         // Check if account is locked BEFORE any database queries
+        // PERF: isAccountLocked now runs email and IP checks in parallel
         const lockStatus = await accountLockoutService.isAccountLocked(loginIdentifier, ipAddress);
         if (lockStatus.locked) {
-            // Log the blocked attempt
-            await auditLogService.log(
+            // Log the blocked attempt (fire-and-forget for performance)
+            auditLogService.log(
                 'login_failed',
                 'user',
                 null,
@@ -541,19 +542,23 @@ const authLogin = async (request, response) => {
         }
 
         // Accept both username AND email for login
+        // PERF: Use .lean() for faster query (plain JS object, no Mongoose overhead)
+        // Select only fields needed for authentication
         const user = await User.findOne({
             $or: [
                 { username: loginIdentifier },
                 { email: loginIdentifier }
             ]
-        });
+        })
+        .select('_id username email password firstName lastName role isSeller isSoloLawyer lawyerWorkMode firmId firmRole firmStatus lawyerProfile image phone country region city timezone notificationPreferences')
+        .lean();
 
         if(!user) {
             // Record failed attempt
             const failResult = await accountLockoutService.recordFailedAttempt(loginIdentifier, ipAddress, userAgent);
 
-            // Log failed attempt with remaining attempts info
-            await auditLogService.log(
+            // Log failed attempt with remaining attempts info (fire-and-forget for performance)
+            auditLogService.log(
                 'login_failed',
                 'user',
                 null,
@@ -589,7 +594,9 @@ const authLogin = async (request, response) => {
             throw CustomException('Check username or password!', 404);
         }
 
-        const match = bcrypt.compareSync(password, user.password);
+        // PERF: Use async bcrypt.compare instead of blocking compareSync
+        // This prevents blocking the event loop during password verification
+        const match = await bcrypt.compare(password, user.password);
 
         if(match) {
             // Clear failed attempts on successful login
@@ -598,7 +605,8 @@ const authLogin = async (request, response) => {
             // Record session activity for timeout tracking
             recordActivity(user._id.toString());
 
-            const { password: pwd, ...data } = user._doc;
+            // PERF: With .lean(), user is already a plain object (no _doc needed)
+            const { password: pwd, ...data } = user;
 
             const token = jwt.sign({
                 _id: user._id,
@@ -667,8 +675,8 @@ const authLogin = async (request, response) => {
                 }
             }
 
-            // Log successful login
-            await auditLogService.log(
+            // Log successful login (fire-and-forget for performance)
+            auditLogService.log(
                 'login_success',
                 'user',
                 user._id,
@@ -702,8 +710,8 @@ const authLogin = async (request, response) => {
         // Password mismatch - record failed attempt
         const failResult = await accountLockoutService.recordFailedAttempt(user.email, ipAddress, userAgent);
 
-        // Log failed attempt
-        await auditLogService.log(
+        // Log failed attempt (fire-and-forget for performance)
+        auditLogService.log(
             'login_failed',
             'user',
             user._id,
