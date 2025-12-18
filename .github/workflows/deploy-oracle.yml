@@ -1,0 +1,83 @@
+# ============================================
+# TRAF3LI BACKEND - ORACLE CLOUD DEPLOYMENT
+# ============================================
+# Auto-deploy to Oracle Cloud VM on push to main
+
+name: Deploy to Oracle Cloud
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:  # Allow manual trigger
+
+env:
+  NODE_VERSION: '20.x'
+
+jobs:
+  deploy:
+    name: Deploy to Oracle Cloud
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy to Oracle VM via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.ORACLE_HOST }}
+          username: ${{ secrets.ORACLE_USER }}
+          key: ${{ secrets.ORACLE_SSH_KEY }}
+          port: 22
+          script: |
+            cd ~/traf3li-backend
+
+            # Pull latest code
+            git pull origin main
+
+            # Install dependencies
+            npm ci --production
+
+            # Run database migrations/indexes if needed
+            npm run build || true
+
+            # Restart application with PM2
+            pm2 restart traf3li-backend || pm2 start src/server.js --name traf3li-backend
+
+            # Save PM2 config
+            pm2 save
+
+            echo "✅ Deployment complete!"
+
+  # Alternative: Docker deployment
+  deploy-docker:
+    name: Deploy with Docker
+    runs-on: ubuntu-latest
+    if: false  # Enable this and disable above job if using Docker
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy Docker to Oracle VM
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.ORACLE_HOST }}
+          username: ${{ secrets.ORACLE_USER }}
+          key: ${{ secrets.ORACLE_SSH_KEY }}
+          port: 22
+          script: |
+            cd ~/traf3li-backend
+
+            # Pull latest code
+            git pull origin main
+
+            # Build and restart containers
+            docker compose down
+            docker compose build --no-cache
+            docker compose up -d
+
+            # Cleanup old images
+            docker image prune -f
+
+            echo "✅ Docker deployment complete!"
