@@ -325,8 +325,17 @@ const extractUserIdFromToken = (req) => {
  * NOTE: We do NOT set req.userID here - that would interfere with session timeout
  * middleware which checks req.userID to determine if auth checks should run.
  * The rate limiter only needs the ID for its own key generation.
+ *
+ * SKIP: Auth routes are skipped because they have their own dedicated rate limiters
+ * (authRateLimiter, sensitiveRateLimiter) that are more appropriate for login/register flows.
  */
 const smartRateLimiter = (req, res, next) => {
+  // Skip rate limiting for auth routes - they have their own dedicated limiters
+  // This prevents double rate limiting on login/register/OTP endpoints
+  if (req.path.startsWith('/auth/') || req.path.startsWith('/api/auth/')) {
+    return next();
+  }
+
   // Check if user is already authenticated (userID set by earlier middleware)
   // OR extract user ID from JWT token to determine auth status
   const userId = req.userID || req.user?._id || extractUserIdFromToken(req);
