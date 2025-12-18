@@ -75,19 +75,26 @@ async function isAccountLocked(email, ip) {
     try {
         const normalizedEmail = email?.toLowerCase();
 
-        // Check email-based lockout (primary)
+        // PERF: Run email and IP checks in parallel for faster response
+        const checks = [];
+
         if (normalizedEmail) {
-            const emailLock = await checkLockStatus(normalizedEmail, 'email');
-            if (emailLock.locked) {
-                return emailLock;
-            }
+            checks.push(checkLockStatus(normalizedEmail, 'email'));
+        }
+        if (ip) {
+            checks.push(checkLockStatus(ip, 'ip'));
         }
 
-        // Check IP-based lockout (secondary, for distributed attacks)
-        if (ip) {
-            const ipLock = await checkLockStatus(ip, 'ip');
-            if (ipLock.locked) {
-                return ipLock;
+        if (checks.length === 0) {
+            return { locked: false };
+        }
+
+        const results = await Promise.all(checks);
+
+        // Return first locked result (email takes priority)
+        for (const result of results) {
+            if (result.locked) {
+                return result;
             }
         }
 
