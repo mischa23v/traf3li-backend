@@ -138,6 +138,24 @@ const userSchema = new mongoose.Schema({
         default: null,
         required: false
     },
+    // Date when user was marked as departed (required for data retention job)
+    departedAt: {
+        type: Date,
+        default: null,
+        required: false
+    },
+    // Flag indicating user data has been anonymized
+    dataAnonymized: {
+        type: Boolean,
+        default: false,
+        required: false
+    },
+    // Date when user data was anonymized
+    anonymizedAt: {
+        type: Date,
+        default: null,
+        required: false
+    },
 
     // Lawyer-specific profile data
     lawyerProfile: {

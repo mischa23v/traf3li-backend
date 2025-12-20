@@ -77,6 +77,12 @@ async function archiveOldFinancialData() {
 
 /**
  * Clean up departed user data after retention period
+ *
+ * IMPORTANT: Only processes users who have BOTH:
+ * 1. firmStatus explicitly set to 'departed'
+ * 2. departedAt date that is older than retention period
+ *
+ * This prevents accidental anonymization of users missing these fields.
  */
 async function cleanupDepartedUsers() {
   const cutoffDate = new Date();
@@ -85,9 +91,10 @@ async function cleanupDepartedUsers() {
   console.log(`[DataRetention] Checking for departed users data older than ${cutoffDate.toISOString()}`);
 
   // Find departed users past retention period
+  // CRITICAL: Require both firmStatus AND departedAt to exist to prevent false matches
   const departedUsers = await User.find({
-    status: 'departed',
-    departedAt: { $lt: cutoffDate },
+    firmStatus: 'departed',                    // Must be explicitly marked as departed
+    departedAt: { $exists: true, $lt: cutoffDate }, // Must have departedAt date set
     dataAnonymized: { $ne: true },
   }).select('_id email departedAt');
 
@@ -96,10 +103,17 @@ async function cleanupDepartedUsers() {
     return { processed: 0 };
   }
 
-  console.log(`[DataRetention] Found ${departedUsers.length} departed users to anonymize`);
+  // Safety check: prevent mass anonymization (max 10 users per run)
+  const MAX_USERS_PER_RUN = 10;
+  if (departedUsers.length > MAX_USERS_PER_RUN) {
+    console.warn(`[DataRetention] WARNING: Found ${departedUsers.length} users to anonymize, limiting to ${MAX_USERS_PER_RUN}. Please review manually.`);
+  }
+  const usersToProcess = departedUsers.slice(0, MAX_USERS_PER_RUN);
+
+  console.log(`[DataRetention] Found ${departedUsers.length} departed users, processing ${usersToProcess.length}`);
 
   let processed = 0;
-  for (const user of departedUsers) {
+  for (const user of usersToProcess) {
     try {
       // Anonymize user data instead of deletion
       await User.findByIdAndUpdate(user._id, {
@@ -185,7 +199,7 @@ async function processDeletionRequests() {
             lastName: 'User',
             nationalId: null,
             address: null,
-            status: 'deleted',
+            firmStatus: 'departed',  // Use correct field name from User model
             dataAnonymized: true,
             anonymizedAt: new Date(),
           },
@@ -244,7 +258,7 @@ async function generateRetentionReport() {
     archivedPayments,
   ] = await Promise.all([
     User.countDocuments({}),
-    User.countDocuments({ status: 'departed' }),
+    User.countDocuments({ firmStatus: 'departed' }),  // Use correct field name
     User.countDocuments({ dataAnonymized: true }),
     Consent.countDocuments({ 'deletionRequest.status': 'pending' }),
     Invoice.countDocuments({ archived: true }),
