@@ -846,7 +846,8 @@ const processDeparture = asyncHandler(async (req, res) => {
     if (member.userId) {
         await User.findByIdAndUpdate(member.userId, {
             firmRole: 'departed',
-            firmStatus: 'departed'
+            firmStatus: 'departed',
+            departedAt: new Date()  // Set for data retention tracking
         });
     }
 

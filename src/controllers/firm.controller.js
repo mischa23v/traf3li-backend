@@ -792,8 +792,11 @@ const processDeparture = asyncHandler(async (req, res) => {
     // Process the departure
     await firm.processDeparture(memberId, userId, reason, notes);
 
-    // Update user's firmStatus
-    await User.findByIdAndUpdate(memberId, { firmStatus: 'departed' });
+    // Update user's firmStatus and set departedAt for data retention tracking
+    await User.findByIdAndUpdate(memberId, {
+        firmStatus: 'departed',
+        departedAt: new Date()
+    });
 
     res.json({
         success: true,
