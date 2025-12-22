@@ -4,7 +4,7 @@ const CustomException = require('../utils/CustomException');
 
 /**
  * Get all followers for a record
- * GET /api/chatter/followers
+ * GET /api/chatter-followers/:model/:recordId/followers
  */
 const getFollowers = asyncHandler(async (req, res) => {
     const { res_model, res_id, page = 1, limit = 50 } = req.query;
@@ -21,8 +21,8 @@ const getFollowers = asyncHandler(async (req, res) => {
     };
 
     const followers = await ChatterFollower.find(query)
-        .populate('partner_id', 'firstName lastName email avatar')
-        .populate('createdBy', 'firstName lastName')
+        .populate('user_id', 'firstName lastName email avatar')
+        .populate('added_by', 'firstName lastName')
         .sort({ createdAt: -1 })
         .limit(parseInt(limit))
         .skip((parseInt(page) - 1) * parseInt(limit));
@@ -43,14 +43,14 @@ const getFollowers = asyncHandler(async (req, res) => {
 
 /**
  * Add a follower to a record
- * POST /api/chatter/followers
+ * POST /api/chatter-followers/:model/:recordId/followers
  */
 const addFollower = asyncHandler(async (req, res) => {
-    const { res_model, res_id, partner_id, notification_preference = 'all' } = req.body;
+    const { res_model, res_id, user_id, notification_type = 'all' } = req.body;
     const userId = req.userID;
     const firmId = req.firmId;
 
-    if (!res_model || !res_id || !partner_id) {
+    if (!res_model || !res_id || !user_id) {
         throw CustomException('نموذج المورد ومعرف المورد ومعرف المتابع مطلوبان', 400);
     }
 
@@ -59,16 +59,16 @@ const addFollower = asyncHandler(async (req, res) => {
         firmId,
         res_model,
         res_id,
-        partner_id
+        user_id
     });
 
     if (existingFollower) {
         throw CustomException('المتابع موجود بالفعل لهذا السجل', 400);
     }
 
-    // Verify the partner exists and belongs to the same firm
-    const partner = await User.findOne({ _id: partner_id, firmId });
-    if (!partner) {
+    // Verify the user exists and belongs to the same firm
+    const targetUser = await User.findOne({ _id: user_id, firmId });
+    if (!targetUser) {
         throw CustomException('المستخدم غير موجود أو لا ينتمي إلى نفس المكتب', 404);
     }
 
@@ -76,15 +76,15 @@ const addFollower = asyncHandler(async (req, res) => {
         firmId,
         res_model,
         res_id,
-        partner_id,
-        notification_preference,
-        is_active: true,
-        createdBy: userId
+        user_id,
+        notification_type,
+        follow_type: 'manual',
+        added_by: userId
     });
 
     await follower.populate([
-        { path: 'partner_id', select: 'firstName lastName email avatar' },
-        { path: 'createdBy', select: 'firstName lastName' }
+        { path: 'user_id', select: 'firstName lastName email avatar' },
+        { path: 'added_by', select: 'firstName lastName' }
     ]);
 
     res.status(201).json({
@@ -96,7 +96,7 @@ const addFollower = asyncHandler(async (req, res) => {
 
 /**
  * Remove a follower
- * DELETE /api/chatter/followers/:id
+ * DELETE /api/chatter-followers/:model/:recordId/followers/:userId
  */
 const removeFollower = asyncHandler(async (req, res) => {
     const { id } = req.params;
@@ -118,20 +118,20 @@ const removeFollower = asyncHandler(async (req, res) => {
 
 /**
  * Update follower's notification settings
- * PATCH /api/chatter/followers/:id/notification-preference
+ * PATCH /api/chatter-followers/:model/:recordId/followers/:userId/preferences
  */
 const updateNotificationPreference = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const { notification_preference } = req.body;
+    const { notification_type } = req.body;
     const firmId = req.firmId;
     const userId = req.userID;
 
-    if (!notification_preference) {
+    if (!notification_type) {
         throw CustomException('تفضيل الإشعارات مطلوب', 400);
     }
 
-    const validPreferences = ['all', 'mentions', 'none'];
-    if (!validPreferences.includes(notification_preference)) {
+    const validTypes = ['all', 'mentions', 'none'];
+    if (!validTypes.includes(notification_type)) {
         throw CustomException('تفضيل الإشعارات غير صالح. القيم المسموح بها: all, mentions, none', 400);
     }
 
@@ -142,16 +142,16 @@ const updateNotificationPreference = asyncHandler(async (req, res) => {
     }
 
     // Only the follower themselves can update their notification preference
-    if (follower.partner_id.toString() !== userId.toString()) {
+    if (follower.user_id.toString() !== userId.toString()) {
         throw CustomException('غير مصرح لك بتحديث تفضيلات الإشعارات لهذا المتابع', 403);
     }
 
-    follower.notification_preference = notification_preference;
+    follower.notification_type = notification_type;
     await follower.save();
 
     await follower.populate([
-        { path: 'partner_id', select: 'firstName lastName email avatar' },
-        { path: 'createdBy', select: 'firstName lastName' }
+        { path: 'user_id', select: 'firstName lastName email avatar' },
+        { path: 'added_by', select: 'firstName lastName' }
     ]);
 
     res.status(200).json({
@@ -163,7 +163,7 @@ const updateNotificationPreference = asyncHandler(async (req, res) => {
 
 /**
  * Get records the current user is following
- * GET /api/chatter/followers/my-followed
+ * GET /api/chatter-followers/my-followed
  */
 const getMyFollowedRecords = asyncHandler(async (req, res) => {
     const { res_model, page = 1, limit = 50 } = req.query;
@@ -172,8 +172,7 @@ const getMyFollowedRecords = asyncHandler(async (req, res) => {
 
     const query = {
         firmId,
-        partner_id: userId,
-        is_active: true
+        user_id: userId
     };
 
     if (res_model) {
@@ -181,8 +180,8 @@ const getMyFollowedRecords = asyncHandler(async (req, res) => {
     }
 
     const followedRecords = await ChatterFollower.find(query)
-        .populate('partner_id', 'firstName lastName email avatar')
-        .populate('createdBy', 'firstName lastName')
+        .populate('user_id', 'firstName lastName email avatar')
+        .populate('added_by', 'firstName lastName')
         .sort({ createdAt: -1 })
         .limit(parseInt(limit))
         .skip((parseInt(page) - 1) * parseInt(limit));
@@ -203,20 +202,20 @@ const getMyFollowedRecords = asyncHandler(async (req, res) => {
 
 /**
  * Add multiple followers at once
- * POST /api/chatter/followers/bulk
+ * POST /api/chatter-followers/:model/:recordId/followers/bulk
  */
 const bulkAddFollowers = asyncHandler(async (req, res) => {
-    const { res_model, res_id, partner_ids, notification_preference = 'all' } = req.body;
+    const { res_model, res_id, user_ids, notification_type = 'all' } = req.body;
     const userId = req.userID;
     const firmId = req.firmId;
 
-    if (!res_model || !res_id || !partner_ids || !Array.isArray(partner_ids) || partner_ids.length === 0) {
+    if (!res_model || !res_id || !user_ids || !Array.isArray(user_ids) || user_ids.length === 0) {
         throw CustomException('نموذج المورد ومعرف المورد ومعرفات المتابعين مطلوبة', 400);
     }
 
-    // Verify all partners exist and belong to the same firm
-    const partners = await User.find({ _id: { $in: partner_ids }, firmId });
-    if (partners.length !== partner_ids.length) {
+    // Verify all users exist and belong to the same firm
+    const users = await User.find({ _id: { $in: user_ids }, firmId });
+    if (users.length !== user_ids.length) {
         throw CustomException('بعض المستخدمين غير موجودين أو لا ينتمون إلى نفس المكتب', 404);
     }
 
@@ -225,25 +224,25 @@ const bulkAddFollowers = asyncHandler(async (req, res) => {
         firmId,
         res_model,
         res_id,
-        partner_id: { $in: partner_ids }
-    }).select('partner_id');
+        user_id: { $in: user_ids }
+    }).select('user_id');
 
-    const existingPartnerIds = existingFollowers.map(f => f.partner_id.toString());
-    const newPartnerIds = partner_ids.filter(id => !existingPartnerIds.includes(id.toString()));
+    const existingUserIds = existingFollowers.map(f => f.user_id.toString());
+    const newUserIds = user_ids.filter(id => !existingUserIds.includes(id.toString()));
 
-    if (newPartnerIds.length === 0) {
+    if (newUserIds.length === 0) {
         throw CustomException('جميع المتابعين موجودون بالفعل لهذا السجل', 400);
     }
 
     // Create new followers
-    const followersToCreate = newPartnerIds.map(partner_id => ({
+    const followersToCreate = newUserIds.map(uid => ({
         firmId,
         res_model,
         res_id,
-        partner_id,
-        notification_preference,
-        is_active: true,
-        createdBy: userId
+        user_id: uid,
+        notification_type,
+        follow_type: 'manual',
+        added_by: userId
     }));
 
     const createdFollowers = await ChatterFollower.insertMany(followersToCreate);
@@ -252,15 +251,15 @@ const bulkAddFollowers = asyncHandler(async (req, res) => {
     const populatedFollowers = await ChatterFollower.find({
         _id: { $in: createdFollowers.map(f => f._id) }
     })
-        .populate('partner_id', 'firstName lastName email avatar')
-        .populate('createdBy', 'firstName lastName');
+        .populate('user_id', 'firstName lastName email avatar')
+        .populate('added_by', 'firstName lastName');
 
     res.status(201).json({
         success: true,
         message: `تم إضافة ${createdFollowers.length} متابع بنجاح`,
         data: {
             added: createdFollowers.length,
-            skipped: existingPartnerIds.length,
+            skipped: existingUserIds.length,
             followers: populatedFollowers
         }
     });
@@ -268,10 +267,10 @@ const bulkAddFollowers = asyncHandler(async (req, res) => {
 
 /**
  * Toggle follow status for current user
- * POST /api/chatter/followers/toggle
+ * POST /api/chatter-followers/:model/:recordId/toggle-follow
  */
 const toggleFollow = asyncHandler(async (req, res) => {
-    const { res_model, res_id, notification_preference = 'all' } = req.body;
+    const { res_model, res_id, notification_type = 'all' } = req.body;
     const userId = req.userID;
     const firmId = req.firmId;
 
@@ -283,7 +282,7 @@ const toggleFollow = asyncHandler(async (req, res) => {
         firmId,
         res_model,
         res_id,
-        partner_id: userId
+        user_id: userId
     });
 
     if (existingFollower) {
@@ -305,15 +304,15 @@ const toggleFollow = asyncHandler(async (req, res) => {
             firmId,
             res_model,
             res_id,
-            partner_id: userId,
-            notification_preference,
-            is_active: true,
-            createdBy: userId
+            user_id: userId,
+            notification_type,
+            follow_type: 'manual',
+            added_by: userId
         });
 
         await follower.populate([
-            { path: 'partner_id', select: 'firstName lastName email avatar' },
-            { path: 'createdBy', select: 'firstName lastName' }
+            { path: 'user_id', select: 'firstName lastName email avatar' },
+            { path: 'added_by', select: 'firstName lastName' }
         ]);
 
         res.status(201).json({

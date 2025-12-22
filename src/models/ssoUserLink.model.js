@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const encryptionPlugin = require('./plugins/encryption.plugin');
 
 /**
  * SSO User Link Model
@@ -533,5 +534,14 @@ ssoUserLinkSchema.statics.getProviderStats = async function(providerId, days = 3
         period: `${days} days`
     };
 };
+
+// ═══════════════════════════════════════════════════════════════
+// ENCRYPTION PLUGIN
+// ═══════════════════════════════════════════════════════════════
+// Encrypt OAuth tokens at rest for security
+ssoUserLinkSchema.plugin(encryptionPlugin, {
+    fields: ['accessToken', 'refreshToken'],
+    searchableFields: []
+});
 
 module.exports = mongoose.model('SsoUserLink', ssoUserLinkSchema);

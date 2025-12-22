@@ -13,7 +13,7 @@
 const ChatterFollower = require('../models/chatterFollower.model');
 const ThreadMessage = require('../models/threadMessage.model');
 const Notification = require('../models/notification.model');
-const { sendEmail } = require('./email.service');
+const EmailService = require('./email.service');
 const { emitNotification } = require('../configs/socket');
 
 class ChatterNotificationService {
@@ -298,7 +298,7 @@ class ChatterNotificationService {
                 </html>
             `;
 
-            await sendEmail({
+            await EmailService.sendEmail({
                 to: user.email,
                 subject: subject,
                 html: html

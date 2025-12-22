@@ -42,11 +42,11 @@ router.post('/:model/:recordId/followers', addFollower);
 // Bulk add followers
 router.post('/:model/:recordId/followers/bulk', bulkAddFollowers);
 
-// Remove follower
-router.delete('/:model/:recordId/followers/:userId', removeFollower);
+// Remove follower (by follower document ID)
+router.delete('/:model/:recordId/followers/:id', removeFollower);
 
-// Update notification preference
-router.patch('/:model/:recordId/followers/:userId/preferences', updateNotificationPreference);
+// Update notification preference (by follower document ID)
+router.patch('/:model/:recordId/followers/:id/preferences', updateNotificationPreference);
 
 // Toggle follow for current user
 router.post('/:model/:recordId/toggle-follow', toggleFollow);
