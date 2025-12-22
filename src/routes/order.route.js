@@ -24,13 +24,23 @@ app.post('/create-proposal-payment-intent/:_id', userMiddleware, proposalPayment
 app.patch('/', userMiddleware, updatePaymentStatus);
 
 // ========================================
-// TEST MODE ONLY - REMOVE BEFORE LAUNCH
+// TEST MODE ENDPOINTS - DISABLED IN PRODUCTION
 // ========================================
-// Only enable this route if TEST_MODE is true
-if (process.env.TEST_MODE === 'true') {
+// SECURITY: These endpoints bypass payment verification
+// Only enabled when BOTH conditions are met:
+// 1. TEST_MODE=true is set
+// 2. NODE_ENV is NOT production
+// This double-check prevents accidental enabling in production
+const isTestMode = process.env.TEST_MODE === 'true';
+const isProduction = process.env.NODE_ENV === 'production';
+
+if (isTestMode && !isProduction) {
     app.post('/create-test-contract/:_id', userMiddleware, createTestContract);
     app.post('/create-test-proposal-contract/:_id', userMiddleware, createTestProposalContract);
-    console.log('⚠️  TEST MODE: Payment bypass endpoints enabled');
+    console.log('⚠️  TEST MODE: Payment bypass endpoints enabled (development only)');
+} else if (isTestMode && isProduction) {
+    console.error('❌ SECURITY: TEST_MODE is set but ignored in production environment');
+    console.error('❌ Payment bypass endpoints are DISABLED for security');
 }
 
 module.exports = app;

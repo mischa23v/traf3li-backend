@@ -1,5 +1,12 @@
 // ============================================
-// ENVIRONMENT VALIDATION - Must be first!
+// DOTENV INITIALIZATION - Must be FIRST!
+// ============================================
+// Load environment variables from .env file BEFORE any other code runs
+// This ensures all subsequent code has access to environment variables
+require('dotenv').config();
+
+// ============================================
+// ENVIRONMENT VALIDATION - Must be after dotenv!
 // ============================================
 // Validate all required environment variables before starting the server
 // This ensures we fail fast with clear error messages if configuration is missing

@@ -239,7 +239,8 @@ const authRegister = async (request, response) => {
             }
         }
 
-        const hash = bcrypt.hashSync(password, saltRounds);
+        // SECURITY: Use async bcrypt.hash to prevent event loop blocking DoS
+        const hash = await bcrypt.hash(password, saltRounds);
 
         // Build user object
         const userData = {
@@ -256,7 +257,9 @@ const authRegister = async (request, response) => {
             region,
             city,
             isSeller: isSeller || false,
-            role: role || (isSeller ? 'lawyer' : 'client'),
+            // SECURITY: Only allow 'lawyer' or 'client' roles during registration
+            // Admin roles must be assigned through secure admin panel, not registration
+            role: isSeller ? 'lawyer' : 'client',
             lawyerMode: isLawyer ? (lawyerMode || 'dashboard') : null
         };
 
