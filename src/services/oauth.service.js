@@ -11,7 +11,60 @@ const logger = require('../utils/contextLogger');
 const { CustomException } = require('../utils');
 const auditLogService = require('./auditLog.service');
 
-const { JWT_SECRET } = process.env;
+const { JWT_SECRET, FRONTEND_URL, DASHBOARD_URL } = process.env;
+
+// Allowed redirect domains for OAuth callbacks (prevents open redirect attacks)
+const ALLOWED_REDIRECT_ORIGINS = [
+    FRONTEND_URL,
+    DASHBOARD_URL,
+    process.env.BACKEND_URL,
+    process.env.API_URL
+].filter(Boolean).map(url => {
+    try {
+        return new URL(url).origin;
+    } catch {
+        return null;
+    }
+}).filter(Boolean);
+
+/**
+ * Validate return URL to prevent open redirect attacks
+ * @param {string} returnUrl - URL to validate
+ * @returns {string} Safe return URL (defaults to '/' if invalid)
+ */
+const validateReturnUrl = (returnUrl) => {
+    if (!returnUrl || typeof returnUrl !== 'string') {
+        return '/';
+    }
+
+    // Allow relative URLs (starting with /)
+    if (returnUrl.startsWith('/') && !returnUrl.startsWith('//')) {
+        // Prevent path traversal and protocol-relative URLs
+        return returnUrl;
+    }
+
+    // For absolute URLs, validate the origin
+    try {
+        const url = new URL(returnUrl);
+
+        // Check if origin is in allowed list
+        if (ALLOWED_REDIRECT_ORIGINS.includes(url.origin)) {
+            return returnUrl;
+        }
+
+        // Invalid origin - return safe default
+        logger.warn('OAuth: Rejected invalid return URL origin', {
+            returnUrl,
+            origin: url.origin,
+            allowedOrigins: ALLOWED_REDIRECT_ORIGINS
+        });
+        return '/';
+    } catch {
+        // Invalid URL format
+        logger.warn('OAuth: Rejected malformed return URL', { returnUrl });
+        return '/';
+    }
+};
 
 // Provider-specific configurations
 const PROVIDER_CONFIGS = {
@@ -122,11 +175,14 @@ class OAuthService {
         const baseUrl = process.env.BACKEND_URL || process.env.API_URL || 'http://localhost:5000';
         const redirectUri = `${baseUrl}/api/auth/sso/${providerId}/callback`;
 
+        // Validate return URL to prevent open redirect attacks
+        const safeReturnUrl = validateReturnUrl(returnUrl);
+
         // Store state with metadata
         await this.storeState(state, {
             providerId: config.provider._id.toString(),
             providerType: config.provider.providerType,
-            returnUrl,
+            returnUrl: safeReturnUrl,
             firmId: config.provider.firmId,
             redirectUri,
             timestamp: Date.now()

@@ -86,29 +86,37 @@ Your original documentation had several fundamental errors. This guide corrects 
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/api/thread-messages/:model/:recordId` | Get messages for record |
-| POST | `/api/thread-messages/:model/:recordId` | Post new message |
-| PUT | `/api/thread-messages/:id` | Edit message |
+| GET | `/api/thread-messages/thread/:model/:id` | Get messages for record |
+| GET | `/api/thread-messages` | Get all messages (with filters) |
+| POST | `/api/thread-messages` | Post new message |
+| POST | `/api/thread-messages/note` | Post internal note |
+| GET | `/api/thread-messages/:id` | Get single message |
+| POST | `/api/thread-messages/:id/star` | Star/unstar message |
 | DELETE | `/api/thread-messages/:id` | Delete message |
+| GET | `/api/thread-messages/mentions` | Get messages where user is mentioned |
+| GET | `/api/thread-messages/starred` | Get starred messages |
+| GET | `/api/thread-messages/search` | Search messages |
 
 #### Followers ⭐ NEW
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
+| GET | `/api/chatter-followers/my-followed` | Get user's followed records |
 | GET | `/api/chatter-followers/:model/:recordId/followers` | Get followers |
 | POST | `/api/chatter-followers/:model/:recordId/followers` | Add follower |
 | POST | `/api/chatter-followers/:model/:recordId/followers/bulk` | Add multiple followers |
-| DELETE | `/api/chatter-followers/:model/:recordId/followers/:userId` | Remove follower |
-| PATCH | `/api/chatter-followers/:model/:recordId/followers/:userId/preferences` | Update notification pref |
-| POST | `/api/chatter-followers/:model/:recordId/toggle-follow` | Toggle follow |
-| GET | `/api/chatter-followers/my-followed` | Get user's followed records |
+| DELETE | `/api/chatter-followers/:model/:recordId/followers/:id` | Remove follower (by follower ID) |
+| PATCH | `/api/chatter-followers/:model/:recordId/followers/:id/preferences` | Update notification pref |
+| POST | `/api/chatter-followers/:model/:recordId/toggle-follow` | Toggle follow for current user |
 
 #### Chatter Request/Response Examples
 
 ```typescript
-// POST /api/thread-messages/Case/507f1f77bcf86cd799439011
+// POST /api/thread-messages
 // Request
 {
+  "res_model": "Case",
+  "res_id": "507f1f77bcf86cd799439011",
   "body": "Updated the contract terms as discussed with @john.doe",
   "message_type": "comment",
   "partner_ids": ["507f1f77bcf86cd799439012"], // Mentioned user IDs
@@ -141,8 +149,10 @@ Your original documentation had several fundamental errors. This guide corrects 
 
 ```typescript
 // POST /api/chatter-followers/Case/507f1f77bcf86cd799439011/followers
-// Request
+// Request - Add a follower to a record
 {
+  "res_model": "Case",
+  "res_id": "507f1f77bcf86cd799439011",
   "user_id": "507f1f77bcf86cd799439012",
   "notification_type": "all" // 'all', 'mentions', 'none'
 }

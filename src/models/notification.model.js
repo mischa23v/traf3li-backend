@@ -24,6 +24,7 @@ const notificationSchema = new mongoose.Schema({
             'task',              // تذكير مهمة
             'task_assigned',     // تم تعيين مهمة
             'message',           // رسالة جديدة
+            'chatter',           // رسالة في نظام المحادثات
             'hearing',           // جلسة قادمة
             'hearing_reminder',  // تذكير بجلسة
             'deadline',          // موعد نهائي
