@@ -2,7 +2,13 @@ const mongoose = require('mongoose');
 
 const emailTemplateSchema = new mongoose.Schema({
   firmId: { type: mongoose.Schema.Types.ObjectId, ref: 'Firm', index: true },
+
+  // Template Identifier
+  code: { type: String, trim: true, index: true, sparse: true }, // Unique code for system templates
+
+  // Bilingual Names
   name: { type: String, required: false, trim: true },
+  nameAr: { type: String, trim: true },
 
   category: {
     type: String,
@@ -10,11 +16,20 @@ const emailTemplateSchema = new mongoose.Schema({
     default: 'custom'
   },
 
-  // Email Content
+  // Bilingual Email Content
   subject: { type: String, required: false, trim: true },
+  subjectAr: { type: String, trim: true },
+
   previewText: { type: String, trim: true },
-  htmlContent: { type: String, required: false },
+
+  // HTML Content (Bilingual)
+  htmlContent: { type: String, required: false }, // Alias: bodyHtml
+  bodyHtml: { type: String }, // Primary HTML content (English)
+  bodyHtmlAr: { type: String }, // Arabic HTML content
+
+  // Text Content (Bilingual)
   textContent: String, // Plain text version for email clients that don't support HTML
+  bodyText: String, // Alias for textContent
 
   // Template Variables
   variables: [{
@@ -48,7 +63,7 @@ const emailTemplateSchema = new mongoose.Schema({
 
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: false },
   updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
-}, { timestamps: true });
+}, { timestamps: true, versionKey: false });
 
 // Indexes
 emailTemplateSchema.index({ firmId: 1, category: 1 });

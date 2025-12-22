@@ -26,6 +26,14 @@ try {
   console.warn('ThreadMessage model not found. Service methods will fail until model is created.');
 }
 
+// Import chatter notification service
+let chatterNotificationService;
+try {
+  chatterNotificationService = require('./chatterNotification.service');
+} catch (error) {
+  console.warn('ChatterNotification service not found. Notifications will be skipped.');
+}
+
 class ThreadMessageService {
   /**
    * Post a new message to a record's chatter
@@ -104,17 +112,27 @@ class ThreadMessageService {
 
       const message = await ThreadMessage.create(messageData);
 
-      // Send notifications to mentioned/tagged users
-      if (allPartnerIds.length > 0) {
-        await this._notifyPartners(message);
-      }
-
       // Populate before returning
       await message.populate([
         { path: 'author_id', select: 'firstName lastName email image' },
         { path: 'partner_ids', select: 'firstName lastName email' },
         { path: 'attachment_ids', select: 'filename originalName mimetype size url' }
       ]);
+
+      // Send notifications to mentioned/tagged users (legacy method)
+      if (allPartnerIds.length > 0) {
+        await this._notifyPartners(message);
+      }
+
+      // Send notifications to followers via ChatterNotificationService
+      if (chatterNotificationService) {
+        try {
+          await chatterNotificationService.notifyFollowers(message);
+        } catch (error) {
+          console.error('ThreadMessageService: Failed to send chatter notifications:', error.message);
+          // Don't throw - notification failures shouldn't block message creation
+        }
+      }
 
       return message;
     } catch (error) {

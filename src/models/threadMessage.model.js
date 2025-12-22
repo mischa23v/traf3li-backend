@@ -345,8 +345,14 @@ threadMessageSchema.statics.postMessage = async function(data) {
         { path: 'attachment_ids', select: 'fileName originalName fileType fileSize url' }
     ]);
 
-    // TODO: Send notifications to partner_ids
-    // TODO: Emit real-time event via Socket.IO
+    // Send notifications to followers
+    try {
+        const chatterNotificationService = require('../services/chatterNotification.service');
+        await chatterNotificationService.notifyFollowers(message);
+    } catch (error) {
+        console.error('Failed to send chatter notifications:', error.message);
+        // Don't throw - notification failures shouldn't block message creation
+    }
 
     return message;
 };
@@ -433,6 +439,15 @@ threadMessageSchema.statics.logFieldChanges = async function(res_model, res_id, 
     });
 
     await message.populate('author_id', 'firstName lastName email avatar');
+
+    // Send notifications to followers
+    try {
+        const chatterNotificationService = require('../services/chatterNotification.service');
+        await chatterNotificationService.notifyFollowers(message);
+    } catch (error) {
+        console.error('Failed to send chatter notifications for field changes:', error.message);
+        // Don't throw - notification failures shouldn't block message creation
+    }
 
     return message;
 };

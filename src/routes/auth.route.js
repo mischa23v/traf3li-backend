@@ -791,4 +791,8 @@ app.post('/change-password', authenticate, authRateLimiter, changePassword);
  */
 app.get('/password-status', authenticate, publicRateLimiter, getPasswordStatus);
 
+// ========== OAuth SSO Routes ==========
+const oauthRoutes = require('./oauth.route');
+app.use('/sso', oauthRoutes);
+
 module.exports = app;

@@ -100,6 +100,9 @@ const WebAuthnCredential = require('./webauthnCredential.model');
 const Session = require('./session.model');
 const RevokedToken = require('./revokedToken.model');
 
+// Subscription & Billing Models
+const Subscription = require('./subscription.model');
+
 // Security Models
 const SecurityIncident = require('./securityIncident.model');
 const ArchivedAuditLog = require('./archivedAuditLog.model');
@@ -132,6 +135,11 @@ const Onboarding = require('./onboarding.model');
 
 // Offboarding Model
 const Offboarding = require('./offboarding.model');
+
+// Setup Wizard Models (App Onboarding)
+const SetupSection = require('./setupSection.model');
+const SetupTask = require('./setupTask.model');
+const UserSetupProgress = require('./userSetupProgress.model');
 
 // Employee Loan Model
 const EmployeeLoan = require('./employeeLoan.model');
@@ -223,6 +231,19 @@ const ActivityType = require('./activityType.model');
 const ThreadMessage = require('./threadMessage.model');
 const LockDate = require('./lockDate.model');
 const AutomatedAction = require('./automatedAction.model');
+
+// Inter-Company Transaction Models
+const InterCompanyTransaction = require('./interCompanyTransaction.model');
+const InterCompanyBalance = require('./interCompanyBalance.model');
+
+// Email System Models
+const SmtpConfig = require('./smtpConfig.model');
+const EmailTemplate = require('./emailTemplate.model');
+const EmailSignature = require('./emailSignature.model');
+
+// OAuth SSO Models
+const SsoProvider = require('./ssoProvider.model');
+const SsoUserLink = require('./ssoUserLink.model');
 
 module.exports = {
     // Marketplace
@@ -326,6 +347,9 @@ module.exports = {
     WebAuthnCredential,
     Session,
 
+    // Subscription & Billing
+    Subscription,
+
     // CRM
     Lead,
     CrmActivity,
@@ -353,6 +377,11 @@ module.exports = {
 
     // Offboarding
     Offboarding,
+
+    // Setup Wizard (App Onboarding)
+    SetupSection,
+    SetupTask,
+    UserSetupProgress,
 
     // Employee Loans
     EmployeeLoan,
@@ -449,5 +478,18 @@ module.exports = {
     ActivityType,
     ThreadMessage,
     LockDate,
-    AutomatedAction
+    AutomatedAction,
+
+    // Inter-Company Transactions
+    InterCompanyTransaction,
+    InterCompanyBalance,
+
+    // Email System
+    SmtpConfig,
+    EmailTemplate,
+    EmailSignature,
+
+    // OAuth SSO
+    SsoProvider,
+    SsoUserLink
 };

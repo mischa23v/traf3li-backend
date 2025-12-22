@@ -107,6 +107,8 @@ const journalEntryRoute = require('./journalEntry.route');
 const recurringTransactionRoute = require('./recurringTransaction.route');
 const priceLevelRoute = require('./priceLevel.route');
 const fiscalPeriodRoute = require('./fiscalPeriod.route');
+const interCompanyRoute = require('./interCompany.route');
+const consolidatedReportsRoute = require('./consolidatedReports.route');
 
 // Finance Management Routes
 const financeSetupRoute = require('./financeSetup.route');
@@ -119,6 +121,9 @@ const corporateCardRoute = require('./corporateCard.route');
 const paymentReceiptRoute = require('./paymentReceipt.route');
 const invoiceApprovalRoute = require('./invoiceApproval.route');
 const notificationSettingsRoute = require('./notificationSettings.route');
+
+// Setup Wizard Routes (App Onboarding)
+const setupWizardRoute = require('./setupWizard.route');
 
 // Investment & Trading Journal Routes
 const tradesRoute = require('./trades.route');
@@ -211,20 +216,29 @@ const samlRoute = require('./saml.route');
 // SSO Configuration Routes (Enterprise SSO Management UI)
 const ssoConfigRoute = require('./ssoConfig.route');
 
+// LDAP/Active Directory Routes (Enterprise LDAP Authentication)
+const ldapRoute = require('./ldap.route');
+
 // MFA Routes (Multi-Factor Authentication - TOTP)
 const mfaRoute = require('./mfa.route');
+
+// CAPTCHA Routes (Multi-provider CAPTCHA verification)
+const captchaRoute = require('./captcha.route');
 
 // Odoo Integration Routes
 const activityRoutes = require('./activity.routes');
 const threadMessageRoutes = require('./threadMessage.routes');
+const chatterFollowerRoutes = require('./chatterFollower.routes');
 const lockDateRoutes = require('./lockDate.routes');
 const automatedActionRoutes = require('./automatedAction.routes');
+const smartButtonRoute = require('./smartButton.route');
 
 module.exports = {
     // Marketplace
     gigRoute,
     authRoute,
     mfaRoute,
+    captchaRoute,
     adminRoute,
     orderRoute,
     conversationRoute,
@@ -331,6 +345,8 @@ module.exports = {
     recurringTransactionRoute,
     priceLevelRoute,
     fiscalPeriodRoute,
+    interCompanyRoute,
+    consolidatedReportsRoute,
 
     // Finance Management
     financeSetupRoute,
@@ -343,6 +359,9 @@ module.exports = {
     paymentReceiptRoute,
     invoiceApprovalRoute,
     notificationSettingsRoute,
+
+    // Setup Wizard (App Onboarding)
+    setupWizardRoute,
 
     // Investment & Trading Journal
     tradesRoute,
@@ -435,9 +454,14 @@ module.exports = {
     // SSO Configuration (Enterprise SSO Management UI)
     ssoConfigRoute,
 
+    // LDAP/Active Directory (Enterprise LDAP Authentication)
+    ldapRoute,
+
     // Odoo Integration
     activityRoutes,
     threadMessageRoutes,
+    chatterFollowerRoutes,
     lockDateRoutes,
-    automatedActionRoutes
+    automatedActionRoutes,
+    smartButtonRoute
 };

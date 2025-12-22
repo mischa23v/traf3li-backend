@@ -6,6 +6,7 @@
  */
 
 const mongoose = require('mongoose');
+const jwt = require('jsonwebtoken');
 const { Firm, User, Client, Case, Invoice, Lead, FirmInvitation } = require('../models');
 const asyncHandler = require('../utils/asyncHandler');
 const { CustomException } = require('../utils');
@@ -168,6 +169,66 @@ const getMyFirm = asyncHandler(async (req, res) => {
         data: {
             ...firm.toObject(),
             myRole: user.firmRole
+        }
+    });
+});
+
+/**
+ * Switch active firm
+ * POST /api/firms/switch
+ * Body: { firmId: string }
+ */
+const switchFirm = asyncHandler(async (req, res) => {
+    const userId = req.userID;
+    const { firmId } = req.body;
+
+    if (!firmId) {
+        throw CustomException('firmId is required', 400);
+    }
+
+    // Verify user is a member of this firm
+    const firm = await Firm.findById(firmId);
+    if (!firm) {
+        throw CustomException('Firm not found', 404);
+    }
+
+    const member = firm.members.find(m =>
+        m.userId.toString() === userId.toString() &&
+        m.status === 'active'
+    );
+
+    if (!member) {
+        throw CustomException('Access denied to this firm', 403);
+    }
+
+    // Update user's default firm
+    await User.findByIdAndUpdate(userId, {
+        firmId: firmId,
+        firmRole: member.role
+    });
+
+    // Optionally issue new JWT with updated firmId
+    const token = jwt.sign(
+        {
+            _id: userId,
+            firmId: firmId,
+            firmRole: member.role
+        },
+        process.env.JWT_SECRET,
+        { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
+    );
+
+    res.json({
+        success: true,
+        data: {
+            activeFirm: {
+                id: firm._id,
+                name: firm.name,
+                nameArabic: firm.nameArabic,
+                logo: firm.logo,
+                role: member.role
+            },
+            token // New token with updated firm context
         }
     });
 });
@@ -1875,6 +1936,7 @@ module.exports = {
     // Multi-tenancy
     createFirm,
     getMyFirm,
+    switchFirm,
     getFirm,
     updateFirm,
     updateBillingSettings,
