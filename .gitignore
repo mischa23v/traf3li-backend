@@ -2,3 +2,22 @@ node_modules/
 .env
 *.log
 .DS_Store
+
+# Security reports
+security-reports/
+security-audit-report.json
+security-audit-report.txt
+npm-audit.json
+npm-audit.txt
+npm-audit-moderate.txt
+npm-audit-high.txt
+audit-summary.md
+
+# Test coverage
+coverage/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo

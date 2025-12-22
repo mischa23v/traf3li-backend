@@ -157,7 +157,7 @@ app.post('/:id/save-as-template', userMiddleware, firmFilter, saveAsTemplate);
 // ==============================================
 // ATTACHMENT ROUTES
 // ==============================================
-app.post('/:id/attachments', userMiddleware, firmFilter, taskUpload.single('file'), addAttachment);
+app.post('/:id/attachments', userMiddleware, firmFilter, taskUpload.single('file'), taskUpload.malwareScan, addAttachment);
 app.get('/:id/attachments/:attachmentId/download-url', userMiddleware, firmFilter, getAttachmentDownloadUrl);
 app.get('/:id/attachments/:attachmentId/versions', userMiddleware, firmFilter, getAttachmentVersions);
 app.delete('/:id/attachments/:attachmentId', userMiddleware, firmFilter, deleteAttachment);
@@ -177,7 +177,7 @@ app.post('/:id/documents/:documentId/versions/:versionId/restore', userMiddlewar
 // ==============================================
 // VOICE MEMO ROUTES
 // ==============================================
-app.post('/:id/voice-memos', userMiddleware, firmFilter, taskUpload.single('file'), addVoiceMemo);
+app.post('/:id/voice-memos', userMiddleware, firmFilter, taskUpload.single('file'), taskUpload.malwareScan, addVoiceMemo);
 app.patch('/:id/voice-memos/:memoId/transcription', userMiddleware, firmFilter, updateVoiceMemoTranscription);
 
 // ==============================================

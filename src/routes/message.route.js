@@ -6,7 +6,7 @@ const { createMessage, getMessages, markAsRead, getMessageStats } = require('../
 const app = express.Router();
 
 // Create message with optional file upload
-app.post('/', userMiddleware, upload.array('files', 5), createMessage);
+app.post('/', userMiddleware, upload.array('files', 5), upload.malwareScan, createMessage);
 
 // Get message stats (must be before /:conversationID to avoid matching)
 app.get('/stats', userMiddleware, getMessageStats);

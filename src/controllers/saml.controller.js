@@ -1,0 +1,565 @@
+const samlService = require('../services/saml.service');
+const { Firm, User } = require('../models');
+const { CustomException } = require('../utils');
+const jwt = require('jsonwebtoken');
+const auditLogService = require('../services/auditLog.service');
+const { getCookieConfig } = require('./auth.controller');
+
+const { JWT_SECRET } = process.env;
+
+/**
+ * SAML Controller - Enterprise SSO Authentication
+ *
+ * Endpoints:
+ * - GET /api/auth/saml/metadata/:firmId - Service Provider metadata
+ * - GET /api/auth/saml/login/:firmId - Initiate SSO login
+ * - POST /api/auth/saml/acs/:firmId - Assertion Consumer Service
+ * - GET /api/auth/saml/logout/:firmId - Initiate Single Logout
+ * - POST /api/auth/saml/sls/:firmId - Single Logout Service
+ *
+ * Admin endpoints:
+ * - GET /api/auth/saml/config - Get SAML configuration
+ * - PUT /api/auth/saml/config - Update SAML configuration
+ * - POST /api/auth/saml/config/test - Test SAML configuration
+ */
+
+/**
+ * Get Service Provider metadata XML
+ * @route GET /api/auth/saml/metadata/:firmId
+ */
+const getSPMetadata = async (request, response) => {
+    try {
+        const { firmId } = request.params;
+
+        const metadata = await samlService.generateSPMetadata(firmId);
+
+        response.header('Content-Type', 'application/xml');
+        return response.status(200).send(metadata);
+    } catch (error) {
+        console.error('Get SP metadata error:', error);
+        return response.status(error.status || 500).send({
+            error: true,
+            message: error.message || 'Failed to generate SP metadata'
+        });
+    }
+};
+
+/**
+ * Initiate SSO login
+ * @route GET /api/auth/saml/login/:firmId
+ */
+const initiateLogin = async (request, response) => {
+    try {
+        const { firmId } = request.params;
+        const { RelayState } = request.query;
+
+        // Validate firm exists and SSO is enabled
+        const firm = await Firm.findById(firmId);
+        if (!firm) {
+            throw CustomException('Firm not found', 404);
+        }
+
+        if (!firm.enterpriseSettings?.ssoEnabled) {
+            throw CustomException('SSO is not enabled for this firm', 400);
+        }
+
+        // Create SAML strategy and authenticate
+        const strategy = await samlService.createSAMLStrategy(firmId);
+
+        // Generate AuthnRequest
+        strategy.authenticate(request, {
+            additionalParams: {
+                RelayState: RelayState || '/'
+            }
+        });
+    } catch (error) {
+        console.error('Initiate SSO login error:', error);
+        return response.status(error.status || 500).send({
+            error: true,
+            message: error.message || 'Failed to initiate SSO login'
+        });
+    }
+};
+
+/**
+ * Assertion Consumer Service - Handle SAML response
+ * @route POST /api/auth/saml/acs/:firmId
+ */
+const assertionConsumerService = async (request, response) => {
+    try {
+        const { firmId } = request.params;
+        const { RelayState } = request.body;
+
+        // Validate firm
+        const firm = await Firm.findById(firmId);
+        if (!firm) {
+            throw CustomException('Firm not found', 404);
+        }
+
+        if (!firm.enterpriseSettings?.ssoEnabled) {
+            throw CustomException('SSO is not enabled for this firm', 400);
+        }
+
+        // Create SAML strategy
+        const strategy = await samlService.createSAMLStrategy(firmId);
+
+        // Validate SAML response
+        strategy.authenticate(request, async (error, user, info) => {
+            if (error) {
+                console.error('SAML authentication error:', error);
+
+                await auditLogService.log(
+                    'sso_login_failed',
+                    'user',
+                    null,
+                    firmId,
+                    {
+                        firmId,
+                        errorMessage: error.message,
+                        ipAddress: request.ip,
+                        userAgent: request.headers['user-agent'],
+                        severity: 'high'
+                    }
+                );
+
+                // Redirect to login page with error
+                const frontendUrl = process.env.DASHBOARD_URL || 'https://dashboard.traf3li.com';
+                return response.redirect(`${frontendUrl}/login?error=sso_failed&message=${encodeURIComponent(error.message)}`);
+            }
+
+            if (!user) {
+                console.error('SAML authentication failed: No user returned');
+
+                const frontendUrl = process.env.DASHBOARD_URL || 'https://dashboard.traf3li.com';
+                return response.redirect(`${frontendUrl}/login?error=sso_failed&message=Authentication failed`);
+            }
+
+            try {
+                // Update last SSO login
+                user.lastSSOLogin = new Date();
+                user.lastLogin = new Date();
+                await user.save();
+
+                // Generate JWT token
+                const token = jwt.sign({
+                    _id: user._id,
+                    isSeller: user.isSeller
+                }, JWT_SECRET, { expiresIn: '7 days' });
+
+                // Get cookie config
+                const cookieConfig = getCookieConfig(request);
+
+                // Build user data with firm information
+                const userData = await buildUserData(user);
+
+                // Log successful SSO login
+                await auditLogService.log(
+                    'sso_login_success',
+                    'user',
+                    user._id,
+                    firmId,
+                    {
+                        userId: user._id,
+                        userEmail: user.email,
+                        userRole: user.role,
+                        userName: `${user.firstName} ${user.lastName}`,
+                        firmId,
+                        ssoProvider: firm.enterpriseSettings.ssoProvider,
+                        ipAddress: request.ip,
+                        userAgent: request.headers['user-agent'],
+                        severity: 'low',
+                        createdViaJIT: user.createdViaSSO
+                    }
+                );
+
+                // Set cookie and redirect to frontend
+                response.cookie('accessToken', token, cookieConfig);
+
+                const frontendUrl = process.env.DASHBOARD_URL || 'https://dashboard.traf3li.com';
+                const redirectUrl = RelayState || '/dashboard';
+                return response.redirect(`${frontendUrl}${redirectUrl}?sso=success`);
+
+            } catch (postAuthError) {
+                console.error('Post-authentication error:', postAuthError);
+
+                const frontendUrl = process.env.DASHBOARD_URL || 'https://dashboard.traf3li.com';
+                return response.redirect(`${frontendUrl}/login?error=sso_failed&message=Post-authentication error`);
+            }
+        });
+
+    } catch (error) {
+        console.error('ACS error:', error);
+        const frontendUrl = process.env.DASHBOARD_URL || 'https://dashboard.traf3li.com';
+        return response.redirect(`${frontendUrl}/login?error=sso_failed&message=${encodeURIComponent(error.message)}`);
+    }
+};
+
+/**
+ * Initiate Single Logout
+ * @route GET /api/auth/saml/logout/:firmId
+ */
+const initiateSingleLogout = async (request, response) => {
+    try {
+        const { firmId } = request.params;
+
+        // Validate firm
+        const firm = await Firm.findById(firmId);
+        if (!firm) {
+            throw CustomException('Firm not found', 404);
+        }
+
+        // Create SAML strategy
+        const strategy = await samlService.createSAMLStrategy(firmId);
+
+        // Get user from token
+        const { accessToken } = request.cookies;
+        let user = null;
+
+        if (accessToken) {
+            try {
+                const verification = jwt.verify(accessToken, JWT_SECRET);
+                user = await User.findById(verification._id);
+            } catch (error) {
+                console.error('Token verification error:', error);
+            }
+        }
+
+        // Generate logout request
+        if (user) {
+            strategy.logout(request, (error, requestUrl) => {
+                if (error) {
+                    console.error('Logout error:', error);
+                    return response.status(500).send({
+                        error: true,
+                        message: 'Failed to initiate logout'
+                    });
+                }
+
+                // Clear cookie
+                const cookieConfig = getCookieConfig(request);
+                response.clearCookie('accessToken', cookieConfig);
+
+                // Redirect to IdP logout
+                return response.redirect(requestUrl);
+            });
+        } else {
+            // No active session, just clear cookie and redirect
+            const cookieConfig = getCookieConfig(request);
+            response.clearCookie('accessToken', cookieConfig);
+
+            const frontendUrl = process.env.DASHBOARD_URL || 'https://dashboard.traf3li.com';
+            return response.redirect(`${frontendUrl}/login?logout=success`);
+        }
+
+    } catch (error) {
+        console.error('Initiate logout error:', error);
+        return response.status(error.status || 500).send({
+            error: true,
+            message: error.message || 'Failed to initiate logout'
+        });
+    }
+};
+
+/**
+ * Single Logout Service - Handle logout response from IdP
+ * @route POST /api/auth/saml/sls/:firmId
+ */
+const singleLogoutService = async (request, response) => {
+    try {
+        const { firmId } = request.params;
+
+        // Create SAML strategy
+        const strategy = await samlService.createSAMLStrategy(firmId);
+
+        // Process logout response
+        strategy.logout(request, (error) => {
+            if (error) {
+                console.error('SLS error:', error);
+                return response.status(500).send({
+                    error: true,
+                    message: 'Logout failed'
+                });
+            }
+
+            // Clear cookie
+            const cookieConfig = getCookieConfig(request);
+            response.clearCookie('accessToken', cookieConfig);
+
+            // Redirect to login page
+            const frontendUrl = process.env.DASHBOARD_URL || 'https://dashboard.traf3li.com';
+            return response.redirect(`${frontendUrl}/login?logout=success`);
+        });
+
+    } catch (error) {
+        console.error('SLS error:', error);
+        const frontendUrl = process.env.DASHBOARD_URL || 'https://dashboard.traf3li.com';
+        return response.redirect(`${frontendUrl}/login?error=logout_failed`);
+    }
+};
+
+/**
+ * Get SAML configuration for current firm (Admin only)
+ * @route GET /api/auth/saml/config
+ */
+const getSAMLConfig = async (request, response) => {
+    try {
+        // Get user's firm
+        const user = await User.findById(request.userID);
+        if (!user || !user.firmId) {
+            throw CustomException('User not associated with a firm', 400);
+        }
+
+        // Check if user is admin or owner
+        const firm = await Firm.findById(user.firmId);
+        if (!firm) {
+            throw CustomException('Firm not found', 404);
+        }
+
+        const member = firm.members.find(m => m.userId.toString() === user._id.toString());
+        if (!member || !['owner', 'admin'].includes(member.role)) {
+            throw CustomException('Insufficient permissions. Only firm owners and admins can manage SSO.', 403);
+        }
+
+        // Get SAML configuration (without sensitive data)
+        const config = {
+            ssoEnabled: firm.enterpriseSettings?.ssoEnabled || false,
+            ssoProvider: firm.enterpriseSettings?.ssoProvider || null,
+            ssoEntityId: firm.enterpriseSettings?.ssoEntityId || null,
+            ssoSsoUrl: firm.enterpriseSettings?.ssoSsoUrl || null,
+            ssoMetadataUrl: firm.enterpriseSettings?.ssoMetadataUrl || null,
+            hasCertificate: !!firm.enterpriseSettings?.ssoCertificate,
+
+            // Service Provider URLs
+            spEntityId: `${process.env.BACKEND_URL || 'https://api.traf3li.com'}/api/auth/saml/${firm._id}`,
+            spAcsUrl: `${process.env.BACKEND_URL || 'https://api.traf3li.com'}/api/auth/saml/acs/${firm._id}`,
+            spSloUrl: `${process.env.BACKEND_URL || 'https://api.traf3li.com'}/api/auth/saml/sls/${firm._id}`,
+            spMetadataUrl: `${process.env.BACKEND_URL || 'https://api.traf3li.com'}/api/auth/saml/metadata/${firm._id}`
+        };
+
+        return response.status(200).send({
+            error: false,
+            message: 'Success',
+            config
+        });
+
+    } catch (error) {
+        console.error('Get SAML config error:', error);
+        return response.status(error.status || 500).send({
+            error: true,
+            message: error.message || 'Failed to get SAML configuration'
+        });
+    }
+};
+
+/**
+ * Update SAML configuration (Admin only)
+ * @route PUT /api/auth/saml/config
+ */
+const updateSAMLConfig = async (request, response) => {
+    try {
+        const {
+            ssoEnabled,
+            ssoProvider,
+            ssoEntityId,
+            ssoSsoUrl,
+            ssoCertificate,
+            ssoMetadataUrl
+        } = request.body;
+
+        // Get user's firm
+        const user = await User.findById(request.userID);
+        if (!user || !user.firmId) {
+            throw CustomException('User not associated with a firm', 400);
+        }
+
+        // Check if user is admin or owner
+        const firm = await Firm.findById(user.firmId);
+        if (!firm) {
+            throw CustomException('Firm not found', 404);
+        }
+
+        const member = firm.members.find(m => m.userId.toString() === user._id.toString());
+        if (!member || !['owner', 'admin'].includes(member.role)) {
+            throw CustomException('Insufficient permissions. Only firm owners and admins can manage SSO.', 403);
+        }
+
+        // Update SAML configuration
+        const updatedFirm = await samlService.updateSAMLConfig(user.firmId, {
+            ssoEnabled,
+            ssoProvider,
+            ssoEntityId,
+            ssoSsoUrl,
+            ssoCertificate,
+            ssoMetadataUrl
+        });
+
+        // Log configuration change
+        await auditLogService.log(
+            'sso_config_updated',
+            'firm',
+            user._id,
+            user.firmId,
+            {
+                userId: user._id,
+                userEmail: user.email,
+                userName: `${user.firstName} ${user.lastName}`,
+                firmId: user.firmId,
+                ssoProvider,
+                ssoEnabled,
+                ipAddress: request.ip,
+                userAgent: request.headers['user-agent'],
+                severity: 'medium'
+            }
+        );
+
+        return response.status(200).send({
+            error: false,
+            message: 'SAML configuration updated successfully',
+            config: {
+                ssoEnabled: updatedFirm.enterpriseSettings.ssoEnabled,
+                ssoProvider: updatedFirm.enterpriseSettings.ssoProvider,
+                ssoEntityId: updatedFirm.enterpriseSettings.ssoEntityId,
+                ssoSsoUrl: updatedFirm.enterpriseSettings.ssoSsoUrl,
+                ssoMetadataUrl: updatedFirm.enterpriseSettings.ssoMetadataUrl
+            }
+        });
+
+    } catch (error) {
+        console.error('Update SAML config error:', error);
+        return response.status(error.status || 500).send({
+            error: true,
+            message: error.message || 'Failed to update SAML configuration'
+        });
+    }
+};
+
+/**
+ * Test SAML configuration (Admin only)
+ * @route POST /api/auth/saml/config/test
+ */
+const testSAMLConfig = async (request, response) => {
+    try {
+        // Get user's firm
+        const user = await User.findById(request.userID);
+        if (!user || !user.firmId) {
+            throw CustomException('User not associated with a firm', 400);
+        }
+
+        // Check if user is admin or owner
+        const firm = await Firm.findById(user.firmId);
+        if (!firm) {
+            throw CustomException('Firm not found', 404);
+        }
+
+        const member = firm.members.find(m => m.userId.toString() === user._id.toString());
+        if (!member || !['owner', 'admin'].includes(member.role)) {
+            throw CustomException('Insufficient permissions', 403);
+        }
+
+        // Validate SAML configuration
+        const config = await samlService.getFirmSAMLConfig(user.firmId);
+        const validation = samlService.validateSAMLConfig(config);
+
+        if (!validation.valid) {
+            return response.status(400).send({
+                error: true,
+                message: 'Invalid SAML configuration',
+                errors: validation.errors
+            });
+        }
+
+        // Try to create SAML strategy (this validates the configuration)
+        try {
+            await samlService.createSAMLStrategy(user.firmId);
+
+            return response.status(200).send({
+                error: false,
+                message: 'SAML configuration is valid',
+                valid: true
+            });
+        } catch (strategyError) {
+            return response.status(400).send({
+                error: true,
+                message: 'Failed to create SAML strategy',
+                details: strategyError.message,
+                valid: false
+            });
+        }
+
+    } catch (error) {
+        console.error('Test SAML config error:', error);
+        return response.status(error.status || 500).send({
+            error: true,
+            message: error.message || 'Failed to test SAML configuration'
+        });
+    }
+};
+
+/**
+ * Helper function to build complete user data with firm information
+ * @param {object} user - User object
+ * @returns {object} Complete user data
+ */
+async function buildUserData(user) {
+    const userData = {
+        ...user.toObject(),
+        isSoloLawyer: user.isSoloLawyer || false,
+        lawyerWorkMode: user.lawyerWorkMode || null
+    };
+
+    // If user is a lawyer with a firm, get firm information
+    if ((user.role === 'lawyer' || user.isSeller) && user.firmId) {
+        try {
+            const firm = await Firm.findById(user.firmId)
+                .select('name nameEnglish licenseNumber status members subscription');
+
+            if (firm) {
+                const member = firm.members.find(
+                    m => m.userId.toString() === user._id.toString()
+                );
+
+                userData.firm = {
+                    id: firm._id,
+                    name: firm.name,
+                    nameEn: firm.nameEnglish,
+                    status: firm.status
+                };
+                userData.firmRole = member?.role || user.firmRole;
+                userData.firmStatus = member?.status || user.firmStatus;
+
+                // Include permissions
+                if (member) {
+                    const { getDefaultPermissions } = require('../config/permissions.config');
+                    userData.permissions = member.permissions || getDefaultPermissions(member.role);
+                }
+
+                // Tenant context
+                userData.tenant = {
+                    id: firm._id,
+                    name: firm.name,
+                    nameEn: firm.nameEnglish,
+                    status: firm.status,
+                    subscription: {
+                        plan: firm.subscription?.plan || 'free',
+                        status: firm.subscription?.status || 'trial'
+                    }
+                };
+            }
+        } catch (firmError) {
+            console.log('Error fetching firm:', firmError.message);
+        }
+    }
+
+    return userData;
+}
+
+module.exports = {
+    getSPMetadata,
+    initiateLogin,
+    assertionConsumerService,
+    initiateSingleLogout,
+    singleLogoutService,
+    getSAMLConfig,
+    updateSAMLConfig,
+    testSAMLConfig
+};

@@ -1552,6 +1552,322 @@ const resendInvitation = asyncHandler(async (req, res) => {
     });
 });
 
+// ═══════════════════════════════════════════════════════════════
+// IP WHITELIST MANAGEMENT
+// ═══════════════════════════════════════════════════════════════
+
+const ipRestrictionService = require('../services/ipRestriction.service');
+const { getClientIP } = require('../middlewares/adminIPWhitelist.middleware');
+
+/**
+ * Get IP whitelist for a firm
+ * GET /api/firms/:firmId/ip-whitelist
+ */
+const getIPWhitelist = asyncHandler(async (req, res) => {
+    const { firmId } = req.params;
+    const userId = req.userID;
+
+    // Verify user is admin or owner
+    const firm = await Firm.findById(firmId);
+    if (!firm) {
+        throw CustomException('المكتب غير موجود', 404);
+    }
+
+    const member = firm.members.find(m => m.userId.toString() === userId);
+    if (!member || !['owner', 'admin'].includes(member.role)) {
+        throw CustomException('ليس لديك صلاحية لعرض قائمة IP', 403);
+    }
+
+    const result = await ipRestrictionService.getIPWhitelist(firmId);
+
+    res.json({
+        success: true,
+        message: 'تم جلب قائمة IP بنجاح',
+        data: result
+    });
+});
+
+/**
+ * Add IP to whitelist
+ * POST /api/firms/:firmId/ip-whitelist
+ */
+const addIPToWhitelist = asyncHandler(async (req, res) => {
+    const { firmId } = req.params;
+    const userId = req.userID;
+    const { ip, description, temporary, durationHours } = req.body;
+
+    if (!ip) {
+        throw CustomException('عنوان IP مطلوب', 400);
+    }
+
+    // Verify user is admin or owner
+    const firm = await Firm.findById(firmId);
+    if (!firm) {
+        throw CustomException('المكتب غير موجود', 404);
+    }
+
+    const member = firm.members.find(m => m.userId.toString() === userId);
+    if (!member || !['owner', 'admin'].includes(member.role)) {
+        throw CustomException('ليس لديك صلاحية لإضافة IP', 403);
+    }
+
+    // Context for audit
+    const context = {
+        userId,
+        ipAddress: getClientIP(req),
+        userAgent: req.headers['user-agent'],
+        endpoint: req.originalUrl,
+        method: req.method
+    };
+
+    let result;
+
+    if (temporary && durationHours) {
+        // Add temporary IP allowance
+        const validDurations = [24, 168, 720]; // 1d, 7d, 30d
+        if (!validDurations.includes(durationHours)) {
+            throw CustomException('مدة غير صالحة. استخدم 24، 168، أو 720 ساعة', 400);
+        }
+
+        result = await ipRestrictionService.addTemporaryIP(
+            firmId,
+            ip,
+            durationHours,
+            description,
+            userId,
+            context
+        );
+    } else {
+        // Add permanent IP to whitelist
+        result = await ipRestrictionService.addAllowedIP(
+            firmId,
+            ip,
+            description,
+            context
+        );
+    }
+
+    res.status(201).json({
+        success: true,
+        message: temporary ? 'تم إضافة IP مؤقتاً بنجاح' : 'تم إضافة IP بنجاح',
+        data: result
+    });
+});
+
+/**
+ * Remove IP from whitelist
+ * DELETE /api/firms/:firmId/ip-whitelist/:ip
+ */
+const removeIPFromWhitelist = asyncHandler(async (req, res) => {
+    const { firmId, ip } = req.params;
+    const userId = req.userID;
+
+    // Decode IP (URL-encoded)
+    const decodedIP = decodeURIComponent(ip);
+
+    // Verify user is admin or owner
+    const firm = await Firm.findById(firmId);
+    if (!firm) {
+        throw CustomException('المكتب غير موجود', 404);
+    }
+
+    const member = firm.members.find(m => m.userId.toString() === userId);
+    if (!member || !['owner', 'admin'].includes(member.role)) {
+        throw CustomException('ليس لديك صلاحية لإزالة IP', 403);
+    }
+
+    // Context for audit
+    const context = {
+        userId,
+        ipAddress: getClientIP(req),
+        userAgent: req.headers['user-agent'],
+        endpoint: req.originalUrl,
+        method: req.method
+    };
+
+    const result = await ipRestrictionService.removeAllowedIP(
+        firmId,
+        decodedIP,
+        context
+    );
+
+    res.json({
+        success: true,
+        message: 'تم إزالة IP بنجاح',
+        data: result
+    });
+});
+
+/**
+ * Test if current IP would be allowed
+ * POST /api/firms/:firmId/ip-whitelist/test
+ */
+const testIPAccess = asyncHandler(async (req, res) => {
+    const { firmId } = req.params;
+    const userId = req.userID;
+
+    // Get client IP
+    const clientIP = getClientIP(req);
+
+    if (!clientIP) {
+        throw CustomException('غير قادر على تحديد عنوان IP', 400);
+    }
+
+    // Verify user is member of firm
+    const firm = await Firm.findById(firmId);
+    if (!firm) {
+        throw CustomException('المكتب غير موجود', 404);
+    }
+
+    const member = firm.members.find(m => m.userId.toString() === userId);
+    if (!member) {
+        throw CustomException('أنت لست عضواً في هذا المكتب', 403);
+    }
+
+    // Check if IP would be allowed
+    const result = await ipRestrictionService.isIPAllowed(clientIP, firmId);
+
+    res.json({
+        success: true,
+        message: 'تم اختبار عنوان IP',
+        data: {
+            clientIP,
+            allowed: result.allowed,
+            reason: result.reason,
+            expiresAt: result.expiresAt,
+            whitelistEnabled: firm.enterpriseSettings?.ipWhitelistEnabled || false
+        }
+    });
+});
+
+/**
+ * Enable IP whitelisting for firm
+ * POST /api/firms/:firmId/ip-whitelist/enable
+ */
+const enableIPWhitelist = asyncHandler(async (req, res) => {
+    const { firmId } = req.params;
+    const userId = req.userID;
+    const { autoWhitelistCurrentIP = true } = req.body;
+
+    // Verify user is owner or admin
+    const firm = await Firm.findById(firmId);
+    if (!firm) {
+        throw CustomException('المكتب غير موجود', 404);
+    }
+
+    const member = firm.members.find(m => m.userId.toString() === userId);
+    if (!member || !['owner', 'admin'].includes(member.role)) {
+        throw CustomException('ليس لديك صلاحية لتفعيل قائمة IP', 403);
+    }
+
+    // Get client IP
+    const clientIP = getClientIP(req);
+
+    // Context for audit
+    const context = {
+        userId,
+        ipAddress: clientIP,
+        userAgent: req.headers['user-agent'],
+        endpoint: req.originalUrl,
+        method: req.method
+    };
+
+    const result = await ipRestrictionService.enableIPWhitelist(
+        firmId,
+        clientIP,
+        autoWhitelistCurrentIP,
+        context
+    );
+
+    res.json({
+        success: true,
+        message: 'تم تفعيل قائمة IP بنجاح',
+        data: result
+    });
+});
+
+/**
+ * Disable IP whitelisting for firm
+ * POST /api/firms/:firmId/ip-whitelist/disable
+ */
+const disableIPWhitelist = asyncHandler(async (req, res) => {
+    const { firmId } = req.params;
+    const userId = req.userID;
+
+    // Verify user is owner or admin
+    const firm = await Firm.findById(firmId);
+    if (!firm) {
+        throw CustomException('المكتب غير موجود', 404);
+    }
+
+    const member = firm.members.find(m => m.userId.toString() === userId);
+    if (!member || !['owner', 'admin'].includes(member.role)) {
+        throw CustomException('ليس لديك صلاحية لتعطيل قائمة IP', 403);
+    }
+
+    // Context for audit
+    const context = {
+        userId,
+        ipAddress: getClientIP(req),
+        userAgent: req.headers['user-agent'],
+        endpoint: req.originalUrl,
+        method: req.method
+    };
+
+    const result = await ipRestrictionService.disableIPWhitelist(firmId, context);
+
+    res.json({
+        success: true,
+        message: 'تم تعطيل قائمة IP بنجاح',
+        data: result
+    });
+});
+
+/**
+ * Revoke temporary IP allowance
+ * DELETE /api/firms/:firmId/ip-whitelist/temporary/:allowanceId
+ */
+const revokeTemporaryIP = asyncHandler(async (req, res) => {
+    const { firmId, allowanceId } = req.params;
+    const userId = req.userID;
+    const { reason } = req.body;
+
+    // Verify user is admin or owner
+    const firm = await Firm.findById(firmId);
+    if (!firm) {
+        throw CustomException('المكتب غير موجود', 404);
+    }
+
+    const member = firm.members.find(m => m.userId.toString() === userId);
+    if (!member || !['owner', 'admin'].includes(member.role)) {
+        throw CustomException('ليس لديك صلاحية لإلغاء IP مؤقت', 403);
+    }
+
+    // Revoke the temporary allowance
+    const TemporaryIPAllowance = require('../models/temporaryIPAllowance.model');
+    const allowance = await TemporaryIPAllowance.findById(allowanceId);
+
+    if (!allowance) {
+        throw CustomException('السماح المؤقت غير موجود', 404);
+    }
+
+    if (allowance.firmId.toString() !== firmId) {
+        throw CustomException('السماح المؤقت لا ينتمي لهذا المكتب', 403);
+    }
+
+    await allowance.revoke(userId, reason);
+
+    res.json({
+        success: true,
+        message: 'تم إلغاء السماح المؤقت بنجاح',
+        data: {
+            id: allowance._id,
+            revokedAt: allowance.revokedAt,
+            revokedBy: userId
+        }
+    });
+});
+
 module.exports = {
     // Marketplace (backwards compatible)
     getFirms,
@@ -1589,6 +1905,15 @@ module.exports = {
 
     // Solo lawyer features
     convertSoloToFirm,
+
+    // IP Whitelist management
+    getIPWhitelist,
+    addIPToWhitelist,
+    removeIPFromWhitelist,
+    testIPAccess,
+    enableIPWhitelist,
+    disableIPWhitelist,
+    revokeTemporaryIP,
 
     // Backwards compatible
     addLawyer,

@@ -1,0 +1,24 @@
+# Dockerfile for ClamAV Daemon
+# Based on official ClamAV Docker image
+# Configured for TCP socket access on port 3310
+
+FROM clamav/clamav:latest
+
+# Set environment variables for ClamAV configuration
+ENV CLAMAV_NO_FRESHCLAM=false
+ENV CLAMD_STARTUP_TIMEOUT=1800
+
+# ClamAV will listen on TCP socket
+# Port 3310 is the default ClamAV TCP port
+EXPOSE 3310
+
+# Health check to ensure ClamAV daemon is running
+HEALTHCHECK --interval=60s --timeout=10s --start-period=300s --retries=3 \
+  CMD clamdscan --ping || exit 1
+
+# The base image already handles:
+# - Running freshclam to update virus databases on startup
+# - Starting clamd daemon
+# - Proper signal handling for graceful shutdown
+
+# No additional commands needed - use default entrypoint

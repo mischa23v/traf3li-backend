@@ -1,16 +1,19 @@
 /**
  * JWT Authentication Middleware
  * Verifies JWT tokens from cookies or Authorization header
+ * Includes token revocation checking via Redis + MongoDB blacklist
  */
 
 const jwt = require('jsonwebtoken');
 const { CustomException } = require('../utils');
+const tokenRevocationService = require('../services/tokenRevocation.service');
 
 /**
  * Verify JWT Token
  * Supports both cookie-based and header-based authentication
+ * Checks token against revocation blacklist (Redis + MongoDB)
  */
-const verifyToken = (req, res, next) => {
+const verifyToken = async (req, res, next) => {
     // Check for token in both cookies and Authorization header
     let token = req.cookies?.accessToken;
 
@@ -27,15 +30,32 @@ const verifyToken = (req, res, next) => {
             throw CustomException('Authentication required', 401);
         }
 
+        // 1. Verify JWT signature and expiration
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        if (decoded) {
-            req.userID = decoded._id;
-            req.userId = decoded._id; // Alias for consistency
-            req.isSeller = decoded.isSeller;
-            return next();
+
+        if (!decoded) {
+            throw CustomException('Invalid token', 401);
         }
 
-        throw CustomException('Invalid token', 401);
+        // 2. Check if token has been revoked (blacklist check)
+        // This is a fast Redis check (< 1ms) with MongoDB fallback
+        const isRevoked = await tokenRevocationService.isTokenRevoked(token);
+
+        if (isRevoked) {
+            return res.status(401).json({
+                error: true,
+                message: 'Token has been revoked',
+                code: 'TOKEN_REVOKED'
+            });
+        }
+
+        // 3. Token is valid and not revoked - allow request
+        req.userID = decoded._id;
+        req.userId = decoded._id; // Alias for consistency
+        req.isSeller = decoded.isSeller;
+        req.token = token; // Store token for potential revocation on logout
+
+        return next();
     } catch (error) {
         // Handle JWT-specific errors
         if (error.name === 'TokenExpiredError') {

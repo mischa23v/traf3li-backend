@@ -13,21 +13,65 @@ const jwt = require('jsonwebtoken');
 
 /**
  * Get JWT secrets from environment
- * Falls back to default for development (NEVER use in production)
+ * Throws error if secrets are not set (security requirement)
  */
 const getSecrets = () => {
   const jwtSecret = process.env.JWT_SECRET;
   const jwtRefreshSecret = process.env.JWT_REFRESH_SECRET;
-  
-  if (!jwtSecret || !jwtRefreshSecret) {
-    console.warn('⚠️  WARNING: JWT secrets not set in environment variables!');
-    console.warn('⚠️  Using default secrets - DO NOT use in production!');
+
+  if (!jwtSecret) {
+    throw new Error(
+      'JWT_SECRET is not set in environment variables. ' +
+      'Generate with: node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"'
+    );
   }
-  
+
+  if (!jwtRefreshSecret) {
+    throw new Error(
+      'JWT_REFRESH_SECRET is not set in environment variables. ' +
+      'Generate with: node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"'
+    );
+  }
+
   return {
-    accessSecret: jwtSecret || 'default-jwt-secret-do-not-use-in-production-change-this-immediately',
-    refreshSecret: jwtRefreshSecret || 'default-refresh-secret-do-not-use-in-production-change-this-now',
+    accessSecret: jwtSecret,
+    refreshSecret: jwtRefreshSecret,
   };
+};
+
+/**
+ * Validate JWT secrets meet security requirements
+ * Called during startup to fail fast if secrets are insufficient
+ */
+const validateSecrets = () => {
+  const jwtSecret = process.env.JWT_SECRET;
+  const jwtRefreshSecret = process.env.JWT_REFRESH_SECRET;
+
+  if (!jwtSecret) {
+    throw new Error(
+      'JWT_SECRET is not set. Generate with: node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"'
+    );
+  }
+
+  if (!jwtRefreshSecret) {
+    throw new Error(
+      'JWT_REFRESH_SECRET is not set. Generate with: node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"'
+    );
+  }
+
+  if (jwtSecret.length < 32) {
+    throw new Error('JWT_SECRET must be at least 32 characters long');
+  }
+
+  if (jwtRefreshSecret.length < 32) {
+    throw new Error('JWT_REFRESH_SECRET must be at least 32 characters long');
+  }
+
+  if (jwtSecret === jwtRefreshSecret) {
+    throw new Error('JWT_SECRET and JWT_REFRESH_SECRET must be different');
+  }
+
+  return true;
 };
 
 /**
@@ -200,4 +244,5 @@ module.exports = {
   decodeToken,
   getTokenExpiration,
   isTokenExpired,
+  validateSecrets,
 };

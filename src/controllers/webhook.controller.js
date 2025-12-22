@@ -32,18 +32,30 @@ const registerWebhook = asyncHandler(async (req, res) => {
     }
 
     // Register webhook
-    const webhook = await webhookService.register({
-        url,
-        events,
-        firmId,
-        createdBy: userId,
-        name,
-        description,
-        headers,
-        retryPolicy,
-        filters,
-        metadata
-    });
+    let webhook;
+    try {
+        webhook = await webhookService.register({
+            url,
+            events,
+            firmId,
+            createdBy: userId,
+            name,
+            description,
+            headers,
+            retryPolicy,
+            filters,
+            metadata
+        });
+    } catch (error) {
+        // Check if error is URL validation failure
+        if (error.name === 'ValidationError' && error.message.includes('URL validation failed')) {
+            throw CustomException(
+                error.message.replace('Webhook URL validation failed: URL validation failed: ', 'Invalid webhook URL: '),
+                400
+            );
+        }
+        throw error;
+    }
 
     // Don't return secret in response
     const webhookResponse = webhook.toObject();
@@ -170,7 +182,19 @@ const updateWebhook = asyncHandler(async (req, res) => {
 
     webhook.updatedBy = userId;
 
-    await webhook.save();
+    // Save webhook with URL validation
+    try {
+        await webhook.save();
+    } catch (error) {
+        // Check if error is URL validation failure
+        if (error.name === 'ValidationError' && error.message.includes('URL validation failed')) {
+            throw CustomException(
+                error.message.replace('Webhook URL validation failed: URL validation failed: ', 'Invalid webhook URL: '),
+                400
+            );
+        }
+        throw error;
+    }
 
     // Don't return secret
     const webhookResponse = webhook.toObject();

@@ -2,6 +2,7 @@ const crypto = require('crypto');
 const axios = require('axios');
 const Webhook = require('../models/webhook.model');
 const WebhookDelivery = require('../models/webhookDelivery.model');
+const { validateWebhookUrl } = require('../utils/urlValidator');
 
 /**
  * Webhook Service
@@ -174,10 +175,49 @@ class WebhookService {
         const startTime = Date.now();
 
         try {
-            // Make HTTP request
+            // DNS Rebinding Protection: Re-validate URL before each delivery
+            // This prevents attacks where DNS resolution changes between webhook creation and delivery
+            try {
+                await validateWebhookUrl(webhook.url, {
+                    allowHttp: process.env.NODE_ENV !== 'production',
+                    resolveDNS: true
+                });
+            } catch (validationError) {
+                // URL validation failed at delivery time
+                console.error(`URL validation failed for webhook ${webhook._id}:`, validationError.message);
+
+                // Record failed attempt with validation error
+                await delivery.recordAttempt({
+                    status: 'failed',
+                    httpStatus: null,
+                    duration: Date.now() - startTime,
+                    error: `URL validation failed: ${validationError.message}`,
+                    errorDetails: JSON.stringify({
+                        type: 'SSRF_PROTECTION',
+                        message: validationError.message
+                    })
+                });
+
+                // Update webhook statistics
+                await webhook.updateStatistics(false, Date.now() - startTime);
+
+                // Auto-disable webhook if URL is no longer valid
+                if (webhook.isActive) {
+                    await webhook.disable(
+                        `URL validation failed: ${validationError.message}`,
+                        null
+                    );
+                    console.log(`Webhook ${webhook._id} auto-disabled due to URL validation failure`);
+                }
+
+                return false;
+            }
+
+            // Make HTTP request with SSRF protection
             const response = await axios.post(webhook.url, payload, {
                 headers,
                 timeout: 30000, // 30 seconds timeout
+                maxRedirects: 5, // Limit redirects to prevent redirect-based SSRF attacks
                 validateStatus: (status) => status < 500 // Accept all non-5xx as valid
             });
 

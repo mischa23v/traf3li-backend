@@ -1,0 +1,170 @@
+name: Security Scan
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+    branches:
+      - main
+      - develop
+  schedule:
+    # Run every Monday at 9:00 AM UTC
+    - cron: '0 9 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  security-audit:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run npm audit (JSON output)
+        id: audit-json
+        run: |
+          npm audit --json > npm-audit.json || true
+          echo "audit_exit_code=$?" >> $GITHUB_OUTPUT
+        continue-on-error: true
+
+      - name: Run npm audit (Human readable)
+        id: audit-readable
+        run: |
+          npm audit > npm-audit.txt || true
+          npm audit --audit-level=moderate > npm-audit-moderate.txt || true
+          npm audit --audit-level=high > npm-audit-high.txt || true
+        continue-on-error: true
+
+      - name: Parse audit results
+        id: parse-audit
+        run: |
+          # Extract vulnerability counts from JSON
+          CRITICAL=$(jq -r '.metadata.vulnerabilities.critical // 0' npm-audit.json)
+          HIGH=$(jq -r '.metadata.vulnerabilities.high // 0' npm-audit.json)
+          MODERATE=$(jq -r '.metadata.vulnerabilities.moderate // 0' npm-audit.json)
+          LOW=$(jq -r '.metadata.vulnerabilities.low // 0' npm-audit.json)
+          TOTAL=$(jq -r '.metadata.vulnerabilities.total // 0' npm-audit.json)
+
+          echo "critical=$CRITICAL" >> $GITHUB_OUTPUT
+          echo "high=$HIGH" >> $GITHUB_OUTPUT
+          echo "moderate=$MODERATE" >> $GITHUB_OUTPUT
+          echo "low=$LOW" >> $GITHUB_OUTPUT
+          echo "total=$TOTAL" >> $GITHUB_OUTPUT
+
+          # Create summary
+          echo "## Security Audit Summary" > audit-summary.md
+          echo "" >> audit-summary.md
+          echo "| Severity | Count |" >> audit-summary.md
+          echo "|----------|-------|" >> audit-summary.md
+          echo "| Critical | $CRITICAL |" >> audit-summary.md
+          echo "| High | $HIGH |" >> audit-summary.md
+          echo "| Moderate | $MODERATE |" >> audit-summary.md
+          echo "| Low | $LOW |" >> audit-summary.md
+          echo "| **Total** | **$TOTAL** |" >> audit-summary.md
+          echo "" >> audit-summary.md
+
+          if [ $CRITICAL -gt 0 ] || [ $HIGH -gt 0 ]; then
+            echo "❌ **Action Required**: Critical or high severity vulnerabilities found!" >> audit-summary.md
+            echo "" >> audit-summary.md
+            echo "### Critical and High Vulnerabilities:" >> audit-summary.md
+            echo '```' >> audit-summary.md
+            cat npm-audit-high.txt >> audit-summary.md || echo "No details available" >> audit-summary.md
+            echo '```' >> audit-summary.md
+          else
+            echo "✅ No critical or high severity vulnerabilities found." >> audit-summary.md
+          fi
+
+          echo "" >> audit-summary.md
+          echo "---" >> audit-summary.md
+          echo "Scan completed at: $(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> audit-summary.md
+          echo "Commit: ${{ github.sha }}" >> audit-summary.md
+
+      - name: Upload audit reports as artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-audit-reports-${{ github.sha }}
+          path: |
+            npm-audit.json
+            npm-audit.txt
+            npm-audit-moderate.txt
+            npm-audit-high.txt
+            audit-summary.md
+          retention-days: 90
+
+      - name: Comment on PR with vulnerability summary
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const summary = fs.readFileSync('audit-summary.md', 'utf8');
+
+            const comments = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const botComment = comments.data.find(comment =>
+              comment.user.type === 'Bot' &&
+              comment.body.includes('Security Audit Summary')
+            );
+
+            const commentBody = `${summary}\n\n<!-- security-audit-comment -->`;
+
+            if (botComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: commentBody
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: commentBody
+              });
+            }
+
+      - name: Create GitHub Step Summary
+        if: always()
+        run: |
+          cat audit-summary.md >> $GITHUB_STEP_SUMMARY
+
+      - name: Block merge if critical vulnerabilities found
+        if: steps.parse-audit.outputs.critical != '0'
+        run: |
+          echo "❌ CRITICAL vulnerabilities found: ${{ steps.parse-audit.outputs.critical }}"
+          echo "Please fix critical vulnerabilities before merging."
+          exit 1
+
+      - name: Block merge if high vulnerabilities found
+        if: steps.parse-audit.outputs.high != '0'
+        run: |
+          echo "❌ HIGH severity vulnerabilities found: ${{ steps.parse-audit.outputs.high }}"
+          echo "Please fix high severity vulnerabilities before merging."
+          exit 1
+
+      - name: Security check passed
+        if: steps.parse-audit.outputs.critical == '0' && steps.parse-audit.outputs.high == '0'
+        run: |
+          echo "✅ Security audit passed - no critical or high vulnerabilities found!"

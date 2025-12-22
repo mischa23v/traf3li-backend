@@ -1,5 +1,6 @@
 const express = require('express');
 const { userMiddleware } = require('../middlewares');
+const { auditAction } = require('../middlewares/auditLog.middleware');
 const {
     getUserProfile,
     getLawyerProfile,
@@ -38,11 +39,11 @@ app.delete('/push-subscription', userMiddleware, deletePushSubscription);
 
 // Notification preferences (protected)
 app.get('/notification-preferences', userMiddleware, getPushSubscriptionStatus);
-app.put('/notification-preferences', userMiddleware, updateNotificationPreferences);
+app.put('/notification-preferences', userMiddleware, auditAction('update_notification_preferences', 'user', { severity: 'low', captureChanges: true }), updateNotificationPreferences);
 
 // ========== Solo Lawyer to Firm Conversion ==========
 // Convert solo lawyer to firm owner
-app.post('/convert-to-firm', userMiddleware, convertSoloToFirm);
+app.post('/convert-to-firm', userMiddleware, auditAction('convert_to_firm', 'user', { severity: 'high', captureChanges: true }), convertSoloToFirm);
 
 // Get user profile (public - no auth required)
 app.get('/:_id', getUserProfile);
@@ -51,9 +52,9 @@ app.get('/:_id', getUserProfile);
 app.get('/lawyer/:username', getLawyerProfile);
 
 // Update user profile (protected - must be own profile)
-app.patch('/:_id', userMiddleware, updateUserProfile);
+app.patch('/:_id', userMiddleware, auditAction('update_profile', 'user', { severity: 'medium', captureChanges: true }), updateUserProfile);
 
 // Delete user account (protected - must be own account)
-app.delete('/:_id', userMiddleware, deleteUser);
+app.delete('/:_id', userMiddleware, auditAction('delete_user', 'user', { severity: 'critical', captureChanges: true }), deleteUser);
 
 module.exports = app;

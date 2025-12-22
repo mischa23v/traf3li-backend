@@ -218,9 +218,156 @@ function generateSecurePassword(length = 16) {
     return password.split('').sort(() => Math.random() - 0.5).join('');
 }
 
+/**
+ * Check if user's password needs rotation based on age
+ * @param {Object} user - User document with passwordChangedAt field
+ * @param {number} maxAgeDays - Maximum password age in days (default: 90)
+ * @returns {{needsRotation: boolean, daysOld: number, daysRemaining: number}}
+ */
+function checkPasswordAge(user, maxAgeDays = 90) {
+    if (!user.passwordChangedAt) {
+        // No password change date, assume needs rotation
+        return {
+            needsRotation: true,
+            daysOld: maxAgeDays + 1,
+            daysRemaining: 0,
+            expiresAt: null
+        };
+    }
+
+    const passwordDate = new Date(user.passwordChangedAt);
+    const now = new Date();
+    const ageInMs = now - passwordDate;
+    const ageInDays = Math.floor(ageInMs / (1000 * 60 * 60 * 24));
+    const daysRemaining = Math.max(0, maxAgeDays - ageInDays);
+    const needsRotation = ageInDays >= maxAgeDays;
+
+    const expiresAt = new Date(passwordDate);
+    expiresAt.setDate(expiresAt.getDate() + maxAgeDays);
+
+    return {
+        needsRotation,
+        daysOld: ageInDays,
+        daysRemaining,
+        expiresAt
+    };
+}
+
+/**
+ * Check if new password matches any in user's password history
+ * @param {string} userId - User ID
+ * @param {string} newPassword - New password to check (plain text)
+ * @param {number} historyCount - Number of previous passwords to check (default: 12)
+ * @returns {Promise<{isReused: boolean, message: string}>}
+ */
+async function checkPasswordHistory(userId, newPassword, historyCount = 12) {
+    const bcrypt = require('bcrypt');
+    const PasswordHistory = require('../models/passwordHistory.model');
+
+    if (!historyCount || historyCount === 0) {
+        return { isReused: false, message: 'Password history check disabled' };
+    }
+
+    // Get user's password history (most recent first)
+    const history = await PasswordHistory.find({ userId })
+        .sort({ createdAt: -1 })
+        .limit(historyCount)
+        .lean();
+
+    if (!history || history.length === 0) {
+        return { isReused: false, message: 'No password history found' };
+    }
+
+    // Check if new password matches any previous password
+    for (const record of history) {
+        const matches = await bcrypt.compare(newPassword, record.passwordHash);
+        if (matches) {
+            return {
+                isReused: true,
+                message: `Password was previously used. Please choose a password you haven't used in your last ${historyCount} passwords.`,
+                messageAr: `تم استخدام كلمة المرور هذه سابقاً. الرجاء اختيار كلمة مرور لم تستخدمها في آخر ${historyCount} كلمة مرور.`
+            };
+        }
+    }
+
+    return {
+        isReused: false,
+        message: 'Password not found in history'
+    };
+}
+
+/**
+ * Enforce complete password policy including validation, strength, history
+ * @param {string} password - Password to check
+ * @param {Object} user - User object with email, username, etc.
+ * @param {Object} options - Policy options
+ * @returns {Promise<{valid: boolean, errors: string[], errorsAr: string[], strength: Object}>}
+ */
+async function enforcePasswordPolicy(password, user, options = {}) {
+    const {
+        checkHistory = true,
+        historyCount = 12,
+        minStrengthScore = 50
+    } = options;
+
+    const errors = [];
+    const errorsAr = [];
+
+    // 1. Basic validation
+    const validation = validatePassword(password, {
+        email: user.email,
+        username: user.username,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        phone: user.phone
+    });
+
+    if (!validation.valid) {
+        errors.push(...validation.errors);
+        errorsAr.push(...validation.errorsAr);
+    }
+
+    // 2. Check password strength
+    const strength = getPasswordStrength(password);
+    if (strength.score < minStrengthScore) {
+        errors.push(`Password is too weak (score: ${strength.score}/100). Please choose a stronger password.`);
+        errorsAr.push(`كلمة المرور ضعيفة جداً (النتيجة: ${strength.score}/100). الرجاء اختيار كلمة مرور أقوى.`);
+    }
+
+    // 3. Check password history (if enabled and user has ID)
+    if (checkHistory && user._id) {
+        const historyCheck = await checkPasswordHistory(user._id, password, historyCount);
+        if (historyCheck.isReused) {
+            errors.push(historyCheck.message);
+            errorsAr.push(historyCheck.messageAr);
+        }
+    }
+
+    return {
+        valid: errors.length === 0,
+        errors,
+        errorsAr,
+        strength
+    };
+}
+
+/**
+ * Get password strength score (0-100)
+ * @param {string} password - Password to check
+ * @returns {number} - Score from 0 to 100
+ */
+function getPasswordStrengthScore(password) {
+    const strength = getPasswordStrength(password);
+    return strength.score;
+}
+
 module.exports = {
     validatePassword,
     getPasswordStrength,
+    getPasswordStrengthScore,
     generateSecurePassword,
+    checkPasswordAge,
+    checkPasswordHistory,
+    enforcePasswordPolicy,
     PASSWORD_POLICY,
 };

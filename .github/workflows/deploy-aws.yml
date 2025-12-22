@@ -6,8 +6,45 @@ on:
       - main
 
 jobs:
+  security-check:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies with npm ci
+        run: npm ci
+
+      - name: Run npm audit
+        run: npm audit --audit-level=high
+        continue-on-error: false
+
+      - name: Generate security audit report
+        if: always()
+        run: |
+          npm audit --json > security-audit-report.json || true
+          npm audit --audit-level=moderate > security-audit-report.txt || true
+
+      - name: Upload audit report as artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-audit-report-${{ github.sha }}
+          path: |
+            security-audit-report.json
+            security-audit-report.txt
+          retention-days: 30
+
   deploy:
     runs-on: ubuntu-latest
+    needs: security-check
 
     steps:
       - name: Deploy to EC2
@@ -19,5 +56,5 @@ jobs:
           script: |
             cd ~/traf3li-backend
             git pull origin main
-            npm install --production
+            npm ci --production
             pm2 restart traf3li-backend

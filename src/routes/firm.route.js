@@ -12,6 +12,7 @@ const {
     firmOwnerOnly,
     teamManagementOnly
 } = require('../middlewares');
+const { auditAction } = require('../middlewares/auditLog.middleware');
 const {
     // Marketplace
     getFirms,
@@ -45,6 +46,15 @@ const {
     cancelInvitation,
     resendInvitation,
 
+    // IP Whitelist management
+    getIPWhitelist,
+    addIPToWhitelist,
+    removeIPFromWhitelist,
+    testIPAccess,
+    enableIPWhitelist,
+    disableIPWhitelist,
+    revokeTemporaryIP,
+
     // Backwards compatible
     addLawyer,
     removeLawyer
@@ -67,7 +77,7 @@ app.get('/roles', userMiddleware, getAvailableRoles);
 // ═══════════════════════════════════════════════════════════════
 
 // Create new firm
-app.post('/', userMiddleware, createFirm);
+app.post('/', userMiddleware, auditAction('create_firm', 'firm', { severity: 'high' }), createFirm);
 
 // Get current user's firm
 app.get('/my', userMiddleware, getMyFirm);
@@ -80,16 +90,16 @@ app.get('/:id', userMiddleware, getFirm);
 app.get('/:_id', getFirm);  // Backwards compatible (public)
 
 // Update firm settings
-app.put('/:id', userMiddleware, updateFirm);
-app.patch('/:id', userMiddleware, updateFirm);
-app.patch('/:_id', userMiddleware, updateFirm);  // Backwards compatible
+app.put('/:id', userMiddleware, auditAction('update_firm_settings', 'firm', { severity: 'high', captureChanges: true }), updateFirm);
+app.patch('/:id', userMiddleware, auditAction('update_firm_settings', 'firm', { severity: 'high', captureChanges: true }), updateFirm);
+app.patch('/:_id', userMiddleware, auditAction('update_firm_settings', 'firm', { severity: 'high', captureChanges: true }), updateFirm);  // Backwards compatible
 
 // ═══════════════════════════════════════════════════════════════
 // BILLING SETTINGS (Admin only)
 // ═══════════════════════════════════════════════════════════════
 
 // Update billing settings
-app.patch('/:id/billing', userMiddleware, updateBillingSettings);
+app.patch('/:id/billing', userMiddleware, auditAction('update_billing_settings', 'firm', { severity: 'high', captureChanges: true }), updateBillingSettings);
 
 // ═══════════════════════════════════════════════════════════════
 // TEAM MANAGEMENT (فريق العمل)
@@ -105,25 +115,25 @@ app.get('/:id/members', userMiddleware, getMembers);
 app.get('/:id/departed', userMiddleware, getDepartedMembers);
 
 // Invite new member
-app.post('/:id/members/invite', teamManagementOnly, inviteMember);
+app.post('/:id/members/invite', teamManagementOnly, auditAction('invite_firm_member', 'firm', { severity: 'high' }), inviteMember);
 
 // Process member departure (مغادرة الموظف) - Admin only
-app.post('/:id/members/:memberId/depart', firmAdminOnly, processDeparture);
+app.post('/:id/members/:memberId/depart', firmAdminOnly, auditAction('depart_firm_member', 'firm', { severity: 'high', captureChanges: true }), processDeparture);
 
 // Reinstate departed member (إعادة تفعيل عضو مغادر) - Admin only
-app.post('/:id/members/:memberId/reinstate', firmAdminOnly, reinstateMember);
+app.post('/:id/members/:memberId/reinstate', firmAdminOnly, auditAction('reinstate_firm_member', 'firm', { severity: 'high', captureChanges: true }), reinstateMember);
 
 // Update member role/permissions
-app.put('/:id/members/:memberId', teamManagementOnly, updateMember);
+app.put('/:id/members/:memberId', teamManagementOnly, auditAction('update_member_role', 'firm', { severity: 'critical', captureChanges: true }), updateMember);
 
 // Remove member
-app.delete('/:id/members/:memberId', teamManagementOnly, removeMember);
+app.delete('/:id/members/:memberId', teamManagementOnly, auditAction('remove_firm_member', 'firm', { severity: 'critical', captureChanges: true }), removeMember);
 
 // Leave firm (for members) - with solo conversion option
-app.post('/:id/leave', userMiddleware, leaveFirmWithSolo);
+app.post('/:id/leave', userMiddleware, auditAction('leave_firm', 'firm', { severity: 'high', captureChanges: true }), leaveFirmWithSolo);
 
 // Transfer ownership (owner only)
-app.post('/:id/transfer-ownership', firmOwnerOnly, transferOwnership);
+app.post('/:id/transfer-ownership', firmOwnerOnly, auditAction('transfer_firm_ownership', 'firm', { severity: 'critical', captureChanges: true }), transferOwnership);
 
 // ═══════════════════════════════════════════════════════════════
 // INVITATION SYSTEM (دعوات الانضمام)
@@ -149,13 +159,38 @@ app.post('/:firmId/invitations/:invitationId/resend', firmAdminOnly, resendInvit
 app.get('/:id/stats', userMiddleware, getFirmStats);
 
 // ═══════════════════════════════════════════════════════════════
+// IP WHITELIST MANAGEMENT (قائمة عناوين IP المسموح بها)
+// ═══════════════════════════════════════════════════════════════
+
+// Get IP whitelist for firm
+app.get('/:firmId/ip-whitelist', userMiddleware, firmAdminOnly, getIPWhitelist);
+
+// Test if current IP would be allowed
+app.post('/:firmId/ip-whitelist/test', userMiddleware, testIPAccess);
+
+// Enable IP whitelisting
+app.post('/:firmId/ip-whitelist/enable', userMiddleware, firmAdminOnly, auditAction('enable_ip_whitelist', 'firm', { severity: 'critical' }), enableIPWhitelist);
+
+// Disable IP whitelisting
+app.post('/:firmId/ip-whitelist/disable', userMiddleware, firmAdminOnly, auditAction('disable_ip_whitelist', 'firm', { severity: 'critical' }), disableIPWhitelist);
+
+// Add IP to whitelist (permanent or temporary)
+app.post('/:firmId/ip-whitelist', userMiddleware, firmAdminOnly, auditAction('add_ip_whitelist', 'firm', { severity: 'high' }), addIPToWhitelist);
+
+// Remove IP from whitelist
+app.delete('/:firmId/ip-whitelist/:ip', userMiddleware, firmAdminOnly, auditAction('remove_ip_whitelist', 'firm', { severity: 'high' }), removeIPFromWhitelist);
+
+// Revoke temporary IP allowance
+app.delete('/:firmId/ip-whitelist/temporary/:allowanceId', userMiddleware, firmAdminOnly, auditAction('revoke_temporary_ip', 'firm', { severity: 'medium' }), revokeTemporaryIP);
+
+// ═══════════════════════════════════════════════════════════════
 // BACKWARDS COMPATIBLE
 // ═══════════════════════════════════════════════════════════════
 
 // Add lawyer to firm (legacy)
 app.post('/lawyer/add', userMiddleware, addLawyer);
 
-// Remove lawyer from firm (legacy)
+// Remove lawyer to firm (legacy)
 app.post('/lawyer/remove', userMiddleware, removeLawyer);
 
 module.exports = app;
