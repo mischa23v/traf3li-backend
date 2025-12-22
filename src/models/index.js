@@ -98,6 +98,12 @@ const BillPayment = require('./billPayment.model');
 const EmailOTP = require('./emailOtp.model');
 const WebAuthnCredential = require('./webauthnCredential.model');
 const Session = require('./session.model');
+const RevokedToken = require('./revokedToken.model');
+
+// Security Models
+const SecurityIncident = require('./securityIncident.model');
+const ArchivedAuditLog = require('./archivedAuditLog.model');
+const PasswordHistory = require('./passwordHistory.model');
 
 // CRM Models
 const Lead = require('./lead.model');
@@ -212,7 +218,6 @@ const Webhook = require('./webhook.model');
 const Consent = require('./consent.model');
 
 module.exports = {
-    RevokedToken,
     // Marketplace
     User,
     Gig,
@@ -424,6 +429,11 @@ module.exports = {
     Webhook,
 
     // PDPL Consent
-    Consent
+    Consent,
+
+    // Security
+    RevokedToken,
+    SecurityIncident,
+    ArchivedAuditLog,
+    PasswordHistory
 };
-const RevokedToken = require('./revokedToken.model');
