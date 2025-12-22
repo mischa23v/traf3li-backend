@@ -80,6 +80,7 @@
     "ip-range-check": "^0.2.0",
     "joi": "^17.11.0",
     "jsonwebtoken": "^9.0.0",
+    "ldapjs": "^3.0.7",
     "mongoose": "^7.0.1",
     "multer": "^2.0.2",
     "multer-s3": "^3.0.1",

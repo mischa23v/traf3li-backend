@@ -20,6 +20,7 @@ const {
     // Multi-tenancy
     createFirm,
     getMyFirm,
+    switchFirm,
     getFirm,
     updateFirm,
     updateBillingSettings,
@@ -81,6 +82,9 @@ app.post('/', userMiddleware, auditAction('create_firm', 'firm', { severity: 'hi
 
 // Get current user's firm
 app.get('/my', userMiddleware, getMyFirm);
+
+// Switch active firm
+app.post('/switch', userMiddleware, auditAction('switch_firm', 'firm', { severity: 'medium' }), switchFirm);
 
 // Get current user's permissions (صلاحياتي)
 app.get('/my/permissions', userMiddleware, getMyPermissions);

@@ -69,6 +69,7 @@ const {
     gigRoute,
     authRoute,
     mfaRoute,
+    captchaRoute,
     adminRoute,
     orderRoute,
     conversationRoute,
@@ -175,6 +176,7 @@ const {
     recurringTransactionRoute,
     priceLevelRoute,
     fiscalPeriodRoute,
+    interCompanyRoute,
 
     // Finance Management
     financeSetupRoute,
@@ -187,6 +189,9 @@ const {
     paymentReceiptRoute,
     invoiceApprovalRoute,
     notificationSettingsRoute,
+
+    // Setup Wizard (App Onboarding)
+    setupWizardRoute,
 
     // Investment & Trading Journal
     tradesRoute,
@@ -274,17 +279,27 @@ const {
     webauthnRoute,
 
     // SAML/SSO (Enterprise SSO Authentication)
-    samlRoute
-    ,
+    samlRoute,
 
     // SSO Configuration (Enterprise SSO Management UI)
     ssoConfigRoute,
 
+    // LDAP/Active Directory (Enterprise LDAP Authentication)
+    ldapRoute,
+
     // Odoo Integration
     activityRoutes,
     threadMessageRoutes,
+    chatterFollowerRoutes,
     lockDateRoutes,
-    automatedActionRoutes
+    automatedActionRoutes,
+    smartButtonRoute,
+
+    // Additional Enterprise Features
+    billingRoute,
+    emailSettingsRoute,
+    consolidatedReportsRoute,
+    oauthRoute
 } = require('./routes');
 
 // Import versioned routes
@@ -627,9 +642,12 @@ app.use('/api', addNonVersionedDeprecationWarning);
 app.use('/api/gigs', gigRoute);
 app.use('/api/auth', noCache, authRoute); // No cache for auth endpoints
 app.use('/api/auth/mfa', noCache, mfaRoute); // MFA/TOTP authentication endpoints
+app.use('/api/auth', noCache, captchaRoute); // CAPTCHA verification endpoints
 app.use('/api/admin', noCache, adminRoute); // Admin endpoints for token management
 app.use('/api/auth/webauthn', noCache, webauthnRoute); // WebAuthn/FIDO2 authentication
 app.use('/api/auth/saml', noCache, samlRoute); // SAML/SSO enterprise authentication
+app.use('/api/auth/ldap', noCache, ldapRoute); // LDAP/Active Directory authentication (public login endpoint)
+app.use('/api/admin/ldap', noCache, ldapRoute); // LDAP configuration management (admin endpoints)
 app.use('/api/orders', orderRoute);
 app.use('/api/conversations', conversationRoute);
 app.use('/api/messages', messageRoute);
@@ -757,6 +775,8 @@ app.use('/api/journal-entries', journalEntryRoute);
 app.use('/api/recurring-transactions', recurringTransactionRoute);
 app.use('/api/price-levels', priceLevelRoute);
 app.use('/api/fiscal-periods', fiscalPeriodRoute);
+app.use('/api/inter-company', noCache, interCompanyRoute);
+app.use('/api/reports/consolidated', noCache, consolidatedReportsRoute);
 
 // ============================================
 // FINANCE MANAGEMENT ROUTES
@@ -771,6 +791,11 @@ app.use('/api/corporate-cards', noCache, corporateCardRoute);
 app.use('/api/payment-receipts', noCache, paymentReceiptRoute);
 app.use('/api/invoice-approvals', noCache, invoiceApprovalRoute);
 app.use('/api/notification-settings', noCache, notificationSettingsRoute);
+
+// ============================================
+// SETUP WIZARD ROUTES (App Onboarding)
+// ============================================
+app.use('/api/setup', noCache, setupWizardRoute);
 
 // Investment & Trading Journal Routes
 app.use('/api/v1/trades', tradesRoute);
@@ -876,8 +901,17 @@ app.use('/api/webhooks', noCache, webhookRoute); // No cache for webhook managem
 // ============================================
 app.use('/api/record-activities', activityRoutes);  // Renamed to avoid conflict with /api/activities
 app.use('/api/chatter', threadMessageRoutes);  // Renamed to avoid conflict with /api/messages
+app.use('/api/chatter-followers', chatterFollowerRoutes);
 app.use('/api/lock-dates', noCache, lockDateRoutes);
 app.use('/api/automated-actions', noCache, automatedActionRoutes);
+app.use('/api/smart-buttons', smartButtonRoute);  // Odoo-style smart buttons for related record counts
+
+// ============================================
+// ADDITIONAL ENTERPRISE FEATURES
+// ============================================
+app.use('/api/billing', noCache, billingRoute);  // Billing and subscription management
+app.use('/api/settings/email', noCache, emailSettingsRoute);  // Email server configuration
+app.use('/api/auth/sso', noCache, oauthRoute);  // OAuth/SSO authentication
 
 // ============================================
 // ALIAS ROUTES (for frontend compatibility)
