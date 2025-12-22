@@ -446,4 +446,19 @@ const userSchema = new mongoose.Schema({
 
 userSchema.index({ role: 1, 'lawyerProfile.specialization': 1, 'lawyerProfile.rating': -1 });
 
+// ─────────────────────────────────────────────────────────
+// ENCRYPTION PLUGIN - PII Protection
+// ─────────────────────────────────────────────────────────
+const encryptionPlugin = require('./plugins/encryption.plugin');
+
+// Apply encryption to sensitive PII fields
+// Note: email_hash allows searching encrypted emails
+userSchema.plugin(encryptionPlugin, {
+    fields: [
+        'phone',       // Phone number - PII
+        'mfaSecret',   // MFA secret - authentication credential
+    ],
+    searchableFields: []  // Phone/MFA not searchable for security
+});
+
 module.exports = mongoose.model('User', userSchema);

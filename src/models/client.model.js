@@ -773,13 +773,19 @@ clientSchema.statics.runConflictCheck = async function(lawyerId, clientData) {
 // ─────────────────────────────────────────────────────────
 const encryptionPlugin = require('./plugins/encryption.plugin');
 
-// Apply encryption to sensitive fields
+// Apply encryption to sensitive PII fields
+// These fields contain personally identifiable information that must be protected
 clientSchema.plugin(encryptionPlugin, {
     fields: [
-        'nationalId',  // National ID for individuals
+        'nationalId',       // National ID for individuals (Saudi ID)
+        'phone',            // Primary phone number
+        'alternatePhone',   // Secondary phone number
+        'iqamaNumber',      // Saudi residency permit number
+        'passportNumber',   // Travel document number
+        'crNumber',         // Company registration number
     ],
     searchableFields: [
-        'nationalId',  // Allow searching by encrypted national ID
+        'nationalId',       // Allow searching by encrypted national ID
     ]
 });
 
