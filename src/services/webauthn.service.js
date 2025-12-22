@@ -10,9 +10,9 @@
  */
 
 const {
-    generateRegistrationOptions,
+    generateRegistrationOptions: generateRegOptions,
     verifyRegistrationResponse,
-    generateAuthenticationOptions,
+    generateAuthenticationOptions: generateAuthOptions,
     verifyAuthenticationResponse
 } = require('@simplewebauthn/server');
 const WebAuthnCredential = require('../models/webauthnCredential.model');
@@ -47,7 +47,7 @@ const generateRegistrationOptions = async (user) => {
         }));
 
         // Generate registration options
-        const options = await generateRegistrationOptions({
+        const options = await generateRegOptions({
             rpName: RP_NAME,
             rpID: RP_ID,
             userID: user._id.toString(),
@@ -232,7 +232,7 @@ const generateAuthenticationOptions = async (user) => {
         }));
 
         // Generate authentication options
-        const options = await generateAuthenticationOptions({
+        const options = await generateAuthOptions({
             rpID: RP_ID,
 
             // Challenge timeout
