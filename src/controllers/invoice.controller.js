@@ -1573,14 +1573,61 @@ const createPaymentIntent = asyncHandler(async (req, res) => {
 /**
  * Confirm payment (Stripe webhook handler)
  * POST /api/invoices/confirm-payment
+ *
+ * SECURITY: This endpoint MUST validate Stripe webhook signatures
+ * to prevent fake payment confirmations and invoice fraud
  */
 const confirmPayment = asyncHandler(async (req, res) => {
-    const { paymentIntent } = req.body;
+    // SECURITY: Validate Stripe webhook signature
+    const sig = req.headers['stripe-signature'];
+    const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+
+    if (!webhookSecret) {
+        console.error('❌ SECURITY: STRIPE_WEBHOOK_SECRET not configured');
+        throw CustomException('Webhook configuration error', 500);
+    }
+
+    let event;
+    try {
+        // Construct the event from the raw body and signature
+        // Note: req.rawBody must be set by express.raw() middleware for this route
+        const rawBody = req.rawBody || req.body;
+
+        if (!sig) {
+            console.error('❌ SECURITY: Missing Stripe signature header');
+            throw CustomException('Missing webhook signature', 401);
+        }
+
+        event = stripe.webhooks.constructEvent(
+            typeof rawBody === 'string' ? rawBody : JSON.stringify(rawBody),
+            sig,
+            webhookSecret
+        );
+    } catch (err) {
+        console.error('❌ SECURITY: Stripe webhook signature verification failed:', err.message);
+        throw CustomException('Invalid webhook signature', 401);
+    }
+
+    // Only process payment_intent.succeeded events
+    if (event.type !== 'payment_intent.succeeded') {
+        // Acknowledge other event types but don't process them
+        return res.json({ received: true, processed: false, type: event.type });
+    }
+
+    const paymentIntentData = event.data.object;
+    const paymentIntent = paymentIntentData.id;
 
     const invoice = await Invoice.findOne({ paymentIntent });
 
     if (!invoice) {
-        throw CustomException('Invoice not found!', 404);
+        // Log but don't error - webhook might be for a different integration
+        console.warn(`Webhook received for unknown invoice with paymentIntent: ${paymentIntent}`);
+        return res.json({ received: true, processed: false, reason: 'unknown_invoice' });
+    }
+
+    // Prevent duplicate processing
+    if (invoice.status === 'paid') {
+        return res.json({ received: true, processed: false, reason: 'already_paid' });
     }
 
     invoice.status = 'paid';
@@ -1590,7 +1637,7 @@ const confirmPayment = asyncHandler(async (req, res) => {
     invoice.history.push({
         action: 'paid',
         date: new Date(),
-        note: 'Payment confirmed via Stripe'
+        note: 'Payment confirmed via Stripe webhook (signature verified)'
     });
 
     await invoice.save();
@@ -1617,7 +1664,7 @@ const confirmPayment = asyncHandler(async (req, res) => {
         clientId: invoice.clientId,
         relatedModel: 'Invoice',
         relatedId: invoice._id,
-        description: `Invoice ${invoice.invoiceNumber} paid in full`,
+        description: `Invoice ${invoice.invoiceNumber} paid in full (webhook verified)`,
         amount: invoice.totalAmount,
         ipAddress: req.ip,
         userAgent: req.get('user-agent')
@@ -1625,8 +1672,9 @@ const confirmPayment = asyncHandler(async (req, res) => {
 
     return res.json({
         success: true,
-        message: 'Payment confirmed successfully!',
-        data: invoice
+        received: true,
+        processed: true,
+        message: 'Payment confirmed successfully!'
     });
 });
 
