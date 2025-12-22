@@ -3,9 +3,91 @@ const logger = require('../utils/logger');
 const { getCookieConfig } = require('../controllers/auth.controller');
 
 /**
+ * Sec-Fetch-Site Validation (Modern CSRF Protection)
+ *
+ * Uses the browser's Sec-Fetch-Site header to block cross-site requests.
+ * This is the modern approach recommended by OWASP (added Dec 2024).
+ *
+ * Sec-Fetch-Site values:
+ * - 'same-origin': Request from same origin (SAFE)
+ * - 'same-site': Request from same site but different subdomain (configurable)
+ * - 'cross-site': Request from different site (BLOCKED)
+ * - 'none': User-initiated navigation (SAFE)
+ *
+ * @see https://cheatsheetseries.owasp.org/cheatsheets/Cross-Site_Request_Forgery_Prevention_Cheat_Sheet.html
+ */
+const validateSecFetchSite = (options = {}) => {
+    const {
+        allowSubdomains = false,  // Whether to allow same-site (subdomain) requests
+        strictMode = true          // In strict mode, reject unknown Sec-Fetch-Site values
+    } = options;
+
+    return (req, res, next) => {
+        // Skip for safe HTTP methods
+        if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
+            return next();
+        }
+
+        const secFetchSite = req.headers['sec-fetch-site'];
+
+        // If header is not present, fall back to Origin validation (for older browsers)
+        if (!secFetchSite) {
+            // This is handled by originCheck middleware as fallback
+            return next();
+        }
+
+        // Allow same-origin requests (always safe)
+        if (secFetchSite === 'same-origin') {
+            return next();
+        }
+
+        // Allow user-initiated navigation (e.g., clicking a link, typing URL)
+        if (secFetchSite === 'none') {
+            return next();
+        }
+
+        // Allow same-site (subdomain) requests if configured
+        if (secFetchSite === 'same-site' && allowSubdomains) {
+            return next();
+        }
+
+        // Block cross-site requests
+        if (secFetchSite === 'cross-site' || secFetchSite === 'same-site') {
+            logger.warn('Sec-Fetch-Site CSRF protection triggered', {
+                secFetchSite,
+                method: req.method,
+                path: req.path,
+                origin: req.headers.origin,
+                ip: req.ip,
+                userAgent: req.headers['user-agent']
+            });
+
+            return res.status(403).json({
+                error: true,
+                message: 'Cross-site request blocked',
+                code: 'CSRF_BLOCKED'
+            });
+        }
+
+        // Unknown value - handle based on strictMode
+        if (strictMode) {
+            logger.warn('Unknown Sec-Fetch-Site value', { secFetchSite });
+            return res.status(403).json({
+                error: true,
+                message: 'Invalid request origin',
+                code: 'CSRF_INVALID'
+            });
+        }
+
+        next();
+    };
+};
+
+/**
  * Origin Check Middleware
  * Verifies that the Origin or Referer header matches allowed origins
  * Provides defense-in-depth against CSRF attacks
+ * Also serves as fallback for browsers that don't support Sec-Fetch-Site
  */
 const allowedOrigins = [
     // Production URLs
@@ -342,6 +424,7 @@ const sanitizeRequest = (req, res, next) => {
 };
 
 module.exports = {
+    validateSecFetchSite,
     originCheck,
     noCache,
     validateContentType,

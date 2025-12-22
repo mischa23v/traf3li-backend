@@ -48,6 +48,7 @@ const logger = require('./utils/logger');
 const { apiRateLimiter, speedLimiter, smartRateLimiter, authRateLimiter } = require('./middlewares/rateLimiter.middleware');
 const { sanitizeAll } = require('./middlewares/sanitize.middleware');
 const {
+    validateSecFetchSite,
     originCheck,
     noCache,
     validateContentType,
@@ -562,7 +563,13 @@ app.use('/api', smartRateLimiter);
 // Tuned for SPA: 200 requests/min at full speed, then 200ms delays (max 5s)
 app.use('/api', speedLimiter);
 
+// ✅ SECURITY: Sec-Fetch-Site validation (Modern CSRF protection - OWASP recommended Dec 2024)
+// Uses browser's Sec-Fetch-Site header to block cross-site requests
+// Falls through to originCheck for older browsers that don't support this header
+app.use('/api', validateSecFetchSite({ allowSubdomains: false, strictMode: true }));
+
 // ✅ SECURITY: Origin check for state-changing operations (CSRF defense-in-depth)
+// Also serves as fallback for browsers without Sec-Fetch-Site support
 app.use('/api', originCheck);
 
 // ✅ SECURITY: CSRF token validation for state-changing operations
@@ -1114,8 +1121,9 @@ server.listen(PORT, () => {
         cors: 'enabled with strict origin validation (production hardened)',
         rateLimiting: 'API rate limiter + speed limiter',
         requestLogging: 'enabled with correlation IDs',
-        csrf: 'double-submit cookie pattern',
-        originCheck: 'enabled for state-changing operations',
+        csrf: 'double-submit cookie pattern + Sec-Fetch-Site validation (OWASP Dec 2024)',
+        secFetchSite: 'modern CSRF protection using browser Sec-Fetch-Site header',
+        originCheck: 'enabled as fallback for legacy browsers',
         contentTypeValidation: 'enabled for POST/PUT/PATCH',
         requestSanitization: 'enabled (null bytes, XSS prevention)',
         noCacheHeaders: 'applied to sensitive endpoints',
