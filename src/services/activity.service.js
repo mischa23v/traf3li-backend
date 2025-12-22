@@ -17,25 +17,8 @@
 
 const mongoose = require('mongoose');
 const AuditLogService = require('./auditLog.service');
-
-// TODO: Import Activity and ActivityType models once created
-// const Activity = require('../models/activity.model');
-// const ActivityType = require('../models/activityType.model');
-
-// Placeholder models until real models are created
-const Activity = {
-  create: async (data) => ({ _id: new mongoose.Types.ObjectId(), ...data }),
-  findById: async (id) => null,
-  findByIdAndUpdate: async (id, update, options) => null,
-  find: async (query) => [],
-  countDocuments: async (query) => 0,
-  aggregate: async (pipeline) => []
-};
-
-const ActivityType = {
-  findById: async (id) => null,
-  find: async (query) => []
-};
+const Activity = require('../models/activity.model');
+const ActivityType = require('../models/activityType.model');
 
 class ActivityService {
   /**

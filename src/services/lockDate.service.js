@@ -120,11 +120,12 @@ class LockDateService {
       return await LockDate.checkDateLocked(firmId, date, lockType);
     } catch (error) {
       console.error('LockDateService.checkDateLocked failed:', error.message);
+      // SECURITY: Fail secure - treat errors as locked to prevent unauthorized access
       return {
-        isLocked: false,
+        isLocked: true,
         lockDate: null,
-        lockType: null,
-        message: 'Error checking lock status'
+        lockType: 'error',
+        message: 'Unable to verify lock status. Transaction blocked for safety.'
       };
     }
   }

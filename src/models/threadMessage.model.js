@@ -74,7 +74,7 @@ const threadMessageSchema = new mongoose.Schema({
     // ═══════════════════════════════════════════════════════════════
     message_type: {
         type: String,
-        enum: ['comment', 'notification', 'email', 'activity_done', 'stage_change', 'auto_log'],
+        enum: ['comment', 'notification', 'email', 'activity_done', 'stage_change', 'auto_log', 'note', 'activity', 'tracking'],
         default: 'comment',
         index: true
     },
@@ -188,6 +188,9 @@ threadMessageSchema.index({ parent_id: 1 });
 
 // Index for internal vs public filtering
 threadMessageSchema.index({ res_model: 1, res_id: 1, is_internal: 1 });
+
+// Text index for full-text search on subject and body
+threadMessageSchema.index({ subject: 'text', body: 'text' });
 
 // ═══════════════════════════════════════════════════════════════
 // VIRTUAL: is_starred

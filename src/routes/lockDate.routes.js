@@ -17,8 +17,8 @@ const app = express.Router();
 // STATIC ROUTES (must be before parameterized routes)
 // ═══════════════════════════════════════════════════════════════
 
-// Update fiscal year end
-app.patch('/fiscal-year', userMiddleware, updateFiscalYearEnd);
+// Update fiscal year end (admin only)
+app.patch('/fiscal-year', userMiddleware, requireAdmin, updateFiscalYearEnd);
 
 // Get lock history
 app.get('/history', userMiddleware, getLockHistory);
@@ -33,8 +33,8 @@ app.post('/check', userMiddleware, checkDate);
 // Get fiscal periods
 app.get('/periods', userMiddleware, getFiscalPeriods);
 
-// Lock fiscal period
-app.post('/periods/lock', userMiddleware, lockPeriod);
+// Lock fiscal period (admin only)
+app.post('/periods/lock', userMiddleware, requireAdmin, lockPeriod);
 
 // Reopen fiscal period (requires admin)
 app.post('/periods/reopen', userMiddleware, requireAdmin, reopenPeriod);

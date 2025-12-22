@@ -874,8 +874,8 @@ app.use('/api/webhooks', noCache, webhookRoute); // No cache for webhook managem
 // ============================================
 // ODOO INTEGRATION ROUTES
 // ============================================
-app.use('/api/activities', activityRoutes);
-app.use('/api/messages', threadMessageRoutes);
+app.use('/api/record-activities', activityRoutes);  // Renamed to avoid conflict with /api/activities
+app.use('/api/chatter', threadMessageRoutes);  // Renamed to avoid conflict with /api/messages
 app.use('/api/lock-dates', noCache, lockDateRoutes);
 app.use('/api/automated-actions', noCache, automatedActionRoutes);
 
