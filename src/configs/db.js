@@ -1,5 +1,10 @@
 const mongoose = require('mongoose');
-const logger = require('../utils/contextLogger').child({ module: 'Database' });
+const contextLogger = require('../utils/contextLogger');
+const logger = contextLogger.child({ module: 'Database' });
+
+// Import db helpers directly for slow query logging
+// Note: child() returns a Winston child logger which doesn't have the custom .db property
+const { db: dbLogger } = contextLogger;
 
 mongoose.set('strictQuery', true);
 
@@ -40,7 +45,7 @@ mongoose.plugin((schema) => {
         const duration = Date.now() - this._startTime;
         if (duration > SLOW_QUERY_THRESHOLD_MS) {
           const queryInfo = this.getQuery ? JSON.stringify(this.getQuery()).slice(0, 300) : 'N/A';
-          logger.db.slowQuery(method, this.constructor.modelName, queryInfo, duration);
+          dbLogger.slowQuery(method, this.constructor.modelName, queryInfo, duration);
         }
       }
     });
