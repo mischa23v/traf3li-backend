@@ -278,7 +278,13 @@ const {
     ,
 
     // SSO Configuration (Enterprise SSO Management UI)
-    ssoConfigRoute
+    ssoConfigRoute,
+
+    // Odoo Integration
+    activityRoutes,
+    threadMessageRoutes,
+    lockDateRoutes,
+    automatedActionRoutes
 } = require('./routes');
 
 // Import versioned routes
@@ -864,6 +870,14 @@ app.use('/api/api-keys', apiKeyRoute);
 // WEBHOOK ROUTES (Third-Party Integrations)
 // ============================================
 app.use('/api/webhooks', noCache, webhookRoute); // No cache for webhook management
+
+// ============================================
+// ODOO INTEGRATION ROUTES
+// ============================================
+app.use('/api/record-activities', activityRoutes);  // Renamed to avoid conflict with /api/activities
+app.use('/api/chatter', threadMessageRoutes);  // Renamed to avoid conflict with /api/messages
+app.use('/api/lock-dates', noCache, lockDateRoutes);
+app.use('/api/automated-actions', noCache, automatedActionRoutes);
 
 // ============================================
 // ALIAS ROUTES (for frontend compatibility)

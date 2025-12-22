@@ -214,6 +214,12 @@ const ssoConfigRoute = require('./ssoConfig.route');
 // MFA Routes (Multi-Factor Authentication - TOTP)
 const mfaRoute = require('./mfa.route');
 
+// Odoo Integration Routes
+const activityRoutes = require('./activity.routes');
+const threadMessageRoutes = require('./threadMessage.routes');
+const lockDateRoutes = require('./lockDate.routes');
+const automatedActionRoutes = require('./automatedAction.routes');
+
 module.exports = {
     // Marketplace
     gigRoute,
@@ -427,5 +433,11 @@ module.exports = {
     samlRoute,
 
     // SSO Configuration (Enterprise SSO Management UI)
-    ssoConfigRoute
+    ssoConfigRoute,
+
+    // Odoo Integration
+    activityRoutes,
+    threadMessageRoutes,
+    lockDateRoutes,
+    automatedActionRoutes
 };

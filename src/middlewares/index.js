@@ -73,6 +73,17 @@ const {
     bypassIPRestriction,
     hasIPRestrictionBypass
 } = require('./ipRestriction.middleware');
+const {
+    checkLockDate,
+    checkInvoiceLockDate,
+    checkPaymentLockDate,
+    checkExpenseLockDate,
+    checkBankLockDate,
+    checkJournalLockDate,
+    requireUnlockedPeriod,
+    extractTransactionDate,
+    extractFirmId
+} = require('./lockDate.middleware');
 
 module.exports = {
     userMiddleware,
@@ -142,5 +153,15 @@ module.exports = {
     ipRestrictionMiddleware,
     ipRestrictionWithOptions,
     bypassIPRestriction,
-    hasIPRestrictionBypass
+    hasIPRestrictionBypass,
+    // Lock date middleware (fiscal period controls)
+    checkLockDate,
+    checkInvoiceLockDate,
+    checkPaymentLockDate,
+    checkExpenseLockDate,
+    checkBankLockDate,
+    checkJournalLockDate,
+    requireUnlockedPeriod,
+    extractTransactionDate,
+    extractFirmId
 }
