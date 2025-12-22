@@ -1,5 +1,5 @@
 const express = require('express');
-const { authLogin, authLogout, authLogoutAll, authRegister, authStatus, checkAvailability } = require('../controllers/auth.controller');
+const { authLogin, authLogout, authLogoutAll, authRegister, authStatus, checkAvailability, getOnboardingStatus } = require('../controllers/auth.controller');
 const { sendOTP, verifyOTP, resendOTP, checkOTPStatus } = require('../controllers/otp.controller');
 const {
     generateBackupCodes,
@@ -203,6 +203,69 @@ app.post("/logout-all", authenticate, authLogoutAll)
  *         $ref: '#/components/responses/Unauthorized'
  */
 app.get('/me', authenticate, authStatus);
+
+/**
+ * @openapi
+ * /api/auth/onboarding-status:
+ *   get:
+ *     summary: Get user's onboarding completion status
+ *     description: Returns whether the user has completed the required onboarding/setup wizard tasks
+ *     tags:
+ *       - Authentication
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Onboarding status retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     isComplete:
+ *                       type: boolean
+ *                       description: Whether all required tasks are complete
+ *                     hasStarted:
+ *                       type: boolean
+ *                       description: Whether user has started onboarding
+ *                     progress:
+ *                       type: object
+ *                       properties:
+ *                         total:
+ *                           type: number
+ *                         completed:
+ *                           type: number
+ *                         percentage:
+ *                           type: number
+ *                     required:
+ *                       type: object
+ *                       properties:
+ *                         total:
+ *                           type: number
+ *                         completed:
+ *                           type: number
+ *                         isComplete:
+ *                           type: boolean
+ *                     nextTask:
+ *                       type: object
+ *                       nullable: true
+ *                       properties:
+ *                         taskId:
+ *                           type: string
+ *                         name:
+ *                           type: string
+ *                         route:
+ *                           type: string
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ */
+app.get('/onboarding-status', authenticate, publicRateLimiter, getOnboardingStatus);
 
 // ========== OTP Authentication ==========
 /**

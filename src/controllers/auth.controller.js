@@ -1182,6 +1182,106 @@ const authLogoutAll = async (request, response) => {
     }
 };
 
+/**
+ * Get user's onboarding/setup wizard completion status
+ * GET /api/auth/onboarding-status
+ */
+const getOnboardingStatus = async (request, response) => {
+    try {
+        const userId = request.userID;
+        const firmId = request.firmId;
+
+        // If user has no firm, they may not need onboarding (solo users)
+        if (!firmId) {
+            return response.status(200).json({
+                success: true,
+                data: {
+                    isComplete: true,
+                    hasStarted: false,
+                    progress: {
+                        total: 0,
+                        completed: 0,
+                        percentage: 100
+                    },
+                    required: {
+                        total: 0,
+                        completed: 0,
+                        isComplete: true
+                    },
+                    nextTask: null
+                }
+            });
+        }
+
+        // Get setup progress models
+        const UserSetupProgress = require('../models/userSetupProgress.model');
+        const SetupTask = require('../models/setupTask.model');
+
+        // Get all required tasks
+        const requiredTasks = await SetupTask.find({ isActive: true, isRequired: true }).lean();
+        const allTasks = await SetupTask.find({ isActive: true }).lean();
+
+        // Get user's progress
+        const progress = await UserSetupProgress.find({ userId, firmId }).lean();
+
+        // Calculate completion
+        const completedOrSkipped = progress.filter(p => p.isCompleted || p.skipped);
+        const requiredTaskIds = requiredTasks.map(t => t.taskId);
+        const requiredCompleted = progress.filter(
+            p => requiredTaskIds.includes(p.taskId) && (p.isCompleted || p.skipped)
+        );
+
+        const isComplete = requiredCompleted.length >= requiredTasks.length;
+        const hasStarted = progress.length > 0;
+
+        // Get next task if not complete
+        let nextTask = null;
+        if (!isComplete) {
+            const nextTaskData = await UserSetupProgress.getNextTask(userId, firmId);
+            if (nextTaskData) {
+                nextTask = {
+                    taskId: nextTaskData.task.taskId,
+                    name: nextTaskData.task.name,
+                    description: nextTaskData.task.description,
+                    route: nextTaskData.task.route,
+                    section: nextTaskData.section?.name || null
+                };
+            }
+        }
+
+        return response.status(200).json({
+            success: true,
+            data: {
+                isComplete,
+                hasStarted,
+                progress: {
+                    total: allTasks.length,
+                    completed: completedOrSkipped.length,
+                    percentage: allTasks.length > 0
+                        ? Math.round((completedOrSkipped.length / allTasks.length) * 100)
+                        : 0
+                },
+                required: {
+                    total: requiredTasks.length,
+                    completed: requiredCompleted.length,
+                    isComplete
+                },
+                nextTask
+            }
+        });
+    } catch (error) {
+        logger.error('Failed to get onboarding status', { error: error.message });
+        return response.status(500).json({
+            success: false,
+            error: {
+                code: 'INTERNAL_ERROR',
+                message: 'Failed to get onboarding status',
+                messageAr: 'فشل في الحصول على حالة الإعداد'
+            }
+        });
+    }
+};
+
 module.exports = {
     authLogin,
     authLogout,
@@ -1189,6 +1289,7 @@ module.exports = {
     authRegister,
     authStatus,
     checkAvailability,
+    getOnboardingStatus,
     getCookieConfig,
     getCookieDomain
 };
