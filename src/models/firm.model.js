@@ -403,7 +403,54 @@ const firmSchema = new mongoose.Schema({
         dataRetentionDays: { type: Number, default: 365 },
         autoDeleteOldData: { type: Boolean, default: false },
         gdprToolsEnabled: { type: Boolean, default: false },
-        dataExportEnabled: { type: Boolean, default: true }
+        dataExportEnabled: { type: Boolean, default: true },
+
+        // Data Residency & Sovereignty (Aramco/PDPL Compliance)
+        dataResidency: {
+            // Primary data region - where all firm data must be stored
+            primaryRegion: {
+                type: String,
+                enum: ['me-south-1', 'eu-central-1', 'us-east-1', 'ap-southeast-1'],
+                default: 'me-south-1'  // Middle East (Bahrain) - default for Saudi compliance
+            },
+            // Backup/DR region for disaster recovery
+            backupRegion: {
+                type: String,
+                enum: ['me-south-1', 'eu-central-1', 'us-east-1', 'ap-southeast-1', null],
+                default: null
+            },
+            // Enforce strict data residency (block cross-region data transfer)
+            enforceStrictResidency: { type: Boolean, default: true },
+            // Country restrictions - data can only be accessed from these countries
+            allowedCountries: {
+                type: [String],
+                default: ['SA', 'AE', 'BH', 'KW', 'OM', 'QA']  // GCC countries
+            },
+            // S3 bucket for this firm's documents (region-specific)
+            dedicatedBucket: String,
+            // Encryption key ARN for this firm's data (KMS)
+            kmsKeyArn: String,
+            // Compliance framework requirements
+            complianceFrameworks: {
+                type: [String],
+                enum: ['PDPL', 'NCA-ECC', 'GDPR', 'HIPAA', 'SOC2', 'ISO27001'],
+                default: ['PDPL', 'NCA-ECC']
+            },
+            // Data classification level
+            dataClassification: {
+                type: String,
+                enum: ['public', 'internal', 'confidential', 'restricted'],
+                default: 'confidential'
+            },
+            // Last compliance audit date
+            lastComplianceAudit: Date,
+            // Compliance officer contact
+            complianceOfficer: {
+                name: String,
+                email: String,
+                phone: String
+            }
+        }
     },
 
     // ═══════════════════════════════════════════════════════════════

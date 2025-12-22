@@ -2428,6 +2428,272 @@ export const App: React.FC = () => {
 
 ---
 
+## 8. Data Residency (Enterprise)
+
+For enterprise customers (like Aramco), data residency controls where data is stored and who can access it.
+
+### 8.1 Data Residency Error Handling
+
+Users may be blocked based on their geographic location:
+
+```typescript
+// Handle data residency errors in API client
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.data?.code === 'DATA_RESIDENCY_BLOCKED') {
+      // User is accessing from a non-allowed country
+      showBlockedAccessModal({
+        message: error.response.data.error,
+        allowedCountries: error.response.data.allowedCountries
+      });
+      return Promise.reject(error);
+    }
+
+    if (error.response?.data?.code === 'DATA_RESIDENCY_COMPLIANCE_VIOLATION') {
+      // Operation violates data residency policy
+      toast.error('This operation is not allowed due to data residency restrictions');
+      return Promise.reject(error);
+    }
+
+    return Promise.reject(error);
+  }
+);
+```
+
+### 8.2 Data Residency Settings UI (Admin Only)
+
+```typescript
+interface DataResidencyConfig {
+  primaryRegion: 'me-south-1' | 'eu-central-1' | 'us-east-1' | 'ap-southeast-1';
+  backupRegion?: string;
+  enforceStrictResidency: boolean;
+  allowedCountries: string[];
+  complianceFrameworks: ('PDPL' | 'NCA-ECC' | 'GDPR' | 'HIPAA' | 'SOC2' | 'ISO27001')[];
+  dataClassification: 'public' | 'internal' | 'confidential' | 'restricted';
+  complianceOfficer?: {
+    name: string;
+    email: string;
+    phone: string;
+  };
+}
+
+const DataResidencySettings: React.FC = () => {
+  const [config, setConfig] = useState<DataResidencyConfig | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  // Available regions
+  const regions = [
+    { code: 'me-south-1', name: 'Middle East (Bahrain)', pdplCompliant: true },
+    { code: 'eu-central-1', name: 'Europe (Frankfurt)', gdprCompliant: true },
+    { code: 'us-east-1', name: 'US East (N. Virginia)', pdplCompliant: false },
+    { code: 'ap-southeast-1', name: 'Asia Pacific (Singapore)', pdplCompliant: false }
+  ];
+
+  // GCC country codes
+  const gccCountries = [
+    { code: 'SA', name: 'Saudi Arabia' },
+    { code: 'AE', name: 'United Arab Emirates' },
+    { code: 'BH', name: 'Bahrain' },
+    { code: 'KW', name: 'Kuwait' },
+    { code: 'OM', name: 'Oman' },
+    { code: 'QA', name: 'Qatar' }
+  ];
+
+  useEffect(() => {
+    fetchConfig();
+  }, []);
+
+  const fetchConfig = async () => {
+    try {
+      const response = await api.get('/api/firms/current/data-residency');
+      setConfig(response.data.dataResidency);
+    } catch (error) {
+      toast.error('Failed to load data residency settings');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const updateConfig = async (updates: Partial<DataResidencyConfig>) => {
+    try {
+      await api.put('/api/firms/current/data-residency', updates);
+      toast.success('Data residency settings updated');
+      fetchConfig();
+    } catch (error) {
+      toast.error('Failed to update settings');
+    }
+  };
+
+  if (loading) return <Spinner />;
+
+  return (
+    <div className="space-y-6">
+      <h2 className="text-xl font-bold">Data Residency & Compliance</h2>
+
+      {/* Primary Region Selection */}
+      <div>
+        <label className="block font-medium mb-2">Primary Data Region</label>
+        <select
+          value={config?.primaryRegion}
+          onChange={(e) => updateConfig({ primaryRegion: e.target.value as any })}
+          className="w-full border rounded p-2"
+        >
+          {regions.map(region => (
+            <option key={region.code} value={region.code}>
+              {region.name} {region.pdplCompliant && '(PDPL Compliant)'}
+            </option>
+          ))}
+        </select>
+        <p className="text-sm text-gray-500 mt-1">
+          For Saudi PDPL compliance, use Middle East (Bahrain)
+        </p>
+      </div>
+
+      {/* Strict Residency Toggle */}
+      <div className="flex items-center justify-between">
+        <div>
+          <label className="font-medium">Enforce Strict Data Residency</label>
+          <p className="text-sm text-gray-500">
+            Block access from countries not in the allowed list
+          </p>
+        </div>
+        <Switch
+          checked={config?.enforceStrictResidency}
+          onChange={(checked) => updateConfig({ enforceStrictResidency: checked })}
+        />
+      </div>
+
+      {/* Allowed Countries */}
+      <div>
+        <label className="block font-medium mb-2">Allowed Access Countries</label>
+        <div className="grid grid-cols-3 gap-2">
+          {gccCountries.map(country => (
+            <label key={country.code} className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                checked={config?.allowedCountries?.includes(country.code)}
+                onChange={(e) => {
+                  const countries = e.target.checked
+                    ? [...(config?.allowedCountries || []), country.code]
+                    : config?.allowedCountries?.filter(c => c !== country.code) || [];
+                  updateConfig({ allowedCountries: countries });
+                }}
+              />
+              <span>{country.name}</span>
+            </label>
+          ))}
+        </div>
+      </div>
+
+      {/* Compliance Frameworks */}
+      <div>
+        <label className="block font-medium mb-2">Compliance Frameworks</label>
+        <div className="flex flex-wrap gap-2">
+          {['PDPL', 'NCA-ECC', 'GDPR', 'SOC2', 'ISO27001'].map(framework => (
+            <span
+              key={framework}
+              className={`px-3 py-1 rounded-full text-sm ${
+                config?.complianceFrameworks?.includes(framework as any)
+                  ? 'bg-green-100 text-green-800'
+                  : 'bg-gray-100 text-gray-600'
+              }`}
+            >
+              {framework}
+            </span>
+          ))}
+        </div>
+      </div>
+
+      {/* Data Classification */}
+      <div>
+        <label className="block font-medium mb-2">Data Classification Level</label>
+        <select
+          value={config?.dataClassification}
+          onChange={(e) => updateConfig({ dataClassification: e.target.value as any })}
+          className="w-full border rounded p-2"
+        >
+          <option value="public">Public</option>
+          <option value="internal">Internal</option>
+          <option value="confidential">Confidential</option>
+          <option value="restricted">Restricted</option>
+        </select>
+      </div>
+    </div>
+  );
+};
+```
+
+### 8.3 Geographic Access Blocked Modal
+
+```typescript
+interface BlockedAccessModalProps {
+  message: string;
+  allowedCountries: string[];
+  onClose: () => void;
+}
+
+const BlockedAccessModal: React.FC<BlockedAccessModalProps> = ({
+  message,
+  allowedCountries,
+  onClose
+}) => {
+  const countryNames: Record<string, string> = {
+    SA: 'Saudi Arabia',
+    AE: 'United Arab Emirates',
+    BH: 'Bahrain',
+    KW: 'Kuwait',
+    OM: 'Oman',
+    QA: 'Qatar'
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg p-6 max-w-md">
+        <div className="text-center">
+          <div className="text-red-500 text-5xl mb-4">🚫</div>
+          <h2 className="text-xl font-bold mb-2">Access Restricted</h2>
+          <p className="text-gray-600 mb-4">{message}</p>
+
+          <div className="bg-gray-50 p-4 rounded mb-4">
+            <p className="font-medium mb-2">Allowed Countries:</p>
+            <div className="flex flex-wrap justify-center gap-2">
+              {allowedCountries.map(code => (
+                <span key={code} className="px-2 py-1 bg-green-100 rounded text-sm">
+                  {countryNames[code] || code}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          <p className="text-sm text-gray-500 mb-4">
+            Contact your administrator if you need access from your current location.
+          </p>
+
+          <button
+            onClick={onClose}
+            className="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+```
+
+### 8.4 Data Residency Error Codes
+
+| Code | Description | User Action |
+|------|-------------|-------------|
+| `DATA_RESIDENCY_BLOCKED` | Access from non-allowed country | Use VPN to allowed country or contact admin |
+| `DATA_RESIDENCY_COMPLIANCE_VIOLATION` | Operation violates policy | Cannot transfer data cross-region |
+| `DATA_RESIDENCY_UNKNOWN_LOCATION` | Could not determine location | Check network/VPN settings |
+| `DATA_RESIDENCY_ERROR` | Server-side validation error | Contact support |
+
+---
+
 ## Summary
 
 This documentation covers:
@@ -2438,5 +2704,6 @@ This documentation covers:
 ✅ **Session Management** - Multi-device session tracking and termination
 ✅ **Error Handling** - Comprehensive error codes and handling strategies
 ✅ **TypeScript Types** - Full type definitions for all APIs
+✅ **Data Residency** - Geographic access controls and compliance settings (Enterprise)
 
 All examples are production-ready with proper error handling, loading states, and user feedback.
