@@ -7,7 +7,7 @@ const {
     syncUsers,
     login
 } = require('../controllers/ldap.controller');
-const { authenticate, adminOnly } = require('../middlewares');
+const { authenticate, requireAdmin } = require('../middlewares');
 const { authRateLimiter, sensitiveRateLimiter } = require('../middlewares/rateLimiter.middleware');
 
 const router = express.Router();
@@ -51,7 +51,7 @@ const router = express.Router();
  *       403:
  *         $ref: '#/components/responses/Forbidden'
  */
-router.get('/config', authenticate, adminOnly, getConfig);
+router.get('/config', authenticate, requireAdmin(), getConfig);
 
 /**
  * @openapi
@@ -132,7 +132,7 @@ router.get('/config', authenticate, adminOnly, getConfig);
  *       403:
  *         $ref: '#/components/responses/Forbidden'
  */
-router.post('/config', authenticate, adminOnly, sensitiveRateLimiter, saveConfig);
+router.post('/config', authenticate, requireAdmin(), sensitiveRateLimiter, saveConfig);
 
 /**
  * @openapi
@@ -181,7 +181,7 @@ router.post('/config', authenticate, adminOnly, sensitiveRateLimiter, saveConfig
  *       403:
  *         $ref: '#/components/responses/Forbidden'
  */
-router.post('/test', authenticate, adminOnly, authRateLimiter, testConnection);
+router.post('/test', authenticate, requireAdmin(), authRateLimiter, testConnection);
 
 /**
  * @openapi
@@ -233,7 +233,7 @@ router.post('/test', authenticate, adminOnly, authRateLimiter, testConnection);
  *       403:
  *         $ref: '#/components/responses/Forbidden'
  */
-router.post('/test-auth', authenticate, adminOnly, authRateLimiter, testAuth);
+router.post('/test-auth', authenticate, requireAdmin(), authRateLimiter, testAuth);
 
 /**
  * @openapi
@@ -289,7 +289,7 @@ router.post('/test-auth', authenticate, adminOnly, authRateLimiter, testAuth);
  *       403:
  *         $ref: '#/components/responses/Forbidden'
  */
-router.post('/sync', authenticate, adminOnly, sensitiveRateLimiter, syncUsers);
+router.post('/sync', authenticate, requireAdmin(), sensitiveRateLimiter, syncUsers);
 
 // ========================================================================
 // PUBLIC AUTH ROUTES - LDAP Login

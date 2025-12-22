@@ -507,12 +507,113 @@ const deleteActivityType = asyncHandler(async (req, res) => {
     });
 });
 
+/**
+ * Get activity summary
+ * GET /api/activities/summary
+ */
+const getActivitySummary = asyncHandler(async (req, res) => {
+    const lawyerId = req.userID;
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    const [
+        totalPlanned,
+        todayActivities,
+        overdueActivities,
+        completedThisWeek,
+        recentActivities
+    ] = await Promise.all([
+        Activity.countDocuments({ lawyerId, state: 'planned' }),
+        Activity.countDocuments({
+            lawyerId,
+            state: { $in: ['planned', 'today'] },
+            date_deadline: { $gte: today, $lt: tomorrow }
+        }),
+        Activity.countDocuments({
+            lawyerId,
+            state: { $in: ['planned', 'today', 'overdue'] },
+            date_deadline: { $lt: today }
+        }),
+        Activity.countDocuments({
+            lawyerId,
+            state: 'done',
+            done_date: {
+                $gte: new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000)
+            }
+        }),
+        Activity.find({ lawyerId })
+            .populate('activity_type_id', 'name nameAr icon color')
+            .populate('user_id', 'firstName lastName email')
+            .sort({ date_deadline: 1, createdAt: -1 })
+            .limit(5)
+    ]);
+
+    res.status(200).json({
+        success: true,
+        data: {
+            totalPlanned,
+            todayActivities,
+            overdueActivities,
+            completedThisWeek,
+            recentActivities
+        }
+    });
+});
+
+/**
+ * Get entity-specific activities
+ * GET /api/activities/entity/:entityType/:entityId
+ */
+const getEntityActivities = asyncHandler(async (req, res) => {
+    const { entityType, entityId } = req.params;
+    const { state, page = 1, limit = 20 } = req.query;
+    const lawyerId = req.userID;
+
+    const query = {
+        lawyerId,
+        res_model: entityType,
+        res_id: entityId
+    };
+
+    if (state) {
+        query.state = state;
+    }
+
+    const activities = await Activity.find(query)
+        .populate('activity_type_id', 'name nameAr icon color')
+        .populate('user_id', 'firstName lastName email avatar')
+        .populate('createdBy', 'firstName lastName')
+        .populate('done_by', 'firstName lastName')
+        .sort({ date_deadline: 1, createdAt: -1 })
+        .limit(parseInt(limit))
+        .skip((parseInt(page) - 1) * parseInt(limit));
+
+    const total = await Activity.countDocuments(query);
+
+    res.status(200).json({
+        success: true,
+        data: activities,
+        pagination: {
+            page: parseInt(page),
+            limit: parseInt(limit),
+            total,
+            pages: Math.ceil(total / parseInt(limit))
+        }
+    });
+});
+
 module.exports = {
     scheduleActivity,
     getActivities,
     getActivity,
     getMyActivities,
     getActivityStats,
+    getActivitySummary,
+    getEntityActivities,
     markAsDone,
     cancelActivity,
     reschedule,
