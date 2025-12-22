@@ -217,6 +217,13 @@ const Webhook = require('./webhook.model');
 // PDPL Consent Model
 const Consent = require('./consent.model');
 
+// Odoo-Inspired Models
+const Activity = require('./activity.model');
+const ActivityType = require('./activityType.model');
+const ThreadMessage = require('./threadMessage.model');
+const LockDate = require('./lockDate.model');
+const AutomatedAction = require('./automatedAction.model');
+
 module.exports = {
     // Marketplace
     User,
@@ -435,5 +442,12 @@ module.exports = {
     RevokedToken,
     SecurityIncident,
     ArchivedAuditLog,
-    PasswordHistory
+    PasswordHistory,
+
+    // Odoo-Inspired
+    Activity,
+    ActivityType,
+    ThreadMessage,
+    LockDate,
+    AutomatedAction
 };
