@@ -10,6 +10,11 @@ const router = express.Router();
 const authenticate = require('../middlewares/authenticate');
 const { authorize } = require('../middlewares/authorize.middleware');
 const AuditLog = require('../models/auditLog.model');
+const {
+  receiveCspReport,
+  getCspViolations,
+  clearCspViolations
+} = require('../controllers/cspReport.controller');
 
 /**
  * POST /api/security/incidents/report
@@ -360,5 +365,30 @@ router.post('/vulnerability/report', async (req, res) => {
     });
   }
 });
+
+// ============================================
+// CSP VIOLATION REPORTING ENDPOINTS
+// ============================================
+
+/**
+ * POST /api/security/csp-report
+ * Receive CSP violation reports from browsers
+ * Public endpoint (called automatically by browser)
+ *
+ * Note: Must accept Content-Type: application/csp-report
+ */
+router.post('/csp-report', receiveCspReport);
+
+/**
+ * GET /api/security/csp-violations
+ * Get CSP violation statistics (admin only)
+ */
+router.get('/csp-violations', authenticate, authorize('admin', 'owner'), getCspViolations);
+
+/**
+ * DELETE /api/security/csp-violations
+ * Clear CSP violation statistics (admin only)
+ */
+router.delete('/csp-violations', authenticate, authorize('admin', 'owner'), clearCspViolations);
 
 module.exports = router;

@@ -1,5 +1,22 @@
 // ============================================
-// SENTRY INITIALIZATION - Must be first!
+// ENVIRONMENT VALIDATION - Must be first!
+// ============================================
+// Validate all required environment variables before starting the server
+// This ensures we fail fast with clear error messages if configuration is missing
+const { validateRequiredEnvVars, displayConfigSummary } = require('./utils/startupValidation');
+
+try {
+    validateRequiredEnvVars();
+    displayConfigSummary();
+} catch (error) {
+    console.error('\n❌ STARTUP FAILED:', error.message);
+    console.error('\nServer cannot start without required environment variables.');
+    console.error('Please fix the configuration errors above and try again.\n');
+    process.exit(1);
+}
+
+// ============================================
+// SENTRY INITIALIZATION - Must be after validation!
 // ============================================
 // Initialize Sentry before any other imports for proper error tracking
 const {
@@ -25,6 +42,7 @@ const { startRecurringInvoiceJobs } = require('./jobs/recurringInvoice.job');
 const { startTimeEntryJobs } = require('./jobs/timeEntryLocking.job');
 const { startPlanJobs } = require('./jobs/planExpiration.job');
 const { startDataRetentionJob } = require('./jobs/dataRetention.job');
+const { scheduleSessionCleanup } = require('./jobs/sessionCleanup.job');
 const { initSocket } = require('./configs/socket');
 const logger = require('./utils/logger');
 const { apiRateLimiter, speedLimiter, smartRateLimiter, authRateLimiter } = require('./middlewares/rateLimiter.middleware');
@@ -38,6 +56,8 @@ const {
     securityHeaders,
     sanitizeRequest
 } = require('./middlewares/security.middleware');
+const { generateNonce } = require('./middlewares/nonce.middleware');
+const { enhancedSecurityHeaders, apiSecurityHeaders } = require('./middlewares/securityHeaders.middleware');
 const { checkSessionTimeout } = require('./middlewares/sessionTimeout.middleware');
 const {
     apiVersionMiddleware,
@@ -48,6 +68,8 @@ const {
     // Marketplace
     gigRoute,
     authRoute,
+    mfaRoute,
+    adminRoute,
     orderRoute,
     conversationRoute,
     messageRoute,
@@ -209,6 +231,9 @@ const {
     // Security Incident Reporting (NCA ECC-2:2024 Compliance)
     securityIncidentRoute,
 
+    // Security Monitoring & Alerting
+    securityRoute,
+
     // PDPL Consent Management
     consentRoute,
 
@@ -243,7 +268,17 @@ const {
 
     // Plan & Subscription
     planRoute,
-    apiKeyRoute
+    apiKeyRoute,
+
+    // WebAuthn (Hardware Security Keys & Biometric Authentication)
+    webauthnRoute,
+
+    // SAML/SSO (Enterprise SSO Authentication)
+    samlRoute
+    ,
+
+    // SSO Configuration (Enterprise SSO Management UI)
+    ssoConfigRoute
 } = require('./routes');
 
 // Import versioned routes
@@ -276,81 +311,112 @@ app.use(getTracingHandler());
 // Initialize Socket.io
 initSocket(server);
 
-// ✅ SECURITY: Enhanced Helmet Configuration with strict security headers
-app.use(helmet({
-    // Content Security Policy - Restrict resource loading
-    contentSecurityPolicy: {
-        directives: {
-            defaultSrc: ["'self'"],
-            scriptSrc: [
-                "'self'",
-                "'unsafe-inline'",
-                "'unsafe-eval'", // Required for some analytics
-                "https://www.googletagmanager.com",
-                "https://www.google-analytics.com",
-                "https://ssl.google-analytics.com",
-                "https://static.cloudflareinsights.com"
-            ],
-            styleSrc: ["'self'", "'unsafe-inline'"],
-            imgSrc: [
-                "'self'",
-                "data:",
-                "https:",
-                "blob:",
-                "https://www.googletagmanager.com",
-                "https://www.google-analytics.com"
-            ],
-            connectSrc: [
-                "'self'",
-                "wss:",
-                "ws:",
-                "https://www.google-analytics.com",
-                "https://analytics.google.com",
-                "https://region1.google-analytics.com",
-                "https://cloudflareinsights.com"
-            ],
-            fontSrc: ["'self'", "data:"],
-            objectSrc: ["'none'"],
-            mediaSrc: ["'self'"],
-            frameSrc: ["'none'"],
-            baseUri: ["'self'"],
-            formAction: ["'self'"],
-            frameAncestors: ["'none'"], // Equivalent to X-Frame-Options: DENY
-            upgradeInsecureRequests: process.env.NODE_ENV === 'production' ? [] : null
-        }
-    },
-    // Prevent clickjacking attacks
-    frameguard: {
-        action: 'deny' // X-Frame-Options: DENY
-    },
-    // HTTP Strict Transport Security (HSTS)
-    hsts: {
-        maxAge: 31536000, // 1 year in seconds
-        includeSubDomains: true, // Apply to all subdomains
-        preload: true // Submit to HSTS preload list
-    },
-    // Prevent MIME type sniffing
-    noSniff: true, // X-Content-Type-Options: nosniff
-    // Referrer Policy - Control referrer information
-    referrerPolicy: {
-        policy: 'strict-origin-when-cross-origin' // Send origin only for cross-origin requests
-    },
-    // Cross-Origin policies
-    crossOriginEmbedderPolicy: false, // Disable for API flexibility
-    crossOriginResourcePolicy: { policy: "cross-origin" }, // Allow cross-origin for API
-    crossOriginOpenerPolicy: { policy: "same-origin-allow-popups" },
-    // Remove X-Powered-By header
-    hidePoweredBy: true,
-    // DNS Prefetch Control
-    dnsPrefetchControl: { allow: false },
-    // IE No Open - prevents IE from executing downloads
-    ieNoOpen: true,
-    // X-XSS-Protection (legacy but defense-in-depth)
-    xssFilter: true
-}));
+// ✅ SECURITY: Generate CSP nonce for each request (must be before Helmet)
+app.use(generateNonce);
 
-// ✅ SECURITY: Additional security headers
+// ✅ SECURITY: Enhanced Helmet Configuration with strict CSP and nonce-based script execution
+app.use((req, res, next) => {
+    // Get nonce from res.locals (generated by generateNonce middleware)
+    const nonce = res.locals.cspNonce;
+
+    helmet({
+        // Content Security Policy - Strict configuration with nonce and strict-dynamic
+        contentSecurityPolicy: {
+            directives: {
+                defaultSrc: ["'self'"],
+                // scriptSrc: Use nonce-based execution with strict-dynamic
+                // strict-dynamic allows scripts loaded by nonce-trusted scripts
+                // This eliminates need for unsafe-inline/unsafe-eval while maintaining flexibility
+                scriptSrc: [
+                    "'self'",
+                    `'nonce-${nonce}'`,
+                    "'strict-dynamic'", // Allow scripts loaded by trusted scripts
+                    // Fallback for browsers that don't support strict-dynamic
+                    "https://www.googletagmanager.com",
+                    "https://www.google-analytics.com",
+                    "https://ssl.google-analytics.com",
+                    "https://static.cloudflareinsights.com"
+                ],
+                // styleSrc: Allow inline styles with nonce (or use external stylesheets)
+                styleSrc: [
+                    "'self'",
+                    `'nonce-${nonce}'`,
+                    // Keep unsafe-inline for now for compatibility, will be ignored if nonce is present
+                    "'unsafe-inline'"
+                ],
+                imgSrc: [
+                    "'self'",
+                    "data:",
+                    "https:",
+                    "blob:",
+                    "https://www.googletagmanager.com",
+                    "https://www.google-analytics.com"
+                ],
+                connectSrc: [
+                    "'self'",
+                    "wss:",
+                    "ws:",
+                    "https://www.google-analytics.com",
+                    "https://analytics.google.com",
+                    "https://region1.google-analytics.com",
+                    "https://cloudflareinsights.com",
+                    // CSP report endpoint
+                    `${process.env.API_URL || 'https://api.traf3li.com'}/api/security/csp-report`
+                ],
+                fontSrc: ["'self'", "data:"],
+                objectSrc: ["'none'"],
+                mediaSrc: ["'self'"],
+                frameSrc: ["'none'"],
+                baseUri: ["'self'"],
+                formAction: ["'self'"],
+                frameAncestors: ["'none'"], // Equivalent to X-Frame-Options: DENY
+                // CSP violation reporting
+                reportUri: ["/api/security/csp-report"],
+                // Modern reporting endpoint (Report-To header)
+                reportTo: "csp-endpoint",
+                // Upgrade insecure requests in production
+                upgradeInsecureRequests: process.env.NODE_ENV === 'production' ? [] : null
+            },
+            // Report violations but don't enforce (for testing)
+            // Set to false in production after testing
+            reportOnly: process.env.CSP_REPORT_ONLY === 'true'
+        },
+        // Prevent clickjacking attacks
+        frameguard: {
+            action: 'deny' // X-Frame-Options: DENY
+        },
+        // HTTP Strict Transport Security (HSTS)
+        hsts: {
+            maxAge: 31536000, // 1 year in seconds
+            includeSubDomains: true, // Apply to all subdomains
+            preload: true // Submit to HSTS preload list
+        },
+        // Prevent MIME type sniffing
+        noSniff: true, // X-Content-Type-Options: nosniff
+        // Referrer Policy - Control referrer information
+        referrerPolicy: {
+            policy: 'strict-origin-when-cross-origin' // Send origin only for cross-origin requests
+        },
+        // Cross-Origin policies (configured via enhancedSecurityHeaders middleware)
+        crossOriginEmbedderPolicy: false, // Set via middleware for more control
+        crossOriginResourcePolicy: false, // Set via middleware for more control
+        crossOriginOpenerPolicy: false, // Set via middleware for more control
+        // Remove X-Powered-By header
+        hidePoweredBy: true,
+        // DNS Prefetch Control
+        dnsPrefetchControl: { allow: false },
+        // IE No Open - prevents IE from executing downloads
+        ieNoOpen: true,
+        // X-XSS-Protection (legacy but defense-in-depth)
+        xssFilter: true
+    })(req, res, next);
+});
+
+// ✅ SECURITY: Additional security headers (legacy - keep for compatibility)
 app.use(securityHeaders);
+
+// ✅ SECURITY: Enhanced security headers (Permissions-Policy, COOP, COEP, CORP)
+app.use(enhancedSecurityHeaders);
 
 // ✅ PERFORMANCE: Response compression (gzip with optimized settings)
 app.use(compression({
@@ -395,19 +461,27 @@ const allowedOrigins = [
 
 const corsOptions = {
     origin: function (origin, callback) {
+        // In production, be stricter about origin validation
+        const isProduction = process.env.NODE_ENV === 'production';
+
         // Allow requests with no origin (mobile apps, Postman, server-to-server)
+        // In production, you may want to restrict this further
         if (!origin) {
             return callback(null, true);
         }
 
-        // Allow Cloudflare Pages preview deployments (*.pages.dev)
-        if (origin.includes('.pages.dev')) {
-            return callback(null, true);
-        }
+        // In production, disable wildcard preview deployments (security hardening)
+        // Only allow specific preview URLs added to allowedOrigins
+        if (!isProduction) {
+            // Allow Cloudflare Pages preview deployments in dev/staging (*.pages.dev)
+            if (origin.includes('.pages.dev')) {
+                return callback(null, true);
+            }
 
-        // Allow Vercel preview deployments (for backward compatibility)
-        if (origin.includes('.vercel.app')) {
-            return callback(null, true);
+            // Allow Vercel preview deployments in dev/staging (for backward compatibility)
+            if (origin.includes('.vercel.app')) {
+                return callback(null, true);
+            }
         }
 
         // Check against whitelist
@@ -415,7 +489,12 @@ const corsOptions = {
             return callback(null, true);
         }
 
-        // Log blocked origins for debugging
+        // Log blocked origins for debugging and security monitoring
+        logger.warn('CORS blocked origin', {
+            origin,
+            isProduction,
+            timestamp: new Date().toISOString()
+        });
         console.log('🚫 CORS blocked origin:', origin);
         callback(new Error('Not allowed by CORS'));
     },
@@ -433,9 +512,11 @@ const corsOptions = {
         'X-XSRF-Token',  // Alternative CSRF token header
         'API-Version' // API versioning header
     ],
-    exposedHeaders: ['Set-Cookie'],
+    exposedHeaders: ['Set-Cookie', 'X-RateLimit-Limit', 'X-RateLimit-Remaining'],
     maxAge: 86400, // 24 hours - cache preflight requests
-    optionsSuccessStatus: 204
+    optionsSuccessStatus: 204,
+    // Vary header is now set by enhancedSecurityHeaders middleware
+    preflightContinue: false
 };
 
 app.use(cors(corsOptions));
@@ -539,6 +620,10 @@ app.use('/api', addNonVersionedDeprecationWarning);
 // ============================================
 app.use('/api/gigs', gigRoute);
 app.use('/api/auth', noCache, authRoute); // No cache for auth endpoints
+app.use('/api/auth/mfa', noCache, mfaRoute); // MFA/TOTP authentication endpoints
+app.use('/api/admin', noCache, adminRoute); // Admin endpoints for token management
+app.use('/api/auth/webauthn', noCache, webauthnRoute); // WebAuthn/FIDO2 authentication
+app.use('/api/auth/saml', noCache, samlRoute); // SAML/SSO enterprise authentication
 app.use('/api/orders', orderRoute);
 app.use('/api/conversations', conversationRoute);
 app.use('/api/messages', messageRoute);
@@ -549,6 +634,7 @@ app.use('/api/proposals', proposalRoute);
 app.use('/api/questions', questionRoute);
 app.use('/api/answers', answerRoute);
 app.use('/api/firms', firmRoute);
+app.use('/api/firms', noCache, ssoConfigRoute); // SSO configuration management (Enterprise)
 
 // ============================================
 // DASHBOARD CORE ROUTES
@@ -839,6 +925,9 @@ app.use('/metrics', metricsRoute);
 // Security Incident Reporting (NCA ECC-2:2024 Compliance)
 app.use('/api/security', noCache, securityIncidentRoute);
 
+// Security Monitoring & Alerting (Automated Security Detection)
+app.use('/api/security', noCache, securityRoute);
+
 // PDPL Consent Management (NCA ECC-2:2024 & PDPL Compliance)
 app.use('/api/consent', noCache, consentRoute);
 
@@ -997,6 +1086,7 @@ const startServer = async () => {
             startTimeEntryJobs();
             startPlanJobs();
             startDataRetentionJob();
+            scheduleSessionCleanup();
             console.log('✅ All scheduled jobs started');
         }, CRON_STARTUP_DELAY_MS);
 
@@ -1019,7 +1109,9 @@ server.listen(PORT, () => {
 
     logger.info('Security features enabled', {
         helmet: 'enhanced with CSP, HSTS, and strict headers',
-        cors: 'enabled with origin validation',
+        csp: 'nonce-based script execution with strict-dynamic',
+        cspReporting: 'enabled at /api/security/csp-report',
+        cors: 'enabled with strict origin validation (production hardened)',
         rateLimiting: 'API rate limiter + speed limiter',
         requestLogging: 'enabled with correlation IDs',
         csrf: 'double-submit cookie pattern',
@@ -1027,7 +1119,10 @@ server.listen(PORT, () => {
         contentTypeValidation: 'enabled for POST/PUT/PATCH',
         requestSanitization: 'enabled (null bytes, XSS prevention)',
         noCacheHeaders: 'applied to sensitive endpoints',
-        securityHeaders: 'X-Frame-Options: DENY, X-Content-Type-Options, Referrer-Policy'
+        securityHeaders: 'X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy',
+        crossOriginPolicies: 'COOP, COEP, CORP configured',
+        permissionsPolicy: 'browser features restricted (camera, microphone, geolocation disabled)',
+        varyHeader: 'enabled for proper CORS caching'
     });
 
     // Keep console output for development convenience

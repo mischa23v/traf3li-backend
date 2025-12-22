@@ -306,6 +306,16 @@ const extractStorageKey = (urlOrKey) => {
 // Backward compatibility alias
 const extractS3Key = extractStorageKey;
 
+// Import malware scan middleware for easy integration
+const malwareScanMiddleware = require('../middlewares/malwareScan.middleware');
+
+// Import file validation middleware for magic byte validation
+const {
+    validateFileMiddleware,
+    validateDocumentMiddleware,
+    createFileValidationMiddleware
+} = require('../middlewares/fileValidation.middleware');
+
 module.exports = taskUpload;
 module.exports.isS3Configured = isS3Configured;
 module.exports.isStorageConfigured = isStorageConfigured;
@@ -316,3 +326,9 @@ module.exports.extractS3Key = extractS3Key;
 module.exports.extractStorageKey = extractStorageKey;
 module.exports.BUCKETS = BUCKETS;
 module.exports.storageType = storageType;
+module.exports.malwareScan = malwareScanMiddleware; // Export malware scan middleware
+
+// Export file validation middleware for use in routes
+module.exports.validateFile = validateFileMiddleware;
+module.exports.validateDocument = validateDocumentMiddleware;
+module.exports.createFileValidation = createFileValidationMiddleware;

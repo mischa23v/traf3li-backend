@@ -309,7 +309,50 @@ const firmSchema = new mongoose.Schema({
     // ENTERPRISE SETTINGS
     // ═══════════════════════════════════════════════════════════════
     enterpriseSettings: {
-        // SSO/SAML Configuration
+        // SSO/SAML Configuration (Comprehensive)
+        sso: {
+            enabled: { type: Boolean, default: false },
+            provider: {
+                type: String,
+                enum: ['azure', 'okta', 'google', 'custom', null],
+                default: null
+            },
+            // Identity Provider Configuration
+            entityId: String,
+            ssoUrl: String,  // Single Sign-On URL
+            sloUrl: String,  // Single Logout URL
+            certificate: String,  // X.509 Certificate (PEM format)
+            metadataUrl: String,  // IdP Metadata URL
+
+            // Attribute Mapping
+            attributeMapping: {
+                email: { type: String, default: 'email' },
+                firstName: { type: String, default: 'firstName' },
+                lastName: { type: String, default: 'lastName' },
+                groups: { type: String, default: 'groups' }
+            },
+
+            // Domain & Provisioning Settings
+            allowedDomains: [String],  // Only allow SSO from these email domains
+            autoProvision: { type: Boolean, default: true },  // Create user on first SSO login (JIT)
+            defaultRole: {
+                type: String,
+                enum: ['lawyer', 'paralegal', 'secretary', 'accountant', 'partner'],
+                default: 'lawyer'
+            },  // Role for auto-provisioned users
+
+            // Advanced Settings
+            requireEmailVerification: { type: Boolean, default: false },
+            syncUserAttributes: { type: Boolean, default: true },  // Update user attrs on each login
+
+            // Configuration Metadata
+            lastTested: Date,
+            lastTestedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+            configuredAt: Date,
+            configuredBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
+        },
+
+        // Legacy SSO fields (for backward compatibility - deprecated)
         ssoEnabled: { type: Boolean, default: false },
         ssoProvider: {
             type: String,
@@ -332,7 +375,16 @@ const firmSchema = new mongoose.Schema({
             maxAge: { type: Number, default: 90 }, // Days before password expires
             preventReuse: { type: Number, default: 0 } // Number of previous passwords to prevent reuse
         },
+        // Password Rotation & Expiration Settings
+        passwordMaxAgeDays: { type: Number, default: 90 }, // Password expires after this many days
+        passwordHistoryCount: { type: Number, default: 12 }, // Number of previous passwords to prevent reuse
+        requirePasswordChange: { type: Boolean, default: false }, // Force all users to change password
+        requirePasswordChangeSetAt: { type: Date, default: null }, // When requirePasswordChange was enabled
+        enablePasswordExpiration: { type: Boolean, default: false }, // Enable automatic password expiration
+        passwordExpiryWarningDays: { type: Number, default: 7 }, // Days before expiry to send warning
+        minPasswordStrengthScore: { type: Number, default: 50 }, // Minimum password strength (0-100)
         sessionTimeoutMinutes: { type: Number, default: 30 },
+        maxSessionsPerUser: { type: Number, default: 5 }, // Concurrent session limit
         ipWhitelist: [String],
         ipWhitelistEnabled: { type: Boolean, default: false },
 

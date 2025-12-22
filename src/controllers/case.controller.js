@@ -7,6 +7,7 @@ const { CustomException } = require('../utils');
 const { calculateLawyerScore } = require('./score.controller');
 const { getUploadPresignedUrl, getDownloadPresignedUrl, deleteFile, generateFileKey } = require('../configs/s3');
 const documentExportService = require('../services/documentExport.service');
+const logger = require('../utils/contextLogger');
 const {
     ENTITY_TYPES,
     COURTS,
@@ -48,34 +49,17 @@ const generateInternalReference = async (firmId) => {
 
 // Helper function to check firm access for a case
 const checkCaseAccess = (caseDoc, userId, firmId, requireLawyer = false, isSoloLawyer = false) => {
-    // DEBUG: Log all inputs
-    console.log('=== checkCaseAccess DEBUG ===');
-    console.log('Case ID:', caseDoc._id?.toString());
-    console.log('User ID:', userId);
-    console.log('User firmId:', firmId?.toString());
-    console.log('requireLawyer:', requireLawyer);
-    console.log('isSoloLawyer:', isSoloLawyer);
-
     // Handle both populated and non-populated lawyerId/clientId
     // When populated, lawyerId is an object with _id; when not, it's just an ObjectId
     const caseLawyerId = caseDoc.lawyerId?._id?.toString() || caseDoc.lawyerId?.toString();
     const caseClientId = caseDoc.clientId?._id?.toString() || caseDoc.clientId?.toString();
 
-    console.log('Case lawyerId (resolved):', caseLawyerId);
-    console.log('Case clientId (resolved):', caseClientId);
-    console.log('Case firmId:', caseDoc.firmId?.toString());
-
     const isLawyer = caseLawyerId && caseLawyerId === userId;
     const isClient = caseClientId && caseClientId === userId;
 
-    console.log('isLawyer:', isLawyer);
-    console.log('isClient:', isClient);
-
     // Solo lawyers can only access their own cases (where they are the lawyer)
     if (isSoloLawyer) {
-        const result = requireLawyer ? isLawyer : (isLawyer || isClient);
-        console.log('Solo lawyer path, result:', result);
-        return result;
+        return requireLawyer ? isLawyer : (isLawyer || isClient);
     }
 
     // Check firm-level access if firmId is available
@@ -83,33 +67,24 @@ const checkCaseAccess = (caseDoc, userId, firmId, requireLawyer = false, isSoloL
         const caseFirmIdStr = caseDoc.firmId?.toString();
         const userFirmIdStr = firmId.toString();
         const sameFirm = caseDoc.firmId && caseFirmIdStr === userFirmIdStr;
-        console.log('Firm check - caseFirmId:', caseFirmIdStr, 'userFirmId:', userFirmIdStr, 'sameFirm:', sameFirm);
 
         // Case belongs to the same firm - allow access for viewing
         if (sameFirm) {
-            const result = requireLawyer ? isLawyer : true;
-            console.log('Same firm, result:', result);
-            return result;
+            return requireLawyer ? isLawyer : true;
         }
 
         // Case doesn't have firmId (legacy case) but user is in a firm
         // Check if user is the lawyer or client of this case
         if (!caseDoc.firmId) {
-            const result = requireLawyer ? isLawyer : (isLawyer || isClient);
-            console.log('Legacy case (no firmId), result:', result);
-            return result;
+            return requireLawyer ? isLawyer : (isLawyer || isClient);
         }
 
         // Case belongs to a different firm - deny unless user is lawyer/client
-        const result = requireLawyer ? isLawyer : (isLawyer || isClient);
-        console.log('Different firm, result:', result);
-        return result;
+        return requireLawyer ? isLawyer : (isLawyer || isClient);
     }
 
     // No firmId (legacy user or user without firm) - fall back to individual access
-    const result = requireLawyer ? isLawyer : (isLawyer || isClient);
-    console.log('No user firmId, result:', result);
-    return result;
+    return requireLawyer ? isLawyer : (isLawyer || isClient);
 };
 
 // Create case (from contract OR standalone)
@@ -351,7 +326,7 @@ const createCase = async (request, response) => {
         if (firmId) {
             await Firm.findByIdAndUpdate(firmId, {
                 $inc: { 'usage.cases': 1 }
-            }).catch(err => console.error('Error updating case usage:', err.message));
+            }).catch(err => logger.error('Failed to update case usage counter', { error: err.message }));
         }
 
         // Log CRM activity
@@ -372,7 +347,7 @@ const createCase = async (request, response) => {
                 }
             });
         } catch (activityError) {
-            console.error('Error logging case creation activity:', activityError);
+            logger.error('Failed to log case creation activity', { error: activityError.message });
         }
 
         return response.status(201).send({
@@ -527,14 +502,6 @@ const getCases = async (request, response) => {
 const getCase = async (request, response) => {
     const { _id } = request.params;
     try {
-        // DEBUG: Log all request context
-        console.log('=== getCase DEBUG ===');
-        console.log('Case ID requested:', _id);
-        console.log('request.userID:', request.userID);
-        console.log('request.firmId:', request.firmId);
-        console.log('request.isSoloLawyer:', request.isSoloLawyer);
-        console.log('request.user:', JSON.stringify(request.user, null, 2));
-
         const firmId = request.firmId;
         const isSoloLawyer = request.isSoloLawyer || false;
 
@@ -545,30 +512,21 @@ const getCase = async (request, response) => {
             .populate('documents.uploadedBy', 'username firstName lastName');
 
         if (!caseDoc) {
-            console.log('Case not found!');
             throw CustomException('Case not found!', 404);
         }
 
-        console.log('Case found - lawyerId:', caseDoc.lawyerId?._id?.toString() || caseDoc.lawyerId?.toString());
-        console.log('Case found - clientId:', caseDoc.clientId?._id?.toString() || caseDoc.clientId?.toString());
-        console.log('Case found - firmId:', caseDoc.firmId?.toString());
-
         // Check access using helper function
         const hasAccess = checkCaseAccess(caseDoc, request.userID, firmId, false, isSoloLawyer);
-        console.log('checkCaseAccess returned:', hasAccess);
 
         if (!hasAccess) {
-            console.log('ACCESS DENIED - throwing 403');
             throw CustomException('You do not have access to this case!', 403);
         }
 
-        console.log('ACCESS GRANTED - returning case');
         return response.send({
             error: false,
             case: caseDoc
         });
     } catch ({ message, status = 500 }) {
-        console.log('getCase error:', message, 'status:', status);
         return response.status(status).send({
             error: true,
             message
@@ -672,7 +630,7 @@ const updateCase = async (request, response) => {
                     });
                 }
             } catch (activityError) {
-                console.error('Error logging case update activity:', activityError);
+                logger.error('Failed to log case update activity', { error: activityError.message });
             }
         }
 
@@ -825,7 +783,7 @@ const addHearing = async (request, response) => {
             // Update hearing with event reference
             newHearing.eventId = createdEvent._id;
         } catch (eventError) {
-            console.error('Error creating event for hearing:', eventError);
+            logger.error('Failed to create event for hearing', { error: eventError.message });
         }
 
         // Auto-create Reminder (1 day before the hearing)
@@ -860,7 +818,7 @@ const addHearing = async (request, response) => {
                 newHearing.reminderId = createdReminder._id;
             }
         } catch (reminderError) {
-            console.error('Error creating reminder for hearing:', reminderError);
+            logger.error('Failed to create reminder for hearing', { error: reminderError.message });
         }
 
         // Save the case again with event/reminder references
@@ -885,7 +843,7 @@ const addHearing = async (request, response) => {
                 }
             });
         } catch (activityError) {
-            console.error('Error logging hearing addition activity:', activityError);
+            logger.error('Failed to log hearing addition activity', { error: activityError.message });
         }
 
         return response.status(202).send({
@@ -942,7 +900,7 @@ const updateStatus = async (request, response) => {
                 }
             });
         } catch (activityError) {
-            console.error('Error logging status change activity:', activityError);
+            logger.error('Failed to log status change activity', { error: activityError.message });
         }
 
         return response.status(202).send({
@@ -1018,7 +976,7 @@ const closeCase = async (request, response) => {
                 }
             });
         } catch (activityError) {
-            console.error('Error logging case closure activity:', activityError);
+            logger.error('Failed to log case closure activity', { error: activityError.message });
         }
 
         return response.status(200).send({
@@ -1087,7 +1045,7 @@ const updateOutcome = async (request, response) => {
                 }
             });
         } catch (activityError) {
-            console.error('Error logging outcome update activity:', activityError);
+            logger.error('Failed to log outcome update activity', { error: activityError.message });
         }
 
         return response.status(202).send({
@@ -1231,7 +1189,7 @@ const updateHearing = async (request, response) => {
                     await Event.findByIdAndUpdate(hearing.eventId, eventUpdates);
                 }
             } catch (eventError) {
-                console.error('Error updating linked event:', eventError);
+                logger.error('Failed to update linked event', { error: eventError.message });
             }
         }
 
@@ -1250,7 +1208,7 @@ const updateHearing = async (request, response) => {
 
                 await Reminder.findByIdAndUpdate(hearing.reminderId, reminderUpdates);
             } catch (reminderError) {
-                console.error('Error updating linked reminder:', reminderError);
+                logger.error('Failed to update linked reminder', { error: reminderError.message });
             }
         }
 
@@ -1308,7 +1266,7 @@ const updateProgress = async (request, response) => {
                 }
             });
         } catch (activityError) {
-            console.error('Error logging progress update activity:', activityError);
+            logger.error('Failed to log progress update activity', { error: activityError.message });
         }
 
         return response.status(202).send({
@@ -1349,7 +1307,7 @@ const deleteCase = async (request, response) => {
         if (caseDoc.firmId) {
             await Firm.findByIdAndUpdate(caseDoc.firmId, {
                 $inc: { 'usage.cases': -1 }
-            }).catch(err => console.error('Error updating case usage:', err.message));
+            }).catch(err => logger.error('Failed to update case usage', { error: err.message }));
         }
 
         // Log CRM activity for case deletion
@@ -1369,7 +1327,7 @@ const deleteCase = async (request, response) => {
                 }
             });
         } catch (activityError) {
-            console.error('Error logging case deletion activity:', activityError);
+            logger.error('Failed to log case deletion activity', { error: activityError.message });
         }
 
         return response.status(200).send({
@@ -1450,7 +1408,7 @@ const deleteHearing = async (request, response) => {
             try {
                 await Event.findByIdAndDelete(eventId);
             } catch (eventError) {
-                console.error('Error deleting linked event:', eventError);
+                logger.error('Failed to delete linked event', { error: eventError.message });
             }
         }
 
@@ -1459,7 +1417,7 @@ const deleteHearing = async (request, response) => {
             try {
                 await Reminder.findByIdAndDelete(reminderId);
             } catch (reminderError) {
-                console.error('Error deleting linked reminder:', reminderError);
+                logger.error('Failed to delete linked reminder', { error: reminderError.message });
             }
         }
 
@@ -1848,7 +1806,7 @@ const deleteDocumentWithS3 = async (request, response) => {
             try {
                 await deleteFile(doc.fileKey, doc.bucket || 'general');
             } catch (s3Error) {
-                console.error('S3 delete error:', s3Error);
+                logger.error('Failed to delete file from S3', { error: s3Error.message });
                 // Continue even if S3 delete fails
             }
         }
@@ -2877,7 +2835,7 @@ const getCasesOverview = async (request, response) => {
             }
         });
     } catch (error) {
-        console.error('getCasesOverview ERROR:', error);
+        logger.error('Failed to get cases overview', { error: error.message });
         return response.status(500).json({
             error: true,
             message: error.message || 'Failed to fetch cases overview'
@@ -2947,7 +2905,7 @@ const getCaseFull = async (request, response) => {
             }
         });
     } catch (error) {
-        console.error('getCaseFull ERROR:', error);
+        logger.error('Failed to get full case details', { error: error.message });
         return response.status(500).json({
             error: true,
             message: error.message || 'Failed to fetch case details'

@@ -67,6 +67,12 @@ const {
     getSessionInfo,
     SESSION_POLICY
 } = require('./sessionTimeout.middleware');
+const {
+    ipRestrictionMiddleware,
+    ipRestrictionWithOptions,
+    bypassIPRestriction,
+    hasIPRestrictionBypass
+} = require('./ipRestriction.middleware');
 
 module.exports = {
     userMiddleware,
@@ -131,5 +137,10 @@ module.exports = {
     recordActivity,
     clearSessionActivity,
     getSessionInfo,
-    SESSION_POLICY
+    SESSION_POLICY,
+    // IP restriction middleware
+    ipRestrictionMiddleware,
+    ipRestrictionWithOptions,
+    bypassIPRestriction,
+    hasIPRestrictionBypass
 }

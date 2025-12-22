@@ -12,6 +12,7 @@ const mongoose = require('mongoose');
 const { getRedisClient, isRedisConnected } = require('../configs/redis');
 const { isS3Configured, s3Client, BUCKETS } = require('../configs/s3');
 const { HeadBucketCommand } = require('@aws-sdk/client-s3');
+const malwareScanService = require('./malwareScan.service');
 const os = require('os');
 const fs = require('fs').promises;
 
@@ -179,7 +180,34 @@ const checkMemory = () => {
 };
 
 /**
- * Check external services (S3, Stripe)
+ * Check ClamAV malware scanning service
+ * @returns {Promise<Object>} ClamAV health status
+ */
+const checkMalwareScan = async () => {
+    try {
+        const status = await malwareScanService.getStatus();
+
+        return {
+            status: status.healthy ? 'up' : status.enabled ? 'down' : 'disabled',
+            enabled: status.enabled,
+            healthy: status.healthy || !status.enabled, // Not unhealthy if disabled
+            version: status.version,
+            initialized: status.initialized,
+            config: status.config,
+            error: status.error,
+            environment: status.environment
+        };
+    } catch (error) {
+        return {
+            status: 'unknown',
+            message: error.message,
+            healthy: false
+        };
+    }
+};
+
+/**
+ * Check external services (S3, Stripe, ClamAV)
  * @returns {Promise<Object>} External services status
  */
 const checkExternalServices = async () => {
@@ -240,6 +268,9 @@ const checkExternalServices = async () => {
             healthy: true
         };
     }
+
+    // Check ClamAV malware scanning
+    services.malwareScan = await checkMalwareScan();
 
     return services;
 };
@@ -370,6 +401,7 @@ module.exports = {
     checkRedis,
     checkDiskSpace,
     checkMemory,
+    checkMalwareScan,
     checkExternalServices,
     getSystemInfo,
     getAppVersion,

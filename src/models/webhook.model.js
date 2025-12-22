@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const { Schema } = mongoose;
+const { validateWebhookUrl } = require('../utils/urlValidator');
 
 // ============ WEBHOOK EVENTS ============
 const WEBHOOK_EVENTS = [
@@ -240,6 +241,35 @@ webhookSchema.virtual('successRate').get(function() {
 webhookSchema.virtual('failureRate').get(function() {
     if (this.statistics.totalDeliveries === 0) return 0;
     return (this.statistics.failedDeliveries / this.statistics.totalDeliveries) * 100;
+});
+
+// ============ HOOKS ============
+
+/**
+ * Pre-save hook to validate webhook URL for SSRF vulnerabilities
+ */
+webhookSchema.pre('save', async function(next) {
+    // Only validate URL if it's new or modified
+    if (!this.isModified('url')) {
+        return next();
+    }
+
+    try {
+        // Validate URL and perform DNS resolution
+        const validation = await validateWebhookUrl(this.url, {
+            allowHttp: process.env.NODE_ENV !== 'production',
+            resolveDNS: true
+        });
+
+        // URL is valid, continue with save
+        console.log(`Webhook URL validated: ${validation.hostname} resolves to ${validation.ips.join(', ')}`);
+        next();
+    } catch (error) {
+        // URL validation failed, reject the save
+        const validationError = new Error(`Webhook URL validation failed: ${error.message}`);
+        validationError.name = 'ValidationError';
+        next(validationError);
+    }
 });
 
 // ============ STATICS ============

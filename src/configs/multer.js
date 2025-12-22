@@ -47,4 +47,20 @@ const upload = multer({
   fileFilter
 });
 
+// Import malware scan middleware for easy integration
+const malwareScanMiddleware = require('../middlewares/malwareScan.middleware');
+
+// Import file validation middleware for magic byte validation
+const {
+  validateFileMiddleware,
+  validateImageMiddleware,
+  createFileValidationMiddleware
+} = require('../middlewares/fileValidation.middleware');
+
 module.exports = upload;
+module.exports.malwareScan = malwareScanMiddleware; // Export malware scan middleware
+
+// Export file validation middleware for use in routes
+module.exports.validateFile = validateFileMiddleware;
+module.exports.validateImage = validateImageMiddleware;
+module.exports.createFileValidation = createFileValidationMiddleware;

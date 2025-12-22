@@ -5,8 +5,12 @@ const bcrypt = require('bcrypt');
 const { getDefaultPermissions, getSoloLawyerPermissions, isSoloLawyer: checkIsSoloLawyer } = require('../config/permissions.config');
 const auditLogService = require('../services/auditLog.service');
 const accountLockoutService = require('../services/accountLockout.service');
+const sessionManager = require('../services/sessionManager.service');
 const { validatePassword } = require('../utils/passwordPolicy');
 const { recordActivity, clearSessionActivity } = require('../middlewares/sessionTimeout.middleware');
+const mfaService = require('../services/mfa.service');
+const { validateBackupCodeFormat } = require('../utils/backupCodes');
+const logger = require('../utils/contextLogger');
 
 const { JWT_SECRET, NODE_ENV } = process.env;
 
@@ -61,16 +65,6 @@ const isSameOriginProxy = (request) => {
         // This happens when frontend proxies requests through itself (Vercel rewrites)
         const isSame = originHost === effectiveHost;
 
-        // Debug logging
-        console.log('[isSameOriginProxy Debug]', {
-            origin,
-            host,
-            forwardedHost,
-            effectiveHost,
-            originHost,
-            isSame
-        });
-
         return isSame;
     } catch {
         return false;
@@ -100,24 +94,9 @@ const getCookieDomain = (request) => {
 // Uses more permissive settings for same-origin proxy requests
 const getCookieConfig = (request) => {
     const isSameOrigin = isSameOriginProxy(request);
-    const origin = request.headers.origin || '';
-    const host = request.headers.host || '';
-    const forwardedHost = request.headers['x-forwarded-host'] || '';
-
-    // Debug logging for cookie configuration (helps diagnose production issues)
-    console.log('[Cookie Config Debug]', {
-        origin,
-        host,
-        forwardedHost,
-        effectiveHost: forwardedHost || host,
-        isSameOrigin,
-        isProductionEnv,
-        NODE_ENV
-    });
 
     if (isSameOrigin) {
         // Same-origin via proxy: use Lax (more compatible with browser privacy)
-        console.log('[Cookie Config] Using same-origin config (SameSite=Lax)');
         return {
             httpOnly: true,
             sameSite: 'lax',
@@ -133,7 +112,6 @@ const getCookieConfig = (request) => {
     // Note: secure must be true for SameSite=None in production
     // But for localhost development, we need secure=false to work over HTTP
     const cookieDomain = getCookieDomain(request);
-    console.log('[Cookie Config] Using cross-origin config (SameSite=None)', { cookieDomain });
     return {
         httpOnly: true,
         sameSite: isProductionEnv ? 'none' : 'lax', // 'lax' works better for localhost
@@ -464,7 +442,7 @@ const authRegister = async (request, response) => {
                     }
                 }
             } catch (joinError) {
-                console.log('Join firm error:', joinError.message);
+                logger.warn('Failed to join firm during registration', { error: joinError.message });
                 // User was created but joining failed - continue anyway
                 // They can join later
             }
@@ -478,7 +456,7 @@ const authRegister = async (request, response) => {
         return response.status(201).send(responseData);
     }
     catch({message}) {
-        console.log('Registration error:', message);
+        logger.error('Registration failed', { error: message });
         if(message.includes('E11000')) {
             // Check if it's email or username duplicate
             if (message.includes('email')) {
@@ -500,7 +478,7 @@ const authRegister = async (request, response) => {
 }
 
 const authLogin = async (request, response) => {
-    const { username, email, password } = request.body;
+    const { username, email, password, mfaCode } = request.body;
 
     // Support both 'username' and 'email' fields from frontend
     const loginIdentifier = username || email;
@@ -599,7 +577,141 @@ const authLogin = async (request, response) => {
         const match = await bcrypt.compare(password, user.password);
 
         if(match) {
-            // Clear failed attempts on successful login
+            // ═══════════════════════════════════════════════════════════════
+            // MFA VERIFICATION (if enabled)
+            // ═══════════════════════════════════════════════════════════════
+            // Check if user has MFA enabled - need to fetch MFA fields
+            const userWithMFA = await User.findById(user._id)
+                .select('mfaEnabled mfaSecret mfaBackupCodes')
+                .lean();
+
+            if (userWithMFA?.mfaEnabled) {
+                // MFA is enabled - check if code is provided
+                if (!mfaCode) {
+                    // No MFA code provided - return response indicating MFA is required
+                    return response.status(200).json({
+                        error: false,
+                        mfaRequired: true,
+                        message: 'يرجى إدخال رمز المصادقة الثنائية',
+                        messageEn: 'Please enter your MFA code',
+                        userId: user._id,
+                        code: 'MFA_REQUIRED'
+                    });
+                }
+
+                // MFA code provided - verify it
+                let mfaVerified = false;
+                let usedBackupCode = false;
+
+                // Check if it's a backup code format (XXXX-XXXX)
+                if (validateBackupCodeFormat(mfaCode)) {
+                    // Try verifying as backup code
+                    try {
+                        const backupResult = await mfaService.useBackupCode(user._id.toString(), mfaCode);
+                        if (backupResult.valid) {
+                            mfaVerified = true;
+                            usedBackupCode = true;
+
+                            // Log backup code usage
+                            await auditLogService.log(
+                                'mfa_login_backup_code',
+                                'user',
+                                user._id,
+                                null,
+                                {
+                                    userId: user._id,
+                                    userEmail: user.email,
+                                    userRole: user.role,
+                                    ipAddress,
+                                    userAgent,
+                                    remainingBackupCodes: backupResult.remainingCodes,
+                                    severity: 'medium'
+                                }
+                            );
+                        }
+                    } catch (backupError) {
+                        logger.warn('Backup code verification failed', { error: backupError.message });
+                    }
+                } else {
+                    // Try verifying as TOTP code
+                    try {
+                        // Decrypt the MFA secret
+                        const decryptedSecret = mfaService.decryptMFASecret(userWithMFA.mfaSecret);
+
+                        // Verify the TOTP token
+                        const isValidTOTP = mfaService.verifyTOTP(decryptedSecret, mfaCode, 1);
+
+                        if (isValidTOTP) {
+                            mfaVerified = true;
+
+                            // Update mfaVerifiedAt timestamp
+                            await User.findByIdAndUpdate(user._id, {
+                                mfaVerifiedAt: new Date()
+                            });
+
+                            // Log TOTP verification
+                            await auditLogService.log(
+                                'mfa_login_totp',
+                                'user',
+                                user._id,
+                                null,
+                                {
+                                    userId: user._id,
+                                    userEmail: user.email,
+                                    userRole: user.role,
+                                    ipAddress,
+                                    userAgent,
+                                    severity: 'low'
+                                }
+                            );
+                        }
+                    } catch (totpError) {
+                        logger.warn('TOTP verification failed', { error: totpError.message });
+                    }
+                }
+
+                // Check if MFA verification succeeded
+                if (!mfaVerified) {
+                    // MFA verification failed
+                    await auditLogService.log(
+                        'mfa_login_failed',
+                        'user',
+                        user._id,
+                        null,
+                        {
+                            userId: user._id,
+                            userEmail: user.email,
+                            userRole: user.role,
+                            ipAddress,
+                            userAgent,
+                            reason: 'Invalid MFA code',
+                            severity: 'medium'
+                        }
+                    );
+
+                    return response.status(401).json({
+                        error: true,
+                        message: 'رمز المصادقة الثنائية غير صحيح',
+                        messageEn: 'Invalid MFA code',
+                        code: 'INVALID_MFA_CODE',
+                        mfaRequired: true,
+                        userId: user._id
+                    });
+                }
+
+                // MFA verified successfully - continue with login
+                if (usedBackupCode) {
+                    // Get remaining backup codes
+                    const remainingCodes = await mfaService.getBackupCodesCount(user._id.toString());
+
+                    // Warn if running low on backup codes
+                    if (remainingCodes <= 2) {
+                        logger.warn('User running low on backup codes', { remainingCodes });
+                    }
+                }
+            }
+
+            // Clear failed attempts on successful login (already cleared above if MFA was used)
             await accountLockoutService.clearFailedAttempts(user.email, ipAddress);
 
             // Record session activity for timeout tracking
@@ -662,7 +774,7 @@ const authLogin = async (request, response) => {
                             };
                         }
                     } catch (firmError) {
-                        console.log('Error fetching firm:', firmError.message);
+                        logger.warn('Failed to fetch firm data', { error: firmError.message });
                     }
                 } else if (checkIsSoloLawyer(user)) {
                     // Solo lawyer - full permissions, no tenant
@@ -674,6 +786,23 @@ const authLogin = async (request, response) => {
                     userData.permissions = getSoloLawyerPermissions();
                 }
             }
+
+            // Create session record (fire-and-forget for performance)
+            sessionManager.createSession(user._id, token, {
+                userAgent: userAgent,
+                ip: ipAddress,
+                firmId: user.firmId,
+                country: request.headers['cf-ipcountry'] || null,
+                city: request.headers['cf-ipcity'] || null,
+                region: request.headers['cf-ipregion'] || null,
+                timezone: user.timezone || 'Asia/Riyadh'
+            }).catch(err => logger.error('Failed to create session', { error: err.message }));
+
+            // Enforce session limit (fire-and-forget, non-blocking)
+            sessionManager.getSessionLimit(user._id, user.firmId).then(limit => {
+                sessionManager.enforceSessionLimit(user._id, limit)
+                    .catch(err => logger.error('Failed to enforce session limit', { error: err.message }));
+            }).catch(err => logger.error('Failed to get session limit', { error: err.message }));
 
             // Log successful login (fire-and-forget for performance)
             auditLogService.log(
@@ -755,41 +884,90 @@ const authLogin = async (request, response) => {
 }
 
 const authLogout = async (request, response) => {
-    // Log logout if user is authenticated
-    if (request.user) {
-        const userId = request.user._id || request.user.id;
+    try {
+        // Get token from request (set by JWT middleware)
+        const token = request.token || request.cookies?.accessToken;
+
+        // Extract user info (may come from JWT middleware or request.user)
+        const userId = request.userId || request.userID || request.user?._id || request.user?.id;
+
+        // If we have a token, revoke it
+        if (token && userId) {
+            const tokenRevocationService = require('../services/tokenRevocation.service');
+            const { User } = require('../models');
+
+            // Get user details for audit trail
+            const user = await User.findById(userId).select('email firmId').lean();
+
+            // Revoke the token
+            await tokenRevocationService.revokeToken(token, 'logout', {
+                userId,
+                userEmail: user?.email,
+                firmId: user?.firmId,
+                ipAddress: request.ip || request.headers['x-forwarded-for']?.split(',')[0] || 'unknown',
+                userAgent: request.headers['user-agent'] || 'unknown'
+            });
+
+            logger.audit('token_revoked', { reason: 'logout' });
+        }
 
         // Clear session activity tracking
-        clearSessionActivity(userId?.toString());
+        if (userId) {
+            clearSessionActivity(userId?.toString());
+        }
 
-        await auditLogService.log(
-            'logout',
-            'user',
-            userId,
-            null,
-            {
-                userId: userId,
-                userEmail: request.user.email,
-                userRole: request.user.role,
-                userName: request.user.firstName ? `${request.user.firstName} ${request.user.lastName || ''}` : null,
-                firmId: request.user.firmId,
-                ipAddress: request.ip || request.headers['x-forwarded-for']?.split(',')[0] || 'unknown',
-                userAgent: request.headers['user-agent'] || 'unknown',
-                method: request.method,
-                endpoint: request.originalUrl,
-                severity: 'low',
-            }
-        );
+        // Terminate session record (fire-and-forget)
+        if (token) {
+            sessionManager.getSessionByToken(token).then(session => {
+                if (session) {
+                    sessionManager.terminateSession(session._id, 'logout', userId)
+                        .catch(err => logger.error('Failed to terminate session', { error: err.message }));
+                }
+            }).catch(err => logger.error('Failed to get session', { error: err.message }));
+        }
+
+        // Log logout if user is authenticated
+        if (request.user || userId) {
+            await auditLogService.log(
+                'logout',
+                'user',
+                userId,
+                null,
+                {
+                    userId: userId,
+                    userEmail: request.user?.email,
+                    userRole: request.user?.role,
+                    userName: request.user?.firstName ? `${request.user.firstName} ${request.user.lastName || ''}` : null,
+                    firmId: request.user?.firmId,
+                    ipAddress: request.ip || request.headers['x-forwarded-for']?.split(',')[0] || 'unknown',
+                    userAgent: request.headers['user-agent'] || 'unknown',
+                    method: request.method,
+                    endpoint: request.originalUrl,
+                    severity: 'low',
+                }
+            );
+        }
+
+        // Use same cookie config as login to ensure cookie is properly cleared
+        const cookieConfig = getCookieConfig(request);
+
+        return response.clearCookie('accessToken', cookieConfig)
+        .send({
+            error: false,
+            message: 'User have been logged out!'
+        });
+    } catch (error) {
+        logger.error('Logout failed', { error: error.message });
+
+        // Even if token revocation fails, still clear the cookie
+        const cookieConfig = getCookieConfig(request);
+
+        return response.clearCookie('accessToken', cookieConfig)
+        .send({
+            error: false,
+            message: 'User have been logged out!'
+        });
     }
-
-    // Use same cookie config as login to ensure cookie is properly cleared
-    const cookieConfig = getCookieConfig(request);
-
-    return response.clearCookie('accessToken', cookieConfig)
-    .send({
-        error: false,
-        message: 'User have been logged out!'
-    });
 }
 
 const checkAvailability = async (request, response) => {
@@ -899,7 +1077,7 @@ const authStatus = async (request, response) => {
                         };
                     }
                 } catch (firmError) {
-                    console.log('Error fetching firm:', firmError.message);
+                    logger.warn('Failed to fetch firm data', { error: firmError.message });
                 }
             } else if (user.isSoloLawyer || !user.firmId) {
                 // Solo lawyer - full access, no tenant
@@ -928,9 +1106,86 @@ const authStatus = async (request, response) => {
     }
 }
 
+const authLogoutAll = async (request, response) => {
+    try {
+        const tokenRevocationService = require('../services/tokenRevocation.service');
+        const { User } = require('../models');
+
+        // Get user ID from JWT middleware
+        const userId = request.userId || request.userID;
+
+        if (!userId) {
+            return response.status(401).json({
+                error: true,
+                message: 'Authentication required'
+            });
+        }
+
+        // Get user details for audit trail
+        const user = await User.findById(userId).select('email firmId').lean();
+
+        if (!user) {
+            return response.status(404).json({
+                error: true,
+                message: 'User not found'
+            });
+        }
+
+        // Revoke all tokens for the user
+        await tokenRevocationService.revokeAllUserTokens(userId, 'logout_all', {
+            userEmail: user.email,
+            firmId: user.firmId,
+            ipAddress: request.ip || request.headers['x-forwarded-for']?.split(',')[0] || 'unknown',
+            userAgent: request.headers['user-agent'] || 'unknown'
+        });
+
+        // Clear session activity tracking
+        clearSessionActivity(userId.toString());
+
+        // Terminate all sessions (fire-and-forget)
+        sessionManager.terminateAllSessions(userId, null, 'user_terminated', userId)
+            .catch(err => logger.error('Failed to terminate all sessions', { error: err.message }));
+
+        // Log the logout-all action
+        await auditLogService.log(
+            'logout_all',
+            'user',
+            userId,
+            null,
+            {
+                userId: userId,
+                userEmail: user.email,
+                firmId: user.firmId,
+                ipAddress: request.ip || request.headers['x-forwarded-for']?.split(',')[0] || 'unknown',
+                userAgent: request.headers['user-agent'] || 'unknown',
+                method: request.method,
+                endpoint: request.originalUrl,
+                severity: 'medium',
+            }
+        );
+
+        // Clear the cookie
+        const cookieConfig = getCookieConfig(request);
+
+        return response.clearCookie('accessToken', cookieConfig).json({
+            error: false,
+            message: 'تم تسجيل الخروج من جميع الأجهزة بنجاح',
+            messageEn: 'Successfully logged out from all devices'
+        });
+    } catch (error) {
+        logger.error('Logout all failed', { error: error.message });
+        return response.status(500).json({
+            error: true,
+            message: 'حدث خطأ أثناء تسجيل الخروج',
+            messageEn: 'An error occurred during logout'
+        });
+    }
+};
+
 module.exports = {
     authLogin,
     authLogout,
+    authLogoutAll,
     authRegister,
     authStatus,
     checkAvailability,

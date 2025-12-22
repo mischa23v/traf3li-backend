@@ -12,6 +12,7 @@
 
 const express = require('express');
 const { userMiddleware, firmFilter } = require('../middlewares');
+const { auditAction } = require('../middlewares/auditLog.middleware');
 const {
     // Permission checks
     checkPermission,
@@ -96,16 +97,16 @@ router.get('/user-resources/:userId', getUserResources);
 router.get('/config', getPermissionConfig);
 
 // PUT /api/permissions/config - Update permission configuration
-router.put('/config', updatePermissionConfig);
+router.put('/config', auditAction('update_permission_config', 'permission', { severity: 'critical', captureChanges: true }), updatePermissionConfig);
 
 // POST /api/permissions/policies - Add a new policy
-router.post('/policies', addPolicy);
+router.post('/policies', auditAction('add_permission_policy', 'permission', { severity: 'critical' }), addPolicy);
 
 // PUT /api/permissions/policies/:policyId - Update a policy
-router.put('/policies/:policyId', updatePolicy);
+router.put('/policies/:policyId', auditAction('update_permission_policy', 'permission', { severity: 'critical', captureChanges: true }), updatePolicy);
 
 // DELETE /api/permissions/policies/:policyId - Delete a policy
-router.delete('/policies/:policyId', deletePolicy);
+router.delete('/policies/:policyId', auditAction('delete_permission_policy', 'permission', { severity: 'critical', captureChanges: true }), deletePolicy);
 
 // ═══════════════════════════════════════════════════════════════
 // RELATION TUPLE MANAGEMENT (Keto-style)
@@ -115,10 +116,10 @@ router.delete('/policies/:policyId', deletePolicy);
 router.get('/relations/stats', getRelationStats);
 
 // POST /api/permissions/relations - Grant a relation
-router.post('/relations', grantRelation);
+router.post('/relations', auditAction('grant_relation', 'permission', { severity: 'high' }), grantRelation);
 
 // DELETE /api/permissions/relations - Revoke a relation
-router.delete('/relations', revokeRelation);
+router.delete('/relations', auditAction('revoke_relation', 'permission', { severity: 'high' }), revokeRelation);
 
 // GET /api/permissions/relations/:namespace/:object - Get relations for a resource
 router.get('/relations/:namespace/:object', getResourceRelations);

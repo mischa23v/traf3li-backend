@@ -295,6 +295,149 @@ const userSchema = new mongoose.Schema({
             messages: { type: Boolean, default: true },
             payments: { type: Boolean, default: true }
         }
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // MFA (Multi-Factor Authentication)
+    // ═══════════════════════════════════════════════════════════════
+    // Whether MFA is enabled for this user
+    mfaEnabled: {
+        type: Boolean,
+        default: false,
+        required: false
+    },
+    // TOTP secret for authenticator apps (Google Authenticator, Authy, etc.)
+    mfaSecret: {
+        type: String,
+        required: false,
+        default: null
+    },
+    // Backup codes for MFA recovery
+    // Each code can only be used once and is marked as used after verification
+    mfaBackupCodes: [{
+        code: {
+            type: String,
+            required: true
+        },
+        used: {
+            type: Boolean,
+            default: false,
+            required: true
+        },
+        usedAt: {
+            type: Date,
+            default: null,
+            required: false
+        }
+    }],
+    // Timestamp when MFA was last verified (for sensitive operations)
+    mfaVerifiedAt: {
+        type: Date,
+        default: null,
+        required: false
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // SSO/SAML AUTHENTICATION
+    // ═══════════════════════════════════════════════════════════════
+    // Flag indicating if user was created via SSO
+    isSSOUser: {
+        type: Boolean,
+        default: false,
+        required: false
+    },
+    // SSO provider (azure, okta, google, custom)
+    ssoProvider: {
+        type: String,
+        enum: ['azure', 'okta', 'google', 'custom', null],
+        default: null,
+        required: false
+    },
+    // External ID from SSO provider
+    ssoExternalId: {
+        type: String,
+        required: false,
+        index: true,
+        sparse: true
+    },
+    // Flag indicating user was created via JIT provisioning
+    createdViaSSO: {
+        type: Boolean,
+        default: false,
+        required: false
+    },
+    // Last successful SSO login
+    lastSSOLogin: {
+        type: Date,
+        required: false
+    },
+    // Last login (any method)
+    lastLogin: {
+        type: Date,
+        required: false
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // PASSWORD ROTATION & EXPIRATION
+    // ═══════════════════════════════════════════════════════════════
+    // When the password was last changed
+    passwordChangedAt: {
+        type: Date,
+        required: false,
+        default: null
+    },
+    // When the password will expire (calculated based on firm's policy)
+    passwordExpiresAt: {
+        type: Date,
+        required: false,
+        default: null
+    },
+    // Force user to change password on next login
+    mustChangePassword: {
+        type: Boolean,
+        default: false,
+        required: false
+    },
+    // Timestamp when mustChangePassword was set (for admin tracking)
+    mustChangePasswordSetAt: {
+        type: Date,
+        required: false,
+        default: null
+    },
+    // Who forced the password change (admin user ID)
+    mustChangePasswordSetBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        required: false,
+        default: null
+    },
+    // Inline password history (last 12 passwords)
+    // Kept in sync with PasswordHistory collection for redundancy
+    passwordHistory: [{
+        hash: {
+            type: String,
+            required: true
+        },
+        changedAt: {
+            type: Date,
+            required: true,
+            default: Date.now
+        }
+    }],
+    // Password expiration warning emails sent
+    passwordExpiryWarningsSent: {
+        sevenDayWarning: {
+            type: Boolean,
+            default: false
+        },
+        oneDayWarning: {
+            type: Boolean,
+            default: false
+        },
+        expiredNotification: {
+            type: Boolean,
+            default: false
+        }
     }
 }, {
     versionKey: false,

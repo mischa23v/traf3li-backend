@@ -14,6 +14,7 @@ const EmailSubscriber = require('../models/emailSubscriber.model');
 const EmailSegment = require('../models/emailSegment.model');
 const EmailEvent = require('../models/emailEvent.model');
 const EmailMarketingService = require('../services/emailMarketing.service');
+const logger = require('../utils/contextLogger').child({ module: 'EmailCampaignJob' });
 
 // Track running jobs
 let jobsRunning = {
@@ -30,7 +31,7 @@ let jobsRunning = {
  */
 const processScheduledCampaigns = async () => {
   if (jobsRunning.scheduledCampaigns) {
-    console.log('[Email Jobs] Scheduled campaigns job still running, skipping...');
+    logger.info(' Scheduled campaigns job still running, skipping...');
     return;
   }
 
@@ -38,7 +39,7 @@ const processScheduledCampaigns = async () => {
 
   try {
     const now = new Date();
-    console.log(`[Email Jobs] Checking scheduled campaigns at ${now.toISOString()}`);
+    logger.info(` Checking scheduled campaigns at ${now.toISOString()}`);
 
     // Find campaigns scheduled to send now or earlier
     const campaigns = await EmailCampaign.find({
@@ -47,18 +48,18 @@ const processScheduledCampaigns = async () => {
     }).populate('segmentId');
 
     if (campaigns.length === 0) {
-      console.log('[Email Jobs] No scheduled campaigns to send');
+      logger.info(' No scheduled campaigns to send');
       return;
     }
 
-    console.log(`[Email Jobs] Found ${campaigns.length} campaigns to send`);
+    logger.info(` Found ${campaigns.length} campaigns to send`);
 
     for (const campaign of campaigns) {
       try {
-        console.log(`[Email Jobs] Sending campaign: ${campaign.name} (${campaign._id})`);
+        logger.info(` Sending campaign: ${campaign.name} (${campaign._id})`);
         await EmailMarketingService.sendCampaign(campaign._id);
       } catch (error) {
-        console.error(`[Email Jobs] Failed to send campaign ${campaign._id}:`, error.message);
+        logger.error(` Failed to send campaign ${campaign._id}:`, error.message);
 
         // Mark as failed
         campaign.status = 'draft';
@@ -67,9 +68,9 @@ const processScheduledCampaigns = async () => {
       }
     }
 
-    console.log('[Email Jobs] Scheduled campaigns processing complete');
+    logger.info(' Scheduled campaigns processing complete');
   } catch (error) {
-    console.error('[Email Jobs] Scheduled campaigns job error:', error);
+    logger.error(' Scheduled campaigns job error:', error);
   } finally {
     jobsRunning.scheduledCampaigns = false;
   }
@@ -81,14 +82,14 @@ const processScheduledCampaigns = async () => {
  */
 const processDripCampaigns = async () => {
   if (jobsRunning.dripCampaigns) {
-    console.log('[Email Jobs] Drip campaigns job still running, skipping...');
+    logger.info(' Drip campaigns job still running, skipping...');
     return;
   }
 
   jobsRunning.dripCampaigns = true;
 
   try {
-    console.log('[Email Jobs] Processing drip campaigns...');
+    logger.info(' Processing drip campaigns...');
 
     // Find all subscribers with active drip campaigns
     const subscribers = await EmailSubscriber.find({
@@ -96,11 +97,11 @@ const processDripCampaigns = async () => {
     });
 
     if (subscribers.length === 0) {
-      console.log('[Email Jobs] No active drip campaigns');
+      logger.info(' No active drip campaigns');
       return;
     }
 
-    console.log(`[Email Jobs] Found ${subscribers.length} subscribers with active drips`);
+    logger.info(` Found ${subscribers.length} subscribers with active drips`);
 
     let processed = 0;
     let sent = 0;
@@ -144,14 +145,14 @@ const processDripCampaigns = async () => {
 
           processed++;
         } catch (error) {
-          console.error(`[Email Jobs] Drip step error for subscriber ${subscriber._id}:`, error.message);
+          logger.error(` Drip step error for subscriber ${subscriber._id}:`, error.message);
         }
       }
     }
 
-    console.log(`[Email Jobs] Drip processing complete: ${processed} processed, ${sent} sent`);
+    logger.info(` Drip processing complete: ${processed} processed, ${sent} sent`);
   } catch (error) {
-    console.error('[Email Jobs] Drip campaigns job error:', error);
+    logger.error(' Drip campaigns job error:', error);
   } finally {
     jobsRunning.dripCampaigns = false;
   }
@@ -163,14 +164,14 @@ const processDripCampaigns = async () => {
  */
 const calculateSegments = async () => {
   if (jobsRunning.segments) {
-    console.log('[Email Jobs] Segments job still running, skipping...');
+    logger.info(' Segments job still running, skipping...');
     return;
   }
 
   jobsRunning.segments = true;
 
   try {
-    console.log('[Email Jobs] Calculating segment counts...');
+    logger.info(' Calculating segment counts...');
 
     // Get all dynamic segments
     const segments = await EmailSegment.find({
@@ -179,11 +180,11 @@ const calculateSegments = async () => {
     });
 
     if (segments.length === 0) {
-      console.log('[Email Jobs] No dynamic segments to refresh');
+      logger.info(' No dynamic segments to refresh');
       return;
     }
 
-    console.log(`[Email Jobs] Refreshing ${segments.length} segments`);
+    logger.info(` Refreshing ${segments.length} segments`);
 
     let updated = 0;
     let failed = 0;
@@ -193,14 +194,14 @@ const calculateSegments = async () => {
         await segment.calculateSubscribers();
         updated++;
       } catch (error) {
-        console.error(`[Email Jobs] Failed to calculate segment ${segment._id}:`, error.message);
+        logger.error(` Failed to calculate segment ${segment._id}:`, error.message);
         failed++;
       }
     }
 
-    console.log(`[Email Jobs] Segments refresh complete: ${updated} updated, ${failed} failed`);
+    logger.info(` Segments refresh complete: ${updated} updated, ${failed} failed`);
   } catch (error) {
-    console.error('[Email Jobs] Segments job error:', error);
+    logger.error(' Segments job error:', error);
   } finally {
     jobsRunning.segments = false;
   }
@@ -212,20 +213,20 @@ const calculateSegments = async () => {
  */
 const checkInactivityTriggers = async () => {
   if (jobsRunning.inactivity) {
-    console.log('[Email Jobs] Inactivity job still running, skipping...');
+    logger.info(' Inactivity job still running, skipping...');
     return;
   }
 
   jobsRunning.inactivity = true;
 
   try {
-    console.log('[Email Jobs] Checking inactivity triggers...');
+    logger.info(' Checking inactivity triggers...');
 
     await EmailMarketingService.checkInactivityTriggers();
 
-    console.log('[Email Jobs] Inactivity check complete');
+    logger.info(' Inactivity check complete');
   } catch (error) {
-    console.error('[Email Jobs] Inactivity job error:', error);
+    logger.error(' Inactivity job error:', error);
   } finally {
     jobsRunning.inactivity = false;
   }
@@ -239,14 +240,14 @@ const checkInactivityTriggers = async () => {
  */
 const dailyCleanup = async () => {
   if (jobsRunning.cleanup) {
-    console.log('[Email Jobs] Cleanup job still running, skipping...');
+    logger.info(' Cleanup job still running, skipping...');
     return;
   }
 
   jobsRunning.cleanup = true;
 
   try {
-    console.log('[Email Jobs] Running daily cleanup...');
+    logger.info(' Running daily cleanup...');
 
     // Update engagement scores for all subscribers
     const subscribers = await EmailSubscriber.find({ status: 'subscribed' });
@@ -259,11 +260,11 @@ const dailyCleanup = async () => {
         await subscriber.save();
         updated++;
       } catch (error) {
-        console.error(`[Email Jobs] Failed to update subscriber ${subscriber._id}:`, error.message);
+        logger.error(` Failed to update subscriber ${subscriber._id}:`, error.message);
       }
     }
 
-    console.log(`[Email Jobs] Updated engagement scores for ${updated} subscribers`);
+    logger.info(` Updated engagement scores for ${updated} subscribers`);
 
     // Clean hard bounced emails (mark as unsubscribed)
     const result = await EmailSubscriber.updateMany(
@@ -281,7 +282,7 @@ const dailyCleanup = async () => {
     );
 
     if (result.modifiedCount > 0) {
-      console.log(`[Email Jobs] Cleaned ${result.modifiedCount} hard bounced emails`);
+      logger.info(` Cleaned ${result.modifiedCount} hard bounced emails`);
     }
 
     // Clean old events older than 1 year (if TTL index not working)
@@ -293,12 +294,12 @@ const dailyCleanup = async () => {
     });
 
     if (deleteResult.deletedCount > 0) {
-      console.log(`[Email Jobs] Deleted ${deleteResult.deletedCount} old events`);
+      logger.info(` Deleted ${deleteResult.deletedCount} old events`);
     }
 
-    console.log('[Email Jobs] Daily cleanup complete');
+    logger.info(' Daily cleanup complete');
   } catch (error) {
-    console.error('[Email Jobs] Cleanup job error:', error);
+    logger.error(' Cleanup job error:', error);
   } finally {
     jobsRunning.cleanup = false;
   }
@@ -327,14 +328,14 @@ const updateABTestWinners = async () => {
       if (timeSinceSent >= testDurationMs) {
         try {
           await EmailMarketingService.selectWinner(campaign._id);
-          console.log(`[Email Jobs] Selected A/B test winner for campaign ${campaign._id}`);
+          logger.info(` Selected A/B test winner for campaign ${campaign._id}`);
         } catch (error) {
-          console.error(`[Email Jobs] Failed to select winner for ${campaign._id}:`, error.message);
+          logger.error(` Failed to select winner for ${campaign._id}:`, error.message);
         }
       }
     }
   } catch (error) {
-    console.error('[Email Jobs] A/B test winner job error:', error);
+    logger.error(' A/B test winner job error:', error);
   }
 };
 
@@ -342,47 +343,47 @@ const updateABTestWinners = async () => {
  * Start all email campaign jobs
  */
 function startEmailCampaignJobs() {
-  console.log('[Email Jobs] Starting email campaign job scheduler...');
+  logger.info(' Starting email campaign job scheduler...');
 
   // Every minute: Process scheduled campaigns
   cron.schedule('* * * * *', () => {
     processScheduledCampaigns();
   });
-  console.log('[Email Jobs] ✓ Scheduled campaigns job: every minute');
+  logger.info(' ✓ Scheduled campaigns job: every minute');
 
   // Every 5 minutes: Process drip campaigns
   cron.schedule('*/5 * * * *', () => {
     processDripCampaigns();
   });
-  console.log('[Email Jobs] ✓ Drip campaigns job: every 5 minutes');
+  logger.info(' ✓ Drip campaigns job: every 5 minutes');
 
   // Every 30 minutes: Update A/B test winners
   cron.schedule('*/30 * * * *', () => {
     updateABTestWinners();
   });
-  console.log('[Email Jobs] ✓ A/B test winner job: every 30 minutes');
+  logger.info(' ✓ A/B test winner job: every 30 minutes');
 
   // Every hour: Calculate segments and check inactivity
   cron.schedule('0 * * * *', () => {
     calculateSegments();
     checkInactivityTriggers();
   });
-  console.log('[Email Jobs] ✓ Segments & inactivity job: every hour');
+  logger.info(' ✓ Segments & inactivity job: every hour');
 
   // Daily at 2 AM: Cleanup and maintenance
   cron.schedule('0 2 * * *', () => {
     dailyCleanup();
   });
-  console.log('[Email Jobs] ✓ Daily cleanup job: 2:00 AM');
+  logger.info(' ✓ Daily cleanup job: 2:00 AM');
 
-  console.log('[Email Jobs] All email campaign jobs started successfully');
+  logger.info(' All email campaign jobs started successfully');
 }
 
 /**
  * Stop all jobs (for graceful shutdown)
  */
 function stopEmailCampaignJobs() {
-  console.log('[Email Jobs] Stopping email campaign jobs...');
+  logger.info(' Stopping email campaign jobs...');
   // Jobs will stop automatically when process exits
 }
 
@@ -390,7 +391,7 @@ function stopEmailCampaignJobs() {
  * Manually trigger a specific job (for testing/admin)
  */
 async function triggerJob(jobName) {
-  console.log(`[Email Jobs] Manually triggering ${jobName}...`);
+  logger.info(` Manually triggering ${jobName}...`);
 
   switch (jobName) {
     case 'scheduledCampaigns':
@@ -415,7 +416,7 @@ async function triggerJob(jobName) {
       throw new Error(`Unknown job: ${jobName}`);
   }
 
-  console.log(`[Email Jobs] ${jobName} completed`);
+  logger.info(` ${jobName} completed`);
 }
 
 /**

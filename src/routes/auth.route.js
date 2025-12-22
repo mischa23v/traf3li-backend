@@ -1,6 +1,21 @@
 const express = require('express');
-const { authLogin, authLogout, authRegister, authStatus, checkAvailability } = require('../controllers/auth.controller');
+const { authLogin, authLogout, authLogoutAll, authRegister, authStatus, checkAvailability } = require('../controllers/auth.controller');
 const { sendOTP, verifyOTP, resendOTP, checkOTPStatus } = require('../controllers/otp.controller');
+const {
+    generateBackupCodes,
+    verifyBackupCode,
+    regenerateBackupCodes,
+    getBackupCodesCount,
+    getMFAStatus
+} = require('../controllers/mfa.controller');
+const {
+    getActiveSessions,
+    getCurrentSession,
+    terminateSession,
+    terminateAllOtherSessions,
+    getSessionStats
+} = require('../controllers/session.controller');
+const { changePassword, getPasswordStatus } = require('../controllers/passwordChange.controller');
 const { authenticate } = require('../middlewares');
 const { authRateLimiter, sensitiveRateLimiter, publicRateLimiter } = require('../middlewares/rateLimiter.middleware');
 const {
@@ -131,6 +146,35 @@ app.post('/login', authRateLimiter, validateLogin, authLogin);
  *         $ref: '#/components/responses/Unauthorized'
  */
 app.post('/logout', authLogout)
+
+/**
+ * @openapi
+ * /api/auth/logout-all:
+ *   post:
+ *     summary: Logout from all devices
+ *     description: Revokes all active tokens for the current user across all devices
+ *     tags:
+ *       - Authentication
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Logged out from all devices successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: Successfully logged out from all devices
+ *       401:
+ *         $ref: "#/components/responses/Unauthorized"
+ */
+app.post("/logout-all", authenticate, authLogoutAll)
 
 /**
  * @openapi
@@ -277,5 +321,474 @@ app.post('/resend-otp', sensitiveRateLimiter, validateSendOTP, resendOTP);
  *                       format: date-time
  */
 app.get('/otp-status', publicRateLimiter, checkOTPStatus);
+
+// ========== MFA Backup Codes ==========
+/**
+ * @openapi
+ * /api/auth/mfa/backup-codes/generate:
+ *   post:
+ *     summary: Generate backup codes for MFA recovery
+ *     description: Generates 10 backup codes that can be used for MFA recovery. Codes are shown only once.
+ *     tags:
+ *       - MFA
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Backup codes generated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                 codes:
+ *                   type: array
+ *                   items:
+ *                     type: string
+ *                   example: ['ABCD-1234', 'EFGH-5678']
+ *                 remainingCodes:
+ *                   type: number
+ *                   example: 10
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ */
+app.post('/mfa/backup-codes/generate', authenticate, sensitiveRateLimiter, generateBackupCodes);
+
+/**
+ * @openapi
+ * /api/auth/mfa/backup-codes/verify:
+ *   post:
+ *     summary: Verify backup code for MFA login
+ *     description: Verifies a backup code during login. Each code can only be used once.
+ *     tags:
+ *       - MFA
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               userId:
+ *                 type: string
+ *                 description: User ID
+ *               code:
+ *                 type: string
+ *                 description: Backup code in format ABCD-1234
+ *     responses:
+ *       200:
+ *         description: Backup code verified successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: boolean
+ *                   example: false
+ *                 valid:
+ *                   type: boolean
+ *                   example: true
+ *                 remainingCodes:
+ *                   type: number
+ *                   example: 9
+ *       400:
+ *         $ref: '#/components/responses/BadRequest'
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ */
+app.post('/mfa/backup-codes/verify', authRateLimiter, verifyBackupCode);
+
+/**
+ * @openapi
+ * /api/auth/mfa/backup-codes/regenerate:
+ *   post:
+ *     summary: Regenerate backup codes (invalidates old codes)
+ *     description: Generates a new set of backup codes and invalidates all old ones. Requires MFA to be enabled.
+ *     tags:
+ *       - MFA
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Backup codes regenerated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                 codes:
+ *                   type: array
+ *                   items:
+ *                     type: string
+ *                   example: ['ABCD-1234', 'EFGH-5678']
+ *                 remainingCodes:
+ *                   type: number
+ *                   example: 10
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ */
+app.post('/mfa/backup-codes/regenerate', authenticate, sensitiveRateLimiter, regenerateBackupCodes);
+
+/**
+ * @openapi
+ * /api/auth/mfa/backup-codes/count:
+ *   get:
+ *     summary: Get remaining backup codes count
+ *     description: Returns the number of unused backup codes available for the authenticated user
+ *     tags:
+ *       - MFA
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Backup codes count retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: boolean
+ *                   example: false
+ *                 remainingCodes:
+ *                   type: number
+ *                   example: 8
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ */
+app.get('/mfa/backup-codes/count', authenticate, publicRateLimiter, getBackupCodesCount);
+
+/**
+ * @openapi
+ * /api/auth/mfa/status:
+ *   get:
+ *     summary: Get MFA status
+ *     description: Returns MFA status including whether MFA is enabled and backup codes info
+ *     tags:
+ *       - MFA
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: MFA status retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: boolean
+ *                   example: false
+ *                 mfaEnabled:
+ *                   type: boolean
+ *                   example: true
+ *                 hasTOTP:
+ *                   type: boolean
+ *                   example: true
+ *                 hasBackupCodes:
+ *                   type: boolean
+ *                   example: true
+ *                 remainingCodes:
+ *                   type: number
+ *                   example: 8
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ */
+app.get('/mfa/status', authenticate, publicRateLimiter, getMFAStatus);
+
+// ========== Session Management ==========
+/**
+ * @openapi
+ * /api/auth/sessions:
+ *   get:
+ *     summary: List user's active sessions
+ *     description: Returns all active sessions for the authenticated user with device and location information
+ *     tags:
+ *       - Sessions
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Active sessions retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                 sessions:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: string
+ *                       device:
+ *                         type: string
+ *                       browser:
+ *                         type: string
+ *                       os:
+ *                         type: string
+ *                       ip:
+ *                         type: string
+ *                       location:
+ *                         type: object
+ *                       createdAt:
+ *                         type: string
+ *                         format: date-time
+ *                       lastActivityAt:
+ *                         type: string
+ *                         format: date-time
+ *                       isCurrent:
+ *                         type: boolean
+ *                 count:
+ *                   type: number
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ */
+app.get('/sessions', authenticate, publicRateLimiter, getActiveSessions);
+
+/**
+ * @openapi
+ * /api/auth/sessions/current:
+ *   get:
+ *     summary: Get current session information
+ *     description: Returns details about the current active session
+ *     tags:
+ *       - Sessions
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Current session retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                 session:
+ *                   type: object
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ */
+app.get('/sessions/current', authenticate, publicRateLimiter, getCurrentSession);
+
+/**
+ * @openapi
+ * /api/auth/sessions/stats:
+ *   get:
+ *     summary: Get session statistics
+ *     description: Returns session statistics including active count and recent sessions
+ *     tags:
+ *       - Sessions
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Session statistics retrieved successfully
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ */
+app.get('/sessions/stats', authenticate, publicRateLimiter, getSessionStats);
+
+/**
+ * @openapi
+ * /api/auth/sessions/{id}:
+ *   delete:
+ *     summary: Terminate specific session
+ *     description: Terminates a specific session by ID. Users can only terminate their own sessions.
+ *     tags:
+ *       - Sessions
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Session ID to terminate
+ *     responses:
+ *       200:
+ *         description: Session terminated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ *       403:
+ *         $ref: '#/components/responses/Forbidden'
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ */
+app.delete('/sessions/:id', authenticate, authRateLimiter, terminateSession);
+
+/**
+ * @openapi
+ * /api/auth/sessions:
+ *   delete:
+ *     summary: Terminate all other sessions
+ *     description: Terminates all sessions except the current one. Useful for security when a device is lost.
+ *     tags:
+ *       - Sessions
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: All other sessions terminated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                 terminatedCount:
+ *                   type: number
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ */
+app.delete('/sessions', authenticate, authRateLimiter, terminateAllOtherSessions);
+
+// ========== Password Management ==========
+/**
+ * @openapi
+ * /api/auth/change-password:
+ *   post:
+ *     summary: Change user password
+ *     description: Allows authenticated users to change their password. Validates current password and enforces password policy.
+ *     tags:
+ *       - Password Management
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - currentPassword
+ *               - newPassword
+ *             properties:
+ *               currentPassword:
+ *                 type: string
+ *                 description: User's current password
+ *               newPassword:
+ *                 type: string
+ *                 description: New password (must meet policy requirements)
+ *     responses:
+ *       200:
+ *         description: Password changed successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                 messageAr:
+ *                   type: string
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     passwordChangedAt:
+ *                       type: string
+ *                       format: date-time
+ *                     passwordExpiresAt:
+ *                       type: string
+ *                       format: date-time
+ *                     strengthScore:
+ *                       type: number
+ *                     strengthLabel:
+ *                       type: string
+ *       400:
+ *         description: Invalid password or policy violation
+ *       401:
+ *         description: Current password incorrect
+ */
+app.post('/change-password', authenticate, authRateLimiter, changePassword);
+
+/**
+ * @openapi
+ * /api/auth/password-status:
+ *   get:
+ *     summary: Get password expiration status
+ *     description: Returns information about the user's password expiration status and rotation requirements
+ *     tags:
+ *       - Password Management
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Password status retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: boolean
+ *                   example: false
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     mustChangePassword:
+ *                       type: boolean
+ *                     passwordChangedAt:
+ *                       type: string
+ *                       format: date-time
+ *                     passwordExpiresAt:
+ *                       type: string
+ *                       format: date-time
+ *                     expirationEnabled:
+ *                       type: boolean
+ *                     daysOld:
+ *                       type: number
+ *                     daysRemaining:
+ *                       type: number
+ *                     needsRotation:
+ *                       type: boolean
+ *                     showWarning:
+ *                       type: boolean
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ */
+app.get('/password-status', authenticate, publicRateLimiter, getPasswordStatus);
 
 module.exports = app;

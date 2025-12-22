@@ -1,6 +1,7 @@
 // Marketplace Routes
 const gigRoute = require('./gig.route');
 const authRoute = require('./auth.route');
+const adminRoute = require('./admin.route');
 const orderRoute = require('./order.route');
 const conversationRoute = require('./conversation.route');
 const messageRoute = require('./message.route');
@@ -162,6 +163,9 @@ const metricsRoute = require('./metrics.route');
 // Security Incident Routes (NCA ECC-2:2024 Compliance)
 const securityIncidentRoute = require('./securityIncident.route');
 
+// Security Monitoring & Alerting Routes
+const securityRoute = require('./security.route');
+
 // PDPL Consent Routes
 const consentRoute = require('./consent.route');
 
@@ -198,10 +202,24 @@ const unifiedDataRoute = require('./unifiedData.route');
 const planRoute = require('./plan.route');
 const apiKeyRoute = require('./apiKey.route');
 
+// WebAuthn Routes (Hardware Security Keys & Biometric Authentication)
+const webauthnRoute = require('./webauthn.route');
+
+// SAML/SSO Routes (Enterprise SSO Authentication)
+const samlRoute = require('./saml.route');
+
+// SSO Configuration Routes (Enterprise SSO Management UI)
+const ssoConfigRoute = require('./ssoConfig.route');
+
+// MFA Routes (Multi-Factor Authentication - TOTP)
+const mfaRoute = require('./mfa.route');
+
 module.exports = {
     // Marketplace
     gigRoute,
     authRoute,
+    mfaRoute,
+    adminRoute,
     orderRoute,
     conversationRoute,
     messageRoute,
@@ -363,6 +381,9 @@ module.exports = {
     // Security Incident Reporting (NCA ECC-2:2024 Compliance)
     securityIncidentRoute,
 
+    // Security Monitoring & Alerting
+    securityRoute,
+
     // PDPL Consent Management
     consentRoute,
 
@@ -397,5 +418,14 @@ module.exports = {
 
     // Plan & Subscription
     planRoute,
-    apiKeyRoute
+    apiKeyRoute,
+
+    // WebAuthn (Hardware Security Keys & Biometric Authentication)
+    webauthnRoute,
+
+    // SAML/SSO (Enterprise SSO Authentication)
+    samlRoute,
+
+    // SSO Configuration (Enterprise SSO Management UI)
+    ssoConfigRoute
 };

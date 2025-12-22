@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const logger = require('../utils/contextLogger').child({ module: 'Database' });
 
 mongoose.set('strictQuery', true);
 
@@ -19,10 +20,8 @@ mongoose.set('toObject', { virtuals: true, versionKey: false });
 // Enable debug mode for slow query logging in non-production or when explicitly enabled
 if (process.env.NODE_ENV !== 'production' || process.env.ENABLE_SLOW_QUERY_LOG === 'true') {
   mongoose.set('debug', (collectionName, method, query, doc, options) => {
-    const start = Date.now();
-    // Log after execution - Mongoose debug doesn't give us timing easily
-    // so we just log the query details for manual analysis
-    console.log(`[MongoDB] ${collectionName}.${method}`, JSON.stringify(query).slice(0, 200));
+    const queryStr = JSON.stringify(query).slice(0, 200);
+    logger.debug('MongoDB query', { collection: collectionName, method, query: queryStr });
   });
 }
 
@@ -41,7 +40,7 @@ mongoose.plugin((schema) => {
         const duration = Date.now() - this._startTime;
         if (duration > SLOW_QUERY_THRESHOLD_MS) {
           const queryInfo = this.getQuery ? JSON.stringify(this.getQuery()).slice(0, 300) : 'N/A';
-          console.warn(`⚠️  [SLOW QUERY] ${method} took ${duration}ms - Query: ${queryInfo}`);
+          logger.db.slowQuery(method, this.constructor.modelName, queryInfo, duration);
         }
       }
     });
@@ -54,7 +53,7 @@ mongoose.plugin((schema) => {
 // Pre-warm MongoDB connections to avoid cold start latency
 const warmupConnections = async () => {
     const startTime = Date.now();
-    console.log('🔥 [DB] Warming up MongoDB connections...');
+    logger.info('Warming up MongoDB connections');
 
     try {
         const db = mongoose.connection.db;
@@ -76,9 +75,9 @@ const warmupConnections = async () => {
         await Promise.all(warmupPromises);
 
         const duration = Date.now() - startTime;
-        console.log(`🔥 [DB] Connection warmup completed in ${duration}ms`);
+        logger.info('Connection warmup completed', { durationMs: duration });
     } catch (err) {
-        console.warn('⚠️ [DB] Warmup warning (non-fatal):', err.message);
+        logger.warn('Warmup warning (non-fatal)', { error: err.message });
     }
 };
 
@@ -108,7 +107,7 @@ const connect = async () => {
             w: 1
         });
 
-        console.log('✅ Connected to MongoDB');
+        logger.info('Connected to MongoDB');
 
         // Immediately warm up connections
         await warmupConnections();
@@ -121,20 +120,22 @@ const connect = async () => {
 
             // Get all indexes on the clients collection
             const indexes = await clientCollection.indexes();
-            console.log('📋 [DB] Current indexes on clients collection:', indexes.map(i => i.name));
+            logger.debug('Current indexes on clients collection', {
+                indexes: indexes.map(i => i.name)
+            });
 
             // Drop stale 'clientId' index if it exists (from old schema)
             const staleIndexes = ['clientId_1', 'clientId'];
             for (const indexName of staleIndexes) {
                 const hasIndex = indexes.some(i => i.name === indexName);
                 if (hasIndex) {
-                    console.log(`🗑️  [DB] Dropping stale index: ${indexName}`);
+                    logger.info('Dropping stale index', { indexName });
                     await clientCollection.dropIndex(indexName);
-                    console.log(`✅ [DB] Dropped stale index: ${indexName}`);
+                    logger.info('Dropped stale index', { indexName });
                 }
             }
         } catch (indexErr) {
-            console.warn('⚠️  Index cleanup warning:', indexErr.message);
+            logger.warn('Index cleanup warning', { error: indexErr.message });
             // Non-fatal: continue with startup
         }
 
@@ -145,28 +146,28 @@ const connect = async () => {
             try {
                 const Client = require('../models/client.model');
                 await Client.initializeCounter();
-                console.log('✅ Counters initialized');
+                logger.info('Counters initialized');
             } catch (counterErr) {
-                console.warn('⚠️  Counter initialization warning:', counterErr.message);
+                logger.warn('Counter initialization warning', { error: counterErr.message });
                 // Non-fatal: counter will auto-initialize on first use
             }
         });
 
         // Monitor connection events
         mongoose.connection.on('error', (err) => {
-            console.error('❌ MongoDB connection error:', err);
+            logger.error('MongoDB connection error', { error: err.message });
         });
 
         mongoose.connection.on('disconnected', () => {
-            console.warn('⚠️  MongoDB disconnected. Attempting to reconnect...');
+            logger.warn('MongoDB disconnected - Attempting to reconnect');
         });
 
         mongoose.connection.on('reconnected', () => {
-            console.log('✅ MongoDB reconnected');
+            logger.info('MongoDB reconnected');
         });
 
     } catch (error) {
-        console.error('❌ MongoDB Connection Error:', error.message);
+        logger.error('MongoDB connection failed', { error: error.message, stack: error.stack });
         throw error;
     }
 };
