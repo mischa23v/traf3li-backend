@@ -101,11 +101,13 @@ const verifyCaptcha = async (provider, token, remoteIp = null) => {
         });
 
         // Make verification request to provider
+        // CAPTCHA providers require form data in POST body, not query params
+        const formData = new URLSearchParams(payload).toString();
+
         const response = await axios.post(
             providerConfig.verifyUrl,
-            null, // Body is null, params go in query string or form data
+            formData,
             {
-                params: payload,
                 headers: {
                     'Content-Type': 'application/x-www-form-urlencoded'
                 },

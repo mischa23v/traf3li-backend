@@ -11,6 +11,24 @@ const { getDefaultPermissions } = require('../config/permissions.config');
 const { JWT_SECRET } = process.env;
 
 /**
+ * Escape special characters in LDAP filter to prevent injection attacks
+ * RFC 4515 defines these special characters that must be escaped
+ * @param {string} input - User input to escape
+ * @returns {string} - Escaped string safe for LDAP filters
+ */
+const escapeLdapFilter = (input) => {
+    if (!input || typeof input !== 'string') {
+        return '';
+    }
+    return input
+        .replace(/\\/g, '\\5c')  // Backslash must be escaped first
+        .replace(/\*/g, '\\2a')  // Asterisk
+        .replace(/\(/g, '\\28')  // Opening parenthesis
+        .replace(/\)/g, '\\29')  // Closing parenthesis
+        .replace(/\x00/g, '\\00'); // NUL character
+};
+
+/**
  * LDAP Service
  *
  * Handles LDAP/Active Directory authentication and user synchronization
@@ -180,8 +198,9 @@ class LdapService {
                 await this.bind(client, config.bindDn, decryptedPassword);
             }
 
-            // 4. Search for user
-            const userFilter = config.userFilter.replace('{username}', username);
+            // 4. Search for user (escape username to prevent LDAP injection)
+            const safeUsername = escapeLdapFilter(username);
+            const userFilter = config.userFilter.replace('{username}', safeUsername);
             const users = await this.searchUser(client, config.baseDn, userFilter, config);
 
             if (users.length === 0) {
@@ -424,8 +443,9 @@ class LdapService {
                 await this.bind(client, config.bindDn, decryptedPassword);
             }
 
-            // Search for user
-            const userFilter = config.userFilter.replace('{username}', username);
+            // Search for user (escape username to prevent LDAP injection)
+            const safeUsername = escapeLdapFilter(username);
+            const userFilter = config.userFilter.replace('{username}', safeUsername);
             const users = await this.searchUser(client, config.baseDn, userFilter, config);
 
             if (users.length === 0) {

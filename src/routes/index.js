@@ -125,6 +125,15 @@ const notificationSettingsRoute = require('./notificationSettings.route');
 // Setup Wizard Routes (App Onboarding)
 const setupWizardRoute = require('./setupWizard.route');
 
+// Billing & Subscription Management Routes
+const billingRoute = require('./billing.route');
+
+// Email Settings Routes
+const emailSettingsRoute = require('./emailSettings.route');
+
+// OAuth SSO Routes
+const oauthRoute = require('./oauth.route');
+
 // Investment & Trading Journal Routes
 const tradesRoute = require('./trades.route');
 const brokersRoute = require('./brokers.route');
@@ -362,6 +371,15 @@ module.exports = {
 
     // Setup Wizard (App Onboarding)
     setupWizardRoute,
+
+    // Billing & Subscription Management
+    billingRoute,
+
+    // Email Settings
+    emailSettingsRoute,
+
+    // OAuth SSO
+    oauthRoute,
 
     // Investment & Trading Journal
     tradesRoute,
