@@ -245,6 +245,9 @@ const lockDateRoutes = require('./lockDate.routes');
 const automatedActionRoutes = require('./automatedAction.routes');
 const smartButtonRoute = require('./smartButton.route');
 
+// Churn Management Routes
+const churnRoute = require('./churn.route');
+
 module.exports = {
     // Marketplace
     gigRoute,
@@ -487,5 +490,8 @@ module.exports = {
     chatterFollowerRoutes,
     lockDateRoutes,
     automatedActionRoutes,
-    smartButtonRoute
+    smartButtonRoute,
+
+    // Churn Management
+    churnRoute
 };

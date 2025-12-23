@@ -56,6 +56,7 @@ const { startTimeEntryJobs } = require('./jobs/timeEntryLocking.job');
 const { startPlanJobs } = require('./jobs/planExpiration.job');
 const { startDataRetentionJob } = require('./jobs/dataRetention.job');
 const { scheduleSessionCleanup } = require('./jobs/sessionCleanup.job');
+const { startCustomerHealthJobs } = require('./jobs/customerHealth.job');
 const { initSocket } = require('./configs/socket');
 const {
     smartRateLimiter,
@@ -322,7 +323,10 @@ const {
     billingRoute,
     emailSettingsRoute,
     consolidatedReportsRoute,
-    oauthRoute
+    oauthRoute,
+
+    // Churn Management
+    churnRoute
 } = require('./routes');
 
 // Import versioned routes
@@ -1042,6 +1046,12 @@ app.use('/api/consent', noCache, consentRoute);
 app.use('/api/queues', noCache, queueRoute);
 
 // ============================================
+// CHURN MANAGEMENT ROUTES
+// ============================================
+// Churn prediction, tracking, and intervention management
+app.use('/api/churn', noCache, churnRoute);
+
+// ============================================
 // 404 HANDLER - Must be after all routes
 // ============================================
 // Handle 404 errors with CORS headers
@@ -1194,6 +1204,7 @@ const startServer = async () => {
             startPlanJobs();
             startDataRetentionJob();
             scheduleSessionCleanup();
+            startCustomerHealthJobs();
             logger.info('✅ All scheduled jobs started');
         }, CRON_STARTUP_DELAY_MS);
 
