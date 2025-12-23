@@ -14,6 +14,7 @@ const {
 } = require('../models');
 const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
+const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 
 // ═══════════════════════════════════════════════════════════════
 // CRUD OPERATIONS
@@ -41,6 +42,31 @@ const getReports = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
     const lawyerId = req.userID;
 
+    // Input validation
+    const validSections = ['hr', 'finance', 'tasks', 'crm', 'sales', 'general'];
+    const validStatuses = ['active', 'inactive', 'archived', 'draft'];
+    const validSortFields = ['createdAt', 'updatedAt', 'name', 'nameAr', 'section', 'category', 'runCount', 'viewCount'];
+    const validSortOrders = ['asc', 'desc'];
+
+    if (section && !validSections.includes(section)) {
+        throw CustomException('قسم غير صالح', 400);
+    }
+
+    if (status && !validStatuses.includes(status)) {
+        throw CustomException('حالة غير صالحة', 400);
+    }
+
+    if (!validSortFields.includes(sortBy)) {
+        throw CustomException('حقل الفرز غير صالح', 400);
+    }
+
+    if (!validSortOrders.includes(sortOrder)) {
+        throw CustomException('ترتيب الفرز غير صالح', 400);
+    }
+
+    const pageNum = Math.max(1, parseInt(page));
+    const limitNum = Math.min(100, Math.max(1, parseInt(limit)));
+
     const query = { firmId, lawyerId };
 
     if (section) query.section = section;
@@ -51,11 +77,13 @@ const getReports = asyncHandler(async (req, res) => {
     if (isPinned !== undefined) query.isPinned = isPinned === 'true';
 
     if (search) {
+        // Sanitize search input to prevent regex injection
+        const sanitizedSearch = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').substring(0, 100);
         query.$or = [
-            { name: { $regex: search, $options: 'i' } },
-            { nameAr: { $regex: search, $options: 'i' } },
-            { description: { $regex: search, $options: 'i' } },
-            { tags: { $in: [new RegExp(search, 'i')] } }
+            { name: { $regex: sanitizedSearch, $options: 'i' } },
+            { nameAr: { $regex: sanitizedSearch, $options: 'i' } },
+            { description: { $regex: sanitizedSearch, $options: 'i' } },
+            { tags: { $in: [new RegExp(sanitizedSearch, 'i')] } }
         ];
     }
 
@@ -64,8 +92,8 @@ const getReports = asyncHandler(async (req, res) => {
 
     const reports = await AnalyticsReport.find(query)
         .sort(sortOptions)
-        .limit(parseInt(limit))
-        .skip((parseInt(page) - 1) * parseInt(limit))
+        .limit(limitNum)
+        .skip((pageNum - 1) * limitNum)
         .populate('createdBy', 'firstName lastName')
         .populate('updatedBy', 'firstName lastName');
 
@@ -75,10 +103,10 @@ const getReports = asyncHandler(async (req, res) => {
         success: true,
         data: reports,
         pagination: {
-            page: parseInt(page),
-            limit: parseInt(limit),
+            page: pageNum,
+            limit: limitNum,
             total,
-            pages: Math.ceil(total / parseInt(limit))
+            pages: Math.ceil(total / limitNum)
         }
     });
 });
@@ -91,7 +119,10 @@ const getReport = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const firmId = req.firmId;
 
-    const report = await AnalyticsReport.findOne({ _id: id, firmId })
+    // Sanitize ID to prevent injection
+    const sanitizedId = sanitizeObjectId(id);
+
+    const report = await AnalyticsReport.findOne({ _id: sanitizedId, firmId })
         .populate('createdBy', 'firstName lastName email')
         .populate('updatedBy', 'firstName lastName email')
         .populate('lastRunBy', 'firstName lastName');
@@ -117,8 +148,40 @@ const createReport = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
     const lawyerId = req.userID;
 
+    // Mass assignment protection - only allow specific fields
+    const allowedFields = [
+        'name',
+        'nameAr',
+        'description',
+        'descriptionAr',
+        'section',
+        'category',
+        'reportType',
+        'columns',
+        'charts',
+        'filters',
+        'aggregations',
+        'dateRange',
+        'groupBy',
+        'sortBy',
+        'sortOrder',
+        'limit',
+        'tags',
+        'isTemplate',
+        'schedule',
+        'exportFormats',
+        'hrConfig',
+        'financeConfig',
+        'tasksConfig',
+        'crmConfig',
+        'salesConfig',
+        'status'
+    ];
+
+    const sanitizedData = pickAllowedFields(req.body, allowedFields);
+
     const reportData = {
-        ...req.body,
+        ...sanitizedData,
         firmId,
         lawyerId,
         createdBy: lawyerId,
@@ -143,14 +206,52 @@ const updateReport = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
     const lawyerId = req.userID;
 
-    const report = await AnalyticsReport.findOne({ _id: id, firmId });
+    // Sanitize ID to prevent injection
+    const sanitizedId = sanitizeObjectId(id);
+
+    const report = await AnalyticsReport.findOne({ _id: sanitizedId, firmId });
 
     if (!report) {
         throw CustomException('التقرير غير موجود', 404);
     }
 
+    // Mass assignment protection - only allow specific fields
+    const allowedFields = [
+        'name',
+        'nameAr',
+        'description',
+        'descriptionAr',
+        'section',
+        'category',
+        'reportType',
+        'columns',
+        'charts',
+        'filters',
+        'aggregations',
+        'dateRange',
+        'groupBy',
+        'sortBy',
+        'sortOrder',
+        'limit',
+        'tags',
+        'isTemplate',
+        'isFavorite',
+        'isPinned',
+        'pinnedOrder',
+        'schedule',
+        'exportFormats',
+        'hrConfig',
+        'financeConfig',
+        'tasksConfig',
+        'crmConfig',
+        'salesConfig',
+        'status'
+    ];
+
+    const sanitizedData = pickAllowedFields(req.body, allowedFields);
+
     // Store previous version if significant changes
-    if (req.body.columns || req.body.charts || req.body.filters || req.body.aggregations) {
+    if (sanitizedData.columns || sanitizedData.charts || sanitizedData.filters || sanitizedData.aggregations) {
         report.previousVersions.push({
             version: report.version,
             config: {
@@ -164,7 +265,7 @@ const updateReport = asyncHandler(async (req, res) => {
         });
     }
 
-    Object.assign(report, req.body);
+    Object.assign(report, sanitizedData);
     report.updatedBy = lawyerId;
 
     await report.save();
@@ -184,7 +285,10 @@ const deleteReport = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const firmId = req.firmId;
 
-    const report = await AnalyticsReport.findOneAndDelete({ _id: id, firmId });
+    // Sanitize ID to prevent injection
+    const sanitizedId = sanitizeObjectId(id);
+
+    const report = await AnalyticsReport.findOneAndDelete({ _id: sanitizedId, firmId });
 
     if (!report) {
         throw CustomException('التقرير غير موجود', 404);
@@ -208,8 +312,16 @@ const bulkDeleteReports = asyncHandler(async (req, res) => {
         throw CustomException('الرجاء تحديد التقارير المراد حذفها', 400);
     }
 
+    // Limit bulk operations to prevent abuse
+    if (ids.length > 100) {
+        throw CustomException('لا يمكن حذف أكثر من 100 تقرير في وقت واحد', 400);
+    }
+
+    // Sanitize all IDs to prevent injection
+    const sanitizedIds = ids.map(id => sanitizeObjectId(id));
+
     const result = await AnalyticsReport.deleteMany({
-        _id: { $in: ids },
+        _id: { $in: sanitizedIds },
         firmId
     });
 
@@ -234,10 +346,22 @@ const runReport = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
     const lawyerId = req.userID;
 
-    const report = await AnalyticsReport.findOne({ _id: id, firmId });
+    // Sanitize ID to prevent injection
+    const sanitizedId = sanitizeObjectId(id);
+
+    const report = await AnalyticsReport.findOne({ _id: sanitizedId, firmId });
 
     if (!report) {
         throw CustomException('التقرير غير موجود', 404);
+    }
+
+    // Validate dateRange if provided
+    if (dateRange && typeof dateRange === 'object') {
+        const validDateRangeTypes = ['custom', 'today', 'yesterday', 'this_week', 'last_week', 'this_month', 'last_month', 'this_quarter', 'last_quarter', 'this_year', 'last_year', 'last_7_days', 'last_30_days', 'last_90_days', 'last_365_days'];
+
+        if (dateRange.type && !validDateRangeTypes.includes(dateRange.type)) {
+            throw CustomException('نوع نطاق التاريخ غير صالح', 400);
+        }
     }
 
     // Generate report data based on section
@@ -290,10 +414,18 @@ const cloneReport = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
     const lawyerId = req.userID;
 
-    const report = await AnalyticsReport.findOne({ _id: id, firmId });
+    // Sanitize ID to prevent injection
+    const sanitizedId = sanitizeObjectId(id);
+
+    const report = await AnalyticsReport.findOne({ _id: sanitizedId, firmId });
 
     if (!report) {
         throw CustomException('التقرير غير موجود', 404);
+    }
+
+    // Validate name length
+    if (name && name.length > 200) {
+        throw CustomException('اسم التقرير طويل جداً', 400);
     }
 
     const clonedReport = await report.clone(name, lawyerId);
@@ -313,7 +445,10 @@ const toggleFavorite = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const firmId = req.firmId;
 
-    const report = await AnalyticsReport.findOne({ _id: id, firmId });
+    // Sanitize ID to prevent injection
+    const sanitizedId = sanitizeObjectId(id);
+
+    const report = await AnalyticsReport.findOne({ _id: sanitizedId, firmId });
 
     if (!report) {
         throw CustomException('التقرير غير موجود', 404);
@@ -337,10 +472,18 @@ const togglePinned = asyncHandler(async (req, res) => {
     const { order } = req.body;
     const firmId = req.firmId;
 
-    const report = await AnalyticsReport.findOne({ _id: id, firmId });
+    // Sanitize ID to prevent injection
+    const sanitizedId = sanitizeObjectId(id);
+
+    const report = await AnalyticsReport.findOne({ _id: sanitizedId, firmId });
 
     if (!report) {
         throw CustomException('التقرير غير موجود', 404);
+    }
+
+    // Validate order if provided
+    if (order !== undefined && (typeof order !== 'number' || order < 0 || order > 1000)) {
+        throw CustomException('قيمة الترتيب غير صالحة', 400);
     }
 
     const isPinned = await report.togglePinned(order);
@@ -365,15 +508,32 @@ const scheduleReport = asyncHandler(async (req, res) => {
     const { schedule } = req.body;
     const firmId = req.firmId;
 
-    const report = await AnalyticsReport.findOne({ _id: id, firmId });
+    // Sanitize ID to prevent injection
+    const sanitizedId = sanitizeObjectId(id);
+
+    const report = await AnalyticsReport.findOne({ _id: sanitizedId, firmId });
 
     if (!report) {
         throw CustomException('التقرير غير موجود', 404);
     }
 
+    // Validate schedule object
+    if (!schedule || typeof schedule !== 'object') {
+        throw CustomException('بيانات الجدولة غير صالحة', 400);
+    }
+
+    const validFrequencies = ['daily', 'weekly', 'monthly', 'quarterly', 'yearly'];
+    if (schedule.frequency && !validFrequencies.includes(schedule.frequency)) {
+        throw CustomException('تكرار الجدولة غير صالح', 400);
+    }
+
+    // Only allow specific schedule fields
+    const allowedScheduleFields = ['frequency', 'time', 'dayOfWeek', 'dayOfMonth', 'recipients', 'format'];
+    const sanitizedSchedule = pickAllowedFields(schedule, allowedScheduleFields);
+
     report.schedule = {
         ...report.schedule,
-        ...schedule,
+        ...sanitizedSchedule,
         enabled: true
     };
 
@@ -397,7 +557,10 @@ const unscheduleReport = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const firmId = req.firmId;
 
-    const report = await AnalyticsReport.findOne({ _id: id, firmId });
+    // Sanitize ID to prevent injection
+    const sanitizedId = sanitizeObjectId(id);
+
+    const report = await AnalyticsReport.findOne({ _id: sanitizedId, firmId });
 
     if (!report) {
         throw CustomException('التقرير غير موجود', 404);
@@ -428,6 +591,14 @@ const getTemplates = asyncHandler(async (req, res) => {
     const { section, category } = req.query;
     const firmId = req.firmId;
 
+    // Validate section if provided
+    if (section) {
+        const validSections = ['hr', 'finance', 'tasks', 'crm', 'sales', 'general'];
+        if (!validSections.includes(section)) {
+            throw CustomException('قسم غير صالح', 400);
+        }
+    }
+
     const templates = await AnalyticsReport.getTemplates(firmId, section);
 
     let filteredTemplates = templates;
@@ -451,8 +622,19 @@ const createFromTemplate = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
     const lawyerId = req.userID;
 
+    // Sanitize template ID to prevent injection
+    const sanitizedTemplateId = sanitizeObjectId(templateId);
+
+    // Validate name inputs
+    if (name && name.length > 200) {
+        throw CustomException('اسم التقرير طويل جداً', 400);
+    }
+    if (nameAr && nameAr.length > 200) {
+        throw CustomException('الاسم العربي للتقرير طويل جداً', 400);
+    }
+
     const template = await AnalyticsReport.findOne({
-        _id: templateId,
+        _id: sanitizedTemplateId,
         isTemplate: true
     });
 
@@ -547,9 +729,18 @@ const getBySection = asyncHandler(async (req, res) => {
     const { category, limit = 50 } = req.query;
     const firmId = req.firmId;
 
+    // Validate section
+    const validSections = ['hr', 'finance', 'tasks', 'crm', 'sales', 'general'];
+    if (!validSections.includes(section)) {
+        throw CustomException('قسم غير صالح', 400);
+    }
+
+    // Validate and sanitize limit
+    const limitNum = Math.min(100, Math.max(1, parseInt(limit)));
+
     const reports = await AnalyticsReport.getBySection(firmId, section, {
         category,
-        limit: parseInt(limit)
+        limit: limitNum
     });
 
     res.status(200).json({
@@ -573,7 +764,25 @@ const exportReport = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
     const lawyerId = req.userID;
 
-    const report = await AnalyticsReport.findOne({ _id: id, firmId });
+    // Sanitize ID to prevent injection
+    const sanitizedId = sanitizeObjectId(id);
+
+    // Validate format
+    const validFormats = ['pdf', 'excel', 'csv', 'json'];
+    if (!validFormats.includes(format)) {
+        throw CustomException('صيغة التصدير غير صالحة', 400);
+    }
+
+    // Validate dateRange if provided
+    if (dateRange && typeof dateRange === 'object') {
+        const validDateRangeTypes = ['custom', 'today', 'yesterday', 'this_week', 'last_week', 'this_month', 'last_month', 'this_quarter', 'last_quarter', 'this_year', 'last_year', 'last_7_days', 'last_30_days', 'last_90_days', 'last_365_days'];
+
+        if (dateRange.type && !validDateRangeTypes.includes(dateRange.type)) {
+            throw CustomException('نوع نطاق التاريخ غير صالح', 400);
+        }
+    }
+
+    const report = await AnalyticsReport.findOne({ _id: sanitizedId, firmId });
 
     if (!report) {
         throw CustomException('التقرير غير موجود', 404);

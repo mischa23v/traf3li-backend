@@ -2,6 +2,8 @@ const CompensationReward = require('../models/compensationReward.model');
 const Employee = require('../models/employee.model');
 const { CustomException } = require('../utils');
 const asyncHandler = require('../utils/asyncHandler');
+const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
+const mongoose = require('mongoose');
 
 // ═══════════════════════════════════════════════════════════════
 // HELPER FUNCTIONS
@@ -44,6 +46,56 @@ function calculateServiceTime(hireDate) {
         months += 12;
     }
     return { years, months, totalMonths: years * 12 + months };
+}
+
+/**
+ * Validate compensation amounts
+ */
+function validateCompensationAmount(amount, fieldName = 'Amount') {
+    if (amount === undefined || amount === null) {
+        return; // Allow undefined/null for optional fields
+    }
+
+    if (typeof amount !== 'number' || isNaN(amount)) {
+        throw CustomException(`${fieldName} must be a valid number`, 400);
+    }
+
+    if (amount < 0) {
+        throw CustomException(`${fieldName} cannot be negative`, 400);
+    }
+
+    if (amount > 10000000) { // 10 million max
+        throw CustomException(`${fieldName} exceeds maximum allowed value`, 400);
+    }
+
+    return true;
+}
+
+/**
+ * Verify record ownership (IDOR protection)
+ */
+async function verifyRecordOwnership(recordId, firmId, lawyerId) {
+    const record = await CompensationReward.findOne({
+        $or: [
+            { _id: sanitizeObjectId(recordId) },
+            { compensationId: recordId }
+        ]
+    }).lean();
+
+    if (!record) {
+        throw CustomException('سجل التعويضات غير موجود', 404);
+    }
+
+    // Verify ownership
+    if (firmId && record.firmId?.toString() !== firmId.toString()) {
+        throw CustomException('غير مصرح لك بالوصول إلى هذا السجل', 403);
+    }
+
+    if (!firmId && record.lawyerId?.toString() !== lawyerId.toString()) {
+        throw CustomException('غير مصرح لك بالوصول إلى هذا السجل', 403);
+    }
+
+    return record;
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -288,11 +340,14 @@ const getPayGradeAnalysis = asyncHandler(async (req, res) => {
 const getCompensationRecord = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
-    const baseQuery = firmId ? { firmId } : { lawyerId };
 
+    // IDOR protection - verify ownership
+    await verifyRecordOwnership(req.params.id, firmId, lawyerId);
+
+    const baseQuery = firmId ? { firmId } : { lawyerId };
     const record = await CompensationReward.findOne({
         $or: [
-            { _id: req.params.id },
+            { _id: sanitizeObjectId(req.params.id) },
             { compensationId: req.params.id }
         ],
         ...baseQuery
@@ -317,8 +372,22 @@ const getEmployeeCompensation = asyncHandler(async (req, res) => {
     const baseQuery = firmId ? { firmId } : { lawyerId };
     const { employeeId } = req.params;
 
+    // Sanitize employeeId
+    const sanitizedEmployeeId = sanitizeObjectId(employeeId);
+
+    // IDOR protection - verify employee belongs to the same firm/lawyer
+    const employee = await Employee.findById(sanitizedEmployeeId);
+    if (employee) {
+        if (firmId && employee.firmId?.toString() !== firmId.toString()) {
+            throw CustomException('غير مصرح لك بالوصول إلى هذا الموظف', 403);
+        }
+        if (!firmId && employee.lawyerId?.toString() !== lawyerId.toString()) {
+            throw CustomException('غير مصرح لك بالوصول إلى هذا الموظف', 403);
+        }
+    }
+
     const records = await CompensationReward.find({
-        employeeId,
+        employeeId: sanitizedEmployeeId,
         ...baseQuery
     }).sort({ effectiveDate: -1 });
 
@@ -336,6 +405,15 @@ const createCompensationRecord = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
+    // Mass assignment protection
+    const allowedFields = [
+        'employeeId', 'basicSalary', 'payGrade', 'salaryRangeMin', 'salaryRangeMid',
+        'salaryRangeMax', 'effectiveDate', 'officeId', 'allowances', 'housingAllowance',
+        'transportationAllowance', 'mobileAllowance', 'educationAllowance', 'mealAllowance',
+        'currency', 'paymentFrequency', 'variableCompensation', 'deductions', 'notes'
+    ];
+    const sanitizedData = pickAllowedFields(req.body, allowedFields);
+
     const {
         employeeId,
         basicSalary,
@@ -345,12 +423,26 @@ const createCompensationRecord = asyncHandler(async (req, res) => {
         salaryRangeMax,
         effectiveDate,
         ...otherData
-    } = req.body;
+    } = sanitizedData;
 
-    // Validate employee
-    const employee = await Employee.findById(employeeId);
+    // Input validation for compensation amounts
+    validateCompensationAmount(basicSalary, 'Basic salary');
+    validateCompensationAmount(salaryRangeMin, 'Salary range minimum');
+    validateCompensationAmount(salaryRangeMid, 'Salary range midpoint');
+    validateCompensationAmount(salaryRangeMax, 'Salary range maximum');
+
+    // Validate employee and ownership
+    const employee = await Employee.findById(sanitizeObjectId(employeeId));
     if (!employee) {
         throw CustomException('Employee not found', 404);
+    }
+
+    // IDOR protection - verify employee belongs to the same firm/lawyer
+    if (firmId && employee.firmId?.toString() !== firmId.toString()) {
+        throw CustomException('غير مصرح لك بالوصول إلى هذا الموظف', 403);
+    }
+    if (!firmId && employee.lawyerId?.toString() !== lawyerId.toString()) {
+        throw CustomException('غير مصرح لك بالوصول إلى هذا الموظف', 403);
     }
 
     // Check for existing active compensation
@@ -436,10 +528,13 @@ const createCompensationRecord = asyncHandler(async (req, res) => {
 const updateCompensationRecord = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
-    const baseQuery = firmId ? { firmId } : { lawyerId };
 
+    // IDOR protection - verify ownership
+    await verifyRecordOwnership(req.params.id, firmId, lawyerId);
+
+    const baseQuery = firmId ? { firmId } : { lawyerId };
     const record = await CompensationReward.findOne({
-        $or: [{ _id: req.params.id }, { compensationId: req.params.id }],
+        $or: [{ _id: sanitizeObjectId(req.params.id) }, { compensationId: req.params.id }],
         ...baseQuery
     });
 
@@ -452,16 +547,32 @@ const updateCompensationRecord = asyncHandler(async (req, res) => {
         throw CustomException('Cannot modify historical compensation records', 400);
     }
 
-    // Update fields
-    const updateFields = { ...req.body, updatedBy: req.userID };
-    delete updateFields.compensationId;
-    delete updateFields.recordNumber;
-    delete updateFields.firmId;
-    delete updateFields.lawyerId;
-    delete updateFields.employeeId;
-    delete updateFields.createdBy;
+    // Mass assignment protection
+    const allowedUpdateFields = [
+        'basicSalary', 'payGrade', 'salaryRangeMin', 'salaryRangeMid', 'salaryRangeMax',
+        'effectiveDate', 'officeId', 'allowances', 'housingAllowance', 'transportationAllowance',
+        'mobileAllowance', 'educationAllowance', 'mealAllowance', 'currency', 'paymentFrequency',
+        'variableCompensation', 'deductions', 'notes', 'status'
+    ];
+    const sanitizedData = pickAllowedFields(req.body, allowedUpdateFields);
 
-    Object.assign(record, updateFields);
+    // Input validation for compensation amounts if provided
+    if (sanitizedData.basicSalary !== undefined) {
+        validateCompensationAmount(sanitizedData.basicSalary, 'Basic salary');
+    }
+    if (sanitizedData.salaryRangeMin !== undefined) {
+        validateCompensationAmount(sanitizedData.salaryRangeMin, 'Salary range minimum');
+    }
+    if (sanitizedData.salaryRangeMid !== undefined) {
+        validateCompensationAmount(sanitizedData.salaryRangeMid, 'Salary range midpoint');
+    }
+    if (sanitizedData.salaryRangeMax !== undefined) {
+        validateCompensationAmount(sanitizedData.salaryRangeMax, 'Salary range maximum');
+    }
+
+    // Update fields
+    Object.assign(record, sanitizedData);
+    record.updatedBy = req.userID;
     await record.save();
 
     return res.json({
@@ -477,10 +588,13 @@ const updateCompensationRecord = asyncHandler(async (req, res) => {
 const deleteCompensationRecord = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
-    const baseQuery = firmId ? { firmId } : { lawyerId };
 
+    // IDOR protection - verify ownership
+    await verifyRecordOwnership(req.params.id, firmId, lawyerId);
+
+    const baseQuery = firmId ? { firmId } : { lawyerId };
     const record = await CompensationReward.findOne({
-        $or: [{ _id: req.params.id }, { compensationId: req.params.id }],
+        $or: [{ _id: sanitizeObjectId(req.params.id) }, { compensationId: req.params.id }],
         ...baseQuery
     });
 
@@ -514,11 +628,25 @@ const bulkDeleteRecords = asyncHandler(async (req, res) => {
         throw CustomException('Please provide an array of record IDs to delete', 400);
     }
 
+    // Limit bulk operations to prevent abuse
+    if (ids.length > 100) {
+        throw CustomException('Cannot delete more than 100 records at once', 400);
+    }
+
+    // Sanitize all IDs
+    const sanitizedIds = ids.map(id => {
+        try {
+            return sanitizeObjectId(id);
+        } catch (err) {
+            return id; // Keep as string if not a valid ObjectId (might be compensationId)
+        }
+    });
+
     // Only delete non-active records
     const result = await CompensationReward.deleteMany({
         $or: [
-            { _id: { $in: ids } },
-            { compensationId: { $in: ids } }
+            { _id: { $in: sanitizedIds } },
+            { compensationId: { $in: sanitizedIds } }
         ],
         ...baseQuery,
         status: { $in: ['pending', 'cancelled'] }
@@ -541,7 +669,16 @@ const bulkDeleteRecords = asyncHandler(async (req, res) => {
 const processSalaryIncrease = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+
+    // IDOR protection - verify ownership
+    await verifyRecordOwnership(req.params.id, firmId, lawyerId);
+
+    // Mass assignment protection
+    const allowedFields = [
+        'increaseAmount', 'increasePercentage', 'changeType', 'changeReason',
+        'effectiveDate', 'performanceRating', 'notes'
+    ];
+    const sanitizedData = pickAllowedFields(req.body, allowedFields);
 
     const {
         increaseAmount,
@@ -551,86 +688,110 @@ const processSalaryIncrease = asyncHandler(async (req, res) => {
         effectiveDate,
         performanceRating,
         notes
-    } = req.body;
+    } = sanitizedData;
 
-    const record = await CompensationReward.findOne({
-        $or: [{ _id: req.params.id }, { compensationId: req.params.id }],
-        ...baseQuery
-    });
-
-    if (!record) {
-        throw CustomException('سجل التعويضات غير موجود', 404);
-    }
-
-    if (record.status !== 'active') {
-        throw CustomException('Can only process increases for active compensation records', 400);
-    }
-
-    // Calculate new salary
-    let newBasicSalary;
-    let actualIncreaseAmount;
-
-    if (increaseAmount) {
-        newBasicSalary = record.basicSalary + increaseAmount;
-        actualIncreaseAmount = increaseAmount;
-    } else if (increasePercentage) {
-        actualIncreaseAmount = record.basicSalary * (increasePercentage / 100);
-        newBasicSalary = record.basicSalary + actualIncreaseAmount;
-    } else {
-        throw CustomException('Please provide increaseAmount or increasePercentage', 400);
-    }
-
-    // Add to salary history
-    record.salaryHistory.push({
-        changeId: generateChangeId(),
-        effectiveDate: effectiveDate || new Date(),
-        previousBasicSalary: record.basicSalary,
-        newBasicSalary,
-        previousGrossSalary: record.grossSalary,
-        grossSalary: newBasicSalary + record.totalAllowances,
-        increaseAmount: actualIncreaseAmount,
-        increasePercentage: (actualIncreaseAmount / record.basicSalary) * 100,
-        changeType: changeType || 'merit_increase',
-        changeReason,
-        performanceRating,
-        approvedBy: req.userID,
-        approvedAt: new Date(),
-        annualizedImpact: actualIncreaseAmount * 12,
-        notes
-    });
-
-    // Update current values
-    record.basicSalary = newBasicSalary;
-    record.grossSalary = newBasicSalary + record.totalAllowances;
-    record.effectiveDate = effectiveDate || new Date();
-    record.updatedBy = req.userID;
-
-    // Recalculate compa-ratio
-    if (record.salaryRangeMid > 0) {
-        record.compaRatio = parseFloat((newBasicSalary / record.salaryRangeMid).toFixed(2));
-    }
-
-    // Update salary review status
-    if (record.salaryReview) {
-        record.salaryReview.lastReviewDate = new Date();
-        record.salaryReview.reviewStatus = 'implemented';
-        record.salaryReview.implementationStatus = 'processed';
-        record.salaryReview.implementationDate = new Date();
-    }
-
-    await record.save();
-
-    return res.json({
-        success: true,
-        message: 'Salary increase processed successfully',
-        record,
-        increase: {
-            previousSalary: record.salaryHistory[record.salaryHistory.length - 1].previousBasicSalary,
-            newSalary: newBasicSalary,
-            increaseAmount: actualIncreaseAmount,
-            increasePercentage: (actualIncreaseAmount / record.salaryHistory[record.salaryHistory.length - 1].previousBasicSalary) * 100
+    // Input validation
+    validateCompensationAmount(increaseAmount, 'Increase amount');
+    if (increasePercentage !== undefined) {
+        if (typeof increasePercentage !== 'number' || increasePercentage < 0 || increasePercentage > 100) {
+            throw CustomException('Increase percentage must be between 0 and 100', 400);
         }
-    });
+    }
+
+    // Use MongoDB transaction for financial operation
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    try {
+        const baseQuery = firmId ? { firmId } : { lawyerId };
+        const record = await CompensationReward.findOne({
+            $or: [{ _id: sanitizeObjectId(req.params.id) }, { compensationId: req.params.id }],
+            ...baseQuery
+        }).session(session);
+
+        if (!record) {
+            throw CustomException('سجل التعويضات غير موجود', 404);
+        }
+
+        if (record.status !== 'active') {
+            throw CustomException('Can only process increases for active compensation records', 400);
+        }
+
+        // Calculate new salary
+        let newBasicSalary;
+        let actualIncreaseAmount;
+
+        if (increaseAmount) {
+            newBasicSalary = record.basicSalary + increaseAmount;
+            actualIncreaseAmount = increaseAmount;
+        } else if (increasePercentage) {
+            actualIncreaseAmount = record.basicSalary * (increasePercentage / 100);
+            newBasicSalary = record.basicSalary + actualIncreaseAmount;
+        } else {
+            throw CustomException('Please provide increaseAmount or increasePercentage', 400);
+        }
+
+        // Validate new salary
+        validateCompensationAmount(newBasicSalary, 'New basic salary');
+
+        // Add to salary history
+        record.salaryHistory.push({
+            changeId: generateChangeId(),
+            effectiveDate: effectiveDate || new Date(),
+            previousBasicSalary: record.basicSalary,
+            newBasicSalary,
+            previousGrossSalary: record.grossSalary,
+            grossSalary: newBasicSalary + record.totalAllowances,
+            increaseAmount: actualIncreaseAmount,
+            increasePercentage: (actualIncreaseAmount / record.basicSalary) * 100,
+            changeType: changeType || 'merit_increase',
+            changeReason,
+            performanceRating,
+            approvedBy: req.userID,
+            approvedAt: new Date(),
+            annualizedImpact: actualIncreaseAmount * 12,
+            notes
+        });
+
+        // Update current values
+        record.basicSalary = newBasicSalary;
+        record.grossSalary = newBasicSalary + record.totalAllowances;
+        record.effectiveDate = effectiveDate || new Date();
+        record.updatedBy = req.userID;
+
+        // Recalculate compa-ratio
+        if (record.salaryRangeMid > 0) {
+            record.compaRatio = parseFloat((newBasicSalary / record.salaryRangeMid).toFixed(2));
+        }
+
+        // Update salary review status
+        if (record.salaryReview) {
+            record.salaryReview.lastReviewDate = new Date();
+            record.salaryReview.reviewStatus = 'implemented';
+            record.salaryReview.implementationStatus = 'processed';
+            record.salaryReview.implementationDate = new Date();
+        }
+
+        await record.save({ session });
+        await session.commitTransaction();
+
+        return res.json({
+            success: true,
+            message: 'Salary increase processed successfully',
+            record,
+            increase: {
+                previousSalary: record.salaryHistory[record.salaryHistory.length - 1].previousBasicSalary,
+                newSalary: newBasicSalary,
+                increaseAmount: actualIncreaseAmount,
+                increasePercentage: (actualIncreaseAmount / record.salaryHistory[record.salaryHistory.length - 1].previousBasicSalary) * 100
+            }
+        });
+    } catch (error) {
+        await session.abortTransaction();
+        throw error;
+    } finally {
+        session.endSession();
+    }
 });
 
 // ═══════════════════════════════════════════════════════════════
@@ -643,10 +804,23 @@ const processSalaryIncrease = asyncHandler(async (req, res) => {
 const addAllowance = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
-    const baseQuery = firmId ? { firmId } : { lawyerId };
 
+    // IDOR protection - verify ownership
+    await verifyRecordOwnership(req.params.id, firmId, lawyerId);
+
+    // Mass assignment protection
+    const allowedFields = [
+        'allowanceType', 'allowanceName', 'amount', 'frequency', 'taxable',
+        'startDate', 'endDate', 'isRecurring', 'description', 'notes'
+    ];
+    const sanitizedData = pickAllowedFields(req.body, allowedFields);
+
+    // Input validation
+    validateCompensationAmount(sanitizedData.amount, 'Allowance amount');
+
+    const baseQuery = firmId ? { firmId } : { lawyerId };
     const record = await CompensationReward.findOne({
-        $or: [{ _id: req.params.id }, { compensationId: req.params.id }],
+        $or: [{ _id: sanitizeObjectId(req.params.id) }, { compensationId: req.params.id }],
         ...baseQuery
     });
 
@@ -655,9 +829,9 @@ const addAllowance = asyncHandler(async (req, res) => {
     }
 
     const allowance = {
-        ...req.body,
+        ...sanitizedData,
         allowanceId: generateAllowanceId(),
-        startDate: req.body.startDate || new Date()
+        startDate: sanitizedData.startDate || new Date()
     };
 
     record.allowances.push(allowance);
@@ -679,10 +853,25 @@ const addAllowance = asyncHandler(async (req, res) => {
 const updateAllowance = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
-    const baseQuery = firmId ? { firmId } : { lawyerId };
 
+    // IDOR protection - verify ownership
+    await verifyRecordOwnership(req.params.id, firmId, lawyerId);
+
+    // Mass assignment protection
+    const allowedFields = [
+        'allowanceType', 'allowanceName', 'amount', 'frequency', 'taxable',
+        'startDate', 'endDate', 'isRecurring', 'description', 'notes'
+    ];
+    const sanitizedData = pickAllowedFields(req.body, allowedFields);
+
+    // Input validation
+    if (sanitizedData.amount !== undefined) {
+        validateCompensationAmount(sanitizedData.amount, 'Allowance amount');
+    }
+
+    const baseQuery = firmId ? { firmId } : { lawyerId };
     const record = await CompensationReward.findOne({
-        $or: [{ _id: req.params.id }, { compensationId: req.params.id }],
+        $or: [{ _id: sanitizeObjectId(req.params.id) }, { compensationId: req.params.id }],
         ...baseQuery
     });
 
@@ -701,7 +890,7 @@ const updateAllowance = asyncHandler(async (req, res) => {
     // Update allowance
     record.allowances[allowanceIndex] = {
         ...record.allowances[allowanceIndex].toObject(),
-        ...req.body
+        ...sanitizedData
     };
     record.updatedBy = req.userID;
 
@@ -721,10 +910,13 @@ const updateAllowance = asyncHandler(async (req, res) => {
 const removeAllowance = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
-    const baseQuery = firmId ? { firmId } : { lawyerId };
 
+    // IDOR protection - verify ownership
+    await verifyRecordOwnership(req.params.id, firmId, lawyerId);
+
+    const baseQuery = firmId ? { firmId } : { lawyerId };
     const record = await CompensationReward.findOne({
-        $or: [{ _id: req.params.id }, { compensationId: req.params.id }],
+        $or: [{ _id: sanitizeObjectId(req.params.id) }, { compensationId: req.params.id }],
         ...baseQuery
     });
 
@@ -762,7 +954,17 @@ const removeAllowance = asyncHandler(async (req, res) => {
 const processBonus = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+
+    // IDOR protection - verify ownership
+    await verifyRecordOwnership(req.params.id, firmId, lawyerId);
+
+    // Mass assignment protection
+    const allowedFields = [
+        'year', 'fiscalYear', 'targetBonus', 'actualBonus', 'performanceRating',
+        'individualPerformance', 'departmentPerformance', 'companyPerformance',
+        'paymentDate', 'notes'
+    ];
+    const sanitizedData = pickAllowedFields(req.body, allowedFields);
 
     const {
         year,
@@ -775,52 +977,69 @@ const processBonus = asyncHandler(async (req, res) => {
         companyPerformance,
         paymentDate,
         notes
-    } = req.body;
+    } = sanitizedData;
 
-    const record = await CompensationReward.findOne({
-        $or: [{ _id: req.params.id }, { compensationId: req.params.id }],
-        ...baseQuery
-    });
+    // Input validation
+    validateCompensationAmount(targetBonus, 'Target bonus');
+    validateCompensationAmount(actualBonus, 'Actual bonus');
 
-    if (!record) {
-        throw CustomException('سجل التعويضات غير موجود', 404);
+    // Use MongoDB transaction for financial operation
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    try {
+        const baseQuery = firmId ? { firmId } : { lawyerId };
+        const record = await CompensationReward.findOne({
+            $or: [{ _id: sanitizeObjectId(req.params.id) }, { compensationId: req.params.id }],
+            ...baseQuery
+        }).session(session);
+
+        if (!record) {
+            throw CustomException('سجل التعويضات غير موجود', 404);
+        }
+
+        // Initialize variable compensation if not exists
+        if (!record.variableCompensation) {
+            record.variableCompensation = { eligibleForVariablePay: true };
+        }
+        if (!record.variableCompensation.annualBonus) {
+            record.variableCompensation.annualBonus = { eligible: true, bonusHistory: [] };
+        }
+
+        const bonusEntry = {
+            bonusId: generateChangeId(),
+            year: year || new Date().getFullYear(),
+            fiscalYear,
+            targetBonus,
+            actualBonus,
+            payoutPercentage: targetBonus > 0 ? (actualBonus / targetBonus) * 100 : 0,
+            payoutDate: paymentDate || new Date(),
+            performanceRating,
+            individualPerformance,
+            departmentPerformance,
+            companyPerformance,
+            paid: true,
+            notes
+        };
+
+        record.variableCompensation.annualBonus.bonusHistory.push(bonusEntry);
+        record.updatedBy = req.userID;
+
+        await record.save({ session });
+        await session.commitTransaction();
+
+        return res.json({
+            success: true,
+            message: 'Bonus processed successfully',
+            record,
+            bonus: bonusEntry
+        });
+    } catch (error) {
+        await session.abortTransaction();
+        throw error;
+    } finally {
+        session.endSession();
     }
-
-    // Initialize variable compensation if not exists
-    if (!record.variableCompensation) {
-        record.variableCompensation = { eligibleForVariablePay: true };
-    }
-    if (!record.variableCompensation.annualBonus) {
-        record.variableCompensation.annualBonus = { eligible: true, bonusHistory: [] };
-    }
-
-    const bonusEntry = {
-        bonusId: generateChangeId(),
-        year: year || new Date().getFullYear(),
-        fiscalYear,
-        targetBonus,
-        actualBonus,
-        payoutPercentage: targetBonus > 0 ? (actualBonus / targetBonus) * 100 : 0,
-        payoutDate: paymentDate || new Date(),
-        performanceRating,
-        individualPerformance,
-        departmentPerformance,
-        companyPerformance,
-        paid: true,
-        notes
-    };
-
-    record.variableCompensation.annualBonus.bonusHistory.push(bonusEntry);
-    record.updatedBy = req.userID;
-
-    await record.save();
-
-    return res.json({
-        success: true,
-        message: 'Bonus processed successfully',
-        record,
-        bonus: bonusEntry
-    });
 });
 
 // ═══════════════════════════════════════════════════════════════
@@ -833,17 +1052,29 @@ const processBonus = asyncHandler(async (req, res) => {
 const submitForReview = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+
+    // IDOR protection - verify ownership
+    await verifyRecordOwnership(req.params.id, firmId, lawyerId);
+
+    // Mass assignment protection
+    const allowedFields = [
+        'recommendationType', 'recommendedIncrease', 'recommendedPercentage', 'justification'
+    ];
+    const sanitizedData = pickAllowedFields(req.body, allowedFields);
 
     const {
         recommendationType,
         recommendedIncrease,
         recommendedPercentage,
         justification
-    } = req.body;
+    } = sanitizedData;
 
+    // Input validation
+    validateCompensationAmount(recommendedIncrease, 'Recommended increase');
+
+    const baseQuery = firmId ? { firmId } : { lawyerId };
     const record = await CompensationReward.findOne({
-        $or: [{ _id: req.params.id }, { compensationId: req.params.id }],
+        $or: [{ _id: sanitizeObjectId(req.params.id) }, { compensationId: req.params.id }],
         ...baseQuery
     });
 
@@ -885,17 +1116,29 @@ const submitForReview = asyncHandler(async (req, res) => {
 const approveReview = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+
+    // IDOR protection - verify ownership
+    await verifyRecordOwnership(req.params.id, firmId, lawyerId);
+
+    // Mass assignment protection
+    const allowedFields = [
+        'approvedIncrease', 'approvedPercentage', 'effectiveDate', 'comments'
+    ];
+    const sanitizedData = pickAllowedFields(req.body, allowedFields);
 
     const {
         approvedIncrease,
         approvedPercentage,
         effectiveDate,
         comments
-    } = req.body;
+    } = sanitizedData;
 
+    // Input validation
+    validateCompensationAmount(approvedIncrease, 'Approved increase');
+
+    const baseQuery = firmId ? { firmId } : { lawyerId };
     const record = await CompensationReward.findOne({
-        $or: [{ _id: req.params.id }, { compensationId: req.params.id }],
+        $or: [{ _id: sanitizeObjectId(req.params.id) }, { compensationId: req.params.id }],
         ...baseQuery
     });
 
@@ -935,12 +1178,18 @@ const approveReview = asyncHandler(async (req, res) => {
 const declineReview = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
+
+    // IDOR protection - verify ownership
+    await verifyRecordOwnership(req.params.id, firmId, lawyerId);
+
+    // Mass assignment protection
+    const allowedFields = ['reason'];
+    const sanitizedData = pickAllowedFields(req.body, allowedFields);
+    const { reason } = sanitizedData;
+
     const baseQuery = firmId ? { firmId } : { lawyerId };
-
-    const { reason } = req.body;
-
     const record = await CompensationReward.findOne({
-        $or: [{ _id: req.params.id }, { compensationId: req.params.id }],
+        $or: [{ _id: sanitizeObjectId(req.params.id) }, { compensationId: req.params.id }],
         ...baseQuery
     });
 
@@ -974,10 +1223,25 @@ const declineReview = asyncHandler(async (req, res) => {
 const addRecognition = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
-    const baseQuery = firmId ? { firmId } : { lawyerId };
 
+    // IDOR protection - verify ownership
+    await verifyRecordOwnership(req.params.id, firmId, lawyerId);
+
+    // Mass assignment protection
+    const allowedFields = [
+        'awardType', 'awardName', 'awardCategory', 'description', 'monetaryValue',
+        'awardDate', 'recognitionLevel', 'criteria', 'notes'
+    ];
+    const sanitizedData = pickAllowedFields(req.body, allowedFields);
+
+    // Input validation for monetary value if provided
+    if (sanitizedData.monetaryValue !== undefined) {
+        validateCompensationAmount(sanitizedData.monetaryValue, 'Monetary value');
+    }
+
+    const baseQuery = firmId ? { firmId } : { lawyerId };
     const record = await CompensationReward.findOne({
-        $or: [{ _id: req.params.id }, { compensationId: req.params.id }],
+        $or: [{ _id: sanitizeObjectId(req.params.id) }, { compensationId: req.params.id }],
         ...baseQuery
     });
 
@@ -990,9 +1254,9 @@ const addRecognition = asyncHandler(async (req, res) => {
     }
 
     const award = {
-        ...req.body,
+        ...sanitizedData,
         awardId: generateAwardId(),
-        awardDate: req.body.awardDate || new Date(),
+        awardDate: sanitizedData.awardDate || new Date(),
         awardedBy: req.userID
     };
 

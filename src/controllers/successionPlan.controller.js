@@ -1,6 +1,7 @@
 const SuccessionPlan = require('../models/successionPlan.model');
 const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
+const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 
 // ═══════════════════════════════════════════════════════════════
 // GET ALL SUCCESSION PLANS
@@ -231,7 +232,7 @@ const getCriticalWithoutSuccessors = asyncHandler(async (req, res) => {
 
 const getByPosition = asyncHandler(async (req, res) => {
     const { firmId, lawyerId } = req;
-    const { positionId } = req.params;
+    const positionId = sanitizeObjectId(req.params.positionId, 'Position ID');
 
     const baseQuery = firmId ? { firmId } : { lawyerId };
     const plans = await SuccessionPlan.find({
@@ -252,7 +253,7 @@ const getByPosition = asyncHandler(async (req, res) => {
 
 const getByIncumbent = asyncHandler(async (req, res) => {
     const { firmId, lawyerId } = req;
-    const { incumbentId } = req.params;
+    const incumbentId = sanitizeObjectId(req.params.incumbentId, 'Incumbent ID');
 
     const baseQuery = firmId ? { firmId } : { lawyerId };
     const plans = await SuccessionPlan.find({
@@ -273,7 +274,7 @@ const getByIncumbent = asyncHandler(async (req, res) => {
 
 const getSuccessionPlan = asyncHandler(async (req, res) => {
     const { firmId, lawyerId } = req;
-    const { id } = req.params;
+    const id = sanitizeObjectId(req.params.id, 'Succession plan ID');
 
     const baseQuery = firmId ? { firmId } : { lawyerId };
     const plan = await SuccessionPlan.findOne({ _id: id, ...baseQuery })
@@ -301,8 +302,70 @@ const getSuccessionPlan = asyncHandler(async (req, res) => {
 const createSuccessionPlan = asyncHandler(async (req, res) => {
     const { firmId, lawyerId, userId } = req;
 
+    // Define allowed fields
+    const allowedFields = [
+        'planNumber',
+        'planStatus',
+        'criticalPosition',
+        'incumbent',
+        'successors',
+        'benchStrength',
+        'readyNowCount',
+        'successorsCount',
+        'planDetails',
+        'actionPlan',
+        'reviewApproval',
+        'riskMitigation',
+        'notes',
+        'documents'
+    ];
+
+    // Input validation
+    if (!req.body.planNumber || typeof req.body.planNumber !== 'string') {
+        throw new CustomException('Valid plan number is required', 400);
+    }
+
+    if (req.body.criticalPosition && !req.body.criticalPosition.positionTitle) {
+        throw new CustomException('Position title is required in critical position', 400);
+    }
+
+    // Validate positionId if provided
+    if (req.body.criticalPosition?.positionId) {
+        req.body.criticalPosition.positionId = sanitizeObjectId(req.body.criticalPosition.positionId, 'Position ID');
+    }
+
+    // Validate departmentId if provided
+    if (req.body.criticalPosition?.departmentId) {
+        req.body.criticalPosition.departmentId = sanitizeObjectId(req.body.criticalPosition.departmentId, 'Department ID');
+    }
+
+    // Validate incumbent employeeId if provided
+    if (req.body.incumbent?.employeeId) {
+        req.body.incumbent.employeeId = sanitizeObjectId(req.body.incumbent.employeeId, 'Employee ID');
+    }
+
+    // Validate successor employeeIds if provided
+    if (req.body.successors && Array.isArray(req.body.successors)) {
+        req.body.successors.forEach((successor, index) => {
+            if (successor.employeeId) {
+                successor.employeeId = sanitizeObjectId(successor.employeeId, `Successor ${index + 1} employee ID`);
+            }
+        });
+    }
+
+    // Validate dates if provided
+    if (req.body.planDetails?.effectiveDate && isNaN(Date.parse(req.body.planDetails.effectiveDate))) {
+        throw new CustomException('Invalid effective date format', 400);
+    }
+
+    if (req.body.planDetails?.nextReviewDate && isNaN(Date.parse(req.body.planDetails.nextReviewDate))) {
+        throw new CustomException('Invalid next review date format', 400);
+    }
+
+    const sanitizedData = pickAllowedFields(req.body, allowedFields);
+
     const plan = new SuccessionPlan({
-        ...req.body,
+        ...sanitizedData,
         firmId,
         lawyerId,
         createdBy: userId,
@@ -324,7 +387,7 @@ const createSuccessionPlan = asyncHandler(async (req, res) => {
 
 const updateSuccessionPlan = asyncHandler(async (req, res) => {
     const { firmId, lawyerId, userId } = req;
-    const { id } = req.params;
+    const id = sanitizeObjectId(req.params.id, 'Succession plan ID');
 
     const baseQuery = firmId ? { firmId } : { lawyerId };
     const plan = await SuccessionPlan.findOne({ _id: id, ...baseQuery });
@@ -333,10 +396,60 @@ const updateSuccessionPlan = asyncHandler(async (req, res) => {
         throw new CustomException('Succession plan not found', 404);
     }
 
-    // Remove immutable fields from update
-    const { firmId: _, lawyerId: __, successionPlanId, createdBy, ...updateData } = req.body;
+    // Define allowed fields
+    const allowedFields = [
+        'planNumber',
+        'planStatus',
+        'criticalPosition',
+        'incumbent',
+        'successors',
+        'benchStrength',
+        'readyNowCount',
+        'successorsCount',
+        'planDetails',
+        'actionPlan',
+        'reviewApproval',
+        'riskMitigation',
+        'notes',
+        'documents'
+    ];
 
-    Object.assign(plan, updateData, { updatedBy: userId });
+    // Validate positionId if provided
+    if (req.body.criticalPosition?.positionId) {
+        req.body.criticalPosition.positionId = sanitizeObjectId(req.body.criticalPosition.positionId, 'Position ID');
+    }
+
+    // Validate departmentId if provided
+    if (req.body.criticalPosition?.departmentId) {
+        req.body.criticalPosition.departmentId = sanitizeObjectId(req.body.criticalPosition.departmentId, 'Department ID');
+    }
+
+    // Validate incumbent employeeId if provided
+    if (req.body.incumbent?.employeeId) {
+        req.body.incumbent.employeeId = sanitizeObjectId(req.body.incumbent.employeeId, 'Employee ID');
+    }
+
+    // Validate successor employeeIds if provided
+    if (req.body.successors && Array.isArray(req.body.successors)) {
+        req.body.successors.forEach((successor, index) => {
+            if (successor.employeeId) {
+                successor.employeeId = sanitizeObjectId(successor.employeeId, `Successor ${index + 1} employee ID`);
+            }
+        });
+    }
+
+    // Validate dates if provided
+    if (req.body.planDetails?.effectiveDate && isNaN(Date.parse(req.body.planDetails.effectiveDate))) {
+        throw new CustomException('Invalid effective date format', 400);
+    }
+
+    if (req.body.planDetails?.nextReviewDate && isNaN(Date.parse(req.body.planDetails.nextReviewDate))) {
+        throw new CustomException('Invalid next review date format', 400);
+    }
+
+    const sanitizedData = pickAllowedFields(req.body, allowedFields);
+
+    Object.assign(plan, sanitizedData, { updatedBy: userId });
     await plan.save();
 
     res.status(200).json({
@@ -352,7 +465,7 @@ const updateSuccessionPlan = asyncHandler(async (req, res) => {
 
 const deleteSuccessionPlan = asyncHandler(async (req, res) => {
     const { firmId, lawyerId } = req;
-    const { id } = req.params;
+    const id = sanitizeObjectId(req.params.id, 'Succession plan ID');
 
     const baseQuery = firmId ? { firmId } : { lawyerId };
     const plan = await SuccessionPlan.findOne({ _id: id, ...baseQuery });
@@ -381,9 +494,12 @@ const bulkDeleteSuccessionPlans = asyncHandler(async (req, res) => {
         throw new CustomException('Please provide an array of plan IDs', 400);
     }
 
+    // Sanitize all IDs
+    const sanitizedIds = ids.map((id, index) => sanitizeObjectId(id, `Plan ID at index ${index}`));
+
     const baseQuery = firmId ? { firmId } : { lawyerId };
     const result = await SuccessionPlan.deleteMany({
-        _id: { $in: ids },
+        _id: { $in: sanitizedIds },
         ...baseQuery
     });
 
@@ -400,8 +516,7 @@ const bulkDeleteSuccessionPlans = asyncHandler(async (req, res) => {
 
 const addSuccessor = asyncHandler(async (req, res) => {
     const { firmId, lawyerId, userId } = req;
-    const { id } = req.params;
-    const successorData = req.body;
+    const id = sanitizeObjectId(req.params.id, 'Succession plan ID');
 
     const baseQuery = firmId ? { firmId } : { lawyerId };
     const plan = await SuccessionPlan.findOne({ _id: id, ...baseQuery });
@@ -410,15 +525,45 @@ const addSuccessor = asyncHandler(async (req, res) => {
         throw new CustomException('Succession plan not found', 404);
     }
 
+    // Define allowed fields
+    const allowedFields = [
+        'employeeId',
+        'employeeName',
+        'currentPosition',
+        'readinessLevel',
+        'readinessTimeframe',
+        'readinessAssessment',
+        'developmentPlan',
+        'strengths',
+        'developmentNeeds',
+        'priority',
+        'isActive'
+    ];
+
+    // Input validation
+    if (!req.body.employeeId) {
+        throw new CustomException('Employee ID is required', 400);
+    }
+
+    // Sanitize employeeId
+    req.body.employeeId = sanitizeObjectId(req.body.employeeId, 'Employee ID');
+
+    // Validate readiness assessment date if provided
+    if (req.body.readinessAssessment?.assessmentDate && isNaN(Date.parse(req.body.readinessAssessment.assessmentDate))) {
+        throw new CustomException('Invalid assessment date format', 400);
+    }
+
+    const sanitizedData = pickAllowedFields(req.body, allowedFields);
+
     // Generate successor ID
     const successorId = `SUCC-${plan.planNumber}-${(plan.successors?.length || 0) + 1}`;
 
     plan.successors = plan.successors || [];
     plan.successors.push({
         successorId,
-        ...successorData,
+        ...sanitizedData,
         readinessAssessment: {
-            ...successorData.readinessAssessment,
+            ...sanitizedData.readinessAssessment,
             assessmentDate: new Date()
         }
     });
@@ -438,8 +583,8 @@ const addSuccessor = asyncHandler(async (req, res) => {
 
 const updateSuccessor = asyncHandler(async (req, res) => {
     const { firmId, lawyerId, userId } = req;
-    const { id, successorId } = req.params;
-    const successorData = req.body;
+    const id = sanitizeObjectId(req.params.id, 'Succession plan ID');
+    const { successorId } = req.params;
 
     const baseQuery = firmId ? { firmId } : { lawyerId };
     const plan = await SuccessionPlan.findOne({ _id: id, ...baseQuery });
@@ -456,9 +601,36 @@ const updateSuccessor = asyncHandler(async (req, res) => {
         throw new CustomException('Successor not found', 404);
     }
 
+    // Define allowed fields
+    const allowedFields = [
+        'employeeId',
+        'employeeName',
+        'currentPosition',
+        'readinessLevel',
+        'readinessTimeframe',
+        'readinessAssessment',
+        'developmentPlan',
+        'strengths',
+        'developmentNeeds',
+        'priority',
+        'isActive'
+    ];
+
+    // Sanitize employeeId if provided
+    if (req.body.employeeId) {
+        req.body.employeeId = sanitizeObjectId(req.body.employeeId, 'Employee ID');
+    }
+
+    // Validate readiness assessment date if provided
+    if (req.body.readinessAssessment?.assessmentDate && isNaN(Date.parse(req.body.readinessAssessment.assessmentDate))) {
+        throw new CustomException('Invalid assessment date format', 400);
+    }
+
+    const sanitizedData = pickAllowedFields(req.body, allowedFields);
+
     plan.successors[successorIndex] = {
         ...plan.successors[successorIndex].toObject?.() || plan.successors[successorIndex],
-        ...successorData
+        ...sanitizedData
     };
     plan.updatedBy = userId;
     await plan.save();
@@ -476,7 +648,8 @@ const updateSuccessor = asyncHandler(async (req, res) => {
 
 const removeSuccessor = asyncHandler(async (req, res) => {
     const { firmId, lawyerId, userId } = req;
-    const { id, successorId } = req.params;
+    const id = sanitizeObjectId(req.params.id, 'Succession plan ID');
+    const { successorId } = req.params;
 
     const baseQuery = firmId ? { firmId } : { lawyerId };
     const plan = await SuccessionPlan.findOne({ _id: id, ...baseQuery });
@@ -509,8 +682,8 @@ const removeSuccessor = asyncHandler(async (req, res) => {
 
 const updateSuccessorReadiness = asyncHandler(async (req, res) => {
     const { firmId, lawyerId, userId } = req;
-    const { id, successorId } = req.params;
-    const readinessData = req.body;
+    const id = sanitizeObjectId(req.params.id, 'Succession plan ID');
+    const { successorId } = req.params;
 
     const baseQuery = firmId ? { firmId } : { lawyerId };
     const plan = await SuccessionPlan.findOne({ _id: id, ...baseQuery });
@@ -527,9 +700,28 @@ const updateSuccessorReadiness = asyncHandler(async (req, res) => {
         throw new CustomException('Successor not found', 404);
     }
 
+    // Define allowed fields
+    const allowedFields = [
+        'readinessLevel',
+        'readinessScore',
+        'assessmentMethod',
+        'competencyGaps',
+        'strengthAreas',
+        'overallReadiness',
+        'assessmentNotes',
+        'nextAssessmentDate'
+    ];
+
+    // Validate next assessment date if provided
+    if (req.body.nextAssessmentDate && isNaN(Date.parse(req.body.nextAssessmentDate))) {
+        throw new CustomException('Invalid next assessment date format', 400);
+    }
+
+    const sanitizedData = pickAllowedFields(req.body, allowedFields);
+
     plan.successors[successorIndex].readinessAssessment = {
         ...plan.successors[successorIndex].readinessAssessment?.toObject?.() || {},
-        ...readinessData,
+        ...sanitizedData,
         assessmentDate: new Date(),
         assessedBy: userId
     };
@@ -549,8 +741,8 @@ const updateSuccessorReadiness = asyncHandler(async (req, res) => {
 
 const updateSuccessorDevelopmentPlan = asyncHandler(async (req, res) => {
     const { firmId, lawyerId, userId } = req;
-    const { id, successorId } = req.params;
-    const developmentData = req.body;
+    const id = sanitizeObjectId(req.params.id, 'Succession plan ID');
+    const { successorId } = req.params;
 
     const baseQuery = firmId ? { firmId } : { lawyerId };
     const plan = await SuccessionPlan.findOne({ _id: id, ...baseQuery });
@@ -567,9 +759,29 @@ const updateSuccessorDevelopmentPlan = asyncHandler(async (req, res) => {
         throw new CustomException('Successor not found', 404);
     }
 
+    // Define allowed fields
+    const allowedFields = [
+        'developmentActivities',
+        'trainingPrograms',
+        'mentorshipPlan',
+        'rotationAssignments',
+        'targetCompletionDate',
+        'progress',
+        'milestones',
+        'developmentGoals',
+        'planNotes'
+    ];
+
+    // Validate target completion date if provided
+    if (req.body.targetCompletionDate && isNaN(Date.parse(req.body.targetCompletionDate))) {
+        throw new CustomException('Invalid target completion date format', 400);
+    }
+
+    const sanitizedData = pickAllowedFields(req.body, allowedFields);
+
     plan.successors[successorIndex].developmentPlan = {
         ...plan.successors[successorIndex].developmentPlan?.toObject?.() || {},
-        ...developmentData,
+        ...sanitizedData,
         planExists: true
     };
     plan.updatedBy = userId;
@@ -588,7 +800,7 @@ const updateSuccessorDevelopmentPlan = asyncHandler(async (req, res) => {
 
 const submitForApproval = asyncHandler(async (req, res) => {
     const { firmId, lawyerId, userId } = req;
-    const { id } = req.params;
+    const id = sanitizeObjectId(req.params.id, 'Succession plan ID');
 
     const baseQuery = firmId ? { firmId } : { lawyerId };
     const plan = await SuccessionPlan.findOne({ _id: id, ...baseQuery });
@@ -619,8 +831,12 @@ const submitForApproval = asyncHandler(async (req, res) => {
 
 const approvePlan = asyncHandler(async (req, res) => {
     const { firmId, lawyerId, userId, user } = req;
-    const { id } = req.params;
-    const { comments } = req.body;
+    const id = sanitizeObjectId(req.params.id, 'Succession plan ID');
+
+    // Validate comments if provided
+    const comments = req.body.comments && typeof req.body.comments === 'string'
+        ? req.body.comments
+        : undefined;
 
     const baseQuery = firmId ? { firmId } : { lawyerId };
     const plan = await SuccessionPlan.findOne({ _id: id, ...baseQuery });
@@ -664,8 +880,15 @@ const approvePlan = asyncHandler(async (req, res) => {
 
 const rejectPlan = asyncHandler(async (req, res) => {
     const { firmId, lawyerId, userId, user } = req;
-    const { id } = req.params;
-    const { comments, reason } = req.body;
+    const id = sanitizeObjectId(req.params.id, 'Succession plan ID');
+
+    // Validate and sanitize comments and reason
+    const comments = req.body.comments && typeof req.body.comments === 'string'
+        ? req.body.comments
+        : undefined;
+    const reason = req.body.reason && typeof req.body.reason === 'string'
+        ? req.body.reason
+        : undefined;
 
     const baseQuery = firmId ? { firmId } : { lawyerId };
     const plan = await SuccessionPlan.findOne({ _id: id, ...baseQuery });
@@ -706,7 +929,7 @@ const rejectPlan = asyncHandler(async (req, res) => {
 
 const activatePlan = asyncHandler(async (req, res) => {
     const { firmId, lawyerId, userId } = req;
-    const { id } = req.params;
+    const id = sanitizeObjectId(req.params.id, 'Succession plan ID');
 
     const baseQuery = firmId ? { firmId } : { lawyerId };
     const plan = await SuccessionPlan.findOne({ _id: id, ...baseQuery });
@@ -737,8 +960,12 @@ const activatePlan = asyncHandler(async (req, res) => {
 
 const archivePlan = asyncHandler(async (req, res) => {
     const { firmId, lawyerId, userId } = req;
-    const { id } = req.params;
-    const { reason } = req.body;
+    const id = sanitizeObjectId(req.params.id, 'Succession plan ID');
+
+    // Validate reason if provided
+    const reason = req.body.reason && typeof req.body.reason === 'string'
+        ? req.body.reason
+        : undefined;
 
     const baseQuery = firmId ? { firmId } : { lawyerId };
     const plan = await SuccessionPlan.findOne({ _id: id, ...baseQuery });
@@ -769,8 +996,7 @@ const archivePlan = asyncHandler(async (req, res) => {
 
 const addReview = asyncHandler(async (req, res) => {
     const { firmId, lawyerId, userId, user } = req;
-    const { id } = req.params;
-    const reviewData = req.body;
+    const id = sanitizeObjectId(req.params.id, 'Succession plan ID');
 
     const baseQuery = firmId ? { firmId } : { lawyerId };
     const plan = await SuccessionPlan.findOne({ _id: id, ...baseQuery });
@@ -778,6 +1004,22 @@ const addReview = asyncHandler(async (req, res) => {
     if (!plan) {
         throw new CustomException('Succession plan not found', 404);
     }
+
+    // Define allowed fields
+    const allowedFields = [
+        'reviewType',
+        'reviewOutcome',
+        'reviewFindings',
+        'recommendations',
+        'actionItems',
+        'planEffectiveness',
+        'benchStrengthReview',
+        'successorProgressReview',
+        'riskAssessmentReview',
+        'reviewComments'
+    ];
+
+    const sanitizedData = pickAllowedFields(req.body, allowedFields);
 
     const reviewId = `REV-${plan.planNumber}-${(plan.reviewApproval?.reviews?.length || 0) + 1}`;
 
@@ -788,7 +1030,7 @@ const addReview = asyncHandler(async (req, res) => {
         reviewDate: new Date(),
         reviewedBy: userId,
         reviewerName: user?.firstName ? `${user.firstName} ${user.lastName}` : 'Reviewer',
-        ...reviewData
+        ...sanitizedData
     });
     plan.reviewApproval.lastReviewDate = new Date();
     plan.planDetails = plan.planDetails || {};
@@ -830,8 +1072,7 @@ const addReview = asyncHandler(async (req, res) => {
 
 const addAction = asyncHandler(async (req, res) => {
     const { firmId, lawyerId, userId } = req;
-    const { id } = req.params;
-    const actionData = req.body;
+    const id = sanitizeObjectId(req.params.id, 'Succession plan ID');
 
     const baseQuery = firmId ? { firmId } : { lawyerId };
     const plan = await SuccessionPlan.findOne({ _id: id, ...baseQuery });
@@ -840,13 +1081,49 @@ const addAction = asyncHandler(async (req, res) => {
         throw new CustomException('Succession plan not found', 404);
     }
 
+    // Define allowed fields
+    const allowedFields = [
+        'actionType',
+        'actionDescription',
+        'actionOwner',
+        'assignedTo',
+        'priority',
+        'status',
+        'targetDate',
+        'completionDate',
+        'actionNotes',
+        'relatedSuccessorId'
+    ];
+
+    // Input validation
+    if (!req.body.actionDescription || typeof req.body.actionDescription !== 'string') {
+        throw new CustomException('Action description is required', 400);
+    }
+
+    // Validate target date if provided
+    if (req.body.targetDate && isNaN(Date.parse(req.body.targetDate))) {
+        throw new CustomException('Invalid target date format', 400);
+    }
+
+    // Validate completion date if provided
+    if (req.body.completionDate && isNaN(Date.parse(req.body.completionDate))) {
+        throw new CustomException('Invalid completion date format', 400);
+    }
+
+    // Validate assignedTo if provided
+    if (req.body.assignedTo) {
+        req.body.assignedTo = sanitizeObjectId(req.body.assignedTo, 'Assigned to user ID');
+    }
+
+    const sanitizedData = pickAllowedFields(req.body, allowedFields);
+
     const actionId = `ACT-${plan.planNumber}-${(plan.actionPlan?.actions?.length || 0) + 1}`;
 
     plan.actionPlan = plan.actionPlan || {};
     plan.actionPlan.actions = plan.actionPlan.actions || [];
     plan.actionPlan.actions.push({
         actionId,
-        ...actionData
+        ...sanitizedData
     });
     plan.updatedBy = userId;
     await plan.save();
@@ -864,8 +1141,8 @@ const addAction = asyncHandler(async (req, res) => {
 
 const updateAction = asyncHandler(async (req, res) => {
     const { firmId, lawyerId, userId } = req;
-    const { id, actionId } = req.params;
-    const actionData = req.body;
+    const id = sanitizeObjectId(req.params.id, 'Succession plan ID');
+    const { actionId } = req.params;
 
     const baseQuery = firmId ? { firmId } : { lawyerId };
     const plan = await SuccessionPlan.findOne({ _id: id, ...baseQuery });
@@ -882,9 +1159,40 @@ const updateAction = asyncHandler(async (req, res) => {
         throw new CustomException('Action not found', 404);
     }
 
+    // Define allowed fields
+    const allowedFields = [
+        'actionType',
+        'actionDescription',
+        'actionOwner',
+        'assignedTo',
+        'priority',
+        'status',
+        'targetDate',
+        'completionDate',
+        'actionNotes',
+        'relatedSuccessorId'
+    ];
+
+    // Validate target date if provided
+    if (req.body.targetDate && isNaN(Date.parse(req.body.targetDate))) {
+        throw new CustomException('Invalid target date format', 400);
+    }
+
+    // Validate completion date if provided
+    if (req.body.completionDate && isNaN(Date.parse(req.body.completionDate))) {
+        throw new CustomException('Invalid completion date format', 400);
+    }
+
+    // Validate assignedTo if provided
+    if (req.body.assignedTo) {
+        req.body.assignedTo = sanitizeObjectId(req.body.assignedTo, 'Assigned to user ID');
+    }
+
+    const sanitizedData = pickAllowedFields(req.body, allowedFields);
+
     plan.actionPlan.actions[actionIndex] = {
         ...plan.actionPlan.actions[actionIndex].toObject?.() || plan.actionPlan.actions[actionIndex],
-        ...actionData
+        ...sanitizedData
     };
     plan.updatedBy = userId;
     await plan.save();
@@ -902,8 +1210,7 @@ const updateAction = asyncHandler(async (req, res) => {
 
 const addDocument = asyncHandler(async (req, res) => {
     const { firmId, lawyerId, userId } = req;
-    const { id } = req.params;
-    const documentData = req.body;
+    const id = sanitizeObjectId(req.params.id, 'Succession plan ID');
 
     const baseQuery = firmId ? { firmId } : { lawyerId };
     const plan = await SuccessionPlan.findOne({ _id: id, ...baseQuery });
@@ -912,9 +1219,31 @@ const addDocument = asyncHandler(async (req, res) => {
         throw new CustomException('Succession plan not found', 404);
     }
 
+    // Define allowed fields
+    const allowedFields = [
+        'documentName',
+        'documentType',
+        'documentUrl',
+        'fileSize',
+        'description',
+        'category',
+        'isConfidential'
+    ];
+
+    // Input validation
+    if (!req.body.documentName || typeof req.body.documentName !== 'string') {
+        throw new CustomException('Document name is required', 400);
+    }
+
+    if (!req.body.documentUrl || typeof req.body.documentUrl !== 'string') {
+        throw new CustomException('Document URL is required', 400);
+    }
+
+    const sanitizedData = pickAllowedFields(req.body, allowedFields);
+
     plan.documents = plan.documents || [];
     plan.documents.push({
-        ...documentData,
+        ...sanitizedData,
         uploadedOn: new Date(),
         uploadedBy: userId
     });

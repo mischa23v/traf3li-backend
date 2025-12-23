@@ -3,6 +3,7 @@ const SetupTask = require('../models/setupTask.model');
 const UserSetupProgress = require('../models/userSetupProgress.model');
 const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
+const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 
 // ═══════════════════════════════════════════════════════════════
 // GET FULL SETUP STATUS
@@ -155,12 +156,17 @@ exports.getSections = asyncHandler(async (req, res) => {
 // POST /api/setup/tasks/:taskId/complete
 // ═══════════════════════════════════════════════════════════════
 exports.completeTask = asyncHandler(async (req, res) => {
-    const { taskId } = req.params;
+    const taskId = sanitizeObjectId(req.params.taskId, 'Task ID');
     const userId = req.userID;
     const firmId = req.firmId;
 
     if (!firmId) {
         throw CustomException('Firm ID is required', 400);
+    }
+
+    // Validate taskId
+    if (!taskId || typeof taskId !== 'string') {
+        throw CustomException('Valid task ID is required', 400);
     }
 
     try {
@@ -181,8 +187,7 @@ exports.completeTask = asyncHandler(async (req, res) => {
 // POST /api/setup/tasks/:taskId/skip
 // ═══════════════════════════════════════════════════════════════
 exports.skipTask = asyncHandler(async (req, res) => {
-    const { taskId } = req.params;
-    const { reason } = req.body;
+    const taskId = sanitizeObjectId(req.params.taskId, 'Task ID');
     const userId = req.userID;
     const firmId = req.firmId;
 
@@ -190,8 +195,22 @@ exports.skipTask = asyncHandler(async (req, res) => {
         throw CustomException('Firm ID is required', 400);
     }
 
+    // Validate taskId
+    if (!taskId || typeof taskId !== 'string') {
+        throw CustomException('Valid task ID is required', 400);
+    }
+
+    // Mass assignment protection
+    const allowedFields = ['reason'];
+    const sanitizedData = pickAllowedFields(req.body, allowedFields);
+
+    // Validate reason if provided
+    if (sanitizedData.reason && typeof sanitizedData.reason !== 'string') {
+        throw CustomException('Reason must be a string', 400);
+    }
+
     try {
-        const progress = await UserSetupProgress.skipTask(userId, firmId, taskId, reason);
+        const progress = await UserSetupProgress.skipTask(userId, firmId, taskId, sanitizedData.reason);
 
         res.status(200).json({
             success: true,
@@ -278,38 +297,74 @@ exports.resetProgress = asyncHandler(async (req, res) => {
 // CREATE SECTION
 // POST /api/setup/admin/sections
 exports.createSection = asyncHandler(async (req, res) => {
-    const {
-        sectionId,
-        name,
-        nameAr,
-        description,
-        descriptionAr,
-        icon,
-        orderIndex,
-        isRequired,
-        isActive
-    } = req.body;
+    // Mass assignment protection
+    const allowedFields = [
+        'sectionId',
+        'name',
+        'nameAr',
+        'description',
+        'descriptionAr',
+        'icon',
+        'orderIndex',
+        'isRequired',
+        'isActive'
+    ];
+    const sanitizedData = pickAllowedFields(req.body, allowedFields);
 
-    if (!sectionId || !name || orderIndex === undefined) {
+    // Validate required fields
+    if (!sanitizedData.sectionId || !sanitizedData.name || sanitizedData.orderIndex === undefined) {
         throw CustomException('sectionId, name, and orderIndex are required', 400);
     }
 
+    // Validate field types
+    if (typeof sanitizedData.sectionId !== 'string' || typeof sanitizedData.name !== 'string') {
+        throw CustomException('sectionId and name must be strings', 400);
+    }
+
+    if (typeof sanitizedData.orderIndex !== 'number' || sanitizedData.orderIndex < 0) {
+        throw CustomException('orderIndex must be a non-negative number', 400);
+    }
+
+    if (sanitizedData.nameAr && typeof sanitizedData.nameAr !== 'string') {
+        throw CustomException('nameAr must be a string', 400);
+    }
+
+    if (sanitizedData.description && typeof sanitizedData.description !== 'string') {
+        throw CustomException('description must be a string', 400);
+    }
+
+    if (sanitizedData.descriptionAr && typeof sanitizedData.descriptionAr !== 'string') {
+        throw CustomException('descriptionAr must be a string', 400);
+    }
+
+    if (sanitizedData.icon && typeof sanitizedData.icon !== 'string') {
+        throw CustomException('icon must be a string', 400);
+    }
+
+    if (sanitizedData.isRequired !== undefined && typeof sanitizedData.isRequired !== 'boolean') {
+        throw CustomException('isRequired must be a boolean', 400);
+    }
+
+    if (sanitizedData.isActive !== undefined && typeof sanitizedData.isActive !== 'boolean') {
+        throw CustomException('isActive must be a boolean', 400);
+    }
+
     // Check if section already exists
-    const existingSection = await SetupSection.findOne({ sectionId });
+    const existingSection = await SetupSection.findOne({ sectionId: sanitizedData.sectionId });
     if (existingSection) {
         throw CustomException('Section with this ID already exists', 400);
     }
 
     const section = await SetupSection.create({
-        sectionId,
-        name,
-        nameAr,
-        description,
-        descriptionAr,
-        icon,
-        orderIndex,
-        isRequired: isRequired || false,
-        isActive: isActive !== undefined ? isActive : true
+        sectionId: sanitizedData.sectionId,
+        name: sanitizedData.name,
+        nameAr: sanitizedData.nameAr,
+        description: sanitizedData.description,
+        descriptionAr: sanitizedData.descriptionAr,
+        icon: sanitizedData.icon,
+        orderIndex: sanitizedData.orderIndex,
+        isRequired: sanitizedData.isRequired || false,
+        isActive: sanitizedData.isActive !== undefined ? sanitizedData.isActive : true
     });
 
     res.status(201).json({
@@ -322,13 +377,19 @@ exports.createSection = asyncHandler(async (req, res) => {
 // UPDATE SECTION
 // PATCH /api/setup/admin/sections/:sectionId
 exports.updateSection = asyncHandler(async (req, res) => {
-    const { sectionId } = req.params;
+    const sectionId = sanitizeObjectId(req.params.sectionId, 'Section ID');
+
+    // Validate sectionId
+    if (!sectionId || typeof sectionId !== 'string') {
+        throw CustomException('Valid section ID is required', 400);
+    }
 
     const section = await SetupSection.findOne({ sectionId });
     if (!section) {
         throw CustomException('Section not found', 404);
     }
 
+    // Mass assignment protection
     const allowedFields = [
         'name',
         'nameAr',
@@ -339,11 +400,46 @@ exports.updateSection = asyncHandler(async (req, res) => {
         'isRequired',
         'isActive'
     ];
+    const sanitizedData = pickAllowedFields(req.body, allowedFields);
 
-    allowedFields.forEach(field => {
-        if (req.body[field] !== undefined) {
-            section[field] = req.body[field];
+    // Validate field types if provided
+    if (sanitizedData.name !== undefined && typeof sanitizedData.name !== 'string') {
+        throw CustomException('name must be a string', 400);
+    }
+
+    if (sanitizedData.nameAr !== undefined && typeof sanitizedData.nameAr !== 'string') {
+        throw CustomException('nameAr must be a string', 400);
+    }
+
+    if (sanitizedData.description !== undefined && typeof sanitizedData.description !== 'string') {
+        throw CustomException('description must be a string', 400);
+    }
+
+    if (sanitizedData.descriptionAr !== undefined && typeof sanitizedData.descriptionAr !== 'string') {
+        throw CustomException('descriptionAr must be a string', 400);
+    }
+
+    if (sanitizedData.icon !== undefined && typeof sanitizedData.icon !== 'string') {
+        throw CustomException('icon must be a string', 400);
+    }
+
+    if (sanitizedData.orderIndex !== undefined) {
+        if (typeof sanitizedData.orderIndex !== 'number' || sanitizedData.orderIndex < 0) {
+            throw CustomException('orderIndex must be a non-negative number', 400);
         }
+    }
+
+    if (sanitizedData.isRequired !== undefined && typeof sanitizedData.isRequired !== 'boolean') {
+        throw CustomException('isRequired must be a boolean', 400);
+    }
+
+    if (sanitizedData.isActive !== undefined && typeof sanitizedData.isActive !== 'boolean') {
+        throw CustomException('isActive must be a boolean', 400);
+    }
+
+    // Update fields
+    Object.keys(sanitizedData).forEach(field => {
+        section[field] = sanitizedData[field];
     });
 
     await section.save();
@@ -358,7 +454,12 @@ exports.updateSection = asyncHandler(async (req, res) => {
 // DELETE SECTION
 // DELETE /api/setup/admin/sections/:sectionId
 exports.deleteSection = asyncHandler(async (req, res) => {
-    const { sectionId } = req.params;
+    const sectionId = sanitizeObjectId(req.params.sectionId, 'Section ID');
+
+    // Validate sectionId
+    if (!sectionId || typeof sectionId !== 'string') {
+        throw CustomException('Valid section ID is required', 400);
+    }
 
     const section = await SetupSection.findOne({ sectionId });
     if (!section) {
@@ -389,54 +490,108 @@ exports.deleteSection = asyncHandler(async (req, res) => {
 // CREATE TASK
 // POST /api/setup/admin/tasks
 exports.createTask = asyncHandler(async (req, res) => {
-    const {
-        taskId,
-        sectionId,
-        name,
-        nameAr,
-        description,
-        descriptionAr,
-        orderIndex,
-        isRequired,
-        checkEndpoint,
-        actionUrl,
-        estimatedMinutes,
-        dependencies,
-        validationRules,
-        isActive
-    } = req.body;
+    // Mass assignment protection
+    const allowedFields = [
+        'taskId',
+        'sectionId',
+        'name',
+        'nameAr',
+        'description',
+        'descriptionAr',
+        'orderIndex',
+        'isRequired',
+        'checkEndpoint',
+        'actionUrl',
+        'estimatedMinutes',
+        'dependencies',
+        'validationRules',
+        'isActive'
+    ];
+    const sanitizedData = pickAllowedFields(req.body, allowedFields);
 
-    if (!taskId || !sectionId || !name || orderIndex === undefined) {
+    // Validate required fields
+    if (!sanitizedData.taskId || !sanitizedData.sectionId || !sanitizedData.name || sanitizedData.orderIndex === undefined) {
         throw CustomException('taskId, sectionId, name, and orderIndex are required', 400);
     }
 
+    // Validate field types
+    if (typeof sanitizedData.taskId !== 'string' || typeof sanitizedData.sectionId !== 'string' || typeof sanitizedData.name !== 'string') {
+        throw CustomException('taskId, sectionId, and name must be strings', 400);
+    }
+
+    if (typeof sanitizedData.orderIndex !== 'number' || sanitizedData.orderIndex < 0) {
+        throw CustomException('orderIndex must be a non-negative number', 400);
+    }
+
+    if (sanitizedData.nameAr && typeof sanitizedData.nameAr !== 'string') {
+        throw CustomException('nameAr must be a string', 400);
+    }
+
+    if (sanitizedData.description && typeof sanitizedData.description !== 'string') {
+        throw CustomException('description must be a string', 400);
+    }
+
+    if (sanitizedData.descriptionAr && typeof sanitizedData.descriptionAr !== 'string') {
+        throw CustomException('descriptionAr must be a string', 400);
+    }
+
+    if (sanitizedData.checkEndpoint && typeof sanitizedData.checkEndpoint !== 'string') {
+        throw CustomException('checkEndpoint must be a string', 400);
+    }
+
+    if (sanitizedData.actionUrl && typeof sanitizedData.actionUrl !== 'string') {
+        throw CustomException('actionUrl must be a string', 400);
+    }
+
+    if (sanitizedData.estimatedMinutes !== undefined) {
+        if (typeof sanitizedData.estimatedMinutes !== 'number' || sanitizedData.estimatedMinutes < 0) {
+            throw CustomException('estimatedMinutes must be a non-negative number', 400);
+        }
+    }
+
+    if (sanitizedData.dependencies !== undefined && !Array.isArray(sanitizedData.dependencies)) {
+        throw CustomException('dependencies must be an array', 400);
+    }
+
+    if (sanitizedData.validationRules !== undefined && typeof sanitizedData.validationRules !== 'object') {
+        throw CustomException('validationRules must be an object', 400);
+    }
+
+    if (sanitizedData.isRequired !== undefined && typeof sanitizedData.isRequired !== 'boolean') {
+        throw CustomException('isRequired must be a boolean', 400);
+    }
+
+    if (sanitizedData.isActive !== undefined && typeof sanitizedData.isActive !== 'boolean') {
+        throw CustomException('isActive must be a boolean', 400);
+    }
+
     // Check if section exists
-    const section = await SetupSection.findOne({ sectionId });
+    const section = await SetupSection.findOne({ sectionId: sanitizedData.sectionId });
     if (!section) {
         throw CustomException('Section not found', 404);
     }
 
     // Check if task already exists
-    const existingTask = await SetupTask.findOne({ taskId });
+    const existingTask = await SetupTask.findOne({ taskId: sanitizedData.taskId });
     if (existingTask) {
         throw CustomException('Task with this ID already exists', 400);
     }
 
     const task = await SetupTask.create({
-        taskId,
-        sectionId,
-        name,
-        nameAr,
-        description,
-        descriptionAr,
-        orderIndex,
-        isRequired: isRequired || false,
-        checkEndpoint,
-        actionUrl,
-        estimatedMinutes: estimatedMinutes || 5,
-        dependencies: dependencies || [],
-        validationRules: validationRules || {},
-        isActive: isActive !== undefined ? isActive : true
+        taskId: sanitizedData.taskId,
+        sectionId: sanitizedData.sectionId,
+        name: sanitizedData.name,
+        nameAr: sanitizedData.nameAr,
+        description: sanitizedData.description,
+        descriptionAr: sanitizedData.descriptionAr,
+        orderIndex: sanitizedData.orderIndex,
+        isRequired: sanitizedData.isRequired || false,
+        checkEndpoint: sanitizedData.checkEndpoint,
+        actionUrl: sanitizedData.actionUrl,
+        estimatedMinutes: sanitizedData.estimatedMinutes || 5,
+        dependencies: sanitizedData.dependencies || [],
+        validationRules: sanitizedData.validationRules || {},
+        isActive: sanitizedData.isActive !== undefined ? sanitizedData.isActive : true
     });
 
     res.status(201).json({
@@ -449,13 +604,19 @@ exports.createTask = asyncHandler(async (req, res) => {
 // UPDATE TASK
 // PATCH /api/setup/admin/tasks/:taskId
 exports.updateTask = asyncHandler(async (req, res) => {
-    const { taskId } = req.params;
+    const taskId = sanitizeObjectId(req.params.taskId, 'Task ID');
+
+    // Validate taskId
+    if (!taskId || typeof taskId !== 'string') {
+        throw CustomException('Valid task ID is required', 400);
+    }
 
     const task = await SetupTask.findOne({ taskId });
     if (!task) {
         throw CustomException('Task not found', 404);
     }
 
+    // Mass assignment protection
     const allowedFields = [
         'sectionId',
         'name',
@@ -471,19 +632,76 @@ exports.updateTask = asyncHandler(async (req, res) => {
         'validationRules',
         'isActive'
     ];
+    const sanitizedData = pickAllowedFields(req.body, allowedFields);
+
+    // Validate field types if provided
+    if (sanitizedData.sectionId !== undefined && typeof sanitizedData.sectionId !== 'string') {
+        throw CustomException('sectionId must be a string', 400);
+    }
+
+    if (sanitizedData.name !== undefined && typeof sanitizedData.name !== 'string') {
+        throw CustomException('name must be a string', 400);
+    }
+
+    if (sanitizedData.nameAr !== undefined && typeof sanitizedData.nameAr !== 'string') {
+        throw CustomException('nameAr must be a string', 400);
+    }
+
+    if (sanitizedData.description !== undefined && typeof sanitizedData.description !== 'string') {
+        throw CustomException('description must be a string', 400);
+    }
+
+    if (sanitizedData.descriptionAr !== undefined && typeof sanitizedData.descriptionAr !== 'string') {
+        throw CustomException('descriptionAr must be a string', 400);
+    }
+
+    if (sanitizedData.orderIndex !== undefined) {
+        if (typeof sanitizedData.orderIndex !== 'number' || sanitizedData.orderIndex < 0) {
+            throw CustomException('orderIndex must be a non-negative number', 400);
+        }
+    }
+
+    if (sanitizedData.checkEndpoint !== undefined && typeof sanitizedData.checkEndpoint !== 'string') {
+        throw CustomException('checkEndpoint must be a string', 400);
+    }
+
+    if (sanitizedData.actionUrl !== undefined && typeof sanitizedData.actionUrl !== 'string') {
+        throw CustomException('actionUrl must be a string', 400);
+    }
+
+    if (sanitizedData.estimatedMinutes !== undefined) {
+        if (typeof sanitizedData.estimatedMinutes !== 'number' || sanitizedData.estimatedMinutes < 0) {
+            throw CustomException('estimatedMinutes must be a non-negative number', 400);
+        }
+    }
+
+    if (sanitizedData.dependencies !== undefined && !Array.isArray(sanitizedData.dependencies)) {
+        throw CustomException('dependencies must be an array', 400);
+    }
+
+    if (sanitizedData.validationRules !== undefined && typeof sanitizedData.validationRules !== 'object') {
+        throw CustomException('validationRules must be an object', 400);
+    }
+
+    if (sanitizedData.isRequired !== undefined && typeof sanitizedData.isRequired !== 'boolean') {
+        throw CustomException('isRequired must be a boolean', 400);
+    }
+
+    if (sanitizedData.isActive !== undefined && typeof sanitizedData.isActive !== 'boolean') {
+        throw CustomException('isActive must be a boolean', 400);
+    }
 
     // If updating sectionId, verify it exists
-    if (req.body.sectionId && req.body.sectionId !== task.sectionId) {
-        const section = await SetupSection.findOne({ sectionId: req.body.sectionId });
+    if (sanitizedData.sectionId && sanitizedData.sectionId !== task.sectionId) {
+        const section = await SetupSection.findOne({ sectionId: sanitizedData.sectionId });
         if (!section) {
             throw CustomException('New section not found', 404);
         }
     }
 
-    allowedFields.forEach(field => {
-        if (req.body[field] !== undefined) {
-            task[field] = req.body[field];
-        }
+    // Update fields
+    Object.keys(sanitizedData).forEach(field => {
+        task[field] = sanitizedData[field];
     });
 
     await task.save();
@@ -498,7 +716,12 @@ exports.updateTask = asyncHandler(async (req, res) => {
 // DELETE TASK
 // DELETE /api/setup/admin/tasks/:taskId
 exports.deleteTask = asyncHandler(async (req, res) => {
-    const { taskId } = req.params;
+    const taskId = sanitizeObjectId(req.params.taskId, 'Task ID');
+
+    // Validate taskId
+    if (!taskId || typeof taskId !== 'string') {
+        throw CustomException('Valid task ID is required', 400);
+    }
 
     const task = await SetupTask.findOne({ taskId });
     if (!task) {

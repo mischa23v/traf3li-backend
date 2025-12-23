@@ -1,11 +1,155 @@
 const HRAnalyticsService = require('../services/hrAnalytics.service');
 const HRPredictionsService = require('../services/hrPredictions.service');
 const asyncHandler = require('express-async-handler');
+const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
+const Firm = require('../models/firm.model');
 
 /**
  * HR Analytics Controller
  * Handles all HR analytics and predictions endpoints
  */
+
+/**
+ * Verify user has access to the firm (IDOR protection)
+ */
+const verifyFirmAccess = async (firmId, userId) => {
+    if (!firmId) {
+        throw new Error('Firm ID is required');
+    }
+
+    const sanitizedFirmId = sanitizeObjectId(firmId);
+    const sanitizedUserId = sanitizeObjectId(userId);
+
+    const firm = await Firm.findById(sanitizedFirmId);
+    if (!firm) {
+        throw new Error('Firm not found');
+    }
+
+    // Verify user belongs to this firm
+    const hasAccess = firm.lawyers?.some(lawyer =>
+        lawyer.toString() === sanitizedUserId
+    ) || firm.staff?.some(staff =>
+        staff.toString() === sanitizedUserId
+    );
+
+    if (!hasAccess) {
+        throw new Error('Unauthorized access to firm data');
+    }
+
+    return sanitizedFirmId;
+};
+
+/**
+ * Validate and sanitize date range
+ */
+const validateDateRange = (startDate, endDate) => {
+    if (!startDate && !endDate) {
+        return { startDate: null, endDate: null };
+    }
+
+    const start = startDate ? new Date(startDate) : null;
+    const end = endDate ? new Date(endDate) : null;
+
+    if (start && isNaN(start.getTime())) {
+        throw new Error('Invalid start date format');
+    }
+
+    if (end && isNaN(end.getTime())) {
+        throw new Error('Invalid end date format');
+    }
+
+    if (start && end && start > end) {
+        throw new Error('Start date must be before end date');
+    }
+
+    // Prevent queries beyond reasonable date ranges (e.g., 10 years)
+    const maxRangeMs = 10 * 365 * 24 * 60 * 60 * 1000; // 10 years
+    if (start && end && (end - start) > maxRangeMs) {
+        throw new Error('Date range cannot exceed 10 years');
+    }
+
+    return {
+        startDate: start ? start.toISOString() : null,
+        endDate: end ? end.toISOString() : null
+    };
+};
+
+/**
+ * Validate and sanitize analytics filters
+ */
+const validateAnalyticsFilters = (query) => {
+    const allowedFields = {
+        startDate: query.startDate,
+        endDate: query.endDate,
+        department: query.department,
+        status: query.status,
+        limit: query.limit,
+        months: query.months,
+        snapshotType: query.snapshotType,
+        format: query.format
+    };
+
+    const filters = pickAllowedFields(allowedFields, Object.keys(allowedFields));
+
+    // Validate date range if provided
+    if (filters.startDate || filters.endDate) {
+        const validatedDates = validateDateRange(filters.startDate, filters.endDate);
+        filters.startDate = validatedDates.startDate;
+        filters.endDate = validatedDates.endDate;
+    }
+
+    // Validate department if provided
+    if (filters.department) {
+        filters.department = String(filters.department).trim();
+        if (filters.department.length > 100) {
+            throw new Error('Department name too long');
+        }
+    }
+
+    // Validate status if provided
+    if (filters.status) {
+        const validStatuses = ['active', 'inactive', 'terminated', 'on_leave'];
+        filters.status = String(filters.status).toLowerCase().trim();
+        if (!validStatuses.includes(filters.status)) {
+            throw new Error('Invalid status value');
+        }
+    }
+
+    // Validate numeric fields
+    if (filters.limit) {
+        filters.limit = parseInt(filters.limit);
+        if (isNaN(filters.limit) || filters.limit < 1 || filters.limit > 1000) {
+            throw new Error('Limit must be between 1 and 1000');
+        }
+    }
+
+    if (filters.months) {
+        filters.months = parseInt(filters.months);
+        if (isNaN(filters.months) || filters.months < 1 || filters.months > 120) {
+            throw new Error('Months must be between 1 and 120');
+        }
+    }
+
+    // Validate snapshot type
+    if (filters.snapshotType) {
+        const validTypes = ['daily', 'weekly', 'monthly', 'quarterly', 'yearly'];
+        filters.snapshotType = String(filters.snapshotType).toLowerCase().trim();
+        if (!validTypes.includes(filters.snapshotType)) {
+            throw new Error('Invalid snapshot type');
+        }
+    }
+
+    // Validate export format
+    if (filters.format) {
+        const validFormats = ['json', 'csv', 'excel', 'pdf'];
+        filters.format = String(filters.format).toLowerCase().trim();
+        if (!validFormats.includes(filters.format)) {
+            throw new Error('Invalid export format');
+        }
+    }
+
+    return filters;
+};
 
 class HRAnalyticsController {
     /**
@@ -14,14 +158,18 @@ class HRAnalyticsController {
      * @access  Private (HR, Admin)
      */
     static getDashboard = asyncHandler(async (req, res) => {
-        const firmId = req.firmId; // From firmContext middleware
         const lawyerId = req.userID || req.userId;
 
+        // IDOR Protection: Verify firm access
+        const firmId = await verifyFirmAccess(req.firmId, lawyerId);
+
+        // Input validation
+        const validatedFilters = validateAnalyticsFilters(req.query);
         const filters = {
-            startDate: req.query.startDate,
-            endDate: req.query.endDate,
-            department: req.query.department,
-            status: req.query.status
+            startDate: validatedFilters.startDate,
+            endDate: validatedFilters.endDate,
+            department: validatedFilters.department,
+            status: validatedFilters.status
         };
 
         const dashboard = await HRAnalyticsService.getDashboard(firmId, lawyerId, filters);
@@ -38,12 +186,16 @@ class HRAnalyticsController {
      * @access  Private (HR, Admin)
      */
     static getDemographics = asyncHandler(async (req, res) => {
-        const firmId = req.firmId; // From firmContext middleware
         const lawyerId = req.userID || req.userId;
 
+        // IDOR Protection: Verify firm access
+        const firmId = await verifyFirmAccess(req.firmId, lawyerId);
+
+        // Input validation
+        const validatedFilters = validateAnalyticsFilters(req.query);
         const filters = {
-            department: req.query.department,
-            status: req.query.status
+            department: validatedFilters.department,
+            status: validatedFilters.status
         };
 
         const demographics = await HRAnalyticsService.getWorkforceDemographics(firmId, lawyerId, filters);
@@ -60,13 +212,17 @@ class HRAnalyticsController {
      * @access  Private (HR, Admin)
      */
     static getTurnover = asyncHandler(async (req, res) => {
-        const firmId = req.firmId; // From firmContext middleware
         const lawyerId = req.userID || req.userId;
 
+        // IDOR Protection: Verify firm access
+        const firmId = await verifyFirmAccess(req.firmId, lawyerId);
+
+        // Input validation
+        const validatedFilters = validateAnalyticsFilters(req.query);
         const filters = {
-            startDate: req.query.startDate,
-            endDate: req.query.endDate,
-            department: req.query.department
+            startDate: validatedFilters.startDate,
+            endDate: validatedFilters.endDate,
+            department: validatedFilters.department
         };
 
         const turnover = await HRAnalyticsService.getTurnoverAnalysis(firmId, lawyerId, filters);
@@ -83,13 +239,17 @@ class HRAnalyticsController {
      * @access  Private (HR, Admin)
      */
     static getAbsenteeism = asyncHandler(async (req, res) => {
-        const firmId = req.firmId; // From firmContext middleware
         const lawyerId = req.userID || req.userId;
 
+        // IDOR Protection: Verify firm access
+        const firmId = await verifyFirmAccess(req.firmId, lawyerId);
+
+        // Input validation
+        const validatedFilters = validateAnalyticsFilters(req.query);
         const filters = {
-            startDate: req.query.startDate,
-            endDate: req.query.endDate,
-            department: req.query.department
+            startDate: validatedFilters.startDate,
+            endDate: validatedFilters.endDate,
+            department: validatedFilters.department
         };
 
         const absenteeism = await HRAnalyticsService.getAbsenteeismMetrics(firmId, lawyerId, filters);
@@ -106,13 +266,17 @@ class HRAnalyticsController {
      * @access  Private (HR, Admin)
      */
     static getAttendance = asyncHandler(async (req, res) => {
-        const firmId = req.firmId; // From firmContext middleware
         const lawyerId = req.userID || req.userId;
 
+        // IDOR Protection: Verify firm access
+        const firmId = await verifyFirmAccess(req.firmId, lawyerId);
+
+        // Input validation
+        const validatedFilters = validateAnalyticsFilters(req.query);
         const filters = {
-            startDate: req.query.startDate,
-            endDate: req.query.endDate,
-            department: req.query.department
+            startDate: validatedFilters.startDate,
+            endDate: validatedFilters.endDate,
+            department: validatedFilters.department
         };
 
         const attendance = await HRAnalyticsService.getAttendanceAnalytics(firmId, lawyerId, filters);
@@ -129,13 +293,17 @@ class HRAnalyticsController {
      * @access  Private (HR, Admin)
      */
     static getPerformance = asyncHandler(async (req, res) => {
-        const firmId = req.firmId; // From firmContext middleware
         const lawyerId = req.userID || req.userId;
 
+        // IDOR Protection: Verify firm access
+        const firmId = await verifyFirmAccess(req.firmId, lawyerId);
+
+        // Input validation
+        const validatedFilters = validateAnalyticsFilters(req.query);
         const filters = {
-            startDate: req.query.startDate,
-            endDate: req.query.endDate,
-            department: req.query.department
+            startDate: validatedFilters.startDate,
+            endDate: validatedFilters.endDate,
+            department: validatedFilters.department
         };
 
         const performance = await HRAnalyticsService.getPerformanceAnalytics(firmId, lawyerId, filters);
@@ -152,13 +320,17 @@ class HRAnalyticsController {
      * @access  Private (HR, Admin)
      */
     static getRecruitment = asyncHandler(async (req, res) => {
-        const firmId = req.firmId; // From firmContext middleware
         const lawyerId = req.userID || req.userId;
 
+        // IDOR Protection: Verify firm access
+        const firmId = await verifyFirmAccess(req.firmId, lawyerId);
+
+        // Input validation
+        const validatedFilters = validateAnalyticsFilters(req.query);
         const filters = {
-            startDate: req.query.startDate,
-            endDate: req.query.endDate,
-            department: req.query.department
+            startDate: validatedFilters.startDate,
+            endDate: validatedFilters.endDate,
+            department: validatedFilters.department
         };
 
         const recruitment = await HRAnalyticsService.getRecruitmentAnalytics(firmId, lawyerId, filters);
@@ -175,11 +347,15 @@ class HRAnalyticsController {
      * @access  Private (HR, Admin)
      */
     static getCompensation = asyncHandler(async (req, res) => {
-        const firmId = req.firmId; // From firmContext middleware
         const lawyerId = req.userID || req.userId;
 
+        // IDOR Protection: Verify firm access
+        const firmId = await verifyFirmAccess(req.firmId, lawyerId);
+
+        // Input validation
+        const validatedFilters = validateAnalyticsFilters(req.query);
         const filters = {
-            department: req.query.department
+            department: validatedFilters.department
         };
 
         const compensation = await HRAnalyticsService.getCompensationAnalytics(firmId, lawyerId, filters);
@@ -196,13 +372,17 @@ class HRAnalyticsController {
      * @access  Private (HR, Admin)
      */
     static getTraining = asyncHandler(async (req, res) => {
-        const firmId = req.firmId; // From firmContext middleware
         const lawyerId = req.userID || req.userId;
 
+        // IDOR Protection: Verify firm access
+        const firmId = await verifyFirmAccess(req.firmId, lawyerId);
+
+        // Input validation
+        const validatedFilters = validateAnalyticsFilters(req.query);
         const filters = {
-            startDate: req.query.startDate,
-            endDate: req.query.endDate,
-            department: req.query.department
+            startDate: validatedFilters.startDate,
+            endDate: validatedFilters.endDate,
+            department: validatedFilters.department
         };
 
         const training = await HRAnalyticsService.getTrainingAnalytics(firmId, lawyerId, filters);
@@ -219,13 +399,17 @@ class HRAnalyticsController {
      * @access  Private (HR, Admin)
      */
     static getLeave = asyncHandler(async (req, res) => {
-        const firmId = req.firmId; // From firmContext middleware
         const lawyerId = req.userID || req.userId;
 
+        // IDOR Protection: Verify firm access
+        const firmId = await verifyFirmAccess(req.firmId, lawyerId);
+
+        // Input validation
+        const validatedFilters = validateAnalyticsFilters(req.query);
         const filters = {
-            startDate: req.query.startDate,
-            endDate: req.query.endDate,
-            department: req.query.department
+            startDate: validatedFilters.startDate,
+            endDate: validatedFilters.endDate,
+            department: validatedFilters.department
         };
 
         const leave = await HRAnalyticsService.getLeaveAnalytics(firmId, lawyerId, filters);
@@ -242,8 +426,10 @@ class HRAnalyticsController {
      * @access  Private (HR, Admin)
      */
     static getSaudization = asyncHandler(async (req, res) => {
-        const firmId = req.firmId; // From firmContext middleware
         const lawyerId = req.userID || req.userId;
+
+        // IDOR Protection: Verify firm access
+        const firmId = await verifyFirmAccess(req.firmId, lawyerId);
 
         const saudization = await HRAnalyticsService.getSaudizationCompliance(firmId, lawyerId);
 
@@ -259,9 +445,14 @@ class HRAnalyticsController {
      * @access  Private (HR, Admin)
      */
     static takeSnapshot = asyncHandler(async (req, res) => {
-        const firmId = req.firmId; // From firmContext middleware
         const lawyerId = req.userID || req.userId;
-        const { snapshotType = 'monthly' } = req.body;
+
+        // IDOR Protection: Verify firm access
+        const firmId = await verifyFirmAccess(req.firmId, lawyerId);
+
+        // Input validation
+        const validatedFilters = validateAnalyticsFilters({ snapshotType: req.body.snapshotType });
+        const snapshotType = validatedFilters.snapshotType || 'monthly';
 
         const snapshot = await HRAnalyticsService.takeSnapshot(firmId, lawyerId, snapshotType);
 
@@ -278,16 +469,22 @@ class HRAnalyticsController {
      * @access  Private (HR, Admin)
      */
     static getTrends = asyncHandler(async (req, res) => {
-        const firmId = req.firmId; // From firmContext middleware
         const lawyerId = req.userID || req.userId;
-        const { snapshotType = 'monthly', limit = 12 } = req.query;
+
+        // IDOR Protection: Verify firm access
+        const firmId = await verifyFirmAccess(req.firmId, lawyerId);
+
+        // Input validation
+        const validatedFilters = validateAnalyticsFilters(req.query);
+        const snapshotType = validatedFilters.snapshotType || 'monthly';
+        const limit = validatedFilters.limit || 12;
 
         const HRAnalyticsSnapshot = require('../models/hrAnalyticsSnapshot.model');
 
         const trends = await HRAnalyticsSnapshot.getTrend(
             firmId || lawyerId,
             snapshotType,
-            parseInt(limit)
+            limit
         );
 
         res.status(200).json({
@@ -302,13 +499,17 @@ class HRAnalyticsController {
      * @access  Private (HR, Admin)
      */
     static exportReport = asyncHandler(async (req, res) => {
-        const firmId = req.firmId; // From firmContext middleware
         const lawyerId = req.userID || req.userId;
 
+        // IDOR Protection: Verify firm access
+        const firmId = await verifyFirmAccess(req.firmId, lawyerId);
+
+        // Input validation
+        const validatedFilters = validateAnalyticsFilters(req.query);
         const filters = {
-            startDate: req.query.startDate,
-            endDate: req.query.endDate,
-            department: req.query.department
+            startDate: validatedFilters.startDate,
+            endDate: validatedFilters.endDate,
+            department: validatedFilters.department
         };
 
         const dashboard = await HRAnalyticsService.getDashboard(firmId, lawyerId, filters);
@@ -318,7 +519,7 @@ class HRAnalyticsController {
             success: true,
             message: 'Export functionality - to be implemented with Excel/PDF generation',
             data: dashboard,
-            exportFormat: req.query.format || 'json'
+            exportFormat: validatedFilters.format || 'json'
         });
     });
 
@@ -332,11 +533,15 @@ class HRAnalyticsController {
      * @access  Private (HR, Admin)
      */
     static getAttritionRisk = asyncHandler(async (req, res) => {
-        const firmId = req.firmId; // From firmContext middleware
         const lawyerId = req.userID || req.userId;
 
+        // IDOR Protection: Verify firm access
+        const firmId = await verifyFirmAccess(req.firmId, lawyerId);
+
+        // Input validation
+        const validatedFilters = validateAnalyticsFilters(req.query);
         const filters = {
-            department: req.query.department
+            department: validatedFilters.department
         };
 
         const attritionRisk = await HRPredictionsService.getAttritionRiskScores(firmId, lawyerId, filters);
@@ -353,9 +558,13 @@ class HRAnalyticsController {
      * @access  Private (HR, Admin, Manager)
      */
     static getEmployeeAttritionRisk = asyncHandler(async (req, res) => {
-        const firmId = req.firmId; // From firmContext middleware
         const lawyerId = req.userID || req.userId;
-        const { employeeId } = req.params;
+
+        // IDOR Protection: Verify firm access
+        const firmId = await verifyFirmAccess(req.firmId, lawyerId);
+
+        // Sanitize employee ID
+        const employeeId = sanitizeObjectId(req.params.employeeId);
 
         const attritionRisk = await HRPredictionsService.getEmployeeAttritionRisk(
             firmId,
@@ -375,14 +584,19 @@ class HRAnalyticsController {
      * @access  Private (HR, Admin)
      */
     static getWorkforceForecast = asyncHandler(async (req, res) => {
-        const firmId = req.firmId; // From firmContext middleware
         const lawyerId = req.userID || req.userId;
-        const { months = 12 } = req.query;
+
+        // IDOR Protection: Verify firm access
+        const firmId = await verifyFirmAccess(req.firmId, lawyerId);
+
+        // Input validation
+        const validatedFilters = validateAnalyticsFilters(req.query);
+        const months = validatedFilters.months || 12;
 
         const forecast = await HRPredictionsService.getWorkforceForecast(
             firmId,
             lawyerId,
-            parseInt(months)
+            months
         );
 
         res.status(200).json({
@@ -397,14 +611,19 @@ class HRAnalyticsController {
      * @access  Private (HR, Admin)
      */
     static getHighPotential = asyncHandler(async (req, res) => {
-        const firmId = req.firmId; // From firmContext middleware
         const lawyerId = req.userID || req.userId;
-        const { limit = 20 } = req.query;
+
+        // IDOR Protection: Verify firm access
+        const firmId = await verifyFirmAccess(req.firmId, lawyerId);
+
+        // Input validation
+        const validatedFilters = validateAnalyticsFilters(req.query);
+        const limit = validatedFilters.limit || 20;
 
         const highPotential = await HRPredictionsService.getHighPotentialEmployees(
             firmId,
             lawyerId,
-            parseInt(limit)
+            limit
         );
 
         res.status(200).json({
@@ -419,8 +638,10 @@ class HRAnalyticsController {
      * @access  Private (HR, Admin)
      */
     static getFlightRisk = asyncHandler(async (req, res) => {
-        const firmId = req.firmId; // From firmContext middleware
         const lawyerId = req.userID || req.userId;
+
+        // IDOR Protection: Verify firm access
+        const firmId = await verifyFirmAccess(req.firmId, lawyerId);
 
         const engagement = await HRPredictionsService.getEngagementPredictions(firmId, lawyerId);
 
@@ -439,8 +660,10 @@ class HRAnalyticsController {
      * @access  Private (HR, Admin)
      */
     static getAbsencePredictions = asyncHandler(async (req, res) => {
-        const firmId = req.firmId; // From firmContext middleware
         const lawyerId = req.userID || req.userId;
+
+        // IDOR Protection: Verify firm access
+        const firmId = await verifyFirmAccess(req.firmId, lawyerId);
 
         const absencePredictions = await HRPredictionsService.getAbsencePredictions(firmId, lawyerId);
 
@@ -456,8 +679,10 @@ class HRAnalyticsController {
      * @access  Private (HR, Admin)
      */
     static getEngagementPredictions = asyncHandler(async (req, res) => {
-        const firmId = req.firmId; // From firmContext middleware
         const lawyerId = req.userID || req.userId;
+
+        // IDOR Protection: Verify firm access
+        const firmId = await verifyFirmAccess(req.firmId, lawyerId);
 
         const engagement = await HRPredictionsService.getEngagementPredictions(firmId, lawyerId);
 

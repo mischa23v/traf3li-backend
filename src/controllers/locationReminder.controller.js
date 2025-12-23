@@ -1,12 +1,60 @@
 const locationRemindersService = require('../services/locationReminders.service');
 const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
+const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
+
+/**
+ * Validate location coordinates
+ * @param {number} latitude - Latitude value
+ * @param {number} longitude - Longitude value
+ * @throws {CustomException} If coordinates are invalid
+ */
+const validateCoordinates = (latitude, longitude) => {
+  const lat = Number(latitude);
+  const lng = Number(longitude);
+
+  if (isNaN(lat) || isNaN(lng)) {
+    throw CustomException('Latitude and longitude must be valid numbers', 400);
+  }
+
+  if (lat < -90 || lat > 90) {
+    throw CustomException('Latitude must be between -90 and 90', 400);
+  }
+
+  if (lng < -180 || lng > 180) {
+    throw CustomException('Longitude must be between -180 and 180', 400);
+  }
+
+  return { latitude: lat, longitude: lng };
+};
 
 /**
  * Create a location-based reminder
  * POST /api/reminders/location
  */
 const createLocationReminder = asyncHandler(async (req, res) => {
+  const userId = req.userID;
+  const firmId = req.firmID || null;
+
+  // Mass assignment protection
+  const allowedFields = [
+    'title',
+    'description',
+    'priority',
+    'type',
+    'relatedCase',
+    'relatedTask',
+    'relatedEvent',
+    'relatedInvoice',
+    'clientId',
+    'notification',
+    'tags',
+    'notes',
+    'locationTrigger'
+  ];
+
+  const sanitizedData = pickAllowedFields(req.body, allowedFields);
+
   const {
     title,
     description,
@@ -21,10 +69,7 @@ const createLocationReminder = asyncHandler(async (req, res) => {
     tags,
     notes,
     locationTrigger
-  } = req.body;
-
-  const userId = req.userID;
-  const firmId = req.firmID || null;
+  } = sanitizedData;
 
   // Validate required fields
   if (!title) {
@@ -33,6 +78,11 @@ const createLocationReminder = asyncHandler(async (req, res) => {
 
   if (!locationTrigger) {
     throw CustomException('Location trigger configuration is required', 400);
+  }
+
+  // Validate location coordinates in locationTrigger
+  if (locationTrigger.latitude !== undefined && locationTrigger.longitude !== undefined) {
+    validateCoordinates(locationTrigger.latitude, locationTrigger.longitude);
   }
 
   // Prepare reminder data
@@ -77,9 +127,12 @@ const checkLocationTriggers = asyncHandler(async (req, res) => {
     throw CustomException('Latitude and longitude are required', 400);
   }
 
+  // Validate coordinates
+  const validatedCoords = validateCoordinates(latitude, longitude);
+
   const currentLocation = {
-    latitude,
-    longitude,
+    latitude: validatedCoords.latitude,
+    longitude: validatedCoords.longitude,
     accuracy: accuracy || 50
   };
 
@@ -107,7 +160,13 @@ const getNearbyReminders = asyncHandler(async (req, res) => {
     throw CustomException('Latitude and longitude are required', 400);
   }
 
-  const location = { latitude, longitude };
+  // Validate coordinates
+  const validatedCoords = validateCoordinates(latitude, longitude);
+
+  const location = {
+    latitude: validatedCoords.latitude,
+    longitude: validatedCoords.longitude
+  };
 
   const result = await locationRemindersService.getNearbyReminders(
     userId,
@@ -124,6 +183,22 @@ const getNearbyReminders = asyncHandler(async (req, res) => {
  * POST /api/reminders/location/save
  */
 const saveUserLocation = asyncHandler(async (req, res) => {
+  const userId = req.userID;
+  const firmId = req.firmID || null;
+
+  // Mass assignment protection
+  const allowedFields = [
+    'name',
+    'address',
+    'lat',
+    'lng',
+    'type',
+    'radius',
+    'isDefault'
+  ];
+
+  const sanitizedData = pickAllowedFields(req.body, allowedFields);
+
   const {
     name,
     address,
@@ -132,10 +207,7 @@ const saveUserLocation = asyncHandler(async (req, res) => {
     type = 'custom',
     radius = 100,
     isDefault = false
-  } = req.body;
-
-  const userId = req.userID;
-  const firmId = req.firmID || null;
+  } = sanitizedData;
 
   // Validate required fields
   if (!name) {
@@ -146,11 +218,14 @@ const saveUserLocation = asyncHandler(async (req, res) => {
     throw CustomException('Latitude and longitude are required', 400);
   }
 
+  // Validate coordinates
+  const validatedCoords = validateCoordinates(lat, lng);
+
   const locationData = {
     name,
     address,
-    lat,
-    lng,
+    lat: validatedCoords.latitude,
+    lng: validatedCoords.longitude,
     type,
     radius,
     isDefault
@@ -195,19 +270,42 @@ const getUserLocations = asyncHandler(async (req, res) => {
  * PUT /api/reminders/location/locations/:locationId
  */
 const updateUserLocation = asyncHandler(async (req, res) => {
-  const { locationId } = req.params;
-  const updateData = req.body;
-
   const userId = req.userID;
+
+  // IDOR protection - sanitize locationId
+  const locationId = sanitizeObjectId(req.params.locationId);
 
   if (!locationId) {
     throw CustomException('Location ID is required', 400);
   }
 
+  // Mass assignment protection
+  const allowedFields = [
+    'name',
+    'address',
+    'lat',
+    'lng',
+    'type',
+    'radius',
+    'isDefault',
+    'isActive'
+  ];
+
+  const sanitizedData = pickAllowedFields(req.body, allowedFields);
+
+  // Validate coordinates if provided
+  if (sanitizedData.lat !== undefined && sanitizedData.lng !== undefined) {
+    const validatedCoords = validateCoordinates(sanitizedData.lat, sanitizedData.lng);
+    sanitizedData.lat = validatedCoords.latitude;
+    sanitizedData.lng = validatedCoords.longitude;
+  } else if (sanitizedData.lat !== undefined || sanitizedData.lng !== undefined) {
+    throw CustomException('Both latitude and longitude must be provided together', 400);
+  }
+
   const result = await locationRemindersService.updateUserLocation(
     userId,
     locationId,
-    updateData
+    sanitizedData
   );
 
   res.status(200).json(result);
@@ -218,8 +316,10 @@ const updateUserLocation = asyncHandler(async (req, res) => {
  * DELETE /api/reminders/location/locations/:locationId
  */
 const deleteUserLocation = asyncHandler(async (req, res) => {
-  const { locationId } = req.params;
   const userId = req.userID;
+
+  // IDOR protection - sanitize locationId
+  const locationId = sanitizeObjectId(req.params.locationId);
 
   if (!locationId) {
     throw CustomException('Location ID is required', 400);
@@ -254,8 +354,10 @@ const getLocationRemindersSummary = asyncHandler(async (req, res) => {
  * POST /api/reminders/location/:reminderId/reset
  */
 const resetLocationTrigger = asyncHandler(async (req, res) => {
-  const { reminderId } = req.params;
   const userId = req.userID;
+
+  // IDOR protection - sanitize reminderId
+  const reminderId = sanitizeObjectId(req.params.reminderId);
 
   if (!reminderId) {
     throw CustomException('Reminder ID is required', 400);
@@ -281,11 +383,15 @@ const calculateDistance = asyncHandler(async (req, res) => {
     throw CustomException('All coordinates (lat1, lng1, lat2, lng2) are required', 400);
   }
 
+  // Validate both coordinate pairs
+  const validatedCoords1 = validateCoordinates(lat1, lng1);
+  const validatedCoords2 = validateCoordinates(lat2, lng2);
+
   const distance = locationRemindersService.calculateDistance(
-    lat1,
-    lng1,
-    lat2,
-    lng2
+    validatedCoords1.latitude,
+    validatedCoords1.longitude,
+    validatedCoords2.latitude,
+    validatedCoords2.longitude
   );
 
   res.status(200).json({
@@ -293,8 +399,8 @@ const calculateDistance = asyncHandler(async (req, res) => {
     data: {
       distance: Math.round(distance),
       distanceKm: (distance / 1000).toFixed(2),
-      point1: { latitude: lat1, longitude: lng1 },
-      point2: { latitude: lat2, longitude: lng2 }
+      point1: { latitude: validatedCoords1.latitude, longitude: validatedCoords1.longitude },
+      point2: { latitude: validatedCoords2.latitude, longitude: validatedCoords2.longitude }
     }
   });
 });

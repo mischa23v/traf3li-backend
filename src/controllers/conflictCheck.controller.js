@@ -1,6 +1,7 @@
 const { ConflictCheck, Client, Case, Contact, Organization } = require('../models');
 const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
+const { pickAllowedFields, sanitizeObjectId, sanitizeString, sanitizePagination } = require('../utils/securityUtils');
 
 /**
  * Calculate Levenshtein distance between two strings
@@ -45,42 +46,87 @@ function calculateSimilarity(str1, str2) {
  * POST /api/conflict-checks
  */
 const runConflictCheck = asyncHandler(async (req, res) => {
-    const {
-        checkType, searchTerms, caseId, clientId,
-        includeArchived, threshold
-    } = req.body;
     const lawyerId = req.userID;
+    const firmId = req.firmId;
 
-    if (!searchTerms || searchTerms.length === 0) {
+    // Mass assignment protection - only allow specific fields
+    const allowedFields = ['checkType', 'searchTerms', 'caseId', 'clientId', 'includeArchived', 'threshold'];
+    const safeData = pickAllowedFields(req.body, allowedFields);
+
+    // Input validation
+    if (!safeData.searchTerms || !Array.isArray(safeData.searchTerms) || safeData.searchTerms.length === 0) {
         throw CustomException('يجب تحديد مصطلحات البحث', 400);
+    }
+
+    // Validate and sanitize search terms
+    const sanitizedSearchTerms = safeData.searchTerms
+        .filter(term => term && typeof term === 'string')
+        .map(term => sanitizeString(term))
+        .filter(term => term.length > 0);
+
+    if (sanitizedSearchTerms.length === 0) {
+        throw CustomException('يجب تحديد مصطلحات بحث صالحة', 400);
+    }
+
+    // Validate threshold
+    const threshold = safeData.threshold ? parseInt(safeData.threshold, 10) : 80;
+    if (isNaN(threshold) || threshold < 0 || threshold > 100) {
+        throw CustomException('نسبة التطابق يجب أن تكون بين 0 و 100', 400);
+    }
+
+    // Sanitize ObjectIds
+    const caseId = safeData.caseId ? sanitizeObjectId(safeData.caseId) : null;
+    const clientId = safeData.clientId ? sanitizeObjectId(safeData.clientId) : null;
+
+    if (safeData.caseId && !caseId) {
+        throw CustomException('معرف القضية غير صالح', 400);
+    }
+    if (safeData.clientId && !clientId) {
+        throw CustomException('معرف العميل غير صالح', 400);
+    }
+
+    // IDOR protection - verify case ownership if caseId provided
+    if (caseId) {
+        const caseExists = await Case.findOne({ _id: caseId, lawyerId });
+        if (!caseExists) {
+            throw CustomException('القضية غير موجودة أو غير مصرح لك بالوصول إليها', 403);
+        }
+    }
+
+    // IDOR protection - verify client ownership if clientId provided
+    if (clientId) {
+        const clientExists = await Client.findOne({ _id: clientId, lawyerId });
+        if (!clientExists) {
+            throw CustomException('العميل غير موجود أو غير مصرح لك بالوصول إليه', 403);
+        }
     }
 
     // Create conflict check record
     const conflictCheck = await ConflictCheck.create({
         lawyerId,
-        checkType: checkType || 'new_client',
-        searchTerms,
+        checkType: safeData.checkType || 'new_client',
+        searchTerms: sanitizedSearchTerms,
         caseId,
         clientId,
         status: 'running',
-        threshold: threshold || 80,
+        threshold,
         createdBy: lawyerId
     });
 
     try {
         const matches = [];
-        const searchThreshold = threshold || 80;
+        const searchThreshold = threshold;
 
-        // Build base query
+        // Build base query with IDOR protection
         const baseQuery = { lawyerId };
-        if (!includeArchived) {
+        if (!safeData.includeArchived) {
             baseQuery.isArchived = { $ne: true };
         }
 
         // Search clients
         const clients = await Client.find(baseQuery).lean();
         for (const client of clients) {
-            for (const term of searchTerms) {
+            for (const term of sanitizedSearchTerms) {
                 // Check name similarity
                 const fullName = `${client.firstName || ''} ${client.lastName || ''}`.trim();
                 const nameSimilarity = calculateSimilarity(term, fullName);
@@ -120,7 +166,7 @@ const runConflictCheck = asyncHandler(async (req, res) => {
         // Search cases
         const cases = await Case.find(baseQuery).lean();
         for (const caseDoc of cases) {
-            for (const term of searchTerms) {
+            for (const term of sanitizedSearchTerms) {
                 const titleSimilarity = calculateSimilarity(term, caseDoc.title || '');
                 const numberSimilarity = caseDoc.caseNumber?.toLowerCase() === term.toLowerCase() ? 100 : 0;
 
@@ -158,7 +204,7 @@ const runConflictCheck = asyncHandler(async (req, res) => {
         // Search contacts
         const contacts = await Contact.find(baseQuery).lean();
         for (const contact of contacts) {
-            for (const term of searchTerms) {
+            for (const term of sanitizedSearchTerms) {
                 const fullName = `${contact.firstName || ''} ${contact.lastName || ''}`.trim();
                 const nameSimilarity = calculateSimilarity(term, fullName);
                 const companySimilarity = calculateSimilarity(term, contact.company || '');
@@ -184,7 +230,7 @@ const runConflictCheck = asyncHandler(async (req, res) => {
         // Search organizations
         const organizations = await Organization.find(baseQuery).lean();
         for (const org of organizations) {
-            for (const term of searchTerms) {
+            for (const term of sanitizedSearchTerms) {
                 const nameSimilarity = calculateSimilarity(term, org.name || '');
                 const arabicNameSimilarity = calculateSimilarity(term, org.nameAr || '');
                 const regNumSimilarity = org.registrationNumber === term ? 100 : 0;
@@ -253,30 +299,52 @@ function getMatchField(maxScore, scores) {
  * GET /api/conflict-checks
  */
 const getConflictChecks = asyncHandler(async (req, res) => {
-    const { status, checkType, page = 1, limit = 20 } = req.query;
     const lawyerId = req.userID;
+    const firmId = req.firmId;
 
+    // Sanitize pagination parameters
+    const { page, limit, skip } = sanitizePagination(req.query, { maxLimit: 100, defaultLimit: 20 });
+
+    // Build query with IDOR protection
     const query = { lawyerId };
-    if (status) query.status = status;
-    if (checkType) query.checkType = checkType;
+
+    // Input validation for status
+    const validStatuses = ['pending', 'cleared', 'flagged', 'waived', 'running', 'conflicts_found', 'clear', 'error', 'resolved'];
+    if (req.query.status && validStatuses.includes(req.query.status)) {
+        query.status = req.query.status;
+    }
+
+    // Input validation for checkType
+    const validCheckTypes = ['new_client', 'new_case', 'new_matter', 'client', 'case', 'matter'];
+    if (req.query.checkType && validCheckTypes.includes(req.query.checkType)) {
+        query.checkType = req.query.checkType;
+    }
 
     const checks = await ConflictCheck.find(query)
         .populate('caseId', 'title caseNumber')
         .populate('clientId', 'firstName lastName companyName')
         .sort({ createdAt: -1 })
-        .limit(parseInt(limit))
-        .skip((parseInt(page) - 1) * parseInt(limit));
+        .limit(limit)
+        .skip(skip)
+        .lean();
 
     const total = await ConflictCheck.countDocuments(query);
 
+    // Sanitize sensitive data in response
+    const sanitizedChecks = checks.map(check => ({
+        ...check,
+        // Remove any internal fields if needed
+        __v: undefined
+    }));
+
     res.status(200).json({
         success: true,
-        data: checks,
+        data: sanitizedChecks,
         pagination: {
-            page: parseInt(page),
-            limit: parseInt(limit),
+            page,
+            limit,
             total,
-            pages: Math.ceil(total / parseInt(limit))
+            pages: Math.ceil(total / limit)
         }
     });
 });
@@ -286,21 +354,35 @@ const getConflictChecks = asyncHandler(async (req, res) => {
  * GET /api/conflict-checks/:id
  */
 const getConflictCheck = asyncHandler(async (req, res) => {
-    const { id } = req.params;
     const lawyerId = req.userID;
+    const firmId = req.firmId;
 
-    const check = await ConflictCheck.findOne({ _id: id, lawyerId })
+    // Sanitize and validate ObjectId
+    const checkId = sanitizeObjectId(req.params.id);
+    if (!checkId) {
+        throw CustomException('معرف فحص التعارض غير صالح', 400);
+    }
+
+    // IDOR protection - verify ownership
+    const check = await ConflictCheck.findOne({ _id: checkId, lawyerId })
         .populate('caseId', 'title caseNumber')
         .populate('clientId', 'firstName lastName companyName')
-        .populate('matches.entityId');
+        .populate('matches.entityId')
+        .lean();
 
     if (!check) {
-        throw CustomException('فحص التعارض غير موجود', 404);
+        throw CustomException('فحص التعارض غير موجود أو غير مصرح لك بالوصول إليه', 404);
     }
+
+    // Sanitize sensitive data
+    const sanitizedCheck = {
+        ...check,
+        __v: undefined
+    };
 
     res.status(200).json({
         success: true,
-        data: check
+        data: sanitizedCheck
     });
 });
 
@@ -309,21 +391,47 @@ const getConflictCheck = asyncHandler(async (req, res) => {
  * PATCH /api/conflict-checks/:id
  */
 const updateConflictCheck = asyncHandler(async (req, res) => {
-    const { id } = req.params;
-    const { status, resolution, notes } = req.body;
     const lawyerId = req.userID;
+    const firmId = req.firmId;
 
-    const check = await ConflictCheck.findOne({ _id: id, lawyerId });
-
-    if (!check) {
-        throw CustomException('فحص التعارض غير موجود', 404);
+    // Sanitize and validate ObjectId
+    const checkId = sanitizeObjectId(req.params.id);
+    if (!checkId) {
+        throw CustomException('معرف فحص التعارض غير صالح', 400);
     }
 
-    if (status) check.status = status;
-    if (resolution) check.resolution = resolution;
-    if (notes) check.notes = notes;
+    // Mass assignment protection - only allow specific fields
+    const allowedFields = ['status', 'resolution', 'notes', 'clearanceNotes'];
+    const safeData = pickAllowedFields(req.body, allowedFields);
 
-    if (status === 'resolved' || status === 'waived') {
+    // Input validation for status
+    const validStatuses = ['pending', 'cleared', 'flagged', 'waived', 'resolved'];
+    if (safeData.status && !validStatuses.includes(safeData.status)) {
+        throw CustomException('حالة غير صالحة', 400);
+    }
+
+    // Sanitize string inputs
+    if (safeData.notes) {
+        safeData.notes = sanitizeString(safeData.notes);
+    }
+    if (safeData.clearanceNotes) {
+        safeData.clearanceNotes = sanitizeString(safeData.clearanceNotes);
+    }
+
+    // IDOR protection - verify ownership
+    const check = await ConflictCheck.findOne({ _id: checkId, lawyerId });
+
+    if (!check) {
+        throw CustomException('فحص التعارض غير موجود أو غير مصرح لك بالوصول إليه', 404);
+    }
+
+    // Update allowed fields
+    if (safeData.status) check.status = safeData.status;
+    if (safeData.resolution) check.resolution = safeData.resolution;
+    if (safeData.notes) check.notes = safeData.notes;
+    if (safeData.clearanceNotes) check.clearanceNotes = safeData.clearanceNotes;
+
+    if (safeData.status === 'resolved' || safeData.status === 'waived') {
         check.resolvedAt = new Date();
         check.resolvedBy = lawyerId;
     }
@@ -342,26 +450,54 @@ const updateConflictCheck = asyncHandler(async (req, res) => {
  * POST /api/conflict-checks/:id/matches/:matchIndex/resolve
  */
 const resolveMatch = asyncHandler(async (req, res) => {
-    const { id, matchIndex } = req.params;
-    const { resolution, notes } = req.body;
     const lawyerId = req.userID;
+    const firmId = req.firmId;
 
-    const check = await ConflictCheck.findOne({ _id: id, lawyerId });
-
-    if (!check) {
-        throw CustomException('فحص التعارض غير موجود', 404);
+    // Sanitize and validate ObjectId
+    const checkId = sanitizeObjectId(req.params.id);
+    if (!checkId) {
+        throw CustomException('معرف فحص التعارض غير صالح', 400);
     }
 
-    const index = parseInt(matchIndex);
-    if (index < 0 || index >= check.matches.length) {
+    // Validate matchIndex
+    const matchIndex = parseInt(req.params.matchIndex, 10);
+    if (isNaN(matchIndex) || matchIndex < 0) {
         throw CustomException('فهرس التطابق غير صالح', 400);
     }
 
-    check.matches[index].resolved = true;
-    check.matches[index].resolution = resolution;
-    check.matches[index].resolvedAt = new Date();
-    check.matches[index].resolvedBy = lawyerId;
-    check.matches[index].notes = notes;
+    // Mass assignment protection - only allow specific fields
+    const allowedFields = ['resolution', 'notes'];
+    const safeData = pickAllowedFields(req.body, allowedFields);
+
+    // Input validation for resolution
+    const validResolutions = ['cleared', 'flagged', 'waived'];
+    if (safeData.resolution && !validResolutions.includes(safeData.resolution)) {
+        throw CustomException('حالة الحل غير صالحة', 400);
+    }
+
+    // Sanitize notes
+    if (safeData.notes) {
+        safeData.notes = sanitizeString(safeData.notes);
+    }
+
+    // IDOR protection - verify ownership
+    const check = await ConflictCheck.findOne({ _id: checkId, lawyerId });
+
+    if (!check) {
+        throw CustomException('فحص التعارض غير موجود أو غير مصرح لك بالوصول إليه', 404);
+    }
+
+    // Validate index against actual matches length
+    if (matchIndex >= check.matches.length) {
+        throw CustomException('فهرس التطابق غير صالح', 400);
+    }
+
+    // Update match resolution
+    check.matches[matchIndex].resolved = true;
+    check.matches[matchIndex].resolution = safeData.resolution;
+    check.matches[matchIndex].resolvedAt = new Date();
+    check.matches[matchIndex].resolvedBy = lawyerId;
+    check.matches[matchIndex].notes = safeData.notes;
 
     // Check if all matches are resolved
     const allResolved = check.matches.every(m => m.resolved);
@@ -385,13 +521,20 @@ const resolveMatch = asyncHandler(async (req, res) => {
  * DELETE /api/conflict-checks/:id
  */
 const deleteConflictCheck = asyncHandler(async (req, res) => {
-    const { id } = req.params;
     const lawyerId = req.userID;
+    const firmId = req.firmId;
 
-    const check = await ConflictCheck.findOneAndDelete({ _id: id, lawyerId });
+    // Sanitize and validate ObjectId
+    const checkId = sanitizeObjectId(req.params.id);
+    if (!checkId) {
+        throw CustomException('معرف فحص التعارض غير صالح', 400);
+    }
+
+    // IDOR protection - verify ownership before deletion
+    const check = await ConflictCheck.findOneAndDelete({ _id: checkId, lawyerId });
 
     if (!check) {
-        throw CustomException('فحص التعارض غير موجود', 404);
+        throw CustomException('فحص التعارض غير موجود أو غير مصرح لك بحذفه', 404);
     }
 
     res.status(200).json({
@@ -405,12 +548,24 @@ const deleteConflictCheck = asyncHandler(async (req, res) => {
  * POST /api/conflict-checks/quick
  */
 const quickConflictCheck = asyncHandler(async (req, res) => {
-    const { name, email, phone, company } = req.body;
     const lawyerId = req.userID;
+    const firmId = req.firmId;
 
-    const searchTerms = [name, email, phone, company].filter(Boolean);
+    // Mass assignment protection - only allow specific fields
+    const allowedFields = ['name', 'email', 'phone', 'company'];
+    const safeData = pickAllowedFields(req.body, allowedFields);
 
-    if (searchTerms.length === 0) {
+    // Sanitize and collect search terms
+    const searchTerms = [];
+    if (safeData.name) searchTerms.push(sanitizeString(safeData.name));
+    if (safeData.email) searchTerms.push(sanitizeString(safeData.email).toLowerCase());
+    if (safeData.phone) searchTerms.push(sanitizeString(safeData.phone));
+    if (safeData.company) searchTerms.push(sanitizeString(safeData.company));
+
+    // Filter out empty strings
+    const validSearchTerms = searchTerms.filter(term => term.length > 0);
+
+    if (validSearchTerms.length === 0) {
         throw CustomException('يجب تحديد مصطلح بحث واحد على الأقل', 400);
     }
 
@@ -418,10 +573,10 @@ const quickConflictCheck = asyncHandler(async (req, res) => {
     const results = [];
     const threshold = 85;
 
-    // Search clients
+    // IDOR protection - only search within user's data
     const clients = await Client.find({ lawyerId }).lean();
     for (const client of clients) {
-        for (const term of searchTerms) {
+        for (const term of validSearchTerms) {
             const fullName = `${client.firstName || ''} ${client.lastName || ''}`.trim();
             const similarity = Math.max(
                 calculateSimilarity(term, fullName),
@@ -431,6 +586,7 @@ const quickConflictCheck = asyncHandler(async (req, res) => {
             );
 
             if (similarity >= threshold) {
+                // Sanitize sensitive information in results
                 results.push({
                     type: 'client',
                     id: client._id,
@@ -457,7 +613,9 @@ const quickConflictCheck = asyncHandler(async (req, res) => {
  */
 const getConflictStats = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
+    const firmId = req.firmId;
 
+    // IDOR protection - aggregate only user's data
     const stats = await ConflictCheck.aggregate([
         { $match: { lawyerId: lawyerId } },
         {

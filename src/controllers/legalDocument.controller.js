@@ -1,9 +1,9 @@
 const { LegalDocument, User } = require('../models');
 const { CustomException } = require('../utils');
+const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 
 // Create legal document
 const createDocument = async (request, response) => {
-    const { title, summary, content, category, type, keywords, fileUrl, author, publicationDate, accessLevel } = request.body;
     try {
         // Check if user is lawyer or admin
         const user = await User.findById(request.userID);
@@ -11,17 +11,53 @@ const createDocument = async (request, response) => {
             throw CustomException('Only lawyers and admins can create legal documents!', 403);
         }
 
+        // Mass assignment protection - only allow specific fields
+        const allowedFields = ['title', 'summary', 'content', 'category', 'type', 'keywords', 'fileUrl', 'author', 'publicationDate', 'accessLevel'];
+        const documentData = pickAllowedFields(request.body, allowedFields);
+
+        // Input validation
+        if (!documentData.title || typeof documentData.title !== 'string' || documentData.title.trim().length === 0) {
+            throw CustomException('Title is required and must be a non-empty string!', 400);
+        }
+
+        if (!documentData.content || typeof documentData.content !== 'string' || documentData.content.trim().length === 0) {
+            throw CustomException('Content is required and must be a non-empty string!', 400);
+        }
+
+        if (documentData.category && typeof documentData.category !== 'string') {
+            throw CustomException('Category must be a string!', 400);
+        }
+
+        if (documentData.type && typeof documentData.type !== 'string') {
+            throw CustomException('Type must be a string!', 400);
+        }
+
+        // Prevent path traversal attacks in fileUrl
+        if (documentData.fileUrl) {
+            if (typeof documentData.fileUrl !== 'string') {
+                throw CustomException('fileUrl must be a string!', 400);
+            }
+            // Check for path traversal patterns
+            if (documentData.fileUrl.includes('..') || documentData.fileUrl.includes('\\')) {
+                throw CustomException('Invalid file path detected!', 400);
+            }
+        }
+
+        // Validate keywords array
+        if (documentData.keywords && !Array.isArray(documentData.keywords)) {
+            throw CustomException('Keywords must be an array!', 400);
+        }
+
+        // Validate accessLevel
+        const validAccessLevels = ['public', 'lawyers-only', 'admin-only'];
+        if (documentData.accessLevel && !validAccessLevels.includes(documentData.accessLevel)) {
+            throw CustomException('Invalid access level!', 400);
+        }
+
         const document = new LegalDocument({
-            title,
-            summary,
-            content,
-            category,
-            type,
-            keywords,
-            fileUrl,
-            author: author || user.username,
-            publicationDate,
-            accessLevel: accessLevel || 'public'
+            ...documentData,
+            author: documentData.author || user.username,
+            accessLevel: documentData.accessLevel || 'public'
         });
 
         await document.save();
@@ -78,9 +114,11 @@ const getDocuments = async (request, response) => {
 
 // Get single document
 const getDocument = async (request, response) => {
-    const { _id } = request.params;
     try {
-        const document = await LegalDocument.findById(_id);
+        // Sanitize ID to prevent injection attacks
+        const documentId = sanitizeObjectId(request.params._id);
+
+        const document = await LegalDocument.findById(documentId);
 
         if (!document) {
             throw CustomException('Document not found!', 404);
@@ -88,7 +126,7 @@ const getDocument = async (request, response) => {
 
         // Check access
         const user = await User.findById(request.userID).catch(() => null);
-        
+
         if (document.accessLevel === 'lawyers-only' && (!user || user.role === 'client')) {
             throw CustomException('This document is only accessible to lawyers!', 403);
         }
@@ -115,7 +153,6 @@ const getDocument = async (request, response) => {
 
 // Update document
 const updateDocument = async (request, response) => {
-    const { _id } = request.params;
     try {
         // Check if user is admin
         const user = await User.findById(request.userID);
@@ -123,9 +160,52 @@ const updateDocument = async (request, response) => {
             throw CustomException('Only admins can update legal documents!', 403);
         }
 
+        // Sanitize ID to prevent injection attacks
+        const documentId = sanitizeObjectId(request.params._id);
+
+        // Mass assignment protection - only allow specific fields
+        const allowedFields = ['title', 'summary', 'content', 'category', 'type', 'keywords', 'fileUrl', 'author', 'publicationDate', 'accessLevel'];
+        const updateData = pickAllowedFields(request.body, allowedFields);
+
+        // Input validation
+        if (updateData.title !== undefined) {
+            if (typeof updateData.title !== 'string' || updateData.title.trim().length === 0) {
+                throw CustomException('Title must be a non-empty string!', 400);
+            }
+        }
+
+        if (updateData.content !== undefined) {
+            if (typeof updateData.content !== 'string' || updateData.content.trim().length === 0) {
+                throw CustomException('Content must be a non-empty string!', 400);
+            }
+        }
+
+        // Prevent path traversal attacks in fileUrl
+        if (updateData.fileUrl) {
+            if (typeof updateData.fileUrl !== 'string') {
+                throw CustomException('fileUrl must be a string!', 400);
+            }
+            if (updateData.fileUrl.includes('..') || updateData.fileUrl.includes('\\')) {
+                throw CustomException('Invalid file path detected!', 400);
+            }
+        }
+
+        // Validate keywords array
+        if (updateData.keywords !== undefined && !Array.isArray(updateData.keywords)) {
+            throw CustomException('Keywords must be an array!', 400);
+        }
+
+        // Validate accessLevel
+        if (updateData.accessLevel) {
+            const validAccessLevels = ['public', 'lawyers-only', 'admin-only'];
+            if (!validAccessLevels.includes(updateData.accessLevel)) {
+                throw CustomException('Invalid access level!', 400);
+            }
+        }
+
         const document = await LegalDocument.findByIdAndUpdate(
-            _id,
-            { $set: request.body },
+            documentId,
+            { $set: updateData },
             { new: true }
         );
 
@@ -148,7 +228,6 @@ const updateDocument = async (request, response) => {
 
 // Delete document
 const deleteDocument = async (request, response) => {
-    const { _id } = request.params;
     try {
         // Check if user is admin
         const user = await User.findById(request.userID);
@@ -156,13 +235,16 @@ const deleteDocument = async (request, response) => {
             throw CustomException('Only admins can delete legal documents!', 403);
         }
 
-        const document = await LegalDocument.findById(_id);
+        // Sanitize ID to prevent injection attacks
+        const documentId = sanitizeObjectId(request.params._id);
+
+        const document = await LegalDocument.findById(documentId);
 
         if (!document) {
             throw CustomException('Document not found!', 404);
         }
 
-        await LegalDocument.deleteOne({ _id });
+        await LegalDocument.deleteOne({ _id: documentId });
 
         return response.send({
             error: false,
@@ -178,10 +260,12 @@ const deleteDocument = async (request, response) => {
 
 // Increment download count
 const incrementDownload = async (request, response) => {
-    const { _id } = request.params;
     try {
+        // Sanitize ID to prevent injection attacks
+        const documentId = sanitizeObjectId(request.params._id);
+
         const document = await LegalDocument.findByIdAndUpdate(
-            _id,
+            documentId,
             { $inc: { downloads: 1 } },
             { new: true }
         );

@@ -3,6 +3,7 @@ const Invoice = require('../models/invoice.model');
 const Notification = require('../models/notification.model');
 const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
+const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 
 /**
  * Submit invoice for approval
@@ -10,10 +11,17 @@ const CustomException = require('../utils/CustomException');
  */
 const submitForApproval = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const { approverIds, notes } = req.body;
 
+    // Mass assignment protection
+    const allowedFields = pickAllowedFields(req.body, ['approverIds', 'notes']);
+    const { approverIds, notes } = allowedFields;
+
+    // Sanitize invoice ID
+    const sanitizedId = sanitizeObjectId(id);
+
+    // IDOR protection - verify firmId ownership
     const invoice = await Invoice.findOne({
-        _id: id,
+        _id: sanitizedId,
         firmId: req.firmId
     });
 
@@ -33,7 +41,8 @@ const submitForApproval = asyncHandler(async (req, res) => {
         );
     }
 
-    if (!approverIds || approverIds.length === 0) {
+    // Validate approval data
+    if (!approverIds || !Array.isArray(approverIds) || approverIds.length === 0) {
         throw new CustomException(
             'At least one approver is required',
             'مطلوب معتمد واحد على الأقل',
@@ -41,10 +50,13 @@ const submitForApproval = asyncHandler(async (req, res) => {
         );
     }
 
+    // Sanitize approver IDs
+    const sanitizedApproverIds = approverIds.map(id => sanitizeObjectId(id));
+
     const approval = await InvoiceApproval.createForInvoice(
-        id,
+        sanitizedId,
         req.userID,
-        approverIds
+        sanitizedApproverIds
     );
 
     if (notes) {
@@ -98,10 +110,28 @@ const getPendingApprovals = asyncHandler(async (req, res) => {
  * GET /api/invoice-approvals
  */
 const getInvoiceApprovals = asyncHandler(async (req, res) => {
-    const { status, limit = 50, offset = 0 } = req.query;
+    // Mass assignment protection
+    const allowedFields = pickAllowedFields(req.query, ['status', 'limit', 'offset']);
+    const { status, limit = 50, offset = 0 } = allowedFields;
 
+    // IDOR protection - always filter by firmId
     const query = { firmId: req.firmId };
-    if (status) query.status = status;
+    if (status) {
+        // Validate status value
+        const validStatuses = ['pending', 'approved', 'rejected', 'cancelled'];
+        if (!validStatuses.includes(status)) {
+            throw new CustomException(
+                'Invalid status value',
+                'قيمة الحالة غير صالحة',
+                400
+            );
+        }
+        query.status = status;
+    }
+
+    // Validate and sanitize pagination params
+    const sanitizedLimit = Math.min(Math.max(parseInt(limit) || 50, 1), 100);
+    const sanitizedOffset = Math.max(parseInt(offset) || 0, 0);
 
     const [approvals, total] = await Promise.all([
         InvoiceApproval.find(query)
@@ -109,8 +139,8 @@ const getInvoiceApprovals = asyncHandler(async (req, res) => {
             .populate('submittedBy', 'name email')
             .populate('approvers.userId', 'name email')
             .sort({ submittedAt: -1 })
-            .skip(parseInt(offset))
-            .limit(parseInt(limit)),
+            .skip(sanitizedOffset)
+            .limit(sanitizedLimit),
         InvoiceApproval.countDocuments(query)
     ]);
 
@@ -119,8 +149,8 @@ const getInvoiceApprovals = asyncHandler(async (req, res) => {
         data: approvals,
         pagination: {
             total,
-            limit: parseInt(limit),
-            offset: parseInt(offset)
+            limit: sanitizedLimit,
+            offset: sanitizedOffset
         }
     });
 });
@@ -130,8 +160,12 @@ const getInvoiceApprovals = asyncHandler(async (req, res) => {
  * GET /api/invoice-approvals/:id
  */
 const getInvoiceApproval = asyncHandler(async (req, res) => {
+    // Sanitize approval ID
+    const sanitizedId = sanitizeObjectId(req.params.id);
+
+    // IDOR protection - verify firmId ownership
     const approval = await InvoiceApproval.findOne({
-        _id: req.params.id,
+        _id: sanitizedId,
         firmId: req.firmId
     })
         .populate('invoiceId')
@@ -158,10 +192,16 @@ const getInvoiceApproval = asyncHandler(async (req, res) => {
  * POST /api/invoice-approvals/:id/approve
  */
 const approveInvoice = asyncHandler(async (req, res) => {
-    const { comments } = req.body;
+    // Mass assignment protection
+    const allowedFields = pickAllowedFields(req.body, ['comments']);
+    const { comments } = allowedFields;
 
+    // Sanitize approval ID
+    const sanitizedId = sanitizeObjectId(req.params.id);
+
+    // IDOR protection - verify firmId ownership
     const approval = await InvoiceApproval.findOne({
-        _id: req.params.id,
+        _id: sanitizedId,
         firmId: req.firmId
     });
 
@@ -170,6 +210,20 @@ const approveInvoice = asyncHandler(async (req, res) => {
             'Invoice approval not found',
             'طلب الموافقة غير موجود',
             404
+        );
+    }
+
+    // Role-based approval verification - ensure user is authorized to approve
+    const currentApprover = approval.currentApprover;
+    const isCurrentApprover = currentApprover && currentApprover.userId.equals(req.userID);
+    const isEscalatedTo = approval.escalatedTo && approval.escalatedTo.equals(req.userID);
+    const isAdmin = req.userRole === 'admin';
+
+    if (!isCurrentApprover && !isEscalatedTo && !isAdmin) {
+        throw new CustomException(
+            'You are not authorized to approve this invoice',
+            'غير مصرح لك بالموافقة على هذه الفاتورة',
+            403
         );
     }
 
@@ -230,9 +284,12 @@ const approveInvoice = asyncHandler(async (req, res) => {
  * POST /api/invoice-approvals/:id/reject
  */
 const rejectInvoice = asyncHandler(async (req, res) => {
-    const { reason } = req.body;
+    // Mass assignment protection
+    const allowedFields = pickAllowedFields(req.body, ['reason']);
+    const { reason } = allowedFields;
 
-    if (!reason) {
+    // Validate approval data
+    if (!reason || typeof reason !== 'string' || reason.trim().length === 0) {
         throw new CustomException(
             'Rejection reason is required',
             'سبب الرفض مطلوب',
@@ -240,8 +297,12 @@ const rejectInvoice = asyncHandler(async (req, res) => {
         );
     }
 
+    // Sanitize approval ID
+    const sanitizedId = sanitizeObjectId(req.params.id);
+
+    // IDOR protection - verify firmId ownership
     const approval = await InvoiceApproval.findOne({
-        _id: req.params.id,
+        _id: sanitizedId,
         firmId: req.firmId
     });
 
@@ -253,7 +314,21 @@ const rejectInvoice = asyncHandler(async (req, res) => {
         );
     }
 
-    await approval.reject(req.userID, reason);
+    // Role-based approval verification - ensure user is authorized to reject
+    const currentApprover = approval.currentApprover;
+    const isCurrentApprover = currentApprover && currentApprover.userId.equals(req.userID);
+    const isEscalatedTo = approval.escalatedTo && approval.escalatedTo.equals(req.userID);
+    const isAdmin = req.userRole === 'admin';
+
+    if (!isCurrentApprover && !isEscalatedTo && !isAdmin) {
+        throw new CustomException(
+            'You are not authorized to reject this invoice',
+            'غير مصرح لك برفض هذه الفاتورة',
+            403
+        );
+    }
+
+    await approval.reject(req.userID, reason.trim());
 
     // Get invoice and notify submitter
     const invoice = await Invoice.findById(approval.invoiceId);
@@ -285,8 +360,11 @@ const rejectInvoice = asyncHandler(async (req, res) => {
  * POST /api/invoice-approvals/:id/escalate
  */
 const escalateApproval = asyncHandler(async (req, res) => {
-    const { escalateToUserId, reason } = req.body;
+    // Mass assignment protection
+    const allowedFields = pickAllowedFields(req.body, ['escalateToUserId', 'reason']);
+    const { escalateToUserId, reason } = allowedFields;
 
+    // Validate approval data
     if (!escalateToUserId) {
         throw new CustomException(
             'Escalation target user is required',
@@ -295,8 +373,13 @@ const escalateApproval = asyncHandler(async (req, res) => {
         );
     }
 
+    // Sanitize IDs
+    const sanitizedId = sanitizeObjectId(req.params.id);
+    const sanitizedEscalateToUserId = sanitizeObjectId(escalateToUserId);
+
+    // IDOR protection - verify firmId ownership
     const approval = await InvoiceApproval.findOne({
-        _id: req.params.id,
+        _id: sanitizedId,
         firmId: req.firmId
     });
 
@@ -308,14 +391,27 @@ const escalateApproval = asyncHandler(async (req, res) => {
         );
     }
 
-    await approval.escalate(escalateToUserId, reason, req.userID);
+    // Role-based approval verification - only current approver or admin can escalate
+    const currentApprover = approval.currentApprover;
+    const isCurrentApprover = currentApprover && currentApprover.userId.equals(req.userID);
+    const isAdmin = req.userRole === 'admin';
+
+    if (!isCurrentApprover && !isAdmin) {
+        throw new CustomException(
+            'You are not authorized to escalate this approval',
+            'غير مصرح لك بتصعيد هذا الطلب',
+            403
+        );
+    }
+
+    await approval.escalate(sanitizedEscalateToUserId, reason, req.userID);
 
     // Notify escalation target
     const invoice = await Invoice.findById(approval.invoiceId);
 
     await Notification.createNotification({
         firmId: req.firmId,
-        userId: escalateToUserId,
+        userId: sanitizedEscalateToUserId,
         type: 'invoice_approval_required',
         title: 'Escalated Invoice Approval',
         titleAr: 'موافقة فاتورة مصعدة',
@@ -341,10 +437,16 @@ const escalateApproval = asyncHandler(async (req, res) => {
  * POST /api/invoice-approvals/:id/cancel
  */
 const cancelApproval = asyncHandler(async (req, res) => {
-    const { reason } = req.body;
+    // Mass assignment protection
+    const allowedFields = pickAllowedFields(req.body, ['reason']);
+    const { reason } = allowedFields;
 
+    // Sanitize approval ID
+    const sanitizedId = sanitizeObjectId(req.params.id);
+
+    // IDOR protection - verify firmId ownership
     const approval = await InvoiceApproval.findOne({
-        _id: req.params.id,
+        _id: sanitizedId,
         firmId: req.firmId
     });
 
@@ -356,7 +458,7 @@ const cancelApproval = asyncHandler(async (req, res) => {
         );
     }
 
-    // Only submitter or admin can cancel
+    // Role-based approval verification - only submitter or admin can cancel
     if (!approval.submittedBy.equals(req.userID) && req.userRole !== 'admin') {
         throw new CustomException(
             'Only the submitter or admin can cancel',
@@ -380,8 +482,28 @@ const cancelApproval = asyncHandler(async (req, res) => {
  * GET /api/invoice-approvals/stats
  */
 const getApprovalStats = asyncHandler(async (req, res) => {
-    const { startDate, endDate } = req.query;
+    // Mass assignment protection
+    const allowedFields = pickAllowedFields(req.query, ['startDate', 'endDate']);
+    const { startDate, endDate } = allowedFields;
 
+    // Validate date params if provided
+    if (startDate && isNaN(Date.parse(startDate))) {
+        throw new CustomException(
+            'Invalid start date format',
+            'تنسيق تاريخ البداية غير صالح',
+            400
+        );
+    }
+
+    if (endDate && isNaN(Date.parse(endDate))) {
+        throw new CustomException(
+            'Invalid end date format',
+            'تنسيق تاريخ النهاية غير صالح',
+            400
+        );
+    }
+
+    // IDOR protection - stats are filtered by firmId
     const stats = await InvoiceApproval.getStats(req.firmId, startDate, endDate);
 
     res.status(200).json({

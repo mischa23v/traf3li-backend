@@ -1,4 +1,5 @@
 const logger = require('../utils/logger');
+const { pickAllowedFields, sanitizeObjectId, sanitizeForLog } = require('../utils/securityUtils');
 
 /**
  * CSP Report Controller
@@ -41,6 +42,107 @@ const violationStats = {
 // Maximum number of recent violations to keep in memory
 const MAX_RECENT_VIOLATIONS = 100;
 
+// Rate limiting configuration for CSP reports
+const RATE_LIMIT_WINDOW_MS = 60 * 1000; // 1 minute
+const MAX_REPORTS_PER_WINDOW = 50; // Max 50 reports per IP per minute
+const reportRateLimitMap = new Map(); // IP -> { count, resetTime }
+
+// ============================================
+// VALIDATION AND RATE LIMITING HELPERS
+// ============================================
+
+/**
+ * Check if IP is rate limited for CSP reports
+ */
+function isRateLimited(ip) {
+    const now = Date.now();
+    const rateLimit = reportRateLimitMap.get(ip);
+
+    if (!rateLimit || now > rateLimit.resetTime) {
+        // Reset or create new rate limit window
+        reportRateLimitMap.set(ip, {
+            count: 1,
+            resetTime: now + RATE_LIMIT_WINDOW_MS
+        });
+        return false;
+    }
+
+    if (rateLimit.count >= MAX_REPORTS_PER_WINDOW) {
+        return true;
+    }
+
+    rateLimit.count++;
+    return false;
+}
+
+/**
+ * Validate CSP report structure and field types
+ */
+function validateCspReport(report) {
+    if (!report || typeof report !== 'object') {
+        return { valid: false, error: 'Invalid report structure' };
+    }
+
+    // Check for required fields (at least one directive should be present)
+    if (!report['violated-directive'] && !report['effective-directive']) {
+        return { valid: false, error: 'Missing directive information' };
+    }
+
+    // Validate field types and lengths
+    const stringFields = [
+        'document-uri',
+        'referrer',
+        'violated-directive',
+        'effective-directive',
+        'original-policy',
+        'disposition',
+        'blocked-uri',
+        'script-sample'
+    ];
+
+    for (const field of stringFields) {
+        if (report[field] !== undefined) {
+            if (typeof report[field] !== 'string') {
+                return { valid: false, error: `Invalid type for ${field}` };
+            }
+            // Prevent excessively long fields (potential DoS)
+            if (report[field].length > 10000) {
+                return { valid: false, error: `Field ${field} exceeds maximum length` };
+            }
+        }
+    }
+
+    // Validate status-code if present
+    if (report['status-code'] !== undefined) {
+        const statusCode = Number(report['status-code']);
+        if (!Number.isInteger(statusCode) || statusCode < 0 || statusCode > 999) {
+            return { valid: false, error: 'Invalid status-code' };
+        }
+    }
+
+    // Validate disposition
+    if (report.disposition && !['enforce', 'report'].includes(report.disposition)) {
+        return { valid: false, error: 'Invalid disposition value' };
+    }
+
+    return { valid: true };
+}
+
+/**
+ * Sanitize CSP report data for logging to prevent injection attacks
+ */
+function sanitizeCspReportForLogging(report) {
+    const sanitized = {};
+
+    for (const [key, value] of Object.entries(report)) {
+        if (value !== undefined && value !== null) {
+            sanitized[key] = sanitizeForLog(value);
+        }
+    }
+
+    return sanitized;
+}
+
 /**
  * POST /api/security/csp-report
  *
@@ -51,19 +153,43 @@ const MAX_RECENT_VIOLATIONS = 100;
  */
 const receiveCspReport = async (req, res) => {
     try {
+        // Rate limiting check
+        const clientIp = req.ip || req.connection.remoteAddress || 'unknown';
+        if (isRateLimited(clientIp)) {
+            logger.warn('CSP report rate limit exceeded', {
+                ip: sanitizeForLog(clientIp),
+                userAgent: sanitizeForLog(req.headers['user-agent'])
+            });
+            return res.status(204).end(); // Still return 204 per CSP spec
+        }
+
         // CSP reports are sent with Content-Type: application/csp-report
         // Body is JSON with a "csp-report" key
         const report = req.body['csp-report'];
 
         if (!report) {
             logger.warn('CSP report received without csp-report field', {
-                body: req.body,
-                contentType: req.headers['content-type']
+                contentType: sanitizeForLog(req.headers['content-type']),
+                ip: sanitizeForLog(clientIp)
             });
             return res.status(204).end();
         }
 
-        // Extract key information
+        // Validate report structure
+        const validation = validateCspReport(report);
+        if (!validation.valid) {
+            logger.warn('Invalid CSP report received', {
+                error: validation.error,
+                ip: sanitizeForLog(clientIp),
+                userAgent: sanitizeForLog(req.headers['user-agent'])
+            });
+            return res.status(204).end();
+        }
+
+        // Sanitize report data for logging
+        const sanitizedReport = sanitizeCspReportForLogging(report);
+
+        // Extract key information (already sanitized)
         const {
             'document-uri': documentUri,
             'violated-directive': violatedDirective,
@@ -74,9 +200,9 @@ const receiveCspReport = async (req, res) => {
             'status-code': statusCode,
             'script-sample': scriptSample,
             referrer
-        } = report;
+        } = sanitizedReport;
 
-        // Log the violation
+        // Log the violation with sanitized data
         logger.warn('CSP violation detected', {
             documentUri,
             violatedDirective,
@@ -84,13 +210,13 @@ const receiveCspReport = async (req, res) => {
             blockedUri,
             disposition, // 'enforce' or 'report' (report-only mode)
             statusCode,
-            scriptSample: scriptSample ? scriptSample.substring(0, 100) : null,
+            scriptSample: scriptSample ? String(scriptSample).substring(0, 100) : null,
             referrer,
-            userAgent: req.headers['user-agent'],
-            ip: req.ip
+            userAgent: sanitizeForLog(req.headers['user-agent']),
+            ip: sanitizeForLog(clientIp)
         });
 
-        // Update statistics
+        // Update statistics with original (validated) report
         updateViolationStats(report);
 
         // Check for critical violations that might indicate an attack
@@ -99,15 +225,15 @@ const receiveCspReport = async (req, res) => {
                 documentUri,
                 violatedDirective,
                 blockedUri,
-                scriptSample,
-                userAgent: req.headers['user-agent'],
-                ip: req.ip
+                scriptSample: scriptSample ? String(scriptSample).substring(0, 200) : null,
+                userAgent: sanitizeForLog(req.headers['user-agent']),
+                ip: sanitizeForLog(clientIp)
             });
 
             // TODO: In production, consider:
             // - Sending alert to security team
             // - Triggering incident response workflow
-            // - Rate limiting this IP if multiple violations
+            // - Additional rate limiting for high-risk IPs
         }
 
         // CSP reports should always return 204 No Content
@@ -115,9 +241,8 @@ const receiveCspReport = async (req, res) => {
 
     } catch (error) {
         logger.error('Error processing CSP report', {
-            error: error.message,
-            stack: error.stack,
-            body: req.body
+            error: sanitizeForLog(error.message),
+            stack: sanitizeForLog(error.stack)
         });
 
         // Always return 204 even on error (per CSP spec)
@@ -135,23 +260,28 @@ const getCspViolations = async (req, res) => {
     try {
         const { limit = 50, directive, uri } = req.query;
 
+        // Validate and sanitize query parameters
+        const sanitizedLimit = Math.min(Math.max(parseInt(limit) || 50, 1), 500);
+        const sanitizedDirective = directive ? sanitizeForLog(String(directive)) : null;
+        const sanitizedUri = uri ? sanitizeForLog(String(uri)) : null;
+
         // Filter recent violations if filters provided
         let violations = violationStats.recent;
 
-        if (directive) {
+        if (sanitizedDirective) {
             violations = violations.filter(v =>
-                v.violatedDirective === directive || v.effectiveDirective === directive
+                v.violatedDirective === sanitizedDirective || v.effectiveDirective === sanitizedDirective
             );
         }
 
-        if (uri) {
+        if (sanitizedUri) {
             violations = violations.filter(v =>
-                v.documentUri?.includes(uri) || v.blockedUri?.includes(uri)
+                v.documentUri?.includes(sanitizedUri) || v.blockedUri?.includes(sanitizedUri)
             );
         }
 
         // Limit results
-        violations = violations.slice(0, parseInt(limit));
+        violations = violations.slice(0, sanitizedLimit);
 
         return res.json({
             success: true,
@@ -169,8 +299,8 @@ const getCspViolations = async (req, res) => {
 
     } catch (error) {
         logger.error('Error retrieving CSP violations', {
-            error: error.message,
-            stack: error.stack
+            error: sanitizeForLog(error.message),
+            stack: sanitizeForLog(error.stack)
         });
 
         return res.status(500).json({
@@ -200,8 +330,8 @@ const clearCspViolations = async (req, res) => {
         violationStats.recent = [];
 
         logger.info('CSP violation statistics cleared', {
-            userId: req.userID,
-            ip: req.ip
+            userId: sanitizeForLog(req.userID),
+            ip: sanitizeForLog(req.ip)
         });
 
         return res.json({
@@ -212,8 +342,8 @@ const clearCspViolations = async (req, res) => {
 
     } catch (error) {
         logger.error('Error clearing CSP violations', {
-            error: error.message,
-            stack: error.stack
+            error: sanitizeForLog(error.message),
+            stack: sanitizeForLog(error.stack)
         });
 
         return res.status(500).json({

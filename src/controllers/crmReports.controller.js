@@ -12,6 +12,7 @@ const SalesPerson = require('../models/salesPerson.model');
 const LostReason = require('../models/lostReason.model');
 const Competitor = require('../models/competitor.model');
 const SalesStage = require('../models/salesStage.model');
+const { pickAllowedFields, sanitizeObjectId, sanitizePagination } = require('../utils/securityUtils');
 
 // ═══════════════════════════════════════════════════════════════
 // CAMPAIGN EFFICIENCY REPORT
@@ -29,21 +30,71 @@ exports.getCampaignEfficiency = async (req, res) => {
             });
         }
 
+        // Mass assignment protection - only allow specific query parameters
+        const allowedParams = pickAllowedFields(req.query, [
+            'startDate', 'endDate', 'campaign', 'source', 'medium', 'salesPersonId'
+        ]);
+
+        const { startDate, endDate, campaign, source, medium, salesPersonId } = allowedParams;
+
+        // Input validation - validate date range
+        if (!startDate || !endDate) {
+            return res.status(400).json({
+                success: false,
+                message: 'Start date and end date are required'
+            });
+        }
+
+        const startDateObj = new Date(startDate);
+        const endDateObj = new Date(endDate);
+
+        if (isNaN(startDateObj.getTime()) || isNaN(endDateObj.getTime())) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid date format'
+            });
+        }
+
+        if (startDateObj > endDateObj) {
+            return res.status(400).json({
+                success: false,
+                message: 'Start date must be before end date'
+            });
+        }
+
+        // IDOR protection - verify firmId ownership (req.firmId already verified by auth middleware)
         const firmId = req.firmId;
-        const { startDate, endDate, campaign, source, medium, salesPersonId } = req.query;
+        if (!firmId) {
+            return res.status(403).json({
+                success: false,
+                message: 'Firm ID not found'
+            });
+        }
 
         const matchStage = {
             firmId: new mongoose.Types.ObjectId(firmId),
             createdAt: {
-                $gte: new Date(startDate),
-                $lte: new Date(endDate)
+                $gte: startDateObj,
+                $lte: endDateObj
             }
         };
 
-        if (campaign) matchStage['source.campaign'] = campaign;
-        if (source) matchStage['source.medium'] = source;
-        if (medium) matchStage.utmMedium = medium;
-        if (salesPersonId) matchStage.salesPersonId = new mongoose.Types.ObjectId(salesPersonId);
+        // Prevent injection - sanitize string inputs
+        if (campaign) matchStage['source.campaign'] = String(campaign).trim();
+        if (source) matchStage['source.medium'] = String(source).trim();
+        if (medium) matchStage.utmMedium = String(medium).trim();
+
+        // Prevent NoSQL injection - sanitize ObjectId
+        if (salesPersonId) {
+            const sanitizedSalesPersonId = sanitizeObjectId(salesPersonId);
+            if (!sanitizedSalesPersonId) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Invalid salesPersonId format'
+                });
+            }
+            matchStage.salesPersonId = new mongoose.Types.ObjectId(sanitizedSalesPersonId);
+        }
 
         const leadData = await Lead.aggregate([
             { $match: matchStage },
@@ -129,20 +180,78 @@ exports.getLeadOwnerEfficiency = async (req, res) => {
             });
         }
 
+        // Mass assignment protection - only allow specific query parameters
+        const allowedParams = pickAllowedFields(req.query, [
+            'startDate', 'endDate', 'salesPersonId', 'territoryId', 'leadSourceId'
+        ]);
+
+        const { startDate, endDate, salesPersonId, territoryId, leadSourceId } = allowedParams;
+
+        // Input validation - validate date range
+        if (!startDate || !endDate) {
+            return res.status(400).json({
+                success: false,
+                message: 'Start date and end date are required'
+            });
+        }
+
+        const startDateObj = new Date(startDate);
+        const endDateObj = new Date(endDate);
+
+        if (isNaN(startDateObj.getTime()) || isNaN(endDateObj.getTime())) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid date format'
+            });
+        }
+
+        if (startDateObj > endDateObj) {
+            return res.status(400).json({
+                success: false,
+                message: 'Start date must be before end date'
+            });
+        }
+
+        // IDOR protection - verify firmId ownership
         const firmId = req.firmId;
-        const { startDate, endDate, salesPersonId, territoryId, leadSourceId } = req.query;
+        if (!firmId) {
+            return res.status(403).json({
+                success: false,
+                message: 'Firm ID not found'
+            });
+        }
 
         const matchStage = {
             firmId: new mongoose.Types.ObjectId(firmId),
             createdAt: {
-                $gte: new Date(startDate),
-                $lte: new Date(endDate)
+                $gte: startDateObj,
+                $lte: endDateObj
             },
             salesPersonId: { $exists: true, $ne: null }
         };
 
-        if (salesPersonId) matchStage.salesPersonId = new mongoose.Types.ObjectId(salesPersonId);
-        if (territoryId) matchStage.territoryId = new mongoose.Types.ObjectId(territoryId);
+        // Prevent NoSQL injection - sanitize ObjectIds
+        if (salesPersonId) {
+            const sanitizedSalesPersonId = sanitizeObjectId(salesPersonId);
+            if (!sanitizedSalesPersonId) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Invalid salesPersonId format'
+                });
+            }
+            matchStage.salesPersonId = new mongoose.Types.ObjectId(sanitizedSalesPersonId);
+        }
+
+        if (territoryId) {
+            const sanitizedTerritoryId = sanitizeObjectId(territoryId);
+            if (!sanitizedTerritoryId) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Invalid territoryId format'
+                });
+            }
+            matchStage.territoryId = new mongoose.Types.ObjectId(sanitizedTerritoryId);
+        }
 
         const ownerStats = await Lead.aggregate([
             { $match: matchStage },
@@ -260,21 +369,78 @@ exports.getFirstResponseTime = async (req, res) => {
             });
         }
 
+        // Mass assignment protection - only allow specific query parameters
+        const allowedParams = pickAllowedFields(req.query, [
+            'startDate', 'endDate', 'groupBy', 'salesPersonId'
+        ]);
+
+        const { startDate, endDate, groupBy = 'day', salesPersonId } = allowedParams;
+
+        // Input validation - validate date range
+        if (!startDate || !endDate) {
+            return res.status(400).json({
+                success: false,
+                message: 'Start date and end date are required'
+            });
+        }
+
+        const startDateObj = new Date(startDate);
+        const endDateObj = new Date(endDate);
+
+        if (isNaN(startDateObj.getTime()) || isNaN(endDateObj.getTime())) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid date format'
+            });
+        }
+
+        if (startDateObj > endDateObj) {
+            return res.status(400).json({
+                success: false,
+                message: 'Start date must be before end date'
+            });
+        }
+
+        // Input validation - validate groupBy parameter
+        const validGroupByValues = ['day', 'week', 'month'];
+        if (!validGroupByValues.includes(groupBy)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid groupBy parameter. Must be one of: day, week, month'
+            });
+        }
+
+        // IDOR protection - verify firmId ownership
         const firmId = req.firmId;
-        const { startDate, endDate, groupBy = 'day', salesPersonId } = req.query;
+        if (!firmId) {
+            return res.status(403).json({
+                success: false,
+                message: 'Firm ID not found'
+            });
+        }
 
         const matchStage = {
             firmId: new mongoose.Types.ObjectId(firmId),
             createdAt: {
-                $gte: new Date(startDate),
-                $lte: new Date(endDate)
+                $gte: startDateObj,
+                $lte: endDateObj
             },
             firstResponseTime: { $exists: true, $ne: null }
         };
 
-        if (salesPersonId) matchStage.salesPersonId = new mongoose.Types.ObjectId(salesPersonId);
+        // Prevent NoSQL injection - sanitize ObjectId
+        if (salesPersonId) {
+            const sanitizedSalesPersonId = sanitizeObjectId(salesPersonId);
+            if (!sanitizedSalesPersonId) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Invalid salesPersonId format'
+                });
+            }
+            matchStage.salesPersonId = new mongoose.Types.ObjectId(sanitizedSalesPersonId);
+        }
 
-        // Group by period
+        // Group by period - prevent injection with validated groupBy
         const dateGroupField = groupBy === 'month'
             ? { $month: '$createdAt' }
             : groupBy === 'week'
@@ -410,21 +576,89 @@ exports.getLostOpportunity = async (req, res) => {
             });
         }
 
+        // Mass assignment protection - only allow specific query parameters
+        const allowedParams = pickAllowedFields(req.query, [
+            'startDate', 'endDate', 'lostReasonId', 'competitorId', 'salesPersonId'
+        ]);
+
+        const { startDate, endDate, lostReasonId, competitorId, salesPersonId } = allowedParams;
+
+        // Input validation - validate date range
+        if (!startDate || !endDate) {
+            return res.status(400).json({
+                success: false,
+                message: 'Start date and end date are required'
+            });
+        }
+
+        const startDateObj = new Date(startDate);
+        const endDateObj = new Date(endDate);
+
+        if (isNaN(startDateObj.getTime()) || isNaN(endDateObj.getTime())) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid date format'
+            });
+        }
+
+        if (startDateObj > endDateObj) {
+            return res.status(400).json({
+                success: false,
+                message: 'Start date must be before end date'
+            });
+        }
+
+        // IDOR protection - verify firmId ownership
         const firmId = req.firmId;
-        const { startDate, endDate, lostReasonId, competitorId, salesPersonId } = req.query;
+        if (!firmId) {
+            return res.status(403).json({
+                success: false,
+                message: 'Firm ID not found'
+            });
+        }
 
         const matchStage = {
             firmId: new mongoose.Types.ObjectId(firmId),
             crmStatus: 'lost',
             lostDate: {
-                $gte: new Date(startDate),
-                $lte: new Date(endDate)
+                $gte: startDateObj,
+                $lte: endDateObj
             }
         };
 
-        if (lostReasonId) matchStage.lostReasonId = new mongoose.Types.ObjectId(lostReasonId);
-        if (competitorId) matchStage.competitorId = new mongoose.Types.ObjectId(competitorId);
-        if (salesPersonId) matchStage.salesPersonId = new mongoose.Types.ObjectId(salesPersonId);
+        // Prevent NoSQL injection - sanitize ObjectIds
+        if (lostReasonId) {
+            const sanitizedLostReasonId = sanitizeObjectId(lostReasonId);
+            if (!sanitizedLostReasonId) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Invalid lostReasonId format'
+                });
+            }
+            matchStage.lostReasonId = new mongoose.Types.ObjectId(sanitizedLostReasonId);
+        }
+
+        if (competitorId) {
+            const sanitizedCompetitorId = sanitizeObjectId(competitorId);
+            if (!sanitizedCompetitorId) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Invalid competitorId format'
+                });
+            }
+            matchStage.competitorId = new mongoose.Types.ObjectId(sanitizedCompetitorId);
+        }
+
+        if (salesPersonId) {
+            const sanitizedSalesPersonId = sanitizeObjectId(salesPersonId);
+            if (!sanitizedSalesPersonId) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Invalid salesPersonId format'
+                });
+            }
+            matchStage.salesPersonId = new mongoose.Types.ObjectId(sanitizedSalesPersonId);
+        }
 
         const opportunities = await Case.find(matchStage)
             .populate('leadId', 'firstName lastName companyName')
@@ -566,19 +800,86 @@ exports.getSalesPipeline = async (req, res) => {
             });
         }
 
+        // Mass assignment protection - only allow specific query parameters
+        const allowedParams = pickAllowedFields(req.query, [
+            'startDate', 'endDate', 'viewBy', 'salesPersonId', 'territoryId'
+        ]);
+
+        const { startDate, endDate, viewBy = 'stage', salesPersonId, territoryId } = allowedParams;
+
+        // Input validation - validate date range
+        if (!startDate || !endDate) {
+            return res.status(400).json({
+                success: false,
+                message: 'Start date and end date are required'
+            });
+        }
+
+        const startDateObj = new Date(startDate);
+        const endDateObj = new Date(endDate);
+
+        if (isNaN(startDateObj.getTime()) || isNaN(endDateObj.getTime())) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid date format'
+            });
+        }
+
+        if (startDateObj > endDateObj) {
+            return res.status(400).json({
+                success: false,
+                message: 'Start date must be before end date'
+            });
+        }
+
+        // Input validation - validate viewBy parameter
+        const validViewByValues = ['stage'];
+        if (!validViewByValues.includes(viewBy)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid viewBy parameter. Must be: stage'
+            });
+        }
+
+        // IDOR protection - verify firmId ownership
         const firmId = req.firmId;
-        const { startDate, endDate, viewBy = 'stage', salesPersonId, territoryId } = req.query;
+        if (!firmId) {
+            return res.status(403).json({
+                success: false,
+                message: 'Firm ID not found'
+            });
+        }
 
         const matchStage = {
             firmId: new mongoose.Types.ObjectId(firmId),
             createdAt: {
-                $gte: new Date(startDate),
-                $lte: new Date(endDate)
+                $gte: startDateObj,
+                $lte: endDateObj
             }
         };
 
-        if (salesPersonId) matchStage.salesPersonId = new mongoose.Types.ObjectId(salesPersonId);
-        if (territoryId) matchStage.territoryId = new mongoose.Types.ObjectId(territoryId);
+        // Prevent NoSQL injection - sanitize ObjectIds
+        if (salesPersonId) {
+            const sanitizedSalesPersonId = sanitizeObjectId(salesPersonId);
+            if (!sanitizedSalesPersonId) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Invalid salesPersonId format'
+                });
+            }
+            matchStage.salesPersonId = new mongoose.Types.ObjectId(sanitizedSalesPersonId);
+        }
+
+        if (territoryId) {
+            const sanitizedTerritoryId = sanitizeObjectId(territoryId);
+            if (!sanitizedTerritoryId) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Invalid territoryId format'
+                });
+            }
+            matchStage.territoryId = new mongoose.Types.ObjectId(sanitizedTerritoryId);
+        }
 
         // Get stages for reference
         const stages = await SalesStage.find({ firmId, enabled: true }).sort({ order: 1 }).lean();
@@ -672,29 +973,74 @@ exports.getProspectsEngaged = async (req, res) => {
             });
         }
 
-        const firmId = req.firmId;
+        // Mass assignment protection - only allow specific query parameters
+        const allowedParams = pickAllowedFields(req.query, [
+            'daysSinceContact', 'minInteractions', 'salesPersonId', 'page', 'limit'
+        ]);
+
         const {
             daysSinceContact = 60,
             minInteractions = 2,
             salesPersonId,
             page = 1,
             limit = 20
-        } = req.query;
+        } = allowedParams;
+
+        // Input validation - validate numeric parameters
+        const parsedDaysSinceContact = parseInt(daysSinceContact, 10);
+        const parsedMinInteractions = parseInt(minInteractions, 10);
+
+        if (isNaN(parsedDaysSinceContact) || parsedDaysSinceContact < 1 || parsedDaysSinceContact > 3650) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid daysSinceContact. Must be between 1 and 3650'
+            });
+        }
+
+        if (isNaN(parsedMinInteractions) || parsedMinInteractions < 0 || parsedMinInteractions > 1000) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid minInteractions. Must be between 0 and 1000'
+            });
+        }
+
+        // IDOR protection - verify firmId ownership
+        const firmId = req.firmId;
+        if (!firmId) {
+            return res.status(403).json({
+                success: false,
+                message: 'Firm ID not found'
+            });
+        }
+
+        // Sanitize pagination parameters
+        const { page: sanitizedPage, limit: sanitizedLimit, skip } = sanitizePagination(
+            { page, limit },
+            { maxLimit: 100, defaultLimit: 20 }
+        );
 
         const cutoffDate = new Date();
-        cutoffDate.setDate(cutoffDate.getDate() - parseInt(daysSinceContact));
+        cutoffDate.setDate(cutoffDate.getDate() - parsedDaysSinceContact);
 
         const matchStage = {
             firmId: new mongoose.Types.ObjectId(firmId),
             convertedToClient: false,
             status: { $nin: ['won', 'lost'] },
-            activityCount: { $gte: parseInt(minInteractions) },
+            activityCount: { $gte: parsedMinInteractions },
             lastContactedAt: { $lte: cutoffDate }
         };
 
-        if (salesPersonId) matchStage.salesPersonId = new mongoose.Types.ObjectId(salesPersonId);
-
-        const skip = (parseInt(page) - 1) * parseInt(limit);
+        // Prevent NoSQL injection - sanitize ObjectId
+        if (salesPersonId) {
+            const sanitizedSalesPersonId = sanitizeObjectId(salesPersonId);
+            if (!sanitizedSalesPersonId) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Invalid salesPersonId format'
+                });
+            }
+            matchStage.salesPersonId = new mongoose.Types.ObjectId(sanitizedSalesPersonId);
+        }
 
         const [prospects, total] = await Promise.all([
             Lead.find(matchStage)
@@ -703,7 +1049,7 @@ exports.getProspectsEngaged = async (req, res) => {
                 .populate('salesPersonId', 'name nameAr')
                 .sort({ lastContactedAt: 1 })
                 .skip(skip)
-                .limit(parseInt(limit))
+                .limit(sanitizedLimit)
                 .lean(),
             Lead.countDocuments(matchStage)
         ]);
@@ -745,8 +1091,8 @@ exports.getProspectsEngaged = async (req, res) => {
                 prospects: formattedProspects,
                 summary,
                 pagination: {
-                    page: parseInt(page),
-                    limit: parseInt(limit),
+                    page: sanitizedPage,
+                    limit: sanitizedLimit,
                     total
                 }
             }
@@ -777,21 +1123,79 @@ exports.getLeadConversionTime = async (req, res) => {
             });
         }
 
+        // Mass assignment protection - only allow specific query parameters
+        const allowedParams = pickAllowedFields(req.query, [
+            'startDate', 'endDate', 'salesPersonId', 'territoryId'
+        ]);
+
+        const { startDate, endDate, salesPersonId, territoryId } = allowedParams;
+
+        // Input validation - validate date range
+        if (!startDate || !endDate) {
+            return res.status(400).json({
+                success: false,
+                message: 'Start date and end date are required'
+            });
+        }
+
+        const startDateObj = new Date(startDate);
+        const endDateObj = new Date(endDate);
+
+        if (isNaN(startDateObj.getTime()) || isNaN(endDateObj.getTime())) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid date format'
+            });
+        }
+
+        if (startDateObj > endDateObj) {
+            return res.status(400).json({
+                success: false,
+                message: 'Start date must be before end date'
+            });
+        }
+
+        // IDOR protection - verify firmId ownership
         const firmId = req.firmId;
-        const { startDate, endDate, salesPersonId, territoryId } = req.query;
+        if (!firmId) {
+            return res.status(403).json({
+                success: false,
+                message: 'Firm ID not found'
+            });
+        }
 
         // Find clients converted in the date range
         const matchStage = {
             firmId: new mongoose.Types.ObjectId(firmId),
             convertedAt: {
-                $gte: new Date(startDate),
-                $lte: new Date(endDate)
+                $gte: startDateObj,
+                $lte: endDateObj
             },
             convertedFromLeadId: { $exists: true, $ne: null }
         };
 
-        if (salesPersonId) matchStage.salesPersonId = new mongoose.Types.ObjectId(salesPersonId);
-        if (territoryId) matchStage.territoryId = new mongoose.Types.ObjectId(territoryId);
+        // Prevent NoSQL injection - sanitize ObjectIds
+        if (salesPersonId) {
+            const sanitizedSalesPersonId = sanitizeObjectId(salesPersonId);
+            if (!sanitizedSalesPersonId) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Invalid salesPersonId format'
+                });
+            }
+            matchStage.salesPersonId = new mongoose.Types.ObjectId(sanitizedSalesPersonId);
+        }
+
+        if (territoryId) {
+            const sanitizedTerritoryId = sanitizeObjectId(territoryId);
+            if (!sanitizedTerritoryId) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Invalid territoryId format'
+                });
+            }
+            matchStage.territoryId = new mongoose.Types.ObjectId(sanitizedTerritoryId);
+        }
 
         const clients = await Client.find(matchStage)
             .populate('convertedFromLeadId', 'createdAt')

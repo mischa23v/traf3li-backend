@@ -5,6 +5,7 @@
  */
 
 const mongoose = require('mongoose');
+const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 const SalesPerson = require('../models/salesPerson.model');
 const Lead = require('../models/lead.model');
 const Case = require('../models/case.model');
@@ -43,13 +44,13 @@ exports.getAll = async (req, res) => {
             query.enabled = enabled === 'true';
         }
         if (parentId) {
-            query.parentSalesPersonId = parentId === 'null' ? null : parentId;
+            query.parentSalesPersonId = parentId === 'null' ? null : sanitizeObjectId(parentId);
         }
         if (isGroup !== undefined) {
             query.isGroup = isGroup === 'true';
         }
         if (territoryId) {
-            query.territoryIds = territoryId;
+            query.territoryIds = sanitizeObjectId(territoryId);
         }
         if (search) {
             query.$or = [
@@ -58,7 +59,10 @@ exports.getAll = async (req, res) => {
             ];
         }
 
-        const skip = (parseInt(page) - 1) * parseInt(limit);
+        // Validate pagination
+        const pageNum = Math.max(1, parseInt(page) || 1);
+        const limitNum = Math.min(Math.max(1, parseInt(limit) || 50), 100);
+        const skip = (pageNum - 1) * limitNum;
 
         const [salesPersons, total] = await Promise.all([
             SalesPerson.find(query)
@@ -66,7 +70,7 @@ exports.getAll = async (req, res) => {
                 .populate('territoryIds', 'name nameAr')
                 .sort({ level: 1, name: 1 })
                 .skip(skip)
-                .limit(parseInt(limit)),
+                .limit(limitNum),
             SalesPerson.countDocuments(query)
         ]);
 
@@ -75,8 +79,8 @@ exports.getAll = async (req, res) => {
             data: {
                 salesPersons,
                 total,
-                page: parseInt(page),
-                limit: parseInt(limit)
+                page: pageNum,
+                limit: limitNum
             }
         });
     } catch (error) {
@@ -140,7 +144,7 @@ exports.getById = async (req, res) => {
             });
         }
 
-        const { id } = req.params;
+        const id = sanitizeObjectId(req.params.id);
         const firmId = req.firmId;
 
         const salesPerson = await SalesPerson.findOne({ _id: id, firmId })
@@ -186,7 +190,7 @@ exports.getStats = async (req, res) => {
             });
         }
 
-        const { id } = req.params;
+        const id = sanitizeObjectId(req.params.id);
         const firmId = req.firmId;
         const { startDate, endDate } = req.query;
 
@@ -200,10 +204,24 @@ exports.getStats = async (req, res) => {
 
         const dateFilter = {};
         if (startDate) {
-            dateFilter.$gte = new Date(startDate);
+            const start = new Date(startDate);
+            if (isNaN(start.getTime())) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'تاريخ البداية غير صالح / Invalid start date'
+                });
+            }
+            dateFilter.$gte = start;
         }
         if (endDate) {
-            dateFilter.$lte = new Date(endDate);
+            const end = new Date(endDate);
+            if (isNaN(end.getTime())) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'تاريخ النهاية غير صالح / Invalid end date'
+                });
+            }
+            dateFilter.$lte = end;
         }
 
         // Get lead stats
@@ -363,8 +381,75 @@ exports.create = async (req, res) => {
         const firmId = req.firmId;
         const userId = req.userID;
 
+        // Define allowed fields for mass assignment protection
+        const allowedFields = [
+            'name',
+            'nameAr',
+            'userId',
+            'employeeId',
+            'isGroup',
+            'parentSalesPersonId',
+            'level',
+            'commissionRate',
+            'territoryIds',
+            'enabled',
+            'salesTargets',
+            'email',
+            'phone',
+            'description',
+            'descriptionAr'
+        ];
+
+        const sanitizedData = pickAllowedFields(req.body, allowedFields);
+
+        // Validate required fields
+        if (!sanitizedData.name) {
+            return res.status(400).json({
+                success: false,
+                message: 'الاسم مطلوب / Name is required'
+            });
+        }
+
+        // Sanitize ObjectId fields
+        if (sanitizedData.userId) {
+            sanitizedData.userId = sanitizeObjectId(sanitizedData.userId);
+        }
+        if (sanitizedData.employeeId) {
+            sanitizedData.employeeId = sanitizeObjectId(sanitizedData.employeeId);
+        }
+        if (sanitizedData.parentSalesPersonId) {
+            sanitizedData.parentSalesPersonId = sanitizeObjectId(sanitizedData.parentSalesPersonId);
+        }
+        if (sanitizedData.territoryIds && Array.isArray(sanitizedData.territoryIds)) {
+            sanitizedData.territoryIds = sanitizedData.territoryIds.map(id => sanitizeObjectId(id));
+        }
+
+        // Validate commission rate
+        if (sanitizedData.commissionRate !== undefined) {
+            const rate = parseFloat(sanitizedData.commissionRate);
+            if (isNaN(rate) || rate < 0 || rate > 100) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'معدل العمولة يجب أن يكون بين 0 و 100 / Commission rate must be between 0 and 100'
+                });
+            }
+            sanitizedData.commissionRate = rate;
+        }
+
+        // Validate level
+        if (sanitizedData.level !== undefined) {
+            const level = parseInt(sanitizedData.level);
+            if (isNaN(level) || level < 0) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'المستوى يجب أن يكون رقماً موجباً / Level must be a positive number'
+                });
+            }
+            sanitizedData.level = level;
+        }
+
         const salesPersonData = {
-            ...req.body,
+            ...sanitizedData,
             firmId
         };
 
@@ -412,13 +497,72 @@ exports.update = async (req, res) => {
             });
         }
 
-        const { id } = req.params;
+        const id = sanitizeObjectId(req.params.id);
         const firmId = req.firmId;
         const userId = req.userID;
 
+        // Define allowed fields for mass assignment protection
+        const allowedFields = [
+            'name',
+            'nameAr',
+            'userId',
+            'employeeId',
+            'isGroup',
+            'parentSalesPersonId',
+            'level',
+            'commissionRate',
+            'territoryIds',
+            'enabled',
+            'salesTargets',
+            'email',
+            'phone',
+            'description',
+            'descriptionAr'
+        ];
+
+        const sanitizedData = pickAllowedFields(req.body, allowedFields);
+
+        // Sanitize ObjectId fields
+        if (sanitizedData.userId) {
+            sanitizedData.userId = sanitizeObjectId(sanitizedData.userId);
+        }
+        if (sanitizedData.employeeId) {
+            sanitizedData.employeeId = sanitizeObjectId(sanitizedData.employeeId);
+        }
+        if (sanitizedData.parentSalesPersonId) {
+            sanitizedData.parentSalesPersonId = sanitizeObjectId(sanitizedData.parentSalesPersonId);
+        }
+        if (sanitizedData.territoryIds && Array.isArray(sanitizedData.territoryIds)) {
+            sanitizedData.territoryIds = sanitizedData.territoryIds.map(tid => sanitizeObjectId(tid));
+        }
+
+        // Validate commission rate
+        if (sanitizedData.commissionRate !== undefined) {
+            const rate = parseFloat(sanitizedData.commissionRate);
+            if (isNaN(rate) || rate < 0 || rate > 100) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'معدل العمولة يجب أن يكون بين 0 و 100 / Commission rate must be between 0 and 100'
+                });
+            }
+            sanitizedData.commissionRate = rate;
+        }
+
+        // Validate level
+        if (sanitizedData.level !== undefined) {
+            const level = parseInt(sanitizedData.level);
+            if (isNaN(level) || level < 0) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'المستوى يجب أن يكون رقماً موجباً / Level must be a positive number'
+                });
+            }
+            sanitizedData.level = level;
+        }
+
         const salesPerson = await SalesPerson.findOneAndUpdate(
             { _id: id, firmId },
-            { $set: req.body },
+            { $set: sanitizedData },
             { new: true, runValidators: true }
         );
 
@@ -471,7 +615,7 @@ exports.delete = async (req, res) => {
             });
         }
 
-        const { id } = req.params;
+        const id = sanitizeObjectId(req.params.id);
         const firmId = req.firmId;
         const userId = req.userID;
 

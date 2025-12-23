@@ -553,6 +553,7 @@ journalEntrySchema.methods.reverse = async function (reason, userId, session = n
  */
 journalEntrySchema.statics.createSimpleEntry = async function (data, session = null) {
   const {
+    firmId,
     date,
     description,
     descriptionAr,
@@ -566,6 +567,7 @@ journalEntrySchema.statics.createSimpleEntry = async function (data, session = n
   } = data;
 
   const entry = new this({
+    firmId,
     date,
     description,
     descriptionAr,

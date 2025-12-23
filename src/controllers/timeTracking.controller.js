@@ -1,6 +1,7 @@
 const { TimeEntry, BillingRate, BillingActivity, Case, Client } = require('../models');
 const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
+const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 
 // In-memory timer state (in production, use Redis or database)
 const activeTimers = new Map();
@@ -28,24 +29,50 @@ const validateTimeEntry = (data) => {
     const errors = [];
 
     if (!data.clientId) errors.push('Client is required');
-    if (!data.date) errors.push('Date is required');
+
+    // Input validation: Validate date
+    if (!data.date) {
+        errors.push('Date is required');
+    } else {
+        const entryDate = new Date(data.date);
+        if (isNaN(entryDate.getTime())) {
+            errors.push('Invalid date format');
+        } else if (entryDate > new Date()) {
+            errors.push('Date cannot be in the future');
+        }
+    }
+
     if (!data.description || data.description.length < 10) {
         errors.push('Description must be at least 10 characters');
     }
-    if (!data.duration || data.duration <= 0) errors.push('Duration must be positive');
-    if (data.duration > 1440) errors.push('Duration cannot exceed 24 hours (1440 minutes)');
-    if (!data.hourlyRate && data.hourlyRate !== 0) errors.push('Hourly rate is required');
 
-    if (new Date(data.date) > new Date()) {
-        errors.push('Date cannot be in the future');
+    // Input validation: Validate hours/duration (positive, max 24 hours)
+    if (!data.duration) {
+        errors.push('Duration is required');
+    } else if (typeof data.duration !== 'number' || data.duration <= 0) {
+        errors.push('Duration must be a positive number');
+    } else if (data.duration > 1440) {
+        errors.push('Duration cannot exceed 24 hours (1440 minutes)');
+    }
+
+    // Input validation: Validate hourly rate
+    if (!data.hourlyRate && data.hourlyRate !== 0) {
+        errors.push('Hourly rate is required');
+    } else if (typeof data.hourlyRate !== 'number' || data.hourlyRate < 0) {
+        errors.push('Hourly rate must be a non-negative number');
     }
 
     if (data.writeOff && !data.writeOffReason) {
         errors.push('Write-off reason is required');
     }
 
-    if (data.writeDown && (!data.writeDownAmount || !data.writeDownReason)) {
-        errors.push('Write-down amount and reason are required');
+    // Input validation: Validate write-down amount
+    if (data.writeDown) {
+        if (!data.writeDownAmount || !data.writeDownReason) {
+            errors.push('Write-down amount and reason are required');
+        } else if (typeof data.writeDownAmount !== 'number' || data.writeDownAmount <= 0) {
+            errors.push('Write-down amount must be a positive number');
+        }
     }
 
     // Validate start/end time if both provided
@@ -53,6 +80,15 @@ const validateTimeEntry = (data) => {
         const timeRegex = /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/;
         if (!timeRegex.test(data.startTime)) errors.push('Invalid start time format (HH:mm)');
         if (!timeRegex.test(data.endTime)) errors.push('Invalid end time format (HH:mm)');
+    }
+
+    // Input validation: Validate break minutes
+    if (data.breakMinutes !== undefined && data.breakMinutes !== null) {
+        if (typeof data.breakMinutes !== 'number' || data.breakMinutes < 0) {
+            errors.push('Break minutes must be a non-negative number');
+        } else if (data.breakMinutes > 1440) {
+            errors.push('Break minutes cannot exceed 24 hours (1440 minutes)');
+        }
     }
 
     // Validate activity code
@@ -80,7 +116,11 @@ const startTimer = asyncHandler(async (req, res) => {
         throw new CustomException('Departed users cannot create time entries', 403);
     }
 
-    const { caseId, clientId, activityCode, description } = req.body;
+    // Mass assignment protection
+    const allowedFields = ['caseId', 'clientId', 'activityCode', 'description'];
+    const sanitizedData = pickAllowedFields(req.body, allowedFields);
+
+    const { caseId, clientId, activityCode, description } = sanitizedData;
     const userId = req.userID || req.user?._id;
     const firmId = req.firmId || req.firm?._id;
 
@@ -88,9 +128,10 @@ const startTimer = asyncHandler(async (req, res) => {
         throw new CustomException('A timer is already running. Please stop it first.', 400);
     }
 
-    // Validate case if provided
+    // IDOR protection: Sanitize and validate case if provided
     if (caseId) {
-        const caseDoc = await Case.findById(caseId);
+        const sanitizedCaseId = sanitizeObjectId(caseId);
+        const caseDoc = await Case.findOne({ _id: sanitizedCaseId, firmId });
         if (!caseDoc) {
             throw new CustomException('Case not found', 404);
         }
@@ -201,9 +242,13 @@ const stopTimer = asyncHandler(async (req, res) => {
         throw new CustomException('Departed users cannot create time entries', 403);
     }
 
+    // Mass assignment protection
+    const allowedFields = ['notes', 'isBillable', 'timeType'];
+    const sanitizedData = pickAllowedFields(req.body, allowedFields);
+
     const userId = (req.userID || req.user?._id).toString();
     const firmId = req.firmId || req.firm?._id;
-    const { notes, isBillable = true, timeType = 'billable' } = req.body;
+    const { notes, isBillable = true, timeType = 'billable' } = sanitizedData;
 
     const timer = activeTimers.get(userId);
 
@@ -329,8 +374,19 @@ const createTimeEntry = asyncHandler(async (req, res) => {
     const userId = req.userID || req.user?._id;
     const firmId = req.firmId || req.firm?._id;
 
+    // Mass assignment protection
+    const allowedFields = [
+        'clientId', 'caseId', 'date', 'description', 'duration', 'hourlyRate',
+        'activityCode', 'timeType', 'isBillable', 'notes', 'attachments',
+        'assigneeId', 'startTime', 'endTime', 'breakMinutes', 'departmentId',
+        'locationId', 'practiceArea', 'phase', 'taskId', 'writeOff',
+        'writeOffReason', 'writeDown', 'writeDownAmount', 'writeDownReason',
+        'billStatus'
+    ];
+    const sanitizedData = pickAllowedFields(req.body, allowedFields);
+
     // Validate required fields
-    const errors = validateTimeEntry(req.body);
+    const errors = validateTimeEntry(sanitizedData);
     if (errors.length > 0) {
         throw new CustomException(errors.join('. '), 400);
     }
@@ -362,11 +418,12 @@ const createTimeEntry = asyncHandler(async (req, res) => {
         writeDownAmount,
         writeDownReason,
         billStatus = 'draft'
-    } = req.body;
+    } = sanitizedData;
 
-    // Validate case access if provided
+    // IDOR protection: Validate case access if provided
     if (caseId) {
-        const caseDoc = await Case.findById(caseId);
+        const sanitizedCaseId = sanitizeObjectId(caseId);
+        const caseDoc = await Case.findOne({ _id: sanitizedCaseId, firmId });
         if (!caseDoc) {
             throw new CustomException('Case not found', 404);
         }
@@ -484,20 +541,33 @@ const getTimeEntries = asyncHandler(async (req, res) => {
         query = { ...firmFilter };
     }
 
-    // Apply filters
+    // Apply filters with IDOR protection
     if (status) query.status = status;
     if (billStatus) query.billStatus = billStatus;
-    if (caseId) query.caseId = caseId;
-    if (clientId) query.clientId = clientId;
-    if (assigneeId) query.assigneeId = assigneeId;
+    if (caseId) query.caseId = sanitizeObjectId(caseId);
+    if (clientId) query.clientId = sanitizeObjectId(clientId);
+    if (assigneeId) query.assigneeId = sanitizeObjectId(assigneeId);
     if (isBillable !== undefined) query.isBillable = isBillable === 'true';
     if (timeType) query.timeType = timeType;
     if (activityCode) query.activityCode = activityCode;
 
+    // Input validation: Validate date ranges
     if (startDate || endDate) {
         query.date = {};
-        if (startDate) query.date.$gte = new Date(startDate);
-        if (endDate) query.date.$lte = new Date(endDate);
+        if (startDate) {
+            const start = new Date(startDate);
+            if (isNaN(start.getTime())) {
+                throw new CustomException('Invalid start date format', 400);
+            }
+            query.date.$gte = start;
+        }
+        if (endDate) {
+            const end = new Date(endDate);
+            if (isNaN(end.getTime())) {
+                throw new CustomException('Invalid end date format', 400);
+            }
+            query.date.$lte = end;
+        }
     }
 
     const skip = (parseInt(page) - 1) * parseInt(limit);
@@ -578,7 +648,8 @@ const getTimeEntries = asyncHandler(async (req, res) => {
  * GET /api/time-tracking/entries/:id
  */
 const getTimeEntry = asyncHandler(async (req, res) => {
-    const { id } = req.params;
+    // IDOR protection
+    const id = sanitizeObjectId(req.params.id);
     const firmFilter = getFirmFilter(req);
 
     const timeEntry = await TimeEntry.findOne({ _id: id, ...firmFilter })
@@ -611,7 +682,8 @@ const updateTimeEntry = asyncHandler(async (req, res) => {
         throw new CustomException('Departed users cannot update time entries', 403);
     }
 
-    const { id } = req.params;
+    // IDOR protection
+    const id = sanitizeObjectId(req.params.id);
     const userId = req.userID || req.user?._id;
     const firmFilter = getFirmFilter(req);
 
@@ -631,19 +703,21 @@ const updateTimeEntry = asyncHandler(async (req, res) => {
         throw new CustomException('Cannot update approved time entry', 400);
     }
 
-    // Track changes
-    const changes = {};
+    // Mass assignment protection
     const allowedFields = [
         'description', 'duration', 'hourlyRate', 'activityCode',
         'timeType', 'isBillable', 'notes', 'startTime', 'endTime',
         'breakMinutes', 'date', 'clientId', 'caseId', 'assigneeId',
         'departmentId', 'locationId', 'practiceArea', 'phase', 'taskId'
     ];
+    const sanitizedData = pickAllowedFields(req.body, allowedFields);
 
+    // Track changes
+    const changes = {};
     allowedFields.forEach(field => {
-        if (req.body[field] !== undefined && req.body[field] !== timeEntry[field]) {
-            changes[field] = { old: timeEntry[field], new: req.body[field] };
-            timeEntry[field] = req.body[field];
+        if (sanitizedData[field] !== undefined && sanitizedData[field] !== timeEntry[field]) {
+            changes[field] = { old: timeEntry[field], new: sanitizedData[field] };
+            timeEntry[field] = sanitizedData[field];
         }
     });
 
@@ -703,7 +777,8 @@ const deleteTimeEntry = asyncHandler(async (req, res) => {
         throw new CustomException('Departed users cannot delete time entries', 403);
     }
 
-    const { id } = req.params;
+    // IDOR protection
+    const id = sanitizeObjectId(req.params.id);
     const firmFilter = getFirmFilter(req);
 
     const timeEntry = await TimeEntry.findOne({ _id: id, ...firmFilter });
@@ -737,8 +812,14 @@ const writeOffTimeEntry = asyncHandler(async (req, res) => {
         throw new CustomException('Departed users cannot write off time entries', 403);
     }
 
-    const { id } = req.params;
-    const { reason } = req.body;
+    // IDOR protection
+    const id = sanitizeObjectId(req.params.id);
+
+    // Mass assignment protection
+    const allowedFields = ['reason'];
+    const sanitizedData = pickAllowedFields(req.body, allowedFields);
+    const { reason } = sanitizedData;
+
     const userId = req.userID || req.user?._id;
     const firmFilter = getFirmFilter(req);
 
@@ -789,8 +870,14 @@ const writeDownTimeEntry = asyncHandler(async (req, res) => {
         throw new CustomException('Departed users cannot write down time entries', 403);
     }
 
-    const { id } = req.params;
-    const { amount, reason } = req.body;
+    // IDOR protection
+    const id = sanitizeObjectId(req.params.id);
+
+    // Mass assignment protection
+    const allowedFields = ['amount', 'reason'];
+    const sanitizedData = pickAllowedFields(req.body, allowedFields);
+    const { amount, reason } = sanitizedData;
+
     const userId = req.userID || req.user?._id;
     const firmFilter = getFirmFilter(req);
 
@@ -849,7 +936,8 @@ const approveTimeEntry = asyncHandler(async (req, res) => {
         throw new CustomException('Departed users cannot approve time entries', 403);
     }
 
-    const { id } = req.params;
+    // IDOR protection
+    const id = sanitizeObjectId(req.params.id);
     const userId = req.userID || req.user?._id;
     const firmFilter = getFirmFilter(req);
 
@@ -896,8 +984,14 @@ const rejectTimeEntry = asyncHandler(async (req, res) => {
         throw new CustomException('Departed users cannot reject time entries', 403);
     }
 
-    const { id } = req.params;
-    const { reason } = req.body;
+    // IDOR protection
+    const id = sanitizeObjectId(req.params.id);
+
+    // Mass assignment protection
+    const allowedFields = ['reason'];
+    const sanitizedData = pickAllowedFields(req.body, allowedFields);
+    const { reason } = sanitizedData;
+
     const userId = req.userID || req.user?._id;
     const firmFilter = getFirmFilter(req);
 
@@ -959,15 +1053,29 @@ const getTimeStats = asyncHandler(async (req, res) => {
         matchQuery = { ...firmFilter };
     }
 
+    // Input validation: Validate date ranges
     if (startDate || endDate) {
         matchQuery.date = {};
-        if (startDate) matchQuery.date.$gte = new Date(startDate);
-        if (endDate) matchQuery.date.$lte = new Date(endDate);
+        if (startDate) {
+            const start = new Date(startDate);
+            if (isNaN(start.getTime())) {
+                throw new CustomException('Invalid start date format', 400);
+            }
+            matchQuery.date.$gte = start;
+        }
+        if (endDate) {
+            const end = new Date(endDate);
+            if (isNaN(end.getTime())) {
+                throw new CustomException('Invalid end date format', 400);
+            }
+            matchQuery.date.$lte = end;
+        }
     }
 
-    if (caseId) matchQuery.caseId = caseId;
-    if (clientId) matchQuery.clientId = clientId;
-    if (assigneeId) matchQuery.assigneeId = assigneeId;
+    // IDOR protection
+    if (caseId) matchQuery.caseId = sanitizeObjectId(caseId);
+    if (clientId) matchQuery.clientId = sanitizeObjectId(clientId);
+    if (assigneeId) matchQuery.assigneeId = sanitizeObjectId(assigneeId);
 
     // Overall stats
     const overallStats = await TimeEntry.aggregate([
@@ -1065,9 +1173,13 @@ const getWeeklyEntries = asyncHandler(async (req, res) => {
     const firmFilter = getFirmFilter(req);
     const isDeparted = req.user?.departed || req.isDeparted;
 
+    // Input validation: Validate week start date
     let startDate;
     if (weekStartDate) {
         startDate = new Date(weekStartDate);
+        if (isNaN(startDate.getTime())) {
+            throw new CustomException('Invalid week start date format', 400);
+        }
     } else {
         startDate = new Date();
         const day = startDate.getDay();
@@ -1164,11 +1276,12 @@ const getUnbilledEntries = asyncHandler(async (req, res) => {
     const { clientId, caseId } = req.query;
     const firmFilter = getFirmFilter(req);
 
-    const entries = await TimeEntry.getUnbilledEntries({
-        ...firmFilter,
-        clientId,
-        caseId
-    });
+    // IDOR protection
+    const queryFilters = { ...firmFilter };
+    if (clientId) queryFilters.clientId = sanitizeObjectId(clientId);
+    if (caseId) queryFilters.caseId = sanitizeObjectId(caseId);
+
+    const entries = await TimeEntry.getUnbilledEntries(queryFilters);
 
     const totalAmount = entries.reduce((sum, entry) => sum + entry.finalAmount, 0);
     const totalDuration = entries.reduce((sum, entry) => sum + entry.duration, 0);
@@ -1239,16 +1352,23 @@ const bulkDeleteTimeEntries = asyncHandler(async (req, res) => {
         throw new CustomException('Departed users cannot delete time entries', 403);
     }
 
-    const { entryIds } = req.body;
+    // Mass assignment protection
+    const allowedFields = ['entryIds'];
+    const sanitizedData = pickAllowedFields(req.body, allowedFields);
+    const { entryIds } = sanitizedData;
+
     const firmFilter = getFirmFilter(req);
 
     if (!entryIds || !Array.isArray(entryIds) || entryIds.length === 0) {
         throw new CustomException('Entry IDs are required', 400);
     }
 
+    // IDOR protection: Sanitize all IDs
+    const sanitizedIds = entryIds.map(id => sanitizeObjectId(id));
+
     // Verify entries belong to firm and are not invoiced
     const entries = await TimeEntry.find({
-        _id: { $in: entryIds },
+        _id: { $in: sanitizedIds },
         ...firmFilter,
         invoiceId: { $exists: false }
     });
@@ -1257,7 +1377,7 @@ const bulkDeleteTimeEntries = asyncHandler(async (req, res) => {
         throw new CustomException('Some entries are invalid or cannot be deleted', 400);
     }
 
-    await TimeEntry.deleteMany({ _id: { $in: entryIds } });
+    await TimeEntry.deleteMany({ _id: { $in: sanitizedIds } });
 
     res.status(200).json({
         success: true,
@@ -1275,7 +1395,11 @@ const bulkApproveTimeEntries = asyncHandler(async (req, res) => {
         throw new CustomException('Departed users cannot approve time entries', 403);
     }
 
-    const { entryIds } = req.body;
+    // Mass assignment protection
+    const allowedFields = ['entryIds'];
+    const sanitizedData = pickAllowedFields(req.body, allowedFields);
+    const { entryIds } = sanitizedData;
+
     const userId = req.userID || req.user?._id;
     const firmFilter = getFirmFilter(req);
 
@@ -1283,9 +1407,12 @@ const bulkApproveTimeEntries = asyncHandler(async (req, res) => {
         throw new CustomException('Entry IDs are required', 400);
     }
 
+    // IDOR protection: Sanitize all IDs
+    const sanitizedIds = entryIds.map(id => sanitizeObjectId(id));
+
     const result = await TimeEntry.updateMany(
         {
-            _id: { $in: entryIds },
+            _id: { $in: sanitizedIds },
             ...firmFilter,
             status: 'pending'
         },

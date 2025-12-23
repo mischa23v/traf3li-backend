@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 const { AssetAssignment, Employee, User } = require('../models');
 const { CustomException } = require('../utils');
 const asyncHandler = require('../utils/asyncHandler');
+const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 
 /**
  * Asset Assignment Controller - HR Management
@@ -164,7 +165,11 @@ const getAssignment = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
     const { assignmentId } = req.params;
 
-    const query = firmId ? { firmId, _id: assignmentId } : { lawyerId, _id: assignmentId };
+    // Sanitize assignmentId
+    const sanitizedAssignmentId = sanitizeObjectId(assignmentId);
+
+    // IDOR protection
+    const query = firmId ? { firmId, _id: sanitizedAssignmentId } : { lawyerId, _id: sanitizedAssignmentId };
 
     const assignment = await AssetAssignment.findOne(query)
         .populate('employeeId', 'employeeId personalInfo employment')
@@ -194,6 +199,19 @@ const createAssignment = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
+    // Mass assignment protection
+    const allowedFields = [
+        'employeeId', 'assetTag', 'assetName', 'assetNameAr', 'assetType', 'assetCategory',
+        'brand', 'model', 'serialNumber', 'modelNumber', 'specifications',
+        'conditionAtAssignment', 'conditionNotes', 'purchasePrice', 'purchaseDate',
+        'currency', 'ownership', 'warranty', 'insurance', 'leaseDetails', 'defaultLocation',
+        'assignmentType', 'assignedDate', 'expectedReturnDate', 'indefiniteAssignment',
+        'assignmentPurpose', 'assignmentPurposeCategory', 'projectAssignment',
+        'assignmentLocation', 'handover', 'termsAndConditions', 'maintenanceSchedule',
+        'assignmentRequest', 'photos', 'notes'
+    ];
+    const sanitizedData = pickAllowedFields(req.body, allowedFields);
+
     const {
         employeeId, assetTag, assetName, assetNameAr, assetType, assetCategory,
         brand, model, serialNumber, modelNumber, specifications,
@@ -203,12 +221,24 @@ const createAssignment = asyncHandler(async (req, res) => {
         assignmentPurpose, assignmentPurposeCategory, projectAssignment,
         assignmentLocation, handover, termsAndConditions, maintenanceSchedule,
         assignmentRequest, photos, notes
-    } = req.body;
+    } = sanitizedData;
 
-    // Validate employee
-    const employee = await Employee.findById(employeeId);
+    // Input validation
+    if (!employeeId || !assetName || !assetType) {
+        throw CustomException('Employee ID, asset name, and asset type are required', 400);
+    }
+
+    // Sanitize employeeId
+    const sanitizedEmployeeId = sanitizeObjectId(employeeId);
+
+    // Validate employee exists and belongs to the same firm (IDOR protection)
+    const employeeQuery = firmId
+        ? { _id: sanitizedEmployeeId, firmId }
+        : { _id: sanitizedEmployeeId, lawyerId };
+
+    const employee = await Employee.findOne(employeeQuery);
     if (!employee) {
-        throw CustomException('Employee not found', 404);
+        throw CustomException('Employee not found or access denied', 404);
     }
 
     // Generate assignment number and ID
@@ -231,7 +261,7 @@ const createAssignment = asyncHandler(async (req, res) => {
         assignmentNumber,
 
         // Employee info
-        employeeId,
+        employeeId: sanitizedEmployeeId,
         employeeNumber: employee.employeeId,
         employeeName: employee.personalInfo?.fullNameEnglish || employee.personalInfo?.fullNameArabic,
         employeeNameAr: employee.personalInfo?.fullNameArabic,
@@ -327,13 +357,18 @@ const updateAssignment = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
     const { assignmentId } = req.params;
 
-    const query = firmId ? { firmId, _id: assignmentId } : { lawyerId, _id: assignmentId };
+    // Sanitize assignmentId
+    const sanitizedAssignmentId = sanitizeObjectId(assignmentId);
+
+    // IDOR protection
+    const query = firmId ? { firmId, _id: sanitizedAssignmentId } : { lawyerId, _id: sanitizedAssignmentId };
 
     const assignment = await AssetAssignment.findOne(query);
     if (!assignment) {
         throw CustomException('Asset assignment not found', 404);
     }
 
+    // Mass assignment protection
     const allowedUpdates = [
         'assetName', 'assetNameAr', 'brand', 'model', 'specifications',
         'conditionNotes', 'currentValue', 'warranty', 'insurance', 'leaseDetails',
@@ -343,12 +378,14 @@ const updateAssignment = asyncHandler(async (req, res) => {
         'usageTracking', 'softwareLicense', 'vehicleDetails', 'compliance', 'notes'
     ];
 
-    allowedUpdates.forEach(field => {
-        if (req.body[field] !== undefined) {
-            if (typeof req.body[field] === 'object' && !Array.isArray(req.body[field])) {
-                Object.assign(assignment[field] || {}, req.body[field]);
+    const sanitizedData = pickAllowedFields(req.body, allowedUpdates);
+
+    Object.keys(sanitizedData).forEach(field => {
+        if (sanitizedData[field] !== undefined) {
+            if (typeof sanitizedData[field] === 'object' && !Array.isArray(sanitizedData[field])) {
+                Object.assign(assignment[field] || {}, sanitizedData[field]);
             } else {
-                assignment[field] = req.body[field];
+                assignment[field] = sanitizedData[field];
             }
         }
     });
@@ -373,7 +410,11 @@ const deleteAssignment = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
     const { assignmentId } = req.params;
 
-    const query = firmId ? { firmId, _id: assignmentId } : { lawyerId, _id: assignmentId };
+    // Sanitize assignmentId
+    const sanitizedAssignmentId = sanitizeObjectId(assignmentId);
+
+    // IDOR protection
+    const query = firmId ? { firmId, _id: sanitizedAssignmentId } : { lawyerId, _id: sanitizedAssignmentId };
 
     const assignment = await AssetAssignment.findOne(query);
     if (!assignment) {
@@ -385,7 +426,7 @@ const deleteAssignment = asyncHandler(async (req, res) => {
         throw CustomException(`Cannot delete assignment in ${assignment.status} status`, 400);
     }
 
-    await AssetAssignment.findByIdAndDelete(assignmentId);
+    await AssetAssignment.findByIdAndDelete(sanitizedAssignmentId);
 
     return res.json({
         success: true,
@@ -402,9 +443,16 @@ const acknowledgeAssignment = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
     const { assignmentId } = req.params;
-    const { acknowledgmentMethod, signature, acknowledgedTerms } = req.body;
 
-    const query = firmId ? { firmId, _id: assignmentId } : { lawyerId, _id: assignmentId };
+    // Sanitize assignmentId
+    const sanitizedAssignmentId = sanitizeObjectId(assignmentId);
+
+    // Mass assignment protection
+    const allowedFields = ['acknowledgmentMethod', 'signature', 'acknowledgedTerms', 'signatureUrl'];
+    const sanitizedData = pickAllowedFields(req.body, allowedFields);
+
+    // IDOR protection
+    const query = firmId ? { firmId, _id: sanitizedAssignmentId } : { lawyerId, _id: sanitizedAssignmentId };
 
     const assignment = await AssetAssignment.findOne(query);
     if (!assignment) {
@@ -418,10 +466,10 @@ const acknowledgeAssignment = asyncHandler(async (req, res) => {
     assignment.acknowledgment = {
         acknowledged: true,
         acknowledgmentDate: new Date(),
-        acknowledgmentMethod: acknowledgmentMethod || 'system_acceptance',
-        acknowledgedTerms,
-        signature,
-        signatureUrl: req.body.signatureUrl
+        acknowledgmentMethod: sanitizedData.acknowledgmentMethod || 'system_acceptance',
+        acknowledgedTerms: sanitizedData.acknowledgedTerms,
+        signature: sanitizedData.signature,
+        signatureUrl: sanitizedData.signatureUrl
     };
 
     assignment.status = 'in_use';
@@ -445,9 +493,16 @@ const initiateReturn = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
     const { assignmentId } = req.params;
-    const { returnReason, returnReasonDetails, returnDueDate, initiatedBy } = req.body;
 
-    const query = firmId ? { firmId, _id: assignmentId } : { lawyerId, _id: assignmentId };
+    // Sanitize assignmentId
+    const sanitizedAssignmentId = sanitizeObjectId(assignmentId);
+
+    // Mass assignment protection
+    const allowedFields = ['returnReason', 'returnReasonDetails', 'returnDueDate', 'initiatedBy'];
+    const sanitizedData = pickAllowedFields(req.body, allowedFields);
+
+    // IDOR protection
+    const query = firmId ? { firmId, _id: sanitizedAssignmentId } : { lawyerId, _id: sanitizedAssignmentId };
 
     const assignment = await AssetAssignment.findOne(query);
     if (!assignment) {
@@ -465,10 +520,10 @@ const initiateReturn = asyncHandler(async (req, res) => {
     assignment.returnProcess = {
         returnInitiated: true,
         returnInitiatedDate: new Date(),
-        returnInitiatedBy: initiatedBy || 'hr',
-        returnReason,
-        returnReasonDetails,
-        returnDueDate: returnDueDate || new Date(Date.now() + ASSET_POLICIES.returnGracePeriod * 24 * 60 * 60 * 1000),
+        returnInitiatedBy: sanitizedData.initiatedBy || 'hr',
+        returnReason: sanitizedData.returnReason,
+        returnReasonDetails: sanitizedData.returnReasonDetails,
+        returnDueDate: sanitizedData.returnDueDate || new Date(Date.now() + ASSET_POLICIES.returnGracePeriod * 24 * 60 * 60 * 1000),
         returnReminders: [],
         returnCompleted: false
     };
@@ -492,12 +547,19 @@ const completeReturn = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
     const { assignmentId } = req.params;
-    const {
-        actualReturnDate, returnedBy, returnMethod, returnLocation,
-        conditionAtReturn, inspection, returnCharges, nextSteps
-    } = req.body;
 
-    const query = firmId ? { firmId, _id: assignmentId } : { lawyerId, _id: assignmentId };
+    // Sanitize assignmentId
+    const sanitizedAssignmentId = sanitizeObjectId(assignmentId);
+
+    // Mass assignment protection
+    const allowedFields = [
+        'actualReturnDate', 'returnedBy', 'returnMethod', 'returnLocation',
+        'conditionAtReturn', 'inspection', 'returnCharges', 'nextSteps'
+    ];
+    const sanitizedData = pickAllowedFields(req.body, allowedFields);
+
+    // IDOR protection
+    const query = firmId ? { firmId, _id: sanitizedAssignmentId } : { lawyerId, _id: sanitizedAssignmentId };
 
     const assignment = await AssetAssignment.findOne(query);
     if (!assignment) {
@@ -511,21 +573,21 @@ const completeReturn = asyncHandler(async (req, res) => {
     // Update return process
     assignment.returnProcess = {
         ...assignment.returnProcess,
-        actualReturnDate: actualReturnDate || new Date(),
-        returnedBy,
-        returnMethod: returnMethod || 'hand_delivery',
-        returnLocation,
+        actualReturnDate: sanitizedData.actualReturnDate || new Date(),
+        returnedBy: sanitizedData.returnedBy,
+        returnMethod: sanitizedData.returnMethod || 'hand_delivery',
+        returnLocation: sanitizedData.returnLocation,
         receivedBy: req.userID,
         receivedByName: req.user?.name,
         inspection: {
             inspected: true,
             inspectionDate: new Date(),
             inspectedBy: req.userID,
-            conditionAtReturn,
-            ...inspection
+            conditionAtReturn: sanitizedData.conditionAtReturn,
+            ...(sanitizedData.inspection || {})
         },
-        returnCharges,
-        nextSteps,
+        returnCharges: sanitizedData.returnCharges,
+        nextSteps: sanitizedData.nextSteps,
         returnCompleted: true,
         returnCompletionDate: new Date()
     };
@@ -551,13 +613,20 @@ const recordMaintenance = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
     const { assignmentId } = req.params;
-    const {
-        maintenanceType, maintenanceDate, performedBy, technician, vendorName,
-        workOrder, description, partsReplaced, laborCost, totalCost,
-        downtime, nextServiceDue, invoiceNumber, invoiceUrl, notes
-    } = req.body;
 
-    const query = firmId ? { firmId, _id: assignmentId } : { lawyerId, _id: assignmentId };
+    // Sanitize assignmentId
+    const sanitizedAssignmentId = sanitizeObjectId(assignmentId);
+
+    // Mass assignment protection
+    const allowedFields = [
+        'maintenanceType', 'maintenanceDate', 'performedBy', 'technician', 'vendorName',
+        'workOrder', 'description', 'partsReplaced', 'laborCost', 'totalCost',
+        'downtime', 'nextServiceDue', 'invoiceNumber', 'invoiceUrl', 'notes'
+    ];
+    const sanitizedData = pickAllowedFields(req.body, allowedFields);
+
+    // IDOR protection
+    const query = firmId ? { firmId, _id: sanitizedAssignmentId } : { lawyerId, _id: sanitizedAssignmentId };
 
     const assignment = await AssetAssignment.findOne(query);
     if (!assignment) {
@@ -566,21 +635,21 @@ const recordMaintenance = asyncHandler(async (req, res) => {
 
     const maintenanceRecord = {
         maintenanceId: generateMaintenanceId(),
-        maintenanceType,
-        maintenanceDate: maintenanceDate || new Date(),
-        performedBy,
-        technician,
-        vendorName,
-        workOrder,
-        description,
-        partsReplaced,
-        laborCost: laborCost || 0,
-        totalCost: totalCost || 0,
-        downtime,
-        nextServiceDue,
-        invoiceNumber,
-        invoiceUrl,
-        notes
+        maintenanceType: sanitizedData.maintenanceType,
+        maintenanceDate: sanitizedData.maintenanceDate || new Date(),
+        performedBy: sanitizedData.performedBy,
+        technician: sanitizedData.technician,
+        vendorName: sanitizedData.vendorName,
+        workOrder: sanitizedData.workOrder,
+        description: sanitizedData.description,
+        partsReplaced: sanitizedData.partsReplaced,
+        laborCost: sanitizedData.laborCost || 0,
+        totalCost: sanitizedData.totalCost || 0,
+        downtime: sanitizedData.downtime,
+        nextServiceDue: sanitizedData.nextServiceDue,
+        invoiceNumber: sanitizedData.invoiceNumber,
+        invoiceUrl: sanitizedData.invoiceUrl,
+        notes: sanitizedData.notes
     };
 
     if (!assignment.maintenanceHistory) {
@@ -591,14 +660,14 @@ const recordMaintenance = asyncHandler(async (req, res) => {
     // Update maintenance schedule
     assignment.maintenanceSchedule = {
         ...assignment.maintenanceSchedule,
-        lastMaintenanceDate: maintenanceDate || new Date(),
-        nextMaintenanceDue: nextServiceDue,
+        lastMaintenanceDate: sanitizedData.maintenanceDate || new Date(),
+        nextMaintenanceDue: sanitizedData.nextServiceDue,
         overdue: false,
         daysOverdue: 0
     };
 
     // Update total maintenance cost
-    assignment.totalMaintenanceCost = (assignment.totalMaintenanceCost || 0) + (totalCost || 0);
+    assignment.totalMaintenanceCost = (assignment.totalMaintenanceCost || 0) + (sanitizedData.totalCost || 0);
 
     assignment.lastModifiedBy = req.userID;
     await assignment.save();
@@ -620,12 +689,19 @@ const reportRepair = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
     const { assignmentId } = req.params;
-    const {
-        issueDescription, severity, causeOfDamage, employeeLiable,
-        liabilityAmount, photos, notes
-    } = req.body;
 
-    const query = firmId ? { firmId, _id: assignmentId } : { lawyerId, _id: assignmentId };
+    // Sanitize assignmentId
+    const sanitizedAssignmentId = sanitizeObjectId(assignmentId);
+
+    // Mass assignment protection
+    const allowedFields = [
+        'issueDescription', 'severity', 'causeOfDamage', 'employeeLiable',
+        'liabilityAmount', 'photos', 'notes'
+    ];
+    const sanitizedData = pickAllowedFields(req.body, allowedFields);
+
+    // IDOR protection
+    const query = firmId ? { firmId, _id: sanitizedAssignmentId } : { lawyerId, _id: sanitizedAssignmentId };
 
     const assignment = await AssetAssignment.findOne(query);
     if (!assignment) {
@@ -636,14 +712,14 @@ const reportRepair = asyncHandler(async (req, res) => {
         repairId: generateRepairId(),
         reportedDate: new Date(),
         reportedBy: req.userID,
-        issueDescription,
-        severity,
-        causeOfDamage,
-        employeeLiable: employeeLiable || false,
-        liabilityAmount,
+        issueDescription: sanitizedData.issueDescription,
+        severity: sanitizedData.severity,
+        causeOfDamage: sanitizedData.causeOfDamage,
+        employeeLiable: sanitizedData.employeeLiable || false,
+        liabilityAmount: sanitizedData.liabilityAmount,
         repairStatus: 'reported',
-        photos,
-        notes
+        photos: sanitizedData.photos,
+        notes: sanitizedData.notes
     };
 
     if (!assignment.repairs) {
@@ -652,7 +728,7 @@ const reportRepair = asyncHandler(async (req, res) => {
     assignment.repairs.push(repairRecord);
 
     // Update status if critical damage
-    if (severity === 'critical') {
+    if (sanitizedData.severity === 'critical') {
         assignment.status = 'damaged';
         assignment.statusDate = new Date();
     }
@@ -678,7 +754,20 @@ const updateRepairStatus = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
     const { assignmentId, repairId } = req.params;
 
-    const query = firmId ? { firmId, _id: assignmentId } : { lawyerId, _id: assignmentId };
+    // Sanitize assignmentId
+    const sanitizedAssignmentId = sanitizeObjectId(assignmentId);
+
+    // Mass assignment protection
+    const allowedFields = [
+        'repairStatus', 'repairDate', 'repairedBy', 'repairDescription',
+        'partsReplaced', 'laborCost', 'partsCost', 'totalRepairCost',
+        'warrantyRepair', 'vendorName', 'invoiceNumber', 'invoiceUrl',
+        'assetFunctional', 'notes'
+    ];
+    const sanitizedData = pickAllowedFields(req.body, allowedFields);
+
+    // IDOR protection
+    const query = firmId ? { firmId, _id: sanitizedAssignmentId } : { lawyerId, _id: sanitizedAssignmentId };
 
     const assignment = await AssetAssignment.findOne(query);
     if (!assignment) {
@@ -691,14 +780,14 @@ const updateRepairStatus = asyncHandler(async (req, res) => {
     }
 
     // Update repair record
-    Object.assign(assignment.repairs[repairIndex], req.body);
+    Object.assign(assignment.repairs[repairIndex], sanitizedData);
 
     // If repair completed, update totals
-    if (req.body.repairStatus === 'completed' && req.body.totalRepairCost) {
-        assignment.totalRepairCost = (assignment.totalRepairCost || 0) + req.body.totalRepairCost;
+    if (sanitizedData.repairStatus === 'completed' && sanitizedData.totalRepairCost) {
+        assignment.totalRepairCost = (assignment.totalRepairCost || 0) + sanitizedData.totalRepairCost;
 
         // Update status back to in_use if asset is functional
-        if (req.body.assetFunctional) {
+        if (sanitizedData.assetFunctional) {
             assignment.status = 'in_use';
             assignment.statusDate = new Date();
         }
@@ -724,12 +813,19 @@ const reportIncident = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
     const { assignmentId } = req.params;
-    const {
-        incidentType, incidentDate, incidentDescription, location,
-        circumstances, impact, photos, notes
-    } = req.body;
 
-    const query = firmId ? { firmId, _id: assignmentId } : { lawyerId, _id: assignmentId };
+    // Sanitize assignmentId
+    const sanitizedAssignmentId = sanitizeObjectId(assignmentId);
+
+    // Mass assignment protection
+    const allowedFields = [
+        'incidentType', 'incidentDate', 'incidentDescription', 'location',
+        'circumstances', 'impact', 'photos', 'notes'
+    ];
+    const sanitizedData = pickAllowedFields(req.body, allowedFields);
+
+    // IDOR protection
+    const query = firmId ? { firmId, _id: sanitizedAssignmentId } : { lawyerId, _id: sanitizedAssignmentId };
 
     const assignment = await AssetAssignment.findOne(query);
     if (!assignment) {
@@ -738,17 +834,17 @@ const reportIncident = asyncHandler(async (req, res) => {
 
     const incidentRecord = {
         incidentId: generateIncidentId(),
-        incidentType,
-        incidentDate: incidentDate || new Date(),
+        incidentType: sanitizedData.incidentType,
+        incidentDate: sanitizedData.incidentDate || new Date(),
         reportedDate: new Date(),
         reportedBy: req.userID,
-        incidentDescription,
-        location,
-        circumstances,
-        impact,
+        incidentDescription: sanitizedData.incidentDescription,
+        location: sanitizedData.location,
+        circumstances: sanitizedData.circumstances,
+        impact: sanitizedData.impact,
         resolution: { resolved: false },
-        photos,
-        notes
+        photos: sanitizedData.photos,
+        notes: sanitizedData.notes
     };
 
     if (!assignment.incidents) {
@@ -757,13 +853,13 @@ const reportIncident = asyncHandler(async (req, res) => {
     assignment.incidents.push(incidentRecord);
 
     // Update status based on incident type
-    if (incidentType === 'loss') {
+    if (sanitizedData.incidentType === 'loss') {
         assignment.status = 'lost';
         assignment.statusDate = new Date();
-    } else if (incidentType === 'theft') {
+    } else if (sanitizedData.incidentType === 'theft') {
         assignment.status = 'stolen';
         assignment.statusDate = new Date();
-    } else if (incidentType === 'damage' && impact?.severity === 'critical') {
+    } else if (sanitizedData.incidentType === 'damage' && sanitizedData.impact?.severity === 'critical') {
         assignment.status = 'damaged';
         assignment.statusDate = new Date();
     }
@@ -788,25 +884,33 @@ const updateStatus = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
     const { assignmentId } = req.params;
-    const { status, reason } = req.body;
 
-    const query = firmId ? { firmId, _id: assignmentId } : { lawyerId, _id: assignmentId };
+    // Sanitize assignmentId
+    const sanitizedAssignmentId = sanitizeObjectId(assignmentId);
+
+    // Mass assignment protection
+    const allowedFields = ['status', 'reason'];
+    const sanitizedData = pickAllowedFields(req.body, allowedFields);
+
+    // IDOR protection
+    const query = firmId ? { firmId, _id: sanitizedAssignmentId } : { lawyerId, _id: sanitizedAssignmentId };
 
     const assignment = await AssetAssignment.findOne(query);
     if (!assignment) {
         throw CustomException('Asset assignment not found', 404);
     }
 
+    // Input validation
     const validStatuses = ['assigned', 'in_use', 'returned', 'lost', 'damaged', 'maintenance', 'stolen', 'retired'];
-    if (!validStatuses.includes(status)) {
+    if (!validStatuses.includes(sanitizedData.status)) {
         throw CustomException('Invalid status', 400);
     }
 
-    assignment.status = status;
+    assignment.status = sanitizedData.status;
     assignment.statusDate = new Date();
 
-    if (reason) {
-        assignment.notes.internalNotes = `${assignment.notes.internalNotes || ''}\n[${new Date().toISOString()}] Status changed to ${status}: ${reason}`;
+    if (sanitizedData.reason) {
+        assignment.notes.internalNotes = `${assignment.notes.internalNotes || ''}\n[${new Date().toISOString()}] Status changed to ${sanitizedData.status}: ${sanitizedData.reason}`;
     }
 
     assignment.lastModifiedBy = req.userID;
@@ -828,12 +932,19 @@ const transferAsset = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
     const { assignmentId } = req.params;
-    const {
-        transferType, transferToEmployeeId, transferToDepartment,
-        transferToLocation, transferReason, temporary, expectedReturnDate
-    } = req.body;
 
-    const query = firmId ? { firmId, _id: assignmentId } : { lawyerId, _id: assignmentId };
+    // Sanitize assignmentId
+    const sanitizedAssignmentId = sanitizeObjectId(assignmentId);
+
+    // Mass assignment protection
+    const allowedFields = [
+        'transferType', 'transferToEmployeeId', 'transferToDepartment',
+        'transferToLocation', 'transferReason', 'temporary', 'expectedReturnDate'
+    ];
+    const sanitizedData = pickAllowedFields(req.body, allowedFields);
+
+    // IDOR protection
+    const query = firmId ? { firmId, _id: sanitizedAssignmentId } : { lawyerId, _id: sanitizedAssignmentId };
 
     const assignment = await AssetAssignment.findOne(query);
     if (!assignment) {
@@ -842,16 +953,24 @@ const transferAsset = asyncHandler(async (req, res) => {
 
     // Validate new employee if transferring to different employee
     let newEmployee = null;
-    if (transferToEmployeeId) {
-        newEmployee = await Employee.findById(transferToEmployeeId);
+    if (sanitizedData.transferToEmployeeId) {
+        // Sanitize employee ID
+        const sanitizedEmployeeId = sanitizeObjectId(sanitizedData.transferToEmployeeId);
+
+        // Validate employee exists and belongs to the same firm (IDOR protection)
+        const employeeQuery = firmId
+            ? { _id: sanitizedEmployeeId, firmId }
+            : { _id: sanitizedEmployeeId, lawyerId };
+
+        newEmployee = await Employee.findOne(employeeQuery);
         if (!newEmployee) {
-            throw CustomException('Transfer target employee not found', 404);
+            throw CustomException('Transfer target employee not found or access denied', 404);
         }
     }
 
     const transferRecord = {
         transferId: generateTransferId(),
-        transferType,
+        transferType: sanitizedData.transferType,
         transferDate: new Date(),
         transferFrom: {
             employeeId: assignment.employeeId,
@@ -860,14 +979,14 @@ const transferAsset = asyncHandler(async (req, res) => {
             location: assignment.currentLocation?.locationName
         },
         transferTo: {
-            employeeId: transferToEmployeeId,
+            employeeId: sanitizedData.transferToEmployeeId,
             employeeName: newEmployee?.personalInfo?.fullNameEnglish,
-            department: transferToDepartment || assignment.department,
-            location: transferToLocation
+            department: sanitizedData.transferToDepartment || assignment.department,
+            location: sanitizedData.transferToLocation
         },
-        transferReason,
-        temporary: temporary || false,
-        expectedReturnDate,
+        transferReason: sanitizedData.transferReason,
+        temporary: sanitizedData.temporary || false,
+        expectedReturnDate: sanitizedData.expectedReturnDate,
         approvedBy: req.userID,
         approvalDate: new Date(),
         transferCompleted: true
@@ -879,23 +998,23 @@ const transferAsset = asyncHandler(async (req, res) => {
     assignment.transfers.push(transferRecord);
 
     // Update assignment if transferring to new employee
-    if (transferToEmployeeId && newEmployee) {
-        assignment.employeeId = transferToEmployeeId;
+    if (sanitizedData.transferToEmployeeId && newEmployee) {
+        assignment.employeeId = sanitizeObjectId(sanitizedData.transferToEmployeeId);
         assignment.employeeNumber = newEmployee.employeeId;
         assignment.employeeName = newEmployee.personalInfo?.fullNameEnglish || newEmployee.personalInfo?.fullNameArabic;
         assignment.employeeNameAr = newEmployee.personalInfo?.fullNameArabic;
-        assignment.department = newEmployee.employment?.department || transferToDepartment;
+        assignment.department = newEmployee.employment?.department || sanitizedData.transferToDepartment;
         assignment.jobTitle = newEmployee.employment?.jobTitle;
     }
 
     // Update department/location if specified
-    if (transferToDepartment) {
-        assignment.department = transferToDepartment;
+    if (sanitizedData.transferToDepartment) {
+        assignment.department = sanitizedData.transferToDepartment;
     }
-    if (transferToLocation) {
+    if (sanitizedData.transferToLocation) {
         assignment.currentLocation = {
             ...assignment.currentLocation,
-            locationName: transferToLocation,
+            locationName: sanitizedData.transferToLocation,
             lastUpdated: new Date()
         };
     }
@@ -920,9 +1039,16 @@ const issueClearance = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
     const { assignmentId } = req.params;
-    const { outstandingIssues } = req.body;
 
-    const query = firmId ? { firmId, _id: assignmentId } : { lawyerId, _id: assignmentId };
+    // Sanitize assignmentId
+    const sanitizedAssignmentId = sanitizeObjectId(assignmentId);
+
+    // Mass assignment protection
+    const allowedFields = ['outstandingIssues'];
+    const sanitizedData = pickAllowedFields(req.body, allowedFields);
+
+    // IDOR protection
+    const query = firmId ? { firmId, _id: sanitizedAssignmentId } : { lawyerId, _id: sanitizedAssignmentId };
 
     const assignment = await AssetAssignment.findOne(query);
     if (!assignment) {
@@ -943,7 +1069,7 @@ const issueClearance = asyncHandler(async (req, res) => {
         clearanceBy: req.userID,
         clearanceByName: req.user?.name,
         clearanceCertificate: generateClearanceNumber(assignment.assignmentNumber),
-        outstandingIssues: outstandingIssues || []
+        outstandingIssues: sanitizedData.outstandingIssues || []
     };
 
     assignment.lastModifiedBy = req.userID;
@@ -964,15 +1090,24 @@ const issueClearance = asyncHandler(async (req, res) => {
 const bulkDeleteAssignments = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
-    const { ids } = req.body;
 
+    // Mass assignment protection
+    const allowedFields = ['ids'];
+    const sanitizedData = pickAllowedFields(req.body, allowedFields);
+    const { ids } = sanitizedData;
+
+    // Input validation
     if (!ids || !Array.isArray(ids) || ids.length === 0) {
         throw CustomException('Assignment IDs are required', 400);
     }
 
+    // Sanitize all IDs
+    const sanitizedIds = ids.map(id => sanitizeObjectId(id));
+
+    // IDOR protection - only delete assignments belonging to user's firm
     const query = firmId
-        ? { firmId, _id: { $in: ids }, status: 'assigned' }
-        : { lawyerId, _id: { $in: ids }, status: 'assigned' };
+        ? { firmId, _id: { $in: sanitizedIds }, status: 'assigned' }
+        : { lawyerId, _id: { $in: sanitizedIds }, status: 'assigned' };
 
     const result = await AssetAssignment.deleteMany(query);
 
@@ -1116,9 +1251,13 @@ const getAssignmentsByEmployee = asyncHandler(async (req, res) => {
     const { employeeId } = req.params;
     const { status, includeHistory = 'true' } = req.query;
 
+    // Sanitize employeeId
+    const sanitizedEmployeeId = sanitizeObjectId(employeeId);
+
+    // IDOR protection
     const query = firmId
-        ? { firmId, employeeId }
-        : { lawyerId, employeeId };
+        ? { firmId, employeeId: sanitizedEmployeeId }
+        : { lawyerId, employeeId: sanitizedEmployeeId };
 
     if (status) query.status = status;
     if (includeHistory === 'false') {

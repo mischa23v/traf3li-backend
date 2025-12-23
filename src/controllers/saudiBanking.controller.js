@@ -4,10 +4,55 @@
  */
 
 const asyncHandler = require('express-async-handler');
+const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 const leanTechService = require('../services/leantech.service');
 const { WPSService, SARIE_BANK_IDS } = require('../services/wps.service');
 const { SADADService, BILLER_CATEGORIES, COMMON_BILLERS } = require('../services/sadad.service');
 const { MudadService, GOSI_RATES } = require('../services/mudad.service');
+const mongoose = require('mongoose');
+
+// ============================================
+// VALIDATION HELPERS
+// ============================================
+
+/**
+ * Validate Saudi IBAN format (SA + 22 digits)
+ */
+const validateSaudiIBAN = (iban) => {
+    if (!iban) return { valid: false, message: 'IBAN is required' };
+    const ibanRegex = /^SA\d{22}$/;
+    if (!ibanRegex.test(iban)) {
+        return { valid: false, message: 'Invalid Saudi IBAN format. Must be SA followed by 22 digits' };
+    }
+    return { valid: true };
+};
+
+/**
+ * Validate Saudi VAT number (15 digits)
+ */
+const validateSaudiVAT = (vat) => {
+    if (!vat) return { valid: false, message: 'VAT number is required' };
+    const vatRegex = /^\d{15}$/;
+    if (!vatRegex.test(vat)) {
+        return { valid: false, message: 'Invalid Saudi VAT number. Must be 15 digits' };
+    }
+    return { valid: true };
+};
+
+/**
+ * Validate amount
+ */
+const validateAmount = (amount) => {
+    if (!amount) return { valid: false, message: 'Amount is required' };
+    const parsedAmount = parseFloat(amount);
+    if (isNaN(parsedAmount) || parsedAmount <= 0) {
+        return { valid: false, message: 'Amount must be a positive number' };
+    }
+    if (parsedAmount > 999999999.99) {
+        return { valid: false, message: 'Amount exceeds maximum allowed value' };
+    }
+    return { valid: true, amount: parsedAmount };
+};
 
 // ============================================
 // LEAN TECHNOLOGIES - Bank Account Linking
@@ -58,16 +103,26 @@ const getLeanCustomers = asyncHandler(async (req, res) => {
  * Create a Lean customer for bank linking
  */
 const createLeanCustomer = asyncHandler(async (req, res) => {
-    const { appUserId } = req.body;
+    const allowedFields = ['appUserId', 'firmId'];
+    const sanitized = pickAllowedFields(req.body, allowedFields);
 
-    if (!appUserId) {
+    if (!sanitized.appUserId) {
         return res.status(400).json({
             success: false,
             error: 'appUserId is required',
         });
     }
 
-    const customer = await leanTechService.createCustomer(appUserId);
+    // Verify firmId ownership
+    const firmId = sanitized.firmId || req.user?.firmId;
+    if (!firmId) {
+        return res.status(403).json({
+            success: false,
+            error: 'Firm ID is required',
+        });
+    }
+
+    const customer = await leanTechService.createCustomer(sanitized.appUserId, firmId);
     res.json({
         success: true,
         data: customer,
@@ -78,9 +133,24 @@ const createLeanCustomer = asyncHandler(async (req, res) => {
  * Get customer token for LinkSDK initialization
  */
 const getCustomerToken = asyncHandler(async (req, res) => {
-    const { customerId } = req.params;
+    const customerId = sanitizeObjectId(req.params.customerId);
+    if (!customerId) {
+        return res.status(400).json({
+            success: false,
+            error: 'Invalid customer ID',
+        });
+    }
 
-    const token = await leanTechService.getCustomerToken(customerId);
+    // Verify firmId ownership
+    const firmId = req.user?.firmId;
+    if (!firmId) {
+        return res.status(403).json({
+            success: false,
+            error: 'Firm ID is required',
+        });
+    }
+
+    const token = await leanTechService.getCustomerToken(customerId, firmId);
     res.json({
         success: true,
         data: {
@@ -95,9 +165,24 @@ const getCustomerToken = asyncHandler(async (req, res) => {
  * Get connected bank entities for a customer
  */
 const getEntities = asyncHandler(async (req, res) => {
-    const { customerId } = req.params;
+    const customerId = sanitizeObjectId(req.params.customerId);
+    if (!customerId) {
+        return res.status(400).json({
+            success: false,
+            error: 'Invalid customer ID',
+        });
+    }
 
-    const entities = await leanTechService.getEntities(customerId);
+    // Verify firmId ownership
+    const firmId = req.user?.firmId;
+    if (!firmId) {
+        return res.status(403).json({
+            success: false,
+            error: 'Firm ID is required',
+        });
+    }
+
+    const entities = await leanTechService.getEntities(customerId, firmId);
     res.json({
         success: true,
         data: entities,
@@ -108,9 +193,24 @@ const getEntities = asyncHandler(async (req, res) => {
  * Get accounts for a connected entity
  */
 const getAccounts = asyncHandler(async (req, res) => {
-    const { entityId } = req.params;
+    const entityId = sanitizeObjectId(req.params.entityId);
+    if (!entityId) {
+        return res.status(400).json({
+            success: false,
+            error: 'Invalid entity ID',
+        });
+    }
 
-    const accounts = await leanTechService.getAccounts(entityId);
+    // Verify firmId ownership
+    const firmId = req.user?.firmId;
+    if (!firmId) {
+        return res.status(403).json({
+            success: false,
+            error: 'Firm ID is required',
+        });
+    }
+
+    const accounts = await leanTechService.getAccounts(entityId, firmId);
     res.json({
         success: true,
         data: accounts,
@@ -121,9 +221,24 @@ const getAccounts = asyncHandler(async (req, res) => {
  * Get account balance
  */
 const getBalance = asyncHandler(async (req, res) => {
-    const { accountId } = req.params;
+    const accountId = sanitizeObjectId(req.params.accountId);
+    if (!accountId) {
+        return res.status(400).json({
+            success: false,
+            error: 'Invalid account ID',
+        });
+    }
 
-    const balance = await leanTechService.getBalance(accountId);
+    // Verify firmId ownership
+    const firmId = req.user?.firmId;
+    if (!firmId) {
+        return res.status(403).json({
+            success: false,
+            error: 'Firm ID is required',
+        });
+    }
+
+    const balance = await leanTechService.getBalance(accountId, firmId);
     res.json({
         success: true,
         data: balance,
@@ -134,7 +249,23 @@ const getBalance = asyncHandler(async (req, res) => {
  * Get transactions for an account
  */
 const getTransactions = asyncHandler(async (req, res) => {
-    const { accountId } = req.params;
+    const accountId = sanitizeObjectId(req.params.accountId);
+    if (!accountId) {
+        return res.status(400).json({
+            success: false,
+            error: 'Invalid account ID',
+        });
+    }
+
+    // Verify firmId ownership
+    const firmId = req.user?.firmId;
+    if (!firmId) {
+        return res.status(403).json({
+            success: false,
+            error: 'Firm ID is required',
+        });
+    }
+
     const { page, pageSize, fromDate, toDate } = req.query;
 
     const transactions = await leanTechService.getTransactions(accountId, {
@@ -142,7 +273,7 @@ const getTransactions = asyncHandler(async (req, res) => {
         pageSize: parseInt(pageSize) || 50,
         fromDate,
         toDate,
-    });
+    }, firmId);
 
     res.json({
         success: true,
@@ -154,9 +285,24 @@ const getTransactions = asyncHandler(async (req, res) => {
  * Get identity information
  */
 const getIdentity = asyncHandler(async (req, res) => {
-    const { entityId } = req.params;
+    const entityId = sanitizeObjectId(req.params.entityId);
+    if (!entityId) {
+        return res.status(400).json({
+            success: false,
+            error: 'Invalid entity ID',
+        });
+    }
 
-    const identity = await leanTechService.getIdentity(entityId);
+    // Verify firmId ownership
+    const firmId = req.user?.firmId;
+    if (!firmId) {
+        return res.status(403).json({
+            success: false,
+            error: 'Firm ID is required',
+        });
+    }
+
+    const identity = await leanTechService.getIdentity(entityId, firmId);
     res.json({
         success: true,
         data: identity,
@@ -167,36 +313,96 @@ const getIdentity = asyncHandler(async (req, res) => {
  * Initiate a payment via Lean
  */
 const initiatePayment = asyncHandler(async (req, res) => {
-    const { amount, currency, paymentSourceId, paymentDestinationId, description } = req.body;
+    const allowedFields = ['amount', 'currency', 'paymentSourceId', 'paymentDestinationId', 'description', 'firmId'];
+    const sanitized = pickAllowedFields(req.body, allowedFields);
 
-    if (!amount || !paymentSourceId || !paymentDestinationId) {
+    // Verify firmId ownership
+    const firmId = sanitized.firmId || req.user?.firmId;
+    if (!firmId) {
+        return res.status(403).json({
+            success: false,
+            error: 'Firm ID is required',
+        });
+    }
+
+    // Validate required fields
+    if (!sanitized.amount || !sanitized.paymentSourceId || !sanitized.paymentDestinationId) {
         return res.status(400).json({
             success: false,
             error: 'amount, paymentSourceId, and paymentDestinationId are required',
         });
     }
 
-    const payment = await leanTechService.initiatePayment({
-        amount,
-        currency: currency || 'SAR',
-        paymentSourceId,
-        paymentDestinationId,
-        description,
-    });
+    // Validate amount
+    const amountValidation = validateAmount(sanitized.amount);
+    if (!amountValidation.valid) {
+        return res.status(400).json({
+            success: false,
+            error: amountValidation.message,
+        });
+    }
 
-    res.json({
-        success: true,
-        data: payment,
-    });
+    // Sanitize IDs
+    const paymentSourceId = sanitizeObjectId(sanitized.paymentSourceId);
+    const paymentDestinationId = sanitizeObjectId(sanitized.paymentDestinationId);
+
+    if (!paymentSourceId || !paymentDestinationId) {
+        return res.status(400).json({
+            success: false,
+            error: 'Invalid payment source or destination ID',
+        });
+    }
+
+    // Use MongoDB transaction for financial operation
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    try {
+        const payment = await leanTechService.initiatePayment({
+            amount: amountValidation.amount,
+            currency: sanitized.currency || 'SAR',
+            paymentSourceId,
+            paymentDestinationId,
+            description: sanitized.description,
+            firmId,
+        }, session);
+
+        await session.commitTransaction();
+
+        res.json({
+            success: true,
+            data: payment,
+        });
+    } catch (error) {
+        await session.abortTransaction();
+        throw error;
+    } finally {
+        session.endSession();
+    }
 });
 
 /**
  * Disconnect a bank entity
  */
 const disconnectEntity = asyncHandler(async (req, res) => {
-    const { entityId } = req.params;
+    const entityId = sanitizeObjectId(req.params.entityId);
+    if (!entityId) {
+        return res.status(400).json({
+            success: false,
+            error: 'Invalid entity ID',
+        });
+    }
 
-    await leanTechService.disconnectEntity(entityId);
+    // Verify firmId ownership
+    const firmId = req.user?.firmId;
+    if (!firmId) {
+        return res.status(403).json({
+            success: false,
+            error: 'Firm ID is required',
+        });
+    }
+
+    await leanTechService.disconnectEntity(entityId, firmId);
     res.json({
         success: true,
         message: 'Bank account disconnected successfully',
@@ -252,17 +458,38 @@ const handleLeanWebhook = asyncHandler(async (req, res) => {
  * Generate WPS file
  */
 const generateWPSFile = asyncHandler(async (req, res) => {
-    const { establishment, employees, paymentDate, batchReference } = req.body;
+    const allowedFields = ['establishment', 'employees', 'paymentDate', 'batchReference', 'firmId'];
+    const sanitized = pickAllowedFields(req.body, allowedFields);
 
-    if (!establishment || !employees || employees.length === 0) {
+    // Verify firmId ownership
+    const firmId = sanitized.firmId || req.user?.firmId;
+    if (!firmId) {
+        return res.status(403).json({
+            success: false,
+            error: 'Firm ID is required',
+        });
+    }
+
+    if (!sanitized.establishment || !sanitized.employees || sanitized.employees.length === 0) {
         return res.status(400).json({
             success: false,
             error: 'Establishment and employees data are required',
         });
     }
 
+    // Validate establishment IBAN if provided
+    if (sanitized.establishment.iban) {
+        const ibanValidation = validateSaudiIBAN(sanitized.establishment.iban);
+        if (!ibanValidation.valid) {
+            return res.status(400).json({
+                success: false,
+                error: ibanValidation.message,
+            });
+        }
+    }
+
     // Validate establishment
-    const estValidation = WPSService.validateEstablishmentData(establishment);
+    const estValidation = WPSService.validateEstablishmentData(sanitized.establishment);
     if (!estValidation.valid) {
         return res.status(400).json({
             success: false,
@@ -271,7 +498,7 @@ const generateWPSFile = asyncHandler(async (req, res) => {
     }
 
     // Validate employees
-    const empValidation = WPSService.validateEmployeeData(employees);
+    const empValidation = WPSService.validateEmployeeData(sanitized.employees);
     if (!empValidation.valid) {
         return res.status(400).json({
             success: false,
@@ -280,10 +507,34 @@ const generateWPSFile = asyncHandler(async (req, res) => {
         });
     }
 
+    // Validate employee IBANs and amounts
+    for (const employee of sanitized.employees) {
+        if (employee.iban) {
+            const ibanValidation = validateSaudiIBAN(employee.iban);
+            if (!ibanValidation.valid) {
+                return res.status(400).json({
+                    success: false,
+                    error: `Employee ${employee.name || 'unknown'}: ${ibanValidation.message}`,
+                });
+            }
+        }
+
+        if (employee.amount) {
+            const amountValidation = validateAmount(employee.amount);
+            if (!amountValidation.valid) {
+                return res.status(400).json({
+                    success: false,
+                    error: `Employee ${employee.name || 'unknown'}: ${amountValidation.message}`,
+                });
+            }
+        }
+    }
+
     // Generate WPS file
-    const result = WPSService.generateWPSFile(establishment, employees, {
-        paymentDate: paymentDate || new Date(),
-        batchReference: batchReference,
+    const result = WPSService.generateWPSFile(sanitized.establishment, sanitized.employees, {
+        paymentDate: sanitized.paymentDate || new Date(),
+        batchReference: sanitized.batchReference,
+        firmId,
     });
 
     res.json({
@@ -303,11 +554,22 @@ const generateWPSFile = asyncHandler(async (req, res) => {
  * Download WPS file
  */
 const downloadWPSFile = asyncHandler(async (req, res) => {
-    const { establishment, employees, paymentDate, batchReference } = req.body;
+    const allowedFields = ['establishment', 'employees', 'paymentDate', 'batchReference', 'firmId'];
+    const sanitized = pickAllowedFields(req.body, allowedFields);
 
-    const result = WPSService.generateWPSFile(establishment, employees, {
-        paymentDate: paymentDate || new Date(),
-        batchReference,
+    // Verify firmId ownership
+    const firmId = sanitized.firmId || req.user?.firmId;
+    if (!firmId) {
+        return res.status(403).json({
+            success: false,
+            error: 'Firm ID is required',
+        });
+    }
+
+    const result = WPSService.generateWPSFile(sanitized.establishment, sanitized.employees, {
+        paymentDate: sanitized.paymentDate || new Date(),
+        batchReference: sanitized.batchReference,
+        firmId,
     });
 
     res.setHeader('Content-Type', 'text/plain');
@@ -319,10 +581,20 @@ const downloadWPSFile = asyncHandler(async (req, res) => {
  * Validate WPS data
  */
 const validateWPSData = asyncHandler(async (req, res) => {
-    const { establishment, employees } = req.body;
+    const allowedFields = ['establishment', 'employees', 'firmId'];
+    const sanitized = pickAllowedFields(req.body, allowedFields);
 
-    const estValidation = WPSService.validateEstablishmentData(establishment);
-    const empValidation = WPSService.validateEmployeeData(employees);
+    // Verify firmId ownership
+    const firmId = sanitized.firmId || req.user?.firmId;
+    if (!firmId) {
+        return res.status(403).json({
+            success: false,
+            error: 'Firm ID is required',
+        });
+    }
+
+    const estValidation = WPSService.validateEstablishmentData(sanitized.establishment);
+    const empValidation = WPSService.validateEmployeeData(sanitized.employees);
 
     res.json({
         success: true,
@@ -404,16 +676,26 @@ const searchBillers = asyncHandler(async (req, res) => {
  * Inquire about a bill
  */
 const inquireBill = asyncHandler(async (req, res) => {
-    const { billerCode, billNumber } = req.body;
+    const allowedFields = ['billerCode', 'billNumber', 'firmId'];
+    const sanitized = pickAllowedFields(req.body, allowedFields);
 
-    if (!billerCode || !billNumber) {
+    // Verify firmId ownership
+    const firmId = sanitized.firmId || req.user?.firmId;
+    if (!firmId) {
+        return res.status(403).json({
+            success: false,
+            error: 'Firm ID is required',
+        });
+    }
+
+    if (!sanitized.billerCode || !sanitized.billNumber) {
         return res.status(400).json({
             success: false,
             error: 'billerCode and billNumber are required',
         });
     }
 
-    const result = await SADADService.inquireBill(billerCode, billNumber);
+    const result = await SADADService.inquireBill(sanitized.billerCode, sanitized.billNumber, firmId);
     res.json(result);
 });
 
@@ -421,27 +703,93 @@ const inquireBill = asyncHandler(async (req, res) => {
  * Pay a bill via SADAD
  */
 const payBill = asyncHandler(async (req, res) => {
-    const { billerCode, billNumber, amount, debitAccount, reference, remarks } = req.body;
+    const allowedFields = ['billerCode', 'billNumber', 'amount', 'debitAccount', 'reference', 'remarks', 'firmId'];
+    const sanitized = pickAllowedFields(req.body, allowedFields);
 
-    const result = await SADADService.payBill({
-        billerCode,
-        billNumber,
-        amount,
-        debitAccount,
-        reference,
-        remarks,
-    });
+    // Verify firmId ownership
+    const firmId = sanitized.firmId || req.user?.firmId;
+    if (!firmId) {
+        return res.status(403).json({
+            success: false,
+            error: 'Firm ID is required',
+        });
+    }
 
-    res.json(result);
+    // Validate required fields
+    if (!sanitized.billerCode || !sanitized.billNumber || !sanitized.amount || !sanitized.debitAccount) {
+        return res.status(400).json({
+            success: false,
+            error: 'billerCode, billNumber, amount, and debitAccount are required',
+        });
+    }
+
+    // Validate amount
+    const amountValidation = validateAmount(sanitized.amount);
+    if (!amountValidation.valid) {
+        return res.status(400).json({
+            success: false,
+            error: amountValidation.message,
+        });
+    }
+
+    // Validate debit account IBAN if it's in Saudi format
+    if (sanitized.debitAccount && sanitized.debitAccount.startsWith('SA')) {
+        const ibanValidation = validateSaudiIBAN(sanitized.debitAccount);
+        if (!ibanValidation.valid) {
+            return res.status(400).json({
+                success: false,
+                error: ibanValidation.message,
+            });
+        }
+    }
+
+    // Use MongoDB transaction for financial operation
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    try {
+        const result = await SADADService.payBill({
+            billerCode: sanitized.billerCode,
+            billNumber: sanitized.billNumber,
+            amount: amountValidation.amount,
+            debitAccount: sanitized.debitAccount,
+            reference: sanitized.reference,
+            remarks: sanitized.remarks,
+            firmId,
+        }, session);
+
+        await session.commitTransaction();
+        res.json(result);
+    } catch (error) {
+        await session.abortTransaction();
+        throw error;
+    } finally {
+        session.endSession();
+    }
 });
 
 /**
  * Get payment status
  */
 const getSadadPaymentStatus = asyncHandler(async (req, res) => {
-    const { transactionId } = req.params;
+    const transactionId = sanitizeObjectId(req.params.transactionId);
+    if (!transactionId) {
+        return res.status(400).json({
+            success: false,
+            error: 'Invalid transaction ID',
+        });
+    }
 
-    const result = await SADADService.getPaymentStatus(transactionId);
+    // Verify firmId ownership
+    const firmId = req.user?.firmId;
+    if (!firmId) {
+        return res.status(403).json({
+            success: false,
+            error: 'Firm ID is required',
+        });
+    }
+
+    const result = await SADADService.getPaymentStatus(transactionId, firmId);
     res.json(result);
 });
 
@@ -471,16 +819,39 @@ const getSadadPaymentHistory = asyncHandler(async (req, res) => {
  * Calculate payroll with GOSI
  */
 const calculatePayroll = asyncHandler(async (req, res) => {
-    const { employees } = req.body;
+    const allowedFields = ['employees', 'firmId'];
+    const sanitized = pickAllowedFields(req.body, allowedFields);
 
-    if (!employees || employees.length === 0) {
+    // Verify firmId ownership
+    const firmId = sanitized.firmId || req.user?.firmId;
+    if (!firmId) {
+        return res.status(403).json({
+            success: false,
+            error: 'Firm ID is required',
+        });
+    }
+
+    if (!sanitized.employees || sanitized.employees.length === 0) {
         return res.status(400).json({
             success: false,
             error: 'Employees data is required',
         });
     }
 
-    const result = MudadService.calculatePayroll(employees);
+    // Validate employee amounts
+    for (const employee of sanitized.employees) {
+        if (employee.basicSalary) {
+            const amountValidation = validateAmount(employee.basicSalary);
+            if (!amountValidation.valid) {
+                return res.status(400).json({
+                    success: false,
+                    error: `Employee ${employee.name || 'unknown'}: Basic salary - ${amountValidation.message}`,
+                });
+            }
+        }
+    }
+
+    const result = MudadService.calculatePayroll(sanitized.employees, firmId);
     res.json({
         success: true,
         data: result,
@@ -491,18 +862,37 @@ const calculatePayroll = asyncHandler(async (req, res) => {
  * Calculate GOSI for single employee
  */
 const calculateGOSI = asyncHandler(async (req, res) => {
-    const { nationality, basicSalary } = req.body;
+    const allowedFields = ['nationality', 'basicSalary', 'firmId'];
+    const sanitized = pickAllowedFields(req.body, allowedFields);
 
-    if (!basicSalary) {
+    // Verify firmId ownership
+    const firmId = sanitized.firmId || req.user?.firmId;
+    if (!firmId) {
+        return res.status(403).json({
+            success: false,
+            error: 'Firm ID is required',
+        });
+    }
+
+    if (!sanitized.basicSalary) {
         return res.status(400).json({
             success: false,
             error: 'basicSalary is required',
         });
     }
 
+    // Validate amount
+    const amountValidation = validateAmount(sanitized.basicSalary);
+    if (!amountValidation.valid) {
+        return res.status(400).json({
+            success: false,
+            error: amountValidation.message,
+        });
+    }
+
     const result = MudadService.calculateGOSI(
-        { nationality: nationality || 'SA' },
-        basicSalary
+        { nationality: sanitized.nationality || 'SA' },
+        amountValidation.amount
     );
 
     res.json({
@@ -516,12 +906,26 @@ const calculateGOSI = asyncHandler(async (req, res) => {
  * Generate WPS file via Mudad
  */
 const generateMudadWPS = asyncHandler(async (req, res) => {
-    const { establishment, employees, paymentDate, batchReference } = req.body;
+    const allowedFields = ['establishment', 'employees', 'paymentDate', 'batchReference', 'firmId'];
+    const sanitized = pickAllowedFields(req.body, allowedFields);
+
+    // Verify firmId ownership
+    const firmId = sanitized.firmId || req.user?.firmId;
+    if (!firmId) {
+        return res.status(403).json({
+            success: false,
+            error: 'Firm ID is required',
+        });
+    }
 
     const result = await MudadService.generateWPSFile(
-        establishment,
-        employees,
-        { paymentDate, batchReference }
+        sanitized.establishment,
+        sanitized.employees,
+        {
+            paymentDate: sanitized.paymentDate,
+            batchReference: sanitized.batchReference,
+            firmId
+        }
     );
 
     res.json({
@@ -534,25 +938,63 @@ const generateMudadWPS = asyncHandler(async (req, res) => {
  * Submit payroll to Mudad
  */
 const submitPayroll = asyncHandler(async (req, res) => {
-    const { establishment, employees, paymentDate } = req.body;
+    const allowedFields = ['establishment', 'employees', 'paymentDate', 'firmId'];
+    const sanitized = pickAllowedFields(req.body, allowedFields);
 
-    const result = await MudadService.submitPayroll({
-        establishment,
-        employees,
-        paymentDate,
-        summary: MudadService.calculatePayroll(employees).summary,
-    });
+    // Verify firmId ownership
+    const firmId = sanitized.firmId || req.user?.firmId;
+    if (!firmId) {
+        return res.status(403).json({
+            success: false,
+            error: 'Firm ID is required',
+        });
+    }
 
-    res.json(result);
+    // Use MongoDB transaction for financial operation
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    try {
+        const result = await MudadService.submitPayroll({
+            establishment: sanitized.establishment,
+            employees: sanitized.employees,
+            paymentDate: sanitized.paymentDate,
+            summary: MudadService.calculatePayroll(sanitized.employees, firmId).summary,
+            firmId,
+        }, session);
+
+        await session.commitTransaction();
+        res.json(result);
+    } catch (error) {
+        await session.abortTransaction();
+        throw error;
+    } finally {
+        session.endSession();
+    }
 });
 
 /**
  * Get payroll submission status
  */
 const getSubmissionStatus = asyncHandler(async (req, res) => {
-    const { submissionId } = req.params;
+    const submissionId = sanitizeObjectId(req.params.submissionId);
+    if (!submissionId) {
+        return res.status(400).json({
+            success: false,
+            error: 'Invalid submission ID',
+        });
+    }
 
-    const result = await MudadService.getSubmissionStatus(submissionId);
+    // Verify firmId ownership
+    const firmId = req.user?.firmId;
+    if (!firmId) {
+        return res.status(403).json({
+            success: false,
+            error: 'Firm ID is required',
+        });
+    }
+
+    const result = await MudadService.getSubmissionStatus(submissionId, firmId);
     res.json({
         success: true,
         data: result,
@@ -563,9 +1005,19 @@ const getSubmissionStatus = asyncHandler(async (req, res) => {
  * Generate GOSI report
  */
 const generateGOSIReport = asyncHandler(async (req, res) => {
-    const { employees, month } = req.body;
+    const allowedFields = ['employees', 'month', 'firmId'];
+    const sanitized = pickAllowedFields(req.body, allowedFields);
 
-    const report = MudadService.generateGOSIReport(employees, month);
+    // Verify firmId ownership
+    const firmId = sanitized.firmId || req.user?.firmId;
+    if (!firmId) {
+        return res.status(403).json({
+            success: false,
+            error: 'Firm ID is required',
+        });
+    }
+
+    const report = MudadService.generateGOSIReport(sanitized.employees, sanitized.month, firmId);
     res.json({
         success: true,
         data: report,
@@ -576,9 +1028,19 @@ const generateGOSIReport = asyncHandler(async (req, res) => {
  * Check Nitaqat (Saudization) compliance
  */
 const checkNitaqat = asyncHandler(async (req, res) => {
-    const { employees } = req.body;
+    const allowedFields = ['employees', 'firmId'];
+    const sanitized = pickAllowedFields(req.body, allowedFields);
 
-    const result = MudadService.calculateNitaqat(employees);
+    // Verify firmId ownership
+    const firmId = sanitized.firmId || req.user?.firmId;
+    if (!firmId) {
+        return res.status(403).json({
+            success: false,
+            error: 'Firm ID is required',
+        });
+    }
+
+    const result = MudadService.calculateNitaqat(sanitized.employees, firmId);
     res.json({
         success: true,
         data: result,
@@ -589,9 +1051,19 @@ const checkNitaqat = asyncHandler(async (req, res) => {
  * Check minimum wage compliance
  */
 const checkMinimumWage = asyncHandler(async (req, res) => {
-    const { employees } = req.body;
+    const allowedFields = ['employees', 'firmId'];
+    const sanitized = pickAllowedFields(req.body, allowedFields);
 
-    const result = MudadService.checkMinimumWageCompliance(employees);
+    // Verify firmId ownership
+    const firmId = sanitized.firmId || req.user?.firmId;
+    if (!firmId) {
+        return res.status(403).json({
+            success: false,
+            error: 'Firm ID is required',
+        });
+    }
+
+    const result = MudadService.checkMinimumWageCompliance(sanitized.employees, firmId);
     res.json({
         success: true,
         data: result,

@@ -6,6 +6,76 @@
 
 const Competitor = require('../models/competitor.model');
 const CrmActivity = require('../models/crmActivity.model');
+const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
+
+// ═══════════════════════════════════════════════════════════════
+// VALIDATION HELPERS
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Validate competitor data
+ */
+const validateCompetitorData = (data) => {
+    const errors = [];
+
+    // Validate name
+    if (data.name !== undefined) {
+        if (typeof data.name !== 'string' || data.name.trim().length === 0) {
+            errors.push('Name is required and must be a non-empty string');
+        } else if (data.name.length > 200) {
+            errors.push('Name must not exceed 200 characters');
+        }
+    }
+
+    // Validate nameAr
+    if (data.nameAr !== undefined && data.nameAr !== null && data.nameAr !== '') {
+        if (typeof data.nameAr !== 'string') {
+            errors.push('Arabic name must be a string');
+        } else if (data.nameAr.length > 200) {
+            errors.push('Arabic name must not exceed 200 characters');
+        }
+    }
+
+    // Validate website URL
+    if (data.website !== undefined && data.website !== null && data.website !== '') {
+        if (typeof data.website !== 'string') {
+            errors.push('Website must be a string');
+        } else if (data.website.length > 255) {
+            errors.push('Website must not exceed 255 characters');
+        } else {
+            // Validate URL format
+            const urlPattern = /^https?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*)$/;
+            if (!urlPattern.test(data.website)) {
+                errors.push('Website must be a valid URL (http:// or https://)');
+            }
+        }
+    }
+
+    // Validate description
+    if (data.description !== undefined && data.description !== null && data.description !== '') {
+        if (typeof data.description !== 'string') {
+            errors.push('Description must be a string');
+        } else if (data.description.length > 1000) {
+            errors.push('Description must not exceed 1000 characters');
+        }
+    }
+
+    // Validate enabled
+    if (data.enabled !== undefined && typeof data.enabled !== 'boolean') {
+        errors.push('Enabled must be a boolean');
+    }
+
+    return errors;
+};
+
+// Allowed fields for mass assignment protection
+const ALLOWED_COMPETITOR_FIELDS = [
+    'name',
+    'nameAr',
+    'website',
+    'description',
+    'enabled'
+];
 
 // ═══════════════════════════════════════════════════════════════
 // LIST COMPETITORS
@@ -81,7 +151,17 @@ exports.getById = async (req, res) => {
         const { id } = req.params;
         const firmId = req.firmId;
 
-        const competitor = await Competitor.findOne({ _id: id, firmId });
+        // Sanitize and validate ID
+        const sanitizedId = sanitizeObjectId(id);
+        if (!sanitizedId) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid competitor ID format'
+            });
+        }
+
+        // IDOR protection: verify firmId ownership
+        const competitor = await Competitor.findOne({ _id: sanitizedId, firmId });
 
         if (!competitor) {
             return res.status(404).json({
@@ -123,8 +203,29 @@ exports.create = async (req, res) => {
         const firmId = req.firmId;
         const userId = req.userID;
 
+        // Mass assignment protection: only allow specific fields
+        const allowedData = pickAllowedFields(req.body, ALLOWED_COMPETITOR_FIELDS);
+
+        // Input validation
+        const validationErrors = validateCompetitorData(allowedData);
+        if (validationErrors.length > 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'خطأ في التحقق من البيانات / Validation error',
+                errors: validationErrors
+            });
+        }
+
+        // Validate required fields
+        if (!allowedData.name || allowedData.name.trim().length === 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'الاسم مطلوب / Name is required'
+            });
+        }
+
         const competitorData = {
-            ...req.body,
+            ...allowedData,
             firmId
         };
 
@@ -184,9 +285,40 @@ exports.update = async (req, res) => {
         const firmId = req.firmId;
         const userId = req.userID;
 
+        // Sanitize and validate ID
+        const sanitizedId = sanitizeObjectId(id);
+        if (!sanitizedId) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid competitor ID format'
+            });
+        }
+
+        // Mass assignment protection: only allow specific fields
+        const allowedData = pickAllowedFields(req.body, ALLOWED_COMPETITOR_FIELDS);
+
+        // Input validation
+        const validationErrors = validateCompetitorData(allowedData);
+        if (validationErrors.length > 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'خطأ في التحقق من البيانات / Validation error',
+                errors: validationErrors
+            });
+        }
+
+        // Check if there's any data to update
+        if (Object.keys(allowedData).length === 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'لا توجد بيانات للتحديث / No data to update'
+            });
+        }
+
+        // IDOR protection: verify firmId ownership
         const competitor = await Competitor.findOneAndUpdate(
-            { _id: id, firmId },
-            { $set: req.body },
+            { _id: sanitizedId, firmId },
+            { $set: allowedData },
             { new: true, runValidators: true }
         );
 
@@ -251,7 +383,17 @@ exports.delete = async (req, res) => {
         const firmId = req.firmId;
         const userId = req.userID;
 
-        const competitor = await Competitor.findOneAndDelete({ _id: id, firmId });
+        // Sanitize and validate ID
+        const sanitizedId = sanitizeObjectId(id);
+        if (!sanitizedId) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid competitor ID format'
+            });
+        }
+
+        // IDOR protection: verify firmId ownership
+        const competitor = await Competitor.findOneAndDelete({ _id: sanitizedId, firmId });
 
         if (!competitor) {
             return res.status(404).json({
@@ -265,7 +407,7 @@ exports.delete = async (req, res) => {
             lawyerId: userId,
             type: 'competitor_deleted',
             entityType: 'competitor',
-            entityId: id,
+            entityId: sanitizedId,
             entityName: competitor.name,
             title: `Competitor deleted: ${competitor.name}`,
             performedBy: userId

@@ -1,6 +1,7 @@
 const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
 const LegalContractService = require('../services/legalContract.service');
+const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 
 /**
  * Legal Contract Controller
@@ -20,6 +21,26 @@ const createContract = asyncHandler(async (req, res) => {
     const userId = req.userID;
     const firmId = req.firmId;
 
+    // Mass assignment protection - only allow specific fields
+    const allowedFields = pickAllowedFields(req.body, [
+        'title',
+        'titleAr',
+        'contractType',
+        'parties',
+        'content',
+        'financialTerms',
+        'startDate',
+        'endDate',
+        'autoRenewal',
+        'renewalTerms',
+        'governingLaw',
+        'jurisdiction',
+        'tags',
+        'clientId',
+        'caseId',
+        'relatedDocuments'
+    ]);
+
     const {
         title,
         titleAr,
@@ -37,7 +58,7 @@ const createContract = asyncHandler(async (req, res) => {
         clientId,
         caseId,
         relatedDocuments
-    } = req.body;
+    } = allowedFields;
 
     // Validate required fields
     if (!title || !contractType || !parties || parties.length < 2) {
@@ -50,6 +71,74 @@ const createContract = asyncHandler(async (req, res) => {
             }
         );
     }
+
+    // Validate dates
+    if (startDate && isNaN(Date.parse(startDate))) {
+        throw CustomException(
+            'Invalid start date format',
+            400,
+            {
+                messageAr: 'تنسيق تاريخ البدء غير صالح',
+                code: 'VALIDATION_ERROR'
+            }
+        );
+    }
+
+    if (endDate && isNaN(Date.parse(endDate))) {
+        throw CustomException(
+            'Invalid end date format',
+            400,
+            {
+                messageAr: 'تنسيق تاريخ الانتهاء غير صالح',
+                code: 'VALIDATION_ERROR'
+            }
+        );
+    }
+
+    if (startDate && endDate && new Date(startDate) > new Date(endDate)) {
+        throw CustomException(
+            'Start date cannot be after end date',
+            400,
+            {
+                messageAr: 'لا يمكن أن يكون تاريخ البدء بعد تاريخ الانتهاء',
+                code: 'VALIDATION_ERROR'
+            }
+        );
+    }
+
+    // Validate financial amounts
+    if (financialTerms) {
+        if (financialTerms.totalValue !== undefined) {
+            const totalValue = parseFloat(financialTerms.totalValue);
+            if (isNaN(totalValue) || totalValue < 0) {
+                throw CustomException(
+                    'Invalid total value amount',
+                    400,
+                    {
+                        messageAr: 'قيمة إجمالية غير صالحة',
+                        code: 'VALIDATION_ERROR'
+                    }
+                );
+            }
+        }
+        if (financialTerms.advancePayment !== undefined) {
+            const advancePayment = parseFloat(financialTerms.advancePayment);
+            if (isNaN(advancePayment) || advancePayment < 0) {
+                throw CustomException(
+                    'Invalid advance payment amount',
+                    400,
+                    {
+                        messageAr: 'مبلغ دفعة مقدمة غير صالح',
+                        code: 'VALIDATION_ERROR'
+                    }
+                );
+            }
+        }
+    }
+
+    // Sanitize IDs
+    const sanitizedClientId = clientId ? sanitizeObjectId(clientId) : undefined;
+    const sanitizedCaseId = caseId ? sanitizeObjectId(caseId) : undefined;
 
     const contractData = {
         title,
@@ -65,8 +154,8 @@ const createContract = asyncHandler(async (req, res) => {
         governingLaw,
         jurisdiction,
         tags,
-        clientId,
-        caseId,
+        clientId: sanitizedClientId,
+        caseId: sanitizedCaseId,
         relatedDocuments,
         createdBy: userId,
         firmId
@@ -102,7 +191,10 @@ const getContract = asyncHandler(async (req, res) => {
         );
     }
 
-    const contract = await LegalContractService.getContractById(contractId, userId, firmId);
+    // Sanitize contract ID
+    const sanitizedContractId = sanitizeObjectId(contractId);
+
+    const contract = await LegalContractService.getContractById(sanitizedContractId, userId, firmId);
 
     res.status(200).json({
         success: true,
@@ -118,7 +210,6 @@ const updateContract = asyncHandler(async (req, res) => {
     const { contractId } = req.params;
     const userId = req.userID;
     const firmId = req.firmId;
-    const updates = req.body;
 
     if (!contractId) {
         throw CustomException(
@@ -131,7 +222,101 @@ const updateContract = asyncHandler(async (req, res) => {
         );
     }
 
-    const contract = await LegalContractService.updateContract(contractId, updates, userId, firmId);
+    // Mass assignment protection - only allow specific fields to be updated
+    const updates = pickAllowedFields(req.body, [
+        'title',
+        'titleAr',
+        'contractType',
+        'parties',
+        'content',
+        'financialTerms',
+        'startDate',
+        'endDate',
+        'autoRenewal',
+        'renewalTerms',
+        'governingLaw',
+        'jurisdiction',
+        'tags',
+        'clientId',
+        'caseId',
+        'relatedDocuments',
+        'status'
+    ]);
+
+    // Validate dates if provided
+    if (updates.startDate && isNaN(Date.parse(updates.startDate))) {
+        throw CustomException(
+            'Invalid start date format',
+            400,
+            {
+                messageAr: 'تنسيق تاريخ البدء غير صالح',
+                code: 'VALIDATION_ERROR'
+            }
+        );
+    }
+
+    if (updates.endDate && isNaN(Date.parse(updates.endDate))) {
+        throw CustomException(
+            'Invalid end date format',
+            400,
+            {
+                messageAr: 'تنسيق تاريخ الانتهاء غير صالح',
+                code: 'VALIDATION_ERROR'
+            }
+        );
+    }
+
+    if (updates.startDate && updates.endDate && new Date(updates.startDate) > new Date(updates.endDate)) {
+        throw CustomException(
+            'Start date cannot be after end date',
+            400,
+            {
+                messageAr: 'لا يمكن أن يكون تاريخ البدء بعد تاريخ الانتهاء',
+                code: 'VALIDATION_ERROR'
+            }
+        );
+    }
+
+    // Validate financial amounts if provided
+    if (updates.financialTerms) {
+        if (updates.financialTerms.totalValue !== undefined) {
+            const totalValue = parseFloat(updates.financialTerms.totalValue);
+            if (isNaN(totalValue) || totalValue < 0) {
+                throw CustomException(
+                    'Invalid total value amount',
+                    400,
+                    {
+                        messageAr: 'قيمة إجمالية غير صالحة',
+                        code: 'VALIDATION_ERROR'
+                    }
+                );
+            }
+        }
+        if (updates.financialTerms.advancePayment !== undefined) {
+            const advancePayment = parseFloat(updates.financialTerms.advancePayment);
+            if (isNaN(advancePayment) || advancePayment < 0) {
+                throw CustomException(
+                    'Invalid advance payment amount',
+                    400,
+                    {
+                        messageAr: 'مبلغ دفعة مقدمة غير صالح',
+                        code: 'VALIDATION_ERROR'
+                    }
+                );
+            }
+        }
+    }
+
+    // Sanitize IDs
+    const sanitizedContractId = sanitizeObjectId(contractId);
+    if (updates.clientId) {
+        updates.clientId = sanitizeObjectId(updates.clientId);
+    }
+    if (updates.caseId) {
+        updates.caseId = sanitizeObjectId(updates.caseId);
+    }
+
+    const contract = await LegalContractService.updateContract(sanitizedContractId, updates, userId, firmId);
 
     res.status(200).json({
         success: true,
@@ -161,7 +346,10 @@ const deleteContract = asyncHandler(async (req, res) => {
         );
     }
 
-    await LegalContractService.deleteContract(contractId, userId, firmId);
+    // Sanitize contract ID
+    const sanitizedContractId = sanitizeObjectId(contractId);
+
+    await LegalContractService.deleteContract(sanitizedContractId, userId, firmId);
 
     res.status(200).json({
         success: true,
@@ -191,10 +379,13 @@ const listContracts = asyncHandler(async (req, res) => {
         sortOrder = 'desc'
     } = req.query;
 
+    // Sanitize clientId if provided
+    const sanitizedClientId = clientId ? sanitizeObjectId(clientId) : undefined;
+
     const filters = {
         status,
         contractType,
-        clientId,
+        clientId: sanitizedClientId,
         startDate,
         endDate,
         search
@@ -241,7 +432,20 @@ const searchContracts = asyncHandler(async (req, res) => {
         );
     }
 
-    const results = await LegalContractService.searchContracts(q, parseInt(limit), userId, firmId);
+    // Validate limit
+    const parsedLimit = parseInt(limit);
+    if (isNaN(parsedLimit) || parsedLimit < 1 || parsedLimit > 100) {
+        throw CustomException(
+            'Limit must be between 1 and 100',
+            400,
+            {
+                messageAr: 'يجب أن يكون الحد بين 1 و 100',
+                code: 'VALIDATION_ERROR'
+            }
+        );
+    }
+
+    const results = await LegalContractService.searchContracts(q, parsedLimit, userId, firmId);
 
     res.status(200).json({
         success: true,
@@ -261,7 +465,6 @@ const addParty = asyncHandler(async (req, res) => {
     const { contractId } = req.params;
     const userId = req.userID;
     const firmId = req.firmId;
-    const partyData = req.body;
 
     if (!contractId) {
         throw CustomException(
@@ -274,6 +477,21 @@ const addParty = asyncHandler(async (req, res) => {
         );
     }
 
+    // Mass assignment protection for party data
+    const partyData = pickAllowedFields(req.body, [
+        'name',
+        'nameAr',
+        'partyType',
+        'role',
+        'nationalId',
+        'commercialRegistration',
+        'email',
+        'phone',
+        'address',
+        'representative',
+        'clientId'
+    ]);
+
     if (!partyData.name || !partyData.partyType || !partyData.role) {
         throw CustomException(
             'Party name, type, and role are required',
@@ -285,7 +503,13 @@ const addParty = asyncHandler(async (req, res) => {
         );
     }
 
-    const contract = await LegalContractService.addParty(contractId, partyData, userId, firmId);
+    // Sanitize IDs
+    const sanitizedContractId = sanitizeObjectId(contractId);
+    if (partyData.clientId) {
+        partyData.clientId = sanitizeObjectId(partyData.clientId);
+    }
+
+    const contract = await LegalContractService.addParty(sanitizedContractId, partyData, userId, firmId);
 
     res.status(200).json({
         success: true,
@@ -303,7 +527,6 @@ const updateParty = asyncHandler(async (req, res) => {
     const { contractId, partyIndex } = req.params;
     const userId = req.userID;
     const firmId = req.firmId;
-    const partyData = req.body;
 
     if (!contractId || partyIndex === undefined) {
         throw CustomException(
@@ -316,8 +539,29 @@ const updateParty = asyncHandler(async (req, res) => {
         );
     }
 
+    // Mass assignment protection for party data
+    const partyData = pickAllowedFields(req.body, [
+        'name',
+        'nameAr',
+        'partyType',
+        'role',
+        'nationalId',
+        'commercialRegistration',
+        'email',
+        'phone',
+        'address',
+        'representative',
+        'clientId'
+    ]);
+
+    // Sanitize IDs
+    const sanitizedContractId = sanitizeObjectId(contractId);
+    if (partyData.clientId) {
+        partyData.clientId = sanitizeObjectId(partyData.clientId);
+    }
+
     const contract = await LegalContractService.updateParty(
-        contractId,
+        sanitizedContractId,
         parseInt(partyIndex),
         partyData,
         userId,
@@ -352,8 +596,11 @@ const removeParty = asyncHandler(async (req, res) => {
         );
     }
 
+    // Sanitize contract ID
+    const sanitizedContractId = sanitizeObjectId(contractId);
+
     const contract = await LegalContractService.removeParty(
-        contractId,
+        sanitizedContractId,
         parseInt(partyIndex),
         userId,
         firmId
@@ -391,7 +638,10 @@ const initiateSignature = asyncHandler(async (req, res) => {
         );
     }
 
-    const contract = await LegalContractService.initiateSignature(contractId, userId, firmId);
+    // Sanitize contract ID
+    const sanitizedContractId = sanitizeObjectId(contractId);
+
+    const contract = await LegalContractService.initiateSignature(sanitizedContractId, userId, firmId);
 
     res.status(200).json({
         success: true,
@@ -409,7 +659,6 @@ const recordSignature = asyncHandler(async (req, res) => {
     const { contractId, partyIndex } = req.params;
     const userId = req.userID;
     const firmId = req.firmId;
-    const { signatureMethod, signatureReference, signedDate } = req.body;
 
     if (!contractId || partyIndex === undefined) {
         throw CustomException(
@@ -422,6 +671,15 @@ const recordSignature = asyncHandler(async (req, res) => {
         );
     }
 
+    // Mass assignment protection
+    const allowedFields = pickAllowedFields(req.body, [
+        'signatureMethod',
+        'signatureReference',
+        'signedDate'
+    ]);
+
+    const { signatureMethod, signatureReference, signedDate } = allowedFields;
+
     if (!signatureMethod) {
         throw CustomException(
             'Signature method is required',
@@ -433,14 +691,29 @@ const recordSignature = asyncHandler(async (req, res) => {
         );
     }
 
+    // Validate signedDate if provided
+    if (signedDate && isNaN(Date.parse(signedDate))) {
+        throw CustomException(
+            'Invalid signed date format',
+            400,
+            {
+                messageAr: 'تنسيق تاريخ التوقيع غير صالح',
+                code: 'VALIDATION_ERROR'
+            }
+        );
+    }
+
     const signatureData = {
         signatureMethod,
         signatureReference,
         signedDate: signedDate || new Date()
     };
 
+    // Sanitize contract ID
+    const sanitizedContractId = sanitizeObjectId(contractId);
+
     const contract = await LegalContractService.recordSignature(
-        contractId,
+        sanitizedContractId,
         parseInt(partyIndex),
         signatureData,
         userId,
@@ -475,7 +748,10 @@ const getSignatureStatus = asyncHandler(async (req, res) => {
         );
     }
 
-    const status = await LegalContractService.getSignatureStatus(contractId, userId, firmId);
+    // Sanitize contract ID
+    const sanitizedContractId = sanitizeObjectId(contractId);
+
+    const status = await LegalContractService.getSignatureStatus(sanitizedContractId, userId, firmId);
 
     res.status(200).json({
         success: true,
@@ -495,7 +771,6 @@ const addAmendment = asyncHandler(async (req, res) => {
     const { contractId } = req.params;
     const userId = req.userID;
     const firmId = req.firmId;
-    const { description, changes, effectiveDate } = req.body;
 
     if (!contractId) {
         throw CustomException(
@@ -508,6 +783,16 @@ const addAmendment = asyncHandler(async (req, res) => {
         );
     }
 
+    // Mass assignment protection
+    const allowedFields = pickAllowedFields(req.body, [
+        'description',
+        'descriptionAr',
+        'changes',
+        'effectiveDate'
+    ]);
+
+    const { description, descriptionAr, changes, effectiveDate } = allowedFields;
+
     if (!description || !changes) {
         throw CustomException(
             'Description and changes are required',
@@ -519,14 +804,30 @@ const addAmendment = asyncHandler(async (req, res) => {
         );
     }
 
+    // Validate effectiveDate if provided
+    if (effectiveDate && isNaN(Date.parse(effectiveDate))) {
+        throw CustomException(
+            'Invalid effective date format',
+            400,
+            {
+                messageAr: 'تنسيق تاريخ السريان غير صالح',
+                code: 'VALIDATION_ERROR'
+            }
+        );
+    }
+
     const amendmentData = {
         description,
+        descriptionAr,
         changes,
         effectiveDate: effectiveDate || new Date(),
         createdBy: userId
     };
 
-    const contract = await LegalContractService.addAmendment(contractId, amendmentData, userId, firmId);
+    // Sanitize contract ID
+    const sanitizedContractId = sanitizeObjectId(contractId);
+
+    const contract = await LegalContractService.addAmendment(sanitizedContractId, amendmentData, userId, firmId);
 
     res.status(201).json({
         success: true,
@@ -556,7 +857,10 @@ const getAmendments = asyncHandler(async (req, res) => {
         );
     }
 
-    const amendments = await LegalContractService.getAmendments(contractId, userId, firmId);
+    // Sanitize contract ID
+    const sanitizedContractId = sanitizeObjectId(contractId);
+
+    const amendments = await LegalContractService.getAmendments(sanitizedContractId, userId, firmId);
 
     res.status(200).json({
         success: true,
@@ -576,7 +880,6 @@ const createVersion = asyncHandler(async (req, res) => {
     const { contractId } = req.params;
     const userId = req.userID;
     const firmId = req.firmId;
-    const { note } = req.body;
 
     if (!contractId) {
         throw CustomException(
@@ -589,7 +892,14 @@ const createVersion = asyncHandler(async (req, res) => {
         );
     }
 
-    const version = await LegalContractService.createVersion(contractId, note, userId, firmId);
+    // Mass assignment protection
+    const allowedFields = pickAllowedFields(req.body, ['note', 'noteAr']);
+    const { note, noteAr } = allowedFields;
+
+    // Sanitize contract ID
+    const sanitizedContractId = sanitizeObjectId(contractId);
+
+    const version = await LegalContractService.createVersion(sanitizedContractId, note || noteAr, userId, firmId);
 
     res.status(201).json({
         success: true,
@@ -619,7 +929,10 @@ const getVersionHistory = asyncHandler(async (req, res) => {
         );
     }
 
-    const versions = await LegalContractService.getVersionHistory(contractId, userId, firmId);
+    // Sanitize contract ID
+    const sanitizedContractId = sanitizeObjectId(contractId);
+
+    const versions = await LegalContractService.getVersionHistory(sanitizedContractId, userId, firmId);
 
     res.status(200).json({
         success: true,
@@ -647,9 +960,25 @@ const revertToVersion = asyncHandler(async (req, res) => {
         );
     }
 
+    // Validate version number
+    const parsedVersionNumber = parseInt(versionNumber);
+    if (isNaN(parsedVersionNumber) || parsedVersionNumber < 1) {
+        throw CustomException(
+            'Invalid version number',
+            400,
+            {
+                messageAr: 'رقم الإصدار غير صالح',
+                code: 'VALIDATION_ERROR'
+            }
+        );
+    }
+
+    // Sanitize contract ID
+    const sanitizedContractId = sanitizeObjectId(contractId);
+
     const contract = await LegalContractService.revertToVersion(
-        contractId,
-        parseInt(versionNumber),
+        sanitizedContractId,
+        parsedVersionNumber,
         userId,
         firmId
     );
@@ -675,17 +1004,6 @@ const recordNotarization = asyncHandler(async (req, res) => {
     const userId = req.userID;
     const firmId = req.firmId;
 
-    const {
-        notarizationType,
-        notarizationNumber,
-        notarizationDate,
-        notaryCity,
-        notaryName,
-        notaryCertificateNumber,
-        najizReferenceNumber,
-        najizVerificationCode
-    } = req.body;
-
     if (!contractId) {
         throw CustomException(
             'Contract ID is required',
@@ -697,12 +1015,47 @@ const recordNotarization = asyncHandler(async (req, res) => {
         );
     }
 
+    // Mass assignment protection
+    const allowedFields = pickAllowedFields(req.body, [
+        'notarizationType',
+        'notarizationNumber',
+        'notarizationDate',
+        'notaryCity',
+        'notaryName',
+        'notaryCertificateNumber',
+        'najizReferenceNumber',
+        'najizVerificationCode'
+    ]);
+
+    const {
+        notarizationType,
+        notarizationNumber,
+        notarizationDate,
+        notaryCity,
+        notaryName,
+        notaryCertificateNumber,
+        najizReferenceNumber,
+        najizVerificationCode
+    } = allowedFields;
+
     if (!notarizationType || !notarizationNumber || !notarizationDate) {
         throw CustomException(
             'Notarization type, number, and date are required',
             400,
             {
                 messageAr: 'نوع التوثيق والرقم والتاريخ مطلوبة',
+                code: 'VALIDATION_ERROR'
+            }
+        );
+    }
+
+    // Validate notarization date
+    if (isNaN(Date.parse(notarizationDate))) {
+        throw CustomException(
+            'Invalid notarization date format',
+            400,
+            {
+                messageAr: 'تنسيق تاريخ التوثيق غير صالح',
                 code: 'VALIDATION_ERROR'
             }
         );
@@ -719,8 +1072,11 @@ const recordNotarization = asyncHandler(async (req, res) => {
         najizVerificationCode
     };
 
+    // Sanitize contract ID
+    const sanitizedContractId = sanitizeObjectId(contractId);
+
     const contract = await LegalContractService.recordNotarization(
-        contractId,
+        sanitizedContractId,
         notarizationData,
         userId,
         firmId
@@ -754,8 +1110,11 @@ const verifyNotarization = asyncHandler(async (req, res) => {
         );
     }
 
+    // Sanitize contract ID
+    const sanitizedContractId = sanitizeObjectId(contractId);
+
     const verificationResult = await LegalContractService.verifyNotarization(
-        contractId,
+        sanitizedContractId,
         userId,
         firmId
     );
@@ -779,15 +1138,6 @@ const recordBreach = asyncHandler(async (req, res) => {
     const userId = req.userID;
     const firmId = req.firmId;
 
-    const {
-        breachDate,
-        breachingParty,
-        breachDescription,
-        breachType,
-        severity,
-        evidenceDocuments
-    } = req.body;
-
     if (!contractId) {
         throw CustomException(
             'Contract ID is required',
@@ -798,6 +1148,27 @@ const recordBreach = asyncHandler(async (req, res) => {
             }
         );
     }
+
+    // Mass assignment protection
+    const allowedFields = pickAllowedFields(req.body, [
+        'breachDate',
+        'breachingParty',
+        'breachDescription',
+        'breachDescriptionAr',
+        'breachType',
+        'severity',
+        'evidenceDocuments'
+    ]);
+
+    const {
+        breachDate,
+        breachingParty,
+        breachDescription,
+        breachDescriptionAr,
+        breachType,
+        severity,
+        evidenceDocuments
+    } = allowedFields;
 
     if (!breachDate || !breachingParty || !breachDescription) {
         throw CustomException(
@@ -810,17 +1181,33 @@ const recordBreach = asyncHandler(async (req, res) => {
         );
     }
 
+    // Validate breach date
+    if (isNaN(Date.parse(breachDate))) {
+        throw CustomException(
+            'Invalid breach date format',
+            400,
+            {
+                messageAr: 'تنسيق تاريخ المخالفة غير صالح',
+                code: 'VALIDATION_ERROR'
+            }
+        );
+    }
+
     const breachData = {
         breachDate,
         breachingParty,
         breachDescription,
+        breachDescriptionAr,
         breachType,
         severity,
         evidenceDocuments,
         reportedBy: userId
     };
 
-    const contract = await LegalContractService.recordBreach(contractId, breachData, userId, firmId);
+    // Sanitize contract ID
+    const sanitizedContractId = sanitizeObjectId(contractId);
+
+    const contract = await LegalContractService.recordBreach(sanitizedContractId, breachData, userId, firmId);
 
     res.status(200).json({
         success: true,
@@ -838,7 +1225,6 @@ const initiateEnforcement = asyncHandler(async (req, res) => {
     const { contractId } = req.params;
     const userId = req.userID;
     const firmId = req.firmId;
-    const { court, amount, description } = req.body;
 
     if (!contractId) {
         throw CustomException(
@@ -851,15 +1237,44 @@ const initiateEnforcement = asyncHandler(async (req, res) => {
         );
     }
 
+    // Mass assignment protection
+    const allowedFields = pickAllowedFields(req.body, [
+        'court',
+        'amount',
+        'description',
+        'descriptionAr'
+    ]);
+
+    const { court, amount, description, descriptionAr } = allowedFields;
+
+    // Validate amount if provided
+    if (amount !== undefined) {
+        const enforcementAmount = parseFloat(amount);
+        if (isNaN(enforcementAmount) || enforcementAmount < 0) {
+            throw CustomException(
+                'Invalid enforcement amount',
+                400,
+                {
+                    messageAr: 'مبلغ التنفيذ غير صالح',
+                    code: 'VALIDATION_ERROR'
+                }
+            );
+        }
+    }
+
     const enforcementData = {
         court,
         amount,
         description,
+        descriptionAr,
         initiatedBy: userId
     };
 
+    // Sanitize contract ID
+    const sanitizedContractId = sanitizeObjectId(contractId);
+
     const contract = await LegalContractService.initiateEnforcement(
-        contractId,
+        sanitizedContractId,
         enforcementData,
         userId,
         firmId
@@ -881,7 +1296,6 @@ const updateEnforcementStatus = asyncHandler(async (req, res) => {
     const { contractId } = req.params;
     const userId = req.userID;
     const firmId = req.firmId;
-    const { status, details } = req.body;
 
     if (!contractId) {
         throw CustomException(
@@ -894,6 +1308,15 @@ const updateEnforcementStatus = asyncHandler(async (req, res) => {
         );
     }
 
+    // Mass assignment protection
+    const allowedFields = pickAllowedFields(req.body, [
+        'status',
+        'details',
+        'detailsAr'
+    ]);
+
+    const { status, details, detailsAr } = allowedFields;
+
     if (!status) {
         throw CustomException(
             'Status is required',
@@ -905,10 +1328,13 @@ const updateEnforcementStatus = asyncHandler(async (req, res) => {
         );
     }
 
+    // Sanitize contract ID
+    const sanitizedContractId = sanitizeObjectId(contractId);
+
     const contract = await LegalContractService.updateEnforcementStatus(
-        contractId,
+        sanitizedContractId,
         status,
-        details,
+        details || detailsAr,
         userId,
         firmId
     );
@@ -929,7 +1355,10 @@ const linkToCase = asyncHandler(async (req, res) => {
     const { contractId } = req.params;
     const userId = req.userID;
     const firmId = req.firmId;
-    const { caseId } = req.body;
+
+    // Mass assignment protection
+    const allowedFields = pickAllowedFields(req.body, ['caseId']);
+    const { caseId } = allowedFields;
 
     if (!contractId || !caseId) {
         throw CustomException(
@@ -942,7 +1371,11 @@ const linkToCase = asyncHandler(async (req, res) => {
         );
     }
 
-    const contract = await LegalContractService.linkToCase(contractId, caseId, userId, firmId);
+    // Sanitize IDs
+    const sanitizedContractId = sanitizeObjectId(contractId);
+    const sanitizedCaseId = sanitizeObjectId(caseId);
+
+    const contract = await LegalContractService.linkToCase(sanitizedContractId, sanitizedCaseId, userId, firmId);
 
     res.status(200).json({
         success: true,
@@ -964,7 +1397,6 @@ const setReminder = asyncHandler(async (req, res) => {
     const { contractId } = req.params;
     const userId = req.userID;
     const firmId = req.firmId;
-    const { type, date, message, recipients } = req.body;
 
     if (!contractId) {
         throw CustomException(
@@ -977,6 +1409,17 @@ const setReminder = asyncHandler(async (req, res) => {
         );
     }
 
+    // Mass assignment protection
+    const allowedFields = pickAllowedFields(req.body, [
+        'type',
+        'date',
+        'message',
+        'messageAr',
+        'recipients'
+    ]);
+
+    const { type, date, message, messageAr, recipients } = allowedFields;
+
     if (!type || !date) {
         throw CustomException(
             'Reminder type and date are required',
@@ -988,15 +1431,31 @@ const setReminder = asyncHandler(async (req, res) => {
         );
     }
 
+    // Validate reminder date
+    if (isNaN(Date.parse(date))) {
+        throw CustomException(
+            'Invalid reminder date format',
+            400,
+            {
+                messageAr: 'تنسيق تاريخ التذكير غير صالح',
+                code: 'VALIDATION_ERROR'
+            }
+        );
+    }
+
     const reminderData = {
         type,
         date,
         message,
+        messageAr,
         recipients,
         createdBy: userId
     };
 
-    const reminder = await LegalContractService.setReminder(contractId, reminderData, userId, firmId);
+    // Sanitize contract ID
+    const sanitizedContractId = sanitizeObjectId(contractId);
+
+    const reminder = await LegalContractService.setReminder(sanitizedContractId, reminderData, userId, firmId);
 
     res.status(201).json({
         success: true,
@@ -1026,7 +1485,10 @@ const getReminders = asyncHandler(async (req, res) => {
         );
     }
 
-    const reminders = await LegalContractService.getReminders(contractId, userId, firmId);
+    // Sanitize contract ID
+    const sanitizedContractId = sanitizeObjectId(contractId);
+
+    const reminders = await LegalContractService.getReminders(sanitizedContractId, userId, firmId);
 
     res.status(200).json({
         success: true,
@@ -1079,7 +1541,10 @@ const getContractsByClient = asyncHandler(async (req, res) => {
         );
     }
 
-    const contracts = await LegalContractService.getContractsByClient(clientId, userId, firmId);
+    // Sanitize client ID
+    const sanitizedClientId = sanitizeObjectId(clientId);
+
+    const contracts = await LegalContractService.getContractsByClient(sanitizedClientId, userId, firmId);
 
     res.status(200).json({
         success: true,
@@ -1127,10 +1592,13 @@ const exportToPdf = asyncHandler(async (req, res) => {
         );
     }
 
-    const pdfBuffer = await LegalContractService.exportToPdf(contractId, userId, firmId);
+    // Sanitize contract ID
+    const sanitizedContractId = sanitizeObjectId(contractId);
+
+    const pdfBuffer = await LegalContractService.exportToPdf(sanitizedContractId, userId, firmId);
 
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename="contract-${contractId}.pdf"`);
+    res.setHeader('Content-Disposition', `attachment; filename="contract-${sanitizedContractId}.pdf"`);
     res.send(pdfBuffer);
 });
 
@@ -1154,10 +1622,13 @@ const exportToWord = asyncHandler(async (req, res) => {
         );
     }
 
-    const docBuffer = await LegalContractService.exportToWord(contractId, userId, firmId);
+    // Sanitize contract ID
+    const sanitizedContractId = sanitizeObjectId(contractId);
+
+    const docBuffer = await LegalContractService.exportToWord(sanitizedContractId, userId, firmId);
 
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
-    res.setHeader('Content-Disposition', `attachment; filename="contract-${contractId}.docx"`);
+    res.setHeader('Content-Disposition', `attachment; filename="contract-${sanitizedContractId}.docx"`);
     res.send(docBuffer);
 });
 
@@ -1173,7 +1644,6 @@ const saveAsTemplate = asyncHandler(async (req, res) => {
     const { contractId } = req.params;
     const userId = req.userID;
     const firmId = req.firmId;
-    const { templateName, templateDescription, category } = req.body;
 
     if (!contractId) {
         throw CustomException(
@@ -1186,6 +1656,17 @@ const saveAsTemplate = asyncHandler(async (req, res) => {
         );
     }
 
+    // Mass assignment protection
+    const allowedFields = pickAllowedFields(req.body, [
+        'templateName',
+        'templateNameAr',
+        'templateDescription',
+        'templateDescriptionAr',
+        'category'
+    ]);
+
+    const { templateName, templateNameAr, templateDescription, templateDescriptionAr, category } = allowedFields;
+
     if (!templateName) {
         throw CustomException(
             'Template name is required',
@@ -1197,9 +1678,12 @@ const saveAsTemplate = asyncHandler(async (req, res) => {
         );
     }
 
+    // Sanitize contract ID
+    const sanitizedContractId = sanitizeObjectId(contractId);
+
     const template = await LegalContractService.saveAsTemplate(
-        contractId,
-        { templateName, templateDescription, category },
+        sanitizedContractId,
+        { templateName, templateNameAr, templateDescription, templateDescriptionAr, category },
         userId,
         firmId
     );
@@ -1237,7 +1721,6 @@ const createFromTemplate = asyncHandler(async (req, res) => {
     const { templateId } = req.params;
     const userId = req.userID;
     const firmId = req.firmId;
-    const contractData = req.body;
 
     if (!templateId) {
         throw CustomException(
@@ -1250,6 +1733,24 @@ const createFromTemplate = asyncHandler(async (req, res) => {
         );
     }
 
+    // Mass assignment protection
+    const contractData = pickAllowedFields(req.body, [
+        'title',
+        'titleAr',
+        'parties',
+        'content',
+        'financialTerms',
+        'startDate',
+        'endDate',
+        'autoRenewal',
+        'renewalTerms',
+        'governingLaw',
+        'jurisdiction',
+        'tags',
+        'clientId',
+        'caseId'
+    ]);
+
     if (!contractData.title || !contractData.parties) {
         throw CustomException(
             'Title and parties are required',
@@ -1261,8 +1762,40 @@ const createFromTemplate = asyncHandler(async (req, res) => {
         );
     }
 
+    // Validate dates if provided
+    if (contractData.startDate && isNaN(Date.parse(contractData.startDate))) {
+        throw CustomException(
+            'Invalid start date format',
+            400,
+            {
+                messageAr: 'تنسيق تاريخ البدء غير صالح',
+                code: 'VALIDATION_ERROR'
+            }
+        );
+    }
+
+    if (contractData.endDate && isNaN(Date.parse(contractData.endDate))) {
+        throw CustomException(
+            'Invalid end date format',
+            400,
+            {
+                messageAr: 'تنسيق تاريخ الانتهاء غير صالح',
+                code: 'VALIDATION_ERROR'
+            }
+        );
+    }
+
+    // Sanitize IDs
+    const sanitizedTemplateId = sanitizeObjectId(templateId);
+    if (contractData.clientId) {
+        contractData.clientId = sanitizeObjectId(contractData.clientId);
+    }
+    if (contractData.caseId) {
+        contractData.caseId = sanitizeObjectId(contractData.caseId);
+    }
+
     const contract = await LegalContractService.createFromTemplate(
-        templateId,
+        sanitizedTemplateId,
         contractData,
         userId,
         firmId

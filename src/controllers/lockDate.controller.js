@@ -1,6 +1,7 @@
 const { LockDate, LockHistory, FiscalPeriod } = require('../models');
 const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
+const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 
 /**
  * Get all lock dates
@@ -39,7 +40,11 @@ const getLockDates = asyncHandler(async (req, res) => {
  */
 const updateLockDate = asyncHandler(async (req, res) => {
     const { lockType } = req.params;
-    const { lock_date, reason } = req.body;
+
+    // Mass assignment protection
+    const allowedFields = pickAllowedFields(req.body, ['lock_date', 'reason']);
+    const { lock_date, reason } = allowedFields;
+
     const firmId = req.firmId || req.userID;
     const userId = req.userID;
 
@@ -52,6 +57,12 @@ const updateLockDate = asyncHandler(async (req, res) => {
         throw CustomException('تاريخ القفل مطلوب', 400);
     }
 
+    // Validate date format and value
+    const lockDateObj = new Date(lock_date);
+    if (isNaN(lockDateObj.getTime())) {
+        throw CustomException('تنسيق تاريخ القفل غير صالح', 400);
+    }
+
     // Validate admin permission for hard lock type
     if (lockType === 'hard' && req.role !== 'admin') {
         throw CustomException('غير مصرح لك بتحديث القفل الصارم', 403);
@@ -60,6 +71,11 @@ const updateLockDate = asyncHandler(async (req, res) => {
     const lockFieldName = `${lockType}_lock`;
 
     let lockDateConfig = await LockDate.findOne({ firmId });
+
+    // IDOR protection: verify firmId ownership
+    if (lockDateConfig && lockDateConfig.firmId.toString() !== firmId.toString()) {
+        throw CustomException('غير مصرح لك بتحديث هذا التكوين', 403);
+    }
 
     const previousLockDate = lockDateConfig ? lockDateConfig[lockFieldName] : null;
 
@@ -100,7 +116,10 @@ const updateLockDate = asyncHandler(async (req, res) => {
  * POST /api/lock-dates/periods/lock
  */
 const lockPeriod = asyncHandler(async (req, res) => {
-    const { start_date, end_date, period_name } = req.body;
+    // Mass assignment protection
+    const allowedFields = pickAllowedFields(req.body, ['start_date', 'end_date', 'period_name']);
+    const { start_date, end_date, period_name } = allowedFields;
+
     const firmId = req.firmId || req.userID;
     const userId = req.userID;
 
@@ -108,10 +127,27 @@ const lockPeriod = asyncHandler(async (req, res) => {
         throw CustomException('تاريخ البداية والنهاية واسم الفترة مطلوبة', 400);
     }
 
+    // Validate date formats
+    const startDateObj = new Date(start_date);
+    const endDateObj = new Date(end_date);
+
+    if (isNaN(startDateObj.getTime()) || isNaN(endDateObj.getTime())) {
+        throw CustomException('تنسيق التاريخ غير صالح', 400);
+    }
+
+    if (startDateObj >= endDateObj) {
+        throw CustomException('تاريخ البداية يجب أن يكون قبل تاريخ النهاية', 400);
+    }
+
     // Check if period already exists
     let period = await FiscalPeriod.findOne({ firmId, period_name });
 
     if (period) {
+        // IDOR protection: verify firmId ownership
+        if (period.firmId.toString() !== firmId.toString()) {
+            throw CustomException('غير مصرح لك بتحديث هذه الفترة', 403);
+        }
+
         if (period.is_locked) {
             throw CustomException('الفترة مقفلة بالفعل', 400);
         }
@@ -154,7 +190,10 @@ const lockPeriod = asyncHandler(async (req, res) => {
  * POST /api/lock-dates/periods/reopen
  */
 const reopenPeriod = asyncHandler(async (req, res) => {
-    const { period_name, reason } = req.body;
+    // Mass assignment protection
+    const allowedFields = pickAllowedFields(req.body, ['period_name', 'reason']);
+    const { period_name, reason } = allowedFields;
+
     const firmId = req.firmId || req.userID;
     const userId = req.userID;
 
@@ -171,6 +210,11 @@ const reopenPeriod = asyncHandler(async (req, res) => {
 
     if (!period) {
         throw CustomException('الفترة غير موجودة', 404);
+    }
+
+    // IDOR protection: verify firmId ownership
+    if (period.firmId.toString() !== firmId.toString()) {
+        throw CustomException('غير مصرح لك بإعادة فتح هذه الفترة', 403);
     }
 
     if (!period.is_locked) {
@@ -273,11 +317,20 @@ const getLockHistory = asyncHandler(async (req, res) => {
  * POST /api/lock-dates/check
  */
 const checkDate = asyncHandler(async (req, res) => {
-    const { date, lock_type } = req.body;
+    // Mass assignment protection
+    const allowedFields = pickAllowedFields(req.body, ['date', 'lock_type']);
+    const { date, lock_type } = allowedFields;
+
     const firmId = req.firmId || req.userID;
 
     if (!date || !lock_type) {
         throw CustomException('التاريخ ونوع القفل مطلوبان', 400);
+    }
+
+    // Validate date format
+    const dateObj = new Date(date);
+    if (isNaN(dateObj.getTime())) {
+        throw CustomException('تنسيق التاريخ غير صالح', 400);
     }
 
     const validLockTypes = ['fiscal', 'tax', 'purchase', 'sale', 'hard'];
@@ -337,7 +390,10 @@ const checkDate = asyncHandler(async (req, res) => {
  * PATCH /api/lock-dates/fiscal-year
  */
 const updateFiscalYearEnd = asyncHandler(async (req, res) => {
-    const { month, day } = req.body;
+    // Mass assignment protection
+    const allowedFields = pickAllowedFields(req.body, ['month', 'day']);
+    const { month, day } = allowedFields;
+
     const firmId = req.firmId || req.userID;
     const userId = req.userID;
 
@@ -345,15 +401,24 @@ const updateFiscalYearEnd = asyncHandler(async (req, res) => {
         throw CustomException('الشهر واليوم مطلوبان', 400);
     }
 
-    if (month < 1 || month > 12) {
+    // Validate month and day values
+    const monthNum = parseInt(month);
+    const dayNum = parseInt(day);
+
+    if (isNaN(monthNum) || monthNum < 1 || monthNum > 12) {
         throw CustomException('الشهر يجب أن يكون بين 1 و 12', 400);
     }
 
-    if (day < 1 || day > 31) {
+    if (isNaN(dayNum) || dayNum < 1 || dayNum > 31) {
         throw CustomException('اليوم يجب أن يكون بين 1 و 31', 400);
     }
 
     let lockDateConfig = await LockDate.findOne({ firmId });
+
+    // IDOR protection: verify firmId ownership
+    if (lockDateConfig && lockDateConfig.firmId.toString() !== firmId.toString()) {
+        throw CustomException('غير مصرح لك بتحديث هذا التكوين', 403);
+    }
 
     if (!lockDateConfig) {
         lockDateConfig = await LockDate.create({

@@ -10,11 +10,118 @@ const FiscalPeriod = require('../models/fiscalPeriod.model');
 const PaymentTerms = require('../models/paymentTerms.model');
 const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
+const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
+
+// Allowed fields for finance setup updates
+const ALLOWED_SETUP_FIELDS = [
+    'currentStep',
+    'completedSteps',
+    'companyInfo',
+    'fiscalYear',
+    'chartOfAccounts',
+    'currency',
+    'taxSettings',
+    'bankAccounts',
+    'openingBalances',
+    'invoiceSettings',
+    'paymentMethods'
+];
+
+// Allowed nested fields for each step
+const ALLOWED_STEP_FIELDS = {
+    companyInfo: ['name', 'nameAr', 'commercialRegister', 'taxNumber', 'address', 'phone', 'email', 'website'],
+    fiscalYear: ['startDate', 'endDate', 'lockDate'],
+    chartOfAccounts: ['template', 'customAccounts', 'importFile'],
+    currency: ['baseCurrency', 'supportedCurrencies', 'exchangeRateSource'],
+    taxSettings: ['vatEnabled', 'vatRate', 'vatNumber', 'taxMethod'],
+    bankAccounts: ['accounts'],
+    openingBalances: ['balances', 'asOfDate'],
+    invoiceSettings: ['prefix', 'startingNumber', 'template', 'paymentTerms'],
+    paymentMethods: ['methods', 'defaultMethod']
+};
+
+/**
+ * Helper to verify firmId ownership
+ */
+async function verifyFirmAccess(req) {
+    if (req.firmId) {
+        const sanitizedFirmId = sanitizeObjectId(req.firmId);
+        if (!sanitizedFirmId) {
+            throw CustomException('Invalid firm ID', 400, {
+                messageAr: 'معرف الشركة غير صالح'
+            });
+        }
+
+        // Verify that the user has access to this firm
+        // This assumes req.userFirms contains the list of firms the user can access
+        if (req.userFirms && !req.userFirms.includes(sanitizedFirmId.toString())) {
+            throw CustomException('Access denied to this firm', 403, {
+                messageAr: 'ليس لديك صلاحية الوصول لهذه الشركة'
+            });
+        }
+    }
+}
+
+/**
+ * Validate finance setup data
+ */
+function validateFinanceSetupData(data, step = null) {
+    // Basic validation for required fields based on step
+    if (step === 1 && data.companyInfo) {
+        const { name, taxNumber } = data.companyInfo;
+        if (name && typeof name !== 'string') {
+            throw CustomException('Company name must be a string', 400, {
+                messageAr: 'يجب أن يكون اسم الشركة نصاً'
+            });
+        }
+        if (taxNumber && typeof taxNumber !== 'string') {
+            throw CustomException('Tax number must be a string', 400, {
+                messageAr: 'يجب أن يكون الرقم الضريبي نصاً'
+            });
+        }
+    }
+
+    if (step === 2 && data.fiscalYear) {
+        const { startDate, endDate } = data.fiscalYear;
+        if (startDate && !isValidDate(startDate)) {
+            throw CustomException('Invalid fiscal year start date', 400, {
+                messageAr: 'تاريخ بداية السنة المالية غير صالح'
+            });
+        }
+        if (endDate && !isValidDate(endDate)) {
+            throw CustomException('Invalid fiscal year end date', 400, {
+                messageAr: 'تاريخ نهاية السنة المالية غير صالح'
+            });
+        }
+    }
+
+    if (step === 5 && data.taxSettings) {
+        const { vatRate } = data.taxSettings;
+        if (vatRate !== undefined && (typeof vatRate !== 'number' || vatRate < 0 || vatRate > 100)) {
+            throw CustomException('VAT rate must be a number between 0 and 100', 400, {
+                messageAr: 'يجب أن يكون معدل ضريبة القيمة المضافة رقماً بين 0 و 100'
+            });
+        }
+    }
+
+    return true;
+}
+
+/**
+ * Helper to validate date
+ */
+function isValidDate(dateString) {
+    const date = new Date(dateString);
+    return date instanceof Date && !isNaN(date);
+}
 
 /**
  * Get setup status
  */
 const getSetupStatus = asyncHandler(async (req, res) => {
+    // IDOR Protection: Verify firm access
+    await verifyFirmAccess(req);
+
     const query = req.firmId ? { firmId: req.firmId } : { lawyerId: req.userID };
     const setup = await FinanceSetup.findOne(query);
 
@@ -32,6 +139,9 @@ const getSetupStatus = asyncHandler(async (req, res) => {
  * Get current setup data
  */
 const getSetup = asyncHandler(async (req, res) => {
+    // IDOR Protection: Verify firm access
+    await verifyFirmAccess(req);
+
     const setup = await FinanceSetup.getOrCreate(
         req.firmId,
         req.firmId ? null : req.userID,
@@ -48,13 +158,30 @@ const getSetup = asyncHandler(async (req, res) => {
  * Update setup (save progress)
  */
 const updateSetup = asyncHandler(async (req, res) => {
+    // IDOR Protection: Verify firm access
+    await verifyFirmAccess(req);
+
+    // Mass Assignment Protection: Only allow specific fields
+    const allowedData = pickAllowedFields(req.body, ALLOWED_SETUP_FIELDS);
+
+    // Input Validation: Validate the data
+    validateFinanceSetupData(allowedData);
+
+    // Protect critical fields from manipulation
+    delete allowedData.setupCompleted;
+    delete allowedData.completedAt;
+    delete allowedData.completedBy;
+    delete allowedData.firmId;
+    delete allowedData.lawyerId;
+    delete allowedData.createdBy;
+
     const query = req.firmId ? { firmId: req.firmId } : { lawyerId: req.userID };
 
     const setup = await FinanceSetup.findOneAndUpdate(
         query,
         {
             $set: {
-                ...req.body,
+                ...allowedData,
                 updatedBy: req.userID
             }
         },
@@ -73,6 +200,9 @@ const updateSetup = asyncHandler(async (req, res) => {
  * Update specific step
  */
 const updateStep = asyncHandler(async (req, res) => {
+    // IDOR Protection: Verify firm access
+    await verifyFirmAccess(req);
+
     const { step } = req.params;
     const stepNumber = parseInt(step, 10);
 
@@ -107,10 +237,25 @@ const updateStep = asyncHandler(async (req, res) => {
     };
 
     const fieldName = stepFields[stepNumber];
+
+    // Mass Assignment Protection: Filter allowed fields for this step
+    let stepData;
     if (fieldName && req.body[fieldName]) {
-        setup[fieldName] = { ...setup[fieldName], ...req.body[fieldName] };
+        stepData = pickAllowedFields(req.body[fieldName], ALLOWED_STEP_FIELDS[fieldName] || []);
     } else if (fieldName) {
-        setup[fieldName] = req.body;
+        stepData = pickAllowedFields(req.body, ALLOWED_STEP_FIELDS[fieldName] || []);
+    }
+
+    // Input Validation: Validate the step data
+    const validationData = {};
+    if (fieldName) {
+        validationData[fieldName] = stepData;
+    }
+    validateFinanceSetupData(validationData, stepNumber);
+
+    // Update the step data
+    if (fieldName && stepData) {
+        setup[fieldName] = { ...setup[fieldName], ...stepData };
     }
 
     // Mark step as completed
@@ -128,6 +273,9 @@ const updateStep = asyncHandler(async (req, res) => {
  * Complete setup
  */
 const completeSetup = asyncHandler(async (req, res) => {
+    // IDOR Protection: Verify firm access
+    await verifyFirmAccess(req);
+
     const query = req.firmId ? { firmId: req.firmId } : { lawyerId: req.userID };
     const setup = await FinanceSetup.findOne(query);
 
@@ -183,6 +331,9 @@ const completeSetup = asyncHandler(async (req, res) => {
  * Reset setup (for testing/re-configuration)
  */
 const resetSetup = asyncHandler(async (req, res) => {
+    // IDOR Protection: Verify firm access
+    await verifyFirmAccess(req);
+
     const query = req.firmId ? { firmId: req.firmId } : { lawyerId: req.userID };
 
     await FinanceSetup.findOneAndUpdate(

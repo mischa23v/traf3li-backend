@@ -1,16 +1,46 @@
 const { Question, Answer } = require('../models');
 const { CustomException } = require('../utils');
+const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 
 // Create question
 const createQuestion = async (request, response) => {
-    const { title, description, category, tags } = request.body;
     try {
+        // Mass assignment protection
+        const allowedFields = ['title', 'description', 'category', 'tags'];
+        const sanitizedData = pickAllowedFields(request.body, allowedFields);
+
+        // Input validation
+        if (!sanitizedData.title || typeof sanitizedData.title !== 'string' || sanitizedData.title.trim().length === 0) {
+            throw CustomException('Title is required and must be a non-empty string', 400);
+        }
+
+        if (!sanitizedData.description || typeof sanitizedData.description !== 'string' || sanitizedData.description.trim().length === 0) {
+            throw CustomException('Description is required and must be a non-empty string', 400);
+        }
+
+        if (!sanitizedData.category || typeof sanitizedData.category !== 'string' || sanitizedData.category.trim().length === 0) {
+            throw CustomException('Category is required and must be a non-empty string', 400);
+        }
+
+        if (sanitizedData.title.length > 500) {
+            throw CustomException('Title cannot exceed 500 characters', 400);
+        }
+
+        if (sanitizedData.description.length > 10000) {
+            throw CustomException('Description cannot exceed 10000 characters', 400);
+        }
+
+        if (sanitizedData.tags && !Array.isArray(sanitizedData.tags)) {
+            throw CustomException('Tags must be an array', 400);
+        }
+
+        if (sanitizedData.tags && sanitizedData.tags.length > 20) {
+            throw CustomException('Cannot have more than 20 tags', 400);
+        }
+
         const question = new Question({
             userId: request.userID,
-            title,
-            description,
-            category,
-            tags
+            ...sanitizedData
         });
 
         await question.save();
@@ -56,9 +86,11 @@ const getQuestions = async (request, response) => {
 
 // Get single question
 const getQuestion = async (request, response) => {
-    const { _id } = request.params;
     try {
-        const question = await Question.findById(_id)
+        // IDOR protection
+        const questionId = sanitizeObjectId(request.params._id);
+
+        const question = await Question.findById(questionId)
             .populate('userId', 'username image')
             .populate({
                 path: 'answers',
@@ -90,9 +122,60 @@ const getQuestion = async (request, response) => {
 
 // Update question
 const updateQuestion = async (request, response) => {
-    const { _id } = request.params;
     try {
-        const question = await Question.findById(_id);
+        // IDOR protection
+        const questionId = sanitizeObjectId(request.params._id);
+
+        // Mass assignment protection
+        const allowedFields = ['title', 'description', 'category', 'tags', 'status'];
+        const sanitizedData = pickAllowedFields(request.body, allowedFields);
+
+        // Input validation
+        if (Object.keys(sanitizedData).length === 0) {
+            throw CustomException('No valid fields to update', 400);
+        }
+
+        if (sanitizedData.title !== undefined) {
+            if (typeof sanitizedData.title !== 'string' || sanitizedData.title.trim().length === 0) {
+                throw CustomException('Title must be a non-empty string', 400);
+            }
+            if (sanitizedData.title.length > 500) {
+                throw CustomException('Title cannot exceed 500 characters', 400);
+            }
+        }
+
+        if (sanitizedData.description !== undefined) {
+            if (typeof sanitizedData.description !== 'string' || sanitizedData.description.trim().length === 0) {
+                throw CustomException('Description must be a non-empty string', 400);
+            }
+            if (sanitizedData.description.length > 10000) {
+                throw CustomException('Description cannot exceed 10000 characters', 400);
+            }
+        }
+
+        if (sanitizedData.category !== undefined) {
+            if (typeof sanitizedData.category !== 'string' || sanitizedData.category.trim().length === 0) {
+                throw CustomException('Category must be a non-empty string', 400);
+            }
+        }
+
+        if (sanitizedData.tags !== undefined) {
+            if (!Array.isArray(sanitizedData.tags)) {
+                throw CustomException('Tags must be an array', 400);
+            }
+            if (sanitizedData.tags.length > 20) {
+                throw CustomException('Cannot have more than 20 tags', 400);
+            }
+        }
+
+        if (sanitizedData.status !== undefined) {
+            const validStatuses = ['open', 'closed', 'answered'];
+            if (!validStatuses.includes(sanitizedData.status)) {
+                throw CustomException('Invalid status value', 400);
+            }
+        }
+
+        const question = await Question.findById(questionId);
 
         if (!question) {
             throw CustomException('Question not found!', 404);
@@ -103,9 +186,9 @@ const updateQuestion = async (request, response) => {
         }
 
         const updatedQuestion = await Question.findByIdAndUpdate(
-            _id,
-            { $set: request.body },
-            { new: true }
+            questionId,
+            { $set: sanitizedData },
+            { new: true, runValidators: true }
         );
 
         return response.status(202).send({
@@ -123,9 +206,11 @@ const updateQuestion = async (request, response) => {
 
 // Delete question
 const deleteQuestion = async (request, response) => {
-    const { _id } = request.params;
     try {
-        const question = await Question.findById(_id);
+        // IDOR protection
+        const questionId = sanitizeObjectId(request.params._id);
+
+        const question = await Question.findById(questionId);
 
         if (!question) {
             throw CustomException('Question not found!', 404);
@@ -135,8 +220,8 @@ const deleteQuestion = async (request, response) => {
             throw CustomException('You can only delete your own questions!', 403);
         }
 
-        await Question.deleteOne({ _id });
-        await Answer.deleteMany({ questionId: _id });
+        await Question.deleteOne({ _id: questionId });
+        await Answer.deleteMany({ questionId: questionId });
 
         return response.send({
             error: false,

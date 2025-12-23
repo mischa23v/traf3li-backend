@@ -4,8 +4,90 @@ const { CustomException } = require('../utils');
 const jwt = require('jsonwebtoken');
 const auditLogService = require('../services/auditLog.service');
 const { getCookieConfig } = require('./auth.controller');
+const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 
 const { JWT_SECRET } = process.env;
+
+/**
+ * Validates if a URL is from an allowed domain
+ * @param {string} url - URL to validate
+ * @returns {boolean} Whether the URL is valid
+ */
+const isValidRedirectUrl = (url) => {
+    if (!url || typeof url !== 'string') {
+        return false;
+    }
+
+    // Allow relative URLs starting with /
+    if (url.startsWith('/')) {
+        // Prevent open redirects - ensure it's a single slash and path
+        return /^\/[^\/\\]/.test(url);
+    }
+
+    // For absolute URLs, validate against allowed domains
+    const allowedDomains = [
+        process.env.DASHBOARD_URL || 'https://dashboard.traf3li.com',
+        process.env.FRONTEND_URL || 'https://traf3li.com'
+    ];
+
+    try {
+        const urlObj = new URL(url);
+        return allowedDomains.some(domain => {
+            const domainObj = new URL(domain);
+            return urlObj.origin === domainObj.origin;
+        });
+    } catch (error) {
+        return false;
+    }
+};
+
+/**
+ * Validates SAML SSO URL format
+ * @param {string} url - URL to validate
+ * @returns {boolean} Whether the URL is valid
+ */
+const isValidSSOUrl = (url) => {
+    if (!url || typeof url !== 'string') {
+        return false;
+    }
+
+    // Must be HTTPS for security
+    if (!url.startsWith('https://')) {
+        return false;
+    }
+
+    try {
+        const urlObj = new URL(url);
+        // Basic validation - must have valid hostname
+        return urlObj.hostname && urlObj.hostname.includes('.');
+    } catch (error) {
+        return false;
+    }
+};
+
+/**
+ * Validates X.509 certificate format
+ * @param {string} cert - Certificate to validate
+ * @returns {boolean} Whether the certificate is valid
+ */
+const isValidCertificate = (cert) => {
+    if (!cert || typeof cert !== 'string') {
+        return false;
+    }
+
+    // Remove whitespace
+    const trimmedCert = cert.trim();
+
+    // Check for PEM format markers
+    const hasPemMarkers = trimmedCert.includes('BEGIN CERTIFICATE') &&
+                         trimmedCert.includes('END CERTIFICATE');
+
+    // Check for base64 content (if no PEM markers, assume it's raw base64)
+    const base64Regex = /^[A-Za-z0-9+/=\s\n\r-]+$/;
+    const hasValidContent = base64Regex.test(trimmedCert.replace(/BEGIN CERTIFICATE|END CERTIFICATE|-/g, ''));
+
+    return hasPemMarkers || hasValidContent;
+};
 
 /**
  * SAML Controller - Enterprise SSO Authentication
@@ -29,7 +111,11 @@ const { JWT_SECRET } = process.env;
  */
 const getSPMetadata = async (request, response) => {
     try {
-        const { firmId } = request.params;
+        // IDOR Protection: Sanitize firmId
+        const firmId = sanitizeObjectId(request.params.firmId);
+        if (!firmId) {
+            throw CustomException('Invalid firm ID', 400);
+        }
 
         const metadata = await samlService.generateSPMetadata(firmId);
 
@@ -50,8 +136,17 @@ const getSPMetadata = async (request, response) => {
  */
 const initiateLogin = async (request, response) => {
     try {
-        const { firmId } = request.params;
-        const { RelayState } = request.query;
+        // IDOR Protection: Sanitize firmId
+        const firmId = sanitizeObjectId(request.params.firmId);
+        if (!firmId) {
+            throw CustomException('Invalid firm ID', 400);
+        }
+
+        // Security: Validate redirect URL against whitelist
+        let relayState = request.query.RelayState || '/';
+        if (!isValidRedirectUrl(relayState)) {
+            relayState = '/dashboard'; // Default to safe location
+        }
 
         // Validate firm exists and SSO is enabled
         const firm = await Firm.findById(firmId);
@@ -69,7 +164,7 @@ const initiateLogin = async (request, response) => {
         // Generate AuthnRequest
         strategy.authenticate(request, {
             additionalParams: {
-                RelayState: RelayState || '/'
+                RelayState: relayState
             }
         });
     } catch (error) {
@@ -87,8 +182,17 @@ const initiateLogin = async (request, response) => {
  */
 const assertionConsumerService = async (request, response) => {
     try {
-        const { firmId } = request.params;
-        const { RelayState } = request.body;
+        // IDOR Protection: Sanitize firmId
+        const firmId = sanitizeObjectId(request.params.firmId);
+        if (!firmId) {
+            throw CustomException('Invalid firm ID', 400);
+        }
+
+        // Security: Validate redirect URL against whitelist
+        let relayState = request.body.RelayState || '/dashboard';
+        if (!isValidRedirectUrl(relayState)) {
+            relayState = '/dashboard'; // Default to safe location
+        }
 
         // Validate firm
         const firm = await Firm.findById(firmId);
@@ -176,8 +280,7 @@ const assertionConsumerService = async (request, response) => {
                 response.cookie('accessToken', token, cookieConfig);
 
                 const frontendUrl = process.env.DASHBOARD_URL || 'https://dashboard.traf3li.com';
-                const redirectUrl = RelayState || '/dashboard';
-                return response.redirect(`${frontendUrl}${redirectUrl}?sso=success`);
+                return response.redirect(`${frontendUrl}${relayState}?sso=success`);
 
             } catch (postAuthError) {
                 console.error('Post-authentication error:', postAuthError);
@@ -200,7 +303,11 @@ const assertionConsumerService = async (request, response) => {
  */
 const initiateSingleLogout = async (request, response) => {
     try {
-        const { firmId } = request.params;
+        // IDOR Protection: Sanitize firmId
+        const firmId = sanitizeObjectId(request.params.firmId);
+        if (!firmId) {
+            throw CustomException('Invalid firm ID', 400);
+        }
 
         // Validate firm
         const firm = await Firm.findById(firmId);
@@ -266,7 +373,11 @@ const initiateSingleLogout = async (request, response) => {
  */
 const singleLogoutService = async (request, response) => {
     try {
-        const { firmId } = request.params;
+        // IDOR Protection: Sanitize firmId
+        const firmId = sanitizeObjectId(request.params.firmId);
+        if (!firmId) {
+            throw CustomException('Invalid firm ID', 400);
+        }
 
         // Create SAML strategy
         const strategy = await samlService.createSAMLStrategy(firmId);
@@ -309,8 +420,14 @@ const getSAMLConfig = async (request, response) => {
             throw CustomException('User not associated with a firm', 400);
         }
 
+        // IDOR Protection: Sanitize firmId
+        const firmId = sanitizeObjectId(user.firmId);
+        if (!firmId) {
+            throw CustomException('Invalid firm ID', 400);
+        }
+
         // Check if user is admin or owner
-        const firm = await Firm.findById(user.firmId);
+        const firm = await Firm.findById(firmId);
         if (!firm) {
             throw CustomException('Firm not found', 404);
         }
@@ -357,14 +474,16 @@ const getSAMLConfig = async (request, response) => {
  */
 const updateSAMLConfig = async (request, response) => {
     try {
-        const {
-            ssoEnabled,
-            ssoProvider,
-            ssoEntityId,
-            ssoSsoUrl,
-            ssoCertificate,
-            ssoMetadataUrl
-        } = request.body;
+        // Mass Assignment Protection: Define allowed fields
+        const allowedFields = [
+            'ssoEnabled',
+            'ssoProvider',
+            'ssoEntityId',
+            'ssoSsoUrl',
+            'ssoCertificate',
+            'ssoMetadataUrl'
+        ];
+        const sanitizedData = pickAllowedFields(request.body, allowedFields);
 
         // Get user's firm
         const user = await User.findById(request.userID);
@@ -372,8 +491,14 @@ const updateSAMLConfig = async (request, response) => {
             throw CustomException('User not associated with a firm', 400);
         }
 
+        // IDOR Protection: Sanitize firmId
+        const firmId = sanitizeObjectId(user.firmId);
+        if (!firmId) {
+            throw CustomException('Invalid firm ID', 400);
+        }
+
         // Check if user is admin or owner
-        const firm = await Firm.findById(user.firmId);
+        const firm = await Firm.findById(firmId);
         if (!firm) {
             throw CustomException('Firm not found', 404);
         }
@@ -383,29 +508,43 @@ const updateSAMLConfig = async (request, response) => {
             throw CustomException('Insufficient permissions. Only firm owners and admins can manage SSO.', 403);
         }
 
+        // Input Validation: Validate SAML-specific fields
+        if (sanitizedData.ssoSsoUrl && !isValidSSOUrl(sanitizedData.ssoSsoUrl)) {
+            throw CustomException('Invalid SSO URL. Must be a valid HTTPS URL.', 400);
+        }
+
+        if (sanitizedData.ssoMetadataUrl && !isValidSSOUrl(sanitizedData.ssoMetadataUrl)) {
+            throw CustomException('Invalid metadata URL. Must be a valid HTTPS URL.', 400);
+        }
+
+        if (sanitizedData.ssoCertificate && !isValidCertificate(sanitizedData.ssoCertificate)) {
+            throw CustomException('Invalid X.509 certificate format.', 400);
+        }
+
+        if (sanitizedData.ssoProvider && typeof sanitizedData.ssoProvider !== 'string') {
+            throw CustomException('Invalid SSO provider.', 400);
+        }
+
+        if (sanitizedData.ssoEntityId && typeof sanitizedData.ssoEntityId !== 'string') {
+            throw CustomException('Invalid entity ID.', 400);
+        }
+
         // Update SAML configuration
-        const updatedFirm = await samlService.updateSAMLConfig(user.firmId, {
-            ssoEnabled,
-            ssoProvider,
-            ssoEntityId,
-            ssoSsoUrl,
-            ssoCertificate,
-            ssoMetadataUrl
-        });
+        const updatedFirm = await samlService.updateSAMLConfig(firmId, sanitizedData);
 
         // Log configuration change
         await auditLogService.log(
             'sso_config_updated',
             'firm',
             user._id,
-            user.firmId,
+            firmId,
             {
                 userId: user._id,
                 userEmail: user.email,
                 userName: `${user.firstName} ${user.lastName}`,
-                firmId: user.firmId,
-                ssoProvider,
-                ssoEnabled,
+                firmId: firmId,
+                ssoProvider: sanitizedData.ssoProvider,
+                ssoEnabled: sanitizedData.ssoEnabled,
                 ipAddress: request.ip,
                 userAgent: request.headers['user-agent'],
                 severity: 'medium'
@@ -445,8 +584,14 @@ const testSAMLConfig = async (request, response) => {
             throw CustomException('User not associated with a firm', 400);
         }
 
+        // IDOR Protection: Sanitize firmId
+        const firmId = sanitizeObjectId(user.firmId);
+        if (!firmId) {
+            throw CustomException('Invalid firm ID', 400);
+        }
+
         // Check if user is admin or owner
-        const firm = await Firm.findById(user.firmId);
+        const firm = await Firm.findById(firmId);
         if (!firm) {
             throw CustomException('Firm not found', 404);
         }
@@ -457,7 +602,7 @@ const testSAMLConfig = async (request, response) => {
         }
 
         // Validate SAML configuration
-        const config = await samlService.getFirmSAMLConfig(user.firmId);
+        const config = await samlService.getFirmSAMLConfig(firmId);
         const validation = samlService.validateSAMLConfig(config);
 
         if (!validation.valid) {
@@ -470,7 +615,7 @@ const testSAMLConfig = async (request, response) => {
 
         // Try to create SAML strategy (this validates the configuration)
         try {
-            await samlService.createSAMLStrategy(user.firmId);
+            await samlService.createSAMLStrategy(firmId);
 
             return response.status(200).send({
                 error: false,

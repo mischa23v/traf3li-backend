@@ -17,6 +17,7 @@
 const { Firm, TeamActivityLog } = require('../models');
 const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
+const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 const samlService = require('../services/saml.service');
 const crypto = require('crypto');
 const xml2js = require('xml2js');
@@ -30,9 +31,9 @@ const xml2js = require('xml2js');
  * GET /api/firms/:firmId/sso
  */
 const getSSOConfig = asyncHandler(async (req, res) => {
-    const { firmId } = req.params;
+    const firmId = sanitizeObjectId(req.params.firmId, 'firmId');
 
-    // Validate firm access
+    // Validate firm access (IDOR protection)
     if (req.firmId !== firmId) {
         throw CustomException('ليس لديك صلاحية للوصول إلى هذا المكتب', 403);
     }
@@ -102,7 +103,26 @@ const getSSOConfig = asyncHandler(async (req, res) => {
  * PUT /api/firms/:firmId/sso
  */
 const updateSSOConfig = asyncHandler(async (req, res) => {
-    const { firmId } = req.params;
+    const firmId = sanitizeObjectId(req.params.firmId, 'firmId');
+
+    // Mass assignment protection - only allow specific fields
+    const allowedFields = [
+        'enabled',
+        'provider',
+        'entityId',
+        'ssoUrl',
+        'sloUrl',
+        'certificate',
+        'metadataUrl',
+        'attributeMapping',
+        'allowedDomains',
+        'autoProvision',
+        'defaultRole',
+        'requireEmailVerification',
+        'syncUserAttributes'
+    ];
+    const sanitizedBody = pickAllowedFields(req.body, allowedFields);
+
     const {
         enabled,
         provider,
@@ -117,9 +137,9 @@ const updateSSOConfig = asyncHandler(async (req, res) => {
         defaultRole,
         requireEmailVerification,
         syncUserAttributes
-    } = req.body;
+    } = sanitizedBody;
 
-    // Validate firm access
+    // Validate firm access (IDOR protection)
     if (req.firmId !== firmId) {
         throw CustomException('ليس لديك صلاحية للوصول إلى هذا المكتب', 403);
     }
@@ -146,19 +166,27 @@ const updateSSOConfig = asyncHandler(async (req, res) => {
         validationErrors.push('Entity ID cannot be empty');
     }
 
+    // Validate SSO URL with whitelist check
     if (ssoUrl) {
-        try {
-            new URL(ssoUrl);
-        } catch (error) {
-            validationErrors.push('Invalid SSO URL format');
+        const ssoUrlValidation = validateSSOUrl(ssoUrl, 'SSO');
+        if (!ssoUrlValidation.valid) {
+            validationErrors.push(ssoUrlValidation.error);
         }
     }
 
+    // Validate SLO URL with whitelist check
     if (sloUrl) {
-        try {
-            new URL(sloUrl);
-        } catch (error) {
-            validationErrors.push('Invalid SLO URL format');
+        const sloUrlValidation = validateSSOUrl(sloUrl, 'SLO');
+        if (!sloUrlValidation.valid) {
+            validationErrors.push(sloUrlValidation.error);
+        }
+    }
+
+    // Validate metadata URL if provided
+    if (metadataUrl) {
+        const metadataValidation = validateSSOUrl(metadataUrl, 'Metadata');
+        if (!metadataValidation.valid) {
+            validationErrors.push(metadataValidation.error);
         }
     }
 
@@ -289,9 +317,9 @@ const updateSSOConfig = asyncHandler(async (req, res) => {
  * POST /api/firms/:firmId/sso/test
  */
 const testSSOConnection = asyncHandler(async (req, res) => {
-    const { firmId } = req.params;
+    const firmId = sanitizeObjectId(req.params.firmId, 'firmId');
 
-    // Validate firm access
+    // Validate firm access (IDOR protection)
     if (req.firmId !== firmId) {
         throw CustomException('ليس لديك صلاحية للوصول إلى هذا المكتب', 403);
     }
@@ -428,10 +456,14 @@ const testSSOConnection = asyncHandler(async (req, res) => {
  * POST /api/firms/:firmId/sso/upload-metadata
  */
 const uploadMetadata = asyncHandler(async (req, res) => {
-    const { firmId } = req.params;
-    const { metadataXml } = req.body;
+    const firmId = sanitizeObjectId(req.params.firmId, 'firmId');
 
-    // Validate firm access
+    // Mass assignment protection - only allow metadataXml field
+    const allowedFields = ['metadataXml'];
+    const sanitizedBody = pickAllowedFields(req.body, allowedFields);
+    const { metadataXml } = sanitizedBody;
+
+    // Validate firm access (IDOR protection)
     if (req.firmId !== firmId) {
         throw CustomException('ليس لديك صلاحية للوصول إلى هذا المكتب', 403);
     }
@@ -457,6 +489,34 @@ const uploadMetadata = asyncHandler(async (req, res) => {
         parsedMetadata = await parseMetadataXml(metadataXml);
     } catch (error) {
         throw CustomException(`Invalid metadata XML: ${error.message}`, 400);
+    }
+
+    // Validate extracted URLs from metadata
+    const validationErrors = [];
+
+    if (parsedMetadata.ssoUrl) {
+        const ssoUrlValidation = validateSSOUrl(parsedMetadata.ssoUrl, 'SSO');
+        if (!ssoUrlValidation.valid) {
+            validationErrors.push(ssoUrlValidation.error);
+        }
+    }
+
+    if (parsedMetadata.sloUrl) {
+        const sloUrlValidation = validateSSOUrl(parsedMetadata.sloUrl, 'SLO');
+        if (!sloUrlValidation.valid) {
+            validationErrors.push(sloUrlValidation.error);
+        }
+    }
+
+    if (parsedMetadata.metadataUrl) {
+        const metadataValidation = validateSSOUrl(parsedMetadata.metadataUrl, 'Metadata');
+        if (!metadataValidation.valid) {
+            validationErrors.push(metadataValidation.error);
+        }
+    }
+
+    if (validationErrors.length > 0) {
+        throw CustomException(`Metadata validation failed: ${validationErrors.join('; ')}`, 400);
     }
 
     // Initialize SSO config if it doesn't exist
@@ -525,9 +585,9 @@ const uploadMetadata = asyncHandler(async (req, res) => {
  * DELETE /api/firms/:firmId/sso
  */
 const disableSSO = asyncHandler(async (req, res) => {
-    const { firmId } = req.params;
+    const firmId = sanitizeObjectId(req.params.firmId, 'firmId');
 
-    // Validate firm access
+    // Validate firm access (IDOR protection)
     if (req.firmId !== firmId) {
         throw CustomException('ليس لديك صلاحية للوصول إلى هذا المكتب', 403);
     }
@@ -585,6 +645,85 @@ const disableSSO = asyncHandler(async (req, res) => {
 // ═══════════════════════════════════════════════════════════════
 // HELPER FUNCTIONS
 // ═══════════════════════════════════════════════════════════════
+
+/**
+ * Validate SSO URL against trusted provider domains
+ * @param {string} url - The URL to validate
+ * @param {string} urlType - Type of URL (sso, slo, metadata)
+ * @returns {object} Validation result
+ */
+function validateSSOUrl(url, urlType = 'sso') {
+    if (!url) {
+        return { valid: true }; // Optional URLs are allowed
+    }
+
+    try {
+        const parsedUrl = new URL(url);
+
+        // Must be HTTPS
+        if (parsedUrl.protocol !== 'https:') {
+            return {
+                valid: false,
+                error: `${urlType} URL must use HTTPS protocol`
+            };
+        }
+
+        // Whitelist of trusted SSO provider domains
+        const trustedDomains = [
+            // Azure AD / Microsoft
+            'login.microsoftonline.com',
+            'login.windows.net',
+            'login.microsoft.com',
+            'sts.windows.net',
+
+            // Okta
+            'okta.com',
+            'oktapreview.com',
+            'okta-emea.com',
+
+            // Google Workspace
+            'accounts.google.com',
+            'google.com',
+
+            // Auth0
+            'auth0.com',
+
+            // OneLogin
+            'onelogin.com',
+
+            // PingIdentity
+            'pingone.com',
+            'pingidentity.com',
+
+            // JumpCloud
+            'jumpcloud.com',
+
+            // Generic SAML (allow custom domains for self-hosted)
+            // For custom providers, we validate the URL format but don't restrict domain
+        ];
+
+        const hostname = parsedUrl.hostname.toLowerCase();
+
+        // Check if hostname matches trusted domains or is a subdomain
+        const isTrustedDomain = trustedDomains.some(domain => {
+            return hostname === domain || hostname.endsWith('.' + domain);
+        });
+
+        // Allow custom domains but warn they should be validated manually
+        if (!isTrustedDomain) {
+            // Still allow it, but could add warning in response
+            // This allows self-hosted SSO solutions
+            console.warn(`SSO URL uses non-standard domain: ${hostname}`);
+        }
+
+        return { valid: true, isCustomDomain: !isTrustedDomain };
+    } catch (error) {
+        return {
+            valid: false,
+            error: `Invalid ${urlType} URL format: ${error.message}`
+        };
+    }
+}
 
 /**
  * Validate certificate format
@@ -654,20 +793,18 @@ function validateSSOConfig(config) {
         errors.push(certValidation.error);
     }
 
-    // URL validation
+    // URL validation with whitelist check
     if (config.ssoUrl) {
-        try {
-            new URL(config.ssoUrl);
-        } catch (error) {
-            errors.push('Invalid SSO URL format');
+        const ssoUrlValidation = validateSSOUrl(config.ssoUrl, 'SSO');
+        if (!ssoUrlValidation.valid) {
+            errors.push(ssoUrlValidation.error);
         }
     }
 
     if (config.sloUrl) {
-        try {
-            new URL(config.sloUrl);
-        } catch (error) {
-            errors.push('Invalid SLO URL format');
+        const sloUrlValidation = validateSSOUrl(config.sloUrl, 'SLO');
+        if (!sloUrlValidation.valid) {
+            errors.push(sloUrlValidation.error);
         }
     }
 

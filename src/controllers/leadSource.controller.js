@@ -6,6 +6,7 @@
 
 const LeadSource = require('../models/leadSource.model');
 const CrmActivity = require('../models/crmActivity.model');
+const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 
 // ═══════════════════════════════════════════════════════════════
 // LIST LEAD SOURCES
@@ -73,7 +74,17 @@ exports.getById = async (req, res) => {
         const { id } = req.params;
         const firmId = req.firmId;
 
-        const source = await LeadSource.findOne({ _id: id, firmId });
+        // IDOR Protection: Sanitize and validate ObjectId
+        const sanitizedId = sanitizeObjectId(id);
+        if (!sanitizedId) {
+            return res.status(400).json({
+                success: false,
+                message: 'معرف غير صالح / Invalid ID'
+            });
+        }
+
+        // IDOR Protection: Verify firmId ownership
+        const source = await LeadSource.findOne({ _id: sanitizedId, firmId });
 
         if (!source) {
             return res.status(404).json({
@@ -115,8 +126,67 @@ exports.create = async (req, res) => {
         const firmId = req.firmId;
         const userId = req.userID;
 
+        // Input Validation: Check required fields
+        const { name, nameAr } = req.body;
+        if (!name || typeof name !== 'string' || !name.trim()) {
+            return res.status(400).json({
+                success: false,
+                message: 'اسم المصدر مطلوب / Lead source name is required'
+            });
+        }
+        if (!nameAr || typeof nameAr !== 'string' || !nameAr.trim()) {
+            return res.status(400).json({
+                success: false,
+                message: 'الاسم العربي للمصدر مطلوب / Lead source Arabic name is required'
+            });
+        }
+
+        // Input Validation: Validate field lengths
+        if (name.length > 100) {
+            return res.status(400).json({
+                success: false,
+                message: 'اسم المصدر طويل جداً / Lead source name is too long (max 100 characters)'
+            });
+        }
+        if (nameAr.length > 100) {
+            return res.status(400).json({
+                success: false,
+                message: 'الاسم العربي للمصدر طويل جداً / Lead source Arabic name is too long (max 100 characters)'
+            });
+        }
+
+        // Mass Assignment Protection: Only allow specific fields
+        const allowedFields = ['name', 'nameAr', 'slug', 'description', 'utmSource', 'utmMedium', 'enabled'];
+        const sanitizedData = pickAllowedFields(req.body, allowedFields);
+
+        // Input Validation: Validate optional fields
+        if (sanitizedData.description && sanitizedData.description.length > 500) {
+            return res.status(400).json({
+                success: false,
+                message: 'الوصف طويل جداً / Description is too long (max 500 characters)'
+            });
+        }
+        if (sanitizedData.utmSource && sanitizedData.utmSource.length > 50) {
+            return res.status(400).json({
+                success: false,
+                message: 'UTM source is too long (max 50 characters)'
+            });
+        }
+        if (sanitizedData.utmMedium && sanitizedData.utmMedium.length > 50) {
+            return res.status(400).json({
+                success: false,
+                message: 'UTM medium is too long (max 50 characters)'
+            });
+        }
+        if (sanitizedData.enabled !== undefined && typeof sanitizedData.enabled !== 'boolean') {
+            return res.status(400).json({
+                success: false,
+                message: 'حقل التفعيل يجب أن يكون قيمة منطقية / Enabled field must be a boolean'
+            });
+        }
+
         const sourceData = {
-            ...req.body,
+            ...sanitizedData,
             firmId
         };
 
@@ -176,9 +246,77 @@ exports.update = async (req, res) => {
         const firmId = req.firmId;
         const userId = req.userID;
 
+        // IDOR Protection: Sanitize and validate ObjectId
+        const sanitizedId = sanitizeObjectId(id);
+        if (!sanitizedId) {
+            return res.status(400).json({
+                success: false,
+                message: 'معرف غير صالح / Invalid ID'
+            });
+        }
+
+        // Mass Assignment Protection: Only allow specific fields
+        const allowedFields = ['name', 'nameAr', 'slug', 'description', 'utmSource', 'utmMedium', 'enabled'];
+        const sanitizedData = pickAllowedFields(req.body, allowedFields);
+
+        // Input Validation: Validate field types and lengths
+        if (sanitizedData.name !== undefined) {
+            if (typeof sanitizedData.name !== 'string' || !sanitizedData.name.trim()) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'اسم المصدر غير صالح / Invalid lead source name'
+                });
+            }
+            if (sanitizedData.name.length > 100) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'اسم المصدر طويل جداً / Lead source name is too long (max 100 characters)'
+                });
+            }
+        }
+        if (sanitizedData.nameAr !== undefined) {
+            if (typeof sanitizedData.nameAr !== 'string' || !sanitizedData.nameAr.trim()) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'الاسم العربي للمصدر غير صالح / Invalid lead source Arabic name'
+                });
+            }
+            if (sanitizedData.nameAr.length > 100) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'الاسم العربي للمصدر طويل جداً / Lead source Arabic name is too long (max 100 characters)'
+                });
+            }
+        }
+        if (sanitizedData.description !== undefined && sanitizedData.description.length > 500) {
+            return res.status(400).json({
+                success: false,
+                message: 'الوصف طويل جداً / Description is too long (max 500 characters)'
+            });
+        }
+        if (sanitizedData.utmSource !== undefined && sanitizedData.utmSource.length > 50) {
+            return res.status(400).json({
+                success: false,
+                message: 'UTM source is too long (max 50 characters)'
+            });
+        }
+        if (sanitizedData.utmMedium !== undefined && sanitizedData.utmMedium.length > 50) {
+            return res.status(400).json({
+                success: false,
+                message: 'UTM medium is too long (max 50 characters)'
+            });
+        }
+        if (sanitizedData.enabled !== undefined && typeof sanitizedData.enabled !== 'boolean') {
+            return res.status(400).json({
+                success: false,
+                message: 'حقل التفعيل يجب أن يكون قيمة منطقية / Enabled field must be a boolean'
+            });
+        }
+
+        // IDOR Protection: Verify firmId ownership
         const source = await LeadSource.findOneAndUpdate(
-            { _id: id, firmId },
-            { $set: req.body },
+            { _id: sanitizedId, firmId },
+            { $set: sanitizedData },
             { new: true, runValidators: true }
         );
 
@@ -243,7 +381,17 @@ exports.delete = async (req, res) => {
         const firmId = req.firmId;
         const userId = req.userID;
 
-        const source = await LeadSource.findOneAndDelete({ _id: id, firmId });
+        // IDOR Protection: Sanitize and validate ObjectId
+        const sanitizedId = sanitizeObjectId(id);
+        if (!sanitizedId) {
+            return res.status(400).json({
+                success: false,
+                message: 'معرف غير صالح / Invalid ID'
+            });
+        }
+
+        // IDOR Protection: Verify firmId ownership
+        const source = await LeadSource.findOneAndDelete({ _id: sanitizedId, firmId });
 
         if (!source) {
             return res.status(404).json({
@@ -257,7 +405,7 @@ exports.delete = async (req, res) => {
             lawyerId: userId,
             type: 'lead_source_deleted',
             entityType: 'lead_source',
-            entityId: id,
+            entityId: sanitizedId,
             entityName: source.name,
             title: `Lead source deleted: ${source.name}`,
             performedBy: userId

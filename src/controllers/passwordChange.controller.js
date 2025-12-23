@@ -13,6 +13,7 @@ const PasswordHistory = require('../models/passwordHistory.model');
 const { enforcePasswordPolicy, checkPasswordAge } = require('../utils/passwordPolicy');
 const EmailService = require('../services/email.service');
 const auditLogService = require('../services/auditLog.service');
+const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 
 const saltRounds = 12;
 
@@ -25,15 +26,52 @@ const saltRounds = 12;
  */
 const changePassword = async (req, res) => {
     try {
-        const { currentPassword, newPassword } = req.body;
-        const userId = req.user._id;
+        // NOTE: This endpoint should be protected by rate limiting middleware
+        // Recommended: 5 attempts per 15 minutes per user to prevent brute force attacks
 
-        // Validation
+        const { currentPassword, newPassword } = req.body;
+        const userId = sanitizeObjectId(req.user._id);
+
+        // Input validation - Check required fields
         if (!currentPassword || !newPassword) {
             return res.status(400).json({
                 error: true,
                 message: 'Current password and new password are required',
                 messageAr: 'كلمة المرور الحالية وكلمة المرور الجديدة مطلوبتان'
+            });
+        }
+
+        // Input validation - Type checking
+        if (typeof currentPassword !== 'string' || typeof newPassword !== 'string') {
+            return res.status(400).json({
+                error: true,
+                message: 'Passwords must be strings',
+                messageAr: 'يجب أن تكون كلمات المرور نصية'
+            });
+        }
+
+        // Input validation - Length requirements
+        if (newPassword.length < 8) {
+            return res.status(400).json({
+                error: true,
+                message: 'New password must be at least 8 characters long',
+                messageAr: 'يجب أن تتكون كلمة المرور الجديدة من 8 أحرف على الأقل'
+            });
+        }
+
+        if (newPassword.length > 128) {
+            return res.status(400).json({
+                error: true,
+                message: 'New password must not exceed 128 characters',
+                messageAr: 'يجب ألا تتجاوز كلمة المرور الجديدة 128 حرفاً'
+            });
+        }
+
+        if (currentPassword.length > 128) {
+            return res.status(400).json({
+                error: true,
+                message: 'Invalid password format',
+                messageAr: 'تنسيق كلمة المرور غير صالح'
             });
         }
 
@@ -93,7 +131,8 @@ const changePassword = async (req, res) => {
         let minStrengthScore = 50;
 
         if (user.firmId) {
-            firm = await Firm.findById(user.firmId).select('enterpriseSettings').lean();
+            const firmId = sanitizeObjectId(user.firmId);
+            firm = await Firm.findById(firmId).select('enterpriseSettings').lean();
             historyCount = firm?.enterpriseSettings?.passwordHistoryCount || 12;
             minStrengthScore = firm?.enterpriseSettings?.minPasswordStrengthScore || 50;
         }
@@ -241,6 +280,8 @@ const changePassword = async (req, res) => {
  */
 const getPasswordStatus = async (req, res) => {
     try {
+        // Sanitize user ID from request
+        const userId = sanitizeObjectId(req.user._id);
         const user = req.user;
 
         let firm = null;
@@ -249,7 +290,8 @@ const getPasswordStatus = async (req, res) => {
         let warningDays = 7;
 
         if (user.firmId) {
-            firm = await Firm.findById(user.firmId).select('enterpriseSettings').lean();
+            const firmId = sanitizeObjectId(user.firmId);
+            firm = await Firm.findById(firmId).select('enterpriseSettings').lean();
             expirationEnabled = firm?.enterpriseSettings?.enablePasswordExpiration || false;
             maxAgeDays = firm?.enterpriseSettings?.passwordMaxAgeDays || 90;
             warningDays = firm?.enterpriseSettings?.passwordExpiryWarningDays || 7;

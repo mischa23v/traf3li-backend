@@ -1,6 +1,7 @@
 const OrganizationalUnit = require('../models/organizationalUnit.model');
 const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
+const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 
 // ═══════════════════════════════════════════════════════════════
 // GET ALL ORGANIZATIONAL UNITS
@@ -244,29 +245,52 @@ const getUnitPath = asyncHandler(async (req, res) => {
 const createOrganizationalUnit = asyncHandler(async (req, res) => {
     const { firmId, lawyerId, userId } = req;
 
-    // Validate parent if provided
-    if (req.body.parentUnitId) {
+    // Input validation
+    if (!req.body.unitName || !req.body.unitType) {
+        throw new CustomException('Unit name and type are required', 400);
+    }
+
+    // Mass assignment protection - only allow specific fields
+    const allowedFields = [
+        'unitCode', 'unitName', 'unitNameAr', 'unitType', 'status',
+        'description', 'descriptionAr', 'parentUnitId', 'managerId',
+        'managerName', 'managerNameAr', 'establishmentDate', 'effectiveDate',
+        'level', 'isActive', 'costCenter', 'headcount', 'budget',
+        'location', 'headOfUnit', 'leadership', 'kpis', 'functions',
+        'responsibilities', 'reportingLines', 'chartPosition',
+        'compliance', 'notes', 'metadata'
+    ];
+    const unitData = pickAllowedFields(req.body, allowedFields);
+
+    // Validate and verify parent unit ownership (IDOR protection)
+    if (unitData.parentUnitId) {
+        const sanitizedParentId = sanitizeObjectId(unitData.parentUnitId);
+        if (!sanitizedParentId) {
+            throw new CustomException('Invalid parent unit ID format', 400);
+        }
+
         const baseQuery = firmId ? { firmId } : { lawyerId };
         const parent = await OrganizationalUnit.findOne({
-            _id: req.body.parentUnitId,
+            _id: sanitizedParentId,
             ...baseQuery
         });
         if (!parent) {
-            throw new CustomException('Parent unit not found', 404);
+            throw new CustomException('Parent unit not found or access denied', 404);
         }
+        unitData.parentUnitId = sanitizedParentId;
     }
 
     // Generate unit code if not provided
-    if (!req.body.unitCode) {
-        req.body.unitCode = await OrganizationalUnit.generateUnitCode(
+    if (!unitData.unitCode) {
+        unitData.unitCode = await OrganizationalUnit.generateUnitCode(
             firmId,
             lawyerId,
-            req.body.unitType
+            unitData.unitType
         );
     }
 
     const unit = new OrganizationalUnit({
-        ...req.body,
+        ...unitData,
         firmId,
         lawyerId,
         createdBy: userId
@@ -289,27 +313,61 @@ const updateOrganizationalUnit = asyncHandler(async (req, res) => {
     const { firmId, lawyerId, userId } = req;
     const { id } = req.params;
 
+    // Sanitize and validate ID
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw new CustomException('Invalid unit ID format', 400);
+    }
+
+    // IDOR protection - verify ownership
     const baseQuery = firmId ? { firmId } : { lawyerId };
-    const unit = await OrganizationalUnit.findOne({ _id: id, ...baseQuery });
+    const unit = await OrganizationalUnit.findOne({ _id: sanitizedId, ...baseQuery });
 
     if (!unit) {
-        throw new CustomException('Organizational unit not found', 404);
+        throw new CustomException('Organizational unit not found or access denied', 404);
     }
 
-    // Prevent changing parentUnitId to self or descendants
-    if (req.body.parentUnitId) {
-        if (req.body.parentUnitId.toString() === id) {
+    // Mass assignment protection - only allow specific fields
+    const allowedFields = [
+        'unitCode', 'unitName', 'unitNameAr', 'unitType', 'status',
+        'description', 'descriptionAr', 'parentUnitId', 'managerId',
+        'managerName', 'managerNameAr', 'establishmentDate', 'effectiveDate',
+        'endDate', 'endReason', 'level', 'isActive', 'costCenter',
+        'headcount', 'budget', 'location', 'headOfUnit', 'leadership',
+        'kpis', 'functions', 'responsibilities', 'reportingLines',
+        'chartPosition', 'compliance', 'notes', 'metadata'
+    ];
+    const updateData = pickAllowedFields(req.body, allowedFields);
+
+    // Validate and verify parent unit ownership (IDOR protection)
+    if (updateData.parentUnitId) {
+        const sanitizedParentId = sanitizeObjectId(updateData.parentUnitId);
+        if (!sanitizedParentId) {
+            throw new CustomException('Invalid parent unit ID format', 400);
+        }
+
+        if (sanitizedParentId === sanitizedId) {
             throw new CustomException('Cannot set unit as its own parent', 400);
         }
-        const descendants = await OrganizationalUnit.getAllDescendants(id);
+
+        // Verify parent exists and belongs to same firm/lawyer
+        const parent = await OrganizationalUnit.findOne({
+            _id: sanitizedParentId,
+            ...baseQuery
+        });
+        if (!parent) {
+            throw new CustomException('Parent unit not found or access denied', 404);
+        }
+
+        // Prevent setting descendant as parent
+        const descendants = await OrganizationalUnit.getAllDescendants(sanitizedId);
         const descendantIds = descendants.map(d => d._id.toString());
-        if (descendantIds.includes(req.body.parentUnitId.toString())) {
+        if (descendantIds.includes(sanitizedParentId)) {
             throw new CustomException('Cannot set a descendant as parent', 400);
         }
-    }
 
-    // Remove immutable fields from update
-    const { firmId: _, lawyerId: __, unitId, createdBy, ...updateData } = req.body;
+        updateData.parentUnitId = sanitizedParentId;
+    }
 
     Object.assign(unit, updateData, { updatedBy: userId });
     await unit.save();
@@ -384,18 +442,44 @@ const deleteOrganizationalUnit = asyncHandler(async (req, res) => {
 
 const bulkDeleteOrganizationalUnits = asyncHandler(async (req, res) => {
     const { firmId, lawyerId } = req;
-    const { ids } = req.body;
 
+    // Mass assignment protection
+    const allowedFields = ['ids'];
+    const deleteData = pickAllowedFields(req.body, allowedFields);
+    const { ids } = deleteData;
+
+    // Input validation
     if (!ids || !Array.isArray(ids) || ids.length === 0) {
         throw new CustomException('Please provide an array of unit IDs', 400);
     }
 
+    if (ids.length > 100) {
+        throw new CustomException('Cannot delete more than 100 units at once', 400);
+    }
+
+    // Sanitize all IDs
+    const sanitizedIds = ids.map(id => sanitizeObjectId(id)).filter(Boolean);
+    if (sanitizedIds.length !== ids.length) {
+        throw new CustomException('One or more invalid unit ID formats', 400);
+    }
+
+    // IDOR protection - verify ownership
     const baseQuery = firmId ? { firmId } : { lawyerId };
+
+    // Verify all units belong to the firm/lawyer
+    const units = await OrganizationalUnit.find({
+        _id: { $in: sanitizedIds },
+        ...baseQuery
+    }).select('_id');
+
+    if (units.length !== sanitizedIds.length) {
+        throw new CustomException('One or more units not found or access denied', 404);
+    }
 
     // Check for children in any of the units
     const unitsWithChildren = await OrganizationalUnit.find({
         ...baseQuery,
-        parentUnitId: { $in: ids }
+        parentUnitId: { $in: sanitizedIds }
     }).select('parentUnitId');
 
     if (unitsWithChildren.length > 0) {
@@ -406,7 +490,7 @@ const bulkDeleteOrganizationalUnits = asyncHandler(async (req, res) => {
     }
 
     const result = await OrganizationalUnit.deleteMany({
-        _id: { $in: ids },
+        _id: { $in: sanitizedIds },
         ...baseQuery
     });
 
@@ -424,39 +508,57 @@ const bulkDeleteOrganizationalUnits = asyncHandler(async (req, res) => {
 const moveOrganizationalUnit = asyncHandler(async (req, res) => {
     const { firmId, lawyerId, userId } = req;
     const { id } = req.params;
-    const { newParentId } = req.body;
 
+    // Sanitize and validate ID
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw new CustomException('Invalid unit ID format', 400);
+    }
+
+    // Mass assignment protection
+    const allowedFields = ['newParentId'];
+    const moveData = pickAllowedFields(req.body, allowedFields);
+    const { newParentId } = moveData;
+
+    // IDOR protection - verify ownership
     const baseQuery = firmId ? { firmId } : { lawyerId };
-    const unit = await OrganizationalUnit.findOne({ _id: id, ...baseQuery });
+    const unit = await OrganizationalUnit.findOne({ _id: sanitizedId, ...baseQuery });
 
     if (!unit) {
-        throw new CustomException('Organizational unit not found', 404);
+        throw new CustomException('Organizational unit not found or access denied', 404);
     }
 
     // Validate new parent
+    let sanitizedNewParentId = null;
     if (newParentId) {
-        if (newParentId === id) {
+        sanitizedNewParentId = sanitizeObjectId(newParentId);
+        if (!sanitizedNewParentId) {
+            throw new CustomException('Invalid new parent ID format', 400);
+        }
+
+        if (sanitizedNewParentId === sanitizedId) {
             throw new CustomException('Cannot move unit to itself', 400);
         }
 
+        // IDOR protection - verify new parent belongs to same firm/lawyer
         const newParent = await OrganizationalUnit.findOne({
-            _id: newParentId,
+            _id: sanitizedNewParentId,
             ...baseQuery
         });
         if (!newParent) {
-            throw new CustomException('New parent unit not found', 404);
+            throw new CustomException('New parent unit not found or access denied', 404);
         }
 
         // Check not moving to descendant
-        const descendants = await OrganizationalUnit.getAllDescendants(id);
+        const descendants = await OrganizationalUnit.getAllDescendants(sanitizedId);
         const descendantIds = descendants.map(d => d._id.toString());
-        if (descendantIds.includes(newParentId.toString())) {
+        if (descendantIds.includes(sanitizedNewParentId)) {
             throw new CustomException('Cannot move unit to its descendant', 400);
         }
     }
 
     const oldParentId = unit.parentUnitId;
-    unit.parentUnitId = newParentId || null;
+    unit.parentUnitId = sanitizedNewParentId || null;
     unit.updatedBy = userId;
     await unit.save();
 
@@ -473,19 +575,19 @@ const moveOrganizationalUnit = asyncHandler(async (req, res) => {
     }
 
     // Update new parent's childUnitsCount
-    if (newParentId) {
+    if (sanitizedNewParentId) {
         const newParentChildren = await OrganizationalUnit.countDocuments({
             ...baseQuery,
-            parentUnitId: newParentId
+            parentUnitId: sanitizedNewParentId
         });
-        await OrganizationalUnit.findByIdAndUpdate(newParentId, {
+        await OrganizationalUnit.findByIdAndUpdate(sanitizedNewParentId, {
             hasChildren: true,
             childUnitsCount: newParentChildren
         });
     }
 
     // Recalculate paths for all descendants
-    const descendants = await OrganizationalUnit.getAllDescendants(id);
+    const descendants = await OrganizationalUnit.getAllDescendants(sanitizedId);
     for (const descendant of descendants) {
         await descendant.save(); // Triggers pre-save hook to recalculate path/level
     }
@@ -504,41 +606,62 @@ const moveOrganizationalUnit = asyncHandler(async (req, res) => {
 const dissolveOrganizationalUnit = asyncHandler(async (req, res) => {
     const { firmId, lawyerId, userId } = req;
     const { id } = req.params;
-    const { successorUnitId, reason, reassignChildrenTo } = req.body;
 
-    const baseQuery = firmId ? { firmId } : { lawyerId };
-    const unit = await OrganizationalUnit.findOne({ _id: id, ...baseQuery });
-
-    if (!unit) {
-        throw new CustomException('Organizational unit not found', 404);
+    // Sanitize and validate ID
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw new CustomException('Invalid unit ID format', 400);
     }
 
-    // Validate successor if provided
+    // Mass assignment protection
+    const allowedFields = ['successorUnitId', 'reason', 'reassignChildrenTo'];
+    const dissolveData = pickAllowedFields(req.body, allowedFields);
+    const { successorUnitId, reason, reassignChildrenTo } = dissolveData;
+
+    // IDOR protection - verify ownership
+    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const unit = await OrganizationalUnit.findOne({ _id: sanitizedId, ...baseQuery });
+
+    if (!unit) {
+        throw new CustomException('Organizational unit not found or access denied', 404);
+    }
+
+    // Validate and verify successor if provided (IDOR protection)
     if (successorUnitId) {
+        const sanitizedSuccessorId = sanitizeObjectId(successorUnitId);
+        if (!sanitizedSuccessorId) {
+            throw new CustomException('Invalid successor unit ID format', 400);
+        }
+
         const successor = await OrganizationalUnit.findOne({
-            _id: successorUnitId,
+            _id: sanitizedSuccessorId,
             ...baseQuery
         });
         if (!successor) {
-            throw new CustomException('Successor unit not found', 404);
+            throw new CustomException('Successor unit not found or access denied', 404);
         }
-        unit.successorUnitId = successorUnitId;
+        unit.successorUnitId = sanitizedSuccessorId;
         unit.successorUnitName = successor.unitName;
     }
 
-    // Reassign children if specified
+    // Validate and verify reassign target if specified (IDOR protection)
     if (reassignChildrenTo) {
+        const sanitizedTargetId = sanitizeObjectId(reassignChildrenTo);
+        if (!sanitizedTargetId) {
+            throw new CustomException('Invalid target parent ID format', 400);
+        }
+
         const targetParent = await OrganizationalUnit.findOne({
-            _id: reassignChildrenTo,
+            _id: sanitizedTargetId,
             ...baseQuery
         });
         if (!targetParent) {
-            throw new CustomException('Target parent unit not found', 404);
+            throw new CustomException('Target parent unit not found or access denied', 404);
         }
 
         await OrganizationalUnit.updateMany(
-            { ...baseQuery, parentUnitId: id },
-            { $set: { parentUnitId: reassignChildrenTo } }
+            { ...baseQuery, parentUnitId: sanitizedId },
+            { $set: { parentUnitId: sanitizedTargetId } }
         );
     }
 
@@ -594,13 +717,24 @@ const activateOrganizationalUnit = asyncHandler(async (req, res) => {
 const deactivateOrganizationalUnit = asyncHandler(async (req, res) => {
     const { firmId, lawyerId, userId } = req;
     const { id } = req.params;
-    const { reason } = req.body;
 
+    // Sanitize and validate ID
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw new CustomException('Invalid unit ID format', 400);
+    }
+
+    // Mass assignment protection
+    const allowedFields = ['reason'];
+    const deactivateData = pickAllowedFields(req.body, allowedFields);
+    const { reason } = deactivateData;
+
+    // IDOR protection - verify ownership
     const baseQuery = firmId ? { firmId } : { lawyerId };
-    const unit = await OrganizationalUnit.findOne({ _id: id, ...baseQuery });
+    const unit = await OrganizationalUnit.findOne({ _id: sanitizedId, ...baseQuery });
 
     if (!unit) {
-        throw new CustomException('Organizational unit not found', 404);
+        throw new CustomException('Organizational unit not found or access denied', 404);
     }
 
     if (unit.status === 'inactive') {
@@ -610,7 +744,7 @@ const deactivateOrganizationalUnit = asyncHandler(async (req, res) => {
     // Check for active children
     const activeChildren = await OrganizationalUnit.countDocuments({
         ...baseQuery,
-        parentUnitId: id,
+        parentUnitId: sanitizedId,
         status: 'active'
     });
 
@@ -646,13 +780,38 @@ const deactivateOrganizationalUnit = asyncHandler(async (req, res) => {
 const updateHeadcount = asyncHandler(async (req, res) => {
     const { firmId, lawyerId, userId } = req;
     const { id } = req.params;
-    const headcountData = req.body;
 
+    // Sanitize and validate ID
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw new CustomException('Invalid unit ID format', 400);
+    }
+
+    // Mass assignment protection - only allow headcount-related fields
+    const allowedFields = [
+        'approvedHeadcount', 'currentHeadcount', 'vacancies',
+        'saudiCount', 'nonSaudiCount', 'saudizationRate',
+        'maleCount', 'femaleCount', 'contractorCount',
+        'temporaryCount', 'plannedHires', 'forecastedAttrition'
+    ];
+    const headcountData = pickAllowedFields(req.body, allowedFields);
+
+    // Input validation - ensure numeric values are valid
+    for (const [key, value] of Object.entries(headcountData)) {
+        if (value !== null && value !== undefined) {
+            const numValue = Number(value);
+            if (isNaN(numValue) || numValue < 0) {
+                throw new CustomException(`Invalid value for ${key}: must be a non-negative number`, 400);
+            }
+        }
+    }
+
+    // IDOR protection - verify ownership
     const baseQuery = firmId ? { firmId } : { lawyerId };
-    const unit = await OrganizationalUnit.findOne({ _id: id, ...baseQuery });
+    const unit = await OrganizationalUnit.findOne({ _id: sanitizedId, ...baseQuery });
 
     if (!unit) {
-        throw new CustomException('Organizational unit not found', 404);
+        throw new CustomException('Organizational unit not found or access denied', 404);
     }
 
     unit.headcount = {
@@ -676,13 +835,38 @@ const updateHeadcount = asyncHandler(async (req, res) => {
 const updateBudget = asyncHandler(async (req, res) => {
     const { firmId, lawyerId, userId } = req;
     const { id } = req.params;
-    const budgetData = req.body;
 
+    // Sanitize and validate ID
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw new CustomException('Invalid unit ID format', 400);
+    }
+
+    // Mass assignment protection - only allow budget-related fields
+    const allowedFields = [
+        'annualBudget', 'allocatedBudget', 'spentBudget', 'remainingBudget',
+        'currency', 'fiscalYear', 'budgetPeriod', 'approvalStatus',
+        'approvedBy', 'approvedDate', 'notes'
+    ];
+    const budgetData = pickAllowedFields(req.body, allowedFields);
+
+    // Input validation - ensure numeric values are valid
+    const numericFields = ['annualBudget', 'allocatedBudget', 'spentBudget', 'remainingBudget'];
+    for (const field of numericFields) {
+        if (budgetData[field] !== null && budgetData[field] !== undefined) {
+            const numValue = Number(budgetData[field]);
+            if (isNaN(numValue) || numValue < 0) {
+                throw new CustomException(`Invalid value for ${field}: must be a non-negative number`, 400);
+            }
+        }
+    }
+
+    // IDOR protection - verify ownership
     const baseQuery = firmId ? { firmId } : { lawyerId };
-    const unit = await OrganizationalUnit.findOne({ _id: id, ...baseQuery });
+    const unit = await OrganizationalUnit.findOne({ _id: sanitizedId, ...baseQuery });
 
     if (!unit) {
-        throw new CustomException('Organizational unit not found', 404);
+        throw new CustomException('Organizational unit not found or access denied', 404);
     }
 
     unit.budget = {
@@ -707,13 +891,43 @@ const updateBudget = asyncHandler(async (req, res) => {
 const addKPI = asyncHandler(async (req, res) => {
     const { firmId, lawyerId, userId } = req;
     const { id } = req.params;
-    const kpiData = req.body;
 
+    // Sanitize and validate ID
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw new CustomException('Invalid unit ID format', 400);
+    }
+
+    // Input validation
+    if (!req.body.kpiName || !req.body.measurementUnit) {
+        throw new CustomException('KPI name and measurement unit are required', 400);
+    }
+
+    // Mass assignment protection - only allow KPI-related fields
+    const allowedFields = [
+        'kpiName', 'kpiNameAr', 'description', 'category', 'measurementUnit',
+        'targetValue', 'actualValue', 'threshold', 'weight', 'frequency',
+        'dataSource', 'calculationMethod', 'achievementRate', 'status', 'notes'
+    ];
+    const kpiData = pickAllowedFields(req.body, allowedFields);
+
+    // Validate numeric fields
+    const numericFields = ['targetValue', 'actualValue', 'threshold', 'weight', 'achievementRate'];
+    for (const field of numericFields) {
+        if (kpiData[field] !== null && kpiData[field] !== undefined) {
+            const numValue = Number(kpiData[field]);
+            if (isNaN(numValue)) {
+                throw new CustomException(`Invalid value for ${field}: must be a number`, 400);
+            }
+        }
+    }
+
+    // IDOR protection - verify ownership
     const baseQuery = firmId ? { firmId } : { lawyerId };
-    const unit = await OrganizationalUnit.findOne({ _id: id, ...baseQuery });
+    const unit = await OrganizationalUnit.findOne({ _id: sanitizedId, ...baseQuery });
 
     if (!unit) {
-        throw new CustomException('Organizational unit not found', 404);
+        throw new CustomException('Organizational unit not found or access denied', 404);
     }
 
     // Generate KPI ID
@@ -742,13 +956,43 @@ const addKPI = asyncHandler(async (req, res) => {
 const updateKPI = asyncHandler(async (req, res) => {
     const { firmId, lawyerId, userId } = req;
     const { id, kpiId } = req.params;
-    const kpiData = req.body;
 
+    // Sanitize and validate IDs
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw new CustomException('Invalid unit ID format', 400);
+    }
+
+    const sanitizedKpiId = sanitizeObjectId(kpiId);
+    if (!sanitizedKpiId && !kpiId) {
+        throw new CustomException('Invalid KPI ID format', 400);
+    }
+
+    // Mass assignment protection - only allow KPI-related fields
+    const allowedFields = [
+        'kpiName', 'kpiNameAr', 'description', 'category', 'measurementUnit',
+        'targetValue', 'actualValue', 'threshold', 'weight', 'frequency',
+        'dataSource', 'calculationMethod', 'achievementRate', 'status', 'notes'
+    ];
+    const kpiData = pickAllowedFields(req.body, allowedFields);
+
+    // Validate numeric fields
+    const numericFields = ['targetValue', 'actualValue', 'threshold', 'weight', 'achievementRate'];
+    for (const field of numericFields) {
+        if (kpiData[field] !== null && kpiData[field] !== undefined) {
+            const numValue = Number(kpiData[field]);
+            if (isNaN(numValue)) {
+                throw new CustomException(`Invalid value for ${field}: must be a number`, 400);
+            }
+        }
+    }
+
+    // IDOR protection - verify ownership
     const baseQuery = firmId ? { firmId } : { lawyerId };
-    const unit = await OrganizationalUnit.findOne({ _id: id, ...baseQuery });
+    const unit = await OrganizationalUnit.findOne({ _id: sanitizedId, ...baseQuery });
 
     if (!unit) {
-        throw new CustomException('Organizational unit not found', 404);
+        throw new CustomException('Organizational unit not found or access denied', 404);
     }
 
     const kpiIndex = unit.kpis?.findIndex(k => k.kpiId === kpiId || k._id.toString() === kpiId);
@@ -815,13 +1059,41 @@ const deleteKPI = asyncHandler(async (req, res) => {
 const addLeadershipPosition = asyncHandler(async (req, res) => {
     const { firmId, lawyerId, userId } = req;
     const { id } = req.params;
-    const leadershipData = req.body;
 
+    // Sanitize and validate ID
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw new CustomException('Invalid unit ID format', 400);
+    }
+
+    // Input validation
+    if (!req.body.positionTitle || !req.body.employeeId) {
+        throw new CustomException('Position title and employee ID are required', 400);
+    }
+
+    // Mass assignment protection - only allow leadership-related fields
+    const allowedFields = [
+        'positionTitle', 'positionTitleAr', 'employeeId', 'employeeName',
+        'employeeNameAr', 'startDate', 'endDate', 'isPrimary', 'isActing',
+        'responsibilities', 'authorityLevel', 'reportingTo', 'status', 'notes'
+    ];
+    const leadershipData = pickAllowedFields(req.body, allowedFields);
+
+    // Validate employee ID format
+    if (leadershipData.employeeId) {
+        const sanitizedEmployeeId = sanitizeObjectId(leadershipData.employeeId);
+        if (!sanitizedEmployeeId) {
+            throw new CustomException('Invalid employee ID format', 400);
+        }
+        leadershipData.employeeId = sanitizedEmployeeId;
+    }
+
+    // IDOR protection - verify ownership
     const baseQuery = firmId ? { firmId } : { lawyerId };
-    const unit = await OrganizationalUnit.findOne({ _id: id, ...baseQuery });
+    const unit = await OrganizationalUnit.findOne({ _id: sanitizedId, ...baseQuery });
 
     if (!unit) {
-        throw new CustomException('Organizational unit not found', 404);
+        throw new CustomException('Organizational unit not found or access denied', 404);
     }
 
     // Generate position ID
@@ -856,13 +1128,41 @@ const addLeadershipPosition = asyncHandler(async (req, res) => {
 const updateLeadershipPosition = asyncHandler(async (req, res) => {
     const { firmId, lawyerId, userId } = req;
     const { id, positionId } = req.params;
-    const leadershipData = req.body;
 
+    // Sanitize and validate IDs
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw new CustomException('Invalid unit ID format', 400);
+    }
+
+    const sanitizedPositionId = sanitizeObjectId(positionId);
+    if (!sanitizedPositionId && !positionId) {
+        throw new CustomException('Invalid position ID format', 400);
+    }
+
+    // Mass assignment protection - only allow leadership-related fields
+    const allowedFields = [
+        'positionTitle', 'positionTitleAr', 'employeeId', 'employeeName',
+        'employeeNameAr', 'startDate', 'endDate', 'isPrimary', 'isActing',
+        'responsibilities', 'authorityLevel', 'reportingTo', 'status', 'notes'
+    ];
+    const leadershipData = pickAllowedFields(req.body, allowedFields);
+
+    // Validate employee ID format if provided
+    if (leadershipData.employeeId) {
+        const sanitizedEmployeeId = sanitizeObjectId(leadershipData.employeeId);
+        if (!sanitizedEmployeeId) {
+            throw new CustomException('Invalid employee ID format', 400);
+        }
+        leadershipData.employeeId = sanitizedEmployeeId;
+    }
+
+    // IDOR protection - verify ownership
     const baseQuery = firmId ? { firmId } : { lawyerId };
-    const unit = await OrganizationalUnit.findOne({ _id: id, ...baseQuery });
+    const unit = await OrganizationalUnit.findOne({ _id: sanitizedId, ...baseQuery });
 
     if (!unit) {
-        throw new CustomException('Organizational unit not found', 404);
+        throw new CustomException('Organizational unit not found or access denied', 404);
     }
 
     const posIndex = unit.leadership?.findIndex(
@@ -932,13 +1232,32 @@ const deleteLeadershipPosition = asyncHandler(async (req, res) => {
 const addDocument = asyncHandler(async (req, res) => {
     const { firmId, lawyerId, userId } = req;
     const { id } = req.params;
-    const documentData = req.body;
 
+    // Sanitize and validate ID
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw new CustomException('Invalid unit ID format', 400);
+    }
+
+    // Input validation
+    if (!req.body.documentName || !req.body.documentUrl) {
+        throw new CustomException('Document name and URL are required', 400);
+    }
+
+    // Mass assignment protection - only allow document-related fields
+    const allowedFields = [
+        'documentName', 'documentType', 'documentUrl', 'fileSize',
+        'mimeType', 'description', 'category', 'isConfidential',
+        'accessLevel', 'expiryDate', 'tags', 'version'
+    ];
+    const documentData = pickAllowedFields(req.body, allowedFields);
+
+    // IDOR protection - verify ownership
     const baseQuery = firmId ? { firmId } : { lawyerId };
-    const unit = await OrganizationalUnit.findOne({ _id: id, ...baseQuery });
+    const unit = await OrganizationalUnit.findOne({ _id: sanitizedId, ...baseQuery });
 
     if (!unit) {
-        throw new CustomException('Organizational unit not found', 404);
+        throw new CustomException('Organizational unit not found or access denied', 404);
     }
 
     unit.documents = unit.documents || [];

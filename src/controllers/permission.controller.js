@@ -15,6 +15,7 @@ const UIAccessConfig = require('../models/uiAccessConfig.model');
 const permissionEnforcer = require('../services/permissionEnforcer.service');
 const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
+const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 
 // ═══════════════════════════════════════════════════════════════
 // PERMISSION CHECK ENDPOINTS
@@ -26,15 +27,20 @@ const CustomException = require('../utils/CustomException');
  */
 const checkPermission = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
-    const { resource, action } = req.body;
 
     if (!firmId) {
         throw CustomException('يجب أن تكون عضواً في مكتب للوصول', 403);
     }
 
-    if (!resource?.namespace || !action) {
+    // Mass assignment protection
+    const allowedFields = ['resource', 'action'];
+    const sanitizedData = pickAllowedFields(req.body, allowedFields);
+
+    if (!sanitizedData.resource?.namespace || !sanitizedData.action) {
         throw CustomException('يجب تحديد المورد والإجراء', 400);
     }
+
+    const { resource, action } = sanitizedData;
 
     const result = await permissionEnforcer.check(
         firmId,
@@ -70,19 +76,24 @@ const checkPermission = asyncHandler(async (req, res) => {
  */
 const checkPermissionBatch = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
-    const { checks } = req.body;
 
     if (!firmId) {
         throw CustomException('يجب أن تكون عضواً في مكتب للوصول', 403);
     }
 
-    if (!Array.isArray(checks) || checks.length === 0) {
+    // Mass assignment protection
+    const allowedFields = ['checks'];
+    const sanitizedData = pickAllowedFields(req.body, allowedFields);
+
+    if (!Array.isArray(sanitizedData.checks) || sanitizedData.checks.length === 0) {
         throw CustomException('يجب تحديد الفحوصات', 400);
     }
 
-    if (checks.length > 50) {
+    if (sanitizedData.checks.length > 50) {
         throw CustomException('الحد الأقصى 50 فحص في المرة الواحدة', 400);
     }
+
+    const { checks } = sanitizedData;
 
     const requests = checks.map(check => ({
         subject: {
@@ -194,7 +205,10 @@ const expandPermissions = asyncHandler(async (req, res) => {
         throw CustomException('ليس لديك صلاحية لعرض هذه المعلومات', 403);
     }
 
-    const result = await permissionEnforcer.expand(firmId, namespace, resourceId, relation);
+    // Sanitize resourceId
+    const sanitizedResourceId = sanitizeObjectId(resourceId);
+
+    const result = await permissionEnforcer.expand(firmId, namespace, sanitizedResourceId, relation);
 
     res.json({
         success: true,
@@ -215,14 +229,17 @@ const getUserResources = asyncHandler(async (req, res) => {
         throw CustomException('يجب أن تكون عضواً في مكتب للوصول', 403);
     }
 
+    // Sanitize userId
+    const sanitizedUserId = sanitizeObjectId(userId);
+
     // Users can view their own, admins can view anyone's
-    if (userId !== req.userID.toString() && !['owner', 'admin'].includes(req.firmRole)) {
+    if (sanitizedUserId !== req.userID.toString() && !['owner', 'admin'].includes(req.firmRole)) {
         throw CustomException('ليس لديك صلاحية لعرض هذه المعلومات', 403);
     }
 
     const result = await permissionEnforcer.reverseExpand(firmId, {
         namespace: 'user',
-        id: userId
+        id: sanitizedUserId
     }, { namespace, relation });
 
     res.json({
@@ -265,7 +282,6 @@ const getPermissionConfig = asyncHandler(async (req, res) => {
  */
 const updatePermissionConfig = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
-    const { decisionStrategy, denyOverride, roleHierarchy, namespaces, auditSettings } = req.body;
 
     if (!firmId) {
         throw CustomException('يجب أن تكون عضواً في مكتب للوصول', 403);
@@ -276,17 +292,27 @@ const updatePermissionConfig = asyncHandler(async (req, res) => {
         throw CustomException('فقط مالك المكتب يمكنه تعديل إعدادات الصلاحيات', 403);
     }
 
+    // Mass assignment protection
+    const allowedFields = ['decisionStrategy', 'denyOverride', 'roleHierarchy', 'namespaces', 'auditSettings'];
+    const sanitizedData = pickAllowedFields(req.body, allowedFields);
+
     const config = await PermissionConfig.findOne({ firmId });
 
     if (!config) {
         throw CustomException('لم يتم العثور على إعدادات الصلاحيات', 404);
     }
 
-    if (decisionStrategy) config.decisionStrategy = decisionStrategy;
-    if (denyOverride !== undefined) config.denyOverride = denyOverride;
-    if (roleHierarchy) config.roleHierarchy = roleHierarchy;
-    if (namespaces) config.namespaces = namespaces;
-    if (auditSettings) config.auditSettings = auditSettings;
+    // IDOR protection - verify config belongs to user's firm
+    if (config.firmId.toString() !== firmId.toString()) {
+        throw CustomException('غير مصرح لك بتعديل هذه الإعدادات', 403);
+    }
+
+    // Apply updates
+    if (sanitizedData.decisionStrategy) config.decisionStrategy = sanitizedData.decisionStrategy;
+    if (sanitizedData.denyOverride !== undefined) config.denyOverride = sanitizedData.denyOverride;
+    if (sanitizedData.roleHierarchy) config.roleHierarchy = sanitizedData.roleHierarchy;
+    if (sanitizedData.namespaces) config.namespaces = sanitizedData.namespaces;
+    if (sanitizedData.auditSettings) config.auditSettings = sanitizedData.auditSettings;
 
     config.version += 1;
     config.lastModifiedBy = req.userID;
@@ -308,18 +334,27 @@ const updatePermissionConfig = asyncHandler(async (req, res) => {
  */
 const addPolicy = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
-    const policy = req.body;
 
     if (!firmId) {
         throw CustomException('يجب أن تكون عضواً في مكتب للوصول', 403);
     }
 
+    // Only owner can add policies
     if (req.firmRole !== 'owner') {
         throw CustomException('فقط مالك المكتب يمكنه إضافة سياسات', 403);
     }
 
+    // Mass assignment protection
+    const allowedFields = ['name', 'description', 'resource', 'action', 'effect', 'conditions', 'priority', 'enabled'];
+    const policy = pickAllowedFields(req.body, allowedFields);
+
     if (!policy.name || !policy.resource?.namespace || !policy.action) {
         throw CustomException('يجب تحديد اسم السياسة والمورد والإجراء', 400);
+    }
+
+    // Prevent privilege escalation - ensure policy doesn't grant excessive permissions
+    if (policy.effect === 'allow' && policy.resource?.namespace === 'permission' && policy.action === 'manage') {
+        throw CustomException('لا يمكن إنشاء سياسة تمنح صلاحيات إدارة الصلاحيات', 403);
     }
 
     const config = await PermissionConfig.upsertPolicy(firmId, policy, req.userID);
@@ -341,17 +376,29 @@ const addPolicy = asyncHandler(async (req, res) => {
 const updatePolicy = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
     const { policyId } = req.params;
-    const updates = req.body;
 
     if (!firmId) {
         throw CustomException('يجب أن تكون عضواً في مكتب للوصول', 403);
     }
 
+    // Only owner can update policies
     if (req.firmRole !== 'owner') {
         throw CustomException('فقط مالك المكتب يمكنه تعديل السياسات', 403);
     }
 
-    const config = await PermissionConfig.upsertPolicy(firmId, { ...updates, policyId }, req.userID);
+    // Mass assignment protection
+    const allowedFields = ['name', 'description', 'resource', 'action', 'effect', 'conditions', 'priority', 'enabled'];
+    const updates = pickAllowedFields(req.body, allowedFields);
+
+    // Sanitize policyId
+    const sanitizedPolicyId = sanitizeObjectId(policyId);
+
+    // Prevent privilege escalation - ensure policy doesn't grant excessive permissions
+    if (updates.effect === 'allow' && updates.resource?.namespace === 'permission' && updates.action === 'manage') {
+        throw CustomException('لا يمكن تعديل السياسة لمنح صلاحيات إدارة الصلاحيات', 403);
+    }
+
+    const config = await PermissionConfig.upsertPolicy(firmId, { ...updates, policyId: sanitizedPolicyId }, req.userID);
 
     // Clear cache
     permissionEnforcer.clearCache();
@@ -377,11 +424,15 @@ const deletePolicy = asyncHandler(async (req, res) => {
         throw CustomException('يجب أن تكون عضواً في مكتب للوصول', 403);
     }
 
+    // Only owner can delete policies
     if (req.firmRole !== 'owner') {
         throw CustomException('فقط مالك المكتب يمكنه حذف السياسات', 403);
     }
 
-    await PermissionConfig.deletePolicy(firmId, policyId, req.userID);
+    // Sanitize policyId
+    const sanitizedPolicyId = sanitizeObjectId(policyId);
+
+    await PermissionConfig.deletePolicy(firmId, sanitizedPolicyId, req.userID);
 
     // Clear cache
     permissionEnforcer.clearCache();
@@ -402,7 +453,6 @@ const deletePolicy = asyncHandler(async (req, res) => {
  */
 const grantRelation = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
-    const { namespace, object, relation, subjectNamespace, subjectObject, expiresAt, metadata } = req.body;
 
     if (!firmId) {
         throw CustomException('يجب أن تكون عضواً في مكتب للوصول', 403);
@@ -413,13 +463,33 @@ const grantRelation = asyncHandler(async (req, res) => {
         throw CustomException('ليس لديك صلاحية لمنح الصلاحيات', 403);
     }
 
-    if (!namespace || !object || !relation || !subjectObject) {
+    // Mass assignment protection
+    const allowedFields = ['namespace', 'object', 'relation', 'subjectNamespace', 'subjectObject', 'expiresAt', 'metadata'];
+    const relationData = pickAllowedFields(req.body, allowedFields);
+
+    if (!relationData.namespace || !relationData.object || !relationData.relation || !relationData.subjectObject) {
         throw CustomException('يجب تحديد جميع الحقول المطلوبة', 400);
+    }
+
+    // Sanitize object IDs
+    if (relationData.object) relationData.object = sanitizeObjectId(relationData.object);
+    if (relationData.subjectObject) relationData.subjectObject = sanitizeObjectId(relationData.subjectObject);
+
+    // Prevent privilege escalation - only owner can grant owner role
+    if (relationData.relation === 'owner' && req.firmRole !== 'owner') {
+        throw CustomException('فقط مالك المكتب يمكنه منح صلاحيات المالك', 403);
+    }
+
+    // Prevent granting admin role to users in other firms
+    if (relationData.relation === 'admin' && relationData.namespace === 'firm') {
+        if (relationData.object !== firmId.toString()) {
+            throw CustomException('لا يمكن منح صلاحيات لمكتب آخر', 403);
+        }
     }
 
     const tuple = await permissionEnforcer.grant(
         firmId,
-        { namespace, object, relation, subjectNamespace, subjectObject, expiresAt, metadata },
+        relationData,
         req.userID
     );
 
@@ -436,7 +506,6 @@ const grantRelation = asyncHandler(async (req, res) => {
  */
 const revokeRelation = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
-    const { namespace, object, relation, subjectNamespace, subjectObject } = req.body;
 
     if (!firmId) {
         throw CustomException('يجب أن تكون عضواً في مكتب للوصول', 403);
@@ -447,13 +516,36 @@ const revokeRelation = asyncHandler(async (req, res) => {
         throw CustomException('ليس لديك صلاحية لسحب الصلاحيات', 403);
     }
 
-    if (!namespace || !object || !relation || !subjectObject) {
+    // Mass assignment protection
+    const allowedFields = ['namespace', 'object', 'relation', 'subjectNamespace', 'subjectObject'];
+    const relationData = pickAllowedFields(req.body, allowedFields);
+
+    if (!relationData.namespace || !relationData.object || !relationData.relation || !relationData.subjectObject) {
         throw CustomException('يجب تحديد جميع الحقول المطلوبة', 400);
+    }
+
+    // Sanitize object IDs
+    if (relationData.object) relationData.object = sanitizeObjectId(relationData.object);
+    if (relationData.subjectObject) relationData.subjectObject = sanitizeObjectId(relationData.subjectObject);
+
+    // Prevent privilege escalation - only owner can revoke owner role
+    if (relationData.relation === 'owner' && req.firmRole !== 'owner') {
+        throw CustomException('فقط مالك المكتب يمكنه سحب صلاحيات المالك', 403);
+    }
+
+    // Prevent revoking from other firms
+    if (relationData.namespace === 'firm' && relationData.object !== firmId.toString()) {
+        throw CustomException('لا يمكن سحب صلاحيات من مكتب آخر', 403);
+    }
+
+    // Prevent users from revoking their own owner role
+    if (relationData.relation === 'owner' && relationData.subjectObject === req.userID.toString()) {
+        throw CustomException('لا يمكنك سحب صلاحية المالك من نفسك', 403);
     }
 
     await permissionEnforcer.revoke(
         firmId,
-        { namespace, object, relation, subjectNamespace, subjectObject },
+        relationData,
         req.userID
     );
 
@@ -476,10 +568,24 @@ const getResourceRelations = asyncHandler(async (req, res) => {
         throw CustomException('يجب أن تكون عضواً في مكتب للوصول', 403);
     }
 
-    const query = { firmId, namespace, object };
+    // Only admins can view resource relations
+    if (!['owner', 'admin'].includes(req.firmRole)) {
+        throw CustomException('ليس لديك صلاحية لعرض العلاقات', 403);
+    }
+
+    // Sanitize object ID
+    const sanitizedObject = sanitizeObjectId(object);
+
+    const query = { firmId, namespace, object: sanitizedObject };
     if (relation) query.relation = relation;
 
     const tuples = await RelationTuple.find(query).lean();
+
+    // IDOR protection - verify all tuples belong to user's firm
+    const hasInvalidTuples = tuples.some(tuple => tuple.firmId.toString() !== firmId.toString());
+    if (hasInvalidTuples) {
+        throw CustomException('غير مصرح لك بعرض هذه العلاقات', 403);
+    }
 
     res.json({
         success: true,
@@ -743,11 +849,16 @@ const getVisibleSidebar = asyncHandler(async (req, res) => {
  */
 const checkPageAccess = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
-    const { routePath } = req.body;
 
-    if (!routePath) {
+    // Mass assignment protection
+    const allowedFields = ['routePath'];
+    const sanitizedData = pickAllowedFields(req.body, allowedFields);
+
+    if (!sanitizedData.routePath) {
         throw CustomException('يجب تحديد مسار الصفحة', 400);
     }
+
+    const { routePath } = sanitizedData;
 
     // For users without firmId (solo lawyers or non-firm users),
     // return allowed: false for firm-specific pages instead of throwing 403
@@ -830,15 +941,19 @@ const getUIAccessConfig = asyncHandler(async (req, res) => {
  */
 const updateUIAccessConfig = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
-    const { settings } = req.body;
 
     if (!firmId) {
         throw CustomException('يجب أن تكون عضواً في مكتب للوصول', 403);
     }
 
+    // Only owner can modify UI access config
     if (req.firmRole !== 'owner') {
         throw CustomException('فقط مالك المكتب يمكنه تعديل إعدادات واجهة المستخدم', 403);
     }
+
+    // Mass assignment protection
+    const allowedFields = ['settings'];
+    const sanitizedData = pickAllowedFields(req.body, allowedFields);
 
     const config = await UIAccessConfig.findOne({ firmId });
 
@@ -846,8 +961,13 @@ const updateUIAccessConfig = asyncHandler(async (req, res) => {
         throw CustomException('لم يتم العثور على إعدادات واجهة المستخدم', 404);
     }
 
-    if (settings) {
-        config.settings = { ...config.settings, ...settings };
+    // IDOR protection - verify config belongs to user's firm
+    if (config.firmId.toString() !== firmId.toString()) {
+        throw CustomException('غير مصرح لك بتعديل هذه الإعدادات', 403);
+    }
+
+    if (sanitizedData.settings) {
+        config.settings = { ...config.settings, ...sanitizedData.settings };
     }
 
     config.version += 1;
@@ -891,21 +1011,28 @@ const getAccessMatrix = asyncHandler(async (req, res) => {
 const updateSidebarVisibility = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
     const { itemId } = req.params;
-    const { role, visible } = req.body;
 
     if (!firmId) {
         throw CustomException('يجب أن تكون عضواً في مكتب للوصول', 403);
     }
 
+    // Only owner can modify sidebar visibility
     if (req.firmRole !== 'owner') {
         throw CustomException('فقط مالك المكتب يمكنه تعديل إظهار القوائم', 403);
     }
 
-    if (!role || visible === undefined) {
+    // Mass assignment protection
+    const allowedFields = ['role', 'visible'];
+    const sanitizedData = pickAllowedFields(req.body, allowedFields);
+
+    if (!sanitizedData.role || sanitizedData.visible === undefined) {
         throw CustomException('يجب تحديد الدور والإظهار', 400);
     }
 
-    await UIAccessConfig.updateSidebarVisibility(firmId, itemId, role, visible, req.userID);
+    // Sanitize itemId
+    const sanitizedItemId = sanitizeObjectId(itemId);
+
+    await UIAccessConfig.updateSidebarVisibility(firmId, sanitizedItemId, sanitizedData.role, sanitizedData.visible, req.userID);
 
     res.json({
         success: true,
@@ -920,21 +1047,28 @@ const updateSidebarVisibility = asyncHandler(async (req, res) => {
 const updatePageAccessForRole = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
     const { pageId } = req.params;
-    const { role, hasAccess } = req.body;
 
     if (!firmId) {
         throw CustomException('يجب أن تكون عضواً في مكتب للوصول', 403);
     }
 
+    // Only owner can modify page access
     if (req.firmRole !== 'owner') {
         throw CustomException('فقط مالك المكتب يمكنه تعديل صلاحيات الصفحات', 403);
     }
 
-    if (!role || hasAccess === undefined) {
+    // Mass assignment protection
+    const allowedFields = ['role', 'hasAccess'];
+    const sanitizedData = pickAllowedFields(req.body, allowedFields);
+
+    if (!sanitizedData.role || sanitizedData.hasAccess === undefined) {
         throw CustomException('يجب تحديد الدور والصلاحية', 400);
     }
 
-    await UIAccessConfig.updatePageAccess(firmId, pageId, role, hasAccess, req.userID);
+    // Sanitize pageId
+    const sanitizedPageId = sanitizeObjectId(pageId);
+
+    await UIAccessConfig.updatePageAccess(firmId, sanitizedPageId, sanitizedData.role, sanitizedData.hasAccess, req.userID);
 
     res.json({
         success: true,
@@ -949,20 +1083,29 @@ const updatePageAccessForRole = asyncHandler(async (req, res) => {
 const bulkUpdateRoleAccess = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
     const { role } = req.params;
-    const { sidebarItems, pageAccess } = req.body;
 
     if (!firmId) {
         throw CustomException('يجب أن تكون عضواً في مكتب للوصول', 403);
     }
 
+    // Only owner can modify role access
     if (req.firmRole !== 'owner') {
         throw CustomException('فقط مالك المكتب يمكنه تعديل صلاحيات الأدوار', 403);
+    }
+
+    // Mass assignment protection
+    const allowedFields = ['sidebarItems', 'pageAccess'];
+    const sanitizedData = pickAllowedFields(req.body, allowedFields);
+
+    // Prevent privilege escalation - owner role modifications require extra caution
+    if (role === 'owner') {
+        throw CustomException('لا يمكن تعديل صلاحيات دور المالك', 403);
     }
 
     await UIAccessConfig.bulkUpdateRoleVisibility(
         firmId,
         role,
-        { sidebarItems, pageAccess },
+        sanitizedData,
         req.userID
     );
 
@@ -978,30 +1121,42 @@ const bulkUpdateRoleAccess = asyncHandler(async (req, res) => {
  */
 const addUserOverride = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
-    const { userId, showSidebarItems, hideSidebarItems, grantPageAccess, denyPageAccess, reason, expiresAt } = req.body;
 
     if (!firmId) {
         throw CustomException('يجب أن تكون عضواً في مكتب للوصول', 403);
     }
 
+    // Only admins can add user overrides
     if (!['owner', 'admin'].includes(req.firmRole)) {
         throw CustomException('ليس لديك صلاحية لإضافة استثناءات المستخدمين', 403);
     }
 
-    if (!userId) {
+    // Mass assignment protection
+    const allowedFields = ['userId', 'showSidebarItems', 'hideSidebarItems', 'grantPageAccess', 'denyPageAccess', 'reason', 'expiresAt'];
+    const sanitizedData = pickAllowedFields(req.body, allowedFields);
+
+    if (!sanitizedData.userId) {
         throw CustomException('يجب تحديد المستخدم', 400);
+    }
+
+    // Sanitize userId
+    const sanitizedUserId = sanitizeObjectId(sanitizedData.userId);
+
+    // Prevent privilege escalation - users cannot grant overrides to themselves
+    if (sanitizedUserId === req.userID.toString()) {
+        throw CustomException('لا يمكنك إضافة استثناءات لنفسك', 403);
     }
 
     await UIAccessConfig.addUserOverride(
         firmId,
         {
-            userId,
-            showSidebarItems: showSidebarItems || [],
-            hideSidebarItems: hideSidebarItems || [],
-            grantPageAccess: grantPageAccess || [],
-            denyPageAccess: denyPageAccess || [],
-            reason,
-            expiresAt
+            userId: sanitizedUserId,
+            showSidebarItems: sanitizedData.showSidebarItems || [],
+            hideSidebarItems: sanitizedData.hideSidebarItems || [],
+            grantPageAccess: sanitizedData.grantPageAccess || [],
+            denyPageAccess: sanitizedData.denyPageAccess || [],
+            reason: sanitizedData.reason,
+            expiresAt: sanitizedData.expiresAt
         },
         req.userID
     );
@@ -1024,11 +1179,15 @@ const removeUserOverride = asyncHandler(async (req, res) => {
         throw CustomException('يجب أن تكون عضواً في مكتب للوصول', 403);
     }
 
+    // Only admins can remove user overrides
     if (!['owner', 'admin'].includes(req.firmRole)) {
         throw CustomException('ليس لديك صلاحية لحذف استثناءات المستخدمين', 403);
     }
 
-    await UIAccessConfig.removeUserOverride(firmId, userId, req.userID);
+    // Sanitize userId
+    const sanitizedUserId = sanitizeObjectId(userId);
+
+    await UIAccessConfig.removeUserOverride(firmId, sanitizedUserId, req.userID);
 
     res.json({
         success: true,

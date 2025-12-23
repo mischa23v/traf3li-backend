@@ -12,6 +12,7 @@ const asyncHandler = require('../utils/asyncHandler');
 const ApiKey = require('../models/apiKey.model');
 const AuditLog = require('../models/auditLog.model');
 const CustomException = require('../utils/CustomException');
+const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 
 /**
  * GET /api/api-keys
@@ -50,7 +51,6 @@ const getApiKeys = asyncHandler(async (req, res) => {
  * Create a new API key
  */
 const createApiKey = asyncHandler(async (req, res) => {
-    const { name, description, scopes, expiresAt, allowedIps, rateLimit } = req.body;
     const firmId = req.firmId;
     const userId = req.userID;
 
@@ -58,9 +58,23 @@ const createApiKey = asyncHandler(async (req, res) => {
         throw CustomException('يجب أن تكون عضواً في مكتب لإنشاء مفتاح API', 403);
     }
 
+    // Mass assignment protection - only allow specific fields
+    const allowedFields = ['name', 'description', 'scopes', 'expiresAt', 'allowedIps', 'rateLimit'];
+    const sanitizedData = pickAllowedFields(req.body, allowedFields);
+    const { name, description, scopes, expiresAt, allowedIps, rateLimit } = sanitizedData;
+
     // Validate name
-    if (!name || name.trim().length === 0) {
+    if (!name || typeof name !== 'string' || name.trim().length === 0) {
         throw CustomException('اسم مفتاح API مطلوب', 400);
+    }
+
+    if (name.trim().length > 100) {
+        throw CustomException('اسم مفتاح API يجب أن يكون أقل من 100 حرف', 400);
+    }
+
+    // Validate description
+    if (description && (typeof description !== 'string' || description.trim().length > 500)) {
+        throw CustomException('وصف مفتاح API يجب أن يكون أقل من 500 حرف', 400);
     }
 
     // Validate scopes
@@ -71,10 +85,52 @@ const createApiKey = asyncHandler(async (req, res) => {
         'write:tasks', 'read:time_entries', 'write:time_entries', 'admin'
     ];
 
-    if (scopes && scopes.length > 0) {
-        const invalidScopes = scopes.filter(s => !validScopes.includes(s));
-        if (invalidScopes.length > 0) {
-            throw CustomException(`نطاقات غير صالحة: ${invalidScopes.join(', ')}`, 400);
+    if (scopes) {
+        if (!Array.isArray(scopes)) {
+            throw CustomException('النطاقات يجب أن تكون مصفوفة', 400);
+        }
+
+        if (scopes.length > 0) {
+            const invalidScopes = scopes.filter(s => typeof s !== 'string' || !validScopes.includes(s));
+            if (invalidScopes.length > 0) {
+                throw CustomException(`نطاقات غير صالحة: ${invalidScopes.join(', ')}`, 400);
+            }
+        }
+
+        // Prevent granting admin scope unless user is admin
+        if (scopes.includes('admin') && req.user?.role !== 'admin') {
+            throw CustomException('فقط المسؤولون يمكنهم إنشاء مفاتيح API بصلاحيات المسؤول', 403);
+        }
+    }
+
+    // Validate expiresAt
+    if (expiresAt) {
+        const expiryDate = new Date(expiresAt);
+        if (isNaN(expiryDate.getTime())) {
+            throw CustomException('تاريخ انتهاء الصلاحية غير صالح', 400);
+        }
+        if (expiryDate <= new Date()) {
+            throw CustomException('تاريخ انتهاء الصلاحية يجب أن يكون في المستقبل', 400);
+        }
+    }
+
+    // Validate allowedIps
+    if (allowedIps) {
+        if (!Array.isArray(allowedIps)) {
+            throw CustomException('عناوين IP المسموحة يجب أن تكون مصفوفة', 400);
+        }
+        // Basic IP validation
+        const ipRegex = /^(\d{1,3}\.){3}\d{1,3}(\/\d{1,2})?$/;
+        const invalidIps = allowedIps.filter(ip => typeof ip !== 'string' || !ipRegex.test(ip));
+        if (invalidIps.length > 0) {
+            throw CustomException('عناوين IP غير صالحة', 400);
+        }
+    }
+
+    // Validate rateLimit
+    if (rateLimit !== undefined) {
+        if (typeof rateLimit !== 'number' || rateLimit < 1 || rateLimit > 10000) {
+            throw CustomException('حد المعدل يجب أن يكون رقماً بين 1 و 10000', 400);
         }
     }
 
@@ -141,10 +197,20 @@ const createApiKey = asyncHandler(async (req, res) => {
  * Get a specific API key details
  */
 const getApiKey = asyncHandler(async (req, res) => {
-    const { id } = req.params;
     const firmId = req.firmId;
 
-    const apiKey = await ApiKey.findOne({ _id: id, firmId })
+    if (!firmId) {
+        throw CustomException('يجب أن تكون عضواً في مكتب', 403);
+    }
+
+    // IDOR protection - sanitize and validate ID
+    const apiKeyId = sanitizeObjectId(req.params.id);
+    if (!apiKeyId) {
+        throw CustomException('معرف مفتاح API غير صالح', 400);
+    }
+
+    // Verify ownership through firmId
+    const apiKey = await ApiKey.findOne({ _id: apiKeyId, firmId })
         .select('-keyHash')
         .populate('createdBy', 'firstName lastName email')
         .populate('revokedBy', 'firstName lastName email')
@@ -170,12 +236,26 @@ const getApiKey = asyncHandler(async (req, res) => {
  * Update an API key (name, description, scopes, allowedIps)
  */
 const updateApiKey = asyncHandler(async (req, res) => {
-    const { id } = req.params;
-    const { name, description, scopes, allowedIps, rateLimit } = req.body;
     const firmId = req.firmId;
     const userId = req.userID;
 
-    const apiKey = await ApiKey.findOne({ _id: id, firmId });
+    if (!firmId) {
+        throw CustomException('يجب أن تكون عضواً في مكتب', 403);
+    }
+
+    // IDOR protection - sanitize and validate ID
+    const apiKeyId = sanitizeObjectId(req.params.id);
+    if (!apiKeyId) {
+        throw CustomException('معرف مفتاح API غير صالح', 400);
+    }
+
+    // Mass assignment protection - only allow specific fields
+    const allowedFields = ['name', 'description', 'scopes', 'allowedIps', 'rateLimit'];
+    const sanitizedData = pickAllowedFields(req.body, allowedFields);
+    const { name, description, scopes, allowedIps, rateLimit } = sanitizedData;
+
+    // Verify ownership through firmId
+    const apiKey = await ApiKey.findOne({ _id: apiKeyId, firmId });
 
     if (!apiKey) {
         throw CustomException('مفتاح API غير موجود', 404);
@@ -185,12 +265,71 @@ const updateApiKey = asyncHandler(async (req, res) => {
         throw CustomException('لا يمكن تعديل مفتاح API ملغى', 400);
     }
 
-    // Update fields
-    if (name) apiKey.name = name.trim();
-    if (description !== undefined) apiKey.description = description?.trim();
-    if (scopes) apiKey.scopes = scopes;
-    if (allowedIps !== undefined) apiKey.allowedIps = allowedIps;
-    if (rateLimit) apiKey.rateLimit = rateLimit;
+    // Validate name if provided
+    if (name !== undefined) {
+        if (typeof name !== 'string' || name.trim().length === 0) {
+            throw CustomException('اسم مفتاح API مطلوب', 400);
+        }
+        if (name.trim().length > 100) {
+            throw CustomException('اسم مفتاح API يجب أن يكون أقل من 100 حرف', 400);
+        }
+        apiKey.name = name.trim();
+    }
+
+    // Validate description if provided
+    if (description !== undefined) {
+        if (description && (typeof description !== 'string' || description.trim().length > 500)) {
+            throw CustomException('وصف مفتاح API يجب أن يكون أقل من 500 حرف', 400);
+        }
+        apiKey.description = description?.trim();
+    }
+
+    // Validate scopes if provided
+    if (scopes !== undefined) {
+        if (!Array.isArray(scopes)) {
+            throw CustomException('النطاقات يجب أن تكون مصفوفة', 400);
+        }
+
+        const validScopes = [
+            'read:cases', 'write:cases', 'read:clients', 'write:clients',
+            'read:invoices', 'write:invoices', 'read:documents', 'write:documents',
+            'read:reports', 'read:contacts', 'write:contacts', 'read:tasks',
+            'write:tasks', 'read:time_entries', 'write:time_entries', 'admin'
+        ];
+
+        const invalidScopes = scopes.filter(s => typeof s !== 'string' || !validScopes.includes(s));
+        if (invalidScopes.length > 0) {
+            throw CustomException(`نطاقات غير صالحة: ${invalidScopes.join(', ')}`, 400);
+        }
+
+        // Prevent granting admin scope unless user is admin
+        if (scopes.includes('admin') && req.user?.role !== 'admin') {
+            throw CustomException('فقط المسؤولون يمكنهم منح صلاحيات المسؤول', 403);
+        }
+
+        apiKey.scopes = scopes;
+    }
+
+    // Validate allowedIps if provided
+    if (allowedIps !== undefined) {
+        if (!Array.isArray(allowedIps)) {
+            throw CustomException('عناوين IP المسموحة يجب أن تكون مصفوفة', 400);
+        }
+        const ipRegex = /^(\d{1,3}\.){3}\d{1,3}(\/\d{1,2})?$/;
+        const invalidIps = allowedIps.filter(ip => typeof ip !== 'string' || !ipRegex.test(ip));
+        if (invalidIps.length > 0) {
+            throw CustomException('عناوين IP غير صالحة', 400);
+        }
+        apiKey.allowedIps = allowedIps;
+    }
+
+    // Validate rateLimit if provided
+    if (rateLimit !== undefined) {
+        if (typeof rateLimit !== 'number' || rateLimit < 1 || rateLimit > 10000) {
+            throw CustomException('حد المعدل يجب أن يكون رقماً بين 1 و 10000', 400);
+        }
+        apiKey.rateLimit = rateLimit;
+    }
 
     await apiKey.save();
 
@@ -222,12 +361,31 @@ const updateApiKey = asyncHandler(async (req, res) => {
  * Revoke an API key
  */
 const revokeApiKey = asyncHandler(async (req, res) => {
-    const { id } = req.params;
-    const { reason } = req.body;
     const firmId = req.firmId;
     const userId = req.userID;
 
-    const apiKey = await ApiKey.findOne({ _id: id, firmId });
+    if (!firmId) {
+        throw CustomException('يجب أن تكون عضواً في مكتب', 403);
+    }
+
+    // IDOR protection - sanitize and validate ID
+    const apiKeyId = sanitizeObjectId(req.params.id);
+    if (!apiKeyId) {
+        throw CustomException('معرف مفتاح API غير صالح', 400);
+    }
+
+    // Mass assignment protection
+    const allowedFields = ['reason'];
+    const sanitizedData = pickAllowedFields(req.body, allowedFields);
+    const { reason } = sanitizedData;
+
+    // Validate reason if provided
+    if (reason && (typeof reason !== 'string' || reason.trim().length > 500)) {
+        throw CustomException('سبب الإلغاء يجب أن يكون أقل من 500 حرف', 400);
+    }
+
+    // Verify ownership through firmId
+    const apiKey = await ApiKey.findOne({ _id: apiKeyId, firmId });
 
     if (!apiKey) {
         throw CustomException('مفتاح API غير موجود', 404);
@@ -307,11 +465,21 @@ const getApiKeyStats = asyncHandler(async (req, res) => {
  * Regenerate an API key (creates new key, revokes old)
  */
 const regenerateApiKey = asyncHandler(async (req, res) => {
-    const { id } = req.params;
     const firmId = req.firmId;
     const userId = req.userID;
 
-    const oldKey = await ApiKey.findOne({ _id: id, firmId });
+    if (!firmId) {
+        throw CustomException('يجب أن تكون عضواً في مكتب', 403);
+    }
+
+    // IDOR protection - sanitize and validate ID
+    const apiKeyId = sanitizeObjectId(req.params.id);
+    if (!apiKeyId) {
+        throw CustomException('معرف مفتاح API غير صالح', 400);
+    }
+
+    // Verify ownership through firmId
+    const oldKey = await ApiKey.findOne({ _id: apiKeyId, firmId });
 
     if (!oldKey) {
         throw CustomException('مفتاح API غير موجود', 404);

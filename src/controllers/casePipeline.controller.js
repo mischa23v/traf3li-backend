@@ -5,6 +5,7 @@ const Reminder = require('../models/reminder.model');
 const Event = require('../models/event.model');
 const CaseNotionPage = require('../models/caseNotionPage.model');
 const CaseAuditService = require('../services/caseAuditService');
+const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 
 // ═══════════════════════════════════════════════════════════════
 // VALID STAGES BY CATEGORY
@@ -253,11 +254,25 @@ exports.getCasesForPipeline = async (req, res) => {
 exports.moveCaseToStage = async (req, res) => {
     try {
         const { id } = req.params;
-        const { newStage, notes } = req.body;
+
+        // Mass assignment protection - only allow specific fields
+        const allowedFields = pickAllowedFields(req.body, ['newStage', 'notes']);
+        const { newStage, notes } = allowedFields;
+
         const userId = req.userID || req.user?._id;
 
+        // Sanitize and validate IDs
+        const sanitizedCaseId = sanitizeObjectId(id);
+        if (!sanitizedCaseId) {
+            return res.status(400).json({
+                error: true,
+                message: 'Invalid case ID',
+                code: 'INVALID_ID'
+            });
+        }
+
         // Find the case
-        const caseDoc = await Case.findById(id);
+        const caseDoc = await Case.findById(sanitizedCaseId);
         if (!caseDoc) {
             return res.status(404).json({
                 error: true,
@@ -266,25 +281,37 @@ exports.moveCaseToStage = async (req, res) => {
             });
         }
 
-        // Check access - firm members can access firm cases OR their own cases
-        const isLawyer = caseDoc.lawyerId && caseDoc.lawyerId.toString() === userId?.toString();
-        const sameFirm = req.user?.firmId && caseDoc.firmId && caseDoc.firmId.toString() === req.user.firmId.toString();
+        // IDOR Protection - verify firmId ownership
+        const sanitizedUserId = sanitizeObjectId(userId);
+        const sanitizedFirmId = sanitizeObjectId(req.user?.firmId);
+
+        const isLawyer = caseDoc.lawyerId && caseDoc.lawyerId.toString() === sanitizedUserId?.toString();
+        const sameFirm = sanitizedFirmId && caseDoc.firmId && caseDoc.firmId.toString() === sanitizedFirmId.toString();
         const hasAccess = sameFirm || isLawyer;
 
         if (!hasAccess) {
             return res.status(403).json({
                 error: true,
-                message: 'Unauthorized',
+                message: 'Unauthorized - you do not have access to this case',
                 code: 'UNAUTHORIZED'
             });
         }
 
-        // Check if case is already ended
+        // Prevent unauthorized stage modifications - check if case is already ended
         if (caseDoc.status === 'closed' || caseDoc.status === 'completed') {
             return res.status(400).json({
                 error: true,
                 message: 'Cannot modify ended case',
                 code: 'CASE_ALREADY_ENDED'
+            });
+        }
+
+        // Input validation - validate newStage is provided and is a string
+        if (!newStage || typeof newStage !== 'string') {
+            return res.status(400).json({
+                error: true,
+                message: 'Valid stage is required',
+                code: 'VALIDATION_ERROR'
             });
         }
 
@@ -368,11 +395,25 @@ exports.moveCaseToStage = async (req, res) => {
 exports.endCase = async (req, res) => {
     try {
         const { id } = req.params;
-        const { outcome, endReason, finalAmount, notes, endDate } = req.body;
+
+        // Mass assignment protection - only allow specific fields
+        const allowedFields = pickAllowedFields(req.body, ['outcome', 'endReason', 'finalAmount', 'notes', 'endDate']);
+        const { outcome, endReason, finalAmount, notes, endDate } = allowedFields;
+
         const userId = req.userID || req.user?._id;
 
+        // Sanitize and validate IDs
+        const sanitizedCaseId = sanitizeObjectId(id);
+        if (!sanitizedCaseId) {
+            return res.status(400).json({
+                error: true,
+                message: 'Invalid case ID',
+                code: 'INVALID_ID'
+            });
+        }
+
         // Find the case
-        const caseDoc = await Case.findById(id);
+        const caseDoc = await Case.findById(sanitizedCaseId);
         if (!caseDoc) {
             return res.status(404).json({
                 error: true,
@@ -381,20 +422,23 @@ exports.endCase = async (req, res) => {
             });
         }
 
-        // Check access - firm members can access firm cases OR their own cases
-        const isLawyer = caseDoc.lawyerId && caseDoc.lawyerId.toString() === userId?.toString();
-        const sameFirm = req.user?.firmId && caseDoc.firmId && caseDoc.firmId.toString() === req.user.firmId.toString();
+        // IDOR Protection - verify firmId ownership
+        const sanitizedUserId = sanitizeObjectId(userId);
+        const sanitizedFirmId = sanitizeObjectId(req.user?.firmId);
+
+        const isLawyer = caseDoc.lawyerId && caseDoc.lawyerId.toString() === sanitizedUserId?.toString();
+        const sameFirm = sanitizedFirmId && caseDoc.firmId && caseDoc.firmId.toString() === sanitizedFirmId.toString();
         const hasAccess = sameFirm || isLawyer;
 
         if (!hasAccess) {
             return res.status(403).json({
                 error: true,
-                message: 'Unauthorized',
+                message: 'Unauthorized - you do not have access to this case',
                 code: 'UNAUTHORIZED'
             });
         }
 
-        // Check if case is already ended
+        // Prevent unauthorized modifications - check if case is already ended
         if (caseDoc.status === 'closed' || caseDoc.status === 'completed') {
             return res.status(400).json({
                 error: true,
@@ -403,7 +447,15 @@ exports.endCase = async (req, res) => {
             });
         }
 
-        // Validate outcome
+        // Input validation - validate outcome is provided and valid
+        if (!outcome || typeof outcome !== 'string') {
+            return res.status(400).json({
+                error: true,
+                message: 'Outcome is required',
+                code: 'VALIDATION_ERROR'
+            });
+        }
+
         const validOutcomes = ['won', 'lost', 'settled'];
         if (!validOutcomes.includes(outcome)) {
             return res.status(400).json({
@@ -412,6 +464,18 @@ exports.endCase = async (req, res) => {
                 code: 'VALIDATION_ERROR',
                 details: { validOutcomes }
             });
+        }
+
+        // Validate finalAmount if provided
+        if (finalAmount !== undefined && finalAmount !== null) {
+            const amount = parseFloat(finalAmount);
+            if (isNaN(amount) || amount < 0) {
+                return res.status(400).json({
+                    error: true,
+                    message: 'Invalid final amount',
+                    code: 'VALIDATION_ERROR'
+                });
+            }
         }
 
         // Update case
@@ -652,19 +716,30 @@ exports.getCasesByStage = async (req, res) => {
         const { category, status = 'active' } = req.query;
         const userId = req.userID || req.user?._id;
 
+        // Sanitize and validate IDs
+        const sanitizedUserId = sanitizeObjectId(userId);
+        const sanitizedFirmId = sanitizeObjectId(req.user?.firmId);
+
+        if (!sanitizedUserId) {
+            return res.status(401).json({
+                success: false,
+                message: 'Unauthorized - invalid user ID'
+            });
+        }
+
         // Build query with $and to avoid conflicts
         const andConditions = [{ deletedAt: null }];
 
-        // Multi-tenant filter
-        if (req.user?.firmId) {
+        // IDOR Protection - Multi-tenant filter with sanitized IDs
+        if (sanitizedFirmId) {
             andConditions.push({
                 $or: [
-                    { firmId: new mongoose.Types.ObjectId(req.user.firmId) },
-                    { lawyerId: new mongoose.Types.ObjectId(userId) }
+                    { firmId: new mongoose.Types.ObjectId(sanitizedFirmId) },
+                    { lawyerId: new mongoose.Types.ObjectId(sanitizedUserId) }
                 ]
             });
         } else {
-            andConditions.push({ lawyerId: new mongoose.Types.ObjectId(userId) });
+            andConditions.push({ lawyerId: new mongoose.Types.ObjectId(sanitizedUserId) });
         }
 
         if (category && category !== 'all') {
@@ -779,8 +854,17 @@ exports.getNotes = async (req, res) => {
         const { limit = 50, offset = 0, sort = '-date' } = req.query;
         const userId = req.userID || req.user?._id;
 
+        // Sanitize and validate IDs
+        const sanitizedCaseId = sanitizeObjectId(id);
+        if (!sanitizedCaseId) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid case ID'
+            });
+        }
+
         // Find the case
-        const caseDoc = await Case.findById(id)
+        const caseDoc = await Case.findById(sanitizedCaseId)
             .populate('notes.createdBy', 'name firstName lastName email')
             .select('notes lawyerId firmId');
 
@@ -791,15 +875,18 @@ exports.getNotes = async (req, res) => {
             });
         }
 
-        // Check access
-        const isLawyer = caseDoc.lawyerId && caseDoc.lawyerId.toString() === userId?.toString();
-        const sameFirm = req.user?.firmId && caseDoc.firmId && caseDoc.firmId.toString() === req.user.firmId.toString();
+        // IDOR Protection - verify firmId ownership
+        const sanitizedUserId = sanitizeObjectId(userId);
+        const sanitizedFirmId = sanitizeObjectId(req.user?.firmId);
+
+        const isLawyer = caseDoc.lawyerId && caseDoc.lawyerId.toString() === sanitizedUserId?.toString();
+        const sameFirm = sanitizedFirmId && caseDoc.firmId && caseDoc.firmId.toString() === sanitizedFirmId.toString();
         const hasAccess = sameFirm || isLawyer;
 
         if (!hasAccess) {
             return res.status(403).json({
                 success: false,
-                message: 'Unauthorized'
+                message: 'Unauthorized - you do not have access to this case'
             });
         }
 
@@ -855,17 +942,31 @@ exports.getNotes = async (req, res) => {
 exports.addNote = async (req, res) => {
     try {
         const { _id: id } = req.params;
-        const { text, isPrivate = false, stageId } = req.body;
+
+        // Mass assignment protection - only allow specific fields
+        const allowedFields = pickAllowedFields(req.body, ['text', 'isPrivate', 'stageId']);
+        const { text, isPrivate = false, stageId } = allowedFields;
+
         const userId = req.userID || req.user?._id;
 
-        if (!text || text.trim().length === 0) {
+        // Input validation - validate text is provided
+        if (!text || typeof text !== 'string' || text.trim().length === 0) {
             return res.status(400).json({
                 success: false,
                 message: 'Note text is required'
             });
         }
 
-        const caseDoc = await Case.findById(id);
+        // Sanitize and validate IDs
+        const sanitizedCaseId = sanitizeObjectId(id);
+        if (!sanitizedCaseId) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid case ID'
+            });
+        }
+
+        const caseDoc = await Case.findById(sanitizedCaseId);
         if (!caseDoc) {
             return res.status(404).json({
                 success: false,
@@ -873,16 +974,32 @@ exports.addNote = async (req, res) => {
             });
         }
 
-        // Check access
-        const isLawyer = caseDoc.lawyerId && caseDoc.lawyerId.toString() === userId?.toString();
-        const sameFirm = req.user?.firmId && caseDoc.firmId && caseDoc.firmId.toString() === req.user.firmId.toString();
+        // IDOR Protection - verify firmId ownership
+        const sanitizedUserId = sanitizeObjectId(userId);
+        const sanitizedFirmId = sanitizeObjectId(req.user?.firmId);
+
+        const isLawyer = caseDoc.lawyerId && caseDoc.lawyerId.toString() === sanitizedUserId?.toString();
+        const sameFirm = sanitizedFirmId && caseDoc.firmId && caseDoc.firmId.toString() === sanitizedFirmId.toString();
         const hasAccess = sameFirm || isLawyer;
 
         if (!hasAccess) {
             return res.status(403).json({
                 success: false,
-                message: 'Unauthorized'
+                message: 'Unauthorized - you do not have access to this case'
             });
+        }
+
+        // Validate stageId if provided
+        let validatedStageId = stageId || caseDoc.currentStage;
+        if (stageId) {
+            const categoryKey = caseDoc.category?.toLowerCase() || 'other';
+            const validStages = VALID_STAGES[categoryKey] || VALID_STAGES.other;
+            if (!validStages.includes(stageId)) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Invalid stage for case category'
+                });
+            }
         }
 
         // Add note to beginning of array (newest first)
@@ -891,8 +1008,8 @@ exports.addNote = async (req, res) => {
             date: new Date(),
             createdBy: req.user._id,
             createdAt: new Date(),
-            isPrivate,
-            stageId: stageId || caseDoc.currentStage
+            isPrivate: Boolean(isPrivate),
+            stageId: validatedStageId
         };
 
         caseDoc.notes.unshift(newNote);
@@ -919,10 +1036,24 @@ exports.addNote = async (req, res) => {
 exports.updateNote = async (req, res) => {
     try {
         const { _id: id, noteId } = req.params;
-        const { text, isPrivate } = req.body;
+
+        // Mass assignment protection - only allow specific fields
+        const allowedFields = pickAllowedFields(req.body, ['text', 'isPrivate']);
+        const { text, isPrivate } = allowedFields;
+
         const userId = req.userID || req.user?._id;
 
-        const caseDoc = await Case.findById(id);
+        // Sanitize and validate IDs
+        const sanitizedCaseId = sanitizeObjectId(id);
+        const sanitizedNoteId = sanitizeObjectId(noteId);
+        if (!sanitizedCaseId || !sanitizedNoteId) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid case or note ID'
+            });
+        }
+
+        const caseDoc = await Case.findById(sanitizedCaseId);
         if (!caseDoc) {
             return res.status(404).json({
                 success: false,
@@ -930,20 +1061,23 @@ exports.updateNote = async (req, res) => {
             });
         }
 
-        // Check access
-        const isLawyer = caseDoc.lawyerId && caseDoc.lawyerId.toString() === userId?.toString();
-        const sameFirm = req.user?.firmId && caseDoc.firmId && caseDoc.firmId.toString() === req.user.firmId.toString();
+        // IDOR Protection - verify firmId ownership
+        const sanitizedUserId = sanitizeObjectId(userId);
+        const sanitizedFirmId = sanitizeObjectId(req.user?.firmId);
+
+        const isLawyer = caseDoc.lawyerId && caseDoc.lawyerId.toString() === sanitizedUserId?.toString();
+        const sameFirm = sanitizedFirmId && caseDoc.firmId && caseDoc.firmId.toString() === sanitizedFirmId.toString();
         const hasAccess = sameFirm || isLawyer;
 
         if (!hasAccess) {
             return res.status(403).json({
                 success: false,
-                message: 'Unauthorized'
+                message: 'Unauthorized - you do not have access to this case'
             });
         }
 
         // Find the note
-        const note = caseDoc.notes.id(noteId);
+        const note = caseDoc.notes.id(sanitizedNoteId);
         if (!note) {
             return res.status(404).json({
                 success: false,
@@ -951,8 +1085,8 @@ exports.updateNote = async (req, res) => {
             });
         }
 
-        // Only the creator can edit a note
-        const isCreator = note.createdBy?.toString() === userId?.toString();
+        // Prevent unauthorized modifications - only the creator can edit a note
+        const isCreator = note.createdBy?.toString() === sanitizedUserId?.toString();
         if (!isCreator) {
             return res.status(403).json({
                 success: false,
@@ -960,9 +1094,19 @@ exports.updateNote = async (req, res) => {
             });
         }
 
-        // Update note
-        if (text !== undefined) note.text = text.trim();
-        if (isPrivate !== undefined) note.isPrivate = isPrivate;
+        // Input validation and update note
+        if (text !== undefined) {
+            if (typeof text !== 'string' || text.trim().length === 0) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Note text must be a non-empty string'
+                });
+            }
+            note.text = text.trim();
+        }
+        if (isPrivate !== undefined) {
+            note.isPrivate = Boolean(isPrivate);
+        }
 
         caseDoc.updatedAt = new Date();
         await caseDoc.save();
@@ -989,7 +1133,17 @@ exports.deleteNote = async (req, res) => {
         const { _id: id, noteId } = req.params;
         const userId = req.userID || req.user?._id;
 
-        const caseDoc = await Case.findById(id);
+        // Sanitize and validate IDs
+        const sanitizedCaseId = sanitizeObjectId(id);
+        const sanitizedNoteId = sanitizeObjectId(noteId);
+        if (!sanitizedCaseId || !sanitizedNoteId) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid case or note ID'
+            });
+        }
+
+        const caseDoc = await Case.findById(sanitizedCaseId);
         if (!caseDoc) {
             return res.status(404).json({
                 success: false,
@@ -997,20 +1151,23 @@ exports.deleteNote = async (req, res) => {
             });
         }
 
-        // Check access
-        const isLawyer = caseDoc.lawyerId && caseDoc.lawyerId.toString() === userId?.toString();
-        const sameFirm = req.user?.firmId && caseDoc.firmId && caseDoc.firmId.toString() === req.user.firmId.toString();
+        // IDOR Protection - verify firmId ownership
+        const sanitizedUserId = sanitizeObjectId(userId);
+        const sanitizedFirmId = sanitizeObjectId(req.user?.firmId);
+
+        const isLawyer = caseDoc.lawyerId && caseDoc.lawyerId.toString() === sanitizedUserId?.toString();
+        const sameFirm = sanitizedFirmId && caseDoc.firmId && caseDoc.firmId.toString() === sanitizedFirmId.toString();
         const hasAccess = sameFirm || isLawyer;
 
         if (!hasAccess) {
             return res.status(403).json({
                 success: false,
-                message: 'Unauthorized'
+                message: 'Unauthorized - you do not have access to this case'
             });
         }
 
         // Find the note
-        const note = caseDoc.notes.id(noteId);
+        const note = caseDoc.notes.id(sanitizedNoteId);
         if (!note) {
             return res.status(404).json({
                 success: false,
@@ -1018,8 +1175,8 @@ exports.deleteNote = async (req, res) => {
             });
         }
 
-        // Only the creator can delete a note
-        const isCreator = note.createdBy?.toString() === userId?.toString();
+        // Prevent unauthorized modifications - only the creator can delete a note
+        const isCreator = note.createdBy?.toString() === sanitizedUserId?.toString();
         if (!isCreator) {
             return res.status(403).json({
                 success: false,
@@ -1028,7 +1185,7 @@ exports.deleteNote = async (req, res) => {
         }
 
         // Remove note
-        caseDoc.notes.pull(noteId);
+        caseDoc.notes.pull(sanitizedNoteId);
         caseDoc.updatedAt = new Date();
         await caseDoc.save();
 
