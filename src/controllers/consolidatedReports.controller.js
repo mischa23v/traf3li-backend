@@ -1138,3 +1138,474 @@ exports.createManualElimination = asyncHandler(async (req, res) => {
         }
     });
 });
+
+/**
+ * Get Auto-Calculated Intercompany Eliminations
+ * GET /api/reports/consolidated/auto-eliminations
+ * Query params: firmIds[], asOfDate
+ *
+ * This automatically identifies and calculates intercompany balances that should
+ * be eliminated in consolidated financial statements.
+ */
+exports.getAutoEliminations = asyncHandler(async (req, res) => {
+    const { firmIds, asOfDate } = req.query;
+    const userId = req.userId || req.userID;
+
+    // Validate date
+    const upToDate = asOfDate ? validateDate(asOfDate) : new Date();
+    if (!upToDate) {
+        return res.status(400).json({
+            success: false,
+            error: 'Invalid date format | تنسيق التاريخ غير صالح'
+        });
+    }
+
+    // Get firms user has access to
+    const userFirms = await getUserFirms(userId);
+    const userFirmIds = userFirms.map(f => f._id.toString());
+
+    // Sanitize and validate firm IDs
+    const selectedFirmIds = sanitizeFirmIds(firmIds, userFirmIds);
+
+    if (selectedFirmIds.length < 2) {
+        return res.status(400).json({
+            success: false,
+            error: 'At least 2 firms are required for consolidation | مطلوب شركتين على الأقل للتوحيد'
+        });
+    }
+
+    const selectedObjectIds = selectedFirmIds.map(id =>
+        mongoose.Types.ObjectId.createFromHexString(id)
+    );
+
+    // Get all intercompany transactions between selected firms
+    const balances = await InterCompanyTransaction.find({
+        $or: [
+            { sourceFirmId: { $in: selectedObjectIds }, targetFirmId: { $in: selectedObjectIds } },
+            { targetFirmId: { $in: selectedObjectIds }, sourceFirmId: { $in: selectedObjectIds } }
+        ],
+        status: { $in: ['confirmed', 'reconciled'] },
+        transactionDate: { $lte: upToDate }
+    })
+        .populate('sourceFirmId', 'name')
+        .populate('targetFirmId', 'name')
+        .lean();
+
+    // Group by firm pairs and calculate net positions
+    const pairBalances = new Map();
+
+    for (const balance of balances) {
+        // Create consistent key (smaller ID first)
+        const ids = [balance.sourceFirmId._id.toString(), balance.targetFirmId._id.toString()].sort();
+        const key = ids.join('-');
+
+        if (!pairBalances.has(key)) {
+            pairBalances.set(key, {
+                firm1: ids[0] === balance.sourceFirmId._id.toString() ? balance.sourceFirmId : balance.targetFirmId,
+                firm2: ids[1] === balance.sourceFirmId._id.toString() ? balance.sourceFirmId : balance.targetFirmId,
+                receivables: 0,
+                payables: 0,
+                transactions: []
+            });
+        }
+
+        const pair = pairBalances.get(key);
+
+        // Determine if this is a receivable or payable from firm1's perspective
+        if (balance.sourceFirmId._id.toString() === ids[0]) {
+            pair.receivables += balance.amount;
+        } else {
+            pair.payables += balance.amount;
+        }
+
+        pair.transactions.push({
+            id: balance._id,
+            type: balance.transactionType,
+            amount: balance.amount,
+            currency: balance.currency,
+            description: balance.description
+        });
+    }
+
+    // Calculate eliminations
+    const eliminations = [];
+    let totalEliminationAmount = 0;
+
+    for (const [, pair] of pairBalances) {
+        const netBalance = pair.receivables - pair.payables;
+        const eliminationAmount = Math.min(pair.receivables, pair.payables);
+
+        if (eliminationAmount > 0) {
+            eliminations.push({
+                firm1: { id: pair.firm1._id, name: pair.firm1.name },
+                firm2: { id: pair.firm2._id, name: pair.firm2.name },
+                firm1Receivables: pair.receivables,
+                firm1ReceivablesSAR: toSAR(pair.receivables),
+                firm2Receivables: pair.payables,
+                firm2ReceivablesSAR: toSAR(pair.payables),
+                eliminationAmount,
+                eliminationAmountSAR: toSAR(eliminationAmount),
+                netBalance,
+                netBalanceSAR: toSAR(netBalance),
+                netBalanceOwedTo: netBalance > 0 ? pair.firm1.name : netBalance < 0 ? pair.firm2.name : 'None',
+                transactionCount: pair.transactions.length
+            });
+
+            totalEliminationAmount += eliminationAmount;
+        }
+    }
+
+    // Get firm names for response
+    const firms = await Firm.find({ _id: { $in: selectedObjectIds } })
+        .select('_id name')
+        .lean();
+
+    res.status(200).json({
+        success: true,
+        report: 'auto-eliminations',
+        asOfDate: upToDate,
+        generatedAt: new Date(),
+        consolidatedFirms: firms.map(f => ({ id: f._id, name: f.name })),
+        eliminations,
+        summary: {
+            totalPairs: eliminations.length,
+            totalEliminationAmount,
+            totalEliminationAmountSAR: toSAR(totalEliminationAmount),
+            description: 'These amounts should be eliminated when preparing consolidated financial statements | يجب حذف هذه المبالغ عند إعداد القوائم المالية الموحدة'
+        }
+    });
+});
+
+/**
+ * Generate Full Consolidated Financial Statement Package
+ * GET /api/reports/consolidated/full-statement
+ * Query params: firmIds[], startDate, endDate, currency
+ *
+ * Generates a complete consolidated financial statement package including:
+ * - Consolidated Balance Sheet
+ * - Consolidated Profit & Loss
+ * - Intercompany Eliminations Schedule
+ */
+exports.getFullConsolidatedStatement = asyncHandler(async (req, res) => {
+    const { firmIds, startDate, endDate, currency = 'SAR' } = req.query;
+    const userId = req.userId || req.userID;
+
+    // Validate dates
+    const validStartDate = validateDate(startDate);
+    const validEndDate = validateDate(endDate);
+
+    if (!validStartDate || !validEndDate) {
+        return res.status(400).json({
+            success: false,
+            error: 'Valid start date and end date are required | تاريخ البداية والنهاية مطلوبان'
+        });
+    }
+
+    // Validate currency
+    const validCurrency = validateCurrency(currency);
+
+    // Get firms user has access to
+    const userFirms = await getUserFirms(userId);
+    const userFirmIds = userFirms.map(f => f._id.toString());
+
+    // Sanitize and validate firm IDs
+    const selectedFirmIds = sanitizeFirmIds(firmIds, userFirmIds);
+
+    if (selectedFirmIds.length === 0) {
+        return res.status(403).json({
+            success: false,
+            error: 'No accessible firms found | لم يتم العثور على شركات متاحة'
+        });
+    }
+
+    const selectedObjectIds = selectedFirmIds.map(id =>
+        mongoose.Types.ObjectId.createFromHexString(id)
+    );
+
+    // Get all accounts by type
+    const accounts = await Account.find({ isActive: true }).lean();
+    const accountsByType = {
+        Asset: accounts.filter(a => a.type === 'Asset'),
+        Liability: accounts.filter(a => a.type === 'Liability'),
+        Equity: accounts.filter(a => a.type === 'Equity'),
+        Income: accounts.filter(a => a.type === 'Income'),
+        Expense: accounts.filter(a => a.type === 'Expense')
+    };
+
+    // Aggregate all GL entries for the period
+    const allEntries = await GeneralLedger.aggregate([
+        {
+            $match: {
+                status: 'posted',
+                firmId: { $in: selectedObjectIds },
+                transactionDate: { $lte: validEndDate }
+            }
+        },
+        {
+            $group: {
+                _id: null,
+                debitsByAccount: {
+                    $push: {
+                        accountId: '$debitAccountId',
+                        amount: '$amount',
+                        date: '$transactionDate'
+                    }
+                },
+                creditsByAccount: {
+                    $push: {
+                        accountId: '$creditAccountId',
+                        amount: '$amount',
+                        date: '$transactionDate'
+                    }
+                }
+            }
+        }
+    ]);
+
+    // Build account balances
+    const balances = {};
+    if (allEntries.length > 0) {
+        const { debitsByAccount, creditsByAccount } = allEntries[0];
+
+        // Process debits
+        for (const entry of debitsByAccount) {
+            const accountId = entry.accountId?.toString();
+            if (!accountId) continue;
+
+            if (!balances[accountId]) {
+                balances[accountId] = { debits: 0, credits: 0, periodDebits: 0, periodCredits: 0 };
+            }
+            balances[accountId].debits += entry.amount;
+
+            if (entry.date >= validStartDate && entry.date <= validEndDate) {
+                balances[accountId].periodDebits += entry.amount;
+            }
+        }
+
+        // Process credits
+        for (const entry of creditsByAccount) {
+            const accountId = entry.accountId?.toString();
+            if (!accountId) continue;
+
+            if (!balances[accountId]) {
+                balances[accountId] = { debits: 0, credits: 0, periodDebits: 0, periodCredits: 0 };
+            }
+            balances[accountId].credits += entry.amount;
+
+            if (entry.date >= validStartDate && entry.date <= validEndDate) {
+                balances[accountId].periodCredits += entry.amount;
+            }
+        }
+    }
+
+    // Calculate balances by account type
+    const calculateTypeBalance = (typeAccounts, isNormalDebit = true) => {
+        let total = 0;
+        const details = [];
+
+        for (const account of typeAccounts) {
+            const accountId = account._id.toString();
+            const balance = balances[accountId] || { debits: 0, credits: 0 };
+            const netBalance = isNormalDebit
+                ? balance.debits - balance.credits
+                : balance.credits - balance.debits;
+
+            if (netBalance !== 0) {
+                total += netBalance;
+                details.push({
+                    accountCode: account.code,
+                    accountName: account.name,
+                    accountNameAr: account.nameAr,
+                    subType: account.subType,
+                    balance: netBalance,
+                    balanceSAR: toSAR(netBalance)
+                });
+            }
+        }
+
+        return { total, totalSAR: toSAR(total), details };
+    };
+
+    // Calculate period P&L
+    const calculatePeriodPL = (typeAccounts, isNormalDebit = true) => {
+        let total = 0;
+        for (const account of typeAccounts) {
+            const accountId = account._id.toString();
+            const balance = balances[accountId] || { periodDebits: 0, periodCredits: 0 };
+            const netBalance = isNormalDebit
+                ? balance.periodDebits - balance.periodCredits
+                : balance.periodCredits - balance.periodDebits;
+            total += netBalance;
+        }
+        return total;
+    };
+
+    // Build financial statements
+    const assets = calculateTypeBalance(accountsByType.Asset, true);
+    const liabilities = calculateTypeBalance(accountsByType.Liability, false);
+    const equity = calculateTypeBalance(accountsByType.Equity, false);
+    const income = calculatePeriodPL(accountsByType.Income, false);
+    const expenses = calculatePeriodPL(accountsByType.Expense, true);
+
+    // Get intercompany eliminations
+    const icEliminations = await InterCompanyTransaction.aggregate([
+        {
+            $match: {
+                $or: [
+                    { sourceFirmId: { $in: selectedObjectIds } },
+                    { targetFirmId: { $in: selectedObjectIds } }
+                ],
+                transactionDate: { $lte: validEndDate },
+                status: { $in: ['confirmed', 'reconciled'] }
+            }
+        },
+        {
+            $group: {
+                _id: '$transactionType',
+                totalAmount: { $sum: '$amount' },
+                count: { $sum: 1 }
+            }
+        }
+    ]);
+
+    // Calculate elimination adjustments
+    let assetEliminations = 0;
+    let liabilityEliminations = 0;
+    let incomeEliminations = 0;
+    let expenseEliminations = 0;
+
+    for (const elim of icEliminations) {
+        if (elim._id === 'loan') {
+            assetEliminations += elim.totalAmount;
+            liabilityEliminations += elim.totalAmount;
+        } else if (elim._id === 'sale' || elim._id === 'service') {
+            incomeEliminations += elim.totalAmount;
+            expenseEliminations += elim.totalAmount;
+        }
+    }
+
+    // Calculate consolidated figures
+    const consolidatedAssets = assets.total - assetEliminations;
+    const consolidatedLiabilities = liabilities.total - liabilityEliminations;
+    const consolidatedIncome = income - incomeEliminations;
+    const consolidatedExpenses = expenses - expenseEliminations;
+    const consolidatedNetIncome = consolidatedIncome - consolidatedExpenses;
+    const consolidatedEquity = equity.total + consolidatedNetIncome;
+
+    // Get firms for response
+    const firms = await Firm.find({ _id: { $in: selectedObjectIds } })
+        .select('_id name')
+        .lean();
+
+    res.status(200).json({
+        success: true,
+        report: 'full-consolidated-statement',
+        period: { startDate: validStartDate, endDate: validEndDate },
+        currency: validCurrency,
+        generatedAt: new Date(),
+        consolidatedFirms: firms.map(f => ({ id: f._id, name: f.name })),
+
+        // Consolidated Balance Sheet
+        balanceSheet: {
+            asOfDate: validEndDate,
+            assets: {
+                preElimination: assets.total,
+                preEliminationSAR: assets.totalSAR,
+                eliminations: assetEliminations,
+                eliminationsSAR: toSAR(assetEliminations),
+                consolidated: consolidatedAssets,
+                consolidatedSAR: toSAR(consolidatedAssets),
+                details: assets.details
+            },
+            liabilities: {
+                preElimination: liabilities.total,
+                preEliminationSAR: liabilities.totalSAR,
+                eliminations: liabilityEliminations,
+                eliminationsSAR: toSAR(liabilityEliminations),
+                consolidated: consolidatedLiabilities,
+                consolidatedSAR: toSAR(consolidatedLiabilities),
+                details: liabilities.details
+            },
+            equity: {
+                preElimination: equity.total,
+                preEliminationSAR: equity.totalSAR,
+                retainedEarnings: consolidatedNetIncome,
+                retainedEarningsSAR: toSAR(consolidatedNetIncome),
+                consolidated: consolidatedEquity,
+                consolidatedSAR: toSAR(consolidatedEquity),
+                details: equity.details
+            },
+            isBalanced: Math.abs(consolidatedAssets - (consolidatedLiabilities + consolidatedEquity)) < 1
+        },
+
+        // Consolidated Profit & Loss
+        profitLoss: {
+            income: {
+                preElimination: income,
+                preEliminationSAR: toSAR(income),
+                eliminations: incomeEliminations,
+                eliminationsSAR: toSAR(incomeEliminations),
+                consolidated: consolidatedIncome,
+                consolidatedSAR: toSAR(consolidatedIncome)
+            },
+            expenses: {
+                preElimination: expenses,
+                preEliminationSAR: toSAR(expenses),
+                eliminations: expenseEliminations,
+                eliminationsSAR: toSAR(expenseEliminations),
+                consolidated: consolidatedExpenses,
+                consolidatedSAR: toSAR(consolidatedExpenses)
+            },
+            netIncome: {
+                preElimination: income - expenses,
+                preEliminationSAR: toSAR(income - expenses),
+                consolidated: consolidatedNetIncome,
+                consolidatedSAR: toSAR(consolidatedNetIncome)
+            },
+            profitMargin: consolidatedIncome > 0
+                ? ((consolidatedNetIncome / consolidatedIncome) * 100).toFixed(2) + '%'
+                : '0%'
+        },
+
+        // Elimination Schedule
+        eliminationSchedule: {
+            summary: icEliminations.map(e => ({
+                type: e._id,
+                count: e.count,
+                totalAmount: e.totalAmount,
+                totalAmountSAR: toSAR(e.totalAmount)
+            })),
+            balanceSheetImpact: {
+                assetReduction: assetEliminations,
+                assetReductionSAR: toSAR(assetEliminations),
+                liabilityReduction: liabilityEliminations,
+                liabilityReductionSAR: toSAR(liabilityEliminations)
+            },
+            profitLossImpact: {
+                incomeReduction: incomeEliminations,
+                incomeReductionSAR: toSAR(incomeEliminations),
+                expenseReduction: expenseEliminations,
+                expenseReductionSAR: toSAR(expenseEliminations)
+            }
+        },
+
+        // Summary metrics
+        summary: {
+            firmCount: firms.length,
+            totalConsolidatedAssets: consolidatedAssets,
+            totalConsolidatedAssetsSAR: toSAR(consolidatedAssets),
+            totalConsolidatedLiabilities: consolidatedLiabilities,
+            totalConsolidatedLiabilitiesSAR: toSAR(consolidatedLiabilities),
+            totalConsolidatedEquity: consolidatedEquity,
+            totalConsolidatedEquitySAR: toSAR(consolidatedEquity),
+            consolidatedNetIncome,
+            consolidatedNetIncomeSAR: toSAR(consolidatedNetIncome),
+            returnOnEquity: consolidatedEquity > 0
+                ? ((consolidatedNetIncome / consolidatedEquity) * 100).toFixed(2) + '%'
+                : '0%',
+            debtToEquityRatio: consolidatedEquity > 0
+                ? (consolidatedLiabilities / consolidatedEquity).toFixed(2)
+                : 'N/A'
+        }
+    });
+});
