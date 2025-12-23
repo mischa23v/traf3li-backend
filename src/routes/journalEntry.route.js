@@ -1,7 +1,6 @@
 const express = require('express');
 const router = express.Router();
 const authenticate = require('../middlewares/authenticate');
-const { apiRateLimiter } = require('../middlewares/rateLimiter.middleware');
 const {
     getEntries,
     getEntry,
@@ -15,9 +14,6 @@ const {
 
 // Apply authentication to all routes
 router.use(authenticate);
-
-// Apply rate limiting to all routes
-router.use(apiRateLimiter);
 
 // Create simple two-line entry
 router.post('/simple', createSimpleEntry);

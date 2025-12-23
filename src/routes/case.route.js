@@ -1,7 +1,6 @@
 const express = require('express');
 const { userMiddleware, firmFilter } = require('../middlewares');
 const { cacheResponse, invalidateCache } = require('../middlewares/cache.middleware');
-const { apiRateLimiter } = require('../middlewares/rateLimiter.middleware');
 const {
     validateCreateCase,
     validateUpdateCase,
@@ -80,9 +79,6 @@ const {
     getCaseFull
 } = require('../controllers/case.controller');
 const app = express.Router();
-
-// Apply rate limiting to all routes
-app.use(apiRateLimiter);
 
 // Cache TTL: 300 seconds (5 minutes) for case endpoints
 const CASE_CACHE_TTL = 300;

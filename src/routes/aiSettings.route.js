@@ -1,6 +1,5 @@
 const express = require('express');
 const { userMiddleware, firmFilter } = require('../middlewares');
-const { apiRateLimiter } = require('../middlewares/rateLimiter.middleware');
 const {
     getAISettings,
     saveApiKey,
@@ -12,9 +11,6 @@ const {
 } = require('../controllers/aiSettings.controller');
 
 const router = express.Router();
-
-// Apply rate limiting to all routes
-router.use(apiRateLimiter);
 
 /**
  * AI Settings Routes

@@ -3,16 +3,12 @@ const router = express.Router();
 const assetAssignmentController = require('../controllers/assetAssignment.controller');
 const { verifyToken } = require('../middlewares/jwt');
 const { attachFirmContext } = require('../middlewares/firmContext.middleware');
-const { apiRateLimiter } = require('../middlewares/rateLimiter.middleware');
 
 /**
  * Asset Assignment Routes - HR Management
  * Module 14: الأصول والمعدات (Assets & Equipment)
  * Base path: /api/hr/asset-assignments
  */
-
-// Apply rate limiting
-router.use(apiRateLimiter);
 
 // Apply authentication middleware
 router.use(verifyToken);

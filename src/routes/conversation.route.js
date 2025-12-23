@@ -1,11 +1,8 @@
 const express = require('express');
-const { apiRateLimiter } = require('../middlewares/rateLimiter.middleware');
 const { userMiddleware } = require('../middlewares');
 const { getConversations, createConversation, getSingleConversation, updateConversation } = require('../controllers/conversation.controller');
 
 const app = express.Router();
-
-app.use(apiRateLimiter);
 
 // Get all
 app.get('/', userMiddleware, getConversations);

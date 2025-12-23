@@ -2,10 +2,7 @@ const express = require('express');
 const router = express.Router();
 const authenticate = require('../middlewares/authenticate');
 const { authorize } = require('../middlewares/authorize.middleware');
-const { apiRateLimiter } = require('../middlewares/rateLimiter.middleware');
 const billingController = require('../controllers/billing.controller');
-
-router.use(apiRateLimiter);
 
 // Plans (public)
 router.get('/plans', billingController.getPlans);

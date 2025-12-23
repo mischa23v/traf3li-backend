@@ -13,7 +13,6 @@ const {
     teamManagementOnly
 } = require('../middlewares');
 const { auditAction } = require('../middlewares/auditLog.middleware');
-const { apiRateLimiter } = require('../middlewares/rateLimiter.middleware');
 const {
     // Marketplace
     getFirms,
@@ -63,9 +62,6 @@ const {
 } = require('../controllers/firm.controller');
 
 const app = express.Router();
-
-// Apply rate limiting to all routes
-app.use(apiRateLimiter);
 
 // ═══════════════════════════════════════════════════════════════
 // PUBLIC / MARKETPLACE

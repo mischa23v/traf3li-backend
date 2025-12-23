@@ -1,7 +1,6 @@
 const express = require('express');
 const { userMiddleware } = require('../middlewares');
 const { requiredIdempotency } = require('../middlewares/idempotency');
-const { apiRateLimiter } = require('../middlewares/rateLimiter.middleware');
 const {
     createBill,
     getBills,
@@ -26,9 +25,6 @@ const {
 } = require('../controllers/bill.controller');
 
 const app = express.Router();
-
-// Apply rate limiting
-app.use(apiRateLimiter);
 
 // Collection routes
 app.post('/', userMiddleware, requiredIdempotency, createBill);

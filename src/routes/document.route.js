@@ -1,7 +1,7 @@
 const express = require('express');
 const { userMiddleware } = require('../middlewares');
 const { auditAction } = require('../middlewares/auditLog.middleware');
-const { apiRateLimiter, uploadRateLimiter } = require('../middlewares/rateLimiter.middleware');
+const { uploadRateLimiter } = require('../middlewares/rateLimiter.middleware');
 const {
     getUploadUrl,
     confirmUpload,
@@ -25,9 +25,6 @@ const {
 } = require('../controllers/document.controller');
 
 const app = express.Router();
-
-// Apply rate limiting to all routes
-app.use(apiRateLimiter);
 
 // Upload operations
 app.post('/upload', uploadRateLimiter, userMiddleware, auditAction('upload_document', 'document', { severity: 'medium' }), getUploadUrl);

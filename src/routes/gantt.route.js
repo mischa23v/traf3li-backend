@@ -1,6 +1,5 @@
 const express = require('express');
 const { userMiddleware, firmFilter } = require('../middlewares');
-const { apiRateLimiter } = require('../middlewares/rateLimiter.middleware');
 const {
   // Gantt Data
   getGanttData,
@@ -62,9 +61,6 @@ const {
 } = require('../controllers/gantt.controller');
 
 const router = express.Router();
-
-// Apply rate limiting to all routes
-router.use(apiRateLimiter);
 
 // ═══════════════════════════════════════════════════════════════
 // GANTT DATA ROUTES

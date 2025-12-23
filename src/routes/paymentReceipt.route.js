@@ -10,12 +10,10 @@ const {
     getReceiptStats
 } = require('../controllers/paymentReceipt.controller');
 const { authenticate, firmFilter, checkFirmPermission } = require('../middlewares');
-const { apiRateLimiter } = require('../middlewares/rateLimiter.middleware');
 
 // Apply authentication and firm filter to all routes
 router.use(authenticate);
 router.use(firmFilter);
-router.use(apiRateLimiter);
 
 /**
  * @swagger

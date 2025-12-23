@@ -1,6 +1,5 @@
 const express = require('express');
 const { userMiddleware } = require('../middlewares');
-const { apiRateLimiter } = require('../middlewares/rateLimiter.middleware');
 const {
     createProposal,
     getJobProposals,
@@ -11,8 +10,6 @@ const {
 } = require('../controllers/proposal.controller');
 
 const app = express.Router();
-
-app.use(apiRateLimiter);
 
 // Create proposal
 app.post('/', userMiddleware, createProposal);

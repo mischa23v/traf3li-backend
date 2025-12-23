@@ -3,13 +3,11 @@ const router = express.Router();
 const organizationalUnitController = require('../controllers/organizationalUnit.controller');
 const { verifyToken } = require('../middlewares/jwt');
 const { attachFirmContext } = require('../middlewares/firmContext.middleware');
-const { apiRateLimiter } = require('../middlewares/rateLimiter.middleware');
 
 // ═══════════════════════════════════════════════════════════════
 // MIDDLEWARE
 // ═══════════════════════════════════════════════════════════════
 
-router.use(apiRateLimiter);
 router.use(verifyToken);
 router.use(attachFirmContext);
 

@@ -20,7 +20,6 @@ const {
 } = require('../controllers/payrollRun.controller');
 const { verifyToken } = require('../middlewares/jwt');
 const { attachFirmContext } = require('../middlewares/firmContext.middleware');
-const { apiRateLimiter } = require('../middlewares/rateLimiter.middleware');
 const {
     validateCreatePayrollRun,
     validateUpdatePayrollRun,
@@ -28,7 +27,6 @@ const {
 } = require('../validators/hr.validator');
 
 // All routes require authentication
-router.use(apiRateLimiter);
 router.use(verifyToken);
 router.use(attachFirmContext);
 

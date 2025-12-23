@@ -8,7 +8,6 @@
  */
 
 const express = require('express');
-const { apiRateLimiter } = require('../middlewares/rateLimiter.middleware');
 const { userMiddleware, firmFilter } = require('../middlewares');
 const {
     registerWebhook,
@@ -32,7 +31,6 @@ const router = express.Router();
 
 // ============ APPLY MIDDLEWARE ============
 // All webhook routes require authentication and firm filtering
-router.use(apiRateLimiter);
 router.use(userMiddleware);
 router.use(firmFilter);
 

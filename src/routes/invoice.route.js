@@ -10,7 +10,6 @@
 const express = require('express');
 const { userMiddleware, firmFilter } = require('../middlewares');
 const { auditAction } = require('../middlewares/auditLog.middleware');
-const { apiRateLimiter } = require('../middlewares/rateLimiter.middleware');
 const { authorize } = require('../middlewares/authorize.middleware');
 const {
     validateVoid,
@@ -73,9 +72,6 @@ const {
 const { recordInvoicePayment } = require('../controllers/payment.controller');
 
 const router = express.Router();
-
-// Apply rate limiting to all invoice routes
-router.use(apiRateLimiter);
 
 // ============ STATISTICS & REPORTS ============
 // These need to be before /:id routes to avoid conflicts

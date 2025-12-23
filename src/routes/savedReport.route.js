@@ -1,6 +1,5 @@
 const express = require('express');
 const { userMiddleware } = require('../middlewares');
-const { apiRateLimiter } = require('../middlewares/rateLimiter.middleware');
 const {
     // Saved Reports
     createReport,
@@ -22,8 +21,6 @@ const {
 } = require('../controllers/savedReport.controller');
 
 const app = express.Router();
-
-app.use(apiRateLimiter);
 
 // ==================== Saved Reports ====================
 app.get('/reports', userMiddleware, getReports);

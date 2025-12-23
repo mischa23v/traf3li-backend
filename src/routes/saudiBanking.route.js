@@ -7,10 +7,6 @@ const express = require('express');
 const router = express.Router();
 const authenticate = require('../middlewares/authenticate');
 const saudiBankingController = require('../controllers/saudiBanking.controller');
-const { apiRateLimiter } = require('../middlewares/rateLimiter.middleware');
-
-// Apply rate limiting to all routes
-router.use(apiRateLimiter);
 
 // ============================================
 // LEAN TECHNOLOGIES - Open Banking

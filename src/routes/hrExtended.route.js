@@ -16,7 +16,6 @@ const express = require('express');
 const router = express.Router();
 const { verifyToken } = require('../middlewares/jwt');
 const { attachFirmContext } = require('../middlewares/firmContext.middleware');
-const { apiRateLimiter } = require('../middlewares/rateLimiter.middleware');
 
 // Models
 const LeaveEncashment = require('../models/leaveEncashment.model');
@@ -33,8 +32,7 @@ const EmployeeSkillMap = require('../models/employeeSkillMap.model');
 const HRSettings = require('../models/hrSettings.model');
 const HRSetupWizard = require('../models/hrSetupWizard.model');
 
-// Apply rate limiting and authentication to all routes
-router.use(apiRateLimiter);
+// Apply authentication to all routes
 router.use(verifyToken);
 router.use(attachFirmContext);
 

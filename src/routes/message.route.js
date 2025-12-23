@@ -1,12 +1,9 @@
 const express = require('express');
 const { userMiddleware } = require('../middlewares');
-const { apiRateLimiter } = require('../middlewares/rateLimiter.middleware');
 const upload = require('../configs/multer');
 const { createMessage, getMessages, markAsRead, getMessageStats } = require('../controllers/message.controller');
 
 const app = express.Router();
-
-app.use(apiRateLimiter);
 
 // Create message with optional file upload
 app.post('/', userMiddleware, upload.array('files', 5), upload.malwareScan, createMessage);

@@ -1,7 +1,6 @@
 const express = require('express');
 const { userMiddleware } = require('../middlewares');
 const { authenticate } = require('../middlewares');
-const { apiRateLimiter } = require('../middlewares/rateLimiter.middleware');
 const { 
     createDocument, 
     getDocuments, 
@@ -11,9 +10,6 @@ const {
     incrementDownload 
 } = require('../controllers/legalDocument.controller');
 const app = express.Router();
-
-// Apply rate limiting
-app.use(apiRateLimiter);
 
 // Create document
 app.post('/', userMiddleware, createDocument);

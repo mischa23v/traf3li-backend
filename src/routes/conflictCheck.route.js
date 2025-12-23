@@ -1,5 +1,4 @@
 const express = require('express');
-const { apiRateLimiter } = require('../middlewares/rateLimiter.middleware');
 const { userMiddleware } = require('../middlewares');
 const {
     runConflictCheck,
@@ -13,8 +12,6 @@ const {
 } = require('../controllers/conflictCheck.controller');
 
 const app = express.Router();
-
-app.use(apiRateLimiter);
 
 // Quick check (must be before :id routes)
 app.post('/quick', userMiddleware, quickConflictCheck);

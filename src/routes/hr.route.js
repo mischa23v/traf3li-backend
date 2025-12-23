@@ -14,16 +14,12 @@ const {
 } = require('../controllers/hr.controller');
 const { verifyToken } = require('../middlewares/jwt');
 const { attachFirmContext } = require('../middlewares/firmContext.middleware');
-const { apiRateLimiter } = require('../middlewares/rateLimiter.middleware');
 const {
     validateCreateEmployee,
     validateUpdateEmployee,
     validateAddAllowance,
     validateIdParam
 } = require('../validators/hr.validator');
-
-// Apply rate limiting
-router.use(apiRateLimiter);
 
 // All routes require authentication
 router.use(verifyToken);

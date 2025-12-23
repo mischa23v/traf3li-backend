@@ -2,7 +2,6 @@ const express = require('express');
 const router = express.Router();
 const leadController = require('../controllers/lead.controller');
 const { userMiddleware, firmFilter } = require('../middlewares');
-const { apiRateLimiter } = require('../middlewares/rateLimiter.middleware');
 const {
     validateCreateLead,
     validateUpdateLead,
@@ -16,8 +15,7 @@ const {
     validateLeadIdParam
 } = require('../validators/lead.validator');
 
-// Apply rate limiting, authentication and firm filter to all routes
-router.use(apiRateLimiter);
+// Apply authentication and firm filter to all routes
 router.use(userMiddleware, firmFilter);
 
 // ============================================

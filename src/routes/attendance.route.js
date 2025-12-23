@@ -3,7 +3,6 @@ const router = express.Router();
 const attendanceController = require('../controllers/attendance.controller');
 const { verifyToken } = require('../middlewares/jwt');
 const { attachFirmContext } = require('../middlewares/firmContext.middleware');
-const { apiRateLimiter } = require('../middlewares/rateLimiter.middleware');
 const {
     validateCheckIn,
     validateCheckOut,
@@ -22,9 +21,6 @@ const {
  *
  * IMPORTANT: Static routes must be defined BEFORE parameterized routes (/:id)
  */
-
-// Apply rate limiting to all routes
-router.use(apiRateLimiter);
 
 // Apply authentication middleware to all routes
 router.use(verifyToken);

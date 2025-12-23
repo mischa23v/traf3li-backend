@@ -1,6 +1,5 @@
 const express = require('express');
 const { userMiddleware, firmFilter } = require('../middlewares');
-const { apiRateLimiter } = require('../middlewares/rateLimiter.middleware');
 const taskUpload = require('../configs/taskUpload');
 const {
     createTask,
@@ -76,9 +75,6 @@ const {
 } = require('../controllers/task.controller');
 
 const app = express.Router();
-
-// Apply rate limiting
-app.use(apiRateLimiter);
 
 // ==============================================
 // TEMPLATE ROUTES (MUST BE BEFORE /:id ROUTES!)

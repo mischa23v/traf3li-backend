@@ -1,6 +1,5 @@
 const express = require('express');
 const { userMiddleware } = require('../middlewares');
-const { apiRateLimiter } = require('../middlewares/rateLimiter.middleware');
 const {
     createRateGroup,
     getRateGroups,
@@ -14,9 +13,6 @@ const {
 } = require('../controllers/rateGroup.controller');
 
 const app = express.Router();
-
-// Apply rate limiting
-app.use(apiRateLimiter);
 
 // Default rate group (must be before :id routes)
 app.get('/default', userMiddleware, getDefaultRateGroup);
