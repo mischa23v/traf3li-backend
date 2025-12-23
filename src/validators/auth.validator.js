@@ -130,6 +130,46 @@ const checkAvailabilitySchema = Joi.object({
     'object.missing': 'يجب تقديم بريد إلكتروني أو اسم مستخدم أو رقم هاتف / Must provide email, username, or phone'
 });
 
+/**
+ * Send magic link validation schema
+ */
+const sendMagicLinkSchema = Joi.object({
+    email: Joi.string()
+        .email()
+        .required()
+        .messages({
+            'string.email': 'البريد الإلكتروني غير صالح / Invalid email format',
+            'any.required': 'البريد الإلكتروني مطلوب / Email is required'
+        }),
+    purpose: Joi.string()
+        .valid('login', 'register', 'verify_email')
+        .default('login')
+        .messages({
+            'any.only': 'غرض غير صالح / Invalid purpose'
+        }),
+    redirectUrl: Joi.string()
+        .uri()
+        .optional()
+        .messages({
+            'string.uri': 'رابط إعادة التوجيه غير صالح / Invalid redirect URL'
+        })
+});
+
+/**
+ * Verify magic link validation schema
+ */
+const verifyMagicLinkSchema = Joi.object({
+    token: Joi.string()
+        .length(64)
+        .pattern(/^[a-f0-9]{64}$/)
+        .required()
+        .messages({
+            'string.length': 'رمز غير صالح / Invalid token',
+            'string.pattern.base': 'رمز غير صالح / Invalid token',
+            'any.required': 'الرمز مطلوب / Token is required'
+        })
+});
+
 // ============================================
 // VALIDATION MIDDLEWARE FACTORY
 // ============================================
@@ -176,7 +216,9 @@ module.exports = {
         register: registerSchema,
         sendOTP: sendOTPSchema,
         verifyOTP: verifyOTPSchema,
-        checkAvailability: checkAvailabilitySchema
+        checkAvailability: checkAvailabilitySchema,
+        sendMagicLink: sendMagicLinkSchema,
+        verifyMagicLink: verifyMagicLinkSchema
     },
 
     // Middleware (for route use)
@@ -185,6 +227,8 @@ module.exports = {
     validateSendOTP: validate(sendOTPSchema),
     validateVerifyOTP: validate(verifyOTPSchema),
     validateCheckAvailability: validate(checkAvailabilitySchema),
+    validateSendMagicLink: validate(sendMagicLinkSchema),
+    validateVerifyMagicLink: validate(verifyMagicLinkSchema),
 
     // Generic validate function
     validate

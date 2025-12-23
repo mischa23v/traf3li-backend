@@ -1,5 +1,5 @@
 const express = require('express');
-const { authLogin, authLogout, authLogoutAll, authRegister, authStatus, checkAvailability, getOnboardingStatus } = require('../controllers/auth.controller');
+const { authLogin, authLogout, authLogoutAll, authRegister, authStatus, checkAvailability, getOnboardingStatus, refreshAccessToken, sendMagicLink, verifyMagicLink, verifyEmail, resendVerificationEmail } = require('../controllers/auth.controller');
 const { sendOTP, verifyOTP, resendOTP, checkOTPStatus } = require('../controllers/otp.controller');
 const {
     generateBackupCodes,
@@ -23,7 +23,9 @@ const {
     validateRegister,
     validateSendOTP,
     validateVerifyOTP,
-    validateCheckAvailability
+    validateCheckAvailability,
+    validateSendMagicLink,
+    validateVerifyMagicLink
 } = require('../validators/auth.validator');
 
 const app = express.Router();
@@ -175,6 +177,55 @@ app.post('/logout', authLogout)
  *         $ref: "#/components/responses/Unauthorized"
  */
 app.post("/logout-all", authenticate, authLogoutAll)
+
+/**
+ * @openapi
+ * /api/auth/refresh:
+ *   post:
+ *     summary: Refresh access token
+ *     description: Uses refresh token to obtain new access token. Implements token rotation for security.
+ *     tags:
+ *       - Authentication
+ *     requestBody:
+ *       required: false
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               refreshToken:
+ *                 type: string
+ *                 description: Refresh token (optional if sent via cookie)
+ *     responses:
+ *       200:
+ *         description: Token refreshed successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                 tokens:
+ *                   type: object
+ *                   properties:
+ *                     accessToken:
+ *                       type: string
+ *                     refreshToken:
+ *                       type: string
+ *                 user:
+ *                   type: object
+ *       401:
+ *         description: Invalid or expired refresh token
+ *       403:
+ *         description: Token reuse detected
+ *       429:
+ *         $ref: '#/components/responses/TooManyRequests'
+ */
+app.post('/refresh', authRateLimiter, refreshAccessToken);
 
 /**
  * @openapi
@@ -384,6 +435,109 @@ app.post('/resend-otp', sensitiveRateLimiter, validateSendOTP, resendOTP);
  *                       format: date-time
  */
 app.get('/otp-status', publicRateLimiter, checkOTPStatus);
+
+// ========== Magic Link (Passwordless) Authentication ==========
+/**
+ * @openapi
+ * /api/auth/magic-link/send:
+ *   post:
+ *     summary: Send magic link for passwordless authentication
+ *     description: Sends a magic link to the user's email for passwordless login
+ *     tags:
+ *       - Authentication
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 description: User's email address
+ *               purpose:
+ *                 type: string
+ *                 enum: [login, register, verify_email]
+ *                 default: login
+ *                 description: Purpose of the magic link
+ *               redirectUrl:
+ *                 type: string
+ *                 description: URL to redirect after successful verification
+ *     responses:
+ *       200:
+ *         description: Magic link sent successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                 messageEn:
+ *                   type: string
+ *                 expiresInMinutes:
+ *                   type: number
+ *                   example: 15
+ *       400:
+ *         $ref: '#/components/responses/BadRequest'
+ *       429:
+ *         $ref: '#/components/responses/TooManyRequests'
+ */
+app.post('/magic-link/send', sensitiveRateLimiter, validateSendMagicLink, sendMagicLink);
+
+/**
+ * @openapi
+ * /api/auth/magic-link/verify:
+ *   post:
+ *     summary: Verify magic link and authenticate user
+ *     description: Verifies the magic link token and authenticates the user
+ *     tags:
+ *       - Authentication
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - token
+ *             properties:
+ *               token:
+ *                 type: string
+ *                 description: Magic link token from email
+ *     responses:
+ *       200:
+ *         description: Magic link verified successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                 messageEn:
+ *                   type: string
+ *                 user:
+ *                   $ref: '#/components/schemas/User'
+ *                 redirectUrl:
+ *                   type: string
+ *       400:
+ *         $ref: '#/components/responses/BadRequest'
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ *       429:
+ *         $ref: '#/components/responses/TooManyRequests'
+ */
+app.post('/magic-link/verify', authRateLimiter, validateVerifyMagicLink, verifyMagicLink);
 
 // ========== MFA Backup Codes ==========
 /**
@@ -853,6 +1007,104 @@ app.post('/change-password', authenticate, authRateLimiter, changePassword);
  *         $ref: '#/components/responses/Unauthorized'
  */
 app.get('/password-status', authenticate, publicRateLimiter, getPasswordStatus);
+
+// ========== Email Verification ==========
+/**
+ * @openapi
+ * /api/auth/verify-email:
+ *   post:
+ *     summary: Verify email with token
+ *     description: Verifies user's email address using the token sent via email
+ *     tags:
+ *       - Email Verification
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - token
+ *             properties:
+ *               token:
+ *                 type: string
+ *                 description: Email verification token
+ *     responses:
+ *       200:
+ *         description: Email verified successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                 messageEn:
+ *                   type: string
+ *                 user:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: string
+ *                     email:
+ *                       type: string
+ *                     username:
+ *                       type: string
+ *                     name:
+ *                       type: string
+ *                     isEmailVerified:
+ *                       type: boolean
+ *                     emailVerifiedAt:
+ *                       type: string
+ *                       format: date-time
+ *       400:
+ *         description: Invalid or expired token
+ *       500:
+ *         description: Server error
+ */
+app.post('/verify-email', publicRateLimiter, verifyEmail);
+
+/**
+ * @openapi
+ * /api/auth/resend-verification:
+ *   post:
+ *     summary: Resend verification email
+ *     description: Resends the email verification link to the authenticated user
+ *     tags:
+ *       - Email Verification
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Verification email sent successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                 messageEn:
+ *                   type: string
+ *                 expiresAt:
+ *                   type: string
+ *                   format: date-time
+ *       400:
+ *         description: Email already verified or other error
+ *       401:
+ *         description: Authentication required
+ *       429:
+ *         description: Rate limit exceeded
+ *       500:
+ *         description: Server error
+ */
+app.post('/resend-verification', authenticate, authRateLimiter, resendVerificationEmail);
 
 // ========== OAuth SSO Routes ==========
 const oauthRoutes = require('./oauth.route');

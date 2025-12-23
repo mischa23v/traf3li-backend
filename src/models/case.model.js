@@ -1178,4 +1178,23 @@ caseSchema.pre('save', function(next) {
     next();
 });
 
+// ═══════════════════════════════════════════════════════════════
+// FIRM ISOLATION PLUGIN (RLS-like enforcement)
+// ═══════════════════════════════════════════════════════════════
+const firmIsolationPlugin = require('./plugins/firmIsolation.plugin');
+
+/**
+ * Apply Row-Level Security (RLS) plugin to enforce firm-level data isolation.
+ * This ensures that all queries automatically filter by firmId unless explicitly bypassed.
+ *
+ * Usage:
+ *   // Normal queries (firmId required):
+ *   await Case.find({ firmId: myFirmId, status: 'active' });
+ *
+ *   // System-level queries (bypass):
+ *   await Case.findWithoutFirmFilter({ _id: caseId });
+ *   await Case.find({}).setOptions({ bypassFirmFilter: true });
+ */
+caseSchema.plugin(firmIsolationPlugin);
+
 module.exports = mongoose.model('Case', caseSchema);

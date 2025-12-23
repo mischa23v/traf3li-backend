@@ -944,4 +944,23 @@ invoiceSchema.methods.applyRetainer = async function(amount, retainerId, userId)
     return this;
 };
 
+// ═══════════════════════════════════════════════════════════════
+// FIRM ISOLATION PLUGIN (RLS-like enforcement)
+// ═══════════════════════════════════════════════════════════════
+const firmIsolationPlugin = require('./plugins/firmIsolation.plugin');
+
+/**
+ * Apply Row-Level Security (RLS) plugin to enforce firm-level data isolation.
+ * This ensures that all queries automatically filter by firmId unless explicitly bypassed.
+ *
+ * Usage:
+ *   // Normal queries (firmId required):
+ *   await Invoice.find({ firmId: myFirmId, status: 'sent' });
+ *
+ *   // System-level queries (bypass):
+ *   await Invoice.findWithoutFirmFilter({ _id: invoiceId });
+ *   await Invoice.find({}).setOptions({ bypassFirmFilter: true });
+ */
+invoiceSchema.plugin(firmIsolationPlugin);
+
 module.exports = mongoose.model('Invoice', invoiceSchema);

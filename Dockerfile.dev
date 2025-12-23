@@ -1,0 +1,56 @@
+# ============================================
+# TRAF3LI BACKEND - DEVELOPMENT DOCKERFILE
+# ============================================
+# Optimized for local development with hot reload
+# Includes all dev tools and debugging capabilities
+
+FROM node:20-alpine
+
+# Install development dependencies
+RUN apk add --no-cache \
+    # For native module building (bcrypt, etc.)
+    python3 \
+    make \
+    g++ \
+    # For healthchecks
+    curl \
+    # For puppeteer (PDF generation)
+    chromium \
+    nss \
+    freetype \
+    harfbuzz \
+    ca-certificates \
+    ttf-freefont \
+    # Development tools
+    git \
+    bash
+
+# Set Puppeteer to use system Chromium
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
+    PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
+
+WORKDIR /app
+
+# Copy package files first (better layer caching)
+COPY package*.json ./
+
+# Install ALL dependencies (including devDependencies for development)
+RUN npm install
+
+# Create logs and uploads directories with proper permissions
+RUN mkdir -p logs uploads/messages && \
+    chmod -R 777 logs uploads
+
+# Expose port
+EXPOSE 3000
+
+# Development environment
+ENV NODE_ENV=development
+
+# Health check (use port 3000 for dev)
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD curl -f http://localhost:3000/health/ready || exit 1
+
+# Note: Source code is mounted as volume for hot reload
+# Command is overridden in docker-compose.yml
+CMD ["npm", "run", "dev"]

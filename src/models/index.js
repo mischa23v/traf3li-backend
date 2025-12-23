@@ -96,9 +96,12 @@ const BillPayment = require('./billPayment.model');
 
 // Authentication Models
 const EmailOTP = require('./emailOtp.model');
+const EmailVerification = require('./emailVerification.model');
 const WebAuthnCredential = require('./webauthnCredential.model');
 const Session = require('./session.model');
 const RevokedToken = require('./revokedToken.model');
+const RefreshToken = require('./refreshToken.model');
+const MagicLink = require('./magicLink.model');
 
 // Subscription & Billing Models
 const Subscription = require('./subscription.model');
@@ -245,6 +248,9 @@ const EmailSignature = require('./emailSignature.model');
 const SsoProvider = require('./ssoProvider.model');
 const SsoUserLink = require('./ssoUserLink.model');
 
+// Migration Models
+const MigrationLog = require('./migrationLog.model');
+
 module.exports = {
     // Marketplace
     User,
@@ -344,8 +350,10 @@ module.exports = {
 
     // Authentication
     EmailOTP,
+    EmailVerification,
     WebAuthnCredential,
     Session,
+    MagicLink,
 
     // Subscription & Billing
     Subscription,
@@ -469,6 +477,7 @@ module.exports = {
 
     // Security
     RevokedToken,
+    RefreshToken,
     SecurityIncident,
     ArchivedAuditLog,
     PasswordHistory,
@@ -491,5 +500,8 @@ module.exports = {
 
     // OAuth SSO
     SsoProvider,
-    SsoUserLink
+    SsoUserLink,
+
+    // Migration
+    MigrationLog
 };
