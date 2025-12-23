@@ -91,6 +91,7 @@ const {
     mfaRoute,
     captchaRoute,
     adminRoute,
+    adminApiRoute,
     orderRoute,
     conversationRoute,
     messageRoute,
@@ -106,6 +107,7 @@ const {
     dashboardRoute,
     activityRoute,
     caseRoute,
+    temporalCaseRoute,
     taskRoute,
     ganttRoute,
     notificationRoute,
@@ -113,6 +115,7 @@ const {
 
     // Dashboard Finance
     invoiceRoute,
+    temporalInvoiceRoute,
     expenseRoute,
     timeTrackingRoute,
     paymentRoute,
@@ -697,6 +700,7 @@ app.use('/api/auth', noCache, authRoute); // No cache for auth endpoints
 app.use('/api/auth/mfa', noCache, mfaRoute); // MFA/TOTP authentication endpoints
 app.use('/api/auth', noCache, captchaRoute); // CAPTCHA verification endpoints
 app.use('/api/admin', noCache, adminRoute); // Admin endpoints for token management
+app.use('/api/admin-api', noCache, adminApiRoute); // Comprehensive Admin API for Appsmith/Budibase integration
 app.use('/api/auth/webauthn', noCache, webauthnRoute); // WebAuthn/FIDO2 authentication
 app.use('/api/auth/saml', noCache, samlRoute); // SAML/SSO enterprise authentication
 app.use('/api/auth/ldap', noCache, ldapRoute); // LDAP/Active Directory authentication (public login endpoint)
@@ -719,6 +723,7 @@ app.use('/api/firms', noCache, ssoConfigRoute); // SSO configuration management 
 app.use('/api/dashboard', noCache, dashboardRoute); // No cache for dashboard data
 app.use('/api/activities', activityRoute);
 app.use('/api/cases', caseRoute);
+app.use('/api/cases', noCache, temporalCaseRoute); // Temporal workflow routes for cases
 app.use('/api/tasks', taskRoute);
 app.use('/api/gantt', ganttRoute);
 app.use('/api/notifications', noCache, notificationRoute); // No cache for notifications
@@ -728,6 +733,7 @@ app.use('/api/events', eventRoute);
 // DASHBOARD FINANCE ROUTES (Sensitive Data)
 // ============================================
 app.use('/api/invoices', noCache, invoiceRoute); // No cache for financial data
+app.use('/api/temporal-invoices', noCache, temporalInvoiceRoute); // Temporal workflow-based invoice approval
 app.use('/api/expenses', noCache, expenseRoute);
 app.use('/api/time-tracking', timeTrackingRoute);
 app.use('/api/payments', noCache, paymentRoute); // Critical: No cache for payments

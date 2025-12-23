@@ -2,6 +2,7 @@
 const gigRoute = require('./gig.route');
 const authRoute = require('./auth.route');
 const adminRoute = require('./admin.route');
+const adminApiRoute = require('./adminApi.route');
 const orderRoute = require('./order.route');
 const conversationRoute = require('./conversation.route');
 const messageRoute = require('./message.route');
@@ -17,6 +18,7 @@ const firmRoute = require('./firm.route');
 const dashboardRoute = require('./dashboard.route');
 const activityRoute = require('./activity.route');
 const caseRoute = require('./case.route');
+const temporalCaseRoute = require('./temporalCase.route');
 const taskRoute = require('./task.route');
 const ganttRoute = require('./gantt.route');
 const notificationRoute = require('./notification.route');
@@ -24,6 +26,7 @@ const eventRoute = require('./event.route');
 
 // Dashboard Finance Routes
 const invoiceRoute = require('./invoice.route');
+const temporalInvoiceRoute = require('./temporalInvoice.route');
 const expenseRoute = require('./expense.route');
 const timeTrackingRoute = require('./timeTracking.route');
 const paymentRoute = require('./payment.route');
@@ -249,6 +252,7 @@ module.exports = {
     mfaRoute,
     captchaRoute,
     adminRoute,
+    adminApiRoute,
     orderRoute,
     conversationRoute,
     messageRoute,
@@ -264,6 +268,7 @@ module.exports = {
     dashboardRoute,
     activityRoute,
     caseRoute,
+    temporalCaseRoute,
     taskRoute,
     ganttRoute,
     notificationRoute,
@@ -271,6 +276,7 @@ module.exports = {
 
     // Dashboard Finance
     invoiceRoute,
+    temporalInvoiceRoute,
     expenseRoute,
     timeTrackingRoute,
     paymentRoute,
