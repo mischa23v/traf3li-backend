@@ -19,6 +19,7 @@
 const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
 const smartSchedulingService = require('../services/smartScheduling.service');
+const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 
 /**
  * Get user's productivity patterns
@@ -49,30 +50,44 @@ const getUserPatterns = asyncHandler(async (req, res) => {
 const suggestBestTime = asyncHandler(async (req, res) => {
     const userId = req.userID;
     const firmId = req.firmId;
-    const { title, type, estimatedMinutes, priority } = req.body;
 
     // Block departed users
     if (req.isDeparted) {
         throw CustomException('Access denied', 403);
     }
 
+    // Mass assignment protection
+    const allowedFields = ['title', 'type', 'estimatedMinutes', 'priority'];
+    const data = pickAllowedFields(req.body, allowedFields);
+
     // Validate required fields
-    if (!title) {
+    if (!data.title || typeof data.title !== 'string' || data.title.trim().length === 0) {
         throw CustomException('Task title is required', 400);
     }
 
-    if (!estimatedMinutes || estimatedMinutes <= 0) {
-        throw CustomException('Valid estimated duration is required', 400);
+    if (!data.estimatedMinutes || typeof data.estimatedMinutes !== 'number' || data.estimatedMinutes <= 0) {
+        throw CustomException('Valid estimated duration (in minutes) is required', 400);
+    }
+
+    // Validate estimatedMinutes range
+    if (data.estimatedMinutes > 1440) { // 24 hours max
+        throw CustomException('Estimated duration cannot exceed 1440 minutes (24 hours)', 400);
+    }
+
+    // Validate priority if provided
+    const validPriorities = ['low', 'medium', 'high', 'urgent'];
+    if (data.priority && !validPriorities.includes(data.priority)) {
+        throw CustomException('Invalid priority. Must be one of: low, medium, high, urgent', 400);
     }
 
     const suggestion = await smartSchedulingService.suggestBestTime(
         userId,
         firmId,
         {
-            title,
-            taskType: type || 'general',
-            estimatedMinutes,
-            priority: priority || 'medium'
+            title: data.title.trim(),
+            taskType: data.type || 'general',
+            estimatedMinutes: data.estimatedMinutes,
+            priority: data.priority || 'medium'
         }
     );
 
@@ -90,23 +105,32 @@ const suggestBestTime = asyncHandler(async (req, res) => {
 const predictDuration = asyncHandler(async (req, res) => {
     const userId = req.userID;
     const firmId = req.firmId;
-    const { taskType, complexity } = req.body;
 
     // Block departed users
     if (req.isDeparted) {
         throw CustomException('Access denied', 403);
     }
 
+    // Mass assignment protection
+    const allowedFields = ['taskType', 'complexity'];
+    const data = pickAllowedFields(req.body, allowedFields);
+
     // Validate required fields
-    if (!taskType) {
+    if (!data.taskType || typeof data.taskType !== 'string' || data.taskType.trim().length === 0) {
         throw CustomException('Task type is required', 400);
+    }
+
+    // Validate complexity if provided
+    const validComplexities = ['low', 'medium', 'high'];
+    if (data.complexity && !validComplexities.includes(data.complexity)) {
+        throw CustomException('Invalid complexity. Must be one of: low, medium, high', 400);
     }
 
     const prediction = await smartSchedulingService.predictDuration(
         userId,
         firmId,
-        taskType,
-        complexity || 'medium'
+        data.taskType.trim(),
+        data.complexity || 'medium'
     );
 
     return res.json({
@@ -193,29 +217,41 @@ const getDailyNudges = asyncHandler(async (req, res) => {
 const autoScheduleTasks = asyncHandler(async (req, res) => {
     const userId = req.userID;
     const firmId = req.firmId;
-    const { taskIds } = req.body;
 
     // Block departed users
     if (req.isDeparted) {
         throw CustomException('Access denied', 403);
     }
 
+    // Mass assignment protection
+    const allowedFields = ['taskIds'];
+    const data = pickAllowedFields(req.body, allowedFields);
+
     // Validate taskIds
-    if (!taskIds || !Array.isArray(taskIds) || taskIds.length === 0) {
+    if (!data.taskIds || !Array.isArray(data.taskIds) || data.taskIds.length === 0) {
         throw CustomException('Task IDs array is required', 400);
     }
 
     // Limit to 50 tasks at a time
-    if (taskIds.length > 50) {
+    if (data.taskIds.length > 50) {
         throw CustomException('Cannot auto-schedule more than 50 tasks at once', 400);
     }
+
+    // IDOR Protection: Sanitize all task IDs
+    const sanitizedTaskIds = data.taskIds.map(id => {
+        const sanitized = sanitizeObjectId(id);
+        if (!sanitized) {
+            throw CustomException(`Invalid task ID: ${id}`, 400);
+        }
+        return sanitized;
+    });
 
     // Fetch tasks to schedule
     const Task = require('../models/task.model');
     const tasks = await Task.find({
-        _id: { $in: taskIds },
-        firmId,
-        assignedTo: userId
+        _id: { $in: sanitizedTaskIds },
+        firmId, // Ownership verification
+        assignedTo: userId // Additional ownership check
     }).lean();
 
     if (tasks.length === 0) {

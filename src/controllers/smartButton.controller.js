@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
+const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 const {
     Case,
     Client,
@@ -25,16 +26,46 @@ const getCounts = asyncHandler(async (req, res) => {
     const firmId = req.firmId; // From firmFilter middleware
     const lawyerId = req.userID;
 
-    // Validate ObjectId
-    if (!mongoose.Types.ObjectId.isValid(recordId)) {
-        throw CustomException('Invalid record ID', 400);
+    // Validate model type
+    const allowedModels = [
+        'client', 'case', 'contact', 'invoice', 'lead',
+        'task', 'expense', 'payment', 'document', 'timeentry', 'event'
+    ];
+
+    if (!model || !allowedModels.includes(model.toLowerCase())) {
+        throw CustomException('Invalid or unsupported model type', 400);
     }
 
-    const recordObjectId = new mongoose.Types.ObjectId(recordId);
+    // IDOR Protection: Sanitize and validate ObjectId
+    const recordObjectId = sanitizeObjectId(recordId, 'Record ID');
+
     let counts = {};
 
     // Build base query: use firmId if available, otherwise fall back to lawyerId
     const baseQuery = firmId ? { firmId } : { lawyerId };
+
+    // Verify ownership of the record before returning counts
+    const modelMap = {
+        'client': Client,
+        'case': Case,
+        'contact': Contact,
+        'invoice': Invoice,
+        'lead': Lead,
+        'task': Task,
+        'expense': Expense,
+        'payment': Payment,
+        'document': Document,
+        'timeentry': TimeEntry,
+        'event': Event
+    };
+
+    const ModelClass = modelMap[model.toLowerCase()];
+    if (ModelClass) {
+        const record = await ModelClass.findOne({ _id: recordObjectId, ...baseQuery });
+        if (!record) {
+            throw CustomException('Record not found or access denied', 404);
+        }
+    }
 
     switch (model.toLowerCase()) {
         case 'client':
@@ -318,29 +349,73 @@ const getCounts = asyncHandler(async (req, res) => {
  */
 const getBatchCounts = asyncHandler(async (req, res) => {
     const { model } = req.params;
-    const { recordIds } = req.body;
     const firmId = req.firmId;
     const lawyerId = req.userID;
 
-    if (!recordIds || !Array.isArray(recordIds) || recordIds.length === 0) {
-        throw CustomException('recordIds array is required', 400);
+    // Mass Assignment Protection: Define allowed fields
+    const allowedFields = ['recordIds'];
+    const sanitizedBody = pickAllowedFields(req.body, allowedFields);
+    const { recordIds } = sanitizedBody;
+
+    // Validate model type
+    const allowedModels = ['client', 'case'];
+
+    if (!model || !allowedModels.includes(model.toLowerCase())) {
+        throw CustomException('Invalid or unsupported model type for batch counts', 400);
     }
 
-    // Validate all ObjectIds
-    const validIds = recordIds.filter(id => mongoose.Types.ObjectId.isValid(id));
-    if (validIds.length === 0) {
+    // Input Validation: Validate recordIds
+    if (!recordIds || !Array.isArray(recordIds)) {
+        throw CustomException('recordIds must be a non-empty array', 400);
+    }
+
+    if (recordIds.length === 0) {
+        throw CustomException('recordIds array cannot be empty', 400);
+    }
+
+    // Limit batch size to prevent abuse
+    if (recordIds.length > 100) {
+        throw CustomException('Cannot process more than 100 records at once', 400);
+    }
+
+    // IDOR Protection: Sanitize all ObjectIds
+    const recordObjectIds = [];
+    for (const id of recordIds) {
+        try {
+            const sanitizedId = sanitizeObjectId(id, 'Record ID');
+            recordObjectIds.push(sanitizedId);
+        } catch (error) {
+            // Skip invalid IDs but continue processing valid ones
+            continue;
+        }
+    }
+
+    if (recordObjectIds.length === 0) {
         throw CustomException('No valid record IDs provided', 400);
     }
 
-    const recordObjectIds = validIds.map(id => new mongoose.Types.ObjectId(id));
     const baseQuery = firmId ? { firmId } : { lawyerId };
+
+    // Verify ownership: Only return counts for records that belong to the user/firm
+    const modelMap = {
+        'client': Client,
+        'case': Case
+    };
+
+    const ModelClass = modelMap[model.toLowerCase()];
+    const ownedRecords = await ModelClass.find({
+        _id: { $in: recordObjectIds },
+        ...baseQuery
+    }).select('_id');
+
+    const ownedRecordIds = ownedRecords.map(r => r._id);
 
     let results = {};
 
     switch (model.toLowerCase()) {
         case 'client':
-            // Get counts for each client
-            for (const recordId of recordObjectIds) {
+            // Get counts for each owned client only
+            for (const recordId of ownedRecordIds) {
                 const counts = {
                     cases: await Case.countDocuments({ ...baseQuery, clientId: recordId }),
                     invoices: await Invoice.countDocuments({ ...baseQuery, clientId: recordId }),
@@ -356,7 +431,8 @@ const getBatchCounts = asyncHandler(async (req, res) => {
             break;
 
         case 'case':
-            for (const recordId of recordObjectIds) {
+            // Get counts for each owned case only
+            for (const recordId of ownedRecordIds) {
                 const counts = {
                     documents: await Document.countDocuments({ ...baseQuery, caseId: recordId }),
                     tasks: await Task.countDocuments({ ...baseQuery, caseId: recordId }),

@@ -8,6 +8,7 @@ const PdfmeService = require('../services/pdfme.service');
 const PdfmeTemplate = require('../models/pdfmeTemplate.model');
 const QueueService = require('../services/queue.service');
 const { CustomException } = require('../utils');
+const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 const mongoose = require('mongoose');
 
 /**
@@ -94,6 +95,7 @@ const getTemplate = async (req, res) => {
     try {
         const { id } = req.params;
         const lawyerId = req.userID;
+        const firmId = req.user?.firmId;
 
         if (!mongoose.Types.ObjectId.isValid(id)) {
             return res.status(400).json({
@@ -122,6 +124,18 @@ const getTemplate = async (req, res) => {
             });
         }
 
+        // IDOR protection - verify firmId ownership
+        if (firmId && template.firmId && template.firmId.toString() !== sanitizeObjectId(firmId).toString()) {
+            return res.status(403).json({
+                success: false,
+                error: {
+                    code: 'FORBIDDEN',
+                    message: 'Access denied to this template',
+                    messageAr: 'تم رفض الوصول إلى هذا القالب'
+                }
+            });
+        }
+
         res.json({
             success: true,
             data: template
@@ -146,7 +160,23 @@ const getTemplate = async (req, res) => {
 const createTemplate = async (req, res) => {
     try {
         const lawyerId = req.userID;
-        const templateData = req.body;
+        const firmId = req.user?.firmId;
+
+        // Mass assignment protection - only allow specific fields
+        const allowedFields = [
+            'name',
+            'description',
+            'category',
+            'type',
+            'schemas',
+            'basePdf',
+            'sampleInputs',
+            'isActive',
+            'isDefault',
+            'metadata',
+            'tags'
+        ];
+        const templateData = pickAllowedFields(req.body, allowedFields);
 
         // Validate required fields
         if (!templateData.name) {
@@ -158,6 +188,64 @@ const createTemplate = async (req, res) => {
                     messageAr: 'اسم القالب مطلوب'
                 }
             });
+        }
+
+        // Input validation for template data
+        if (templateData.schemas) {
+            if (!Array.isArray(templateData.schemas)) {
+                return res.status(400).json({
+                    success: false,
+                    error: {
+                        code: 'VALIDATION_ERROR',
+                        message: 'Schemas must be an array',
+                        messageAr: 'يجب أن تكون المخططات مصفوفة'
+                    }
+                });
+            }
+
+            // Prevent template injection - validate schema structure
+            for (const schema of templateData.schemas) {
+                if (typeof schema !== 'object' || schema === null) {
+                    return res.status(400).json({
+                        success: false,
+                        error: {
+                            code: 'VALIDATION_ERROR',
+                            message: 'Invalid schema format',
+                            messageAr: 'تنسيق المخطط غير صالح'
+                        }
+                    });
+                }
+
+                // Prevent script injection in schema values
+                const schemaStr = JSON.stringify(schema);
+                if (/<script|javascript:|onerror=|onclick=/i.test(schemaStr)) {
+                    return res.status(400).json({
+                        success: false,
+                        error: {
+                            code: 'SECURITY_ERROR',
+                            message: 'Invalid characters detected in schema',
+                            messageAr: 'تم اكتشاف أحرف غير صالحة في المخطط'
+                        }
+                    });
+                }
+            }
+        }
+
+        // Validate basePdf if provided
+        if (templateData.basePdf && typeof templateData.basePdf !== 'string') {
+            return res.status(400).json({
+                success: false,
+                error: {
+                    code: 'VALIDATION_ERROR',
+                    message: 'basePdf must be a string',
+                    messageAr: 'يجب أن يكون basePdf نصًا'
+                }
+            });
+        }
+
+        // IDOR protection - ensure firmId is set correctly
+        if (firmId) {
+            templateData.firmId = sanitizeObjectId(firmId);
         }
 
         const template = await PdfmeService.createTemplate(templateData, lawyerId);
@@ -189,7 +277,7 @@ const updateTemplate = async (req, res) => {
     try {
         const { id } = req.params;
         const lawyerId = req.userID;
-        const updateData = req.body;
+        const firmId = req.user?.firmId;
 
         if (!mongoose.Types.ObjectId.isValid(id)) {
             return res.status(400).json({
@@ -215,6 +303,18 @@ const updateTemplate = async (req, res) => {
             });
         }
 
+        // IDOR protection - verify firmId ownership
+        if (firmId && existing.firmId && existing.firmId.toString() !== sanitizeObjectId(firmId).toString()) {
+            return res.status(403).json({
+                success: false,
+                error: {
+                    code: 'FORBIDDEN',
+                    message: 'Access denied to this template',
+                    messageAr: 'تم رفض الوصول إلى هذا القالب'
+                }
+            });
+        }
+
         // Prevent modifying system templates
         if (existing.isSystem) {
             return res.status(403).json({
@@ -223,6 +323,75 @@ const updateTemplate = async (req, res) => {
                     code: 'FORBIDDEN',
                     message: 'System templates cannot be modified',
                     messageAr: 'لا يمكن تعديل قوالب النظام'
+                }
+            });
+        }
+
+        // Mass assignment protection - only allow specific fields
+        const allowedFields = [
+            'name',
+            'description',
+            'category',
+            'type',
+            'schemas',
+            'basePdf',
+            'sampleInputs',
+            'isActive',
+            'isDefault',
+            'metadata',
+            'tags'
+        ];
+        const updateData = pickAllowedFields(req.body, allowedFields);
+
+        // Input validation for template data
+        if (updateData.schemas) {
+            if (!Array.isArray(updateData.schemas)) {
+                return res.status(400).json({
+                    success: false,
+                    error: {
+                        code: 'VALIDATION_ERROR',
+                        message: 'Schemas must be an array',
+                        messageAr: 'يجب أن تكون المخططات مصفوفة'
+                    }
+                });
+            }
+
+            // Prevent template injection - validate schema structure
+            for (const schema of updateData.schemas) {
+                if (typeof schema !== 'object' || schema === null) {
+                    return res.status(400).json({
+                        success: false,
+                        error: {
+                            code: 'VALIDATION_ERROR',
+                            message: 'Invalid schema format',
+                            messageAr: 'تنسيق المخطط غير صالح'
+                        }
+                    });
+                }
+
+                // Prevent script injection in schema values
+                const schemaStr = JSON.stringify(schema);
+                if (/<script|javascript:|onerror=|onclick=/i.test(schemaStr)) {
+                    return res.status(400).json({
+                        success: false,
+                        error: {
+                            code: 'SECURITY_ERROR',
+                            message: 'Invalid characters detected in schema',
+                            messageAr: 'تم اكتشاف أحرف غير صالحة في المخطط'
+                        }
+                    });
+                }
+            }
+        }
+
+        // Validate basePdf if provided
+        if (updateData.basePdf && typeof updateData.basePdf !== 'string') {
+            return res.status(400).json({
+                success: false,
+                error: {
+                    code: 'VALIDATION_ERROR',
+                    message: 'basePdf must be a string',
+                    messageAr: 'يجب أن يكون basePdf نصًا'
                 }
             });
         }
@@ -256,6 +425,7 @@ const deleteTemplate = async (req, res) => {
     try {
         const { id } = req.params;
         const lawyerId = req.userID;
+        const firmId = req.user?.firmId;
 
         if (!mongoose.Types.ObjectId.isValid(id)) {
             return res.status(400).json({
@@ -277,6 +447,18 @@ const deleteTemplate = async (req, res) => {
                     code: 'NOT_FOUND',
                     message: 'Template not found',
                     messageAr: 'القالب غير موجود'
+                }
+            });
+        }
+
+        // IDOR protection - verify firmId ownership
+        if (firmId && existing.firmId && existing.firmId.toString() !== sanitizeObjectId(firmId).toString()) {
+            return res.status(403).json({
+                success: false,
+                error: {
+                    code: 'FORBIDDEN',
+                    message: 'Access denied to this template',
+                    messageAr: 'تم رفض الوصول إلى هذا القالب'
                 }
             });
         }
@@ -322,6 +504,7 @@ const cloneTemplate = async (req, res) => {
         const { id } = req.params;
         const { name } = req.body;
         const lawyerId = req.userID;
+        const firmId = req.user?.firmId;
 
         if (!mongoose.Types.ObjectId.isValid(id)) {
             return res.status(400).json({
@@ -343,6 +526,18 @@ const cloneTemplate = async (req, res) => {
                     code: 'NOT_FOUND',
                     message: 'Template not found or access denied',
                     messageAr: 'القالب غير موجود أو تم رفض الوصول'
+                }
+            });
+        }
+
+        // IDOR protection - verify firmId ownership
+        if (firmId && sourceTemplate.firmId && sourceTemplate.firmId.toString() !== sanitizeObjectId(firmId).toString()) {
+            return res.status(403).json({
+                success: false,
+                error: {
+                    code: 'FORBIDDEN',
+                    message: 'Access denied to this template',
+                    messageAr: 'تم رفض الوصول إلى هذا القالب'
                 }
             });
         }
@@ -376,6 +571,7 @@ const setDefaultTemplate = async (req, res) => {
     try {
         const { id } = req.params;
         const lawyerId = req.userID;
+        const firmId = req.user?.firmId;
 
         if (!mongoose.Types.ObjectId.isValid(id)) {
             return res.status(400).json({
@@ -397,6 +593,18 @@ const setDefaultTemplate = async (req, res) => {
                     code: 'NOT_FOUND',
                     message: 'Template not found or access denied',
                     messageAr: 'القالب غير موجود أو تم رفض الوصول'
+                }
+            });
+        }
+
+        // IDOR protection - verify firmId ownership
+        if (firmId && existingTemplate.firmId && existingTemplate.firmId.toString() !== sanitizeObjectId(firmId).toString()) {
+            return res.status(403).json({
+                success: false,
+                error: {
+                    code: 'FORBIDDEN',
+                    message: 'Access denied to this template',
+                    messageAr: 'تم رفض الوصول إلى هذا القالب'
                 }
             });
         }
@@ -429,6 +637,7 @@ const setDefaultTemplate = async (req, res) => {
 const generatePDF = async (req, res) => {
     try {
         const lawyerId = req.userID;
+        const firmId = req.user?.firmId;
         const { templateId, template, inputs, type = 'custom' } = req.body;
 
         if (!templateId && !template) {
@@ -451,6 +660,73 @@ const generatePDF = async (req, res) => {
                     messageAr: 'البيانات مطلوبة'
                 }
             });
+        }
+
+        // Validate inputs structure and prevent injection
+        if (Array.isArray(inputs)) {
+            for (const input of inputs) {
+                if (typeof input !== 'object' || input === null) {
+                    return res.status(400).json({
+                        success: false,
+                        error: {
+                            code: 'VALIDATION_ERROR',
+                            message: 'Invalid input format',
+                            messageAr: 'تنسيق الإدخال غير صالح'
+                        }
+                    });
+                }
+
+                // Prevent script injection in input values
+                const inputStr = JSON.stringify(input);
+                if (/<script|javascript:|onerror=|onclick=/i.test(inputStr)) {
+                    return res.status(400).json({
+                        success: false,
+                        error: {
+                            code: 'SECURITY_ERROR',
+                            message: 'Invalid characters detected in inputs',
+                            messageAr: 'تم اكتشاف أحرف غير صالحة في المدخلات'
+                        }
+                    });
+                }
+            }
+        }
+
+        // IDOR protection - verify template ownership if templateId provided
+        if (templateId) {
+            if (!mongoose.Types.ObjectId.isValid(templateId)) {
+                return res.status(400).json({
+                    success: false,
+                    error: {
+                        code: 'INVALID_ID',
+                        message: 'Invalid template ID',
+                        messageAr: 'معرف القالب غير صالح'
+                    }
+                });
+            }
+
+            const templateDoc = await PdfmeTemplate.findOne({ _id: templateId, lawyerId });
+            if (!templateDoc) {
+                return res.status(404).json({
+                    success: false,
+                    error: {
+                        code: 'NOT_FOUND',
+                        message: 'Template not found or access denied',
+                        messageAr: 'القالب غير موجود أو تم رفض الوصول'
+                    }
+                });
+            }
+
+            // Verify firmId ownership
+            if (firmId && templateDoc.firmId && templateDoc.firmId.toString() !== sanitizeObjectId(firmId).toString()) {
+                return res.status(403).json({
+                    success: false,
+                    error: {
+                        code: 'FORBIDDEN',
+                        message: 'Access denied to this template',
+                        messageAr: 'تم رفض الوصول إلى هذا القالب'
+                    }
+                });
+            }
         }
 
         const pdfBuffer = await PdfmeService.generatePDF({
@@ -495,6 +771,7 @@ const generatePDF = async (req, res) => {
 const generatePDFAsync = async (req, res) => {
     try {
         const lawyerId = req.userID;
+        const firmId = req.user?.firmId;
         const { templateId, template, inputs, type = 'custom', priority = 3 } = req.body;
 
         if (!templateId && !template) {
@@ -520,10 +797,39 @@ const generatePDFAsync = async (req, res) => {
             });
         }
 
+        // Validate inputs structure and prevent injection
+        if (Array.isArray(inputs)) {
+            for (const input of inputs) {
+                if (typeof input !== 'object' || input === null) {
+                    return res.status(400).json({
+                        success: false,
+                        error: {
+                            code: 'VALIDATION_ERROR',
+                            message: 'Invalid input format',
+                            messageAr: 'تنسيق الإدخال غير صالح'
+                        }
+                    });
+                }
+
+                // Prevent script injection in input values
+                const inputStr = JSON.stringify(input);
+                if (/<script|javascript:|onerror=|onclick=/i.test(inputStr)) {
+                    return res.status(400).json({
+                        success: false,
+                        error: {
+                            code: 'SECURITY_ERROR',
+                            message: 'Invalid characters detected in inputs',
+                            messageAr: 'تم اكتشاف أحرف غير صالحة في المدخلات'
+                        }
+                    });
+                }
+            }
+        }
+
         // Validate priority (must be between 1 and 10)
         const sanitizedPriority = Math.min(Math.max(parseInt(priority) || 3, 1), 10);
 
-        // Verify template ownership if templateId provided
+        // IDOR protection - verify template ownership if templateId provided
         if (templateId) {
             if (!mongoose.Types.ObjectId.isValid(templateId)) {
                 return res.status(400).json({
@@ -543,6 +849,18 @@ const generatePDFAsync = async (req, res) => {
                         code: 'NOT_FOUND',
                         message: 'Template not found or access denied',
                         messageAr: 'القالب غير موجود أو تم رفض الوصول'
+                    }
+                });
+            }
+
+            // Verify firmId ownership
+            if (firmId && templateExists.firmId && templateExists.firmId.toString() !== sanitizeObjectId(firmId).toString()) {
+                return res.status(403).json({
+                    success: false,
+                    error: {
+                        code: 'FORBIDDEN',
+                        message: 'Access denied to this template',
+                        messageAr: 'تم رفض الوصول إلى هذا القالب'
                     }
                 });
             }
@@ -849,6 +1167,7 @@ const previewTemplate = async (req, res) => {
     try {
         const { id } = req.params;
         const lawyerId = req.userID;
+        const firmId = req.user?.firmId;
         const { inputs } = req.body;
 
         if (!mongoose.Types.ObjectId.isValid(id)) {
@@ -874,8 +1193,35 @@ const previewTemplate = async (req, res) => {
             });
         }
 
+        // IDOR protection - verify firmId ownership
+        if (firmId && template.firmId && template.firmId.toString() !== sanitizeObjectId(firmId).toString()) {
+            return res.status(403).json({
+                success: false,
+                error: {
+                    code: 'FORBIDDEN',
+                    message: 'Access denied to this template',
+                    messageAr: 'تم رفض الوصول إلى هذا القالب'
+                }
+            });
+        }
+
         // Use provided inputs or sample inputs from template
         const previewInputs = inputs || template.sampleInputs || {};
+
+        // Validate preview inputs if provided
+        if (inputs) {
+            const inputStr = JSON.stringify(inputs);
+            if (/<script|javascript:|onerror=|onclick=/i.test(inputStr)) {
+                return res.status(400).json({
+                    success: false,
+                    error: {
+                        code: 'SECURITY_ERROR',
+                        message: 'Invalid characters detected in inputs',
+                        messageAr: 'تم اكتشاف أحرف غير صالحة في المدخلات'
+                    }
+                });
+            }
+        }
 
         const pdfBuffer = await PdfmeService.generatePDF({
             template: template.toPdfmeFormat(),

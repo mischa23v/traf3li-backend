@@ -6,6 +6,7 @@
 
 const Territory = require('../models/territory.model');
 const CrmActivity = require('../models/crmActivity.model');
+const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 
 // ═══════════════════════════════════════════════════════════════
 // LIST TERRITORIES
@@ -132,7 +133,15 @@ exports.getById = async (req, res) => {
             });
         }
 
-        const { id } = req.params;
+        // Sanitize and validate ID
+        const id = sanitizeObjectId(req.params.id);
+        if (!id) {
+            return res.status(400).json({
+                success: false,
+                message: 'معرف غير صالح / Invalid ID'
+            });
+        }
+
         const firmId = req.firmId;
 
         const territory = await Territory.findOne({ _id: id, firmId })
@@ -179,8 +188,70 @@ exports.create = async (req, res) => {
         const firmId = req.firmId;
         const userId = req.userID;
 
+        // Define allowed fields for mass assignment protection
+        const allowedFields = [
+            'name',
+            'nameAr',
+            'code',
+            'description',
+            'descriptionAr',
+            'isGroup',
+            'parentTerritoryId',
+            'managerId',
+            'level',
+            'enabled',
+            'metadata'
+        ];
+
+        // Validate required fields
+        const { name } = req.body;
+        if (!name || typeof name !== 'string' || name.trim().length === 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'اسم المنطقة مطلوب / Territory name is required'
+            });
+        }
+
+        // Sanitize parentTerritoryId if provided
+        if (req.body.parentTerritoryId) {
+            const sanitizedParentId = sanitizeObjectId(req.body.parentTerritoryId);
+            if (!sanitizedParentId) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'معرف المنطقة الأم غير صالح / Invalid parent territory ID'
+                });
+            }
+            req.body.parentTerritoryId = sanitizedParentId;
+        }
+
+        // Sanitize managerId if provided
+        if (req.body.managerId) {
+            const sanitizedManagerId = sanitizeObjectId(req.body.managerId);
+            if (!sanitizedManagerId) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'معرف المدير غير صالح / Invalid manager ID'
+                });
+            }
+            req.body.managerId = sanitizedManagerId;
+        }
+
+        // Validate level if provided
+        if (req.body.level !== undefined) {
+            const level = parseInt(req.body.level);
+            if (isNaN(level) || level < 0) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'المستوى يجب أن يكون رقماً صحيحاً / Level must be a valid number'
+                });
+            }
+        }
+
+        // Use pickAllowedFields for mass assignment protection
+        const sanitizedData = pickAllowedFields(req.body, allowedFields);
+
         const territoryData = {
-            ...req.body,
+            ...sanitizedData,
             firmId
         };
 
@@ -236,13 +307,84 @@ exports.update = async (req, res) => {
             });
         }
 
-        const { id } = req.params;
+        // Sanitize and validate ID
+        const id = sanitizeObjectId(req.params.id);
+        if (!id) {
+            return res.status(400).json({
+                success: false,
+                message: 'معرف غير صالح / Invalid ID'
+            });
+        }
+
         const firmId = req.firmId;
         const userId = req.userID;
 
+        // Define allowed fields for mass assignment protection
+        const allowedFields = [
+            'name',
+            'nameAr',
+            'code',
+            'description',
+            'descriptionAr',
+            'isGroup',
+            'parentTerritoryId',
+            'managerId',
+            'level',
+            'enabled',
+            'metadata'
+        ];
+
+        // Validate name if provided
+        if (req.body.name !== undefined) {
+            if (typeof req.body.name !== 'string' || req.body.name.trim().length === 0) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'اسم المنطقة يجب أن يكون نصاً صحيحاً / Territory name must be valid text'
+                });
+            }
+        }
+
+        // Sanitize parentTerritoryId if provided
+        if (req.body.parentTerritoryId) {
+            const sanitizedParentId = sanitizeObjectId(req.body.parentTerritoryId);
+            if (!sanitizedParentId) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'معرف المنطقة الأم غير صالح / Invalid parent territory ID'
+                });
+            }
+            req.body.parentTerritoryId = sanitizedParentId;
+        }
+
+        // Sanitize managerId if provided
+        if (req.body.managerId) {
+            const sanitizedManagerId = sanitizeObjectId(req.body.managerId);
+            if (!sanitizedManagerId) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'معرف المدير غير صالح / Invalid manager ID'
+                });
+            }
+            req.body.managerId = sanitizedManagerId;
+        }
+
+        // Validate level if provided
+        if (req.body.level !== undefined) {
+            const level = parseInt(req.body.level);
+            if (isNaN(level) || level < 0) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'المستوى يجب أن يكون رقماً صحيحاً / Level must be a valid number'
+                });
+            }
+        }
+
+        // Use pickAllowedFields for mass assignment protection
+        const sanitizedData = pickAllowedFields(req.body, allowedFields);
+
         const territory = await Territory.findOneAndUpdate(
             { _id: id, firmId },
-            { $set: req.body },
+            { $set: sanitizedData },
             { new: true, runValidators: true }
         );
 
@@ -303,7 +445,15 @@ exports.delete = async (req, res) => {
             });
         }
 
-        const { id } = req.params;
+        // Sanitize and validate ID
+        const id = sanitizeObjectId(req.params.id);
+        if (!id) {
+            return res.status(400).json({
+                success: false,
+                message: 'معرف غير صالح / Invalid ID'
+            });
+        }
+
         const firmId = req.firmId;
         const userId = req.userID;
 

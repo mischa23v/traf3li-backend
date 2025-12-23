@@ -19,6 +19,7 @@ const asyncHandler = require('../utils/asyncHandler');
 const { CustomException } = require('../utils');
 const logger = require('../utils/contextLogger');
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 
 // ═══════════════════════════════════════════════════════════════
 // SUBSCRIPTION PLANS
@@ -106,10 +107,26 @@ exports.getCurrentSubscription = asyncHandler(async (req, res) => {
 exports.createSubscription = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
     const userId = req.userID;
-    const { planId, billingCycle = 'monthly', paymentMethodId } = req.body;
+
+    // Mass assignment protection - only allow specific fields
+    const allowedData = pickAllowedFields(req.body, ['planId', 'billingCycle', 'paymentMethodId']);
+    const { planId, billingCycle = 'monthly', paymentMethodId } = allowedData;
 
     if (!firmId) {
         throw CustomException('Firm not found', 404);
+    }
+
+    // Input validation
+    if (!planId || typeof planId !== 'string' || planId.trim() === '') {
+        throw CustomException('Valid plan ID is required', 400);
+    }
+
+    if (billingCycle && !['monthly', 'yearly'].includes(billingCycle)) {
+        throw CustomException('Billing cycle must be either "monthly" or "yearly"', 400);
+    }
+
+    if (paymentMethodId && (typeof paymentMethodId !== 'string' || !paymentMethodId.startsWith('pm_'))) {
+        throw CustomException('Invalid payment method ID format', 400);
     }
 
     // Validate plan
@@ -254,13 +271,25 @@ exports.createSubscription = asyncHandler(async (req, res) => {
 exports.changeSubscription = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
     const userId = req.userID;
-    const { planId, billingCycle } = req.body;
+
+    // Mass assignment protection - only allow specific fields
+    const allowedData = pickAllowedFields(req.body, ['planId', 'billingCycle']);
+    const { planId, billingCycle } = allowedData;
 
     if (!firmId) {
         throw CustomException('Firm not found', 404);
     }
 
-    // Get current subscription
+    // Input validation
+    if (!planId || typeof planId !== 'string' || planId.trim() === '') {
+        throw CustomException('Valid plan ID is required', 400);
+    }
+
+    if (billingCycle && !['monthly', 'yearly'].includes(billingCycle)) {
+        throw CustomException('Billing cycle must be either "monthly" or "yearly"', 400);
+    }
+
+    // Get current subscription and verify ownership
     const subscription = await Subscription.findOne({ firmId });
     if (!subscription) {
         throw CustomException('No active subscription found', 404);
@@ -368,13 +397,25 @@ exports.changeSubscription = asyncHandler(async (req, res) => {
 exports.cancelSubscription = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
     const userId = req.userID;
-    const { immediately = false, reason } = req.body;
+
+    // Mass assignment protection - only allow specific fields
+    const allowedData = pickAllowedFields(req.body, ['immediately', 'reason']);
+    const { immediately = false, reason } = allowedData;
 
     if (!firmId) {
         throw CustomException('Firm not found', 404);
     }
 
-    // Get current subscription
+    // Input validation
+    if (immediately !== undefined && typeof immediately !== 'boolean') {
+        throw CustomException('immediately must be a boolean value', 400);
+    }
+
+    if (reason && (typeof reason !== 'string' || reason.length > 500)) {
+        throw CustomException('Cancellation reason must be a string with max 500 characters', 400);
+    }
+
+    // Get current subscription and verify ownership
     const subscription = await Subscription.findOne({ firmId });
     if (!subscription) {
         throw CustomException('No active subscription found', 404);
@@ -520,14 +561,22 @@ exports.getPaymentMethods = asyncHandler(async (req, res) => {
 exports.addPaymentMethod = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
     const userId = req.userID;
-    const { paymentMethodId, setAsDefault = false } = req.body;
+
+    // Mass assignment protection - only allow specific fields
+    const allowedData = pickAllowedFields(req.body, ['paymentMethodId', 'setAsDefault']);
+    const { paymentMethodId, setAsDefault = false } = allowedData;
 
     if (!firmId) {
         throw CustomException('Firm not found', 404);
     }
 
-    if (!paymentMethodId) {
-        throw CustomException('Payment method ID is required', 400);
+    // Input validation
+    if (!paymentMethodId || typeof paymentMethodId !== 'string' || !paymentMethodId.startsWith('pm_')) {
+        throw CustomException('Valid payment method ID is required (must start with pm_)', 400);
+    }
+
+    if (setAsDefault !== undefined && typeof setAsDefault !== 'boolean') {
+        throw CustomException('setAsDefault must be a boolean value', 400);
     }
 
     // Get firm and subscription
@@ -634,8 +683,14 @@ exports.removePaymentMethod = asyncHandler(async (req, res) => {
         throw CustomException('Payment method ID is required', 400);
     }
 
-    // Find payment method
-    const paymentMethod = await PaymentMethod.findOne({ _id: id, firmId });
+    // Sanitize and validate ID
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('Invalid payment method ID format', 400);
+    }
+
+    // IDOR Protection: Find payment method and verify ownership
+    const paymentMethod = await PaymentMethod.findOne({ _id: sanitizedId, firmId });
     if (!paymentMethod) {
         throw CustomException('Payment method not found', 404);
     }
@@ -643,7 +698,7 @@ exports.removePaymentMethod = asyncHandler(async (req, res) => {
     // Check if it's the default and there are active subscriptions
     if (paymentMethod.isDefault) {
         const subscription = await Subscription.findOne({ firmId, status: { $in: ['active', 'trialing'] } });
-        const otherPaymentMethods = await PaymentMethod.countDocuments({ firmId, _id: { $ne: id } });
+        const otherPaymentMethods = await PaymentMethod.countDocuments({ firmId, _id: { $ne: sanitizedId } });
 
         if (subscription && otherPaymentMethods === 0) {
             throw CustomException('Cannot remove the only payment method while subscription is active', 400);
@@ -661,7 +716,7 @@ exports.removePaymentMethod = asyncHandler(async (req, res) => {
     }
 
     // Delete from database
-    await PaymentMethod.deleteOne({ _id: id, firmId });
+    await PaymentMethod.deleteOne({ _id: sanitizedId, firmId });
 
     // If this was the default, set another as default
     if (paymentMethod.isDefault) {
@@ -693,8 +748,14 @@ exports.setDefaultPaymentMethod = asyncHandler(async (req, res) => {
         throw CustomException('Payment method ID is required', 400);
     }
 
-    // Verify payment method exists and belongs to firm
-    const paymentMethod = await PaymentMethod.findOne({ _id: id, firmId });
+    // Sanitize and validate ID
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('Invalid payment method ID format', 400);
+    }
+
+    // IDOR Protection: Verify payment method exists and belongs to firm
+    const paymentMethod = await PaymentMethod.findOne({ _id: sanitizedId, firmId });
     if (!paymentMethod) {
         throw CustomException('Payment method not found', 404);
     }
@@ -713,7 +774,7 @@ exports.setDefaultPaymentMethod = asyncHandler(async (req, res) => {
     }
 
     // Update in database
-    const updatedPaymentMethod = await PaymentMethod.setDefault(firmId, id);
+    const updatedPaymentMethod = await PaymentMethod.setDefault(firmId, sanitizedId);
 
     res.json({
         success: true,
@@ -800,12 +861,42 @@ exports.getInvoices = asyncHandler(async (req, res) => {
         throw CustomException('Firm not found', 404);
     }
 
+    // Input validation for query parameters
+    const validStatuses = ['draft', 'open', 'paid', 'void', 'uncollectible'];
+    if (status && !validStatuses.includes(status)) {
+        throw CustomException('Invalid status. Must be one of: draft, open, paid, void, uncollectible', 400);
+    }
+
+    // Validate pagination parameters
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    if (isNaN(pageNum) || pageNum < 1) {
+        throw CustomException('Page must be a positive integer', 400);
+    }
+    if (isNaN(limitNum) || limitNum < 1 || limitNum > 100) {
+        throw CustomException('Limit must be between 1 and 100', 400);
+    }
+
+    // Validate date parameters
+    if (startDate && isNaN(Date.parse(startDate))) {
+        throw CustomException('Invalid startDate format', 400);
+    }
+    if (endDate && isNaN(Date.parse(endDate))) {
+        throw CustomException('Invalid endDate format', 400);
+    }
+
+    // Validate sort parameter
+    const validSortFields = ['createdAt', '-createdAt', 'invoiceDate', '-invoiceDate', 'totalCents', '-totalCents'];
+    if (sort && !validSortFields.includes(sort)) {
+        throw CustomException('Invalid sort field', 400);
+    }
+
     const result = await BillingInvoice.getByFirm(firmId, {
         status,
         startDate,
         endDate,
-        page: parseInt(page),
-        limit: parseInt(limit),
+        page: pageNum,
+        limit: limitNum,
         sort,
         populate: true
     });
@@ -833,7 +924,14 @@ exports.getInvoice = asyncHandler(async (req, res) => {
         throw CustomException('Invoice ID is required', 400);
     }
 
-    const invoice = await BillingInvoice.findOne({ _id: id, firmId })
+    // Sanitize and validate ID
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('Invalid invoice ID format', 400);
+    }
+
+    // IDOR Protection: Verify invoice belongs to firm
+    const invoice = await BillingInvoice.findOne({ _id: sanitizedId, firmId })
         .populate('firmId', 'name email')
         .populate('subscriptionId')
         .lean();
@@ -864,7 +962,14 @@ exports.downloadInvoicePdf = asyncHandler(async (req, res) => {
         throw CustomException('Invoice ID is required', 400);
     }
 
-    const invoice = await BillingInvoice.findOne({ _id: id, firmId });
+    // Sanitize and validate ID
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('Invalid invoice ID format', 400);
+    }
+
+    // IDOR Protection: Verify invoice belongs to firm
+    const invoice = await BillingInvoice.findOne({ _id: sanitizedId, firmId });
     if (!invoice) {
         throw CustomException('Invoice not found', 404);
     }
@@ -1116,6 +1221,22 @@ async function handleSubscriptionDeleted(stripeSubscription) {
 async function handleInvoicePaymentSucceeded(stripeInvoice) {
     const { id, subscription: stripeSubscriptionId, amount_paid, paid, status } = stripeInvoice;
 
+    // Validate amounts to prevent manipulation
+    if (typeof amount_paid !== 'number' || amount_paid < 0) {
+        logger.error('Invalid amount_paid in invoice payment succeeded webhook', { amount_paid, invoiceId: id });
+        throw CustomException('Invalid amount in invoice', 400);
+    }
+
+    if (stripeInvoice.subtotal && (typeof stripeInvoice.subtotal !== 'number' || stripeInvoice.subtotal < 0)) {
+        logger.error('Invalid subtotal in invoice payment succeeded webhook', { subtotal: stripeInvoice.subtotal, invoiceId: id });
+        throw CustomException('Invalid subtotal in invoice', 400);
+    }
+
+    if (stripeInvoice.tax && (typeof stripeInvoice.tax !== 'number' || stripeInvoice.tax < 0)) {
+        logger.error('Invalid tax in invoice payment succeeded webhook', { tax: stripeInvoice.tax, invoiceId: id });
+        throw CustomException('Invalid tax in invoice', 400);
+    }
+
     // Update billing invoice if exists
     let billingInvoice = await BillingInvoice.findOne({ stripeInvoiceId: id });
 
@@ -1137,7 +1258,7 @@ async function handleInvoicePaymentSucceeded(stripeInvoice) {
                 stripeInvoiceId: id,
                 stripePaymentIntentId: stripeInvoice.payment_intent,
                 totalCents: amount_paid,
-                subtotalCents: stripeInvoice.subtotal,
+                subtotalCents: stripeInvoice.subtotal || 0,
                 taxCents: stripeInvoice.tax || 0,
                 currency: stripeInvoice.currency.toUpperCase(),
                 status: 'paid',
@@ -1204,6 +1325,28 @@ async function handleInvoicePaymentFailed(stripeInvoice) {
 async function handleInvoiceCreatedOrFinalized(stripeInvoice) {
     const { id, subscription: stripeSubscriptionId, status, total, subtotal } = stripeInvoice;
 
+    // Validate amounts to prevent manipulation
+    if (typeof total !== 'number' || total < 0) {
+        logger.error('Invalid total in invoice webhook', { total, invoiceId: id });
+        throw CustomException('Invalid total amount in invoice', 400);
+    }
+
+    if (typeof subtotal !== 'number' || subtotal < 0) {
+        logger.error('Invalid subtotal in invoice webhook', { subtotal, invoiceId: id });
+        throw CustomException('Invalid subtotal amount in invoice', 400);
+    }
+
+    if (stripeInvoice.tax && (typeof stripeInvoice.tax !== 'number' || stripeInvoice.tax < 0)) {
+        logger.error('Invalid tax in invoice webhook', { tax: stripeInvoice.tax, invoiceId: id });
+        throw CustomException('Invalid tax amount in invoice', 400);
+    }
+
+    const discountAmount = stripeInvoice.total_discount_amounts?.[0]?.amount || 0;
+    if (discountAmount && (typeof discountAmount !== 'number' || discountAmount < 0)) {
+        logger.error('Invalid discount in invoice webhook', { discount: discountAmount, invoiceId: id });
+        throw CustomException('Invalid discount amount in invoice', 400);
+    }
+
     // Find subscription
     const subscription = await Subscription.findOne({ stripeSubscriptionId });
     if (!subscription) {
@@ -1215,6 +1358,35 @@ async function handleInvoiceCreatedOrFinalized(stripeInvoice) {
     let billingInvoice = await BillingInvoice.findOne({ stripeInvoiceId: id });
 
     if (!billingInvoice) {
+        // Validate line items amounts
+        const lineItems = stripeInvoice.lines?.data?.map(line => {
+            const unitAmount = line.price?.unit_amount || 0;
+            const amount = line.amount || 0;
+            const quantity = line.quantity || 0;
+
+            if (typeof unitAmount !== 'number' || unitAmount < 0) {
+                logger.error('Invalid unit amount in line item', { unitAmount, invoiceId: id });
+                throw CustomException('Invalid line item unit amount', 400);
+            }
+
+            if (typeof amount !== 'number' || amount < 0) {
+                logger.error('Invalid amount in line item', { amount, invoiceId: id });
+                throw CustomException('Invalid line item amount', 400);
+            }
+
+            if (typeof quantity !== 'number' || quantity < 0) {
+                logger.error('Invalid quantity in line item', { quantity, invoiceId: id });
+                throw CustomException('Invalid line item quantity', 400);
+            }
+
+            return {
+                description: line.description,
+                quantity,
+                unitAmountCents: unitAmount,
+                amountCents: amount
+            };
+        }) || [];
+
         // Create new billing invoice
         billingInvoice = await BillingInvoice.create({
             firmId: subscription.firmId,
@@ -1224,7 +1396,7 @@ async function handleInvoiceCreatedOrFinalized(stripeInvoice) {
             totalCents: total,
             subtotalCents: subtotal,
             taxCents: stripeInvoice.tax || 0,
-            discountCents: stripeInvoice.total_discount_amounts?.[0]?.amount || 0,
+            discountCents: discountAmount,
             currency: stripeInvoice.currency.toUpperCase(),
             status: status === 'paid' ? 'paid' : 'open',
             invoiceDate: new Date(stripeInvoice.created * 1000),
@@ -1233,12 +1405,7 @@ async function handleInvoiceCreatedOrFinalized(stripeInvoice) {
             periodEnd: stripeInvoice.period_end ? new Date(stripeInvoice.period_end * 1000) : null,
             pdfUrl: stripeInvoice.invoice_pdf,
             hostedInvoiceUrl: stripeInvoice.hosted_invoice_url,
-            lineItems: stripeInvoice.lines?.data?.map(line => ({
-                description: line.description,
-                quantity: line.quantity,
-                unitAmountCents: line.price?.unit_amount || 0,
-                amountCents: line.amount
-            })) || []
+            lineItems
         });
 
         logger.info('Billing invoice created from webhook', { invoiceId: billingInvoice._id, status });

@@ -1,6 +1,7 @@
 const JobPosition = require('../models/jobPosition.model');
 const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
+const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 
 // ═══════════════════════════════════════════════════════════════
 // GET ALL JOB POSITIONS
@@ -178,11 +179,13 @@ const getVacantPositions = asyncHandler(async (req, res) => {
 const getPositionsByDepartment = asyncHandler(async (req, res) => {
     const { firmId, lawyerId } = req;
     const { departmentId } = req.params;
+
+    // IDOR Protection - verify ownership
     const baseQuery = firmId ? { firmId } : { lawyerId };
 
     const positions = await JobPosition.find({
         ...baseQuery,
-        departmentId,
+        departmentId: sanitizeObjectId(departmentId),
         status: { $in: ['active', 'vacant'] }
     })
         .populate('reportsTo.positionId', 'positionId jobTitle')
@@ -204,8 +207,9 @@ const getPositionHierarchy = asyncHandler(async (req, res) => {
     const { firmId, lawyerId } = req;
     const { id } = req.params;
 
+    // IDOR Protection - verify ownership
     const baseQuery = firmId ? { firmId } : { lawyerId };
-    const position = await JobPosition.findOne({ _id: id, ...baseQuery })
+    const position = await JobPosition.findOne({ _id: sanitizeObjectId(id), ...baseQuery })
         .populate('reportsTo.positionId');
 
     if (!position) {
@@ -256,8 +260,9 @@ const getJobPosition = asyncHandler(async (req, res) => {
     const { firmId, lawyerId } = req;
     const { id } = req.params;
 
+    // IDOR Protection - verify ownership
     const baseQuery = firmId ? { firmId } : { lawyerId };
-    const position = await JobPosition.findOne({ _id: id, ...baseQuery })
+    const position = await JobPosition.findOne({ _id: sanitizeObjectId(id), ...baseQuery })
         .populate('departmentId', 'unitId unitCode unitName unitNameAr')
         .populate('divisionId', 'unitId unitName unitNameAr')
         .populate('organizationalUnitId', 'unitId unitName unitNameAr')
@@ -283,17 +288,86 @@ const getJobPosition = asyncHandler(async (req, res) => {
 const createJobPosition = asyncHandler(async (req, res) => {
     const { firmId, lawyerId, userId } = req;
 
+    // Mass assignment protection - only allow specific fields
+    const allowedFields = [
+        'positionNumber', 'positionCode', 'jobTitle', 'jobTitleAr', 'jobFamily', 'jobLevel',
+        'jobGrade', 'jobSubGrade', 'jobCategory', 'positionType', 'employmentType',
+        'departmentId', 'divisionId', 'organizationalUnitId', 'location', 'workSite',
+        'reportsTo', 'supervisoryPosition', 'directReportsCount', 'fte', 'budgeted',
+        'budgetedFte', 'costCenter', 'status', 'approvalStatus', 'effectiveDate',
+        'expirationDate', 'establishedDate', 'keyResponsibilities', 'decisionAuthority',
+        'qualifications', 'competencies', 'compensation', 'performanceObjectives',
+        'workingConditions', 'metadata', 'notes'
+    ];
+
+    const sanitizedData = pickAllowedFields(req.body, allowedFields);
+
+    // Input validation
+    if (!sanitizedData.jobTitle || sanitizedData.jobTitle.trim().length === 0) {
+        throw new CustomException('Job title is required', 400);
+    }
+
+    if (sanitizedData.jobTitle.length > 200) {
+        throw new CustomException('Job title must not exceed 200 characters', 400);
+    }
+
+    if (!sanitizedData.jobFamily) {
+        throw new CustomException('Job family is required', 400);
+    }
+
+    if (!sanitizedData.departmentId) {
+        throw new CustomException('Department is required', 400);
+    }
+
+    // Validate FTE
+    if (sanitizedData.fte !== undefined) {
+        const fte = parseFloat(sanitizedData.fte);
+        if (isNaN(fte) || fte <= 0 || fte > 1) {
+            throw new CustomException('FTE must be between 0 and 1', 400);
+        }
+    }
+
+    // Validate salary range if provided
+    if (sanitizedData.compensation?.salaryRange) {
+        const { minimum, maximum } = sanitizedData.compensation.salaryRange;
+        if (minimum !== undefined && maximum !== undefined) {
+            if (minimum < 0 || maximum < 0) {
+                throw new CustomException('Salary values cannot be negative', 400);
+            }
+            if (minimum > maximum) {
+                throw new CustomException('Minimum salary cannot exceed maximum salary', 400);
+            }
+            if (maximum > 10000000) {
+                throw new CustomException('Salary values exceed reasonable limits', 400);
+            }
+        }
+    }
+
+    // Sanitize object IDs
+    if (sanitizedData.departmentId) {
+        sanitizedData.departmentId = sanitizeObjectId(sanitizedData.departmentId);
+    }
+    if (sanitizedData.divisionId) {
+        sanitizedData.divisionId = sanitizeObjectId(sanitizedData.divisionId);
+    }
+    if (sanitizedData.organizationalUnitId) {
+        sanitizedData.organizationalUnitId = sanitizeObjectId(sanitizedData.organizationalUnitId);
+    }
+    if (sanitizedData.reportsTo?.positionId) {
+        sanitizedData.reportsTo.positionId = sanitizeObjectId(sanitizedData.reportsTo.positionId);
+    }
+
     // Generate position number if not provided
-    if (!req.body.positionNumber) {
-        req.body.positionNumber = await JobPosition.generatePositionNumber(firmId, lawyerId);
+    if (!sanitizedData.positionNumber) {
+        sanitizedData.positionNumber = await JobPosition.generatePositionNumber(firmId, lawyerId);
     }
 
     const position = new JobPosition({
-        ...req.body,
+        ...sanitizedData,
         firmId,
         lawyerId,
         createdBy: userId,
-        establishedDate: req.body.establishedDate || new Date()
+        establishedDate: sanitizedData.establishedDate || new Date()
     });
 
     await position.save();
@@ -329,32 +403,95 @@ const updateJobPosition = asyncHandler(async (req, res) => {
     const { firmId, lawyerId, userId } = req;
     const { id } = req.params;
 
+    // IDOR Protection - verify ownership
     const baseQuery = firmId ? { firmId } : { lawyerId };
-    const oldPosition = await JobPosition.findOne({ _id: id, ...baseQuery });
+    const oldPosition = await JobPosition.findOne({ _id: sanitizeObjectId(id), ...baseQuery });
 
     if (!oldPosition) {
         throw new CustomException('Job position not found', 404);
+    }
+
+    // Mass assignment protection - only allow specific fields
+    const allowedFields = [
+        'positionNumber', 'positionCode', 'jobTitle', 'jobTitleAr', 'jobFamily', 'jobLevel',
+        'jobGrade', 'jobSubGrade', 'jobCategory', 'positionType', 'employmentType',
+        'departmentId', 'divisionId', 'organizationalUnitId', 'location', 'workSite',
+        'reportsTo', 'supervisoryPosition', 'directReportsCount', 'fte', 'budgeted',
+        'budgetedFte', 'costCenter', 'status', 'approvalStatus', 'effectiveDate',
+        'expirationDate', 'establishedDate', 'keyResponsibilities', 'decisionAuthority',
+        'qualifications', 'competencies', 'compensation', 'performanceObjectives',
+        'workingConditions', 'metadata', 'notes'
+    ];
+
+    const sanitizedData = pickAllowedFields(req.body, allowedFields);
+
+    // Input validation
+    if (sanitizedData.jobTitle !== undefined) {
+        if (!sanitizedData.jobTitle || sanitizedData.jobTitle.trim().length === 0) {
+            throw new CustomException('Job title cannot be empty', 400);
+        }
+        if (sanitizedData.jobTitle.length > 200) {
+            throw new CustomException('Job title must not exceed 200 characters', 400);
+        }
+    }
+
+    // Validate FTE
+    if (sanitizedData.fte !== undefined) {
+        const fte = parseFloat(sanitizedData.fte);
+        if (isNaN(fte) || fte <= 0 || fte > 1) {
+            throw new CustomException('FTE must be between 0 and 1', 400);
+        }
+    }
+
+    // Validate salary range if provided
+    if (sanitizedData.compensation?.salaryRange) {
+        const { minimum, maximum } = sanitizedData.compensation.salaryRange;
+        if (minimum !== undefined && maximum !== undefined) {
+            if (minimum < 0 || maximum < 0) {
+                throw new CustomException('Salary values cannot be negative', 400);
+            }
+            if (minimum > maximum) {
+                throw new CustomException('Minimum salary cannot exceed maximum salary', 400);
+            }
+            if (maximum > 10000000) {
+                throw new CustomException('Salary values exceed reasonable limits', 400);
+            }
+        }
+    }
+
+    // Sanitize object IDs
+    if (sanitizedData.departmentId) {
+        sanitizedData.departmentId = sanitizeObjectId(sanitizedData.departmentId);
+    }
+    if (sanitizedData.divisionId) {
+        sanitizedData.divisionId = sanitizeObjectId(sanitizedData.divisionId);
+    }
+    if (sanitizedData.organizationalUnitId) {
+        sanitizedData.organizationalUnitId = sanitizeObjectId(sanitizedData.organizationalUnitId);
+    }
+    if (sanitizedData.reportsTo?.positionId) {
+        sanitizedData.reportsTo.positionId = sanitizeObjectId(sanitizedData.reportsTo.positionId);
     }
 
     // Track changes for history
     const changes = [];
     const trackFields = ['jobTitle', 'jobLevel', 'jobGrade', 'status', 'departmentId'];
     trackFields.forEach(field => {
-        if (req.body[field] && req.body[field] !== String(oldPosition[field])) {
+        if (sanitizedData[field] && sanitizedData[field] !== String(oldPosition[field])) {
             changes.push({
                 eventType: `${field}_change`,
                 eventDate: new Date(),
                 eventBy: userId,
                 fieldChanged: field,
                 oldValue: oldPosition[field],
-                newValue: req.body[field]
+                newValue: sanitizedData[field]
             });
         }
     });
 
     // Check if reporting changed
     const oldReportsTo = oldPosition.reportsTo?.positionId?.toString();
-    const newReportsTo = req.body.reportsTo?.positionId;
+    const newReportsTo = sanitizedData.reportsTo?.positionId;
 
     if (oldReportsTo !== newReportsTo) {
         // Decrement old parent's count
@@ -379,11 +516,8 @@ const updateJobPosition = asyncHandler(async (req, res) => {
         });
     }
 
-    // Remove immutable fields from update
-    const { firmId: _, lawyerId: __, positionId, createdBy, ...updateData } = req.body;
-
     // Update position
-    Object.assign(oldPosition, updateData, { updatedBy: userId });
+    Object.assign(oldPosition, sanitizedData, { updatedBy: userId });
 
     // Add changes to history
     if (changes.length > 0) {
@@ -407,8 +541,9 @@ const deleteJobPosition = asyncHandler(async (req, res) => {
     const { firmId, lawyerId } = req;
     const { id } = req.params;
 
+    // IDOR Protection - verify ownership
     const baseQuery = firmId ? { firmId } : { lawyerId };
-    const position = await JobPosition.findOne({ _id: id, ...baseQuery });
+    const position = await JobPosition.findOne({ _id: sanitizeObjectId(id), ...baseQuery });
 
     if (!position) {
         throw new CustomException('Job position not found', 404);
@@ -454,12 +589,21 @@ const bulkDeleteJobPositions = asyncHandler(async (req, res) => {
         throw new CustomException('Please provide an array of position IDs', 400);
     }
 
+    // Validate array size to prevent DoS
+    if (ids.length > 100) {
+        throw new CustomException('Cannot delete more than 100 positions at once', 400);
+    }
+
+    // Sanitize all IDs
+    const sanitizedIds = ids.map(id => sanitizeObjectId(id));
+
+    // IDOR Protection - verify ownership
     const baseQuery = firmId ? { firmId } : { lawyerId };
 
     // Check for positions with direct reports
     const positionsWithReports = await JobPosition.find({
         ...baseQuery,
-        'reportsTo.positionId': { $in: ids }
+        'reportsTo.positionId': { $in: sanitizedIds }
     }).select('reportsTo.positionId');
 
     if (positionsWithReports.length > 0) {
@@ -470,7 +614,7 @@ const bulkDeleteJobPositions = asyncHandler(async (req, res) => {
     }
 
     const result = await JobPosition.deleteMany({
-        _id: { $in: ids },
+        _id: { $in: sanitizedIds },
         ...baseQuery
     });
 
@@ -488,10 +632,14 @@ const bulkDeleteJobPositions = asyncHandler(async (req, res) => {
 const freezePosition = asyncHandler(async (req, res) => {
     const { firmId, lawyerId, userId } = req;
     const { id } = req.params;
-    const { reason, effectiveDate } = req.body;
 
+    // Mass assignment protection
+    const allowedFields = ['reason', 'effectiveDate'];
+    const { reason, effectiveDate } = pickAllowedFields(req.body, allowedFields);
+
+    // IDOR Protection - verify ownership
     const baseQuery = firmId ? { firmId } : { lawyerId };
-    const position = await JobPosition.findOne({ _id: id, ...baseQuery });
+    const position = await JobPosition.findOne({ _id: sanitizeObjectId(id), ...baseQuery });
 
     if (!position) {
         throw new CustomException('Job position not found', 404);
@@ -529,8 +677,9 @@ const unfreezePosition = asyncHandler(async (req, res) => {
     const { firmId, lawyerId, userId } = req;
     const { id } = req.params;
 
+    // IDOR Protection - verify ownership
     const baseQuery = firmId ? { firmId } : { lawyerId };
-    const position = await JobPosition.findOne({ _id: id, ...baseQuery });
+    const position = await JobPosition.findOne({ _id: sanitizeObjectId(id), ...baseQuery });
 
     if (!position) {
         throw new CustomException('Job position not found', 404);
@@ -566,10 +715,14 @@ const unfreezePosition = asyncHandler(async (req, res) => {
 const eliminatePosition = asyncHandler(async (req, res) => {
     const { firmId, lawyerId, userId } = req;
     const { id } = req.params;
-    const { reason, effectiveDate } = req.body;
 
+    // Mass assignment protection
+    const allowedFields = ['reason', 'effectiveDate'];
+    const { reason, effectiveDate } = pickAllowedFields(req.body, allowedFields);
+
+    // IDOR Protection - verify ownership
     const baseQuery = firmId ? { firmId } : { lawyerId };
-    const position = await JobPosition.findOne({ _id: id, ...baseQuery });
+    const position = await JobPosition.findOne({ _id: sanitizeObjectId(id), ...baseQuery });
 
     if (!position) {
         throw new CustomException('Job position not found', 404);
@@ -619,10 +772,14 @@ const eliminatePosition = asyncHandler(async (req, res) => {
 const markPositionVacant = asyncHandler(async (req, res) => {
     const { firmId, lawyerId, userId } = req;
     const { id } = req.params;
-    const { reason, vacantSince, knowledgeTransferCompleted } = req.body;
 
+    // Mass assignment protection
+    const allowedFields = ['reason', 'vacantSince', 'knowledgeTransferCompleted'];
+    const { reason, vacantSince, knowledgeTransferCompleted } = pickAllowedFields(req.body, allowedFields);
+
+    // IDOR Protection - verify ownership
     const baseQuery = firmId ? { firmId } : { lawyerId };
-    const position = await JobPosition.findOne({ _id: id, ...baseQuery });
+    const position = await JobPosition.findOne({ _id: sanitizeObjectId(id), ...baseQuery });
 
     if (!position) {
         throw new CustomException('Job position not found', 404);
@@ -678,6 +835,12 @@ const markPositionVacant = asyncHandler(async (req, res) => {
 const fillPosition = asyncHandler(async (req, res) => {
     const { firmId, lawyerId, userId } = req;
     const { id } = req.params;
+
+    // Mass assignment protection
+    const allowedFields = ['employeeId', 'employeeNumber', 'employeeName', 'employeeNameAr',
+                          'assignmentType', 'assignmentDate', 'probationEnd'];
+    const sanitizedData = pickAllowedFields(req.body, allowedFields);
+
     const {
         employeeId,
         employeeNumber,
@@ -686,10 +849,22 @@ const fillPosition = asyncHandler(async (req, res) => {
         assignmentType = 'permanent',
         assignmentDate,
         probationEnd
-    } = req.body;
+    } = sanitizedData;
 
+    // Input validation
+    if (!employeeId) {
+        throw new CustomException('Employee ID is required', 400);
+    }
+    if (!employeeName || employeeName.trim().length === 0) {
+        throw new CustomException('Employee name is required', 400);
+    }
+
+    // Sanitize employee ID
+    const sanitizedEmployeeId = sanitizeObjectId(employeeId);
+
+    // IDOR Protection - verify ownership
     const baseQuery = firmId ? { firmId } : { lawyerId };
-    const position = await JobPosition.findOne({ _id: id, ...baseQuery });
+    const position = await JobPosition.findOne({ _id: sanitizeObjectId(id), ...baseQuery });
 
     if (!position) {
         throw new CustomException('Job position not found', 404);
@@ -702,7 +877,7 @@ const fillPosition = asyncHandler(async (req, res) => {
     position.status = 'active';
     position.filled = true;
     position.incumbent = {
-        employeeId,
+        employeeId: sanitizedEmployeeId,
         employeeNumber: employeeNumber || `EMP-${Date.now()}`,
         employeeName,
         employeeNameAr,
@@ -736,10 +911,14 @@ const fillPosition = asyncHandler(async (req, res) => {
 const vacatePosition = asyncHandler(async (req, res) => {
     const { firmId, lawyerId, userId } = req;
     const { id } = req.params;
-    const { reason, effectiveDate } = req.body;
 
+    // Mass assignment protection
+    const allowedFields = ['reason', 'effectiveDate'];
+    const { reason, effectiveDate } = pickAllowedFields(req.body, allowedFields);
+
+    // IDOR Protection - verify ownership
     const baseQuery = firmId ? { firmId } : { lawyerId };
-    const position = await JobPosition.findOne({ _id: id, ...baseQuery });
+    const position = await JobPosition.findOne({ _id: sanitizeObjectId(id), ...baseQuery });
 
     if (!position) {
         throw new CustomException('Job position not found', 404);
@@ -799,10 +978,14 @@ const vacatePosition = asyncHandler(async (req, res) => {
 const clonePosition = asyncHandler(async (req, res) => {
     const { firmId, lawyerId, userId } = req;
     const { id } = req.params;
-    const { newPositionNumber, newJobTitle } = req.body;
 
+    // Mass assignment protection
+    const allowedFields = ['newPositionNumber', 'newJobTitle'];
+    const { newPositionNumber, newJobTitle } = pickAllowedFields(req.body, allowedFields);
+
+    // IDOR Protection - verify ownership
     const baseQuery = firmId ? { firmId } : { lawyerId };
-    const original = await JobPosition.findOne({ _id: id, ...baseQuery }).lean();
+    const original = await JobPosition.findOne({ _id: sanitizeObjectId(id), ...baseQuery }).lean();
 
     if (!original) {
         throw new CustomException('Job position not found', 404);
@@ -856,10 +1039,19 @@ const clonePosition = asyncHandler(async (req, res) => {
 const updateResponsibilities = asyncHandler(async (req, res) => {
     const { firmId, lawyerId, userId } = req;
     const { id } = req.params;
-    const { responsibilities } = req.body;
 
+    // Mass assignment protection
+    const allowedFields = ['responsibilities'];
+    const { responsibilities } = pickAllowedFields(req.body, allowedFields);
+
+    // Input validation
+    if (!responsibilities || !Array.isArray(responsibilities)) {
+        throw new CustomException('Responsibilities must be an array', 400);
+    }
+
+    // IDOR Protection - verify ownership
     const baseQuery = firmId ? { firmId } : { lawyerId };
-    const position = await JobPosition.findOne({ _id: id, ...baseQuery });
+    const position = await JobPosition.findOne({ _id: sanitizeObjectId(id), ...baseQuery });
 
     if (!position) {
         throw new CustomException('Job position not found', 404);
@@ -890,10 +1082,19 @@ const updateResponsibilities = asyncHandler(async (req, res) => {
 const updateQualifications = asyncHandler(async (req, res) => {
     const { firmId, lawyerId, userId } = req;
     const { id } = req.params;
-    const { qualifications } = req.body;
 
+    // Mass assignment protection
+    const allowedFields = ['qualifications'];
+    const { qualifications } = pickAllowedFields(req.body, allowedFields);
+
+    // Input validation
+    if (!qualifications || typeof qualifications !== 'object') {
+        throw new CustomException('Qualifications must be an object', 400);
+    }
+
+    // IDOR Protection - verify ownership
     const baseQuery = firmId ? { firmId } : { lawyerId };
-    const position = await JobPosition.findOne({ _id: id, ...baseQuery });
+    const position = await JobPosition.findOne({ _id: sanitizeObjectId(id), ...baseQuery });
 
     if (!position) {
         throw new CustomException('Job position not found', 404);
@@ -927,13 +1128,51 @@ const updateQualifications = asyncHandler(async (req, res) => {
 const updateSalaryRange = asyncHandler(async (req, res) => {
     const { firmId, lawyerId, userId } = req;
     const { id } = req.params;
-    const salaryData = req.body;
 
+    // Mass assignment protection
+    const allowedFields = ['salaryRange', 'salaryGrade', 'currency', 'payFrequency'];
+    const salaryData = pickAllowedFields(req.body, allowedFields);
+
+    // IDOR Protection - verify ownership
     const baseQuery = firmId ? { firmId } : { lawyerId };
-    const position = await JobPosition.findOne({ _id: id, ...baseQuery });
+    const position = await JobPosition.findOne({ _id: sanitizeObjectId(id), ...baseQuery });
 
     if (!position) {
         throw new CustomException('Job position not found', 404);
+    }
+
+    // Validate salary range
+    const salaryRange = salaryData.salaryRange || salaryData;
+    if (salaryRange) {
+        const { minimum, maximum, midpoint } = salaryRange;
+
+        // Validate minimum and maximum
+        if (minimum !== undefined && maximum !== undefined) {
+            if (typeof minimum !== 'number' || typeof maximum !== 'number') {
+                throw new CustomException('Salary values must be numbers', 400);
+            }
+            if (minimum < 0 || maximum < 0) {
+                throw new CustomException('Salary values cannot be negative', 400);
+            }
+            if (minimum > maximum) {
+                throw new CustomException('Minimum salary cannot exceed maximum salary', 400);
+            }
+            if (maximum > 10000000) {
+                throw new CustomException('Salary values exceed reasonable limits', 400);
+            }
+        }
+
+        // Validate midpoint if provided
+        if (midpoint !== undefined) {
+            if (typeof midpoint !== 'number') {
+                throw new CustomException('Midpoint must be a number', 400);
+            }
+            if (minimum !== undefined && maximum !== undefined) {
+                if (midpoint < minimum || midpoint > maximum) {
+                    throw new CustomException('Midpoint must be between minimum and maximum', 400);
+                }
+            }
+        }
     }
 
     const oldRange = position.compensation?.salaryRange;
@@ -941,7 +1180,9 @@ const updateSalaryRange = asyncHandler(async (req, res) => {
     position.compensation = {
         ...position.compensation?.toObject?.() || {},
         salaryRange: salaryData.salaryRange || salaryData,
-        salaryGrade: salaryData.salaryGrade || position.compensation?.salaryGrade
+        salaryGrade: salaryData.salaryGrade || position.compensation?.salaryGrade,
+        currency: salaryData.currency || position.compensation?.currency,
+        payFrequency: salaryData.payFrequency || position.compensation?.payFrequency
     };
     position.updatedBy = userId;
     position.positionHistory.push({
@@ -969,10 +1210,19 @@ const updateSalaryRange = asyncHandler(async (req, res) => {
 const updateCompetencies = asyncHandler(async (req, res) => {
     const { firmId, lawyerId, userId } = req;
     const { id } = req.params;
-    const { competencies } = req.body;
 
+    // Mass assignment protection
+    const allowedFields = ['competencies'];
+    const { competencies } = pickAllowedFields(req.body, allowedFields);
+
+    // Input validation
+    if (!competencies || !Array.isArray(competencies)) {
+        throw new CustomException('Competencies must be an array', 400);
+    }
+
+    // IDOR Protection - verify ownership
     const baseQuery = firmId ? { firmId } : { lawyerId };
-    const position = await JobPosition.findOne({ _id: id, ...baseQuery });
+    const position = await JobPosition.findOne({ _id: sanitizeObjectId(id), ...baseQuery });
 
     if (!position) {
         throw new CustomException('Job position not found', 404);
@@ -997,10 +1247,23 @@ const updateCompetencies = asyncHandler(async (req, res) => {
 const addDocument = asyncHandler(async (req, res) => {
     const { firmId, lawyerId, userId } = req;
     const { id } = req.params;
-    const documentData = req.body;
 
+    // Mass assignment protection
+    const allowedFields = ['documentType', 'documentName', 'documentUrl', 'fileSize',
+                          'mimeType', 'description', 'version', 'isConfidential'];
+    const documentData = pickAllowedFields(req.body, allowedFields);
+
+    // Input validation
+    if (!documentData.documentName || documentData.documentName.trim().length === 0) {
+        throw new CustomException('Document name is required', 400);
+    }
+    if (!documentData.documentUrl || documentData.documentUrl.trim().length === 0) {
+        throw new CustomException('Document URL is required', 400);
+    }
+
+    // IDOR Protection - verify ownership
     const baseQuery = firmId ? { firmId } : { lawyerId };
-    const position = await JobPosition.findOne({ _id: id, ...baseQuery });
+    const position = await JobPosition.findOne({ _id: sanitizeObjectId(id), ...baseQuery });
 
     if (!position) {
         throw new CustomException('Job position not found', 404);

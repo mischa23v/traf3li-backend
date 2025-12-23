@@ -1,6 +1,7 @@
 const { ChatterFollower, User } = require('../models');
 const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
+const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 
 /**
  * Get all followers for a record
@@ -14,10 +15,16 @@ const getFollowers = asyncHandler(async (req, res) => {
         throw CustomException('نموذج المورد ومعرف المورد مطلوبان', 400);
     }
 
+    // Validate and sanitize inputs
+    const sanitizedResId = sanitizeObjectId(res_id);
+    if (!sanitizedResId) {
+        throw CustomException('معرف المورد غير صالح', 400);
+    }
+
     const query = {
         firmId,
-        res_model,
-        res_id
+        res_model: res_model.trim(),
+        res_id: sanitizedResId
     };
 
     const followers = await ChatterFollower.find(query)
@@ -46,20 +53,38 @@ const getFollowers = asyncHandler(async (req, res) => {
  * POST /api/chatter-followers/:model/:recordId/followers
  */
 const addFollower = asyncHandler(async (req, res) => {
-    const { res_model, res_id, user_id, notification_type = 'all' } = req.body;
     const userId = req.userID;
     const firmId = req.firmId;
 
-    if (!res_model || !res_id || !user_id) {
+    // Mass assignment protection
+    const allowedFields = ['res_model', 'res_id', 'user_id', 'notification_type'];
+    const data = pickAllowedFields(req.body, allowedFields);
+
+    if (!data.res_model || !data.res_id || !data.user_id) {
         throw CustomException('نموذج المورد ومعرف المورد ومعرف المتابع مطلوبان', 400);
+    }
+
+    // Validate and sanitize IDs
+    const sanitizedResId = sanitizeObjectId(data.res_id);
+    const sanitizedUserId = sanitizeObjectId(data.user_id);
+
+    if (!sanitizedResId || !sanitizedUserId) {
+        throw CustomException('معرف المورد أو معرف المستخدم غير صالح', 400);
+    }
+
+    // Validate notification type
+    const validTypes = ['all', 'mentions', 'none'];
+    const notificationType = data.notification_type || 'all';
+    if (!validTypes.includes(notificationType)) {
+        throw CustomException('تفضيل الإشعارات غير صالح. القيم المسموح بها: all, mentions, none', 400);
     }
 
     // Check if follower already exists
     const existingFollower = await ChatterFollower.findOne({
         firmId,
-        res_model,
-        res_id,
-        user_id
+        res_model: data.res_model.trim(),
+        res_id: sanitizedResId,
+        user_id: sanitizedUserId
     });
 
     if (existingFollower) {
@@ -67,17 +92,17 @@ const addFollower = asyncHandler(async (req, res) => {
     }
 
     // Verify the user exists and belongs to the same firm
-    const targetUser = await User.findOne({ _id: user_id, firmId });
+    const targetUser = await User.findOne({ _id: sanitizedUserId, firmId });
     if (!targetUser) {
         throw CustomException('المستخدم غير موجود أو لا ينتمي إلى نفس المكتب', 404);
     }
 
     const follower = await ChatterFollower.create({
         firmId,
-        res_model,
-        res_id,
-        user_id,
-        notification_type,
+        res_model: data.res_model.trim(),
+        res_id: sanitizedResId,
+        user_id: sanitizedUserId,
+        notification_type: notificationType,
         follow_type: 'manual',
         added_by: userId
     });
@@ -102,13 +127,19 @@ const removeFollower = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const firmId = req.firmId;
 
-    const follower = await ChatterFollower.findOne({ _id: id, firmId });
+    // Validate and sanitize ID
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('معرف المتابع غير صالح', 400);
+    }
+
+    const follower = await ChatterFollower.findOne({ _id: sanitizedId, firmId });
 
     if (!follower) {
         throw CustomException('المتابع غير موجود', 404);
     }
 
-    await ChatterFollower.findByIdAndDelete(id);
+    await ChatterFollower.findByIdAndDelete(sanitizedId);
 
     res.status(200).json({
         success: true,
@@ -122,31 +153,41 @@ const removeFollower = asyncHandler(async (req, res) => {
  */
 const updateNotificationPreference = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const { notification_type } = req.body;
     const firmId = req.firmId;
     const userId = req.userID;
 
-    if (!notification_type) {
+    // Mass assignment protection
+    const allowedFields = ['notification_type'];
+    const data = pickAllowedFields(req.body, allowedFields);
+
+    if (!data.notification_type) {
         throw CustomException('تفضيل الإشعارات مطلوب', 400);
     }
 
+    // Validate notification type
     const validTypes = ['all', 'mentions', 'none'];
-    if (!validTypes.includes(notification_type)) {
+    if (!validTypes.includes(data.notification_type)) {
         throw CustomException('تفضيل الإشعارات غير صالح. القيم المسموح بها: all, mentions, none', 400);
     }
 
-    const follower = await ChatterFollower.findOne({ _id: id, firmId });
+    // Validate and sanitize ID
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('معرف المتابع غير صالح', 400);
+    }
+
+    const follower = await ChatterFollower.findOne({ _id: sanitizedId, firmId });
 
     if (!follower) {
         throw CustomException('المتابع غير موجود', 404);
     }
 
-    // Only the follower themselves can update their notification preference
+    // IDOR protection: Only the follower themselves can update their notification preference
     if (follower.user_id.toString() !== userId.toString()) {
         throw CustomException('غير مصرح لك بتحديث تفضيلات الإشعارات لهذا المتابع', 403);
     }
 
-    follower.notification_type = notification_type;
+    follower.notification_type = data.notification_type;
     await follower.save();
 
     await follower.populate([
@@ -175,8 +216,12 @@ const getMyFollowedRecords = asyncHandler(async (req, res) => {
         user_id: userId
     };
 
+    // Validate and sanitize res_model if provided
     if (res_model) {
-        query.res_model = res_model;
+        if (typeof res_model !== 'string' || res_model.trim().length === 0) {
+            throw CustomException('نموذج المورد غير صالح', 400);
+        }
+        query.res_model = res_model.trim();
     }
 
     const followedRecords = await ChatterFollower.find(query)
@@ -205,30 +250,52 @@ const getMyFollowedRecords = asyncHandler(async (req, res) => {
  * POST /api/chatter-followers/:model/:recordId/followers/bulk
  */
 const bulkAddFollowers = asyncHandler(async (req, res) => {
-    const { res_model, res_id, user_ids, notification_type = 'all' } = req.body;
     const userId = req.userID;
     const firmId = req.firmId;
 
-    if (!res_model || !res_id || !user_ids || !Array.isArray(user_ids) || user_ids.length === 0) {
+    // Mass assignment protection
+    const allowedFields = ['res_model', 'res_id', 'user_ids', 'notification_type'];
+    const data = pickAllowedFields(req.body, allowedFields);
+
+    if (!data.res_model || !data.res_id || !data.user_ids || !Array.isArray(data.user_ids) || data.user_ids.length === 0) {
         throw CustomException('نموذج المورد ومعرف المورد ومعرفات المتابعين مطلوبة', 400);
     }
 
+    // Validate and sanitize res_id
+    const sanitizedResId = sanitizeObjectId(data.res_id);
+    if (!sanitizedResId) {
+        throw CustomException('معرف المورد غير صالح', 400);
+    }
+
+    // Validate and sanitize all user_ids
+    const sanitizedUserIds = data.user_ids.map(id => sanitizeObjectId(id)).filter(id => id !== null);
+    if (sanitizedUserIds.length === 0 || sanitizedUserIds.length !== data.user_ids.length) {
+        throw CustomException('أحد معرفات المستخدمين غير صالح', 400);
+    }
+
+    // Validate notification type
+    const validTypes = ['all', 'mentions', 'none'];
+    const notificationType = data.notification_type || 'all';
+    if (!validTypes.includes(notificationType)) {
+        throw CustomException('تفضيل الإشعارات غير صالح. القيم المسموح بها: all, mentions, none', 400);
+    }
+
     // Verify all users exist and belong to the same firm
-    const users = await User.find({ _id: { $in: user_ids }, firmId });
-    if (users.length !== user_ids.length) {
+    const users = await User.find({ _id: { $in: sanitizedUserIds }, firmId });
+    if (users.length !== sanitizedUserIds.length) {
         throw CustomException('بعض المستخدمين غير موجودين أو لا ينتمون إلى نفس المكتب', 404);
     }
 
     // Get existing followers to avoid duplicates
     const existingFollowers = await ChatterFollower.find({
         firmId,
-        res_model,
-        res_id,
-        user_id: { $in: user_ids }
+        res_model: data.res_model.trim(),
+        res_id: sanitizedResId,
+        user_id: { $in: sanitizedUserIds }
     }).select('user_id');
 
     const existingUserIds = existingFollowers.map(f => f.user_id.toString());
-    const newUserIds = user_ids.filter(id => !existingUserIds.includes(id.toString()));
+    const newUserIds = sanitizedUserIds.filter(id => !existingUserIds.includes(id.toString()));
 
     if (newUserIds.length === 0) {
         throw CustomException('جميع المتابعين موجودون بالفعل لهذا السجل', 400);
@@ -237,10 +304,10 @@ const bulkAddFollowers = asyncHandler(async (req, res) => {
     // Create new followers
     const followersToCreate = newUserIds.map(uid => ({
         firmId,
-        res_model,
-        res_id,
+        res_model: data.res_model.trim(),
+        res_id: sanitizedResId,
         user_id: uid,
-        notification_type,
+        notification_type: notificationType,
         follow_type: 'manual',
         added_by: userId
     }));
@@ -270,18 +337,34 @@ const bulkAddFollowers = asyncHandler(async (req, res) => {
  * POST /api/chatter-followers/:model/:recordId/toggle-follow
  */
 const toggleFollow = asyncHandler(async (req, res) => {
-    const { res_model, res_id, notification_type = 'all' } = req.body;
     const userId = req.userID;
     const firmId = req.firmId;
 
-    if (!res_model || !res_id) {
+    // Mass assignment protection
+    const allowedFields = ['res_model', 'res_id', 'notification_type'];
+    const data = pickAllowedFields(req.body, allowedFields);
+
+    if (!data.res_model || !data.res_id) {
         throw CustomException('نموذج المورد ومعرف المورد مطلوبان', 400);
+    }
+
+    // Validate and sanitize res_id
+    const sanitizedResId = sanitizeObjectId(data.res_id);
+    if (!sanitizedResId) {
+        throw CustomException('معرف المورد غير صالح', 400);
+    }
+
+    // Validate notification type
+    const validTypes = ['all', 'mentions', 'none'];
+    const notificationType = data.notification_type || 'all';
+    if (!validTypes.includes(notificationType)) {
+        throw CustomException('تفضيل الإشعارات غير صالح. القيم المسموح بها: all, mentions, none', 400);
     }
 
     const existingFollower = await ChatterFollower.findOne({
         firmId,
-        res_model,
-        res_id,
+        res_model: data.res_model.trim(),
+        res_id: sanitizedResId,
         user_id: userId
     });
 
@@ -294,18 +377,18 @@ const toggleFollow = asyncHandler(async (req, res) => {
             message: 'تم إلغاء المتابعة بنجاح',
             data: {
                 isFollowing: false,
-                res_model,
-                res_id
+                res_model: data.res_model.trim(),
+                res_id: sanitizedResId
             }
         });
     } else {
         // Follow
         const follower = await ChatterFollower.create({
             firmId,
-            res_model,
-            res_id,
+            res_model: data.res_model.trim(),
+            res_id: sanitizedResId,
             user_id: userId,
-            notification_type,
+            notification_type: notificationType,
             follow_type: 'manual',
             added_by: userId
         });

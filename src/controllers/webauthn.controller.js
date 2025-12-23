@@ -19,8 +19,53 @@ const auditLogService = require('../services/auditLog.service');
 const { CustomException } = require('../utils');
 const jwt = require('jsonwebtoken');
 const { User } = require('../models');
+const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
+const crypto = require('crypto');
 
-const { JWT_SECRET } = process.env;
+const { JWT_SECRET, WEBAUTHN_ORIGIN } = process.env;
+
+/**
+ * Verify the origin matches expected domain for WebAuthn
+ */
+const verifyOrigin = (req) => {
+    const origin = req.headers.origin || req.headers.referer;
+
+    if (!origin) {
+        throw new CustomException('Origin header is required for WebAuthn operations', 400);
+    }
+
+    const expectedOrigin = WEBAUTHN_ORIGIN || `${req.protocol}://${req.get('host')}`;
+
+    try {
+        const originUrl = new URL(origin);
+        const expectedUrl = new URL(expectedOrigin);
+
+        if (originUrl.origin !== expectedUrl.origin) {
+            throw new CustomException('Invalid origin for WebAuthn operation', 403);
+        }
+    } catch (error) {
+        if (error instanceof CustomException) throw error;
+        throw new CustomException('Invalid origin format', 400);
+    }
+};
+
+/**
+ * Timing-safe string comparison
+ */
+const timingSafeEqual = (a, b) => {
+    if (typeof a !== 'string' || typeof b !== 'string') {
+        return false;
+    }
+
+    if (a.length !== b.length) {
+        return false;
+    }
+
+    const bufferA = Buffer.from(a);
+    const bufferB = Buffer.from(b);
+
+    return crypto.timingSafeEqual(bufferA, bufferB);
+};
 
 /**
  * Start WebAuthn registration flow
@@ -34,6 +79,9 @@ const startRegistration = asyncHandler(async (req, res) => {
     if (!user) {
         throw new CustomException('Authentication required', 401);
     }
+
+    // Verify origin for WebAuthn security
+    verifyOrigin(req);
 
     // Generate registration options
     const options = await webauthnService.generateRegistrationOptions(user);
@@ -65,14 +113,50 @@ const startRegistration = asyncHandler(async (req, res) => {
  */
 const finishRegistration = asyncHandler(async (req, res) => {
     const user = req.user;
-    const { credential, credentialName } = req.body;
 
     if (!user) {
         throw new CustomException('Authentication required', 401);
     }
 
+    // Verify origin for WebAuthn security
+    verifyOrigin(req);
+
+    // Mass assignment protection - only allow specific fields
+    const allowedFields = ['credential', 'credentialName'];
+    const sanitizedBody = pickAllowedFields(req.body, allowedFields);
+    const { credential, credentialName } = sanitizedBody;
+
+    // Input validation - credential data
     if (!credential) {
         throw new CustomException('Credential data is required', 400);
+    }
+
+    if (typeof credential !== 'object') {
+        throw new CustomException('Invalid credential format', 400);
+    }
+
+    // Validate required credential fields
+    if (!credential.id || !credential.rawId || !credential.response || !credential.type) {
+        throw new CustomException('Incomplete credential data', 400);
+    }
+
+    if (credential.type !== 'public-key') {
+        throw new CustomException('Invalid credential type', 400);
+    }
+
+    // Validate credential response
+    if (!credential.response.attestationObject || !credential.response.clientDataJSON) {
+        throw new CustomException('Invalid credential response', 400);
+    }
+
+    // Validate credentialName if provided
+    if (credentialName !== undefined && credentialName !== null) {
+        if (typeof credentialName !== 'string') {
+            throw new CustomException('Credential name must be a string', 400);
+        }
+        if (credentialName.trim().length > 100) {
+            throw new CustomException('Credential name must not exceed 100 characters', 400);
+        }
     }
 
     // Verify and store the credential
@@ -112,10 +196,36 @@ const finishRegistration = asyncHandler(async (req, res) => {
  * Public endpoint - used for login
  */
 const startAuthentication = asyncHandler(async (req, res) => {
-    const { email, username } = req.body;
+    // Verify origin for WebAuthn security
+    verifyOrigin(req);
 
+    // Mass assignment protection - only allow specific fields
+    const allowedFields = ['email', 'username'];
+    const sanitizedBody = pickAllowedFields(req.body, allowedFields);
+    const { email, username } = sanitizedBody;
+
+    // Input validation
     if (!email && !username) {
         throw new CustomException('Email or username is required', 400);
+    }
+
+    // Validate email format if provided
+    if (email && typeof email !== 'string') {
+        throw new CustomException('Invalid email format', 400);
+    }
+
+    // Validate username format if provided
+    if (username && typeof username !== 'string') {
+        throw new CustomException('Invalid username format', 400);
+    }
+
+    // Additional validation for length
+    if (email && email.length > 255) {
+        throw new CustomException('Email too long', 400);
+    }
+
+    if (username && username.length > 100) {
+        throw new CustomException('Username too long', 400);
     }
 
     // Find user by email or username
@@ -163,21 +273,50 @@ const startAuthentication = asyncHandler(async (req, res) => {
  * Request body: { credential, userId }
  */
 const finishAuthentication = asyncHandler(async (req, res) => {
-    const { credential, userId } = req.body;
+    // Verify origin for WebAuthn security
+    verifyOrigin(req);
 
+    // Mass assignment protection - only allow specific fields
+    const allowedFields = ['credential', 'userId'];
+    const sanitizedBody = pickAllowedFields(req.body, allowedFields);
+    const { credential, userId } = sanitizedBody;
+
+    // Input validation
     if (!credential || !userId) {
         throw new CustomException('Credential and userId are required', 400);
     }
 
+    // IDOR Protection - sanitize userId
+    const sanitizedUserId = sanitizeObjectId(userId, 'User ID');
+
+    // Validate credential structure
+    if (typeof credential !== 'object') {
+        throw new CustomException('Invalid credential format', 400);
+    }
+
+    // Validate required credential fields for authentication
+    if (!credential.id || !credential.rawId || !credential.response || !credential.type) {
+        throw new CustomException('Incomplete credential data', 400);
+    }
+
+    if (credential.type !== 'public-key') {
+        throw new CustomException('Invalid credential type', 400);
+    }
+
+    // Validate authentication response
+    if (!credential.response.authenticatorData || !credential.response.clientDataJSON || !credential.response.signature) {
+        throw new CustomException('Invalid authentication response', 400);
+    }
+
     // Verify the authentication
-    const verification = await webauthnService.verifyAuthentication(credential, userId);
+    const verification = await webauthnService.verifyAuthentication(credential, sanitizedUserId);
 
     if (!verification.verified) {
         throw new CustomException('Authentication failed', 401);
     }
 
     // Get user details
-    const user = await User.findById(userId).select('-password');
+    const user = await User.findById(sanitizedUserId).select('-password');
 
     if (!user) {
         throw new CustomException('User not found', 404);
@@ -286,7 +425,11 @@ const deleteCredential = asyncHandler(async (req, res) => {
         throw new CustomException('Credential ID is required', 400);
     }
 
-    await webauthnService.deleteCredential(id, user._id);
+    // IDOR Protection - sanitize credential ID
+    const sanitizedCredentialId = sanitizeObjectId(id, 'Credential ID');
+
+    // Verify ownership is handled in the service layer, but sanitize first
+    await webauthnService.deleteCredential(sanitizedCredentialId, user._id);
 
     // Log audit event
     await auditLogService.log({
@@ -294,7 +437,7 @@ const deleteCredential = asyncHandler(async (req, res) => {
         userId: user._id,
         firmId: user.firmId,
         details: {
-            credentialId: id
+            credentialId: sanitizedCredentialId
         },
         ipAddress: req.ip,
         userAgent: req.headers['user-agent']
@@ -316,7 +459,6 @@ const deleteCredential = asyncHandler(async (req, res) => {
 const updateCredentialName = asyncHandler(async (req, res) => {
     const user = req.user;
     const { id } = req.params;
-    const { name } = req.body;
 
     if (!user) {
         throw new CustomException('Authentication required', 401);
@@ -326,19 +468,35 @@ const updateCredentialName = asyncHandler(async (req, res) => {
         throw new CustomException('Credential ID is required', 400);
     }
 
-    if (!name || name.trim().length === 0) {
+    // IDOR Protection - sanitize credential ID
+    const sanitizedCredentialId = sanitizeObjectId(id, 'Credential ID');
+
+    // Mass assignment protection - only allow specific fields
+    const allowedFields = ['name'];
+    const sanitizedBody = pickAllowedFields(req.body, allowedFields);
+    const { name } = sanitizedBody;
+
+    // Input validation
+    if (!name || typeof name !== 'string' || name.trim().length === 0) {
         throw new CustomException('Credential name is required', 400);
     }
 
+    if (name.trim().length > 100) {
+        throw new CustomException('Credential name must not exceed 100 characters', 400);
+    }
+
     const WebAuthnCredential = require('../models/webauthnCredential.model');
-    const credential = await WebAuthnCredential.findById(id);
+    const credential = await WebAuthnCredential.findById(sanitizedCredentialId);
 
     if (!credential) {
         throw new CustomException('Credential not found', 404);
     }
 
-    // Verify the credential belongs to the user
-    if (credential.userId.toString() !== user._id.toString()) {
+    // IDOR Protection - Verify ownership using timing-safe comparison
+    const credentialUserId = credential.userId.toString();
+    const requestUserId = user._id.toString();
+
+    if (!timingSafeEqual(credentialUserId, requestUserId)) {
         throw new CustomException('Unauthorized to update this credential', 403);
     }
 
@@ -356,7 +514,7 @@ const updateCredentialName = asyncHandler(async (req, res) => {
         userId: user._id,
         firmId: user.firmId,
         details: {
-            credentialId: id,
+            credentialId: sanitizedCredentialId,
             oldName,
             newName: credential.name
         },

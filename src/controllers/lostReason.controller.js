@@ -6,6 +6,7 @@
 
 const LostReason = require('../models/lostReason.model');
 const CrmActivity = require('../models/crmActivity.model');
+const { pickAllowedFields, sanitizeObjectId, sanitizeString } = require('../utils/securityUtils');
 
 // ═══════════════════════════════════════════════════════════════
 // LIST LOST REASONS
@@ -95,7 +96,17 @@ exports.getById = async (req, res) => {
         const { id } = req.params;
         const firmId = req.firmId;
 
-        const reason = await LostReason.findOne({ _id: id, firmId });
+        // IDOR Protection: Sanitize ID
+        const sanitizedId = sanitizeObjectId(id);
+        if (!sanitizedId) {
+            return res.status(400).json({
+                success: false,
+                message: 'معرف غير صالح / Invalid ID'
+            });
+        }
+
+        // IDOR Protection: Verify firmId ownership
+        const reason = await LostReason.findOne({ _id: sanitizedId, firmId });
 
         if (!reason) {
             return res.status(404).json({
@@ -137,8 +148,43 @@ exports.create = async (req, res) => {
         const firmId = req.firmId;
         const userId = req.userID;
 
+        // Mass Assignment Protection: Only allow specific fields
+        const allowedFields = ['reason', 'reasonAr', 'category', 'enabled'];
+        const safeData = pickAllowedFields(req.body, allowedFields);
+
+        // Input Validation: Ensure required fields are present
+        if (!safeData.reason || !safeData.reasonAr) {
+            return res.status(400).json({
+                success: false,
+                message: 'السبب مطلوب بكلا اللغتين / Reason required in both languages'
+            });
+        }
+
+        // XSS Protection: Sanitize text fields
+        safeData.reason = sanitizeString(safeData.reason);
+        safeData.reasonAr = sanitizeString(safeData.reasonAr);
+
+        // Input Validation: Check length
+        if (safeData.reason.length > 200 || safeData.reasonAr.length > 200) {
+            return res.status(400).json({
+                success: false,
+                message: 'السبب طويل جداً / Reason too long (max 200 characters)'
+            });
+        }
+
+        // Input Validation: Validate category if provided
+        if (safeData.category) {
+            const validCategories = LostReason.getCategories();
+            if (!validCategories.includes(safeData.category)) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'فئة غير صالحة / Invalid category'
+                });
+            }
+        }
+
         const reasonData = {
-            ...req.body,
+            ...safeData,
             firmId
         };
 
@@ -190,9 +236,63 @@ exports.update = async (req, res) => {
         const firmId = req.firmId;
         const userId = req.userID;
 
+        // IDOR Protection: Sanitize ID
+        const sanitizedId = sanitizeObjectId(id);
+        if (!sanitizedId) {
+            return res.status(400).json({
+                success: false,
+                message: 'معرف غير صالح / Invalid ID'
+            });
+        }
+
+        // Mass Assignment Protection: Only allow specific fields
+        const allowedFields = ['reason', 'reasonAr', 'category', 'enabled'];
+        const safeData = pickAllowedFields(req.body, allowedFields);
+
+        // Input Validation: Check if there's anything to update
+        if (Object.keys(safeData).length === 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'لا توجد بيانات للتحديث / No data to update'
+            });
+        }
+
+        // XSS Protection: Sanitize text fields if present
+        if (safeData.reason !== undefined) {
+            safeData.reason = sanitizeString(safeData.reason);
+            if (safeData.reason.length > 200) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'السبب طويل جداً / Reason too long (max 200 characters)'
+                });
+            }
+        }
+
+        if (safeData.reasonAr !== undefined) {
+            safeData.reasonAr = sanitizeString(safeData.reasonAr);
+            if (safeData.reasonAr.length > 200) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'السبب طويل جداً / Reason too long (max 200 characters)'
+                });
+            }
+        }
+
+        // Input Validation: Validate category if provided
+        if (safeData.category) {
+            const validCategories = LostReason.getCategories();
+            if (!validCategories.includes(safeData.category)) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'فئة غير صالحة / Invalid category'
+                });
+            }
+        }
+
+        // IDOR Protection: Verify firmId ownership
         const reason = await LostReason.findOneAndUpdate(
-            { _id: id, firmId },
-            { $set: req.body },
+            { _id: sanitizedId, firmId },
+            { $set: safeData },
             { new: true, runValidators: true }
         );
 
@@ -249,7 +349,17 @@ exports.delete = async (req, res) => {
         const firmId = req.firmId;
         const userId = req.userID;
 
-        const reason = await LostReason.findOneAndDelete({ _id: id, firmId });
+        // IDOR Protection: Sanitize ID
+        const sanitizedId = sanitizeObjectId(id);
+        if (!sanitizedId) {
+            return res.status(400).json({
+                success: false,
+                message: 'معرف غير صالح / Invalid ID'
+            });
+        }
+
+        // IDOR Protection: Verify firmId ownership
+        const reason = await LostReason.findOneAndDelete({ _id: sanitizedId, firmId });
 
         if (!reason) {
             return res.status(404).json({
@@ -263,7 +373,7 @@ exports.delete = async (req, res) => {
             lawyerId: userId,
             type: 'lost_reason_deleted',
             entityType: 'lost_reason',
-            entityId: id,
+            entityId: sanitizedId,
             entityName: reason.reason,
             title: `Lost reason deleted: ${reason.reason}`,
             performedBy: userId

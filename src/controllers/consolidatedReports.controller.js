@@ -7,6 +7,47 @@ const GeneralLedger = require('../models/generalLedger.model');
 const asyncHandler = require('../utils/asyncHandler');
 const mongoose = require('mongoose');
 const { toSAR } = require('../utils/currency');
+const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
+
+/**
+ * Validate and sanitize date parameters
+ * @param {string} dateStr - Date string
+ * @returns {Date|null} Valid Date object or null
+ */
+const validateDate = (dateStr) => {
+    if (!dateStr) return null;
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return null;
+    return date;
+};
+
+/**
+ * Validate currency code
+ * @param {string} currency - Currency code
+ * @returns {string} Valid currency code
+ */
+const validateCurrency = (currency) => {
+    const validCurrencies = ['SAR', 'USD', 'EUR', 'GBP', 'AED'];
+    return validCurrencies.includes(currency) ? currency : 'SAR';
+};
+
+/**
+ * Sanitize and validate firm IDs array
+ * @param {Array} firmIds - Array of firm IDs
+ * @param {Array} allowedFirmIds - Array of allowed firm IDs
+ * @returns {Array} Sanitized and validated firm IDs
+ */
+const sanitizeFirmIds = (firmIds, allowedFirmIds) => {
+    if (!firmIds || !Array.isArray(firmIds)) {
+        return allowedFirmIds;
+    }
+
+    const sanitized = firmIds
+        .map(id => sanitizeObjectId(id))
+        .filter(id => id && allowedFirmIds.includes(id.toString()));
+
+    return sanitized.length > 0 ? sanitized : allowedFirmIds;
+};
 
 /**
  * Get firms user has access to
@@ -14,10 +55,15 @@ const { toSAR } = require('../utils/currency');
  * @returns {Array} Array of firm IDs user can access
  */
 const getUserFirms = async (userId) => {
+    const sanitizedUserId = sanitizeObjectId(userId);
+    if (!sanitizedUserId) {
+        return [];
+    }
+
     const firms = await Firm.find({
         $or: [
-            { ownerId: userId },
-            { 'members.userId': userId }
+            { ownerId: sanitizedUserId },
+            { 'members.userId': sanitizedUserId }
         ],
         status: 'active'
     }).select('_id name').lean();
@@ -58,21 +104,26 @@ exports.getConsolidatedProfitLoss = asyncHandler(async (req, res) => {
     const { firmIds, startDate, endDate, includeEliminations, currency = 'SAR' } = req.query;
     const userId = req.userId || req.userID;
 
-    if (!startDate || !endDate) {
+    // Validate date parameters
+    const validStartDate = validateDate(startDate);
+    const validEndDate = validateDate(endDate);
+
+    if (!validStartDate || !validEndDate) {
         return res.status(400).json({
             success: false,
-            error: 'Start date and end date are required'
+            error: 'Valid start date and end date are required'
         });
     }
+
+    // Validate currency
+    const validCurrency = validateCurrency(currency);
 
     // Get firms user has access to
     const userFirms = await getUserFirms(userId);
     const userFirmIds = userFirms.map(f => f._id.toString());
 
-    // Filter requested firms by user access
-    let selectedFirmIds = firmIds && Array.isArray(firmIds)
-        ? firmIds.filter(id => userFirmIds.includes(id.toString()))
-        : userFirmIds;
+    // Sanitize and validate firm IDs with IDOR protection
+    const selectedFirmIds = sanitizeFirmIds(firmIds, userFirmIds);
 
     if (selectedFirmIds.length === 0) {
         return res.status(403).json({
@@ -81,14 +132,14 @@ exports.getConsolidatedProfitLoss = asyncHandler(async (req, res) => {
         });
     }
 
-    selectedFirmIds = selectedFirmIds.map(id => mongoose.Types.ObjectId.createFromHexString(id));
+    const selectedObjectIds = selectedFirmIds.map(id => mongoose.Types.ObjectId.createFromHexString(id));
 
     const matchStage = {
         status: 'posted',
-        firmId: { $in: selectedFirmIds },
+        firmId: { $in: selectedObjectIds },
         transactionDate: {
-            $gte: new Date(startDate),
-            $lte: new Date(endDate)
+            $gte: validStartDate,
+            $lte: validEndDate
         }
     };
 
@@ -176,12 +227,12 @@ exports.getConsolidatedProfitLoss = asyncHandler(async (req, res) => {
     if (includeEliminations === 'true' || includeEliminations === true) {
         const eliminations = await InterCompanyTransaction.find({
             $or: [
-                { sourceFirmId: { $in: selectedFirmIds } },
-                { targetFirmId: { $in: selectedFirmIds } }
+                { sourceFirmId: { $in: selectedObjectIds } },
+                { targetFirmId: { $in: selectedObjectIds } }
             ],
             transactionDate: {
-                $gte: new Date(startDate),
-                $lte: new Date(endDate)
+                $gte: validStartDate,
+                $lte: validEndDate
             },
             status: { $in: ['confirmed', 'reconciled'] }
         }).lean();
@@ -202,7 +253,7 @@ exports.getConsolidatedProfitLoss = asyncHandler(async (req, res) => {
     const profitMargin = totalIncome > 0 ? ((netProfit / totalIncome) * 100).toFixed(2) : '0.00';
 
     // Get firm details for response
-    const firms = await Firm.find({ _id: { $in: selectedFirmIds } })
+    const firms = await Firm.find({ _id: { $in: selectedObjectIds } })
         .select('_id name')
         .lean();
 
@@ -226,8 +277,8 @@ exports.getConsolidatedProfitLoss = asyncHandler(async (req, res) => {
     res.status(200).json({
         success: true,
         report: 'consolidated-profit-loss',
-        period: { startDate, endDate },
-        currency,
+        period: { startDate: validStartDate, endDate: validEndDate },
+        currency: validCurrency,
         includeEliminations: includeEliminations === 'true' || includeEliminations === true,
         generatedAt: new Date(),
         firms: firmBreakdown,
@@ -259,15 +310,24 @@ exports.getConsolidatedBalanceSheet = asyncHandler(async (req, res) => {
     const { firmIds, asOfDate, includeEliminations, currency = 'SAR' } = req.query;
     const userId = req.userId || req.userID;
 
-    const upToDate = asOfDate ? new Date(asOfDate) : new Date();
+    // Validate date parameter
+    const upToDate = asOfDate ? validateDate(asOfDate) : new Date();
+    if (!upToDate) {
+        return res.status(400).json({
+            success: false,
+            error: 'Invalid date format'
+        });
+    }
+
+    // Validate currency
+    const validCurrency = validateCurrency(currency);
 
     // Get firms user has access to
     const userFirms = await getUserFirms(userId);
     const userFirmIds = userFirms.map(f => f._id.toString());
 
-    let selectedFirmIds = firmIds && Array.isArray(firmIds)
-        ? firmIds.filter(id => userFirmIds.includes(id.toString()))
-        : userFirmIds;
+    // Sanitize and validate firm IDs with IDOR protection
+    const selectedFirmIds = sanitizeFirmIds(firmIds, userFirmIds);
 
     if (selectedFirmIds.length === 0) {
         return res.status(403).json({
@@ -276,11 +336,11 @@ exports.getConsolidatedBalanceSheet = asyncHandler(async (req, res) => {
         });
     }
 
-    selectedFirmIds = selectedFirmIds.map(id => mongoose.Types.ObjectId.createFromHexString(id));
+    const selectedObjectIds = selectedFirmIds.map(id => mongoose.Types.ObjectId.createFromHexString(id));
 
     const matchStage = {
         status: 'posted',
-        firmId: { $in: selectedFirmIds },
+        firmId: { $in: selectedObjectIds },
         transactionDate: { $lte: upToDate }
     };
 
@@ -380,8 +440,8 @@ exports.getConsolidatedBalanceSheet = asyncHandler(async (req, res) => {
     if (includeEliminations === 'true' || includeEliminations === true) {
         const eliminations = await InterCompanyTransaction.find({
             $or: [
-                { sourceFirmId: { $in: selectedFirmIds } },
-                { targetFirmId: { $in: selectedFirmIds } }
+                { sourceFirmId: { $in: selectedObjectIds } },
+                { targetFirmId: { $in: selectedObjectIds } }
             ],
             transactionDate: { $lte: upToDate },
             status: { $in: ['confirmed', 'reconciled'] }
@@ -402,7 +462,7 @@ exports.getConsolidatedBalanceSheet = asyncHandler(async (req, res) => {
     const isBalanced = totalAssets === (totalLiabilities + totalEquity);
 
     // Get firm details
-    const firms = await Firm.find({ _id: { $in: selectedFirmIds } })
+    const firms = await Firm.find({ _id: { $in: selectedObjectIds } })
         .select('_id name')
         .lean();
 
@@ -425,7 +485,7 @@ exports.getConsolidatedBalanceSheet = asyncHandler(async (req, res) => {
         success: true,
         report: 'consolidated-balance-sheet',
         asOfDate: upToDate,
-        currency,
+        currency: validCurrency,
         includeEliminations: includeEliminations === 'true' || includeEliminations === true,
         generatedAt: new Date(),
         firms: firmBreakdown,
@@ -459,20 +519,26 @@ exports.getConsolidatedCashFlow = asyncHandler(async (req, res) => {
     const { firmIds, startDate, endDate, currency = 'SAR' } = req.query;
     const userId = req.userId || req.userID;
 
-    if (!startDate || !endDate) {
+    // Validate date parameters
+    const validStartDate = validateDate(startDate);
+    const validEndDate = validateDate(endDate);
+
+    if (!validStartDate || !validEndDate) {
         return res.status(400).json({
             success: false,
-            error: 'Start date and end date are required'
+            error: 'Valid start date and end date are required'
         });
     }
+
+    // Validate currency
+    const validCurrency = validateCurrency(currency);
 
     // Get firms user has access to
     const userFirms = await getUserFirms(userId);
     const userFirmIds = userFirms.map(f => f._id.toString());
 
-    let selectedFirmIds = firmIds && Array.isArray(firmIds)
-        ? firmIds.filter(id => userFirmIds.includes(id.toString()))
-        : userFirmIds;
+    // Sanitize and validate firm IDs with IDOR protection
+    const selectedFirmIds = sanitizeFirmIds(firmIds, userFirmIds);
 
     if (selectedFirmIds.length === 0) {
         return res.status(403).json({
@@ -481,7 +547,7 @@ exports.getConsolidatedCashFlow = asyncHandler(async (req, res) => {
         });
     }
 
-    selectedFirmIds = selectedFirmIds.map(id => mongoose.Types.ObjectId.createFromHexString(id));
+    const selectedObjectIds = selectedFirmIds.map(id => mongoose.Types.ObjectId.createFromHexString(id));
 
     // Get cash accounts
     const cashAccounts = await Account.find({
@@ -496,10 +562,10 @@ exports.getConsolidatedCashFlow = asyncHandler(async (req, res) => {
         {
             $match: {
                 status: 'posted',
-                firmId: { $in: selectedFirmIds },
+                firmId: { $in: selectedObjectIds },
                 transactionDate: {
-                    $gte: new Date(startDate),
-                    $lte: new Date(endDate)
+                    $gte: validStartDate,
+                    $lte: validEndDate
                 },
                 $or: [
                     { creditAccountId: { $in: cashAccountIds } },
@@ -553,7 +619,7 @@ exports.getConsolidatedCashFlow = asyncHandler(async (req, res) => {
     const netCashFlow = totalInflows - totalOutflows;
 
     // Get firm details
-    const firms = await Firm.find({ _id: { $in: selectedFirmIds } })
+    const firms = await Firm.find({ _id: { $in: selectedObjectIds } })
         .select('_id name')
         .lean();
 
@@ -574,8 +640,8 @@ exports.getConsolidatedCashFlow = asyncHandler(async (req, res) => {
     res.status(200).json({
         success: true,
         report: 'consolidated-cash-flow',
-        period: { startDate, endDate },
-        currency,
+        period: { startDate: validStartDate, endDate: validEndDate },
+        currency: validCurrency,
         generatedAt: new Date(),
         firms: firmBreakdown,
         summary: {
@@ -599,10 +665,14 @@ exports.getCompanyComparison = asyncHandler(async (req, res) => {
     const { firmIds, startDate, endDate, metrics } = req.query;
     const userId = req.userId || req.userID;
 
-    if (!startDate || !endDate) {
+    // Validate date parameters
+    const validStartDate = validateDate(startDate);
+    const validEndDate = validateDate(endDate);
+
+    if (!validStartDate || !validEndDate) {
         return res.status(400).json({
             success: false,
-            error: 'Start date and end date are required'
+            error: 'Valid start date and end date are required'
         });
     }
 
@@ -610,9 +680,8 @@ exports.getCompanyComparison = asyncHandler(async (req, res) => {
     const userFirms = await getUserFirms(userId);
     const userFirmIds = userFirms.map(f => f._id.toString());
 
-    let selectedFirmIds = firmIds && Array.isArray(firmIds)
-        ? firmIds.filter(id => userFirmIds.includes(id.toString()))
-        : userFirmIds;
+    // Sanitize and validate firm IDs with IDOR protection
+    const selectedFirmIds = sanitizeFirmIds(firmIds, userFirmIds);
 
     if (selectedFirmIds.length === 0) {
         return res.status(403).json({
@@ -621,12 +690,13 @@ exports.getCompanyComparison = asyncHandler(async (req, res) => {
         });
     }
 
-    selectedFirmIds = selectedFirmIds.map(id => mongoose.Types.ObjectId.createFromHexString(id));
+    const selectedObjectIds = selectedFirmIds.map(id => mongoose.Types.ObjectId.createFromHexString(id));
 
-    // Default metrics to compare
+    // Validate and sanitize metrics
+    const allowedMetrics = ['revenue', 'expenses', 'profit', 'profitMargin', 'clientCount', 'invoiceCount'];
     const requestedMetrics = metrics && Array.isArray(metrics)
-        ? metrics
-        : ['revenue', 'expenses', 'profit', 'profitMargin', 'clientCount', 'invoiceCount'];
+        ? metrics.filter(m => allowedMetrics.includes(m))
+        : allowedMetrics;
 
     // Get account types
     const [incomeAccounts, expenseAccounts] = await Promise.all([
@@ -642,10 +712,10 @@ exports.getCompanyComparison = asyncHandler(async (req, res) => {
         {
             $match: {
                 status: 'posted',
-                firmId: { $in: selectedFirmIds },
+                firmId: { $in: selectedObjectIds },
                 transactionDate: {
-                    $gte: new Date(startDate),
-                    $lte: new Date(endDate)
+                    $gte: validStartDate,
+                    $lte: validEndDate
                 }
             }
         },
@@ -678,10 +748,10 @@ exports.getCompanyComparison = asyncHandler(async (req, res) => {
     const invoiceCounts = await Invoice.aggregate([
         {
             $match: {
-                firmId: { $in: selectedFirmIds },
+                firmId: { $in: selectedObjectIds },
                 issueDate: {
-                    $gte: new Date(startDate),
-                    $lte: new Date(endDate)
+                    $gte: validStartDate,
+                    $lte: validEndDate
                 },
                 status: { $nin: ['draft', 'cancelled', 'void'] }
             }
@@ -721,7 +791,7 @@ exports.getCompanyComparison = asyncHandler(async (req, res) => {
     });
 
     // Get firm details
-    const firms = await Firm.find({ _id: { $in: selectedFirmIds } })
+    const firms = await Firm.find({ _id: { $in: selectedObjectIds } })
         .select('_id name')
         .lean();
 
@@ -762,7 +832,7 @@ exports.getCompanyComparison = asyncHandler(async (req, res) => {
     res.status(200).json({
         success: true,
         report: 'consolidated-comparison',
-        period: { startDate, endDate },
+        period: { startDate: validStartDate, endDate: validEndDate },
         generatedAt: new Date(),
         metrics: requestedMetrics,
         comparison,
@@ -804,9 +874,8 @@ exports.getEliminationEntries = asyncHandler(async (req, res) => {
     const userFirms = await getUserFirms(userId);
     const userFirmIds = userFirms.map(f => f._id.toString());
 
-    let selectedFirmIds = firmIds && Array.isArray(firmIds)
-        ? firmIds.filter(id => userFirmIds.includes(id.toString()))
-        : userFirmIds;
+    // Sanitize and validate firm IDs with IDOR protection
+    const selectedFirmIds = sanitizeFirmIds(firmIds, userFirmIds);
 
     if (selectedFirmIds.length === 0) {
         return res.status(403).json({
@@ -815,21 +884,27 @@ exports.getEliminationEntries = asyncHandler(async (req, res) => {
         });
     }
 
-    selectedFirmIds = selectedFirmIds.map(id => mongoose.Types.ObjectId.createFromHexString(id));
+    const selectedObjectIds = selectedFirmIds.map(id => mongoose.Types.ObjectId.createFromHexString(id));
 
     const query = {
         $or: [
-            { sourceFirmId: { $in: selectedFirmIds } },
-            { targetFirmId: { $in: selectedFirmIds } }
+            { sourceFirmId: { $in: selectedObjectIds } },
+            { targetFirmId: { $in: selectedObjectIds } }
         ],
         status: { $in: ['confirmed', 'reconciled'] }
     };
 
+    // Validate and add date range if provided
     if (startDate && endDate) {
-        query.transactionDate = {
-            $gte: new Date(startDate),
-            $lte: new Date(endDate)
-        };
+        const validStartDate = validateDate(startDate);
+        const validEndDate = validateDate(endDate);
+
+        if (validStartDate && validEndDate) {
+            query.transactionDate = {
+                $gte: validStartDate,
+                $lte: validEndDate
+            };
+        }
     }
 
     const eliminations = await InterCompanyTransaction.find(query)
@@ -915,6 +990,21 @@ exports.getEliminationEntries = asyncHandler(async (req, res) => {
  * Body: { sourceFirmId, targetFirmId, transactionType, amount, currency, transactionDate, reference, description }
  */
 exports.createManualElimination = asyncHandler(async (req, res) => {
+    const userId = req.userId || req.userID;
+
+    // Mass assignment protection - only allow specific fields
+    const allowedFields = [
+        'sourceFirmId',
+        'targetFirmId',
+        'transactionType',
+        'amount',
+        'currency',
+        'transactionDate',
+        'reference',
+        'description'
+    ];
+    const sanitizedData = pickAllowedFields(req.body, allowedFields);
+
     const {
         sourceFirmId,
         targetFirmId,
@@ -924,9 +1014,7 @@ exports.createManualElimination = asyncHandler(async (req, res) => {
         transactionDate,
         reference,
         description
-    } = req.body;
-
-    const userId = req.userId || req.userID;
+    } = sanitizedData;
 
     // Validate required fields
     if (!sourceFirmId || !targetFirmId || !transactionType || !amount || !transactionDate) {
@@ -936,12 +1024,53 @@ exports.createManualElimination = asyncHandler(async (req, res) => {
         });
     }
 
-    // Verify user has access to both firms
+    // Sanitize ObjectIds to prevent injection
+    const sanitizedSourceFirmId = sanitizeObjectId(sourceFirmId);
+    const sanitizedTargetFirmId = sanitizeObjectId(targetFirmId);
+
+    if (!sanitizedSourceFirmId || !sanitizedTargetFirmId) {
+        return res.status(400).json({
+            success: false,
+            error: 'Invalid firm ID format'
+        });
+    }
+
+    // Validate transactionType
+    const validTransactionTypes = ['sale', 'loan', 'transfer', 'service', 'other'];
+    if (!validTransactionTypes.includes(transactionType)) {
+        return res.status(400).json({
+            success: false,
+            error: 'Invalid transaction type'
+        });
+    }
+
+    // Validate amount
+    const numericAmount = parseFloat(amount);
+    if (isNaN(numericAmount) || numericAmount <= 0) {
+        return res.status(400).json({
+            success: false,
+            error: 'Amount must be a positive number'
+        });
+    }
+
+    // Validate date
+    const validTransactionDate = validateDate(transactionDate);
+    if (!validTransactionDate) {
+        return res.status(400).json({
+            success: false,
+            error: 'Invalid transaction date format'
+        });
+    }
+
+    // Validate currency
+    const validCurrency = validateCurrency(currency);
+
+    // IDOR Protection - Verify user has access to both firms
     const userFirms = await getUserFirms(userId);
     const userFirmIds = userFirms.map(f => f._id.toString());
 
-    if (!userFirmIds.includes(sourceFirmId.toString()) ||
-        !userFirmIds.includes(targetFirmId.toString())) {
+    if (!userFirmIds.includes(sanitizedSourceFirmId.toString()) ||
+        !userFirmIds.includes(sanitizedTargetFirmId.toString())) {
         return res.status(403).json({
             success: false,
             error: 'You do not have access to one or both of the specified firms'
@@ -950,8 +1079,8 @@ exports.createManualElimination = asyncHandler(async (req, res) => {
 
     // Validate firms exist
     const [sourceFirm, targetFirm] = await Promise.all([
-        Firm.findById(sourceFirmId).select('name'),
-        Firm.findById(targetFirmId).select('name')
+        Firm.findById(sanitizedSourceFirmId).select('name'),
+        Firm.findById(sanitizedTargetFirmId).select('name')
     ]);
 
     if (!sourceFirm || !targetFirm) {
@@ -961,20 +1090,24 @@ exports.createManualElimination = asyncHandler(async (req, res) => {
         });
     }
 
-    // Create elimination entry
+    // Sanitize string inputs to prevent injection
+    const sanitizedReference = reference ? String(reference).substring(0, 100) : undefined;
+    const sanitizedDescription = description ? String(description).substring(0, 500) : undefined;
+
+    // Create elimination entry with sanitized and validated data
     const elimination = new InterCompanyTransaction({
-        sourceFirmId,
-        targetFirmId,
+        sourceFirmId: sanitizedSourceFirmId,
+        targetFirmId: sanitizedTargetFirmId,
         transactionType,
-        amount,
-        currency: currency || 'SAR',
+        amount: numericAmount,
+        currency: validCurrency,
         exchangeRate: 1,
-        transactionDate,
-        reference,
-        description,
+        transactionDate: validTransactionDate,
+        reference: sanitizedReference,
+        description: sanitizedDescription,
         status: 'confirmed',
-        createdBy: userId,
-        confirmedBy: userId,
+        createdBy: sanitizeObjectId(userId),
+        confirmedBy: sanitizeObjectId(userId),
         confirmedAt: new Date()
     });
 
@@ -986,11 +1119,11 @@ exports.createManualElimination = asyncHandler(async (req, res) => {
         data: {
             id: elimination._id,
             sourceFirm: {
-                id: sourceFirmId,
+                id: sanitizedSourceFirmId,
                 name: sourceFirm.name
             },
             targetFirm: {
-                id: targetFirmId,
+                id: sanitizedTargetFirmId,
                 name: targetFirm.name
             },
             transactionType: elimination.transactionType,

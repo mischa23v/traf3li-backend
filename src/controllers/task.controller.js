@@ -5,11 +5,29 @@ const CustomException = require('../utils/CustomException');
 const { deleteFile, listFileVersions, logFileAccess } = require('../configs/s3');
 const { isS3Configured, getTaskFilePresignedUrl, isS3Url, extractS3Key } = require('../configs/taskUpload');
 const { sanitizeRichText, sanitizeComment, stripHtml, hasDangerousContent } = require('../utils/sanitize');
+const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 const fs = require('fs');
 const path = require('path');
 
 // Create task
 const createTask = asyncHandler(async (req, res) => {
+    const userId = req.userID;
+    const firmId = req.firmId; // From firmFilter middleware
+
+    // Block departed users from creating tasks
+    if (req.isDeparted) {
+        throw CustomException('لم يعد لديك صلاحية إنشاء مهام جديدة', 403);
+    }
+
+    // Mass assignment protection
+    const allowedFields = [
+        'title', 'description', 'priority', 'status', 'label', 'tags',
+        'dueDate', 'dueTime', 'startDate', 'assignedTo', 'caseId', 'clientId',
+        'parentTaskId', 'subtasks', 'checklists', 'timeTracking', 'recurring',
+        'reminders', 'notes', 'points'
+    ];
+    const data = pickAllowedFields(req.body, allowedFields);
+
     const {
         title,
         description,
@@ -31,14 +49,19 @@ const createTask = asyncHandler(async (req, res) => {
         reminders,
         notes,
         points
-    } = req.body;
+    } = data;
 
-    const userId = req.userID;
-    const firmId = req.firmId; // From firmFilter middleware
+    // Input validation
+    if (!title || typeof title !== 'string' || title.trim().length === 0) {
+        throw CustomException('Task title is required', 400);
+    }
 
-    // Block departed users from creating tasks
-    if (req.isDeparted) {
-        throw CustomException('لم يعد لديك صلاحية إنشاء مهام جديدة', 403);
+    if (priority && !['low', 'medium', 'high', 'urgent'].includes(priority)) {
+        throw CustomException('Invalid priority value', 400);
+    }
+
+    if (status && !['todo', 'pending', 'in_progress', 'done', 'canceled'].includes(status)) {
+        throw CustomException('Invalid status value', 400);
     }
 
     // Sanitize user input to prevent XSS
@@ -51,17 +74,23 @@ const createTask = asyncHandler(async (req, res) => {
         throw CustomException('Invalid content detected', 400);
     }
 
+    // IDOR protection - sanitize ObjectIds
+    const sanitizedAssignedTo = assignedTo ? sanitizeObjectId(assignedTo) : null;
+    const sanitizedCaseId = caseId ? sanitizeObjectId(caseId) : null;
+    const sanitizedClientId = clientId ? sanitizeObjectId(clientId) : null;
+    const sanitizedParentTaskId = parentTaskId ? sanitizeObjectId(parentTaskId) : null;
+
     // Validate assignedTo user if provided
-    if (assignedTo) {
-        const assignedUser = await User.findById(assignedTo);
+    if (sanitizedAssignedTo) {
+        const assignedUser = await User.findOne({ _id: sanitizedAssignedTo, firmId });
         if (!assignedUser) {
             throw CustomException('Assigned user not found', 404);
         }
     }
 
-    // If caseId provided, validate it exists
-    if (caseId) {
-        const caseDoc = await Case.findById(caseId);
+    // If caseId provided, validate it exists and belongs to firm
+    if (sanitizedCaseId) {
+        const caseDoc = await Case.findOne({ _id: sanitizedCaseId, firmId });
         if (!caseDoc) {
             throw CustomException('Case not found', 404);
         }
@@ -77,12 +106,12 @@ const createTask = asyncHandler(async (req, res) => {
         dueDate,
         dueTime,
         startDate,
-        assignedTo: assignedTo || userId,
+        assignedTo: sanitizedAssignedTo || userId,
         createdBy: userId,
         firmId, // Add firmId for multi-tenancy
-        caseId,
-        clientId,
-        parentTaskId,
+        caseId: sanitizedCaseId,
+        clientId: sanitizedClientId,
+        parentTaskId: sanitizedParentTaskId,
         subtasks: subtasks || [],
         checklists: checklists || [],
         timeTracking: timeTracking || { estimatedMinutes: 0, actualMinutes: 0, sessions: [] },
@@ -179,6 +208,11 @@ const getTasks = asyncHandler(async (req, res) => {
     const firmId = req.firmId; // From firmFilter middleware
     const isDeparted = req.isDeparted; // From firmFilter middleware
 
+    // IDOR protection - sanitize ObjectIds in query parameters
+    const sanitizedAssignedTo = assignedTo ? sanitizeObjectId(assignedTo) : null;
+    const sanitizedCaseId = caseId ? sanitizeObjectId(caseId) : null;
+    const sanitizedClientId = clientId ? sanitizeObjectId(clientId) : null;
+
     // Build query - if firmId exists, filter by firm; otherwise by user
     let query;
     if (firmId) {
@@ -207,9 +241,9 @@ const getTasks = asyncHandler(async (req, res) => {
     if (status) query.status = status;
     if (priority) query.priority = priority;
     if (label) query.label = label;
-    if (assignedTo) query.assignedTo = assignedTo;
-    if (caseId) query.caseId = caseId;
-    if (clientId) query.clientId = clientId;
+    if (sanitizedAssignedTo) query.assignedTo = sanitizedAssignedTo;
+    if (sanitizedCaseId) query.caseId = sanitizedCaseId;
+    if (sanitizedClientId) query.clientId = sanitizedClientId;
 
     // Date range filter
     if (startDate || endDate) {
@@ -262,7 +296,10 @@ const getTask = asyncHandler(async (req, res) => {
     const userId = req.userID;
     const firmId = req.firmId; // From firmFilter middleware
 
-    const task = await Task.findById(id)
+    // IDOR protection
+    const taskId = sanitizeObjectId(id);
+
+    const task = await Task.findById(taskId)
         .populate('assignedTo', 'firstName lastName username email image')
         .populate('createdBy', 'firstName lastName username email image')
         .populate('caseId', 'title caseNumber category')
@@ -303,7 +340,10 @@ const updateTask = asyncHandler(async (req, res) => {
         throw CustomException('لم يعد لديك صلاحية تعديل المهام', 403);
     }
 
-    const task = await Task.findById(id);
+    // IDOR protection
+    const taskId = sanitizeObjectId(id);
+
+    const task = await Task.findById(taskId);
 
     if (!task) {
         throw CustomException('Task not found', 404);
@@ -319,34 +359,51 @@ const updateTask = asyncHandler(async (req, res) => {
         throw CustomException('You do not have permission to update this task', 403);
     }
 
-    // Sanitize text fields
-    if (req.body.title) req.body.title = stripHtml(req.body.title);
-    if (req.body.description) req.body.description = sanitizeRichText(req.body.description);
-    if (req.body.notes) req.body.notes = sanitizeRichText(req.body.notes);
-
-    // Check for dangerous content
-    if (hasDangerousContent(req.body.description) || hasDangerousContent(req.body.notes)) {
-        throw CustomException('Invalid content detected', 400);
-    }
-
-    // Track changes for history
-    const changes = {};
+    // Mass assignment protection
     const allowedFields = [
         'title', 'description', 'status', 'priority', 'label', 'tags',
         'dueDate', 'dueTime', 'startDate', 'assignedTo', 'caseId', 'clientId',
         'subtasks', 'checklists', 'timeTracking', 'recurring', 'reminders',
         'notes', 'points', 'progress'
     ];
+    const updates = pickAllowedFields(req.body, allowedFields);
+
+    // Input validation
+    if (updates.priority && !['low', 'medium', 'high', 'urgent'].includes(updates.priority)) {
+        throw CustomException('Invalid priority value', 400);
+    }
+
+    if (updates.status && !['todo', 'pending', 'in_progress', 'done', 'canceled'].includes(updates.status)) {
+        throw CustomException('Invalid status value', 400);
+    }
+
+    // Sanitize text fields
+    if (updates.title) updates.title = stripHtml(updates.title);
+    if (updates.description) updates.description = sanitizeRichText(updates.description);
+    if (updates.notes) updates.notes = sanitizeRichText(updates.notes);
+
+    // Check for dangerous content
+    if (hasDangerousContent(updates.description) || hasDangerousContent(updates.notes)) {
+        throw CustomException('Invalid content detected', 400);
+    }
+
+    // IDOR protection for reference IDs
+    if (updates.assignedTo) updates.assignedTo = sanitizeObjectId(updates.assignedTo);
+    if (updates.caseId) updates.caseId = sanitizeObjectId(updates.caseId);
+    if (updates.clientId) updates.clientId = sanitizeObjectId(updates.clientId);
+
+    // Track changes for history
+    const changes = {};
 
     allowedFields.forEach(field => {
-        if (req.body[field] !== undefined && JSON.stringify(task[field]) !== JSON.stringify(req.body[field])) {
-            changes[field] = { from: task[field], to: req.body[field] };
-            task[field] = req.body[field];
+        if (updates[field] !== undefined && JSON.stringify(task[field]) !== JSON.stringify(updates[field])) {
+            changes[field] = { from: task[field], to: updates[field] };
+            task[field] = updates[field];
         }
     });
 
     // Handle completion
-    if (req.body.status === 'done' && task.status !== 'done') {
+    if (updates.status === 'done' && task.status !== 'done') {
         task.completedAt = new Date();
         task.completedBy = userId;
     }
@@ -480,7 +537,10 @@ const deleteTask = asyncHandler(async (req, res) => {
     const userId = req.userID;
     const firmId = req.firmId; // From firmFilter middleware
 
-    const task = await Task.findById(id);
+    // IDOR protection
+    const taskId = sanitizeObjectId(id);
+
+    const task = await Task.findById(taskId);
 
     if (!task) {
         throw CustomException('Task not found', 404);
@@ -516,10 +576,17 @@ const deleteTask = asyncHandler(async (req, res) => {
 // Complete task
 const completeTask = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const { completionNote } = req.body;
     const userId = req.userID;
 
-    const task = await Task.findById(id);
+    // IDOR protection
+    const taskId = sanitizeObjectId(id);
+
+    // Mass assignment protection
+    const allowedFields = ['completionNote'];
+    const data = pickAllowedFields(req.body, allowedFields);
+    const { completionNote } = data;
+
+    const task = await Task.findById(taskId);
 
     if (!task) {
         throw CustomException('Task not found', 404);
@@ -616,10 +683,22 @@ const completeTask = asyncHandler(async (req, res) => {
 // Add subtask
 const addSubtask = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const { title, autoReset } = req.body;
     const userId = req.userID;
 
-    const task = await Task.findById(id);
+    // IDOR protection
+    const taskId = sanitizeObjectId(id);
+
+    // Mass assignment protection
+    const allowedFields = ['title', 'autoReset'];
+    const data = pickAllowedFields(req.body, allowedFields);
+    const { title, autoReset } = data;
+
+    // Input validation
+    if (!title || typeof title !== 'string' || title.trim().length === 0) {
+        throw CustomException('Subtask title is required', 400);
+    }
+
+    const task = await Task.findById(taskId);
     if (!task) {
         throw CustomException('Task not found', 404);
     }
@@ -651,12 +730,16 @@ const toggleSubtask = asyncHandler(async (req, res) => {
     const { id, subtaskId } = req.params;
     const userId = req.userID;
 
-    const task = await Task.findById(id);
+    // IDOR protection
+    const taskId = sanitizeObjectId(id);
+    const sanitizedSubtaskId = sanitizeObjectId(subtaskId);
+
+    const task = await Task.findById(taskId);
     if (!task) {
         throw CustomException('Task not found', 404);
     }
 
-    const subtask = task.subtasks.id(subtaskId);
+    const subtask = task.subtasks.id(sanitizedSubtaskId);
     if (!subtask) {
         throw CustomException('Subtask not found', 404);
     }
@@ -667,7 +750,7 @@ const toggleSubtask = asyncHandler(async (req, res) => {
     task.history.push({
         action: subtask.completed ? 'subtask_completed' : 'subtask_uncompleted',
         userId,
-        changes: { subtaskId, subtaskTitle: subtask.title },
+        changes: { subtaskId: sanitizedSubtaskId, subtaskTitle: subtask.title },
         timestamp: new Date()
     });
 
@@ -684,12 +767,16 @@ const toggleSubtask = asyncHandler(async (req, res) => {
 const deleteSubtask = asyncHandler(async (req, res) => {
     const { id, subtaskId } = req.params;
 
-    const task = await Task.findById(id);
+    // IDOR protection
+    const taskId = sanitizeObjectId(id);
+    const sanitizedSubtaskId = sanitizeObjectId(subtaskId);
+
+    const task = await Task.findById(taskId);
     if (!task) {
         throw CustomException('Task not found', 404);
     }
 
-    task.subtasks.pull(subtaskId);
+    task.subtasks.pull(sanitizedSubtaskId);
     await task.save();
 
     res.status(200).json({
@@ -704,10 +791,17 @@ const deleteSubtask = asyncHandler(async (req, res) => {
 // Start timer
 const startTimer = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const { notes } = req.body;
     const userId = req.userID;
 
-    const task = await Task.findById(id);
+    // IDOR protection
+    const taskId = sanitizeObjectId(id);
+
+    // Mass assignment protection
+    const allowedFields = ['notes'];
+    const data = pickAllowedFields(req.body, allowedFields);
+    const { notes } = data;
+
+    const task = await Task.findById(taskId);
     if (!task) {
         throw CustomException('Task not found', 404);
     }
@@ -740,10 +834,17 @@ const startTimer = asyncHandler(async (req, res) => {
 // Stop timer
 const stopTimer = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const { notes, isBillable } = req.body;
     const userId = req.userID;
 
-    const task = await Task.findById(id);
+    // IDOR protection
+    const taskId = sanitizeObjectId(id);
+
+    // Mass assignment protection
+    const allowedFields = ['notes', 'isBillable'];
+    const data = pickAllowedFields(req.body, allowedFields);
+    const { notes, isBillable } = data;
+
+    const task = await Task.findById(taskId);
     if (!task) {
         throw CustomException('Task not found', 404);
     }
@@ -793,16 +894,28 @@ const stopTimer = asyncHandler(async (req, res) => {
 // Add manual time
 const addManualTime = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const { minutes, notes, date, isBillable = true } = req.body;
     const userId = req.userID;
 
-    const task = await Task.findById(id);
-    if (!task) {
-        throw CustomException('Task not found', 404);
+    // IDOR protection
+    const taskId = sanitizeObjectId(id);
+
+    // Mass assignment protection
+    const allowedFields = ['minutes', 'notes', 'date', 'isBillable'];
+    const data = pickAllowedFields(req.body, allowedFields);
+    const { minutes, notes, date, isBillable = true } = data;
+
+    // Input validation
+    if (!minutes || typeof minutes !== 'number' || minutes <= 0) {
+        throw CustomException('Minutes must be a positive number', 400);
     }
 
-    if (!minutes || minutes <= 0) {
-        throw CustomException('Minutes must be a positive number', 400);
+    if (minutes > 1440) { // More than 24 hours
+        throw CustomException('Minutes cannot exceed 1440 (24 hours)', 400);
+    }
+
+    const task = await Task.findById(taskId);
+    if (!task) {
+        throw CustomException('Task not found', 404);
     }
 
     const sessionDate = date ? new Date(date) : new Date();
@@ -835,12 +948,19 @@ const addManualTime = asyncHandler(async (req, res) => {
 // Add comment
 const addComment = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    // Accept both 'text' (frontend) and 'content' (schema) for flexibility
-    const { content, text, mentions } = req.body;
-    const rawContent = content || text;
     const userId = req.userID;
 
-    if (!rawContent) {
+    // IDOR protection
+    const taskId = sanitizeObjectId(id);
+
+    // Mass assignment protection
+    const allowedFields = ['content', 'text', 'mentions'];
+    const data = pickAllowedFields(req.body, allowedFields);
+    const { content, text, mentions } = data;
+    const rawContent = content || text;
+
+    // Input validation
+    if (!rawContent || typeof rawContent !== 'string' || rawContent.trim().length === 0) {
         throw CustomException('Comment content is required', 400);
     }
 
@@ -851,7 +971,7 @@ const addComment = asyncHandler(async (req, res) => {
         throw CustomException('Invalid content detected', 400);
     }
 
-    const task = await Task.findById(id);
+    const task = await Task.findById(taskId);
     if (!task) {
         throw CustomException('Task not found', 404);
     }
@@ -878,12 +998,20 @@ const addComment = asyncHandler(async (req, res) => {
 // Update comment
 const updateComment = asyncHandler(async (req, res) => {
     const { id, commentId } = req.params;
-    // Accept both 'text' (frontend) and 'content' (schema) for flexibility
-    const { content, text } = req.body;
-    const rawContent = content || text;
     const userId = req.userID;
 
-    if (!rawContent) {
+    // IDOR protection
+    const taskId = sanitizeObjectId(id);
+    const sanitizedCommentId = sanitizeObjectId(commentId);
+
+    // Mass assignment protection
+    const allowedFields = ['content', 'text'];
+    const data = pickAllowedFields(req.body, allowedFields);
+    const { content, text } = data;
+    const rawContent = content || text;
+
+    // Input validation
+    if (!rawContent || typeof rawContent !== 'string' || rawContent.trim().length === 0) {
         throw CustomException('Comment content is required', 400);
     }
 
@@ -894,12 +1022,12 @@ const updateComment = asyncHandler(async (req, res) => {
         throw CustomException('Invalid content detected', 400);
     }
 
-    const task = await Task.findById(id);
+    const task = await Task.findById(taskId);
     if (!task) {
         throw CustomException('Task not found', 404);
     }
 
-    const comment = task.comments.id(commentId);
+    const comment = task.comments.id(sanitizedCommentId);
     if (!comment) {
         throw CustomException('Comment not found', 404);
     }
@@ -925,12 +1053,16 @@ const deleteComment = asyncHandler(async (req, res) => {
     const { id, commentId } = req.params;
     const userId = req.userID;
 
-    const task = await Task.findById(id);
+    // IDOR protection
+    const taskId = sanitizeObjectId(id);
+    const sanitizedCommentId = sanitizeObjectId(commentId);
+
+    const task = await Task.findById(taskId);
     if (!task) {
         throw CustomException('Task not found', 404);
     }
 
-    const comment = task.comments.id(commentId);
+    const comment = task.comments.id(sanitizedCommentId);
     if (!comment) {
         throw CustomException('Comment not found', 404);
     }
@@ -939,7 +1071,7 @@ const deleteComment = asyncHandler(async (req, res) => {
         throw CustomException('You cannot delete this comment', 403);
     }
 
-    task.comments.pull(commentId);
+    task.comments.pull(sanitizedCommentId);
     await task.save();
 
     res.status(200).json({
@@ -952,35 +1084,57 @@ const deleteComment = asyncHandler(async (req, res) => {
 
 // Bulk update tasks
 const bulkUpdateTasks = asyncHandler(async (req, res) => {
-    const { taskIds, updates } = req.body;
     const userId = req.userID;
     const firmId = req.firmId; // From firmFilter middleware
 
+    // Mass assignment protection
+    const allowedFields = ['taskIds', 'updates'];
+    const data = pickAllowedFields(req.body, allowedFields);
+    const { taskIds, updates } = data;
+
+    // Input validation
     if (!taskIds || !Array.isArray(taskIds) || taskIds.length === 0) {
         throw CustomException('Task IDs are required', 400);
     }
 
+    if (taskIds.length > 100) {
+        throw CustomException('Cannot update more than 100 tasks at once', 400);
+    }
+
+    // IDOR protection - sanitize all task IDs
+    const sanitizedTaskIds = taskIds.map(id => sanitizeObjectId(id));
+
+    // Mass assignment protection for updates
+    const allowedUpdates = ['status', 'priority', 'assignedTo', 'dueDate', 'label'];
+    const updateData = pickAllowedFields(updates || {}, allowedUpdates);
+
+    // Input validation for update values
+    if (updateData.priority && !['low', 'medium', 'high', 'urgent'].includes(updateData.priority)) {
+        throw CustomException('Invalid priority value', 400);
+    }
+
+    if (updateData.status && !['todo', 'pending', 'in_progress', 'done', 'canceled'].includes(updateData.status)) {
+        throw CustomException('Invalid status value', 400);
+    }
+
+    // IDOR protection for reference IDs in updates
+    if (updateData.assignedTo) {
+        updateData.assignedTo = sanitizeObjectId(updateData.assignedTo);
+    }
+
     // Verify access to all tasks - firmId first, then user-based
     const accessQuery = firmId
-        ? { _id: { $in: taskIds }, firmId }
-        : { _id: { $in: taskIds }, $or: [{ assignedTo: userId }, { createdBy: userId }] };
+        ? { _id: { $in: sanitizedTaskIds }, firmId }
+        : { _id: { $in: sanitizedTaskIds }, $or: [{ assignedTo: userId }, { createdBy: userId }] };
 
     const tasks = await Task.find(accessQuery);
 
-    if (tasks.length !== taskIds.length) {
+    if (tasks.length !== sanitizedTaskIds.length) {
         throw CustomException('Some tasks are not accessible', 403);
     }
 
-    const allowedUpdates = ['status', 'priority', 'assignedTo', 'dueDate', 'label'];
-    const updateData = {};
-    allowedUpdates.forEach(field => {
-        if (updates[field] !== undefined) {
-            updateData[field] = updates[field];
-        }
-    });
-
     await Task.updateMany(
-        { _id: { $in: taskIds } },
+        { _id: { $in: sanitizedTaskIds } },
         { $set: updateData }
     );
 
@@ -993,46 +1147,48 @@ const bulkUpdateTasks = asyncHandler(async (req, res) => {
 
 // Bulk delete tasks
 const bulkDeleteTasks = asyncHandler(async (req, res) => {
-    const { taskIds } = req.body;
     const userId = req.userID;
     const firmId = req.firmId; // From firmFilter middleware
 
+    // Mass assignment protection
+    const allowedFields = ['taskIds'];
+    const data = pickAllowedFields(req.body, allowedFields);
+    const { taskIds } = data;
+
+    // Input validation
     if (!taskIds || !Array.isArray(taskIds) || taskIds.length === 0) {
         throw CustomException('Task IDs are required', 400);
     }
 
-    // Validate ObjectIds format
-    const invalidIds = taskIds.filter(id => !mongoose.Types.ObjectId.isValid(id));
-    if (invalidIds.length > 0) {
-        return res.status(400).json({
-            success: false,
-            message: `Invalid task ID format`,
-            invalidIds
-        });
+    if (taskIds.length > 100) {
+        throw CustomException('Cannot delete more than 100 tasks at once', 400);
     }
+
+    // IDOR protection - sanitize all task IDs
+    const sanitizedTaskIds = taskIds.map(id => sanitizeObjectId(id));
 
     // Verify ownership of all tasks - firmId first, then creator-only
     const accessQuery = firmId
-        ? { _id: { $in: taskIds }, firmId }
-        : { _id: { $in: taskIds }, createdBy: userId };
+        ? { _id: { $in: sanitizedTaskIds }, firmId }
+        : { _id: { $in: sanitizedTaskIds }, createdBy: userId };
 
     const tasks = await Task.find(accessQuery).select('_id');
     const foundTaskIds = tasks.map(t => t._id.toString());
 
     // Find which IDs failed authorization
-    const failedIds = taskIds.filter(id => !foundTaskIds.includes(id));
+    const failedIds = sanitizedTaskIds.filter(id => !foundTaskIds.includes(id.toString()));
 
     if (failedIds.length > 0) {
         return res.status(403).json({
             success: false,
             message: `Cannot delete ${failedIds.length} task(s): not found or no permission`,
-            failedIds,
+            failedCount: failedIds.length,
             validCount: foundTaskIds.length,
-            requestedCount: taskIds.length
+            requestedCount: sanitizedTaskIds.length
         });
     }
 
-    await Task.deleteMany({ _id: { $in: taskIds } });
+    await Task.deleteMany({ _id: { $in: sanitizedTaskIds } });
 
     res.status(200).json({
         success: true,
@@ -1118,13 +1274,18 @@ const getOverdueTasks = asyncHandler(async (req, res) => {
 const getTasksByCase = asyncHandler(async (req, res) => {
     const { caseId } = req.params;
     const userId = req.userID;
+    const firmId = req.firmId;
 
-    const caseDoc = await Case.findById(caseId);
+    // IDOR protection
+    const sanitizedCaseId = sanitizeObjectId(caseId);
+
+    // Verify case exists and user has access
+    const caseDoc = await Case.findOne({ _id: sanitizedCaseId, firmId });
     if (!caseDoc) {
         throw CustomException('Case not found', 404);
     }
 
-    const tasks = await Task.find({ caseId })
+    const tasks = await Task.find({ caseId: sanitizedCaseId, firmId })
         .populate('assignedTo', 'firstName lastName image')
         .populate('createdBy', 'firstName lastName')
         .sort({ dueDate: 1, priority: -1 });
@@ -1238,8 +1399,11 @@ const getTemplate = asyncHandler(async (req, res) => {
     const { templateId } = req.params;
     const userId = req.userID;
 
+    // IDOR protection
+    const sanitizedTemplateId = sanitizeObjectId(templateId);
+
     const template = await Task.findOne({
-        _id: templateId,
+        _id: sanitizedTemplateId,
         isTemplate: true,
         $or: [
             { createdBy: userId },
@@ -1264,6 +1428,15 @@ const getTemplate = asyncHandler(async (req, res) => {
  * POST /api/tasks/templates
  */
 const createTemplate = asyncHandler(async (req, res) => {
+    const userId = req.userID;
+
+    // Mass assignment protection
+    const allowedFields = [
+        'title', 'templateName', 'description', 'priority', 'label', 'tags',
+        'subtasks', 'checklists', 'timeTracking', 'reminders', 'notes', 'isPublic'
+    ];
+    const data = pickAllowedFields(req.body, allowedFields);
+
     const {
         title,
         templateName,
@@ -1277,9 +1450,16 @@ const createTemplate = asyncHandler(async (req, res) => {
         reminders,
         notes,
         isPublic
-    } = req.body;
+    } = data;
 
-    const userId = req.userID;
+    // Input validation
+    if (!title || typeof title !== 'string' || title.trim().length === 0) {
+        throw CustomException('Template title is required', 400);
+    }
+
+    if (priority && !['low', 'medium', 'high', 'urgent'].includes(priority)) {
+        throw CustomException('Invalid priority value', 400);
+    }
 
     const template = await Task.create({
         title,
@@ -1324,10 +1504,24 @@ const createTemplate = asyncHandler(async (req, res) => {
 const updateTemplate = asyncHandler(async (req, res) => {
     const { templateId } = req.params;
     const userId = req.userID;
-    const updates = req.body;
+
+    // IDOR protection
+    const sanitizedTemplateId = sanitizeObjectId(templateId);
+
+    // Mass assignment protection
+    const allowedFields = [
+        'title', 'templateName', 'description', 'priority', 'label', 'tags',
+        'subtasks', 'checklists', 'timeTracking', 'reminders', 'notes', 'isPublic'
+    ];
+    const updates = pickAllowedFields(req.body, allowedFields);
+
+    // Input validation
+    if (updates.priority && !['low', 'medium', 'high', 'urgent'].includes(updates.priority)) {
+        throw CustomException('Invalid priority value', 400);
+    }
 
     const template = await Task.findOne({
-        _id: templateId,
+        _id: sanitizedTemplateId,
         isTemplate: true,
         createdBy: userId
     });
@@ -1335,11 +1529,6 @@ const updateTemplate = asyncHandler(async (req, res) => {
     if (!template) {
         throw CustomException('Template not found or you do not have permission to update it', 404);
     }
-
-    // Don't allow changing isTemplate to false
-    delete updates.isTemplate;
-    delete updates.createdBy;
-    delete updates.templateId;
 
     // Update the template
     Object.assign(template, updates);
@@ -1363,8 +1552,11 @@ const deleteTemplate = asyncHandler(async (req, res) => {
     const { templateId } = req.params;
     const userId = req.userID;
 
+    // IDOR protection
+    const sanitizedTemplateId = sanitizeObjectId(templateId);
+
     const template = await Task.findOneAndDelete({
-        _id: templateId,
+        _id: sanitizedTemplateId,
         isTemplate: true,
         createdBy: userId
     });
@@ -1386,6 +1578,15 @@ const deleteTemplate = asyncHandler(async (req, res) => {
 const createFromTemplate = asyncHandler(async (req, res) => {
     const { templateId } = req.params;
     const userId = req.userID;
+    const firmId = req.firmId;
+
+    // IDOR protection
+    const sanitizedTemplateId = sanitizeObjectId(templateId);
+
+    // Mass assignment protection
+    const allowedFields = ['title', 'dueDate', 'dueTime', 'assignedTo', 'caseId', 'clientId', 'notes'];
+    const data = pickAllowedFields(req.body, allowedFields);
+
     const {
         title,
         dueDate,
@@ -1394,10 +1595,15 @@ const createFromTemplate = asyncHandler(async (req, res) => {
         caseId,
         clientId,
         notes
-    } = req.body;
+    } = data;
+
+    // IDOR protection for reference IDs
+    const sanitizedAssignedTo = assignedTo ? sanitizeObjectId(assignedTo) : null;
+    const sanitizedCaseId = caseId ? sanitizeObjectId(caseId) : null;
+    const sanitizedClientId = clientId ? sanitizeObjectId(clientId) : null;
 
     const template = await Task.findOne({
-        _id: templateId,
+        _id: sanitizedTemplateId,
         isTemplate: true,
         $or: [
             { createdBy: userId },
@@ -1410,16 +1616,16 @@ const createFromTemplate = asyncHandler(async (req, res) => {
     }
 
     // Validate assignedTo if provided
-    if (assignedTo) {
-        const assignedUser = await User.findById(assignedTo);
+    if (sanitizedAssignedTo) {
+        const assignedUser = await User.findOne({ _id: sanitizedAssignedTo, firmId });
         if (!assignedUser) {
             throw CustomException('Assigned user not found', 404);
         }
     }
 
     // Validate caseId if provided
-    if (caseId) {
-        const caseDoc = await Case.findById(caseId);
+    if (sanitizedCaseId) {
+        const caseDoc = await Case.findOne({ _id: sanitizedCaseId, firmId });
         if (!caseDoc) {
             throw CustomException('Case not found', 404);
         }
@@ -1435,12 +1641,13 @@ const createFromTemplate = asyncHandler(async (req, res) => {
         tags: template.tags ? [...template.tags] : [],
         dueDate,
         dueTime,
-        assignedTo: assignedTo || userId,
-        caseId,
-        clientId,
+        assignedTo: sanitizedAssignedTo || userId,
+        caseId: sanitizedCaseId,
+        clientId: sanitizedClientId,
         createdBy: userId,
+        firmId,
         isTemplate: false,
-        templateId: templateId,
+        templateId: sanitizedTemplateId,
         notes: notes || template.notes,
         timeTracking: template.timeTracking ? {
             estimatedMinutes: template.timeTracking.estimatedMinutes || 0,
@@ -1469,7 +1676,7 @@ const createFromTemplate = asyncHandler(async (req, res) => {
         history: [{
             action: 'created_from_template',
             userId: userId,
-            changes: { templateId: templateId, templateName: template.templateName || template.title },
+            changes: { templateId: sanitizedTemplateId, templateName: template.templateName || template.title },
             timestamp: new Date()
         }]
     };
@@ -1496,11 +1703,20 @@ const createFromTemplate = asyncHandler(async (req, res) => {
  */
 const saveAsTemplate = asyncHandler(async (req, res) => {
     const { taskId } = req.params;
-    const { templateName, isPublic } = req.body;
     const userId = req.userID;
+    const firmId = req.firmId;
+
+    // IDOR protection
+    const sanitizedTaskId = sanitizeObjectId(taskId);
+
+    // Mass assignment protection
+    const allowedFields = ['templateName', 'isPublic'];
+    const data = pickAllowedFields(req.body, allowedFields);
+    const { templateName, isPublic } = data;
 
     const task = await Task.findOne({
-        _id: taskId,
+        _id: sanitizedTaskId,
+        firmId,
         $or: [
             { createdBy: userId },
             { assignedTo: userId }
@@ -1574,8 +1790,12 @@ const saveAsTemplate = asyncHandler(async (req, res) => {
 const addAttachment = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const userId = req.userID;
+    const firmId = req.firmId;
 
-    const task = await Task.findById(id);
+    // IDOR protection
+    const taskId = sanitizeObjectId(id);
+
+    const task = await Task.findOne({ _id: taskId, firmId });
     if (!task) {
         throw CustomException('Task not found', 404);
     }
@@ -1656,13 +1876,18 @@ const addAttachment = asyncHandler(async (req, res) => {
 const deleteAttachment = asyncHandler(async (req, res) => {
     const { id, attachmentId } = req.params;
     const userId = req.userID;
+    const firmId = req.firmId;
 
-    const task = await Task.findById(id);
+    // IDOR protection
+    const taskId = sanitizeObjectId(id);
+    const sanitizedAttachmentId = sanitizeObjectId(attachmentId);
+
+    const task = await Task.findOne({ _id: taskId, firmId });
     if (!task) {
         throw CustomException('Task not found', 404);
     }
 
-    const attachment = task.attachments.id(attachmentId);
+    const attachment = task.attachments.id(sanitizedAttachmentId);
     if (!attachment) {
         throw CustomException('Attachment not found', 404);
     }
@@ -1694,7 +1919,7 @@ const deleteAttachment = asyncHandler(async (req, res) => {
         // Continue with database removal even if file deletion fails
     }
 
-    task.attachments.pull(attachmentId);
+    task.attachments.pull(sanitizedAttachmentId);
 
     const user = await User.findById(userId).select('firstName lastName');
 
@@ -1753,46 +1978,58 @@ async function hasCircularDependency(taskId, dependsOnId, visited = new Set()) {
  */
 const addDependency = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const { dependsOn, type = 'blocked_by' } = req.body;
     const userId = req.userID;
+    const firmId = req.firmId;
 
+    // IDOR protection
+    const taskId = sanitizeObjectId(id);
+
+    // Mass assignment protection
+    const allowedFields = ['dependsOn', 'type'];
+    const data = pickAllowedFields(req.body, allowedFields);
+    const { dependsOn, type = 'blocked_by' } = data;
+
+    // Input validation
     if (!dependsOn) {
         throw CustomException('dependsOn task ID is required', 400);
     }
 
-    const task = await Task.findById(id);
+    // IDOR protection
+    const sanitizedDependsOn = sanitizeObjectId(dependsOn);
+
+    const task = await Task.findOne({ _id: taskId, firmId });
     if (!task) {
         throw CustomException('Task not found', 404);
     }
 
-    const dependentTask = await Task.findById(dependsOn);
+    const dependentTask = await Task.findOne({ _id: sanitizedDependsOn, firmId });
     if (!dependentTask) {
         throw CustomException('المهمة المحددة غير موجودة', 404);
     }
 
     // Prevent self-reference
-    if (id === dependsOn) {
+    if (taskId.toString() === sanitizedDependsOn.toString()) {
         throw CustomException('لا يمكن للمهمة أن تعتمد على نفسها', 400);
     }
 
     // Check if dependency already exists
-    if (task.blockedBy.some(t => t.toString() === dependsOn)) {
+    if (task.blockedBy.some(t => t.toString() === sanitizedDependsOn.toString())) {
         throw CustomException('هذه التبعية موجودة بالفعل', 400);
     }
 
     // Check for circular dependency
-    if (await hasCircularDependency(id, dependsOn)) {
+    if (await hasCircularDependency(taskId, sanitizedDependsOn)) {
         throw CustomException('لا يمكن إنشاء تبعية دائرية', 400);
     }
 
     const user = await User.findById(userId).select('firstName lastName');
 
     // Add to blockedBy array
-    task.blockedBy.push(dependsOn);
-    task.dependencies.push({ taskId: dependsOn, type });
+    task.blockedBy.push(sanitizedDependsOn);
+    task.dependencies.push({ taskId: sanitizedDependsOn, type });
 
     // Add to dependent task's blocks array
-    dependentTask.blocks.push(id);
+    dependentTask.blocks.push(taskId);
 
     // Add history entries
     task.history.push({
@@ -1823,21 +2060,26 @@ const addDependency = asyncHandler(async (req, res) => {
 const removeDependency = asyncHandler(async (req, res) => {
     const { id, dependencyTaskId } = req.params;
     const userId = req.userID;
+    const firmId = req.firmId;
 
-    const task = await Task.findById(id);
+    // IDOR protection
+    const taskId = sanitizeObjectId(id);
+    const sanitizedDependencyTaskId = sanitizeObjectId(dependencyTaskId);
+
+    const task = await Task.findOne({ _id: taskId, firmId });
     if (!task) {
         throw CustomException('Task not found', 404);
     }
 
-    const dependentTask = await Task.findById(dependencyTaskId);
+    const dependentTask = await Task.findOne({ _id: sanitizedDependencyTaskId, firmId });
 
     // Remove from blockedBy
-    task.blockedBy = task.blockedBy.filter(t => t.toString() !== dependencyTaskId);
-    task.dependencies = task.dependencies.filter(d => d.taskId.toString() !== dependencyTaskId);
+    task.blockedBy = task.blockedBy.filter(t => t.toString() !== sanitizedDependencyTaskId.toString());
+    task.dependencies = task.dependencies.filter(d => d.taskId.toString() !== sanitizedDependencyTaskId.toString());
 
     // Remove from dependent task's blocks array
     if (dependentTask) {
-        dependentTask.blocks = dependentTask.blocks.filter(t => t.toString() !== id);
+        dependentTask.blocks = dependentTask.blocks.filter(t => t.toString() !== taskId.toString());
         await dependentTask.save();
     }
 
@@ -1866,10 +2108,27 @@ const removeDependency = asyncHandler(async (req, res) => {
  */
 const updateTaskStatus = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const { status } = req.body;
     const userId = req.userID;
+    const firmId = req.firmId;
 
-    const task = await Task.findById(id).populate('blockedBy', 'title status');
+    // IDOR protection
+    const taskId = sanitizeObjectId(id);
+
+    // Mass assignment protection
+    const allowedFields = ['status'];
+    const data = pickAllowedFields(req.body, allowedFields);
+    const { status } = data;
+
+    // Input validation
+    if (!status) {
+        throw CustomException('Status is required', 400);
+    }
+
+    if (!['todo', 'pending', 'in_progress', 'done', 'canceled'].includes(status)) {
+        throw CustomException('Invalid status value', 400);
+    }
+
+    const task = await Task.findOne({ _id: taskId, firmId }).populate('blockedBy', 'title status');
 
     if (!task) {
         throw CustomException('Task not found', 404);
@@ -1921,7 +2180,7 @@ const updateTaskStatus = asyncHandler(async (req, res) => {
 
     await task.save();
 
-    const populatedTask = await Task.findById(id)
+    const populatedTask = await Task.findById(taskId)
         .populate('assignedTo', 'firstName lastName email image')
         .populate('blockedBy', 'title status');
 
@@ -1937,10 +2196,18 @@ const updateTaskStatus = asyncHandler(async (req, res) => {
  */
 const updateProgress = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const { progress, autoCalculate } = req.body;
     const userId = req.userID;
+    const firmId = req.firmId;
 
-    const task = await Task.findById(id);
+    // IDOR protection
+    const taskId = sanitizeObjectId(id);
+
+    // Mass assignment protection
+    const allowedFields = ['progress', 'autoCalculate'];
+    const data = pickAllowedFields(req.body, allowedFields);
+    const { progress, autoCalculate } = data;
+
+    const task = await Task.findOne({ _id: taskId, firmId });
 
     if (!task) {
         throw CustomException('Task not found', 404);
@@ -1988,7 +2255,7 @@ const updateProgress = asyncHandler(async (req, res) => {
 
     await task.save();
 
-    const populatedTask = await Task.findById(id)
+    const populatedTask = await Task.findById(taskId)
         .populate('assignedTo', 'firstName lastName email image')
         .populate('createdBy', 'firstName lastName email image');
 
@@ -2279,14 +2546,23 @@ const getTimeTrackingSummary = asyncHandler(async (req, res) => {
  */
 const updateSubtask = asyncHandler(async (req, res) => {
     const { id, subtaskId } = req.params;
-    const { title, completed } = req.body;
+    const firmId = req.firmId;
 
-    const task = await Task.findById(id);
+    // IDOR protection
+    const taskId = sanitizeObjectId(id);
+    const sanitizedSubtaskId = sanitizeObjectId(subtaskId);
+
+    // Mass assignment protection
+    const allowedFields = ['title', 'completed'];
+    const data = pickAllowedFields(req.body, allowedFields);
+    const { title, completed } = data;
+
+    const task = await Task.findOne({ _id: taskId, firmId });
     if (!task) {
         throw CustomException('Task not found', 404);
     }
 
-    const subtask = task.subtasks.id(subtaskId);
+    const subtask = task.subtasks.id(sanitizedSubtaskId);
     if (!subtask) {
         throw CustomException('Subtask not found', 404);
     }

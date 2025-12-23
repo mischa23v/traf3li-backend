@@ -1,69 +1,102 @@
 const { Transaction, Invoice, Expense, Case } = require('../models');
 const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
+const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
+const mongoose = require('mongoose');
 
 /**
  * Create transaction
  * POST /api/transactions
  */
 const createTransaction = asyncHandler(async (req, res) => {
-    const {
-        type,
-        amount,
-        category,
-        description,
-        paymentMethod,
-        invoiceId,
-        expenseId,
-        caseId,
-        referenceNumber,
-        date,
-        notes
-    } = req.body;
-
     const userId = req.userID;
 
+    // Mass assignment protection
+    const allowedFields = [
+        'type',
+        'amount',
+        'category',
+        'description',
+        'paymentMethod',
+        'invoiceId',
+        'expenseId',
+        'caseId',
+        'referenceNumber',
+        'date',
+        'notes'
+    ];
+    const sanitizedData = pickAllowedFields(req.body, allowedFields);
+
     // Validate required fields
-    if (!type || !amount) {
+    if (!sanitizedData.type || sanitizedData.amount === undefined) {
         throw CustomException('النوع والمبلغ مطلوبان', 400);
     }
 
-    if (!['income', 'expense', 'transfer'].includes(type)) {
+    // Validate type
+    if (!['income', 'expense', 'transfer'].includes(sanitizedData.type)) {
         throw CustomException('نوع المعاملة غير صالح', 400);
     }
 
-    if (amount <= 0) {
-        throw CustomException('المبلغ يجب أن يكون أكبر من صفر', 400);
+    // Validate amount
+    const amount = parseFloat(sanitizedData.amount);
+    if (isNaN(amount) || amount <= 0) {
+        throw CustomException('المبلغ يجب أن يكون رقماً موجباً أكبر من صفر', 400);
     }
 
-    // Create transaction (using schema field names: relatedInvoice, relatedExpense, relatedCase)
-    const transaction = await Transaction.create({
-        userId,
-        type,
-        amount,
-        category,
-        description,
-        paymentMethod,
-        relatedInvoice: invoiceId,
-        relatedExpense: expenseId,
-        relatedCase: caseId,
-        reference: referenceNumber,
-        date: date || new Date(),
-        status: 'completed',
-        notes
-    });
+    // Validate date if provided
+    if (sanitizedData.date) {
+        const parsedDate = new Date(sanitizedData.date);
+        if (isNaN(parsedDate.getTime())) {
+            throw CustomException('تنسيق التاريخ غير صالح', 400);
+        }
+    }
 
-    await transaction.populate([
-        { path: 'relatedInvoice', select: 'invoiceNumber totalAmount' },
-        { path: 'relatedExpense', select: 'description amount' },
-        { path: 'relatedCase', select: 'caseNumber title' }
-    ]);
+    // Sanitize ObjectIds
+    const relatedInvoice = sanitizedData.invoiceId ? sanitizeObjectId(sanitizedData.invoiceId) : null;
+    const relatedExpense = sanitizedData.expenseId ? sanitizeObjectId(sanitizedData.expenseId) : null;
+    const relatedCase = sanitizedData.caseId ? sanitizeObjectId(sanitizedData.caseId) : null;
 
-    res.status(201).json({
-        success: true,
-        message: 'تم إنشاء المعاملة بنجاح',
-        transaction
-    });
+    // Use MongoDB transaction for financial operation
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    try {
+        // Create transaction (using schema field names: relatedInvoice, relatedExpense, relatedCase)
+        const transaction = await Transaction.create([{
+            userId,
+            type: sanitizedData.type,
+            amount,
+            category: sanitizedData.category,
+            description: sanitizedData.description,
+            paymentMethod: sanitizedData.paymentMethod,
+            relatedInvoice,
+            relatedExpense,
+            relatedCase,
+            reference: sanitizedData.referenceNumber,
+            date: sanitizedData.date || new Date(),
+            status: 'completed',
+            notes: sanitizedData.notes
+        }], { session });
+
+        await transaction[0].populate([
+            { path: 'relatedInvoice', select: 'invoiceNumber totalAmount' },
+            { path: 'relatedExpense', select: 'description amount' },
+            { path: 'relatedCase', select: 'caseNumber title' }
+        ]);
+
+        await session.commitTransaction();
+
+        res.status(201).json({
+            success: true,
+            message: 'تم إنشاء المعاملة بنجاح',
+            transaction: transaction[0]
+        });
+    } catch (error) {
+        await session.abortTransaction();
+        throw error;
+    } finally {
+        session.endSession();
+    }
 });
 
 /**
@@ -98,22 +131,48 @@ const getTransactions = asyncHandler(async (req, res) => {
     if (category) query.category = category;
     if (status) query.status = status;
     if (paymentMethod) query.paymentMethod = paymentMethod;
-    if (caseId) query.relatedCase = caseId;
-    if (invoiceId) query.relatedInvoice = invoiceId;
-    if (expenseId) query.relatedExpense = expenseId;
 
-    // Date range
+    // Sanitize ObjectIds
+    if (caseId) query.relatedCase = sanitizeObjectId(caseId);
+    if (invoiceId) query.relatedInvoice = sanitizeObjectId(invoiceId);
+    if (expenseId) query.relatedExpense = sanitizeObjectId(expenseId);
+
+    // Date range with validation
     if (startDate || endDate) {
         query.date = {};
-        if (startDate) query.date.$gte = new Date(startDate);
-        if (endDate) query.date.$lte = new Date(endDate);
+        if (startDate) {
+            const parsedStartDate = new Date(startDate);
+            if (isNaN(parsedStartDate.getTime())) {
+                throw CustomException('تنسيق تاريخ البداية غير صالح', 400);
+            }
+            query.date.$gte = parsedStartDate;
+        }
+        if (endDate) {
+            const parsedEndDate = new Date(endDate);
+            if (isNaN(parsedEndDate.getTime())) {
+                throw CustomException('تنسيق تاريخ النهاية غير صالح', 400);
+            }
+            query.date.$lte = parsedEndDate;
+        }
     }
 
-    // Amount range
+    // Amount range with validation
     if (minAmount || maxAmount) {
         query.amount = {};
-        if (minAmount) query.amount.$gte = parseFloat(minAmount);
-        if (maxAmount) query.amount.$lte = parseFloat(maxAmount);
+        if (minAmount) {
+            const min = parseFloat(minAmount);
+            if (isNaN(min) || min < 0) {
+                throw CustomException('الحد الأدنى للمبلغ يجب أن يكون رقماً موجباً', 400);
+            }
+            query.amount.$gte = min;
+        }
+        if (maxAmount) {
+            const max = parseFloat(maxAmount);
+            if (isNaN(max) || max < 0) {
+                throw CustomException('الحد الأقصى للمبلغ يجب أن يكون رقماً موجباً', 400);
+            }
+            query.amount.$lte = max;
+        }
     }
 
     // Search
@@ -157,10 +216,12 @@ const getTransactions = asyncHandler(async (req, res) => {
  * GET /api/transactions/:id
  */
 const getTransaction = asyncHandler(async (req, res) => {
-    const { id } = req.params;
     const userId = req.userID;
 
-    const transaction = await Transaction.findById(id)
+    // IDOR protection - sanitize ID
+    const transactionId = sanitizeObjectId(req.params.id);
+
+    const transaction = await Transaction.findById(transactionId)
         .populate('relatedInvoice', 'invoiceNumber totalAmount amountPaid status')
         .populate('relatedExpense', 'description amount category')
         .populate('relatedCase', 'caseNumber title status');
@@ -169,6 +230,7 @@ const getTransaction = asyncHandler(async (req, res) => {
         throw CustomException('المعاملة غير موجودة', 404);
     }
 
+    // Verify ownership
     if (transaction.userId.toString() !== userId) {
         throw CustomException('لا يمكنك الوصول إلى هذه المعاملة', 403);
     }
@@ -184,28 +246,24 @@ const getTransaction = asyncHandler(async (req, res) => {
  * PUT /api/transactions/:id
  */
 const updateTransaction = asyncHandler(async (req, res) => {
-    const { id } = req.params;
     const userId = req.userID;
 
-    const transaction = await Transaction.findById(id);
+    // IDOR protection - sanitize ID
+    const transactionId = sanitizeObjectId(req.params.id);
+
+    const transaction = await Transaction.findById(transactionId);
 
     if (!transaction) {
         throw CustomException('المعاملة غير موجودة', 404);
     }
 
+    // Verify ownership
     if (transaction.userId.toString() !== userId) {
         throw CustomException('لا يمكنك الوصول إلى هذه المعاملة', 403);
     }
 
-    // Map request body field names to schema field names
-    const fieldMappings = {
-        invoiceId: 'relatedInvoice',
-        expenseId: 'relatedExpense',
-        caseId: 'relatedCase',
-        referenceNumber: 'reference'
-    };
-
-    const allowedUpdates = [
+    // Mass assignment protection
+    const allowedFields = [
         'type',
         'amount',
         'category',
@@ -219,12 +277,53 @@ const updateTransaction = asyncHandler(async (req, res) => {
         'status',
         'notes'
     ];
+    const sanitizedData = pickAllowedFields(req.body, allowedFields);
 
-    allowedUpdates.forEach(field => {
-        if (req.body[field] !== undefined) {
-            // Use schema field name if there's a mapping, otherwise use the original field
-            const schemaField = fieldMappings[field] || field;
-            transaction[schemaField] = req.body[field];
+    // Validate type if provided
+    if (sanitizedData.type && !['income', 'expense', 'transfer'].includes(sanitizedData.type)) {
+        throw CustomException('نوع المعاملة غير صالح', 400);
+    }
+
+    // Validate amount if provided
+    if (sanitizedData.amount !== undefined) {
+        const amount = parseFloat(sanitizedData.amount);
+        if (isNaN(amount) || amount <= 0) {
+            throw CustomException('المبلغ يجب أن يكون رقماً موجباً أكبر من صفر', 400);
+        }
+        transaction.amount = amount;
+    }
+
+    // Validate date if provided
+    if (sanitizedData.date) {
+        const parsedDate = new Date(sanitizedData.date);
+        if (isNaN(parsedDate.getTime())) {
+            throw CustomException('تنسيق التاريخ غير صالح', 400);
+        }
+        transaction.date = parsedDate;
+    }
+
+    // Map request body field names to schema field names
+    const fieldMappings = {
+        invoiceId: 'relatedInvoice',
+        expenseId: 'relatedExpense',
+        caseId: 'relatedCase',
+        referenceNumber: 'reference'
+    };
+
+    // Update fields
+    Object.keys(sanitizedData).forEach(field => {
+        if (field === 'amount' || field === 'date') {
+            // Already handled above
+            return;
+        }
+
+        const schemaField = fieldMappings[field] || field;
+
+        // Sanitize ObjectIds for related documents
+        if (field === 'invoiceId' || field === 'expenseId' || field === 'caseId') {
+            transaction[schemaField] = sanitizedData[field] ? sanitizeObjectId(sanitizedData[field]) : null;
+        } else {
+            transaction[schemaField] = sanitizedData[field];
         }
     });
 
@@ -248,25 +347,40 @@ const updateTransaction = asyncHandler(async (req, res) => {
  * DELETE /api/transactions/:id
  */
 const deleteTransaction = asyncHandler(async (req, res) => {
-    const { id } = req.params;
     const userId = req.userID;
 
-    const transaction = await Transaction.findById(id);
+    // IDOR protection - sanitize ID
+    const transactionId = sanitizeObjectId(req.params.id);
+
+    const transaction = await Transaction.findById(transactionId);
 
     if (!transaction) {
         throw CustomException('المعاملة غير موجودة', 404);
     }
 
+    // Verify ownership
     if (transaction.userId.toString() !== userId) {
         throw CustomException('لا يمكنك الوصول إلى هذه المعاملة', 403);
     }
 
-    await Transaction.findByIdAndDelete(id);
+    // Use MongoDB transaction for financial operation
+    const session = await mongoose.startSession();
+    session.startTransaction();
 
-    res.status(200).json({
-        success: true,
-        message: 'تم حذف المعاملة بنجاح'
-    });
+    try {
+        await Transaction.findByIdAndDelete(transactionId, { session });
+        await session.commitTransaction();
+
+        res.status(200).json({
+            success: true,
+            message: 'تم حذف المعاملة بنجاح'
+        });
+    } catch (error) {
+        await session.abortTransaction();
+        throw error;
+    } finally {
+        session.endSession();
+    }
 });
 
 /**
@@ -277,15 +391,23 @@ const getBalance = asyncHandler(async (req, res) => {
     const { upToDate } = req.query;
     const userId = req.userID;
 
+    let parsedDate;
+    if (upToDate) {
+        parsedDate = new Date(upToDate);
+        if (isNaN(parsedDate.getTime())) {
+            throw CustomException('تنسيق التاريخ غير صالح', 400);
+        }
+    }
+
     const balance = await Transaction.calculateBalance(
         userId,
-        upToDate ? new Date(upToDate) : undefined
+        parsedDate
     );
 
     res.status(200).json({
         success: true,
         balance,
-        asOfDate: upToDate ? new Date(upToDate) : new Date()
+        asOfDate: parsedDate || new Date()
     });
 });
 
@@ -307,9 +429,25 @@ const getSummary = asyncHandler(async (req, res) => {
     const filters = {};
     if (type) filters.type = type;
     if (category) filters.category = category;
-    if (caseId) filters.caseId = caseId;
-    if (startDate) filters.startDate = new Date(startDate);
-    if (endDate) filters.endDate = new Date(endDate);
+
+    // Sanitize caseId
+    if (caseId) filters.caseId = sanitizeObjectId(caseId);
+
+    // Validate and parse dates
+    if (startDate) {
+        const parsedStartDate = new Date(startDate);
+        if (isNaN(parsedStartDate.getTime())) {
+            throw CustomException('تنسيق تاريخ البداية غير صالح', 400);
+        }
+        filters.startDate = parsedStartDate;
+    }
+    if (endDate) {
+        const parsedEndDate = new Date(endDate);
+        if (isNaN(parsedEndDate.getTime())) {
+            throw CustomException('تنسيق تاريخ النهاية غير صالح', 400);
+        }
+        filters.endDate = parsedEndDate;
+    }
 
     const summary = await Transaction.getSummary(userId, filters);
 
@@ -331,10 +469,23 @@ const getTransactionsByCategory = asyncHandler(async (req, res) => {
 
     if (type) query.type = type;
 
+    // Validate and parse dates
     if (startDate || endDate) {
         query.date = {};
-        if (startDate) query.date.$gte = new Date(startDate);
-        if (endDate) query.date.$lte = new Date(endDate);
+        if (startDate) {
+            const parsedStartDate = new Date(startDate);
+            if (isNaN(parsedStartDate.getTime())) {
+                throw CustomException('تنسيق تاريخ البداية غير صالح', 400);
+            }
+            query.date.$gte = parsedStartDate;
+        }
+        if (endDate) {
+            const parsedEndDate = new Date(endDate);
+            if (isNaN(parsedEndDate.getTime())) {
+                throw CustomException('تنسيق تاريخ النهاية غير صالح', 400);
+            }
+            query.date.$lte = parsedEndDate;
+        }
     }
 
     const transactions = await Transaction.aggregate([
@@ -362,16 +513,22 @@ const getTransactionsByCategory = asyncHandler(async (req, res) => {
  * POST /api/transactions/:id/cancel
  */
 const cancelTransaction = asyncHandler(async (req, res) => {
-    const { id } = req.params;
-    const { reason } = req.body;
     const userId = req.userID;
 
-    const transaction = await Transaction.findById(id);
+    // IDOR protection - sanitize ID
+    const transactionId = sanitizeObjectId(req.params.id);
+
+    // Mass assignment protection
+    const allowedFields = ['reason'];
+    const sanitizedData = pickAllowedFields(req.body, allowedFields);
+
+    const transaction = await Transaction.findById(transactionId);
 
     if (!transaction) {
         throw CustomException('المعاملة غير موجودة', 404);
     }
 
+    // Verify ownership
     if (transaction.userId.toString() !== userId) {
         throw CustomException('لا يمكنك الوصول إلى هذه المعاملة', 403);
     }
@@ -381,10 +538,10 @@ const cancelTransaction = asyncHandler(async (req, res) => {
     }
 
     transaction.status = 'cancelled';
-    if (reason) {
+    if (sanitizedData.reason) {
         transaction.notes = transaction.notes
-            ? `${transaction.notes}\nسبب الإلغاء: ${reason}`
-            : `سبب الإلغاء: ${reason}`;
+            ? `${transaction.notes}\nسبب الإلغاء: ${sanitizedData.reason}`
+            : `سبب الإلغاء: ${sanitizedData.reason}`;
     }
 
     await transaction.save();
@@ -401,23 +558,45 @@ const cancelTransaction = asyncHandler(async (req, res) => {
  * DELETE /api/transactions/bulk
  */
 const bulkDeleteTransactions = asyncHandler(async (req, res) => {
-    const { transactionIds } = req.body;
     const userId = req.userID;
 
-    if (!transactionIds || !Array.isArray(transactionIds) || transactionIds.length === 0) {
+    // Mass assignment protection
+    const allowedFields = ['transactionIds'];
+    const sanitizedData = pickAllowedFields(req.body, allowedFields);
+
+    if (!sanitizedData.transactionIds || !Array.isArray(sanitizedData.transactionIds) || sanitizedData.transactionIds.length === 0) {
         throw CustomException('يجب تحديد المعاملات المراد حذفها', 400);
     }
 
-    const result = await Transaction.deleteMany({
-        _id: { $in: transactionIds },
-        userId
-    });
+    // Sanitize all transaction IDs
+    const sanitizedIds = sanitizedData.transactionIds.map(id => sanitizeObjectId(id));
 
-    res.status(200).json({
-        success: true,
-        message: `تم حذف ${result.deletedCount} معاملة بنجاح`,
-        deletedCount: result.deletedCount
-    });
+    // Use MongoDB transaction for bulk financial operation
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    try {
+        const result = await Transaction.deleteMany(
+            {
+                _id: { $in: sanitizedIds },
+                userId
+            },
+            { session }
+        );
+
+        await session.commitTransaction();
+
+        res.status(200).json({
+            success: true,
+            message: `تم حذف ${result.deletedCount} معاملة بنجاح`,
+            deletedCount: result.deletedCount
+        });
+    } catch (error) {
+        await session.abortTransaction();
+        throw error;
+    } finally {
+        session.endSession();
+    }
 });
 
 module.exports = {

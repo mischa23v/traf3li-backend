@@ -4,6 +4,7 @@ const Invoice = require('../models/invoice.model');
 const asyncHandler = require('../utils/asyncHandler');
 const mongoose = require('mongoose');
 const { toSAR, formatSAR } = require('../utils/currency');
+const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 
 /**
  * Get Profit & Loss Report
@@ -11,8 +12,11 @@ const { toSAR, formatSAR } = require('../utils/currency');
  * Query params: startDate, endDate, caseId
  */
 const getProfitLossReport = asyncHandler(async (req, res) => {
-    const { startDate, endDate, caseId } = req.query;
+    // Mass assignment protection
+    const allowedParams = pickAllowedFields(req.query, ['startDate', 'endDate', 'caseId']);
+    const { startDate, endDate, caseId } = allowedParams;
 
+    // Input validation
     if (!startDate || !endDate) {
         return res.status(400).json({
             success: false,
@@ -20,22 +24,43 @@ const getProfitLossReport = asyncHandler(async (req, res) => {
         });
     }
 
+    // Validate date format
+    const startDateObj = new Date(startDate);
+    const endDateObj = new Date(endDate);
+    if (isNaN(startDateObj.getTime()) || isNaN(endDateObj.getTime())) {
+        return res.status(400).json({
+            success: false,
+            error: 'Invalid date format'
+        });
+    }
+
+    // IDOR protection - ensure firmId ownership
+    const firmId = req.user?.firmId || req.user?.organization;
+    if (!firmId) {
+        return res.status(403).json({
+            success: false,
+            error: 'Firm context required'
+        });
+    }
+
     const matchStage = {
+        firmId: sanitizeObjectId(firmId),
         status: 'posted',
         transactionDate: {
-            $gte: new Date(startDate),
-            $lte: new Date(endDate)
+            $gte: startDateObj,
+            $lte: endDateObj
         }
     };
 
     if (caseId) {
-        matchStage.caseId = mongoose.Types.ObjectId.createFromHexString(caseId);
+        // Prevent injection - sanitize ObjectId
+        matchStage.caseId = sanitizeObjectId(caseId);
     }
 
-    // Get all accounts by type (single query with lean)
+    // Get all accounts by type (single query with lean) - with firmId filter
     const [incomeAccounts, expenseAccounts] = await Promise.all([
-        Account.find({ type: 'Income', isActive: true }).lean(),
-        Account.find({ type: 'Expense', isActive: true }).lean()
+        Account.find({ firmId: sanitizeObjectId(firmId), type: 'Income', isActive: true }).lean(),
+        Account.find({ firmId: sanitizeObjectId(firmId), type: 'Expense', isActive: true }).lean()
     ]);
 
     const incomeAccountIds = incomeAccounts.map(a => a._id);
@@ -159,20 +184,39 @@ const getProfitLossReport = asyncHandler(async (req, res) => {
  * Query params: asOfDate
  */
 const getBalanceSheetReport = asyncHandler(async (req, res) => {
-    const { asOfDate } = req.query;
+    // Mass assignment protection
+    const allowedParams = pickAllowedFields(req.query, ['asOfDate']);
+    const { asOfDate } = allowedParams;
 
+    // Input validation - validate date if provided
     const upToDate = asOfDate ? new Date(asOfDate) : new Date();
+    if (asOfDate && isNaN(upToDate.getTime())) {
+        return res.status(400).json({
+            success: false,
+            error: 'Invalid date format'
+        });
+    }
+
+    // IDOR protection - ensure firmId ownership
+    const firmId = req.user?.firmId || req.user?.organization;
+    if (!firmId) {
+        return res.status(403).json({
+            success: false,
+            error: 'Firm context required'
+        });
+    }
 
     const matchStage = {
+        firmId: sanitizeObjectId(firmId),
         status: 'posted',
         transactionDate: { $lte: upToDate }
     };
 
-    // Get all accounts by type in parallel (with lean)
+    // Get all accounts by type in parallel (with lean) - with firmId filter
     const [assetAccounts, liabilityAccounts, equityAccounts] = await Promise.all([
-        Account.find({ type: 'Asset', isActive: true }).lean(),
-        Account.find({ type: 'Liability', isActive: true }).lean(),
-        Account.find({ type: 'Equity', isActive: true }).lean()
+        Account.find({ firmId: sanitizeObjectId(firmId), type: 'Asset', isActive: true }).lean(),
+        Account.find({ firmId: sanitizeObjectId(firmId), type: 'Liability', isActive: true }).lean(),
+        Account.find({ firmId: sanitizeObjectId(firmId), type: 'Equity', isActive: true }).lean()
     ]);
 
     const assetAccountIds = assetAccounts.map(a => a._id);
@@ -328,9 +372,33 @@ const getBalanceSheetReport = asyncHandler(async (req, res) => {
  * Query params: startDate, endDate, caseId
  */
 const getCaseProfitabilityReport = asyncHandler(async (req, res) => {
-    const { startDate, endDate, caseId } = req.query;
+    // Mass assignment protection
+    const allowedParams = pickAllowedFields(req.query, ['startDate', 'endDate', 'caseId']);
+    const { startDate, endDate, caseId } = allowedParams;
+
+    // Input validation - validate dates if provided
+    if (startDate && endDate) {
+        const startDateObj = new Date(startDate);
+        const endDateObj = new Date(endDate);
+        if (isNaN(startDateObj.getTime()) || isNaN(endDateObj.getTime())) {
+            return res.status(400).json({
+                success: false,
+                error: 'Invalid date format'
+            });
+        }
+    }
+
+    // IDOR protection - ensure firmId ownership
+    const firmId = req.user?.firmId || req.user?.organization;
+    if (!firmId) {
+        return res.status(403).json({
+            success: false,
+            error: 'Firm context required'
+        });
+    }
 
     const matchStage = {
+        firmId: sanitizeObjectId(firmId),
         status: 'posted',
         caseId: { $ne: null }
     };
@@ -343,12 +411,13 @@ const getCaseProfitabilityReport = asyncHandler(async (req, res) => {
     }
 
     if (caseId) {
-        matchStage.caseId = mongoose.Types.ObjectId.createFromHexString(caseId);
+        // Prevent injection - sanitize ObjectId
+        matchStage.caseId = sanitizeObjectId(caseId);
     }
 
-    // Get income and expense account IDs
-    const incomeAccounts = await Account.find({ type: 'Income' }).select('_id');
-    const expenseAccounts = await Account.find({ type: 'Expense' }).select('_id');
+    // Get income and expense account IDs - with firmId filter
+    const incomeAccounts = await Account.find({ firmId: sanitizeObjectId(firmId), type: 'Income' }).select('_id');
+    const expenseAccounts = await Account.find({ firmId: sanitizeObjectId(firmId), type: 'Expense' }).select('_id');
 
     const incomeAccountIds = incomeAccounts.map(a => a._id);
     const expenseAccountIds = expenseAccounts.map(a => a._id);
@@ -491,12 +560,31 @@ const getCaseProfitabilityReport = asyncHandler(async (req, res) => {
  * Query params: asOfDate
  */
 const getARAgingReport = asyncHandler(async (req, res) => {
-    const { asOfDate } = req.query;
+    // Mass assignment protection
+    const allowedParams = pickAllowedFields(req.query, ['asOfDate']);
+    const { asOfDate } = allowedParams;
 
+    // Input validation - validate date if provided
     const now = asOfDate ? new Date(asOfDate) : new Date();
+    if (asOfDate && isNaN(now.getTime())) {
+        return res.status(400).json({
+            success: false,
+            error: 'Invalid date format'
+        });
+    }
 
-    // Get all invoices with outstanding balance
+    // IDOR protection - ensure firmId ownership
+    const firmId = req.user?.firmId || req.user?.organization;
+    if (!firmId) {
+        return res.status(403).json({
+            success: false,
+            error: 'Firm context required'
+        });
+    }
+
+    // Get all invoices with outstanding balance - with firmId filter
     const invoices = await Invoice.find({
+        firmId: sanitizeObjectId(firmId),
         status: { $in: ['sent', 'pending', 'partial', 'overdue'] }
     })
         .populate('clientId', 'name email firstName lastName username')
@@ -622,10 +710,33 @@ const getARAgingReport = asyncHandler(async (req, res) => {
  * Query params: asOfDate
  */
 const getTrialBalanceReport = asyncHandler(async (req, res) => {
-    const { asOfDate } = req.query;
+    // Mass assignment protection
+    const allowedParams = pickAllowedFields(req.query, ['asOfDate']);
+    const { asOfDate } = allowedParams;
+
+    // Input validation - validate date if provided
+    if (asOfDate) {
+        const dateObj = new Date(asOfDate);
+        if (isNaN(dateObj.getTime())) {
+            return res.status(400).json({
+                success: false,
+                error: 'Invalid date format'
+            });
+        }
+    }
+
+    // IDOR protection - ensure firmId ownership
+    const firmId = req.user?.firmId || req.user?.organization;
+    if (!firmId) {
+        return res.status(403).json({
+            success: false,
+            error: 'Firm context required'
+        });
+    }
 
     const trialBalance = await GeneralLedger.getTrialBalance(
-        asOfDate ? new Date(asOfDate) : null
+        asOfDate ? new Date(asOfDate) : null,
+        sanitizeObjectId(firmId)
     );
 
     // Convert amounts to SAR
@@ -661,8 +772,11 @@ const getTrialBalanceReport = asyncHandler(async (req, res) => {
  * Query params: fiscalYear, period (month-X/quarter-X/year), departmentId
  */
 const getBudgetVarianceReport = asyncHandler(async (req, res) => {
-    const { fiscalYear, period, departmentId } = req.query;
+    // Mass assignment protection
+    const allowedParams = pickAllowedFields(req.query, ['fiscalYear', 'period', 'departmentId']);
+    const { fiscalYear, period, departmentId } = allowedParams;
 
+    // Input validation
     if (!fiscalYear) {
         return res.status(400).json({ success: false, error: 'Fiscal year is required' });
     }
@@ -671,8 +785,22 @@ const getBudgetVarianceReport = asyncHandler(async (req, res) => {
         return res.status(400).json({ success: false, error: 'Period is required (month-1 to month-12, quarter-1 to quarter-4, or year)' });
     }
 
-    // Calculate date range based on period
+    // Validate fiscal year
     const year = parseInt(fiscalYear);
+    if (isNaN(year) || year < 1900 || year > 2100) {
+        return res.status(400).json({ success: false, error: 'Invalid fiscal year' });
+    }
+
+    // IDOR protection - ensure firmId ownership
+    const firmId = req.user?.firmId || req.user?.organization;
+    if (!firmId) {
+        return res.status(403).json({
+            success: false,
+            error: 'Firm context required'
+        });
+    }
+
+    // Calculate date range based on period
     let startDate, endDate;
 
     if (period === 'year') {
@@ -680,11 +808,17 @@ const getBudgetVarianceReport = asyncHandler(async (req, res) => {
         endDate = new Date(year, 11, 31, 23, 59, 59, 999);
     } else if (period.startsWith('quarter-')) {
         const quarter = parseInt(period.split('-')[1]);
+        if (isNaN(quarter) || quarter < 1 || quarter > 4) {
+            return res.status(400).json({ success: false, error: 'Invalid quarter (must be 1-4)' });
+        }
         const startMonth = (quarter - 1) * 3;
         startDate = new Date(year, startMonth, 1);
         endDate = new Date(year, startMonth + 3, 0, 23, 59, 59, 999);
     } else if (period.startsWith('month-')) {
         const month = parseInt(period.split('-')[1]) - 1;
+        if (isNaN(month) || month < 0 || month > 11) {
+            return res.status(400).json({ success: false, error: 'Invalid month (must be 1-12)' });
+        }
         startDate = new Date(year, month, 1);
         endDate = new Date(year, month + 1, 0, 23, 59, 59, 999);
     } else {
@@ -692,14 +826,15 @@ const getBudgetVarianceReport = asyncHandler(async (req, res) => {
     }
 
     const matchStage = {
+        firmId: sanitizeObjectId(firmId),
         status: 'posted',
         transactionDate: { $gte: startDate, $lte: endDate }
     };
 
-    // Get all Income and Expense accounts in parallel (with lean)
+    // Get all Income and Expense accounts in parallel (with lean) - with firmId filter
     const [incomeAccounts, expenseAccounts] = await Promise.all([
-        Account.find({ type: 'Income', isActive: true }).lean(),
-        Account.find({ type: 'Expense', isActive: true }).lean()
+        Account.find({ firmId: sanitizeObjectId(firmId), type: 'Income', isActive: true }).lean(),
+        Account.find({ firmId: sanitizeObjectId(firmId), type: 'Expense', isActive: true }).lean()
     ]);
 
     const incomeAccountIds = incomeAccounts.map(a => a._id);
@@ -823,8 +958,27 @@ const getBudgetVarianceReport = asyncHandler(async (req, res) => {
  * Query params: asOfDate, vendorId
  */
 const getAPAgingReport = asyncHandler(async (req, res) => {
-    const { asOfDate, vendorId } = req.query;
+    // Mass assignment protection
+    const allowedParams = pickAllowedFields(req.query, ['asOfDate', 'vendorId']);
+    const { asOfDate, vendorId } = allowedParams;
+
+    // Input validation - validate date if provided
     const now = asOfDate ? new Date(asOfDate) : new Date();
+    if (asOfDate && isNaN(now.getTime())) {
+        return res.status(400).json({
+            success: false,
+            error: 'Invalid date format'
+        });
+    }
+
+    // IDOR protection - ensure firmId ownership
+    const firmId = req.user?.firmId || req.user?.organization;
+    if (!firmId) {
+        return res.status(403).json({
+            success: false,
+            error: 'Firm context required'
+        });
+    }
 
     let Bill;
     try { Bill = require('../models/bill.model'); } catch (e) { Bill = null; }
@@ -839,8 +993,14 @@ const getAPAgingReport = asyncHandler(async (req, res) => {
         });
     }
 
-    const matchCriteria = { status: { $in: ['received', 'pending', 'partial', 'overdue'] } };
-    if (vendorId) matchCriteria.vendorId = mongoose.Types.ObjectId.createFromHexString(vendorId);
+    const matchCriteria = {
+        firmId: sanitizeObjectId(firmId),
+        status: { $in: ['received', 'pending', 'partial', 'overdue'] }
+    };
+    if (vendorId) {
+        // Prevent injection - sanitize ObjectId
+        matchCriteria.vendorId = sanitizeObjectId(vendorId);
+    }
 
     const bills = await Bill.find(matchCriteria).populate('vendorId', 'name nameAr email vendorId').lean();
 
@@ -890,35 +1050,62 @@ const getAPAgingReport = asyncHandler(async (req, res) => {
  * Query params: clientId, startDate, endDate
  */
 const getClientStatement = asyncHandler(async (req, res) => {
-    const { clientId, startDate, endDate } = req.query;
+    // Mass assignment protection
+    const allowedParams = pickAllowedFields(req.query, ['clientId', 'startDate', 'endDate']);
+    const { clientId, startDate, endDate } = allowedParams;
 
+    // Input validation
     if (!clientId) return res.status(400).json({ success: false, error: 'Client ID is required' });
     if (!startDate || !endDate) return res.status(400).json({ success: false, error: 'Start date and end date are required' });
+
+    // Validate dates
+    const periodStart = new Date(startDate);
+    const periodEnd = new Date(endDate);
+    if (isNaN(periodStart.getTime()) || isNaN(periodEnd.getTime())) {
+        return res.status(400).json({
+            success: false,
+            error: 'Invalid date format'
+        });
+    }
+
+    // IDOR protection - ensure firmId ownership
+    const firmId = req.user?.firmId || req.user?.organization;
+    if (!firmId) {
+        return res.status(403).json({
+            success: false,
+            error: 'Firm context required'
+        });
+    }
+
+    // Prevent injection - sanitize ObjectId
+    const sanitizedClientId = sanitizeObjectId(clientId);
 
     let Client, Payment;
     try { Client = require('../models/client.model'); } catch (e) { Client = require('../models/user.model'); }
     try { Payment = require('../models/payment.model'); } catch (e) { Payment = null; }
 
-    const client = await Client.findById(clientId);
+    const client = await Client.findById(sanitizedClientId);
     if (!client) return res.status(404).json({ success: false, error: 'Client not found' });
 
-    const periodStart = new Date(startDate);
-    const periodEnd = new Date(endDate);
+    // Verify client belongs to firm (IDOR protection)
+    if (client.firmId && client.firmId.toString() !== firmId.toString()) {
+        return res.status(403).json({ success: false, error: 'Access denied' });
+    }
 
-    // Get opening balance
+    // Get opening balance - with firmId filter
     const openingInvoices = await Invoice.aggregate([
-        { $match: { clientId: mongoose.Types.ObjectId.createFromHexString(clientId), status: { $nin: ['void', 'cancelled', 'draft'] }, issueDate: { $lt: periodStart } } },
+        { $match: { firmId: sanitizeObjectId(firmId), clientId: sanitizedClientId, status: { $nin: ['void', 'cancelled', 'draft'] }, issueDate: { $lt: periodStart } } },
         { $group: { _id: null, totalInvoiced: { $sum: '$totalAmount' }, totalPaid: { $sum: '$amountPaid' } } }
     ]);
     const openingBalance = openingInvoices[0] ? (openingInvoices[0].totalInvoiced - openingInvoices[0].totalPaid) : 0;
 
-    // Get invoices in period
-    const invoices = await Invoice.find({ clientId: mongoose.Types.ObjectId.createFromHexString(clientId), status: { $nin: ['void', 'cancelled', 'draft'] }, issueDate: { $gte: periodStart, $lte: periodEnd } }).populate('caseId', 'caseNumber title').sort({ issueDate: 1 }).lean();
+    // Get invoices in period - with firmId filter
+    const invoices = await Invoice.find({ firmId: sanitizeObjectId(firmId), clientId: sanitizedClientId, status: { $nin: ['void', 'cancelled', 'draft'] }, issueDate: { $gte: periodStart, $lte: periodEnd } }).populate('caseId', 'caseNumber title').sort({ issueDate: 1 }).lean();
 
-    // Get payments in period
+    // Get payments in period - with firmId filter
     let payments = [];
     if (Payment) {
-        payments = await Payment.find({ $or: [{ clientId: mongoose.Types.ObjectId.createFromHexString(clientId) }, { customerId: mongoose.Types.ObjectId.createFromHexString(clientId) }], status: { $in: ['completed', 'reconciled'] }, paymentDate: { $gte: periodStart, $lte: periodEnd } }).populate('invoiceId', 'invoiceNumber').sort({ paymentDate: 1 }).lean();
+        payments = await Payment.find({ firmId: sanitizeObjectId(firmId), $or: [{ clientId: sanitizedClientId }, { customerId: sanitizedClientId }], status: { $in: ['completed', 'reconciled'] }, paymentDate: { $gte: periodStart, $lte: periodEnd } }).populate('invoiceId', 'invoiceNumber').sort({ paymentDate: 1 }).lean();
     }
 
     // Build transaction list
@@ -966,9 +1153,34 @@ const getClientStatement = asyncHandler(async (req, res) => {
  * Query params: vendorId, startDate, endDate
  */
 const getVendorLedger = asyncHandler(async (req, res) => {
-    const { vendorId, startDate, endDate } = req.query;
+    // Mass assignment protection
+    const allowedParams = pickAllowedFields(req.query, ['vendorId', 'startDate', 'endDate']);
+    const { vendorId, startDate, endDate } = allowedParams;
 
+    // Input validation
     if (!vendorId) return res.status(400).json({ success: false, error: 'Vendor ID is required' });
+
+    // Validate dates if provided
+    const periodStart = startDate ? new Date(startDate) : new Date(0);
+    const periodEnd = endDate ? new Date(endDate) : new Date();
+    if ((startDate && isNaN(periodStart.getTime())) || (endDate && isNaN(periodEnd.getTime()))) {
+        return res.status(400).json({
+            success: false,
+            error: 'Invalid date format'
+        });
+    }
+
+    // IDOR protection - ensure firmId ownership
+    const firmId = req.user?.firmId || req.user?.organization;
+    if (!firmId) {
+        return res.status(403).json({
+            success: false,
+            error: 'Firm context required'
+        });
+    }
+
+    // Prevent injection - sanitize ObjectId
+    const sanitizedVendorId = sanitizeObjectId(vendorId);
 
     let Vendor, Bill, BillPayment;
     try { Vendor = require('../models/vendor.model'); } catch (e) { Vendor = null; }
@@ -977,26 +1189,28 @@ const getVendorLedger = asyncHandler(async (req, res) => {
 
     if (!Vendor) return res.status(200).json({ success: true, report: 'vendor-ledger', message: 'Vendor model not found' });
 
-    const vendor = await Vendor.findById(vendorId);
+    const vendor = await Vendor.findById(sanitizedVendorId);
     if (!vendor) return res.status(404).json({ success: false, error: 'Vendor not found' });
 
-    const periodStart = startDate ? new Date(startDate) : new Date(0);
-    const periodEnd = endDate ? new Date(endDate) : new Date();
+    // Verify vendor belongs to firm (IDOR protection)
+    if (vendor.firmId && vendor.firmId.toString() !== firmId.toString()) {
+        return res.status(403).json({ success: false, error: 'Access denied' });
+    }
 
     const transactions = [];
     let openingBalance = vendor.openingBalance || 0;
 
-    // Get bills
+    // Get bills - with firmId filter
     if (Bill) {
-        const bills = await Bill.find({ vendorId: mongoose.Types.ObjectId.createFromHexString(vendorId), billDate: { $gte: periodStart, $lte: periodEnd } }).sort({ billDate: 1 }).lean();
+        const bills = await Bill.find({ firmId: sanitizeObjectId(firmId), vendorId: sanitizedVendorId, billDate: { $gte: periodStart, $lte: periodEnd } }).sort({ billDate: 1 }).lean();
         bills.forEach(bill => {
             transactions.push({ date: bill.billDate, type: 'bill', reference: bill.billNumber, description: bill.description || `Bill ${bill.billNumber}`, debit: 0, credit: bill.totalAmount, dueDate: bill.dueDate, status: bill.status });
         });
     }
 
-    // Get payments
+    // Get payments - with firmId filter
     if (BillPayment) {
-        const payments = await BillPayment.find({ vendorId: mongoose.Types.ObjectId.createFromHexString(vendorId), paymentDate: { $gte: periodStart, $lte: periodEnd } }).sort({ paymentDate: 1 }).lean();
+        const payments = await BillPayment.find({ firmId: sanitizeObjectId(firmId), vendorId: sanitizedVendorId, paymentDate: { $gte: periodStart, $lte: periodEnd } }).sort({ paymentDate: 1 }).lean();
         payments.forEach(pay => {
             transactions.push({ date: pay.paymentDate, type: 'payment', reference: pay.paymentNumber, description: `Payment ${pay.paymentNumber}`, debit: pay.amount, credit: 0, paymentMethod: pay.paymentMethod });
         });
@@ -1029,14 +1243,45 @@ const getVendorLedger = asyncHandler(async (req, res) => {
  * Query params: startDate, endDate, groupBy (client/service/case/month)
  */
 const getGrossProfitReport = asyncHandler(async (req, res) => {
-    const { startDate, endDate, groupBy = 'client', marginThreshold = 0 } = req.query;
+    // Mass assignment protection
+    const allowedParams = pickAllowedFields(req.query, ['startDate', 'endDate', 'groupBy', 'marginThreshold']);
+    const { startDate, endDate, groupBy = 'client', marginThreshold = 0 } = allowedParams;
 
+    // Input validation
     if (!startDate || !endDate) return res.status(400).json({ success: false, error: 'Start date and end date are required' });
+
+    // Validate dates
+    const startDateObj = new Date(startDate);
+    const endDateObj = new Date(endDate);
+    if (isNaN(startDateObj.getTime()) || isNaN(endDateObj.getTime())) {
+        return res.status(400).json({
+            success: false,
+            error: 'Invalid date format'
+        });
+    }
+
+    // Validate groupBy parameter
+    const validGroupBy = ['client', 'case', 'month', 'service'];
+    if (groupBy && !validGroupBy.includes(groupBy)) {
+        return res.status(400).json({
+            success: false,
+            error: 'Invalid groupBy parameter. Must be one of: client, case, month, service'
+        });
+    }
+
+    // IDOR protection - ensure firmId ownership
+    const firmId = req.user?.firmId || req.user?.organization;
+    if (!firmId) {
+        return res.status(403).json({
+            success: false,
+            error: 'Firm context required'
+        });
+    }
 
     let Expense;
     try { Expense = require('../models/expense.model'); } catch (e) { Expense = null; }
 
-    const invoices = await Invoice.find({ status: { $nin: ['draft', 'void', 'cancelled'] }, issueDate: { $gte: new Date(startDate), $lte: new Date(endDate) } }).populate('clientId', 'name firstName lastName').populate('caseId', 'caseNumber title').lean();
+    const invoices = await Invoice.find({ firmId: sanitizeObjectId(firmId), status: { $nin: ['draft', 'void', 'cancelled'] }, issueDate: { $gte: startDateObj, $lte: endDateObj } }).populate('clientId', 'name firstName lastName').populate('caseId', 'caseNumber title').lean();
 
     const items = {};
 
@@ -1062,9 +1307,9 @@ const getGrossProfitReport = asyncHandler(async (req, res) => {
         items[key].revenue += inv.totalAmount || 0;
         items[key].invoiceCount++;
 
-        // Get direct costs from expenses
+        // Get direct costs from expenses - with firmId filter
         if (Expense && inv.caseId) {
-            const expenses = await Expense.find({ caseId: inv.caseId._id, isBillable: true, date: { $gte: new Date(startDate), $lte: new Date(endDate) } }).lean();
+            const expenses = await Expense.find({ firmId: sanitizeObjectId(firmId), caseId: inv.caseId._id, isBillable: true, date: { $gte: startDateObj, $lte: endDateObj } }).lean();
             for (const exp of expenses) items[key].directCosts += exp.totalAmount || 0;
         }
     }
@@ -1100,16 +1345,46 @@ const getGrossProfitReport = asyncHandler(async (req, res) => {
  * Query params: startDate, endDate, costCenterId
  */
 const getCostCenterReport = asyncHandler(async (req, res) => {
-    const { startDate, endDate, costCenterId } = req.query;
+    // Mass assignment protection
+    const allowedParams = pickAllowedFields(req.query, ['startDate', 'endDate', 'costCenterId']);
+    const { startDate, endDate, costCenterId } = allowedParams;
 
+    // Input validation
     if (!startDate || !endDate) return res.status(400).json({ success: false, error: 'Start date and end date are required' });
 
-    // Use caseId as cost center proxy (law firm cases = cost centers)
-    const matchStage = { status: 'posted', caseId: { $ne: null }, transactionDate: { $gte: new Date(startDate), $lte: new Date(endDate) } };
-    if (costCenterId) matchStage.caseId = mongoose.Types.ObjectId.createFromHexString(costCenterId);
+    // Validate dates
+    const startDateObj = new Date(startDate);
+    const endDateObj = new Date(endDate);
+    if (isNaN(startDateObj.getTime()) || isNaN(endDateObj.getTime())) {
+        return res.status(400).json({
+            success: false,
+            error: 'Invalid date format'
+        });
+    }
 
-    const incomeAccounts = await Account.find({ type: 'Income' }).select('_id');
-    const expenseAccounts = await Account.find({ type: 'Expense' }).select('_id');
+    // IDOR protection - ensure firmId ownership
+    const firmId = req.user?.firmId || req.user?.organization;
+    if (!firmId) {
+        return res.status(403).json({
+            success: false,
+            error: 'Firm context required'
+        });
+    }
+
+    // Use caseId as cost center proxy (law firm cases = cost centers)
+    const matchStage = {
+        firmId: sanitizeObjectId(firmId),
+        status: 'posted',
+        caseId: { $ne: null },
+        transactionDate: { $gte: startDateObj, $lte: endDateObj }
+    };
+    if (costCenterId) {
+        // Prevent injection - sanitize ObjectId
+        matchStage.caseId = sanitizeObjectId(costCenterId);
+    }
+
+    const incomeAccounts = await Account.find({ firmId: sanitizeObjectId(firmId), type: 'Income' }).select('_id');
+    const expenseAccounts = await Account.find({ firmId: sanitizeObjectId(firmId), type: 'Expense' }).select('_id');
     const incomeAccountIds = incomeAccounts.map(a => a._id);
     const expenseAccountIds = expenseAccounts.map(a => a._id);
 

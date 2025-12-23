@@ -1,9 +1,177 @@
 const { Case, Task, Notification, Client, Invoice, Document, User } = require('../models');
 const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
+const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 
 // Note: AutomatedAction model needs to be created and added to models/index.js
 // const { AutomatedAction } = require('../models');
+
+// ============================================
+// SECURITY VALIDATION HELPERS
+// ============================================
+
+/**
+ * Validate URL format
+ * Prevents SSRF and injection attacks through URL validation
+ */
+const validateUrl = (url) => {
+    if (!url || typeof url !== 'string') {
+        return false;
+    }
+
+    try {
+        const parsed = new URL(url);
+        // Only allow http and https protocols
+        if (!['http:', 'https:'].includes(parsed.protocol)) {
+            return false;
+        }
+        // Prevent internal network access (SSRF protection)
+        const hostname = parsed.hostname.toLowerCase();
+        if (hostname === 'localhost' ||
+            hostname === '127.0.0.1' ||
+            hostname.startsWith('192.168.') ||
+            hostname.startsWith('10.') ||
+            hostname.startsWith('172.16.') ||
+            hostname === '0.0.0.0') {
+            return false;
+        }
+        return true;
+    } catch {
+        return false;
+    }
+};
+
+/**
+ * Validate server action code for dangerous patterns
+ * Prevents code injection attacks in automation rules
+ */
+const validateServerActionCode = (code) => {
+    if (!code || typeof code !== 'string') {
+        return { valid: false, error: 'كود الإجراء غير صالح' };
+    }
+
+    // Dangerous patterns that could lead to code injection or system access
+    const dangerousPatterns = [
+        /require\s*\(/i,           // Module loading
+        /import\s+/i,              // ES6 imports
+        /eval\s*\(/i,              // eval execution
+        /Function\s*\(/i,          // Function constructor
+        /child_process/i,          // Process execution
+        /fs\./i,                   // File system access
+        /exec\s*\(/i,              // Command execution
+        /spawn\s*\(/i,             // Process spawning
+        /\.constructor/i,          // Constructor access
+        /__proto__/i,              // Prototype pollution
+        /process\./i,              // Process object access
+        /global\./i,               // Global object access
+        /\.call\s*\(/i,            // Function call manipulation
+        /\.apply\s*\(/i,           // Function apply manipulation
+        /setTimeout\s*\(/i,        // Delayed execution
+        /setInterval\s*\(/i,       // Repeated execution
+        /setImmediate\s*\(/i,      // Immediate execution
+    ];
+
+    for (const pattern of dangerousPatterns) {
+        if (pattern.test(code)) {
+            return {
+                valid: false,
+                error: 'كود الإجراء يحتوي على أنماط خطيرة ممنوعة (Dangerous code patterns detected)'
+            };
+        }
+    }
+
+    // Maximum code length to prevent DoS
+    if (code.length > 10000) {
+        return { valid: false, error: 'كود الإجراء طويل جداً (Code too long)' };
+    }
+
+    return { valid: true };
+};
+
+/**
+ * Validate webhook headers object
+ */
+const validateWebhookHeaders = (headers) => {
+    if (!headers) {
+        return { valid: true };
+    }
+
+    if (typeof headers !== 'object' || Array.isArray(headers)) {
+        return { valid: false, error: 'رؤوس الويب هوك يجب أن تكون كائن صالح' };
+    }
+
+    // Check for dangerous headers
+    const dangerousHeaders = ['authorization', 'cookie', 'x-api-key'];
+    for (const key of Object.keys(headers)) {
+        const lowerKey = key.toLowerCase();
+        if (dangerousHeaders.includes(lowerKey)) {
+            return {
+                valid: false,
+                error: `رأس '${key}' ممنوع لأسباب أمنية (Header '${key}' not allowed for security reasons)`
+            };
+        }
+
+        // Validate header value is string
+        if (typeof headers[key] !== 'string') {
+            return { valid: false, error: `قيمة رأس '${key}' يجب أن تكون نص` };
+        }
+    }
+
+    return { valid: true };
+};
+
+/**
+ * Validate filter domain array
+ */
+const validateFilterDomain = (filterDomain) => {
+    if (!filterDomain) {
+        return { valid: true };
+    }
+
+    if (!Array.isArray(filterDomain)) {
+        return { valid: false, error: 'نطاق التصفية يجب أن يكون مصفوفة' };
+    }
+
+    // Limit array size
+    if (filterDomain.length > 100) {
+        return { valid: false, error: 'نطاق التصفية كبير جداً (max 100 items)' };
+    }
+
+    return { valid: true };
+};
+
+/**
+ * Validate trigger field IDs array
+ */
+const validateTriggerFieldIds = (triggerFieldIds) => {
+    if (!triggerFieldIds) {
+        return { valid: true };
+    }
+
+    if (!Array.isArray(triggerFieldIds)) {
+        return { valid: false, error: 'معرفات حقول المشغل يجب أن تكون مصفوفة' };
+    }
+
+    // Limit array size
+    if (triggerFieldIds.length > 50) {
+        return { valid: false, error: 'عدد حقول المشغل كبير جداً (max 50 items)' };
+    }
+
+    return { valid: true };
+};
+
+/**
+ * Get firmId from user context
+ * This should be implemented based on your authentication middleware
+ */
+const getFirmId = (req) => {
+    // Check if firmId is set in request (from auth middleware)
+    return req.firmId || req.user?.firmId || null;
+};
+
+// ============================================
+// CONTROLLER FUNCTIONS
+// ============================================
 
 /**
  * Get all automated actions
@@ -51,9 +219,21 @@ const getActions = asyncHandler(async (req, res) => {
 const getAction = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const lawyerId = req.userID;
+    const firmId = getFirmId(req);
+
+    // SECURITY: Sanitize ObjectId to prevent NoSQL injection
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('معرف غير صالح', 400);
+    }
 
     // Placeholder for AutomatedAction model
-    // const action = await AutomatedAction.findOne({ _id: id, lawyerId })
+    // SECURITY: IDOR Protection - Verify ownership via lawyerId and firmId
+    // const query = { _id: sanitizedId, lawyerId };
+    // if (firmId) {
+    //     query.firmId = firmId;
+    // }
+    // const action = await AutomatedAction.findOne(query)
     //     .populate('createdBy', 'firstName lastName')
     //     .populate('trigger_field_ids');
 
@@ -75,6 +255,35 @@ const getAction = asyncHandler(async (req, res) => {
  * POST /api/automated-actions
  */
 const createAction = asyncHandler(async (req, res) => {
+    const lawyerId = req.userID;
+    const firmId = getFirmId(req);
+
+    // SECURITY: Mass assignment protection - only allow specific fields
+    const allowedFields = [
+        'name',
+        'nameAr',
+        'model_name',
+        'trigger',
+        'action_type',
+        'filter_domain',
+        'trigger_field_ids',
+        'server_action_code',
+        'email_template_id',
+        'activity_type_id',
+        'activity_summary',
+        'activity_note',
+        'activity_date_deadline_range',
+        'activity_user_field_name',
+        'update_field_id',
+        'update_field_value',
+        'webhook_url',
+        'webhook_method',
+        'webhook_headers',
+        'isActive'
+    ];
+
+    const safeData = pickAllowedFields(req.body, allowedFields);
+
     const {
         name,
         nameAr,
@@ -96,17 +305,42 @@ const createAction = asyncHandler(async (req, res) => {
         webhook_method,
         webhook_headers,
         isActive
-    } = req.body;
-    const lawyerId = req.userID;
+    } = safeData;
 
     // Validate required fields
     if (!name || !nameAr || !model_name || !trigger || !action_type) {
         throw CustomException('الاسم ونوع النموذج والمشغل ونوع الإجراء مطلوبون', 400);
     }
 
+    // SECURITY: Validate filter_domain array
+    const filterDomainValidation = validateFilterDomain(filter_domain);
+    if (!filterDomainValidation.valid) {
+        throw CustomException(filterDomainValidation.error, 400);
+    }
+
+    // SECURITY: Validate trigger_field_ids array
+    const triggerFieldIdsValidation = validateTriggerFieldIds(trigger_field_ids);
+    if (!triggerFieldIdsValidation.valid) {
+        throw CustomException(triggerFieldIdsValidation.error, 400);
+    }
+
+    // SECURITY: Validate activity_date_deadline_range is a number
+    if (activity_date_deadline_range !== undefined &&
+        (typeof activity_date_deadline_range !== 'number' || isNaN(activity_date_deadline_range))) {
+        throw CustomException('نطاق تاريخ النشاط يجب أن يكون رقم', 400);
+    }
+
     // Validate required fields based on action_type
-    if (action_type === 'server_action' && !server_action_code) {
-        throw CustomException('كود الإجراء مطلوب لنوع الإجراء البرمجي', 400);
+    if (action_type === 'server_action') {
+        if (!server_action_code) {
+            throw CustomException('كود الإجراء مطلوب لنوع الإجراء البرمجي', 400);
+        }
+
+        // SECURITY: Prevent code injection in automation rules
+        const codeValidation = validateServerActionCode(server_action_code);
+        if (!codeValidation.valid) {
+            throw CustomException(codeValidation.error, 400);
+        }
     }
 
     if (action_type === 'email' && !email_template_id) {
@@ -121,12 +355,31 @@ const createAction = asyncHandler(async (req, res) => {
         throw CustomException('الحقل والقيمة مطلوبان لنوع إجراء تحديث الحقل', 400);
     }
 
-    if (action_type === 'webhook' && !webhook_url) {
-        throw CustomException('عنوان URL للويب هوك مطلوب', 400);
+    if (action_type === 'webhook') {
+        if (!webhook_url) {
+            throw CustomException('عنوان URL للويب هوك مطلوب', 400);
+        }
+
+        // SECURITY: Validate webhook URL to prevent SSRF attacks
+        if (!validateUrl(webhook_url)) {
+            throw CustomException('عنوان URL للويب هوك غير صالح أو غير آمن', 400);
+        }
+
+        // SECURITY: Validate webhook headers
+        const headersValidation = validateWebhookHeaders(webhook_headers);
+        if (!headersValidation.valid) {
+            throw CustomException(headersValidation.error, 400);
+        }
+
+        // Validate webhook_method
+        const validMethods = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'];
+        if (webhook_method && !validMethods.includes(webhook_method.toUpperCase())) {
+            throw CustomException('طريقة الويب هوك غير صالحة', 400);
+        }
     }
 
     // Placeholder for AutomatedAction model
-    // const action = await AutomatedAction.create({
+    // const actionData = {
     //     lawyerId,
     //     name,
     //     nameAr,
@@ -149,7 +402,14 @@ const createAction = asyncHandler(async (req, res) => {
     //     webhook_headers: webhook_headers || {},
     //     isActive: isActive !== undefined ? isActive : true,
     //     createdBy: lawyerId
-    // });
+    // };
+    //
+    // // SECURITY: IDOR Protection - Associate with firmId
+    // if (firmId) {
+    //     actionData.firmId = firmId;
+    // }
+    //
+    // const action = await AutomatedAction.create(actionData);
 
     // Temporary response until AutomatedAction model is created
     const action = {
@@ -178,27 +438,106 @@ const createAction = asyncHandler(async (req, res) => {
 const updateAction = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const lawyerId = req.userID;
+    const firmId = getFirmId(req);
+
+    // SECURITY: Sanitize ObjectId to prevent NoSQL injection
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('معرف غير صالح', 400);
+    }
+
+    // SECURITY: Mass assignment protection - only allow specific fields
+    const allowedFields = [
+        'name',
+        'nameAr',
+        'model_name',
+        'trigger',
+        'action_type',
+        'filter_domain',
+        'trigger_field_ids',
+        'server_action_code',
+        'email_template_id',
+        'activity_type_id',
+        'activity_summary',
+        'activity_note',
+        'activity_date_deadline_range',
+        'activity_user_field_name',
+        'update_field_id',
+        'update_field_value',
+        'webhook_url',
+        'webhook_method',
+        'webhook_headers',
+        'isActive'
+    ];
+
+    const safeData = pickAllowedFields(req.body, allowedFields);
+
+    // SECURITY: Validate inputs before update
+    if (safeData.filter_domain !== undefined) {
+        const filterDomainValidation = validateFilterDomain(safeData.filter_domain);
+        if (!filterDomainValidation.valid) {
+            throw CustomException(filterDomainValidation.error, 400);
+        }
+    }
+
+    if (safeData.trigger_field_ids !== undefined) {
+        const triggerFieldIdsValidation = validateTriggerFieldIds(safeData.trigger_field_ids);
+        if (!triggerFieldIdsValidation.valid) {
+            throw CustomException(triggerFieldIdsValidation.error, 400);
+        }
+    }
+
+    if (safeData.activity_date_deadline_range !== undefined &&
+        (typeof safeData.activity_date_deadline_range !== 'number' || isNaN(safeData.activity_date_deadline_range))) {
+        throw CustomException('نطاق تاريخ النشاط يجب أن يكون رقم', 400);
+    }
+
+    // SECURITY: Prevent code injection in server_action_code
+    if (safeData.server_action_code !== undefined) {
+        const codeValidation = validateServerActionCode(safeData.server_action_code);
+        if (!codeValidation.valid) {
+            throw CustomException(codeValidation.error, 400);
+        }
+    }
+
+    // SECURITY: Validate webhook URL
+    if (safeData.webhook_url !== undefined) {
+        if (!validateUrl(safeData.webhook_url)) {
+            throw CustomException('عنوان URL للويب هوك غير صالح أو غير آمن', 400);
+        }
+    }
+
+    // SECURITY: Validate webhook headers
+    if (safeData.webhook_headers !== undefined) {
+        const headersValidation = validateWebhookHeaders(safeData.webhook_headers);
+        if (!headersValidation.valid) {
+            throw CustomException(headersValidation.error, 400);
+        }
+    }
+
+    // Validate webhook_method
+    if (safeData.webhook_method !== undefined) {
+        const validMethods = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'];
+        if (!validMethods.includes(safeData.webhook_method.toUpperCase())) {
+            throw CustomException('طريقة الويب هوك غير صالحة', 400);
+        }
+    }
 
     // Placeholder for AutomatedAction model
-    // const action = await AutomatedAction.findOne({ _id: id, lawyerId });
+    // SECURITY: IDOR Protection - Verify ownership via lawyerId and firmId
+    // const query = { _id: sanitizedId, lawyerId };
+    // if (firmId) {
+    //     query.firmId = firmId;
+    // }
+    // const action = await AutomatedAction.findOne(query);
 
     // if (!action) {
     //     throw CustomException('الإجراء الآلي غير موجود', 404);
     // }
 
-    // const allowedFields = [
-    //     'name', 'nameAr', 'model_name', 'trigger', 'action_type',
-    //     'filter_domain', 'trigger_field_ids', 'server_action_code',
-    //     'email_template_id', 'activity_type_id', 'activity_summary',
-    //     'activity_note', 'activity_date_deadline_range', 'activity_user_field_name',
-    //     'update_field_id', 'update_field_value', 'webhook_url',
-    //     'webhook_method', 'webhook_headers', 'isActive'
-    // ];
-
-    // allowedFields.forEach(field => {
-    //     if (req.body[field] !== undefined) {
-    //         action[field] = req.body[field];
-    //     }
+    // // Apply safe updates
+    // Object.keys(safeData).forEach(field => {
+    //     action[field] = safeData[field];
     // });
 
     // await action.save();
@@ -220,9 +559,21 @@ const updateAction = asyncHandler(async (req, res) => {
 const deleteAction = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const lawyerId = req.userID;
+    const firmId = getFirmId(req);
+
+    // SECURITY: Sanitize ObjectId to prevent NoSQL injection
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('معرف غير صالح', 400);
+    }
 
     // Placeholder for AutomatedAction model
-    // const action = await AutomatedAction.findOneAndDelete({ _id: id, lawyerId });
+    // SECURITY: IDOR Protection - Verify ownership via lawyerId and firmId
+    // const query = { _id: sanitizedId, lawyerId };
+    // if (firmId) {
+    //     query.firmId = firmId;
+    // }
+    // const action = await AutomatedAction.findOneAndDelete(query);
 
     // if (!action) {
     //     throw CustomException('الإجراء الآلي غير موجود', 404);
@@ -244,9 +595,21 @@ const deleteAction = asyncHandler(async (req, res) => {
 const toggleActive = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const lawyerId = req.userID;
+    const firmId = getFirmId(req);
+
+    // SECURITY: Sanitize ObjectId to prevent NoSQL injection
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('معرف غير صالح', 400);
+    }
 
     // Placeholder for AutomatedAction model
-    // const action = await AutomatedAction.findOne({ _id: id, lawyerId });
+    // SECURITY: IDOR Protection - Verify ownership via lawyerId and firmId
+    // const query = { _id: sanitizedId, lawyerId };
+    // if (firmId) {
+    //     query.firmId = firmId;
+    // }
+    // const action = await AutomatedAction.findOne(query);
 
     // if (!action) {
     //     throw CustomException('الإجراء الآلي غير موجود', 404);
@@ -273,32 +636,55 @@ const testAction = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const { record_id } = req.body;
     const lawyerId = req.userID;
+    const firmId = getFirmId(req);
+
+    // SECURITY: Sanitize ObjectId to prevent NoSQL injection
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('معرف غير صالح', 400);
+    }
 
     if (!record_id) {
         throw CustomException('معرف السجل مطلوب للاختبار', 400);
     }
 
+    // SECURITY: Sanitize record_id to prevent NoSQL injection
+    const sanitizedRecordId = sanitizeObjectId(record_id);
+    if (!sanitizedRecordId) {
+        throw CustomException('معرف السجل غير صالح', 400);
+    }
+
     // Placeholder for AutomatedAction model
-    // const action = await AutomatedAction.findOne({ _id: id, lawyerId });
+    // SECURITY: IDOR Protection - Verify ownership via lawyerId and firmId
+    // const query = { _id: sanitizedId, lawyerId };
+    // if (firmId) {
+    //     query.firmId = firmId;
+    // }
+    // const action = await AutomatedAction.findOne(query);
 
     // if (!action) {
     //     throw CustomException('الإجراء الآلي غير موجود', 404);
     // }
 
-    // // Fetch the record based on model_name
+    // // SECURITY: Fetch the record with ownership verification
     // let record;
+    // const recordQuery = { _id: sanitizedRecordId };
+    // if (firmId) {
+    //     recordQuery.firmId = firmId;
+    // }
+    //
     // switch (action.model_name) {
     //     case 'Case':
-    //         record = await Case.findOne({ _id: record_id, lawyerId });
+    //         record = await Case.findOne({ ...recordQuery, lawyerId });
     //         break;
     //     case 'Task':
-    //         record = await Task.findOne({ _id: record_id });
+    //         record = await Task.findOne(recordQuery);
     //         break;
     //     case 'Client':
-    //         record = await Client.findOne({ _id: record_id, lawyerId });
+    //         record = await Client.findOne({ ...recordQuery, lawyerId });
     //         break;
     //     case 'Invoice':
-    //         record = await Invoice.findOne({ _id: record_id, lawyerId });
+    //         record = await Invoice.findOne({ ...recordQuery, lawyerId });
     //         break;
     //     default:
     //         throw CustomException('نوع النموذج غير مدعوم', 400);
@@ -315,7 +701,7 @@ const testAction = asyncHandler(async (req, res) => {
     const testResult = {
         wouldExecute: true,
         actionType: 'server_action',
-        targetRecord: record_id,
+        targetRecord: sanitizedRecordId,
         estimatedResult: 'سيتم تنفيذ الإجراء على هذا السجل',
         testMode: true,
         timestamp: new Date()
@@ -336,26 +722,38 @@ const getActionLogs = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const { page = 1, limit = 50, status } = req.query;
     const lawyerId = req.userID;
+    const firmId = getFirmId(req);
+
+    // SECURITY: Sanitize ObjectId to prevent NoSQL injection
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('معرف غير صالح', 400);
+    }
 
     // Placeholder for AutomatedAction model and logs
-    // const action = await AutomatedAction.findOne({ _id: id, lawyerId });
+    // SECURITY: IDOR Protection - Verify ownership via lawyerId and firmId
+    // const query = { _id: sanitizedId, lawyerId };
+    // if (firmId) {
+    //     query.firmId = firmId;
+    // }
+    // const action = await AutomatedAction.findOne(query);
 
     // if (!action) {
     //     throw CustomException('الإجراء الآلي غير موجود', 404);
     // }
 
-    // const query = { actionId: id };
-    // if (status) query.status = status;
+    // const logsQuery = { actionId: sanitizedId };
+    // if (status) logsQuery.status = status;
 
     // // Assuming there's an AutomatedActionLog model
-    // const logs = await AutomatedActionLog.find(query)
+    // const logs = await AutomatedActionLog.find(logsQuery)
     //     .sort({ createdAt: -1 })
     //     .limit(parseInt(limit))
     //     .skip((parseInt(page) - 1) * parseInt(limit))
     //     .populate('executedBy', 'firstName lastName')
     //     .populate('recordId');
 
-    // const total = await AutomatedActionLog.countDocuments(query);
+    // const total = await AutomatedActionLog.countDocuments(logsQuery);
 
     // Temporary response until AutomatedActionLog model is created
     const logs = [];
@@ -442,6 +840,11 @@ const getAvailableModels = asyncHandler(async (req, res) => {
  */
 const getModelFields = asyncHandler(async (req, res) => {
     const { modelName } = req.params;
+
+    // SECURITY: Validate modelName to prevent injection
+    if (!modelName || typeof modelName !== 'string' || !/^[A-Za-z]+$/.test(modelName)) {
+        throw CustomException('اسم النموذج غير صالح', 400);
+    }
 
     // Define available fields for each model
     const modelFieldsMap = {

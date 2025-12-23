@@ -6,6 +6,7 @@
 
 const CRMSettings = require('../models/crmSettings.model');
 const CrmActivity = require('../models/crmActivity.model');
+const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 
 // ═══════════════════════════════════════════════════════════════
 // GET CRM SETTINGS
@@ -23,10 +24,24 @@ exports.getSettings = async (req, res) => {
             });
         }
 
-        const firmId = req.firmId;
+        const firmId = sanitizeObjectId(req.firmId);
+        if (!firmId) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid firm ID'
+            });
+        }
 
         // Get or create settings
         const settings = await CRMSettings.getOrCreate(firmId);
+
+        // IDOR Protection: Verify the settings belong to the user's firm
+        if (settings && settings.firmId.toString() !== firmId.toString()) {
+            return res.status(403).json({
+                success: false,
+                message: 'ليس لديك صلاحية للوصول / Access denied'
+            });
+        }
 
         res.json({
             success: true,
@@ -58,22 +73,76 @@ exports.updateSettings = async (req, res) => {
             });
         }
 
-        const firmId = req.firmId;
-        const userId = req.userID;
-        const updates = req.body;
+        const firmId = sanitizeObjectId(req.firmId);
+        const userId = sanitizeObjectId(req.userID);
+
+        if (!firmId || !userId) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid firm ID or user ID'
+            });
+        }
+
+        // Mass assignment protection - only allow specific sections
+        const allowedSections = [
+            'leadSettings',
+            'caseSettings',
+            'quoteSettings',
+            'communicationSettings',
+            'appointmentSettings',
+            'namingSettings',
+            'territorySettings',
+            'salesPersonSettings',
+            'conversionSettings'
+        ];
+
+        const updates = pickAllowedFields(req.body, allowedSections);
+
+        // Input validation - ensure updates is an object
+        if (!updates || typeof updates !== 'object' || Array.isArray(updates)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid settings data format'
+            });
+        }
+
+        // Validate that at least one valid section is being updated
+        if (Object.keys(updates).length === 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'No valid settings sections provided for update'
+            });
+        }
+
+        // IDOR Protection: Verify existing settings belong to the user's firm
+        const existingSettings = await CRMSettings.findOne({ firmId });
+        if (existingSettings && existingSettings.firmId.toString() !== firmId.toString()) {
+            return res.status(403).json({
+                success: false,
+                message: 'ليس لديك صلاحية للوصول / Access denied'
+            });
+        }
 
         // Build update object with dot notation for nested updates
         const updateObj = {};
 
-        const sections = [
-            'leadSettings', 'caseSettings', 'quoteSettings',
-            'communicationSettings', 'appointmentSettings', 'namingSettings',
-            'territorySettings', 'salesPersonSettings', 'conversionSettings'
-        ];
-
-        for (const section of sections) {
-            if (updates[section]) {
+        for (const section of allowedSections) {
+            if (updates[section] && typeof updates[section] === 'object' && !Array.isArray(updates[section])) {
+                // Validate section data
                 for (const [key, value] of Object.entries(updates[section])) {
+                    // Prevent prototype pollution
+                    if (key === '__proto__' || key === 'constructor' || key === 'prototype') {
+                        continue;
+                    }
+
+                    // Sanitize the value if it's a string to prevent injection
+                    if (typeof value === 'string' && value.length > 10000) {
+                        return res.status(400).json({
+                            success: false,
+                            message: `Invalid value length for ${section}.${key}`
+                        });
+                    }
+
                     updateObj[`${section}.${key}`] = value;
                 }
             }
@@ -133,8 +202,24 @@ exports.resetSettings = async (req, res) => {
             });
         }
 
-        const firmId = req.firmId;
-        const userId = req.userID;
+        const firmId = sanitizeObjectId(req.firmId);
+        const userId = sanitizeObjectId(req.userID);
+
+        if (!firmId || !userId) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid firm ID or user ID'
+            });
+        }
+
+        // IDOR Protection: Verify existing settings belong to the user's firm before deleting
+        const existingSettings = await CRMSettings.findOne({ firmId });
+        if (existingSettings && existingSettings.firmId.toString() !== firmId.toString()) {
+            return res.status(403).json({
+                success: false,
+                message: 'ليس لديك صلاحية للوصول / Access denied'
+            });
+        }
 
         // Delete existing and create fresh
         await CRMSettings.findOneAndDelete({ firmId });

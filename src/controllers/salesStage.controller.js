@@ -6,6 +6,7 @@
 
 const SalesStage = require('../models/salesStage.model');
 const CrmActivity = require('../models/crmActivity.model');
+const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 
 // ═══════════════════════════════════════════════════════════════
 // LIST SALES STAGES
@@ -67,7 +68,14 @@ exports.getById = async (req, res) => {
             });
         }
 
-        const { id } = req.params;
+        const id = sanitizeObjectId(req.params.id);
+        if (!id) {
+            return res.status(400).json({
+                success: false,
+                message: 'معرف غير صالح / Invalid ID'
+            });
+        }
+
         const firmId = req.firmId;
 
         const stage = await SalesStage.findOne({ _id: id, firmId });
@@ -112,8 +120,60 @@ exports.create = async (req, res) => {
         const firmId = req.firmId;
         const userId = req.userID;
 
+        // Define allowed fields for mass assignment protection
+        const allowedFields = [
+            'name',
+            'description',
+            'color',
+            'icon',
+            'type',
+            'probability',
+            'order',
+            'enabled',
+            'isDefault',
+            'metadata'
+        ];
+
+        // Input validation
+        if (!req.body.name || typeof req.body.name !== 'string' || req.body.name.trim().length === 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'اسم المرحلة مطلوب / Stage name is required'
+            });
+        }
+
+        if (req.body.name.length > 100) {
+            return res.status(400).json({
+                success: false,
+                message: 'اسم المرحلة طويل جداً / Stage name is too long'
+            });
+        }
+
+        if (req.body.probability !== undefined) {
+            const probability = Number(req.body.probability);
+            if (isNaN(probability) || probability < 0 || probability > 100) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'الاحتمال يجب أن يكون بين 0 و 100 / Probability must be between 0 and 100'
+                });
+            }
+        }
+
+        if (req.body.order !== undefined) {
+            const order = Number(req.body.order);
+            if (isNaN(order) || order < 0) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'الترتيب يجب أن يكون رقماً موجباً / Order must be a positive number'
+                });
+            }
+        }
+
+        // Use pickAllowedFields for mass assignment protection
+        const sanitizedData = pickAllowedFields(req.body, allowedFields);
+
         const stageData = {
-            ...req.body,
+            ...sanitizedData,
             firmId
         };
 
@@ -161,13 +221,74 @@ exports.update = async (req, res) => {
             });
         }
 
-        const { id } = req.params;
+        const id = sanitizeObjectId(req.params.id);
+        if (!id) {
+            return res.status(400).json({
+                success: false,
+                message: 'معرف غير صالح / Invalid ID'
+            });
+        }
+
         const firmId = req.firmId;
         const userId = req.userID;
 
+        // Define allowed fields for mass assignment protection
+        const allowedFields = [
+            'name',
+            'description',
+            'color',
+            'icon',
+            'type',
+            'probability',
+            'order',
+            'enabled',
+            'isDefault',
+            'metadata'
+        ];
+
+        // Input validation
+        if (req.body.name !== undefined) {
+            if (typeof req.body.name !== 'string' || req.body.name.trim().length === 0) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'اسم المرحلة غير صالح / Invalid stage name'
+                });
+            }
+
+            if (req.body.name.length > 100) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'اسم المرحلة طويل جداً / Stage name is too long'
+                });
+            }
+        }
+
+        if (req.body.probability !== undefined) {
+            const probability = Number(req.body.probability);
+            if (isNaN(probability) || probability < 0 || probability > 100) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'الاحتمال يجب أن يكون بين 0 و 100 / Probability must be between 0 and 100'
+                });
+            }
+        }
+
+        if (req.body.order !== undefined) {
+            const order = Number(req.body.order);
+            if (isNaN(order) || order < 0) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'الترتيب يجب أن يكون رقماً موجباً / Order must be a positive number'
+                });
+            }
+        }
+
+        // Use pickAllowedFields for mass assignment protection
+        const sanitizedData = pickAllowedFields(req.body, allowedFields);
+
         const stage = await SalesStage.findOneAndUpdate(
             { _id: id, firmId },
-            { $set: req.body },
+            { $set: sanitizedData },
             { new: true, runValidators: true }
         );
 
@@ -220,7 +341,14 @@ exports.delete = async (req, res) => {
             });
         }
 
-        const { id } = req.params;
+        const id = sanitizeObjectId(req.params.id);
+        if (!id) {
+            return res.status(400).json({
+                success: false,
+                message: 'معرف غير صالح / Invalid ID'
+            });
+        }
+
         const firmId = req.firmId;
         const userId = req.userID;
 
@@ -278,7 +406,45 @@ exports.reorder = async (req, res) => {
         const userId = req.userID;
         const { stages } = req.body;
 
-        await SalesStage.reorder(firmId, stages);
+        // Input validation
+        if (!Array.isArray(stages)) {
+            return res.status(400).json({
+                success: false,
+                message: 'المراحل يجب أن تكون مصفوفة / Stages must be an array'
+            });
+        }
+
+        if (stages.length === 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'المراحل لا يمكن أن تكون فارغة / Stages cannot be empty'
+            });
+        }
+
+        // Validate each stage entry
+        for (const stage of stages) {
+            if (!stage.id || !sanitizeObjectId(stage.id)) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'معرف مرحلة غير صالح / Invalid stage ID'
+                });
+            }
+
+            if (stage.order === undefined || typeof stage.order !== 'number' || stage.order < 0) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'ترتيب مرحلة غير صالح / Invalid stage order'
+                });
+            }
+        }
+
+        // Sanitize all stage IDs
+        const sanitizedStages = stages.map(stage => ({
+            id: sanitizeObjectId(stage.id),
+            order: stage.order
+        }));
+
+        await SalesStage.reorder(firmId, sanitizedStages);
 
         // Get updated stages
         const updatedStages = await SalesStage.find({ firmId }).sort({ order: 1 });

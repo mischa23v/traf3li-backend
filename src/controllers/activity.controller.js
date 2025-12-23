@@ -1,31 +1,68 @@
 const { Activity, ActivityType, User } = require('../models');
 const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
+const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 
 /**
  * Schedule activity
  * POST /api/activities
  */
 const scheduleActivity = asyncHandler(async (req, res) => {
-    const {
-        res_model, res_id, activity_type_id, summary,
-        note, date_deadline, user_id
-    } = req.body;
     const lawyerId = req.userID;
 
-    if (!res_model || !res_id || !activity_type_id) {
+    // Mass assignment protection
+    const allowedFields = [
+        'res_model', 'res_id', 'activity_type_id', 'summary',
+        'note', 'date_deadline', 'user_id'
+    ];
+    const activityData = pickAllowedFields(req.body, allowedFields);
+
+    // Input validation
+    if (!activityData.res_model || !activityData.res_id || !activityData.activity_type_id) {
         throw CustomException('النموذج والمعرف ونوع النشاط مطلوبان', 400);
+    }
+
+    // Validate entity references
+    const sanitizedResId = sanitizeObjectId(activityData.res_id);
+    const sanitizedActivityTypeId = sanitizeObjectId(activityData.activity_type_id);
+    const sanitizedUserId = activityData.user_id ? sanitizeObjectId(activityData.user_id) : lawyerId;
+
+    // Validate date
+    let deadline = new Date();
+    if (activityData.date_deadline) {
+        const parsedDate = new Date(activityData.date_deadline);
+        if (isNaN(parsedDate.getTime())) {
+            throw CustomException('تاريخ الموعد النهائي غير صالح', 400);
+        }
+        deadline = parsedDate;
+    }
+
+    // Validate activity type exists and belongs to lawyer or is system type
+    const activityType = await ActivityType.findOne({
+        _id: sanitizedActivityTypeId,
+        $or: [{ lawyerId }, { isSystem: true }]
+    });
+    if (!activityType) {
+        throw CustomException('نوع النشاط غير موجود أو غير مصرح به', 404);
+    }
+
+    // If user_id is provided, verify user belongs to same firm
+    if (activityData.user_id) {
+        const user = await User.findOne({ _id: sanitizedUserId, lawyerId });
+        if (!user) {
+            throw CustomException('المستخدم غير موجود أو لا ينتمي إلى نفس المكتب', 404);
+        }
     }
 
     const activity = await Activity.create({
         lawyerId,
-        res_model,
-        res_id,
-        activity_type_id,
-        summary,
-        note,
-        date_deadline: date_deadline || new Date(),
-        user_id: user_id || lawyerId,
+        res_model: activityData.res_model,
+        res_id: sanitizedResId,
+        activity_type_id: sanitizedActivityTypeId,
+        summary: activityData.summary,
+        note: activityData.note,
+        date_deadline: deadline,
+        user_id: sanitizedUserId,
         state: 'planned',
         createdBy: lawyerId
     });
@@ -88,7 +125,11 @@ const getActivity = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const lawyerId = req.userID;
 
-    const activity = await Activity.findOne({ _id: id, lawyerId })
+    // Sanitize and validate ID
+    const sanitizedId = sanitizeObjectId(id);
+
+    // IDOR protection - verify firmId ownership
+    const activity = await Activity.findOne({ _id: sanitizedId, lawyerId })
         .populate('activity_type_id', 'name nameAr icon color category')
         .populate('user_id', 'firstName lastName email avatar')
         .populate('createdBy', 'firstName lastName avatar')
@@ -231,15 +272,23 @@ const getActivityStats = asyncHandler(async (req, res) => {
  */
 const markAsDone = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const { feedback } = req.body;
     const userId = req.userID;
 
-    const activity = await Activity.findOne({ _id: id });
+    // Sanitize ID
+    const sanitizedId = sanitizeObjectId(id);
+
+    // Mass assignment protection
+    const allowedFields = ['feedback'];
+    const updateData = pickAllowedFields(req.body, allowedFields);
+
+    // IDOR protection - verify ownership
+    const activity = await Activity.findOne({ _id: sanitizedId });
 
     if (!activity) {
         throw CustomException('النشاط غير موجود', 404);
     }
 
+    // Verify user has permission (either assigned user or firm owner)
     if (activity.user_id.toString() !== userId && activity.lawyerId.toString() !== userId) {
         throw CustomException('غير مصرح لك بتحديث هذا النشاط', 403);
     }
@@ -247,7 +296,7 @@ const markAsDone = asyncHandler(async (req, res) => {
     activity.state = 'done';
     activity.done_date = new Date();
     activity.done_by = userId;
-    if (feedback) activity.feedback = feedback;
+    if (updateData.feedback) activity.feedback = updateData.feedback;
 
     await activity.save();
 
@@ -272,12 +321,17 @@ const cancelActivity = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const userId = req.userID;
 
-    const activity = await Activity.findOne({ _id: id });
+    // Sanitize ID
+    const sanitizedId = sanitizeObjectId(id);
+
+    // IDOR protection - verify ownership
+    const activity = await Activity.findOne({ _id: sanitizedId });
 
     if (!activity) {
         throw CustomException('النشاط غير موجود', 404);
     }
 
+    // Verify user has permission
     if (activity.user_id.toString() !== userId && activity.lawyerId.toString() !== userId) {
         throw CustomException('غير مصرح لك بإلغاء هذا النشاط', 403);
     }
@@ -301,24 +355,38 @@ const cancelActivity = asyncHandler(async (req, res) => {
  */
 const reschedule = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const { date_deadline } = req.body;
     const userId = req.userID;
 
-    if (!date_deadline) {
+    // Sanitize ID
+    const sanitizedId = sanitizeObjectId(id);
+
+    // Mass assignment protection
+    const allowedFields = ['date_deadline'];
+    const updateData = pickAllowedFields(req.body, allowedFields);
+
+    if (!updateData.date_deadline) {
         throw CustomException('الموعد النهائي مطلوب', 400);
     }
 
-    const activity = await Activity.findOne({ _id: id });
+    // Validate date
+    const parsedDate = new Date(updateData.date_deadline);
+    if (isNaN(parsedDate.getTime())) {
+        throw CustomException('تاريخ الموعد النهائي غير صالح', 400);
+    }
+
+    // IDOR protection - verify ownership
+    const activity = await Activity.findOne({ _id: sanitizedId });
 
     if (!activity) {
         throw CustomException('النشاط غير موجود', 404);
     }
 
+    // Verify user has permission
     if (activity.user_id.toString() !== userId && activity.lawyerId.toString() !== userId) {
         throw CustomException('غير مصرح لك بإعادة جدولة هذا النشاط', 403);
     }
 
-    activity.date_deadline = new Date(date_deadline);
+    activity.date_deadline = parsedDate;
     activity.state = 'planned';
 
     await activity.save();
@@ -341,30 +409,40 @@ const reschedule = asyncHandler(async (req, res) => {
  */
 const reassign = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const { user_id } = req.body;
     const currentUserId = req.userID;
 
-    if (!user_id) {
+    // Sanitize IDs
+    const sanitizedId = sanitizeObjectId(id);
+
+    // Mass assignment protection
+    const allowedFields = ['user_id'];
+    const updateData = pickAllowedFields(req.body, allowedFields);
+
+    if (!updateData.user_id) {
         throw CustomException('معرف المستخدم مطلوب', 400);
     }
 
-    const activity = await Activity.findOne({ _id: id });
+    const sanitizedUserId = sanitizeObjectId(updateData.user_id);
+
+    // IDOR protection - verify ownership
+    const activity = await Activity.findOne({ _id: sanitizedId });
 
     if (!activity) {
         throw CustomException('النشاط غير موجود', 404);
     }
 
+    // Verify user has permission (only firm owner can reassign)
     if (activity.lawyerId.toString() !== currentUserId) {
         throw CustomException('غير مصرح لك بإعادة تعيين هذا النشاط', 403);
     }
 
     // Verify the new user exists and belongs to the same firm
-    const newUser = await User.findOne({ _id: user_id, lawyerId: activity.lawyerId });
+    const newUser = await User.findOne({ _id: sanitizedUserId, lawyerId: activity.lawyerId });
     if (!newUser) {
         throw CustomException('المستخدم غير موجود أو لا ينتمي إلى نفس المكتب', 404);
     }
 
-    activity.user_id = user_id;
+    activity.user_id = sanitizedUserId;
 
     await activity.save();
 
@@ -405,27 +483,42 @@ const getActivityTypes = asyncHandler(async (req, res) => {
  * POST /api/activities/types
  */
 const createActivityType = asyncHandler(async (req, res) => {
-    const {
-        name, nameAr, icon, color, category,
-        defaultSummary, defaultSummaryAr, delayCount, delayUnit
-    } = req.body;
     const lawyerId = req.userID;
 
-    if (!name || !nameAr) {
+    // Mass assignment protection
+    const allowedFields = [
+        'name', 'nameAr', 'icon', 'color', 'category',
+        'defaultSummary', 'defaultSummaryAr', 'delayCount', 'delayUnit'
+    ];
+    const typeData = pickAllowedFields(req.body, allowedFields);
+
+    // Input validation
+    if (!typeData.name || !typeData.nameAr) {
         throw CustomException('الاسم باللغتين مطلوب', 400);
+    }
+
+    // Validate delayCount if provided
+    if (typeData.delayCount !== undefined && (isNaN(typeData.delayCount) || typeData.delayCount < 0)) {
+        throw CustomException('عدد الأيام غير صالح', 400);
+    }
+
+    // Validate delayUnit if provided
+    const validDelayUnits = ['minutes', 'hours', 'days', 'weeks', 'months'];
+    if (typeData.delayUnit && !validDelayUnits.includes(typeData.delayUnit)) {
+        throw CustomException('وحدة التأخير غير صالحة', 400);
     }
 
     const activityType = await ActivityType.create({
         lawyerId,
-        name,
-        nameAr,
-        icon: icon || 'Bell',
-        color: color || '#3B82F6',
-        category: category || 'other',
-        defaultSummary,
-        defaultSummaryAr,
-        delayCount: delayCount || 0,
-        delayUnit: delayUnit || 'days',
+        name: typeData.name,
+        nameAr: typeData.nameAr,
+        icon: typeData.icon || 'Bell',
+        color: typeData.color || '#3B82F6',
+        category: typeData.category || 'other',
+        defaultSummary: typeData.defaultSummary,
+        defaultSummaryAr: typeData.defaultSummaryAr,
+        delayCount: typeData.delayCount || 0,
+        delayUnit: typeData.delayUnit || 'days',
         isSystem: false,
         createdBy: lawyerId
     });
@@ -445,7 +538,11 @@ const updateActivityType = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const lawyerId = req.userID;
 
-    const activityType = await ActivityType.findOne({ _id: id, lawyerId });
+    // Sanitize ID
+    const sanitizedId = sanitizeObjectId(id);
+
+    // IDOR protection - verify firmId ownership
+    const activityType = await ActivityType.findOne({ _id: sanitizedId, lawyerId });
 
     if (!activityType) {
         throw CustomException('نوع النشاط غير موجود', 404);
@@ -455,15 +552,26 @@ const updateActivityType = asyncHandler(async (req, res) => {
         throw CustomException('لا يمكن تعديل نوع النشاط الافتراضي', 400);
     }
 
+    // Mass assignment protection
     const allowedFields = [
         'name', 'nameAr', 'icon', 'color', 'category',
         'defaultSummary', 'defaultSummaryAr', 'delayCount', 'delayUnit', 'isActive'
     ];
+    const updateData = pickAllowedFields(req.body, allowedFields);
 
-    allowedFields.forEach(field => {
-        if (req.body[field] !== undefined) {
-            activityType[field] = req.body[field];
-        }
+    // Validate delayCount if provided
+    if (updateData.delayCount !== undefined && (isNaN(updateData.delayCount) || updateData.delayCount < 0)) {
+        throw CustomException('عدد الأيام غير صالح', 400);
+    }
+
+    // Validate delayUnit if provided
+    const validDelayUnits = ['minutes', 'hours', 'days', 'weeks', 'months'];
+    if (updateData.delayUnit && !validDelayUnits.includes(updateData.delayUnit)) {
+        throw CustomException('وحدة التأخير غير صالحة', 400);
+    }
+
+    Object.keys(updateData).forEach(field => {
+        activityType[field] = updateData[field];
     });
 
     await activityType.save();
@@ -483,7 +591,11 @@ const deleteActivityType = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const lawyerId = req.userID;
 
-    const activityType = await ActivityType.findOne({ _id: id, lawyerId });
+    // Sanitize ID
+    const sanitizedId = sanitizeObjectId(id);
+
+    // IDOR protection - verify firmId ownership
+    const activityType = await ActivityType.findOne({ _id: sanitizedId, lawyerId });
 
     if (!activityType) {
         throw CustomException('نوع النشاط غير موجود', 404);
@@ -494,12 +606,12 @@ const deleteActivityType = asyncHandler(async (req, res) => {
     }
 
     // Check if activity type is in use
-    const inUse = await Activity.findOne({ activity_type_id: id });
+    const inUse = await Activity.findOne({ activity_type_id: sanitizedId });
     if (inUse) {
         throw CustomException('لا يمكن حذف نوع النشاط لأنه قيد الاستخدام', 400);
     }
 
-    await ActivityType.findByIdAndDelete(id);
+    await ActivityType.findByIdAndDelete(sanitizedId);
 
     res.status(200).json({
         success: true,
@@ -573,10 +685,14 @@ const getEntityActivities = asyncHandler(async (req, res) => {
     const { state, page = 1, limit = 20 } = req.query;
     const lawyerId = req.userID;
 
+    // Sanitize entity ID
+    const sanitizedEntityId = sanitizeObjectId(entityId);
+
+    // IDOR protection - query includes lawyerId to ensure firm ownership
     const query = {
         lawyerId,
         res_model: entityType,
-        res_id: entityId
+        res_id: sanitizedEntityId
     };
 
     if (state) {

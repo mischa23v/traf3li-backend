@@ -2,6 +2,7 @@ const JournalEntry = require('../models/journalEntry.model');
 const Account = require('../models/account.model');
 const asyncHandler = require('../utils/asyncHandler');
 const mongoose = require('mongoose');
+const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 
 /**
  * Get all journal entries
@@ -19,6 +20,11 @@ const getEntries = asyncHandler(async (req, res) => {
     } = req.query;
 
     const query = {};
+
+    // IDOR Protection: Filter by firmId
+    if (req.user?.firmId) {
+        query.firmId = req.user.firmId;
+    }
 
     if (status) query.status = status;
     if (entryType) query.entryType = entryType;
@@ -74,6 +80,14 @@ const getEntry = asyncHandler(async (req, res) => {
         });
     }
 
+    // IDOR Protection: Verify firmId ownership
+    if (req.user?.firmId && entry.firmId && entry.firmId.toString() !== req.user.firmId.toString()) {
+        return res.status(404).json({
+            success: false,
+            error: 'Journal entry not found'
+        });
+    }
+
     res.status(200).json({
         success: true,
         data: {
@@ -91,6 +105,10 @@ const getEntry = asyncHandler(async (req, res) => {
  * POST /api/journal-entries
  */
 const createEntry = asyncHandler(async (req, res) => {
+    // Mass Assignment Protection: Only allow specific fields
+    const allowedFields = ['date', 'description', 'descriptionAr', 'entryType', 'lines', 'notes', 'attachments'];
+    const safeData = pickAllowedFields(req.body, allowedFields);
+
     const {
         date,
         description,
@@ -99,7 +117,7 @@ const createEntry = asyncHandler(async (req, res) => {
         lines,
         notes,
         attachments
-    } = req.body;
+    } = safeData;
 
     // Validate required fields
     if (!date || !description || !lines || lines.length < 2) {
@@ -109,6 +127,10 @@ const createEntry = asyncHandler(async (req, res) => {
         });
     }
 
+    // Input Validation: Validate amounts and calculate totals
+    let totalDebit = 0;
+    let totalCredit = 0;
+
     // Validate each line has account and debit XOR credit
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
@@ -117,6 +139,31 @@ const createEntry = asyncHandler(async (req, res) => {
                 success: false,
                 error: `Line ${i + 1}: Account is required`
             });
+        }
+
+        // Input Validation: Validate amounts are valid numbers
+        if (line.debit !== undefined && line.debit !== null) {
+            const debit = Number(line.debit);
+            if (isNaN(debit) || debit < 0) {
+                return res.status(400).json({
+                    success: false,
+                    error: `Line ${i + 1}: Debit must be a non-negative number`
+                });
+            }
+            line.debit = debit;
+            totalDebit += debit;
+        }
+
+        if (line.credit !== undefined && line.credit !== null) {
+            const credit = Number(line.credit);
+            if (isNaN(credit) || credit < 0) {
+                return res.status(400).json({
+                    success: false,
+                    error: `Line ${i + 1}: Credit must be a non-negative number`
+                });
+            }
+            line.credit = credit;
+            totalCredit += credit;
         }
 
         const hasDebit = line.debit && line.debit > 0;
@@ -136,8 +183,12 @@ const createEntry = asyncHandler(async (req, res) => {
             });
         }
 
-        // Verify account exists
-        const account = await Account.findById(line.accountId);
+        // Verify account exists and belongs to user's firm
+        const accountQuery = { _id: line.accountId };
+        if (req.user?.firmId) {
+            accountQuery.firmId = req.user.firmId;
+        }
+        const account = await Account.findOne(accountQuery);
         if (!account) {
             return res.status(400).json({
                 success: false,
@@ -153,30 +204,53 @@ const createEntry = asyncHandler(async (req, res) => {
         }
     }
 
-    const entry = await JournalEntry.create({
-        date,
-        description,
-        descriptionAr,
-        entryType: entryType || 'other',
-        lines,
-        notes,
-        attachments,
-        status: 'draft',
-        createdBy: req.user?._id
-    });
+    // Validate Debit/Credit Balance
+    if (Math.abs(totalDebit - totalCredit) > 0.01) {
+        return res.status(400).json({
+            success: false,
+            error: `Entry is not balanced. Total Debits: ${totalDebit}, Total Credits: ${totalCredit}, Difference: ${Math.abs(totalDebit - totalCredit)}`
+        });
+    }
 
-    const populatedEntry = await JournalEntry.findById(entry._id)
-        .populate('lines.accountId', 'code name');
+    // MongoDB Transaction
+    const session = await mongoose.startSession();
+    session.startTransaction();
 
-    res.status(201).json({
-        success: true,
-        data: {
-            ...populatedEntry.toObject(),
-            totalDebit: populatedEntry.totalDebit,
-            totalCredit: populatedEntry.totalCredit,
-            isBalanced: populatedEntry.isBalanced
-        }
-    });
+    try {
+        const entry = await JournalEntry.create([{
+            firmId: req.user?.firmId,
+            date,
+            description,
+            descriptionAr,
+            entryType: entryType || 'other',
+            lines,
+            notes,
+            attachments,
+            status: 'draft',
+            createdBy: req.user?._id
+        }], { session });
+
+        const populatedEntry = await JournalEntry.findById(entry[0]._id)
+            .populate('lines.accountId', 'code name')
+            .session(session);
+
+        await session.commitTransaction();
+
+        res.status(201).json({
+            success: true,
+            data: {
+                ...populatedEntry.toObject(),
+                totalDebit: populatedEntry.totalDebit,
+                totalCredit: populatedEntry.totalCredit,
+                isBalanced: populatedEntry.isBalanced
+            }
+        });
+    } catch (error) {
+        await session.abortTransaction();
+        throw error;
+    } finally {
+        session.endSession();
+    }
 });
 
 /**
@@ -193,6 +267,14 @@ const updateEntry = asyncHandler(async (req, res) => {
         });
     }
 
+    // IDOR Protection: Verify firmId ownership
+    if (req.user?.firmId && entry.firmId && entry.firmId.toString() !== req.user.firmId.toString()) {
+        return res.status(404).json({
+            success: false,
+            error: 'Journal entry not found'
+        });
+    }
+
     if (entry.status !== 'draft') {
         return res.status(400).json({
             success: false,
@@ -200,22 +282,54 @@ const updateEntry = asyncHandler(async (req, res) => {
         });
     }
 
+    // Mass Assignment Protection: Only allow specific fields
     const allowedFields = [
         'date', 'description', 'descriptionAr', 'entryType',
         'lines', 'notes', 'attachments'
     ];
+    const safeData = pickAllowedFields(req.body, allowedFields);
 
     // Validate lines if provided
-    if (req.body.lines) {
-        if (req.body.lines.length < 2) {
+    if (safeData.lines) {
+        if (safeData.lines.length < 2) {
             return res.status(400).json({
                 success: false,
                 error: 'Entry must have at least 2 lines'
             });
         }
 
-        for (let i = 0; i < req.body.lines.length; i++) {
-            const line = req.body.lines[i];
+        // Input Validation: Validate amounts and calculate totals
+        let totalDebit = 0;
+        let totalCredit = 0;
+
+        for (let i = 0; i < safeData.lines.length; i++) {
+            const line = safeData.lines[i];
+
+            // Input Validation: Validate amounts are valid numbers
+            if (line.debit !== undefined && line.debit !== null) {
+                const debit = Number(line.debit);
+                if (isNaN(debit) || debit < 0) {
+                    return res.status(400).json({
+                        success: false,
+                        error: `Line ${i + 1}: Debit must be a non-negative number`
+                    });
+                }
+                line.debit = debit;
+                totalDebit += debit;
+            }
+
+            if (line.credit !== undefined && line.credit !== null) {
+                const credit = Number(line.credit);
+                if (isNaN(credit) || credit < 0) {
+                    return res.status(400).json({
+                        success: false,
+                        error: `Line ${i + 1}: Credit must be a non-negative number`
+                    });
+                }
+                line.credit = credit;
+                totalCredit += credit;
+            }
+
             const hasDebit = line.debit && line.debit > 0;
             const hasCredit = line.credit && line.credit > 0;
 
@@ -225,30 +339,81 @@ const updateEntry = asyncHandler(async (req, res) => {
                     error: `Line ${i + 1}: Cannot have both debit and credit`
                 });
             }
+
+            if (!hasDebit && !hasCredit) {
+                return res.status(400).json({
+                    success: false,
+                    error: `Line ${i + 1}: Must have either debit or credit`
+                });
+            }
+
+            // Verify account exists and belongs to user's firm
+            if (line.accountId) {
+                const accountQuery = { _id: line.accountId };
+                if (req.user?.firmId) {
+                    accountQuery.firmId = req.user.firmId;
+                }
+                const account = await Account.findOne(accountQuery);
+                if (!account) {
+                    return res.status(400).json({
+                        success: false,
+                        error: `Line ${i + 1}: Account not found`
+                    });
+                }
+
+                if (!account.isActive) {
+                    return res.status(400).json({
+                        success: false,
+                        error: `Line ${i + 1}: Account ${account.code} is inactive`
+                    });
+                }
+            }
+        }
+
+        // Validate Debit/Credit Balance
+        if (Math.abs(totalDebit - totalCredit) > 0.01) {
+            return res.status(400).json({
+                success: false,
+                error: `Entry is not balanced. Total Debits: ${totalDebit}, Total Credits: ${totalCredit}, Difference: ${Math.abs(totalDebit - totalCredit)}`
+            });
         }
     }
 
-    allowedFields.forEach(field => {
-        if (req.body[field] !== undefined) {
-            entry[field] = req.body[field];
-        }
-    });
+    // MongoDB Transaction
+    const session = await mongoose.startSession();
+    session.startTransaction();
 
-    entry.updatedBy = req.user?._id;
-    await entry.save();
+    try {
+        allowedFields.forEach(field => {
+            if (safeData[field] !== undefined) {
+                entry[field] = safeData[field];
+            }
+        });
 
-    const populatedEntry = await JournalEntry.findById(entry._id)
-        .populate('lines.accountId', 'code name');
+        entry.updatedBy = req.user?._id;
+        await entry.save({ session });
 
-    res.status(200).json({
-        success: true,
-        data: {
-            ...populatedEntry.toObject(),
-            totalDebit: populatedEntry.totalDebit,
-            totalCredit: populatedEntry.totalCredit,
-            isBalanced: populatedEntry.isBalanced
-        }
-    });
+        const populatedEntry = await JournalEntry.findById(entry._id)
+            .populate('lines.accountId', 'code name')
+            .session(session);
+
+        await session.commitTransaction();
+
+        res.status(200).json({
+            success: true,
+            data: {
+                ...populatedEntry.toObject(),
+                totalDebit: populatedEntry.totalDebit,
+                totalCredit: populatedEntry.totalCredit,
+                isBalanced: populatedEntry.isBalanced
+            }
+        });
+    } catch (error) {
+        await session.abortTransaction();
+        throw error;
+    } finally {
+        session.endSession();
+    }
 });
 
 /**
@@ -259,6 +424,14 @@ const postEntry = asyncHandler(async (req, res) => {
     const entry = await JournalEntry.findById(req.params.id);
 
     if (!entry) {
+        return res.status(404).json({
+            success: false,
+            error: 'Journal entry not found'
+        });
+    }
+
+    // IDOR Protection: Verify firmId ownership
+    if (req.user?.firmId && entry.firmId && entry.firmId.toString() !== req.user.firmId.toString()) {
         return res.status(404).json({
             success: false,
             error: 'Journal entry not found'
@@ -321,6 +494,14 @@ const deleteEntry = asyncHandler(async (req, res) => {
         });
     }
 
+    // IDOR Protection: Verify firmId ownership
+    if (req.user?.firmId && entry.firmId && entry.firmId.toString() !== req.user.firmId.toString()) {
+        return res.status(404).json({
+            success: false,
+            error: 'Journal entry not found'
+        });
+    }
+
     if (entry.status !== 'draft') {
         return res.status(400).json({
             success: false,
@@ -342,7 +523,9 @@ const deleteEntry = asyncHandler(async (req, res) => {
  * POST /api/journal-entries/:id/void
  */
 const voidEntry = asyncHandler(async (req, res) => {
-    const { reason } = req.body;
+    // Mass Assignment Protection: Only allow reason field
+    const safeData = pickAllowedFields(req.body, ['reason']);
+    const { reason } = safeData;
 
     if (!reason) {
         return res.status(400).json({
@@ -354,6 +537,14 @@ const voidEntry = asyncHandler(async (req, res) => {
     const entry = await JournalEntry.findById(req.params.id);
 
     if (!entry) {
+        return res.status(404).json({
+            success: false,
+            error: 'Journal entry not found'
+        });
+    }
+
+    // IDOR Protection: Verify firmId ownership
+    if (req.user?.firmId && entry.firmId && entry.firmId.toString() !== req.user.firmId.toString()) {
         return res.status(404).json({
             success: false,
             error: 'Journal entry not found'
@@ -397,6 +588,10 @@ const voidEntry = asyncHandler(async (req, res) => {
  * POST /api/journal-entries/simple
  */
 const createSimpleEntry = asyncHandler(async (req, res) => {
+    // Mass Assignment Protection: Only allow specific fields
+    const allowedFields = ['date', 'description', 'descriptionAr', 'debitAccountId', 'creditAccountId', 'amount', 'caseId', 'notes', 'entryType'];
+    const safeData = pickAllowedFields(req.body, allowedFields);
+
     const {
         date,
         description,
@@ -407,7 +602,7 @@ const createSimpleEntry = asyncHandler(async (req, res) => {
         caseId,
         notes,
         entryType
-    } = req.body;
+    } = safeData;
 
     // Validate required fields
     if (!date || !description || !debitAccountId || !creditAccountId || !amount) {
@@ -417,10 +612,20 @@ const createSimpleEntry = asyncHandler(async (req, res) => {
         });
     }
 
-    // Verify accounts exist
+    // Input Validation: Validate amount is a positive number
+    const parsedAmount = Number(amount);
+    if (isNaN(parsedAmount) || parsedAmount <= 0) {
+        return res.status(400).json({
+            success: false,
+            error: 'Amount must be a positive number'
+        });
+    }
+
+    // Verify accounts exist and belong to user's firm
+    const accountQuery = req.user?.firmId ? { firmId: req.user.firmId } : {};
     const [debitAccount, creditAccount] = await Promise.all([
-        Account.findById(debitAccountId),
-        Account.findById(creditAccountId)
+        Account.findOne({ _id: debitAccountId, ...accountQuery }),
+        Account.findOne({ _id: creditAccountId, ...accountQuery })
     ]);
 
     if (!debitAccount) {
@@ -437,31 +642,60 @@ const createSimpleEntry = asyncHandler(async (req, res) => {
         });
     }
 
-    const entry = await JournalEntry.createSimpleEntry({
-        date,
-        description,
-        descriptionAr,
-        debitAccountId,
-        creditAccountId,
-        amount,
-        caseId,
-        notes,
-        entryType,
-        createdBy: req.user?._id
-    });
+    if (!debitAccount.isActive) {
+        return res.status(400).json({
+            success: false,
+            error: `Debit account ${debitAccount.code} is inactive`
+        });
+    }
 
-    const populatedEntry = await JournalEntry.findById(entry._id)
-        .populate('lines.accountId', 'code name');
+    if (!creditAccount.isActive) {
+        return res.status(400).json({
+            success: false,
+            error: `Credit account ${creditAccount.code} is inactive`
+        });
+    }
 
-    res.status(201).json({
-        success: true,
-        data: {
-            ...populatedEntry.toObject(),
-            totalDebit: populatedEntry.totalDebit,
-            totalCredit: populatedEntry.totalCredit,
-            isBalanced: populatedEntry.isBalanced
-        }
-    });
+    // MongoDB Transaction
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    try {
+        const entry = await JournalEntry.createSimpleEntry({
+            firmId: req.user?.firmId,
+            date,
+            description,
+            descriptionAr,
+            debitAccountId,
+            creditAccountId,
+            amount: parsedAmount,
+            caseId,
+            notes,
+            entryType,
+            createdBy: req.user?._id
+        }, session);
+
+        const populatedEntry = await JournalEntry.findById(entry._id)
+            .populate('lines.accountId', 'code name')
+            .session(session);
+
+        await session.commitTransaction();
+
+        res.status(201).json({
+            success: true,
+            data: {
+                ...populatedEntry.toObject(),
+                totalDebit: populatedEntry.totalDebit,
+                totalCredit: populatedEntry.totalCredit,
+                isBalanced: populatedEntry.isBalanced
+            }
+        });
+    } catch (error) {
+        await session.abortTransaction();
+        throw error;
+    } finally {
+        session.endSession();
+    }
 });
 
 module.exports = {

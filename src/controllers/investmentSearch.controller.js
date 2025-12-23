@@ -1,5 +1,6 @@
 const { CustomException } = require('../utils');
 const asyncHandler = require('../utils/asyncHandler');
+const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 const { priceService } = require('../services/priceService');
 const {
     findSymbol,
@@ -22,10 +23,36 @@ const {
 const searchInvestmentSymbols = asyncHandler(async (req, res) => {
     const { q, market, type, limit = 20 } = req.query;
 
-    const results = searchSymbols(q || '', {
+    // Validate and sanitize search query
+    if (q && typeof q !== 'string') {
+        throw CustomException('Invalid search query format', 400);
+    }
+
+    // Sanitize search term to prevent injection
+    const sanitizedQuery = q ? q.trim().replace(/[<>{}$]/g, '').substring(0, 100) : '';
+
+    // Validate market parameter
+    const validMarkets = ['tadawul', 'us', 'forex', 'crypto', 'commodities'];
+    if (market && !validMarkets.includes(market)) {
+        throw CustomException(`Invalid market. Valid options: ${validMarkets.join(', ')}`, 400);
+    }
+
+    // Validate type parameter
+    const validTypes = ['stock', 'reit', 'etf', 'forex', 'crypto', 'commodity'];
+    if (type && !validTypes.includes(type)) {
+        throw CustomException(`Invalid type. Valid options: ${validTypes.join(', ')}`, 400);
+    }
+
+    // Validate and sanitize limit
+    const parsedLimit = parseInt(limit);
+    if (isNaN(parsedLimit) || parsedLimit < 1 || parsedLimit > 100) {
+        throw CustomException('Limit must be a number between 1 and 100', 400);
+    }
+
+    const results = searchSymbols(sanitizedQuery, {
         market,
         type,
-        limit: parseInt(limit)
+        limit: parsedLimit
     });
 
     return res.json({
@@ -45,8 +72,16 @@ const getQuote = asyncHandler(async (req, res) => {
         throw CustomException('Symbol is required', 400);
     }
 
+    // Validate symbol format (alphanumeric, dots, hyphens only)
+    if (typeof symbol !== 'string' || !/^[A-Za-z0-9.\-]+$/.test(symbol) || symbol.length > 20) {
+        throw CustomException('Invalid symbol format', 400);
+    }
+
+    // Sanitize symbol - uppercase and trim
+    const sanitizedSymbol = symbol.trim().toUpperCase();
+
     // Find symbol in database
-    const symbolInfo = findSymbol(symbol);
+    const symbolInfo = findSymbol(sanitizedSymbol);
 
     if (!symbolInfo) {
         throw CustomException('Symbol not found in database', 404);
@@ -93,7 +128,21 @@ const getBatchQuotes = asyncHandler(async (req, res) => {
         throw CustomException('Maximum 20 symbols allowed per request', 400);
     }
 
-    const { results, errors } = await priceService.getBatchPrices(symbols);
+    // Validate and sanitize each symbol
+    const sanitizedSymbols = symbols.map((symbol, index) => {
+        if (typeof symbol !== 'string') {
+            throw CustomException(`Symbol at index ${index} must be a string`, 400);
+        }
+
+        // Validate symbol format
+        if (!/^[A-Za-z0-9.\-]+$/.test(symbol) || symbol.length > 20) {
+            throw CustomException(`Invalid symbol format at index ${index}`, 400);
+        }
+
+        return symbol.trim().toUpperCase();
+    });
+
+    const { results, errors } = await priceService.getBatchPrices(sanitizedSymbols);
 
     const quotes = {};
     for (const [symbol, quote] of results) {
@@ -228,6 +277,14 @@ const getTypes = asyncHandler(async (req, res) => {
 const getSectors = asyncHandler(async (req, res) => {
     const { market } = req.query;
 
+    // Validate market parameter if provided
+    if (market) {
+        const validMarkets = ['tadawul', 'us', 'forex', 'crypto', 'commodities'];
+        if (!validMarkets.includes(market)) {
+            throw CustomException(`Invalid market. Valid options: ${validMarkets.join(', ')}`, 400);
+        }
+    }
+
     let symbols = ALL_SYMBOLS;
     if (market) {
         symbols = getSymbolsByMarket(market);
@@ -259,7 +316,20 @@ const getSectors = asyncHandler(async (req, res) => {
 const getSymbolDetails = asyncHandler(async (req, res) => {
     const { symbol } = req.params;
 
-    const symbolInfo = findSymbol(symbol);
+    // Validate symbol format
+    if (!symbol || typeof symbol !== 'string') {
+        throw CustomException('Symbol is required', 400);
+    }
+
+    // Validate symbol format (alphanumeric, dots, hyphens only)
+    if (!/^[A-Za-z0-9.\-]+$/.test(symbol) || symbol.length > 20) {
+        throw CustomException('Invalid symbol format', 400);
+    }
+
+    // Sanitize symbol - uppercase and trim
+    const sanitizedSymbol = symbol.trim().toUpperCase();
+
+    const symbolInfo = findSymbol(sanitizedSymbol);
     if (!symbolInfo) {
         throw CustomException('Symbol not found', 404);
     }
@@ -281,7 +351,7 @@ const getSymbolDetails = asyncHandler(async (req, res) => {
             lastUpdated: quoteData.lastUpdated
         };
     } catch (error) {
-        console.error(`Failed to get quote for ${symbol}:`, error.message);
+        console.error(`Failed to get quote for ${sanitizedSymbol}:`, error.message);
     }
 
     return res.json({

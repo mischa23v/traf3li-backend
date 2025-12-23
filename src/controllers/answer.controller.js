@@ -1,26 +1,47 @@
 const { Answer, Question, User } = require('../models');
 const { CustomException } = require('../utils');
+const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 
 // Create answer
 const createAnswer = async (request, response) => {
-    const { questionId, content } = request.body;
     try {
+        // Input validation
+        const { questionId, content } = request.body;
+
+        if (!questionId || !content) {
+            throw CustomException('Question ID and content are required!', 400);
+        }
+
+        if (typeof content !== 'string' || content.trim().length === 0) {
+            throw CustomException('Content must be a non-empty string!', 400);
+        }
+
+        if (content.length > 10000) {
+            throw CustomException('Content is too long (max 10000 characters)!', 400);
+        }
+
+        // Sanitize IDs
+        const sanitizedQuestionId = sanitizeObjectId(questionId);
+
         // Check if user is a lawyer
         const user = await User.findById(request.userID);
         if (user.role !== 'lawyer') {
             throw CustomException('Only lawyers can answer questions!', 403);
         }
 
+        // Mass assignment protection - only allow specific fields
+        const allowedFields = pickAllowedFields(request.body, ['content']);
+
         const answer = new Answer({
-            questionId,
+            questionId: sanitizedQuestionId,
             lawyerId: request.userID,
-            content
+            ...allowedFields
         });
 
         await answer.save();
 
         // Add answer to question
-        await Question.findByIdAndUpdate(questionId, {
+        await Question.findByIdAndUpdate(sanitizedQuestionId, {
             $push: { answers: answer._id },
             status: 'answered'
         });
@@ -42,7 +63,10 @@ const createAnswer = async (request, response) => {
 const getAnswers = async (request, response) => {
     const { questionId } = request.params;
     try {
-        const answers = await Answer.find({ questionId })
+        // Sanitize ID
+        const sanitizedQuestionId = sanitizeObjectId(questionId);
+
+        const answers = await Answer.find({ questionId: sanitizedQuestionId })
             .populate('lawyerId', 'username image lawyerProfile')
             .sort({ verified: -1, likes: -1, createdAt: -1 });
 
@@ -62,19 +86,36 @@ const getAnswers = async (request, response) => {
 const updateAnswer = async (request, response) => {
     const { _id } = request.params;
     try {
-        const answer = await Answer.findById(_id);
+        // Sanitize ID
+        const sanitizedId = sanitizeObjectId(_id);
+
+        // Input validation for content if provided
+        if (request.body.content !== undefined) {
+            if (typeof request.body.content !== 'string' || request.body.content.trim().length === 0) {
+                throw CustomException('Content must be a non-empty string!', 400);
+            }
+            if (request.body.content.length > 10000) {
+                throw CustomException('Content is too long (max 10000 characters)!', 400);
+            }
+        }
+
+        const answer = await Answer.findById(sanitizedId);
 
         if (!answer) {
             throw CustomException('Answer not found!', 404);
         }
 
+        // IDOR protection - verify ownership
         if (answer.lawyerId.toString() !== request.userID) {
             throw CustomException('You can only update your own answers!', 403);
         }
 
+        // Mass assignment protection - only allow specific fields
+        const allowedFields = pickAllowedFields(request.body, ['content']);
+
         const updatedAnswer = await Answer.findByIdAndUpdate(
-            _id,
-            { $set: request.body },
+            sanitizedId,
+            { $set: allowedFields },
             { new: true }
         );
 
@@ -95,22 +136,26 @@ const updateAnswer = async (request, response) => {
 const deleteAnswer = async (request, response) => {
     const { _id } = request.params;
     try {
-        const answer = await Answer.findById(_id);
+        // Sanitize ID
+        const sanitizedId = sanitizeObjectId(_id);
+
+        const answer = await Answer.findById(sanitizedId);
 
         if (!answer) {
             throw CustomException('Answer not found!', 404);
         }
 
+        // IDOR protection - verify ownership
         if (answer.lawyerId.toString() !== request.userID) {
             throw CustomException('You can only delete your own answers!', 403);
         }
 
         // Remove from question
         await Question.findByIdAndUpdate(answer.questionId, {
-            $pull: { answers: _id }
+            $pull: { answers: sanitizedId }
         });
 
-        await Answer.deleteOne({ _id });
+        await Answer.deleteOne({ _id: sanitizedId });
 
         return response.send({
             error: false,
@@ -128,8 +173,11 @@ const deleteAnswer = async (request, response) => {
 const likeAnswer = async (request, response) => {
     const { _id } = request.params;
     try {
+        // Sanitize ID
+        const sanitizedId = sanitizeObjectId(_id);
+
         const answer = await Answer.findByIdAndUpdate(
-            _id,
+            sanitizedId,
             { $inc: { likes: 1 } },
             { new: true }
         );
@@ -155,8 +203,11 @@ const likeAnswer = async (request, response) => {
 const verifyAnswer = async (request, response) => {
     const { _id } = request.params;
     try {
+        // Sanitize ID
+        const sanitizedId = sanitizeObjectId(_id);
+
         const answer = await Answer.findByIdAndUpdate(
-            _id,
+            sanitizedId,
             { verified: true },
             { new: true }
         );

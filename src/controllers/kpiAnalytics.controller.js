@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 const { Case, Invoice, Document, User } = require('../models');
 const TimeEntry = require('../models/timeEntry.model');
 const { CustomException } = require('../utils');
+const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 
 /**
  * Get KPI Dashboard - All key metrics for firm performance
@@ -16,8 +17,20 @@ const getKPIDashboard = async (req, res) => {
             throw CustomException('Firm ID is required', 400);
         }
 
+        // Sanitize and validate firmId to prevent injection
+        const sanitizedFirmId = sanitizeObjectId(firmId);
+        if (!sanitizedFirmId) {
+            throw CustomException('Invalid Firm ID', 400);
+        }
+
+        // Validate period parameter
+        const periodNum = parseInt(period);
+        if (isNaN(periodNum) || periodNum < 1 || periodNum > 365) {
+            throw CustomException('Period must be between 1 and 365 days', 400);
+        }
+
         const startDate = new Date();
-        startDate.setDate(startDate.getDate() - parseInt(period));
+        startDate.setDate(startDate.getDate() - periodNum);
 
         // Parallel queries for performance
         const [
@@ -27,7 +40,7 @@ const getKPIDashboard = async (req, res) => {
         ] = await Promise.all([
             // Case Throughput Stats
             Case.aggregate([
-                { $match: { firmId: new mongoose.Types.ObjectId(firmId) } },
+                { $match: { firmId: sanitizedFirmId } },
                 {
                     $group: {
                         _id: null,
@@ -83,7 +96,7 @@ const getKPIDashboard = async (req, res) => {
 
             // Revenue Stats
             Invoice.aggregate([
-                { $match: { firmId: new mongoose.Types.ObjectId(firmId) } },
+                { $match: { firmId: sanitizedFirmId } },
                 {
                     $group: {
                         _id: null,
@@ -112,17 +125,17 @@ const getKPIDashboard = async (req, res) => {
             // User Activation Stats (time entries, documents)
             Promise.all([
                 TimeEntry.countDocuments({
-                    firmId: new mongoose.Types.ObjectId(firmId),
+                    firmId: sanitizedFirmId,
                     createdAt: { $gte: startDate }
                 }),
                 Document.countDocuments({
-                    firmId: new mongoose.Types.ObjectId(firmId),
+                    firmId: sanitizedFirmId,
                     createdAt: { $gte: startDate }
                 }),
                 TimeEntry.aggregate([
                     {
                         $match: {
-                            firmId: new mongoose.Types.ObjectId(firmId),
+                            firmId: sanitizedFirmId,
                             createdAt: { $gte: startDate }
                         }
                     },
@@ -196,7 +209,7 @@ const getKPIDashboard = async (req, res) => {
                 },
 
                 // Meta
-                period: parseInt(period),
+                period: periodNum,
                 generatedAt: new Date()
             }
         });
@@ -218,18 +231,60 @@ const getRevenueByCase = async (req, res) => {
             throw CustomException('Firm ID is required', 400);
         }
 
+        // Sanitize and validate firmId to prevent injection
+        const sanitizedFirmId = sanitizeObjectId(firmId);
+        if (!sanitizedFirmId) {
+            throw CustomException('Invalid Firm ID', 400);
+        }
+
+        // Validate pagination parameters
+        const limitNum = parseInt(limit);
+        const pageNum = parseInt(page);
+        if (isNaN(limitNum) || limitNum < 1 || limitNum > 100) {
+            throw CustomException('Limit must be between 1 and 100', 400);
+        }
+        if (isNaN(pageNum) || pageNum < 1) {
+            throw CustomException('Page must be greater than 0', 400);
+        }
+
         const matchStage = {
-            firmId: new mongoose.Types.ObjectId(firmId),
+            firmId: sanitizedFirmId,
             caseId: { $exists: true, $ne: null }
         };
 
+        // Validate and sanitize date range
         if (startDate || endDate) {
             matchStage.createdAt = {};
-            if (startDate) matchStage.createdAt.$gte = new Date(startDate);
-            if (endDate) matchStage.createdAt.$lte = new Date(endDate);
+
+            if (startDate) {
+                const start = new Date(startDate);
+                if (isNaN(start.getTime())) {
+                    throw CustomException('Invalid start date format', 400);
+                }
+                if (start > new Date()) {
+                    throw CustomException('Start date cannot be in the future', 400);
+                }
+                matchStage.createdAt.$gte = start;
+            }
+
+            if (endDate) {
+                const end = new Date(endDate);
+                if (isNaN(end.getTime())) {
+                    throw CustomException('Invalid end date format', 400);
+                }
+                if (end > new Date()) {
+                    throw CustomException('End date cannot be in the future', 400);
+                }
+                matchStage.createdAt.$lte = end;
+            }
+
+            // Validate date range order
+            if (startDate && endDate && matchStage.createdAt.$gte > matchStage.createdAt.$lte) {
+                throw CustomException('Start date must be before end date', 400);
+            }
         }
 
-        const skip = (parseInt(page) - 1) * parseInt(limit);
+        const skip = (pageNum - 1) * limitNum;
 
         const revenueByCase = await Invoice.aggregate([
             { $match: matchStage },
@@ -245,8 +300,19 @@ const getRevenueByCase = async (req, res) => {
             {
                 $lookup: {
                     from: 'cases',
-                    localField: '_id',
-                    foreignField: '_id',
+                    let: { caseId: '$_id' },
+                    pipeline: [
+                        {
+                            $match: {
+                                $expr: {
+                                    $and: [
+                                        { $eq: ['$_id', '$$caseId'] },
+                                        { $eq: ['$firmId', sanitizedFirmId] }
+                                    ]
+                                }
+                            }
+                        }
+                    ],
                     as: 'case'
                 }
             },
@@ -274,7 +340,7 @@ const getRevenueByCase = async (req, res) => {
             },
             { $sort: { totalInvoiced: -1 } },
             { $skip: skip },
-            { $limit: parseInt(limit) }
+            { $limit: limitNum }
         ]);
 
         // Get total count for pagination
@@ -290,10 +356,10 @@ const getRevenueByCase = async (req, res) => {
             error: false,
             data: revenueByCase,
             pagination: {
-                page: parseInt(page),
-                limit: parseInt(limit),
+                page: pageNum,
+                limit: limitNum,
                 total,
-                pages: Math.ceil(total / parseInt(limit))
+                pages: Math.ceil(total / limitNum)
             }
         });
     } catch ({ message, status = 500 }) {
@@ -314,8 +380,26 @@ const getCaseThroughput = async (req, res) => {
             throw CustomException('Firm ID is required', 400);
         }
 
+        // Sanitize and validate firmId to prevent injection
+        const sanitizedFirmId = sanitizeObjectId(firmId);
+        if (!sanitizedFirmId) {
+            throw CustomException('Invalid Firm ID', 400);
+        }
+
+        // Validate period parameter
+        const periodNum = parseInt(period);
+        if (isNaN(periodNum) || periodNum < 1 || periodNum > 365) {
+            throw CustomException('Period must be between 1 and 365 days', 400);
+        }
+
+        // Validate groupBy parameter
+        const allowedGroupBy = ['day', 'week', 'month'];
+        if (!allowedGroupBy.includes(groupBy)) {
+            throw CustomException('GroupBy must be one of: day, week, month', 400);
+        }
+
         const startDate = new Date();
-        startDate.setDate(startDate.getDate() - parseInt(period));
+        startDate.setDate(startDate.getDate() - periodNum);
 
         // Get cases grouped by time period
         const dateGroupFormat = groupBy === 'day'
@@ -332,7 +416,7 @@ const getCaseThroughput = async (req, res) => {
         const throughputData = await Case.aggregate([
             {
                 $match: {
-                    firmId: new mongoose.Types.ObjectId(firmId),
+                    firmId: sanitizedFirmId,
                     createdAt: { $gte: startDate }
                 }
             },
@@ -355,7 +439,7 @@ const getCaseThroughput = async (req, res) => {
         const byCategory = await Case.aggregate([
             {
                 $match: {
-                    firmId: new mongoose.Types.ObjectId(firmId),
+                    firmId: sanitizedFirmId,
                     createdAt: { $gte: startDate }
                 }
             },
@@ -378,7 +462,7 @@ const getCaseThroughput = async (req, res) => {
         const byOutcome = await Case.aggregate([
             {
                 $match: {
-                    firmId: new mongoose.Types.ObjectId(firmId),
+                    firmId: sanitizedFirmId,
                     outcome: { $exists: true, $ne: null }
                 }
             },
@@ -398,7 +482,7 @@ const getCaseThroughput = async (req, res) => {
                 timeline: throughputData,
                 byCategory,
                 byOutcome,
-                period: parseInt(period),
+                period: periodNum,
                 groupBy
             }
         });
@@ -420,8 +504,20 @@ const getUserActivation = async (req, res) => {
             throw CustomException('Firm ID is required', 400);
         }
 
+        // Sanitize and validate firmId to prevent injection
+        const sanitizedFirmId = sanitizeObjectId(firmId);
+        if (!sanitizedFirmId) {
+            throw CustomException('Invalid Firm ID', 400);
+        }
+
+        // Validate period parameter
+        const periodNum = parseInt(period);
+        if (isNaN(periodNum) || periodNum < 1 || periodNum > 365) {
+            throw CustomException('Period must be between 1 and 365 days', 400);
+        }
+
         const startDate = new Date();
-        startDate.setDate(startDate.getDate() - parseInt(period));
+        startDate.setDate(startDate.getDate() - periodNum);
 
         // Get user activity breakdown
         const [timeEntryStats, documentStats, caseActivityStats] = await Promise.all([
@@ -429,7 +525,7 @@ const getUserActivation = async (req, res) => {
             TimeEntry.aggregate([
                 {
                     $match: {
-                        firmId: new mongoose.Types.ObjectId(firmId),
+                        firmId: sanitizedFirmId,
                         createdAt: { $gte: startDate }
                     }
                 },
@@ -448,8 +544,19 @@ const getUserActivation = async (req, res) => {
                 {
                     $lookup: {
                         from: 'users',
-                        localField: '_id',
-                        foreignField: '_id',
+                        let: { userId: '$_id' },
+                        pipeline: [
+                            {
+                                $match: {
+                                    $expr: {
+                                        $and: [
+                                            { $eq: ['$_id', '$$userId'] },
+                                            { $eq: ['$firmId', sanitizedFirmId] }
+                                        ]
+                                    }
+                                }
+                            }
+                        ],
                         as: 'user'
                     }
                 },
@@ -470,7 +577,7 @@ const getUserActivation = async (req, res) => {
             Document.aggregate([
                 {
                     $match: {
-                        firmId: new mongoose.Types.ObjectId(firmId),
+                        firmId: sanitizedFirmId,
                         createdAt: { $gte: startDate }
                     }
                 },
@@ -483,8 +590,19 @@ const getUserActivation = async (req, res) => {
                 {
                     $lookup: {
                         from: 'users',
-                        localField: '_id',
-                        foreignField: '_id',
+                        let: { userId: '$_id' },
+                        pipeline: [
+                            {
+                                $match: {
+                                    $expr: {
+                                        $and: [
+                                            { $eq: ['$_id', '$$userId'] },
+                                            { $eq: ['$firmId', sanitizedFirmId] }
+                                        ]
+                                    }
+                                }
+                            }
+                        ],
                         as: 'user'
                     }
                 },
@@ -503,7 +621,7 @@ const getUserActivation = async (req, res) => {
             Case.aggregate([
                 {
                     $match: {
-                        firmId: new mongoose.Types.ObjectId(firmId),
+                        firmId: sanitizedFirmId,
                         createdAt: { $gte: startDate }
                     }
                 },
@@ -521,8 +639,19 @@ const getUserActivation = async (req, res) => {
                 {
                     $lookup: {
                         from: 'users',
-                        localField: '_id',
-                        foreignField: '_id',
+                        let: { userId: '$_id' },
+                        pipeline: [
+                            {
+                                $match: {
+                                    $expr: {
+                                        $and: [
+                                            { $eq: ['$_id', '$$userId'] },
+                                            { $eq: ['$firmId', sanitizedFirmId] }
+                                        ]
+                                    }
+                                }
+                            }
+                        ],
                         as: 'user'
                     }
                 },
@@ -545,7 +674,7 @@ const getUserActivation = async (req, res) => {
                 timeEntries: timeEntryStats,
                 documents: documentStats,
                 cases: caseActivityStats,
-                period: parseInt(period)
+                period: periodNum
             }
         });
     } catch ({ message, status = 500 }) {

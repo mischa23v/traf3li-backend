@@ -1,4 +1,6 @@
 const mongoose = require('mongoose');
+const sanitizeHtml = require('sanitize-html');
+const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 const CaseNotionPage = require('../models/caseNotionPage.model');
 const CaseNotionBlock = require('../models/caseNotionBlock.model');
 const BlockConnection = require('../models/blockConnection.model');
@@ -9,6 +11,100 @@ const PageActivity = require('../models/pageActivity.model');
 const Task = require('../models/task.model');
 const Case = require('../models/case.model');
 const PageHistory = require('../models/pageHistory.model');
+
+// ═══════════════════════════════════════════════════════════════
+// SECURITY HELPERS
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Sanitize HTML content to prevent XSS attacks
+ */
+const sanitizeContent = (content) => {
+    if (typeof content !== 'string') {
+        return content;
+    }
+
+    return sanitizeHtml(content, {
+        allowedTags: sanitizeHtml.defaults.allowedTags.concat(['img', 'h1', 'h2', 'h3', 'span', 'div']),
+        allowedAttributes: {
+            ...sanitizeHtml.defaults.allowedAttributes,
+            '*': ['class', 'style'],
+            'img': ['src', 'alt', 'width', 'height']
+        },
+        allowedSchemes: ['http', 'https', 'mailto', 'data']
+    });
+};
+
+/**
+ * Verify case ownership - IDOR protection
+ */
+const verifyCaseOwnership = async (caseId, user) => {
+    const sanitizedCaseId = sanitizeObjectId(caseId);
+    if (!sanitizedCaseId) {
+        throw new Error('Invalid case ID');
+    }
+
+    const caseDoc = await Case.findById(sanitizedCaseId);
+    if (!caseDoc) {
+        throw new Error('Case not found');
+    }
+
+    // Check if user has access to this case
+    const userId = user._id.toString();
+    const firmId = user.firmId?.toString();
+    const caseFirmId = caseDoc.firmId?.toString();
+    const caseLawyerId = caseDoc.lawyerId?.toString();
+
+    const hasAccess =
+        (firmId && firmId === caseFirmId) ||
+        userId === caseLawyerId;
+
+    if (!hasAccess) {
+        throw new Error('Unauthorized access to case');
+    }
+
+    return caseDoc;
+};
+
+/**
+ * Verify page ownership - IDOR protection
+ */
+const verifyPageOwnership = async (pageId, user) => {
+    const sanitizedPageId = sanitizeObjectId(pageId);
+    if (!sanitizedPageId) {
+        throw new Error('Invalid page ID');
+    }
+
+    const page = await CaseNotionPage.findById(sanitizedPageId);
+    if (!page || page.deletedAt) {
+        throw new Error('Page not found');
+    }
+
+    // Verify the associated case ownership
+    await verifyCaseOwnership(page.caseId, user);
+
+    return page;
+};
+
+/**
+ * Verify block ownership - IDOR protection
+ */
+const verifyBlockOwnership = async (blockId, user) => {
+    const sanitizedBlockId = sanitizeObjectId(blockId);
+    if (!sanitizedBlockId) {
+        throw new Error('Invalid block ID');
+    }
+
+    const block = await CaseNotionBlock.findById(sanitizedBlockId);
+    if (!block) {
+        throw new Error('Block not found');
+    }
+
+    // Verify the associated page and case ownership
+    await verifyPageOwnership(block.pageId, user);
+
+    return block;
+};
 
 // ═══════════════════════════════════════════════════════════════
 // CASE LIST WITH NOTION STATS (for /dashboard/notion page)
@@ -145,6 +241,10 @@ exports.listCasesWithNotion = async (req, res) => {
 exports.listPages = async (req, res) => {
     try {
         const { caseId } = req.params;
+
+        // IDOR Protection: Verify case ownership
+        await verifyCaseOwnership(caseId, req.user);
+
         const { pageType, search, isFavorite, isPinned, isArchived, page = 1, limit = 50 } = req.query;
         const userId = req.userID || req.user?._id;
 
@@ -218,37 +318,23 @@ exports.listPages = async (req, res) => {
 exports.getPage = async (req, res) => {
     try {
         const { caseId, pageId } = req.params;
-        const userId = req.userID || req.user?._id;
 
-        const query = {
-            _id: pageId,
-            caseId,
-            deletedAt: null
-        };
+        // IDOR Protection: Verify case and page ownership
+        await verifyCaseOwnership(caseId, req.user);
+        const page = await verifyPageOwnership(pageId, req.user);
 
-        // Add firm/lawyer filter - include pages from firm OR created by user
-        if (req.user?.firmId) {
-            query.$or = [
-                { firmId: req.user.firmId },
-                { lawyerId: userId },
-                { createdBy: userId }
-            ];
-        } else {
-            query.$or = [
-                { lawyerId: userId },
-                { createdBy: userId }
-            ];
+        // Verify page belongs to the specified case
+        if (page.caseId.toString() !== caseId) {
+            return res.status(404).json({ error: true, message: 'Page not found in this case' });
         }
 
-        const page = await CaseNotionPage.findOne(query)
-            .populate('createdBy', 'firstName lastName')
-            .populate('lastEditedBy', 'firstName lastName')
-            .populate('parentPageId', 'title titleAr')
-            .populate('childPageIds', 'title titleAr icon');
-
-        if (!page) {
-            return res.status(404).json({ error: true, message: 'Page not found' });
-        }
+        // Populate related data
+        await page.populate([
+            { path: 'createdBy', select: 'firstName lastName' },
+            { path: 'lastEditedBy', select: 'firstName lastName' },
+            { path: 'parentPageId', select: 'title titleAr' },
+            { path: 'childPageIds', select: 'title titleAr icon' }
+        ]);
 
         // Get blocks with all whiteboard fields
         // Sort by zIndex for whiteboard, by order for document
@@ -336,16 +422,28 @@ exports.getPage = async (req, res) => {
 exports.createPage = async (req, res) => {
     try {
         const { caseId } = req.params;
-        const { title, titleAr, pageType, icon, cover, parentPageId, templateId } = req.body;
 
+        // IDOR Protection: Verify case ownership
+        await verifyCaseOwnership(caseId, req.user);
+
+        // Mass Assignment Protection: Only allow specific fields
+        const allowedFields = ['title', 'titleAr', 'pageType', 'icon', 'cover', 'parentPageId', 'templateId'];
+        const safeData = pickAllowedFields(req.body, allowedFields);
+
+        // Input Validation
+        if (!safeData.title || typeof safeData.title !== 'string') {
+            return res.status(400).json({ error: true, message: 'Valid title is required' });
+        }
+
+        // XSS Prevention: Sanitize content fields
         const pageData = {
             caseId,
-            title,
-            titleAr,
-            pageType: pageType || 'general',
-            icon,
-            cover,
-            parentPageId,
+            title: sanitizeContent(safeData.title),
+            titleAr: safeData.titleAr ? sanitizeContent(safeData.titleAr) : undefined,
+            pageType: safeData.pageType || 'general',
+            icon: safeData.icon,
+            cover: safeData.cover,
+            parentPageId: safeData.parentPageId ? sanitizeObjectId(safeData.parentPageId) : undefined,
             createdBy: req.user._id,
             lastEditedBy: req.user._id
         };
@@ -360,13 +458,18 @@ exports.createPage = async (req, res) => {
         await page.save();
 
         // If templateId provided, apply template
-        if (templateId) {
-            await applyTemplateToPage(page._id, templateId, req.user._id);
+        if (safeData.templateId) {
+            const sanitizedTemplateId = sanitizeObjectId(safeData.templateId);
+            if (sanitizedTemplateId) {
+                await applyTemplateToPage(page._id, sanitizedTemplateId, req.user._id);
+            }
         }
 
         // Update parent's childPageIds if has parent
-        if (parentPageId) {
-            await CaseNotionPage.findByIdAndUpdate(parentPageId, {
+        if (pageData.parentPageId) {
+            // Verify parent page ownership
+            await verifyPageOwnership(pageData.parentPageId, req.user);
+            await CaseNotionPage.findByIdAndUpdate(pageData.parentPageId, {
                 $push: { childPageIds: page._id }
             });
         }
@@ -388,7 +491,32 @@ exports.createPage = async (req, res) => {
 exports.updatePage = async (req, res) => {
     try {
         const { pageId } = req.params;
-        const updateData = req.body;
+
+        // IDOR Protection: Verify page ownership
+        await verifyPageOwnership(pageId, req.user);
+
+        // Mass Assignment Protection: Only allow specific fields
+        const allowedFields = [
+            'title', 'titleAr', 'pageType', 'icon', 'cover',
+            'isFavorite', 'isPinned', 'viewMode', 'whiteboardConfig',
+            'gridSize', 'snapToGrid', 'showGrid'
+        ];
+        const safeData = pickAllowedFields(req.body, allowedFields);
+
+        // XSS Prevention: Sanitize content fields
+        const updateData = {};
+        if (safeData.title) updateData.title = sanitizeContent(safeData.title);
+        if (safeData.titleAr) updateData.titleAr = sanitizeContent(safeData.titleAr);
+        if (safeData.pageType) updateData.pageType = safeData.pageType;
+        if (safeData.icon !== undefined) updateData.icon = safeData.icon;
+        if (safeData.cover !== undefined) updateData.cover = safeData.cover;
+        if (safeData.isFavorite !== undefined) updateData.isFavorite = safeData.isFavorite;
+        if (safeData.isPinned !== undefined) updateData.isPinned = safeData.isPinned;
+        if (safeData.viewMode) updateData.viewMode = safeData.viewMode;
+        if (safeData.whiteboardConfig) updateData.whiteboardConfig = safeData.whiteboardConfig;
+        if (safeData.gridSize !== undefined) updateData.gridSize = safeData.gridSize;
+        if (safeData.snapToGrid !== undefined) updateData.snapToGrid = safeData.snapToGrid;
+        if (safeData.showGrid !== undefined) updateData.showGrid = safeData.showGrid;
 
         const page = await CaseNotionPage.findByIdAndUpdate(
             pageId,
@@ -426,15 +554,11 @@ exports.deletePage = async (req, res) => {
     try {
         const { pageId } = req.params;
 
-        const page = await CaseNotionPage.findByIdAndUpdate(
-            pageId,
-            { deletedAt: new Date() },
-            { new: true }
-        );
+        // IDOR Protection: Verify page ownership
+        const page = await verifyPageOwnership(pageId, req.user);
 
-        if (!page) {
-            return res.status(404).json({ error: true, message: 'Page not found' });
-        }
+        page.deletedAt = new Date();
+        await page.save();
 
         // Log activity
         await PageActivity.create({
@@ -677,6 +801,9 @@ exports.getBlocks = async (req, res) => {
     try {
         const { pageId } = req.params;
 
+        // IDOR Protection: Verify page ownership
+        await verifyPageOwnership(pageId, req.user);
+
         const blocks = await CaseNotionBlock.find({ pageId })
             .sort({ order: 1 })
             .populate('lastEditedBy', 'firstName lastName')
@@ -691,42 +818,76 @@ exports.getBlocks = async (req, res) => {
 exports.createBlock = async (req, res) => {
     try {
         const { pageId } = req.params;
-        const { type, content, properties, parentId, afterBlockId, canvasX, canvasY, canvasWidth, canvasHeight, blockColor } = req.body;
 
-        // Get page to check if it's whiteboard mode
-        const page = await CaseNotionPage.findById(pageId);
-        if (!page) {
-            return res.status(404).json({ error: true, message: 'Page not found' });
+        // IDOR Protection: Verify page ownership
+        const page = await verifyPageOwnership(pageId, req.user);
+
+        // Mass Assignment Protection: Only allow specific fields
+        const allowedFields = [
+            'type', 'content', 'properties', 'parentId', 'afterBlockId',
+            'canvasX', 'canvasY', 'canvasWidth', 'canvasHeight', 'blockColor',
+            'checked', 'language', 'icon', 'color', 'tableData', 'fileUrl',
+            'fileName', 'caption', 'indent'
+        ];
+        const safeData = pickAllowedFields(req.body, allowedFields);
+
+        // Input Validation
+        if (!safeData.type || typeof safeData.type !== 'string') {
+            return res.status(400).json({ error: true, message: 'Valid block type is required' });
         }
 
         // Determine order
         let order = 0;
-        if (afterBlockId) {
-            const afterBlock = await CaseNotionBlock.findById(afterBlockId);
-            if (afterBlock) {
-                order = afterBlock.order + 1;
-                // Shift subsequent blocks
-                await CaseNotionBlock.updateMany(
-                    { pageId, order: { $gte: order } },
-                    { $inc: { order: 1 } }
-                );
+        if (safeData.afterBlockId) {
+            const sanitizedAfterId = sanitizeObjectId(safeData.afterBlockId);
+            if (sanitizedAfterId) {
+                const afterBlock = await CaseNotionBlock.findById(sanitizedAfterId);
+                if (afterBlock) {
+                    // Verify the afterBlock belongs to the same page
+                    if (afterBlock.pageId.toString() !== pageId) {
+                        return res.status(400).json({ error: true, message: 'Invalid afterBlockId' });
+                    }
+                    order = afterBlock.order + 1;
+                    // Shift subsequent blocks
+                    await CaseNotionBlock.updateMany(
+                        { pageId, order: { $gte: order } },
+                        { $inc: { order: 1 } }
+                    );
+                }
             }
         } else {
             const lastBlock = await CaseNotionBlock.findOne({ pageId }).sort({ order: -1 });
             order = lastBlock ? lastBlock.order + 1 : 0;
         }
 
+        // XSS Prevention: Sanitize content
+        let sanitizedContent = safeData.content;
+        if (typeof sanitizedContent === 'string') {
+            sanitizedContent = sanitizeContent(sanitizedContent);
+        }
+
         // Build block data
         const blockData = {
             pageId,
-            type,
-            content,
-            properties,
-            parentId,
+            type: safeData.type,
+            content: sanitizedContent,
+            properties: safeData.properties || {},
+            parentId: safeData.parentId ? sanitizeObjectId(safeData.parentId) : undefined,
             order,
             lastEditedBy: req.user._id,
             lastEditedAt: new Date()
         };
+
+        // Add optional fields if provided
+        if (safeData.checked !== undefined) blockData.checked = safeData.checked;
+        if (safeData.language) blockData.language = safeData.language;
+        if (safeData.icon) blockData.icon = safeData.icon;
+        if (safeData.color) blockData.color = safeData.color;
+        if (safeData.tableData) blockData.tableData = safeData.tableData;
+        if (safeData.fileUrl) blockData.fileUrl = safeData.fileUrl;
+        if (safeData.fileName) blockData.fileName = sanitizeContent(safeData.fileName);
+        if (safeData.caption) blockData.caption = sanitizeContent(safeData.caption);
+        if (safeData.indent !== undefined) blockData.indent = safeData.indent;
 
         // Auto-calculate canvas position for whiteboard mode if not provided
         if (page.viewMode === 'whiteboard') {
@@ -739,11 +900,11 @@ exports.createBlock = async (req, res) => {
             const START_Y = 100;
 
             // Use provided position or calculate based on order
-            blockData.canvasX = canvasX !== undefined ? canvasX : START_X + (order % GRID_COLS) * (BLOCK_WIDTH + GAP_X);
-            blockData.canvasY = canvasY !== undefined ? canvasY : START_Y + Math.floor(order / GRID_COLS) * (BLOCK_HEIGHT + GAP_Y);
-            blockData.canvasWidth = canvasWidth || 200;
-            blockData.canvasHeight = canvasHeight || 150;
-            blockData.blockColor = blockColor || 'default';
+            blockData.canvasX = safeData.canvasX !== undefined ? safeData.canvasX : START_X + (order % GRID_COLS) * (BLOCK_WIDTH + GAP_X);
+            blockData.canvasY = safeData.canvasY !== undefined ? safeData.canvasY : START_Y + Math.floor(order / GRID_COLS) * (BLOCK_HEIGHT + GAP_Y);
+            blockData.canvasWidth = safeData.canvasWidth || 200;
+            blockData.canvasHeight = safeData.canvasHeight || 150;
+            blockData.blockColor = safeData.blockColor || 'default';
         }
 
         const block = await CaseNotionBlock.create(blockData);
@@ -755,7 +916,7 @@ exports.createBlock = async (req, res) => {
             userName: `${req.user.firstName} ${req.user.lastName}`,
             action: 'block_added',
             blockId: block._id,
-            details: { blockType: type }
+            details: { blockType: safeData.type }
         });
 
         res.status(201).json({ success: true, data: block });
@@ -768,13 +929,8 @@ exports.updateBlock = async (req, res) => {
     try {
         const { blockId } = req.params;
 
-        // Handle both formats: direct fields or wrapped in 'data' object
-        const inputData = req.body.data || req.body;
-
-        const block = await CaseNotionBlock.findById(blockId);
-        if (!block) {
-            return res.status(404).json({ error: true, message: 'Block not found' });
-        }
+        // IDOR Protection: Verify block ownership
+        const block = await verifyBlockOwnership(blockId, req.user);
 
         // Check if block is locked by another user
         if (block.lockedBy && block.lockedBy.toString() !== req.user._id.toString()) {
@@ -784,55 +940,82 @@ exports.updateBlock = async (req, res) => {
             });
         }
 
+        // Handle both formats: direct fields or wrapped in 'data' object
+        const inputData = req.body.data || req.body;
+
+        // Mass Assignment Protection: Only allow specific fields
+        const allowedFields = [
+            'content', 'type', 'order', 'indent', 'isCollapsed', 'checked',
+            'language', 'icon', 'color', 'tableData', 'fileUrl', 'fileName', 'caption',
+            'canvasX', 'canvasY', 'canvasWidth', 'canvasHeight', 'blockColor',
+            'priority', 'linkedEventId', 'linkedTaskId', 'linkedHearingId', 'linkedDocumentId',
+            'groupId', 'groupName', 'partyType', 'statementDate', 'evidenceType',
+            'evidenceDate', 'evidenceSource', 'citationType', 'citationReference',
+            'eventDate', 'eventType', 'properties'
+        ];
+        const safeInput = pickAllowedFields(inputData, allowedFields);
+
         // Build update object
         const updateData = {
             lastEditedBy: req.user._id,
             lastEditedAt: new Date()
         };
 
+        // XSS Prevention: Sanitize content fields
+        if (safeInput.content !== undefined) {
+            updateData.content = typeof safeInput.content === 'string'
+                ? sanitizeContent(safeInput.content)
+                : safeInput.content;
+        }
+        if (safeInput.fileName !== undefined) updateData.fileName = sanitizeContent(safeInput.fileName);
+        if (safeInput.caption !== undefined) updateData.caption = sanitizeContent(safeInput.caption);
+        if (safeInput.groupName !== undefined) updateData.groupName = sanitizeContent(safeInput.groupName);
+        if (safeInput.evidenceSource !== undefined) updateData.evidenceSource = sanitizeContent(safeInput.evidenceSource);
+        if (safeInput.citationReference !== undefined) updateData.citationReference = sanitizeContent(safeInput.citationReference);
+
         // Handle standard block fields
-        if (inputData.content !== undefined) updateData.content = inputData.content;
-        if (inputData.type !== undefined) updateData.type = inputData.type;
-        if (inputData.order !== undefined) updateData.order = inputData.order;
-        if (inputData.indent !== undefined) updateData.indent = inputData.indent;
-        if (inputData.isCollapsed !== undefined) updateData.isCollapsed = inputData.isCollapsed;
-        if (inputData.checked !== undefined) updateData.checked = inputData.checked;
-        if (inputData.language !== undefined) updateData.language = inputData.language;
-        if (inputData.icon !== undefined) updateData.icon = inputData.icon;
-        if (inputData.color !== undefined) updateData.color = inputData.color;
-        if (inputData.tableData !== undefined) updateData.tableData = inputData.tableData;
-        if (inputData.fileUrl !== undefined) updateData.fileUrl = inputData.fileUrl;
-        if (inputData.fileName !== undefined) updateData.fileName = inputData.fileName;
-        if (inputData.caption !== undefined) updateData.caption = inputData.caption;
+        if (safeInput.type !== undefined) updateData.type = safeInput.type;
+        if (safeInput.order !== undefined) updateData.order = safeInput.order;
+        if (safeInput.indent !== undefined) updateData.indent = safeInput.indent;
+        if (safeInput.isCollapsed !== undefined) updateData.isCollapsed = safeInput.isCollapsed;
+        if (safeInput.checked !== undefined) updateData.checked = safeInput.checked;
+        if (safeInput.language !== undefined) updateData.language = safeInput.language;
+        if (safeInput.icon !== undefined) updateData.icon = safeInput.icon;
+        if (safeInput.color !== undefined) updateData.color = safeInput.color;
+        if (safeInput.tableData !== undefined) updateData.tableData = safeInput.tableData;
+        if (safeInput.fileUrl !== undefined) updateData.fileUrl = safeInput.fileUrl;
 
         // Handle whiteboard fields from top-level
-        if (inputData.canvasX !== undefined) updateData.canvasX = inputData.canvasX;
-        if (inputData.canvasY !== undefined) updateData.canvasY = inputData.canvasY;
-        if (inputData.canvasWidth !== undefined) updateData.canvasWidth = inputData.canvasWidth;
-        if (inputData.canvasHeight !== undefined) updateData.canvasHeight = inputData.canvasHeight;
-        if (inputData.blockColor !== undefined) updateData.blockColor = inputData.blockColor;
-        if (inputData.priority !== undefined) updateData.priority = inputData.priority;
-        if (inputData.linkedEventId !== undefined) updateData.linkedEventId = inputData.linkedEventId;
-        if (inputData.linkedTaskId !== undefined) updateData.linkedTaskId = inputData.linkedTaskId;
-        if (inputData.linkedHearingId !== undefined) updateData.linkedHearingId = inputData.linkedHearingId;
-        if (inputData.linkedDocumentId !== undefined) updateData.linkedDocumentId = inputData.linkedDocumentId;
-        if (inputData.groupId !== undefined) updateData.groupId = inputData.groupId;
-        if (inputData.groupName !== undefined) updateData.groupName = inputData.groupName;
+        if (safeInput.canvasX !== undefined) updateData.canvasX = safeInput.canvasX;
+        if (safeInput.canvasY !== undefined) updateData.canvasY = safeInput.canvasY;
+        if (safeInput.canvasWidth !== undefined) updateData.canvasWidth = safeInput.canvasWidth;
+        if (safeInput.canvasHeight !== undefined) updateData.canvasHeight = safeInput.canvasHeight;
+        if (safeInput.blockColor !== undefined) updateData.blockColor = safeInput.blockColor;
+        if (safeInput.priority !== undefined) updateData.priority = safeInput.priority;
+        if (safeInput.linkedEventId !== undefined) updateData.linkedEventId = safeInput.linkedEventId;
+        if (safeInput.linkedTaskId !== undefined) updateData.linkedTaskId = safeInput.linkedTaskId;
+        if (safeInput.linkedHearingId !== undefined) updateData.linkedHearingId = safeInput.linkedHearingId;
+        if (safeInput.linkedDocumentId !== undefined) updateData.linkedDocumentId = safeInput.linkedDocumentId;
+        if (safeInput.groupId !== undefined) updateData.groupId = safeInput.groupId;
 
         // Handle legal-specific fields
-        if (inputData.partyType !== undefined) updateData.partyType = inputData.partyType;
-        if (inputData.statementDate !== undefined) updateData.statementDate = inputData.statementDate;
-        if (inputData.evidenceType !== undefined) updateData.evidenceType = inputData.evidenceType;
-        if (inputData.evidenceDate !== undefined) updateData.evidenceDate = inputData.evidenceDate;
-        if (inputData.evidenceSource !== undefined) updateData.evidenceSource = inputData.evidenceSource;
-        if (inputData.citationType !== undefined) updateData.citationType = inputData.citationType;
-        if (inputData.citationReference !== undefined) updateData.citationReference = inputData.citationReference;
-        if (inputData.eventDate !== undefined) updateData.eventDate = inputData.eventDate;
-        if (inputData.eventType !== undefined) updateData.eventType = inputData.eventType;
+        if (safeInput.partyType !== undefined) updateData.partyType = safeInput.partyType;
+        if (safeInput.statementDate !== undefined) updateData.statementDate = safeInput.statementDate;
+        if (safeInput.evidenceType !== undefined) updateData.evidenceType = safeInput.evidenceType;
+        if (safeInput.evidenceDate !== undefined) updateData.evidenceDate = safeInput.evidenceDate;
+        if (safeInput.citationType !== undefined) updateData.citationType = safeInput.citationType;
+        if (safeInput.eventDate !== undefined) updateData.eventDate = safeInput.eventDate;
+        if (safeInput.eventType !== undefined) updateData.eventType = safeInput.eventType;
 
         // Also handle nested 'properties' object for backwards compatibility
-        if (inputData.properties) {
-            const props = inputData.properties;
+        if (safeInput.properties) {
+            const allowedPropsFields = [
+                'canvasX', 'canvasY', 'canvasWidth', 'canvasHeight', 'blockColor',
+                'priority', 'linkedEventId', 'linkedTaskId', 'linkedHearingId',
+                'linkedDocumentId', 'groupId', 'groupName', 'eventDate',
+                'partyType', 'evidenceType'
+            ];
+            const props = pickAllowedFields(safeInput.properties, allowedPropsFields);
             if (props.canvasX !== undefined) updateData.canvasX = props.canvasX;
             if (props.canvasY !== undefined) updateData.canvasY = props.canvasY;
             if (props.canvasWidth !== undefined) updateData.canvasWidth = props.canvasWidth;
@@ -844,7 +1027,7 @@ exports.updateBlock = async (req, res) => {
             if (props.linkedHearingId !== undefined) updateData.linkedHearingId = props.linkedHearingId;
             if (props.linkedDocumentId !== undefined) updateData.linkedDocumentId = props.linkedDocumentId;
             if (props.groupId !== undefined) updateData.groupId = props.groupId;
-            if (props.groupName !== undefined) updateData.groupName = props.groupName;
+            if (props.groupName !== undefined) updateData.groupName = sanitizeContent(props.groupName);
             if (props.eventDate !== undefined) updateData.eventDate = props.eventDate;
             if (props.partyType !== undefined) updateData.partyType = props.partyType;
             if (props.evidenceType !== undefined) updateData.evidenceType = props.evidenceType;
@@ -868,10 +1051,8 @@ exports.deleteBlock = async (req, res) => {
     try {
         const { blockId } = req.params;
 
-        const block = await CaseNotionBlock.findById(blockId);
-        if (!block) {
-            return res.status(404).json({ error: true, message: 'Block not found' });
-        }
+        // IDOR Protection: Verify block ownership
+        const block = await verifyBlockOwnership(blockId, req.user);
 
         const pageId = block.pageId;
 
@@ -1106,6 +1287,9 @@ exports.getComments = async (req, res) => {
     try {
         const { blockId } = req.params;
 
+        // IDOR Protection: Verify block ownership
+        await verifyBlockOwnership(blockId, req.user);
+
         const comments = await BlockComment.find({ blockId })
             .sort({ createdAt: -1 })
             .populate('createdBy', 'firstName lastName')
@@ -1120,19 +1304,26 @@ exports.getComments = async (req, res) => {
 exports.addComment = async (req, res) => {
     try {
         const { blockId } = req.params;
-        const { content, parentCommentId, mentions } = req.body;
 
-        const block = await CaseNotionBlock.findById(blockId);
-        if (!block) {
-            return res.status(404).json({ error: true, message: 'Block not found' });
+        // IDOR Protection: Verify block ownership
+        const block = await verifyBlockOwnership(blockId, req.user);
+
+        // Mass Assignment Protection: Only allow specific fields
+        const allowedFields = ['content', 'parentCommentId', 'mentions'];
+        const safeData = pickAllowedFields(req.body, allowedFields);
+
+        // Input Validation
+        if (!safeData.content || typeof safeData.content !== 'string') {
+            return res.status(400).json({ error: true, message: 'Valid comment content is required' });
         }
 
+        // XSS Prevention: Sanitize content
         const comment = await BlockComment.create({
             blockId,
             pageId: block.pageId,
-            content,
-            parentCommentId,
-            mentions,
+            content: sanitizeContent(safeData.content),
+            parentCommentId: safeData.parentCommentId ? sanitizeObjectId(safeData.parentCommentId) : undefined,
+            mentions: safeData.mentions,
             createdBy: req.user._id
         });
 

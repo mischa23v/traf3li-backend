@@ -7,6 +7,55 @@
 const ExpensePolicy = require('../models/expensePolicy.model');
 const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
+const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
+
+/**
+ * Validate numeric amounts and thresholds
+ */
+const validateAmount = (value, fieldName) => {
+    if (value !== undefined && value !== null) {
+        const num = Number(value);
+        if (isNaN(num) || num < 0) {
+            throw CustomException(`${fieldName} must be a positive number`, 400, {
+                messageAr: `${fieldName} يجب أن يكون رقمًا موجبًا`
+            });
+        }
+        return num;
+    }
+    return value;
+};
+
+/**
+ * Validate and sanitize policy limits
+ */
+const validatePolicyLimits = (limits, fieldName = 'limits') => {
+    if (!limits) return limits;
+
+    const validated = {};
+    const limitFields = ['daily', 'weekly', 'monthly', 'yearly', 'perTransaction'];
+
+    limitFields.forEach(field => {
+        if (limits[field] !== undefined) {
+            validated[field] = validateAmount(limits[field], `${fieldName}.${field}`);
+        }
+    });
+
+    return Object.keys(validated).length > 0 ? validated : limits;
+};
+
+/**
+ * Validate category limits array
+ */
+const validateCategoryLimits = (categoryLimits) => {
+    if (!Array.isArray(categoryLimits)) return categoryLimits;
+
+    return categoryLimits.map(cat => {
+        if (cat.limits) {
+            cat.limits = validatePolicyLimits(cat.limits, 'categoryLimits');
+        }
+        return cat;
+    });
+};
 
 /**
  * Get all expense policies
@@ -33,8 +82,10 @@ const getExpensePolicies = asyncHandler(async (req, res) => {
  * Get single expense policy
  */
 const getExpensePolicy = asyncHandler(async (req, res) => {
+    const policyId = sanitizeObjectId(req.params.id, 'Policy ID');
+
     const policy = await ExpensePolicy.findOne({
-        _id: req.params.id,
+        _id: policyId,
         ...req.firmQuery
     }).populate('applicableUsers', 'firstName lastName email');
 
@@ -91,45 +142,57 @@ const getMyPolicy = asyncHandler(async (req, res) => {
  * Create expense policy
  */
 const createExpensePolicy = asyncHandler(async (req, res) => {
-    const {
-        name, nameAr, description, descriptionAr,
-        policyType, applicableTo, applicableRoles, applicableDepartments, applicableUsers,
-        globalLimits, categoryLimits, receiptPolicy, approvalRules,
-        autoApproveBelow, requiresManagerApproval, requiresFinanceApproval, financeApprovalThreshold,
-        reimbursement, perDiem, mileage, billableRules, currency,
-        auditSettings, violationPolicy,
-        effectiveDate, expiryDate
-    } = req.body;
+    // Mass assignment protection
+    const allowedFields = [
+        'name', 'nameAr', 'description', 'descriptionAr',
+        'policyType', 'applicableTo', 'applicableRoles', 'applicableDepartments', 'applicableUsers',
+        'globalLimits', 'categoryLimits', 'receiptPolicy', 'approvalRules',
+        'autoApproveBelow', 'requiresManagerApproval', 'requiresFinanceApproval', 'financeApprovalThreshold',
+        'reimbursement', 'perDiem', 'mileage', 'billableRules', 'currency',
+        'auditSettings', 'violationPolicy',
+        'effectiveDate', 'expiryDate'
+    ];
+
+    const sanitizedData = pickAllowedFields(req.body, allowedFields);
+
+    // Validate amounts and thresholds
+    if (sanitizedData.autoApproveBelow !== undefined) {
+        sanitizedData.autoApproveBelow = validateAmount(sanitizedData.autoApproveBelow, 'autoApproveBelow');
+    }
+
+    if (sanitizedData.financeApprovalThreshold !== undefined) {
+        sanitizedData.financeApprovalThreshold = validateAmount(sanitizedData.financeApprovalThreshold, 'financeApprovalThreshold');
+    }
+
+    // Validate global limits
+    if (sanitizedData.globalLimits) {
+        sanitizedData.globalLimits = validatePolicyLimits(sanitizedData.globalLimits, 'globalLimits');
+    }
+
+    // Validate category limits
+    if (sanitizedData.categoryLimits) {
+        sanitizedData.categoryLimits = validateCategoryLimits(sanitizedData.categoryLimits);
+    }
+
+    // Validate per diem rates
+    if (sanitizedData.perDiem) {
+        ['domestic', 'international', 'breakfast', 'lunch', 'dinner', 'lodging'].forEach(field => {
+            if (sanitizedData.perDiem[field] !== undefined) {
+                sanitizedData.perDiem[field] = validateAmount(sanitizedData.perDiem[field], `perDiem.${field}`);
+            }
+        });
+    }
+
+    // Validate mileage rates
+    if (sanitizedData.mileage?.rate !== undefined) {
+        sanitizedData.mileage.rate = validateAmount(sanitizedData.mileage.rate, 'mileage.rate');
+    }
 
     const policy = new ExpensePolicy({
         firmId: req.firmId,
         lawyerId: req.firmId ? null : req.userID,
-        name,
-        nameAr,
-        description,
-        descriptionAr,
-        policyType,
-        applicableTo,
-        applicableRoles,
-        applicableDepartments,
-        applicableUsers,
-        globalLimits,
-        categoryLimits,
-        receiptPolicy,
-        approvalRules,
-        autoApproveBelow,
-        requiresManagerApproval,
-        requiresFinanceApproval,
-        financeApprovalThreshold,
-        reimbursement,
-        perDiem,
-        mileage,
-        billableRules,
-        currency,
-        auditSettings,
-        violationPolicy,
-        effectiveDate: effectiveDate || new Date(),
-        expiryDate,
+        ...sanitizedData,
+        effectiveDate: sanitizedData.effectiveDate || new Date(),
         createdBy: req.userID
     });
 
@@ -147,8 +210,10 @@ const createExpensePolicy = asyncHandler(async (req, res) => {
  * Update expense policy
  */
 const updateExpensePolicy = asyncHandler(async (req, res) => {
+    const policyId = sanitizeObjectId(req.params.id, 'Policy ID');
+
     const policy = await ExpensePolicy.findOne({
-        _id: req.params.id,
+        _id: policyId,
         ...req.firmQuery
     });
 
@@ -158,6 +223,7 @@ const updateExpensePolicy = asyncHandler(async (req, res) => {
         });
     }
 
+    // Mass assignment protection
     const allowedFields = [
         'name', 'nameAr', 'description', 'descriptionAr',
         'policyType', 'applicableTo', 'applicableRoles', 'applicableDepartments', 'applicableUsers',
@@ -168,10 +234,44 @@ const updateExpensePolicy = asyncHandler(async (req, res) => {
         'effectiveDate', 'expiryDate', 'isActive'
     ];
 
-    allowedFields.forEach(field => {
-        if (req.body[field] !== undefined) {
-            policy[field] = req.body[field];
-        }
+    const sanitizedData = pickAllowedFields(req.body, allowedFields);
+
+    // Validate amounts and thresholds
+    if (sanitizedData.autoApproveBelow !== undefined) {
+        sanitizedData.autoApproveBelow = validateAmount(sanitizedData.autoApproveBelow, 'autoApproveBelow');
+    }
+
+    if (sanitizedData.financeApprovalThreshold !== undefined) {
+        sanitizedData.financeApprovalThreshold = validateAmount(sanitizedData.financeApprovalThreshold, 'financeApprovalThreshold');
+    }
+
+    // Validate global limits
+    if (sanitizedData.globalLimits) {
+        sanitizedData.globalLimits = validatePolicyLimits(sanitizedData.globalLimits, 'globalLimits');
+    }
+
+    // Validate category limits
+    if (sanitizedData.categoryLimits) {
+        sanitizedData.categoryLimits = validateCategoryLimits(sanitizedData.categoryLimits);
+    }
+
+    // Validate per diem rates
+    if (sanitizedData.perDiem) {
+        ['domestic', 'international', 'breakfast', 'lunch', 'dinner', 'lodging'].forEach(field => {
+            if (sanitizedData.perDiem[field] !== undefined) {
+                sanitizedData.perDiem[field] = validateAmount(sanitizedData.perDiem[field], `perDiem.${field}`);
+            }
+        });
+    }
+
+    // Validate mileage rates
+    if (sanitizedData.mileage?.rate !== undefined) {
+        sanitizedData.mileage.rate = validateAmount(sanitizedData.mileage.rate, 'mileage.rate');
+    }
+
+    // Apply updates
+    Object.keys(sanitizedData).forEach(field => {
+        policy[field] = sanitizedData[field];
     });
 
     policy.updatedBy = req.userID;
@@ -189,8 +289,10 @@ const updateExpensePolicy = asyncHandler(async (req, res) => {
  * Delete expense policy
  */
 const deleteExpensePolicy = asyncHandler(async (req, res) => {
+    const policyId = sanitizeObjectId(req.params.id, 'Policy ID');
+
     const policy = await ExpensePolicy.findOne({
-        _id: req.params.id,
+        _id: policyId,
         ...req.firmQuery
     });
 
@@ -219,8 +321,10 @@ const deleteExpensePolicy = asyncHandler(async (req, res) => {
  * Set as default policy
  */
 const setAsDefault = asyncHandler(async (req, res) => {
+    const policyId = sanitizeObjectId(req.params.id, 'Policy ID');
+
     const policy = await ExpensePolicy.findOne({
-        _id: req.params.id,
+        _id: policyId,
         ...req.firmQuery
     });
 
@@ -250,8 +354,10 @@ const setAsDefault = asyncHandler(async (req, res) => {
  * Toggle policy active status
  */
 const toggleStatus = asyncHandler(async (req, res) => {
+    const policyId = sanitizeObjectId(req.params.id, 'Policy ID');
+
     const policy = await ExpensePolicy.findOne({
-        _id: req.params.id,
+        _id: policyId,
         ...req.firmQuery
     });
 
@@ -283,8 +389,10 @@ const toggleStatus = asyncHandler(async (req, res) => {
  * Duplicate policy
  */
 const duplicatePolicy = asyncHandler(async (req, res) => {
+    const policyId = sanitizeObjectId(req.params.id, 'Policy ID');
+
     const source = await ExpensePolicy.findOne({
-        _id: req.params.id,
+        _id: policyId,
         ...req.firmQuery
     });
 
@@ -345,8 +453,11 @@ const checkCompliance = asyncHandler(async (req, res) => {
             user?.department
         );
     } else {
+        // Sanitize policy ID and verify ownership
+        const sanitizedPolicyId = sanitizeObjectId(policyId, 'Policy ID');
+
         policy = await ExpensePolicy.findOne({
-            _id: policyId,
+            _id: sanitizedPolicyId,
             ...req.firmQuery
         });
     }

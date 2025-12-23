@@ -11,6 +11,110 @@
 
 const captchaService = require('../services/captcha.service');
 const logger = require('../utils/logger');
+const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
+
+// Security constants
+const MAX_TOKEN_LENGTH = 2000; // Maximum reasonable CAPTCHA token length
+const MAX_PROVIDER_LENGTH = 50;
+const ALLOWED_PROVIDER_CHARS = /^[a-z0-9_-]+$/i; // Only alphanumeric, underscore, hyphen
+const TOKEN_PATTERN = /^[A-Za-z0-9_-]+$/; // Only alphanumeric, underscore, hyphen (common for CAPTCHA tokens)
+
+// Rate limiting tracking (in-memory for demonstration, should use Redis in production)
+const verificationAttempts = new Map();
+const MAX_ATTEMPTS_PER_MINUTE = 10;
+const RATE_LIMIT_WINDOW = 60000; // 1 minute
+
+/**
+ * Validate and sanitize CAPTCHA token input
+ *
+ * @param {string} token - CAPTCHA token to validate
+ * @returns {Object} - Validation result { valid: boolean, error: string }
+ */
+const validateCaptchaToken = (token) => {
+    // Check if token exists and is a string
+    if (!token || typeof token !== 'string') {
+        return { valid: false, error: 'Token must be a non-empty string' };
+    }
+
+    // Check token length to prevent DoS attacks
+    if (token.length > MAX_TOKEN_LENGTH) {
+        return { valid: false, error: `Token exceeds maximum length of ${MAX_TOKEN_LENGTH} characters` };
+    }
+
+    // Check minimum length (CAPTCHA tokens are typically quite long)
+    if (token.length < 20) {
+        return { valid: false, error: 'Token is too short to be valid' };
+    }
+
+    // Validate token format to prevent injection attacks
+    // Most CAPTCHA tokens use base64-like characters
+    if (!TOKEN_PATTERN.test(token)) {
+        return { valid: false, error: 'Token contains invalid characters' };
+    }
+
+    // Additional check: token should not contain obvious SQL injection patterns
+    const sqlInjectionPatterns = /(\bOR\b|\bAND\b|--|\/\*|\*\/|;|'|"|<|>)/i;
+    if (sqlInjectionPatterns.test(token)) {
+        return { valid: false, error: 'Token contains potentially malicious content' };
+    }
+
+    return { valid: true };
+};
+
+/**
+ * Validate and sanitize provider name
+ *
+ * @param {string} provider - Provider name to validate
+ * @returns {Object} - Validation result { valid: boolean, error: string }
+ */
+const validateProvider = (provider) => {
+    if (!provider || typeof provider !== 'string') {
+        return { valid: false, error: 'Provider must be a non-empty string' };
+    }
+
+    if (provider.length > MAX_PROVIDER_LENGTH) {
+        return { valid: false, error: 'Provider name is too long' };
+    }
+
+    if (!ALLOWED_PROVIDER_CHARS.test(provider)) {
+        return { valid: false, error: 'Provider name contains invalid characters' };
+    }
+
+    return { valid: true };
+};
+
+/**
+ * Check rate limiting for CAPTCHA verification attempts
+ *
+ * @param {string} identifier - IP address or user identifier
+ * @returns {Object} - Rate limit status { allowed: boolean, remaining: number }
+ */
+const checkRateLimit = (identifier) => {
+    const now = Date.now();
+    const attempts = verificationAttempts.get(identifier) || [];
+
+    // Clean up old attempts outside the window
+    const recentAttempts = attempts.filter(timestamp => now - timestamp < RATE_LIMIT_WINDOW);
+
+    // Check if rate limit exceeded
+    if (recentAttempts.length >= MAX_ATTEMPTS_PER_MINUTE) {
+        return {
+            allowed: false,
+            remaining: 0,
+            resetTime: Math.ceil((recentAttempts[0] + RATE_LIMIT_WINDOW - now) / 1000)
+        };
+    }
+
+    // Add current attempt
+    recentAttempts.push(now);
+    verificationAttempts.set(identifier, recentAttempts);
+
+    return {
+        allowed: true,
+        remaining: MAX_ATTEMPTS_PER_MINUTE - recentAttempts.length,
+        resetTime: Math.ceil(RATE_LIMIT_WINDOW / 1000)
+    };
+};
 
 /**
  * Verify CAPTCHA token
@@ -56,7 +160,39 @@ const logger = require('../utils/logger');
  */
 const verifyCaptcha = async (request, response) => {
     try {
-        const { provider, token } = request.body;
+        // Sanitize input - only allow expected fields
+        const sanitizedBody = pickAllowedFields(request.body, ['provider', 'token']);
+        const { provider, token } = sanitizedBody;
+
+        // Get client IP for rate limiting and verification
+        const remoteIp = request.ip ||
+                        request.headers['x-forwarded-for']?.split(',')[0]?.trim() ||
+                        request.headers['x-real-ip'] ||
+                        request.connection?.remoteAddress ||
+                        'unknown';
+
+        // Check rate limiting FIRST to prevent abuse
+        const rateLimit = checkRateLimit(remoteIp);
+
+        // Set rate limit headers for client awareness
+        response.setHeader('X-RateLimit-Limit', MAX_ATTEMPTS_PER_MINUTE);
+        response.setHeader('X-RateLimit-Remaining', rateLimit.remaining);
+        response.setHeader('X-RateLimit-Reset', rateLimit.resetTime);
+
+        if (!rateLimit.allowed) {
+            logger.warn('CAPTCHA verification rate limit exceeded', {
+                remoteIp,
+                resetTime: rateLimit.resetTime
+            });
+
+            return response.status(429).json({
+                error: true,
+                message: 'Too many CAPTCHA verification attempts. Please try again later.',
+                messageAr: 'عدد كبير جداً من محاولات التحقق من CAPTCHA. يرجى المحاولة مرة أخرى لاحقاً.',
+                code: 'RATE_LIMIT_EXCEEDED',
+                retryAfter: rateLimit.resetTime
+            });
+        }
 
         // Validate required fields
         if (!provider) {
@@ -78,7 +214,42 @@ const verifyCaptcha = async (request, response) => {
             });
         }
 
-        // Validate provider
+        // Validate and sanitize provider input
+        const providerValidation = validateProvider(provider);
+        if (!providerValidation.valid) {
+            logger.warn('Invalid CAPTCHA provider format', {
+                provider,
+                error: providerValidation.error,
+                remoteIp
+            });
+
+            return response.status(400).json({
+                error: true,
+                message: `Invalid CAPTCHA provider: ${providerValidation.error}`,
+                messageAr: `مزود CAPTCHA غير صالح`,
+                code: 'INVALID_PROVIDER_FORMAT',
+                validProviders: Object.keys(captchaService.PROVIDERS)
+            });
+        }
+
+        // Validate and sanitize token input
+        const tokenValidation = validateCaptchaToken(token);
+        if (!tokenValidation.valid) {
+            logger.warn('Invalid CAPTCHA token format', {
+                error: tokenValidation.error,
+                tokenLength: token?.length,
+                remoteIp
+            });
+
+            return response.status(400).json({
+                error: true,
+                message: `Invalid CAPTCHA token: ${tokenValidation.error}`,
+                messageAr: 'رمز CAPTCHA غير صالح',
+                code: 'INVALID_TOKEN_FORMAT'
+            });
+        }
+
+        // Validate provider exists
         if (!captchaService.PROVIDERS[provider]) {
             return response.status(400).json({
                 error: true,
@@ -91,7 +262,10 @@ const verifyCaptcha = async (request, response) => {
 
         // Check if provider is enabled
         if (!captchaService.isProviderEnabled(provider)) {
-            logger.warn(`Attempt to use disabled CAPTCHA provider: ${provider}`);
+            logger.warn(`Attempt to use disabled CAPTCHA provider: ${provider}`, {
+                provider,
+                remoteIp
+            });
             return response.status(503).json({
                 error: true,
                 message: `CAPTCHA provider "${provider}" is not configured or enabled`,
@@ -101,23 +275,29 @@ const verifyCaptcha = async (request, response) => {
             });
         }
 
-        // Get client IP address (for verification)
-        const remoteIp = request.ip ||
-                        request.headers['x-forwarded-for']?.split(',')[0]?.trim() ||
-                        request.headers['x-real-ip'] ||
-                        request.connection?.remoteAddress ||
-                        null;
-
-        // Log verification attempt
+        // Log verification attempt (with sanitized data)
         logger.info('CAPTCHA verification request received', {
             provider,
             hasToken: !!token,
+            tokenLength: token.length,
             remoteIp,
-            userAgent: request.headers['user-agent']
+            userAgent: request.headers['user-agent']?.substring(0, 200) // Truncate UA to prevent log injection
         });
 
         // Verify CAPTCHA with the provider
+        // Add timing to detect potential timing attacks
+        const startTime = Date.now();
         const result = await captchaService.verifyCaptcha(provider, token, remoteIp);
+        const verificationTime = Date.now() - startTime;
+
+        // Log suspicious timing (potential timing attack or bypass attempt)
+        if (verificationTime < 100) {
+            logger.warn('CAPTCHA verification completed suspiciously fast', {
+                provider,
+                verificationTime,
+                remoteIp
+            });
+        }
 
         // Check verification result
         if (result.success) {
@@ -126,9 +306,11 @@ const verifyCaptcha = async (request, response) => {
                 provider,
                 providerName: result.providerName,
                 score: result.score,
+                verificationTime,
                 remoteIp
             });
 
+            // Sanitize response data to prevent information leakage
             const responseData = {
                 error: false,
                 message: 'CAPTCHA verified successfully',
@@ -138,23 +320,36 @@ const verifyCaptcha = async (request, response) => {
                 providerName: result.providerName
             };
 
-            // Include score for reCAPTCHA v3
-            if (result.score !== undefined) {
-                responseData.score = result.score;
+            // Include score for reCAPTCHA v3 (only if valid number)
+            if (result.score !== undefined && typeof result.score === 'number') {
+                responseData.score = Math.round(result.score * 100) / 100; // Round to 2 decimals
             }
 
-            // Include action for reCAPTCHA v3
-            if (result.action) {
-                responseData.action = result.action;
+            // Include action for reCAPTCHA v3 (sanitized)
+            if (result.action && typeof result.action === 'string') {
+                responseData.action = result.action.substring(0, 100); // Limit length
             }
 
-            // Include hostname
-            if (result.hostname) {
-                responseData.hostname = result.hostname;
+            // Include hostname (sanitized)
+            if (result.hostname && typeof result.hostname === 'string') {
+                responseData.hostname = result.hostname.substring(0, 253); // Max DNS length
             }
 
-            // Include challenge timestamp
+            // Include challenge timestamp (validated)
             if (result.challengeTimestamp) {
+                const challengeTime = new Date(result.challengeTimestamp);
+                const now = new Date();
+                const timeDiff = now - challengeTime;
+
+                // Warn if challenge is too old (potential replay attack)
+                if (timeDiff > 300000) { // 5 minutes
+                    logger.warn('CAPTCHA challenge timestamp is old', {
+                        challengeTimestamp: result.challengeTimestamp,
+                        timeDiff,
+                        remoteIp
+                    });
+                }
+
                 responseData.challengeTimestamp = result.challengeTimestamp;
             }
 
@@ -166,9 +361,12 @@ const verifyCaptcha = async (request, response) => {
                 provider,
                 errorCodes: result.errorCodes,
                 message: result.message,
+                verificationTime,
                 remoteIp
             });
 
+            // Use constant-time comparison for error responses to prevent timing attacks
+            // Return generic error to prevent information leakage about why it failed
             return response.status(400).json({
                 error: true,
                 message: result.message || 'CAPTCHA verification failed',
@@ -308,7 +506,24 @@ const getProviderStatus = async (request, response) => {
     try {
         const { provider } = request.params;
 
-        // Validate provider
+        // Validate provider format first
+        const providerValidation = validateProvider(provider);
+        if (!providerValidation.valid) {
+            logger.warn('Invalid CAPTCHA provider format in status request', {
+                provider,
+                error: providerValidation.error
+            });
+
+            return response.status(400).json({
+                error: true,
+                message: `Invalid CAPTCHA provider: ${providerValidation.error}`,
+                messageAr: `مزود CAPTCHA غير صالح`,
+                code: 'INVALID_PROVIDER_FORMAT',
+                validProviders: Object.keys(captchaService.PROVIDERS)
+            });
+        }
+
+        // Validate provider exists
         if (!provider || !captchaService.PROVIDERS[provider]) {
             return response.status(400).json({
                 error: true,

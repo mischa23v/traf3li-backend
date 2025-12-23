@@ -10,6 +10,7 @@ const nodemailer = require('nodemailer');
 const { encrypt, decrypt } = require('../utils/encryption');
 const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
+const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 
 // ═══════════════════════════════════════════════════════════════
 // SMTP CONFIGURATION
@@ -60,15 +61,6 @@ exports.getSmtpConfig = asyncHandler(async (req, res) => {
 exports.saveSmtpConfig = asyncHandler(async (req, res) => {
   const firmId = req.firmId;
   const userId = req.userID;
-  const {
-    host,
-    port,
-    secure,
-    auth,
-    from,
-    replyTo,
-    options
-  } = req.body;
 
   if (!firmId) {
     throw CustomException('Firm ID required', 400);
@@ -79,26 +71,62 @@ exports.saveSmtpConfig = asyncHandler(async (req, res) => {
     throw CustomException('Only firm owners and admins can manage SMTP settings', 403);
   }
 
+  // Mass assignment protection - only allow specific fields
+  const allowedFields = ['host', 'port', 'secure', 'auth', 'from', 'replyTo', 'options'];
+  const data = pickAllowedFields(req.body, allowedFields);
+
   // Validate required fields
-  if (!host || !port || !auth || !auth.user || !auth.password) {
-    throw CustomException('Host, port, username, and password are required', 400);
+  if (!data.host || typeof data.host !== 'string' || data.host.trim().length === 0) {
+    throw CustomException('Valid host is required', 400);
   }
 
-  if (!from || !from.email) {
+  if (!data.port || typeof data.port !== 'number' || data.port < 1 || data.port > 65535) {
+    throw CustomException('Valid port (1-65535) is required', 400);
+  }
+
+  if (!data.auth || typeof data.auth !== 'object' || !data.auth.user || !data.auth.password) {
+    throw CustomException('Authentication credentials (user and password) are required', 400);
+  }
+
+  if (typeof data.auth.user !== 'string' || data.auth.user.trim().length === 0) {
+    throw CustomException('Valid username is required', 400);
+  }
+
+  if (typeof data.auth.password !== 'string' || data.auth.password.length < 1) {
+    throw CustomException('Valid password is required', 400);
+  }
+
+  if (!data.from || typeof data.from !== 'object' || !data.from.email) {
     throw CustomException('From email address is required', 400);
   }
 
-  // Encrypt password
-  const encryptedPassword = encrypt(auth.password);
+  // Validate email format
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(data.from.email)) {
+    throw CustomException('Valid from email address is required', 400);
+  }
+
+  // Validate replyTo email if provided
+  if (data.replyTo && !emailRegex.test(data.replyTo)) {
+    throw CustomException('Valid reply-to email address is required', 400);
+  }
+
+  // Validate secure is boolean
+  if (data.secure !== undefined && typeof data.secure !== 'boolean') {
+    throw CustomException('Secure must be a boolean value', 400);
+  }
+
+  // Encrypt password securely
+  const encryptedPassword = encrypt(data.auth.password);
   const [iv, authTag, encrypted] = encryptedPassword.split(':');
 
   const configData = {
     firmId,
-    host,
-    port,
-    secure: secure || false,
+    host: data.host.trim(),
+    port: data.port,
+    secure: data.secure || false,
     auth: {
-      user: auth.user,
+      user: data.auth.user.trim(),
       password: {
         encrypted,
         iv,
@@ -106,11 +134,11 @@ exports.saveSmtpConfig = asyncHandler(async (req, res) => {
       }
     },
     from: {
-      name: from.name || '',
-      email: from.email
+      name: data.from.name ? data.from.name.trim() : '',
+      email: data.from.email.trim().toLowerCase()
     },
-    replyTo: replyTo || null,
-    options: options || {},
+    replyTo: data.replyTo ? data.replyTo.trim().toLowerCase() : null,
+    options: data.options || {},
     updatedBy: userId
   };
 
@@ -118,6 +146,10 @@ exports.saveSmtpConfig = asyncHandler(async (req, res) => {
   let config = await SmtpConfig.findOne({ firmId });
 
   if (config) {
+    // IDOR protection - verify firmId ownership
+    if (config.firmId.toString() !== firmId.toString()) {
+      throw CustomException('Access denied', 403);
+    }
     // Update existing
     Object.assign(config, configData);
     await config.save();
@@ -279,8 +311,11 @@ exports.getTemplate = asyncHandler(async (req, res) => {
     throw CustomException('Firm ID required', 400);
   }
 
+  // Sanitize ObjectId
+  const templateId = sanitizeObjectId(id);
+
   const template = await EmailTemplate.findOne({
-    _id: id,
+    _id: templateId,
     $or: [
       { firmId },
       { isPublic: true }
@@ -306,18 +341,6 @@ exports.getTemplate = asyncHandler(async (req, res) => {
 exports.createTemplate = asyncHandler(async (req, res) => {
   const firmId = req.firmId;
   const userId = req.userID;
-  const {
-    name,
-    category,
-    subject,
-    previewText,
-    htmlContent,
-    textContent,
-    variables,
-    layout,
-    tags,
-    notes
-  } = req.body;
 
   if (!firmId) {
     throw CustomException('Firm ID required', 400);
@@ -328,23 +351,47 @@ exports.createTemplate = asyncHandler(async (req, res) => {
     throw CustomException('Only firm owners and admins can create email templates', 403);
   }
 
+  // Mass assignment protection
+  const allowedFields = [
+    'name', 'category', 'subject', 'previewText', 'htmlContent',
+    'textContent', 'variables', 'layout', 'tags', 'notes'
+  ];
+  const data = pickAllowedFields(req.body, allowedFields);
+
   // Validate required fields
-  if (!name || !subject || !htmlContent) {
-    throw CustomException('Name, subject, and HTML content are required', 400);
+  if (!data.name || typeof data.name !== 'string' || data.name.trim().length === 0) {
+    throw CustomException('Valid name is required', 400);
+  }
+
+  if (!data.subject || typeof data.subject !== 'string' || data.subject.trim().length === 0) {
+    throw CustomException('Valid subject is required', 400);
+  }
+
+  if (!data.htmlContent || typeof data.htmlContent !== 'string' || data.htmlContent.trim().length === 0) {
+    throw CustomException('Valid HTML content is required', 400);
+  }
+
+  // Validate optional fields
+  if (data.variables && !Array.isArray(data.variables)) {
+    throw CustomException('Variables must be an array', 400);
+  }
+
+  if (data.tags && !Array.isArray(data.tags)) {
+    throw CustomException('Tags must be an array', 400);
   }
 
   const template = await EmailTemplate.create({
     firmId,
-    name,
-    category: category || 'custom',
-    subject,
-    previewText,
-    htmlContent,
-    textContent,
-    variables: variables || [],
-    layout: layout || 'simple',
-    tags: tags || [],
-    notes,
+    name: data.name.trim(),
+    category: data.category || 'custom',
+    subject: data.subject.trim(),
+    previewText: data.previewText,
+    htmlContent: data.htmlContent,
+    textContent: data.textContent,
+    variables: data.variables || [],
+    layout: data.layout || 'simple',
+    tags: data.tags || [],
+    notes: data.notes,
     createdBy: userId,
     updatedBy: userId
   });
@@ -364,7 +411,6 @@ exports.updateTemplate = asyncHandler(async (req, res) => {
   const firmId = req.firmId;
   const userId = req.userID;
   const { id } = req.params;
-  const updates = req.body;
 
   if (!firmId) {
     throw CustomException('Firm ID required', 400);
@@ -375,9 +421,12 @@ exports.updateTemplate = asyncHandler(async (req, res) => {
     throw CustomException('Only firm owners and admins can update email templates', 403);
   }
 
+  // Sanitize ObjectId
+  const templateId = sanitizeObjectId(id);
+
   // Find template (only firm's own templates, not public ones)
   const template = await EmailTemplate.findOne({
-    _id: id,
+    _id: templateId,
     firmId
   });
 
@@ -385,14 +434,48 @@ exports.updateTemplate = asyncHandler(async (req, res) => {
     throw CustomException('Template not found or you do not have permission to update it', 404);
   }
 
-  // Update allowed fields
-  const allowedUpdates = [
+  // IDOR protection - verify firmId ownership
+  if (template.firmId.toString() !== firmId.toString()) {
+    throw CustomException('Access denied', 403);
+  }
+
+  // Mass assignment protection
+  const allowedFields = [
     'name', 'category', 'subject', 'previewText', 'htmlContent',
     'textContent', 'variables', 'layout', 'tags', 'notes', 'isActive'
   ];
+  const updates = pickAllowedFields(req.body, allowedFields);
 
-  allowedUpdates.forEach(field => {
-    if (updates[field] !== undefined) {
+  // Validate updated fields
+  if (updates.name !== undefined && (typeof updates.name !== 'string' || updates.name.trim().length === 0)) {
+    throw CustomException('Valid name is required', 400);
+  }
+
+  if (updates.subject !== undefined && (typeof updates.subject !== 'string' || updates.subject.trim().length === 0)) {
+    throw CustomException('Valid subject is required', 400);
+  }
+
+  if (updates.htmlContent !== undefined && (typeof updates.htmlContent !== 'string' || updates.htmlContent.trim().length === 0)) {
+    throw CustomException('Valid HTML content is required', 400);
+  }
+
+  if (updates.variables !== undefined && !Array.isArray(updates.variables)) {
+    throw CustomException('Variables must be an array', 400);
+  }
+
+  if (updates.tags !== undefined && !Array.isArray(updates.tags)) {
+    throw CustomException('Tags must be an array', 400);
+  }
+
+  if (updates.isActive !== undefined && typeof updates.isActive !== 'boolean') {
+    throw CustomException('isActive must be a boolean', 400);
+  }
+
+  // Apply updates
+  Object.keys(updates).forEach(field => {
+    if (typeof updates[field] === 'string') {
+      template[field] = updates[field].trim();
+    } else {
       template[field] = updates[field];
     }
   });
@@ -424,14 +507,22 @@ exports.deleteTemplate = asyncHandler(async (req, res) => {
     throw CustomException('Only firm owners and admins can delete email templates', 403);
   }
 
+  // Sanitize ObjectId
+  const templateId = sanitizeObjectId(id);
+
   // Find and delete template (only firm's own templates)
   const template = await EmailTemplate.findOneAndDelete({
-    _id: id,
+    _id: templateId,
     firmId
   });
 
   if (!template) {
     throw CustomException('Template not found or you do not have permission to delete it', 404);
+  }
+
+  // IDOR protection - verify firmId ownership
+  if (template.firmId.toString() !== firmId.toString()) {
+    throw CustomException('Access denied', 403);
   }
 
   res.json({
@@ -447,14 +538,20 @@ exports.deleteTemplate = asyncHandler(async (req, res) => {
 exports.previewTemplate = asyncHandler(async (req, res) => {
   const firmId = req.firmId;
   const { id } = req.params;
-  const { sampleData } = req.body;
 
   if (!firmId) {
     throw CustomException('Firm ID required', 400);
   }
 
+  // Sanitize ObjectId
+  const templateId = sanitizeObjectId(id);
+
+  // Mass assignment protection
+  const allowedFields = ['sampleData'];
+  const data = pickAllowedFields(req.body, allowedFields);
+
   const template = await EmailTemplate.findOne({
-    _id: id,
+    _id: templateId,
     $or: [
       { firmId },
       { isPublic: true }
@@ -471,12 +568,17 @@ exports.previewTemplate = asyncHandler(async (req, res) => {
   let previewSubject = template.subject;
 
   // Use provided sample data or defaults
-  const data = sampleData || {};
+  const sampleData = data.sampleData || {};
+
+  // Validate sampleData is an object
+  if (typeof sampleData !== 'object' || Array.isArray(sampleData)) {
+    throw CustomException('Sample data must be an object', 400);
+  }
 
   // Replace variables in HTML, text, and subject
   if (template.variables && template.variables.length > 0) {
     template.variables.forEach(variable => {
-      const value = data[variable.name] || variable.defaultValue || `{{${variable.name}}}`;
+      const value = sampleData[variable.name] || variable.defaultValue || `{{${variable.name}}}`;
       const regex = new RegExp(`{{\\s*${variable.name}\\s*}}`, 'g');
 
       previewHtml = previewHtml.replace(regex, value);
@@ -492,7 +594,7 @@ exports.previewTemplate = asyncHandler(async (req, res) => {
       htmlContent: previewHtml,
       textContent: previewText,
       variables: template.variables,
-      sampleDataUsed: data
+      sampleDataUsed: sampleData
     }
   });
 });
@@ -541,35 +643,43 @@ exports.getSignatures = asyncHandler(async (req, res) => {
 exports.createSignature = asyncHandler(async (req, res) => {
   const userId = req.userID;
   const firmId = req.firmId;
-  const {
-    name,
-    htmlContent,
-    textContent,
-    isDefault,
-    category,
-    tags,
-    notes
-  } = req.body;
 
   if (!userId) {
     throw CustomException('User ID required', 400);
   }
 
+  // Mass assignment protection
+  const allowedFields = ['name', 'htmlContent', 'textContent', 'isDefault', 'category', 'tags', 'notes'];
+  const data = pickAllowedFields(req.body, allowedFields);
+
   // Validate required fields
-  if (!name || !htmlContent) {
-    throw CustomException('Name and HTML content are required', 400);
+  if (!data.name || typeof data.name !== 'string' || data.name.trim().length === 0) {
+    throw CustomException('Valid name is required', 400);
+  }
+
+  if (!data.htmlContent || typeof data.htmlContent !== 'string' || data.htmlContent.trim().length === 0) {
+    throw CustomException('Valid HTML content is required', 400);
+  }
+
+  // Validate optional fields
+  if (data.isDefault !== undefined && typeof data.isDefault !== 'boolean') {
+    throw CustomException('isDefault must be a boolean', 400);
+  }
+
+  if (data.tags && !Array.isArray(data.tags)) {
+    throw CustomException('Tags must be an array', 400);
   }
 
   const signature = await EmailSignature.create({
     userId,
     firmId,
-    name,
-    htmlContent,
-    textContent,
-    isDefault: isDefault || false,
-    category: category || 'professional',
-    tags: tags || [],
-    notes
+    name: data.name.trim(),
+    htmlContent: data.htmlContent,
+    textContent: data.textContent,
+    isDefault: data.isDefault || false,
+    category: data.category || 'professional',
+    tags: data.tags || [],
+    notes: data.notes
   });
 
   res.status(201).json({
@@ -586,15 +696,17 @@ exports.createSignature = asyncHandler(async (req, res) => {
 exports.updateSignature = asyncHandler(async (req, res) => {
   const userId = req.userID;
   const { id } = req.params;
-  const updates = req.body;
 
   if (!userId) {
     throw CustomException('User ID required', 400);
   }
 
+  // Sanitize ObjectId
+  const signatureId = sanitizeObjectId(id);
+
   // Find signature (only user's own signatures)
   const signature = await EmailSignature.findOne({
-    _id: id,
+    _id: signatureId,
     userId
   });
 
@@ -602,14 +714,44 @@ exports.updateSignature = asyncHandler(async (req, res) => {
     throw CustomException('Signature not found or you do not have permission to update it', 404);
   }
 
-  // Update allowed fields
-  const allowedUpdates = [
+  // IDOR protection - verify userId ownership
+  if (signature.userId.toString() !== userId.toString()) {
+    throw CustomException('Access denied', 403);
+  }
+
+  // Mass assignment protection
+  const allowedFields = [
     'name', 'htmlContent', 'textContent', 'isDefault',
     'category', 'tags', 'notes', 'isActive'
   ];
+  const updates = pickAllowedFields(req.body, allowedFields);
 
-  allowedUpdates.forEach(field => {
-    if (updates[field] !== undefined) {
+  // Validate updated fields
+  if (updates.name !== undefined && (typeof updates.name !== 'string' || updates.name.trim().length === 0)) {
+    throw CustomException('Valid name is required', 400);
+  }
+
+  if (updates.htmlContent !== undefined && (typeof updates.htmlContent !== 'string' || updates.htmlContent.trim().length === 0)) {
+    throw CustomException('Valid HTML content is required', 400);
+  }
+
+  if (updates.isDefault !== undefined && typeof updates.isDefault !== 'boolean') {
+    throw CustomException('isDefault must be a boolean', 400);
+  }
+
+  if (updates.isActive !== undefined && typeof updates.isActive !== 'boolean') {
+    throw CustomException('isActive must be a boolean', 400);
+  }
+
+  if (updates.tags !== undefined && !Array.isArray(updates.tags)) {
+    throw CustomException('Tags must be an array', 400);
+  }
+
+  // Apply updates
+  Object.keys(updates).forEach(field => {
+    if (typeof updates[field] === 'string') {
+      signature[field] = updates[field].trim();
+    } else {
       signature[field] = updates[field];
     }
   });
@@ -635,9 +777,12 @@ exports.deleteSignature = asyncHandler(async (req, res) => {
     throw CustomException('User ID required', 400);
   }
 
+  // Sanitize ObjectId
+  const signatureId = sanitizeObjectId(id);
+
   // Find and delete signature (only user's own signatures)
   const signature = await EmailSignature.findOneAndDelete({
-    _id: id,
+    _id: signatureId,
     userId
   });
 
@@ -645,11 +790,16 @@ exports.deleteSignature = asyncHandler(async (req, res) => {
     throw CustomException('Signature not found or you do not have permission to delete it', 404);
   }
 
+  // IDOR protection - verify userId ownership
+  if (signature.userId.toString() !== userId.toString()) {
+    throw CustomException('Access denied', 403);
+  }
+
   // If deleted signature was default, set another as default
   if (signature.isDefault) {
     const anotherSignature = await EmailSignature.findOne({
       userId,
-      _id: { $ne: id },
+      _id: { $ne: signatureId },
       isActive: true
     }).sort({ updatedAt: -1 });
 
@@ -677,9 +827,12 @@ exports.setDefaultSignature = asyncHandler(async (req, res) => {
     throw CustomException('User ID required', 400);
   }
 
+  // Sanitize ObjectId
+  const signatureId = sanitizeObjectId(id);
+
   // Verify signature belongs to user
   const signature = await EmailSignature.findOne({
-    _id: id,
+    _id: signatureId,
     userId
   });
 
@@ -687,8 +840,13 @@ exports.setDefaultSignature = asyncHandler(async (req, res) => {
     throw CustomException('Signature not found or you do not have permission to modify it', 404);
   }
 
+  // IDOR protection - verify userId ownership
+  if (signature.userId.toString() !== userId.toString()) {
+    throw CustomException('Access denied', 403);
+  }
+
   // Set as default using static method
-  const updatedSignature = await EmailSignature.setDefault(id, userId);
+  const updatedSignature = await EmailSignature.setDefault(signatureId, userId);
 
   res.json({
     success: true,

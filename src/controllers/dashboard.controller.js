@@ -16,12 +16,105 @@ const {
     Attendance
 } = require('../models');
 const { CustomException } = require('../utils');
+const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
+
+// Helper function to verify firmId ownership
+const verifyFirmAccess = async (userId, firmId) => {
+    if (!firmId) return true; // No firm context, user-specific access
+
+    // Sanitize firmId to prevent injection
+    const sanitizedFirmId = sanitizeObjectId(firmId);
+    if (!sanitizedFirmId) {
+        throw new CustomException('Invalid firm ID', 400);
+    }
+
+    // Verify user belongs to the firm
+    const { Firm } = require('../models');
+    const firm = await Firm.findById(sanitizedFirmId).lean();
+
+    if (!firm) {
+        throw new CustomException('Firm not found', 404);
+    }
+
+    // Check if user is owner or member of the firm
+    const userIdStr = userId.toString();
+    const isOwner = firm.ownerId && firm.ownerId.toString() === userIdStr;
+    const isMember = firm.members && firm.members.some(m =>
+        (m.userId || m).toString() === userIdStr
+    );
+
+    if (!isOwner && !isMember) {
+        throw new CustomException('Access denied: You do not have permission to access this firm data', 403);
+    }
+
+    return sanitizedFirmId;
+};
+
+// Helper function to validate and sanitize query parameters
+const validateQueryParams = (query) => {
+    const validated = {};
+
+    // Validate limit parameter
+    if (query.limit) {
+        const limit = parseInt(query.limit, 10);
+        if (isNaN(limit) || limit < 1 || limit > 1000) {
+            throw new CustomException('Invalid limit parameter. Must be between 1 and 1000', 400);
+        }
+        validated.limit = limit;
+    }
+
+    // Validate days parameter
+    if (query.days) {
+        const days = parseInt(query.days, 10);
+        if (isNaN(days) || days < 1 || days > 365) {
+            throw new CustomException('Invalid days parameter. Must be between 1 and 365', 400);
+        }
+        validated.days = days;
+    }
+
+    // Validate period parameter
+    if (query.period) {
+        const validPeriods = ['week', 'month', 'quarter', 'year'];
+        if (!validPeriods.includes(query.period)) {
+            throw new CustomException('Invalid period parameter. Must be one of: week, month, quarter, year', 400);
+        }
+        validated.period = query.period;
+    }
+
+    return validated;
+};
+
+// Helper function to validate date ranges
+const validateDateRange = (startDate, endDate) => {
+    if (!(startDate instanceof Date) || isNaN(startDate.getTime())) {
+        throw new CustomException('Invalid start date', 400);
+    }
+
+    if (endDate && (!(endDate instanceof Date) || isNaN(endDate.getTime()))) {
+        throw new CustomException('Invalid end date', 400);
+    }
+
+    if (endDate && startDate > endDate) {
+        throw new CustomException('Start date cannot be after end date', 400);
+    }
+
+    // Prevent unreasonably large date ranges (e.g., more than 10 years)
+    const maxRangeMs = 10 * 365 * 24 * 60 * 60 * 1000; // 10 years
+    if (endDate && (endDate - startDate) > maxRangeMs) {
+        throw new CustomException('Date range too large. Maximum 10 years allowed', 400);
+    }
+
+    return true;
+};
 
 // Get hero stats (top-level metrics)
 const getHeroStats = async (request, response) => {
     try {
         const userId = request.userID;
         const firmId = request.firmId; // From firmFilter middleware
+
+        // IDOR Protection: Verify firm access
+        await verifyFirmAccess(userId, firmId);
 
         // Build query based on firmId or userId
         const queryFilter = firmId
@@ -93,6 +186,9 @@ const getDashboardStats = async (request, response) => {
         const userId = request.userID;
         const firmId = request.firmId;
 
+        // IDOR Protection: Verify firm access
+        await verifyFirmAccess(userId, firmId);
+
         // Build match filter
         const matchFilter = firmId
             ? { firmId: new mongoose.Types.ObjectId(firmId) }
@@ -145,6 +241,9 @@ const getFinancialSummary = async (request, response) => {
     try {
         const userId = request.userID;
         const firmId = request.firmId;
+
+        // IDOR Protection: Verify firm access
+        await verifyFirmAccess(userId, firmId);
 
         // Build match filter
         const matchFilter = firmId
@@ -223,11 +322,17 @@ const getTodayEvents = async (request, response) => {
         const userId = request.userID;
         const firmId = request.firmId;
 
+        // IDOR Protection: Verify firm access
+        await verifyFirmAccess(userId, firmId);
+
         const today = new Date();
         today.setHours(0, 0, 0, 0);
 
         const tomorrow = new Date(today);
         tomorrow.setDate(tomorrow.getDate() + 1);
+
+        // Validate date range
+        validateDateRange(today, tomorrow);
 
         // Build query based on firmId or userId
         const queryFilter = firmId
@@ -262,7 +367,10 @@ const getTodayEvents = async (request, response) => {
 const getRecentMessages = async (request, response) => {
     try {
         const userId = request.userID;
-        const limit = parseInt(request.query.limit) || 10;
+
+        // Input validation for query parameters
+        const validatedParams = validateQueryParams(request.query);
+        const limit = validatedParams.limit || 10;
 
         // First, find all conversations where the user is involved
         const { Conversation } = require('../models');
@@ -310,10 +418,19 @@ const getActivityOverview = async (request, response) => {
     try {
         const userId = request.userID;
         const firmId = request.firmId;
-        const days = parseInt(request.query.days) || 30;
+
+        // IDOR Protection: Verify firm access
+        await verifyFirmAccess(userId, firmId);
+
+        // Input validation for query parameters
+        const validatedParams = validateQueryParams(request.query);
+        const days = validatedParams.days || 30;
 
         const startDate = new Date();
         startDate.setDate(startDate.getDate() - days);
+
+        // Validate date range
+        validateDateRange(startDate, new Date());
 
         // Build match filter
         const matchFilter = firmId
@@ -379,6 +496,9 @@ const getCRMStats = async (request, response) => {
         const userId = request.userID;
         const firmId = request.firmId;
 
+        // IDOR Protection: Verify firm access
+        await verifyFirmAccess(userId, firmId);
+
         // Build match filter
         const matchFilter = firmId
             ? { firmId: new mongoose.Types.ObjectId(firmId) }
@@ -388,6 +508,9 @@ const getCRMStats = async (request, response) => {
         const startOfMonth = new Date();
         startOfMonth.setDate(1);
         startOfMonth.setHours(0, 0, 0, 0);
+
+        // Validate date range
+        validateDateRange(startOfMonth, new Date());
 
         const [
             totalClients,
@@ -462,6 +585,9 @@ const getHRStats = async (request, response) => {
         const userId = request.userID;
         const firmId = request.firmId;
 
+        // IDOR Protection: Verify firm access
+        await verifyFirmAccess(userId, firmId);
+
         // Build match filter
         const matchFilter = firmId
             ? { firmId: new mongoose.Types.ObjectId(firmId) }
@@ -477,6 +603,10 @@ const getHRStats = async (request, response) => {
         const startOfMonth = new Date();
         startOfMonth.setDate(1);
         startOfMonth.setHours(0, 0, 0, 0);
+
+        // Validate date ranges
+        validateDateRange(today, tomorrow);
+        validateDateRange(startOfMonth, new Date());
 
         let totalEmployees = 0;
         let activeEmployees = 0;
@@ -567,6 +697,9 @@ const getFinanceStats = async (request, response) => {
         const userId = request.userID;
         const firmId = request.firmId;
 
+        // IDOR Protection: Verify firm access
+        await verifyFirmAccess(userId, firmId);
+
         // Build match filter
         const matchFilter = firmId
             ? { firmId: new mongoose.Types.ObjectId(firmId) }
@@ -649,6 +782,9 @@ const getDashboardSummary = async (request, response) => {
         const userId = request.userID;
         const firmId = request.firmId;
 
+        // IDOR Protection: Verify firm access
+        await verifyFirmAccess(userId, firmId);
+
         // Build match filter
         const matchFilter = firmId
             ? { firmId: new mongoose.Types.ObjectId(firmId) }
@@ -662,6 +798,9 @@ const getDashboardSummary = async (request, response) => {
         today.setHours(0, 0, 0, 0);
         const tomorrow = new Date(today);
         tomorrow.setDate(tomorrow.getDate() + 1);
+
+        // Validate date range
+        validateDateRange(today, tomorrow);
 
         // Import models needed for this endpoint
         const { Reminder } = require('../models');
@@ -833,6 +972,9 @@ const getAnalytics = async (request, response) => {
         const userId = request.userID;
         const firmId = request.firmId;
 
+        // IDOR Protection: Verify firm access
+        await verifyFirmAccess(userId, firmId);
+
         const matchFilter = firmId
             ? { firmId: new mongoose.Types.ObjectId(firmId) }
             : { lawyerId: new mongoose.Types.ObjectId(userId) };
@@ -842,6 +984,10 @@ const getAnalytics = async (request, response) => {
         const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
         const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
         const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0);
+
+        // Validate date ranges
+        validateDateRange(startOfMonth, now);
+        validateDateRange(startOfLastMonth, endOfLastMonth);
 
         const [
             // Revenue data
@@ -968,7 +1114,13 @@ const getReports = async (request, response) => {
     try {
         const userId = request.userID;
         const firmId = request.firmId;
-        const period = request.query.period || 'month';
+
+        // IDOR Protection: Verify firm access
+        await verifyFirmAccess(userId, firmId);
+
+        // Input validation for query parameters
+        const validatedParams = validateQueryParams(request.query);
+        const period = validatedParams.period || 'month';
 
         const matchFilter = firmId
             ? { firmId: new mongoose.Types.ObjectId(firmId) }
@@ -1012,6 +1164,9 @@ const getReports = async (request, response) => {
                     return d.toISOString().split('T')[0];
                 });
         }
+
+        // Validate date range
+        validateDateRange(startDate, now);
 
         const [casesData, revenueData, tasksData] = await Promise.all([
             // Cases by date

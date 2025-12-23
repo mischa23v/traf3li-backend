@@ -1,5 +1,7 @@
 const { User } = require('../models');
 const { CustomException, apiResponse } = require('../utils');
+const { pickAllowedFields, sanitizeObjectId, sanitizeEmail } = require('../utils/securityUtils');
+const bcrypt = require('bcrypt');
 
 // Get user profile by ID (public)
 // UPDATED: Now uses standardized API response format
@@ -7,7 +9,13 @@ const getUserProfile = async (request, response) => {
     const { _id } = request.params;
 
     try {
-        const user = await User.findById(_id).select('-password');
+        // IDOR Protection: Sanitize object ID
+        const sanitizedId = sanitizeObjectId(_id);
+        if (!sanitizedId) {
+            return apiResponse.badRequest(response, 'Invalid user ID format');
+        }
+
+        const user = await User.findById(sanitizedId).select('-password');
 
         if (!user) {
             return apiResponse.notFound(response, 'User not found');
@@ -246,18 +254,103 @@ const getLawyers = async (request, response) => {
 // Update user profile (protected)
 const updateUserProfile = async (request, response) => {
     const { _id } = request.params;
-    
+
     try {
-        if (request.userID !== _id) {
+        // IDOR Protection: Sanitize object ID
+        const sanitizedId = sanitizeObjectId(_id);
+        if (!sanitizedId) {
+            throw CustomException('Invalid user ID format', 400);
+        }
+
+        // IDOR Protection: Verify ownership
+        if (request.userID !== sanitizedId) {
             throw CustomException('You can only update your own profile!', 403);
         }
-        
+
+        // Mass Assignment Protection: Define allowed fields
+        const allowedFields = [
+            'username',
+            'email',
+            'firstName',
+            'lastName',
+            'phone',
+            'image',
+            'country',
+            'description',
+            'lawyerProfile',
+            'language',
+            'timezone',
+            'notifications'
+        ];
+
+        // CRITICAL: NEVER allow these fields to be updated by users
+        const blockedFields = ['role', 'isAdmin', 'isSeller', 'permissions', 'isVerified', 'createdAt', 'updatedAt'];
+
+        // Check if any blocked fields are in the request
+        const hasBlockedFields = blockedFields.some(field => request.body.hasOwnProperty(field));
+        if (hasBlockedFields) {
+            throw CustomException('Cannot update restricted fields', 403);
+        }
+
+        // Mass Assignment Protection: Pick only allowed fields
+        const updateData = pickAllowedFields(request.body, allowedFields);
+
+        // Input Validation: Validate email if provided
+        if (updateData.email) {
+            const sanitizedEmail = sanitizeEmail(updateData.email);
+            if (!sanitizedEmail) {
+                throw CustomException('Invalid email format', 400);
+            }
+            updateData.email = sanitizedEmail;
+
+            // Check if email is already taken by another user
+            const existingUser = await User.findOne({
+                email: sanitizedEmail,
+                _id: { $ne: sanitizedId }
+            });
+            if (existingUser) {
+                throw CustomException('Email already in use', 400);
+            }
+        }
+
+        // Input Validation: Validate username if provided
+        if (updateData.username) {
+            if (updateData.username.length < 3 || updateData.username.length > 30) {
+                throw CustomException('Username must be between 3 and 30 characters', 400);
+            }
+
+            // Check if username is already taken
+            const existingUser = await User.findOne({
+                username: updateData.username,
+                _id: { $ne: sanitizedId }
+            });
+            if (existingUser) {
+                throw CustomException('Username already taken', 400);
+            }
+        }
+
+        // Password Security: Handle password updates separately
+        if (request.body.password) {
+            // Input Validation: Validate password strength
+            if (request.body.password.length < 8) {
+                throw CustomException('Password must be at least 8 characters long', 400);
+            }
+
+            // Password Security: Hash password with bcrypt
+            const hashedPassword = await bcrypt.hash(request.body.password, 10);
+            updateData.password = hashedPassword;
+        }
+
         const updatedUser = await User.findByIdAndUpdate(
-            _id,
-            { $set: request.body },
-            { new: true }
+            sanitizedId,
+            { $set: updateData },
+            { new: true, runValidators: true }
         ).select('-password');
-        
+
+        if (!updatedUser) {
+            throw CustomException('User not found', 404);
+        }
+
         return response.send({
             error: false,
             user: updatedUser
@@ -273,14 +366,25 @@ const updateUserProfile = async (request, response) => {
 // Delete user account (protected)
 const deleteUser = async (request, response) => {
     const { _id } = request.params;
-    
+
     try {
-        if (request.userID !== _id) {
+        // IDOR Protection: Sanitize object ID
+        const sanitizedId = sanitizeObjectId(_id);
+        if (!sanitizedId) {
+            throw CustomException('Invalid user ID format', 400);
+        }
+
+        // IDOR Protection: Verify ownership
+        if (request.userID !== sanitizedId) {
             throw CustomException('You can only delete your own account!', 403);
         }
-        
-        await User.findByIdAndDelete(_id);
-        
+
+        const deletedUser = await User.findByIdAndDelete(sanitizedId);
+
+        if (!deletedUser) {
+            throw CustomException('User not found', 404);
+        }
+
         return response.send({
             error: false,
             message: 'User account deleted successfully!'

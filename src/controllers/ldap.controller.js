@@ -16,6 +16,101 @@ const LdapConfig = require('../models/ldapConfig.model');
 const auditLogService = require('../services/auditLog.service');
 const { encryptField } = require('../utils/encryption');
 const { CustomException } = require('../utils');
+const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
+const Firm = require('../models/firm.model');
+
+/**
+ * Validate LDAP filter to prevent injection attacks
+ */
+const validateLdapFilter = (filter) => {
+    if (!filter) return true;
+
+    // Check for dangerous characters and patterns
+    const dangerousPatterns = [
+        /[;&|`$]/,  // Shell metacharacters
+        /\.\./,      // Directory traversal
+        /\x00/,      // Null bytes
+    ];
+
+    for (const pattern of dangerousPatterns) {
+        if (pattern.test(filter)) {
+            return false;
+        }
+    }
+
+    // Ensure filter has balanced parentheses
+    let count = 0;
+    for (const char of filter) {
+        if (char === '(') count++;
+        if (char === ')') count--;
+        if (count < 0) return false;
+    }
+
+    return count === 0;
+};
+
+/**
+ * Sanitize LDAP input to prevent injection
+ */
+const sanitizeLdapInput = (input) => {
+    if (!input || typeof input !== 'string') return input;
+
+    // Escape LDAP special characters
+    return input
+        .replace(/\\/g, '\\5c')
+        .replace(/\*/g, '\\2a')
+        .replace(/\(/g, '\\28')
+        .replace(/\)/g, '\\29')
+        .replace(/\0/g, '\\00');
+};
+
+/**
+ * Validate LDAP URL format
+ */
+const validateLdapUrl = (url) => {
+    if (!url) return false;
+
+    const ldapUrlPattern = /^ldaps?:\/\/[a-zA-Z0-9.-]+(:[0-9]{1,5})?$/;
+    return ldapUrlPattern.test(url);
+};
+
+/**
+ * Validate Distinguished Name (DN) format
+ */
+const validateDn = (dn) => {
+    if (!dn) return false;
+
+    // Basic DN validation - should contain valid DN components
+    const dnPattern = /^([a-zA-Z]+=.+)(,\s*[a-zA-Z]+=.+)*$/;
+    return dnPattern.test(dn) && !dn.includes('..') && !dn.includes('\0');
+};
+
+/**
+ * Verify user has access to firm
+ */
+const verifyFirmAccess = async (userId, firmId) => {
+    const sanitizedFirmId = sanitizeObjectId(firmId);
+    const sanitizedUserId = sanitizeObjectId(userId);
+
+    if (!sanitizedFirmId || !sanitizedUserId) {
+        throw new CustomException('Invalid firm or user ID', 400);
+    }
+
+    const firm = await Firm.findOne({
+        _id: sanitizedFirmId,
+        $or: [
+            { owner: sanitizedUserId },
+            { admins: sanitizedUserId },
+            { members: sanitizedUserId }
+        ]
+    });
+
+    if (!firm) {
+        throw new CustomException('Access denied: You do not have permission to access this firm', 403);
+    }
+
+    return firm;
+};
 
 /**
  * Get LDAP configuration for firm
@@ -34,6 +129,9 @@ const getConfig = async (request, response) => {
                 message: 'Firm ID is required'
             });
         }
+
+        // IDOR Protection: Verify user has access to this firm
+        await verifyFirmAccess(userId, firmId);
 
         // Get config
         let config = await LdapConfig.getConfig(firmId);
@@ -111,6 +209,36 @@ const saveConfig = async (request, response) => {
             });
         }
 
+        // IDOR Protection: Verify user has access to this firm
+        await verifyFirmAccess(userId, firmId);
+
+        // Mass Assignment Protection: Only allow specific fields
+        const allowedFields = [
+            'name',
+            'serverUrl',
+            'baseDn',
+            'bindDn',
+            'bindPassword',
+            'userFilter',
+            'groupFilter',
+            'attributeMapping',
+            'groupMapping',
+            'defaultRole',
+            'useSsl',
+            'useStarttls',
+            'verifyCertificate',
+            'tlsCaCert',
+            'isEnabled',
+            'autoProvisionUsers',
+            'updateUserAttributes',
+            'allowLocalFallback',
+            'timeout',
+            'searchScope',
+            'pageSize'
+        ];
+
+        const sanitizedData = pickAllowedFields(request.body, allowedFields);
+
         const {
             name,
             serverUrl,
@@ -133,13 +261,86 @@ const saveConfig = async (request, response) => {
             timeout,
             searchScope,
             pageSize
-        } = request.body;
+        } = sanitizedData;
 
-        // Validation
+        // Input Validation
         if (!serverUrl || !baseDn) {
             return response.status(400).json({
                 error: true,
                 message: 'Server URL and Base DN are required'
+            });
+        }
+
+        // Validate LDAP URL format
+        if (!validateLdapUrl(serverUrl)) {
+            return response.status(400).json({
+                error: true,
+                message: 'Invalid LDAP server URL format. Must be ldap:// or ldaps:// followed by hostname and optional port'
+            });
+        }
+
+        // Validate Base DN format
+        if (!validateDn(baseDn)) {
+            return response.status(400).json({
+                error: true,
+                message: 'Invalid Base DN format'
+            });
+        }
+
+        // Validate Bind DN if provided
+        if (bindDn && !validateDn(bindDn)) {
+            return response.status(400).json({
+                error: true,
+                message: 'Invalid Bind DN format'
+            });
+        }
+
+        // Validate LDAP filters to prevent injection
+        if (userFilter && !validateLdapFilter(userFilter)) {
+            return response.status(400).json({
+                error: true,
+                message: 'Invalid user filter format. Contains potentially dangerous characters'
+            });
+        }
+
+        if (groupFilter && !validateLdapFilter(groupFilter)) {
+            return response.status(400).json({
+                error: true,
+                message: 'Invalid group filter format. Contains potentially dangerous characters'
+            });
+        }
+
+        // Validate timeout value
+        if (timeout !== undefined && (typeof timeout !== 'number' || timeout < 1000 || timeout > 60000)) {
+            return response.status(400).json({
+                error: true,
+                message: 'Timeout must be a number between 1000 and 60000 milliseconds'
+            });
+        }
+
+        // Validate page size
+        if (pageSize !== undefined && (typeof pageSize !== 'number' || pageSize < 1 || pageSize > 1000)) {
+            return response.status(400).json({
+                error: true,
+                message: 'Page size must be a number between 1 and 1000'
+            });
+        }
+
+        // Validate default role
+        const validRoles = ['admin', 'lawyer', 'paralegal', 'secretary', 'accountant', 'client'];
+        if (defaultRole && !validRoles.includes(defaultRole)) {
+            return response.status(400).json({
+                error: true,
+                message: `Invalid default role. Must be one of: ${validRoles.join(', ')}`
+            });
+        }
+
+        // Validate search scope
+        const validScopes = ['base', 'one', 'sub'];
+        if (searchScope && !validScopes.includes(searchScope)) {
+            return response.status(400).json({
+                error: true,
+                message: `Invalid search scope. Must be one of: ${validScopes.join(', ')}`
             });
         }
 
@@ -160,9 +361,17 @@ const saveConfig = async (request, response) => {
         if (baseDn !== undefined) config.baseDn = baseDn;
         if (bindDn !== undefined) config.bindDn = bindDn;
 
-        // Only update password if provided
+        // Secure Credential Protection: Only update password if provided and validate strength
         if (bindPassword) {
-            config.bindPassword = bindPassword; // Will be encrypted by plugin
+            // Ensure password is a string and has minimum length
+            if (typeof bindPassword !== 'string' || bindPassword.length < 8) {
+                return response.status(400).json({
+                    error: true,
+                    message: 'Bind password must be at least 8 characters long'
+                });
+            }
+            // Password will be encrypted by the model's encryption plugin
+            config.bindPassword = bindPassword;
         }
 
         if (userFilter !== undefined) config.userFilter = userFilter;
@@ -242,7 +451,16 @@ const testConnection = async (request, response) => {
             });
         }
 
-        const { testUser, testPassword } = request.body;
+        // IDOR Protection: Verify user has access to this firm
+        await verifyFirmAccess(userId, firmId);
+
+        // Mass Assignment Protection: Only allow specific fields
+        const allowedFields = ['testUser', 'testPassword'];
+        const sanitizedData = pickAllowedFields(request.body, allowedFields);
+        const { testUser, testPassword } = sanitizedData;
+
+        // Sanitize test credentials to prevent injection
+        const sanitizedTestUser = testUser ? sanitizeLdapInput(testUser) : null;
 
         // Get config
         const config = await LdapConfig.getConfig(firmId);
@@ -254,10 +472,10 @@ const testConnection = async (request, response) => {
             });
         }
 
-        // Test connection
+        // Test connection with sanitized credentials
         const testOptions = {};
-        if (testUser && testPassword) {
-            testOptions.testUser = testUser;
+        if (sanitizedTestUser && testPassword) {
+            testOptions.testUser = sanitizedTestUser;
             testOptions.testPassword = testPassword;
         }
 
@@ -320,7 +538,13 @@ const testAuth = async (request, response) => {
             });
         }
 
-        const { username, password } = request.body;
+        // IDOR Protection: Verify user has access to this firm
+        await verifyFirmAccess(userId, firmId);
+
+        // Mass Assignment Protection: Only allow specific fields
+        const allowedFields = ['username', 'password'];
+        const sanitizedData = pickAllowedFields(request.body, allowedFields);
+        const { username, password } = sanitizedData;
 
         if (!username || !password) {
             return response.status(400).json({
@@ -329,8 +553,11 @@ const testAuth = async (request, response) => {
             });
         }
 
-        // Test authentication
-        const result = await ldapService.testUserAuth(firmId, username, password);
+        // Sanitize username to prevent LDAP injection
+        const sanitizedUsername = sanitizeLdapInput(username);
+
+        // Test authentication with sanitized username
+        const result = await ldapService.testUserAuth(firmId, sanitizedUsername, password);
 
         // Log audit event
         await auditLogService.log(
@@ -379,9 +606,23 @@ const syncUsers = async (request, response) => {
             });
         }
 
-        const { filter } = request.body;
+        // IDOR Protection: Verify user has access to this firm
+        await verifyFirmAccess(userId, firmId);
 
-        // Sync users
+        // Mass Assignment Protection: Only allow specific fields
+        const allowedFields = ['filter'];
+        const sanitizedData = pickAllowedFields(request.body, allowedFields);
+        const { filter } = sanitizedData;
+
+        // Validate and sanitize filter to prevent LDAP injection
+        if (filter && !validateLdapFilter(filter)) {
+            return response.status(400).json({
+                error: true,
+                message: 'Invalid filter format. Contains potentially dangerous characters'
+            });
+        }
+
+        // Sync users with validated filter
         const result = await ldapService.syncUsers(firmId, { filter });
 
         // Log audit event
@@ -421,7 +662,10 @@ const syncUsers = async (request, response) => {
  */
 const login = async (request, response) => {
     try {
-        const { firmId, username, password } = request.body;
+        // Mass Assignment Protection: Only allow specific fields
+        const allowedFields = ['firmId', 'username', 'password'];
+        const sanitizedData = pickAllowedFields(request.body, allowedFields);
+        const { firmId, username, password } = sanitizedData;
 
         if (!firmId || !username || !password) {
             return response.status(400).json({
@@ -430,19 +674,38 @@ const login = async (request, response) => {
             });
         }
 
-        // Authenticate via LDAP
-        const result = await ldapService.authenticate(firmId, username, password);
+        // Sanitize inputs to prevent injection attacks
+        const sanitizedFirmId = sanitizeObjectId(firmId);
+        const sanitizedUsername = sanitizeLdapInput(username);
+
+        if (!sanitizedFirmId) {
+            return response.status(400).json({
+                error: true,
+                message: 'Invalid Firm ID'
+            });
+        }
+
+        // Validate username format
+        if (!sanitizedUsername || sanitizedUsername.length === 0 || sanitizedUsername.length > 255) {
+            return response.status(400).json({
+                error: true,
+                message: 'Invalid username format'
+            });
+        }
+
+        // Authenticate via LDAP with sanitized inputs
+        const result = await ldapService.authenticate(sanitizedFirmId, sanitizedUsername, password);
 
         if (!result.success) {
-            // Log failed login attempt
+            // Log failed login attempt with sanitized data
             await auditLogService.log(
                 'ldap_login_failed',
                 'user',
                 null,
                 null,
                 {
-                    firmId,
-                    username,
+                    firmId: sanitizedFirmId,
+                    username: sanitizedUsername,
                     message: result.message,
                     severity: 'high'
                 }
@@ -454,15 +717,15 @@ const login = async (request, response) => {
             });
         }
 
-        // Log successful login
+        // Log successful login with sanitized data
         await auditLogService.log(
             'ldap_login_success',
             'user',
             result.user._id,
             result.user._id,
             {
-                firmId,
-                username,
+                firmId: sanitizedFirmId,
+                username: sanitizedUsername,
                 userId: result.user._id,
                 severity: 'medium'
             }

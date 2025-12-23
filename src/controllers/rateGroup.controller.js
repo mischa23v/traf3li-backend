@@ -1,27 +1,76 @@
 const { RateGroup, RateCard, BillingRate } = require('../models');
 const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
+const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 
 /**
  * Create rate group
  * POST /api/rate-groups
  */
 const createRateGroup = asyncHandler(async (req, res) => {
-    const { name, nameAr, description, rates, isDefault, effectiveDate, expiryDate } = req.body;
     const lawyerId = req.userID;
 
-    if (!name) {
+    // Mass assignment protection
+    const allowedFields = ['name', 'nameAr', 'description', 'rates', 'isDefault', 'effectiveDate', 'expiryDate'];
+    const data = pickAllowedFields(req.body, allowedFields);
+
+    // Input validation
+    if (!data.name || typeof data.name !== 'string' || !data.name.trim()) {
         throw CustomException('اسم مجموعة الأسعار مطلوب', 400);
     }
 
+    if (data.nameAr && typeof data.nameAr !== 'string') {
+        throw CustomException('اسم المجموعة بالعربي يجب أن يكون نص', 400);
+    }
+
+    if (data.description && typeof data.description !== 'string') {
+        throw CustomException('الوصف يجب أن يكون نص', 400);
+    }
+
+    if (data.isDefault !== undefined && typeof data.isDefault !== 'boolean') {
+        throw CustomException('isDefault يجب أن يكون قيمة منطقية', 400);
+    }
+
+    // Validate dates
+    if (data.effectiveDate && isNaN(Date.parse(data.effectiveDate))) {
+        throw CustomException('تاريخ السريان غير صحيح', 400);
+    }
+
+    if (data.expiryDate && isNaN(Date.parse(data.expiryDate))) {
+        throw CustomException('تاريخ الانتهاء غير صحيح', 400);
+    }
+
+    if (data.effectiveDate && data.expiryDate && new Date(data.effectiveDate) >= new Date(data.expiryDate)) {
+        throw CustomException('تاريخ الانتهاء يجب أن يكون بعد تاريخ السريان', 400);
+    }
+
+    // Validate rates array
+    if (data.rates && !Array.isArray(data.rates)) {
+        throw CustomException('rates يجب أن يكون مصفوفة', 400);
+    }
+
+    if (data.rates) {
+        for (const rate of data.rates) {
+            if (rate.billingRateId) {
+                sanitizeObjectId(rate.billingRateId, 'معرف سعر الفوترة غير صحيح');
+            }
+            if (rate.customRate !== undefined && (typeof rate.customRate !== 'number' || rate.customRate < 0)) {
+                throw CustomException('السعر المخصص يجب أن يكون رقم موجب', 400);
+            }
+            if (rate.multiplier !== undefined && (typeof rate.multiplier !== 'number' || rate.multiplier <= 0)) {
+                throw CustomException('المضاعف يجب أن يكون رقم موجب', 400);
+            }
+        }
+    }
+
     // Check for duplicate name
-    const existing = await RateGroup.findOne({ lawyerId, name: name.trim() });
+    const existing = await RateGroup.findOne({ lawyerId, name: data.name.trim() });
     if (existing) {
         throw CustomException('مجموعة الأسعار موجودة بالفعل', 400);
     }
 
     // If setting as default, remove default from others
-    if (isDefault) {
+    if (data.isDefault) {
         await RateGroup.updateMany(
             { lawyerId },
             { isDefault: false }
@@ -30,13 +79,13 @@ const createRateGroup = asyncHandler(async (req, res) => {
 
     const rateGroup = await RateGroup.create({
         lawyerId,
-        name: name.trim(),
-        nameAr: nameAr?.trim(),
-        description,
-        rates: rates || [],
-        isDefault: isDefault || false,
-        effectiveDate,
-        expiryDate
+        name: data.name.trim(),
+        nameAr: data.nameAr?.trim(),
+        description: data.description,
+        rates: data.rates || [],
+        isDefault: data.isDefault || false,
+        effectiveDate: data.effectiveDate,
+        expiryDate: data.expiryDate
     });
 
     res.status(201).json({
@@ -51,19 +100,22 @@ const createRateGroup = asyncHandler(async (req, res) => {
  * GET /api/rate-groups
  */
 const getRateGroups = asyncHandler(async (req, res) => {
-    const { isActive, page = 1, limit = 50 } = req.query;
     const lawyerId = req.userID;
 
+    // Input validation for query parameters
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.min(Math.max(1, parseInt(req.query.limit) || 50), 100);
+
     const query = { lawyerId };
-    if (isActive !== undefined) {
-        query.isActive = isActive === 'true';
+    if (req.query.isActive !== undefined) {
+        query.isActive = req.query.isActive === 'true';
     }
 
     const rateGroups = await RateGroup.find(query)
         .populate('rates.billingRateId')
         .sort({ isDefault: -1, name: 1 })
-        .limit(parseInt(limit))
-        .skip((parseInt(page) - 1) * parseInt(limit));
+        .limit(limit)
+        .skip((page - 1) * limit);
 
     const total = await RateGroup.countDocuments(query);
 
@@ -71,10 +123,10 @@ const getRateGroups = asyncHandler(async (req, res) => {
         success: true,
         data: rateGroups,
         pagination: {
-            page: parseInt(page),
-            limit: parseInt(limit),
+            page,
+            limit,
             total,
-            pages: Math.ceil(total / parseInt(limit))
+            pages: Math.ceil(total / limit)
         }
     });
 });
@@ -84,9 +136,12 @@ const getRateGroups = asyncHandler(async (req, res) => {
  * GET /api/rate-groups/:id
  */
 const getRateGroup = asyncHandler(async (req, res) => {
-    const { id } = req.params;
     const lawyerId = req.userID;
 
+    // IDOR protection - sanitize and validate ID
+    const id = sanitizeObjectId(req.params.id, 'معرف مجموعة الأسعار غير صحيح');
+
+    // Verify ownership
     const rateGroup = await RateGroup.findOne({ _id: id, lawyerId })
         .populate('rates.billingRateId');
 
@@ -105,9 +160,64 @@ const getRateGroup = asyncHandler(async (req, res) => {
  * PATCH /api/rate-groups/:id
  */
 const updateRateGroup = asyncHandler(async (req, res) => {
-    const { id } = req.params;
     const lawyerId = req.userID;
 
+    // IDOR protection - sanitize and validate ID
+    const id = sanitizeObjectId(req.params.id, 'معرف مجموعة الأسعار غير صحيح');
+
+    // Mass assignment protection
+    const allowedFields = ['name', 'nameAr', 'description', 'rates', 'isDefault', 'isActive', 'effectiveDate', 'expiryDate'];
+    const data = pickAllowedFields(req.body, allowedFields);
+
+    // Input validation
+    if (data.name !== undefined && (typeof data.name !== 'string' || !data.name.trim())) {
+        throw CustomException('اسم مجموعة الأسعار يجب أن يكون نص غير فارغ', 400);
+    }
+
+    if (data.nameAr !== undefined && typeof data.nameAr !== 'string') {
+        throw CustomException('اسم المجموعة بالعربي يجب أن يكون نص', 400);
+    }
+
+    if (data.description !== undefined && typeof data.description !== 'string') {
+        throw CustomException('الوصف يجب أن يكون نص', 400);
+    }
+
+    if (data.isDefault !== undefined && typeof data.isDefault !== 'boolean') {
+        throw CustomException('isDefault يجب أن يكون قيمة منطقية', 400);
+    }
+
+    if (data.isActive !== undefined && typeof data.isActive !== 'boolean') {
+        throw CustomException('isActive يجب أن يكون قيمة منطقية', 400);
+    }
+
+    // Validate dates
+    if (data.effectiveDate !== undefined && data.effectiveDate !== null && isNaN(Date.parse(data.effectiveDate))) {
+        throw CustomException('تاريخ السريان غير صحيح', 400);
+    }
+
+    if (data.expiryDate !== undefined && data.expiryDate !== null && isNaN(Date.parse(data.expiryDate))) {
+        throw CustomException('تاريخ الانتهاء غير صحيح', 400);
+    }
+
+    // Validate rates array
+    if (data.rates !== undefined) {
+        if (!Array.isArray(data.rates)) {
+            throw CustomException('rates يجب أن يكون مصفوفة', 400);
+        }
+        for (const rate of data.rates) {
+            if (rate.billingRateId) {
+                sanitizeObjectId(rate.billingRateId, 'معرف سعر الفوترة غير صحيح');
+            }
+            if (rate.customRate !== undefined && (typeof rate.customRate !== 'number' || rate.customRate < 0)) {
+                throw CustomException('السعر المخصص يجب أن يكون رقم موجب', 400);
+            }
+            if (rate.multiplier !== undefined && (typeof rate.multiplier !== 'number' || rate.multiplier <= 0)) {
+                throw CustomException('المضاعف يجب أن يكون رقم موجب', 400);
+            }
+        }
+    }
+
+    // Verify ownership
     const rateGroup = await RateGroup.findOne({ _id: id, lawyerId });
 
     if (!rateGroup) {
@@ -115,10 +225,10 @@ const updateRateGroup = asyncHandler(async (req, res) => {
     }
 
     // Check for duplicate name if name is being changed
-    if (req.body.name && req.body.name !== rateGroup.name) {
+    if (data.name && data.name.trim() !== rateGroup.name) {
         const existing = await RateGroup.findOne({
             lawyerId,
-            name: req.body.name.trim(),
+            name: data.name.trim(),
             _id: { $ne: id }
         });
         if (existing) {
@@ -127,17 +237,26 @@ const updateRateGroup = asyncHandler(async (req, res) => {
     }
 
     // If setting as default, remove default from others
-    if (req.body.isDefault && !rateGroup.isDefault) {
+    if (data.isDefault && !rateGroup.isDefault) {
         await RateGroup.updateMany(
             { lawyerId, _id: { $ne: id } },
             { isDefault: false }
         );
     }
 
-    const allowedFields = ['name', 'nameAr', 'description', 'rates', 'isDefault', 'isActive', 'effectiveDate', 'expiryDate'];
-    allowedFields.forEach(field => {
-        if (req.body[field] !== undefined) {
-            rateGroup[field] = req.body[field];
+    // Validate combined dates
+    const effectiveDate = data.effectiveDate !== undefined ? data.effectiveDate : rateGroup.effectiveDate;
+    const expiryDate = data.expiryDate !== undefined ? data.expiryDate : rateGroup.expiryDate;
+    if (effectiveDate && expiryDate && new Date(effectiveDate) >= new Date(expiryDate)) {
+        throw CustomException('تاريخ الانتهاء يجب أن يكون بعد تاريخ السريان', 400);
+    }
+
+    // Apply updates
+    Object.keys(data).forEach(field => {
+        if (data[field] !== undefined) {
+            rateGroup[field] = field === 'name' || field === 'nameAr'
+                ? (typeof data[field] === 'string' ? data[field].trim() : data[field])
+                : data[field];
         }
     });
 
@@ -155,9 +274,12 @@ const updateRateGroup = asyncHandler(async (req, res) => {
  * DELETE /api/rate-groups/:id
  */
 const deleteRateGroup = asyncHandler(async (req, res) => {
-    const { id } = req.params;
     const lawyerId = req.userID;
 
+    // IDOR protection - sanitize and validate ID
+    const id = sanitizeObjectId(req.params.id, 'معرف مجموعة الأسعار غير صحيح');
+
+    // Verify ownership
     const rateGroup = await RateGroup.findOne({ _id: id, lawyerId });
 
     if (!rateGroup) {
@@ -183,10 +305,38 @@ const deleteRateGroup = asyncHandler(async (req, res) => {
  * POST /api/rate-groups/:id/rates
  */
 const addRateToGroup = asyncHandler(async (req, res) => {
-    const { id } = req.params;
-    const { billingRateId, customRate, multiplier } = req.body;
     const lawyerId = req.userID;
 
+    // IDOR protection - sanitize and validate ID
+    const id = sanitizeObjectId(req.params.id, 'معرف مجموعة الأسعار غير صحيح');
+
+    // Mass assignment protection
+    const allowedFields = ['billingRateId', 'customRate', 'multiplier'];
+    const data = pickAllowedFields(req.body, allowedFields);
+
+    // Input validation
+    if (!data.billingRateId) {
+        throw CustomException('معرف سعر الفوترة مطلوب', 400);
+    }
+
+    // Validate billingRateId
+    const billingRateId = sanitizeObjectId(data.billingRateId, 'معرف سعر الفوترة غير صحيح');
+
+    // Validate customRate if provided
+    if (data.customRate !== undefined && data.customRate !== null) {
+        if (typeof data.customRate !== 'number' || data.customRate < 0) {
+            throw CustomException('السعر المخصص يجب أن يكون رقم موجب', 400);
+        }
+    }
+
+    // Validate multiplier if provided
+    if (data.multiplier !== undefined && data.multiplier !== null) {
+        if (typeof data.multiplier !== 'number' || data.multiplier <= 0) {
+            throw CustomException('المضاعف يجب أن يكون رقم موجب', 400);
+        }
+    }
+
+    // Verify ownership of rate group
     const rateGroup = await RateGroup.findOne({ _id: id, lawyerId });
 
     if (!rateGroup) {
@@ -201,18 +351,16 @@ const addRateToGroup = asyncHandler(async (req, res) => {
         throw CustomException('السعر موجود بالفعل في المجموعة', 400);
     }
 
-    // Verify billing rate exists
-    if (billingRateId) {
-        const billingRate = await BillingRate.findOne({ _id: billingRateId, lawyerId });
-        if (!billingRate) {
-            throw CustomException('سعر الفوترة غير موجود', 404);
-        }
+    // Verify billing rate exists and ownership
+    const billingRate = await BillingRate.findOne({ _id: billingRateId, lawyerId });
+    if (!billingRate) {
+        throw CustomException('سعر الفوترة غير موجود', 404);
     }
 
     rateGroup.rates.push({
         billingRateId,
-        customRate,
-        multiplier: multiplier || 1
+        customRate: data.customRate,
+        multiplier: data.multiplier || 1
     });
 
     await rateGroup.save();
@@ -229,13 +377,23 @@ const addRateToGroup = asyncHandler(async (req, res) => {
  * DELETE /api/rate-groups/:id/rates/:rateId
  */
 const removeRateFromGroup = asyncHandler(async (req, res) => {
-    const { id, rateId } = req.params;
     const lawyerId = req.userID;
 
+    // IDOR protection - sanitize and validate IDs
+    const id = sanitizeObjectId(req.params.id, 'معرف مجموعة الأسعار غير صحيح');
+    const rateId = sanitizeObjectId(req.params.rateId, 'معرف السعر غير صحيح');
+
+    // Verify ownership
     const rateGroup = await RateGroup.findOne({ _id: id, lawyerId });
 
     if (!rateGroup) {
         throw CustomException('مجموعة الأسعار غير موجودة', 404);
+    }
+
+    // Check if rate exists in group before removal
+    const rateExists = rateGroup.rates.some(r => r._id.toString() === rateId);
+    if (!rateExists) {
+        throw CustomException('السعر غير موجود في المجموعة', 404);
     }
 
     rateGroup.rates = rateGroup.rates.filter(
@@ -278,23 +436,50 @@ const getDefaultRateGroup = asyncHandler(async (req, res) => {
  * POST /api/rate-groups/:id/duplicate
  */
 const duplicateRateGroup = asyncHandler(async (req, res) => {
-    const { id } = req.params;
-    const { name, nameAr } = req.body;
     const lawyerId = req.userID;
 
+    // IDOR protection - sanitize and validate ID
+    const id = sanitizeObjectId(req.params.id, 'معرف مجموعة الأسعار غير صحيح');
+
+    // Mass assignment protection
+    const allowedFields = ['name', 'nameAr'];
+    const data = pickAllowedFields(req.body, allowedFields);
+
+    // Input validation
+    if (data.name !== undefined && (typeof data.name !== 'string' || !data.name.trim())) {
+        throw CustomException('الاسم يجب أن يكون نص غير فارغ', 400);
+    }
+
+    if (data.nameAr !== undefined && data.nameAr !== null && typeof data.nameAr !== 'string') {
+        throw CustomException('الاسم بالعربي يجب أن يكون نص', 400);
+    }
+
+    // Verify ownership
     const original = await RateGroup.findOne({ _id: id, lawyerId });
 
     if (!original) {
         throw CustomException('مجموعة الأسعار غير موجودة', 404);
     }
 
+    // Generate default names
+    const duplicateName = data.name ? data.name.trim() : `${original.name} (نسخة)`;
+    const duplicateNameAr = data.nameAr ? data.nameAr.trim() : (original.nameAr ? `${original.nameAr} (نسخة)` : undefined);
+
+    // Check for duplicate name
+    const existing = await RateGroup.findOne({ lawyerId, name: duplicateName });
+    if (existing) {
+        throw CustomException('مجموعة أسعار بهذا الاسم موجودة بالفعل', 400);
+    }
+
     const duplicate = await RateGroup.create({
         lawyerId,
-        name: name || `${original.name} (نسخة)`,
-        nameAr: nameAr || `${original.nameAr} (نسخة)`,
+        name: duplicateName,
+        nameAr: duplicateNameAr,
         description: original.description,
         rates: original.rates,
-        isDefault: false
+        isDefault: false,
+        effectiveDate: original.effectiveDate,
+        expiryDate: original.expiryDate
     });
 
     res.status(201).json({
