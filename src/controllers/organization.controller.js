@@ -1,6 +1,7 @@
 const { Organization, Client, Contact, Case } = require('../models');
 const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
+const { pickAllowedFields, sanitizeObjectId, SENSITIVE_FIELDS } = require('../utils/securityUtils');
 
 /**
  * Create organization
@@ -14,19 +15,45 @@ const createOrganization = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
+    // SECURITY: Define allowed fields (mass assignment protection)
+    const allowedFields = [
+        'legalName', 'legalNameAr', 'tradeName', 'tradeNameAr', 'name', 'nameAr',
+        'type', 'status', 'industry', 'subIndustry', 'size', 'employeeCount',
+        'commercialRegistration', 'crIssueDate', 'crExpiryDate', 'crIssuingCity',
+        'vatNumber', 'unifiedNumber', 'municipalLicense', 'chamberMembership', 'registrationNumber',
+        'phone', 'fax', 'email', 'website',
+        'address', 'buildingNumber', 'district', 'city', 'province', 'postalCode', 'country', 'nationalAddress', 'poBox',
+        'parentCompany', 'subsidiaries', 'foundedDate',
+        'capital', 'annualRevenue', 'creditLimit', 'paymentTerms',
+        'bankName', 'iban', 'accountHolderName', 'swiftCode',
+        'billingType', 'preferredPaymentMethod', 'billingCycle', 'billingEmail', 'billingContact',
+        'conflictCheckStatus', 'conflictNotes', 'conflictCheckDate', 'conflictCheckedBy',
+        'keyContacts', 'tags', 'practiceAreas', 'notes', 'description'
+    ];
+
+    // SECURITY: Only pick allowed fields (prevents mass assignment attacks)
+    const safeOrgData = pickAllowedFields(req.body, allowedFields);
+
+    // Add system-managed fields
     const orgData = {
-        ...req.body,
+        ...safeOrgData,
         lawyerId,
         firmId,
         createdBy: lawyerId
     };
 
-    // Validate required fields - support both legalName and legacy name field
+    // Input validation - required fields
     if (!orgData.legalName && !orgData.name) {
         throw CustomException('الاسم القانوني مطلوب', 400);
     }
     if (!orgData.type) {
         throw CustomException('نوع المنظمة مطلوب', 400);
+    }
+
+    // Input validation - type field validation
+    const validTypes = ['individual', 'company', 'organization', 'government', 'other'];
+    if (orgData.type && !validTypes.includes(orgData.type)) {
+        throw CustomException('نوع المنظمة غير صحيح', 400);
     }
 
     // Sync legalName and name for backward compatibility
@@ -111,9 +138,15 @@ const getOrganization = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
+    // SECURITY: Validate ID format (IDOR protection)
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('معرف المنظمة غير صحيح', 400);
+    }
+
     const accessQuery = firmId
-        ? { _id: id, firmId }
-        : { _id: id, lawyerId };
+        ? { _id: sanitizedId, firmId }
+        : { _id: sanitizedId, lawyerId };
 
     const organization = await Organization.findOne(accessQuery)
         .populate('keyContacts.contactId', 'firstName lastName email phone')
@@ -145,9 +178,15 @@ const updateOrganization = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
+    // SECURITY: Validate ID format (IDOR protection)
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('معرف المنظمة غير صحيح', 400);
+    }
+
     const accessQuery = firmId
-        ? { _id: id, firmId }
-        : { _id: id, lawyerId };
+        ? { _id: sanitizedId, firmId }
+        : { _id: sanitizedId, lawyerId };
 
     const organization = await Organization.findOne(accessQuery);
 
@@ -155,6 +194,7 @@ const updateOrganization = asyncHandler(async (req, res) => {
         throw CustomException('المنظمة غير موجودة', 404);
     }
 
+    // SECURITY: Define allowed fields for updates (mass assignment protection)
     const allowedFields = [
         'legalName', 'legalNameAr', 'tradeName', 'tradeNameAr', 'name', 'nameAr',
         'type', 'status', 'industry', 'subIndustry', 'size', 'employeeCount',
@@ -170,12 +210,13 @@ const updateOrganization = asyncHandler(async (req, res) => {
         'keyContacts', 'tags', 'practiceAreas', 'notes', 'description'
     ];
 
-    allowedFields.forEach(field => {
-        if (req.body[field] !== undefined) {
-            organization[field] = req.body[field];
-        }
-    });
+    // SECURITY: Only pick allowed fields (prevents mass assignment attacks)
+    const updateData = pickAllowedFields(req.body, allowedFields);
 
+    // Apply safe updates
+    Object.assign(organization, updateData);
+
+    // System-managed fields
     organization.updatedBy = lawyerId;
     await organization.save();
 
@@ -199,9 +240,15 @@ const deleteOrganization = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
+    // SECURITY: Validate ID format (IDOR protection)
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('معرف المنظمة غير صحيح', 400);
+    }
+
     const accessQuery = firmId
-        ? { _id: id, firmId }
-        : { _id: id, lawyerId };
+        ? { _id: sanitizedId, firmId }
+        : { _id: sanitizedId, lawyerId };
 
     const organization = await Organization.findOneAndDelete(accessQuery);
 
@@ -233,9 +280,23 @@ const bulkDeleteOrganizations = asyncHandler(async (req, res) => {
         throw CustomException('معرفات المنظمات مطلوبة', 400);
     }
 
+    // SECURITY: Validate all IDs format (IDOR protection + input validation)
+    const sanitizedIds = deleteIds
+        .map(id => sanitizeObjectId(id))
+        .filter(id => id !== null);
+
+    if (sanitizedIds.length === 0) {
+        throw CustomException('معرفات المنظمات غير صحيحة', 400);
+    }
+
+    // Warn if some IDs were invalid
+    if (sanitizedIds.length < deleteIds.length) {
+        throw CustomException('بعض معرفات المنظمات غير صحيحة', 400);
+    }
+
     const accessQuery = firmId
-        ? { _id: { $in: deleteIds }, firmId }
-        : { _id: { $in: deleteIds }, lawyerId };
+        ? { _id: { $in: sanitizedIds }, firmId }
+        : { _id: { $in: sanitizedIds }, lawyerId };
 
     const result = await Organization.deleteMany(accessQuery);
 
@@ -282,9 +343,25 @@ const getOrganizationsByClient = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
+    // SECURITY: Validate clientId format (IDOR protection)
+    const sanitizedClientId = sanitizeObjectId(clientId);
+    if (!sanitizedClientId) {
+        throw CustomException('معرف العميل غير صحيح', 400);
+    }
+
+    // SECURITY: Verify client belongs to the user/firm (IDOR protection)
+    const clientQuery = firmId
+        ? { _id: sanitizedClientId, firmId }
+        : { _id: sanitizedClientId, lawyerId };
+
+    const clientExists = await Client.findOne(clientQuery);
+    if (!clientExists) {
+        throw CustomException('العميل غير موجود أو ليس لديك صلاحية للوصول إليه', 404);
+    }
+
     const query = firmId
-        ? { firmId, linkedClients: clientId }
-        : { lawyerId, linkedClients: clientId };
+        ? { firmId, linkedClients: sanitizedClientId }
+        : { lawyerId, linkedClients: sanitizedClientId };
 
     const organizations = await Organization.find(query).sort({ createdAt: -1 });
 
@@ -308,9 +385,25 @@ const linkToClient = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
+    // Input validation - required fields
+    if (!clientId) {
+        throw CustomException('معرف العميل مطلوب', 400);
+    }
+
+    // SECURITY: Validate IDs format (IDOR protection + input validation)
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('معرف المنظمة غير صحيح', 400);
+    }
+
+    const sanitizedClientId = sanitizeObjectId(clientId);
+    if (!sanitizedClientId) {
+        throw CustomException('معرف العميل غير صحيح', 400);
+    }
+
     const accessQuery = firmId
-        ? { _id: id, firmId }
-        : { _id: id, lawyerId };
+        ? { _id: sanitizedId, firmId }
+        : { _id: sanitizedId, lawyerId };
 
     const organization = await Organization.findOne(accessQuery);
     if (!organization) {
@@ -318,15 +411,15 @@ const linkToClient = asyncHandler(async (req, res) => {
     }
 
     const clientQuery = firmId
-        ? { _id: clientId, firmId }
-        : { _id: clientId, lawyerId };
+        ? { _id: sanitizedClientId, firmId }
+        : { _id: sanitizedClientId, lawyerId };
     const clientExists = await Client.findOne(clientQuery);
     if (!clientExists) {
         throw CustomException('العميل غير موجود', 404);
     }
 
-    if (!organization.linkedClients.includes(clientId)) {
-        organization.linkedClients.push(clientId);
+    if (!organization.linkedClients.includes(sanitizedClientId)) {
+        organization.linkedClients.push(sanitizedClientId);
         await organization.save();
     }
 
@@ -351,9 +444,25 @@ const linkToContact = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
+    // Input validation - required fields
+    if (!contactId) {
+        throw CustomException('معرف جهة الاتصال مطلوب', 400);
+    }
+
+    // SECURITY: Validate IDs format (IDOR protection + input validation)
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('معرف المنظمة غير صحيح', 400);
+    }
+
+    const sanitizedContactId = sanitizeObjectId(contactId);
+    if (!sanitizedContactId) {
+        throw CustomException('معرف جهة الاتصال غير صحيح', 400);
+    }
+
     const accessQuery = firmId
-        ? { _id: id, firmId }
-        : { _id: id, lawyerId };
+        ? { _id: sanitizedId, firmId }
+        : { _id: sanitizedId, lawyerId };
 
     const organization = await Organization.findOne(accessQuery);
     if (!organization) {
@@ -361,15 +470,15 @@ const linkToContact = asyncHandler(async (req, res) => {
     }
 
     const contactQuery = firmId
-        ? { _id: contactId, firmId }
-        : { _id: contactId, lawyerId };
+        ? { _id: sanitizedContactId, firmId }
+        : { _id: sanitizedContactId, lawyerId };
     const contactExists = await Contact.findOne(contactQuery);
     if (!contactExists) {
         throw CustomException('جهة الاتصال غير موجودة', 404);
     }
 
-    if (!organization.linkedContacts.includes(contactId)) {
-        organization.linkedContacts.push(contactId);
+    if (!organization.linkedContacts.includes(sanitizedContactId)) {
+        organization.linkedContacts.push(sanitizedContactId);
         await organization.save();
     }
 
@@ -394,9 +503,25 @@ const linkToCase = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
+    // Input validation - required fields
+    if (!caseId) {
+        throw CustomException('معرف القضية مطلوب', 400);
+    }
+
+    // SECURITY: Validate IDs format (IDOR protection + input validation)
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('معرف المنظمة غير صحيح', 400);
+    }
+
+    const sanitizedCaseId = sanitizeObjectId(caseId);
+    if (!sanitizedCaseId) {
+        throw CustomException('معرف القضية غير صحيح', 400);
+    }
+
     const accessQuery = firmId
-        ? { _id: id, firmId }
-        : { _id: id, lawyerId };
+        ? { _id: sanitizedId, firmId }
+        : { _id: sanitizedId, lawyerId };
 
     const organization = await Organization.findOne(accessQuery);
     if (!organization) {
@@ -404,15 +529,15 @@ const linkToCase = asyncHandler(async (req, res) => {
     }
 
     const caseQuery = firmId
-        ? { _id: caseId, firmId }
-        : { _id: caseId, lawyerId };
+        ? { _id: sanitizedCaseId, firmId }
+        : { _id: sanitizedCaseId, lawyerId };
     const caseExists = await Case.findOne(caseQuery);
     if (!caseExists) {
         throw CustomException('القضية غير موجودة', 404);
     }
 
-    if (!organization.linkedCases.includes(caseId)) {
-        organization.linkedCases.push(caseId);
+    if (!organization.linkedCases.includes(sanitizedCaseId)) {
+        organization.linkedCases.push(sanitizedCaseId);
         await organization.save();
     }
 

@@ -2,6 +2,38 @@ const { Expense, Case, Client, User, BillingActivity } = require('../models');
 const { CustomException } = require('../utils');
 const asyncHandler = require('../utils/asyncHandler');
 const mongoose = require('mongoose');
+const { pickAllowedFields } = require('../utils/securityUtils');
+
+// ═══════════════════════════════════════════════════════════════
+// HELPER: Validate expense amount
+// ═══════════════════════════════════════════════════════════════
+const validateExpenseAmount = (amount) => {
+    if (amount === undefined || amount === null) {
+        throw CustomException('Amount is required', 400);
+    }
+
+    const numAmount = Number(amount);
+
+    if (isNaN(numAmount)) {
+        throw CustomException('Amount must be a valid number', 400);
+    }
+
+    if (numAmount < 0.01) {
+        throw CustomException('Amount must be at least 0.01', 400);
+    }
+
+    // Prevent unreasonably large amounts (e.g., 1 billion)
+    if (numAmount > 999999999.99) {
+        throw CustomException('Amount exceeds maximum allowed value', 400);
+    }
+
+    return numAmount;
+};
+
+// ═══════════════════════════════════════════════════════════════
+// ALLOWED FIELDS FOR EXPENSE OPERATIONS
+// ═══════════════════════════════════════════════════════════════
+const EXPENSE_ALLOWED_FIELDS = ['description', 'amount', 'category', 'date', 'receiptUrl', 'caseId', 'clientId', 'notes'];
 
 // ═══════════════════════════════════════════════════════════════
 // CREATE EXPENSE
@@ -68,9 +100,8 @@ const createExpense = asyncHandler(async (req, res) => {
         throw CustomException('Description must be at least 10 characters', 400);
     }
 
-    if (!amount || amount < 0.01) {
-        throw CustomException('Amount must be at least 0.01', 400);
-    }
+    // Validate amount with enhanced validation
+    const validatedAmount = validateExpenseAmount(amount);
 
     if (!category) {
         throw CustomException('Category is required', 400);
@@ -141,7 +172,7 @@ const createExpense = asyncHandler(async (req, res) => {
     const expense = await Expense.create({
         // Basic info
         description,
-        amount,
+        amount: validatedAmount,
         taxAmount: taxAmount || 0,
         category,
         date: expenseDate,
@@ -357,7 +388,7 @@ const updateExpense = asyncHandler(async (req, res) => {
         throw CustomException('Expense not found', 404);
     }
 
-    // Check access - firmId first, then lawyerId
+    // IDOR Protection: Check access - firmId first, then lawyerId
     const hasAccess = firmId
         ? expense.firmId && expense.firmId.toString() === firmId.toString()
         : expense.lawyerId.toString() === lawyerId;
@@ -379,19 +410,22 @@ const updateExpense = asyncHandler(async (req, res) => {
         throw CustomException('Cannot edit an invoiced expense', 400);
     }
 
+    // Mass Assignment Protection: Only allow specific fields
+    const allowedUpdateFields = pickAllowedFields(req.body, EXPENSE_ALLOWED_FIELDS);
+
     // Validate description if provided
-    if (req.body.description && req.body.description.length < 10) {
+    if (allowedUpdateFields.description && allowedUpdateFields.description.length < 10) {
         throw CustomException('Description must be at least 10 characters', 400);
     }
 
-    // Validate amount if provided
-    if (req.body.amount !== undefined && req.body.amount < 0.01) {
-        throw CustomException('Amount must be at least 0.01', 400);
+    // Validate amount if provided with enhanced validation
+    if (allowedUpdateFields.amount !== undefined) {
+        allowedUpdateFields.amount = validateExpenseAmount(allowedUpdateFields.amount);
     }
 
     // Validate date if provided
-    if (req.body.date) {
-        const expenseDate = new Date(req.body.date);
+    if (allowedUpdateFields.date) {
+        const expenseDate = new Date(allowedUpdateFields.date);
         const today = new Date();
         today.setHours(23, 59, 59, 999);
         if (expenseDate > today) {
@@ -399,12 +433,12 @@ const updateExpense = asyncHandler(async (req, res) => {
         }
     }
 
-    // Add updatedBy
-    req.body.updatedBy = lawyerId;
+    // Add updatedBy (system field, not from allowlist)
+    allowedUpdateFields.updatedBy = lawyerId;
 
     const updatedExpense = await Expense.findByIdAndUpdate(
         id,
-        { $set: req.body },
+        { $set: allowedUpdateFields },
         { new: true, runValidators: true }
     )
         .populate('caseId', 'title caseNumber')

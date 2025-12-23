@@ -3,35 +3,65 @@ const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
 const nlpService = require('../services/nlp.service');
 const voiceToTaskService = require('../services/voiceToTask.service');
+const { pickAllowedFields } = require('../utils/securityUtils');
+
+// ============================================
+// DATE/TIME VALIDATION
+// ============================================
+
+/**
+ * Validate and parse ISO date string
+ * @param {string} dateString - ISO date string
+ * @returns {Date|null} - Valid Date object or null
+ */
+const parseAndValidateDate = (dateString) => {
+    if (!dateString) return null;
+
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) {
+        throw CustomException('Invalid date format. Use ISO 8601 format (YYYY-MM-DDTHH:mm:ss)', 400);
+    }
+
+    return date;
+};
+
+/**
+ * Validate date range
+ * @param {Date} startDate - Start date
+ * @param {Date} endDate - End date
+ * @returns {boolean} - True if valid
+ */
+const validateDateRange = (startDate, endDate) => {
+    if (!startDate) {
+        throw CustomException('Start date is required', 400);
+    }
+
+    if (endDate && startDate >= endDate) {
+        throw CustomException('End date must be after start date', 400);
+    }
+
+    return true;
+};
+
+/**
+ * Validate that date is not in the past (for new events)
+ * @param {Date} date - Date to validate
+ * @param {boolean} allowPast - Whether to allow past dates
+ */
+const validateFutureDate = (date, allowPast = false) => {
+    if (!date) return;
+
+    const now = new Date();
+    if (!allowPast && date < now) {
+        throw CustomException('Event date cannot be in the past', 400);
+    }
+};
 
 /**
  * Create event
  * POST /api/events
  */
 const createEvent = asyncHandler(async (req, res) => {
-    const {
-        title,
-        type,
-        description,
-        startDateTime,
-        endDateTime,
-        allDay,
-        timezone,
-        location,
-        caseId,
-        clientId,
-        taskId,
-        attendees,
-        agenda,
-        reminders,
-        recurrence,
-        priority,
-        visibility,
-        color,
-        tags,
-        notes
-    } = req.body;
-
     const userId = req.userID;
     const firmId = req.firmId; // From firmFilter middleware
 
@@ -40,47 +70,89 @@ const createEvent = asyncHandler(async (req, res) => {
         throw CustomException('لم يعد لديك صلاحية إنشاء مواعيد جديدة', 403);
     }
 
-    // Note: Required field validation removed for testing flexibility
-    // Fields will use defaults if not provided
+    // Mass assignment protection: only allow specific fields
+    const allowedFields = [
+        'title', 'type', 'description', 'startDateTime', 'endDateTime',
+        'allDay', 'timezone', 'location', 'caseId', 'clientId',
+        'attendees', 'agenda', 'reminders', 'recurrence',
+        'priority', 'visibility', 'color', 'tags', 'notes'
+    ];
 
-    // Validate case access if provided
-    if (caseId) {
-        const caseDoc = await Case.findById(caseId);
-        if (!caseDoc) {
-            throw CustomException('Case not found', 404);
-        }
-    }
+    const sanitizedData = pickAllowedFields(req.body, allowedFields);
 
-    // Create event with defaults for optional fields
-    const event = await Event.create({
-        title: title || 'Untitled Event',
-        type: type || 'other',
+    const {
+        title = 'Untitled Event',
+        type = 'other',
         description,
-        startDateTime: startDateTime ? new Date(startDateTime) : new Date(),
-        endDateTime: endDateTime ? new Date(endDateTime) : null,
-        allDay: allDay || false,
-        timezone: timezone || 'Asia/Riyadh',
+        startDateTime,
+        endDateTime,
+        allDay = false,
+        timezone = 'Asia/Riyadh',
         location,
         caseId,
         clientId,
-        taskId,
+        attendees = [],
+        agenda = [],
+        reminders = [],
+        recurrence = { enabled: false },
+        priority = 'medium',
+        visibility = 'private',
+        color = '#3b82f6',
+        tags = [],
+        notes
+    } = sanitizedData;
+
+    // IDOR Protection: Validate case access if provided
+    if (caseId) {
+        const caseDoc = await Case.findById(caseId);
+        if (!caseDoc || (caseDoc.firmId && caseDoc.firmId.toString() !== firmId.toString())) {
+            throw CustomException('Case not found or you do not have access', 404);
+        }
+    }
+
+    // IDOR Protection: Validate client access if provided
+    if (clientId) {
+        const clientDoc = await User.findById(clientId);
+        if (!clientDoc || (clientDoc.firmId && clientDoc.firmId.toString() !== firmId.toString())) {
+            throw CustomException('Client not found or you do not have access', 404);
+        }
+    }
+
+    // Date/Time Validation
+    const parsedStartDateTime = parseAndValidateDate(startDateTime) || new Date();
+    const parsedEndDateTime = endDateTime ? parseAndValidateDate(endDateTime) : null;
+    validateDateRange(parsedStartDateTime, parsedEndDateTime);
+    validateFutureDate(parsedStartDateTime, false); // Prevent past dates for new events
+
+    // Create event with defaults for optional fields
+    const event = await Event.create({
+        title,
+        type,
+        description,
+        startDateTime: parsedStartDateTime,
+        endDateTime: parsedEndDateTime,
+        allDay,
+        timezone,
+        location,
+        caseId,
+        clientId,
         organizer: userId,
         firmId, // Add firmId for multi-tenancy
-        attendees: attendees || [],
-        agenda: agenda || [],
-        reminders: reminders || [],
-        recurrence: recurrence || { enabled: false },
-        priority: priority || 'medium',
-        visibility: visibility || 'private',
-        color: color || '#3b82f6',
-        tags: tags || [],
+        attendees,
+        agenda,
+        reminders,
+        recurrence,
+        priority,
+        visibility,
+        color,
+        tags,
         notes,
         createdBy: userId
     });
 
     // Create default reminders if none provided
     if (!reminders || reminders.length === 0) {
-        const start = new Date(startDateTime);
+        const start = parsedStartDateTime;
 
         // 1 day before
         if (start.getTime() - Date.now() > 24 * 60 * 60 * 1000) {
@@ -104,12 +176,12 @@ const createEvent = asyncHandler(async (req, res) => {
     }
 
     // Create linked task if event type is 'task' and no taskId was provided
-    if (type === 'task' && !taskId) {
+    if (type === 'task') {
         try {
             // Extract due time from startDateTime if not all day
             let dueTime = null;
             if (!allDay) {
-                const start = new Date(startDateTime);
+                const start = parsedStartDateTime;
                 dueTime = `${String(start.getHours()).padStart(2, '0')}:${String(start.getMinutes()).padStart(2, '0')}`;
             }
 
@@ -121,16 +193,16 @@ const createEvent = asyncHandler(async (req, res) => {
             const linkedTask = await Task.create({
                 title,
                 description,
-                dueDate: new Date(startDateTime),
+                dueDate: parsedStartDateTime,
                 dueTime,
                 assignedTo: assignedUserId,
                 createdBy: userId,
                 firmId,
                 caseId,
                 clientId,
-                priority: priority || 'medium',
+                priority,
                 status: 'todo',
-                tags: tags || [],
+                tags,
                 notes,
                 linkedEventId: event._id
             });
@@ -348,6 +420,11 @@ const getEvent = asyncHandler(async (req, res) => {
     const userId = req.userID;
     const firmId = req.firmId; // From firmFilter middleware
 
+    // IDOR Protection: Validate ID format before query
+    if (!id || id.length !== 24 || !/^[0-9a-fA-F]{24}$/.test(id)) {
+        throw CustomException('Invalid event ID format', 400);
+    }
+
     const event = await Event.findById(id)
         .populate('organizer', 'firstName lastName image email')
         .populate('attendees.userId', 'firstName lastName image email')
@@ -364,7 +441,7 @@ const getEvent = asyncHandler(async (req, res) => {
         throw CustomException('Event not found', 404);
     }
 
-    // Check access - firmId first, then user-based
+    // IDOR Protection: Check access - firmId first, then user-based
     const hasAccess = firmId
         ? event.firmId && event.firmId.toString() === firmId.toString()
         : (event.createdBy._id.toString() === userId ||
@@ -401,7 +478,7 @@ const updateEvent = asyncHandler(async (req, res) => {
         throw CustomException('Event not found', 404);
     }
 
-    // Check access - firmId first, then organizer/creator
+    // IDOR Protection: Check access - firmId first, then organizer/creator
     const canUpdate = firmId
         ? event.firmId && event.firmId.toString() === firmId.toString()
         : (event.organizer.toString() === userId || event.createdBy.toString() === userId);
@@ -410,19 +487,47 @@ const updateEvent = asyncHandler(async (req, res) => {
         throw CustomException('Only the organizer can update this event', 403);
     }
 
+    // Mass assignment protection: only allow specific fields
     const allowedFields = [
         'title', 'type', 'description', 'startDateTime', 'endDateTime',
-        'allDay', 'timezone', 'location', 'caseId', 'clientId', 'taskId',
+        'allDay', 'timezone', 'location', 'caseId', 'clientId',
         'attendees', 'agenda', 'actionItems', 'reminders', 'recurrence',
         'priority', 'visibility', 'color', 'tags', 'notes', 'minutesNotes'
     ];
 
-    allowedFields.forEach(field => {
-        if (req.body[field] !== undefined) {
-            event[field] = req.body[field];
-        }
-    });
+    const sanitizedData = pickAllowedFields(req.body, allowedFields);
 
+    // Date/Time Validation for updated dates
+    if (sanitizedData.startDateTime) {
+        sanitizedData.startDateTime = parseAndValidateDate(sanitizedData.startDateTime);
+    }
+    if (sanitizedData.endDateTime) {
+        sanitizedData.endDateTime = parseAndValidateDate(sanitizedData.endDateTime);
+    }
+    if (sanitizedData.startDateTime || sanitizedData.endDateTime) {
+        const startDate = sanitizedData.startDateTime || event.startDateTime;
+        const endDate = sanitizedData.endDateTime || event.endDateTime;
+        validateDateRange(startDate, endDate);
+    }
+
+    // IDOR Protection: Validate case access if provided
+    if (sanitizedData.caseId && sanitizedData.caseId !== event.caseId.toString()) {
+        const caseDoc = await Case.findById(sanitizedData.caseId);
+        if (!caseDoc || (caseDoc.firmId && caseDoc.firmId.toString() !== firmId.toString())) {
+            throw CustomException('Case not found or you do not have access', 404);
+        }
+    }
+
+    // IDOR Protection: Validate client access if provided
+    if (sanitizedData.clientId && sanitizedData.clientId !== event.clientId.toString()) {
+        const clientDoc = await User.findById(sanitizedData.clientId);
+        if (!clientDoc || (clientDoc.firmId && clientDoc.firmId.toString() !== firmId.toString())) {
+            throw CustomException('Client not found or you do not have access', 404);
+        }
+    }
+
+    // Apply sanitized updates
+    Object.assign(event, sanitizedData);
     event.lastModifiedBy = userId;
     await event.save();
 
@@ -551,6 +656,7 @@ const cancelEvent = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const { reason } = req.body;
     const userId = req.userID;
+    const firmId = req.firmId;
 
     const event = await Event.findById(id);
 
@@ -558,7 +664,12 @@ const cancelEvent = asyncHandler(async (req, res) => {
         throw CustomException('Event not found', 404);
     }
 
-    if (event.organizer.toString() !== userId && event.createdBy.toString() !== userId) {
+    // IDOR Protection: Check access
+    const canUpdate = firmId
+        ? event.firmId && event.firmId.toString() === firmId.toString()
+        : (event.organizer.toString() === userId || event.createdBy.toString() === userId);
+
+    if (!canUpdate) {
         throw CustomException('Only the organizer can cancel this event', 403);
     }
 
@@ -584,6 +695,7 @@ const postponeEvent = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const { newDateTime, reason } = req.body;
     const userId = req.userID;
+    const firmId = req.firmId;
 
     if (!newDateTime) {
         throw CustomException('New date/time is required', 400);
@@ -595,12 +707,23 @@ const postponeEvent = asyncHandler(async (req, res) => {
         throw CustomException('Event not found', 404);
     }
 
-    if (event.organizer.toString() !== userId && event.createdBy.toString() !== userId) {
+    // IDOR Protection: Check access
+    const canUpdate = firmId
+        ? event.firmId && event.firmId.toString() === firmId.toString()
+        : (event.organizer.toString() === userId || event.createdBy.toString() === userId);
+
+    if (!canUpdate) {
         throw CustomException('Only the organizer can postpone this event', 403);
     }
 
+    // Date/Time Validation: postponed date must be after current event start
+    const parsedNewDateTime = parseAndValidateDate(newDateTime);
+    if (parsedNewDateTime <= event.startDateTime) {
+        throw CustomException('New date must be after the current event start date', 400);
+    }
+
     event.status = 'postponed';
-    event.postponedTo = new Date(newDateTime);
+    event.postponedTo = parsedNewDateTime;
     event.postponementReason = reason;
 
     await event.save();
@@ -886,6 +1009,7 @@ const addActionItem = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const { description, assignedTo, dueDate, priority } = req.body;
     const userId = req.userID;
+    const firmId = req.firmId;
 
     const event = await Event.findById(id);
 
@@ -893,18 +1017,30 @@ const addActionItem = asyncHandler(async (req, res) => {
         throw CustomException('Event not found', 404);
     }
 
-    const hasAccess = event.organizer.toString() === userId ||
-                      event.createdBy.toString() === userId ||
-                      event.isUserAttendee(userId);
+    // IDOR Protection: Check access
+    const hasAccess = firmId
+        ? event.firmId && event.firmId.toString() === firmId.toString()
+        : (event.organizer.toString() === userId ||
+           event.createdBy.toString() === userId ||
+           event.isUserAttendee(userId));
 
     if (!hasAccess) {
         throw CustomException('You cannot add action items to this event', 403);
     }
 
+    // Date/Time Validation: action item dueDate validation
+    let validatedDueDate = null;
+    if (dueDate) {
+        validatedDueDate = parseAndValidateDate(dueDate);
+        if (validatedDueDate < event.startDateTime) {
+            throw CustomException('Action item due date cannot be before the event start date', 400);
+        }
+    }
+
     event.actionItems.push({
         description,
         assignedTo,
-        dueDate,
+        dueDate: validatedDueDate,
         priority: priority || 'medium',
         status: 'pending'
     });
@@ -927,6 +1063,7 @@ const addActionItem = asyncHandler(async (req, res) => {
 const updateActionItem = asyncHandler(async (req, res) => {
     const { id, itemId } = req.params;
     const userId = req.userID;
+    const firmId = req.firmId;
 
     const event = await Event.findById(id);
 
@@ -934,17 +1071,36 @@ const updateActionItem = asyncHandler(async (req, res) => {
         throw CustomException('Event not found', 404);
     }
 
+    // IDOR Protection: Check access
+    const hasAccess = firmId
+        ? event.firmId && event.firmId.toString() === firmId.toString()
+        : (event.organizer.toString() === userId ||
+           event.createdBy.toString() === userId ||
+           event.isUserAttendee(userId));
+
+    if (!hasAccess) {
+        throw CustomException('You cannot update action items in this event', 403);
+    }
+
     const item = event.actionItems.id(itemId);
     if (!item) {
         throw CustomException('Action item not found', 404);
     }
 
+    // Mass assignment protection: only allow specific fields
     const allowedFields = ['description', 'assignedTo', 'dueDate', 'status', 'priority'];
-    allowedFields.forEach(field => {
-        if (req.body[field] !== undefined) {
-            item[field] = req.body[field];
+    const sanitizedData = pickAllowedFields(req.body, allowedFields);
+
+    // Date/Time Validation: action item dueDate validation
+    if (sanitizedData.dueDate) {
+        const validatedDueDate = parseAndValidateDate(sanitizedData.dueDate);
+        if (validatedDueDate < event.startDateTime) {
+            throw CustomException('Action item due date cannot be before the event start date', 400);
         }
-    });
+        sanitizedData.dueDate = validatedDueDate;
+    }
+
+    Object.assign(item, sanitizedData);
 
     if (req.body.status === 'completed' && item.status !== 'completed') {
         item.completedAt = new Date();
@@ -1140,10 +1296,15 @@ const checkAvailability = asyncHandler(async (req, res) => {
         throw CustomException('User IDs, start time, and end time are required', 400);
     }
 
+    // Date/Time Validation
+    const parsedStartDateTime = parseAndValidateDate(startDateTime);
+    const parsedEndDateTime = parseAndValidateDate(endDateTime);
+    validateDateRange(parsedStartDateTime, parsedEndDateTime);
+
     const result = await Event.checkAvailability(
         userIds,
-        new Date(startDateTime),
-        new Date(endDateTime),
+        parsedStartDateTime,
+        parsedEndDateTime,
         excludeEventId
     );
 
@@ -1553,27 +1714,41 @@ const createEventFromNaturalLanguage = asyncHandler(async (req, res) => {
 
     const { eventData, confidence } = parseResult;
 
-    // Validate case access if provided
+    // IDOR Protection: Validate case access if provided
     if (eventData.caseId) {
         const caseDoc = await Case.findById(eventData.caseId);
-        if (!caseDoc) {
-            throw CustomException('Case not found', 404);
+        if (!caseDoc || (caseDoc.firmId && caseDoc.firmId.toString() !== firmId.toString())) {
+            throw CustomException('Case not found or you do not have access', 404);
         }
     }
+
+    // IDOR Protection: Validate client access if provided
+    if (eventData.clientId) {
+        const clientDoc = await User.findById(eventData.clientId);
+        if (!clientDoc || (clientDoc.firmId && clientDoc.firmId.toString() !== firmId.toString())) {
+            throw CustomException('Client not found or you do not have access', 404);
+        }
+    }
+
+    // Date/Time Validation
+    const parsedStartDateTime = parseAndValidateDate(eventData.startDateTime);
+    const parsedEndDateTime = eventData.endDateTime ? parseAndValidateDate(eventData.endDateTime) : null;
+    validateDateRange(parsedStartDateTime, parsedEndDateTime);
+    validateFutureDate(parsedStartDateTime, false);
 
     // Prepare attendees array for event creation
     const attendeesArray = [];
     if (eventData.attendees && Array.isArray(eventData.attendees)) {
         for (const attendee of eventData.attendees) {
             // Try to find user by name or email
-            let userId = null;
+            let attendeeUserId = null;
             if (attendee.email) {
                 const user = await User.findOne({ email: attendee.email });
-                if (user) userId = user._id;
+                if (user) attendeeUserId = user._id;
             }
 
             attendeesArray.push({
-                userId: userId,
+                userId: attendeeUserId,
                 email: attendee.email || null,
                 name: attendee.name || null,
                 role: attendee.role || 'required',
@@ -1583,7 +1758,7 @@ const createEventFromNaturalLanguage = asyncHandler(async (req, res) => {
         }
     }
 
-    // Prepare location data
+    // Prepare location data with validation
     let locationData = null;
     if (eventData.location && typeof eventData.location === 'object') {
         locationData = {
@@ -1599,8 +1774,8 @@ const createEventFromNaturalLanguage = asyncHandler(async (req, res) => {
         title: eventData.title,
         type: eventData.type || 'meeting',
         description: eventData.description || null,
-        startDateTime: new Date(eventData.startDateTime),
-        endDateTime: eventData.endDateTime ? new Date(eventData.endDateTime) : null,
+        startDateTime: parsedStartDateTime,
+        endDateTime: parsedEndDateTime,
         allDay: eventData.allDay || false,
         timezone: req.body.timezone || 'Asia/Riyadh',
         location: locationData,
@@ -1626,7 +1801,7 @@ const createEventFromNaturalLanguage = asyncHandler(async (req, res) => {
     });
 
     // Create default reminders
-    const start = new Date(eventData.startDateTime);
+    const start = parsedStartDateTime;
 
     if (start.getTime() - Date.now() > 24 * 60 * 60 * 1000) {
         event.reminders.push({
@@ -1708,26 +1883,40 @@ const createEventFromVoice = asyncHandler(async (req, res) => {
     // Formalize the event data (clean up casual speech)
     const formalizedData = voiceToTaskService.formalizeEventData(eventData);
 
-    // Validate case access if provided
+    // IDOR Protection: Validate case access if provided
     if (formalizedData.caseId) {
         const caseDoc = await Case.findById(formalizedData.caseId);
-        if (!caseDoc) {
-            throw CustomException('Case not found', 404);
+        if (!caseDoc || (caseDoc.firmId && caseDoc.firmId.toString() !== firmId.toString())) {
+            throw CustomException('Case not found or you do not have access', 404);
         }
     }
+
+    // IDOR Protection: Validate client access if provided
+    if (formalizedData.clientId) {
+        const clientDoc = await User.findById(formalizedData.clientId);
+        if (!clientDoc || (clientDoc.firmId && clientDoc.firmId.toString() !== firmId.toString())) {
+            throw CustomException('Client not found or you do not have access', 404);
+        }
+    }
+
+    // Date/Time Validation
+    const parsedStartDateTime = parseAndValidateDate(formalizedData.startDateTime);
+    const parsedEndDateTime = formalizedData.endDateTime ? parseAndValidateDate(formalizedData.endDateTime) : null;
+    validateDateRange(parsedStartDateTime, parsedEndDateTime);
+    validateFutureDate(parsedStartDateTime, false);
 
     // Prepare attendees array
     const attendeesArray = [];
     if (formalizedData.attendees && Array.isArray(formalizedData.attendees)) {
         for (const attendee of formalizedData.attendees) {
-            let userId = null;
+            let attendeeUserId = null;
             if (attendee.email) {
                 const user = await User.findOne({ email: attendee.email });
-                if (user) userId = user._id;
+                if (user) attendeeUserId = user._id;
             }
 
             attendeesArray.push({
-                userId: userId,
+                userId: attendeeUserId,
                 email: attendee.email || null,
                 name: attendee.name || null,
                 role: attendee.role || 'required',
@@ -1737,7 +1926,7 @@ const createEventFromVoice = asyncHandler(async (req, res) => {
         }
     }
 
-    // Prepare location data
+    // Prepare location data with validation
     let locationData = null;
     if (formalizedData.location && typeof formalizedData.location === 'object') {
         locationData = {
@@ -1753,8 +1942,8 @@ const createEventFromVoice = asyncHandler(async (req, res) => {
         title: formalizedData.title,
         type: formalizedData.type || 'meeting',
         description: formalizedData.description || null,
-        startDateTime: new Date(formalizedData.startDateTime),
-        endDateTime: formalizedData.endDateTime ? new Date(formalizedData.endDateTime) : null,
+        startDateTime: parsedStartDateTime,
+        endDateTime: parsedEndDateTime,
         allDay: formalizedData.allDay || false,
         timezone: req.body.timezone || 'Asia/Riyadh',
         location: locationData,
@@ -1781,7 +1970,7 @@ const createEventFromVoice = asyncHandler(async (req, res) => {
     });
 
     // Create default reminders
-    const start = new Date(formalizedData.startDateTime);
+    const start = parsedStartDateTime;
 
     if (start.getTime() - Date.now() > 24 * 60 * 60 * 1000) {
         event.reminders.push({

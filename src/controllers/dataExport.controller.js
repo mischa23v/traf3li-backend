@@ -2,6 +2,7 @@ const { ExportJob, ImportJob, ExportTemplate, Client, Case, Invoice, Document, C
 const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
 const mongoose = require('mongoose');
+const { pickAllowedFields, sanitizeObjectId, sanitizeForCSV } = require('../utils/securityUtils');
 
 /**
  * Create export job
@@ -14,14 +15,44 @@ const createExportJob = asyncHandler(async (req, res) => {
     } = req.body;
     const lawyerId = req.userID;
 
+    // Input validation
     if (!entityType) {
         throw CustomException('نوع البيانات المراد تصديرها مطلوب', 400);
+    }
+
+    // Validate entityType
+    const allowedEntityTypes = ['clients', 'cases', 'invoices', 'documents', 'contacts'];
+    if (!allowedEntityTypes.includes(entityType)) {
+        throw CustomException('نوع البيانات غير مدعوم', 400);
+    }
+
+    // Validate format
+    const allowedFormats = ['xlsx', 'csv', 'json'];
+    if (format && !allowedFormats.includes(format)) {
+        throw CustomException('صيغة التصدير غير مدعومة', 400);
+    }
+
+    // Validate type
+    const allowedTypes = ['manual', 'scheduled', 'automatic'];
+    if (type && !allowedTypes.includes(type)) {
+        throw CustomException('نوع التصدير غير صالح', 400);
+    }
+
+    // Validate columns array
+    if (columns && (!Array.isArray(columns) || columns.length > 100)) {
+        throw CustomException('عدد الأعمدة يجب أن يكون أقل من 100', 400);
+    }
+
+    // Validate filters object
+    if (filters && typeof filters !== 'object') {
+        throw CustomException('الفلاتر يجب أن تكون كائن صالح', 400);
     }
 
     // Get template if provided
     let exportConfig = { columns, includeRelated };
     if (templateId) {
-        const template = await ExportTemplate.findOne({ _id: templateId, lawyerId });
+        const sanitizedTemplateId = sanitizeObjectId(templateId);
+        const template = await ExportTemplate.findOne({ _id: sanitizedTemplateId, lawyerId });
         if (template) {
             exportConfig = {
                 columns: template.columns,
@@ -80,17 +111,30 @@ async function processExportJob(jobId, lawyerId) {
             throw new Error('نوع البيانات غير مدعوم');
         }
 
-        // Build query
+        // IDOR Protection: Build query with lawyerId ownership verification
         const query = { lawyerId };
+
+        // Add firmId verification if available
+        if (job.firmId) {
+            query.firmId = sanitizeObjectId(job.firmId);
+        }
+
+        // Safely apply filters with validation
         if (job.filters) {
+            const allowedFilterKeys = ['status', 'type', 'category', 'priority', 'assignedTo'];
             Object.keys(job.filters).forEach(key => {
-                if (job.filters[key]) {
-                    query[key] = job.filters[key];
+                if (job.filters[key] && allowedFilterKeys.includes(key)) {
+                    // Sanitize ObjectId fields
+                    if (mongoose.Types.ObjectId.isValid(job.filters[key])) {
+                        query[key] = sanitizeObjectId(job.filters[key]);
+                    } else {
+                        query[key] = job.filters[key];
+                    }
                 }
             });
         }
 
-        // Date range filter
+        // Date range filter with validation
         if (job.dateRange) {
             if (job.dateRange.start) {
                 query.createdAt = query.createdAt || {};
@@ -102,19 +146,48 @@ async function processExportJob(jobId, lawyerId) {
             }
         }
 
-        // Get data
-        const data = await Model.find(query).lean();
+        // DoS Prevention: Limit export size (max 10,000 records)
+        const MAX_EXPORT_RECORDS = 10000;
+        const recordCount = await Model.countDocuments(query);
+
+        if (recordCount > MAX_EXPORT_RECORDS) {
+            throw new Error(`عدد السجلات يتجاوز الحد الأقصى المسموح (${MAX_EXPORT_RECORDS})`);
+        }
+
+        // Get data with limit
+        const data = await Model.find(query).limit(MAX_EXPORT_RECORDS).lean();
         job.totalRecords = data.length;
+
+        // CSV Injection Prevention: Sanitize data for CSV exports
+        let sanitizedData = data;
+        if (job.format === 'csv') {
+            sanitizedData = data.map(record => {
+                const sanitizedRecord = {};
+                Object.keys(record).forEach(key => {
+                    const value = record[key];
+                    // Sanitize string values to prevent CSV injection
+                    if (typeof value === 'string') {
+                        sanitizedRecord[key] = sanitizeForCSV(value);
+                    } else if (value !== null && typeof value === 'object' && !Array.isArray(value) && !(value instanceof Date)) {
+                        // Sanitize nested objects
+                        sanitizedRecord[key] = JSON.stringify(value);
+                    } else {
+                        sanitizedRecord[key] = value;
+                    }
+                });
+                return sanitizedRecord;
+            });
+        }
 
         // In a real implementation, this would:
         // 1. Format data according to columns
-        // 2. Generate file in specified format
+        // 2. Generate file in specified format using sanitizedData
         // 3. Upload to S3
         // 4. Store file URL
 
         // Simulate file generation
         job.fileUrl = `/exports/${job._id}.${job.format}`;
-        job.fileSize = data.length * 100; // Approximate
+        job.fileSize = sanitizedData.length * 100; // Approximate
         job.status = 'completed';
         job.completedAt = new Date();
         job.progress = 100;
@@ -136,14 +209,30 @@ const getExportJobs = asyncHandler(async (req, res) => {
     const { status, entityType, page = 1, limit = 20 } = req.query;
     const lawyerId = req.userID;
 
+    // Input validation for pagination
+    const validatedPage = Math.max(1, parseInt(page) || 1);
+    const validatedLimit = Math.min(100, Math.max(1, parseInt(limit) || 20)); // Max 100 records per page
+
+    // Validate status
+    const allowedStatuses = ['pending', 'processing', 'completed', 'failed', 'cancelled'];
+    if (status && !allowedStatuses.includes(status)) {
+        throw CustomException('حالة غير صالحة', 400);
+    }
+
+    // Validate entityType
+    const allowedEntityTypes = ['clients', 'cases', 'invoices', 'documents', 'contacts'];
+    if (entityType && !allowedEntityTypes.includes(entityType)) {
+        throw CustomException('نوع البيانات غير صالح', 400);
+    }
+
     const query = { lawyerId };
     if (status) query.status = status;
     if (entityType) query.entityType = entityType;
 
     const jobs = await ExportJob.find(query)
         .sort({ createdAt: -1 })
-        .limit(parseInt(limit))
-        .skip((parseInt(page) - 1) * parseInt(limit));
+        .limit(validatedLimit)
+        .skip((validatedPage - 1) * validatedLimit);
 
     const total = await ExportJob.countDocuments(query);
 
@@ -151,10 +240,10 @@ const getExportJobs = asyncHandler(async (req, res) => {
         success: true,
         data: jobs,
         pagination: {
-            page: parseInt(page),
-            limit: parseInt(limit),
+            page: validatedPage,
+            limit: validatedLimit,
             total,
-            pages: Math.ceil(total / parseInt(limit))
+            pages: Math.ceil(total / validatedLimit)
         }
     });
 });
@@ -167,7 +256,11 @@ const getExportJobStatus = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const lawyerId = req.userID;
 
-    const job = await ExportJob.findOne({ _id: id, lawyerId });
+    // Sanitize and validate ID
+    const sanitizedId = sanitizeObjectId(id);
+
+    // IDOR Protection: Verify ownership by lawyerId
+    const job = await ExportJob.findOne({ _id: sanitizedId, lawyerId });
 
     if (!job) {
         throw CustomException('وظيفة التصدير غير موجودة', 404);
@@ -187,7 +280,11 @@ const downloadExportFile = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const lawyerId = req.userID;
 
-    const job = await ExportJob.findOne({ _id: id, lawyerId });
+    // Sanitize and validate ID
+    const sanitizedId = sanitizeObjectId(id);
+
+    // IDOR Protection: Verify ownership by lawyerId
+    const job = await ExportJob.findOne({ _id: sanitizedId, lawyerId });
 
     if (!job) {
         throw CustomException('وظيفة التصدير غير موجودة', 404);
@@ -219,7 +316,11 @@ const cancelExportJob = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const lawyerId = req.userID;
 
-    const job = await ExportJob.findOne({ _id: id, lawyerId });
+    // Sanitize and validate ID
+    const sanitizedId = sanitizeObjectId(id);
+
+    // IDOR Protection: Verify ownership by lawyerId
+    const job = await ExportJob.findOne({ _id: sanitizedId, lawyerId });
 
     if (!job) {
         throw CustomException('وظيفة التصدير غير موجودة', 404);
@@ -247,7 +348,11 @@ const deleteExportJob = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const lawyerId = req.userID;
 
-    const job = await ExportJob.findOneAndDelete({ _id: id, lawyerId });
+    // Sanitize and validate ID
+    const sanitizedId = sanitizeObjectId(id);
+
+    // IDOR Protection: Verify ownership by lawyerId
+    const job = await ExportJob.findOneAndDelete({ _id: sanitizedId, lawyerId });
 
     if (!job) {
         throw CustomException('وظيفة التصدير غير موجودة', 404);
@@ -270,8 +375,31 @@ const createImportJob = asyncHandler(async (req, res) => {
     } = req.body;
     const lawyerId = req.userID;
 
+    // Input validation
     if (!entityType || !fileUrl) {
         throw CustomException('نوع البيانات وملف الاستيراد مطلوبان', 400);
+    }
+
+    // Validate entityType
+    const allowedEntityTypes = ['clients', 'cases', 'invoices', 'documents', 'contacts'];
+    if (!allowedEntityTypes.includes(entityType)) {
+        throw CustomException('نوع البيانات غير مدعوم', 400);
+    }
+
+    // Validate file size (max 50MB)
+    const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+    if (fileSize && fileSize > MAX_FILE_SIZE) {
+        throw CustomException('حجم الملف يتجاوز الحد الأقصى المسموح (50 ميجابايت)', 400);
+    }
+
+    // Validate mapping object
+    if (mapping && typeof mapping !== 'object') {
+        throw CustomException('المخطط يجب أن يكون كائن صالح', 400);
+    }
+
+    // Validate options object
+    if (options && typeof options !== 'object') {
+        throw CustomException('الخيارات يجب أن تكون كائن صالح', 400);
     }
 
     const importJob = await ImportJob.create({
@@ -302,7 +430,11 @@ const startImportJob = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const lawyerId = req.userID;
 
-    const job = await ImportJob.findOne({ _id: id, lawyerId });
+    // Sanitize and validate ID
+    const sanitizedId = sanitizeObjectId(id);
+
+    // IDOR Protection: Verify ownership by lawyerId
+    const job = await ImportJob.findOne({ _id: sanitizedId, lawyerId });
 
     if (!job) {
         throw CustomException('وظيفة الاستيراد غير موجودة', 404);
@@ -367,7 +499,11 @@ const validateImportFile = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const lawyerId = req.userID;
 
-    const job = await ImportJob.findOne({ _id: id, lawyerId });
+    // Sanitize and validate ID
+    const sanitizedId = sanitizeObjectId(id);
+
+    // IDOR Protection: Verify ownership by lawyerId
+    const job = await ImportJob.findOne({ _id: sanitizedId, lawyerId });
 
     if (!job) {
         throw CustomException('وظيفة الاستيراد غير موجودة', 404);
@@ -406,14 +542,30 @@ const getImportJobs = asyncHandler(async (req, res) => {
     const { status, entityType, page = 1, limit = 20 } = req.query;
     const lawyerId = req.userID;
 
+    // Input validation for pagination
+    const validatedPage = Math.max(1, parseInt(page) || 1);
+    const validatedLimit = Math.min(100, Math.max(1, parseInt(limit) || 20)); // Max 100 records per page
+
+    // Validate status
+    const allowedStatuses = ['pending', 'validated', 'processing', 'completed', 'failed', 'cancelled'];
+    if (status && !allowedStatuses.includes(status)) {
+        throw CustomException('حالة غير صالحة', 400);
+    }
+
+    // Validate entityType
+    const allowedEntityTypes = ['clients', 'cases', 'invoices', 'documents', 'contacts'];
+    if (entityType && !allowedEntityTypes.includes(entityType)) {
+        throw CustomException('نوع البيانات غير صالح', 400);
+    }
+
     const query = { lawyerId };
     if (status) query.status = status;
     if (entityType) query.entityType = entityType;
 
     const jobs = await ImportJob.find(query)
         .sort({ createdAt: -1 })
-        .limit(parseInt(limit))
-        .skip((parseInt(page) - 1) * parseInt(limit));
+        .limit(validatedLimit)
+        .skip((validatedPage - 1) * validatedLimit);
 
     const total = await ImportJob.countDocuments(query);
 
@@ -421,10 +573,10 @@ const getImportJobs = asyncHandler(async (req, res) => {
         success: true,
         data: jobs,
         pagination: {
-            page: parseInt(page),
-            limit: parseInt(limit),
+            page: validatedPage,
+            limit: validatedLimit,
             total,
-            pages: Math.ceil(total / parseInt(limit))
+            pages: Math.ceil(total / validatedLimit)
         }
     });
 });
@@ -437,7 +589,11 @@ const getImportJobStatus = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const lawyerId = req.userID;
 
-    const job = await ImportJob.findOne({ _id: id, lawyerId });
+    // Sanitize and validate ID
+    const sanitizedId = sanitizeObjectId(id);
+
+    // IDOR Protection: Verify ownership by lawyerId
+    const job = await ImportJob.findOne({ _id: sanitizedId, lawyerId });
 
     if (!job) {
         throw CustomException('وظيفة الاستيراد غير موجودة', 404);
@@ -457,7 +613,11 @@ const cancelImportJob = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const lawyerId = req.userID;
 
-    const job = await ImportJob.findOne({ _id: id, lawyerId });
+    // Sanitize and validate ID
+    const sanitizedId = sanitizeObjectId(id);
+
+    // IDOR Protection: Verify ownership by lawyerId
+    const job = await ImportJob.findOne({ _id: sanitizedId, lawyerId });
 
     if (!job) {
         throw CustomException('وظيفة الاستيراد غير موجودة', 404);
@@ -484,8 +644,31 @@ const createExportTemplate = asyncHandler(async (req, res) => {
     const { name, nameAr, entityType, columns, format, options } = req.body;
     const lawyerId = req.userID;
 
+    // Input validation
     if (!name || !entityType) {
         throw CustomException('الاسم ونوع البيانات مطلوبان', 400);
+    }
+
+    // Validate entityType
+    const allowedEntityTypes = ['clients', 'cases', 'invoices', 'documents', 'contacts'];
+    if (!allowedEntityTypes.includes(entityType)) {
+        throw CustomException('نوع البيانات غير مدعوم', 400);
+    }
+
+    // Validate format
+    const allowedFormats = ['xlsx', 'csv', 'json'];
+    if (format && !allowedFormats.includes(format)) {
+        throw CustomException('صيغة التصدير غير مدعومة', 400);
+    }
+
+    // Validate columns array
+    if (columns && (!Array.isArray(columns) || columns.length > 100)) {
+        throw CustomException('عدد الأعمدة يجب أن يكون أقل من 100', 400);
+    }
+
+    // Validate options object
+    if (options && typeof options !== 'object') {
+        throw CustomException('الخيارات يجب أن تكون كائن صالح', 400);
     }
 
     const template = await ExportTemplate.create({
@@ -509,6 +692,12 @@ const getExportTemplates = asyncHandler(async (req, res) => {
     const { entityType } = req.query;
     const lawyerId = req.userID;
 
+    // Validate entityType if provided
+    const allowedEntityTypes = ['clients', 'cases', 'invoices', 'documents', 'contacts'];
+    if (entityType && !allowedEntityTypes.includes(entityType)) {
+        throw CustomException('نوع البيانات غير صالح', 400);
+    }
+
     const query = { lawyerId };
     if (entityType) query.entityType = entityType;
 
@@ -524,10 +713,40 @@ const updateExportTemplate = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const lawyerId = req.userID;
 
-    const template = await ExportTemplate.findOne({ _id: id, lawyerId });
+    // Sanitize and validate ID
+    const sanitizedId = sanitizeObjectId(id);
+
+    // IDOR Protection: Verify ownership by lawyerId
+    const template = await ExportTemplate.findOne({ _id: sanitizedId, lawyerId });
 
     if (!template) {
         throw CustomException('قالب التصدير غير موجود', 404);
+    }
+
+    // Validate entityType if provided
+    if (req.body.entityType) {
+        const allowedEntityTypes = ['clients', 'cases', 'invoices', 'documents', 'contacts'];
+        if (!allowedEntityTypes.includes(req.body.entityType)) {
+            throw CustomException('نوع البيانات غير مدعوم', 400);
+        }
+    }
+
+    // Validate format if provided
+    if (req.body.format) {
+        const allowedFormats = ['xlsx', 'csv', 'json'];
+        if (!allowedFormats.includes(req.body.format)) {
+            throw CustomException('صيغة التصدير غير مدعومة', 400);
+        }
+    }
+
+    // Validate columns array if provided
+    if (req.body.columns && (!Array.isArray(req.body.columns) || req.body.columns.length > 100)) {
+        throw CustomException('عدد الأعمدة يجب أن يكون أقل من 100', 400);
+    }
+
+    // Validate options object if provided
+    if (req.body.options && typeof req.body.options !== 'object') {
+        throw CustomException('الخيارات يجب أن تكون كائن صالح', 400);
     }
 
     const allowedFields = ['name', 'nameAr', 'entityType', 'columns', 'format', 'options'];
@@ -550,7 +769,11 @@ const deleteExportTemplate = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const lawyerId = req.userID;
 
-    const template = await ExportTemplate.findOneAndDelete({ _id: id, lawyerId });
+    // Sanitize and validate ID
+    const sanitizedId = sanitizeObjectId(id);
+
+    // IDOR Protection: Verify ownership by lawyerId
+    const template = await ExportTemplate.findOneAndDelete({ _id: sanitizedId, lawyerId });
 
     if (!template) {
         throw CustomException('قالب التصدير غير موجود', 404);

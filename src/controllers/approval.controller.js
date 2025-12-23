@@ -11,6 +11,7 @@
 const { ApprovalRule, ApprovalRequest, TeamActivityLog } = require('../models');
 const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
+const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 
 // ═══════════════════════════════════════════════════════════════
 // APPROVAL RULES MANAGEMENT
@@ -60,9 +61,10 @@ const updateApprovalRules = asyncHandler(async (req, res) => {
         throw CustomException('فقط مالك المكتب يمكنه تعديل قواعد الموافقات', 403);
     }
 
-    const { rules, settings } = req.body;
+    // Mass assignment protection - only allow specific fields
+    const allowedData = pickAllowedFields(req.body, ['rules', 'settings']);
 
-    const updated = await ApprovalRule.upsertRules(firmId, { rules, settings }, userId);
+    const updated = await ApprovalRule.upsertRules(firmId, allowedData, userId);
 
     // Log activity
     await TeamActivityLog.log({
@@ -102,7 +104,16 @@ const addApprovalRule = asyncHandler(async (req, res) => {
         throw CustomException('فقط مالك المكتب يمكنه إضافة قواعد الموافقات', 403);
     }
 
-    const rule = req.body;
+    // Mass assignment protection - only allow specific fields for approval rules
+    const rule = pickAllowedFields(req.body, [
+        'module',
+        'action',
+        'requiredApprovers',
+        'requiredRoles',
+        'approvalsNeeded',
+        'conditions',
+        'description'
+    ]);
 
     if (!rule.module || !rule.action) {
         throw CustomException('الوحدة والإجراء مطلوبان', 400);
@@ -138,7 +149,13 @@ const deleteApprovalRule = asyncHandler(async (req, res) => {
         throw CustomException('فقط مالك المكتب يمكنه حذف قواعد الموافقات', 403);
     }
 
-    const updated = await ApprovalRule.deleteRule(firmId, ruleId, userId);
+    // Sanitize rule ID
+    const sanitizedRuleId = sanitizeObjectId(ruleId);
+    if (!sanitizedRuleId) {
+        throw CustomException('معرف القاعدة غير صالح', 400);
+    }
+
+    const updated = await ApprovalRule.deleteRule(firmId, sanitizedRuleId, userId);
 
     res.json({
         success: true,
@@ -240,7 +257,13 @@ const getApprovalRequest = asyncHandler(async (req, res) => {
         throw CustomException('يجب أن تكون عضواً في مكتب للوصول', 403);
     }
 
-    const request = await ApprovalRequest.findOne({ _id: id, firmId })
+    // Sanitize and verify request ID
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('معرف الطلب غير صالح', 400);
+    }
+
+    const request = await ApprovalRequest.findOne({ _id: sanitizedId, firmId })
         .populate('requestedBy', 'firstName lastName email avatar')
         .populate('finalizedBy', 'firstName lastName email')
         .populate('decisions.userId', 'firstName lastName email')
@@ -272,28 +295,60 @@ const approveRequest = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
     const userId = req.userID;
     const { id } = req.params;
-    const { comment } = req.body;
+
+    // Mass assignment protection - only allow comment field
+    const { comment } = pickAllowedFields(req.body, ['comment']);
 
     if (!firmId) {
         throw CustomException('يجب أن تكون عضواً في مكتب للوصول', 403);
     }
 
-    // Verify request belongs to this firm
-    const request = await ApprovalRequest.findOne({ _id: id, firmId });
-    if (!request) {
-        throw CustomException('طلب الموافقة غير موجود', 404);
+    // Sanitize and verify request ID
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('معرف الطلب غير صالح', 400);
     }
 
-    // Check if user can approve (is in approvers list or has role)
-    const canApprove = request.requiredApprovers.some(a => a.toString() === userId.toString()) ||
-        request.requiredRoles.includes(req.firmRole) ||
-        ['owner', 'admin'].includes(req.firmRole);
+    // Verify request belongs to this firm and is in pending status
+    const request = await ApprovalRequest.findOne({
+        _id: sanitizedId,
+        firmId,
+        status: 'pending' // Prevent approval status manipulation
+    });
+
+    if (!request) {
+        throw CustomException('طلب الموافقة غير موجود أو تمت معالجته بالفعل', 404);
+    }
+
+    // IDOR protection - verify user is authorized as an approver
+    const isRequiredApprover = request.requiredApprovers.some(
+        approverId => approverId.toString() === userId.toString()
+    );
+    const hasRequiredRole = request.requiredRoles.includes(req.firmRole);
+    const isOwnerOrAdmin = ['owner', 'admin'].includes(req.firmRole);
+
+    // Role-based approval verification
+    const canApprove = isRequiredApprover || hasRequiredRole || isOwnerOrAdmin;
 
     if (!canApprove) {
         throw CustomException('ليس لديك صلاحية للموافقة على هذا الطلب', 403);
     }
 
-    const approved = await ApprovalRequest.approve(id, userId, comment);
+    // Prevent users from approving their own requests
+    if (request.requestedBy.toString() === userId.toString()) {
+        throw CustomException('لا يمكنك الموافقة على طلبك الخاص', 403);
+    }
+
+    // Check if user already approved this request
+    const alreadyApproved = request.decisions?.some(
+        decision => decision.userId.toString() === userId.toString() && decision.decision === 'approved'
+    );
+
+    if (alreadyApproved) {
+        throw CustomException('لقد وافقت على هذا الطلب بالفعل', 400);
+    }
+
+    const approved = await ApprovalRequest.approve(sanitizedId, userId, comment);
 
     // Log activity
     await TeamActivityLog.log({
@@ -330,32 +385,55 @@ const rejectRequest = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
     const userId = req.userID;
     const { id } = req.params;
-    const { reason } = req.body;
+
+    // Mass assignment protection - only allow reason field
+    const { reason } = pickAllowedFields(req.body, ['reason']);
 
     if (!firmId) {
         throw CustomException('يجب أن تكون عضواً في مكتب للوصول', 403);
-    }
-
-    // Verify request belongs to this firm
-    const request = await ApprovalRequest.findOne({ _id: id, firmId });
-    if (!request) {
-        throw CustomException('طلب الموافقة غير موجود', 404);
-    }
-
-    // Check if user can reject
-    const canReject = request.requiredApprovers.some(a => a.toString() === userId.toString()) ||
-        request.requiredRoles.includes(req.firmRole) ||
-        ['owner', 'admin'].includes(req.firmRole);
-
-    if (!canReject) {
-        throw CustomException('ليس لديك صلاحية لرفض هذا الطلب', 403);
     }
 
     if (!reason) {
         throw CustomException('سبب الرفض مطلوب', 400);
     }
 
-    const rejected = await ApprovalRequest.reject(id, userId, reason);
+    // Sanitize and verify request ID
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('معرف الطلب غير صالح', 400);
+    }
+
+    // Verify request belongs to this firm and is in pending status
+    const request = await ApprovalRequest.findOne({
+        _id: sanitizedId,
+        firmId,
+        status: 'pending' // Prevent approval status manipulation
+    });
+
+    if (!request) {
+        throw CustomException('طلب الموافقة غير موجود أو تمت معالجته بالفعل', 404);
+    }
+
+    // IDOR protection - verify user is authorized as an approver
+    const isRequiredApprover = request.requiredApprovers.some(
+        approverId => approverId.toString() === userId.toString()
+    );
+    const hasRequiredRole = request.requiredRoles.includes(req.firmRole);
+    const isOwnerOrAdmin = ['owner', 'admin'].includes(req.firmRole);
+
+    // Role-based approval verification
+    const canReject = isRequiredApprover || hasRequiredRole || isOwnerOrAdmin;
+
+    if (!canReject) {
+        throw CustomException('ليس لديك صلاحية لرفض هذا الطلب', 403);
+    }
+
+    // Prevent users from rejecting their own requests
+    if (request.requestedBy.toString() === userId.toString()) {
+        throw CustomException('لا يمكنك رفض طلبك الخاص', 403);
+    }
+
+    const rejected = await ApprovalRequest.reject(sanitizedId, userId, reason);
 
     // Log activity
     await TeamActivityLog.log({
@@ -397,13 +475,29 @@ const cancelRequest = asyncHandler(async (req, res) => {
         throw CustomException('يجب أن تكون عضواً في مكتب للوصول', 403);
     }
 
-    // Verify request belongs to this firm
-    const request = await ApprovalRequest.findOne({ _id: id, firmId });
-    if (!request) {
-        throw CustomException('طلب الموافقة غير موجود', 404);
+    // Sanitize and verify request ID
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('معرف الطلب غير صالح', 400);
     }
 
-    const cancelled = await ApprovalRequest.cancel(id, userId);
+    // Verify request belongs to this firm and is in pending status
+    const request = await ApprovalRequest.findOne({
+        _id: sanitizedId,
+        firmId,
+        status: 'pending' // Prevent cancelling already processed requests
+    });
+
+    if (!request) {
+        throw CustomException('طلب الموافقة غير موجود أو تمت معالجته بالفعل', 404);
+    }
+
+    // IDOR protection - only requester can cancel their own request
+    if (request.requestedBy.toString() !== userId.toString()) {
+        throw CustomException('يمكنك فقط إلغاء طلباتك الخاصة', 403);
+    }
+
+    const cancelled = await ApprovalRequest.cancel(sanitizedId, userId);
 
     // Log activity
     await TeamActivityLog.log({
@@ -452,13 +546,19 @@ const getApprovalStats = asyncHandler(async (req, res) => {
  */
 const checkApprovalRequired = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
-    const { module, action, context } = req.body;
+
+    // Mass assignment protection - only allow specific fields
+    const { module, action, context } = pickAllowedFields(req.body, ['module', 'action', 'context']);
 
     if (!firmId) {
         return res.json({
             success: true,
             requiresApproval: false
         });
+    }
+
+    if (!module || !action) {
+        throw CustomException('الوحدة والإجراء مطلوبان', 400);
     }
 
     const result = await ApprovalRule.requiresApproval(firmId, module, action, context || {});

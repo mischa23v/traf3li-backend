@@ -5,10 +5,150 @@ const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
 const wathqService = require('../services/wathqService');
 const webhookService = require('../services/webhook.service');
+const { pickAllowedFields, sanitizeEmail, sanitizePhone } = require('../utils/securityUtils');
+
+// ============================================
+// ALLOWED FIELDS FOR CLIENT OPERATIONS
+// ============================================
+
+// Fields allowed during client creation
+const CREATE_ALLOWED_FIELDS = [
+    'firstName',
+    'lastName',
+    'fullNameArabic',
+    'fullNameEnglish',
+    'companyName',
+    'companyNameEnglish',
+    'clientType',
+    'email',
+    'phone',
+    'address',
+    'nationalId',
+    'crNumber',
+    'unifiedNumber',
+    'notes',
+    'tags',
+    'status',
+    'clientSource',
+    'clientTier',
+    'vatRegistration',
+    'billing',
+    'contactInfo'
+];
+
+// Fields allowed during client update
+const UPDATE_ALLOWED_FIELDS = [
+    'firstName',
+    'lastName',
+    'fullNameArabic',
+    'fullNameEnglish',
+    'companyName',
+    'companyNameEnglish',
+    'email',
+    'phone',
+    'address',
+    'notes',
+    'tags',
+    'clientSource',
+    'clientTier',
+    'vatRegistration',
+    'billing',
+    'contactInfo'
+];
+
+// ============================================
+// INPUT VALIDATION FUNCTIONS
+// ============================================
+
+/**
+ * Validate client email
+ * @param {string} email - Email to validate
+ * @returns {boolean} - True if valid, false otherwise
+ */
+const isValidEmail = (email) => {
+    if (!email || typeof email !== 'string') {
+        return true; // Email is optional
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+};
+
+/**
+ * Validate client phone number
+ * @param {string} phone - Phone to validate
+ * @returns {boolean} - True if valid, false otherwise
+ */
+const isValidPhone = (phone) => {
+    if (!phone || typeof phone !== 'string') {
+        return true; // Phone is optional
+    }
+    // Allow phone numbers with digits, +, -, (, ), and spaces
+    const phoneRegex = /^[+\d\-\s()]{7,20}$/;
+    return phoneRegex.test(phone.replace(/\s/g, ''));
+};
+
+/**
+ * Validate IBAN format (basic validation)
+ * @param {string} iban - IBAN to validate
+ * @returns {boolean} - True if valid, false otherwise
+ */
+const isValidIBAN = (iban) => {
+    if (!iban || typeof iban !== 'string') {
+        return true; // IBAN is optional
+    }
+    // IBAN format: 2 letter country code, 2 digits, up to 30 alphanumeric
+    const ibanRegex = /^[A-Z]{2}\d{2}[A-Z0-9]{1,30}$/;
+    return ibanRegex.test(iban.toUpperCase().replace(/\s/g, ''));
+};
+
+/**
+ * Validate and sanitize client input data
+ * @param {Object} data - Client data to validate
+ * @returns {Object} - Validated data with sanitized fields
+ * @throws {Error} - If validation fails
+ */
+const validateClientInput = (data) => {
+    const errors = [];
+
+    // Validate email if present
+    if (data.email && !isValidEmail(data.email)) {
+        errors.push('بريد إلكتروني غير صالح');
+    }
+
+    // Validate phone if present
+    if (data.phone && !isValidPhone(data.phone)) {
+        errors.push('رقم هاتف غير صالح');
+    }
+
+    // Validate IBAN if present in billing object
+    if (data.billing && data.billing.iban && !isValidIBAN(data.billing.iban)) {
+        errors.push('رقم IBAN غير صالح');
+    }
+
+    if (errors.length > 0) {
+        throw CustomException(errors.join(', '), 400);
+    }
+
+    // Sanitize sensitive fields
+    const sanitized = { ...data };
+    if (sanitized.email) {
+        sanitized.email = sanitizeEmail(sanitized.email);
+    }
+    if (sanitized.phone) {
+        sanitized.phone = sanitizePhone(sanitized.phone);
+    }
+
+    return sanitized;
+};
 
 /**
  * Create client
  * POST /api/clients
+ *
+ * SECURITY:
+ * - Mass assignment protection via allowlist (CREATE_ALLOWED_FIELDS)
+ * - Input validation for email, phone, IBAN
+ * - IDOR protection: lawyerId and firmId set by server, not user input
  */
 const createClient = asyncHandler(async (req, res) => {
     // Block departed users from client operations
@@ -19,10 +159,17 @@ const createClient = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId; // From firmFilter middleware
 
+    // SECURITY: Mass assignment protection - only allow specific fields
+    const safeClientData = pickAllowedFields(req.body, CREATE_ALLOWED_FIELDS);
+
+    // SECURITY: Validate and sanitize input data
+    const validatedData = validateClientInput(safeClientData);
+
+    // SECURITY: Never allow users to set lawyerId, firmId, or createdBy - server-side only
     const clientData = {
-        ...req.body,
+        ...validatedData,
         lawyerId,
-        firmId, // Add firmId for multi-tenancy
+        firmId, // Add firmId for multi-tenancy (set by server, not user)
         createdBy: lawyerId
     };
 
@@ -137,6 +284,10 @@ const getClients = asyncHandler(async (req, res) => {
 /**
  * Get single client with full details
  * GET /api/clients/:id
+ *
+ * SECURITY:
+ * - IDOR protection: Verify firmId ownership before returning client
+ * - Only return clients that belong to user's firm or were created by user
  */
 const getClient = asyncHandler(async (req, res) => {
     // Block departed users from client operations
@@ -161,7 +312,7 @@ const getClient = asyncHandler(async (req, res) => {
         throw CustomException('العميل غير موجود', 404);
     }
 
-    // Check access: firmId takes precedence for multi-tenancy, fallback to lawyerId
+    // SECURITY: IDOR Protection - Check access: firmId takes precedence for multi-tenancy, fallback to lawyerId
     const hasAccess = firmId
         ? client.firmId && client.firmId.toString() === firmId.toString()
         : client.lawyerId.toString() === lawyerId;
@@ -232,6 +383,10 @@ const getClient = asyncHandler(async (req, res) => {
 /**
  * Get billing info for invoice/payment forms
  * GET /api/clients/:id/billing-info
+ *
+ * SECURITY:
+ * - IDOR protection: Verify firmId ownership before returning billing information
+ * - Only return billing data for clients that belong to user's firm or were created by user
  */
 const getBillingInfo = asyncHandler(async (req, res) => {
     // Block departed users from client operations
@@ -251,7 +406,7 @@ const getBillingInfo = asyncHandler(async (req, res) => {
         throw CustomException('العميل غير موجود', 404);
     }
 
-    // Check access: firmId takes precedence for multi-tenancy
+    // SECURITY: IDOR Protection - Check access: firmId takes precedence for multi-tenancy
     const hasAccess = firmId
         ? client.firmId && client.firmId.toString() === firmId.toString()
         : client.lawyerId && client.lawyerId.toString() === lawyerId;
@@ -286,6 +441,10 @@ const getBillingInfo = asyncHandler(async (req, res) => {
 /**
  * Get client's cases
  * GET /api/clients/:id/cases
+ *
+ * SECURITY:
+ * - IDOR protection: Verify firmId ownership before returning cases
+ * - Only return cases for clients that belong to user's firm or were created by user
  */
 const getClientCases = asyncHandler(async (req, res) => {
     // Block departed users from client operations
@@ -302,7 +461,7 @@ const getClientCases = asyncHandler(async (req, res) => {
         throw CustomException('العميل غير موجود', 404);
     }
 
-    // Check access
+    // SECURITY: IDOR Protection - Check access
     const hasAccess = firmId
         ? client.firmId && client.firmId.toString() === firmId.toString()
         : client.lawyerId.toString() === lawyerId;
@@ -326,6 +485,10 @@ const getClientCases = asyncHandler(async (req, res) => {
 /**
  * Get client's invoices
  * GET /api/clients/:id/invoices
+ *
+ * SECURITY:
+ * - IDOR protection: Verify firmId ownership before returning invoices
+ * - Only return invoices for clients that belong to user's firm or were created by user
  */
 const getClientInvoices = asyncHandler(async (req, res) => {
     // Block departed users from client operations
@@ -342,6 +505,7 @@ const getClientInvoices = asyncHandler(async (req, res) => {
         throw CustomException('العميل غير موجود', 404);
     }
 
+    // SECURITY: IDOR Protection - Check access
     const hasAccess = firmId
         ? client.firmId && client.firmId.toString() === firmId.toString()
         : client.lawyerId.toString() === lawyerId;
@@ -365,6 +529,10 @@ const getClientInvoices = asyncHandler(async (req, res) => {
 /**
  * Get client's payments
  * GET /api/clients/:id/payments
+ *
+ * SECURITY:
+ * - IDOR protection: Verify firmId ownership before returning payments
+ * - Only return payments for clients that belong to user's firm or were created by user
  */
 const getClientPayments = asyncHandler(async (req, res) => {
     // Block departed users from client operations
@@ -381,6 +549,7 @@ const getClientPayments = asyncHandler(async (req, res) => {
         throw CustomException('العميل غير موجود', 404);
     }
 
+    // SECURITY: IDOR Protection - Check access
     const hasAccess = firmId
         ? client.firmId && client.firmId.toString() === firmId.toString()
         : client.lawyerId.toString() === lawyerId;
@@ -404,6 +573,12 @@ const getClientPayments = asyncHandler(async (req, res) => {
 /**
  * Update client
  * PUT /api/clients/:id
+ *
+ * SECURITY:
+ * - IDOR protection: Verify firmId ownership before update
+ * - Mass assignment protection via allowlist (UPDATE_ALLOWED_FIELDS)
+ * - Input validation for email, phone, IBAN
+ * - Never allow users to update lawyerId, firmId, createdBy, or other sensitive fields
  */
 const updateClient = asyncHandler(async (req, res) => {
     // Block departed users from client operations
@@ -421,7 +596,7 @@ const updateClient = asyncHandler(async (req, res) => {
         throw CustomException('العميل غير موجود', 404);
     }
 
-    // Check access
+    // SECURITY: IDOR Protection - Verify user owns this client via firmId
     const hasAccess = firmId
         ? client.firmId && client.firmId.toString() === firmId.toString()
         : client.lawyerId.toString() === lawyerId;
@@ -429,6 +604,12 @@ const updateClient = asyncHandler(async (req, res) => {
     if (!hasAccess) {
         throw CustomException('لا يمكنك الوصول إلى هذا العميل', 403);
     }
+
+    // SECURITY: Mass assignment protection - only allow specific fields
+    const safeUpdateData = pickAllowedFields(req.body, UPDATE_ALLOWED_FIELDS);
+
+    // SECURITY: Validate and sanitize input data
+    const validatedData = validateClientInput(safeUpdateData);
 
     // Check for conflicts if updating key fields - DISABLED for testing flexibility
     // Note: Conflict check removed for Playwright testing - allows duplicate data
@@ -447,18 +628,24 @@ const updateClient = asyncHandler(async (req, res) => {
 
     // Track changed fields for activity logging
     const changedFields = {};
-    Object.keys(req.body).forEach(key => {
-        if (client[key] !== req.body[key] && key !== 'updatedBy') {
+    Object.keys(validatedData).forEach(key => {
+        if (client[key] !== validatedData[key]) {
             changedFields[key] = {
                 old: client[key],
-                new: req.body[key]
+                new: validatedData[key]
             };
         }
     });
 
+    // SECURITY: Only update allowed fields, never allow updating lawyerId, firmId, or createdBy
+    const updateData = {
+        ...validatedData,
+        updatedBy: lawyerId
+    };
+
     const updatedClient = await Client.findByIdAndUpdate(
         id,
-        { ...req.body, updatedBy: lawyerId },
+        updateData,
         { new: true, runValidators: true }
     );
 
@@ -498,6 +685,10 @@ const updateClient = asyncHandler(async (req, res) => {
 /**
  * Delete client
  * DELETE /api/clients/:id
+ *
+ * SECURITY:
+ * - IDOR protection: Verify firmId ownership before deletion
+ * - Only allow deletion of clients that belong to user's firm or were created by user
  */
 const deleteClient = asyncHandler(async (req, res) => {
     // Block departed users from client operations
@@ -515,7 +706,7 @@ const deleteClient = asyncHandler(async (req, res) => {
         throw CustomException('العميل غير موجود', 404);
     }
 
-    // Check access
+    // SECURITY: IDOR Protection - Check access
     const hasAccess = firmId
         ? client.firmId && client.firmId.toString() === firmId.toString()
         : client.lawyerId.toString() === lawyerId;
@@ -769,6 +960,10 @@ const bulkDeleteClients = asyncHandler(async (req, res) => {
 /**
  * Run conflict check
  * POST /api/clients/:id/conflict-check
+ *
+ * SECURITY:
+ * - IDOR protection: Verify firmId ownership before running conflict check
+ * - Only allow conflict check for clients that belong to user's firm or were created by user
  */
 const runConflictCheck = asyncHandler(async (req, res) => {
     // Block departed users from client operations
@@ -786,7 +981,7 @@ const runConflictCheck = asyncHandler(async (req, res) => {
         throw CustomException('العميل غير موجود', 404);
     }
 
-    // Check access
+    // SECURITY: IDOR Protection - Check access
     const hasAccess = firmId
         ? client.firmId && client.firmId.toString() === firmId.toString()
         : client.lawyerId.toString() === lawyerId;
@@ -821,6 +1016,10 @@ const runConflictCheck = asyncHandler(async (req, res) => {
 /**
  * Update client status
  * PATCH /api/clients/:id/status
+ *
+ * SECURITY:
+ * - IDOR protection: Verify firmId ownership before update
+ * - Input validation: Only allow specific status values
  */
 const updateStatus = asyncHandler(async (req, res) => {
     // Block departed users from client operations
@@ -833,6 +1032,7 @@ const updateStatus = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
+    // SECURITY: Input validation - only allow specific status values
     if (!['active', 'inactive', 'archived', 'pending'].includes(status)) {
         throw CustomException('حالة غير صالحة', 400);
     }
@@ -843,7 +1043,7 @@ const updateStatus = asyncHandler(async (req, res) => {
         throw CustomException('العميل غير موجود', 404);
     }
 
-    // Check access
+    // SECURITY: IDOR Protection - Verify user owns this client via firmId
     const hasAccess = firmId
         ? client.firmId && client.firmId.toString() === firmId.toString()
         : client.lawyerId.toString() === lawyerId;
@@ -885,6 +1085,10 @@ const updateStatus = asyncHandler(async (req, res) => {
 /**
  * Update client flags
  * PATCH /api/clients/:id/flags
+ *
+ * SECURITY:
+ * - IDOR protection: Verify firmId ownership before update
+ * - Allowlist approach: Only isVip, isHighRisk, needsApproval, isBlacklisted, blacklistReason allowed
  */
 const updateFlags = asyncHandler(async (req, res) => {
     // Block departed users from client operations
@@ -893,9 +1097,13 @@ const updateFlags = asyncHandler(async (req, res) => {
     }
 
     const { id } = req.params;
-    const { isVip, isHighRisk, needsApproval, isBlacklisted, blacklistReason } = req.body;
     const lawyerId = req.userID;
     const firmId = req.firmId;
+
+    // SECURITY: Extract only allowed flag fields (allowlist approach)
+    const allowedFlagFields = ['isVip', 'isHighRisk', 'needsApproval', 'isBlacklisted', 'blacklistReason'];
+    const flagUpdateData = pickAllowedFields(req.body, allowedFlagFields);
+    const { isVip, isHighRisk, needsApproval, isBlacklisted, blacklistReason } = flagUpdateData;
 
     const client = await Client.findById(id);
 
@@ -903,7 +1111,7 @@ const updateFlags = asyncHandler(async (req, res) => {
         throw CustomException('العميل غير موجود', 404);
     }
 
-    // Check access
+    // SECURITY: IDOR Protection - Verify user owns this client via firmId
     const hasAccess = firmId
         ? client.firmId && client.firmId.toString() === firmId.toString()
         : client.lawyerId.toString() === lawyerId;
@@ -912,7 +1120,7 @@ const updateFlags = asyncHandler(async (req, res) => {
         throw CustomException('لا يمكنك الوصول إلى هذا العميل', 403);
     }
 
-    // Update flags
+    // Update flags (only allowed fields)
     if (isVip !== undefined) client.flags.isVip = isVip;
     if (isHighRisk !== undefined) client.flags.isHighRisk = isHighRisk;
     if (needsApproval !== undefined) client.flags.needsApproval = needsApproval;
@@ -941,6 +1149,10 @@ const updateFlags = asyncHandler(async (req, res) => {
 /**
  * Upload attachments
  * POST /api/clients/:id/attachments
+ *
+ * SECURITY:
+ * - IDOR protection: Verify firmId ownership before uploading attachments
+ * - Only allow attachment uploads for clients that belong to user's firm or were created by user
  */
 const uploadAttachments = asyncHandler(async (req, res) => {
     // Block departed users from client operations
@@ -958,7 +1170,7 @@ const uploadAttachments = asyncHandler(async (req, res) => {
         throw CustomException('العميل غير موجود', 404);
     }
 
-    // Check access
+    // SECURITY: IDOR Protection - Check access
     const hasAccess = firmId
         ? client.firmId && client.firmId.toString() === firmId.toString()
         : client.lawyerId.toString() === lawyerId;
@@ -996,6 +1208,10 @@ const uploadAttachments = asyncHandler(async (req, res) => {
 /**
  * Delete attachment
  * DELETE /api/clients/:id/attachments/:attachmentId
+ *
+ * SECURITY:
+ * - IDOR protection: Verify firmId ownership before deleting attachments
+ * - Only allow attachment deletion for clients that belong to user's firm or were created by user
  */
 const deleteAttachment = asyncHandler(async (req, res) => {
     // Block departed users from client operations
@@ -1013,7 +1229,7 @@ const deleteAttachment = asyncHandler(async (req, res) => {
         throw CustomException('العميل غير موجود', 404);
     }
 
-    // Check access
+    // SECURITY: IDOR Protection - Check access
     const hasAccess = firmId
         ? client.firmId && client.firmId.toString() === firmId.toString()
         : client.lawyerId.toString() === lawyerId;
@@ -1044,6 +1260,10 @@ const deleteAttachment = asyncHandler(async (req, res) => {
  * Verify client via Wathq API (Commercial Registry)
  * POST /api/clients/:id/verify/wathq
  *
+ * SECURITY:
+ * - IDOR protection: Verify firmId ownership before verifying client
+ * - Only allow verification for clients that belong to user's firm or were created by user
+ *
  * Uses Wathq API to verify company commercial registration.
  * Requires WATHQ_CONSUMER_KEY and WATHQ_CONSUMER_SECRET in environment.
  */
@@ -1064,7 +1284,7 @@ const verifyWathq = asyncHandler(async (req, res) => {
         throw CustomException('العميل غير موجود', 404);
     }
 
-    // Check access
+    // SECURITY: IDOR Protection - Check access
     const hasAccess = firmId
         ? client.firmId && client.firmId.toString() === firmId.toString()
         : client.lawyerId.toString() === lawyerId;
@@ -1134,6 +1354,10 @@ const verifyWathq = asyncHandler(async (req, res) => {
 /**
  * Get additional Wathq data (managers, owners, capital, branches)
  * GET /api/clients/:id/wathq/:dataType
+ *
+ * SECURITY:
+ * - IDOR protection: Verify firmId ownership before returning Wathq data
+ * - Only return data for clients that belong to user's firm or were created by user
  */
 const getWathqData = asyncHandler(async (req, res) => {
     // Block departed users from client operations
@@ -1151,7 +1375,7 @@ const getWathqData = asyncHandler(async (req, res) => {
         throw CustomException('العميل غير موجود', 404);
     }
 
-    // Check access
+    // SECURITY: IDOR Protection - Check access
     const hasAccess = firmId
         ? client.firmId && client.firmId.toString() === firmId.toString()
         : client.lawyerId.toString() === lawyerId;
@@ -1198,6 +1422,11 @@ const getWathqData = asyncHandler(async (req, res) => {
 
 /**
  * GET /api/clients/:id/full
+ *
+ * SECURITY:
+ * - IDOR protection: Verify firmId ownership before returning all client data
+ * - Only return data for clients that belong to user's firm or were created by user
+ *
  * Consolidated endpoint - replaces 3 separate API calls
  * Returns: client details, cases, invoices, payments
  */
@@ -1214,10 +1443,24 @@ const getClientFull = asyncHandler(async (req, res) => {
     // Build filter for related data
     const dataFilter = firmId ? { firmId } : { lawyerId };
 
-    const [client, cases, invoices, payments] = await Promise.all([
-        // Client with full details
-        Client.findById(id).lean(),
+    // First fetch client to check access before fetching related data
+    const client = await Client.findById(id).lean();
 
+    if (!client) {
+        throw CustomException('العميل غير موجود', 404);
+    }
+
+    // SECURITY: IDOR Protection - Check access first, before fetching related data
+    const hasAccess = firmId
+        ? client.firmId && client.firmId.toString() === firmId.toString()
+        : client.lawyerId && client.lawyerId.toString() === lawyerId;
+
+    if (!hasAccess) {
+        throw CustomException('لا يمكنك الوصول إلى هذا العميل', 403);
+    }
+
+    // Now fetch related data with proper firmId/lawyerId filters
+    const [cases, invoices, payments] = await Promise.all([
         // Client's cases (last 20)
         Case.find({ clientId: id, ...dataFilter })
             .populate('lawyerId', 'firstName lastName email')
@@ -1237,19 +1480,6 @@ const getClientFull = asyncHandler(async (req, res) => {
             .limit(20)
             .lean()
     ]);
-
-    if (!client) {
-        throw CustomException('العميل غير موجود', 404);
-    }
-
-    // Check access
-    const hasAccess = firmId
-        ? client.firmId && client.firmId.toString() === firmId.toString()
-        : client.lawyerId && client.lawyerId.toString() === lawyerId;
-
-    if (!hasAccess) {
-        throw CustomException('لا يمكنك الوصول إلى هذا العميل', 403);
-    }
 
     // Calculate summary statistics
     const caseStats = {

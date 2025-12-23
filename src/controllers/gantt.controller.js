@@ -2,9 +2,11 @@ const ganttService = require('../services/gantt.service');
 const collaborationService = require('../services/collaboration.service');
 const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
+const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 const Task = require('../models/task.model');
 const Reminder = require('../models/reminder.model');
 const Event = require('../models/event.model');
+const Case = require('../models/case.model');
 
 /**
  * Gantt Chart Controller
@@ -47,8 +49,20 @@ const getGanttDataForCase = asyncHandler(async (req, res) => {
   const firmId = req.firmId;
   const { caseId } = req.params;
 
+  // Sanitize and validate caseId
+  const sanitizedCaseId = sanitizeObjectId(caseId);
+  if (!sanitizedCaseId) {
+    throw CustomException('Invalid case ID format', 400);
+  }
+
+  // IDOR Protection: Verify case belongs to user's firm
+  const caseExists = await Case.findOne({ _id: sanitizedCaseId, firmId });
+  if (!caseExists) {
+    throw CustomException('Case not found or access denied', 404);
+  }
+
   const filters = {
-    caseId,
+    caseId: sanitizedCaseId,
     status: req.query.status ? req.query.status.split(',') : null
   };
 
@@ -91,7 +105,31 @@ const getGanttDataByAssignee = asyncHandler(async (req, res) => {
  */
 const filterGanttData = asyncHandler(async (req, res) => {
   const firmId = req.firmId;
-  const filters = req.body;
+
+  // Mass assignment protection: Only allow specific filter fields
+  const filters = pickAllowedFields(req.body, [
+    'caseId',
+    'assigneeId',
+    'status',
+    'priority',
+    'dateRange',
+    'tags',
+    'search'
+  ]);
+
+  // Sanitize ObjectIds if present
+  if (filters.caseId) {
+    filters.caseId = sanitizeObjectId(filters.caseId);
+    if (!filters.caseId) {
+      throw CustomException('Invalid case ID format', 400);
+    }
+  }
+  if (filters.assigneeId) {
+    filters.assigneeId = sanitizeObjectId(filters.assigneeId);
+    if (!filters.assigneeId) {
+      throw CustomException('Invalid assignee ID format', 400);
+    }
+  }
 
   const ganttData = await ganttService.getGanttData(firmId, filters);
 
@@ -107,8 +145,24 @@ const filterGanttData = asyncHandler(async (req, res) => {
  */
 const getTaskHierarchy = asyncHandler(async (req, res) => {
   const { taskId } = req.params;
+  const firmId = req.firmId;
 
-  const hierarchy = await ganttService.getTaskHierarchy(taskId);
+  // Sanitize task ID
+  const sanitizedTaskId = sanitizeObjectId(taskId);
+  if (!sanitizedTaskId) {
+    throw CustomException('Invalid task ID format', 400);
+  }
+
+  // IDOR Protection: Verify task belongs to user's firm
+  const task = await Task.findById(sanitizedTaskId);
+  if (!task) {
+    throw CustomException('Task not found', 404);
+  }
+  if (task.firmId && task.firmId.toString() !== firmId) {
+    throw CustomException('Access denied: Task does not belong to your firm', 403);
+  }
+
+  const hierarchy = await ganttService.getTaskHierarchy(sanitizedTaskId);
 
   res.status(200).json({
     success: true,
@@ -424,21 +478,55 @@ const getProductivityData = asyncHandler(async (req, res) => {
  */
 const updateTaskDates = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const { startDate, endDate } = req.body;
   const userId = req.userID;
+  const firmId = req.firmId;
 
+  // Sanitize task ID
+  const sanitizedTaskId = sanitizeObjectId(id);
+  if (!sanitizedTaskId) {
+    throw CustomException('Invalid task ID format', 400);
+  }
+
+  // Mass assignment protection: Only allow date fields
+  const safeData = pickAllowedFields(req.body, ['startDate', 'endDate']);
+  const { startDate, endDate } = safeData;
+
+  // Input validation
   if (!startDate || !endDate) {
     throw CustomException('Start date and end date are required', 400);
   }
 
-  const updatedTask = await ganttService.updateTaskDates(id, startDate, endDate);
+  // Validate date formats
+  const startDateObj = new Date(startDate);
+  const endDateObj = new Date(endDate);
+
+  if (isNaN(startDateObj.getTime())) {
+    throw CustomException('Invalid start date format', 400);
+  }
+  if (isNaN(endDateObj.getTime())) {
+    throw CustomException('Invalid end date format', 400);
+  }
+  if (endDateObj < startDateObj) {
+    throw CustomException('End date must be after start date', 400);
+  }
+
+  // IDOR Protection: Verify task belongs to user's firm
+  const task = await Task.findById(sanitizedTaskId);
+  if (!task) {
+    throw CustomException('Task not found', 404);
+  }
+  if (task.firmId && task.firmId.toString() !== firmId) {
+    throw CustomException('Access denied: Task does not belong to your firm', 403);
+  }
+
+  const updatedTask = await ganttService.updateTaskDates(sanitizedTaskId, startDate, endDate);
 
   // Broadcast update to collaborators
   await collaborationService.broadcastGanttUpdate(
     updatedTask.caseId,
     {
       action: 'task_dates_updated',
-      taskId: id,
+      taskId: sanitizedTaskId,
       startDate,
       endDate
     },
@@ -458,22 +546,48 @@ const updateTaskDates = asyncHandler(async (req, res) => {
  */
 const updateTaskDuration = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const { duration } = req.body;
   const userId = req.userID;
+  const firmId = req.firmId;
 
-  if (!duration || duration < 0) {
-    throw CustomException('Valid duration is required', 400);
+  // Sanitize task ID
+  const sanitizedTaskId = sanitizeObjectId(id);
+  if (!sanitizedTaskId) {
+    throw CustomException('Invalid task ID format', 400);
   }
 
-  const updatedTask = await ganttService.updateTaskDuration(id, duration);
+  // Mass assignment protection: Only allow duration field
+  const safeData = pickAllowedFields(req.body, ['duration']);
+  const { duration } = safeData;
+
+  // Input validation
+  if (duration === undefined || duration === null || duration < 0) {
+    throw CustomException('Valid duration is required (must be >= 0)', 400);
+  }
+
+  // Validate duration is a number
+  const durationNum = Number(duration);
+  if (isNaN(durationNum) || durationNum < 0) {
+    throw CustomException('Duration must be a valid positive number', 400);
+  }
+
+  // IDOR Protection: Verify task belongs to user's firm
+  const task = await Task.findById(sanitizedTaskId);
+  if (!task) {
+    throw CustomException('Task not found', 404);
+  }
+  if (task.firmId && task.firmId.toString() !== firmId) {
+    throw CustomException('Access denied: Task does not belong to your firm', 403);
+  }
+
+  const updatedTask = await ganttService.updateTaskDuration(sanitizedTaskId, durationNum);
 
   // Broadcast update
   await collaborationService.broadcastGanttUpdate(
     updatedTask.caseId,
     {
       action: 'task_duration_updated',
-      taskId: id,
-      duration
+      taskId: sanitizedTaskId,
+      duration: durationNum
     },
     userId
   );
@@ -491,22 +605,47 @@ const updateTaskDuration = asyncHandler(async (req, res) => {
  */
 const updateTaskProgress = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const { progress } = req.body;
   const userId = req.userID;
+  const firmId = req.firmId;
 
-  if (progress === undefined || progress < 0 || progress > 100) {
-    throw CustomException('Progress must be between 0 and 100', 400);
+  // Sanitize task ID
+  const sanitizedTaskId = sanitizeObjectId(id);
+  if (!sanitizedTaskId) {
+    throw CustomException('Invalid task ID format', 400);
   }
 
-  const updatedTask = await ganttService.updateTaskProgress(id, progress);
+  // Mass assignment protection: Only allow progress field
+  const safeData = pickAllowedFields(req.body, ['progress']);
+  const { progress } = safeData;
+
+  // Input validation
+  if (progress === undefined || progress === null) {
+    throw CustomException('Progress is required', 400);
+  }
+
+  const progressNum = Number(progress);
+  if (isNaN(progressNum) || progressNum < 0 || progressNum > 100) {
+    throw CustomException('Progress must be a number between 0 and 100', 400);
+  }
+
+  // IDOR Protection: Verify task belongs to user's firm
+  const task = await Task.findById(sanitizedTaskId);
+  if (!task) {
+    throw CustomException('Task not found', 404);
+  }
+  if (task.firmId && task.firmId.toString() !== firmId) {
+    throw CustomException('Access denied: Task does not belong to your firm', 403);
+  }
+
+  const updatedTask = await ganttService.updateTaskProgress(sanitizedTaskId, progressNum);
 
   // Broadcast update
   await collaborationService.broadcastGanttUpdate(
     updatedTask.caseId,
     {
       action: 'task_progress_updated',
-      taskId: id,
-      progress
+      taskId: sanitizedTaskId,
+      progress: progressNum
     },
     userId
   );
@@ -524,17 +663,59 @@ const updateTaskProgress = asyncHandler(async (req, res) => {
  */
 const updateTaskParent = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const { parentId } = req.body;
   const userId = req.userID;
+  const firmId = req.firmId;
 
-  const updatedTask = await ganttService.updateTaskParent(id, parentId);
+  // Sanitize task ID
+  const sanitizedTaskId = sanitizeObjectId(id);
+  if (!sanitizedTaskId) {
+    throw CustomException('Invalid task ID format', 400);
+  }
+
+  // Mass assignment protection: Only allow parentId field
+  const safeData = pickAllowedFields(req.body, ['parentId']);
+  let { parentId } = safeData;
+
+  // Sanitize parentId if provided
+  if (parentId) {
+    parentId = sanitizeObjectId(parentId);
+    if (!parentId) {
+      throw CustomException('Invalid parent task ID format', 400);
+    }
+  }
+
+  // IDOR Protection: Verify task belongs to user's firm
+  const task = await Task.findById(sanitizedTaskId);
+  if (!task) {
+    throw CustomException('Task not found', 404);
+  }
+  if (task.firmId && task.firmId.toString() !== firmId) {
+    throw CustomException('Access denied: Task does not belong to your firm', 403);
+  }
+
+  // If parentId is provided, verify it belongs to the same firm
+  if (parentId) {
+    const parentTask = await Task.findById(parentId);
+    if (!parentTask) {
+      throw CustomException('Parent task not found', 404);
+    }
+    if (parentTask.firmId && parentTask.firmId.toString() !== firmId) {
+      throw CustomException('Access denied: Parent task does not belong to your firm', 403);
+    }
+    // Verify both tasks belong to the same case
+    if (task.caseId && parentTask.caseId && task.caseId.toString() !== parentTask.caseId.toString()) {
+      throw CustomException('Task and parent task must belong to the same case', 400);
+    }
+  }
+
+  const updatedTask = await ganttService.updateTaskParent(sanitizedTaskId, parentId);
 
   // Broadcast update
   await collaborationService.broadcastGanttUpdate(
     updatedTask.caseId,
     {
       action: 'task_parent_updated',
-      taskId: id,
+      taskId: sanitizedTaskId,
       parentId
     },
     userId
@@ -552,13 +733,41 @@ const updateTaskParent = asyncHandler(async (req, res) => {
  * POST /api/gantt/task/:id/reorder
  */
 const reorderTasks = asyncHandler(async (req, res) => {
-  const { taskIds } = req.body;
+  const firmId = req.firmId;
 
+  // Mass assignment protection: Only allow taskIds field
+  const safeData = pickAllowedFields(req.body, ['taskIds']);
+  const { taskIds } = safeData;
+
+  // Input validation
   if (!taskIds || !Array.isArray(taskIds)) {
     throw CustomException('Task IDs array is required', 400);
   }
 
-  const reorderedTasks = await ganttService.reorderTasks(taskIds);
+  if (taskIds.length === 0) {
+    throw CustomException('Task IDs array cannot be empty', 400);
+  }
+
+  // Sanitize all task IDs
+  const sanitizedTaskIds = taskIds.map(id => sanitizeObjectId(id)).filter(Boolean);
+
+  if (sanitizedTaskIds.length !== taskIds.length) {
+    throw CustomException('One or more task IDs have invalid format', 400);
+  }
+
+  // IDOR Protection: Verify all tasks belong to user's firm
+  const tasks = await Task.find({ _id: { $in: sanitizedTaskIds } });
+
+  if (tasks.length !== sanitizedTaskIds.length) {
+    throw CustomException('One or more tasks not found', 404);
+  }
+
+  const invalidTasks = tasks.filter(task => task.firmId && task.firmId.toString() !== firmId);
+  if (invalidTasks.length > 0) {
+    throw CustomException('Access denied: One or more tasks do not belong to your firm', 403);
+  }
+
+  const reorderedTasks = await ganttService.reorderTasks(sanitizedTaskIds);
 
   res.status(200).json({
     success: true,
@@ -576,14 +785,63 @@ const reorderTasks = asyncHandler(async (req, res) => {
  * POST /api/gantt/link
  */
 const createLink = asyncHandler(async (req, res) => {
-  const { source, target, type = 0 } = req.body;
   const userId = req.userID;
+  const firmId = req.firmId;
 
+  // Mass assignment protection: Only allow specific fields
+  const safeData = pickAllowedFields(req.body, ['source', 'target', 'type']);
+  let { source, target, type = 0 } = safeData;
+
+  // Input validation
   if (!source || !target) {
     throw CustomException('Source and target task IDs are required', 400);
   }
 
-  const { sourceTask, targetTask } = await ganttService.createDependency(source, target, type);
+  // Sanitize task IDs
+  source = sanitizeObjectId(source);
+  if (!source) {
+    throw CustomException('Invalid source task ID format', 400);
+  }
+
+  target = sanitizeObjectId(target);
+  if (!target) {
+    throw CustomException('Invalid target task ID format', 400);
+  }
+
+  // Prevent self-referencing dependency
+  if (source === target) {
+    throw CustomException('A task cannot depend on itself', 400);
+  }
+
+  // Validate dependency type
+  const validTypes = [0, 1, 2, 3]; // 0: finish-to-start, 1: start-to-start, 2: finish-to-finish, 3: start-to-finish
+  if (!validTypes.includes(Number(type))) {
+    throw CustomException('Invalid dependency type. Must be 0, 1, 2, or 3', 400);
+  }
+
+  // IDOR Protection: Verify both tasks belong to user's firm
+  const sourceTask = await Task.findById(source);
+  if (!sourceTask) {
+    throw CustomException('Source task not found', 404);
+  }
+  if (sourceTask.firmId && sourceTask.firmId.toString() !== firmId) {
+    throw CustomException('Access denied: Source task does not belong to your firm', 403);
+  }
+
+  const targetTask = await Task.findById(target);
+  if (!targetTask) {
+    throw CustomException('Target task not found', 404);
+  }
+  if (targetTask.firmId && targetTask.firmId.toString() !== firmId) {
+    throw CustomException('Access denied: Target task does not belong to your firm', 403);
+  }
+
+  // Verify both tasks belong to the same case
+  if (sourceTask.caseId && targetTask.caseId && sourceTask.caseId.toString() !== targetTask.caseId.toString()) {
+    throw CustomException('Source and target tasks must belong to the same case', 400);
+  }
+
+  const result = await ganttService.createDependency(source, target, type);
 
   // Broadcast update
   await collaborationService.broadcastGanttUpdate(
@@ -600,10 +858,7 @@ const createLink = asyncHandler(async (req, res) => {
   res.status(201).json({
     success: true,
     message: 'Dependency link created successfully',
-    data: {
-      source: sourceTask,
-      target: targetTask
-    }
+    data: result
   });
 });
 
@@ -612,10 +867,39 @@ const createLink = asyncHandler(async (req, res) => {
  * DELETE /api/gantt/link/:source/:target
  */
 const deleteLink = asyncHandler(async (req, res) => {
-  const { source, target } = req.params;
+  let { source, target } = req.params;
   const userId = req.userID;
+  const firmId = req.firmId;
 
-  const { sourceTask, targetTask } = await ganttService.removeDependency(source, target);
+  // Sanitize task IDs
+  source = sanitizeObjectId(source);
+  if (!source) {
+    throw CustomException('Invalid source task ID format', 400);
+  }
+
+  target = sanitizeObjectId(target);
+  if (!target) {
+    throw CustomException('Invalid target task ID format', 400);
+  }
+
+  // IDOR Protection: Verify both tasks belong to user's firm
+  const sourceTask = await Task.findById(source);
+  if (!sourceTask) {
+    throw CustomException('Source task not found', 404);
+  }
+  if (sourceTask.firmId && sourceTask.firmId.toString() !== firmId) {
+    throw CustomException('Access denied: Source task does not belong to your firm', 403);
+  }
+
+  const targetTask = await Task.findById(target);
+  if (!targetTask) {
+    throw CustomException('Target task not found', 404);
+  }
+  if (targetTask.firmId && targetTask.firmId.toString() !== firmId) {
+    throw CustomException('Access denied: Target task does not belong to your firm', 403);
+  }
+
+  const result = await ganttService.removeDependency(source, target);
 
   // Broadcast update
   await collaborationService.broadcastGanttUpdate(
@@ -640,8 +924,24 @@ const deleteLink = asyncHandler(async (req, res) => {
  */
 const getDependencyChain = asyncHandler(async (req, res) => {
   const { taskId } = req.params;
+  const firmId = req.firmId;
 
-  const chain = await ganttService.getDependencyChain(taskId);
+  // Sanitize task ID
+  const sanitizedTaskId = sanitizeObjectId(taskId);
+  if (!sanitizedTaskId) {
+    throw CustomException('Invalid task ID format', 400);
+  }
+
+  // IDOR Protection: Verify task belongs to user's firm
+  const task = await Task.findById(sanitizedTaskId);
+  if (!task) {
+    throw CustomException('Task not found', 404);
+  }
+  if (task.firmId && task.firmId.toString() !== firmId) {
+    throw CustomException('Access denied: Task does not belong to your firm', 403);
+  }
+
+  const chain = await ganttService.getDependencyChain(sanitizedTaskId);
 
   res.status(200).json({
     success: true,
@@ -865,21 +1165,44 @@ const compareToBaseline = asyncHandler(async (req, res) => {
  */
 const autoSchedule = asyncHandler(async (req, res) => {
   const { projectId } = req.params;
-  const { startDate } = req.body;
   const userId = req.userID;
+  const firmId = req.firmId;
 
+  // Sanitize project/case ID
+  const sanitizedProjectId = sanitizeObjectId(projectId);
+  if (!sanitizedProjectId) {
+    throw CustomException('Invalid project ID format', 400);
+  }
+
+  // Mass assignment protection: Only allow startDate field
+  const safeData = pickAllowedFields(req.body, ['startDate']);
+  const { startDate } = safeData;
+
+  // Input validation
   if (!startDate) {
     throw CustomException('Project start date is required', 400);
   }
 
-  const scheduledTasks = await ganttService.autoSchedule(projectId, startDate);
+  // Validate start date format
+  const startDateObj = new Date(startDate);
+  if (isNaN(startDateObj.getTime())) {
+    throw CustomException('Invalid start date format', 400);
+  }
+
+  // IDOR Protection: Verify project/case belongs to user's firm
+  const caseExists = await Case.findOne({ _id: sanitizedProjectId, firmId });
+  if (!caseExists) {
+    throw CustomException('Project not found or access denied', 404);
+  }
+
+  const scheduledTasks = await ganttService.autoSchedule(sanitizedProjectId, startDate);
 
   // Broadcast update
   await collaborationService.broadcastGanttUpdate(
-    projectId,
+    sanitizedProjectId,
     {
       action: 'auto_scheduled',
-      projectId,
+      projectId: sanitizedProjectId,
       startDate
     },
     userId
@@ -931,8 +1254,51 @@ const createMilestone = asyncHandler(async (req, res) => {
   const userId = req.userID;
   const firmId = req.firmId;
 
+  // Mass assignment protection: Only allow specific milestone fields
+  const safeData = pickAllowedFields(req.body, [
+    'title',
+    'description',
+    'dueDate',
+    'caseId',
+    'projectId',
+    'priority',
+    'status',
+    'tags',
+    'color'
+  ]);
+
+  // Sanitize caseId if provided
+  if (safeData.caseId) {
+    safeData.caseId = sanitizeObjectId(safeData.caseId);
+    if (!safeData.caseId) {
+      throw CustomException('Invalid case ID format', 400);
+    }
+
+    // IDOR Protection: Verify case belongs to user's firm
+    const caseExists = await Case.findOne({ _id: safeData.caseId, firmId });
+    if (!caseExists) {
+      throw CustomException('Case not found or access denied', 404);
+    }
+  }
+
+  // Sanitize projectId if provided
+  if (safeData.projectId) {
+    safeData.projectId = sanitizeObjectId(safeData.projectId);
+    if (!safeData.projectId) {
+      throw CustomException('Invalid project ID format', 400);
+    }
+  }
+
+  // Validate dueDate if provided
+  if (safeData.dueDate) {
+    const dueDateObj = new Date(safeData.dueDate);
+    if (isNaN(dueDateObj.getTime())) {
+      throw CustomException('Invalid due date format', 400);
+    }
+  }
+
   const milestoneData = {
-    ...req.body,
+    ...safeData,
     createdBy: userId,
     firmId
   };

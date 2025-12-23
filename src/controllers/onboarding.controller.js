@@ -2,6 +2,7 @@ const { Onboarding, Employee } = require('../models');
 const { CustomException } = require('../utils');
 const asyncHandler = require('../utils/asyncHandler');
 const mongoose = require('mongoose');
+const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 
 // ═══════════════════════════════════════════════════════════════
 // GET ALL ONBOARDINGS
@@ -105,7 +106,13 @@ const getOnboarding = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
-    const onboarding = await Onboarding.findById(onboardingId)
+    // Sanitize onboarding ID
+    const sanitizedOnboardingId = sanitizeObjectId(onboardingId);
+    if (!sanitizedOnboardingId) {
+        throw CustomException('Invalid onboarding ID format', 400);
+    }
+
+    const onboarding = await Onboarding.findById(sanitizedOnboardingId)
         .populate('employeeId', 'employeeId personalInfo employment compensation gosi')
         .populate('managerId', 'firstName lastName email')
         .populate('createdBy', 'firstName lastName')
@@ -116,7 +123,7 @@ const getOnboarding = asyncHandler(async (req, res) => {
         throw CustomException('Onboarding not found', 404);
     }
 
-    // Check access
+    // IDOR Protection - Check access
     const hasAccess = firmId
         ? onboarding.firmId?.toString() === firmId.toString()
         : onboarding.lawyerId?.toString() === lawyerId;
@@ -139,6 +146,14 @@ const createOnboarding = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
+    // Mass assignment protection - only allow specific fields
+    const allowedFields = [
+        'employeeId', 'employeeNumber', 'employeeName', 'employeeNameAr',
+        'jobTitle', 'jobTitleAr', 'department', 'managerId', 'managerName',
+        'startDate', 'completionTargetDate', 'probationPeriod', 'notes'
+    ];
+    const safeData = pickAllowedFields(req.body, allowedFields);
+
     const {
         employeeId,
         employeeNumber,
@@ -153,20 +168,38 @@ const createOnboarding = asyncHandler(async (req, res) => {
         completionTargetDate,
         probationPeriod = 90,
         notes
-    } = req.body;
+    } = safeData;
 
-    // Validate probation period (Saudi Labor Law Article 53 - max 180 days)
-    if (probationPeriod > 180) {
-        throw CustomException('Probation period cannot exceed 180 days as per Saudi Labor Law Article 53', 400);
+    // Input validation
+    if (!employeeId || !startDate) {
+        throw CustomException('Employee ID and start date are required', 400);
     }
 
-    // Fetch employee
-    const employee = await Employee.findById(employeeId);
+    // Sanitize ObjectIds
+    const sanitizedEmployeeId = sanitizeObjectId(employeeId);
+    if (!sanitizedEmployeeId) {
+        throw CustomException('Invalid employee ID format', 400);
+    }
+
+    if (managerId) {
+        const sanitizedManagerId = sanitizeObjectId(managerId);
+        if (!sanitizedManagerId) {
+            throw CustomException('Invalid manager ID format', 400);
+        }
+    }
+
+    // Validate probation period (Saudi Labor Law Article 53 - max 180 days)
+    if (probationPeriod > 180 || probationPeriod < 0) {
+        throw CustomException('Probation period must be between 0 and 180 days as per Saudi Labor Law Article 53', 400);
+    }
+
+    // Fetch employee with sanitized ID
+    const employee = await Employee.findById(sanitizedEmployeeId);
     if (!employee) {
         throw CustomException('Employee not found', 404);
     }
 
-    // Check access to employee
+    // IDOR Protection - Check access to employee
     const hasEmployeeAccess = firmId
         ? employee.firmId?.toString() === firmId.toString()
         : employee.lawyerId?.toString() === lawyerId;
@@ -177,7 +210,7 @@ const createOnboarding = asyncHandler(async (req, res) => {
 
     // Check if onboarding already exists for this employee
     const existingOnboarding = await Onboarding.findOne({
-        employeeId,
+        employeeId: sanitizedEmployeeId,
         status: { $nin: ['completed', 'cancelled'] },
         $or: [{ firmId }, { lawyerId }]
     });
@@ -191,9 +224,9 @@ const createOnboarding = asyncHandler(async (req, res) => {
         ? new Date(completionTargetDate)
         : new Date(new Date(startDate).getTime() + probationPeriod * 24 * 60 * 60 * 1000);
 
-    // Prepare onboarding data
+    // Prepare onboarding data - prevent role escalation by NOT allowing role/permission fields
     const onboardingData = {
-        employeeId,
+        employeeId: sanitizedEmployeeId,
         employeeNumber: employeeNumber || employee.employeeId,
         employeeName,
         employeeNameAr: employeeNameAr || employee.personalInfo?.fullNameArabic,
@@ -209,7 +242,7 @@ const createOnboarding = asyncHandler(async (req, res) => {
         contractType: employee.employment?.contractType || 'indefinite',
         hireDate: employee.employment?.hireDate || startDate,
 
-        managerId,
+        managerId: managerId ? sanitizeObjectId(managerId) : null,
         managerName,
 
         startDate: new Date(startDate),
@@ -227,6 +260,7 @@ const createOnboarding = asyncHandler(async (req, res) => {
 
         notes: notes || {},
 
+        // Security: Explicitly set firmId and lawyerId from authenticated user, NOT from request body
         firmId: firmId || null,
         lawyerId: firmId ? null : lawyerId,
         createdBy: lawyerId
@@ -257,13 +291,19 @@ const updateOnboarding = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
-    const onboarding = await Onboarding.findById(onboardingId);
+    // Sanitize onboarding ID
+    const sanitizedOnboardingId = sanitizeObjectId(onboardingId);
+    if (!sanitizedOnboardingId) {
+        throw CustomException('Invalid onboarding ID format', 400);
+    }
+
+    const onboarding = await Onboarding.findById(sanitizedOnboardingId);
 
     if (!onboarding) {
         throw CustomException('Onboarding not found', 404);
     }
 
-    // Check access
+    // IDOR Protection - Check access
     const hasAccess = firmId
         ? onboarding.firmId?.toString() === firmId.toString()
         : onboarding.lawyerId?.toString() === lawyerId;
@@ -277,6 +317,7 @@ const updateOnboarding = asyncHandler(async (req, res) => {
         throw CustomException('Cannot update completed or cancelled onboarding', 400);
     }
 
+    // Mass assignment protection - only allow specific fields
     const allowedUpdates = [
         'employeeName', 'employeeNameAr', 'jobTitle', 'jobTitleAr', 'department',
         'location', 'managerId', 'managerName', 'managerEmail',
@@ -286,17 +327,30 @@ const updateOnboarding = asyncHandler(async (req, res) => {
         'employeeFeedback', 'documents', 'metrics'
     ];
 
+    const safeUpdates = pickAllowedFields(req.body, allowedUpdates);
+
+    // Prevent role escalation - never allow these fields to be updated
+    // firmId, lawyerId, employeeId, createdBy, status should not be updateable via this endpoint
+
     // Apply updates
     allowedUpdates.forEach(field => {
-        if (req.body[field] !== undefined) {
-            if (typeof req.body[field] === 'object' && !Array.isArray(req.body[field])) {
+        if (safeUpdates[field] !== undefined) {
+            if (typeof safeUpdates[field] === 'object' && !Array.isArray(safeUpdates[field])) {
                 // Deep merge for objects
-                onboarding[field] = { ...onboarding[field]?.toObject?.() || onboarding[field] || {}, ...req.body[field] };
+                onboarding[field] = { ...onboarding[field]?.toObject?.() || onboarding[field] || {}, ...safeUpdates[field] };
             } else {
-                onboarding[field] = req.body[field];
+                onboarding[field] = safeUpdates[field];
             }
         }
     });
+
+    // Sanitize managerId if being updated
+    if (safeUpdates.managerId) {
+        const sanitizedManagerId = sanitizeObjectId(safeUpdates.managerId);
+        if (sanitizedManagerId) {
+            onboarding.managerId = sanitizedManagerId;
+        }
+    }
 
     onboarding.lastModifiedBy = lawyerId;
     await onboarding.save();
@@ -317,13 +371,19 @@ const deleteOnboarding = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
-    const onboarding = await Onboarding.findById(onboardingId);
+    // Sanitize onboarding ID
+    const sanitizedOnboardingId = sanitizeObjectId(onboardingId);
+    if (!sanitizedOnboardingId) {
+        throw CustomException('Invalid onboarding ID format', 400);
+    }
+
+    const onboarding = await Onboarding.findById(sanitizedOnboardingId);
 
     if (!onboarding) {
         throw CustomException('Onboarding not found', 404);
     }
 
-    // Check access
+    // IDOR Protection - Check access
     const hasAccess = firmId
         ? onboarding.firmId?.toString() === firmId.toString()
         : onboarding.lawyerId?.toString() === lawyerId;
@@ -337,7 +397,7 @@ const deleteOnboarding = asyncHandler(async (req, res) => {
         throw CustomException('Only pending onboardings can be deleted', 400);
     }
 
-    await Onboarding.findByIdAndDelete(onboardingId);
+    await Onboarding.findByIdAndDelete(sanitizedOnboardingId);
 
     return res.json({
         success: true,
@@ -353,20 +413,34 @@ const updateStatus = asyncHandler(async (req, res) => {
     const { onboardingId } = req.params;
     const lawyerId = req.userID;
     const firmId = req.firmId;
-    const { status } = req.body;
+
+    // Sanitize onboarding ID
+    const sanitizedOnboardingId = sanitizeObjectId(onboardingId);
+    if (!sanitizedOnboardingId) {
+        throw CustomException('Invalid onboarding ID format', 400);
+    }
+
+    // Mass assignment protection - only allow status field
+    const safeData = pickAllowedFields(req.body, ['status']);
+    const { status } = safeData;
+
+    // Input validation
+    if (!status) {
+        throw CustomException('Status is required', 400);
+    }
 
     const validStatuses = ['pending', 'in_progress', 'completed', 'on_hold', 'cancelled'];
     if (!validStatuses.includes(status)) {
         throw CustomException(`Invalid status. Must be one of: ${validStatuses.join(', ')}`, 400);
     }
 
-    const onboarding = await Onboarding.findById(onboardingId);
+    const onboarding = await Onboarding.findById(sanitizedOnboardingId);
 
     if (!onboarding) {
         throw CustomException('Onboarding not found', 404);
     }
 
-    // Check access
+    // IDOR Protection - Check access
     const hasAccess = firmId
         ? onboarding.firmId?.toString() === firmId.toString()
         : onboarding.lawyerId?.toString() === lawyerId;
@@ -399,15 +473,24 @@ const completeTask = asyncHandler(async (req, res) => {
     const { onboardingId, taskId } = req.params;
     const lawyerId = req.userID;
     const firmId = req.firmId;
-    const { notes } = req.body;
 
-    const onboarding = await Onboarding.findById(onboardingId);
+    // Sanitize onboarding ID
+    const sanitizedOnboardingId = sanitizeObjectId(onboardingId);
+    if (!sanitizedOnboardingId) {
+        throw CustomException('Invalid onboarding ID format', 400);
+    }
+
+    // Mass assignment protection - only allow notes field
+    const safeData = pickAllowedFields(req.body, ['notes']);
+    const { notes } = safeData;
+
+    const onboarding = await Onboarding.findById(sanitizedOnboardingId);
 
     if (!onboarding) {
         throw CustomException('Onboarding not found', 404);
     }
 
-    // Check access
+    // IDOR Protection - Check access
     const hasAccess = firmId
         ? onboarding.firmId?.toString() === firmId.toString()
         : onboarding.lawyerId?.toString() === lawyerId;
@@ -490,6 +573,22 @@ const addProbationReview = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
+    // Sanitize onboarding ID
+    const sanitizedOnboardingId = sanitizeObjectId(onboardingId);
+    if (!sanitizedOnboardingId) {
+        throw CustomException('Invalid onboarding ID format', 400);
+    }
+
+    // Mass assignment protection - only allow specific fields
+    const allowedFields = [
+        'reviewType', 'reviewDay', 'scheduledDate', 'conducted',
+        'conductedDate', 'conductedBy', 'performanceAssessment',
+        'competencyRatings', 'goalsProgress', 'strengths',
+        'areasForImprovement', 'managerComments', 'employeeComments',
+        'recommendation', 'recommendationReason', 'actionItems', 'nextReviewDate'
+    ];
+    const safeData = pickAllowedFields(req.body, allowedFields);
+
     const {
         reviewType,
         reviewDay,
@@ -508,21 +607,32 @@ const addProbationReview = asyncHandler(async (req, res) => {
         recommendationReason,
         actionItems,
         nextReviewDate
-    } = req.body;
+    } = safeData;
 
-    const onboarding = await Onboarding.findById(onboardingId);
+    const onboarding = await Onboarding.findById(sanitizedOnboardingId);
 
     if (!onboarding) {
         throw CustomException('Onboarding not found', 404);
     }
 
-    // Check access
+    // IDOR Protection - Check access
     const hasAccess = firmId
         ? onboarding.firmId?.toString() === firmId.toString()
         : onboarding.lawyerId?.toString() === lawyerId;
 
     if (!hasAccess) {
         throw CustomException('Access denied', 403);
+    }
+
+    // Input validation
+    if (!reviewType || !scheduledDate) {
+        throw CustomException('Review type and scheduled date are required', 400);
+    }
+
+    // Validate review type
+    const validReviewTypes = ['30_day', '60_day', '90_day', 'mid_probation', 'final'];
+    if (!validReviewTypes.includes(reviewType)) {
+        throw CustomException('Invalid review type', 400);
     }
 
     // Create review object
@@ -576,6 +686,20 @@ const completeProbation = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
+    // Sanitize onboarding ID
+    const sanitizedOnboardingId = sanitizeObjectId(onboardingId);
+    if (!sanitizedOnboardingId) {
+        throw CustomException('Invalid onboarding ID format', 400);
+    }
+
+    // Mass assignment protection - only allow specific fields
+    const allowedFields = [
+        'decision', 'decisionReason', 'confirmationDate',
+        'salaryReview', 'benefitsActivation', 'terminationDate',
+        'terminationReason', 'terminationArticle', 'severancePayable', 'severanceAmount'
+    ];
+    const safeData = pickAllowedFields(req.body, allowedFields);
+
     const {
         decision, // 'confirm' or 'terminate' (NO 'extend' option per Saudi Labor Law)
         decisionReason,
@@ -587,15 +711,26 @@ const completeProbation = asyncHandler(async (req, res) => {
         terminationArticle,
         severancePayable,
         severanceAmount
-    } = req.body;
+    } = safeData;
 
-    const onboarding = await Onboarding.findById(onboardingId);
+    // Input validation
+    if (!decision) {
+        throw CustomException('Decision is required', 400);
+    }
+
+    // Validate decision (prevent role escalation - only allow confirm or terminate)
+    const validDecisions = ['confirm', 'terminate'];
+    if (!validDecisions.includes(decision)) {
+        throw CustomException('Invalid decision. Must be either "confirm" or "terminate"', 400);
+    }
+
+    const onboarding = await Onboarding.findById(sanitizedOnboardingId);
 
     if (!onboarding) {
         throw CustomException('Onboarding not found', 404);
     }
 
-    // Check access
+    // IDOR Protection - Check access
     const hasAccess = firmId
         ? onboarding.firmId?.toString() === firmId.toString()
         : onboarding.lawyerId?.toString() === lawyerId;
@@ -689,6 +824,19 @@ const uploadDocument = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
+    // Sanitize onboarding ID
+    const sanitizedOnboardingId = sanitizeObjectId(onboardingId);
+    if (!sanitizedOnboardingId) {
+        throw CustomException('Invalid onboarding ID format', 400);
+    }
+
+    // Mass assignment protection - only allow specific fields
+    const allowedFields = [
+        'documentType', 'documentName', 'documentNameAr',
+        'fileUrl', 'required', 'expiryDate'
+    ];
+    const safeData = pickAllowedFields(req.body, allowedFields);
+
     const {
         documentType,
         documentName,
@@ -696,15 +844,15 @@ const uploadDocument = asyncHandler(async (req, res) => {
         fileUrl,
         required,
         expiryDate
-    } = req.body;
+    } = safeData;
 
-    const onboarding = await Onboarding.findById(onboardingId);
+    const onboarding = await Onboarding.findById(sanitizedOnboardingId);
 
     if (!onboarding) {
         throw CustomException('Onboarding not found', 404);
     }
 
-    // Check access
+    // IDOR Protection - Check access
     const hasAccess = firmId
         ? onboarding.firmId?.toString() === firmId.toString()
         : onboarding.lawyerId?.toString() === lawyerId;
@@ -713,15 +861,33 @@ const uploadDocument = asyncHandler(async (req, res) => {
         throw CustomException('Access denied', 403);
     }
 
+    // Input validation
     if (!documentType || !fileUrl) {
         throw CustomException('Document type and file URL are required', 400);
+    }
+
+    // Sanitize document upload - validate file URL format
+    const urlPattern = /^(https?:\/\/)?([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w \.-]*)*\/?$/;
+    if (!urlPattern.test(fileUrl)) {
+        throw CustomException('Invalid file URL format', 400);
+    }
+
+    // Validate document type (prevent injection)
+    const validDocumentTypes = [
+        'national_id', 'passport', 'contract', 'tax_form', 'bank_info',
+        'certificate', 'license', 'medical_report', 'background_check',
+        'education_certificate', 'experience_letter', 'other'
+    ];
+
+    if (!validDocumentTypes.includes(documentType)) {
+        throw CustomException('Invalid document type', 400);
     }
 
     const document = {
         documentType,
         documentName: documentName || documentType,
         documentNameAr,
-        required: required || false,
+        required: Boolean(required),
         fileUrl,
         uploadedOn: new Date(),
         uploadedBy: lawyerId,
@@ -749,13 +915,19 @@ const verifyDocument = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
-    const onboarding = await Onboarding.findById(onboardingId);
+    // Sanitize onboarding ID
+    const sanitizedOnboardingId = sanitizeObjectId(onboardingId);
+    if (!sanitizedOnboardingId) {
+        throw CustomException('Invalid onboarding ID format', 400);
+    }
+
+    const onboarding = await Onboarding.findById(sanitizedOnboardingId);
 
     if (!onboarding) {
         throw CustomException('Onboarding not found', 404);
     }
 
-    // Check access
+    // IDOR Protection - Check access
     const hasAccess = firmId
         ? onboarding.firmId?.toString() === firmId.toString()
         : onboarding.lawyerId?.toString() === lawyerId;
@@ -812,15 +984,24 @@ const completeFirstDay = asyncHandler(async (req, res) => {
     const { onboardingId } = req.params;
     const lawyerId = req.userID;
     const firmId = req.firmId;
-    const { feedback } = req.body;
 
-    const onboarding = await Onboarding.findById(onboardingId);
+    // Sanitize onboarding ID
+    const sanitizedOnboardingId = sanitizeObjectId(onboardingId);
+    if (!sanitizedOnboardingId) {
+        throw CustomException('Invalid onboarding ID format', 400);
+    }
+
+    // Mass assignment protection - only allow feedback field
+    const safeData = pickAllowedFields(req.body, ['feedback']);
+    const { feedback } = safeData;
+
+    const onboarding = await Onboarding.findById(sanitizedOnboardingId);
 
     if (!onboarding) {
         throw CustomException('Onboarding not found', 404);
     }
 
-    // Check access
+    // IDOR Protection - Check access
     const hasAccess = firmId
         ? onboarding.firmId?.toString() === firmId.toString()
         : onboarding.lawyerId?.toString() === lawyerId;
@@ -861,15 +1042,24 @@ const completeFirstWeek = asyncHandler(async (req, res) => {
     const { onboardingId } = req.params;
     const lawyerId = req.userID;
     const firmId = req.firmId;
-    const { weeklyCheckIn } = req.body;
 
-    const onboarding = await Onboarding.findById(onboardingId);
+    // Sanitize onboarding ID
+    const sanitizedOnboardingId = sanitizeObjectId(onboardingId);
+    if (!sanitizedOnboardingId) {
+        throw CustomException('Invalid onboarding ID format', 400);
+    }
+
+    // Mass assignment protection - only allow weeklyCheckIn field
+    const safeData = pickAllowedFields(req.body, ['weeklyCheckIn']);
+    const { weeklyCheckIn } = safeData;
+
+    const onboarding = await Onboarding.findById(sanitizedOnboardingId);
 
     if (!onboarding) {
         throw CustomException('Onboarding not found', 404);
     }
 
-    // Check access
+    // IDOR Protection - Check access
     const hasAccess = firmId
         ? onboarding.firmId?.toString() === firmId.toString()
         : onboarding.lawyerId?.toString() === lawyerId;
@@ -909,15 +1099,24 @@ const completeFirstMonth = asyncHandler(async (req, res) => {
     const { onboardingId } = req.params;
     const lawyerId = req.userID;
     const firmId = req.firmId;
-    const { initialFeedback } = req.body;
 
-    const onboarding = await Onboarding.findById(onboardingId);
+    // Sanitize onboarding ID
+    const sanitizedOnboardingId = sanitizeObjectId(onboardingId);
+    if (!sanitizedOnboardingId) {
+        throw CustomException('Invalid onboarding ID format', 400);
+    }
+
+    // Mass assignment protection - only allow initialFeedback field
+    const safeData = pickAllowedFields(req.body, ['initialFeedback']);
+    const { initialFeedback } = safeData;
+
+    const onboarding = await Onboarding.findById(sanitizedOnboardingId);
 
     if (!onboarding) {
         throw CustomException('Onboarding not found', 404);
     }
 
-    // Check access
+    // IDOR Protection - Check access
     const hasAccess = firmId
         ? onboarding.firmId?.toString() === firmId.toString()
         : onboarding.lawyerId?.toString() === lawyerId;
@@ -956,15 +1155,24 @@ const completeOnboarding = asyncHandler(async (req, res) => {
     const { onboardingId } = req.params;
     const lawyerId = req.userID;
     const firmId = req.firmId;
-    const { finalReview, outstandingItems } = req.body;
 
-    const onboarding = await Onboarding.findById(onboardingId);
+    // Sanitize onboarding ID
+    const sanitizedOnboardingId = sanitizeObjectId(onboardingId);
+    if (!sanitizedOnboardingId) {
+        throw CustomException('Invalid onboarding ID format', 400);
+    }
+
+    // Mass assignment protection - only allow finalReview and outstandingItems fields
+    const safeData = pickAllowedFields(req.body, ['finalReview', 'outstandingItems']);
+    const { finalReview, outstandingItems } = safeData;
+
+    const onboarding = await Onboarding.findById(sanitizedOnboardingId);
 
     if (!onboarding) {
         throw CustomException('Onboarding not found', 404);
     }
 
-    // Check access
+    // IDOR Protection - Check access
     const hasAccess = firmId
         ? onboarding.firmId?.toString() === firmId.toString()
         : onboarding.lawyerId?.toString() === lawyerId;
@@ -1050,7 +1258,14 @@ const getByEmployee = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
-    const query = { employeeId };
+    // Sanitize employee ID
+    const sanitizedEmployeeId = sanitizeObjectId(employeeId);
+    if (!sanitizedEmployeeId) {
+        throw CustomException('Invalid employee ID format', 400);
+    }
+
+    // IDOR Protection - Only allow access to own firm/lawyer data
+    const query = { employeeId: sanitizedEmployeeId };
     if (firmId) {
         query.firmId = firmId;
     } else {
@@ -1094,15 +1309,30 @@ const addChecklistCategory = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
-    const { categoryName, categoryNameAr, tasks } = req.body;
+    // Sanitize onboarding ID
+    const sanitizedOnboardingId = sanitizeObjectId(onboardingId);
+    if (!sanitizedOnboardingId) {
+        throw CustomException('Invalid onboarding ID format', 400);
+    }
 
-    const onboarding = await Onboarding.findById(onboardingId);
+    // Mass assignment protection - only allow specific fields
+    const allowedFields = ['categoryName', 'categoryNameAr', 'tasks'];
+    const safeData = pickAllowedFields(req.body, allowedFields);
+
+    const { categoryName, categoryNameAr, tasks } = safeData;
+
+    // Input validation
+    if (!categoryName) {
+        throw CustomException('Category name is required', 400);
+    }
+
+    const onboarding = await Onboarding.findById(sanitizedOnboardingId);
 
     if (!onboarding) {
         throw CustomException('Onboarding not found', 404);
     }
 
-    // Check access
+    // IDOR Protection - Check access
     const hasAccess = firmId
         ? onboarding.firmId?.toString() === firmId.toString()
         : onboarding.lawyerId?.toString() === lawyerId;
@@ -1150,15 +1380,33 @@ const addChecklistTask = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
-    const { taskName, taskNameAr, description, responsible, responsiblePerson, dueDate, priority } = req.body;
+    // Sanitize onboarding ID
+    const sanitizedOnboardingId = sanitizeObjectId(onboardingId);
+    if (!sanitizedOnboardingId) {
+        throw CustomException('Invalid onboarding ID format', 400);
+    }
 
-    const onboarding = await Onboarding.findById(onboardingId);
+    // Mass assignment protection - only allow specific fields
+    const allowedFields = [
+        'taskName', 'taskNameAr', 'description',
+        'responsible', 'responsiblePerson', 'dueDate', 'priority'
+    ];
+    const safeData = pickAllowedFields(req.body, allowedFields);
+
+    const { taskName, taskNameAr, description, responsible, responsiblePerson, dueDate, priority } = safeData;
+
+    // Input validation
+    if (!taskName) {
+        throw CustomException('Task name is required', 400);
+    }
+
+    const onboarding = await Onboarding.findById(sanitizedOnboardingId);
 
     if (!onboarding) {
         throw CustomException('Onboarding not found', 404);
     }
 
-    // Check access
+    // IDOR Protection - Check access
     const hasAccess = firmId
         ? onboarding.firmId?.toString() === firmId.toString()
         : onboarding.lawyerId?.toString() === lawyerId;
@@ -1207,6 +1455,20 @@ const addEmployeeFeedback = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
+    // Sanitize onboarding ID
+    const sanitizedOnboardingId = sanitizeObjectId(onboardingId);
+    if (!sanitizedOnboardingId) {
+        throw CustomException('Invalid onboarding ID format', 400);
+    }
+
+    // Mass assignment protection - only allow specific fields
+    const allowedFields = [
+        'sessionType', 'overallSatisfaction', 'experienceRatings',
+        'positiveAspects', 'challenges', 'suggestions',
+        'questionsOrConcerns', 'wouldRecommend'
+    ];
+    const safeData = pickAllowedFields(req.body, allowedFields);
+
     const {
         sessionType,
         overallSatisfaction,
@@ -1216,15 +1478,25 @@ const addEmployeeFeedback = asyncHandler(async (req, res) => {
         suggestions,
         questionsOrConcerns,
         wouldRecommend
-    } = req.body;
+    } = safeData;
 
-    const onboarding = await Onboarding.findById(onboardingId);
+    // Input validation
+    if (!sessionType) {
+        throw CustomException('Session type is required', 400);
+    }
+
+    // Validate satisfaction rating
+    if (overallSatisfaction && (overallSatisfaction < 1 || overallSatisfaction > 5)) {
+        throw CustomException('Overall satisfaction must be between 1 and 5', 400);
+    }
+
+    const onboarding = await Onboarding.findById(sanitizedOnboardingId);
 
     if (!onboarding) {
         throw CustomException('Onboarding not found', 404);
     }
 
-    // Check access
+    // IDOR Protection - Check access
     const hasAccess = firmId
         ? onboarding.firmId?.toString() === firmId.toString()
         : onboarding.lawyerId?.toString() === lawyerId;

@@ -3,15 +3,105 @@ const { Event, Task, Reminder, Case } = require('../models');
 const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
 const cache = require('../services/cache.service');
+const { pickAllowedFields, sanitizeObjectId, sanitizeString } = require('../utils/securityUtils');
 
 // Helper to convert userId to ObjectId for aggregation pipelines
 const toObjectId = (id) => {
     if (id instanceof mongoose.Types.ObjectId) return id;
-    try {
-        return new mongoose.Types.ObjectId(id);
-    } catch {
-        return id;
+    // Use sanitizeObjectId for security
+    const sanitized = sanitizeObjectId(id);
+    if (!sanitized) {
+        throw CustomException('Invalid ObjectId format', 400);
     }
+    try {
+        return new mongoose.Types.ObjectId(sanitized);
+    } catch {
+        throw CustomException('Invalid ObjectId format', 400);
+    }
+};
+
+// ============================================
+// DATE VALIDATION HELPERS
+// ============================================
+
+/**
+ * Validate and sanitize date input
+ * Prevents invalid dates and date manipulation attacks
+ * @param {string|Date} dateInput - Date to validate
+ * @param {string} fieldName - Field name for error messages
+ * @returns {Date} - Valid Date object
+ */
+const validateDate = (dateInput, fieldName = 'date') => {
+    if (!dateInput) {
+        throw CustomException(`${fieldName} is required`, 400);
+    }
+
+    const date = new Date(dateInput);
+
+    // Check if date is valid
+    if (isNaN(date.getTime())) {
+        throw CustomException(`Invalid ${fieldName} format`, 400);
+    }
+
+    // Reasonable date range validation (1900 - 2100)
+    const minDate = new Date('1900-01-01');
+    const maxDate = new Date('2100-12-31');
+
+    if (date < minDate || date > maxDate) {
+        throw CustomException(`${fieldName} must be between 1900 and 2100`, 400);
+    }
+
+    return date;
+};
+
+/**
+ * Validate date range
+ * Ensures start date is before end date and range is reasonable
+ * @param {Date} startDate - Start date
+ * @param {Date} endDate - End date
+ * @param {number} maxRangeDays - Maximum allowed range in days (default 365)
+ */
+const validateDateRange = (startDate, endDate, maxRangeDays = 365) => {
+    if (startDate > endDate) {
+        throw CustomException('Start date must be before end date', 400);
+    }
+
+    const rangeDays = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24));
+    if (rangeDays > maxRangeDays) {
+        throw CustomException(`Date range cannot exceed ${maxRangeDays} days`, 400);
+    }
+};
+
+/**
+ * Validate attendees array
+ * Ensures proper structure and valid user IDs
+ * @param {Array} attendees - Array of attendee objects
+ * @returns {Array} - Validated attendees
+ */
+const validateAttendees = (attendees) => {
+    if (!Array.isArray(attendees)) {
+        throw CustomException('Attendees must be an array', 400);
+    }
+
+    if (attendees.length > 100) {
+        throw CustomException('Cannot have more than 100 attendees', 400);
+    }
+
+    return attendees.map((attendee, index) => {
+        if (!attendee || typeof attendee !== 'object') {
+            throw CustomException(`Attendee at index ${index} must be an object`, 400);
+        }
+
+        // Validate userId
+        const userId = sanitizeObjectId(attendee.userId);
+        if (!userId) {
+            throw CustomException(`Invalid userId for attendee at index ${index}`, 400);
+        }
+
+        // Only allow specific fields for attendees
+        const allowedFields = ['userId', 'status', 'response', 'role'];
+        return pickAllowedFields({ ...attendee, userId }, allowedFields);
+    });
 };
 
 // Valid filter types as Set for O(1) lookup
@@ -74,9 +164,28 @@ const getCalendarView = asyncHandler(async (req, res) => {
     const { startDate, endDate, type, caseId } = req.query;
     const userId = req.userID;
 
-    // Default to current month if no dates provided
-    const start = startDate ? new Date(startDate) : new Date(new Date().getFullYear(), new Date().getMonth(), 1);
-    const end = endDate ? new Date(endDate) : new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0, 23, 59, 59);
+    // Date validation with security checks
+    let start, end;
+    if (startDate && endDate) {
+        start = validateDate(startDate, 'startDate');
+        end = validateDate(endDate, 'endDate');
+        validateDateRange(start, end, 365); // Max 1 year range
+    } else {
+        // Default to current month if no dates provided
+        start = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+        end = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0, 23, 59, 59);
+    }
+
+    // Validate type parameter if provided
+    if (type && !VALID_CALENDAR_TYPES.has(type)) {
+        throw CustomException('Invalid calendar type. Must be: event, task, reminder, or case-document', 400);
+    }
+
+    // Sanitize caseId if provided (IDOR protection)
+    const sanitizedCaseId = caseId ? sanitizeObjectId(caseId) : null;
+    if (caseId && !sanitizedCaseId) {
+        throw CustomException('Invalid caseId format', 400);
+    }
 
     const result = {
         events: [],
@@ -92,8 +201,8 @@ const getCalendarView = asyncHandler(async (req, res) => {
         }
     };
 
-    // Build base query for case filtering
-    const caseFilter = caseId ? { caseId } : {};
+    // Build base query for case filtering with sanitized ID
+    const caseFilter = sanitizedCaseId ? { caseId: sanitizedCaseId } : {};
 
     // Fetch events
     if (!type || type === 'event') {
@@ -298,10 +407,13 @@ const getCalendarByDate = asyncHandler(async (req, res) => {
     const { date } = req.params;
     const userId = req.userID;
 
-    const startOfDay = new Date(date);
+    // Validate date parameter with security checks
+    const validatedDate = validateDate(date, 'date');
+
+    const startOfDay = new Date(validatedDate);
     startOfDay.setHours(0, 0, 0, 0);
 
-    const endOfDay = new Date(date);
+    const endOfDay = new Date(validatedDate);
     endOfDay.setHours(23, 59, 59, 999);
 
     // Fetch events
@@ -391,8 +503,20 @@ const getCalendarByMonth = asyncHandler(async (req, res) => {
     const { year, month } = req.params;
     const userId = req.userID;
 
-    const startDate = new Date(year, month - 1, 1);
-    const endDate = new Date(year, month, 0, 23, 59, 59);
+    // Validate year and month parameters
+    const yearNum = parseInt(year, 10);
+    const monthNum = parseInt(month, 10);
+
+    if (isNaN(yearNum) || yearNum < 1900 || yearNum > 2100) {
+        throw CustomException('Invalid year. Must be between 1900 and 2100', 400);
+    }
+
+    if (isNaN(monthNum) || monthNum < 1 || monthNum > 12) {
+        throw CustomException('Invalid month. Must be between 1 and 12', 400);
+    }
+
+    const startDate = new Date(yearNum, monthNum - 1, 1);
+    const endDate = new Date(yearNum, monthNum, 0, 23, 59, 59);
 
     // Fetch events
     const events = await Event.find({
@@ -515,11 +639,17 @@ const getUpcomingItems = asyncHandler(async (req, res) => {
     const { days = 7 } = req.query;
     const userId = req.userID;
 
+    // Validate days parameter
+    const daysNum = parseInt(days, 10);
+    if (isNaN(daysNum) || daysNum < 1 || daysNum > 365) {
+        throw CustomException('Days parameter must be between 1 and 365', 400);
+    }
+
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
     const futureDate = new Date();
-    futureDate.setDate(today.getDate() + parseInt(days));
+    futureDate.setDate(today.getDate() + daysNum);
     futureDate.setHours(23, 59, 59, 999);
 
     // Fetch upcoming events
@@ -686,9 +816,17 @@ const getCalendarStats = asyncHandler(async (req, res) => {
     const { startDate, endDate } = req.query;
     const userId = req.userID;
 
-    // Default to current month
-    const start = startDate ? new Date(startDate) : new Date(new Date().getFullYear(), new Date().getMonth(), 1);
-    const end = endDate ? new Date(endDate) : new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0, 23, 59, 59);
+    // Date validation with security checks
+    let start, end;
+    if (startDate && endDate) {
+        start = validateDate(startDate, 'startDate');
+        end = validateDate(endDate, 'endDate');
+        validateDateRange(start, end, 730); // Max 2 years for stats
+    } else {
+        // Default to current month
+        start = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+        end = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0, 23, 59, 59);
+    }
     const now = new Date();
 
     // Get total counts
@@ -888,9 +1026,26 @@ const getCalendarGridSummary = asyncHandler(async (req, res) => {
     const { startDate, endDate, types } = req.query;
     const userId = req.userID;
 
-    // Default to current month if no dates provided
-    const start = startDate ? new Date(startDate) : new Date(new Date().getFullYear(), new Date().getMonth(), 1);
-    const end = endDate ? new Date(endDate) : new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0, 23, 59, 59);
+    // Date validation with security checks
+    let start, end;
+    if (startDate && endDate) {
+        start = validateDate(startDate, 'startDate');
+        end = validateDate(endDate, 'endDate');
+        validateDateRange(start, end, 365); // Max 1 year range
+    } else {
+        // Default to current month if no dates provided
+        start = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+        end = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0, 23, 59, 59);
+    }
+
+    // Validate types parameter if provided
+    if (types) {
+        const typeArray = types.split(',');
+        const invalidTypes = typeArray.filter(t => !VALID_CALENDAR_TYPES.has(t.trim()));
+        if (invalidTypes.length > 0) {
+            throw CustomException(`Invalid calendar types: ${invalidTypes.join(', ')}`, 400);
+        }
+    }
 
     // Generate cache key
     const cacheKey = cacheKeys.gridSummary(userId, start.toISOString().split('T')[0], end.toISOString().split('T')[0], types);
@@ -1106,8 +1261,25 @@ const getCalendarGridItems = asyncHandler(async (req, res) => {
         throw CustomException('Start date and end date are required', 400);
     }
 
-    const start = new Date(startDate);
-    const end = new Date(endDate);
+    // Validate dates with security checks
+    const start = validateDate(startDate, 'startDate');
+    const end = validateDate(endDate, 'endDate');
+    validateDateRange(start, end, 365); // Max 1 year range
+
+    // Validate types parameter if provided
+    if (types) {
+        const typeArray = types.split(',');
+        const invalidTypes = typeArray.filter(t => !VALID_CALENDAR_TYPES.has(t.trim()));
+        if (invalidTypes.length > 0) {
+            throw CustomException(`Invalid calendar types: ${invalidTypes.join(', ')}`, 400);
+        }
+    }
+
+    // Sanitize caseId if provided (IDOR protection)
+    const sanitizedCaseId = caseId ? sanitizeObjectId(caseId) : null;
+    if (caseId && !sanitizedCaseId) {
+        throw CustomException('Invalid caseId format', 400);
+    }
 
     // Generate cache key
     const cacheKey = cacheKeys.gridItems(userId, start.toISOString().split('T')[0], end.toISOString().split('T')[0], types, caseId);
@@ -1129,7 +1301,7 @@ const getCalendarGridItems = asyncHandler(async (req, res) => {
         ? new Set(types.split(',').filter(t => VALID_CALENDAR_TYPES.has(t.trim())))
         : VALID_CALENDAR_TYPES;
 
-    const caseFilter = caseId ? { caseId } : {};
+    const caseFilter = sanitizedCaseId ? { caseId: sanitizedCaseId } : {};
     const items = [];
 
     const promises = [];
@@ -1237,7 +1409,7 @@ const getCalendarGridItems = asyncHandler(async (req, res) => {
             lawyerId: userId,
             'richDocuments.showOnCalendar': true
         };
-        if (caseId) caseQuery._id = caseId;
+        if (sanitizedCaseId) caseQuery._id = sanitizedCaseId;
 
         promises.push(
             Case.find(caseQuery)
@@ -1308,6 +1480,12 @@ const getCalendarItemDetails = asyncHandler(async (req, res) => {
         throw CustomException('Invalid item type. Must be: event, task, reminder, or case-document', 400);
     }
 
+    // Sanitize and validate ID (IDOR protection)
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('Invalid item ID format', 400);
+    }
+
     // Generate cache key
     const cacheKey = cacheKeys.itemDetails(type, id);
 
@@ -1328,7 +1506,7 @@ const getCalendarItemDetails = asyncHandler(async (req, res) => {
 
     switch (type) {
         case 'event':
-            item = await Event.findById(id)
+            item = await Event.findById(sanitizedId)
                 .populate('createdBy', 'username firstName lastName image email')
                 .populate('organizer', 'username firstName lastName image email')
                 .populate('attendees.userId', 'username firstName lastName image email')
@@ -1342,18 +1520,18 @@ const getCalendarItemDetails = asyncHandler(async (req, res) => {
                 throw CustomException('Event not found', 404);
             }
 
-            // Check access
-            const hasEventAccess = item.createdBy._id.toString() === userId ||
-                item.organizer._id.toString() === userId ||
-                item.isUserAttendee(userId);
+            // Enhanced IDOR protection - verify ownership/access
+            const hasEventAccess = item.createdBy?._id?.toString() === userId ||
+                item.organizer?._id?.toString() === userId ||
+                (item.isUserAttendee && item.isUserAttendee(userId));
 
             if (!hasEventAccess) {
-                throw CustomException('You do not have access to this event', 403);
+                throw CustomException('Access denied: You do not have permission to view this event', 403);
             }
             break;
 
         case 'task':
-            item = await Task.findById(id)
+            item = await Task.findById(sanitizedId)
                 .populate('assignedTo', 'username firstName lastName image email')
                 .populate('createdBy', 'username firstName lastName image email')
                 .populate('caseId', 'title caseNumber category')
@@ -1364,17 +1542,17 @@ const getCalendarItemDetails = asyncHandler(async (req, res) => {
                 throw CustomException('Task not found', 404);
             }
 
-            // Check access
+            // Enhanced IDOR protection - verify ownership/access
             const hasTaskAccess = item.assignedTo?._id?.toString() === userId ||
-                item.createdBy._id.toString() === userId;
+                item.createdBy?._id?.toString() === userId;
 
             if (!hasTaskAccess) {
-                throw CustomException('You do not have access to this task', 403);
+                throw CustomException('Access denied: You do not have permission to view this task', 403);
             }
             break;
 
         case 'reminder':
-            item = await Reminder.findById(id)
+            item = await Reminder.findById(sanitizedId)
                 .populate('relatedCase', 'title caseNumber category')
                 .populate('relatedTask', 'title status dueDate')
                 .populate('relatedEvent', 'title startDateTime');
@@ -1383,21 +1561,23 @@ const getCalendarItemDetails = asyncHandler(async (req, res) => {
                 throw CustomException('Reminder not found', 404);
             }
 
+            // Enhanced IDOR protection - verify ownership
             if (item.userId.toString() !== userId) {
-                throw CustomException('You do not have access to this reminder', 403);
+                throw CustomException('Access denied: You do not have permission to view this reminder', 403);
             }
             break;
 
         case 'case-document':
+            // Enhanced IDOR protection - only return documents from user's cases
             const caseDoc = await Case.findOne({
                 lawyerId: userId,
-                'richDocuments._id': id
+                'richDocuments._id': sanitizedId
             })
                 .populate('richDocuments.createdBy', 'firstName lastName')
                 .select('_id title caseNumber category richDocuments.$');
 
             if (!caseDoc || !caseDoc.richDocuments || caseDoc.richDocuments.length === 0) {
-                throw CustomException('Document not found', 404);
+                throw CustomException('Document not found or access denied', 404);
             }
 
             item = {
@@ -1442,19 +1622,52 @@ const getCalendarListView = asyncHandler(async (req, res) => {
     } = req.query;
     const userId = req.userID;
 
+    // Validate limit parameter
     const parsedLimit = Math.min(parseInt(limit) || 20, 100); // Max 100 items per request
+    if (parsedLimit < 1) {
+        throw CustomException('Limit must be at least 1', 400);
+    }
 
-    // Default date range if not provided
-    const start = startDate ? new Date(startDate) : new Date(new Date().setHours(0, 0, 0, 0));
-    const end = endDate ? new Date(endDate) : new Date(new Date().setFullYear(new Date().getFullYear() + 1));
+    // Date validation with security checks
+    let start, end;
+    if (startDate && endDate) {
+        start = validateDate(startDate, 'startDate');
+        end = validateDate(endDate, 'endDate');
+        validateDateRange(start, end, 730); // Max 2 years range for list view
+    } else {
+        // Default date range if not provided
+        start = startDate ? validateDate(startDate, 'startDate') : new Date(new Date().setHours(0, 0, 0, 0));
+        end = endDate ? validateDate(endDate, 'endDate') : new Date(new Date().setFullYear(new Date().getFullYear() + 1));
+    }
+
+    // Validate sortOrder
+    if (sortOrder !== 'asc' && sortOrder !== 'desc') {
+        throw CustomException('Sort order must be "asc" or "desc"', 400);
+    }
+
+    // Sanitize caseId if provided (IDOR protection)
+    const sanitizedCaseId = caseId ? sanitizeObjectId(caseId) : null;
+    if (caseId && !sanitizedCaseId) {
+        throw CustomException('Invalid caseId format', 400);
+    }
 
     // Parse filters using Sets for O(1) lookup
     const requestedTypes = types
         ? new Set(types.split(',').filter(t => VALID_CALENDAR_TYPES.has(t.trim())))
         : VALID_CALENDAR_TYPES;
 
+    // Validate priority and status filters
     const priorityFilter = priority && VALID_PRIORITIES.has(priority) ? priority : null;
     const statusFilter = status && VALID_STATUSES.has(status) ? status : null;
+
+    // Validate types if provided
+    if (types) {
+        const typeArray = types.split(',');
+        const invalidTypes = typeArray.filter(t => !VALID_CALENDAR_TYPES.has(t.trim()));
+        if (invalidTypes.length > 0) {
+            throw CustomException(`Invalid calendar types: ${invalidTypes.join(', ')}`, 400);
+        }
+    }
 
     // Decode cursor for pagination
     let cursorDate = null;
@@ -1470,7 +1683,7 @@ const getCalendarListView = asyncHandler(async (req, res) => {
     }
 
     const items = [];
-    const caseFilter = caseId ? { caseId } : {};
+    const caseFilter = sanitizedCaseId ? { caseId: sanitizedCaseId } : {};
 
     // Build cursor condition for each type
     const buildCursorCondition = (dateField, cursorDate, cursorId, sortOrder) => {
@@ -1580,7 +1793,7 @@ const getCalendarListView = asyncHandler(async (req, res) => {
         const reminderQuery = {
             userId,
             reminderDateTime: { $gte: start, $lte: end },
-            ...(caseId && { relatedCase: caseId }),
+            ...(sanitizedCaseId && { relatedCase: sanitizedCaseId }),
             ...(priorityFilter && { priority: priorityFilter }),
             ...(statusFilter && { status: statusFilter }),
             ...buildCursorCondition('reminderDateTime', cursorDate, cursorId, sortOrder)
@@ -1678,15 +1891,31 @@ const isValidCalendarType = (type) => VALID_CALENDAR_TYPES.has(type);
 const getSidebarData = asyncHandler(async (req, res) => {
     const { startDate, endDate, reminderDays = 7 } = req.query;
     const userId = req.userID;
+
+    // Validate reminderDays parameter
+    const reminderDaysNum = parseInt(reminderDays, 10);
+    if (isNaN(reminderDaysNum) || reminderDaysNum < 1 || reminderDaysNum > 365) {
+        throw CustomException('Reminder days must be between 1 and 365', 400);
+    }
+
+    // Date validation with security checks
+    let start, end;
+    if (startDate && endDate) {
+        start = validateDate(startDate, 'startDate');
+        end = validateDate(endDate, 'endDate');
+        validateDateRange(start, end, 365);
+    } else {
+        // Default date range: today + 5 days for events
+        const now = new Date();
+        start = startDate ? validateDate(startDate, 'startDate') : new Date(now.setHours(0, 0, 0, 0));
+        end = endDate ? validateDate(endDate, 'endDate') : new Date(Date.now() + 5 * 24 * 60 * 60 * 1000);
+    }
+
+    // Convert userId to ObjectId with validation
     const userObjectId = toObjectId(userId);
 
-    // Default date range: today + 5 days for events
-    const now = new Date();
-    const start = startDate ? new Date(startDate) : new Date(now.setHours(0, 0, 0, 0));
-    const end = endDate ? new Date(endDate) : new Date(Date.now() + 5 * 24 * 60 * 60 * 1000);
-
     // Reminder date range: next N days
-    const reminderEnd = new Date(Date.now() + parseInt(reminderDays) * 24 * 60 * 60 * 1000);
+    const reminderEnd = new Date(Date.now() + reminderDaysNum * 24 * 60 * 60 * 1000);
 
     // Execute both queries in parallel
     const [calendarEvents, upcomingReminders] = await Promise.all([
@@ -1767,5 +1996,9 @@ module.exports = {
     VALID_CALENDAR_TYPES,
     VALID_PRIORITIES,
     VALID_STATUSES,
-    CACHE_TTL
+    CACHE_TTL,
+    // Security validation helpers (exported for use in other controllers)
+    validateDate,
+    validateDateRange,
+    validateAttendees
 };

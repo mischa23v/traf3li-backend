@@ -2,6 +2,18 @@ const { Order, Gig, Proposal, Job } = require('../models');
 const { CustomException } = require('../utils');
 const { createNotification } = require('./notification.controller'); // ✅ ADDED
 const stripe = require('stripe')(process.env.STRIPE_SECRET);
+const Joi = require('joi');
+const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
+
+// Validation schemas
+const schemas = {
+    orderIdParam: Joi.object({
+        _id: Joi.string().pattern(/^[0-9a-fA-F]{24}$/).required()
+    }),
+    updatePaymentStatus: Joi.object({
+        payment_intent: Joi.string().required().min(1).max(500)
+    })
+};
 
 const getOrders = async (request, response) => {
     try {
@@ -28,11 +40,28 @@ const getOrders = async (request, response) => {
 
 // Payment intent for GIG
 const paymentIntent = async (request, response) => {
-    const { _id } = request.params;
-    
     try {
-        const gig = await Gig.findOne({ _id }).populate('userID', 'username');
-        
+        // Input validation
+        const { error, value } = schemas.orderIdParam.validate(request.params);
+        if (error) {
+            throw CustomException(error.details[0].message, 400);
+        }
+
+        const { _id } = value;
+        const sanitizedGigId = sanitizeObjectId(_id);
+
+        const gig = await Gig.findOne({ _id: sanitizedGigId }).populate('userID', 'username');
+
+        if (!gig) {
+            throw CustomException('Service not found!', 404);
+        }
+
+        // IDOR protection: Prevent users from buying their own services
+        if (request.userID === gig.userID._id.toString()) {
+            throw CustomException('You cannot order your own service!', 403);
+        }
+
+        // Payment amount protection: Always use price from database
         const payment_intent = await stripe.paymentIntents.create({
             amount: gig.price * 100,
             currency: "INR",
@@ -40,17 +69,19 @@ const paymentIntent = async (request, response) => {
                 enabled: true,
             },
         });
-        
-        const order = new Order({
+
+        // Mass assignment protection: Only allow specific fields
+        const allowedOrderFields = {
             gigID: gig._id,
             image: gig.cover,
             title: gig.title,
             buyerID: request.userID,
             sellerID: gig.userID,
-            price: gig.price,
+            price: gig.price, // Always from database, never from user input
             payment_intent: payment_intent.id
-        });
-        
+        };
+
+        const order = new Order(allowedOrderFields);
         await order.save();
 
         // ✅ ADDED: Create notification for seller
@@ -83,11 +114,18 @@ const paymentIntent = async (request, response) => {
 
 // ✅ NEW: Payment intent for PROPOSAL
 const proposalPaymentIntent = async (request, response) => {
-    const { _id } = request.params; // proposalId
-    
     try {
-        const proposal = await Proposal.findById(_id).populate('jobId');
-        
+        // Input validation
+        const { error, value } = schemas.orderIdParam.validate(request.params);
+        if (error) {
+            throw CustomException(error.details[0].message, 400);
+        }
+
+        const { _id } = value;
+        const sanitizedProposalId = sanitizeObjectId(_id);
+
+        const proposal = await Proposal.findById(sanitizedProposalId).populate('jobId');
+
         if (!proposal) {
             throw CustomException('Proposal not found', 404);
         }
@@ -98,10 +136,12 @@ const proposalPaymentIntent = async (request, response) => {
 
         const job = proposal.jobId;
 
+        // IDOR protection: Verify user owns the job
         if (job.userID.toString() !== request.userID) {
             throw CustomException('Not authorized', 403);
         }
-        
+
+        // Payment amount protection: Always use proposedAmount from database
         const payment_intent = await stripe.paymentIntents.create({
             amount: proposal.proposedAmount * 100,
             currency: "SAR",
@@ -109,19 +149,21 @@ const proposalPaymentIntent = async (request, response) => {
                 enabled: true,
             },
         });
-        
-        const order = new Order({
+
+        // Mass assignment protection: Only allow specific fields
+        const allowedOrderFields = {
             gigID: null,
             jobId: job._id,
             image: job.attachments?.[0]?.url || '',
             title: job.title,
             buyerID: request.userID,
             sellerID: proposal.lawyerId,
-            price: proposal.proposedAmount,
+            price: proposal.proposedAmount, // Always from database, never from user input
             payment_intent: payment_intent.id,
             status: 'pending'
-        });
-        
+        };
+
+        const order = new Order(allowedOrderFields);
         await order.save();
 
         // ✅ ADDED: Create notification for seller (lawyer)
@@ -153,21 +195,44 @@ const proposalPaymentIntent = async (request, response) => {
 }
 
 const updatePaymentStatus = async (request, response) => {
-    const { payment_intent } = request.body;
-    
     try {
+        // Input validation
+        const { error, value } = schemas.updatePaymentStatus.validate(request.body);
+        if (error) {
+            throw CustomException(error.details[0].message, 400);
+        }
+
+        const { payment_intent } = value;
+
+        // First, find the order to verify ownership
+        const existingOrder = await Order.findOne({ payment_intent });
+
+        if (!existingOrder) {
+            throw CustomException('Order not found', 404);
+        }
+
+        // IDOR protection: Verify user is either buyer or seller
+        const isAuthorized =
+            existingOrder.buyerID.toString() === request.userID ||
+            existingOrder.sellerID.toString() === request.userID;
+
+        if (!isAuthorized) {
+            throw CustomException('Not authorized to update this order', 403);
+        }
+
+        // Mass assignment protection: Only allow specific fields to be updated
+        const allowedUpdates = {
+            isCompleted: true,
+            status: 'accepted',
+            acceptedAt: new Date()
+        };
+
         const order = await Order.findOneAndUpdate(
-            { payment_intent }, 
-            {
-                $set: {
-                    isCompleted: true,
-                    status: 'accepted',
-                    acceptedAt: new Date()
-                }
-            }, 
+            { payment_intent },
+            { $set: allowedUpdates },
             { new: true }
         );
-        
+
         if(order?.isCompleted) {
             // ✅ ADDED: Notify seller that payment is confirmed
             await createNotification({
@@ -203,34 +268,43 @@ const updatePaymentStatus = async (request, response) => {
 // TEST MODE ONLY - REMOVE BEFORE LAUNCH
 // ========================================
 const createTestContract = async (request, response) => {
-    const { _id } = request.params; // gigId
-    
     try {
+        // Input validation
+        const { error, value } = schemas.orderIdParam.validate(request.params);
+        if (error) {
+            throw CustomException(error.details[0].message, 400);
+        }
+
+        const { _id } = value;
+        const sanitizedGigId = sanitizeObjectId(_id);
+
         // Get gig details
-        const gig = await Gig.findOne({ _id }).populate('userID', 'username email');
+        const gig = await Gig.findOne({ _id: sanitizedGigId }).populate('userID', 'username email');
         if (!gig) {
             throw CustomException('Service not found!', 404);
         }
-        
-        // Verify user is not buying their own service
+
+        // IDOR protection: Verify user is not buying their own service
         if (request.userID === gig.userID._id.toString()) {
-            throw CustomException('You cannot order your own service!', 400);
+            throw CustomException('You cannot order your own service!', 403);
         }
-        
-        // Create order directly (no payment needed for testing)
-        const order = new Order({
+
+        // Mass assignment protection: Only allow specific fields
+        // Payment amount protection: Always use price from database
+        const allowedOrderFields = {
             gigID: gig._id,
             image: gig.cover,
             title: gig.title,
             buyerID: request.userID,
             sellerID: gig.userID,
-            price: gig.price,
-            payment_intent: `TEST-${Date.now()}-${_id}`,
+            price: gig.price, // Always from database, never from user input
+            payment_intent: `TEST-${Date.now()}-${sanitizedGigId}`,
             isCompleted: true,
             status: 'accepted',
             acceptedAt: new Date()
-        });
-        
+        };
+
+        const order = new Order(allowedOrderFields);
         await order.save();
 
         // ✅ ADDED: Create notification for seller
@@ -266,11 +340,18 @@ const createTestContract = async (request, response) => {
 
 // ✅ NEW: Test contract for PROPOSAL
 const createTestProposalContract = async (request, response) => {
-    const { _id } = request.params; // proposalId
-    
     try {
-        const proposal = await Proposal.findById(_id).populate('jobId lawyerId', 'title username');
-        
+        // Input validation
+        const { error, value } = schemas.orderIdParam.validate(request.params);
+        if (error) {
+            throw CustomException(error.details[0].message, 400);
+        }
+
+        const { _id } = value;
+        const sanitizedProposalId = sanitizeObjectId(_id);
+
+        const proposal = await Proposal.findById(sanitizedProposalId).populate('jobId lawyerId', 'title username');
+
         if (!proposal) {
             throw CustomException('Proposal not found', 404);
         }
@@ -281,25 +362,28 @@ const createTestProposalContract = async (request, response) => {
 
         const job = proposal.jobId;
 
+        // IDOR protection: Verify user owns the job
         if (job.userID.toString() !== request.userID) {
             throw CustomException('Not authorized', 403);
         }
-        
-        // Create order directly (no payment needed for testing)
-        const order = new Order({
+
+        // Mass assignment protection: Only allow specific fields
+        // Payment amount protection: Always use proposedAmount from database
+        const allowedOrderFields = {
             gigID: null,
             jobId: job._id,
             image: job.attachments?.[0]?.url || '',
             title: job.title,
             buyerID: request.userID,
             sellerID: proposal.lawyerId._id,
-            price: proposal.proposedAmount,
-            payment_intent: `TEST-PROPOSAL-${Date.now()}-${_id}`,
+            price: proposal.proposedAmount, // Always from database, never from user input
+            payment_intent: `TEST-PROPOSAL-${Date.now()}-${sanitizedProposalId}`,
             isCompleted: true,
             status: 'accepted',
             acceptedAt: new Date()
-        });
-        
+        };
+
+        const order = new Order(allowedOrderFields);
         await order.save();
 
         // ✅ ADDED: Create notification for seller (lawyer)

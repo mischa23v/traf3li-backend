@@ -1,23 +1,84 @@
 const { RateCard, RateGroup, Client, Case } = require('../models');
 const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
+const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
+
+/**
+ * Validate rate amount
+ */
+const validateRateAmount = (rate, fieldName = 'السعر') => {
+    if (rate === null || rate === undefined) {
+        return; // Allow null/undefined for optional fields
+    }
+
+    const numRate = parseFloat(rate);
+    if (isNaN(numRate)) {
+        throw CustomException(`${fieldName} يجب أن يكون رقماً صحيحاً`, 400);
+    }
+    if (numRate < 0) {
+        throw CustomException(`${fieldName} لا يمكن أن يكون سالباً`, 400);
+    }
+    if (numRate > 1000000) {
+        throw CustomException(`${fieldName} مرتفع جداً`, 400);
+    }
+    return numRate;
+};
+
+/**
+ * Validate and sanitize custom rates array
+ */
+const validateCustomRates = (customRates) => {
+    if (!customRates || !Array.isArray(customRates)) {
+        return [];
+    }
+
+    return customRates.map(rate => {
+        const sanitized = pickAllowedFields(rate, [
+            'activityCode', 'description', 'rate', 'unit', 'minimum', 'roundingIncrement'
+        ]);
+
+        // Validate rate amount
+        if (sanitized.rate !== undefined) {
+            sanitized.rate = validateRateAmount(sanitized.rate, 'معدل النشاط');
+        }
+
+        // Validate minimum
+        if (sanitized.minimum !== undefined) {
+            sanitized.minimum = validateRateAmount(sanitized.minimum, 'الحد الأدنى');
+        }
+
+        // Validate roundingIncrement
+        if (sanitized.roundingIncrement !== undefined) {
+            sanitized.roundingIncrement = validateRateAmount(sanitized.roundingIncrement, 'خطوة التقريب');
+        }
+
+        return sanitized;
+    });
+};
 
 /**
  * Create rate card
  * POST /api/rate-cards
  */
 const createRateCard = asyncHandler(async (req, res) => {
-    const {
-        name, nameAr, clientId, caseId, rateGroupId,
-        customRates, effectiveDate, expiryDate, notes
-    } = req.body;
     const lawyerId = req.userID;
 
-    if (!name) {
+    // Mass assignment protection
+    const allowedData = pickAllowedFields(req.body, [
+        'name', 'nameAr', 'clientId', 'caseId', 'rateGroupId',
+        'customRates', 'effectiveDate', 'expiryDate', 'notes'
+    ]);
+
+    if (!allowedData.name) {
         throw CustomException('اسم بطاقة الأسعار مطلوب', 400);
     }
 
-    // Verify client exists if provided
+    // Sanitize IDs to prevent injection
+    const clientId = allowedData.clientId ? sanitizeObjectId(allowedData.clientId) : null;
+    const caseId = allowedData.caseId ? sanitizeObjectId(allowedData.caseId) : null;
+    const rateGroupId = allowedData.rateGroupId ? sanitizeObjectId(allowedData.rateGroupId) : null;
+
+    // IDOR Protection: Verify client exists and belongs to lawyer
     if (clientId) {
         const client = await Client.findOne({ _id: clientId, lawyerId });
         if (!client) {
@@ -25,7 +86,7 @@ const createRateCard = asyncHandler(async (req, res) => {
         }
     }
 
-    // Verify case exists if provided
+    // IDOR Protection: Verify case exists and belongs to lawyer
     if (caseId) {
         const caseDoc = await Case.findOne({ _id: caseId, lawyerId });
         if (!caseDoc) {
@@ -33,7 +94,7 @@ const createRateCard = asyncHandler(async (req, res) => {
         }
     }
 
-    // Verify rate group exists if provided
+    // IDOR Protection: Verify rate group exists and belongs to lawyer
     if (rateGroupId) {
         const rateGroup = await RateGroup.findOne({ _id: rateGroupId, lawyerId });
         if (!rateGroup) {
@@ -41,17 +102,20 @@ const createRateCard = asyncHandler(async (req, res) => {
         }
     }
 
+    // Validate and sanitize custom rates
+    const sanitizedCustomRates = validateCustomRates(allowedData.customRates);
+
     const rateCard = await RateCard.create({
         lawyerId,
-        name: name.trim(),
-        nameAr: nameAr?.trim(),
+        name: allowedData.name.trim(),
+        nameAr: allowedData.nameAr?.trim(),
         clientId,
         caseId,
         rateGroupId,
-        customRates: customRates || [],
-        effectiveDate,
-        expiryDate,
-        notes
+        customRates: sanitizedCustomRates,
+        effectiveDate: allowedData.effectiveDate,
+        expiryDate: allowedData.expiryDate,
+        notes: allowedData.notes
     });
 
     res.status(201).json({
@@ -66,21 +130,37 @@ const createRateCard = asyncHandler(async (req, res) => {
  * GET /api/rate-cards
  */
 const getRateCards = asyncHandler(async (req, res) => {
-    const { clientId, caseId, isActive, page = 1, limit = 50 } = req.query;
     const lawyerId = req.userID;
 
+    // Mass assignment protection for query parameters
+    const allowedQuery = pickAllowedFields(req.query, [
+        'clientId', 'caseId', 'isActive', 'page', 'limit'
+    ]);
+
     const query = { lawyerId };
-    if (clientId) query.clientId = clientId;
-    if (caseId) query.caseId = caseId;
-    if (isActive !== undefined) query.isActive = isActive === 'true';
+
+    // Sanitize IDs if provided
+    if (allowedQuery.clientId) {
+        query.clientId = sanitizeObjectId(allowedQuery.clientId);
+    }
+    if (allowedQuery.caseId) {
+        query.caseId = sanitizeObjectId(allowedQuery.caseId);
+    }
+    if (allowedQuery.isActive !== undefined) {
+        query.isActive = allowedQuery.isActive === 'true';
+    }
+
+    // Validate pagination parameters
+    const page = Math.max(1, parseInt(allowedQuery.page) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(allowedQuery.limit) || 50));
 
     const rateCards = await RateCard.find(query)
         .populate('clientId', 'firstName lastName companyName')
         .populate('caseId', 'title caseNumber')
         .populate('rateGroupId', 'name nameAr')
         .sort({ createdAt: -1 })
-        .limit(parseInt(limit))
-        .skip((parseInt(page) - 1) * parseInt(limit));
+        .limit(limit)
+        .skip((page - 1) * limit);
 
     const total = await RateCard.countDocuments(query);
 
@@ -88,10 +168,10 @@ const getRateCards = asyncHandler(async (req, res) => {
         success: true,
         data: rateCards,
         pagination: {
-            page: parseInt(page),
-            limit: parseInt(limit),
+            page,
+            limit,
             total,
-            pages: Math.ceil(total / parseInt(limit))
+            pages: Math.ceil(total / limit)
         }
     });
 });
@@ -104,7 +184,11 @@ const getRateCard = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const lawyerId = req.userID;
 
-    const rateCard = await RateCard.findOne({ _id: id, lawyerId })
+    // Sanitize ID parameter
+    const rateCardId = sanitizeObjectId(id);
+
+    // IDOR Protection: Verify rate card exists and belongs to lawyer
+    const rateCard = await RateCard.findOne({ _id: rateCardId, lawyerId })
         .populate('clientId', 'firstName lastName companyName email')
         .populate('caseId', 'title caseNumber')
         .populate('rateGroupId');
@@ -127,20 +211,69 @@ const updateRateCard = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const lawyerId = req.userID;
 
-    const rateCard = await RateCard.findOne({ _id: id, lawyerId });
+    // Sanitize ID parameter
+    const rateCardId = sanitizeObjectId(id);
+
+    // IDOR Protection: Verify rate card exists and belongs to lawyer
+    const rateCard = await RateCard.findOne({ _id: rateCardId, lawyerId });
 
     if (!rateCard) {
         throw CustomException('بطاقة الأسعار غير موجودة', 404);
     }
 
-    const allowedFields = [
+    // Mass assignment protection
+    const allowedData = pickAllowedFields(req.body, [
         'name', 'nameAr', 'clientId', 'caseId', 'rateGroupId',
         'customRates', 'effectiveDate', 'expiryDate', 'isActive', 'notes'
-    ];
+    ]);
 
-    allowedFields.forEach(field => {
-        if (req.body[field] !== undefined) {
-            rateCard[field] = req.body[field];
+    // IDOR Protection: Verify client ownership if being updated
+    if (allowedData.clientId !== undefined) {
+        const clientId = sanitizeObjectId(allowedData.clientId);
+        if (clientId) {
+            const client = await Client.findOne({ _id: clientId, lawyerId });
+            if (!client) {
+                throw CustomException('العميل غير موجود', 404);
+            }
+        }
+        rateCard.clientId = clientId;
+    }
+
+    // IDOR Protection: Verify case ownership if being updated
+    if (allowedData.caseId !== undefined) {
+        const caseId = sanitizeObjectId(allowedData.caseId);
+        if (caseId) {
+            const caseDoc = await Case.findOne({ _id: caseId, lawyerId });
+            if (!caseDoc) {
+                throw CustomException('القضية غير موجودة', 404);
+            }
+        }
+        rateCard.caseId = caseId;
+    }
+
+    // IDOR Protection: Verify rate group ownership if being updated
+    if (allowedData.rateGroupId !== undefined) {
+        const rateGroupId = sanitizeObjectId(allowedData.rateGroupId);
+        if (rateGroupId) {
+            const rateGroup = await RateGroup.findOne({ _id: rateGroupId, lawyerId });
+            if (!rateGroup) {
+                throw CustomException('مجموعة الأسعار غير موجودة', 404);
+            }
+        }
+        rateCard.rateGroupId = rateGroupId;
+    }
+
+    // Validate and sanitize custom rates if being updated
+    if (allowedData.customRates !== undefined) {
+        rateCard.customRates = validateCustomRates(allowedData.customRates);
+    }
+
+    // Update other allowed fields
+    ['name', 'nameAr', 'effectiveDate', 'expiryDate', 'isActive', 'notes'].forEach(field => {
+        if (allowedData[field] !== undefined) {
+            rateCard[field] = field === 'name' || field === 'nameAr'
+                ? allowedData[field]?.trim()
+                : allowedData[field];
         }
     });
 
@@ -161,7 +294,11 @@ const deleteRateCard = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const lawyerId = req.userID;
 
-    const rateCard = await RateCard.findOneAndDelete({ _id: id, lawyerId });
+    // Sanitize ID parameter
+    const rateCardId = sanitizeObjectId(id);
+
+    // IDOR Protection: Verify rate card exists and belongs to lawyer before deletion
+    const rateCard = await RateCard.findOneAndDelete({ _id: rateCardId, lawyerId });
 
     if (!rateCard) {
         throw CustomException('بطاقة الأسعار غير موجودة', 404);
@@ -181,9 +318,18 @@ const getRateCardForClient = asyncHandler(async (req, res) => {
     const { clientId } = req.params;
     const lawyerId = req.userID;
 
+    // Sanitize ID parameter
+    const sanitizedClientId = sanitizeObjectId(clientId);
+
+    // IDOR Protection: Verify client exists and belongs to lawyer
+    const client = await Client.findOne({ _id: sanitizedClientId, lawyerId });
+    if (!client) {
+        throw CustomException('العميل غير موجود', 404);
+    }
+
     const rateCard = await RateCard.findOne({
         lawyerId,
-        clientId,
+        clientId: sanitizedClientId,
         isActive: true,
         $or: [
             { expiryDate: { $exists: false } },
@@ -208,10 +354,19 @@ const getRateCardForCase = asyncHandler(async (req, res) => {
     const { caseId } = req.params;
     const lawyerId = req.userID;
 
+    // Sanitize ID parameter
+    const sanitizedCaseId = sanitizeObjectId(caseId);
+
+    // IDOR Protection: Verify case exists and belongs to lawyer
+    const caseDoc = await Case.findOne({ _id: sanitizedCaseId, lawyerId });
+    if (!caseDoc) {
+        throw CustomException('القضية غير موجودة', 404);
+    }
+
     // First try to find case-specific rate card
     let rateCard = await RateCard.findOne({
         lawyerId,
-        caseId,
+        caseId: sanitizedCaseId,
         isActive: true,
         $or: [
             { expiryDate: { $exists: false } },
@@ -223,23 +378,20 @@ const getRateCardForCase = asyncHandler(async (req, res) => {
         .sort({ effectiveDate: -1 });
 
     // If no case-specific card, try to find client-specific card
-    if (!rateCard) {
-        const caseDoc = await Case.findById(caseId);
-        if (caseDoc && caseDoc.clientId) {
-            rateCard = await RateCard.findOne({
-                lawyerId,
-                clientId: caseDoc.clientId,
-                caseId: { $exists: false },
-                isActive: true,
-                $or: [
-                    { expiryDate: { $exists: false } },
-                    { expiryDate: null },
-                    { expiryDate: { $gte: new Date() } }
-                ]
-            })
-                .populate('rateGroupId')
-                .sort({ effectiveDate: -1 });
-        }
+    if (!rateCard && caseDoc.clientId) {
+        rateCard = await RateCard.findOne({
+            lawyerId,
+            clientId: caseDoc.clientId,
+            caseId: { $exists: false },
+            isActive: true,
+            $or: [
+                { expiryDate: { $exists: false } },
+                { expiryDate: null },
+                { expiryDate: { $gte: new Date() } }
+            ]
+        })
+            .populate('rateGroupId')
+            .sort({ effectiveDate: -1 });
     }
 
     res.status(200).json({
@@ -254,14 +406,31 @@ const getRateCardForCase = asyncHandler(async (req, res) => {
  */
 const addCustomRate = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const { activityCode, description, rate, unit, minimum, roundingIncrement } = req.body;
     const lawyerId = req.userID;
 
-    if (!activityCode || !rate) {
+    // Sanitize ID parameter
+    const rateCardId = sanitizeObjectId(id);
+
+    // Mass assignment protection
+    const allowedData = pickAllowedFields(req.body, [
+        'activityCode', 'description', 'rate', 'unit', 'minimum', 'roundingIncrement'
+    ]);
+
+    if (!allowedData.activityCode || allowedData.rate === undefined || allowedData.rate === null) {
         throw CustomException('رمز النشاط والسعر مطلوبان', 400);
     }
 
-    const rateCard = await RateCard.findOne({ _id: id, lawyerId });
+    // Validate rate amounts
+    const validatedRate = validateRateAmount(allowedData.rate, 'السعر');
+    const validatedMinimum = allowedData.minimum !== undefined
+        ? validateRateAmount(allowedData.minimum, 'الحد الأدنى')
+        : undefined;
+    const validatedRoundingIncrement = allowedData.roundingIncrement !== undefined
+        ? validateRateAmount(allowedData.roundingIncrement, 'خطوة التقريب')
+        : undefined;
+
+    // IDOR Protection: Verify rate card exists and belongs to lawyer
+    const rateCard = await RateCard.findOne({ _id: rateCardId, lawyerId });
 
     if (!rateCard) {
         throw CustomException('بطاقة الأسعار غير موجودة', 404);
@@ -269,19 +438,20 @@ const addCustomRate = asyncHandler(async (req, res) => {
 
     // Check if activity code already exists
     const existingRate = rateCard.customRates.find(
-        r => r.activityCode === activityCode
+        r => r.activityCode === allowedData.activityCode
     );
     if (existingRate) {
         throw CustomException('رمز النشاط موجود بالفعل في البطاقة', 400);
     }
 
+    // Add validated custom rate
     rateCard.customRates.push({
-        activityCode,
-        description,
-        rate,
-        unit: unit || 'hour',
-        minimum,
-        roundingIncrement
+        activityCode: allowedData.activityCode,
+        description: allowedData.description,
+        rate: validatedRate,
+        unit: allowedData.unit || 'hour',
+        minimum: validatedMinimum,
+        roundingIncrement: validatedRoundingIncrement
     });
 
     await rateCard.save();
@@ -301,24 +471,50 @@ const updateCustomRate = asyncHandler(async (req, res) => {
     const { id, rateId } = req.params;
     const lawyerId = req.userID;
 
-    const rateCard = await RateCard.findOne({ _id: id, lawyerId });
+    // Sanitize ID parameters
+    const rateCardId = sanitizeObjectId(id);
+    const customRateId = sanitizeObjectId(rateId);
+
+    // IDOR Protection: Verify rate card exists and belongs to lawyer
+    const rateCard = await RateCard.findOne({ _id: rateCardId, lawyerId });
 
     if (!rateCard) {
         throw CustomException('بطاقة الأسعار غير موجودة', 404);
     }
 
     const rateIndex = rateCard.customRates.findIndex(
-        r => r._id.toString() === rateId
+        r => r._id.toString() === customRateId
     );
 
     if (rateIndex === -1) {
         throw CustomException('السعر المخصص غير موجود', 404);
     }
 
-    const allowedFields = ['activityCode', 'description', 'rate', 'unit', 'minimum', 'roundingIncrement'];
-    allowedFields.forEach(field => {
-        if (req.body[field] !== undefined) {
-            rateCard.customRates[rateIndex][field] = req.body[field];
+    // Mass assignment protection
+    const allowedData = pickAllowedFields(req.body, [
+        'activityCode', 'description', 'rate', 'unit', 'minimum', 'roundingIncrement'
+    ]);
+
+    // Validate rate amounts if being updated
+    if (allowedData.rate !== undefined) {
+        rateCard.customRates[rateIndex].rate = validateRateAmount(allowedData.rate, 'السعر');
+    }
+
+    if (allowedData.minimum !== undefined) {
+        rateCard.customRates[rateIndex].minimum = validateRateAmount(allowedData.minimum, 'الحد الأدنى');
+    }
+
+    if (allowedData.roundingIncrement !== undefined) {
+        rateCard.customRates[rateIndex].roundingIncrement = validateRateAmount(
+            allowedData.roundingIncrement,
+            'خطوة التقريب'
+        );
+    }
+
+    // Update other allowed fields
+    ['activityCode', 'description', 'unit'].forEach(field => {
+        if (allowedData[field] !== undefined) {
+            rateCard.customRates[rateIndex][field] = allowedData[field];
         }
     });
 
@@ -339,14 +535,19 @@ const removeCustomRate = asyncHandler(async (req, res) => {
     const { id, rateId } = req.params;
     const lawyerId = req.userID;
 
-    const rateCard = await RateCard.findOne({ _id: id, lawyerId });
+    // Sanitize ID parameters
+    const rateCardId = sanitizeObjectId(id);
+    const customRateId = sanitizeObjectId(rateId);
+
+    // IDOR Protection: Verify rate card exists and belongs to lawyer
+    const rateCard = await RateCard.findOne({ _id: rateCardId, lawyerId });
 
     if (!rateCard) {
         throw CustomException('بطاقة الأسعار غير موجودة', 404);
     }
 
     rateCard.customRates = rateCard.customRates.filter(
-        r => r._id.toString() !== rateId
+        r => r._id.toString() !== customRateId
     );
 
     await rateCard.save();
@@ -363,11 +564,44 @@ const removeCustomRate = asyncHandler(async (req, res) => {
  * POST /api/rate-cards/calculate
  */
 const calculateRate = asyncHandler(async (req, res) => {
-    const { clientId, caseId, activityCode, hours } = req.body;
     const lawyerId = req.userID;
 
-    if (!activityCode || !hours) {
+    // Mass assignment protection
+    const allowedData = pickAllowedFields(req.body, [
+        'clientId', 'caseId', 'activityCode', 'hours'
+    ]);
+
+    if (!allowedData.activityCode || !allowedData.hours) {
         throw CustomException('رمز النشاط والساعات مطلوبة', 400);
+    }
+
+    // Validate hours input
+    const hours = parseFloat(allowedData.hours);
+    if (isNaN(hours) || hours < 0) {
+        throw CustomException('الساعات يجب أن تكون رقماً موجباً', 400);
+    }
+    if (hours > 1000) {
+        throw CustomException('عدد الساعات مرتفع جداً', 400);
+    }
+
+    // Sanitize IDs
+    const clientId = allowedData.clientId ? sanitizeObjectId(allowedData.clientId) : null;
+    const caseId = allowedData.caseId ? sanitizeObjectId(allowedData.caseId) : null;
+
+    // IDOR Protection: Verify client ownership if provided
+    if (clientId) {
+        const client = await Client.findOne({ _id: clientId, lawyerId });
+        if (!client) {
+            throw CustomException('العميل غير موجود', 404);
+        }
+    }
+
+    // IDOR Protection: Verify case ownership if provided
+    if (caseId) {
+        const caseDoc = await Case.findOne({ _id: caseId, lawyerId });
+        if (!caseDoc) {
+            throw CustomException('القضية غير موجودة', 404);
+        }
     }
 
     // Try to find applicable rate card
@@ -399,7 +633,7 @@ const calculateRate = asyncHandler(async (req, res) => {
     if (rateCard) {
         // Check custom rates first
         const customRate = rateCard.customRates.find(
-            r => r.activityCode === activityCode
+            r => r.activityCode === allowedData.activityCode
         );
         if (customRate) {
             rate = customRate.rate;
@@ -408,7 +642,7 @@ const calculateRate = asyncHandler(async (req, res) => {
         // Then check rate group
         else if (rateCard.rateGroupId && rateCard.rateGroupId.rates) {
             const groupRate = rateCard.rateGroupId.rates.find(
-                r => r.activityCode === activityCode
+                r => r.activityCode === allowedData.activityCode
             );
             if (groupRate) {
                 rate = groupRate.customRate || (groupRate.billingRateId?.rate * (groupRate.multiplier || 1));
@@ -417,14 +651,14 @@ const calculateRate = asyncHandler(async (req, res) => {
         }
     }
 
-    // Calculate total
-    const total = rate ? rate * parseFloat(hours) : null;
+    // Calculate total (prevent rate manipulation)
+    const total = rate && !isNaN(rate) ? Number((rate * hours).toFixed(2)) : null;
 
     res.status(200).json({
         success: true,
         data: {
-            activityCode,
-            hours: parseFloat(hours),
+            activityCode: allowedData.activityCode,
+            hours,
             rate,
             total,
             source,

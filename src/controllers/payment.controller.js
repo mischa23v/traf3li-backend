@@ -3,12 +3,90 @@ const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
 const webhookService = require('../services/webhook.service');
 const mongoose = require('mongoose');
+const { pickAllowedFields } = require('../utils/securityUtils');
+
+// ═══════════════════════════════════════════════════════════════
+// ALLOWED FIELDS FOR MASS ASSIGNMENT PROTECTION
+// ═══════════════════════════════════════════════════════════════
+const PAYMENT_CREATE_ALLOWED_FIELDS = [
+    'paymentType',
+    'paymentDate',
+    'referenceNumber',
+    'amount',
+    'currency',
+    'exchangeRate',
+    'customerId',
+    'clientId',
+    'vendorId',
+    'paymentMethod',
+    'bankAccountId',
+    'checkDetails',
+    'checkNumber',
+    'checkDate',
+    'bankName',
+    'cardDetails',
+    'gatewayProvider',
+    'transactionId',
+    'gatewayResponse',
+    'invoiceApplications',
+    'allocations',
+    'invoiceId',
+    'caseId',
+    'fees',
+    'departmentId',
+    'locationId',
+    'receivedBy',
+    'customerNotes',
+    'internalNotes',
+    'memo',
+    'notes',
+    'attachments'
+];
+
+const PAYMENT_UPDATE_ALLOWED_FIELDS = [
+    'paymentType',
+    'paymentDate',
+    'referenceNumber',
+    'amount',
+    'currency',
+    'exchangeRate',
+    'paymentMethod',
+    'bankAccountId',
+    'checkDetails',
+    'checkNumber',
+    'checkDate',
+    'bankName',
+    'cardDetails',
+    'gatewayProvider',
+    'transactionId',
+    'gatewayResponse',
+    'fees',
+    'departmentId',
+    'locationId',
+    'receivedBy',
+    'customerNotes',
+    'internalNotes',
+    'memo',
+    'notes',
+    'attachments'
+];
 
 // ═══════════════════════════════════════════════════════════════
 // CREATE PAYMENT
 // POST /api/payments
 // ═══════════════════════════════════════════════════════════════
 const createPayment = asyncHandler(async (req, res) => {
+    const lawyerId = req.userID;
+    const firmId = req.firmId;
+
+    // Block departed users from financial operations
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية للوصول إلى المدفوعات', 403);
+    }
+
+    // SECURITY: Mass Assignment Protection - Only allow specific fields
+    const safeData = pickAllowedFields(req.body, PAYMENT_CREATE_ALLOWED_FIELDS);
+
     const {
         // Basic info
         paymentType,
@@ -54,23 +132,20 @@ const createPayment = asyncHandler(async (req, res) => {
         notes,
         // Attachments
         attachments
-    } = req.body;
+    } = safeData;
 
-    const lawyerId = req.userID;
-    const firmId = req.firmId;
-
-    // Block departed users from financial operations
-    if (req.isDeparted) {
-        throw CustomException('ليس لديك صلاحية للوصول إلى المدفوعات', 403);
-    }
-
-    // Validate required fields
-    if (!amount || amount <= 0) {
-        throw CustomException('Amount must be greater than 0', 400);
+    // Validate required fields - SECURITY: Ensure amount is positive number
+    if (!amount || typeof amount !== 'number' || amount <= 0 || !Number.isFinite(amount)) {
+        throw CustomException('Amount must be a positive number', 400);
     }
 
     if (!paymentMethod) {
         throw CustomException('Payment method is required', 400);
+    }
+
+    // SECURITY: Validate exchangeRate if provided - must be positive
+    if (exchangeRate && (typeof exchangeRate !== 'number' || exchangeRate <= 0 || !Number.isFinite(exchangeRate))) {
+        throw CustomException('Exchange rate must be a positive number', 400);
     }
 
     // For customer_payment, either customerId or clientId is required
@@ -193,11 +268,22 @@ const createPayment = asyncHandler(async (req, res) => {
         { path: 'caseId', select: 'title caseNumber' }
     ]);
 
-    // Update client balance after payment creation
+    // SECURITY: Update client balance after payment creation using MongoDB transaction
+    // to prevent race conditions on balance updates
     if (actualCustomerId) {
-        const client = await Client.findById(actualCustomerId);
-        if (client) {
-            await client.updateBalance();
+        const session = await mongoose.startSession();
+        session.startTransaction();
+        try {
+            const client = await Client.findById(actualCustomerId).session(session);
+            if (client) {
+                await client.updateBalance();
+            }
+            await session.commitTransaction();
+        } catch (error) {
+            await session.abortTransaction();
+            throw error;
+        } finally {
+            session.endSession();
         }
     }
 
@@ -417,7 +503,7 @@ const updatePayment = asyncHandler(async (req, res) => {
         throw CustomException('Payment not found', 404);
     }
 
-    // Check access via firmId or lawyerId
+    // SECURITY: IDOR Protection - Verify payment belongs to user's firm
     const hasAccess = firmId
         ? payment.firmId && payment.firmId.toString() === firmId.toString()
         : payment.lawyerId.toString() === lawyerId;
@@ -429,21 +515,51 @@ const updatePayment = asyncHandler(async (req, res) => {
     // Cannot update completed, reconciled, or refunded payments (except notes)
     if (['completed', 'reconciled', 'refunded'].includes(payment.status)) {
         // Only allow updating notes and attachments
-        const allowedFields = ['notes', 'internalNotes', 'customerNotes', 'memo', 'attachments'];
-        const updateKeys = Object.keys(req.body);
-        const hasDisallowedFields = updateKeys.some(key => !allowedFields.includes(key));
+        const limitedAllowedFields = ['notes', 'internalNotes', 'customerNotes', 'memo', 'attachments'];
+        const safeData = pickAllowedFields(req.body, limitedAllowedFields);
+        const updateKeys = Object.keys(safeData);
 
-        if (hasDisallowedFields) {
+        if (updateKeys.length === 0 || Object.keys(req.body).some(key => !limitedAllowedFields.includes(key))) {
             throw CustomException('Cannot update a completed, reconciled, or refunded payment. Only notes can be modified.', 400);
         }
+
+        // Use limited fields for completed payments
+        safeData.updatedBy = lawyerId;
+        const updatedPayment = await Payment.findByIdAndUpdate(
+            id,
+            { $set: safeData },
+            { new: true, runValidators: true }
+        )
+            .populate('customerId', 'firstName lastName companyName email')
+            .populate('invoiceId', 'invoiceNumber totalAmount');
+
+        res.status(200).json({
+            success: true,
+            message: 'Payment notes updated successfully',
+            payment: updatedPayment
+        });
+        return;
+    }
+
+    // SECURITY: Mass Assignment Protection - Only allow specific fields
+    const safeData = pickAllowedFields(req.body, PAYMENT_UPDATE_ALLOWED_FIELDS);
+
+    // SECURITY: Validate amount if provided - must be positive number
+    if (safeData.amount && (typeof safeData.amount !== 'number' || safeData.amount <= 0 || !Number.isFinite(safeData.amount))) {
+        throw CustomException('Amount must be a positive number', 400);
+    }
+
+    // SECURITY: Validate exchangeRate if provided - must be positive
+    if (safeData.exchangeRate && (typeof safeData.exchangeRate !== 'number' || safeData.exchangeRate <= 0 || !Number.isFinite(safeData.exchangeRate))) {
+        throw CustomException('Exchange rate must be a positive number', 400);
     }
 
     // Add updatedBy
-    req.body.updatedBy = lawyerId;
+    safeData.updatedBy = lawyerId;
 
     const updatedPayment = await Payment.findByIdAndUpdate(
         id,
-        { $set: req.body },
+        { $set: safeData },
         { new: true, runValidators: true }
     )
         .populate('customerId', 'firstName lastName companyName email')
@@ -460,12 +576,23 @@ const updatePayment = asyncHandler(async (req, res) => {
         userAgent: req.get('user-agent')
     });
 
-    // Update client balance after payment update
+    // SECURITY: Update client balance after payment update using MongoDB transaction
+    // to prevent race conditions on balance updates
     const clientId = updatedPayment.customerId || updatedPayment.clientId;
     if (clientId) {
-        const client = await Client.findById(clientId);
-        if (client) {
-            await client.updateBalance();
+        const session = await mongoose.startSession();
+        session.startTransaction();
+        try {
+            const client = await Client.findById(clientId).session(session);
+            if (client) {
+                await client.updateBalance();
+            }
+            await session.commitTransaction();
+        } catch (error) {
+            await session.abortTransaction();
+            throw error;
+        } finally {
+            session.endSession();
         }
     }
 
@@ -495,7 +622,7 @@ const deletePayment = asyncHandler(async (req, res) => {
         throw CustomException('Payment not found', 404);
     }
 
-    // Check access
+    // SECURITY: IDOR Protection - Verify payment belongs to user's firm
     const hasAccess = firmId
         ? payment.firmId && payment.firmId.toString() === firmId.toString()
         : payment.lawyerId.toString() === lawyerId;
@@ -525,11 +652,22 @@ const deletePayment = asyncHandler(async (req, res) => {
         userAgent: req.get('user-agent')
     });
 
-    // Update client balance after payment deletion
+    // SECURITY: Update client balance after payment deletion using MongoDB transaction
+    // to prevent race conditions on balance updates
     if (clientId) {
-        const client = await Client.findById(clientId);
-        if (client) {
-            await client.updateBalance();
+        const session = await mongoose.startSession();
+        session.startTransaction();
+        try {
+            const client = await Client.findById(clientId).session(session);
+            if (client) {
+                await client.updateBalance();
+            }
+            await session.commitTransaction();
+        } catch (error) {
+            await session.abortTransaction();
+            throw error;
+        } finally {
+            session.endSession();
         }
     }
 
@@ -559,7 +697,7 @@ const completePayment = asyncHandler(async (req, res) => {
         throw CustomException('Payment not found', 404);
     }
 
-    // Check access
+    // SECURITY: IDOR Protection - Verify payment belongs to user's firm
     const hasAccess = firmId
         ? payment.firmId && payment.firmId.toString() === firmId.toString()
         : payment.lawyerId.toString() === lawyerId;
@@ -629,12 +767,23 @@ const completePayment = asyncHandler(async (req, res) => {
             { path: 'invoiceApplications.invoiceId', select: 'invoiceNumber totalAmount status' }
         ]);
 
-        // Update client balance after payment completion
+        // SECURITY: Update client balance after payment completion using MongoDB transaction
+        // to prevent race conditions on balance updates
         const clientId = payment.customerId || payment.clientId;
         if (clientId) {
-            const client = await Client.findById(clientId);
-            if (client) {
-                await client.updateBalance();
+            const balanceSession = await mongoose.startSession();
+            balanceSession.startTransaction();
+            try {
+                const client = await Client.findById(clientId).session(balanceSession);
+                if (client) {
+                    await client.updateBalance();
+                }
+                await balanceSession.commitTransaction();
+            } catch (error) {
+                await balanceSession.abortTransaction();
+                throw error;
+            } finally {
+                balanceSession.endSession();
             }
         }
 
@@ -672,7 +821,7 @@ const failPayment = asyncHandler(async (req, res) => {
         throw CustomException('Payment not found', 404);
     }
 
-    // Check access
+    // SECURITY: IDOR Protection - Verify payment belongs to user's firm
     const hasAccess = firmId
         ? payment.firmId && payment.firmId.toString() === firmId.toString()
         : payment.lawyerId.toString() === lawyerId;
@@ -726,7 +875,8 @@ const createRefund = asyncHandler(async (req, res) => {
         throw CustomException('Original payment not found', 404);
     }
 
-    // Check access
+    // SECURITY: IDOR Protection - Verify original payment belongs to user's firm
+    // SECURITY: Validate refund amount - must be positive number
     const hasAccess = firmId
         ? originalPayment.firmId && originalPayment.firmId.toString() === firmId.toString()
         : originalPayment.lawyerId.toString() === lawyerId;
@@ -740,6 +890,11 @@ const createRefund = asyncHandler(async (req, res) => {
     }
 
     const refundAmount = amount || originalPayment.amount;
+
+    // SECURITY: Validate refund amount - must be positive number
+    if (!refundAmount || typeof refundAmount !== 'number' || refundAmount <= 0 || !Number.isFinite(refundAmount)) {
+        throw CustomException('Refund amount must be a positive number', 400);
+    }
 
     if (refundAmount > originalPayment.amount) {
         throw CustomException('Refund amount cannot exceed original payment amount', 400);
@@ -811,12 +966,23 @@ const createRefund = asyncHandler(async (req, res) => {
         { path: 'originalPaymentId', select: 'paymentNumber amount paymentDate' }
     ]);
 
-    // Update client balance after refund creation
+    // SECURITY: Update client balance after refund creation using MongoDB transaction
+    // to prevent race conditions on balance updates
     const clientId = originalPayment.customerId || originalPayment.clientId;
     if (clientId) {
-        const client = await Client.findById(clientId);
-        if (client) {
-            await client.updateBalance();
+        const session = await mongoose.startSession();
+        session.startTransaction();
+        try {
+            const client = await Client.findById(clientId).session(session);
+            if (client) {
+                await client.updateBalance();
+            }
+            await session.commitTransaction();
+        } catch (error) {
+            await session.abortTransaction();
+            throw error;
+        } finally {
+            session.endSession();
         }
     }
 
@@ -847,7 +1013,7 @@ const reconcilePayment = asyncHandler(async (req, res) => {
         throw CustomException('Payment not found', 404);
     }
 
-    // Check access
+    // SECURITY: IDOR Protection - Verify payment belongs to user's firm
     const hasAccess = firmId
         ? payment.firmId && payment.firmId.toString() === firmId.toString()
         : payment.lawyerId.toString() === lawyerId;
@@ -905,7 +1071,7 @@ const applyPaymentToInvoices = asyncHandler(async (req, res) => {
         throw CustomException('Payment not found', 404);
     }
 
-    // Check access
+    // SECURITY: IDOR Protection - Verify payment belongs to user's firm
     const hasAccess = firmId
         ? payment.firmId && payment.firmId.toString() === firmId.toString()
         : payment.lawyerId.toString() === lawyerId;
@@ -916,6 +1082,11 @@ const applyPaymentToInvoices = asyncHandler(async (req, res) => {
 
     // Calculate total to be applied
     const totalToApply = invoiceApplications.reduce((sum, app) => sum + app.amount, 0);
+
+    // SECURITY: Validate application amounts - must be positive numbers
+    if (totalToApply <= 0 || !Number.isFinite(totalToApply)) {
+        throw CustomException('Total application amount must be a positive number', 400);
+    }
 
     if (totalToApply > payment.unappliedAmount) {
         throw CustomException(`Cannot apply more than unapplied amount (${payment.unappliedAmount})`, 400);
@@ -939,12 +1110,23 @@ const applyPaymentToInvoices = asyncHandler(async (req, res) => {
         { path: 'invoiceApplications.invoiceId', select: 'invoiceNumber totalAmount status balanceDue' }
     ]);
 
-    // Update client balance after applying payment
+    // SECURITY: Update client balance after applying payment using MongoDB transaction
+    // to prevent race conditions on balance updates
     const clientId = payment.customerId || payment.clientId;
     if (clientId) {
-        const client = await Client.findById(clientId);
-        if (client) {
-            await client.updateBalance();
+        const session = await mongoose.startSession();
+        session.startTransaction();
+        try {
+            const client = await Client.findById(clientId).session(session);
+            if (client) {
+                await client.updateBalance();
+            }
+            await session.commitTransaction();
+        } catch (error) {
+            await session.abortTransaction();
+            throw error;
+        } finally {
+            session.endSession();
         }
     }
 
@@ -974,7 +1156,7 @@ const unapplyPaymentFromInvoice = asyncHandler(async (req, res) => {
         throw CustomException('Payment not found', 404);
     }
 
-    // Check access
+    // SECURITY: IDOR Protection - Verify payment belongs to user's firm
     const hasAccess = firmId
         ? payment.firmId && payment.firmId.toString() === firmId.toString()
         : payment.lawyerId.toString() === lawyerId;
@@ -1005,12 +1187,23 @@ const unapplyPaymentFromInvoice = asyncHandler(async (req, res) => {
         { path: 'invoiceApplications.invoiceId', select: 'invoiceNumber totalAmount status' }
     ]);
 
-    // Update client balance after unapplying payment
+    // SECURITY: Update client balance after unapplying payment using MongoDB transaction
+    // to prevent race conditions on balance updates
     const clientId = payment.customerId || payment.clientId;
     if (clientId) {
-        const client = await Client.findById(clientId);
-        if (client) {
-            await client.updateBalance();
+        const session = await mongoose.startSession();
+        session.startTransaction();
+        try {
+            const client = await Client.findById(clientId).session(session);
+            if (client) {
+                await client.updateBalance();
+            }
+            await session.commitTransaction();
+        } catch (error) {
+            await session.abortTransaction();
+            throw error;
+        } finally {
+            session.endSession();
         }
     }
 
@@ -1045,7 +1238,7 @@ const updateCheckStatus = asyncHandler(async (req, res) => {
         throw CustomException('Payment not found', 404);
     }
 
-    // Check access
+    // SECURITY: IDOR Protection - Verify payment belongs to user's firm
     const hasAccess = firmId
         ? payment.firmId && payment.firmId.toString() === firmId.toString()
         : payment.lawyerId.toString() === lawyerId;
@@ -1099,7 +1292,7 @@ const sendReceipt = asyncHandler(async (req, res) => {
         throw CustomException('Payment not found', 404);
     }
 
-    // Check access
+    // SECURITY: IDOR Protection - Verify payment belongs to user's firm
     const hasAccess = firmId
         ? payment.firmId && payment.firmId.toString() === firmId.toString()
         : payment.lawyerId._id.toString() === lawyerId;
@@ -1354,9 +1547,9 @@ const recordInvoicePayment = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
-    // Validate amount
-    if (!amount || amount <= 0) {
-        throw CustomException('Amount is required and must be positive', 400);
+    // SECURITY: Validate amount - must be a positive number
+    if (!amount || typeof amount !== 'number' || amount <= 0 || !Number.isFinite(amount)) {
+        throw CustomException('Amount is required and must be a positive number', 400);
     }
 
     // Validate and get invoice
@@ -1467,11 +1660,22 @@ const recordInvoicePayment = asyncHandler(async (req, res) => {
             { path: 'invoiceId', select: 'invoiceNumber totalAmount status balanceDue' }
         ]);
 
-        // Update client balance after invoice payment
+        // SECURITY: Update client balance after invoice payment using MongoDB transaction
+        // to prevent race conditions on balance updates
         if (invoice.clientId) {
-            const client = await Client.findById(invoice.clientId);
-            if (client) {
-                await client.updateBalance();
+            const balanceSession = await mongoose.startSession();
+            balanceSession.startTransaction();
+            try {
+                const client = await Client.findById(invoice.clientId).session(balanceSession);
+                if (client) {
+                    await client.updateBalance();
+                }
+                await balanceSession.commitTransaction();
+            } catch (error) {
+                await balanceSession.abortTransaction();
+                throw error;
+            } finally {
+                balanceSession.endSession();
             }
         }
 

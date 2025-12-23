@@ -2,6 +2,7 @@ const EmployeeBenefit = require('../models/employeeBenefit.model');
 const Employee = require('../models/employee.model');
 const { CustomException } = require('../utils');
 const asyncHandler = require('../utils/asyncHandler');
+const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 
 // ═══════════════════════════════════════════════════════════════
 // CONFIGURABLE POLICIES
@@ -149,6 +150,103 @@ function validateBeneficiaryPercentages(beneficiaries) {
     };
 }
 
+/**
+ * Validate benefit type against allowed types
+ */
+function validateBenefitType(benefitType) {
+    if (!benefitType) {
+        return { valid: false, message: 'Benefit type is required' };
+    }
+    if (!BENEFIT_POLICIES.benefitTypes.includes(benefitType)) {
+        return {
+            valid: false,
+            message: `Invalid benefit type. Allowed types: ${BENEFIT_POLICIES.benefitTypes.join(', ')}`
+        };
+    }
+    return { valid: true };
+}
+
+/**
+ * Validate benefit category
+ */
+function validateBenefitCategory(category) {
+    if (!category) {
+        return { valid: false, message: 'Benefit category is required' };
+    }
+    if (!BENEFIT_POLICIES.benefitCategories.includes(category)) {
+        return {
+            valid: false,
+            message: `Invalid benefit category. Allowed categories: ${BENEFIT_POLICIES.benefitCategories.join(', ')}`
+        };
+    }
+    return { valid: true };
+}
+
+/**
+ * Validate benefit amounts based on type and policy limits
+ */
+function validateBenefitAmounts(benefitType, employerCost, employeeCost) {
+    const issues = [];
+
+    // Ensure amounts are non-negative
+    if (employerCost < 0) {
+        issues.push('Employer cost cannot be negative');
+    }
+    if (employeeCost < 0) {
+        issues.push('Employee cost cannot be negative');
+    }
+
+    // Validate against policy limits
+    if (benefitType === 'health_insurance') {
+        const limits = BENEFIT_POLICIES.costLimits.healthInsurance;
+        if (employerCost > limits.maxEmployerCost) {
+            issues.push(`Employer cost for health insurance cannot exceed ${limits.maxEmployerCost}`);
+        }
+        if (employeeCost > limits.maxEmployeeCost) {
+            issues.push(`Employee cost for health insurance cannot exceed ${limits.maxEmployeeCost}`);
+        }
+    } else if (benefitType === 'life_insurance') {
+        const limits = BENEFIT_POLICIES.costLimits.lifeInsurance;
+        const totalCost = (employerCost || 0) + (employeeCost || 0);
+        if (totalCost > limits.maxCoverage) {
+            issues.push(`Total life insurance coverage cannot exceed ${limits.maxCoverage}`);
+        }
+    } else if (['transportation', 'housing', 'meal_allowance', 'mobile_allowance'].includes(benefitType)) {
+        const limits = BENEFIT_POLICIES.costLimits.allowances;
+        const totalCost = (employerCost || 0) + (employeeCost || 0);
+        if (totalCost > limits.maxMonthly) {
+            issues.push(`Monthly allowance cannot exceed ${limits.maxMonthly}`);
+        }
+    }
+
+    return {
+        valid: issues.length === 0,
+        issues
+    };
+}
+
+/**
+ * Verify employee belongs to firm/lawyer (IDOR protection)
+ */
+async function verifyEmployeeOwnership(employeeId, firmId, lawyerId) {
+    const employee = await Employee.findById(employeeId);
+
+    if (!employee) {
+        throw CustomException('Employee not found', 404);
+    }
+
+    // Check if employee belongs to the requesting firm/lawyer
+    if (firmId && employee.firmId?.toString() !== firmId) {
+        throw CustomException('Employee does not belong to your firm', 403);
+    }
+
+    if (lawyerId && !firmId && employee.lawyerId?.toString() !== lawyerId) {
+        throw CustomException('Employee does not belong to you', 403);
+    }
+
+    return employee;
+}
+
 // ═══════════════════════════════════════════════════════════════
 // CRUD OPERATIONS
 // ═══════════════════════════════════════════════════════════════
@@ -241,8 +339,14 @@ const getBenefit = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
     const baseQuery = firmId ? { firmId } : { lawyerId };
 
+    // Sanitize benefit ID
+    const benefitId = sanitizeObjectId(req.params.id);
+    if (!benefitId) {
+        throw CustomException('Invalid benefit ID format', 400);
+    }
+
     const benefit = await EmployeeBenefit.findOne({
-        _id: req.params.id,
+        _id: benefitId,
         ...baseQuery
     }).populate('employeeId', 'employeeId personalInfo employment compensation');
 
@@ -265,11 +369,21 @@ const getEmployeeBenefits = asyncHandler(async (req, res) => {
     const baseQuery = firmId ? { firmId } : { lawyerId };
 
     const { employeeId } = req.params;
+
+    // Sanitize employee ID
+    const sanitizedEmployeeId = sanitizeObjectId(employeeId);
+    if (!sanitizedEmployeeId) {
+        throw CustomException('Invalid employee ID format', 400);
+    }
+
+    // IDOR Protection - Verify employee belongs to this firm/lawyer
+    await verifyEmployeeOwnership(sanitizedEmployeeId, firmId, lawyerId);
+
     const { status } = req.query;
 
     const query = {
         ...baseQuery,
-        employeeId
+        employeeId: sanitizedEmployeeId
     };
 
     if (status) query.status = status;
@@ -365,6 +479,19 @@ const createBenefit = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
+    // Mass assignment protection - only allow specific fields
+    const allowedFields = [
+        'employeeId', 'benefitType', 'benefitCategory', 'benefitName', 'benefitNameAr',
+        'enrollmentType', 'enrollmentDate', 'effectiveDate', 'coverageEndDate',
+        'employerCost', 'employeeCost', 'currency', 'coverageLevel',
+        'providerName', 'providerNameAr', 'policyNumber', 'groupNumber',
+        'beneficiaries', 'coveredDependents', 'healthInsurance', 'lifeInsurance',
+        'disabilityInsurance', 'retirementPlan', 'allowance', 'flexibleBenefits',
+        'enrollmentMethod', 'evidenceOfInsurability', 'notes', 'notesAr',
+        'enrollmentDocuments'
+    ];
+    const safeData = pickAllowedFields(req.body, allowedFields);
+
     const {
         employeeId,
         benefitType,
@@ -374,19 +501,52 @@ const createBenefit = asyncHandler(async (req, res) => {
         enrollmentDate,
         effectiveDate,
         employerCost,
-        employeeCost,
-        ...otherData
-    } = req.body;
+        employeeCost
+    } = safeData;
 
-    // Validate employee
-    const employee = await Employee.findById(employeeId);
-    if (!employee) {
-        throw CustomException('Employee not found', 404);
+    // Validate required fields
+    if (!employeeId || !benefitType || !benefitCategory || !benefitName) {
+        throw CustomException('Missing required fields: employeeId, benefitType, benefitCategory, benefitName', 400);
+    }
+
+    // Sanitize and validate employeeId
+    const sanitizedEmployeeId = sanitizeObjectId(employeeId);
+    if (!sanitizedEmployeeId) {
+        throw CustomException('Invalid employee ID format', 400);
+    }
+
+    // IDOR Protection - Verify employee belongs to this firm/lawyer
+    const employee = await verifyEmployeeOwnership(sanitizedEmployeeId, firmId, lawyerId);
+
+    // Check employee eligibility
+    const eligibility = await checkEmployeeEligibility(employee);
+    if (!eligibility.eligible) {
+        throw CustomException(`Employee is not eligible for benefits: ${eligibility.issues.join('; ')}`, 400);
+    }
+
+    // Validate benefit type
+    const typeValidation = validateBenefitType(benefitType);
+    if (!typeValidation.valid) {
+        throw CustomException(typeValidation.message, 400);
+    }
+
+    // Validate benefit category
+    const categoryValidation = validateBenefitCategory(benefitCategory);
+    if (!categoryValidation.valid) {
+        throw CustomException(categoryValidation.message, 400);
+    }
+
+    // Validate benefit amounts
+    const costEmployer = parseFloat(employerCost) || 0;
+    const costEmployee = parseFloat(employeeCost) || 0;
+    const amountValidation = validateBenefitAmounts(benefitType, costEmployer, costEmployee);
+    if (!amountValidation.valid) {
+        throw CustomException(amountValidation.issues.join('; '), 400);
     }
 
     // Check for duplicate active benefit of same type
     const existingBenefit = await EmployeeBenefit.findOne({
-        employeeId,
+        employeeId: sanitizedEmployeeId,
         benefitType,
         status: { $in: ['active', 'pending'] }
     });
@@ -396,26 +556,33 @@ const createBenefit = asyncHandler(async (req, res) => {
     }
 
     // Validate beneficiaries if provided
-    if (otherData.beneficiaries && otherData.beneficiaries.length > 0) {
-        const beneficiaryValidation = validateBeneficiaryPercentages(otherData.beneficiaries);
+    if (safeData.beneficiaries && safeData.beneficiaries.length > 0) {
+        const beneficiaryValidation = validateBeneficiaryPercentages(safeData.beneficiaries);
         if (!beneficiaryValidation.valid) {
             throw CustomException(beneficiaryValidation.issues.join('; '), 400);
         }
 
         // Add IDs to beneficiaries
-        otherData.beneficiaries = otherData.beneficiaries.map(b => ({
-            ...b,
+        safeData.beneficiaries = safeData.beneficiaries.map(b => ({
+            ...pickAllowedFields(b, [
+                'beneficiaryType', 'firstName', 'lastName', 'relationship',
+                'dateOfBirth', 'nationalId', 'percentage', 'contactInfo'
+            ]),
             beneficiaryId: generateBeneficiaryId()
         }));
     }
 
     // Add IDs to covered dependents if provided
-    if (otherData.coveredDependents && otherData.coveredDependents.length > 0) {
-        otherData.coveredDependents = otherData.coveredDependents.map(d => ({
-            ...d,
+    if (safeData.coveredDependents && safeData.coveredDependents.length > 0) {
+        safeData.coveredDependents = safeData.coveredDependents.map(d => ({
+            ...pickAllowedFields(d, [
+                'firstName', 'lastName', 'relationship', 'dateOfBirth',
+                'nationalId', 'startDate', 'endDate', 'relationship'
+            ]),
             memberId: generateMemberId(),
             startDate: d.startDate || effectiveDate,
-            age: calculateAge(d.dateOfBirth)
+            age: calculateAge(d.dateOfBirth),
+            active: true
         }));
     }
 
@@ -427,11 +594,11 @@ const createBenefit = asyncHandler(async (req, res) => {
     const employeeNumber = employee.employeeId;
     const department = employee.employment?.department;
 
-    // Create benefit
+    // Create benefit with only safe data
     const benefit = new EmployeeBenefit({
         firmId: firmId || undefined,
         lawyerId: !firmId ? lawyerId : undefined,
-        employeeId,
+        employeeId: sanitizedEmployeeId,
         employeeName,
         employeeNameAr,
         employeeNumber,
@@ -439,15 +606,36 @@ const createBenefit = asyncHandler(async (req, res) => {
         benefitType,
         benefitCategory,
         benefitName,
+        benefitNameAr: safeData.benefitNameAr,
         enrollmentType,
         enrollmentDate: enrollmentDate || new Date(),
         effectiveDate,
-        employerCost: employerCost || 0,
-        employeeCost: employeeCost || 0,
+        coverageEndDate: safeData.coverageEndDate,
+        employerCost: costEmployer,
+        employeeCost: costEmployee,
+        totalCost: costEmployer + costEmployee,
+        currency: safeData.currency || 'SAR',
+        coverageLevel: safeData.coverageLevel,
+        providerName: safeData.providerName,
+        providerNameAr: safeData.providerNameAr,
+        policyNumber: safeData.policyNumber,
+        groupNumber: safeData.groupNumber,
+        beneficiaries: safeData.beneficiaries || [],
+        coveredDependents: safeData.coveredDependents || [],
+        healthInsurance: safeData.healthInsurance,
+        lifeInsurance: safeData.lifeInsurance,
+        disabilityInsurance: safeData.disabilityInsurance,
+        retirementPlan: safeData.retirementPlan,
+        allowance: safeData.allowance,
+        flexibleBenefits: safeData.flexibleBenefits,
+        enrollmentMethod: safeData.enrollmentMethod,
+        evidenceOfInsurability: safeData.evidenceOfInsurability,
+        notes: safeData.notes,
+        notesAr: safeData.notesAr,
+        enrollmentDocuments: safeData.enrollmentDocuments || [],
         status: 'pending',
         statusDate: new Date(),
-        createdBy: req.userID,
-        ...otherData
+        createdBy: req.userID
     });
 
     await benefit.save();
@@ -467,8 +655,14 @@ const updateBenefit = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
     const baseQuery = firmId ? { firmId } : { lawyerId };
 
+    // Sanitize benefit ID
+    const benefitId = sanitizeObjectId(req.params.id);
+    if (!benefitId) {
+        throw CustomException('Invalid benefit ID format', 400);
+    }
+
     const benefit = await EmployeeBenefit.findOne({
-        _id: req.params.id,
+        _id: benefitId,
         ...baseQuery
     });
 
@@ -481,23 +675,74 @@ const updateBenefit = asyncHandler(async (req, res) => {
         throw CustomException('Cannot update terminated benefit enrollment', 400);
     }
 
+    // Mass assignment protection - only allow specific fields to be updated
+    const allowedUpdateFields = [
+        'benefitName', 'benefitNameAr', 'enrollmentDate', 'effectiveDate',
+        'coverageEndDate', 'employerCost', 'employeeCost', 'currency',
+        'coverageLevel', 'providerName', 'providerNameAr', 'policyNumber',
+        'groupNumber', 'beneficiaries', 'coveredDependents', 'healthInsurance',
+        'lifeInsurance', 'disabilityInsurance', 'retirementPlan', 'allowance',
+        'flexibleBenefits', 'enrollmentMethod', 'evidenceOfInsurability',
+        'notes', 'notesAr', 'enrollmentDocuments', 'qualifyingEvents'
+    ];
+    const safeUpdateData = pickAllowedFields(req.body, allowedUpdateFields);
+
+    // Validate benefit type if being updated (shouldn't change, but validate if present)
+    if (req.body.benefitType && req.body.benefitType !== benefit.benefitType) {
+        throw CustomException('Cannot change benefit type. Create a new enrollment instead.', 400);
+    }
+
+    // Validate benefit category if being updated (shouldn't change, but validate if present)
+    if (req.body.benefitCategory && req.body.benefitCategory !== benefit.benefitCategory) {
+        throw CustomException('Cannot change benefit category. Create a new enrollment instead.', 400);
+    }
+
+    // Validate benefit amounts if being updated
+    if (safeUpdateData.employerCost !== undefined || safeUpdateData.employeeCost !== undefined) {
+        const costEmployer = parseFloat(safeUpdateData.employerCost ?? benefit.employerCost) || 0;
+        const costEmployee = parseFloat(safeUpdateData.employeeCost ?? benefit.employeeCost) || 0;
+
+        const amountValidation = validateBenefitAmounts(benefit.benefitType, costEmployer, costEmployee);
+        if (!amountValidation.valid) {
+            throw CustomException(amountValidation.issues.join('; '), 400);
+        }
+
+        // Update costs and total
+        safeUpdateData.employerCost = costEmployer;
+        safeUpdateData.employeeCost = costEmployee;
+        safeUpdateData.totalCost = costEmployer + costEmployee;
+    }
+
     // Validate beneficiaries if being updated
-    if (req.body.beneficiaries) {
-        const beneficiaryValidation = validateBeneficiaryPercentages(req.body.beneficiaries);
+    if (safeUpdateData.beneficiaries) {
+        const beneficiaryValidation = validateBeneficiaryPercentages(safeUpdateData.beneficiaries);
         if (!beneficiaryValidation.valid) {
             throw CustomException(beneficiaryValidation.issues.join('; '), 400);
         }
+
+        // Apply mass assignment protection to beneficiaries
+        safeUpdateData.beneficiaries = safeUpdateData.beneficiaries.map(b => ({
+            ...pickAllowedFields(b, [
+                'beneficiaryId', 'beneficiaryType', 'firstName', 'lastName',
+                'relationship', 'dateOfBirth', 'nationalId', 'percentage', 'contactInfo'
+            ])
+        }));
     }
 
-    // Update fields
-    const updateFields = { ...req.body, updatedBy: req.userID };
-    delete updateFields.benefitEnrollmentId; // Prevent ID modification
-    delete updateFields.firmId;
-    delete updateFields.lawyerId;
-    delete updateFields.employeeId;
-    delete updateFields.createdBy;
+    // Apply mass assignment protection to dependents
+    if (safeUpdateData.coveredDependents) {
+        safeUpdateData.coveredDependents = safeUpdateData.coveredDependents.map(d => ({
+            ...pickAllowedFields(d, [
+                'memberId', 'firstName', 'lastName', 'relationship', 'dateOfBirth',
+                'nationalId', 'startDate', 'endDate', 'active', 'age'
+            ])
+        }));
+    }
 
-    Object.assign(benefit, updateFields);
+    // Update fields with system-managed fields
+    safeUpdateData.updatedBy = req.userID;
+
+    Object.assign(benefit, safeUpdateData);
     await benefit.save();
 
     return res.json({
@@ -515,8 +760,14 @@ const deleteBenefit = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
     const baseQuery = firmId ? { firmId } : { lawyerId };
 
+    // Sanitize benefit ID
+    const benefitId = sanitizeObjectId(req.params.id);
+    if (!benefitId) {
+        throw CustomException('Invalid benefit ID format', 400);
+    }
+
     const benefit = await EmployeeBenefit.findOne({
-        _id: req.params.id,
+        _id: benefitId,
         ...baseQuery
     });
 
@@ -529,7 +780,7 @@ const deleteBenefit = asyncHandler(async (req, res) => {
         throw CustomException('Only pending benefit enrollments can be deleted. Use termination for active benefits.', 400);
     }
 
-    await EmployeeBenefit.deleteOne({ _id: req.params.id });
+    await EmployeeBenefit.deleteOne({ _id: benefitId });
 
     return res.json({
         success: true,
@@ -551,9 +802,16 @@ const bulkDeleteBenefits = asyncHandler(async (req, res) => {
         throw CustomException('Please provide an array of benefit IDs to delete', 400);
     }
 
+    // Sanitize all benefit IDs
+    const sanitizedIds = ids.map(id => sanitizeObjectId(id)).filter(id => id !== null);
+
+    if (sanitizedIds.length === 0) {
+        throw CustomException('No valid benefit IDs provided', 400);
+    }
+
     // Only delete pending benefits
     const result = await EmployeeBenefit.deleteMany({
-        _id: { $in: ids },
+        _id: { $in: sanitizedIds },
         ...baseQuery,
         status: 'pending'
     });
@@ -577,8 +835,14 @@ const activateBenefit = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
     const baseQuery = firmId ? { firmId } : { lawyerId };
 
+    // Sanitize benefit ID
+    const benefitId = sanitizeObjectId(req.params.id);
+    if (!benefitId) {
+        throw CustomException('Invalid benefit ID format', 400);
+    }
+
     const benefit = await EmployeeBenefit.findOne({
-        _id: req.params.id,
+        _id: benefitId,
         ...baseQuery
     });
 
@@ -616,8 +880,14 @@ const suspendBenefit = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
     const baseQuery = firmId ? { firmId } : { lawyerId };
 
+    // Sanitize benefit ID
+    const benefitId = sanitizeObjectId(req.params.id);
+    if (!benefitId) {
+        throw CustomException('Invalid benefit ID format', 400);
+    }
+
     const benefit = await EmployeeBenefit.findOne({
-        _id: req.params.id,
+        _id: benefitId,
         ...baseQuery
     });
 
@@ -651,8 +921,14 @@ const terminateBenefit = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
     const baseQuery = firmId ? { firmId } : { lawyerId };
 
+    // Sanitize benefit ID
+    const benefitId = sanitizeObjectId(req.params.id);
+    if (!benefitId) {
+        throw CustomException('Invalid benefit ID format', 400);
+    }
+
     const benefit = await EmployeeBenefit.findOne({
-        _id: req.params.id,
+        _id: benefitId,
         ...baseQuery
     });
 
@@ -664,11 +940,18 @@ const terminateBenefit = asyncHandler(async (req, res) => {
         throw CustomException('Benefit is already terminated', 400);
     }
 
-    const terminationDate = req.body.terminationDate ? new Date(req.body.terminationDate) : new Date();
+    // Mass assignment protection for termination data
+    const allowedTerminationFields = [
+        'terminationDate', 'reason', 'terminationReason', 'terminationTriggeredBy',
+        'continuationOffered'
+    ];
+    const safeTerminationData = pickAllowedFields(req.body, allowedTerminationFields);
+
+    const terminationDate = safeTerminationData.terminationDate ? new Date(safeTerminationData.terminationDate) : new Date();
 
     benefit.status = 'terminated';
     benefit.statusDate = new Date();
-    benefit.statusReason = req.body.reason || 'Benefit terminated';
+    benefit.statusReason = safeTerminationData.reason || 'Benefit terminated';
     benefit.coverageEndDate = terminationDate;
     benefit.updatedBy = req.userID;
 
@@ -676,11 +959,11 @@ const terminateBenefit = asyncHandler(async (req, res) => {
     benefit.termination = {
         terminated: true,
         terminationDate,
-        terminationReason: req.body.terminationReason || 'other',
-        terminationTriggeredBy: req.body.terminationTriggeredBy || 'hr',
+        terminationReason: safeTerminationData.terminationReason || 'other',
+        terminationTriggeredBy: safeTerminationData.terminationTriggeredBy || 'hr',
         coverageEndDate: terminationDate,
-        continuationOffered: req.body.continuationOffered || false,
-        continuationNoticeDate: req.body.continuationOffered ? new Date() : undefined
+        continuationOffered: safeTerminationData.continuationOffered || false,
+        continuationNoticeDate: safeTerminationData.continuationOffered ? new Date() : undefined
     };
 
     await benefit.save();
@@ -704,8 +987,14 @@ const addDependent = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
     const baseQuery = firmId ? { firmId } : { lawyerId };
 
+    // Sanitize benefit ID
+    const benefitId = sanitizeObjectId(req.params.id);
+    if (!benefitId) {
+        throw CustomException('Invalid benefit ID format', 400);
+    }
+
     const benefit = await EmployeeBenefit.findOne({
-        _id: req.params.id,
+        _id: benefitId,
         ...baseQuery
     });
 
@@ -717,12 +1006,24 @@ const addDependent = asyncHandler(async (req, res) => {
         throw CustomException('Cannot add dependents to terminated or expired benefits', 400);
     }
 
+    // Mass assignment protection for dependent data
+    const allowedDependentFields = [
+        'firstName', 'lastName', 'relationship', 'dateOfBirth',
+        'nationalId', 'startDate'
+    ];
+    const safeDependent = pickAllowedFields(req.body, allowedDependentFields);
+
+    // Validate required fields
+    if (!safeDependent.firstName || !safeDependent.relationship || !safeDependent.dateOfBirth) {
+        throw CustomException('Missing required dependent fields: firstName, relationship, dateOfBirth', 400);
+    }
+
     const dependent = {
-        ...req.body,
+        ...safeDependent,
         memberId: generateMemberId(),
-        startDate: req.body.startDate || new Date(),
+        startDate: safeDependent.startDate || new Date(),
         active: true,
-        age: calculateAge(req.body.dateOfBirth)
+        age: calculateAge(safeDependent.dateOfBirth)
     };
 
     benefit.coveredDependents.push(dependent);
@@ -744,8 +1045,14 @@ const removeDependent = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
     const baseQuery = firmId ? { firmId } : { lawyerId };
 
+    // Sanitize benefit ID
+    const benefitId = sanitizeObjectId(req.params.id);
+    if (!benefitId) {
+        throw CustomException('Invalid benefit ID format', 400);
+    }
+
     const benefit = await EmployeeBenefit.findOne({
-        _id: req.params.id,
+        _id: benefitId,
         ...baseQuery
     });
 
@@ -753,8 +1060,9 @@ const removeDependent = asyncHandler(async (req, res) => {
         throw CustomException('Benefit enrollment not found', 404);
     }
 
+    const { memberId } = req.params;
     const dependentIndex = benefit.coveredDependents.findIndex(
-        d => d.memberId === req.params.memberId
+        d => d.memberId === memberId
     );
 
     if (dependentIndex === -1) {
@@ -782,8 +1090,14 @@ const updateBeneficiary = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
     const baseQuery = firmId ? { firmId } : { lawyerId };
 
+    // Sanitize benefit ID
+    const benefitId = sanitizeObjectId(req.params.id);
+    if (!benefitId) {
+        throw CustomException('Invalid benefit ID format', 400);
+    }
+
     const benefit = await EmployeeBenefit.findOne({
-        _id: req.params.id,
+        _id: benefitId,
         ...baseQuery
     });
 
@@ -800,8 +1114,15 @@ const updateBeneficiary = asyncHandler(async (req, res) => {
         throw CustomException('Beneficiary not found', 404);
     }
 
-    // Update beneficiary
-    Object.assign(benefit.beneficiaries[beneficiaryIndex], req.body);
+    // Mass assignment protection for beneficiary data
+    const allowedBeneficiaryFields = [
+        'beneficiaryType', 'firstName', 'lastName', 'relationship',
+        'dateOfBirth', 'nationalId', 'percentage', 'contactInfo'
+    ];
+    const safeBeneficiaryData = pickAllowedFields(req.body, allowedBeneficiaryFields);
+
+    // Update beneficiary with safe data only
+    Object.assign(benefit.beneficiaries[beneficiaryIndex], safeBeneficiaryData);
 
     // Validate percentages after update
     const validation = validateBeneficiaryPercentages(benefit.beneficiaries);
@@ -827,8 +1148,14 @@ const addBeneficiary = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
     const baseQuery = firmId ? { firmId } : { lawyerId };
 
+    // Sanitize benefit ID
+    const benefitId = sanitizeObjectId(req.params.id);
+    if (!benefitId) {
+        throw CustomException('Invalid benefit ID format', 400);
+    }
+
     const benefit = await EmployeeBenefit.findOne({
-        _id: req.params.id,
+        _id: benefitId,
         ...baseQuery
     });
 
@@ -836,8 +1163,20 @@ const addBeneficiary = asyncHandler(async (req, res) => {
         throw CustomException('Benefit enrollment not found', 404);
     }
 
+    // Mass assignment protection for beneficiary data
+    const allowedBeneficiaryFields = [
+        'beneficiaryType', 'firstName', 'lastName', 'relationship',
+        'dateOfBirth', 'nationalId', 'percentage', 'contactInfo'
+    ];
+    const safeBeneficiaryData = pickAllowedFields(req.body, allowedBeneficiaryFields);
+
+    // Validate required fields
+    if (!safeBeneficiaryData.firstName || !safeBeneficiaryData.beneficiaryType || !safeBeneficiaryData.percentage) {
+        throw CustomException('Missing required beneficiary fields: firstName, beneficiaryType, percentage', 400);
+    }
+
     const newBeneficiary = {
-        ...req.body,
+        ...safeBeneficiaryData,
         beneficiaryId: generateBeneficiaryId()
     };
 
@@ -867,8 +1206,14 @@ const removeBeneficiary = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
     const baseQuery = firmId ? { firmId } : { lawyerId };
 
+    // Sanitize benefit ID
+    const benefitId = sanitizeObjectId(req.params.id);
+    if (!benefitId) {
+        throw CustomException('Invalid benefit ID format', 400);
+    }
+
     const benefit = await EmployeeBenefit.findOne({
-        _id: req.params.id,
+        _id: benefitId,
         ...baseQuery
     });
 
@@ -907,8 +1252,14 @@ const submitClaim = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
     const baseQuery = firmId ? { firmId } : { lawyerId };
 
+    // Sanitize benefit ID
+    const benefitId = sanitizeObjectId(req.params.id);
+    if (!benefitId) {
+        throw CustomException('Invalid benefit ID format', 400);
+    }
+
     const benefit = await EmployeeBenefit.findOne({
-        _id: req.params.id,
+        _id: benefitId,
         ...baseQuery
     });
 
@@ -924,18 +1275,41 @@ const submitClaim = asyncHandler(async (req, res) => {
         throw CustomException('This is not a health insurance benefit', 400);
     }
 
+    // Mass assignment protection for claim data
+    const allowedClaimFields = [
+        'serviceDate', 'claimType', 'provider', 'diagnosis',
+        'claimedAmount', 'claimDocument', 'treatmentDetails'
+    ];
+    const safeClaimData = pickAllowedFields(req.body, allowedClaimFields);
+
+    // Validate required fields
+    if (!safeClaimData.claimType || !safeClaimData.provider || !safeClaimData.claimedAmount) {
+        throw CustomException('Missing required claim fields: claimType, provider, claimedAmount', 400);
+    }
+
+    // Validate claim amount
+    const claimedAmount = parseFloat(safeClaimData.claimedAmount) || 0;
+    if (claimedAmount <= 0) {
+        throw CustomException('Claimed amount must be greater than zero', 400);
+    }
+
+    if (claimedAmount > 1000000) { // Maximum claim amount
+        throw CustomException('Claimed amount exceeds maximum allowed limit', 400);
+    }
+
     const claim = {
         claimId: generateClaimId(),
         claimNumber: `CLM-${Date.now()}`,
         claimDate: new Date(),
-        serviceDate: req.body.serviceDate || new Date(),
-        claimType: req.body.claimType,
-        provider: req.body.provider,
-        diagnosis: req.body.diagnosis,
-        claimedAmount: req.body.claimedAmount || 0,
+        serviceDate: safeClaimData.serviceDate || new Date(),
+        claimType: safeClaimData.claimType,
+        provider: safeClaimData.provider,
+        diagnosis: safeClaimData.diagnosis,
+        treatmentDetails: safeClaimData.treatmentDetails,
+        claimedAmount,
         claimStatus: 'submitted',
         statusDate: new Date(),
-        claimDocument: req.body.claimDocument
+        claimDocument: safeClaimData.claimDocument
     };
 
     if (!benefit.healthInsurance.claims) {
@@ -963,8 +1337,14 @@ const updateClaimStatus = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
     const baseQuery = firmId ? { firmId } : { lawyerId };
 
+    // Sanitize benefit ID
+    const benefitId = sanitizeObjectId(req.params.id);
+    if (!benefitId) {
+        throw CustomException('Invalid benefit ID format', 400);
+    }
+
     const benefit = await EmployeeBenefit.findOne({
-        _id: req.params.id,
+        _id: benefitId,
         ...baseQuery
     });
 
@@ -981,21 +1361,56 @@ const updateClaimStatus = asyncHandler(async (req, res) => {
         throw CustomException('Claim not found', 404);
     }
 
+    // Mass assignment protection for claim status update
+    const allowedStatusFields = [
+        'status', 'approvedAmount', 'paidAmount', 'rejectionReason', 'approvalNumber'
+    ];
+    const safeStatusData = pickAllowedFields(req.body, allowedStatusFields);
+
     const claim = benefit.healthInsurance.claims[claimIndex];
-    const { status, approvedAmount, paidAmount, rejectionReason, approvalNumber } = req.body;
+    const { status, approvedAmount, paidAmount, rejectionReason, approvalNumber } = safeStatusData;
 
-    claim.claimStatus = status;
-    claim.statusDate = new Date();
+    // Validate status
+    const validStatuses = ['submitted', 'under_review', 'approved', 'rejected', 'paid', 'partially_paid'];
+    if (status && !validStatuses.includes(status)) {
+        throw CustomException(`Invalid claim status. Valid statuses: ${validStatuses.join(', ')}`, 400);
+    }
 
-    if (approvedAmount !== undefined) claim.approvedAmount = approvedAmount;
+    if (status) {
+        claim.claimStatus = status;
+        claim.statusDate = new Date();
+    }
+
+    // Validate and update approved amount
+    if (approvedAmount !== undefined) {
+        const approved = parseFloat(approvedAmount);
+        if (approved < 0) {
+            throw CustomException('Approved amount cannot be negative', 400);
+        }
+        if (approved > claim.claimedAmount) {
+            throw CustomException('Approved amount cannot exceed claimed amount', 400);
+        }
+        claim.approvedAmount = approved;
+    }
+
+    // Validate and update paid amount
     if (paidAmount !== undefined) {
-        claim.paidAmount = paidAmount;
+        const paid = parseFloat(paidAmount);
+        if (paid < 0) {
+            throw CustomException('Paid amount cannot be negative', 400);
+        }
+        if (paid > (claim.approvedAmount || claim.claimedAmount)) {
+            throw CustomException('Paid amount cannot exceed approved amount', 400);
+        }
+
+        claim.paidAmount = paid;
         claim.paidDate = new Date();
 
         // Update totals
         benefit.healthInsurance.totalClaimsPaid = (benefit.healthInsurance.totalClaimsPaid || 0) + 1;
-        benefit.healthInsurance.totalClaimsAmount = (benefit.healthInsurance.totalClaimsAmount || 0) + paidAmount;
+        benefit.healthInsurance.totalClaimsAmount = (benefit.healthInsurance.totalClaimsAmount || 0) + paid;
     }
+
     if (rejectionReason) claim.rejectionReason = rejectionReason;
     if (approvalNumber) claim.approvalNumber = approvalNumber;
 
@@ -1021,8 +1436,14 @@ const requestPreAuth = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
     const baseQuery = firmId ? { firmId } : { lawyerId };
 
+    // Sanitize benefit ID
+    const benefitId = sanitizeObjectId(req.params.id);
+    if (!benefitId) {
+        throw CustomException('Invalid benefit ID format', 400);
+    }
+
     const benefit = await EmployeeBenefit.findOne({
-        _id: req.params.id,
+        _id: benefitId,
         ...baseQuery
     });
 
@@ -1038,15 +1459,33 @@ const requestPreAuth = asyncHandler(async (req, res) => {
         throw CustomException('This is not a health insurance benefit', 400);
     }
 
+    // Mass assignment protection for pre-authorization data
+    const allowedPreAuthFields = [
+        'procedure', 'provider', 'estimatedCost', 'validFrom', 'validUntil', 'urgency'
+    ];
+    const safePreAuthData = pickAllowedFields(req.body, allowedPreAuthFields);
+
+    // Validate required fields
+    if (!safePreAuthData.procedure || !safePreAuthData.provider) {
+        throw CustomException('Missing required pre-authorization fields: procedure, provider', 400);
+    }
+
+    // Validate estimated cost
+    const estimatedCost = parseFloat(safePreAuthData.estimatedCost) || 0;
+    if (estimatedCost < 0) {
+        throw CustomException('Estimated cost cannot be negative', 400);
+    }
+
     const preAuth = {
         authId: generatePreAuthId(),
         authNumber: `PAT-${Date.now()}`,
         authDate: new Date(),
-        procedure: req.body.procedure,
-        provider: req.body.provider,
-        estimatedCost: req.body.estimatedCost || 0,
-        validFrom: req.body.validFrom || new Date(),
-        validUntil: req.body.validUntil || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+        procedure: safePreAuthData.procedure,
+        provider: safePreAuthData.provider,
+        estimatedCost,
+        urgency: safePreAuthData.urgency,
+        validFrom: safePreAuthData.validFrom || new Date(),
+        validUntil: safePreAuthData.validUntil || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
         status: 'pending',
         used: false
     };
@@ -1079,8 +1518,14 @@ const reportQualifyingEvent = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
     const baseQuery = firmId ? { firmId } : { lawyerId };
 
+    // Sanitize benefit ID
+    const benefitId = sanitizeObjectId(req.params.id);
+    if (!benefitId) {
+        throw CustomException('Invalid benefit ID format', 400);
+    }
+
     const benefit = await EmployeeBenefit.findOne({
-        _id: req.params.id,
+        _id: benefitId,
         ...baseQuery
     });
 
@@ -1088,14 +1533,34 @@ const reportQualifyingEvent = asyncHandler(async (req, res) => {
         throw CustomException('Benefit enrollment not found', 404);
     }
 
+    // Mass assignment protection for qualifying event data
+    const allowedEventFields = [
+        'eventType', 'eventDate', 'eventDescription', 'documentsRequired', 'documents'
+    ];
+    const safeEventData = pickAllowedFields(req.body, allowedEventFields);
+
+    // Validate required fields
+    if (!safeEventData.eventType) {
+        throw CustomException('Event type is required', 400);
+    }
+
+    // Validate event type
+    const validEventTypes = [
+        'marriage', 'divorce', 'birth', 'adoption', 'death',
+        'employment_status_change', 'coverage_loss', 'relocation', 'other'
+    ];
+    if (!validEventTypes.includes(safeEventData.eventType)) {
+        throw CustomException(`Invalid event type. Valid types: ${validEventTypes.join(', ')}`, 400);
+    }
+
     const event = {
         eventId: generateEventId(),
-        eventType: req.body.eventType,
-        eventDate: req.body.eventDate || new Date(),
+        eventType: safeEventData.eventType,
+        eventDate: safeEventData.eventDate || new Date(),
         reportedDate: new Date(),
-        eventDescription: req.body.eventDescription,
-        documentsRequired: req.body.documentsRequired || false,
-        documents: req.body.documents || [],
+        eventDescription: safeEventData.eventDescription,
+        documentsRequired: safeEventData.documentsRequired || false,
+        documents: safeEventData.documents || [],
         allowsBenefitChange: true,
         changeDeadline: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
         processed: false

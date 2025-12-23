@@ -11,6 +11,7 @@
 const asyncHandler = require('../utils/asyncHandler');
 const { Firm, User, Case, Client, Document } = require('../models');
 const CustomException = require('../utils/CustomException');
+const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 const {
     PLANS,
     getPlanConfig,
@@ -19,6 +20,27 @@ const {
     getNextPlan,
     isPlanAtLeast
 } = require('../config/plans.config');
+
+/**
+ * Helper function to verify firm ownership and access
+ */
+const verifyFirmAccess = async (firmId, userId) => {
+    const firm = await Firm.findById(firmId).select('owner members').lean();
+
+    if (!firm) {
+        throw CustomException('المكتب غير موجود', 404);
+    }
+
+    // Check if user is owner or member
+    const isOwner = firm.owner.toString() === userId.toString();
+    const isMember = firm.members?.some(member => member.toString() === userId.toString());
+
+    if (!isOwner && !isMember) {
+        throw CustomException('ليس لديك صلاحية للوصول إلى هذا المكتب', 403);
+    }
+
+    return firm;
+};
 
 /**
  * GET /api/plans
@@ -61,6 +83,9 @@ const getCurrentPlan = asyncHandler(async (req, res) => {
             }
         });
     }
+
+    // IDOR Protection: Verify user has access to this firm
+    await verifyFirmAccess(sanitizeObjectId(firmId), req.user._id);
 
     const firm = await Firm.findById(firmId)
         .select('subscription usage billing')
@@ -121,6 +146,9 @@ const getUsage = asyncHandler(async (req, res) => {
             }
         });
     }
+
+    // IDOR Protection: Verify user has access to this firm
+    await verifyFirmAccess(sanitizeObjectId(firmId), req.user._id);
 
     const firm = await Firm.findById(firmId)
         .select('subscription usage')
@@ -215,14 +243,25 @@ const getUsage = asyncHandler(async (req, res) => {
  * Start a trial for a specific plan
  */
 const startTrial = asyncHandler(async (req, res) => {
-    const { plan } = req.body;
     const firmId = req.firmId;
 
     if (!firmId) {
         throw CustomException('يجب أن تكون عضواً في مكتب لبدء النسخة التجريبية', 403);
     }
 
-    // Validate plan
+    // IDOR Protection: Verify user has access to this firm
+    await verifyFirmAccess(sanitizeObjectId(firmId), req.user._id);
+
+    // Input Validation: Only allow 'plan' field
+    const allowedFields = ['plan'];
+    const validatedData = pickAllowedFields(req.body, allowedFields);
+    const { plan } = validatedData;
+
+    // Validate plan exists and is eligible for trial
+    if (!plan || typeof plan !== 'string') {
+        throw CustomException('يجب تحديد الباقة', 400);
+    }
+
     if (!['starter', 'professional'].includes(plan)) {
         throw CustomException('لا يمكن بدء نسخة تجريبية لهذه الباقة', 400);
     }
@@ -242,8 +281,8 @@ const startTrial = asyncHandler(async (req, res) => {
     const trialEnd = new Date();
     trialEnd.setDate(trialEnd.getDate() + 14);
 
+    // Mass Assignment Protection: Only set specific fields, don't spread existing subscription
     firm.subscription = {
-        ...firm.subscription,
         plan,
         status: 'trial',
         trialEndsAt: trialEnd,
@@ -269,21 +308,42 @@ const startTrial = asyncHandler(async (req, res) => {
  * Upgrade to a new plan (placeholder for Stripe integration)
  */
 const upgradePlan = asyncHandler(async (req, res) => {
-    const { plan, billingCycle } = req.body;
     const firmId = req.firmId;
 
     if (!firmId) {
         throw CustomException('يجب أن تكون عضواً في مكتب لترقية الباقة', 403);
     }
 
+    // IDOR Protection: Verify user has access to this firm
+    await verifyFirmAccess(sanitizeObjectId(firmId), req.user._id);
+
+    // Input Validation: Only allow 'plan' and 'billingCycle' fields
+    const allowedFields = ['plan', 'billingCycle'];
+    const validatedData = pickAllowedFields(req.body, allowedFields);
+    const { plan, billingCycle } = validatedData;
+
     // Validate plan
+    if (!plan || typeof plan !== 'string') {
+        throw CustomException('يجب تحديد الباقة', 400);
+    }
+
     if (!['starter', 'professional', 'enterprise'].includes(plan)) {
         throw CustomException('باقة غير صالحة', 400);
     }
 
     // Validate billing cycle
+    if (!billingCycle || typeof billingCycle !== 'string') {
+        throw CustomException('يجب تحديد دورة الفوترة', 400);
+    }
+
     if (!['monthly', 'annual'].includes(billingCycle)) {
         throw CustomException('دورة الفوترة غير صالحة', 400);
+    }
+
+    // Prevent pricing manipulation: verify plan pricing from config
+    const planConfig = getPlanConfig(plan);
+    if (!planConfig) {
+        throw CustomException('باقة غير صالحة', 400);
     }
 
     const firm = await Firm.findById(firmId);
@@ -305,8 +365,8 @@ const upgradePlan = asyncHandler(async (req, res) => {
         periodEnd.setFullYear(periodEnd.getFullYear() + 1);
     }
 
+    // Mass Assignment Protection: Only set specific fields, don't spread existing subscription
     firm.subscription = {
-        ...firm.subscription,
         plan,
         status: 'active',
         billingCycle,
@@ -315,8 +375,8 @@ const upgradePlan = asyncHandler(async (req, res) => {
         currentPeriodEnd: periodEnd
     };
 
+    // Mass Assignment Protection: Only set specific billing fields
     firm.billing = {
-        ...firm.billing,
         nextBillingDate: periodEnd,
         autoRenew: true
     };
@@ -345,14 +405,26 @@ const cancelPlan = asyncHandler(async (req, res) => {
         throw CustomException('يجب أن تكون عضواً في مكتب', 403);
     }
 
+    // IDOR Protection: Verify user has access to this firm
+    await verifyFirmAccess(sanitizeObjectId(firmId), req.user._id);
+
     const firm = await Firm.findById(firmId);
 
     if (!firm) {
         throw CustomException('المكتب غير موجود', 404);
     }
 
+    // Prevent subscription manipulation: Only update specific fields
+    if (!firm.subscription) {
+        throw CustomException('لا يوجد اشتراك نشط', 400);
+    }
+
     // In production, cancel Stripe subscription
     firm.subscription.status = 'cancelled';
+
+    if (!firm.billing) {
+        firm.billing = {};
+    }
     firm.billing.autoRenew = false;
 
     await firm.save();
@@ -403,12 +475,25 @@ const getLimits = asyncHandler(async (req, res) => {
     let plan = queryPlan;
 
     if (!plan && req.firmId) {
+        // IDOR Protection: Verify user has access to this firm
+        await verifyFirmAccess(sanitizeObjectId(req.firmId), req.user._id);
+
         const firm = await Firm.findById(req.firmId).select('subscription').lean();
         plan = firm?.subscription?.plan || 'free';
     }
 
     plan = plan || 'free';
+
+    // Input validation: Ensure plan is a valid string
+    if (typeof plan !== 'string') {
+        throw CustomException('باقة غير صالحة', 400);
+    }
+
     const config = getPlanConfig(plan);
+
+    if (!config) {
+        throw CustomException('باقة غير صالحة', 400);
+    }
 
     res.status(200).json({
         success: true,

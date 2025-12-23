@@ -2,6 +2,8 @@ const { ExpenseClaim, Employee, EmployeeAdvance, Client, Case } = require('../mo
 const { CustomException } = require('../utils');
 const asyncHandler = require('../utils/asyncHandler');
 const { v4: uuidv4 } = require('uuid');
+const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
+const mongoose = require('mongoose');
 
 /**
  * Expense Claim Controller - HR Management
@@ -148,6 +150,80 @@ function getApprovalWorkflow(amount) {
 }
 
 // ═══════════════════════════════════════════════════════════════
+// SECURITY VALIDATION HELPERS
+// ═══════════════════════════════════════════════════════════════
+
+// Maximum allowed expense claim amount (configurable)
+const MAX_CLAIM_AMOUNT = 100000; // SAR
+const MAX_LINE_ITEM_AMOUNT = 50000; // SAR
+
+// Validate amount - prevent negative, zero, or excessive amounts
+function validateAmount(amount, maxAmount = MAX_LINE_ITEM_AMOUNT) {
+    const numAmount = parseFloat(amount);
+
+    if (isNaN(numAmount)) {
+        throw CustomException('Invalid amount: must be a valid number', 400);
+    }
+
+    if (numAmount <= 0) {
+        throw CustomException('Invalid amount: must be greater than zero', 400);
+    }
+
+    if (numAmount > maxAmount) {
+        throw CustomException(`Amount exceeds maximum allowed limit of ${maxAmount} SAR`, 400);
+    }
+
+    return numAmount;
+}
+
+// Validate receipt/attachment files
+function validateAttachment(attachment) {
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'application/pdf'];
+    const maxFileSize = 10 * 1024 * 1024; // 10MB
+
+    if (!attachment.fileType) {
+        throw CustomException('File type is required', 400);
+    }
+
+    if (!allowedTypes.includes(attachment.fileType.toLowerCase())) {
+        throw CustomException('Invalid file type. Allowed: JPEG, PNG, PDF', 400);
+    }
+
+    if (attachment.fileSize && attachment.fileSize > maxFileSize) {
+        throw CustomException('File size exceeds maximum allowed size of 10MB', 400);
+    }
+
+    if (!attachment.fileUrl || typeof attachment.fileUrl !== 'string') {
+        throw CustomException('Valid file URL is required', 400);
+    }
+
+    // Basic URL validation
+    if (!attachment.fileUrl.startsWith('http://') && !attachment.fileUrl.startsWith('https://')) {
+        throw CustomException('File URL must be a valid HTTP/HTTPS URL', 400);
+    }
+
+    return true;
+}
+
+// Verify employee ownership (IDOR protection)
+async function verifyEmployeeOwnership(employeeId, firmId, lawyerId) {
+    const sanitizedEmployeeId = sanitizeObjectId(employeeId);
+
+    if (!sanitizedEmployeeId) {
+        throw CustomException('Invalid employee ID format', 400);
+    }
+
+    const employeeQuery = firmId ? { firmId, _id: sanitizedEmployeeId } : { lawyerId, _id: sanitizedEmployeeId };
+    const employee = await Employee.findOne(employeeQuery);
+
+    if (!employee) {
+        throw CustomException('Employee not found or access denied', 404);
+    }
+
+    return employee;
+}
+
+// ═══════════════════════════════════════════════════════════════
 // GET ALL CLAIMS
 // GET /api/hr/expense-claims
 // ═══════════════════════════════════════════════════════════════
@@ -220,7 +296,13 @@ const getClaim = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
     const { id } = req.params;
 
-    const query = firmId ? { firmId, _id: id } : { lawyerId, _id: id };
+    // Sanitize claim ID (IDOR protection)
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('Invalid claim ID format', 400);
+    }
+
+    const query = firmId ? { firmId, _id: sanitizedId } : { lawyerId, _id: sanitizedId };
 
     const claim = await ExpenseClaim.findOne(query)
         .populate('employeeId', 'employeeId personalInfo compensation bankDetails')
@@ -247,6 +329,16 @@ const createClaim = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
+    // Mass assignment protection - only allow specific fields
+    const allowedFields = [
+        'employeeId', 'claimTitle', 'claimTitleAr', 'expenseType', 'claimCategory',
+        'claimPeriod', 'description', 'descriptionAr', 'businessPurpose',
+        'businessPurposeAr', 'allocation', 'urgency', 'lineItems',
+        'travelDetails', 'mileageClaim', 'advanceSettlement', 'notes'
+    ];
+
+    const safeData = pickAllowedFields(req.body, allowedFields);
+
     const {
         employeeId,
         claimTitle,
@@ -265,7 +357,7 @@ const createClaim = asyncHandler(async (req, res) => {
         mileageClaim,
         advanceSettlement,
         notes
-    } = req.body;
+    } = safeData;
 
     // Validate required fields
     if (!employeeId) {
@@ -280,22 +372,34 @@ const createClaim = asyncHandler(async (req, res) => {
         throw CustomException('Expense type is required', 400);
     }
 
-    // Get employee details
-    const employeeQuery = firmId ? { firmId, _id: employeeId } : { lawyerId, _id: employeeId };
-    const employee = await Employee.findOne(employeeQuery);
+    // IDOR Protection - Verify employee ownership
+    const employee = await verifyEmployeeOwnership(employeeId, firmId, lawyerId);
 
-    if (!employee) {
-        throw CustomException('Employee not found', 404);
-    }
+    // Validate and prepare line items
+    const preparedLineItems = (lineItems || []).map(item => {
+        // Validate amount
+        const validatedAmount = validateAmount(item.amount, MAX_LINE_ITEM_AMOUNT);
 
-    // Prepare line items with IDs
-    const preparedLineItems = (lineItems || []).map(item => ({
-        ...item,
-        lineItemId: item.lineItemId || generateLineItemId(),
-        vatAmount: item.vatAmount || (item.amount && item.vatApplicable !== false ?
-            calculateVAT(item.amount) : 0),
-        totalAmount: item.amount + (item.vatAmount || calculateVAT(item.amount || 0))
-    }));
+        const vatAmount = item.vatAmount || (item.vatApplicable !== false ? calculateVAT(validatedAmount) : 0);
+        const totalAmount = validatedAmount + vatAmount;
+
+        return {
+            ...pickAllowedFields(item, [
+                'expenseDate', 'category', 'description', 'descriptionAr',
+                'merchant', 'merchantAr', 'location', 'quantity', 'unitPrice',
+                'currency', 'exchangeRate', 'receiptNumber', 'receiptStatus',
+                'paymentMethod', 'isBillable', 'notes'
+            ]),
+            lineItemId: generateLineItemId(),
+            amount: validatedAmount,
+            vatAmount,
+            totalAmount
+        };
+    });
+
+    // Validate total claim amount
+    const totalClaimAmount = preparedLineItems.reduce((sum, item) => sum + item.totalAmount, 0);
+    validateAmount(totalClaimAmount, MAX_CLAIM_AMOUNT);
 
     // Create claim
     const claim = new ExpenseClaim({
@@ -360,7 +464,13 @@ const updateClaim = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
     const { id } = req.params;
 
-    const query = firmId ? { firmId, _id: id } : { lawyerId, _id: id };
+    // Sanitize claim ID (IDOR protection)
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('Invalid claim ID format', 400);
+    }
+
+    const query = firmId ? { firmId, _id: sanitizedId } : { lawyerId, _id: sanitizedId };
     const claim = await ExpenseClaim.findOne(query);
 
     if (!claim) {
@@ -372,7 +482,7 @@ const updateClaim = asyncHandler(async (req, res) => {
         throw CustomException('Cannot update claim in current status', 400);
     }
 
-    // Update allowed fields
+    // Mass assignment protection - only allow specific fields
     const allowedFields = [
         'claimTitle', 'claimTitleAr', 'expenseType', 'claimCategory',
         'claimPeriod', 'description', 'descriptionAr', 'businessPurpose',
@@ -380,9 +490,43 @@ const updateClaim = asyncHandler(async (req, res) => {
         'travelDetails', 'mileageClaim', 'advanceSettlement', 'notes'
     ];
 
+    const safeData = pickAllowedFields(req.body, allowedFields);
+
+    // Validate and update line items if provided
+    if (safeData.lineItems) {
+        safeData.lineItems = safeData.lineItems.map(item => {
+            // Validate amount if present
+            if (item.amount !== undefined) {
+                const validatedAmount = validateAmount(item.amount, MAX_LINE_ITEM_AMOUNT);
+                const vatAmount = item.vatAmount || (item.vatApplicable !== false ? calculateVAT(validatedAmount) : 0);
+                const totalAmount = validatedAmount + vatAmount;
+
+                return {
+                    ...pickAllowedFields(item, [
+                        'lineItemId', 'expenseDate', 'category', 'description', 'descriptionAr',
+                        'merchant', 'merchantAr', 'location', 'quantity', 'unitPrice',
+                        'currency', 'exchangeRate', 'receiptNumber', 'receiptStatus',
+                        'paymentMethod', 'isBillable', 'notes'
+                    ]),
+                    amount: validatedAmount,
+                    vatAmount,
+                    totalAmount
+                };
+            }
+            return item;
+        });
+
+        // Validate total claim amount
+        const totalClaimAmount = safeData.lineItems.reduce((sum, item) => sum + (item.totalAmount || 0), 0);
+        if (totalClaimAmount > 0) {
+            validateAmount(totalClaimAmount, MAX_CLAIM_AMOUNT);
+        }
+    }
+
+    // Update allowed fields
     for (const field of allowedFields) {
-        if (req.body[field] !== undefined) {
-            claim[field] = req.body[field];
+        if (safeData[field] !== undefined) {
+            claim[field] = safeData[field];
         }
     }
 
@@ -417,7 +561,13 @@ const deleteClaim = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
     const { id } = req.params;
 
-    const query = firmId ? { firmId, _id: id } : { lawyerId, _id: id };
+    // Sanitize claim ID (IDOR protection)
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('Invalid claim ID format', 400);
+    }
+
+    const query = firmId ? { firmId, _id: sanitizedId } : { lawyerId, _id: sanitizedId };
     const claim = await ExpenseClaim.findOne(query);
 
     if (!claim) {
@@ -464,7 +614,13 @@ const submitClaim = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
     const { id } = req.params;
 
-    const query = firmId ? { firmId, _id: id } : { lawyerId, _id: id };
+    // Sanitize claim ID (IDOR protection)
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('Invalid claim ID format', 400);
+    }
+
+    const query = firmId ? { firmId, _id: sanitizedId } : { lawyerId, _id: sanitizedId };
     const claim = await ExpenseClaim.findOne(query);
 
     if (!claim) {
@@ -479,6 +635,13 @@ const submitClaim = asyncHandler(async (req, res) => {
     if (!claim.lineItems || claim.lineItems.length === 0) {
         throw CustomException('Cannot submit claim without line items', 400);
     }
+
+    // Validate total claim amount before submission
+    if (!claim.totals.grandTotal || claim.totals.grandTotal <= 0) {
+        throw CustomException('Invalid claim total amount', 400);
+    }
+
+    validateAmount(claim.totals.grandTotal, MAX_CLAIM_AMOUNT);
 
     // Check policy compliance
     claim.checkPolicyCompliance();
@@ -534,9 +697,18 @@ const approveClaim = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
     const { id } = req.params;
-    const { approvedAmount, comments, itemApprovals } = req.body;
 
-    const query = firmId ? { firmId, _id: id } : { lawyerId, _id: id };
+    // Sanitize claim ID (IDOR protection)
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('Invalid claim ID format', 400);
+    }
+
+    // Mass assignment protection
+    const safeData = pickAllowedFields(req.body, ['approvedAmount', 'comments', 'itemApprovals']);
+    const { approvedAmount, comments, itemApprovals } = safeData;
+
+    const query = firmId ? { firmId, _id: sanitizedId } : { lawyerId, _id: sanitizedId };
     const claim = await ExpenseClaim.findOne(query);
 
     if (!claim) {
@@ -545,6 +717,17 @@ const approveClaim = asyncHandler(async (req, res) => {
 
     if (!['submitted', 'under_review', 'pending_approval'].includes(claim.status)) {
         throw CustomException('Claim is not pending approval', 400);
+    }
+
+    // Validate approved amount if provided
+    let validatedApprovedAmount = approvedAmount || claim.totals.grandTotal;
+    if (approvedAmount !== undefined) {
+        validatedApprovedAmount = validateAmount(approvedAmount, MAX_CLAIM_AMOUNT);
+
+        // Approved amount cannot exceed requested amount
+        if (validatedApprovedAmount > claim.totals.grandTotal) {
+            throw CustomException('Approved amount cannot exceed requested amount', 400);
+        }
     }
 
     const currentStep = claim.approvalWorkflow.currentStep;
@@ -556,7 +739,7 @@ const approveClaim = asyncHandler(async (req, res) => {
         step.actionDate = new Date();
         step.decision = 'approve';
         step.approverId = lawyerId;
-        step.totalApprovedAmount = approvedAmount || claim.totals.grandTotal;
+        step.totalApprovedAmount = validatedApprovedAmount;
         step.comments = comments;
         step.itemApprovals = itemApprovals;
     }
@@ -570,7 +753,7 @@ const approveClaim = asyncHandler(async (req, res) => {
         claim.approvalWorkflow.finalApprover = lawyerId;
         claim.approvalWorkflow.finalApprovalDate = new Date();
         claim.approvalDate = new Date();
-        claim.totals.approvedAmount = approvedAmount || claim.totals.grandTotal;
+        claim.totals.approvedAmount = validatedApprovedAmount;
         claim.approvalWorkflow.totalApprovedAmount = claim.totals.approvedAmount;
         claim.payment.approvedAmount = claim.totals.approvedAmount;
         claim.payment.netReimbursementAmount = claim.totals.approvedAmount;
@@ -742,6 +925,19 @@ const processPayment = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
     const { id } = req.params;
+
+    // Sanitize claim ID (IDOR protection)
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('Invalid claim ID format', 400);
+    }
+
+    // Mass assignment protection
+    const safePaymentData = pickAllowedFields(req.body, [
+        'paymentMethod', 'paymentReference', 'bankTransfer', 'check',
+        'payrollAddition', 'deductions'
+    ]);
+
     const {
         paymentMethod,
         paymentReference,
@@ -749,77 +945,120 @@ const processPayment = asyncHandler(async (req, res) => {
         check,
         payrollAddition,
         deductions
-    } = req.body;
+    } = safePaymentData;
 
-    const query = firmId ? { firmId, _id: id } : { lawyerId, _id: id };
-    const claim = await ExpenseClaim.findOne(query);
-
-    if (!claim) {
-        throw CustomException('Expense claim not found', 404);
+    // Validate required fields
+    if (!paymentMethod) {
+        throw CustomException('Payment method is required', 400);
     }
 
-    if (claim.status !== 'approved') {
-        throw CustomException('Only approved claims can be processed for payment', 400);
+    // Use MongoDB transaction for financial operation
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    try {
+        const query = firmId ? { firmId, _id: sanitizedId } : { lawyerId, _id: sanitizedId };
+        const claim = await ExpenseClaim.findOne(query).session(session);
+
+        if (!claim) {
+            throw CustomException('Expense claim not found', 404);
+        }
+
+        if (claim.status !== 'approved') {
+            throw CustomException('Only approved claims can be processed for payment', 400);
+        }
+
+        // Validate approved amount
+        if (!claim.totals.approvedAmount || claim.totals.approvedAmount <= 0) {
+            throw CustomException('Invalid approved amount', 400);
+        }
+
+        // Calculate and validate deductions
+        let totalDeductions = 0;
+        if (deductions && deductions.length > 0) {
+            // Validate each deduction
+            for (const deduction of deductions) {
+                if (!deduction.deductionAmount || deduction.deductionAmount < 0) {
+                    throw CustomException('Invalid deduction amount', 400);
+                }
+                totalDeductions += parseFloat(deduction.deductionAmount);
+            }
+            claim.payment.deductions = deductions;
+        }
+
+        const netAmount = claim.totals.approvedAmount - totalDeductions;
+
+        // Validate net amount
+        if (netAmount < 0) {
+            throw CustomException('Net amount cannot be negative', 400);
+        }
+
+        claim.payment.paymentMethod = paymentMethod;
+        claim.payment.paymentReference = paymentReference;
+        claim.payment.totalDeductions = totalDeductions;
+        claim.payment.netReimbursementAmount = netAmount;
+        claim.payment.paymentStatus = 'processing';
+        claim.payment.processedBy = lawyerId;
+        claim.payment.processedOn = new Date();
+
+        // Payment method specific details
+        if (bankTransfer) {
+            claim.payment.bankTransfer = {
+                ...pickAllowedFields(bankTransfer, [
+                    'bankName', 'accountNumber', 'iban', 'swiftCode',
+                    'transferDate', 'transferReference'
+                ]),
+                transferStatus: 'pending'
+            };
+        }
+
+        if (check) {
+            claim.payment.check = pickAllowedFields(check, [
+                'checkNumber', 'checkDate', 'bankName', 'payeeName'
+            ]);
+        }
+
+        if (payrollAddition) {
+            claim.payment.payrollAddition = pickAllowedFields(payrollAddition, [
+                'payrollCycle', 'payrollMonth', 'payrollYear'
+            ]);
+        }
+
+        claim.status = 'processing';
+
+        claim.auditTrail.paymentLog.push({
+            action: 'Payment initiated',
+            actionDate: new Date(),
+            actionBy: lawyerId,
+            amount: netAmount,
+            reference: paymentReference,
+            status: 'processing'
+        });
+
+        claim.auditTrail.statusHistory.push({
+            status: 'processing',
+            changedOn: new Date(),
+            changedBy: lawyerId,
+            reason: 'Payment processing initiated'
+        });
+
+        await claim.save({ session });
+
+        // Commit transaction
+        await session.commitTransaction();
+
+        return res.json({
+            success: true,
+            message: 'Payment processing initiated',
+            claim
+        });
+    } catch (error) {
+        // Rollback transaction on error
+        await session.abortTransaction();
+        throw error;
+    } finally {
+        session.endSession();
     }
-
-    // Calculate deductions
-    let totalDeductions = 0;
-    if (deductions && deductions.length > 0) {
-        totalDeductions = deductions.reduce((sum, d) => sum + d.deductionAmount, 0);
-        claim.payment.deductions = deductions;
-    }
-
-    const netAmount = claim.totals.approvedAmount - totalDeductions;
-
-    claim.payment.paymentMethod = paymentMethod;
-    claim.payment.paymentReference = paymentReference;
-    claim.payment.totalDeductions = totalDeductions;
-    claim.payment.netReimbursementAmount = netAmount;
-    claim.payment.paymentStatus = 'processing';
-    claim.payment.processedBy = lawyerId;
-    claim.payment.processedOn = new Date();
-
-    // Payment method specific details
-    if (bankTransfer) {
-        claim.payment.bankTransfer = {
-            ...bankTransfer,
-            transferStatus: 'pending'
-        };
-    }
-
-    if (check) {
-        claim.payment.check = check;
-    }
-
-    if (payrollAddition) {
-        claim.payment.payrollAddition = payrollAddition;
-    }
-
-    claim.status = 'processing';
-
-    claim.auditTrail.paymentLog.push({
-        action: 'Payment initiated',
-        actionDate: new Date(),
-        actionBy: lawyerId,
-        amount: netAmount,
-        reference: paymentReference,
-        status: 'processing'
-    });
-
-    claim.auditTrail.statusHistory.push({
-        status: 'processing',
-        changedOn: new Date(),
-        changedBy: lawyerId,
-        reason: 'Payment processing initiated'
-    });
-
-    await claim.save();
-
-    return res.json({
-        success: true,
-        message: 'Payment processing initiated',
-        claim
-    });
 });
 
 // ═══════════════════════════════════════════════════════════════
@@ -831,54 +1070,83 @@ const confirmPayment = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
     const { id } = req.params;
-    const { paymentDate, paymentReference } = req.body;
 
-    const query = firmId ? { firmId, _id: id } : { lawyerId, _id: id };
-    const claim = await ExpenseClaim.findOne(query);
-
-    if (!claim) {
-        throw CustomException('Expense claim not found', 404);
+    // Sanitize claim ID (IDOR protection)
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('Invalid claim ID format', 400);
     }
 
-    if (claim.status !== 'processing') {
-        throw CustomException('Claim is not in processing status', 400);
+    // Mass assignment protection
+    const safeData = pickAllowedFields(req.body, ['paymentDate', 'paymentReference']);
+    const { paymentDate, paymentReference } = safeData;
+
+    // Use MongoDB transaction for financial operation
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    try {
+        const query = firmId ? { firmId, _id: sanitizedId } : { lawyerId, _id: sanitizedId };
+        const claim = await ExpenseClaim.findOne(query).session(session);
+
+        if (!claim) {
+            throw CustomException('Expense claim not found', 404);
+        }
+
+        if (claim.status !== 'processing') {
+            throw CustomException('Claim is not in processing status', 400);
+        }
+
+        // Validate payment amount
+        if (!claim.payment.netReimbursementAmount || claim.payment.netReimbursementAmount < 0) {
+            throw CustomException('Invalid payment amount', 400);
+        }
+
+        claim.status = 'paid';
+        claim.payment.paymentStatus = 'paid';
+        claim.payment.paymentDate = paymentDate || new Date();
+        claim.payment.paymentReference = paymentReference || claim.payment.paymentReference;
+        claim.paymentDate = claim.payment.paymentDate;
+        claim.totals.paidAmount = claim.payment.netReimbursementAmount;
+
+        if (claim.payment.bankTransfer) {
+            claim.payment.bankTransfer.transferStatus = 'completed';
+            claim.payment.bankTransfer.transferDate = claim.payment.paymentDate;
+        }
+
+        claim.auditTrail.paymentLog.push({
+            action: 'Payment confirmed',
+            actionDate: new Date(),
+            actionBy: lawyerId,
+            amount: claim.payment.netReimbursementAmount,
+            reference: paymentReference,
+            status: 'paid'
+        });
+
+        claim.auditTrail.statusHistory.push({
+            status: 'paid',
+            changedOn: new Date(),
+            changedBy: lawyerId,
+            reason: 'Payment completed'
+        });
+
+        await claim.save({ session });
+
+        // Commit transaction
+        await session.commitTransaction();
+
+        return res.json({
+            success: true,
+            message: 'Payment confirmed',
+            claim
+        });
+    } catch (error) {
+        // Rollback transaction on error
+        await session.abortTransaction();
+        throw error;
+    } finally {
+        session.endSession();
     }
-
-    claim.status = 'paid';
-    claim.payment.paymentStatus = 'paid';
-    claim.payment.paymentDate = paymentDate || new Date();
-    claim.payment.paymentReference = paymentReference || claim.payment.paymentReference;
-    claim.paymentDate = claim.payment.paymentDate;
-    claim.totals.paidAmount = claim.payment.netReimbursementAmount;
-
-    if (claim.payment.bankTransfer) {
-        claim.payment.bankTransfer.transferStatus = 'completed';
-        claim.payment.bankTransfer.transferDate = claim.payment.paymentDate;
-    }
-
-    claim.auditTrail.paymentLog.push({
-        action: 'Payment confirmed',
-        actionDate: new Date(),
-        actionBy: lawyerId,
-        amount: claim.payment.netReimbursementAmount,
-        reference: paymentReference,
-        status: 'paid'
-    });
-
-    claim.auditTrail.statusHistory.push({
-        status: 'paid',
-        changedOn: new Date(),
-        changedBy: lawyerId,
-        reason: 'Payment completed'
-    });
-
-    await claim.save();
-
-    return res.json({
-        success: true,
-        message: 'Payment confirmed',
-        claim
-    });
 });
 
 // ═══════════════════════════════════════════════════════════════
@@ -891,7 +1159,13 @@ const addLineItem = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
     const { id } = req.params;
 
-    const query = firmId ? { firmId, _id: id } : { lawyerId, _id: id };
+    // Sanitize claim ID (IDOR protection)
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('Invalid claim ID format', 400);
+    }
+
+    const query = firmId ? { firmId, _id: sanitizedId } : { lawyerId, _id: sanitizedId };
     const claim = await ExpenseClaim.findOne(query);
 
     if (!claim) {
@@ -902,14 +1176,32 @@ const addLineItem = asyncHandler(async (req, res) => {
         throw CustomException('Cannot add items in current status', 400);
     }
 
+    // Mass assignment protection and amount validation
+    const safeItemData = pickAllowedFields(req.body, [
+        'expenseDate', 'category', 'description', 'descriptionAr',
+        'merchant', 'merchantAr', 'location', 'amount', 'quantity', 'unitPrice',
+        'currency', 'exchangeRate', 'receiptNumber', 'receiptStatus',
+        'paymentMethod', 'isBillable', 'notes'
+    ]);
+
+    // Validate amount
+    const validatedAmount = validateAmount(safeItemData.amount, MAX_LINE_ITEM_AMOUNT);
+    const vatAmount = safeItemData.vatAmount || calculateVAT(validatedAmount);
+    const totalAmount = validatedAmount + vatAmount;
+
     const lineItem = {
-        ...req.body,
+        ...safeItemData,
         lineItemId: generateLineItemId(),
-        vatAmount: req.body.vatAmount || calculateVAT(req.body.amount || 0),
-        totalAmount: (req.body.amount || 0) + (req.body.vatAmount || calculateVAT(req.body.amount || 0))
+        amount: validatedAmount,
+        vatAmount,
+        totalAmount
     };
 
     claim.lineItems.push(lineItem);
+
+    // Validate total claim amount after adding new item
+    const totalClaimAmount = claim.lineItems.reduce((sum, item) => sum + item.totalAmount, 0);
+    validateAmount(totalClaimAmount, MAX_CLAIM_AMOUNT);
 
     claim.auditTrail.modifications.push({
         modificationId: uuidv4(),
@@ -940,7 +1232,13 @@ const updateLineItem = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
     const { id, lineItemId } = req.params;
 
-    const query = firmId ? { firmId, _id: id } : { lawyerId, _id: id };
+    // Sanitize claim ID (IDOR protection)
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('Invalid claim ID format', 400);
+    }
+
+    const query = firmId ? { firmId, _id: sanitizedId } : { lawyerId, _id: sanitizedId };
     const claim = await ExpenseClaim.findOne(query);
 
     if (!claim) {
@@ -959,16 +1257,30 @@ const updateLineItem = asyncHandler(async (req, res) => {
 
     const oldValue = { ...claim.lineItems[itemIndex].toObject() };
 
-    // Update line item
-    Object.assign(claim.lineItems[itemIndex], req.body);
+    // Mass assignment protection
+    const safeItemData = pickAllowedFields(req.body, [
+        'expenseDate', 'category', 'description', 'descriptionAr',
+        'merchant', 'merchantAr', 'location', 'amount', 'quantity', 'unitPrice',
+        'currency', 'exchangeRate', 'receiptNumber', 'receiptStatus',
+        'paymentMethod', 'isBillable', 'notes'
+    ]);
 
-    // Recalculate VAT and total
-    if (req.body.amount !== undefined) {
-        claim.lineItems[itemIndex].vatAmount = req.body.vatAmount ||
-            calculateVAT(req.body.amount);
-        claim.lineItems[itemIndex].totalAmount = req.body.amount +
+    // Update line item with safe data
+    Object.assign(claim.lineItems[itemIndex], safeItemData);
+
+    // Recalculate VAT and total if amount changed
+    if (safeItemData.amount !== undefined) {
+        const validatedAmount = validateAmount(safeItemData.amount, MAX_LINE_ITEM_AMOUNT);
+        claim.lineItems[itemIndex].amount = validatedAmount;
+        claim.lineItems[itemIndex].vatAmount = safeItemData.vatAmount ||
+            calculateVAT(validatedAmount);
+        claim.lineItems[itemIndex].totalAmount = validatedAmount +
             claim.lineItems[itemIndex].vatAmount;
     }
+
+    // Validate total claim amount after update
+    const totalClaimAmount = claim.lineItems.reduce((sum, item) => sum + item.totalAmount, 0);
+    validateAmount(totalClaimAmount, MAX_CLAIM_AMOUNT);
 
     claim.auditTrail.modifications.push({
         modificationId: uuidv4(),
@@ -1001,7 +1313,13 @@ const deleteLineItem = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
     const { id, lineItemId } = req.params;
 
-    const query = firmId ? { firmId, _id: id } : { lawyerId, _id: id };
+    // Sanitize claim ID (IDOR protection)
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('Invalid claim ID format', 400);
+    }
+
+    const query = firmId ? { firmId, _id: sanitizedId } : { lawyerId, _id: sanitizedId };
     const claim = await ExpenseClaim.findOne(query);
 
     if (!claim) {
@@ -1048,13 +1366,33 @@ const uploadReceipt = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
     const { id } = req.params;
-    const { lineItemId, fileName, fileUrl, fileType, fileSize } = req.body;
 
-    const query = firmId ? { firmId, _id: id } : { lawyerId, _id: id };
+    // Sanitize claim ID (IDOR protection)
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('Invalid claim ID format', 400);
+    }
+
+    const query = firmId ? { firmId, _id: sanitizedId } : { lawyerId, _id: sanitizedId };
     const claim = await ExpenseClaim.findOne(query);
 
     if (!claim) {
         throw CustomException('Expense claim not found', 404);
+    }
+
+    // Mass assignment protection
+    const safeReceiptData = pickAllowedFields(req.body, [
+        'lineItemId', 'fileName', 'fileUrl', 'fileType', 'fileSize'
+    ]);
+
+    const { lineItemId, fileName, fileUrl, fileType, fileSize } = safeReceiptData;
+
+    // Validate attachment
+    validateAttachment({ fileUrl, fileType, fileSize });
+
+    // Validate file name
+    if (!fileName || typeof fileName !== 'string' || fileName.length > 255) {
+        throw CustomException('Invalid file name', 400);
     }
 
     const receipt = {
@@ -1109,7 +1447,13 @@ const deleteReceipt = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
     const { id, receiptId } = req.params;
 
-    const query = firmId ? { firmId, _id: id } : { lawyerId, _id: id };
+    // Sanitize claim ID (IDOR protection)
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('Invalid claim ID format', 400);
+    }
+
+    const query = firmId ? { firmId, _id: sanitizedId } : { lawyerId, _id: sanitizedId };
     const claim = await ExpenseClaim.findOne(query);
 
     if (!claim) {

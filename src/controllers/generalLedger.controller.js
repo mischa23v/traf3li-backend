@@ -3,6 +3,8 @@ const Account = require('../models/account.model');
 const asyncHandler = require('../utils/asyncHandler');
 const { CustomException } = require('../utils');
 const BillingActivity = require('../models/billingActivity.model');
+const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
+const mongoose = require('mongoose');
 
 // ═══════════════════════════════════════════════════════════════
 // HELPER: Get firm filter for multi-tenancy
@@ -111,10 +113,17 @@ const getEntries = asyncHandler(async (req, res) => {
 // GET /api/general-ledger/:id
 // ═══════════════════════════════════════════════════════════════
 const getEntry = asyncHandler(async (req, res) => {
+    // SECURITY: Sanitize entry ID to prevent NoSQL injection
+    const entryId = sanitizeObjectId(req.params.id);
+    if (!entryId) {
+        throw new CustomException('Invalid entry ID format', 400);
+    }
+
+    // SECURITY: IDOR Protection - apply firm filter
     const firmFilter = getFirmFilter(req);
 
     const entry = await GeneralLedger.findOne({
-        _id: req.params.id,
+        _id: entryId,
         ...firmFilter
     })
         .populate('debitAccountId', 'code name nameAr type normalBalance')
@@ -143,10 +152,24 @@ const getEntry = asyncHandler(async (req, res) => {
 // Body: { reason: string }
 // ═══════════════════════════════════════════════════════════════
 const voidEntry = asyncHandler(async (req, res) => {
-    const { reason } = req.body;
+    // SECURITY: Mass assignment protection - only allow specific fields
+    const allowedFields = ['reason'];
+    const safeData = pickAllowedFields(req.body, allowedFields);
+    const { reason } = safeData;
 
-    if (!reason || reason.trim().length === 0) {
-        throw new CustomException('Void reason is required', 400);
+    // SECURITY: Input validation for reason
+    if (!reason || typeof reason !== 'string' || reason.trim().length === 0) {
+        throw new CustomException('Void reason is required and must be a non-empty string', 400);
+    }
+
+    if (reason.trim().length > 500) {
+        throw new CustomException('Void reason cannot exceed 500 characters', 400);
+    }
+
+    // SECURITY: Sanitize entry ID to prevent NoSQL injection
+    const entryId = sanitizeObjectId(req.params.id);
+    if (!entryId) {
+        throw new CustomException('Invalid entry ID format', 400);
     }
 
     // Block departed users from financial operations
@@ -154,11 +177,12 @@ const voidEntry = asyncHandler(async (req, res) => {
         throw new CustomException('Departed users cannot void GL entries', 403);
     }
 
+    // SECURITY: IDOR Protection - verify firmId ownership
     const firmFilter = getFirmFilter(req);
 
     // Find entry with firm filter (CRITICAL for security)
     const entry = await GeneralLedger.findOne({
-        _id: req.params.id,
+        _id: entryId,
         ...firmFilter
     });
 
@@ -166,44 +190,83 @@ const voidEntry = asyncHandler(async (req, res) => {
         throw new CustomException('General ledger entry not found', 404);
     }
 
+    // SECURITY: Prevent balance manipulation - validate entry status
     if (entry.status !== 'posted') {
         throw new CustomException('Only posted entries can be voided', 400);
     }
 
-    const result = await GeneralLedger.voidTransaction(
-        req.params.id,
-        reason,
-        req.user?._id
-    );
-
-    // Log activity
-    if (BillingActivity) {
-        try {
-            await BillingActivity.create({
-                firmId: req.firm?._id,
-                userId: req.user?._id,
-                action: 'GL_VOID',
-                referenceModel: 'GeneralLedger',
-                referenceId: req.params.id,
-                details: {
-                    entryNumber: entry.entryNumber,
-                    reason,
-                    reversingEntryId: result.reversingEntry._id
-                }
-            });
-        } catch (err) {
-            console.error('Failed to log GL void activity:', err);
-        }
+    if (entry.status === 'void') {
+        throw new CustomException('Entry is already voided', 400);
     }
 
-    res.status(200).json({
-        success: true,
-        data: {
-            voidedEntry: result.voidedEntry,
-            reversingEntry: result.reversingEntry
-        },
-        message: 'Entry voided successfully'
-    });
+    // SECURITY: Validate amounts to prevent manipulation
+    if (!entry.amount || entry.amount <= 0) {
+        throw new CustomException('Invalid entry amount', 400);
+    }
+
+    // SECURITY: Use MongoDB transactions for atomicity
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    try {
+        const result = await GeneralLedger.voidTransaction(
+            entryId,
+            reason.trim(),
+            req.user?._id,
+            session
+        );
+
+        // SECURITY: Verify reversing entry was created with correct amount
+        if (!result.reversingEntry || result.reversingEntry.amount !== entry.amount) {
+            throw new CustomException('Failed to create valid reversing entry', 500);
+        }
+
+        // SECURITY: Verify accounts were properly swapped in reversing entry
+        if (result.reversingEntry.debitAccountId.toString() !== entry.creditAccountId.toString() ||
+            result.reversingEntry.creditAccountId.toString() !== entry.debitAccountId.toString()) {
+            throw new CustomException('Invalid reversing entry accounts', 500);
+        }
+
+        // Log activity (within transaction)
+        if (BillingActivity) {
+            try {
+                await BillingActivity.create([{
+                    firmId: req.firm?._id,
+                    userId: req.user?._id,
+                    action: 'GL_VOID',
+                    referenceModel: 'GeneralLedger',
+                    referenceId: entryId,
+                    details: {
+                        entryNumber: entry.entryNumber,
+                        reason: reason.trim(),
+                        reversingEntryId: result.reversingEntry._id,
+                        amount: entry.amount
+                    }
+                }], { session });
+            } catch (err) {
+                console.error('Failed to log GL void activity:', err);
+                // Don't fail the transaction for logging errors
+            }
+        }
+
+        // Commit transaction
+        await session.commitTransaction();
+
+        res.status(200).json({
+            success: true,
+            data: {
+                voidedEntry: result.voidedEntry,
+                reversingEntry: result.reversingEntry
+            },
+            message: 'Entry voided successfully'
+        });
+    } catch (error) {
+        // Rollback transaction on error
+        await session.abortTransaction();
+        throw error;
+    } finally {
+        session.endSession();
+    }
 });
 
 // ═══════════════════════════════════════════════════════════════
@@ -214,17 +277,37 @@ const voidEntry = asyncHandler(async (req, res) => {
 const getAccountBalance = asyncHandler(async (req, res) => {
     const { asOfDate, caseId } = req.query;
 
-    const account = await Account.findById(req.params.accountId);
+    // SECURITY: Sanitize accountId to prevent NoSQL injection
+    const accountId = sanitizeObjectId(req.params.accountId);
+    if (!accountId) {
+        throw new CustomException('Invalid account ID format', 400);
+    }
+
+    // SECURITY: IDOR Protection - Verify account exists and belongs to firm
+    const firmFilter = getFirmFilter(req);
+    const account = await Account.findOne({
+        _id: accountId,
+        ...firmFilter
+    });
+
     if (!account) {
         throw new CustomException('Account not found', 404);
     }
 
+    // SECURITY: Sanitize and validate caseId if provided
+    let sanitizedCaseId = null;
+    if (caseId) {
+        sanitizedCaseId = sanitizeObjectId(caseId);
+        if (!sanitizedCaseId) {
+            throw new CustomException('Invalid case ID format', 400);
+        }
+    }
+
     // Use firm-filtered balance calculation
-    const firmFilter = getFirmFilter(req);
     const balance = await getAccountBalanceFiltered(
-        req.params.accountId,
+        accountId,
         asOfDate ? new Date(asOfDate) : null,
-        caseId || null,
+        sanitizedCaseId,
         firmFilter
     );
 
@@ -237,9 +320,21 @@ const getAccountBalance = asyncHandler(async (req, res) => {
 // Helper: Get account balance with firm filter
 async function getAccountBalanceFiltered(accountId, upToDate = null, caseId = null, firmFilter = {}) {
     const Account = require('../models/account.model');
-    const account = await Account.findById(accountId);
+
+    // SECURITY: Sanitize accountId to prevent NoSQL injection
+    const sanitizedAccountId = sanitizeObjectId(accountId);
+    if (!sanitizedAccountId) {
+        throw new Error('Invalid account ID format');
+    }
+
+    // SECURITY: IDOR Protection - Verify account belongs to firm
+    const account = await Account.findOne({
+        _id: sanitizedAccountId,
+        ...firmFilter
+    });
+
     if (!account) {
-        throw new Error('Account not found');
+        throw new Error('Account not found or access denied');
     }
 
     const matchStage = {
@@ -252,8 +347,12 @@ async function getAccountBalanceFiltered(accountId, upToDate = null, caseId = nu
     }
 
     if (caseId) {
-        const mongoose = require('mongoose');
-        matchStage.caseId = mongoose.Types.ObjectId.createFromHexString(caseId.toString());
+        // SECURITY: Sanitize caseId to prevent NoSQL injection
+        const sanitizedCaseId = sanitizeObjectId(caseId);
+        if (!sanitizedCaseId) {
+            throw new Error('Invalid case ID format');
+        }
+        matchStage.caseId = mongoose.Types.ObjectId.createFromHexString(sanitizedCaseId);
     }
 
     // Aggregate debits
@@ -369,16 +468,24 @@ const getTrialBalance = asyncHandler(async (req, res) => {
 const getEntriesByReference = asyncHandler(async (req, res) => {
     const { model, id } = req.params;
 
+    // SECURITY: Validate reference model (allowlist)
     const validModels = ['Invoice', 'Payment', 'Bill', 'BillPayment', 'Expense', 'Retainer', 'JournalEntry', 'TrustTransaction', 'BankTransaction', 'Payroll'];
     if (!validModels.includes(model)) {
         throw new CustomException(`Invalid reference model. Valid models: ${validModels.join(', ')}`, 400);
     }
 
+    // SECURITY: Sanitize reference ID to prevent NoSQL injection
+    const referenceId = sanitizeObjectId(id);
+    if (!referenceId) {
+        throw new CustomException('Invalid reference ID format', 400);
+    }
+
+    // SECURITY: IDOR Protection - apply firm filter
     const firmFilter = getFirmFilter(req);
 
     const entries = await GeneralLedger.find({
         referenceModel: model,
-        referenceId: id,
+        referenceId: referenceId,
         ...firmFilter
     })
         .populate('debitAccountId', 'code name nameAr')
@@ -412,9 +519,13 @@ const getSummary = asyncHandler(async (req, res) => {
         if (endDate) matchStage.transactionDate.$lte = new Date(endDate);
     }
 
+    // SECURITY: Sanitize caseId to prevent NoSQL injection
     if (caseId) {
-        const mongoose = require('mongoose');
-        matchStage.caseId = mongoose.Types.ObjectId.createFromHexString(caseId);
+        const sanitizedCaseId = sanitizeObjectId(caseId);
+        if (!sanitizedCaseId) {
+            throw new CustomException('Invalid case ID format', 400);
+        }
+        matchStage.caseId = mongoose.Types.ObjectId.createFromHexString(sanitizedCaseId);
     }
 
     // Get all accounts

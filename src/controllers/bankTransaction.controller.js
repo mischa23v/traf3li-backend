@@ -1,78 +1,123 @@
 const { BankTransaction, BankAccount, BillingActivity } = require('../models');
 const { CustomException } = require('../utils');
 const asyncHandler = require('../utils/asyncHandler');
+const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
+const mongoose = require('mongoose');
 
 // Create manual transaction
 const createTransaction = asyncHandler(async (req, res) => {
-    const {
-        accountId,
-        date,
-        type,
-        amount,
-        description,
-        reference,
-        category,
-        payee
-    } = req.body;
-
     const lawyerId = req.userID;
 
-    if (!accountId) {
-        throw CustomException('Account ID is required', 400);
+    // Mass assignment protection - only allow specific fields
+    const allowedFields = ['accountId', 'date', 'type', 'amount', 'description', 'reference', 'category', 'payee'];
+    const data = pickAllowedFields(req.body, allowedFields);
+
+    // Sanitize and validate accountId (IDOR protection)
+    const sanitizedAccountId = sanitizeObjectId(data.accountId);
+    if (!sanitizedAccountId) {
+        throw CustomException('Valid account ID is required', 400);
     }
 
-    if (!type || !['credit', 'debit'].includes(type)) {
+    // Validate transaction type
+    if (!data.type || !['credit', 'debit'].includes(data.type)) {
         throw CustomException('Valid transaction type (credit/debit) is required', 400);
     }
 
-    if (!amount || amount <= 0) {
-        throw CustomException('Valid amount is required', 400);
+    // Enhanced amount validation
+    const amount = parseFloat(data.amount);
+    if (isNaN(amount) || amount <= 0 || !isFinite(amount)) {
+        throw CustomException('Valid amount is required (must be positive number)', 400);
+    }
+    if (amount > 999999999.99) {
+        throw CustomException('Amount exceeds maximum allowed value', 400);
     }
 
-    // Validate account exists and belongs to user
-    const account = await BankAccount.findById(accountId);
-    if (!account || account.lawyerId.toString() !== lawyerId) {
-        throw CustomException('Account not found or access denied', 404);
+    // Enhanced date validation
+    let transactionDate;
+    if (data.date) {
+        transactionDate = new Date(data.date);
+        if (isNaN(transactionDate.getTime())) {
+            throw CustomException('Invalid date format', 400);
+        }
+        // Prevent future dates beyond reasonable threshold
+        const futureLimit = new Date();
+        futureLimit.setDate(futureLimit.getDate() + 30);
+        if (transactionDate > futureLimit) {
+            throw CustomException('Date cannot be more than 30 days in the future', 400);
+        }
+        // Prevent dates too far in the past
+        const pastLimit = new Date();
+        pastLimit.setFullYear(pastLimit.getFullYear() - 10);
+        if (transactionDate < pastLimit) {
+            throw CustomException('Date cannot be more than 10 years in the past', 400);
+        }
+    } else {
+        transactionDate = new Date();
     }
 
-    // Get current balance for balance tracking
-    const currentBalance = account.balance;
-    const newBalance = type === 'credit'
-        ? currentBalance + amount
-        : currentBalance - amount;
+    // IDOR protection: Validate account exists and belongs to user
+    const account = await BankAccount.findById(sanitizedAccountId);
+    if (!account) {
+        throw CustomException('Account not found', 404);
+    }
+    if (account.lawyerId.toString() !== lawyerId) {
+        throw CustomException('Access denied: You do not own this account', 403);
+    }
 
-    const transaction = await BankTransaction.create({
-        accountId,
-        date: date || new Date(),
-        type,
-        amount,
-        balance: newBalance,
-        description,
-        reference,
-        category,
-        payee,
-        importSource: 'manual',
-        lawyerId
-    });
+    // Use MongoDB transaction for atomic balance update
+    const session = await mongoose.startSession();
+    session.startTransaction();
 
-    // Update account balance
-    await BankAccount.updateBalance(accountId, amount, type === 'credit' ? 'add' : 'subtract');
+    try {
+        // Get current balance for balance tracking
+        const currentBalance = account.balance || 0;
+        const newBalance = data.type === 'credit'
+            ? currentBalance + amount
+            : currentBalance - amount;
 
-    await BillingActivity.logActivity({
-        activityType: 'bank_transaction_created',
-        userId: lawyerId,
-        relatedModel: 'BankTransaction',
-        relatedId: transaction._id,
-        description: `Transaction ${transaction.transactionId} created: ${type} ${amount}`,
-        ipAddress: req.ip,
-        userAgent: req.get('user-agent')
-    });
+        // Create transaction record
+        const [transaction] = await BankTransaction.create([{
+            accountId: sanitizedAccountId,
+            date: transactionDate,
+            type: data.type,
+            amount,
+            balance: newBalance,
+            description: data.description,
+            reference: data.reference,
+            category: data.category,
+            payee: data.payee,
+            importSource: 'manual',
+            lawyerId
+        }], { session });
 
-    return res.status(201).json({
-        success: true,
-        message: 'Transaction created successfully',
-        transaction
-    });
+        // Update account balance
+        await BankAccount.updateBalance(sanitizedAccountId, amount, data.type === 'credit' ? 'add' : 'subtract');
+
+        // Commit the transaction
+        await session.commitTransaction();
+
+        // Log activity after successful transaction
+        await BillingActivity.logActivity({
+            activityType: 'bank_transaction_created',
+            userId: lawyerId,
+            relatedModel: 'BankTransaction',
+            relatedId: transaction._id,
+            description: `Transaction ${transaction.transactionId} created: ${data.type} ${amount}`,
+            ipAddress: req.ip,
+            userAgent: req.get('user-agent')
+        });
+
+        return res.status(201).json({
+            success: true,
+            message: 'Transaction created successfully',
+            transaction
+        });
+    } catch (error) {
+        await session.abortTransaction();
+        throw error;
+    } finally {
+        session.endSession();
+    }
 });
 
 // Get transactions
@@ -92,22 +137,55 @@ const getTransactions = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const filters = { lawyerId };
 
-    if (accountId) filters.accountId = accountId;
-    if (type) filters.type = type;
+    // IDOR protection: Sanitize accountId if provided
+    if (accountId) {
+        const sanitizedAccountId = sanitizeObjectId(accountId);
+        if (!sanitizedAccountId) {
+            throw CustomException('Invalid account ID format', 400);
+        }
+        // Verify account ownership
+        const account = await BankAccount.findById(sanitizedAccountId);
+        if (!account) {
+            throw CustomException('Account not found', 404);
+        }
+        if (account.lawyerId.toString() !== lawyerId) {
+            throw CustomException('Access denied: You do not own this account', 403);
+        }
+        filters.accountId = sanitizedAccountId;
+    }
+
+    if (type && ['credit', 'debit'].includes(type)) {
+        filters.type = type;
+    }
     if (matched !== undefined) filters.matched = matched === 'true';
     if (isReconciled !== undefined) filters.isReconciled = isReconciled === 'true';
 
+    // Enhanced date validation
     if (startDate || endDate) {
         filters.date = {};
-        if (startDate) filters.date.$gte = new Date(startDate);
-        if (endDate) filters.date.$lte = new Date(endDate);
+        if (startDate) {
+            const start = new Date(startDate);
+            if (isNaN(start.getTime())) {
+                throw CustomException('Invalid start date format', 400);
+            }
+            filters.date.$gte = start;
+        }
+        if (endDate) {
+            const end = new Date(endDate);
+            if (isNaN(end.getTime())) {
+                throw CustomException('Invalid end date format', 400);
+            }
+            filters.date.$lte = end;
+        }
     }
 
     if (search) {
+        // Sanitize search input to prevent regex injection
+        const sanitizedSearch = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         filters.$or = [
-            { description: { $regex: search, $options: 'i' } },
-            { payee: { $regex: search, $options: 'i' } },
-            { reference: { $regex: search, $options: 'i' } }
+            { description: { $regex: sanitizedSearch, $options: 'i' } },
+            { payee: { $regex: sanitizedSearch, $options: 'i' } },
+            { reference: { $regex: sanitizedSearch, $options: 'i' } }
         ];
     }
 
@@ -131,15 +209,22 @@ const getTransaction = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const lawyerId = req.userID;
 
-    const transaction = await BankTransaction.findById(id)
+    // IDOR protection: Sanitize transaction ID
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('Invalid transaction ID format', 400);
+    }
+
+    const transaction = await BankTransaction.findById(sanitizedId)
         .populate('accountId', 'name bankName accountNumber');
 
     if (!transaction) {
         throw CustomException('Transaction not found', 404);
     }
 
+    // IDOR protection: Verify ownership
     if (transaction.lawyerId.toString() !== lawyerId) {
-        throw CustomException('You do not have access to this transaction', 403);
+        throw CustomException('Access denied: You do not own this transaction', 403);
     }
 
     return res.json({
@@ -153,14 +238,28 @@ const importTransactions = asyncHandler(async (req, res) => {
     const { accountId } = req.params;
     const lawyerId = req.userID;
 
+    // IDOR protection: Sanitize and validate accountId
+    const sanitizedAccountId = sanitizeObjectId(accountId);
+    if (!sanitizedAccountId) {
+        throw CustomException('Invalid account ID format', 400);
+    }
+
     // Validate account exists and belongs to user
-    const account = await BankAccount.findById(accountId);
-    if (!account || account.lawyerId.toString() !== lawyerId) {
-        throw CustomException('Account not found or access denied', 404);
+    const account = await BankAccount.findById(sanitizedAccountId);
+    if (!account) {
+        throw CustomException('Account not found', 404);
+    }
+    if (account.lawyerId.toString() !== lawyerId) {
+        throw CustomException('Access denied: You do not own this account', 403);
     }
 
     if (!req.file) {
         throw CustomException('File is required', 400);
+    }
+
+    // Validate file size (prevent DOS attacks)
+    if (req.file.size > 10 * 1024 * 1024) { // 10MB limit
+        throw CustomException('File size exceeds 10MB limit', 400);
     }
 
     // Parse the file based on type
@@ -168,7 +267,7 @@ const importTransactions = asyncHandler(async (req, res) => {
     const fileType = req.file.originalname.split('.').pop().toLowerCase();
 
     let parsedTransactions = [];
-    const batchId = `IMP-${Date.now()}`;
+    const batchId = `IMP-${Date.now()}-${lawyerId}`;
 
     try {
         if (fileType === 'csv') {
@@ -184,10 +283,42 @@ const importTransactions = asyncHandler(async (req, res) => {
         throw CustomException(`Error parsing file: ${error.message}`, 400);
     }
 
+    // Validate parsed transactions count
+    if (parsedTransactions.length === 0) {
+        throw CustomException('No valid transactions found in file', 400);
+    }
+    if (parsedTransactions.length > 10000) {
+        throw CustomException('File contains too many transactions (max 10,000)', 400);
+    }
+
+    // Enhanced duplicate detection: Check for duplicates in current batch
+    const uniqueTransactions = [];
+    const seenKeys = new Set();
+
+    for (const txn of parsedTransactions) {
+        // Validate amount
+        if (isNaN(txn.amount) || txn.amount <= 0 || !isFinite(txn.amount)) {
+            continue; // Skip invalid transactions
+        }
+
+        // Validate date
+        if (!txn.date || isNaN(txn.date.getTime())) {
+            continue; // Skip invalid dates
+        }
+
+        // Create unique key for duplicate detection within the batch
+        const key = `${txn.date.getTime()}-${txn.amount}-${txn.reference || ''}`;
+        if (!seenKeys.has(key)) {
+            seenKeys.add(key);
+            uniqueTransactions.push(txn);
+        }
+    }
+
+    // Import transactions (model method also checks DB for duplicates)
     const results = await BankTransaction.importTransactions(
-        accountId,
+        sanitizedAccountId,
         lawyerId,
-        parsedTransactions,
+        uniqueTransactions,
         fileType,
         batchId
     );
@@ -196,7 +327,7 @@ const importTransactions = asyncHandler(async (req, res) => {
         activityType: 'bank_transactions_imported',
         userId: lawyerId,
         relatedModel: 'BankAccount',
-        relatedId: accountId,
+        relatedId: sanitizedAccountId,
         description: `Imported ${results.imported} transactions from ${fileType.toUpperCase()}`,
         ipAddress: req.ip,
         userAgent: req.get('user-agent')
@@ -214,32 +345,48 @@ const importTransactions = asyncHandler(async (req, res) => {
 // Match transaction with system record
 const matchTransaction = asyncHandler(async (req, res) => {
     const { transactionId } = req.params;
-    const { type, recordId } = req.body;
     const lawyerId = req.userID;
 
-    const transaction = await BankTransaction.findById(transactionId);
+    // Mass assignment protection - only allow specific fields
+    const allowedFields = ['type', 'recordId'];
+    const data = pickAllowedFields(req.body, allowedFields);
+
+    // IDOR protection: Sanitize transaction ID
+    const sanitizedTransactionId = sanitizeObjectId(transactionId);
+    if (!sanitizedTransactionId) {
+        throw CustomException('Invalid transaction ID format', 400);
+    }
+
+    const transaction = await BankTransaction.findById(sanitizedTransactionId);
 
     if (!transaction) {
         throw CustomException('Transaction not found', 404);
     }
 
+    // IDOR protection: Verify ownership
     if (transaction.lawyerId.toString() !== lawyerId) {
-        throw CustomException('You do not have access to this transaction', 403);
+        throw CustomException('Access denied: You do not own this transaction', 403);
     }
 
     if (transaction.matched) {
         throw CustomException('Transaction already matched', 400);
     }
 
-    if (!type || !['Invoice', 'Expense', 'Payment', 'BankTransfer'].includes(type)) {
+    if (!data.type || !['Invoice', 'Expense', 'Payment', 'BankTransfer'].includes(data.type)) {
         throw CustomException('Valid match type required (Invoice, Expense, Payment, BankTransfer)', 400);
     }
 
-    if (!recordId) {
-        throw CustomException('Record ID is required', 400);
+    // IDOR protection: Sanitize record ID
+    const sanitizedRecordId = sanitizeObjectId(data.recordId);
+    if (!sanitizedRecordId) {
+        throw CustomException('Valid record ID is required', 400);
     }
 
-    const updatedTransaction = await BankTransaction.matchTransaction(transactionId, type, recordId);
+    const updatedTransaction = await BankTransaction.matchTransaction(
+        sanitizedTransactionId,
+        data.type,
+        sanitizedRecordId
+    );
 
     return res.json({
         success: true,
@@ -253,21 +400,28 @@ const unmatchTransaction = asyncHandler(async (req, res) => {
     const { transactionId } = req.params;
     const lawyerId = req.userID;
 
-    const transaction = await BankTransaction.findById(transactionId);
+    // IDOR protection: Sanitize transaction ID
+    const sanitizedTransactionId = sanitizeObjectId(transactionId);
+    if (!sanitizedTransactionId) {
+        throw CustomException('Invalid transaction ID format', 400);
+    }
+
+    const transaction = await BankTransaction.findById(sanitizedTransactionId);
 
     if (!transaction) {
         throw CustomException('Transaction not found', 404);
     }
 
+    // IDOR protection: Verify ownership
     if (transaction.lawyerId.toString() !== lawyerId) {
-        throw CustomException('You do not have access to this transaction', 403);
+        throw CustomException('Access denied: You do not own this transaction', 403);
     }
 
     if (!transaction.matched) {
         throw CustomException('Transaction is not matched', 400);
     }
 
-    const updatedTransaction = await BankTransaction.unmatchTransaction(transactionId);
+    const updatedTransaction = await BankTransaction.unmatchTransaction(sanitizedTransactionId);
 
     return res.json({
         success: true,

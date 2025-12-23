@@ -4,6 +4,7 @@ const {
 const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
 const mongoose = require('mongoose');
+const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 
 // ==================== Matter Budget Management ====================
 
@@ -12,20 +13,37 @@ const mongoose = require('mongoose');
  * POST /api/matter-budgets
  */
 const createBudget = asyncHandler(async (req, res) => {
-    const {
-        caseId, clientId, name, nameAr, totalBudget,
-        phases, alertThresholds, notes, templateId
-    } = req.body;
     const lawyerId = req.userID;
+
+    // Mass assignment protection
+    const allowedFields = ['caseId', 'clientId', 'name', 'nameAr', 'totalBudget', 'phases', 'alertThresholds', 'notes', 'templateId'];
+    const data = pickAllowedFields(req.body, allowedFields);
+
+    const { caseId, clientId, name, nameAr, totalBudget, phases, alertThresholds, notes, templateId } = data;
 
     if (!caseId || !totalBudget) {
         throw CustomException('القضية والميزانية الإجمالية مطلوبان', 400);
     }
 
-    // Verify case exists
-    const caseDoc = await Case.findOne({ _id: caseId, lawyerId });
+    // Input validation for budget amounts
+    if (typeof totalBudget !== 'number' || totalBudget <= 0) {
+        throw CustomException('الميزانية الإجمالية يجب أن تكون رقمًا موجبًا', 400);
+    }
+
+    // Sanitize and verify case ownership (IDOR protection)
+    const sanitizedCaseId = sanitizeObjectId(caseId);
+    const caseDoc = await Case.findOne({ _id: sanitizedCaseId, lawyerId });
     if (!caseDoc) {
         throw CustomException('القضية غير موجودة', 404);
+    }
+
+    // Verify client ownership if clientId provided (IDOR protection)
+    if (clientId) {
+        const sanitizedClientId = sanitizeObjectId(clientId);
+        const clientDoc = await Client.findOne({ _id: sanitizedClientId, lawyerId });
+        if (!clientDoc) {
+            throw CustomException('العميل غير موجود', 400);
+        }
     }
 
     // Check if budget already exists for case
@@ -43,8 +61,15 @@ const createBudget = asyncHandler(async (req, res) => {
         }
     }
 
-    // Calculate phase totals if phases provided
+    // Validate phase budgets
     if (budgetPhases.length > 0) {
+        // Validate each phase budget is positive
+        for (const phase of budgetPhases) {
+            if (phase.budget && (typeof phase.budget !== 'number' || phase.budget <= 0)) {
+                throw CustomException('ميزانية المرحلة يجب أن تكون رقمًا موجبًا', 400);
+            }
+        }
+
         const phaseTotal = budgetPhases.reduce((sum, p) => sum + (p.budget || 0), 0);
         if (phaseTotal > totalBudget) {
             throw CustomException('مجموع مراحل الميزانية يتجاوز الميزانية الإجمالية', 400);
@@ -170,18 +195,32 @@ const updateBudget = asyncHandler(async (req, res) => {
         throw CustomException('الميزانية غير موجودة', 404);
     }
 
-    const allowedFields = [
-        'name', 'nameAr', 'totalBudget', 'phases',
-        'alertThresholds', 'status', 'notes'
-    ];
+    // Mass assignment protection - exclude calculated fields and IDs
+    const allowedFields = ['name', 'nameAr', 'totalBudget', 'phases', 'alertThresholds', 'status', 'notes'];
+    const updates = pickAllowedFields(req.body, allowedFields);
 
-    allowedFields.forEach(field => {
-        if (req.body[field] !== undefined) {
-            budget[field] = req.body[field];
+    // Input validation for totalBudget if being updated
+    if (updates.totalBudget !== undefined) {
+        if (typeof updates.totalBudget !== 'number' || updates.totalBudget <= 0) {
+            throw CustomException('الميزانية الإجمالية يجب أن تكون رقمًا موجبًا', 400);
         }
+    }
+
+    // Validate phase budgets if being updated
+    if (updates.phases && updates.phases.length > 0) {
+        for (const phase of updates.phases) {
+            if (phase.budget && (typeof phase.budget !== 'number' || phase.budget <= 0)) {
+                throw CustomException('ميزانية المرحلة يجب أن تكون رقمًا موجبًا', 400);
+            }
+        }
+    }
+
+    // Apply updates
+    Object.keys(updates).forEach(field => {
+        budget[field] = updates[field];
     });
 
-    // Recalculate percentages
+    // Recalculate percentages (prevent manipulation of calculated fields)
     if (budget.totalBudget > 0) {
         budget.percentUsed = (budget.actualSpent / budget.totalBudget) * 100;
     }
@@ -229,20 +268,36 @@ const deleteBudget = asyncHandler(async (req, res) => {
  */
 const addEntry = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const {
-        type, category, phaseId, description, amount,
-        date, reference, billable
-    } = req.body;
     const lawyerId = req.userID;
+
+    // Mass assignment protection
+    const allowedFields = ['type', 'category', 'phaseId', 'description', 'amount', 'date', 'reference', 'billable'];
+    const data = pickAllowedFields(req.body, allowedFields);
+
+    const { type, category, phaseId, description, amount, date, reference, billable } = data;
 
     if (!type || !amount) {
         throw CustomException('نوع المصروف والمبلغ مطلوبان', 400);
     }
 
+    // Input validation for amount
+    if (typeof amount !== 'number' || amount <= 0) {
+        throw CustomException('المبلغ يجب أن يكون رقمًا موجبًا', 400);
+    }
+
+    // IDOR protection - verify budget ownership
     const budget = await MatterBudget.findOne({ _id: id, lawyerId });
 
     if (!budget) {
         throw CustomException('الميزانية غير موجودة', 404);
+    }
+
+    // Verify phase belongs to this budget if phaseId provided
+    if (phaseId) {
+        const phase = budget.phases.id(phaseId);
+        if (!phase) {
+            throw CustomException('المرحلة غير موجودة في هذه الميزانية', 400);
+        }
     }
 
     const entry = await BudgetEntry.create({

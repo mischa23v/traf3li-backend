@@ -5,6 +5,7 @@
 
 const mongoose = require('mongoose');
 const crypto = require('crypto');
+const { timingSafeEqual } = require('../utils/securityUtils');
 
 const emailOtpSchema = new mongoose.Schema({
   email: {
@@ -65,6 +66,12 @@ const emailOtpSchema = new mongoose.Schema({
     default: Date.now,
   },
 
+  // Track failed verification attempts from this IP for rate limiting
+  failedVerificationAttempts: [{
+    ipAddress: String,
+    attemptedAt: Date,
+  }],
+
 }, {
   timestamps: true, // Adds createdAt and updatedAt
 });
@@ -111,9 +118,10 @@ emailOtpSchema.statics.createOTP = async function(email, otp, purpose, expiryMin
 };
 
 /**
- * Static method: Verify OTP
+ * Static method: Verify OTP with timing-safe comparison
  */
-emailOtpSchema.statics.verifyOTP = async function(email, otp, purpose) {
+emailOtpSchema.statics.verifyOTP = async function(email, otp, purpose, ipAddress = null) {
+  // Find the most recent unverified OTP
   const otpRecord = await this.findOne({
     email: email.toLowerCase(),
     purpose,
@@ -129,20 +137,40 @@ emailOtpSchema.statics.verifyOTP = async function(email, otp, purpose) {
     };
   }
 
-  // Check attempts
-  if (otpRecord.attempts >= 3) {
+  // Check if OTP has expired (additional validation)
+  if (otpRecord.isExpired()) {
     return {
       success: false,
-      error: 'Too many failed attempts',
-      errorAr: 'تم تجاوز عدد المحاولات المسموح بها',
+      error: 'OTP has expired',
+      errorAr: 'انتهت صلاحية رمز التحقق',
     };
   }
 
-  // Verify hash
+  // Check if OTP is locked due to too many attempts
+  if (otpRecord.attempts >= 3) {
+    return {
+      success: false,
+      error: 'Too many failed attempts. Please request a new OTP.',
+      errorAr: 'تم تجاوز عدد المحاولات المسموح بها. يرجى طلب رمز جديد.',
+    };
+  }
+
+  // Verify hash using timing-safe comparison to prevent timing attacks
   const inputHash = hashOTP(otp);
-  if (otpRecord.otpHash !== inputHash) {
+  const isValid = timingSafeEqual(otpRecord.otpHash, inputHash);
+
+  if (!isValid) {
     // Increment attempts
     otpRecord.attempts += 1;
+
+    // Track failed verification attempt for rate limiting
+    if (ipAddress) {
+      otpRecord.failedVerificationAttempts.push({
+        ipAddress,
+        attemptedAt: new Date(),
+      });
+    }
+
     await otpRecord.save();
 
     return {
@@ -153,7 +181,7 @@ emailOtpSchema.statics.verifyOTP = async function(email, otp, purpose) {
     };
   }
 
-  // Mark as verified
+  // Mark as verified to prevent reuse
   otpRecord.verified = true;
   await otpRecord.save();
 
@@ -165,7 +193,7 @@ emailOtpSchema.statics.verifyOTP = async function(email, otp, purpose) {
 };
 
 /**
- * Static method: Check rate limit
+ * Static method: Check rate limit for OTP generation
  */
 emailOtpSchema.statics.checkRateLimit = async function(email, purpose) {
   const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
@@ -205,6 +233,95 @@ emailOtpSchema.statics.checkRateLimit = async function(email, purpose) {
         waitTime: waitSeconds,
       };
     }
+  }
+
+  return {
+    limited: false,
+  };
+};
+
+/**
+ * Static method: Check rate limit for OTP verification (IP-based)
+ * Prevents brute force attacks across multiple emails from the same IP
+ */
+emailOtpSchema.statics.checkVerificationRateLimit = async function(ipAddress, email) {
+  if (!ipAddress) {
+    return { limited: false };
+  }
+
+  const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+  const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000);
+
+  // Count failed verification attempts from this IP in the last 5 minutes
+  const recentFailedAttempts = await this.aggregate([
+    {
+      $match: {
+        createdAt: { $gte: fifteenMinutesAgo },
+      }
+    },
+    {
+      $unwind: {
+        path: '$failedVerificationAttempts',
+        preserveNullAndEmptyArrays: false
+      }
+    },
+    {
+      $match: {
+        'failedVerificationAttempts.ipAddress': ipAddress,
+        'failedVerificationAttempts.attemptedAt': { $gte: fiveMinutesAgo }
+      }
+    },
+    {
+      $count: 'total'
+    }
+  ]);
+
+  const failedCount = recentFailedAttempts.length > 0 ? recentFailedAttempts[0].total : 0;
+
+  // Limit: 10 failed verification attempts per IP per 5 minutes
+  if (failedCount >= 10) {
+    return {
+      limited: true,
+      message: 'Too many failed verification attempts. Please try again in 5 minutes.',
+      messageAr: 'محاولات تحقق فاشلة كثيرة جداً. يرجى المحاولة بعد 5 دقائق.',
+      waitTime: 300,
+    };
+  }
+
+  // Additional check: Count total verification attempts (including successful) from this IP in last 15 minutes
+  const totalAttempts = await this.aggregate([
+    {
+      $match: {
+        createdAt: { $gte: fifteenMinutesAgo },
+      }
+    },
+    {
+      $unwind: {
+        path: '$failedVerificationAttempts',
+        preserveNullAndEmptyArrays: false
+      }
+    },
+    {
+      $match: {
+        'failedVerificationAttempts.ipAddress': ipAddress,
+        'failedVerificationAttempts.attemptedAt': { $gte: fifteenMinutesAgo }
+      }
+    },
+    {
+      $count: 'total'
+    }
+  ]);
+
+  const totalCount = totalAttempts.length > 0 ? totalAttempts[0].total : 0;
+
+  // Limit: 20 total verification attempts per IP per 15 minutes
+  if (totalCount >= 20) {
+    return {
+      limited: true,
+      message: 'Too many verification attempts. Please try again later.',
+      messageAr: 'محاولات تحقق كثيرة جداً. يرجى المحاولة لاحقاً.',
+      waitTime: 900,
+    };
   }
 
   return {

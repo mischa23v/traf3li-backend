@@ -11,6 +11,32 @@ const { Firm, User, Client, Case, Invoice, Lead, FirmInvitation } = require('../
 const asyncHandler = require('../utils/asyncHandler');
 const { CustomException } = require('../utils');
 const { getDefaultPermissions } = require('../config/permissions.config');
+const { pickAllowedFields } = require('../utils/securityUtils');
+
+// ═══════════════════════════════════════════════════════════════
+// VALIDATION FUNCTIONS
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Validate Saudi Arabia VAT Registration Number
+ * Saudi VAT is a 15-digit number
+ * Format: NNNNNNNNNNNNNNN (15 numeric digits)
+ *
+ * @param {string} vatNumber - VAT registration number to validate
+ * @returns {boolean} - True if valid, false otherwise
+ */
+const validateSaudiVAT = (vatNumber) => {
+    if (!vatNumber) {
+        return false;
+    }
+
+    // Convert to string and remove any spaces
+    const vat = String(vatNumber).trim();
+
+    // Saudi VAT must be exactly 15 digits
+    const vatRegex = /^\d{15}$/;
+    return vatRegex.test(vat);
+};
 
 // ═══════════════════════════════════════════════════════════════
 // MARKETPLACE FUNCTIONS (Backwards Compatible)
@@ -56,6 +82,22 @@ const getFirms = async (request, response) => {
  */
 const createFirm = asyncHandler(async (req, res) => {
     const userId = req.userID;
+
+    // MASS ASSIGNMENT PROTECTION: Only allow specific fields
+    const allowedFields = [
+        'name',
+        'nameArabic',
+        'nameEnglish',
+        'description',
+        'crNumber',
+        'licenseNumber',
+        'email',
+        'phone',
+        'address',
+        'practiceAreas',
+        'vatRegistration'
+    ];
+    const safeInput = pickAllowedFields(req.body, allowedFields);
     const {
         name,
         nameArabic,
@@ -68,7 +110,17 @@ const createFirm = asyncHandler(async (req, res) => {
         address,
         practiceAreas,
         vatRegistration
-    } = req.body;
+    } = safeInput;
+
+    // Validate required fields
+    if (!name || !licenseNumber) {
+        throw CustomException('الاسم ورقم الترخيص مطلوبان', 400);
+    }
+
+    // VAT VALIDATION: Validate Saudi VAT if provided
+    if (vatRegistration && !validateSaudiVAT(vatRegistration)) {
+        throw CustomException('رقم التسجيل الضريبي غير صحيح. يجب أن يكون 15 رقم سعودي', 400);
+    }
 
     // Check if user already has a firm
     const user = await User.findById(userId);
@@ -236,6 +288,7 @@ const switchFirm = asyncHandler(async (req, res) => {
 /**
  * Get firm by ID
  * GET /api/firms/:id or /:_id
+ * IDOR PROTECTION: Users can only access their own firm or firms where they are members
  */
 const getFirm = asyncHandler(async (req, res) => {
     const id = req.params.id || req.params._id;
@@ -250,6 +303,15 @@ const getFirm = asyncHandler(async (req, res) => {
         throw CustomException('المكتب غير موجود', 404);
     }
 
+    // IDOR PROTECTION: Ensure user is a member of the firm or is the owner
+    const isMember = firm.members.some(m => m.userId._id.toString() === userId);
+    const isOwner = firm.ownerId.toString() === userId;
+    const isInLawyers = firm.lawyers?.some(l => l._id.toString() === userId);
+
+    if (!isMember && !isOwner && !isInLawyers) {
+        throw CustomException('ليس لديك إمكانية الوصول إلى هذا المكتب', 403);
+    }
+
     res.json({
         success: true,
         error: false,
@@ -261,11 +323,11 @@ const getFirm = asyncHandler(async (req, res) => {
 /**
  * Update firm settings
  * PUT /api/firms/:id
+ * MASS ASSIGNMENT PROTECTION: Only allow specific fields to be updated
  */
 const updateFirm = asyncHandler(async (req, res) => {
     const id = req.params.id || req.params._id;
     const userId = req.userID;
-    const updates = req.body;
 
     const firm = await Firm.findById(id);
     if (!firm) {
@@ -284,10 +346,31 @@ const updateFirm = asyncHandler(async (req, res) => {
         throw CustomException('ليس لديك صلاحية لتعديل إعدادات المكتب', 403);
     }
 
-    // Prevent changing ownerId
-    delete updates.ownerId;
-    delete updates.members;
-    delete updates.subscription;
+    // MASS ASSIGNMENT PROTECTION: Only allow specific fields to be updated
+    const allowedFields = [
+        'name',
+        'nameArabic',
+        'nameEnglish',
+        'description',
+        'email',
+        'phone',
+        'address',
+        'practiceAreas',
+        'website',
+        'logo',
+        'businessHours',
+        'socialMedia',
+        'bankDetails',
+        'billingSettings',
+        'enterpriseSettings',
+        'vatRegistration'
+    ];
+    const updates = pickAllowedFields(req.body, allowedFields);
+
+    // VAT VALIDATION: If VAT is being updated, validate it
+    if (updates.vatRegistration && !validateSaudiVAT(updates.vatRegistration)) {
+        throw CustomException('رقم التسجيل الضريبي غير صحيح. يجب أن يكون 15 رقم سعودي', 400);
+    }
 
     const updatedFirm = await Firm.findByIdAndUpdate(
         id,
@@ -307,11 +390,11 @@ const updateFirm = asyncHandler(async (req, res) => {
 /**
  * Update billing settings
  * PATCH /api/firms/:id/billing
+ * MASS ASSIGNMENT PROTECTION: Only allow specific billing fields
  */
 const updateBillingSettings = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const userId = req.userID;
-    const billingSettings = req.body;
 
     const firm = await Firm.findById(id);
     if (!firm) {
@@ -323,6 +406,28 @@ const updateBillingSettings = asyncHandler(async (req, res) => {
     if (!member || !['owner', 'admin'].includes(member.role)) {
         throw CustomException('ليس لديك صلاحية لتعديل إعدادات الفوترة', 403);
     }
+
+    // MASS ASSIGNMENT PROTECTION: Only allow specific billing fields
+    const allowedBillingFields = [
+        'taxId',
+        'companyName',
+        'address',
+        'city',
+        'state',
+        'zipCode',
+        'country',
+        'paymentTerms',
+        'invoicePrefix',
+        'currency',
+        'tax',
+        'bankName',
+        'bankAccountNumber',
+        'iban',
+        'swift',
+        'paypalEmail',
+        'stripeAccountId'
+    ];
+    const billingSettings = pickAllowedFields(req.body, allowedBillingFields);
 
     firm.billingSettings = {
         ...firm.billingSettings,
@@ -481,40 +586,45 @@ const addLawyer = async (request, response) => {
 /**
  * Update member role/permissions
  * PUT /api/firms/:id/members/:memberId
+ * MASS ASSIGNMENT PROTECTION: Only allow specific member fields
+ * IDOR PROTECTION: Only allow updating members within the requesting user's firm
  */
 const updateMember = asyncHandler(async (req, res) => {
     const { id, memberId } = req.params;
     const userId = req.userID;
-    const { role, permissions, title, department, status } = req.body;
 
     const firm = await Firm.findById(id);
     if (!firm) {
         throw CustomException('المكتب غير موجود', 404);
     }
 
-    // Check if user is owner or admin
+    // IDOR PROTECTION: Check if user is owner or admin of THIS firm
     const requestingMember = firm.members.find(m => m.userId.toString() === userId);
     if (!requestingMember || !['owner', 'admin'].includes(requestingMember.role)) {
         throw CustomException('ليس لديك صلاحية لتعديل الأعضاء', 403);
     }
 
-    // Find the member to update
+    // IDOR PROTECTION: Verify the member being updated exists in THIS firm
     const memberToUpdate = firm.members.find(m => m.userId.toString() === memberId);
     if (!memberToUpdate) {
         throw CustomException('العضو غير موجود', 404);
     }
 
+    // MASS ASSIGNMENT PROTECTION: Only allow specific fields to be updated
+    const allowedFields = ['role', 'permissions', 'title', 'department', 'status'];
+    const updates = pickAllowedFields(req.body, allowedFields);
+
     // Cannot change owner's role
-    if (memberToUpdate.role === 'owner' && role !== 'owner') {
+    if (memberToUpdate.role === 'owner' && updates.role && updates.role !== 'owner') {
         throw CustomException('لا يمكن تغيير دور مالك المكتب', 400);
     }
 
     // Only owner can promote to admin
-    if (role === 'admin' && requestingMember.role !== 'owner') {
+    if (updates.role === 'admin' && requestingMember.role !== 'owner') {
         throw CustomException('فقط مالك المكتب يمكنه تعيين مسؤولين', 403);
     }
 
-    await firm.updateMember(memberId, { role, permissions, title, department, status });
+    await firm.updateMember(memberId, updates);
 
     res.json({
         success: true,
@@ -1419,6 +1529,7 @@ const acceptInvitation = asyncHandler(async (req, res) => {
 /**
  * Convert solo lawyer to firm owner
  * POST /api/users/convert-to-firm
+ * MASS ASSIGNMENT PROTECTION: Only allow specific firm data fields
  */
 const convertSoloToFirm = asyncHandler(async (req, res) => {
     const userId = req.userID;
@@ -1440,27 +1551,50 @@ const convertSoloToFirm = asyncHandler(async (req, res) => {
     //     throw CustomException('لديك مكتب مرتبط بالفعل', 409);
     // }
 
+    // MASS ASSIGNMENT PROTECTION: Only allow specific firm data fields
+    const allowedFirmFields = [
+        'name',
+        'nameEn',
+        'licenseNumber',
+        'email',
+        'phone',
+        'region',
+        'city',
+        'address',
+        'website',
+        'description',
+        'specializations',
+        'vatRegistration'
+    ];
+    const safeFirmData = pickAllowedFields(firmData, allowedFirmFields);
+
     // Validate firm data
-    if (!firmData || !firmData.name || !firmData.licenseNumber) {
+    if (!safeFirmData || !safeFirmData.name || !safeFirmData.licenseNumber) {
         throw CustomException('بيانات المكتب مطلوبة: الاسم ورقم الترخيص', 400);
+    }
+
+    // VAT VALIDATION: Validate Saudi VAT if provided
+    if (safeFirmData.vatRegistration && !validateSaudiVAT(safeFirmData.vatRegistration)) {
+        throw CustomException('رقم التسجيل الضريبي غير صحيح. يجب أن يكون 15 رقم سعودي', 400);
     }
 
     // Create the firm
     const firm = await Firm.create({
-        name: firmData.name,
-        nameArabic: firmData.name,
-        nameEnglish: firmData.nameEn || null,
-        licenseNumber: firmData.licenseNumber,
-        email: firmData.email || user.email,
-        phone: firmData.phone || user.phone,
+        name: safeFirmData.name,
+        nameArabic: safeFirmData.name,
+        nameEnglish: safeFirmData.nameEn || null,
+        licenseNumber: safeFirmData.licenseNumber,
+        email: safeFirmData.email || user.email,
+        phone: safeFirmData.phone || user.phone,
         address: {
-            region: firmData.region,
-            city: firmData.city,
-            street: firmData.address
+            region: safeFirmData.region,
+            city: safeFirmData.city,
+            street: safeFirmData.address
         },
-        website: firmData.website || null,
-        description: firmData.description || null,
-        practiceAreas: firmData.specializations || user.lawyerProfile?.specialization || [],
+        website: safeFirmData.website || null,
+        description: safeFirmData.description || null,
+        practiceAreas: safeFirmData.specializations || user.lawyerProfile?.specialization || [],
+        vatRegistration: safeFirmData.vatRegistration || null,
         ownerId: userId,
         createdBy: userId,
         lawyers: [userId],

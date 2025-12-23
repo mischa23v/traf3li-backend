@@ -2,6 +2,8 @@ const Grievance = require('../models/grievance.model');
 const Employee = require('../models/employee.model');
 const { CustomException } = require('../utils');
 const asyncHandler = require('../utils/asyncHandler');
+const { pickAllowedFields, sanitizeObjectId, sanitizeForLog } = require('../utils/securityUtils');
+const { sanitizeRichText, stripHtml } = require('../utils/sanitize');
 
 // ═══════════════════════════════════════════════════════════════
 // CONFIGURABLE POLICIES
@@ -220,13 +222,38 @@ const getGrievance = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
     const baseQuery = firmId ? { firmId } : { lawyerId };
 
+    // Sanitize ObjectId
+    const sanitizedId = sanitizeObjectId(req.params.id);
+    if (!sanitizedId) {
+        throw CustomException('Invalid grievance ID format', 400);
+    }
+
+    // IDOR Protection: Verify grievance belongs to firm/lawyer
     const grievance = await Grievance.findOne({
-        _id: req.params.id,
+        _id: sanitizedId,
         ...baseQuery
     }).populate('employeeId', 'employeeId personalInfo employment');
 
     if (!grievance) {
-        throw CustomException('Grievance not found', 404);
+        throw CustomException('Grievance not found or access denied', 404);
+    }
+
+    // Confidentiality check: Only authorized viewers can access confidential grievances
+    if (grievance.confidential) {
+        const userId = req.userID?.toString();
+        const createdBy = grievance.createdBy?.toString();
+        const assignedTo = grievance.assignedTo?.toString();
+
+        // Allow access only to creator, assigned person, or firm/lawyer owner
+        const isAuthorized =
+            userId === createdBy ||
+            userId === assignedTo ||
+            (firmId && grievance.firmId?.toString() === firmId.toString()) ||
+            (lawyerId && grievance.lawyerId?.toString() === lawyerId.toString());
+
+        if (!isAuthorized) {
+            throw CustomException('Access denied: This is a confidential grievance', 403);
+        }
     }
 
     return res.json({
@@ -243,12 +270,27 @@ const getEmployeeGrievances = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
     const baseQuery = firmId ? { firmId } : { lawyerId };
 
-    const { employeeId } = req.params;
+    // Sanitize ObjectId
+    const sanitizedEmployeeId = sanitizeObjectId(req.params.employeeId);
+    if (!sanitizedEmployeeId) {
+        throw CustomException('Invalid employee ID format', 400);
+    }
+
+    // IDOR Protection: Verify employee belongs to firm/lawyer
+    const employee = await Employee.findOne({
+        _id: sanitizedEmployeeId,
+        ...baseQuery
+    });
+
+    if (!employee) {
+        throw CustomException('Employee not found or access denied', 404);
+    }
+
     const { status } = req.query;
 
     const query = {
         ...baseQuery,
-        employeeId
+        employeeId: sanitizedEmployeeId
     };
 
     if (status) query.status = status;
@@ -371,22 +413,44 @@ const createGrievance = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
-    const {
-        employeeId,
-        grievanceType,
-        grievanceCategory,
-        grievanceSubject,
-        grievanceDescription,
-        filedDate,
-        severity,
-        ...otherData
-    } = req.body;
+    // Mass assignment protection - only allow specific fields
+    const allowedFields = [
+        'employeeId', 'grievanceType', 'grievanceCategory', 'grievanceSubject',
+        'grievanceSubjectAr', 'grievanceDescription', 'grievanceDescriptionAr',
+        'filedDate', 'severity', 'confidential', 'protectedDisclosure',
+        'anonymousComplaint', 'incidentDate', 'incidentLocation',
+        'witnessesAvailable', 'evidenceAvailable', 'desiredOutcome',
+        'urgencyLevel', 'contactPreference'
+    ];
+    const safeData = pickAllowedFields(req.body, allowedFields);
 
-    // Validate employee
-    const employee = await Employee.findById(employeeId);
-    if (!employee) {
-        throw CustomException('Employee not found', 404);
+    // Sanitize ObjectId
+    const sanitizedEmployeeId = sanitizeObjectId(safeData.employeeId);
+    if (!sanitizedEmployeeId) {
+        throw CustomException('Invalid employee ID format', 400);
     }
+
+    // IDOR Protection: Validate employee belongs to the firm/lawyer
+    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const employee = await Employee.findOne({
+        _id: sanitizedEmployeeId,
+        ...baseQuery
+    });
+
+    if (!employee) {
+        throw CustomException('Employee not found or access denied', 404);
+    }
+
+    // Input validation and XSS prevention
+    if (!safeData.grievanceType || !safeData.grievanceSubject) {
+        throw CustomException('Grievance type and subject are required', 400);
+    }
+
+    // Sanitize text fields to prevent XSS
+    const grievanceSubject = stripHtml(safeData.grievanceSubject);
+    const grievanceSubjectAr = safeData.grievanceSubjectAr ? stripHtml(safeData.grievanceSubjectAr) : undefined;
+    const grievanceDescription = safeData.grievanceDescription ? sanitizeRichText(safeData.grievanceDescription) : '';
+    const grievanceDescriptionAr = safeData.grievanceDescriptionAr ? sanitizeRichText(safeData.grievanceDescriptionAr) : undefined;
 
     // Extract employee info
     const employeeName = employee.personalInfo?.fullNameEnglish ||
@@ -400,20 +464,21 @@ const createGrievance = asyncHandler(async (req, res) => {
     const phone = employee.personalInfo?.mobile;
 
     // Calculate priority
-    const priority = calculatePriority(grievanceType, severity || 'moderate');
+    const severity = safeData.severity || 'moderate';
+    const priority = calculatePriority(safeData.grievanceType, severity);
 
     // Calculate risk assessment
     const riskAssessment = calculateRiskAssessment(
-        grievanceType,
-        severity || 'moderate',
-        otherData.protectedDisclosure || false
+        safeData.grievanceType,
+        severity,
+        safeData.protectedDisclosure || false
     );
 
-    // Create grievance
+    // Create grievance with sanitized and validated data
     const grievance = new Grievance({
         firmId: firmId || undefined,
         lawyerId: !firmId ? lawyerId : undefined,
-        employeeId,
+        employeeId: sanitizedEmployeeId,
         employeeName,
         employeeNameAr,
         employeeNumber,
@@ -421,15 +486,27 @@ const createGrievance = asyncHandler(async (req, res) => {
         jobTitle,
         email,
         phone,
-        grievanceType,
-        grievanceCategory: grievanceCategory || 'individual',
+        grievanceType: safeData.grievanceType,
+        grievanceCategory: safeData.grievanceCategory || 'individual',
         grievanceSubject,
+        grievanceSubjectAr,
         grievanceDescription,
-        filedDate: filedDate || new Date(),
-        severity: severity || 'moderate',
+        grievanceDescriptionAr,
+        filedDate: safeData.filedDate || new Date(),
+        severity,
         priority,
         status: 'submitted',
         statusDate: new Date(),
+        confidential: safeData.confidential === true,
+        protectedDisclosure: safeData.protectedDisclosure === true,
+        anonymousComplaint: safeData.anonymousComplaint === true,
+        incidentDate: safeData.incidentDate,
+        incidentLocation: safeData.incidentLocation ? stripHtml(safeData.incidentLocation) : undefined,
+        witnessesAvailable: safeData.witnessesAvailable,
+        evidenceAvailable: safeData.evidenceAvailable,
+        desiredOutcome: safeData.desiredOutcome ? sanitizeRichText(safeData.desiredOutcome) : undefined,
+        urgencyLevel: safeData.urgencyLevel,
+        contactPreference: safeData.contactPreference,
         assessment: {
             assessed: false,
             initialReview: {
@@ -444,8 +521,7 @@ const createGrievance = asyncHandler(async (req, res) => {
                 req.userID
             )
         ],
-        createdBy: req.userID,
-        ...otherData
+        createdBy: req.userID
     });
 
     await grievance.save();
@@ -465,13 +541,20 @@ const updateGrievance = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
     const baseQuery = firmId ? { firmId } : { lawyerId };
 
+    // Sanitize ObjectId
+    const sanitizedId = sanitizeObjectId(req.params.id);
+    if (!sanitizedId) {
+        throw CustomException('Invalid grievance ID format', 400);
+    }
+
+    // IDOR Protection: Verify grievance belongs to firm/lawyer
     const grievance = await Grievance.findOne({
-        _id: req.params.id,
+        _id: sanitizedId,
         ...baseQuery
     });
 
     if (!grievance) {
-        throw CustomException('Grievance not found', 404);
+        throw CustomException('Grievance not found or access denied', 404);
     }
 
     // Prevent updates on closed grievances
@@ -479,16 +562,45 @@ const updateGrievance = asyncHandler(async (req, res) => {
         throw CustomException('Cannot update closed grievance', 400);
     }
 
-    // Update fields
-    const updateFields = { ...req.body, updatedBy: req.userID };
-    delete updateFields.grievanceId;
-    delete updateFields.grievanceNumber;
-    delete updateFields.firmId;
-    delete updateFields.lawyerId;
-    delete updateFields.employeeId;
-    delete updateFields.createdBy;
+    // Mass assignment protection - only allow specific fields
+    const allowedFields = [
+        'grievanceSubject', 'grievanceSubjectAr',
+        'grievanceDescription', 'grievanceDescriptionAr',
+        'severity', 'priority', 'confidential',
+        'incidentDate', 'incidentLocation',
+        'witnessesAvailable', 'evidenceAvailable',
+        'desiredOutcome', 'urgencyLevel', 'contactPreference',
+        'statusReason', 'internalNotes'
+    ];
+    const safeData = pickAllowedFields(req.body, allowedFields);
 
-    Object.assign(grievance, updateFields);
+    // Sanitize text fields to prevent XSS
+    if (safeData.grievanceSubject) {
+        safeData.grievanceSubject = stripHtml(safeData.grievanceSubject);
+    }
+    if (safeData.grievanceSubjectAr) {
+        safeData.grievanceSubjectAr = stripHtml(safeData.grievanceSubjectAr);
+    }
+    if (safeData.grievanceDescription) {
+        safeData.grievanceDescription = sanitizeRichText(safeData.grievanceDescription);
+    }
+    if (safeData.grievanceDescriptionAr) {
+        safeData.grievanceDescriptionAr = sanitizeRichText(safeData.grievanceDescriptionAr);
+    }
+    if (safeData.incidentLocation) {
+        safeData.incidentLocation = stripHtml(safeData.incidentLocation);
+    }
+    if (safeData.desiredOutcome) {
+        safeData.desiredOutcome = sanitizeRichText(safeData.desiredOutcome);
+    }
+    if (safeData.internalNotes) {
+        safeData.internalNotes = sanitizeRichText(safeData.internalNotes);
+    }
+
+    // Update fields with sanitized data
+    Object.assign(grievance, safeData);
+    grievance.updatedBy = req.userID;
+
     await grievance.save();
 
     return res.json({
@@ -618,20 +730,42 @@ const startInvestigation = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
     const baseQuery = firmId ? { firmId } : { lawyerId };
 
-    const { investigatorName, investigatorType, scope, methodology } = req.body;
+    // Sanitize ObjectId
+    const sanitizedId = sanitizeObjectId(req.params.id);
+    if (!sanitizedId) {
+        throw CustomException('Invalid grievance ID format', 400);
+    }
 
+    // IDOR Protection: Verify grievance belongs to firm/lawyer
     const grievance = await Grievance.findOne({
-        _id: req.params.id,
+        _id: sanitizedId,
         ...baseQuery
     });
 
     if (!grievance) {
-        throw CustomException('Grievance not found', 404);
+        throw CustomException('Grievance not found or access denied', 404);
     }
 
     if (!['submitted', 'under_review'].includes(grievance.status)) {
         throw CustomException('Investigation can only be started for submitted or under review grievances', 400);
     }
+
+    // Mass assignment protection
+    const allowedFields = [
+        'investigatorName', 'investigatorType', 'scope', 'methodology',
+        'estimatedDuration', 'objectives'
+    ];
+    const safeData = pickAllowedFields(req.body, allowedFields);
+
+    // Input validation
+    if (!safeData.investigatorName) {
+        throw CustomException('Investigator name is required', 400);
+    }
+
+    // Sanitize text fields
+    const investigatorName = stripHtml(safeData.investigatorName);
+    const scope = safeData.scope ? sanitizeRichText(safeData.scope) : undefined;
+    const methodology = safeData.methodology ? sanitizeRichText(safeData.methodology) : undefined;
 
     grievance.status = 'investigating';
     grievance.statusDate = new Date();
@@ -643,7 +777,7 @@ const startInvestigation = asyncHandler(async (req, res) => {
     grievance.investigation.investigationCompleted = false;
     grievance.investigation.investigators = [{
         investigatorName,
-        investigatorType: investigatorType || 'internal_hr',
+        investigatorType: safeData.investigatorType || 'internal_hr',
         role: 'lead',
         independentOfParties: true,
         conflictOfInterest: false
@@ -652,7 +786,8 @@ const startInvestigation = asyncHandler(async (req, res) => {
     if (scope || methodology) {
         grievance.investigation.investigationPlan = {
             scope,
-            methodology
+            methodology,
+            objectives: safeData.objectives ? sanitizeRichText(safeData.objectives) : undefined
         };
     }
 
@@ -682,20 +817,41 @@ const completeInvestigation = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
     const baseQuery = firmId ? { firmId } : { lawyerId };
 
-    const { substantiated, findingsNarrative, findingsNarrativeAr, recommendations } = req.body;
+    // Sanitize ObjectId
+    const sanitizedId = sanitizeObjectId(req.params.id);
+    if (!sanitizedId) {
+        throw CustomException('Invalid grievance ID format', 400);
+    }
 
+    // IDOR Protection: Verify grievance belongs to firm/lawyer
     const grievance = await Grievance.findOne({
-        _id: req.params.id,
+        _id: sanitizedId,
         ...baseQuery
     });
 
     if (!grievance) {
-        throw CustomException('Grievance not found', 404);
+        throw CustomException('Grievance not found or access denied', 404);
     }
 
     if (grievance.status !== 'investigating') {
         throw CustomException('Grievance is not under investigation', 400);
     }
+
+    // Mass assignment protection
+    const allowedFields = [
+        'substantiated', 'findingsNarrative', 'findingsNarrativeAr',
+        'recommendations', 'evidenceReviewed', 'witnessesInterviewed'
+    ];
+    const safeData = pickAllowedFields(req.body, allowedFields);
+
+    // Input validation
+    if (safeData.substantiated === undefined) {
+        throw CustomException('Substantiated status is required', 400);
+    }
+
+    // Sanitize text fields
+    const findingsNarrative = safeData.findingsNarrative ? sanitizeRichText(safeData.findingsNarrative) : '';
+    const findingsNarrativeAr = safeData.findingsNarrativeAr ? sanitizeRichText(safeData.findingsNarrativeAr) : undefined;
 
     grievance.investigation.investigationCompleted = true;
     grievance.investigation.investigationEndDate = new Date();
@@ -710,17 +866,25 @@ const completeInvestigation = asyncHandler(async (req, res) => {
 
     grievance.investigation.findings = {
         findingsDate: new Date(),
-        substantiated,
-        findingLevel: substantiated ? 'substantiated' : 'unsubstantiated',
+        substantiated: safeData.substantiated,
+        findingLevel: safeData.substantiated ? 'substantiated' : 'unsubstantiated',
         findingsNarrative,
         findingsNarrativeAr
     };
 
-    if (recommendations && recommendations.length > 0) {
+    if (safeData.recommendations && Array.isArray(safeData.recommendations) && safeData.recommendations.length > 0) {
+        // Sanitize each recommendation
+        const sanitizedRecommendations = safeData.recommendations.map(rec => {
+            if (typeof rec === 'string') {
+                return sanitizeRichText(rec);
+            }
+            return rec;
+        });
+
         grievance.investigation.investigationReport = {
             reportPrepared: true,
             reportDate: new Date(),
-            recommendations
+            recommendations: sanitizedRecommendations
         };
     }
 
@@ -729,8 +893,8 @@ const completeInvestigation = asyncHandler(async (req, res) => {
     grievance.timeline.push(
         createTimelineEvent(
             'investigation_completed',
-            `Investigation completed - ${substantiated ? 'Substantiated' : 'Not substantiated'}`,
-            `اكتمل التحقيق - ${substantiated ? 'مثبتة' : 'غير مثبتة'}`,
+            `Investigation completed - ${safeData.substantiated ? 'Substantiated' : 'Not substantiated'}`,
+            `اكتمل التحقيق - ${safeData.substantiated ? 'مثبتة' : 'غير مثبتة'}`,
             req.userID
         )
     );
@@ -752,28 +916,51 @@ const resolveGrievance = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
     const baseQuery = firmId ? { firmId } : { lawyerId };
 
-    const {
-        resolutionMethod,
-        outcome,
-        decisionSummary,
-        decisionSummaryAr,
-        actionsTaken,
-        disciplinaryAction,
-        remedialActions
-    } = req.body;
+    // Sanitize ObjectId
+    const sanitizedId = sanitizeObjectId(req.params.id);
+    if (!sanitizedId) {
+        throw CustomException('Invalid grievance ID format', 400);
+    }
 
+    // IDOR Protection: Verify grievance belongs to firm/lawyer
     const grievance = await Grievance.findOne({
-        _id: req.params.id,
+        _id: sanitizedId,
         ...baseQuery
     });
 
     if (!grievance) {
-        throw CustomException('Grievance not found', 404);
+        throw CustomException('Grievance not found or access denied', 404);
     }
 
     if (['resolved', 'closed', 'withdrawn'].includes(grievance.status)) {
         throw CustomException('Grievance is already resolved, closed, or withdrawn', 400);
     }
+
+    // Mass assignment protection
+    const allowedFields = [
+        'resolutionMethod', 'outcome', 'decisionSummary', 'decisionSummaryAr',
+        'actionsTaken', 'disciplinaryAction', 'remedialActions',
+        'compensationAwarded', 'followUpRequired'
+    ];
+    const safeData = pickAllowedFields(req.body, allowedFields);
+
+    // Input validation
+    if (!safeData.outcome) {
+        throw CustomException('Resolution outcome is required', 400);
+    }
+
+    // Sanitize text fields
+    const decisionSummary = safeData.decisionSummary ? sanitizeRichText(safeData.decisionSummary) : '';
+    const decisionSummaryAr = safeData.decisionSummaryAr ? sanitizeRichText(safeData.decisionSummaryAr) : undefined;
+
+    // Sanitize arrays
+    const actionsTaken = Array.isArray(safeData.actionsTaken)
+        ? safeData.actionsTaken.map(action => typeof action === 'string' ? stripHtml(action) : action)
+        : [];
+
+    const remedialActions = Array.isArray(safeData.remedialActions)
+        ? safeData.remedialActions.map(action => typeof action === 'string' ? sanitizeRichText(action) : action)
+        : [];
 
     grievance.status = 'resolved';
     grievance.statusDate = new Date();
@@ -782,17 +969,17 @@ const resolveGrievance = asyncHandler(async (req, res) => {
     grievance.resolution = {
         resolved: true,
         resolutionDate: new Date(),
-        resolutionMethod: resolutionMethod || 'management_decision',
+        resolutionMethod: safeData.resolutionMethod || 'management_decision',
         decision: {
             decisionMaker: req.user?.name || 'HR Manager',
             decisionDate: new Date(),
             decisionSummary,
             decisionSummaryAr,
-            outcome
+            outcome: safeData.outcome
         },
-        actionsTaken: actionsTaken || [],
-        disciplinaryAction,
-        remedialActions: remedialActions || [],
+        actionsTaken,
+        disciplinaryAction: safeData.disciplinaryAction,
+        remedialActions,
         resolutionLetter: {
             issued: false
         }
@@ -808,7 +995,7 @@ const resolveGrievance = asyncHandler(async (req, res) => {
     grievance.timeline.push(
         createTimelineEvent(
             'resolution',
-            `Grievance resolved - ${outcome}`,
+            `Grievance resolved - ${safeData.outcome}`,
             'تم حل الشكوى',
             req.userID
         )
@@ -1014,19 +1201,49 @@ const addTimelineEvent = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
     const baseQuery = firmId ? { firmId } : { lawyerId };
 
+    // Sanitize ObjectId
+    const sanitizedId = sanitizeObjectId(req.params.id);
+    if (!sanitizedId) {
+        throw CustomException('Invalid grievance ID format', 400);
+    }
+
+    // IDOR Protection: Verify grievance belongs to firm/lawyer
     const grievance = await Grievance.findOne({
-        _id: req.params.id,
+        _id: sanitizedId,
         ...baseQuery
     });
 
     if (!grievance) {
-        throw CustomException('Grievance not found', 404);
+        throw CustomException('Grievance not found or access denied', 404);
+    }
+
+    // Mass assignment protection for timeline event
+    const allowedFields = [
+        'eventType', 'eventDescription', 'eventDescriptionAr',
+        'eventDate', 'notes', 'attachments'
+    ];
+    const safeData = pickAllowedFields(req.body, allowedFields);
+
+    // Input validation
+    if (!safeData.eventType || !safeData.eventDescription) {
+        throw CustomException('Event type and description are required', 400);
+    }
+
+    // Sanitize text fields
+    if (safeData.eventDescription) {
+        safeData.eventDescription = stripHtml(safeData.eventDescription);
+    }
+    if (safeData.eventDescriptionAr) {
+        safeData.eventDescriptionAr = stripHtml(safeData.eventDescriptionAr);
+    }
+    if (safeData.notes) {
+        safeData.notes = sanitizeRichText(safeData.notes);
     }
 
     const event = {
-        ...req.body,
+        ...safeData,
         eventId: generateEventId(),
-        eventDate: req.body.eventDate || new Date(),
+        eventDate: safeData.eventDate || new Date(),
         performedBy: req.userID
     };
 
@@ -1049,18 +1266,54 @@ const addWitness = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
     const baseQuery = firmId ? { firmId } : { lawyerId };
 
+    // Sanitize ObjectId
+    const sanitizedId = sanitizeObjectId(req.params.id);
+    if (!sanitizedId) {
+        throw CustomException('Invalid grievance ID format', 400);
+    }
+
+    // IDOR Protection: Verify grievance belongs to firm/lawyer
     const grievance = await Grievance.findOne({
-        _id: req.params.id,
+        _id: sanitizedId,
         ...baseQuery
     });
 
     if (!grievance) {
-        throw CustomException('Grievance not found', 404);
+        throw CustomException('Grievance not found or access denied', 404);
+    }
+
+    // Mass assignment protection for witness
+    const allowedFields = [
+        'witnessName', 'witnessNameAr', 'witnessType', 'relationship',
+        'contactInfo', 'statementProvided', 'statementDate',
+        'statementSummary', 'statementSummaryAr', 'credibilityAssessment'
+    ];
+    const safeData = pickAllowedFields(req.body, allowedFields);
+
+    // Input validation
+    if (!safeData.witnessName) {
+        throw CustomException('Witness name is required', 400);
+    }
+
+    // Sanitize text fields
+    if (safeData.witnessName) {
+        safeData.witnessName = stripHtml(safeData.witnessName);
+    }
+    if (safeData.witnessNameAr) {
+        safeData.witnessNameAr = stripHtml(safeData.witnessNameAr);
+    }
+    if (safeData.statementSummary) {
+        safeData.statementSummary = sanitizeRichText(safeData.statementSummary);
+    }
+    if (safeData.statementSummaryAr) {
+        safeData.statementSummaryAr = sanitizeRichText(safeData.statementSummaryAr);
     }
 
     const witness = {
-        ...req.body,
-        witnessId: generateWitnessId()
+        ...safeData,
+        witnessId: generateWitnessId(),
+        addedBy: req.userID,
+        addedAt: new Date()
     };
 
     grievance.witnesses.push(witness);
@@ -1082,19 +1335,97 @@ const addEvidence = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
     const baseQuery = firmId ? { firmId } : { lawyerId };
 
+    // Sanitize ObjectId
+    const sanitizedId = sanitizeObjectId(req.params.id);
+    if (!sanitizedId) {
+        throw CustomException('Invalid grievance ID format', 400);
+    }
+
+    // IDOR Protection: Verify grievance belongs to firm/lawyer
     const grievance = await Grievance.findOne({
-        _id: req.params.id,
+        _id: sanitizedId,
         ...baseQuery
     });
 
     if (!grievance) {
-        throw CustomException('Grievance not found', 404);
+        throw CustomException('Grievance not found or access denied', 404);
+    }
+
+    // Mass assignment protection for evidence
+    const allowedFields = [
+        'evidenceType', 'evidenceDescription', 'evidenceDescriptionAr',
+        'dateObtained', 'obtainedBy', 'custodyChain',
+        'fileUrl', 'fileName', 'fileType', 'fileSize',
+        'sourceType', 'authenticityVerified', 'relevance'
+    ];
+    const safeData = pickAllowedFields(req.body, allowedFields);
+
+    // Input validation
+    if (!safeData.evidenceType) {
+        throw CustomException('Evidence type is required', 400);
+    }
+
+    // Sanitize text fields
+    if (safeData.evidenceDescription) {
+        safeData.evidenceDescription = sanitizeRichText(safeData.evidenceDescription);
+    }
+    if (safeData.evidenceDescriptionAr) {
+        safeData.evidenceDescriptionAr = sanitizeRichText(safeData.evidenceDescriptionAr);
+    }
+
+    // Sanitize file attachments
+    if (safeData.fileName) {
+        // Remove path traversal attempts and dangerous characters
+        safeData.fileName = safeData.fileName
+            .replace(/[\/\\]/g, '')
+            .replace(/\.\./g, '')
+            .replace(/[<>:"|?*]/g, '')
+            .substring(0, 255);
+    }
+
+    // Validate file type
+    if (safeData.fileType) {
+        const allowedMimeTypes = [
+            'application/pdf',
+            'image/jpeg', 'image/jpg', 'image/png', 'image/gif',
+            'application/msword',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'application/vnd.ms-excel',
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'text/plain',
+            'video/mp4', 'video/mpeg',
+            'audio/mpeg', 'audio/wav'
+        ];
+
+        if (!allowedMimeTypes.includes(safeData.fileType.toLowerCase())) {
+            throw CustomException('File type not allowed', 400);
+        }
+    }
+
+    // Validate file size (max 50MB)
+    if (safeData.fileSize && safeData.fileSize > 50 * 1024 * 1024) {
+        throw CustomException('File size exceeds maximum allowed (50MB)', 400);
+    }
+
+    // Validate and sanitize file URL
+    if (safeData.fileUrl) {
+        try {
+            const url = new URL(safeData.fileUrl);
+            // Only allow HTTPS URLs from trusted domains
+            if (url.protocol !== 'https:') {
+                throw CustomException('Only HTTPS URLs are allowed for file attachments', 400);
+            }
+        } catch (error) {
+            throw CustomException('Invalid file URL format', 400);
+        }
     }
 
     const evidence = {
-        ...req.body,
+        ...safeData,
         evidenceId: generateEvidenceId(),
-        dateObtained: req.body.dateObtained || new Date()
+        dateObtained: safeData.dateObtained || new Date(),
+        uploadedBy: req.userID,
+        uploadedAt: new Date()
     };
 
     grievance.evidence.push(evidence);
@@ -1104,7 +1435,7 @@ const addEvidence = asyncHandler(async (req, res) => {
     grievance.timeline.push(
         createTimelineEvent(
             'evidence_collected',
-            `Evidence collected: ${req.body.evidenceDescription || req.body.evidenceType}`,
+            `Evidence collected: ${safeData.evidenceDescription || safeData.evidenceType}`,
             'تم جمع الأدلة',
             req.userID
         )
@@ -1127,19 +1458,62 @@ const addInterview = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
     const baseQuery = firmId ? { firmId } : { lawyerId };
 
+    // Sanitize ObjectId
+    const sanitizedId = sanitizeObjectId(req.params.id);
+    if (!sanitizedId) {
+        throw CustomException('Invalid grievance ID format', 400);
+    }
+
+    // IDOR Protection: Verify grievance belongs to firm/lawyer
     const grievance = await Grievance.findOne({
-        _id: req.params.id,
+        _id: sanitizedId,
         ...baseQuery
     });
 
     if (!grievance) {
-        throw CustomException('Grievance not found', 404);
+        throw CustomException('Grievance not found or access denied', 404);
+    }
+
+    // Mass assignment protection for interview
+    const allowedFields = [
+        'intervieweeName', 'intervieweeNameAr', 'intervieweeRole',
+        'interviewDate', 'interviewLocation', 'interviewDuration',
+        'interviewType', 'conductedBy', 'witnessPresent',
+        'recordingMade', 'summary', 'summaryAr', 'keyFindings'
+    ];
+    const safeData = pickAllowedFields(req.body, allowedFields);
+
+    // Input validation
+    if (!safeData.intervieweeName) {
+        throw CustomException('Interviewee name is required', 400);
+    }
+
+    // Sanitize text fields
+    if (safeData.intervieweeName) {
+        safeData.intervieweeName = stripHtml(safeData.intervieweeName);
+    }
+    if (safeData.intervieweeNameAr) {
+        safeData.intervieweeNameAr = stripHtml(safeData.intervieweeNameAr);
+    }
+    if (safeData.interviewLocation) {
+        safeData.interviewLocation = stripHtml(safeData.interviewLocation);
+    }
+    if (safeData.summary) {
+        safeData.summary = sanitizeRichText(safeData.summary);
+    }
+    if (safeData.summaryAr) {
+        safeData.summaryAr = sanitizeRichText(safeData.summaryAr);
+    }
+    if (safeData.keyFindings) {
+        safeData.keyFindings = sanitizeRichText(safeData.keyFindings);
     }
 
     const interview = {
-        ...req.body,
+        ...safeData,
         interviewId: generateInterviewId(),
-        interviewDate: req.body.interviewDate || new Date()
+        interviewDate: safeData.interviewDate || new Date(),
+        addedBy: req.userID,
+        addedAt: new Date()
     };
 
     grievance.investigation = grievance.investigation || {};
@@ -1147,12 +1521,12 @@ const addInterview = asyncHandler(async (req, res) => {
     grievance.investigation.interviews.push(interview);
     grievance.updatedBy = req.userID;
 
-    // Add to timeline
+    // Add to timeline with sanitized name
     grievance.timeline.push(
         createTimelineEvent(
             'interview',
-            `Interview conducted with ${req.body.intervieweeName}`,
-            `تم إجراء مقابلة مع ${req.body.intervieweeName}`,
+            `Interview conducted with ${safeData.intervieweeName}`,
+            `تم إجراء مقابلة مع ${safeData.intervieweeNameAr || safeData.intervieweeName}`,
             req.userID
         )
     );

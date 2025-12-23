@@ -1,9 +1,78 @@
 const { BankAccount, BillingActivity } = require('../models');
 const { CustomException } = require('../utils');
 const asyncHandler = require('../utils/asyncHandler');
+const { pickAllowedFields } = require('../utils/securityUtils');
+
+// Allowed fields for bank account creation and updates
+const ALLOWED_CREATE_FIELDS = [
+    'name',
+    'nameAr',
+    'type',
+    'bankName',
+    'accountNumber',
+    'currency',
+    'openingBalance',
+    'iban',
+    'swiftCode',
+    'routingNumber',
+    'branchName',
+    'branchCode',
+    'accountHolder',
+    'accountHolderAddress',
+    'minBalance',
+    'overdraftLimit',
+    'interestRate',
+    'description',
+    'notes',
+    'color',
+    'icon',
+    'isDefault'
+];
+
+const ALLOWED_UPDATE_FIELDS = [
+    'name',
+    'nameAr',
+    'type',
+    'bankName',
+    'accountNumber',
+    'currency',
+    'iban',
+    'swiftCode',
+    'routingNumber',
+    'branchName',
+    'branchCode',
+    'accountHolder',
+    'accountHolderAddress',
+    'minBalance',
+    'overdraftLimit',
+    'interestRate',
+    'description',
+    'notes',
+    'color',
+    'icon',
+    'isDefault'
+];
+
+// Saudi IBAN validation regex (SA + 22 digits)
+const saudiIBANRegex = /^SA\d{22}$/;
+
+/**
+ * Validate IBAN for Saudi accounts
+ * @param {string} iban - IBAN to validate
+ * @throws {Error} if IBAN format is invalid
+ */
+const validateSaudiIBAN = (iban) => {
+    if (iban && !saudiIBANRegex.test(iban)) {
+        throw new Error('Invalid Saudi IBAN format (must be SA followed by 22 digits)');
+    }
+};
 
 // Create bank account
 const createBankAccount = asyncHandler(async (req, res) => {
+    const lawyerId = req.userID;
+
+    // SECURITY: Mass assignment protection - only allow specified fields
+    const sanitizedData = pickAllowedFields(req.body, ALLOWED_CREATE_FIELDS);
     const {
         name,
         nameAr,
@@ -27,9 +96,7 @@ const createBankAccount = asyncHandler(async (req, res) => {
         color,
         icon,
         isDefault
-    } = req.body;
-
-    const lawyerId = req.userID;
+    } = sanitizedData;
 
     if (!name || name.length < 2) {
         throw CustomException('Account name is required (min 2 characters)', 400);
@@ -38,6 +105,9 @@ const createBankAccount = asyncHandler(async (req, res) => {
     if (!type) {
         throw CustomException('Account type is required', 400);
     }
+
+    // SECURITY: Validate IBAN format for Saudi accounts
+    validateSaudiIBAN(iban);
 
     const account = await BankAccount.create({
         name,
@@ -135,6 +205,7 @@ const getBankAccount = asyncHandler(async (req, res) => {
         throw CustomException('Bank account not found', 404);
     }
 
+    // SECURITY: IDOR protection - verify user owns this account
     if (account.lawyerId.toString() !== lawyerId) {
         throw CustomException('You do not have access to this account', 403);
     }
@@ -156,12 +227,21 @@ const updateBankAccount = asyncHandler(async (req, res) => {
         throw CustomException('Bank account not found', 404);
     }
 
+    // SECURITY: IDOR protection - verify user owns this account
     if (account.lawyerId.toString() !== lawyerId) {
         throw CustomException('You do not have access to this account', 403);
     }
 
+    // SECURITY: Mass assignment protection - only allow specified fields
+    const sanitizedData = pickAllowedFields(req.body, ALLOWED_UPDATE_FIELDS);
+
+    // SECURITY: Validate IBAN format for Saudi accounts
+    if (sanitizedData.iban) {
+        validateSaudiIBAN(sanitizedData.iban);
+    }
+
     // Don't allow changing opening balance after transactions exist
-    if (req.body.openingBalance !== undefined && req.body.openingBalance !== account.openingBalance) {
+    if (sanitizedData.openingBalance !== undefined && sanitizedData.openingBalance !== account.openingBalance) {
         const BankTransaction = require('../models').BankTransaction;
         const txnCount = await BankTransaction.countDocuments({ accountId: id });
         if (txnCount > 0) {
@@ -171,7 +251,7 @@ const updateBankAccount = asyncHandler(async (req, res) => {
 
     const updatedAccount = await BankAccount.findByIdAndUpdate(
         id,
-        { $set: req.body },
+        { $set: sanitizedData },
         { new: true, runValidators: true }
     );
 
@@ -193,6 +273,7 @@ const deleteBankAccount = asyncHandler(async (req, res) => {
         throw CustomException('Bank account not found', 404);
     }
 
+    // SECURITY: IDOR protection - verify user owns this account
     if (account.lawyerId.toString() !== lawyerId) {
         throw CustomException('You do not have access to this account', 403);
     }
@@ -223,6 +304,7 @@ const setDefault = asyncHandler(async (req, res) => {
         throw CustomException('Bank account not found', 404);
     }
 
+    // SECURITY: IDOR protection - verify user owns this account
     if (account.lawyerId.toString() !== lawyerId) {
         throw CustomException('You do not have access to this account', 403);
     }
@@ -255,6 +337,7 @@ const getBalanceHistory = asyncHandler(async (req, res) => {
         throw CustomException('Bank account not found', 404);
     }
 
+    // SECURITY: IDOR protection - verify user owns this account
     if (account.lawyerId.toString() !== lawyerId) {
         throw CustomException('You do not have access to this account', 403);
     }
@@ -290,6 +373,7 @@ const syncAccount = asyncHandler(async (req, res) => {
         throw CustomException('Bank account not found', 404);
     }
 
+    // SECURITY: IDOR protection - verify user owns this account
     if (account.lawyerId.toString() !== lawyerId) {
         throw CustomException('You do not have access to this account', 403);
     }
@@ -323,6 +407,7 @@ const disconnectAccount = asyncHandler(async (req, res) => {
         throw CustomException('Bank account not found', 404);
     }
 
+    // SECURITY: IDOR protection - verify user owns this account
     if (account.lawyerId.toString() !== lawyerId) {
         throw CustomException('You do not have access to this account', 403);
     }

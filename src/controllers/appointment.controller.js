@@ -7,6 +7,125 @@
 const Appointment = require('../models/appointment.model');
 const CRMSettings = require('../models/crmSettings.model');
 const CrmActivity = require('../models/crmActivity.model');
+const { pickAllowedFields } = require('../utils/securityUtils');
+
+// ═══════════════════════════════════════════════════════════════
+// SECURITY CONSTANTS
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Allowed fields for appointment creation
+ */
+const ALLOWED_CREATE_FIELDS = [
+    'customerName',
+    'customerEmail',
+    'customerPhone',
+    'scheduledTime',
+    'duration',
+    'notes',
+    'assignedTo',
+    'partyId',
+    'caseId',
+    'appointmentWith',
+    'locationType',
+    'sendReminder'
+];
+
+/**
+ * Allowed fields for appointment updates
+ */
+const ALLOWED_UPDATE_FIELDS = [
+    'customerName',
+    'customerEmail',
+    'customerPhone',
+    'scheduledTime',
+    'duration',
+    'notes',
+    'assignedTo',
+    'partyId',
+    'caseId',
+    'locationType',
+    'sendReminder'
+];
+
+/**
+ * Allowed fields for appointment completion
+ */
+const ALLOWED_COMPLETE_FIELDS = [
+    'outcome',
+    'followUpRequired',
+    'followUpDate'
+];
+
+/**
+ * Allowed fields for appointment cancellation
+ */
+const ALLOWED_CANCEL_FIELDS = [
+    'reason'
+];
+
+// ═══════════════════════════════════════════════════════════════
+// SECURITY HELPERS
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Validate that a date is valid and optionally in the future
+ * @param {Date|string} date - Date to validate
+ * @param {boolean} mustBeFuture - Whether date must be in the future
+ * @returns {boolean} - True if valid
+ */
+const isValidDate = (date, mustBeFuture = false) => {
+    if (!date) return false;
+
+    const dateObj = new Date(date);
+
+    // Check if date is valid
+    if (isNaN(dateObj.getTime())) return false;
+
+    // Check if must be in future
+    if (mustBeFuture && dateObj <= new Date()) return false;
+
+    return true;
+};
+
+/**
+ * Validate appointment data
+ * @param {Object} data - Appointment data to validate
+ * @param {boolean} isPublic - Whether this is a public booking
+ * @returns {Object} - { valid: boolean, error: string|null }
+ */
+const validateAppointmentData = (data, isPublic = false) => {
+    // Validate scheduledTime if present
+    if (data.scheduledTime) {
+        if (!isValidDate(data.scheduledTime, true)) {
+            return {
+                valid: false,
+                error: 'تاريخ الموعد غير صحيح أو في الماضي / Invalid or past scheduled time'
+            };
+        }
+    }
+
+    // Validate duration if present
+    if (data.duration) {
+        const duration = parseInt(data.duration, 10);
+        if (isNaN(duration) || duration < 15 || duration > 480) {
+            return {
+                valid: false,
+                error: 'مدة الموعد يجب أن تكون بين 15 و 480 دقيقة / Duration must be between 15 and 480 minutes'
+            };
+        }
+    }
+
+    // Validate followUpDate if present
+    if (data.followUpDate && !isValidDate(data.followUpDate, true)) {
+        return {
+            valid: false,
+            error: 'تاريخ المتابعة غير صحيح أو في الماضي / Invalid or past follow-up date'
+        };
+    }
+
+    return { valid: true, error: null };
+};
 
 // ═══════════════════════════════════════════════════════════════
 // LIST APPOINTMENTS
@@ -216,10 +335,23 @@ exports.create = async (req, res) => {
         const firmId = req.firmId;
         const userId = req.userID;
 
+        // Mass assignment protection: only allow specific fields
+        const safeData = pickAllowedFields(req.body, ALLOWED_CREATE_FIELDS);
+
+        // Validate appointment data
+        const validation = validateAppointmentData(safeData);
+        if (!validation.valid) {
+            return res.status(400).json({
+                success: false,
+                message: validation.error
+            });
+        }
+
         const appointmentData = {
-            ...req.body,
+            ...safeData,
             firmId,
-            createdBy: userId
+            createdBy: userId,
+            status: 'scheduled' // Force status to prevent mass assignment
         };
 
         const appointment = await Appointment.create(appointmentData);
@@ -268,7 +400,17 @@ exports.create = async (req, res) => {
 exports.publicBook = async (req, res) => {
     try {
         const { firmId } = req.params;
-        const { customerName, customerEmail, customerPhone, scheduledTime, duration, notes } = req.body;
+
+        // Mass assignment protection: extract only allowed fields
+        const publicAllowedFields = [
+            'customerName',
+            'customerEmail',
+            'customerPhone',
+            'scheduledTime',
+            'duration',
+            'notes'
+        ];
+        const safeInputData = pickAllowedFields(req.body, publicAllowedFields);
 
         // Get CRM settings
         const settings = await CRMSettings.findOne({ firmId });
@@ -280,8 +422,17 @@ exports.publicBook = async (req, res) => {
             });
         }
 
+        // Validate input data
+        const validation = validateAppointmentData(safeInputData, true);
+        if (!validation.valid) {
+            return res.status(400).json({
+                success: false,
+                message: validation.error
+            });
+        }
+
         // Validate slot availability
-        const requestedDate = new Date(scheduledTime);
+        const requestedDate = new Date(safeInputData.scheduledTime);
         const dayOfWeek = requestedDate.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
         const workingHours = settings.appointmentSettings?.workingHours?.[dayOfWeek];
 
@@ -306,12 +457,12 @@ exports.publicBook = async (req, res) => {
 
         const appointmentData = {
             firmId,
-            customerName,
-            customerEmail,
-            customerPhone,
-            customerNotes: notes,
+            customerName: safeInputData.customerName,
+            customerEmail: safeInputData.customerEmail,
+            customerPhone: safeInputData.customerPhone,
+            customerNotes: safeInputData.notes,
             scheduledTime: requestedDate,
-            duration: duration || settings.appointmentSettings.defaultDuration || 30,
+            duration: safeInputData.duration || settings.appointmentSettings.defaultDuration || 30,
             assignedTo,
             appointmentWith: 'lead',
             locationType: 'office',
@@ -363,9 +514,30 @@ exports.update = async (req, res) => {
         const firmId = req.firmId;
         const userId = req.userID;
 
+        // IDOR Protection: Verify appointment belongs to user's firm first
+        const appointmentExists = await Appointment.findOne({ _id: id, firmId });
+        if (!appointmentExists) {
+            return res.status(404).json({
+                success: false,
+                message: 'الموعد غير موجود / Appointment not found'
+            });
+        }
+
+        // Mass assignment protection: only allow specific fields
+        const safeData = pickAllowedFields(req.body, ALLOWED_UPDATE_FIELDS);
+
+        // Validate appointment data
+        const validation = validateAppointmentData(safeData);
+        if (!validation.valid) {
+            return res.status(400).json({
+                success: false,
+                message: validation.error
+            });
+        }
+
         const appointment = await Appointment.findOneAndUpdate(
             { _id: id, firmId },
-            { $set: req.body },
+            { $set: safeData },
             { new: true, runValidators: true }
         ).populate([
             { path: 'assignedTo', select: 'firstName lastName avatar email' },
@@ -425,8 +597,12 @@ exports.cancel = async (req, res) => {
         const { id } = req.params;
         const firmId = req.firmId;
         const userId = req.userID;
-        const { reason } = req.body;
 
+        // Mass assignment protection: only allow reason field
+        const safeData = pickAllowedFields(req.body, ALLOWED_CANCEL_FIELDS);
+        const reason = safeData.reason;
+
+        // IDOR Protection: Verify appointment belongs to user's firm
         const appointment = await Appointment.findOne({ _id: id, firmId });
 
         if (!appointment) {
@@ -491,8 +667,20 @@ exports.complete = async (req, res) => {
         const { id } = req.params;
         const firmId = req.firmId;
         const userId = req.userID;
-        const { outcome, followUpRequired, followUpDate } = req.body;
 
+        // Mass assignment protection: only allow specific fields
+        const safeData = pickAllowedFields(req.body, ALLOWED_COMPLETE_FIELDS);
+
+        // Validate appointment data
+        const validation = validateAppointmentData(safeData);
+        if (!validation.valid) {
+            return res.status(400).json({
+                success: false,
+                message: validation.error
+            });
+        }
+
+        // IDOR Protection: Verify appointment belongs to user's firm
         const appointment = await Appointment.findOne({ _id: id, firmId });
 
         if (!appointment) {
@@ -502,7 +690,7 @@ exports.complete = async (req, res) => {
             });
         }
 
-        await appointment.complete(outcome, followUpRequired, followUpDate);
+        await appointment.complete(safeData.outcome, safeData.followUpRequired, safeData.followUpDate);
 
         // Log activity
         await CrmActivity.logActivity({
@@ -551,6 +739,7 @@ exports.markNoShow = async (req, res) => {
         const firmId = req.firmId;
         const userId = req.userID;
 
+        // IDOR Protection: Verify appointment belongs to user's firm
         const appointment = await Appointment.findOne({ _id: id, firmId });
 
         if (!appointment) {
@@ -608,6 +797,7 @@ exports.confirm = async (req, res) => {
         const firmId = req.firmId;
         const userId = req.userID;
 
+        // IDOR Protection: Verify appointment belongs to user's firm
         const appointment = await Appointment.findOne({ _id: id, firmId });
 
         if (!appointment) {

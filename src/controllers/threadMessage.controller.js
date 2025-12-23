@@ -1,38 +1,137 @@
 const { ThreadMessage, User, Document } = require('../models');
 const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
+const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
+const { sanitizeComment } = require('../utils/sanitize');
+
+/**
+ * Helper function to verify user has access to the resource
+ * Prevents IDOR attacks by ensuring the resource belongs to user's firm
+ */
+const verifyResourceAccess = async (res_model, res_id, firmId) => {
+    // Sanitize the ObjectId
+    const sanitizedId = sanitizeObjectId(res_id);
+    if (!sanitizedId) {
+        throw CustomException('معرف المورد غير صالح', 400);
+    }
+
+    // Get the model dynamically
+    const models = require('../models');
+    const Model = models[res_model];
+
+    if (!Model) {
+        throw CustomException('نموذج المورد غير صالح', 400);
+    }
+
+    // Check if resource exists and belongs to the firm
+    const resource = await Model.findOne({ _id: sanitizedId, firmId });
+
+    if (!resource) {
+        throw CustomException('المورد غير موجود أو غير مصرح لك بالوصول إليه', 404);
+    }
+
+    return resource;
+};
 
 /**
  * Post a message
  * POST /api/messages
  */
 const postMessage = asyncHandler(async (req, res) => {
+    const userId = req.userID;
+    const firmId = req.firmId;
+
+    // Mass assignment protection - only allow specific fields
+    const allowedFields = ['res_model', 'res_id', 'body', 'message_type', 'is_internal', 'attachment_ids', 'subject', 'parent_id'];
+    const safeData = pickAllowedFields(req.body, allowedFields);
+
     const {
         res_model,
         res_id,
         body,
         message_type = 'comment',
         is_internal = false,
-        attachment_ids = []
-    } = req.body;
-    const userId = req.userID;
+        attachment_ids = [],
+        subject,
+        parent_id
+    } = safeData;
 
+    // Input validation
     if (!res_model || !res_id) {
         throw CustomException('نموذج المورد ومعرف المورد مطلوبان', 400);
     }
 
+    // Validate message type
+    const validMessageTypes = ['comment', 'notification', 'email', 'activity_done', 'stage_change', 'auto_log', 'note', 'activity', 'tracking'];
+    if (message_type && !validMessageTypes.includes(message_type)) {
+        throw CustomException('نوع الرسالة غير صالح', 400);
+    }
+
+    // Validate content
     if (!body && attachment_ids.length === 0) {
         throw CustomException('يجب توفير محتوى الرسالة أو المرفقات', 400);
     }
 
+    // Input validation for body
+    if (body && typeof body !== 'string') {
+        throw CustomException('محتوى الرسالة يجب أن يكون نصاً', 400);
+    }
+
+    if (body && body.length > 50000) {
+        throw CustomException('محتوى الرسالة طويل جداً (الحد الأقصى 50000 حرف)', 400);
+    }
+
+    // IDOR Protection - verify user has access to the resource
+    await verifyResourceAccess(res_model, res_id, firmId);
+
+    // XSS Prevention - sanitize message content
+    const sanitizedBody = body ? sanitizeComment(body) : '';
+
+    // Validate and sanitize parent_id if provided
+    let sanitizedParentId = null;
+    if (parent_id) {
+        sanitizedParentId = sanitizeObjectId(parent_id);
+        if (!sanitizedParentId) {
+            throw CustomException('معرف الرسالة الأصلية غير صالح', 400);
+        }
+        // Verify parent message exists and belongs to same thread
+        const parentMessage = await ThreadMessage.findOne({
+            _id: sanitizedParentId,
+            res_model,
+            res_id,
+            firmId
+        });
+        if (!parentMessage) {
+            throw CustomException('الرسالة الأصلية غير موجودة', 404);
+        }
+    }
+
+    // Validate attachment_ids if provided
+    const sanitizedAttachmentIds = [];
+    if (attachment_ids && Array.isArray(attachment_ids)) {
+        for (const attachmentId of attachment_ids) {
+            const sanitizedId = sanitizeObjectId(attachmentId);
+            if (sanitizedId) {
+                // Verify attachment exists and belongs to firm
+                const attachment = await Document.findOne({ _id: sanitizedId, firmId });
+                if (attachment) {
+                    sanitizedAttachmentIds.push(sanitizedId);
+                }
+            }
+        }
+    }
+
     const message = await ThreadMessage.create({
+        firmId,
         res_model,
         res_id,
-        body,
+        body: sanitizedBody,
+        subject: subject ? sanitizeComment(subject) : undefined,
         message_type,
         is_internal,
         author_id: userId,
-        attachment_ids,
+        attachment_ids: sanitizedAttachmentIds,
+        parent_id: sanitizedParentId,
         createdBy: userId
     });
 
@@ -52,17 +151,41 @@ const postMessage = asyncHandler(async (req, res) => {
  * POST /api/messages/note
  */
 const postNote = asyncHandler(async (req, res) => {
-    const { res_model, res_id, body } = req.body;
     const userId = req.userID;
+    const firmId = req.firmId;
 
+    // Mass assignment protection - only allow specific fields
+    const allowedFields = ['res_model', 'res_id', 'body', 'subject'];
+    const safeData = pickAllowedFields(req.body, allowedFields);
+
+    const { res_model, res_id, body, subject } = safeData;
+
+    // Input validation
     if (!res_model || !res_id || !body) {
         throw CustomException('نموذج المورد ومعرف المورد والمحتوى مطلوبان', 400);
     }
 
+    // Input validation for body
+    if (typeof body !== 'string') {
+        throw CustomException('محتوى الملاحظة يجب أن يكون نصاً', 400);
+    }
+
+    if (body.length > 50000) {
+        throw CustomException('محتوى الملاحظة طويل جداً (الحد الأقصى 50000 حرف)', 400);
+    }
+
+    // IDOR Protection - verify user has access to the resource
+    await verifyResourceAccess(res_model, res_id, firmId);
+
+    // XSS Prevention - sanitize content
+    const sanitizedBody = sanitizeComment(body);
+
     const message = await ThreadMessage.create({
+        firmId,
         res_model,
         res_id,
-        body,
+        body: sanitizedBody,
+        subject: subject ? sanitizeComment(subject) : undefined,
         message_type: 'note',
         is_internal: true,
         author_id: userId,
@@ -84,6 +207,7 @@ const postNote = asyncHandler(async (req, res) => {
  * GET /api/messages
  */
 const getMessages = asyncHandler(async (req, res) => {
+    const firmId = req.firmId;
     const {
         res_model,
         res_id,
@@ -92,11 +216,22 @@ const getMessages = asyncHandler(async (req, res) => {
         limit = 50
     } = req.query;
 
-    const query = {};
+    // IDOR Protection - always filter by firmId
+    const query = { firmId };
 
     if (res_model) query.res_model = res_model;
-    if (res_id) query.res_id = res_id;
-    if (message_type) query.message_type = message_type;
+    if (res_id) {
+        const sanitizedId = sanitizeObjectId(res_id);
+        if (sanitizedId) {
+            query.res_id = sanitizedId;
+        }
+    }
+    if (message_type) {
+        const validMessageTypes = ['comment', 'notification', 'email', 'activity_done', 'stage_change', 'auto_log', 'note', 'activity', 'tracking'];
+        if (validMessageTypes.includes(message_type)) {
+            query.message_type = message_type;
+        }
+    }
 
     const messages = await ThreadMessage.find(query)
         .sort({ createdAt: -1 })
@@ -125,11 +260,19 @@ const getMessages = asyncHandler(async (req, res) => {
  */
 const getMessage = asyncHandler(async (req, res) => {
     const { id } = req.params;
+    const firmId = req.firmId;
 
-    const message = await ThreadMessage.findById(id)
+    // Sanitize ObjectId
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('معرف الرسالة غير صالح', 400);
+    }
+
+    // IDOR Protection - ensure message belongs to firm
+    const message = await ThreadMessage.findOne({ _id: sanitizedId, firmId })
         .populate('author_id', 'firstName lastName email avatar')
         .populate('attachment_ids', 'filename originalName mimetype size url')
-        .populate('starred_by', 'firstName lastName email')
+        .populate('starred_partner_ids', 'firstName lastName email')
         .populate('parent_id');
 
     if (!message) {
@@ -149,9 +292,12 @@ const getMessage = asyncHandler(async (req, res) => {
 const getMyMentions = asyncHandler(async (req, res) => {
     const { page = 1, limit = 50 } = req.query;
     const userId = req.userID;
+    const firmId = req.firmId;
 
+    // IDOR Protection - filter by firmId and mentioned user
     const query = {
-        mentioned_users: userId
+        firmId,
+        partner_ids: userId
     };
 
     const messages = await ThreadMessage.find(query)
@@ -182,28 +328,41 @@ const getMyMentions = asyncHandler(async (req, res) => {
 const starMessage = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const userId = req.userID;
+    const firmId = req.firmId;
 
-    const message = await ThreadMessage.findById(id);
+    // Sanitize ObjectId
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('معرف الرسالة غير صالح', 400);
+    }
+
+    // IDOR Protection - ensure message belongs to firm
+    const message = await ThreadMessage.findOne({ _id: sanitizedId, firmId });
 
     if (!message) {
         throw CustomException('الرسالة غير موجودة', 404);
     }
 
-    const isStarred = message.starred_by.includes(userId);
+    const isStarred = message.starred_partner_ids && message.starred_partner_ids.some(
+        uid => uid.toString() === userId.toString()
+    );
 
     if (isStarred) {
-        message.starred_by = message.starred_by.filter(
+        message.starred_partner_ids = message.starred_partner_ids.filter(
             uid => uid.toString() !== userId.toString()
         );
     } else {
-        message.starred_by.push(userId);
+        if (!message.starred_partner_ids) {
+            message.starred_partner_ids = [];
+        }
+        message.starred_partner_ids.push(userId);
     }
 
     await message.save();
 
-    const populatedMessage = await ThreadMessage.findById(id)
+    const populatedMessage = await ThreadMessage.findById(sanitizedId)
         .populate('author_id', 'firstName lastName email avatar')
-        .populate('starred_by', 'firstName lastName email');
+        .populate('starred_partner_ids', 'firstName lastName email');
 
     res.status(200).json({
         success: true,
@@ -219,9 +378,12 @@ const starMessage = asyncHandler(async (req, res) => {
 const getStarred = asyncHandler(async (req, res) => {
     const { page = 1, limit = 50 } = req.query;
     const userId = req.userID;
+    const firmId = req.firmId;
 
+    // IDOR Protection - filter by firmId and starred user
     const query = {
-        starred_by: userId
+        firmId,
+        starred_partner_ids: userId
     };
 
     const messages = await ThreadMessage.find(query)
@@ -251,12 +413,20 @@ const getStarred = asyncHandler(async (req, res) => {
  */
 const searchMessages = asyncHandler(async (req, res) => {
     const { q, res_model, page = 1, limit = 50 } = req.query;
+    const firmId = req.firmId;
 
     if (!q) {
         throw CustomException('مصطلح البحث مطلوب', 400);
     }
 
+    // Input validation - limit search query length
+    if (typeof q !== 'string' || q.length > 500) {
+        throw CustomException('مصطلح البحث غير صالح', 400);
+    }
+
+    // IDOR Protection - always filter by firmId
     const query = {
+        firmId,
         $text: { $search: q }
     };
 

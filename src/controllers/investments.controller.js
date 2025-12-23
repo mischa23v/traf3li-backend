@@ -3,6 +3,8 @@ const { CustomException } = require('../utils');
 const asyncHandler = require('../utils/asyncHandler');
 const { priceService } = require('../services/priceService');
 const { findSymbol, searchSymbols, ALL_SYMBOLS } = require('../data/symbols');
+const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
+const mongoose = require('mongoose');
 
 // ═══════════════════════════════════════════════════════════════
 // CREATE INVESTMENT
@@ -14,6 +16,31 @@ const createInvestment = asyncHandler(async (req, res) => {
     if (req.isDeparted) {
         throw CustomException('You do not have permission to create investments', 403);
     }
+
+    // ─────────────────────────────────────────────────────────────
+    // MASS ASSIGNMENT PROTECTION
+    // ─────────────────────────────────────────────────────────────
+    const allowedFields = [
+        'symbol',
+        'name',
+        'nameEn',
+        'type',
+        'market',
+        'sector',
+        'sectorEn',
+        'category',
+        'tradingViewSymbol',
+        'yahooSymbol',
+        'purchaseDate',
+        'purchasePrice',
+        'quantity',
+        'fees',
+        'notes',
+        'tags',
+        'currency'
+    ];
+
+    const sanitizedData = pickAllowedFields(req.body, allowedFields);
 
     const {
         symbol,
@@ -33,7 +60,7 @@ const createInvestment = asyncHandler(async (req, res) => {
         notes,
         tags,
         currency
-    } = req.body;
+    } = sanitizedData;
 
     // ─────────────────────────────────────────────────────────────
     // VALIDATION
@@ -58,12 +85,30 @@ const createInvestment = asyncHandler(async (req, res) => {
         throw CustomException('Purchase date is required', 400);
     }
 
-    if (!purchasePrice || purchasePrice <= 0) {
-        throw CustomException('Purchase price must be a positive number', 400);
+    // Enhanced input validation for amounts
+    if (!purchasePrice || typeof purchasePrice !== 'number' || purchasePrice <= 0 || !isFinite(purchasePrice)) {
+        throw CustomException('Purchase price must be a valid positive number', 400);
     }
 
-    if (!quantity || quantity <= 0) {
-        throw CustomException('Quantity must be a positive number', 400);
+    if (purchasePrice > 1000000000) {
+        throw CustomException('Purchase price exceeds maximum allowed value', 400);
+    }
+
+    if (!quantity || typeof quantity !== 'number' || quantity <= 0 || !isFinite(quantity)) {
+        throw CustomException('Quantity must be a valid positive number', 400);
+    }
+
+    if (quantity > 1000000000) {
+        throw CustomException('Quantity exceeds maximum allowed value', 400);
+    }
+
+    if (fees !== undefined && fees !== null) {
+        if (typeof fees !== 'number' || fees < 0 || !isFinite(fees)) {
+            throw CustomException('Fees must be a valid non-negative number', 400);
+        }
+        if (fees > 1000000000) {
+            throw CustomException('Fees exceed maximum allowed value', 400);
+        }
     }
 
     // Look up symbol info from database
@@ -75,50 +120,66 @@ const createInvestment = asyncHandler(async (req, res) => {
     const totalCost = purchasePriceHalalas * quantity + feesHalalas;
 
     // ─────────────────────────────────────────────────────────────
-    // CREATE INVESTMENT
+    // CREATE INVESTMENT WITH TRANSACTION
     // ─────────────────────────────────────────────────────────────
-    const investment = await Investment.create({
-        userId,
-        firmId,
-        symbol: symbol.toUpperCase(),
-        name,
-        nameEn: nameEn || symbolInfo?.nameEn,
-        type,
-        market,
-        sector: sector || symbolInfo?.sectorAr,
-        sectorEn: sectorEn || symbolInfo?.sector,
-        category,
-        tradingViewSymbol: tradingViewSymbol || symbolInfo?.tv,
-        yahooSymbol: yahooSymbol || symbolInfo?.yahoo,
-        purchaseDate: new Date(purchaseDate),
-        purchasePrice: purchasePriceHalalas,
-        quantity,
-        totalCost,
-        fees: feesHalalas,
-        currentPrice: purchasePriceHalalas,
-        currentValue: purchasePriceHalalas * quantity,
-        notes,
-        tags,
-        currency: currency || 'SAR',
-        createdBy: userId
-    });
+    const session = await mongoose.startSession();
+    let investment;
 
-    // Create initial purchase transaction
-    await InvestmentTransaction.create({
-        userId,
-        firmId,
-        investmentId: investment._id,
-        type: 'purchase',
-        date: new Date(purchaseDate),
-        quantity,
-        pricePerUnit: purchasePriceHalalas,
-        amount: totalCost,
-        fees: feesHalalas,
-        description: `Initial purchase of ${quantity} ${symbol}`,
-        createdBy: userId
-    });
+    try {
+        await session.startTransaction();
 
-    // Try to get current price
+        const [createdInvestment] = await Investment.create([{
+            userId,
+            firmId,
+            symbol: symbol.toUpperCase(),
+            name,
+            nameEn: nameEn || symbolInfo?.nameEn,
+            type,
+            market,
+            sector: sector || symbolInfo?.sectorAr,
+            sectorEn: sectorEn || symbolInfo?.sector,
+            category,
+            tradingViewSymbol: tradingViewSymbol || symbolInfo?.tv,
+            yahooSymbol: yahooSymbol || symbolInfo?.yahoo,
+            purchaseDate: new Date(purchaseDate),
+            purchasePrice: purchasePriceHalalas,
+            quantity,
+            totalCost,
+            fees: feesHalalas,
+            currentPrice: purchasePriceHalalas,
+            currentValue: purchasePriceHalalas * quantity,
+            notes,
+            tags,
+            currency: currency || 'SAR',
+            createdBy: userId
+        }], { session });
+
+        investment = createdInvestment;
+
+        // Create initial purchase transaction
+        await InvestmentTransaction.create([{
+            userId,
+            firmId,
+            investmentId: investment._id,
+            type: 'purchase',
+            date: new Date(purchaseDate),
+            quantity,
+            pricePerUnit: purchasePriceHalalas,
+            amount: totalCost,
+            fees: feesHalalas,
+            description: `Initial purchase of ${quantity} ${symbol}`,
+            createdBy: userId
+        }], { session });
+
+        await session.commitTransaction();
+    } catch (error) {
+        await session.abortTransaction();
+        throw error;
+    } finally {
+        session.endSession();
+    }
+
+    // Try to get current price (outside transaction)
     try {
         if (symbolInfo?.yahoo) {
             const quote = await priceService.getPriceFromYahoo(symbolInfo.yahoo);
@@ -235,9 +296,16 @@ const getInvestment = asyncHandler(async (req, res) => {
         throw CustomException('You do not have permission to access investments', 403);
     }
 
+    // IDOR Protection: Sanitize and validate ObjectId
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('Invalid investment ID', 400);
+    }
+
+    // IDOR Protection: Verify ownership
     const query = firmId
-        ? { _id: id, firmId }
-        : { _id: id, userId };
+        ? { _id: sanitizedId, firmId }
+        : { _id: sanitizedId, userId };
 
     const investment = await Investment.findOne(query);
 
@@ -245,8 +313,12 @@ const getInvestment = asyncHandler(async (req, res) => {
         throw CustomException('Investment not found', 404);
     }
 
-    // Get transactions
-    const transactions = await InvestmentTransaction.find({ investmentId: id })
+    // Get transactions (also verify ownership)
+    const transactionQuery = firmId
+        ? { investmentId: sanitizedId, firmId }
+        : { investmentId: sanitizedId, userId };
+
+    const transactions = await InvestmentTransaction.find(transactionQuery)
         .sort({ date: -1 });
 
     return res.json({
@@ -265,29 +337,77 @@ const updateInvestment = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const userId = req.userID;
     const firmId = req.firmId;
-    const updateData = req.body;
 
     if (req.isDeparted) {
         throw CustomException('You do not have permission to update investments', 403);
     }
 
+    // IDOR Protection: Sanitize and validate ObjectId
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('Invalid investment ID', 400);
+    }
+
+    // IDOR Protection: Verify ownership
     const query = firmId
-        ? { _id: id, firmId }
-        : { _id: id, userId };
+        ? { _id: sanitizedId, firmId }
+        : { _id: sanitizedId, userId };
 
     const investment = await Investment.findOne(query);
     if (!investment) {
         throw CustomException('Investment not found', 404);
     }
 
-    // Don't allow changing symbol
-    delete updateData.symbol;
+    // Mass assignment protection
+    const allowedFields = [
+        'name',
+        'nameEn',
+        'type',
+        'market',
+        'sector',
+        'sectorEn',
+        'category',
+        'tradingViewSymbol',
+        'yahooSymbol',
+        'purchaseDate',
+        'purchasePrice',
+        'quantity',
+        'fees',
+        'notes',
+        'tags',
+        'currency',
+        'status'
+    ];
 
-    // Convert prices to halalas if provided in SAR
-    if (updateData.purchasePrice) {
+    const updateData = pickAllowedFields(req.body, allowedFields);
+
+    // Input validation for amounts if provided
+    if (updateData.purchasePrice !== undefined) {
+        if (typeof updateData.purchasePrice !== 'number' || updateData.purchasePrice <= 0 || !isFinite(updateData.purchasePrice)) {
+            throw CustomException('Purchase price must be a valid positive number', 400);
+        }
+        if (updateData.purchasePrice > 1000000000) {
+            throw CustomException('Purchase price exceeds maximum allowed value', 400);
+        }
         updateData.purchasePrice = Math.round(updateData.purchasePrice * 100);
     }
-    if (updateData.fees) {
+
+    if (updateData.quantity !== undefined) {
+        if (typeof updateData.quantity !== 'number' || updateData.quantity <= 0 || !isFinite(updateData.quantity)) {
+            throw CustomException('Quantity must be a valid positive number', 400);
+        }
+        if (updateData.quantity > 1000000000) {
+            throw CustomException('Quantity exceeds maximum allowed value', 400);
+        }
+    }
+
+    if (updateData.fees !== undefined) {
+        if (typeof updateData.fees !== 'number' || updateData.fees < 0 || !isFinite(updateData.fees)) {
+            throw CustomException('Fees must be a valid non-negative number', 400);
+        }
+        if (updateData.fees > 1000000000) {
+            throw CustomException('Fees exceed maximum allowed value', 400);
+        }
         updateData.fees = Math.round(updateData.fees * 100);
     }
 
@@ -319,20 +439,45 @@ const deleteInvestment = asyncHandler(async (req, res) => {
         throw CustomException('You do not have permission to delete investments', 403);
     }
 
+    // IDOR Protection: Sanitize and validate ObjectId
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('Invalid investment ID', 400);
+    }
+
+    // IDOR Protection: Verify ownership
     const query = firmId
-        ? { _id: id, firmId }
-        : { _id: id, userId };
+        ? { _id: sanitizedId, firmId }
+        : { _id: sanitizedId, userId };
 
     const investment = await Investment.findOne(query);
     if (!investment) {
         throw CustomException('Investment not found', 404);
     }
 
-    // Delete related transactions
-    await InvestmentTransaction.deleteMany({ investmentId: id });
+    // Use transaction to ensure data consistency
+    const session = await mongoose.startSession();
 
-    // Delete investment
-    await Investment.findOneAndDelete(query);
+    try {
+        await session.startTransaction();
+
+        // Delete related transactions
+        const transactionQuery = firmId
+            ? { investmentId: sanitizedId, firmId }
+            : { investmentId: sanitizedId, userId };
+
+        await InvestmentTransaction.deleteMany(transactionQuery, { session });
+
+        // Delete investment
+        await Investment.findOneAndDelete(query, { session });
+
+        await session.commitTransaction();
+    } catch (error) {
+        await session.abortTransaction();
+        throw error;
+    } finally {
+        session.endSession();
+    }
 
     return res.json({
         success: true,
@@ -352,9 +497,16 @@ const refreshPrice = asyncHandler(async (req, res) => {
         throw CustomException('You do not have permission to refresh prices', 403);
     }
 
+    // IDOR Protection: Sanitize and validate ObjectId
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('Invalid investment ID', 400);
+    }
+
+    // IDOR Protection: Verify ownership
     const query = firmId
-        ? { _id: id, firmId }
-        : { _id: id, userId };
+        ? { _id: sanitizedId, firmId }
+        : { _id: sanitizedId, userId };
 
     const investment = await Investment.findOne(query);
     if (!investment) {
@@ -543,14 +695,35 @@ const addTransaction = asyncHandler(async (req, res) => {
         throw CustomException('You do not have permission to add transactions', 403);
     }
 
+    // IDOR Protection: Sanitize and validate ObjectId
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('Invalid investment ID', 400);
+    }
+
+    // IDOR Protection: Verify ownership
     const query = firmId
-        ? { _id: id, firmId }
-        : { _id: id, userId };
+        ? { _id: sanitizedId, firmId }
+        : { _id: sanitizedId, userId };
 
     const investment = await Investment.findOne(query);
     if (!investment) {
         throw CustomException('Investment not found', 404);
     }
+
+    // Mass assignment protection
+    const allowedFields = [
+        'type',
+        'date',
+        'quantity',
+        'pricePerUnit',
+        'amount',
+        'fees',
+        'description',
+        'notes'
+    ];
+
+    const sanitizedData = pickAllowedFields(req.body, allowedFields);
 
     const {
         type,
@@ -561,8 +734,9 @@ const addTransaction = asyncHandler(async (req, res) => {
         fees,
         description,
         notes
-    } = req.body;
+    } = sanitizedData;
 
+    // Validation
     if (!type) {
         throw CustomException('Transaction type is required', 400);
     }
@@ -571,8 +745,44 @@ const addTransaction = asyncHandler(async (req, res) => {
         throw CustomException('Transaction date is required', 400);
     }
 
-    if (!amount && amount !== 0) {
+    if (amount === undefined || amount === null) {
         throw CustomException('Amount is required', 400);
+    }
+
+    // Enhanced input validation for amounts
+    if (typeof amount !== 'number' || !isFinite(amount)) {
+        throw CustomException('Amount must be a valid number', 400);
+    }
+
+    if (Math.abs(amount) > 1000000000) {
+        throw CustomException('Amount exceeds maximum allowed value', 400);
+    }
+
+    if (pricePerUnit !== undefined && pricePerUnit !== null) {
+        if (typeof pricePerUnit !== 'number' || pricePerUnit <= 0 || !isFinite(pricePerUnit)) {
+            throw CustomException('Price per unit must be a valid positive number', 400);
+        }
+        if (pricePerUnit > 1000000000) {
+            throw CustomException('Price per unit exceeds maximum allowed value', 400);
+        }
+    }
+
+    if (fees !== undefined && fees !== null) {
+        if (typeof fees !== 'number' || fees < 0 || !isFinite(fees)) {
+            throw CustomException('Fees must be a valid non-negative number', 400);
+        }
+        if (fees > 1000000000) {
+            throw CustomException('Fees exceed maximum allowed value', 400);
+        }
+    }
+
+    if (quantity !== undefined && quantity !== null) {
+        if (typeof quantity !== 'number' || quantity <= 0 || !isFinite(quantity)) {
+            throw CustomException('Quantity must be a valid positive number', 400);
+        }
+        if (quantity > 1000000000) {
+            throw CustomException('Quantity exceeds maximum allowed value', 400);
+        }
     }
 
     // Convert to halalas
@@ -590,23 +800,44 @@ const addTransaction = asyncHandler(async (req, res) => {
         }
     }
 
-    const transaction = await InvestmentTransaction.create({
-        userId,
-        firmId,
-        investmentId: id,
-        type,
-        date: new Date(date),
-        quantity,
-        pricePerUnit: pricePerUnitHalalas,
-        amount: amountHalalas,
-        fees: feesHalalas,
-        description,
-        notes,
-        createdBy: userId
-    });
+    // Use transaction to ensure data consistency
+    const session = await mongoose.startSession();
+    let transaction;
+    let updatedInvestment;
 
-    // Reload investment after post-save hook
-    const updatedInvestment = await Investment.findById(id);
+    try {
+        await session.startTransaction();
+
+        const [createdTransaction] = await InvestmentTransaction.create([{
+            userId,
+            firmId,
+            investmentId: sanitizedId,
+            type,
+            date: new Date(date),
+            quantity,
+            pricePerUnit: pricePerUnitHalalas,
+            amount: amountHalalas,
+            fees: feesHalalas,
+            description,
+            notes,
+            createdBy: userId
+        }], { session });
+
+        transaction = createdTransaction;
+
+        // Reload investment after transaction creation
+        updatedInvestment = await Investment.findById(sanitizedId).session(session);
+
+        await session.commitTransaction();
+    } catch (error) {
+        await session.abortTransaction();
+        throw error;
+    } finally {
+        session.endSession();
+    }
+
+    // Reload investment one more time to get post-save hook updates
+    updatedInvestment = await Investment.findById(sanitizedId);
 
     return res.status(201).json({
         success: true,
@@ -630,9 +861,16 @@ const getTransactions = asyncHandler(async (req, res) => {
         throw CustomException('You do not have permission to access transactions', 403);
     }
 
+    // IDOR Protection: Sanitize and validate ObjectId
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('Invalid investment ID', 400);
+    }
+
+    // IDOR Protection: Verify ownership
     const query = firmId
-        ? { _id: id, firmId }
-        : { _id: id, userId };
+        ? { _id: sanitizedId, firmId }
+        : { _id: sanitizedId, userId };
 
     const investment = await Investment.findOne(query);
     if (!investment) {
@@ -645,7 +883,11 @@ const getTransactions = asyncHandler(async (req, res) => {
         type
     } = req.query;
 
-    const filters = { investmentId: id };
+    // Verify ownership on transactions query
+    const filters = firmId
+        ? { investmentId: sanitizedId, firmId }
+        : { investmentId: sanitizedId, userId };
+
     if (type) filters.type = type;
 
     const parsedLimit = Math.min(parseInt(limit), 100);
@@ -685,31 +927,50 @@ const deleteTransaction = asyncHandler(async (req, res) => {
         throw CustomException('You do not have permission to delete transactions', 403);
     }
 
+    // IDOR Protection: Sanitize and validate ObjectIds
+    const sanitizedId = sanitizeObjectId(id);
+    const sanitizedTransactionId = sanitizeObjectId(transactionId);
+
+    if (!sanitizedId) {
+        throw CustomException('Invalid investment ID', 400);
+    }
+
+    if (!sanitizedTransactionId) {
+        throw CustomException('Invalid transaction ID', 400);
+    }
+
+    // IDOR Protection: Verify investment ownership
     const query = firmId
-        ? { _id: id, firmId }
-        : { _id: id, userId };
+        ? { _id: sanitizedId, firmId }
+        : { _id: sanitizedId, userId };
 
     const investment = await Investment.findOne(query);
     if (!investment) {
         throw CustomException('Investment not found', 404);
     }
 
-    const transaction = await InvestmentTransaction.findOne({
-        _id: transactionId,
-        investmentId: id
-    });
+    // IDOR Protection: Verify transaction ownership
+    const transactionQuery = firmId
+        ? { _id: sanitizedTransactionId, investmentId: sanitizedId, firmId }
+        : { _id: sanitizedTransactionId, investmentId: sanitizedId, userId };
+
+    const transaction = await InvestmentTransaction.findOne(transactionQuery);
 
     if (!transaction) {
         throw CustomException('Transaction not found', 404);
     }
 
     // Don't allow deleting the initial purchase
-    const transactionCount = await InvestmentTransaction.countDocuments({ investmentId: id });
+    const countQuery = firmId
+        ? { investmentId: sanitizedId, firmId }
+        : { investmentId: sanitizedId, userId };
+
+    const transactionCount = await InvestmentTransaction.countDocuments(countQuery);
     if (transactionCount === 1 && transaction.type === 'purchase') {
         throw CustomException('Cannot delete the initial purchase transaction', 400);
     }
 
-    await InvestmentTransaction.findByIdAndDelete(transactionId);
+    await InvestmentTransaction.findByIdAndDelete(sanitizedTransactionId);
 
     return res.json({
         success: true,

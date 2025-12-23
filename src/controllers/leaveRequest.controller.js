@@ -2,6 +2,134 @@ const { LeaveRequest, Employee, LeaveBalance } = require('../models');
 const { CustomException } = require('../utils');
 const asyncHandler = require('../utils/asyncHandler');
 const mongoose = require('mongoose');
+const { pickAllowedFields } = require('../utils/securityUtils');
+
+// ═══════════════════════════════════════════════════════════════
+// SECURITY UTILITIES
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Validate date is a valid date object and not in invalid range
+ */
+const isValidDate = (dateString) => {
+    const date = new Date(dateString);
+    return date instanceof Date && !isNaN(date) && date.getTime() > 0;
+};
+
+/**
+ * Validate date range - ensure start is before end and both are valid
+ */
+const validateDateRange = (startDate, endDate) => {
+    if (!isValidDate(startDate)) {
+        throw CustomException('Invalid start date format', 400);
+    }
+    if (!isValidDate(endDate)) {
+        throw CustomException('Invalid end date format', 400);
+    }
+
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+
+    if (start >= end) {
+        throw CustomException('Start date must be before end date', 400);
+    }
+
+    // Prevent dates too far in the past (older than 10 years)
+    const tenYearsAgo = new Date();
+    tenYearsAgo.setFullYear(tenYearsAgo.getFullYear() - 10);
+    if (start < tenYearsAgo) {
+        throw CustomException('Start date is too far in the past', 400);
+    }
+
+    // Prevent dates too far in the future (more than 5 years)
+    const fiveYearsFromNow = new Date();
+    fiveYearsFromNow.setFullYear(fiveYearsFromNow.getFullYear() + 5);
+    if (end > fiveYearsFromNow) {
+        throw CustomException('End date is too far in the future', 400);
+    }
+};
+
+/**
+ * Allowed fields for create leave request (mass assignment protection)
+ */
+const ALLOWED_CREATE_FIELDS = [
+    'employeeId',
+    'leaveType',
+    'dates',
+    'reason',
+    'reasonAr',
+    'leaveDetails',
+    'workHandover',
+    'notes'
+];
+
+/**
+ * Allowed fields for update leave request (mass assignment protection)
+ */
+const ALLOWED_UPDATE_FIELDS = [
+    'leaveType',
+    'dates',
+    'reason',
+    'reasonAr',
+    'leaveDetails',
+    'workHandover',
+    'notes'
+];
+
+/**
+ * Allowed fields for document upload (mass assignment protection)
+ */
+const ALLOWED_DOCUMENT_FIELDS = [
+    'documentType',
+    'documentName',
+    'fileUrl'
+];
+
+/**
+ * Allowed fields for approval comments
+ */
+const ALLOWED_APPROVAL_FIELDS = ['comments'];
+
+/**
+ * Allowed fields for rejection reason
+ */
+const ALLOWED_REJECTION_FIELDS = ['reason'];
+
+/**
+ * Allowed fields for cancellation reason
+ */
+const ALLOWED_CANCEL_FIELDS = ['reason'];
+
+/**
+ * Allowed fields for confirm return
+ */
+const ALLOWED_RETURN_FIELDS = [
+    'actualReturnDate',
+    'notes'
+];
+
+/**
+ * Allowed fields for request extension
+ */
+const ALLOWED_EXTENSION_FIELDS = [
+    'newEndDate',
+    'reason'
+];
+
+/**
+ * Allowed fields for handover completion
+ */
+const ALLOWED_HANDOVER_FIELDS = ['tasks'];
+
+/**
+ * Allowed fields for conflict check
+ */
+const ALLOWED_CONFLICT_FIELDS = [
+    'employeeId',
+    'startDate',
+    'endDate',
+    'excludeRequestId'
+];
 
 // ═══════════════════════════════════════════════════════════════
 // GET ALL LEAVE REQUESTS
@@ -123,6 +251,9 @@ const createLeaveRequest = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
+    // MASS ASSIGNMENT PROTECTION: Filter request body to only allowed fields
+    const filteredInput = pickAllowedFields(req.body, ALLOWED_CREATE_FIELDS);
+
     const {
         employeeId,
         leaveType,
@@ -132,9 +263,23 @@ const createLeaveRequest = asyncHandler(async (req, res) => {
         leaveDetails,
         workHandover,
         notes
-    } = req.body;
+    } = filteredInput;
 
-    // Fetch employee
+    // Validate required fields
+    if (!employeeId) {
+        throw CustomException('Employee ID is required', 400);
+    }
+    if (!leaveType) {
+        throw CustomException('Leave type is required', 400);
+    }
+    if (!dates || !dates.startDate || !dates.endDate) {
+        throw CustomException('Start date and end date are required', 400);
+    }
+
+    // DATE VALIDATION: Ensure dates are valid and in correct order
+    validateDateRange(dates.startDate, dates.endDate);
+
+    // IDOR PROTECTION: Fetch employee and verify access
     const employee = await Employee.findById(employeeId);
     if (!employee) {
         throw CustomException('Employee not found', 404);
@@ -247,6 +392,7 @@ const updateLeaveRequest = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
+    // IDOR PROTECTION: Fetch and verify access first
     const leaveRequest = await LeaveRequest.findById(id);
 
     if (!leaveRequest) {
@@ -267,6 +413,9 @@ const updateLeaveRequest = asyncHandler(async (req, res) => {
         throw CustomException('Only draft or submitted leave requests can be updated', 400);
     }
 
+    // MASS ASSIGNMENT PROTECTION: Filter request body to only allowed fields
+    const filteredInput = pickAllowedFields(req.body, ALLOWED_UPDATE_FIELDS);
+
     const {
         leaveType,
         dates,
@@ -275,14 +424,21 @@ const updateLeaveRequest = asyncHandler(async (req, res) => {
         leaveDetails,
         workHandover,
         notes
-    } = req.body;
+    } = filteredInput;
 
-    // Update fields
+    // Update fields with validation
     if (leaveType) leaveRequest.leaveType = leaveType;
     if (reason !== undefined) leaveRequest.reason = reason;
     if (reasonAr !== undefined) leaveRequest.reasonAr = reasonAr;
 
     if (dates) {
+        // DATE VALIDATION: Validate date range if dates are being updated
+        if (dates.startDate || dates.endDate) {
+            const startDate = dates.startDate || leaveRequest.dates.startDate;
+            const endDate = dates.endDate || leaveRequest.dates.endDate;
+            validateDateRange(startDate, endDate);
+        }
+
         if (dates.startDate) leaveRequest.dates.startDate = new Date(dates.startDate);
         if (dates.endDate) leaveRequest.dates.endDate = new Date(dates.endDate);
         if (dates.halfDay !== undefined) leaveRequest.dates.halfDay = dates.halfDay;
@@ -433,8 +589,8 @@ const approveLeaveRequest = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const lawyerId = req.userID;
     const firmId = req.firmId;
-    const { comments } = req.body;
 
+    // IDOR PROTECTION: Fetch and verify access first
     const leaveRequest = await LeaveRequest.findById(id);
 
     if (!leaveRequest) {
@@ -449,6 +605,10 @@ const approveLeaveRequest = asyncHandler(async (req, res) => {
     if (!hasAccess) {
         throw CustomException('Access denied', 403);
     }
+
+    // MASS ASSIGNMENT PROTECTION: Filter request body to only allowed fields
+    const filteredInput = pickAllowedFields(req.body, ALLOWED_APPROVAL_FIELDS);
+    const { comments } = filteredInput;
 
     if (!['submitted', 'pending_approval'].includes(leaveRequest.status)) {
         throw CustomException('Only submitted or pending leave requests can be approved', 400);
@@ -522,8 +682,8 @@ const rejectLeaveRequest = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const lawyerId = req.userID;
     const firmId = req.firmId;
-    const { reason } = req.body;
 
+    // IDOR PROTECTION: Fetch and verify access first
     const leaveRequest = await LeaveRequest.findById(id);
 
     if (!leaveRequest) {
@@ -538,6 +698,10 @@ const rejectLeaveRequest = asyncHandler(async (req, res) => {
     if (!hasAccess) {
         throw CustomException('Access denied', 403);
     }
+
+    // MASS ASSIGNMENT PROTECTION: Filter request body to only allowed fields
+    const filteredInput = pickAllowedFields(req.body, ALLOWED_REJECTION_FIELDS);
+    const { reason } = filteredInput;
 
     if (!['submitted', 'pending_approval'].includes(leaveRequest.status)) {
         throw CustomException('Only submitted or pending leave requests can be rejected', 400);
@@ -565,12 +729,12 @@ const cancelLeaveRequest = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const lawyerId = req.userID;
     const firmId = req.firmId;
-    const { reason } = req.body;
 
     // Get user info for name
     const User = require('../models/user.model');
     const user = await User.findById(lawyerId);
 
+    // IDOR PROTECTION: Fetch and verify access first
     const leaveRequest = await LeaveRequest.findById(id);
 
     if (!leaveRequest) {
@@ -585,6 +749,10 @@ const cancelLeaveRequest = asyncHandler(async (req, res) => {
     if (!hasAccess) {
         throw CustomException('Access denied', 403);
     }
+
+    // MASS ASSIGNMENT PROTECTION: Filter request body to only allowed fields
+    const filteredInput = pickAllowedFields(req.body, ALLOWED_CANCEL_FIELDS);
+    const { reason } = filteredInput;
 
     if (leaveRequest.status === 'completed') {
         throw CustomException('Completed leave requests cannot be cancelled', 400);
@@ -633,8 +801,8 @@ const confirmReturn = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const lawyerId = req.userID;
     const firmId = req.firmId;
-    const { actualReturnDate, notes } = req.body;
 
+    // IDOR PROTECTION: Fetch and verify access first
     const leaveRequest = await LeaveRequest.findById(id);
 
     if (!leaveRequest) {
@@ -654,7 +822,32 @@ const confirmReturn = asyncHandler(async (req, res) => {
         throw CustomException('Only approved leave requests can have return confirmed', 400);
     }
 
-    const returnDate = actualReturnDate ? new Date(actualReturnDate) : new Date();
+    // MASS ASSIGNMENT PROTECTION: Filter request body to only allowed fields
+    const filteredInput = pickAllowedFields(req.body, ALLOWED_RETURN_FIELDS);
+    const { actualReturnDate, notes } = filteredInput;
+
+    // DATE VALIDATION: Validate return date if provided
+    let returnDate;
+    if (actualReturnDate) {
+        if (!isValidDate(actualReturnDate)) {
+            throw CustomException('Invalid return date format', 400);
+        }
+        returnDate = new Date(actualReturnDate);
+
+        // Ensure return date is not before leave start date
+        if (returnDate < leaveRequest.dates.startDate) {
+            throw CustomException('Return date cannot be before leave start date', 400);
+        }
+
+        // Ensure return date is not too far in the future
+        const maxFutureDate = new Date();
+        maxFutureDate.setFullYear(maxFutureDate.getFullYear() + 1);
+        if (returnDate > maxFutureDate) {
+            throw CustomException('Return date is too far in the future', 400);
+        }
+    } else {
+        returnDate = new Date();
+    }
     const expectedReturn = leaveRequest.returnFromLeave?.expectedReturnDate;
 
     // Check if early or late return
@@ -703,8 +896,8 @@ const requestExtension = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const lawyerId = req.userID;
     const firmId = req.firmId;
-    const { newEndDate, reason } = req.body;
 
+    // IDOR PROTECTION: Fetch and verify access first
     const leaveRequest = await LeaveRequest.findById(id);
 
     if (!leaveRequest) {
@@ -724,9 +917,29 @@ const requestExtension = asyncHandler(async (req, res) => {
         throw CustomException('Only approved leave requests can be extended', 400);
     }
 
+    // MASS ASSIGNMENT PROTECTION: Filter request body to only allowed fields
+    const filteredInput = pickAllowedFields(req.body, ALLOWED_EXTENSION_FIELDS);
+    const { newEndDate, reason } = filteredInput;
+
+    if (!newEndDate) {
+        throw CustomException('New end date is required', 400);
+    }
+
+    // DATE VALIDATION: Validate new end date
+    if (!isValidDate(newEndDate)) {
+        throw CustomException('Invalid new end date format', 400);
+    }
+
     const newEnd = new Date(newEndDate);
     if (newEnd <= leaveRequest.dates.endDate) {
         throw CustomException('New end date must be after current end date', 400);
+    }
+
+    // Ensure new end date is not too far in the future
+    const fiveYearsFromNow = new Date();
+    fiveYearsFromNow.setFullYear(fiveYearsFromNow.getFullYear() + 5);
+    if (newEnd > fiveYearsFromNow) {
+        throw CustomException('New end date is too far in the future', 400);
     }
 
     // Calculate extension days
@@ -777,8 +990,8 @@ const completeHandover = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const lawyerId = req.userID;
     const firmId = req.firmId;
-    const { tasks } = req.body;
 
+    // IDOR PROTECTION: Fetch and verify access first
     const leaveRequest = await LeaveRequest.findById(id);
 
     if (!leaveRequest) {
@@ -794,10 +1007,18 @@ const completeHandover = asyncHandler(async (req, res) => {
         throw CustomException('Access denied', 403);
     }
 
+    // MASS ASSIGNMENT PROTECTION: Filter request body to only allowed fields
+    const filteredInput = pickAllowedFields(req.body, ALLOWED_HANDOVER_FIELDS);
+    const { tasks } = filteredInput;
+
     leaveRequest.workHandover.handoverCompleted = true;
     leaveRequest.workHandover.handoverCompletedOn = new Date();
 
     if (tasks && Array.isArray(tasks)) {
+        // Validate tasks is an array of valid objects
+        if (!tasks.every(task => typeof task === 'object' && task !== null)) {
+            throw CustomException('Tasks must be an array of objects', 400);
+        }
         leaveRequest.workHandover.tasks = tasks;
     }
 
@@ -818,8 +1039,8 @@ const uploadDocument = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const lawyerId = req.userID;
     const firmId = req.firmId;
-    const { documentType, documentName, fileUrl } = req.body;
 
+    // IDOR PROTECTION: Fetch and verify access first
     const leaveRequest = await LeaveRequest.findById(id);
 
     if (!leaveRequest) {
@@ -833,6 +1054,18 @@ const uploadDocument = asyncHandler(async (req, res) => {
 
     if (!hasAccess) {
         throw CustomException('Access denied', 403);
+    }
+
+    // MASS ASSIGNMENT PROTECTION: Filter request body to only allowed fields
+    const filteredInput = pickAllowedFields(req.body, ALLOWED_DOCUMENT_FIELDS);
+    const { documentType, documentName, fileUrl } = filteredInput;
+
+    // Validate required fields
+    if (!documentType) {
+        throw CustomException('Document type is required', 400);
+    }
+    if (!fileUrl) {
+        throw CustomException('File URL is required', 400);
     }
 
     leaveRequest.documents.push({
@@ -994,7 +1227,38 @@ const getTeamCalendar = asyncHandler(async (req, res) => {
 const checkConflicts = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
-    const { employeeId, startDate, endDate, excludeRequestId } = req.body;
+
+    // MASS ASSIGNMENT PROTECTION: Filter request body to only allowed fields
+    const filteredInput = pickAllowedFields(req.body, ALLOWED_CONFLICT_FIELDS);
+    const { employeeId, startDate, endDate, excludeRequestId } = filteredInput;
+
+    // Validate required fields
+    if (!employeeId) {
+        throw CustomException('Employee ID is required', 400);
+    }
+    if (!startDate) {
+        throw CustomException('Start date is required', 400);
+    }
+    if (!endDate) {
+        throw CustomException('End date is required', 400);
+    }
+
+    // DATE VALIDATION: Ensure dates are valid and in correct order
+    validateDateRange(startDate, endDate);
+
+    // IDOR PROTECTION: Verify access to employee
+    const employee = await Employee.findById(employeeId);
+    if (!employee) {
+        throw CustomException('Employee not found', 404);
+    }
+
+    const hasAccess = firmId
+        ? employee.firmId?.toString() === firmId.toString()
+        : employee.lawyerId?.toString() === lawyerId;
+
+    if (!hasAccess) {
+        throw CustomException('Access denied to this employee', 403);
+    }
 
     const conflicts = await LeaveRequest.checkConflicts(
         employeeId,

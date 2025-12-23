@@ -2,6 +2,7 @@ const { User, Firm, FirmInvitation } = require('../models');
 const { CustomException } = require('../utils');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
+const Joi = require('joi');
 const { getDefaultPermissions, getSoloLawyerPermissions, isSoloLawyer: checkIsSoloLawyer } = require('../config/permissions.config');
 const auditLogService = require('../services/auditLog.service');
 const accountLockoutService = require('../services/accountLockout.service');
@@ -16,6 +17,129 @@ const { JWT_SECRET, NODE_ENV } = process.env;
 
 // Password hashing rounds - OWASP recommends minimum 10, we use 12 for better security
 const saltRounds = 12;
+
+// ═══════════════════════════════════════════════════════════════
+// JOI VALIDATION SCHEMAS
+// ═══════════════════════════════════════════════════════════════
+
+// Register validation schema
+const registerSchema = Joi.object({
+    username: Joi.string()
+        .alphanum()
+        .min(3)
+        .max(30)
+        .required()
+        .messages({
+            'string.alphanum': 'اسم المستخدم يجب أن يحتوي على أحرف وأرقام فقط',
+            'string.min': 'اسم المستخدم يجب أن يكون بحد أدنى 3 أحرف',
+            'string.max': 'اسم المستخدم يجب أن يكون بحد أقصى 30 حرف',
+            'any.required': 'اسم المستخدم مطلوب'
+        }),
+    email: Joi.string()
+        .email()
+        .required()
+        .messages({
+            'string.email': 'البريد الإلكتروني غير صالح',
+            'any.required': 'البريد الإلكتروني مطلوب'
+        }),
+    password: Joi.string()
+        .min(8)
+        .required()
+        .messages({
+            'string.min': 'كلمة المرور يجب أن تكون بحد أدنى 8 أحرف',
+            'any.required': 'كلمة المرور مطلوبة'
+        }),
+    phone: Joi.string()
+        .pattern(/^\+?[1-9]\d{7,14}$/)
+        .required()
+        .messages({
+            'string.pattern.base': 'رقم الجوال غير صالح',
+            'any.required': 'رقم الجوال مطلوب'
+        }),
+    firstName: Joi.string()
+        .min(2)
+        .max(50)
+        .required()
+        .messages({
+            'string.min': 'الاسم الأول يجب أن يكون بحد أدنى حرفين',
+            'string.max': 'الاسم الأول يجب أن يكون بحد أقصى 50 حرف',
+            'any.required': 'الاسم الأول مطلوب'
+        }),
+    lastName: Joi.string()
+        .min(2)
+        .max(50)
+        .required()
+        .messages({
+            'string.min': 'الاسم الأخير يجب أن يكون بحد أدنى حرفين',
+            'string.max': 'الاسم الأخير يجب أن يكون بحد أقصى 50 حرف',
+            'any.required': 'الاسم الأخير مطلوب'
+        }),
+    image: Joi.string().uri().optional().messages({
+        'string.uri': 'صورة غير صالحة'
+    }),
+    description: Joi.string().max(500).optional(),
+    country: Joi.string().optional(),
+    nationality: Joi.string().optional(),
+    region: Joi.string().optional(),
+    city: Joi.string().optional(),
+    isSeller: Joi.boolean().optional(),
+    role: Joi.string().valid('lawyer', 'client').optional(),
+    lawyerMode: Joi.string().optional(),
+    lawyerWorkMode: Joi.string().valid('solo', 'create_firm', 'join_firm').optional(),
+    firmData: Joi.object({
+        name: Joi.string().required(),
+        nameEn: Joi.string().optional(),
+        licenseNumber: Joi.string().required(),
+        email: Joi.string().email().optional(),
+        phone: Joi.string().pattern(/^\+?[1-9]\d{7,14}$/).optional(),
+        region: Joi.string().optional(),
+        city: Joi.string().optional(),
+        address: Joi.string().optional(),
+        website: Joi.string().uri().optional(),
+        description: Joi.string().optional(),
+        specializations: Joi.array().items(Joi.string()).optional()
+    }).optional(),
+    invitationCode: Joi.string().optional(),
+    isLicensed: Joi.boolean().optional(),
+    licenseNumber: Joi.string().optional(),
+    courts: Joi.object().optional(),
+    yearsOfExperience: Joi.number().min(0).optional(),
+    workType: Joi.string().optional(),
+    firmName: Joi.string().optional(),
+    specializations: Joi.array().items(Joi.string()).optional(),
+    languages: Joi.array().items(Joi.string()).optional(),
+    isRegisteredKhebra: Joi.boolean().optional(),
+    serviceType: Joi.string().optional(),
+    pricingModel: Joi.array().optional(),
+    hourlyRateMin: Joi.number().min(0).optional(),
+    hourlyRateMax: Joi.number().min(0).optional(),
+    acceptsRemote: Joi.boolean().optional()
+}).unknown(true);
+
+// Login validation schema
+const loginSchema = Joi.object({
+    username: Joi.string().optional(),
+    email: Joi.string().email().optional(),
+    password: Joi.string().required().messages({
+        'any.required': 'كلمة المرور مطلوبة'
+    }),
+    mfaCode: Joi.string().optional()
+})
+.or('username', 'email')
+.messages({
+    'object.missing': 'اسم المستخدم أو البريد الإلكتروني مطلوب'
+});
+
+// Check availability validation schema
+const checkAvailabilitySchema = Joi.object({
+    email: Joi.string().email().optional(),
+    username: Joi.string().alphanum().min(3).max(30).optional(),
+    phone: Joi.string().pattern(/^\+?[1-9]\d{7,14}$/).optional()
+})
+.or('email', 'username', 'phone')
+.messages({
+    'object.missing': 'يجب توفير البريد الإلكتروني أو اسم المستخدم أو رقم الجوال'
+});
 
 // Robust production detection for cross-origin cookie settings
 // Checks multiple indicators to determine if we're in a production environment
@@ -169,11 +293,21 @@ const authRegister = async (request, response) => {
     } = request.body;
 
     try {
-        // Validation
-        if (!username || !email || !password || !phone || !firstName || !lastName) {
+        // ═══════════════════════════════════════════════════════════════
+        // JOI VALIDATION - Validate all input fields
+        // ═══════════════════════════════════════════════════════════════
+        const { error, value } = registerSchema.validate(request.body, {
+            abortEarly: false,
+            stripUnknown: false
+        });
+
+        if (error) {
+            const messages = error.details.map(detail => detail.message);
             return response.status(400).send({
                 error: true,
-                message: 'الحقول المطلوبة: الاسم الأول، الاسم الأخير، اسم المستخدم، البريد الإلكتروني، كلمة المرور، رقم الجوال'
+                message: messages.join('. '),
+                code: 'VALIDATION_ERROR',
+                details: error.details
             });
         }
 
@@ -489,6 +623,22 @@ const authLogin = async (request, response) => {
     const userAgent = request.headers['user-agent'] || 'unknown';
 
     try {
+        // ═══════════════════════════════════════════════════════════════
+        // JOI VALIDATION - Validate login inputs
+        // ═══════════════════════════════════════════════════════════════
+        const { error } = loginSchema.validate(request.body, {
+            abortEarly: false
+        });
+
+        if (error) {
+            const messages = error.details.map(detail => detail.message);
+            return response.status(400).send({
+                error: true,
+                message: messages.join('. '),
+                code: 'VALIDATION_ERROR',
+                details: error.details
+            });
+        }
         // Check if account is locked BEFORE any database queries
         // PERF: isAccountLocked now runs email and IP checks in parallel
         const lockStatus = await accountLockoutService.isAccountLocked(loginIdentifier, ipAddress);
@@ -977,11 +1127,20 @@ const checkAvailability = async (request, response) => {
     const { email, username, phone } = request.body;
 
     try {
-        // Validate that at least one field is provided
-        if (!email && !username && !phone) {
+        // ═══════════════════════════════════════════════════════════════
+        // JOI VALIDATION - Validate availability check inputs
+        // ═══════════════════════════════════════════════════════════════
+        const { error } = checkAvailabilitySchema.validate(request.body, {
+            abortEarly: false
+        });
+
+        if (error) {
+            const messages = error.details.map(detail => detail.message);
             return response.status(400).send({
                 error: true,
-                message: 'يجب توفير البريد الإلكتروني أو اسم المستخدم أو رقم الجوال'
+                message: messages.join('. '),
+                code: 'VALIDATION_ERROR',
+                details: error.details
             });
         }
 

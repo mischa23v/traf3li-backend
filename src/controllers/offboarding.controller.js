@@ -1,6 +1,7 @@
 const { Offboarding, Employee } = require('../models');
 const { CustomException } = require('../utils');
 const asyncHandler = require('../utils/asyncHandler');
+const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 const mongoose = require('mongoose');
 
 // ═══════════════════════════════════════════════════════════════
@@ -144,6 +145,12 @@ const getOffboarding = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
+    // Validate and sanitize offboardingId
+    const sanitizedOffboardingId = sanitizeObjectId(offboardingId);
+    if (!sanitizedOffboardingId) {
+        throw CustomException('Invalid offboarding ID format', 400);
+    }
+
     const offboarding = await Offboarding.findById(offboardingId)
         .populate('employeeId', 'employeeId personalInfo employment compensation gosi')
         .populate('managerId', 'firstName lastName email')
@@ -154,7 +161,7 @@ const getOffboarding = asyncHandler(async (req, res) => {
         throw CustomException('Offboarding not found', 404);
     }
 
-    // Check access
+    // IDOR Protection - Check access
     const hasAccess = firmId
         ? offboarding.firmId?.toString() === firmId.toString()
         : offboarding.lawyerId?.toString() === lawyerId;
@@ -177,6 +184,15 @@ const createOffboarding = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
+    // Mass assignment protection - only allow specific fields
+    const allowedFields = [
+        'employeeId', 'employeeNumber', 'employeeName', 'employeeNameAr',
+        'nationalId', 'department', 'jobTitle', 'jobTitleAr',
+        'managerId', 'managerName', 'exitType', 'noticeDate',
+        'lastWorkingDay', 'exitEffectiveDate', 'noticePeriodDays', 'notes'
+    ];
+    const filteredData = pickAllowedFields(req.body, allowedFields);
+
     const {
         employeeId,
         employeeNumber,
@@ -194,7 +210,44 @@ const createOffboarding = asyncHandler(async (req, res) => {
         exitEffectiveDate,
         noticePeriodDays = 30,
         notes
-    } = req.body;
+    } = filteredData;
+
+    // Input validation
+    if (!employeeId) {
+        throw CustomException('Employee ID is required', 400);
+    }
+    if (!employeeName) {
+        throw CustomException('Employee name is required', 400);
+    }
+    if (!exitType) {
+        throw CustomException('Exit type is required', 400);
+    }
+    if (!lastWorkingDay) {
+        throw CustomException('Last working day is required', 400);
+    }
+
+    // Validate exit type
+    const validExitTypes = ['resignation', 'termination', 'contract_end', 'retirement', 'death', 'mutual_agreement'];
+    if (!validExitTypes.includes(exitType)) {
+        throw CustomException(`Invalid exit type. Must be one of: ${validExitTypes.join(', ')}`, 400);
+    }
+
+    // Validate and sanitize IDs
+    const sanitizedEmployeeId = sanitizeObjectId(employeeId);
+    if (!sanitizedEmployeeId) {
+        throw CustomException('Invalid employee ID format', 400);
+    }
+
+    // Validate dates
+    const lastWorkDate = new Date(lastWorkingDay);
+    if (isNaN(lastWorkDate.getTime())) {
+        throw CustomException('Invalid last working day date', 400);
+    }
+
+    // Validate notice period days
+    if (noticePeriodDays && (isNaN(noticePeriodDays) || noticePeriodDays < 0 || noticePeriodDays > 365)) {
+        throw CustomException('Notice period days must be between 0 and 365', 400);
+    }
 
     // Fetch employee
     const employee = await Employee.findById(employeeId);
@@ -410,20 +463,54 @@ const updateOffboarding = asyncHandler(async (req, res) => {
         throw CustomException('Cannot update completed offboarding', 400);
     }
 
+    // Mass assignment protection - only allow specific fields
     const allowedUpdates = [
         'employeeName', 'employeeNameAr', 'department', 'jobTitle', 'jobTitleAr',
         'managerId', 'managerName', 'exitType', 'dates', 'noticePeriod',
         'resignation', 'termination', 'contractEnd', 'retirement', 'death', 'mutualAgreement',
         'knowledgeTransfer', 'notes', 'rehireEligibility'
     ];
+    const filteredData = pickAllowedFields(req.body, allowedUpdates);
+
+    // Input validation for exitType if provided
+    if (filteredData.exitType) {
+        const validExitTypes = ['resignation', 'termination', 'contract_end', 'retirement', 'death', 'mutual_agreement'];
+        if (!validExitTypes.includes(filteredData.exitType)) {
+            throw CustomException(`Invalid exit type. Must be one of: ${validExitTypes.join(', ')}`, 400);
+        }
+    }
+
+    // Validate dates if provided
+    if (filteredData.dates) {
+        if (filteredData.dates.lastWorkingDay) {
+            const lastWorkDate = new Date(filteredData.dates.lastWorkingDay);
+            if (isNaN(lastWorkDate.getTime())) {
+                throw CustomException('Invalid last working day date', 400);
+            }
+        }
+        if (filteredData.dates.exitEffectiveDate) {
+            const exitDate = new Date(filteredData.dates.exitEffectiveDate);
+            if (isNaN(exitDate.getTime())) {
+                throw CustomException('Invalid exit effective date', 400);
+            }
+        }
+    }
+
+    // Validate managerId if provided
+    if (filteredData.managerId) {
+        const sanitizedManagerId = sanitizeObjectId(filteredData.managerId);
+        if (!sanitizedManagerId) {
+            throw CustomException('Invalid manager ID format', 400);
+        }
+    }
 
     // Apply updates
     allowedUpdates.forEach(field => {
-        if (req.body[field] !== undefined) {
-            if (typeof req.body[field] === 'object' && !Array.isArray(req.body[field])) {
-                offboarding[field] = { ...offboarding[field]?.toObject?.() || offboarding[field] || {}, ...req.body[field] };
+        if (filteredData[field] !== undefined) {
+            if (typeof filteredData[field] === 'object' && !Array.isArray(filteredData[field])) {
+                offboarding[field] = { ...offboarding[field]?.toObject?.() || offboarding[field] || {}, ...filteredData[field] };
             } else {
-                offboarding[field] = req.body[field];
+                offboarding[field] = filteredData[field];
             }
         }
     });
@@ -447,13 +534,19 @@ const deleteOffboarding = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
+    // Validate and sanitize offboardingId
+    const sanitizedOffboardingId = sanitizeObjectId(offboardingId);
+    if (!sanitizedOffboardingId) {
+        throw CustomException('Invalid offboarding ID format', 400);
+    }
+
     const offboarding = await Offboarding.findById(offboardingId);
 
     if (!offboarding) {
         throw CustomException('Offboarding not found', 404);
     }
 
-    // Check access
+    // IDOR Protection - Check access
     const hasAccess = firmId
         ? offboarding.firmId?.toString() === firmId.toString()
         : offboarding.lawyerId?.toString() === lawyerId;
@@ -483,7 +576,22 @@ const updateStatus = asyncHandler(async (req, res) => {
     const { offboardingId } = req.params;
     const lawyerId = req.userID;
     const firmId = req.firmId;
-    const { status } = req.body;
+
+    // Validate and sanitize offboardingId
+    const sanitizedOffboardingId = sanitizeObjectId(offboardingId);
+    if (!sanitizedOffboardingId) {
+        throw CustomException('Invalid offboarding ID format', 400);
+    }
+
+    // Mass assignment protection
+    const allowedFields = ['status'];
+    const filteredData = pickAllowedFields(req.body, allowedFields);
+    const { status } = filteredData;
+
+    // Input validation
+    if (!status) {
+        throw CustomException('Status is required', 400);
+    }
 
     const validStatuses = ['initiated', 'in_progress', 'clearance_pending', 'completed', 'cancelled'];
     if (!validStatuses.includes(status)) {
@@ -496,7 +604,7 @@ const updateStatus = asyncHandler(async (req, res) => {
         throw CustomException('Offboarding not found', 404);
     }
 
-    // Check access
+    // IDOR Protection - Check access
     const hasAccess = firmId
         ? offboarding.firmId?.toString() === firmId.toString()
         : offboarding.lawyerId?.toString() === lawyerId;
@@ -550,6 +658,20 @@ const completeExitInterview = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
+    // Validate and sanitize offboardingId
+    const sanitizedOffboardingId = sanitizeObjectId(offboardingId);
+    if (!sanitizedOffboardingId) {
+        throw CustomException('Invalid offboarding ID format', 400);
+    }
+
+    // Mass assignment protection - only allow specific fields
+    const allowedFields = [
+        'scheduled', 'scheduledDate', 'conducted', 'conductedDate',
+        'interviewedBy', 'interviewerRole', 'interviewMethod',
+        'responses', 'interviewerNotes', 'keyInsights', 'actionItems', 'completed'
+    ];
+    const filteredData = pickAllowedFields(req.body, allowedFields);
+
     const {
         scheduled,
         scheduledDate,
@@ -563,7 +685,33 @@ const completeExitInterview = asyncHandler(async (req, res) => {
         keyInsights,
         actionItems,
         completed
-    } = req.body;
+    } = filteredData;
+
+    // Input validation
+    if (scheduledDate) {
+        const schedDate = new Date(scheduledDate);
+        if (isNaN(schedDate.getTime())) {
+            throw CustomException('Invalid scheduled date', 400);
+        }
+    }
+    if (conductedDate) {
+        const condDate = new Date(conductedDate);
+        if (isNaN(condDate.getTime())) {
+            throw CustomException('Invalid conducted date', 400);
+        }
+    }
+    if (interviewMethod) {
+        const validMethods = ['in_person', 'video', 'phone', 'written'];
+        if (!validMethods.includes(interviewMethod)) {
+            throw CustomException(`Invalid interview method. Must be one of: ${validMethods.join(', ')}`, 400);
+        }
+    }
+    if (interviewedBy) {
+        const sanitizedInterviewerId = sanitizeObjectId(interviewedBy);
+        if (!sanitizedInterviewerId) {
+            throw CustomException('Invalid interviewer ID format', 400);
+        }
+    }
 
     const offboarding = await Offboarding.findById(offboardingId);
 
@@ -633,6 +781,19 @@ const updateClearanceItem = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
+    // Validate and sanitize IDs
+    const sanitizedOffboardingId = sanitizeObjectId(offboardingId);
+    if (!sanitizedOffboardingId) {
+        throw CustomException('Invalid offboarding ID format', 400);
+    }
+
+    // Mass assignment protection - only allow specific fields
+    const allowedFields = [
+        'returned', 'returnedDate', 'returnedTo', 'condition',
+        'damageNotes', 'damageCharge', 'notReturnedReason', 'replacementCost'
+    ];
+    const filteredData = pickAllowedFields(req.body, allowedFields);
+
     const {
         returned,
         returnedDate,
@@ -642,7 +803,37 @@ const updateClearanceItem = asyncHandler(async (req, res) => {
         damageCharge,
         notReturnedReason,
         replacementCost
-    } = req.body;
+    } = filteredData;
+
+    // Input validation
+    if (returnedDate) {
+        const retDate = new Date(returnedDate);
+        if (isNaN(retDate.getTime())) {
+            throw CustomException('Invalid returned date', 400);
+        }
+    }
+    if (condition) {
+        const validConditions = ['good', 'fair', 'damaged', 'lost'];
+        if (!validConditions.includes(condition)) {
+            throw CustomException(`Invalid condition. Must be one of: ${validConditions.join(', ')}`, 400);
+        }
+    }
+    if (damageCharge !== undefined) {
+        if (isNaN(damageCharge) || damageCharge < 0) {
+            throw CustomException('Damage charge must be a non-negative number', 400);
+        }
+    }
+    if (replacementCost !== undefined) {
+        if (isNaN(replacementCost) || replacementCost < 0) {
+            throw CustomException('Replacement cost must be a non-negative number', 400);
+        }
+    }
+    if (returnedTo) {
+        const sanitizedReturnedToId = sanitizeObjectId(returnedTo);
+        if (!sanitizedReturnedToId) {
+            throw CustomException('Invalid returnedTo ID format', 400);
+        }
+    }
 
     const offboarding = await Offboarding.findById(offboardingId);
 
@@ -700,7 +891,25 @@ const completeClearanceSection = asyncHandler(async (req, res) => {
     const { offboardingId, section } = req.params;
     const lawyerId = req.userID;
     const firmId = req.firmId;
-    const { clearedBy, notes } = req.body;
+
+    // Validate and sanitize offboardingId
+    const sanitizedOffboardingId = sanitizeObjectId(offboardingId);
+    if (!sanitizedOffboardingId) {
+        throw CustomException('Invalid offboarding ID format', 400);
+    }
+
+    // Mass assignment protection
+    const allowedFields = ['clearedBy', 'notes'];
+    const filteredData = pickAllowedFields(req.body, allowedFields);
+    const { clearedBy, notes } = filteredData;
+
+    // Validate clearedBy if provided
+    if (clearedBy) {
+        const sanitizedClearedById = sanitizeObjectId(clearedBy);
+        if (!sanitizedClearedById) {
+            throw CustomException('Invalid clearedBy ID format', 400);
+        }
+    }
 
     const sectionMap = {
         'it': 'itClearance',
@@ -720,7 +929,7 @@ const completeClearanceSection = asyncHandler(async (req, res) => {
         throw CustomException('Offboarding not found', 404);
     }
 
-    // Check access
+    // IDOR Protection - Check access
     const hasAccess = firmId
         ? offboarding.firmId?.toString() === firmId.toString()
         : offboarding.lawyerId?.toString() === lawyerId;
@@ -803,6 +1012,12 @@ const calculateSettlement = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
+    // Validate and sanitize offboardingId
+    const sanitizedOffboardingId = sanitizeObjectId(offboardingId);
+    if (!sanitizedOffboardingId) {
+        throw CustomException('Invalid offboarding ID format', 400);
+    }
+
     const offboarding = await Offboarding.findById(offboardingId)
         .populate('employeeId');
 
@@ -810,7 +1025,7 @@ const calculateSettlement = asyncHandler(async (req, res) => {
         throw CustomException('Offboarding not found', 404);
     }
 
-    // Check access
+    // IDOR Protection - Check access
     const hasAccess = firmId
         ? offboarding.firmId?.toString() === firmId.toString()
         : offboarding.lawyerId?.toString() === lawyerId;
@@ -822,6 +1037,15 @@ const calculateSettlement = asyncHandler(async (req, res) => {
     const employee = offboarding.employeeId;
     if (!employee) {
         throw CustomException('Employee not found', 404);
+    }
+
+    // IDOR Protection - Verify employee belongs to same firm/lawyer
+    const hasEmployeeAccess = firmId
+        ? employee.firmId?.toString() === firmId.toString()
+        : employee.lawyerId?.toString() === lawyerId;
+
+    if (!hasEmployeeAccess) {
+        throw CustomException('Access denied to employee data', 403);
     }
 
     // Get salary info
@@ -893,6 +1117,37 @@ const calculateSettlement = asyncHandler(async (req, res) => {
 
     // ========== NET SETTLEMENT ==========
     const netPayable = totalEarnings - totalDeductions;
+
+    // Validate settlement amounts
+    if (isNaN(totalEarnings) || totalEarnings < 0) {
+        throw CustomException('Invalid total earnings calculation', 400);
+    }
+    if (isNaN(totalDeductions) || totalDeductions < 0) {
+        throw CustomException('Invalid total deductions calculation', 400);
+    }
+    if (isNaN(netPayable)) {
+        throw CustomException('Invalid net payable calculation', 400);
+    }
+
+    // Validate individual amounts
+    if (isNaN(outstandingSalary.amount) || outstandingSalary.amount < 0) {
+        throw CustomException('Invalid outstanding salary amount', 400);
+    }
+    if (isNaN(unusedAnnualLeave.amount) || unusedAnnualLeave.amount < 0) {
+        throw CustomException('Invalid unused annual leave amount', 400);
+    }
+    if (isNaN(eosb.finalEOSB) || eosb.finalEOSB < 0) {
+        throw CustomException('Invalid EOSB amount', 400);
+    }
+    if (isNaN(basicSalary) || basicSalary < 0) {
+        throw CustomException('Invalid basic salary', 400);
+    }
+
+    // Ensure reasonable limits (e.g., settlement should not exceed 10 years of salary)
+    const maxReasonableSettlement = basicSalary * 12 * 10; // 10 years worth
+    if (netPayable > maxReasonableSettlement) {
+        throw CustomException('Settlement amount exceeds reasonable limits. Please review calculations.', 400);
+    }
 
     // Update offboarding
     offboarding.finalSettlement = {
@@ -976,7 +1231,17 @@ const approveSettlement = asyncHandler(async (req, res) => {
     const { offboardingId } = req.params;
     const lawyerId = req.userID;
     const firmId = req.firmId;
-    const { comments } = req.body;
+
+    // Validate and sanitize offboardingId
+    const sanitizedOffboardingId = sanitizeObjectId(offboardingId);
+    if (!sanitizedOffboardingId) {
+        throw CustomException('Invalid offboarding ID format', 400);
+    }
+
+    // Mass assignment protection
+    const allowedFields = ['comments'];
+    const filteredData = pickAllowedFields(req.body, allowedFields);
+    const { comments } = filteredData;
 
     const offboarding = await Offboarding.findById(offboardingId);
 
@@ -984,7 +1249,7 @@ const approveSettlement = asyncHandler(async (req, res) => {
         throw CustomException('Offboarding not found', 404);
     }
 
-    // Check access
+    // IDOR Protection - Check access
     const hasAccess = firmId
         ? offboarding.firmId?.toString() === firmId.toString()
         : offboarding.lawyerId?.toString() === lawyerId;
@@ -995,6 +1260,12 @@ const approveSettlement = asyncHandler(async (req, res) => {
 
     if (!offboarding.finalSettlement?.calculated) {
         throw CustomException('Settlement has not been calculated yet', 400);
+    }
+
+    // Validate settlement amounts before approval
+    const netPayable = offboarding.finalSettlement?.netSettlement?.netPayable;
+    if (netPayable === undefined || isNaN(netPayable)) {
+        throw CustomException('Invalid settlement amount. Please recalculate.', 400);
     }
 
     offboarding.finalSettlement.finalApproved = true;
@@ -1043,12 +1314,31 @@ const processPayment = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
+    // Validate and sanitize offboardingId
+    const sanitizedOffboardingId = sanitizeObjectId(offboardingId);
+    if (!sanitizedOffboardingId) {
+        throw CustomException('Invalid offboarding ID format', 400);
+    }
+
+    // Mass assignment protection
+    const allowedFields = ['paymentMethod', 'paymentReference', 'bankDetails', 'checkDetails'];
+    const filteredData = pickAllowedFields(req.body, allowedFields);
+
     const {
         paymentMethod,
         paymentReference,
         bankDetails,
         checkDetails
-    } = req.body;
+    } = filteredData;
+
+    // Input validation
+    if (!paymentMethod) {
+        throw CustomException('Payment method is required', 400);
+    }
+    const validPaymentMethods = ['bank_transfer', 'check', 'cash', 'wire_transfer'];
+    if (!validPaymentMethods.includes(paymentMethod)) {
+        throw CustomException(`Invalid payment method. Must be one of: ${validPaymentMethods.join(', ')}`, 400);
+    }
 
     const offboarding = await Offboarding.findById(offboardingId);
 
@@ -1056,7 +1346,7 @@ const processPayment = asyncHandler(async (req, res) => {
         throw CustomException('Offboarding not found', 404);
     }
 
-    // Check access
+    // IDOR Protection - Check access
     const hasAccess = firmId
         ? offboarding.firmId?.toString() === firmId.toString()
         : offboarding.lawyerId?.toString() === lawyerId;
@@ -1067,6 +1357,12 @@ const processPayment = asyncHandler(async (req, res) => {
 
     if (!offboarding.finalSettlement?.finalApproved) {
         throw CustomException('Settlement has not been approved yet', 400);
+    }
+
+    // Validate settlement amount before processing payment
+    const netPayable = offboarding.finalSettlement?.netSettlement?.netPayable;
+    if (netPayable === undefined || isNaN(netPayable) || netPayable < 0) {
+        throw CustomException('Invalid settlement amount. Cannot process payment.', 400);
     }
 
     offboarding.finalSettlement.payment = {
@@ -1109,7 +1405,24 @@ const issueExperienceCertificate = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
-    const { certificateContent, deliveryMethod } = req.body;
+    // Validate and sanitize offboardingId
+    const sanitizedOffboardingId = sanitizeObjectId(offboardingId);
+    if (!sanitizedOffboardingId) {
+        throw CustomException('Invalid offboarding ID format', 400);
+    }
+
+    // Mass assignment protection
+    const allowedFields = ['certificateContent', 'deliveryMethod'];
+    const filteredData = pickAllowedFields(req.body, allowedFields);
+    const { certificateContent, deliveryMethod } = filteredData;
+
+    // Input validation
+    if (deliveryMethod) {
+        const validMethods = ['email', 'postal', 'in_person', 'courier'];
+        if (!validMethods.includes(deliveryMethod)) {
+            throw CustomException(`Invalid delivery method. Must be one of: ${validMethods.join(', ')}`, 400);
+        }
+    }
 
     const offboarding = await Offboarding.findById(offboardingId);
 
@@ -1117,7 +1430,7 @@ const issueExperienceCertificate = asyncHandler(async (req, res) => {
         throw CustomException('Offboarding not found', 404);
     }
 
-    // Check access
+    // IDOR Protection - Check access
     const hasAccess = firmId
         ? offboarding.firmId?.toString() === firmId.toString()
         : offboarding.lawyerId?.toString() === lawyerId;
@@ -1188,13 +1501,19 @@ const completeOffboarding = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
+    // Validate and sanitize offboardingId
+    const sanitizedOffboardingId = sanitizeObjectId(offboardingId);
+    if (!sanitizedOffboardingId) {
+        throw CustomException('Invalid offboarding ID format', 400);
+    }
+
     const offboarding = await Offboarding.findById(offboardingId);
 
     if (!offboarding) {
         throw CustomException('Offboarding not found', 404);
     }
 
-    // Check access
+    // IDOR Protection - Check access
     const hasAccess = firmId
         ? offboarding.firmId?.toString() === firmId.toString()
         : offboarding.lawyerId?.toString() === lawyerId;
@@ -1216,6 +1535,37 @@ const completeOffboarding = asyncHandler(async (req, res) => {
     }
     if (!offboarding.completion.documentsIssued) {
         missing.push('Documents');
+    }
+
+    // Validate proper access revocation - ensure IT clearance includes critical tasks
+    const itClearance = offboarding.clearance?.itClearance;
+    if (itClearance?.required) {
+        if (!itClearance.cleared) {
+            missing.push('IT Clearance (required for access revocation)');
+        } else {
+            // Verify critical IT tasks are completed
+            const criticalTasks = ['email_deactivation', 'system_access_revoked', 'vpn_disabled'];
+            const incompleteTasks = itClearance.tasks?.filter(task =>
+                criticalTasks.includes(task.task) && !task.completed
+            ) || [];
+
+            if (incompleteTasks.length > 0) {
+                missing.push(`IT Access Revocation (incomplete: ${incompleteTasks.map(t => t.taskName).join(', ')})`);
+            }
+        }
+    }
+
+    // Validate all clearance items are returned
+    if (offboarding.clearance?.itemsToReturn?.length > 0) {
+        const unreturnedItems = offboarding.clearance.itemsToReturn.filter(item => !item.returned);
+        if (unreturnedItems.length > 0) {
+            missing.push(`Unreturned Items (${unreturnedItems.length} items pending)`);
+        }
+    }
+
+    // Validate final settlement has been paid
+    if (offboarding.finalSettlement?.payment?.paymentStatus !== 'paid') {
+        missing.push('Final Settlement Payment (not yet paid)');
     }
 
     if (missing.length > 0) {
@@ -1271,10 +1621,34 @@ const completeOffboarding = asyncHandler(async (req, res) => {
 const bulkDelete = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
-    const { ids } = req.body;
+
+    // Mass assignment protection
+    const allowedFields = ['ids'];
+    const filteredData = pickAllowedFields(req.body, allowedFields);
+    const { ids } = filteredData;
+
+    // Input validation
+    if (!ids || !Array.isArray(ids)) {
+        throw CustomException('IDs array is required', 400);
+    }
+    if (ids.length === 0) {
+        throw CustomException('IDs array cannot be empty', 400);
+    }
+    if (ids.length > 100) {
+        throw CustomException('Cannot delete more than 100 items at once', 400);
+    }
+
+    // Validate and sanitize all IDs
+    const sanitizedIds = ids.map(id => {
+        const sanitized = sanitizeObjectId(id);
+        if (!sanitized) {
+            throw CustomException(`Invalid ID format: ${id}`, 400);
+        }
+        return sanitized;
+    });
 
     const query = {
-        _id: { $in: ids },
+        _id: { $in: sanitizedIds },
         status: { $in: ['initiated', 'cancelled'] }
     };
 
@@ -1302,6 +1676,26 @@ const getByEmployee = asyncHandler(async (req, res) => {
     const { employeeId } = req.params;
     const lawyerId = req.userID;
     const firmId = req.firmId;
+
+    // Validate and sanitize employeeId
+    const sanitizedEmployeeId = sanitizeObjectId(employeeId);
+    if (!sanitizedEmployeeId) {
+        throw CustomException('Invalid employee ID format', 400);
+    }
+
+    // IDOR Protection - Verify employee belongs to the firm/lawyer
+    const employee = await Employee.findById(employeeId);
+    if (!employee) {
+        throw CustomException('Employee not found', 404);
+    }
+
+    const hasEmployeeAccess = firmId
+        ? employee.firmId?.toString() === firmId.toString()
+        : employee.lawyerId?.toString() === lawyerId;
+
+    if (!hasEmployeeAccess) {
+        throw CustomException('Access denied to this employee', 403);
+    }
 
     const query = { employeeId };
     if (firmId) {
@@ -1392,13 +1786,43 @@ const updateRehireEligibility = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
+    // Validate and sanitize offboardingId
+    const sanitizedOffboardingId = sanitizeObjectId(offboardingId);
+    if (!sanitizedOffboardingId) {
+        throw CustomException('Invalid offboarding ID format', 400);
+    }
+
+    // Mass assignment protection
+    const allowedFields = [
+        'eligibilityCategory', 'eligibilityReason', 'conditions',
+        'notes', 'coolingOffPeriod'
+    ];
+    const filteredData = pickAllowedFields(req.body, allowedFields);
+
     const {
         eligibilityCategory,
         eligibilityReason,
         conditions,
         notes,
         coolingOffPeriod
-    } = req.body;
+    } = filteredData;
+
+    // Input validation
+    if (!eligibilityCategory) {
+        throw CustomException('Eligibility category is required', 400);
+    }
+
+    const validCategories = ['eligible', 'eligible_with_conditions', 'not_eligible', 'blacklisted'];
+    if (!validCategories.includes(eligibilityCategory)) {
+        throw CustomException(`Invalid eligibility category. Must be one of: ${validCategories.join(', ')}`, 400);
+    }
+
+    // Validate cooling off period if provided
+    if (coolingOffPeriod?.periodMonths !== undefined) {
+        if (isNaN(coolingOffPeriod.periodMonths) || coolingOffPeriod.periodMonths < 0 || coolingOffPeriod.periodMonths > 120) {
+            throw CustomException('Cooling off period must be between 0 and 120 months', 400);
+        }
+    }
 
     const offboarding = await Offboarding.findById(offboardingId);
 
@@ -1406,7 +1830,7 @@ const updateRehireEligibility = asyncHandler(async (req, res) => {
         throw CustomException('Offboarding not found', 404);
     }
 
-    // Check access
+    // IDOR Protection - Check access
     const hasAccess = firmId
         ? offboarding.firmId?.toString() === firmId.toString()
         : offboarding.lawyerId?.toString() === lawyerId;
@@ -1452,6 +1876,19 @@ const addClearanceItem = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
+    // Validate and sanitize offboardingId
+    const sanitizedOffboardingId = sanitizeObjectId(offboardingId);
+    if (!sanitizedOffboardingId) {
+        throw CustomException('Invalid offboarding ID format', 400);
+    }
+
+    // Mass assignment protection
+    const allowedFields = [
+        'itemType', 'itemDescription', 'itemDescriptionAr',
+        'serialNumber', 'assetId', 'replacementCost'
+    ];
+    const filteredData = pickAllowedFields(req.body, allowedFields);
+
     const {
         itemType,
         itemDescription,
@@ -1459,7 +1896,30 @@ const addClearanceItem = asyncHandler(async (req, res) => {
         serialNumber,
         assetId,
         replacementCost
-    } = req.body;
+    } = filteredData;
+
+    // Input validation
+    if (!itemType) {
+        throw CustomException('Item type is required', 400);
+    }
+    if (!itemDescription) {
+        throw CustomException('Item description is required', 400);
+    }
+
+    const validItemTypes = ['laptop', 'phone', 'tablet', 'access_card', 'keys', 'uniform', 'equipment', 'documents', 'other'];
+    if (!validItemTypes.includes(itemType)) {
+        throw CustomException(`Invalid item type. Must be one of: ${validItemTypes.join(', ')}`, 400);
+    }
+
+    if (replacementCost !== undefined) {
+        if (isNaN(replacementCost) || replacementCost < 0) {
+            throw CustomException('Replacement cost must be a non-negative number', 400);
+        }
+        // Reasonable limit check
+        if (replacementCost > 1000000) {
+            throw CustomException('Replacement cost exceeds reasonable limits', 400);
+        }
+    }
 
     const offboarding = await Offboarding.findById(offboardingId);
 
@@ -1467,7 +1927,7 @@ const addClearanceItem = asyncHandler(async (req, res) => {
         throw CustomException('Offboarding not found', 404);
     }
 
-    // Check access
+    // IDOR Protection - Check access
     const hasAccess = firmId
         ? offboarding.firmId?.toString() === firmId.toString()
         : offboarding.lawyerId?.toString() === lawyerId;

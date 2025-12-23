@@ -1,6 +1,8 @@
 const { Trade, Broker, TradingAccount, TradeStats } = require('../models');
 const { CustomException } = require('../utils');
 const asyncHandler = require('../utils/asyncHandler');
+const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
+const mongoose = require('mongoose');
 
 // ═══════════════════════════════════════════════════════════════
 // CREATE TRADE
@@ -12,6 +14,27 @@ const createTrade = asyncHandler(async (req, res) => {
     if (req.isDeparted) {
         throw CustomException('You do not have permission to create trades', 403);
     }
+
+    // Mass assignment protection - only allow specific fields
+    const allowedFields = [
+        'symbol', 'symbolName', 'assetType', 'direction', 'status',
+        'entryDate', 'entryPrice', 'quantity', 'entryCommission', 'entryFees', 'slippage',
+        'exitDate', 'exitPrice', 'exitCommission', 'exitFees',
+        'stopLoss', 'takeProfit', 'riskAmount', 'riskPercent',
+        'trailingStopEnabled', 'trailingStopDistance', 'trailingStopActivation',
+        'scaledIn', 'scaledOut', 'averageEntryPrice',
+        'setup', 'timeframe', 'strategy', 'marketCondition', 'marketSession',
+        'technicalIndicators', 'entryReason', 'exitReason', 'fundamentalFactors', 'newsEvent',
+        'emotionEntry', 'emotionDuring', 'emotionExit', 'confidenceLevel',
+        'executionQuality', 'followedPlan',
+        'preTradeNotes', 'duringTradeNotes', 'postTradeNotes',
+        'lessonsLearned', 'mistakes', 'improvements',
+        'tags', 'labels', 'category',
+        'entryScreenshot', 'exitScreenshot', 'attachments',
+        'brokerId', 'accountId', 'linkedTrades', 'parentTradeId'
+    ];
+
+    const filteredData = pickAllowedFields(req.body, allowedFields);
 
     const {
         symbol,
@@ -71,7 +94,7 @@ const createTrade = asyncHandler(async (req, res) => {
         accountId,
         linkedTrades,
         parentTradeId
-    } = req.body;
+    } = filteredData;
 
     // ─────────────────────────────────────────────────────────────
     // VALIDATION
@@ -97,12 +120,28 @@ const createTrade = asyncHandler(async (req, res) => {
         throw CustomException('Entry date cannot be in the future', 400);
     }
 
-    if (!entryPrice || entryPrice <= 0) {
-        throw CustomException('Entry price must be a positive number', 400);
+    // Enhanced input validation for trade amounts
+    if (!entryPrice || typeof entryPrice !== 'number' || !isFinite(entryPrice) || entryPrice <= 0) {
+        throw CustomException('Entry price must be a valid positive number', 400);
     }
 
-    if (!quantity || quantity <= 0) {
-        throw CustomException('Quantity must be a positive number', 400);
+    if (!quantity || typeof quantity !== 'number' || !isFinite(quantity) || quantity <= 0) {
+        throw CustomException('Quantity must be a valid positive number', 400);
+    }
+
+    // Validate optional numeric fields
+    const numericFields = {
+        entryCommission, entryFees, slippage, exitPrice, exitCommission, exitFees,
+        stopLoss, takeProfit, riskAmount, riskPercent, trailingStopDistance,
+        trailingStopActivation, averageEntryPrice
+    };
+
+    for (const [key, value] of Object.entries(numericFields)) {
+        if (value !== undefined && value !== null) {
+            if (typeof value !== 'number' || !isFinite(value) || value < 0) {
+                throw CustomException(`${key} must be a valid non-negative number`, 400);
+            }
+        }
     }
 
     // Validate exit date if provided
@@ -133,23 +172,33 @@ const createTrade = asyncHandler(async (req, res) => {
         }
     }
 
-    // Validate broker exists if provided
+    // Validate broker exists if provided (IDOR protection)
     let brokerName = null;
+    let sanitizedBrokerId = null;
     if (brokerId) {
-        const broker = await Broker.findById(brokerId);
+        sanitizedBrokerId = sanitizeObjectId(brokerId);
+        const broker = await Broker.findOne({
+            _id: sanitizedBrokerId,
+            ...(firmId ? { firmId } : { userId })
+        });
         if (!broker) {
-            throw CustomException('Broker not found', 404);
+            throw CustomException('Broker not found or access denied', 404);
         }
         brokerName = broker.name;
     }
 
-    // Validate account exists if provided
+    // Validate account exists if provided (IDOR protection)
     let accountName = null;
     let accountCurrency = 'SAR';
+    let sanitizedAccountId = null;
     if (accountId) {
-        const account = await TradingAccount.findById(accountId);
+        sanitizedAccountId = sanitizeObjectId(accountId);
+        const account = await TradingAccount.findOne({
+            _id: sanitizedAccountId,
+            ...(firmId ? { firmId } : { userId })
+        });
         if (!account) {
-            throw CustomException('Trading account not found', 404);
+            throw CustomException('Trading account not found or access denied', 404);
         }
         accountName = account.name;
         accountCurrency = account.currency;
@@ -158,7 +207,7 @@ const createTrade = asyncHandler(async (req, res) => {
         if (status === 'open' && account.maxOpenTrades) {
             const openTradesCount = await Trade.countDocuments({
                 userId,
-                accountId,
+                accountId: sanitizedAccountId,
                 status: 'open'
             });
             if (openTradesCount >= account.maxOpenTrades) {
@@ -226,9 +275,9 @@ const createTrade = asyncHandler(async (req, res) => {
         entryScreenshot,
         exitScreenshot,
         attachments,
-        brokerId,
+        brokerId: sanitizedBrokerId,
         brokerName,
-        accountId,
+        accountId: sanitizedAccountId,
         accountName,
         accountCurrency,
         linkedTrades,
@@ -401,9 +450,12 @@ const getTrade = asyncHandler(async (req, res) => {
         throw CustomException('You do not have permission to access trades', 403);
     }
 
+    // Sanitize the trade ID (IDOR protection)
+    const sanitizedId = sanitizeObjectId(id);
+
     const query = firmId
-        ? { _id: id, firmId }
-        : { _id: id, userId };
+        ? { _id: sanitizedId, firmId }
+        : { _id: sanitizedId, userId };
 
     const trade = await Trade.findOne(query)
         .populate('brokerId', 'name type displayName commissionStructure')
@@ -412,7 +464,7 @@ const getTrade = asyncHandler(async (req, res) => {
         .populate('parentTradeId', 'symbol direction entryDate status netPnl');
 
     if (!trade) {
-        throw CustomException('Trade not found', 404);
+        throw CustomException('Trade not found or access denied', 404);
     }
 
     return res.json({
@@ -428,19 +480,56 @@ const updateTrade = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const userId = req.userID;
     const firmId = req.firmId;
-    const updateData = req.body;
 
     if (req.isDeparted) {
         throw CustomException('You do not have permission to update trades', 403);
     }
 
+    // Sanitize the trade ID (IDOR protection)
+    const sanitizedId = sanitizeObjectId(id);
+
+    // Mass assignment protection - only allow specific fields to be updated
+    const allowedFields = [
+        'symbol', 'symbolName', 'assetType', 'direction', 'status',
+        'entryDate', 'entryPrice', 'quantity', 'entryCommission', 'entryFees', 'slippage',
+        'exitDate', 'exitPrice', 'exitCommission', 'exitFees',
+        'stopLoss', 'takeProfit', 'riskAmount', 'riskPercent',
+        'trailingStopEnabled', 'trailingStopDistance', 'trailingStopActivation',
+        'scaledIn', 'scaledOut', 'averageEntryPrice',
+        'setup', 'timeframe', 'strategy', 'marketCondition', 'marketSession',
+        'technicalIndicators', 'entryReason', 'exitReason', 'fundamentalFactors', 'newsEvent',
+        'emotionEntry', 'emotionDuring', 'emotionExit', 'confidenceLevel',
+        'executionQuality', 'followedPlan',
+        'preTradeNotes', 'duringTradeNotes', 'postTradeNotes',
+        'lessonsLearned', 'mistakes', 'improvements',
+        'tags', 'labels', 'category',
+        'entryScreenshot', 'exitScreenshot', 'attachments',
+        'brokerId', 'accountId', 'linkedTrades', 'parentTradeId'
+    ];
+
+    const updateData = pickAllowedFields(req.body, allowedFields);
+
     const query = firmId
-        ? { _id: id, firmId }
-        : { _id: id, userId };
+        ? { _id: sanitizedId, firmId }
+        : { _id: sanitizedId, userId };
 
     const existingTrade = await Trade.findOne(query);
     if (!existingTrade) {
-        throw CustomException('Trade not found', 404);
+        throw CustomException('Trade not found or access denied', 404);
+    }
+
+    // Validate numeric fields if provided
+    const numericFields = ['entryPrice', 'quantity', 'entryCommission', 'entryFees', 'slippage',
+        'exitPrice', 'exitCommission', 'exitFees', 'stopLoss', 'takeProfit', 'riskAmount',
+        'riskPercent', 'trailingStopDistance', 'trailingStopActivation', 'averageEntryPrice'];
+
+    for (const field of numericFields) {
+        if (updateData[field] !== undefined && updateData[field] !== null) {
+            const value = updateData[field];
+            if (typeof value !== 'number' || !isFinite(value) || value < 0) {
+                throw CustomException(`${field} must be a valid non-negative number`, 400);
+            }
+        }
     }
 
     // Validate exit date if updating
@@ -482,21 +571,31 @@ const updateTrade = asyncHandler(async (req, res) => {
         }
     }
 
-    // Update broker name if broker changed
+    // Update broker name if broker changed (IDOR protection)
     if (updateData.brokerId && updateData.brokerId !== existingTrade.brokerId?.toString()) {
-        const broker = await Broker.findById(updateData.brokerId);
+        const sanitizedBrokerId = sanitizeObjectId(updateData.brokerId);
+        const broker = await Broker.findOne({
+            _id: sanitizedBrokerId,
+            ...(firmId ? { firmId } : { userId })
+        });
         if (!broker) {
-            throw CustomException('Broker not found', 404);
+            throw CustomException('Broker not found or access denied', 404);
         }
+        updateData.brokerId = sanitizedBrokerId;
         updateData.brokerName = broker.name;
     }
 
-    // Update account name if account changed
+    // Update account name if account changed (IDOR protection)
     if (updateData.accountId && updateData.accountId !== existingTrade.accountId?.toString()) {
-        const account = await TradingAccount.findById(updateData.accountId);
+        const sanitizedAccountId = sanitizeObjectId(updateData.accountId);
+        const account = await TradingAccount.findOne({
+            _id: sanitizedAccountId,
+            ...(firmId ? { firmId } : { userId })
+        });
         if (!account) {
-            throw CustomException('Trading account not found', 404);
+            throw CustomException('Trading account not found or access denied', 404);
         }
+        updateData.accountId = sanitizedAccountId;
         updateData.accountName = account.name;
         updateData.accountCurrency = account.currency;
     }
@@ -531,6 +630,18 @@ const closeTrade = asyncHandler(async (req, res) => {
         throw CustomException('You do not have permission to close trades', 403);
     }
 
+    // Sanitize the trade ID (IDOR protection)
+    const sanitizedId = sanitizeObjectId(id);
+
+    // Mass assignment protection
+    const allowedFields = [
+        'exitDate', 'exitPrice', 'exitCommission', 'exitFees', 'exitReason',
+        'emotionExit', 'postTradeNotes', 'lessonsLearned', 'mistakes',
+        'improvements', 'executionQuality', 'exitScreenshot'
+    ];
+
+    const filteredData = pickAllowedFields(req.body, allowedFields);
+
     const {
         exitDate,
         exitPrice,
@@ -544,79 +655,113 @@ const closeTrade = asyncHandler(async (req, res) => {
         improvements,
         executionQuality,
         exitScreenshot
-    } = req.body;
+    } = filteredData;
 
     const query = firmId
-        ? { _id: id, firmId }
-        : { _id: id, userId };
+        ? { _id: sanitizedId, firmId }
+        : { _id: sanitizedId, userId };
 
-    const trade = await Trade.findOne(query);
-    if (!trade) {
-        throw CustomException('Trade not found', 404);
+    // Input validation for trade amounts
+    if (!exitPrice || typeof exitPrice !== 'number' || !isFinite(exitPrice) || exitPrice <= 0) {
+        throw CustomException('Exit price must be a valid positive number', 400);
     }
 
-    if (trade.status === 'closed') {
-        throw CustomException('Trade is already closed', 400);
-    }
-
-    // Validate exit date
-    const exitDateObj = exitDate ? new Date(exitDate) : new Date();
-    if (exitDateObj < trade.entryDate) {
-        throw CustomException('Exit date must be after entry date', 400);
-    }
-
-    if (!exitPrice || exitPrice <= 0) {
-        throw CustomException('Exit price must be a positive number', 400);
-    }
-
-    // Update trade with exit details
-    trade.status = 'closed';
-    trade.exitDate = exitDateObj;
-    trade.exitPrice = exitPrice;
-    trade.exitCommission = exitCommission || 0;
-    trade.exitFees = exitFees || 0;
-    trade.exitReason = exitReason;
-    trade.emotionExit = emotionExit;
-    trade.postTradeNotes = postTradeNotes;
-    trade.lessonsLearned = lessonsLearned;
-    trade.mistakes = mistakes;
-    trade.improvements = improvements;
-    trade.executionQuality = executionQuality;
-    trade.exitScreenshot = exitScreenshot;
-    trade.updatedBy = userId;
-
-    // Save will trigger pre-save hook to calculate P&L
-    await trade.save();
-
-    // Update trading account if linked
-    if (trade.accountId) {
-        const account = await TradingAccount.findById(trade.accountId);
-        if (account) {
-            // Update realized P&L
-            account.realizedPnl = (account.realizedPnl || 0) + trade.netPnl;
-            account.currentBalance = (account.currentBalance || account.initialBalance) + trade.netPnl;
-
-            // Update daily stats
-            account.resetDailyStats();
-            account.todayPnl = (account.todayPnl || 0) + trade.netPnl;
-            if (trade.netPnl < 0) {
-                account.todayLossUsed = (account.todayLossUsed || 0) + Math.abs(trade.netPnl);
-            }
-            account.todayTradesCount = (account.todayTradesCount || 0) + 1;
-
-            await account.save();
+    if (exitCommission !== undefined && exitCommission !== null) {
+        if (typeof exitCommission !== 'number' || !isFinite(exitCommission) || exitCommission < 0) {
+            throw CustomException('Exit commission must be a valid non-negative number', 400);
         }
     }
 
-    const populatedTrade = await Trade.findById(trade._id)
-        .populate('brokerId', 'name type displayName')
-        .populate('accountId', 'name type currency currentBalance');
+    if (exitFees !== undefined && exitFees !== null) {
+        if (typeof exitFees !== 'number' || !isFinite(exitFees) || exitFees < 0) {
+            throw CustomException('Exit fees must be a valid non-negative number', 400);
+        }
+    }
 
-    return res.json({
-        success: true,
-        message: 'Trade closed successfully',
-        data: populatedTrade
-    });
+    // Use MongoDB transaction for trade closure
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    try {
+        const trade = await Trade.findOne(query).session(session);
+        if (!trade) {
+            await session.abortTransaction();
+            throw CustomException('Trade not found or access denied', 404);
+        }
+
+        if (trade.status === 'closed') {
+            await session.abortTransaction();
+            throw CustomException('Trade is already closed', 400);
+        }
+
+        // Validate exit date
+        const exitDateObj = exitDate ? new Date(exitDate) : new Date();
+        if (exitDateObj < trade.entryDate) {
+            await session.abortTransaction();
+            throw CustomException('Exit date must be after entry date', 400);
+        }
+
+        // Update trade with exit details
+        trade.status = 'closed';
+        trade.exitDate = exitDateObj;
+        trade.exitPrice = exitPrice;
+        trade.exitCommission = exitCommission || 0;
+        trade.exitFees = exitFees || 0;
+        trade.exitReason = exitReason;
+        trade.emotionExit = emotionExit;
+        trade.postTradeNotes = postTradeNotes;
+        trade.lessonsLearned = lessonsLearned;
+        trade.mistakes = mistakes;
+        trade.improvements = improvements;
+        trade.executionQuality = executionQuality;
+        trade.exitScreenshot = exitScreenshot;
+        trade.updatedBy = userId;
+
+        // Save will trigger pre-save hook to calculate P&L
+        await trade.save({ session });
+
+        // Update trading account if linked (within transaction)
+        if (trade.accountId) {
+            const account = await TradingAccount.findOne({
+                _id: trade.accountId,
+                ...(firmId ? { firmId } : { userId })
+            }).session(session);
+
+            if (account) {
+                // Update realized P&L
+                account.realizedPnl = (account.realizedPnl || 0) + trade.netPnl;
+                account.currentBalance = (account.currentBalance || account.initialBalance) + trade.netPnl;
+
+                // Update daily stats
+                account.resetDailyStats();
+                account.todayPnl = (account.todayPnl || 0) + trade.netPnl;
+                if (trade.netPnl < 0) {
+                    account.todayLossUsed = (account.todayLossUsed || 0) + Math.abs(trade.netPnl);
+                }
+                account.todayTradesCount = (account.todayTradesCount || 0) + 1;
+
+                await account.save({ session });
+            }
+        }
+
+        // Commit transaction
+        await session.commitTransaction();
+
+        const populatedTrade = await Trade.findById(trade._id)
+            .populate('brokerId', 'name type displayName')
+            .populate('accountId', 'name type currency currentBalance');
+
+        return res.json({
+            success: true,
+            message: 'Trade closed successfully',
+            data: populatedTrade
+        });
+    } catch (error) {
+        await session.abortTransaction();
+        throw error;
+    } finally {
+        session.endSession();
+    }
 });
 
 // ═══════════════════════════════════════════════════════════════
@@ -631,14 +776,17 @@ const deleteTrade = asyncHandler(async (req, res) => {
         throw CustomException('You do not have permission to delete trades', 403);
     }
 
+    // Sanitize the trade ID (IDOR protection)
+    const sanitizedId = sanitizeObjectId(id);
+
     const query = firmId
-        ? { _id: id, firmId }
-        : { _id: id, userId };
+        ? { _id: sanitizedId, firmId }
+        : { _id: sanitizedId, userId };
 
     const trade = await Trade.findOneAndDelete(query);
 
     if (!trade) {
-        throw CustomException('Trade not found', 404);
+        throw CustomException('Trade not found or access denied', 404);
     }
 
     return res.json({
@@ -664,9 +812,12 @@ const bulkDeleteTrades = asyncHandler(async (req, res) => {
         throw CustomException('Trade IDs array is required', 400);
     }
 
+    // Sanitize all IDs (IDOR protection)
+    const sanitizedIds = ids.map(id => sanitizeObjectId(id));
+
     const query = firmId
-        ? { _id: { $in: ids }, firmId }
-        : { _id: { $in: ids }, userId };
+        ? { _id: { $in: sanitizedIds }, firmId }
+        : { _id: { $in: sanitizedIds }, userId };
 
     const result = await Trade.deleteMany(query);
 

@@ -1,6 +1,124 @@
 const { SalarySlip, Employee } = require('../models');
 const { CustomException } = require('../utils');
 const asyncHandler = require('../utils/asyncHandler');
+const { pickAllowedFields, SENSITIVE_FIELDS } = require('../utils/securityUtils');
+
+// ═══════════════════════════════════════════════════════════════
+// SALARY FIELD DEFINITIONS & VALIDATION
+// ═══════════════════════════════════════════════════════════════
+
+// Allowed fields for earnings - CRITICAL: MUST be explicit whitelist
+const ALLOWED_EARNINGS_FIELDS = ['basicSalary', 'allowances', 'overtime', 'bonus', 'commission', 'arrears'];
+
+// Allowed fields for deductions - CRITICAL: excludes calculated GOSI fields
+const ALLOWED_DEDUCTIONS_FIELDS = ['loans', 'advances', 'absences', 'lateDeductions', 'violations', 'otherDeductions'];
+
+// Allowed fields for payment info
+const ALLOWED_PAYMENT_FIELDS = ['paymentMethod', 'bankName', 'iban'];
+
+// Allowed fields for pay period
+const ALLOWED_PAYPERIOD_FIELDS = ['month', 'year', 'calendarType', 'periodStart', 'periodEnd', 'paymentDate', 'workingDays', 'daysWorked'];
+
+/**
+ * Validate monetary amount
+ * Ensures amount is a positive number and within reasonable limits
+ *
+ * @param {*} amount - Amount to validate
+ * @param {number} maxAmount - Maximum allowed amount (default 10,000,000)
+ * @returns {boolean} - True if valid
+ * @throws {Error} - If amount is invalid
+ */
+const validateAmount = (amount, maxAmount = 10000000) => {
+    // Check if it's a number
+    const numAmount = parseFloat(amount);
+    if (isNaN(numAmount)) {
+        throw new Error('Amount must be a valid number');
+    }
+
+    // Must be non-negative
+    if (numAmount < 0) {
+        throw new Error('Amount cannot be negative');
+    }
+
+    // Must not exceed max limit
+    if (numAmount > maxAmount) {
+        throw new Error(`Amount cannot exceed ${maxAmount}`);
+    }
+
+    // Check for excessive decimal places (max 2 for currency)
+    if (!/^\d+(\.\d{1,2})?$/.test(numAmount.toString())) {
+        throw new Error('Amount can have maximum 2 decimal places');
+    }
+
+    return true;
+};
+
+/**
+ * Validate all monetary amounts in an object
+ * Recursive validation of nested amount fields
+ */
+const validateAllAmounts = (obj, fieldsToCheck = []) => {
+    if (!obj || typeof obj !== 'object') return;
+
+    for (const [key, value] of Object.entries(obj)) {
+        // Check if this field contains monetary data
+        const isAmountField = fieldsToCheck.includes(key) ||
+            /salary|amount|price|cost|rate|bonus|commission|arrears|advance|loan|deduction/i.test(key);
+
+        if (isAmountField && value !== null && value !== undefined) {
+            if (Array.isArray(value)) {
+                // For arrays (like allowances), validate each item
+                value.forEach((item, idx) => {
+                    if (typeof item === 'object') {
+                        validateAllAmounts(item, fieldsToCheck);
+                    } else if (typeof item === 'number') {
+                        validateAmount(item);
+                    }
+                });
+            } else if (typeof value === 'object') {
+                // Recursive validation for nested objects
+                validateAllAmounts(value, fieldsToCheck);
+            } else if (typeof value === 'number') {
+                validateAmount(value);
+            }
+        }
+    }
+};
+
+/**
+ * Sanitize earnings object with allowlist and validation
+ */
+const sanitizeEarnings = (earnings) => {
+    if (!earnings || typeof earnings !== 'object') {
+        throw CustomException('Invalid earnings data', 400);
+    }
+
+    // Use strict allowlist - only these fields allowed
+    const safeEarnings = pickAllowedFields(earnings, ALLOWED_EARNINGS_FIELDS);
+
+    // Validate all monetary amounts
+    validateAllAmounts(safeEarnings, ALLOWED_EARNINGS_FIELDS);
+
+    return safeEarnings;
+};
+
+/**
+ * Sanitize deductions object with allowlist and validation
+ * CRITICAL: Never allow direct manipulation of calculated GOSI
+ */
+const sanitizeDeductions = (deductions) => {
+    if (!deductions || typeof deductions !== 'object') {
+        return {};
+    }
+
+    // Use strict allowlist - gosi/gosiEmployer are calculated, not user input
+    const safeDeductions = pickAllowedFields(deductions, ALLOWED_DEDUCTIONS_FIELDS);
+
+    // Validate all monetary amounts
+    validateAllAmounts(safeDeductions, ALLOWED_DEDUCTIONS_FIELDS);
+
+    return safeDeductions;
+};
 
 // ═══════════════════════════════════════════════════════════════
 // GET ALL SALARY SLIPS
@@ -89,7 +207,7 @@ const getSalarySlip = asyncHandler(async (req, res) => {
         throw CustomException('Salary slip not found', 404);
     }
 
-    // Check access
+    // SECURITY: IDOR Protection - Verify user has access to this salary slip
     const hasAccess = firmId
         ? salarySlip.firmId?.toString() === firmId.toString()
         : salarySlip.lawyerId?.toString() === lawyerId;
@@ -120,13 +238,18 @@ const createSalarySlip = asyncHandler(async (req, res) => {
         payment
     } = req.body;
 
+    // SECURITY: Validate employeeId is provided and matches IDOR check
+    if (!employeeId) {
+        throw CustomException('Employee ID is required', 400);
+    }
+
     // Fetch employee
     const employee = await Employee.findById(employeeId);
     if (!employee) {
         throw CustomException('Employee not found', 404);
     }
 
-    // Check access to employee
+    // SECURITY: IDOR Protection - Verify user has access to this employee
     const hasEmployeeAccess = firmId
         ? employee.firmId?.toString() === firmId.toString()
         : employee.lawyerId?.toString() === lawyerId;
@@ -147,14 +270,37 @@ const createSalarySlip = asyncHandler(async (req, res) => {
         throw CustomException('Salary slip already exists for this employee in this period', 400);
     }
 
-    // Calculate GOSI
+    // SECURITY: Mass Assignment Protection - Sanitize and validate input
+    let safeEarnings;
+    try {
+        safeEarnings = sanitizeEarnings(earnings);
+    } catch (error) {
+        throw CustomException(`Earnings validation failed: ${error.message}`, 400);
+    }
+
+    let safeDeductions;
+    try {
+        safeDeductions = sanitizeDeductions(deductions);
+    } catch (error) {
+        throw CustomException(`Deductions validation failed: ${error.message}`, 400);
+    }
+
+    // SECURITY: Validate pay period
+    const safePeriod = pickAllowedFields(payPeriod, ALLOWED_PAYPERIOD_FIELDS);
+    if (!safePeriod.month || !safePeriod.year) {
+        throw CustomException('Month and year are required', 400);
+    }
+
+    // SECURITY: CRITICAL - Calculate GOSI on server-side ONLY
+    // Never trust user input for calculations
     const isSaudi = employee.personalInfo?.isSaudi !== false;
     const gosiEmployeeRate = isSaudi ? 9.75 : 0;
     const gosiEmployerRate = isSaudi ? 12.75 : 2;
-    const gosi = Math.round(earnings.basicSalary * (gosiEmployeeRate / 100));
-    const gosiEmployer = Math.round(earnings.basicSalary * (gosiEmployerRate / 100));
+    const basicSalary = safeEarnings.basicSalary || 0;
+    const gosi = Math.round(basicSalary * (gosiEmployeeRate / 100));
+    const gosiEmployer = Math.round(basicSalary * (gosiEmployerRate / 100));
 
-    // Prepare salary slip data
+    // Prepare salary slip data with ONLY server-calculated and validated fields
     const slipData = {
         employeeId,
         employeeNumber: employee.employeeId,
@@ -165,34 +311,36 @@ const createSalarySlip = asyncHandler(async (req, res) => {
         department: employee.employment?.departmentName || employee.organization?.departmentName,
 
         payPeriod: {
-            month: payPeriod.month,
-            year: payPeriod.year,
-            calendarType: payPeriod.calendarType || 'gregorian',
-            periodStart: payPeriod.periodStart,
-            periodEnd: payPeriod.periodEnd,
-            paymentDate: payPeriod.paymentDate,
-            workingDays: payPeriod.workingDays || 22,
-            daysWorked: payPeriod.daysWorked || payPeriod.workingDays || 22
+            month: safePeriod.month,
+            year: safePeriod.year,
+            calendarType: safePeriod.calendarType || 'gregorian',
+            periodStart: safePeriod.periodStart,
+            periodEnd: safePeriod.periodEnd,
+            paymentDate: safePeriod.paymentDate,
+            workingDays: safePeriod.workingDays || 22,
+            daysWorked: safePeriod.daysWorked || safePeriod.workingDays || 22
         },
 
+        // SECURITY: Only include user input that passed validation
         earnings: {
-            basicSalary: earnings.basicSalary,
-            allowances: earnings.allowances || [],
-            overtime: earnings.overtime || { hours: 0, rate: 1.5 },
-            bonus: earnings.bonus || 0,
-            commission: earnings.commission || 0,
-            arrears: earnings.arrears || 0
+            basicSalary: safeEarnings.basicSalary || 0,
+            allowances: safeEarnings.allowances || [],
+            overtime: safeEarnings.overtime || { hours: 0, rate: 1.5 },
+            bonus: safeEarnings.bonus || 0,
+            commission: safeEarnings.commission || 0,
+            arrears: safeEarnings.arrears || 0
         },
 
+        // SECURITY: Never allow user input for GOSI - always calculated server-side
         deductions: {
-            gosi,
-            gosiEmployer,
-            loans: deductions?.loans || 0,
-            advances: deductions?.advances || 0,
-            absences: deductions?.absences || 0,
-            lateDeductions: deductions?.lateDeductions || 0,
-            violations: deductions?.violations || 0,
-            otherDeductions: deductions?.otherDeductions || 0
+            gosi,  // Server-calculated only
+            gosiEmployer,  // Server-calculated only
+            loans: safeDeductions.loans || 0,
+            advances: safeDeductions.advances || 0,
+            absences: safeDeductions.absences || 0,
+            lateDeductions: safeDeductions.lateDeductions || 0,
+            violations: safeDeductions.violations || 0,
+            otherDeductions: safeDeductions.otherDeductions || 0
         },
 
         payment: {
@@ -237,7 +385,7 @@ const updateSalarySlip = asyncHandler(async (req, res) => {
         throw CustomException('Salary slip not found', 404);
     }
 
-    // Check access
+    // SECURITY: IDOR Protection - Verify user has access to this salary slip
     const hasAccess = firmId
         ? salarySlip.firmId?.toString() === firmId.toString()
         : salarySlip.lawyerId?.toString() === lawyerId;
@@ -253,46 +401,69 @@ const updateSalarySlip = asyncHandler(async (req, res) => {
 
     const { payPeriod, earnings, deductions, payment, notes } = req.body;
 
-    // Update fields
+    // SECURITY: Mass Assignment Protection - Update payPeriod with allowlist only
     if (payPeriod) {
-        Object.keys(payPeriod).forEach(key => {
-            salarySlip.payPeriod[key] = payPeriod[key];
-        });
+        const safePeriod = pickAllowedFields(payPeriod, ALLOWED_PAYPERIOD_FIELDS);
+        Object.assign(salarySlip.payPeriod, safePeriod);
     }
 
+    // SECURITY: Mass Assignment Protection - Update earnings with allowlist and validation
     if (earnings) {
-        Object.keys(earnings).forEach(key => {
-            salarySlip.earnings[key] = earnings[key];
-        });
+        let safeEarnings;
+        try {
+            safeEarnings = sanitizeEarnings(earnings);
+        } catch (error) {
+            throw CustomException(`Earnings validation failed: ${error.message}`, 400);
+        }
 
-        // Recalculate GOSI if basicSalary changed
-        if (earnings.basicSalary !== undefined) {
+        // Update only allowed fields
+        Object.assign(salarySlip.earnings, safeEarnings);
+
+        // SECURITY: CRITICAL - Recalculate GOSI if basicSalary changed
+        // Always calculated server-side, never from user input
+        if (safeEarnings.basicSalary !== undefined) {
             const employee = await Employee.findById(salarySlip.employeeId);
             const isSaudi = employee?.personalInfo?.isSaudi !== false;
             const gosiEmployeeRate = isSaudi ? 9.75 : 0;
             const gosiEmployerRate = isSaudi ? 12.75 : 2;
-            salarySlip.deductions.gosi = Math.round(earnings.basicSalary * (gosiEmployeeRate / 100));
-            salarySlip.deductions.gosiEmployer = Math.round(earnings.basicSalary * (gosiEmployerRate / 100));
+            salarySlip.deductions.gosi = Math.round(safeEarnings.basicSalary * (gosiEmployeeRate / 100));
+            salarySlip.deductions.gosiEmployer = Math.round(safeEarnings.basicSalary * (gosiEmployerRate / 100));
         }
     }
 
+    // SECURITY: Mass Assignment Protection - Update deductions with allowlist and validation
+    // CRITICAL: NEVER allow direct manipulation of GOSI fields - they are calculated only
     if (deductions) {
-        Object.keys(deductions).forEach(key => {
-            if (key !== 'gosi' && key !== 'gosiEmployer') { // Don't override GOSI
-                salarySlip.deductions[key] = deductions[key];
-            }
-        });
+        let safeDeductions;
+        try {
+            safeDeductions = sanitizeDeductions(deductions);
+        } catch (error) {
+            throw CustomException(`Deductions validation failed: ${error.message}`, 400);
+        }
+
+        // Update only allowed deduction fields, NEVER gosi/gosiEmployer
+        Object.assign(salarySlip.deductions, safeDeductions);
     }
 
+    // SECURITY: Mass Assignment Protection - Update payment with allowlist
+    // CRITICAL: Never allow status update through this endpoint
     if (payment) {
-        Object.keys(payment).forEach(key => {
-            if (key !== 'status') { // Don't update status directly
-                salarySlip.payment[key] = payment[key];
-            }
-        });
+        const safePayment = pickAllowedFields(payment, ALLOWED_PAYMENT_FIELDS);
+        Object.assign(salarySlip.payment, safePayment);
+        // Explicitly ensure status is NOT modified
+        if (salarySlip.payment.status !== 'draft') {
+            salarySlip.payment.status = 'draft';
+        }
     }
 
+    // SECURITY: Validate notes length to prevent excessively large updates
     if (notes !== undefined) {
+        if (typeof notes !== 'string') {
+            throw CustomException('Notes must be a string', 400);
+        }
+        if (notes.length > 5000) {
+            throw CustomException('Notes cannot exceed 5000 characters', 400);
+        }
         salarySlip.notes = notes;
     }
 
@@ -320,7 +491,7 @@ const deleteSalarySlip = asyncHandler(async (req, res) => {
         throw CustomException('Salary slip not found', 404);
     }
 
-    // Check access
+    // SECURITY: IDOR Protection - Verify user has access to this salary slip
     const hasAccess = firmId
         ? salarySlip.firmId?.toString() === firmId.toString()
         : salarySlip.lawyerId?.toString() === lawyerId;
@@ -358,7 +529,7 @@ const approveSalarySlip = asyncHandler(async (req, res) => {
         throw CustomException('Salary slip not found', 404);
     }
 
-    // Check access
+    // SECURITY: IDOR Protection - Verify user has access to this salary slip
     const hasAccess = firmId
         ? salarySlip.firmId?.toString() === firmId.toString()
         : salarySlip.lawyerId?.toString() === lawyerId;
@@ -372,12 +543,17 @@ const approveSalarySlip = asyncHandler(async (req, res) => {
         throw CustomException('Only draft salary slips can be approved', 400);
     }
 
+    // SECURITY: Validate comments length to prevent excessively large updates
+    if (comments) {
+        if (typeof comments !== 'string' || comments.length > 1000) {
+            throw CustomException('Comments must be a string with max 1000 characters', 400);
+        }
+        salarySlip.notes = (salarySlip.notes ? salarySlip.notes + '\n' : '') + `Approval: ${comments}`;
+    }
+
     salarySlip.payment.status = 'approved';
     salarySlip.approvedBy = lawyerId;
     salarySlip.approvedOn = new Date();
-    if (comments) {
-        salarySlip.notes = (salarySlip.notes ? salarySlip.notes + '\n' : '') + `Approval: ${comments}`;
-    }
 
     await salarySlip.save();
 
@@ -404,7 +580,7 @@ const paySalarySlip = asyncHandler(async (req, res) => {
         throw CustomException('Salary slip not found', 404);
     }
 
-    // Check access
+    // SECURITY: IDOR Protection - Verify user has access to this salary slip
     const hasAccess = firmId
         ? salarySlip.firmId?.toString() === firmId.toString()
         : salarySlip.lawyerId?.toString() === lawyerId;
@@ -418,6 +594,33 @@ const paySalarySlip = asyncHandler(async (req, res) => {
         throw CustomException('Only approved salary slips can be marked as paid', 400);
     }
 
+    // SECURITY: Validate transaction reference if provided
+    if (transactionReference) {
+        if (typeof transactionReference !== 'string' || transactionReference.length < 3 || transactionReference.length > 100) {
+            throw CustomException('Invalid transaction reference format', 400);
+        }
+    }
+
+    // SECURITY: Validate paidOn date if provided
+    if (paidOn) {
+        const paidDate = new Date(paidOn);
+        if (isNaN(paidDate.getTime())) {
+            throw CustomException('Invalid date format for paidOn', 400);
+        }
+        // Ensure paidOn is not in the future
+        if (paidDate > new Date()) {
+            throw CustomException('Payment date cannot be in the future', 400);
+        }
+    }
+
+    // SECURITY: Transaction Protection - Prevent amount manipulation
+    // Never recalculate amounts during payment - use stored values
+    const originalNetPay = salarySlip.netPay;
+    if (!originalNetPay || originalNetPay <= 0) {
+        throw CustomException('Invalid salary slip amount for payment', 400);
+    }
+
+    // SECURITY: Update payment with transaction protection
     salarySlip.payment.status = 'paid';
     salarySlip.payment.paidOn = paidOn ? new Date(paidOn) : new Date();
     salarySlip.payment.paidBy = lawyerId;
@@ -470,8 +673,28 @@ const generateBulkPayroll = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
     const { month, year, employeeIds } = req.body;
 
+    // SECURITY: Validate input - month and year
     if (!month || !year) {
         throw CustomException('Month and year are required', 400);
+    }
+
+    const monthNum = parseInt(month);
+    const yearNum = parseInt(year);
+
+    if (isNaN(monthNum) || monthNum < 1 || monthNum > 12) {
+        throw CustomException('Invalid month (must be 1-12)', 400);
+    }
+
+    if (isNaN(yearNum) || yearNum < 2000 || yearNum > 2100) {
+        throw CustomException('Invalid year (must be between 2000-2100)', 400);
+    }
+
+    // SECURITY: Validate employeeIds if provided
+    if (employeeIds && Array.isArray(employeeIds)) {
+        // Limit number of employees to process at once
+        if (employeeIds.length > 1000) {
+            throw CustomException('Maximum 1000 employees can be processed at once', 400);
+        }
     }
 
     // Get employees (active only)
@@ -479,7 +702,17 @@ const generateBulkPayroll = asyncHandler(async (req, res) => {
     employeeQuery['employment.employmentStatus'] = 'active';
 
     if (employeeIds && employeeIds.length > 0) {
-        employeeQuery._id = { $in: employeeIds };
+        // SECURITY: Validate all employee IDs belong to user before using
+        const validEmployees = await Employee.find({
+            _id: { $in: employeeIds },
+            ...employeeQuery
+        });
+
+        if (validEmployees.length === 0) {
+            throw CustomException('No valid employees found for this user', 400);
+        }
+
+        employeeQuery._id = { $in: validEmployees.map(e => e._id) };
     }
 
     const employees = await Employee.find(employeeQuery);
@@ -490,8 +723,8 @@ const generateBulkPayroll = asyncHandler(async (req, res) => {
 
     // Check for existing slips (prevent duplicates)
     const existingSlips = await SalarySlip.find({
-        'payPeriod.month': parseInt(month),
-        'payPeriod.year': parseInt(year),
+        'payPeriod.month': monthNum,
+        'payPeriod.year': yearNum,
         employeeId: { $in: employees.map(e => e._id) },
         $or: [{ firmId }, { lawyerId }]
     });
@@ -510,9 +743,10 @@ const generateBulkPayroll = asyncHandler(async (req, res) => {
         });
     }
 
-    // Generate slips for each employee
+    // SECURITY: Generate slips for each employee
+    // All calculations are done server-side in generateFromEmployee
     const slipsToCreate = employeesToProcess.map(employee =>
-        SalarySlip.generateFromEmployee(employee, parseInt(month), parseInt(year), lawyerId, firmId, lawyerId)
+        SalarySlip.generateFromEmployee(employee, monthNum, yearNum, lawyerId, firmId, lawyerId)
     );
 
     // Bulk insert
@@ -536,11 +770,35 @@ const bulkApprove = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
     const { ids } = req.body;
 
-    if (!ids || ids.length === 0) {
+    // SECURITY: Validate input
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
         throw CustomException('Salary slip IDs are required', 400);
     }
 
+    // SECURITY: Limit bulk operations to prevent abuse
+    if (ids.length > 1000) {
+        throw CustomException('Maximum 1000 salary slips can be processed at once', 400);
+    }
+
     const baseQuery = firmId ? { firmId } : { lawyerId };
+
+    // SECURITY: Verify all slips belong to user and are in valid state before processing
+    const slipsToProcess = await SalarySlip.find({
+        _id: { $in: ids },
+        ...baseQuery,
+        'payment.status': 'draft'
+    });
+
+    if (slipsToProcess.length === 0) {
+        throw CustomException('No valid salary slips found for approval', 400);
+    }
+
+    // SECURITY: Transaction Protection - Validate amounts before approval
+    for (const slip of slipsToProcess) {
+        if (!slip.netPay || slip.netPay <= 0) {
+            throw CustomException(`Invalid amount in salary slip ${slip.slipNumber}`, 400);
+        }
+    }
 
     const result = await SalarySlip.updateMany(
         {
@@ -573,11 +831,42 @@ const bulkPay = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
     const { ids, transactionReference } = req.body;
 
-    if (!ids || ids.length === 0) {
+    // SECURITY: Validate input
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
         throw CustomException('Salary slip IDs are required', 400);
     }
 
+    // SECURITY: Limit bulk operations to prevent abuse
+    if (ids.length > 1000) {
+        throw CustomException('Maximum 1000 salary slips can be processed at once', 400);
+    }
+
+    // SECURITY: Validate transaction reference if provided
+    if (transactionReference) {
+        if (typeof transactionReference !== 'string' || transactionReference.length < 3 || transactionReference.length > 100) {
+            throw CustomException('Invalid transaction reference format', 400);
+        }
+    }
+
     const baseQuery = firmId ? { firmId } : { lawyerId };
+
+    // SECURITY: Verify all slips belong to user and are in valid state before processing
+    const slipsToProcess = await SalarySlip.find({
+        _id: { $in: ids },
+        ...baseQuery,
+        'payment.status': { $in: ['approved', 'processing'] }
+    });
+
+    if (slipsToProcess.length === 0) {
+        throw CustomException('No valid salary slips found for payment', 400);
+    }
+
+    // SECURITY: Transaction Protection - Validate amounts before bulk update
+    for (const slip of slipsToProcess) {
+        if (!slip.netPay || slip.netPay <= 0) {
+            throw CustomException(`Invalid amount in salary slip ${slip.slipNumber}`, 400);
+        }
+    }
 
     const result = await SalarySlip.updateMany(
         {
@@ -635,11 +924,28 @@ const submitToWPS = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
     const { ids } = req.body;
 
-    if (!ids || ids.length === 0) {
+    // SECURITY: Validate input
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
         throw CustomException('Salary slip IDs are required', 400);
     }
 
+    // SECURITY: Limit bulk operations to prevent abuse
+    if (ids.length > 1000) {
+        throw CustomException('Maximum 1000 salary slips can be submitted at once', 400);
+    }
+
     const baseQuery = firmId ? { firmId } : { lawyerId };
+
+    // SECURITY: Verify all slips belong to user and are in valid state before processing
+    const slipsToProcess = await SalarySlip.find({
+        _id: { $in: ids },
+        ...baseQuery,
+        'payment.status': { $in: ['approved', 'paid'] }
+    });
+
+    if (slipsToProcess.length === 0) {
+        throw CustomException('No valid salary slips found for WPS submission', 400);
+    }
 
     // Generate WPS reference
     const wpsReference = `WPS-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`;
@@ -678,14 +984,35 @@ const bulkDeleteSalarySlips = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
+    // SECURITY: Validate input
     if (!ids || !Array.isArray(ids) || ids.length === 0) {
         throw CustomException('يجب توفير قائمة المعرفات / IDs list is required', 400);
     }
 
-    // Build access query - only delete draft salary slips
-    const accessQuery = firmId
-        ? { _id: { $in: ids }, firmId, 'payment.status': 'draft' }
-        : { _id: { $in: ids }, lawyerId, 'payment.status': 'draft' };
+    // SECURITY: Limit bulk operations to prevent abuse
+    if (ids.length > 1000) {
+        throw CustomException('Maximum 1000 salary slips can be deleted at once / الحد الأقصى 1000 قسيمة راتب', 400);
+    }
+
+    const baseQuery = firmId ? { firmId } : { lawyerId };
+
+    // SECURITY: IDOR Protection - Verify all slips belong to user and are in valid state before processing
+    const slipsToDelete = await SalarySlip.find({
+        _id: { $in: ids },
+        ...baseQuery,
+        'payment.status': 'draft'
+    });
+
+    if (slipsToDelete.length === 0) {
+        throw CustomException('No valid draft salary slips found for deletion', 400);
+    }
+
+    // Build access query - only delete draft salary slips that belong to the user
+    const accessQuery = {
+        _id: { $in: ids },
+        ...baseQuery,
+        'payment.status': 'draft'
+    };
 
     const result = await SalarySlip.deleteMany(accessQuery);
 

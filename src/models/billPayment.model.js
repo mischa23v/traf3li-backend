@@ -1,6 +1,12 @@
 const mongoose = require('mongoose');
 
 const billPaymentSchema = new mongoose.Schema({
+    firmId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Firm',
+        index: true,
+        required: false  // Optional for backwards compatibility
+    },
     paymentNumber: {
         type: String,
         unique: true,
@@ -81,6 +87,7 @@ const billPaymentSchema = new mongoose.Schema({
 billPaymentSchema.index({ lawyerId: 1, paymentDate: -1 });
 billPaymentSchema.index({ lawyerId: 1, vendorId: 1 });
 billPaymentSchema.index({ billId: 1, paymentDate: -1 });
+billPaymentSchema.index({ firmId: 1, lawyerId: 1 }); // Multi-tenancy index
 
 // Pre-save hook
 billPaymentSchema.pre('save', async function(next) {

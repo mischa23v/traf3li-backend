@@ -1,32 +1,58 @@
 const { WorkflowTemplate, CaseStageProgress, Case } = require('../models');
 const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
+const { pickAllowedFields, sanitizeString, sanitizePagination } = require('../utils/securityUtils');
 
 /**
  * Create workflow template
  * POST /api/case-workflows
  */
 const createWorkflow = asyncHandler(async (req, res) => {
-    const {
-        name, nameAr, description, descriptionAr,
-        caseCategory, stages, transitions, isDefault
-    } = req.body;
     const lawyerId = req.userID;
 
-    if (!name || !nameAr || !caseCategory) {
-        throw CustomException('الاسم والفئة مطلوبان', 400);
+    // Mass assignment protection: only allow specific fields
+    const allowedFields = [
+        'name', 'nameAr', 'description', 'descriptionAr',
+        'caseCategory', 'stages', 'transitions', 'isDefault'
+    ];
+    const safeInput = pickAllowedFields(req.body, allowedFields);
+
+    // Input validation
+    if (!safeInput.name || typeof safeInput.name !== 'string') {
+        throw CustomException('الاسم مطلوب وصحيح', 400);
+    }
+    if (!safeInput.nameAr || typeof safeInput.nameAr !== 'string') {
+        throw CustomException('الاسم بالعربية مطلوب وصحيح', 400);
+    }
+    if (!safeInput.caseCategory || typeof safeInput.caseCategory !== 'string') {
+        throw CustomException('فئة القضية مطلوبة', 400);
+    }
+
+    // Sanitize string inputs
+    safeInput.name = sanitizeString(safeInput.name);
+    safeInput.nameAr = sanitizeString(safeInput.nameAr);
+    safeInput.description = sanitizeString(safeInput.description);
+    safeInput.descriptionAr = sanitizeString(safeInput.descriptionAr);
+    safeInput.caseCategory = sanitizeString(safeInput.caseCategory);
+
+    // Validate stages and transitions are arrays
+    if (safeInput.stages && !Array.isArray(safeInput.stages)) {
+        throw CustomException('المراحل يجب أن تكون مصفوفة', 400);
+    }
+    if (safeInput.transitions && !Array.isArray(safeInput.transitions)) {
+        throw CustomException('الانتقالات يجب أن تكون مصفوفة', 400);
     }
 
     const workflow = await WorkflowTemplate.create({
         lawyerId,
-        name,
-        nameAr,
-        description,
-        descriptionAr,
-        caseCategory,
-        stages: stages || [],
-        transitions: transitions || [],
-        isDefault: isDefault || false,
+        name: safeInput.name,
+        nameAr: safeInput.nameAr,
+        description: safeInput.description || '',
+        descriptionAr: safeInput.descriptionAr || '',
+        caseCategory: safeInput.caseCategory,
+        stages: safeInput.stages || [],
+        transitions: safeInput.transitions || [],
+        isDefault: safeInput.isDefault === true,
         createdBy: lawyerId
     });
 
@@ -42,18 +68,35 @@ const createWorkflow = asyncHandler(async (req, res) => {
  * GET /api/case-workflows
  */
 const getWorkflows = asyncHandler(async (req, res) => {
-    const { caseCategory, isActive = true, page = 1, limit = 50 } = req.query;
     const lawyerId = req.userID;
 
+    // Validate and sanitize pagination parameters
+    const { page, limit, skip } = sanitizePagination(req.query, {
+        maxLimit: 100,
+        defaultLimit: 20,
+        defaultPage: 1
+    });
+
+    // Build query
     const query = { lawyerId };
 
-    if (caseCategory) query.caseCategory = caseCategory;
-    if (isActive !== undefined) query.isActive = isActive === 'true';
+    // Input validation for optional filters
+    if (req.query.caseCategory && typeof req.query.caseCategory === 'string') {
+        const sanitizedCategory = sanitizeString(req.query.caseCategory);
+        if (sanitizedCategory) {
+            query.caseCategory = sanitizedCategory;
+        }
+    }
+
+    // Validate isActive filter
+    if (req.query.isActive !== undefined) {
+        query.isActive = req.query.isActive === 'true';
+    }
 
     const workflows = await WorkflowTemplate.find(query)
         .sort({ isDefault: -1, createdAt: -1 })
-        .limit(parseInt(limit))
-        .skip((parseInt(page) - 1) * parseInt(limit))
+        .limit(limit)
+        .skip(skip)
         .populate('createdBy', 'firstName lastName');
 
     const total = await WorkflowTemplate.countDocuments(query);
@@ -62,10 +105,10 @@ const getWorkflows = asyncHandler(async (req, res) => {
         success: true,
         data: workflows,
         pagination: {
-            page: parseInt(page),
-            limit: parseInt(limit),
+            page,
+            limit,
             total,
-            pages: Math.ceil(total / parseInt(limit))
+            pages: Math.ceil(total / limit)
         }
     });
 });
@@ -115,22 +158,63 @@ const updateWorkflow = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const lawyerId = req.userID;
 
+    // IDOR protection: verify workflow belongs to user
     const workflow = await WorkflowTemplate.findOne({ _id: id, lawyerId });
 
     if (!workflow) {
         throw CustomException('نموذج سير العمل غير موجود', 404);
     }
 
+    // Mass assignment protection: only allow specific fields
     const allowedFields = [
         'name', 'nameAr', 'description', 'descriptionAr',
         'caseCategory', 'isDefault', 'isActive'
     ];
+    const safeInput = pickAllowedFields(req.body, allowedFields);
 
-    allowedFields.forEach(field => {
-        if (req.body[field] !== undefined) {
-            workflow[field] = req.body[field];
+    // Input validation and sanitization
+    if (safeInput.name !== undefined) {
+        if (typeof safeInput.name !== 'string') {
+            throw CustomException('الاسم يجب أن يكون نصاً', 400);
         }
-    });
+        workflow.name = sanitizeString(safeInput.name);
+    }
+
+    if (safeInput.nameAr !== undefined) {
+        if (typeof safeInput.nameAr !== 'string') {
+            throw CustomException('الاسم بالعربية يجب أن يكون نصاً', 400);
+        }
+        workflow.nameAr = sanitizeString(safeInput.nameAr);
+    }
+
+    if (safeInput.description !== undefined) {
+        if (typeof safeInput.description !== 'string') {
+            throw CustomException('الوصف يجب أن يكون نصاً', 400);
+        }
+        workflow.description = sanitizeString(safeInput.description);
+    }
+
+    if (safeInput.descriptionAr !== undefined) {
+        if (typeof safeInput.descriptionAr !== 'string') {
+            throw CustomException('الوصف بالعربية يجب أن يكون نصاً', 400);
+        }
+        workflow.descriptionAr = sanitizeString(safeInput.descriptionAr);
+    }
+
+    if (safeInput.caseCategory !== undefined) {
+        if (typeof safeInput.caseCategory !== 'string') {
+            throw CustomException('فئة القضية يجب أن تكون نصاً', 400);
+        }
+        workflow.caseCategory = sanitizeString(safeInput.caseCategory);
+    }
+
+    if (safeInput.isDefault !== undefined) {
+        workflow.isDefault = safeInput.isDefault === true;
+    }
+
+    if (safeInput.isActive !== undefined) {
+        workflow.isActive = safeInput.isActive === true;
+    }
 
     await workflow.save();
 
@@ -173,19 +257,27 @@ const deleteWorkflow = asyncHandler(async (req, res) => {
  */
 const duplicateWorkflow = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const { name, nameAr } = req.body;
     const lawyerId = req.userID;
 
+    // Mass assignment protection: only allow specific fields
+    const allowedFields = ['name', 'nameAr'];
+    const safeInput = pickAllowedFields(req.body, allowedFields);
+
+    // IDOR protection: verify workflow belongs to user
     const original = await WorkflowTemplate.findOne({ _id: id, lawyerId });
 
     if (!original) {
         throw CustomException('نموذج سير العمل غير موجود', 404);
     }
 
+    // Input validation and sanitization
+    let duplicateName = safeInput.name ? sanitizeString(safeInput.name) : null;
+    let duplicateNameAr = safeInput.nameAr ? sanitizeString(safeInput.nameAr) : null;
+
     const duplicate = await WorkflowTemplate.create({
         lawyerId,
-        name: name || `${original.name} (نسخة)`,
-        nameAr: nameAr || `${original.nameAr} (نسخة)`,
+        name: duplicateName || `${original.name} (نسخة)`,
+        nameAr: duplicateNameAr || `${original.nameAr} (نسخة)`,
         description: original.description,
         descriptionAr: original.descriptionAr,
         caseCategory: original.caseCategory,
@@ -210,14 +302,34 @@ const addStage = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const lawyerId = req.userID;
 
+    // IDOR protection: verify workflow belongs to user
     const workflow = await WorkflowTemplate.findOne({ _id: id, lawyerId });
 
     if (!workflow) {
         throw CustomException('نموذج سير العمل غير موجود', 404);
     }
 
+    // Mass assignment protection: only allow specific stage fields
+    const allowedStageFields = ['name', 'nameAr', 'color', 'isInitial', 'isFinal', 'requirements'];
+    const safeStageInput = pickAllowedFields(req.body, allowedStageFields);
+
+    // Input validation
+    if (!safeStageInput.name || typeof safeStageInput.name !== 'string') {
+        throw CustomException('اسم المرحلة مطلوب', 400);
+    }
+    if (!safeStageInput.nameAr || typeof safeStageInput.nameAr !== 'string') {
+        throw CustomException('اسم المرحلة بالعربية مطلوب', 400);
+    }
+
+    // Sanitize inputs
+    safeStageInput.name = sanitizeString(safeStageInput.name);
+    safeStageInput.nameAr = sanitizeString(safeStageInput.nameAr);
+    if (safeStageInput.color && typeof safeStageInput.color === 'string') {
+        safeStageInput.color = sanitizeString(safeStageInput.color);
+    }
+
     const newStage = {
-        ...req.body,
+        ...safeStageInput,
         order: workflow.stages.length
     };
 
@@ -239,6 +351,7 @@ const updateStage = asyncHandler(async (req, res) => {
     const { id, stageId } = req.params;
     const lawyerId = req.userID;
 
+    // IDOR protection: verify workflow belongs to user
     const workflow = await WorkflowTemplate.findOne({ _id: id, lawyerId });
 
     if (!workflow) {
@@ -250,11 +363,23 @@ const updateStage = asyncHandler(async (req, res) => {
         throw CustomException('المرحلة غير موجودة', 404);
     }
 
-    Object.keys(req.body).forEach(key => {
-        if (req.body[key] !== undefined) {
-            stage[key] = req.body[key];
+    // Mass assignment protection: only allow specific fields
+    const allowedStageFields = ['name', 'nameAr', 'color', 'isInitial', 'isFinal', 'requirements'];
+    const safeInput = pickAllowedFields(req.body, allowedStageFields);
+
+    // Input validation and sanitization
+    for (const key of Object.keys(safeInput)) {
+        if (key === 'name' || key === 'nameAr' || key === 'color') {
+            if (typeof safeInput[key] !== 'string') {
+                throw CustomException(`${key} يجب أن يكون نصاً`, 400);
+            }
+            stage[key] = sanitizeString(safeInput[key]);
+        } else if (key === 'isInitial' || key === 'isFinal') {
+            stage[key] = safeInput[key] === true;
+        } else {
+            stage[key] = safeInput[key];
         }
-    });
+    }
 
     await workflow.save();
 
@@ -295,13 +420,35 @@ const deleteStage = asyncHandler(async (req, res) => {
  */
 const reorderStages = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const { stageOrder } = req.body; // Array of stage IDs in new order
     const lawyerId = req.userID;
 
+    // Input validation
+    const { stageOrder } = req.body;
+    if (!stageOrder || !Array.isArray(stageOrder)) {
+        throw CustomException('ترتيب المراحل يجب أن يكون مصفوفة', 400);
+    }
+
+    // Validate all stage IDs are strings
+    for (const stageId of stageOrder) {
+        if (typeof stageId !== 'string') {
+            throw CustomException('جميع معرفات المراحل يجب أن تكون نصاً', 400);
+        }
+    }
+
+    // IDOR protection: verify workflow belongs to user
     const workflow = await WorkflowTemplate.findOne({ _id: id, lawyerId });
 
     if (!workflow) {
         throw CustomException('نموذج سير العمل غير موجود', 404);
+    }
+
+    // Validate all stage IDs exist in workflow
+    const allStagesValid = stageOrder.every(stageId =>
+        workflow.stages.some(stage => stage._id.toString() === stageId)
+    );
+
+    if (!allStagesValid || stageOrder.length !== workflow.stages.length) {
+        throw CustomException('معرفات المراحل غير صحيحة', 400);
     }
 
     stageOrder.forEach((stageId, index) => {
@@ -329,13 +476,34 @@ const addTransition = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const lawyerId = req.userID;
 
+    // IDOR protection: verify workflow belongs to user
     const workflow = await WorkflowTemplate.findOne({ _id: id, lawyerId });
 
     if (!workflow) {
         throw CustomException('نموذج سير العمل غير موجود', 404);
     }
 
-    workflow.transitions.push(req.body);
+    // Mass assignment protection: only allow specific transition fields
+    const allowedTransitionFields = ['fromStageId', 'toStageId', 'conditions', 'isAutomatic'];
+    const safeTransitionInput = pickAllowedFields(req.body, allowedTransitionFields);
+
+    // Input validation
+    if (!safeTransitionInput.fromStageId || typeof safeTransitionInput.fromStageId !== 'string') {
+        throw CustomException('معرف المرحلة المصدر مطلوب', 400);
+    }
+    if (!safeTransitionInput.toStageId || typeof safeTransitionInput.toStageId !== 'string') {
+        throw CustomException('معرف المرحلة الهدف مطلوب', 400);
+    }
+
+    // Verify stages exist in workflow
+    const fromStage = workflow.stages.id(safeTransitionInput.fromStageId);
+    const toStage = workflow.stages.id(safeTransitionInput.toStageId);
+
+    if (!fromStage || !toStage) {
+        throw CustomException('إحدى المراحل غير موجودة', 404);
+    }
+
+    workflow.transitions.push(safeTransitionInput);
     await workflow.save();
 
     res.status(201).json({
@@ -396,6 +564,13 @@ const initializeWorkflowForCase = asyncHandler(async (req, res) => {
  */
 const getCaseProgress = asyncHandler(async (req, res) => {
     const { caseId } = req.params;
+    const lawyerId = req.userID;
+
+    // IDOR protection: verify case belongs to user's firm
+    const caseDoc = await Case.findOne({ _id: caseId, lawyerId });
+    if (!caseDoc) {
+        throw CustomException('القضية غير موجودة', 404);
+    }
 
     const progress = await CaseStageProgress.findOne({ caseId })
         .populate('workflowId')
@@ -417,8 +592,19 @@ const getCaseProgress = asyncHandler(async (req, res) => {
  */
 const moveCaseToStage = asyncHandler(async (req, res) => {
     const { caseId } = req.params;
-    const { stageId, notes } = req.body;
     const lawyerId = req.userID;
+
+    // Input validation
+    const { stageId, notes } = req.body;
+    if (!stageId || typeof stageId !== 'string') {
+        throw CustomException('معرف المرحلة مطلوب', 400);
+    }
+
+    // IDOR protection: verify case belongs to user
+    const caseDoc = await Case.findOne({ _id: caseId, lawyerId });
+    if (!caseDoc) {
+        throw CustomException('القضية غير موجودة', 404);
+    }
 
     const progress = await CaseStageProgress.findOne({ caseId });
 
@@ -433,7 +619,13 @@ const moveCaseToStage = asyncHandler(async (req, res) => {
         throw CustomException('المرحلة غير موجودة', 404);
     }
 
-    await CaseStageProgress.moveToStage(caseId, stageId, newStage.name, lawyerId, notes);
+    // Sanitize notes if provided
+    let sanitizedNotes = '';
+    if (notes && typeof notes === 'string') {
+        sanitizedNotes = sanitizeString(notes);
+    }
+
+    await CaseStageProgress.moveToStage(caseId, stageId, newStage.name, lawyerId, sanitizedNotes);
 
     const updatedProgress = await CaseStageProgress.findOne({ caseId });
 
@@ -450,15 +642,40 @@ const moveCaseToStage = asyncHandler(async (req, res) => {
  */
 const completeRequirement = asyncHandler(async (req, res) => {
     const { caseId } = req.params;
-    const { stageId, requirementId, metadata } = req.body;
     const lawyerId = req.userID;
+
+    // Input validation
+    const { stageId, requirementId, metadata } = req.body;
+    if (!stageId || typeof stageId !== 'string') {
+        throw CustomException('معرف المرحلة مطلوب', 400);
+    }
+    if (!requirementId || typeof requirementId !== 'string') {
+        throw CustomException('معرف المتطلب مطلوب', 400);
+    }
+
+    // IDOR protection: verify case belongs to user
+    const caseDoc = await Case.findOne({ _id: caseId, lawyerId });
+    if (!caseDoc) {
+        throw CustomException('القضية غير موجودة', 404);
+    }
+
+    // Mass assignment protection for metadata
+    let safeMetadata = {};
+    if (metadata && typeof metadata === 'object') {
+        const allowedMetadataFields = ['notes', 'documentPath', 'timestamp'];
+        safeMetadata = pickAllowedFields(metadata, allowedMetadataFields);
+        // Sanitize metadata strings
+        if (safeMetadata.notes && typeof safeMetadata.notes === 'string') {
+            safeMetadata.notes = sanitizeString(safeMetadata.notes);
+        }
+    }
 
     const progress = await CaseStageProgress.completeRequirement(
         caseId,
         stageId,
         requirementId,
         lawyerId,
-        metadata
+        safeMetadata
     );
 
     if (!progress) {
@@ -549,6 +766,11 @@ const importPreset = asyncHandler(async (req, res) => {
     const { presetId } = req.params;
     const lawyerId = req.userID;
 
+    // Input validation: verify presetId is a string
+    if (typeof presetId !== 'string') {
+        throw CustomException('معرف النموذج غير صحيح', 400);
+    }
+
     const presets = {
         'labor-case': {
             name: 'Labor Case Workflow',
@@ -583,9 +805,13 @@ const importPreset = asyncHandler(async (req, res) => {
         throw CustomException('النموذج غير موجود', 404);
     }
 
+    // Mass assignment protection: sanitize preset data before creating
+    const allowedFields = ['name', 'nameAr', 'caseCategory', 'stages'];
+    const safePreset = pickAllowedFields(preset, allowedFields);
+
     const workflow = await WorkflowTemplate.create({
         lawyerId,
-        ...preset,
+        ...safePreset,
         createdBy: lawyerId
     });
 

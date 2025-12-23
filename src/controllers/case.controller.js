@@ -8,6 +8,7 @@ const { calculateLawyerScore } = require('./score.controller');
 const { getUploadPresignedUrl, getDownloadPresignedUrl, deleteFile, generateFileKey } = require('../configs/s3');
 const documentExportService = require('../services/documentExport.service');
 const logger = require('../utils/contextLogger');
+const { pickAllowedFields, sanitizeString } = require('../utils/securityUtils');
 const {
     ENTITY_TYPES,
     COURTS,
@@ -551,25 +552,95 @@ const updateCase = async (request, response) => {
             throw CustomException('Case not found!', 404);
         }
 
+        // IDOR Protection: Verify case belongs to user's firm
+        if (firmId && caseDoc.firmId) {
+            const caseFirmIdStr = caseDoc.firmId.toString();
+            const userFirmIdStr = firmId.toString();
+            if (caseFirmIdStr !== userFirmIdStr) {
+                throw CustomException('You do not have permission to update this case!', 403);
+            }
+        }
+
         // Check access (requires lawyer-level permissions)
         if (!checkCaseAccess(caseDoc, request.userID, firmId, true, isSoloLawyer)) {
             throw CustomException('Only the lawyer can update case details!', 403);
         }
 
+        // Mass Assignment Protection: Define allowed fields for case updates
+        const ALLOWED_CASE_UPDATE_FIELDS = [
+            'title',
+            'description',
+            'status',
+            'priority',
+            'caseType',
+            'clientId',
+            'assignedTo'
+        ];
+
+        // Filter request body to only include allowed fields
+        const sanitizedUpdateData = pickAllowedFields(request.body, ALLOWED_CASE_UPDATE_FIELDS);
+
+        // Input Validation: Validate field values
+        if (sanitizedUpdateData.title !== undefined && sanitizedUpdateData.title) {
+            if (typeof sanitizedUpdateData.title !== 'string') {
+                throw CustomException('Title must be a string!', 400);
+            }
+            sanitizedUpdateData.title = sanitizeString(sanitizedUpdateData.title);
+            if (sanitizedUpdateData.title.length === 0 || sanitizedUpdateData.title.length > 500) {
+                throw CustomException('Title must be between 1 and 500 characters!', 400);
+            }
+        }
+
+        if (sanitizedUpdateData.description !== undefined && sanitizedUpdateData.description) {
+            if (typeof sanitizedUpdateData.description !== 'string') {
+                throw CustomException('Description must be a string!', 400);
+            }
+            sanitizedUpdateData.description = sanitizeString(sanitizedUpdateData.description);
+            if (sanitizedUpdateData.description.length > 5000) {
+                throw CustomException('Description must not exceed 5000 characters!', 400);
+            }
+        }
+
+        if (sanitizedUpdateData.status !== undefined && sanitizedUpdateData.status) {
+            if (typeof sanitizedUpdateData.status !== 'string') {
+                throw CustomException('Status must be a string!', 400);
+            }
+            const validStatuses = ['open', 'in_progress', 'closed', 'pending', 'on_hold'];
+            if (!validStatuses.includes(sanitizedUpdateData.status)) {
+                throw CustomException(`Invalid status. Allowed values: ${validStatuses.join(', ')}`, 400);
+            }
+        }
+
+        if (sanitizedUpdateData.priority !== undefined && sanitizedUpdateData.priority) {
+            if (typeof sanitizedUpdateData.priority !== 'string') {
+                throw CustomException('Priority must be a string!', 400);
+            }
+            const validPriorities = ['low', 'medium', 'high', 'urgent'];
+            if (!validPriorities.includes(sanitizedUpdateData.priority)) {
+                throw CustomException(`Invalid priority. Allowed values: ${validPriorities.join(', ')}`, 400);
+            }
+        }
+
+        if (sanitizedUpdateData.caseType !== undefined && sanitizedUpdateData.caseType) {
+            if (typeof sanitizedUpdateData.caseType !== 'string') {
+                throw CustomException('Case type must be a string!', 400);
+            }
+        }
+
         // Track changes for activity logging
         const changes = {};
-        Object.keys(request.body).forEach(key => {
-            if (request.body[key] !== caseDoc[key] && !['_id', 'createdAt', 'updatedAt'].includes(key)) {
+        Object.keys(sanitizedUpdateData).forEach(key => {
+            if (sanitizedUpdateData[key] !== caseDoc[key]) {
                 changes[key] = {
                     from: caseDoc[key],
-                    to: request.body[key]
+                    to: sanitizedUpdateData[key]
                 };
             }
         });
 
         const updatedCase = await Case.findByIdAndUpdate(
             _id,
-            { $set: request.body },
+            { $set: sanitizedUpdateData },
             { new: true }
         );
 

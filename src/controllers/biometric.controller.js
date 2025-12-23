@@ -5,6 +5,7 @@ const GeofenceZone = require('../models/geofenceZone.model');
 const BiometricService = require('../services/biometric.service');
 const { CustomException } = require('../utils');
 const asyncHandler = require('../utils/asyncHandler');
+const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 
 // ═══════════════════════════════════════════════════════════════
 // DEVICE MANAGEMENT
@@ -22,7 +23,12 @@ const registerDevice = asyncHandler(async (req, res) => {
     throw CustomException('Firm ID is required', 400);
   }
 
-  const device = await BiometricService.registerDevice(firmId, req.body, userId);
+  // Mass assignment protection
+  const allowedFields = ['deviceName', 'deviceType', 'serialNumber', 'manufacturer', 'model',
+                        'ipAddress', 'macAddress', 'location', 'features', 'configuration', 'isActive'];
+  const deviceData = pickAllowedFields(req.body, allowedFields);
+
+  const device = await BiometricService.registerDevice(firmId, deviceData, userId);
 
   return res.status(201).json({
     success: true,
@@ -62,7 +68,11 @@ const getDevice = asyncHandler(async (req, res) => {
   const firmId = req.firmId;
   const { id } = req.params;
 
-  const device = await BiometricDevice.findOne({ _id: id, firmId })
+  // Sanitize ID
+  const sanitizedId = sanitizeObjectId(id);
+
+  // IDOR protection - verify ownership
+  const device = await BiometricDevice.findOne({ _id: sanitizedId, firmId })
     .populate('createdBy', 'firstName lastName')
     .populate('updatedBy', 'firstName lastName');
 
@@ -71,7 +81,7 @@ const getDevice = asyncHandler(async (req, res) => {
   }
 
   // Get device health
-  const health = await BiometricService.getDeviceHealth(id, firmId);
+  const health = await BiometricService.getDeviceHealth(sanitizedId, firmId);
 
   return res.json({
     success: true,
@@ -89,13 +99,22 @@ const updateDevice = asyncHandler(async (req, res) => {
   const userId = req.userID;
   const { id } = req.params;
 
-  const device = await BiometricDevice.findOne({ _id: id, firmId });
+  // Sanitize and validate ID
+  const sanitizedId = sanitizeObjectId(id);
+
+  // IDOR protection - verify ownership
+  const device = await BiometricDevice.findOne({ _id: sanitizedId, firmId });
 
   if (!device) {
     throw CustomException('Device not found', 404);
   }
 
-  Object.assign(device, req.body);
+  // Mass assignment protection
+  const allowedFields = ['deviceName', 'deviceType', 'ipAddress', 'macAddress', 'location',
+                        'features', 'configuration', 'isActive', 'status'];
+  const updateData = pickAllowedFields(req.body, allowedFields);
+
+  Object.assign(device, updateData);
   device.updatedBy = userId;
 
   await device.save();
@@ -115,13 +134,17 @@ const deleteDevice = asyncHandler(async (req, res) => {
   const firmId = req.firmId;
   const { id } = req.params;
 
-  const device = await BiometricDevice.findOne({ _id: id, firmId });
+  // Sanitize ID
+  const sanitizedId = sanitizeObjectId(id);
+
+  // IDOR protection - verify ownership
+  const device = await BiometricDevice.findOne({ _id: sanitizedId, firmId });
 
   if (!device) {
     throw CustomException('Device not found', 404);
   }
 
-  await BiometricDevice.findByIdAndDelete(id);
+  await BiometricDevice.findByIdAndDelete(sanitizedId);
 
   return res.json({
     success: true,
@@ -137,7 +160,10 @@ const updateHeartbeat = asyncHandler(async (req, res) => {
   const firmId = req.firmId;
   const { id } = req.params;
 
-  const device = await BiometricService.updateDeviceHeartbeat(id, firmId);
+  // Sanitize ID
+  const sanitizedId = sanitizeObjectId(id);
+
+  const device = await BiometricService.updateDeviceHeartbeat(sanitizedId, firmId);
 
   return res.json({
     success: true,
@@ -154,7 +180,10 @@ const syncDevice = asyncHandler(async (req, res) => {
   const firmId = req.firmId;
   const { id } = req.params;
 
-  const result = await BiometricService.syncDevice(id, firmId);
+  // Sanitize ID
+  const sanitizedId = sanitizeObjectId(id);
+
+  const result = await BiometricService.syncDevice(sanitizedId, firmId);
 
   return res.json({
     success: true,
@@ -174,12 +203,19 @@ const syncDevice = asyncHandler(async (req, res) => {
 const enrollEmployee = asyncHandler(async (req, res) => {
   const firmId = req.firmId;
   const userId = req.userID;
-  const { employeeId, ...enrollmentData } = req.body;
 
-  if (!employeeId) {
+  if (!req.body.employeeId) {
     throw CustomException('Employee ID is required', 400);
   }
 
+  // Sanitize employee ID
+  const employeeId = sanitizeObjectId(req.body.employeeId);
+
+  // Mass assignment protection
+  const allowedFields = ['enrollmentType', 'priority', 'notes'];
+  const enrollmentData = pickAllowedFields(req.body, allowedFields);
+
+  // IDOR protection - verify employee belongs to firm is handled in service
   const enrollment = await BiometricService.enrollEmployee(firmId, employeeId, enrollmentData, userId);
 
   return res.status(201).json({
@@ -221,7 +257,11 @@ const getEnrollment = asyncHandler(async (req, res) => {
   const firmId = req.firmId;
   const { id } = req.params;
 
-  const enrollment = await BiometricEnrollment.findOne({ _id: id, firmId })
+  // Sanitize ID
+  const sanitizedId = sanitizeObjectId(id);
+
+  // IDOR protection - verify ownership
+  const enrollment = await BiometricEnrollment.findOne({ _id: sanitizedId, firmId })
     .populate('employeeId', 'personalInfo.fullNameArabic personalInfo.fullNameEnglish employeeId personalInfo.mobile')
     .populate('enrolledBy', 'firstName lastName')
     .populate('revokedBy', 'firstName lastName')
@@ -264,19 +304,45 @@ const getEnrollmentByEmployee = asyncHandler(async (req, res) => {
 const addFingerprint = asyncHandler(async (req, res) => {
   const firmId = req.firmId;
   const { id } = req.params;
+
+  // Sanitize ID
+  const sanitizedId = sanitizeObjectId(id);
+
+  // Input validation for biometric data
   const { finger, template, quality, deviceId } = req.body;
 
   if (!finger || !template) {
     throw CustomException('Finger and template are required', 400);
   }
 
-  const enrollment = await BiometricEnrollment.findOne({ _id: id, firmId });
+  // Validate finger type
+  const validFingers = ['right_thumb', 'right_index', 'right_middle', 'right_ring', 'right_pinky',
+                       'left_thumb', 'left_index', 'left_middle', 'left_ring', 'left_pinky'];
+  if (!validFingers.includes(finger)) {
+    throw CustomException('Invalid finger type', 400);
+  }
+
+  // Validate quality score (0-100)
+  if (quality !== undefined && (quality < 0 || quality > 100)) {
+    throw CustomException('Quality score must be between 0 and 100', 400);
+  }
+
+  // Validate template is non-empty string
+  if (typeof template !== 'string' || template.length === 0) {
+    throw CustomException('Template must be a non-empty string', 400);
+  }
+
+  // IDOR protection - verify enrollment belongs to firm
+  const enrollment = await BiometricEnrollment.findOne({ _id: sanitizedId, firmId });
 
   if (!enrollment) {
     throw CustomException('Enrollment not found', 404);
   }
 
-  await BiometricService.addFingerprint(firmId, enrollment.employeeId, finger, template, quality, deviceId);
+  // Sanitize deviceId if provided
+  const sanitizedDeviceId = deviceId ? sanitizeObjectId(deviceId) : undefined;
+
+  await BiometricService.addFingerprint(firmId, enrollment.employeeId, finger, template, quality, sanitizedDeviceId);
 
   return res.json({
     success: true,
@@ -291,19 +357,43 @@ const addFingerprint = asyncHandler(async (req, res) => {
 const enrollFacial = asyncHandler(async (req, res) => {
   const firmId = req.firmId;
   const { id } = req.params;
+
+  // Sanitize ID
+  const sanitizedId = sanitizeObjectId(id);
+
+  // Input validation for biometric data
   const { photo, template, quality, deviceId } = req.body;
 
   if (!photo || !template) {
     throw CustomException('Photo and template are required', 400);
   }
 
-  const enrollment = await BiometricEnrollment.findOne({ _id: id, firmId });
+  // Validate photo is non-empty string (base64 or URL)
+  if (typeof photo !== 'string' || photo.length === 0) {
+    throw CustomException('Photo must be a non-empty string', 400);
+  }
+
+  // Validate template is non-empty string
+  if (typeof template !== 'string' || template.length === 0) {
+    throw CustomException('Template must be a non-empty string', 400);
+  }
+
+  // Validate quality score (0-100)
+  if (quality !== undefined && (quality < 0 || quality > 100)) {
+    throw CustomException('Quality score must be between 0 and 100', 400);
+  }
+
+  // IDOR protection - verify enrollment belongs to firm
+  const enrollment = await BiometricEnrollment.findOne({ _id: sanitizedId, firmId });
 
   if (!enrollment) {
     throw CustomException('Enrollment not found', 404);
   }
 
-  await BiometricService.enrollFacial(firmId, enrollment.employeeId, photo, template, quality, deviceId);
+  // Sanitize deviceId if provided
+  const sanitizedDeviceId = deviceId ? sanitizeObjectId(deviceId) : undefined;
+
+  await BiometricService.enrollFacial(firmId, enrollment.employeeId, photo, template, quality, sanitizedDeviceId);
 
   return res.json({
     success: true,
@@ -318,13 +408,25 @@ const enrollFacial = asyncHandler(async (req, res) => {
 const issueCard = asyncHandler(async (req, res) => {
   const firmId = req.firmId;
   const { id } = req.params;
-  const cardData = req.body;
 
-  if (!cardData.cardNumber) {
+  // Sanitize ID
+  const sanitizedId = sanitizeObjectId(id);
+
+  if (!req.body.cardNumber) {
     throw CustomException('Card number is required', 400);
   }
 
-  const enrollment = await BiometricEnrollment.findOne({ _id: id, firmId });
+  // Mass assignment protection
+  const allowedFields = ['cardNumber', 'cardType', 'validFrom', 'validUntil', 'accessLevel'];
+  const cardData = pickAllowedFields(req.body, allowedFields);
+
+  // Validate card number format
+  if (typeof cardData.cardNumber !== 'string' || cardData.cardNumber.length === 0) {
+    throw CustomException('Card number must be a non-empty string', 400);
+  }
+
+  // IDOR protection - verify enrollment belongs to firm
+  const enrollment = await BiometricEnrollment.findOne({ _id: sanitizedId, firmId });
 
   if (!enrollment) {
     throw CustomException('Enrollment not found', 404);
@@ -347,11 +449,28 @@ const setPIN = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { pin } = req.body;
 
-  if (!pin || pin.length < 4) {
-    throw CustomException('PIN must be at least 4 digits', 400);
+  // Sanitize ID
+  const sanitizedId = sanitizeObjectId(id);
+
+  // Enhanced PIN validation
+  if (!pin) {
+    throw CustomException('PIN is required', 400);
   }
 
-  const enrollment = await BiometricEnrollment.findOne({ _id: id, firmId });
+  if (typeof pin !== 'string') {
+    throw CustomException('PIN must be a string', 400);
+  }
+
+  if (pin.length < 4 || pin.length > 8) {
+    throw CustomException('PIN must be between 4 and 8 digits', 400);
+  }
+
+  if (!/^\d+$/.test(pin)) {
+    throw CustomException('PIN must contain only digits', 400);
+  }
+
+  // IDOR protection - verify enrollment belongs to firm
+  const enrollment = await BiometricEnrollment.findOne({ _id: sanitizedId, firmId });
 
   if (!enrollment) {
     throw CustomException('Enrollment not found', 404);
@@ -424,11 +543,29 @@ const verifyIdentity = asyncHandler(async (req, res) => {
     throw CustomException('Device ID, employee ID, method, and data are required', 400);
   }
 
-  const result = await BiometricService.verifyIdentity(firmId, deviceId, {
-    employeeId,
+  // Sanitize IDs
+  const sanitizedDeviceId = sanitizeObjectId(deviceId);
+  const sanitizedEmployeeId = sanitizeObjectId(employeeId);
+
+  // Validate verification method
+  const validMethods = ['fingerprint', 'facial', 'card', 'pin', 'iris'];
+  if (!validMethods.includes(method)) {
+    throw CustomException('Invalid verification method', 400);
+  }
+
+  // Validate biometric data
+  if (typeof data !== 'string' || data.length === 0) {
+    throw CustomException('Biometric data must be a non-empty string', 400);
+  }
+
+  // Mass assignment protection for location data
+  const sanitizedLocation = location ? pickAllowedFields(location, ['latitude', 'longitude', 'accuracy']) : undefined;
+
+  const result = await BiometricService.verifyIdentity(firmId, sanitizedDeviceId, {
+    employeeId: sanitizedEmployeeId,
     method,
     data,
-    location
+    location: sanitizedLocation
   });
 
   return res.json({
@@ -450,10 +587,27 @@ const identifyEmployee = asyncHandler(async (req, res) => {
     throw CustomException('Device ID, method, and data are required', 400);
   }
 
-  const result = await BiometricService.identifyEmployee(firmId, deviceId, {
+  // Sanitize device ID
+  const sanitizedDeviceId = sanitizeObjectId(deviceId);
+
+  // Validate identification method
+  const validMethods = ['fingerprint', 'facial', 'card', 'iris'];
+  if (!validMethods.includes(method)) {
+    throw CustomException('Invalid identification method', 400);
+  }
+
+  // Validate biometric data
+  if (typeof data !== 'string' || data.length === 0) {
+    throw CustomException('Biometric data must be a non-empty string', 400);
+  }
+
+  // Mass assignment protection for location data
+  const sanitizedLocation = location ? pickAllowedFields(location, ['latitude', 'longitude', 'accuracy']) : undefined;
+
+  const result = await BiometricService.identifyEmployee(firmId, sanitizedDeviceId, {
     method,
     data,
-    location
+    location: sanitizedLocation
   });
 
   return res.json({
@@ -475,12 +629,36 @@ const checkInWithGPS = asyncHandler(async (req, res) => {
     throw CustomException('Employee ID, latitude, and longitude are required', 400);
   }
 
-  const result = await BiometricService.checkInWithGPS(firmId, employeeId, {
+  // Sanitize employee ID
+  const sanitizedEmployeeId = sanitizeObjectId(employeeId);
+
+  // Validate GPS coordinates
+  if (typeof latitude !== 'number' || latitude < -90 || latitude > 90) {
+    throw CustomException('Latitude must be a number between -90 and 90', 400);
+  }
+
+  if (typeof longitude !== 'number' || longitude < -180 || longitude > 180) {
+    throw CustomException('Longitude must be a number between -180 and 180', 400);
+  }
+
+  // Validate accuracy
+  const validAccuracy = accuracy && typeof accuracy === 'number' ? accuracy : 10;
+  if (validAccuracy < 0 || validAccuracy > 1000) {
+    throw CustomException('Accuracy must be between 0 and 1000 meters', 400);
+  }
+
+  // Mass assignment protection for location data
+  const locationData = {
     latitude,
     longitude,
-    accuracy: accuracy || 10,
-    address
-  });
+    accuracy: validAccuracy
+  };
+
+  if (address && typeof address === 'string') {
+    locationData.address = address;
+  }
+
+  const result = await BiometricService.checkInWithGPS(firmId, sanitizedEmployeeId, locationData);
 
   return res.json({
     success: true,
@@ -501,8 +679,13 @@ const createGeofenceZone = asyncHandler(async (req, res) => {
   const firmId = req.firmId;
   const userId = req.userID;
 
+  // Mass assignment protection
+  const allowedFields = ['name', 'description', 'zoneType', 'center', 'radius', 'polygon',
+                        'allowedDepartments', 'allowedEmployees', 'workingHours', 'isActive'];
+  const zoneData = pickAllowedFields(req.body, allowedFields);
+
   const zone = new GeofenceZone({
-    ...req.body,
+    ...zoneData,
     firmId,
     createdBy: userId
   });
@@ -568,13 +751,22 @@ const updateGeofenceZone = asyncHandler(async (req, res) => {
   const firmId = req.firmId;
   const { id } = req.params;
 
-  const zone = await GeofenceZone.findOne({ _id: id, firmId });
+  // Sanitize ID
+  const sanitizedId = sanitizeObjectId(id);
+
+  // IDOR protection - verify ownership
+  const zone = await GeofenceZone.findOne({ _id: sanitizedId, firmId });
 
   if (!zone) {
     throw CustomException('Geofence zone not found', 404);
   }
 
-  Object.assign(zone, req.body);
+  // Mass assignment protection
+  const allowedFields = ['name', 'description', 'zoneType', 'center', 'radius', 'polygon',
+                        'allowedDepartments', 'allowedEmployees', 'workingHours', 'isActive'];
+  const updateData = pickAllowedFields(req.body, allowedFields);
+
+  Object.assign(zone, updateData);
   await zone.save();
 
   return res.json({
@@ -618,13 +810,32 @@ const validateGeofence = asyncHandler(async (req, res) => {
     throw CustomException('Latitude and longitude are required', 400);
   }
 
+  // Validate GPS coordinates
+  if (typeof latitude !== 'number' || latitude < -90 || latitude > 90) {
+    throw CustomException('Latitude must be a number between -90 and 90', 400);
+  }
+
+  if (typeof longitude !== 'number' || longitude < -180 || longitude > 180) {
+    throw CustomException('Longitude must be a number between -180 and 180', 400);
+  }
+
+  // Validate accuracy
+  const validAccuracy = accuracy && typeof accuracy === 'number' ? accuracy : 10;
+  if (validAccuracy < 0 || validAccuracy > 1000) {
+    throw CustomException('Accuracy must be between 0 and 1000 meters', 400);
+  }
+
+  // Sanitize IDs if provided
+  const sanitizedEmployeeId = employeeId ? sanitizeObjectId(employeeId) : undefined;
+  const sanitizedDepartmentId = departmentId ? sanitizeObjectId(departmentId) : undefined;
+
   const validation = await BiometricService.validateGeofence(
     firmId,
     latitude,
     longitude,
-    accuracy || 10,
-    employeeId,
-    departmentId
+    validAccuracy,
+    sanitizedEmployeeId,
+    sanitizedDepartmentId
   );
 
   return res.json({

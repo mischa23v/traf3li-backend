@@ -1,38 +1,152 @@
 const { InvoiceTemplate } = require('../models');
 const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
+const { pickAllowedFields, sanitizeObjectId, sanitizeString } = require('../utils/securityUtils');
+
+/**
+ * Validate and sanitize template configuration objects
+ * Prevents template injection and malicious code execution
+ */
+const validateTemplateObject = (obj, maxDepth = 3, currentDepth = 0) => {
+    if (!obj || typeof obj !== 'object') {
+        return {};
+    }
+
+    // Prevent deep nesting attacks
+    if (currentDepth >= maxDepth) {
+        return {};
+    }
+
+    // Prevent prototype pollution
+    if (obj.constructor !== Object && !Array.isArray(obj)) {
+        return {};
+    }
+
+    const sanitized = {};
+    for (const [key, value] of Object.entries(obj)) {
+        // Skip dangerous keys
+        if (key === '__proto__' || key === 'constructor' || key === 'prototype') {
+            continue;
+        }
+
+        // Sanitize key name
+        const safeKey = sanitizeString(key);
+        if (!safeKey || safeKey.length > 100) {
+            continue;
+        }
+
+        // Sanitize value based on type
+        if (value === null || value === undefined) {
+            sanitized[safeKey] = value;
+        } else if (typeof value === 'string') {
+            // Prevent script injection in template strings
+            const sanitizedValue = sanitizeString(value);
+            // Block common injection patterns
+            if (sanitizedValue.includes('<script') ||
+                sanitizedValue.includes('javascript:') ||
+                sanitizedValue.includes('onerror=') ||
+                sanitizedValue.includes('onload=')) {
+                continue;
+            }
+            sanitized[safeKey] = sanitizedValue.substring(0, 5000); // Max string length
+        } else if (typeof value === 'number') {
+            if (isFinite(value)) {
+                sanitized[safeKey] = value;
+            }
+        } else if (typeof value === 'boolean') {
+            sanitized[safeKey] = value;
+        } else if (Array.isArray(value)) {
+            // Limit array size to prevent DoS
+            if (value.length <= 100) {
+                sanitized[safeKey] = value.map(item => {
+                    if (typeof item === 'object') {
+                        return validateTemplateObject(item, maxDepth, currentDepth + 1);
+                    }
+                    return item;
+                }).filter(item => item !== null && item !== undefined);
+            }
+        } else if (typeof value === 'object') {
+            sanitized[safeKey] = validateTemplateObject(value, maxDepth, currentDepth + 1);
+        }
+    }
+
+    return sanitized;
+};
+
+/**
+ * Validate template data structure
+ */
+const validateTemplateData = (data) => {
+    const allowedTypes = ['standard', 'custom', 'professional', 'minimal'];
+
+    // Validate type
+    if (data.type && !allowedTypes.includes(data.type)) {
+        throw CustomException('نوع القالب غير صالح', 400);
+    }
+
+    // Validate name lengths
+    if (data.name && data.name.length > 200) {
+        throw CustomException('اسم القالب طويل جداً', 400);
+    }
+    if (data.nameAr && data.nameAr.length > 200) {
+        throw CustomException('الاسم العربي للقالب طويل جداً', 400);
+    }
+
+    // Validate and sanitize complex objects
+    const objectFields = ['header', 'clientSection', 'itemsSection', 'footer', 'styling', 'numberingFormat', 'taxSettings'];
+    objectFields.forEach(field => {
+        if (data[field]) {
+            data[field] = validateTemplateObject(data[field]);
+        }
+    });
+
+    return data;
+};
 
 /**
  * Create invoice template
  * POST /api/invoice-templates
  */
 const createTemplate = asyncHandler(async (req, res) => {
-    const {
-        name, nameAr, description, descriptionAr, type,
-        isDefault, header, clientSection, itemsSection,
-        footer, styling, numberingFormat, taxSettings
-    } = req.body;
     const lawyerId = req.userID;
 
-    if (!name || !nameAr) {
+    // Mass assignment protection - only allow specific fields
+    const allowedFields = [
+        'name', 'nameAr', 'description', 'descriptionAr', 'type',
+        'isDefault', 'header', 'clientSection', 'itemsSection',
+        'footer', 'styling', 'numberingFormat', 'taxSettings'
+    ];
+    const safeData = pickAllowedFields(req.body, allowedFields);
+
+    // Input validation
+    if (!safeData.name || !safeData.nameAr) {
         throw CustomException('الاسم بالعربية والإنجليزية مطلوب', 400);
     }
 
+    // Sanitize string fields
+    safeData.name = sanitizeString(safeData.name);
+    safeData.nameAr = sanitizeString(safeData.nameAr);
+    if (safeData.description) safeData.description = sanitizeString(safeData.description);
+    if (safeData.descriptionAr) safeData.descriptionAr = sanitizeString(safeData.descriptionAr);
+
+    // Validate and sanitize template data
+    validateTemplateData(safeData);
+
     const template = await InvoiceTemplate.create({
         lawyerId,
-        name,
-        nameAr,
-        description,
-        descriptionAr,
-        type: type || 'standard',
-        isDefault: isDefault || false,
-        header: header || {},
-        clientSection: clientSection || {},
-        itemsSection: itemsSection || {},
-        footer: footer || {},
-        styling: styling || {},
-        numberingFormat: numberingFormat || {},
-        taxSettings: taxSettings || {},
+        name: safeData.name,
+        nameAr: safeData.nameAr,
+        description: safeData.description,
+        descriptionAr: safeData.descriptionAr,
+        type: safeData.type || 'standard',
+        isDefault: safeData.isDefault || false,
+        header: safeData.header || {},
+        clientSection: safeData.clientSection || {},
+        itemsSection: safeData.itemsSection || {},
+        footer: safeData.footer || {},
+        styling: safeData.styling || {},
+        numberingFormat: safeData.numberingFormat || {},
+        taxSettings: safeData.taxSettings || {},
         createdBy: lawyerId
     });
 

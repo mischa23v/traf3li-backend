@@ -7,9 +7,11 @@
  */
 
 const mongoose = require('mongoose');
+const Joi = require('joi');
 const { Invoice, Case, Order, User, Payment, Retainer, BillingActivity } = require('../models');
 const { CustomException } = require('../utils');
 const asyncHandler = require('../utils/asyncHandler');
+const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 const webhookService = require('../services/webhook.service');
 const stripe = require('stripe')(process.env.STRIPE_SECRET);
 const {
@@ -81,6 +83,133 @@ const getDateFilter = (period) => {
     }
 };
 
+// ============ VALIDATION SCHEMAS ============
+
+const invoiceItemSchema = Joi.object({
+    description: Joi.string().required(),
+    quantity: Joi.number().min(0).required(),
+    unitPrice: Joi.number().min(0).required(),
+    total: Joi.number().min(0),
+    lineTotal: Joi.number().min(0),
+    type: Joi.string().valid('service', 'product', 'time', 'expense', 'flat_fee', 'discount', 'comment', 'subtotal'),
+    activityCode: Joi.string(),
+    taskType: Joi.string(),
+    attorneyId: Joi.string().regex(/^[0-9a-fA-F]{24}$/)
+});
+
+const createInvoiceSchema = Joi.object({
+    clientId: Joi.string().regex(/^[0-9a-fA-F]{24}$/),
+    caseId: Joi.string().regex(/^[0-9a-fA-F]{24}$/),
+    contractId: Joi.string().regex(/^[0-9a-fA-F]{24}$/),
+    items: Joi.array().items(invoiceItemSchema).min(1).required(),
+    subtotal: Joi.number().min(0),
+    vatRate: Joi.number().min(0).max(100).default(15),
+    vatAmount: Joi.number().min(0),
+    totalAmount: Joi.number().min(0),
+    dueDate: Joi.date(),
+    paymentTerms: Joi.string().valid('due_on_receipt', 'net_7', 'net_15', 'net_30', 'net_45', 'net_60', 'net_90', 'eom').default('net_30'),
+    notes: Joi.string().max(2000),
+    customerNotes: Joi.string().max(2000),
+    internalNotes: Joi.string().max(2000),
+    discountType: Joi.string().valid('percentage', 'fixed'),
+    discountValue: Joi.number().min(0).default(0),
+    clientType: Joi.string().valid('individual', 'corporate'),
+    responsibleAttorneyId: Joi.string().regex(/^[0-9a-fA-F]{24}$/),
+    billingArrangement: Joi.string(),
+    departmentId: Joi.string().regex(/^[0-9a-fA-F]{24}$/),
+    locationId: Joi.string().regex(/^[0-9a-fA-F]{24}$/),
+    firmSize: Joi.string(),
+    customerPONumber: Joi.string().max(100),
+    matterNumber: Joi.string().max(100),
+    termsTemplate: Joi.string(),
+    termsAndConditions: Joi.string().max(5000),
+    zatca: Joi.object(),
+    applyFromRetainer: Joi.number().min(0).default(0),
+    paymentPlan: Joi.object(),
+    bankAccountId: Joi.string().regex(/^[0-9a-fA-F]{24}$/),
+    paymentInstructions: Joi.string().max(1000),
+    enableOnlinePayment: Joi.boolean().default(false),
+    lateFees: Joi.object(),
+    approval: Joi.object(),
+    email: Joi.object(),
+    attachments: Joi.array(),
+    wip: Joi.object(),
+    budget: Joi.object()
+});
+
+const updateInvoiceSchema = Joi.object({
+    items: Joi.array().items(invoiceItemSchema).min(1),
+    subtotal: Joi.number().min(0),
+    vatRate: Joi.number().min(0).max(100),
+    vatAmount: Joi.number().min(0),
+    totalAmount: Joi.number().min(0),
+    dueDate: Joi.date(),
+    paymentTerms: Joi.string().valid('due_on_receipt', 'net_7', 'net_15', 'net_30', 'net_45', 'net_60', 'net_90', 'eom'),
+    notes: Joi.string().max(2000),
+    customerNotes: Joi.string().max(2000),
+    internalNotes: Joi.string().max(2000),
+    discountType: Joi.string().valid('percentage', 'fixed'),
+    discountValue: Joi.number().min(0),
+    clientType: Joi.string().valid('individual', 'corporate'),
+    responsibleAttorneyId: Joi.string().regex(/^[0-9a-fA-F]{24}$/),
+    billingArrangement: Joi.string(),
+    departmentId: Joi.string().regex(/^[0-9a-fA-F]{24}$/),
+    locationId: Joi.string().regex(/^[0-9a-fA-F]{24}$/),
+    firmSize: Joi.string(),
+    customerPONumber: Joi.string().max(100),
+    matterNumber: Joi.string().max(100),
+    termsTemplate: Joi.string(),
+    termsAndConditions: Joi.string().max(5000),
+    zatca: Joi.object(),
+    paymentPlan: Joi.object(),
+    bankAccountId: Joi.string().regex(/^[0-9a-fA-F]{24}$/),
+    paymentInstructions: Joi.string().max(1000),
+    enableOnlinePayment: Joi.boolean(),
+    lateFees: Joi.object(),
+    approval: Joi.object(),
+    email: Joi.object(),
+    attachments: Joi.array(),
+    wip: Joi.object(),
+    budget: Joi.object()
+});
+
+const recordPaymentSchema = Joi.object({
+    amount: Joi.number().min(0.01).required(),
+    paymentMethod: Joi.string().valid('cash', 'bank_transfer', 'credit_card', 'check', 'online_gateway').default('bank_transfer'),
+    reference: Joi.string().max(200),
+    paymentDate: Joi.date(),
+    notes: Joi.string().max(1000),
+    bankAccountId: Joi.string().regex(/^[0-9a-fA-F]{24}$/)
+});
+
+const voidInvoiceSchema = Joi.object({
+    reason: Joi.string().min(3).max(500).required()
+});
+
+const creditNoteSchema = Joi.object({
+    reason: Joi.string().min(3).max(500).required(),
+    amount: Joi.number().min(0.01)
+});
+
+const applyRetainerSchema = Joi.object({
+    amount: Joi.number().min(0.01).required(),
+    retainerId: Joi.string().regex(/^[0-9a-fA-F]{24}$/).required()
+});
+
+const approvalSchema = Joi.object({
+    notes: Joi.string().max(1000)
+});
+
+const rejectSchema = Joi.object({
+    reason: Joi.string().min(3).max(500).required()
+});
+
+const sendReminderSchema = Joi.object({
+    template: Joi.string().max(100),
+    customMessage: Joi.string().max(2000),
+    ccRecipients: Joi.array().items(Joi.string().email())
+});
+
 // ============ CRUD OPERATIONS ============
 
 /**
@@ -88,6 +217,44 @@ const getDateFilter = (period) => {
  * POST /api/invoices
  */
 const createInvoice = asyncHandler(async (req, res) => {
+    const lawyerId = req.userID;
+    const firmId = req.firmId; // From firmFilter middleware
+
+    // Block departed users from financial operations
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية للوصول إلى الفواتير', 403);
+    }
+
+    // Check if user is a lawyer
+    const user = await User.findById(lawyerId);
+    if (user.role !== 'lawyer') {
+        throw CustomException('Only lawyers can create invoices!', 403);
+    }
+
+    // Validate input with Joi
+    const { error, value } = createInvoiceSchema.validate(req.body, { stripUnknown: true });
+    if (error) {
+        throw CustomException(`Validation error: ${error.details[0].message}`, 400);
+    }
+
+    // Mass assignment protection - only allow specific fields
+    const allowedFields = [
+        'clientId', 'caseId', 'contractId', 'items', 'subtotal', 'vatRate', 'vatAmount',
+        'totalAmount', 'dueDate', 'paymentTerms', 'notes', 'customerNotes', 'internalNotes',
+        'discountType', 'discountValue', 'clientType', 'responsibleAttorneyId',
+        'billingArrangement', 'departmentId', 'locationId', 'firmSize',
+        'customerPONumber', 'matterNumber', 'termsTemplate', 'termsAndConditions',
+        'zatca', 'applyFromRetainer', 'paymentPlan', 'bankAccountId',
+        'paymentInstructions', 'enableOnlinePayment', 'lateFees', 'approval',
+        'email', 'attachments', 'wip', 'budget'
+    ];
+    const safeData = pickAllowedFields(value, allowedFields);
+
+    // Sanitize ObjectIds
+    if (safeData.clientId) safeData.clientId = sanitizeObjectId(safeData.clientId);
+    if (safeData.caseId) safeData.caseId = sanitizeObjectId(safeData.caseId);
+    if (safeData.contractId) safeData.contractId = sanitizeObjectId(safeData.contractId);
+
     const {
         clientId: bodyClientId,
         caseId,
@@ -126,26 +293,7 @@ const createInvoice = asyncHandler(async (req, res) => {
         attachments,
         wip,
         budget
-    } = req.body;
-
-    const lawyerId = req.userID;
-    const firmId = req.firmId; // From firmFilter middleware
-
-    // Block departed users from financial operations
-    if (req.isDeparted) {
-        throw CustomException('ليس لديك صلاحية للوصول إلى الفواتير', 403);
-    }
-
-    // Check if user is a lawyer
-    const user = await User.findById(lawyerId);
-    if (user.role !== 'lawyer') {
-        throw CustomException('Only lawyers can create invoices!', 403);
-    }
-
-    // Validate required fields
-    if (!items || !Array.isArray(items) || items.length === 0) {
-        throw CustomException('Invoice items are required', 400);
-    }
+    } = safeData;
 
     // Determine client ID
     let clientId = bodyClientId;
@@ -161,27 +309,53 @@ const createInvoice = asyncHandler(async (req, res) => {
         throw CustomException('Client ID is required', 400);
     }
 
-    // Calculate totals
-    let subtotal = bodySubtotal;
-    if (!subtotal && items && items.length > 0) {
-        subtotal = items.reduce((sum, item) => {
+    // Calculate totals from items to prevent manipulation
+    let calculatedSubtotal = 0;
+    if (items && items.length > 0) {
+        calculatedSubtotal = items.reduce((sum, item) => {
             if (item.type === 'discount' || item.type === 'comment' || item.type === 'subtotal') {
                 return sum;
             }
-            return sum + (item.total || item.quantity * item.unitPrice);
+            const itemTotal = item.quantity * item.unitPrice;
+            // Validate item total to prevent manipulation
+            if (item.total && Math.abs(item.total - itemTotal) > 0.01) {
+                throw CustomException('Invalid item total detected - possible manipulation', 400);
+            }
+            return sum + itemTotal;
         }, 0);
     }
+
+    // Use calculated subtotal, not user-provided
+    const subtotal = calculatedSubtotal;
 
     // Apply discount before VAT
     let discountedSubtotal = subtotal;
     if (discountType === 'percentage' && discountValue > 0) {
+        if (discountValue > 100) {
+            throw CustomException('Discount percentage cannot exceed 100%', 400);
+        }
         discountedSubtotal = subtotal * (1 - discountValue / 100);
     } else if (discountType === 'fixed' && discountValue > 0) {
+        if (discountValue > subtotal) {
+            throw CustomException('Fixed discount cannot exceed subtotal', 400);
+        }
         discountedSubtotal = subtotal - discountValue;
     }
 
-    const vatAmount = bodyVatAmount !== undefined ? bodyVatAmount : discountedSubtotal * (vatRate / 100);
-    const totalAmount = bodyTotalAmount !== undefined ? bodyTotalAmount : discountedSubtotal + vatAmount;
+    // Calculate VAT and total - don't trust user input
+    const calculatedVatAmount = discountedSubtotal * (vatRate / 100);
+    const calculatedTotalAmount = discountedSubtotal + calculatedVatAmount;
+
+    // Validate user-provided amounts if present
+    if (bodyVatAmount !== undefined && Math.abs(bodyVatAmount - calculatedVatAmount) > 0.01) {
+        throw CustomException('VAT amount manipulation detected', 400);
+    }
+    if (bodyTotalAmount !== undefined && Math.abs(bodyTotalAmount - calculatedTotalAmount) > 0.01) {
+        throw CustomException('Total amount manipulation detected', 400);
+    }
+
+    const vatAmount = calculatedVatAmount;
+    const totalAmount = calculatedTotalAmount;
 
     // Calculate due date if not provided
     const finalDueDate = dueDate ? new Date(dueDate) : calculateDueDate(paymentTerms);
@@ -511,8 +685,14 @@ const updateInvoice = asyncHandler(async (req, res) => {
     }
 
     const { id, _id } = req.params;
-    const invoiceId = id || _id;
+    const invoiceId = sanitizeObjectId(id || _id);
     const firmId = req.firmId;
+
+    // Validate input with Joi
+    const { error, value } = updateInvoiceSchema.validate(req.body, { stripUnknown: true });
+    if (error) {
+        throw CustomException(`Validation error: ${error.details[0].message}`, 400);
+    }
 
     const invoice = await Invoice.findById(invoiceId);
 
@@ -520,20 +700,20 @@ const updateInvoice = asyncHandler(async (req, res) => {
         throw CustomException('Invoice not found!', 404);
     }
 
-    // Check access - firmId takes precedence
+    // IDOR Protection - verify ownership
     const hasAccess = firmId
         ? invoice.firmId && invoice.firmId.toString() === firmId.toString()
         : invoice.lawyerId.toString() === req.userID;
 
     if (!hasAccess) {
-        throw CustomException('Only the lawyer can update invoices!', 403);
+        throw CustomException('You do not have permission to update this invoice!', 403);
     }
 
     if (!['draft', 'pending_approval'].includes(invoice.status)) {
         throw CustomException('Cannot update sent or paid invoices!', 400);
     }
 
-    // Update allowed fields
+    // Mass assignment protection - only allow specific fields
     const allowedFields = [
         'items', 'subtotal', 'vatRate', 'vatAmount', 'totalAmount',
         'dueDate', 'paymentTerms', 'notes', 'customerNotes', 'internalNotes',
@@ -544,16 +724,64 @@ const updateInvoice = asyncHandler(async (req, res) => {
         'enableOnlinePayment', 'lateFees', 'approval', 'email', 'attachments',
         'wip', 'budget'
     ];
+    const safeData = pickAllowedFields(value, allowedFields);
 
-    allowedFields.forEach(field => {
-        if (req.body[field] !== undefined) {
-            invoice[field] = req.body[field];
+    // If items are being updated, recalculate amounts to prevent manipulation
+    if (safeData.items) {
+        const calculatedSubtotal = safeData.items.reduce((sum, item) => {
+            if (item.type === 'discount' || item.type === 'comment' || item.type === 'subtotal') {
+                return sum;
+            }
+            const itemTotal = item.quantity * item.unitPrice;
+            if (item.total && Math.abs(item.total - itemTotal) > 0.01) {
+                throw CustomException('Invalid item total detected - possible manipulation', 400);
+            }
+            return sum + itemTotal;
+        }, 0);
+
+        // Apply discount
+        let discountedSubtotal = calculatedSubtotal;
+        const discountType = safeData.discountType || invoice.discountType;
+        const discountValue = safeData.discountValue !== undefined ? safeData.discountValue : invoice.discountValue;
+
+        if (discountType === 'percentage' && discountValue > 0) {
+            if (discountValue > 100) {
+                throw CustomException('Discount percentage cannot exceed 100%', 400);
+            }
+            discountedSubtotal = calculatedSubtotal * (1 - discountValue / 100);
+        } else if (discountType === 'fixed' && discountValue > 0) {
+            if (discountValue > calculatedSubtotal) {
+                throw CustomException('Fixed discount cannot exceed subtotal', 400);
+            }
+            discountedSubtotal = calculatedSubtotal - discountValue;
         }
+
+        const vatRate = safeData.vatRate !== undefined ? safeData.vatRate : invoice.vatRate;
+        const calculatedVatAmount = discountedSubtotal * (vatRate / 100);
+        const calculatedTotalAmount = discountedSubtotal + calculatedVatAmount;
+
+        // Validate provided amounts
+        if (safeData.vatAmount !== undefined && Math.abs(safeData.vatAmount - calculatedVatAmount) > 0.01) {
+            throw CustomException('VAT amount manipulation detected', 400);
+        }
+        if (safeData.totalAmount !== undefined && Math.abs(safeData.totalAmount - calculatedTotalAmount) > 0.01) {
+            throw CustomException('Total amount manipulation detected', 400);
+        }
+
+        // Use calculated values
+        safeData.subtotal = calculatedSubtotal;
+        safeData.vatAmount = calculatedVatAmount;
+        safeData.totalAmount = calculatedTotalAmount;
+    }
+
+    // Update allowed fields
+    Object.keys(safeData).forEach(field => {
+        invoice[field] = safeData[field];
     });
 
     // Recalculate balance due if totalAmount changed
-    if (req.body.totalAmount !== undefined) {
-        invoice.balanceDue = req.body.totalAmount - (invoice.amountPaid || 0) - (invoice.applyFromRetainer || 0);
+    if (safeData.totalAmount !== undefined) {
+        invoice.balanceDue = safeData.totalAmount - (invoice.amountPaid || 0) - (invoice.applyFromRetainer || 0);
     }
 
     invoice.updatedBy = req.userID;
@@ -592,7 +820,8 @@ const deleteInvoice = asyncHandler(async (req, res) => {
     }
 
     const { id, _id } = req.params;
-    const invoiceId = id || _id;
+    const invoiceId = sanitizeObjectId(id || _id);
+    const firmId = req.firmId;
 
     const invoice = await Invoice.findById(invoiceId);
 
@@ -600,8 +829,13 @@ const deleteInvoice = asyncHandler(async (req, res) => {
         throw CustomException('Invoice not found!', 404);
     }
 
-    if (invoice.lawyerId.toString() !== req.userID) {
-        throw CustomException('Only the lawyer can delete invoices!', 403);
+    // IDOR Protection - verify ownership
+    const hasAccess = firmId
+        ? invoice.firmId && invoice.firmId.toString() === firmId.toString()
+        : invoice.lawyerId.toString() === req.userID;
+
+    if (!hasAccess) {
+        throw CustomException('You do not have permission to delete this invoice!', 403);
     }
 
     // Cannot delete paid or partially paid invoices
@@ -650,7 +884,8 @@ const sendInvoice = asyncHandler(async (req, res) => {
     }
 
     const { id, _id } = req.params;
-    const invoiceId = id || _id;
+    const invoiceId = sanitizeObjectId(id || _id);
+    const firmId = req.firmId;
 
     const invoice = await Invoice.findById(invoiceId)
         .populate('clientId', 'firstName lastName email');
@@ -659,8 +894,13 @@ const sendInvoice = asyncHandler(async (req, res) => {
         throw CustomException('Invoice not found!', 404);
     }
 
-    if (invoice.lawyerId.toString() !== req.userID) {
-        throw CustomException('Only the lawyer can send invoices!', 403);
+    // IDOR Protection - verify ownership
+    const hasAccess = firmId
+        ? invoice.firmId && invoice.firmId.toString() === firmId.toString()
+        : invoice.lawyerId.toString() === req.userID;
+
+    if (!hasAccess) {
+        throw CustomException('You do not have permission to send this invoice!', 403);
     }
 
     // Check if approval is required but not approved
@@ -729,8 +969,16 @@ const recordPayment = asyncHandler(async (req, res) => {
     }
 
     const { id, _id } = req.params;
-    const invoiceId = id || _id;
-    const { amount, paymentMethod, reference, paymentDate, notes, bankAccountId } = req.body;
+    const invoiceId = sanitizeObjectId(id || _id);
+    const firmId = req.firmId;
+
+    // Validate input with Joi
+    const { error, value } = recordPaymentSchema.validate(req.body, { stripUnknown: true });
+    if (error) {
+        throw CustomException(`Validation error: ${error.details[0].message}`, 400);
+    }
+
+    const { amount, paymentMethod, reference, paymentDate, notes, bankAccountId } = value;
 
     const invoice = await Invoice.findById(invoiceId);
 
@@ -738,12 +986,22 @@ const recordPayment = asyncHandler(async (req, res) => {
         throw CustomException('الفاتورة غير موجودة - Invoice not found!', 404);
     }
 
-    if (invoice.lawyerId.toString() !== req.userID) {
-        throw CustomException('Only the lawyer can record payments!', 403);
+    // IDOR Protection - verify ownership
+    const hasAccess = firmId
+        ? invoice.firmId && invoice.firmId.toString() === firmId.toString()
+        : invoice.lawyerId.toString() === req.userID;
+
+    if (!hasAccess) {
+        throw CustomException('You do not have permission to record payment for this invoice!', 403);
     }
 
     if (invoice.status === 'void' || invoice.status === 'paid') {
         throw CustomException('لا يمكن تسجيل دفعة لهذه الفاتورة', 400);
+    }
+
+    // Validate payment amount
+    if (amount <= 0) {
+        throw CustomException('Payment amount must be greater than zero', 400);
     }
 
     if (amount > invoice.balanceDue) {
@@ -836,8 +1094,16 @@ const voidInvoice = asyncHandler(async (req, res) => {
     }
 
     const { id, _id } = req.params;
-    const invoiceId = id || _id;
-    const { reason } = req.body;
+    const invoiceId = sanitizeObjectId(id || _id);
+    const firmId = req.firmId;
+
+    // Validate input with Joi
+    const { error, value } = voidInvoiceSchema.validate(req.body, { stripUnknown: true });
+    if (error) {
+        throw CustomException(`Validation error: ${error.details[0].message}`, 400);
+    }
+
+    const { reason } = value;
 
     const invoice = await Invoice.findById(invoiceId);
 
@@ -845,8 +1111,13 @@ const voidInvoice = asyncHandler(async (req, res) => {
         throw CustomException('الفاتورة غير موجودة', 404);
     }
 
-    if (invoice.lawyerId.toString() !== req.userID) {
-        throw CustomException('Only the lawyer can void invoices!', 403);
+    // IDOR Protection - verify ownership
+    const hasAccess = firmId
+        ? invoice.firmId && invoice.firmId.toString() === firmId.toString()
+        : invoice.lawyerId.toString() === req.userID;
+
+    if (!hasAccess) {
+        throw CustomException('You do not have permission to void this invoice!', 403);
     }
 
     if (invoice.status === 'void') {
@@ -909,7 +1180,8 @@ const duplicateInvoice = asyncHandler(async (req, res) => {
     }
 
     const { id, _id } = req.params;
-    const invoiceId = id || _id;
+    const invoiceId = sanitizeObjectId(id || _id);
+    const firmId = req.firmId;
 
     const originalInvoice = await Invoice.findById(invoiceId);
 
@@ -917,8 +1189,13 @@ const duplicateInvoice = asyncHandler(async (req, res) => {
         throw CustomException('الفاتورة غير موجودة', 404);
     }
 
-    if (originalInvoice.lawyerId.toString() !== req.userID) {
-        throw CustomException('Only the lawyer can duplicate invoices!', 403);
+    // IDOR Protection - verify ownership
+    const hasAccess = firmId
+        ? originalInvoice.firmId && originalInvoice.firmId.toString() === firmId.toString()
+        : originalInvoice.lawyerId.toString() === req.userID;
+
+    if (!hasAccess) {
+        throw CustomException('You do not have permission to duplicate this invoice!', 403);
     }
 
     // Generate new invoice number
@@ -986,8 +1263,16 @@ const sendReminder = asyncHandler(async (req, res) => {
     }
 
     const { id, _id } = req.params;
-    const invoiceId = id || _id;
-    const { template, customMessage, ccRecipients } = req.body;
+    const invoiceId = sanitizeObjectId(id || _id);
+    const firmId = req.firmId;
+
+    // Validate input with Joi
+    const { error, value } = sendReminderSchema.validate(req.body, { stripUnknown: true });
+    if (error) {
+        throw CustomException(`Validation error: ${error.details[0].message}`, 400);
+    }
+
+    const { template, customMessage, ccRecipients } = value;
 
     const invoice = await Invoice.findById(invoiceId)
         .populate('clientId', 'firstName lastName email');
@@ -996,8 +1281,13 @@ const sendReminder = asyncHandler(async (req, res) => {
         throw CustomException('الفاتورة غير موجودة', 404);
     }
 
-    if (invoice.lawyerId.toString() !== req.userID) {
-        throw CustomException('Only the lawyer can send reminders!', 403);
+    // IDOR Protection - verify ownership
+    const hasAccess = firmId
+        ? invoice.firmId && invoice.firmId.toString() === firmId.toString()
+        : invoice.lawyerId.toString() === req.userID;
+
+    if (!hasAccess) {
+        throw CustomException('You do not have permission to send reminders for this invoice!', 403);
     }
 
     if (!['sent', 'viewed', 'partial', 'overdue'].includes(invoice.status)) {
@@ -1055,8 +1345,16 @@ const convertToCreditNote = asyncHandler(async (req, res) => {
     }
 
     const { id, _id } = req.params;
-    const invoiceId = id || _id;
-    const { reason, amount } = req.body;
+    const invoiceId = sanitizeObjectId(id || _id);
+    const firmId = req.firmId;
+
+    // Validate input with Joi
+    const { error, value } = creditNoteSchema.validate(req.body, { stripUnknown: true });
+    if (error) {
+        throw CustomException(`Validation error: ${error.details[0].message}`, 400);
+    }
+
+    const { reason, amount } = value;
 
     const originalInvoice = await Invoice.findById(invoiceId);
 
@@ -1064,8 +1362,13 @@ const convertToCreditNote = asyncHandler(async (req, res) => {
         throw CustomException('الفاتورة غير موجودة', 404);
     }
 
-    if (originalInvoice.lawyerId.toString() !== req.userID) {
-        throw CustomException('Only the lawyer can create credit notes!', 403);
+    // IDOR Protection - verify ownership
+    const hasAccess = firmId
+        ? originalInvoice.firmId && originalInvoice.firmId.toString() === firmId.toString()
+        : originalInvoice.lawyerId.toString() === req.userID;
+
+    if (!hasAccess) {
+        throw CustomException('You do not have permission to create credit notes for this invoice!', 403);
     }
 
     // Generate credit note number
@@ -1078,6 +1381,15 @@ const convertToCreditNote = asyncHandler(async (req, res) => {
     const creditNoteNumber = `CN-${year}${month}-${String(count + 1).padStart(4, '0')}`;
 
     const creditAmount = amount || originalInvoice.totalAmount;
+
+    // Validate credit amount
+    if (creditAmount <= 0) {
+        throw CustomException('Credit amount must be greater than zero', 400);
+    }
+
+    if (creditAmount > originalInvoice.totalAmount) {
+        throw CustomException('Credit amount cannot exceed original invoice total', 400);
+    }
 
     const creditNote = new Invoice({
         invoiceNumber: creditNoteNumber,
@@ -1146,7 +1458,8 @@ const submitForApproval = asyncHandler(async (req, res) => {
     }
 
     const { id, _id } = req.params;
-    const invoiceId = id || _id;
+    const invoiceId = sanitizeObjectId(id || _id);
+    const firmId = req.firmId;
 
     const invoice = await Invoice.findById(invoiceId);
 
@@ -1154,8 +1467,13 @@ const submitForApproval = asyncHandler(async (req, res) => {
         throw CustomException('الفاتورة غير موجودة', 404);
     }
 
-    if (invoice.lawyerId.toString() !== req.userID) {
-        throw CustomException('Only the creator can submit for approval!', 403);
+    // IDOR Protection - verify ownership
+    const hasAccess = firmId
+        ? invoice.firmId && invoice.firmId.toString() === firmId.toString()
+        : invoice.lawyerId.toString() === req.userID;
+
+    if (!hasAccess) {
+        throw CustomException('You do not have permission to submit this invoice for approval!', 403);
     }
 
     if (invoice.status !== 'draft') {
@@ -1191,8 +1509,16 @@ const approveInvoice = asyncHandler(async (req, res) => {
     }
 
     const { id, _id } = req.params;
-    const invoiceId = id || _id;
-    const { notes } = req.body;
+    const invoiceId = sanitizeObjectId(id || _id);
+    const firmId = req.firmId;
+
+    // Validate input with Joi
+    const { error, value } = approvalSchema.validate(req.body, { stripUnknown: true });
+    if (error) {
+        throw CustomException(`Validation error: ${error.details[0].message}`, 400);
+    }
+
+    const { notes } = value;
 
     const invoice = await Invoice.findById(invoiceId);
 
@@ -1200,9 +1526,19 @@ const approveInvoice = asyncHandler(async (req, res) => {
         throw CustomException('الفاتورة غير موجودة', 404);
     }
 
-    // Check if user has approval permission (lawyer or admin)
+    // IDOR Protection - verify access
     const user = await User.findById(req.userID);
-    if (user.role !== 'admin' && invoice.lawyerId.toString() !== req.userID) {
+    let hasAccess = false;
+
+    if (firmId) {
+        // For firm users, check if invoice belongs to firm
+        hasAccess = invoice.firmId && invoice.firmId.toString() === firmId.toString();
+    } else {
+        // For non-firm users, check if user is admin or lawyer who created it
+        hasAccess = user.role === 'admin' || invoice.lawyerId.toString() === req.userID;
+    }
+
+    if (!hasAccess) {
         throw CustomException('You do not have permission to approve this invoice', 403);
     }
 
@@ -1257,8 +1593,16 @@ const rejectInvoice = asyncHandler(async (req, res) => {
     }
 
     const { id, _id } = req.params;
-    const invoiceId = id || _id;
-    const { reason } = req.body;
+    const invoiceId = sanitizeObjectId(id || _id);
+    const firmId = req.firmId;
+
+    // Validate input with Joi
+    const { error, value } = rejectSchema.validate(req.body, { stripUnknown: true });
+    if (error) {
+        throw CustomException(`Validation error: ${error.details[0].message}`, 400);
+    }
+
+    const { reason } = value;
 
     const invoice = await Invoice.findById(invoiceId);
 
@@ -1266,9 +1610,19 @@ const rejectInvoice = asyncHandler(async (req, res) => {
         throw CustomException('الفاتورة غير موجودة', 404);
     }
 
-    // Check if user has approval permission
+    // IDOR Protection - verify access
     const user = await User.findById(req.userID);
-    if (user.role !== 'admin' && invoice.lawyerId.toString() !== req.userID) {
+    let hasAccess = false;
+
+    if (firmId) {
+        // For firm users, check if invoice belongs to firm
+        hasAccess = invoice.firmId && invoice.firmId.toString() === firmId.toString();
+    } else {
+        // For non-firm users, check if user is admin or lawyer who created it
+        hasAccess = user.role === 'admin' || invoice.lawyerId.toString() === req.userID;
+    }
+
+    if (!hasAccess) {
         throw CustomException('You do not have permission to reject this invoice', 403);
     }
 
@@ -1316,7 +1670,8 @@ const submitToZATCAHandler = asyncHandler(async (req, res) => {
     }
 
     const { id, _id } = req.params;
-    const invoiceId = id || _id;
+    const invoiceId = sanitizeObjectId(id || _id);
+    const firmId = req.firmId;
 
     const invoice = await Invoice.findById(invoiceId)
         .populate('clientId');
@@ -1325,8 +1680,13 @@ const submitToZATCAHandler = asyncHandler(async (req, res) => {
         throw CustomException('الفاتورة غير موجودة', 404);
     }
 
-    if (invoice.lawyerId.toString() !== req.userID) {
-        throw CustomException('Only the lawyer can submit to ZATCA', 403);
+    // IDOR Protection - verify ownership
+    const hasAccess = firmId
+        ? invoice.firmId && invoice.firmId.toString() === firmId.toString()
+        : invoice.lawyerId.toString() === req.userID;
+
+    if (!hasAccess) {
+        throw CustomException('You do not have permission to submit this invoice to ZATCA!', 403);
     }
 
     // Validate ZATCA requirements
@@ -1684,8 +2044,16 @@ const confirmPayment = asyncHandler(async (req, res) => {
  */
 const applyRetainer = asyncHandler(async (req, res) => {
     const { id, _id } = req.params;
-    const invoiceId = id || _id;
-    const { amount, retainerId } = req.body;
+    const invoiceId = sanitizeObjectId(id || _id);
+    const firmId = req.firmId;
+
+    // Validate input with Joi
+    const { error, value } = applyRetainerSchema.validate(req.body, { stripUnknown: true });
+    if (error) {
+        throw CustomException(`Validation error: ${error.details[0].message}`, 400);
+    }
+
+    const { amount, retainerId } = value;
 
     const invoice = await Invoice.findById(invoiceId);
 
@@ -1693,8 +2061,18 @@ const applyRetainer = asyncHandler(async (req, res) => {
         throw CustomException('الفاتورة غير موجودة', 404);
     }
 
-    if (invoice.lawyerId.toString() !== req.userID) {
-        throw CustomException('Only the lawyer can apply retainer', 403);
+    // IDOR Protection - verify ownership
+    const hasAccess = firmId
+        ? invoice.firmId && invoice.firmId.toString() === firmId.toString()
+        : invoice.lawyerId.toString() === req.userID;
+
+    if (!hasAccess) {
+        throw CustomException('You do not have permission to apply retainer to this invoice!', 403);
+    }
+
+    // Validate amount
+    if (amount <= 0) {
+        throw CustomException('Retainer amount must be greater than zero', 400);
     }
 
     if (amount > invoice.balanceDue) {

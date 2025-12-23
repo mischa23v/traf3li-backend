@@ -9,6 +9,8 @@ const Invoice = require('../models/invoice.model');
 const Client = require('../models/client.model');
 const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
+const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
+const mongoose = require('mongoose');
 
 /**
  * Get all credit notes
@@ -97,11 +99,21 @@ const getCreditNotesForInvoice = asyncHandler(async (req, res) => {
  * Create credit note
  */
 const createCreditNote = asyncHandler(async (req, res) => {
-    const { invoiceId, creditType, reasonCategory, reason, reasonAr, items, notes, notesAr } = req.body;
+    // SECURITY: Mass assignment protection - only allow specific fields
+    const allowedFields = ['invoiceId', 'creditType', 'reasonCategory', 'reason', 'reasonAr', 'items', 'notes', 'notesAr'];
+    const safeData = pickAllowedFields(req.body, allowedFields);
 
-    // Get original invoice
+    // SECURITY: Sanitize and validate invoiceId
+    const sanitizedInvoiceId = sanitizeObjectId(safeData.invoiceId);
+    if (!sanitizedInvoiceId) {
+        throw CustomException('Invalid invoice ID', 400, {
+            messageAr: 'معرف الفاتورة غير صالح'
+        });
+    }
+
+    // SECURITY: IDOR Protection - Verify invoice belongs to user's firm
     const invoice = await Invoice.findOne({
-        _id: invoiceId,
+        _id: sanitizedInvoiceId,
         ...req.firmQuery
     }).populate('clientId');
 
@@ -118,64 +130,111 @@ const createCreditNote = asyncHandler(async (req, res) => {
         });
     }
 
-    // Generate credit note number
-    const creditNoteNumber = await CreditNote.generateNumber(req.firmId, req.firmId ? null : req.userID);
-
-    // Create credit note
-    const creditNote = new CreditNote({
-        firmId: req.firmId,
-        lawyerId: req.firmId ? null : req.userID,
-        creditNoteNumber,
-        invoiceId,
-        invoiceNumber: invoice.invoiceNumber,
-        clientId: invoice.clientId._id,
-        clientName: invoice.clientId.companyName ||
-            `${invoice.clientId.firstName} ${invoice.clientId.lastName}`,
-        clientNameAr: invoice.clientId.companyNameAr ||
-            invoice.clientId.fullNameArabic,
-        clientVatNumber: invoice.clientId.vatNumber,
-        creditType,
-        reasonCategory,
-        reason,
-        reasonAr,
-        items,
-        notes,
-        notesAr,
-        createdBy: req.userID,
-        history: [{
-            action: 'created',
-            performedBy: req.userID,
-            details: { reasonCategory, reason }
-        }]
-    });
-
-    // Calculate totals
-    creditNote.calculateTotals();
-
-    // Validate total doesn't exceed invoice balance
-    const invoiceBalance = invoice.balanceDue || invoice.totalAmount;
-    if (creditNote.total > invoiceBalance) {
-        throw CustomException(
-            `Credit note total (${creditNote.total}) cannot exceed invoice balance (${invoiceBalance})`,
-            400,
-            { messageAr: 'لا يمكن أن يتجاوز إجمالي إشعار الدائن رصيد الفاتورة' }
-        );
+    // SECURITY: Validate items array and amounts
+    if (!Array.isArray(safeData.items) || safeData.items.length === 0) {
+        throw CustomException('Credit note must have at least one item', 400, {
+            messageAr: 'يجب أن يحتوي إشعار الدائن على عنصر واحد على الأقل'
+        });
     }
 
-    await creditNote.save();
+    // SECURITY: Validate each item's amount is positive and reasonable
+    for (const item of safeData.items) {
+        if (!item.quantity || item.quantity <= 0) {
+            throw CustomException('Item quantity must be positive', 400, {
+                messageAr: 'يجب أن تكون كمية العنصر موجبة'
+            });
+        }
+        if (!item.unitPrice || item.unitPrice < 0) {
+            throw CustomException('Item unit price must be non-negative', 400, {
+                messageAr: 'يجب أن يكون سعر الوحدة غير سالب'
+            });
+        }
+        // Prevent manipulation - validate reasonable limits
+        if (item.unitPrice > 999999999) {
+            throw CustomException('Item unit price exceeds maximum allowed', 400, {
+                messageAr: 'سعر الوحدة يتجاوز الحد الأقصى المسموح'
+            });
+        }
+    }
 
-    res.status(201).json({
-        success: true,
-        data: creditNote,
-        message: 'Credit note created successfully',
-        messageAr: 'تم إنشاء إشعار الدائن بنجاح'
-    });
+    // Use MongoDB transaction for data consistency
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    try {
+        // Generate credit note number
+        const creditNoteNumber = await CreditNote.generateNumber(req.firmId, req.firmId ? null : req.userID);
+
+        // Create credit note with sanitized data
+        const creditNote = new CreditNote({
+            firmId: req.firmId,
+            lawyerId: req.firmId ? null : req.userID,
+            creditNoteNumber,
+            invoiceId: sanitizedInvoiceId,
+            invoiceNumber: invoice.invoiceNumber,
+            clientId: invoice.clientId._id,
+            clientName: invoice.clientId.companyName ||
+                `${invoice.clientId.firstName} ${invoice.clientId.lastName}`,
+            clientNameAr: invoice.clientId.companyNameAr ||
+                invoice.clientId.fullNameArabic,
+            clientVatNumber: invoice.clientId.vatNumber,
+            creditType: safeData.creditType,
+            reasonCategory: safeData.reasonCategory,
+            reason: safeData.reason,
+            reasonAr: safeData.reasonAr,
+            items: safeData.items,
+            notes: safeData.notes,
+            notesAr: safeData.notesAr,
+            createdBy: req.userID,
+            history: [{
+                action: 'created',
+                performedBy: req.userID,
+                details: { reasonCategory: safeData.reasonCategory, reason: safeData.reason }
+            }]
+        });
+
+        // Calculate totals
+        creditNote.calculateTotals();
+
+        // SECURITY: Validate total doesn't exceed invoice balance
+        const invoiceBalance = invoice.balanceDue || invoice.totalAmount;
+        if (creditNote.total > invoiceBalance) {
+            throw CustomException(
+                `Credit note total (${creditNote.total}) cannot exceed invoice balance (${invoiceBalance})`,
+                400,
+                { messageAr: 'لا يمكن أن يتجاوز إجمالي إشعار الدائن رصيد الفاتورة' }
+            );
+        }
+
+        // SECURITY: Additional validation - total must be positive
+        if (creditNote.total <= 0) {
+            throw CustomException('Credit note total must be positive', 400, {
+                messageAr: 'يجب أن يكون إجمالي إشعار الدائن موجباً'
+            });
+        }
+
+        await creditNote.save({ session });
+        await session.commitTransaction();
+
+        res.status(201).json({
+            success: true,
+            data: creditNote,
+            message: 'Credit note created successfully',
+            messageAr: 'تم إنشاء إشعار الدائن بنجاح'
+        });
+    } catch (error) {
+        await session.abortTransaction();
+        throw error;
+    } finally {
+        session.endSession();
+    }
 });
 
 /**
  * Update credit note
  */
 const updateCreditNote = asyncHandler(async (req, res) => {
+    // SECURITY: IDOR Protection - Verify credit note belongs to user's firm
     const creditNote = await CreditNote.findOne({
         _id: req.params.id,
         ...req.firmQuery,
@@ -188,16 +247,78 @@ const updateCreditNote = asyncHandler(async (req, res) => {
         });
     }
 
-    const { reasonCategory, reason, reasonAr, items, notes, notesAr } = req.body;
+    // SECURITY: Mass assignment protection - only allow specific fields
+    const allowedFields = ['reasonCategory', 'reason', 'reasonAr', 'items', 'notes', 'notesAr'];
+    const safeData = pickAllowedFields(req.body, allowedFields);
 
-    if (reasonCategory) creditNote.reasonCategory = reasonCategory;
-    if (reason !== undefined) creditNote.reason = reason;
-    if (reasonAr !== undefined) creditNote.reasonAr = reasonAr;
-    if (items) creditNote.items = items;
-    if (notes !== undefined) creditNote.notes = notes;
-    if (notesAr !== undefined) creditNote.notesAr = notesAr;
+    // SECURITY: Validate items if provided
+    if (safeData.items) {
+        if (!Array.isArray(safeData.items) || safeData.items.length === 0) {
+            throw CustomException('Credit note must have at least one item', 400, {
+                messageAr: 'يجب أن يحتوي إشعار الدائن على عنصر واحد على الأقل'
+            });
+        }
+
+        // SECURITY: Validate each item's amount
+        for (const item of safeData.items) {
+            if (!item.quantity || item.quantity <= 0) {
+                throw CustomException('Item quantity must be positive', 400, {
+                    messageAr: 'يجب أن تكون كمية العنصر موجبة'
+                });
+            }
+            if (!item.unitPrice || item.unitPrice < 0) {
+                throw CustomException('Item unit price must be non-negative', 400, {
+                    messageAr: 'يجب أن يكون سعر الوحدة غير سالب'
+                });
+            }
+            // Prevent manipulation - validate reasonable limits
+            if (item.unitPrice > 999999999) {
+                throw CustomException('Item unit price exceeds maximum allowed', 400, {
+                    messageAr: 'سعر الوحدة يتجاوز الحد الأقصى المسموح'
+                });
+            }
+        }
+    }
+
+    // Apply updates using sanitized data
+    if (safeData.reasonCategory) creditNote.reasonCategory = safeData.reasonCategory;
+    if (safeData.reason !== undefined) creditNote.reason = safeData.reason;
+    if (safeData.reasonAr !== undefined) creditNote.reasonAr = safeData.reasonAr;
+    if (safeData.items) creditNote.items = safeData.items;
+    if (safeData.notes !== undefined) creditNote.notes = safeData.notes;
+    if (safeData.notesAr !== undefined) creditNote.notesAr = safeData.notesAr;
 
     creditNote.calculateTotals();
+
+    // SECURITY: Validate invoice reference still exists and belongs to firm
+    const invoice = await Invoice.findOne({
+        _id: creditNote.invoiceId,
+        ...req.firmQuery
+    });
+
+    if (!invoice) {
+        throw CustomException('Linked invoice not found or access denied', 404, {
+            messageAr: 'لم يتم العثور على الفاتورة المرتبطة أو تم رفض الوصول'
+        });
+    }
+
+    // SECURITY: Validate total doesn't exceed invoice balance
+    const invoiceBalance = invoice.balanceDue || invoice.totalAmount;
+    if (creditNote.total > invoiceBalance) {
+        throw CustomException(
+            `Credit note total (${creditNote.total}) cannot exceed invoice balance (${invoiceBalance})`,
+            400,
+            { messageAr: 'لا يمكن أن يتجاوز إجمالي إشعار الدائن رصيد الفاتورة' }
+        );
+    }
+
+    // SECURITY: Validate total is positive
+    if (creditNote.total <= 0) {
+        throw CustomException('Credit note total must be positive', 400, {
+            messageAr: 'يجب أن يكون إجمالي إشعار الدائن موجباً'
+        });
+    }
+
     creditNote.updatedBy = req.userID;
     creditNote.history.push({
         action: 'updated',
@@ -218,6 +339,7 @@ const updateCreditNote = asyncHandler(async (req, res) => {
  * Issue credit note
  */
 const issueCreditNote = asyncHandler(async (req, res) => {
+    // SECURITY: IDOR Protection - Verify credit note belongs to user's firm
     const creditNote = await CreditNote.findOne({
         _id: req.params.id,
         ...req.firmQuery,
@@ -228,6 +350,34 @@ const issueCreditNote = asyncHandler(async (req, res) => {
         throw CustomException('Credit note not found or already issued', 404, {
             messageAr: 'لم يتم العثور على إشعار الدائن أو تم إصداره مسبقاً'
         });
+    }
+
+    // SECURITY: Validate invoice reference and ownership before issuing
+    const invoice = await Invoice.findOne({
+        _id: creditNote.invoiceId,
+        ...req.firmQuery
+    });
+
+    if (!invoice) {
+        throw CustomException('Linked invoice not found or access denied', 404, {
+            messageAr: 'لم يتم العثور على الفاتورة المرتبطة أو تم رفض الوصول'
+        });
+    }
+
+    // SECURITY: Validate amounts one more time before issuing
+    if (creditNote.total <= 0) {
+        throw CustomException('Credit note total must be positive', 400, {
+            messageAr: 'يجب أن يكون إجمالي إشعار الدائن موجباً'
+        });
+    }
+
+    const invoiceBalance = invoice.balanceDue || invoice.totalAmount;
+    if (creditNote.total > invoiceBalance) {
+        throw CustomException(
+            `Credit note total (${creditNote.total}) cannot exceed invoice balance (${invoiceBalance})`,
+            400,
+            { messageAr: 'لا يمكن أن يتجاوز إجمالي إشعار الدائن رصيد الفاتورة' }
+        );
     }
 
     await creditNote.issue(req.userID);
@@ -244,6 +394,7 @@ const issueCreditNote = asyncHandler(async (req, res) => {
  * Apply credit note to invoice
  */
 const applyCreditNote = asyncHandler(async (req, res) => {
+    // SECURITY: IDOR Protection - Verify credit note belongs to user's firm
     const creditNote = await CreditNote.findOne({
         _id: req.params.id,
         ...req.firmQuery,
@@ -256,33 +407,85 @@ const applyCreditNote = asyncHandler(async (req, res) => {
         });
     }
 
-    await creditNote.apply(req.userID);
-
-    // Update client credit balance
-    await Client.findByIdAndUpdate(creditNote.clientId, {
-        $inc: { 'billing.creditBalance': creditNote.total }
+    // SECURITY: Validate invoice reference and ownership before applying
+    const invoice = await Invoice.findOne({
+        _id: creditNote.invoiceId,
+        ...req.firmQuery
     });
 
-    res.json({
-        success: true,
-        data: creditNote,
-        message: 'Credit note applied to invoice',
-        messageAr: 'تم تطبيق إشعار الدائن على الفاتورة'
+    if (!invoice) {
+        throw CustomException('Linked invoice not found or access denied', 404, {
+            messageAr: 'لم يتم العثور على الفاتورة المرتبطة أو تم رفض الوصول'
+        });
+    }
+
+    // SECURITY: Verify client belongs to firm
+    const client = await Client.findOne({
+        _id: creditNote.clientId,
+        ...req.firmQuery
     });
+
+    if (!client) {
+        throw CustomException('Client not found or access denied', 404, {
+            messageAr: 'لم يتم العثور على العميل أو تم رفض الوصول'
+        });
+    }
+
+    // SECURITY: Use MongoDB transaction for financial updates
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    try {
+        // Apply credit note
+        await creditNote.apply(req.userID, session);
+
+        // SECURITY: Validate amount before updating client balance
+        if (creditNote.total <= 0) {
+            throw CustomException('Invalid credit note amount', 400, {
+                messageAr: 'مبلغ إشعار الدائن غير صالح'
+            });
+        }
+
+        // Update client credit balance within transaction
+        await Client.findByIdAndUpdate(
+            creditNote.clientId,
+            {
+                $inc: { 'billing.creditBalance': creditNote.total }
+            },
+            { session }
+        );
+
+        await session.commitTransaction();
+
+        res.json({
+            success: true,
+            data: creditNote,
+            message: 'Credit note applied to invoice',
+            messageAr: 'تم تطبيق إشعار الدائن على الفاتورة'
+        });
+    } catch (error) {
+        await session.abortTransaction();
+        throw error;
+    } finally {
+        session.endSession();
+    }
 });
 
 /**
  * Void credit note
  */
 const voidCreditNote = asyncHandler(async (req, res) => {
-    const { reason } = req.body;
+    // SECURITY: Mass assignment protection
+    const allowedFields = ['reason'];
+    const safeData = pickAllowedFields(req.body, allowedFields);
 
-    if (!reason) {
+    if (!safeData.reason || typeof safeData.reason !== 'string' || safeData.reason.trim() === '') {
         throw CustomException('Void reason is required', 400, {
             messageAr: 'سبب الإلغاء مطلوب'
         });
     }
 
+    // SECURITY: IDOR Protection - Verify credit note belongs to user's firm
     const creditNote = await CreditNote.findOne({
         _id: req.params.id,
         ...req.firmQuery
@@ -294,7 +497,19 @@ const voidCreditNote = asyncHandler(async (req, res) => {
         });
     }
 
-    await creditNote.void(reason, req.userID);
+    // SECURITY: Validate invoice reference still exists and belongs to firm
+    const invoice = await Invoice.findOne({
+        _id: creditNote.invoiceId,
+        ...req.firmQuery
+    });
+
+    if (!invoice) {
+        throw CustomException('Linked invoice not found or access denied', 404, {
+            messageAr: 'لم يتم العثور على الفاتورة المرتبطة أو تم رفض الوصول'
+        });
+    }
+
+    await creditNote.void(safeData.reason, req.userID);
 
     res.json({
         success: true,

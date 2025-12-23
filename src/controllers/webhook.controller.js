@@ -3,13 +3,18 @@ const WebhookDelivery = require('../models/webhookDelivery.model');
 const webhookService = require('../services/webhook.service');
 const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
+const { pickAllowedFields, sanitizeObjectId, timingSafeEqual } = require('../utils/securityUtils');
 
 /**
  * Register a new webhook
  * POST /api/webhooks
  */
 const registerWebhook = asyncHandler(async (req, res) => {
-    const { url, events, name, description, headers, retryPolicy, filters, metadata } = req.body;
+    // Input validation - only allow specific fields to prevent mass assignment
+    const allowedFields = ['url', 'events', 'name', 'description', 'headers', 'retryPolicy', 'filters', 'metadata'];
+    const sanitizedInput = pickAllowedFields(req.body, allowedFields);
+
+    const { url, events, name, description, headers, retryPolicy, filters, metadata } = sanitizedInput;
 
     const userId = req.userID;
     const firmId = req.firmId;
@@ -19,7 +24,7 @@ const registerWebhook = asyncHandler(async (req, res) => {
         throw CustomException('Webhook URL is required', 400);
     }
 
-    if (!events || events.length === 0) {
+    if (!events || !Array.isArray(events) || events.length === 0) {
         throw CustomException('At least one event subscription is required', 400);
     }
 
@@ -31,11 +36,33 @@ const registerWebhook = asyncHandler(async (req, res) => {
         throw CustomException(`Invalid event types: ${invalidEvents.join(', ')}`, 400);
     }
 
+    // Validate URL format to prevent webhook spoofing
+    if (typeof url !== 'string' || url.trim().length === 0) {
+        throw CustomException('Invalid webhook URL format', 400);
+    }
+
+    // Additional validation for webhook data
+    if (headers && typeof headers !== 'object') {
+        throw CustomException('Headers must be an object', 400);
+    }
+
+    if (retryPolicy && typeof retryPolicy !== 'object') {
+        throw CustomException('Retry policy must be an object', 400);
+    }
+
+    if (filters && typeof filters !== 'object') {
+        throw CustomException('Filters must be an object', 400);
+    }
+
+    if (metadata && typeof metadata !== 'object') {
+        throw CustomException('Metadata must be an object', 400);
+    }
+
     // Register webhook
     let webhook;
     try {
         webhook = await webhookService.register({
-            url,
+            url: url.trim(),
             events,
             firmId,
             createdBy: userId,
@@ -126,7 +153,14 @@ const getWebhook = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const firmId = req.firmId;
 
-    const webhook = await Webhook.findOne({ _id: id, firmId })
+    // IDOR Protection: Sanitize and validate ObjectId
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('Invalid webhook ID format', 400);
+    }
+
+    // IDOR Protection: Verify webhook belongs to user's firm
+    const webhook = await Webhook.findOne({ _id: sanitizedId, firmId })
         .select('-secret') // Don't return secret
         .populate('createdBy', 'firstName lastName email')
         .populate('updatedBy', 'firstName lastName email');
@@ -150,10 +184,20 @@ const updateWebhook = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
     const userId = req.userID;
 
-    const { url, events, name, description, headers, retryPolicy, filters, isActive, metadata } = req.body;
+    // IDOR Protection: Sanitize and validate ObjectId
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('Invalid webhook ID format', 400);
+    }
 
-    // Find webhook
-    const webhook = await Webhook.findOne({ _id: id, firmId });
+    // Input validation - only allow specific fields to prevent mass assignment
+    const allowedFields = ['url', 'events', 'name', 'description', 'headers', 'retryPolicy', 'filters', 'isActive', 'metadata'];
+    const sanitizedInput = pickAllowedFields(req.body, allowedFields);
+
+    const { url, events, name, description, headers, retryPolicy, filters, isActive, metadata } = sanitizedInput;
+
+    // IDOR Protection: Verify webhook belongs to user's firm
+    const webhook = await Webhook.findOne({ _id: sanitizedId, firmId });
 
     if (!webhook) {
         throw CustomException('Webhook not found', 404);
@@ -161,6 +205,10 @@ const updateWebhook = asyncHandler(async (req, res) => {
 
     // Validate events if provided
     if (events) {
+        if (!Array.isArray(events)) {
+            throw CustomException('Events must be an array', 400);
+        }
+
         const { WEBHOOK_EVENTS } = require('../models/webhook.model');
         const invalidEvents = events.filter(e => !WEBHOOK_EVENTS.includes(e));
 
@@ -170,15 +218,47 @@ const updateWebhook = asyncHandler(async (req, res) => {
         webhook.events = events;
     }
 
-    // Update fields
-    if (url) webhook.url = url;
+    // Validate URL format to prevent webhook spoofing
+    if (url) {
+        if (typeof url !== 'string' || url.trim().length === 0) {
+            throw CustomException('Invalid webhook URL format', 400);
+        }
+        webhook.url = url.trim();
+    }
+
+    // Additional validation for webhook data
+    if (headers !== undefined) {
+        if (headers !== null && typeof headers !== 'object') {
+            throw CustomException('Headers must be an object', 400);
+        }
+        webhook.headers = headers;
+    }
+
+    if (retryPolicy !== undefined) {
+        if (retryPolicy !== null && typeof retryPolicy !== 'object') {
+            throw CustomException('Retry policy must be an object', 400);
+        }
+        webhook.retryPolicy = retryPolicy;
+    }
+
+    if (filters !== undefined) {
+        if (filters !== null && typeof filters !== 'object') {
+            throw CustomException('Filters must be an object', 400);
+        }
+        webhook.filters = filters;
+    }
+
+    if (metadata !== undefined) {
+        if (metadata !== null && typeof metadata !== 'object') {
+            throw CustomException('Metadata must be an object', 400);
+        }
+        webhook.metadata = metadata;
+    }
+
+    // Update other fields
     if (name !== undefined) webhook.name = name;
     if (description !== undefined) webhook.description = description;
-    if (headers !== undefined) webhook.headers = headers;
-    if (retryPolicy !== undefined) webhook.retryPolicy = retryPolicy;
-    if (filters !== undefined) webhook.filters = filters;
     if (isActive !== undefined) webhook.isActive = isActive;
-    if (metadata !== undefined) webhook.metadata = metadata;
 
     webhook.updatedBy = userId;
 
@@ -215,7 +295,14 @@ const deleteWebhook = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const firmId = req.firmId;
 
-    const webhook = await Webhook.findOneAndDelete({ _id: id, firmId });
+    // IDOR Protection: Sanitize and validate ObjectId
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('Invalid webhook ID format', 400);
+    }
+
+    // IDOR Protection: Verify webhook belongs to user's firm
+    const webhook = await Webhook.findOneAndDelete({ _id: sanitizedId, firmId });
 
     if (!webhook) {
         throw CustomException('Webhook not found', 404);
@@ -242,15 +329,21 @@ const getWebhookDeliveries = asyncHandler(async (req, res) => {
 
     const firmId = req.firmId;
 
-    // Verify webhook belongs to firm
-    const webhook = await Webhook.findOne({ _id: id, firmId });
+    // IDOR Protection: Sanitize and validate ObjectId
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('Invalid webhook ID format', 400);
+    }
+
+    // IDOR Protection: Verify webhook belongs to user's firm
+    const webhook = await Webhook.findOne({ _id: sanitizedId, firmId });
 
     if (!webhook) {
         throw CustomException('Webhook not found', 404);
     }
 
     // Get deliveries
-    const result = await webhookService.getDeliveryHistory(id, {
+    const result = await webhookService.getDeliveryHistory(sanitizedId, {
         page,
         limit,
         status,
@@ -272,17 +365,29 @@ const getDeliveryDetails = asyncHandler(async (req, res) => {
     const { id, deliveryId } = req.params;
     const firmId = req.firmId;
 
-    // Verify webhook belongs to firm
-    const webhook = await Webhook.findOne({ _id: id, firmId });
+    // IDOR Protection: Sanitize and validate ObjectIds
+    const sanitizedId = sanitizeObjectId(id);
+    const sanitizedDeliveryId = sanitizeObjectId(deliveryId);
+
+    if (!sanitizedId) {
+        throw CustomException('Invalid webhook ID format', 400);
+    }
+
+    if (!sanitizedDeliveryId) {
+        throw CustomException('Invalid delivery ID format', 400);
+    }
+
+    // IDOR Protection: Verify webhook belongs to user's firm
+    const webhook = await Webhook.findOne({ _id: sanitizedId, firmId });
 
     if (!webhook) {
         throw CustomException('Webhook not found', 404);
     }
 
-    // Get delivery
+    // Get delivery - verify it belongs to this webhook
     const delivery = await WebhookDelivery.findOne({
-        _id: deliveryId,
-        webhookId: id
+        _id: sanitizedDeliveryId,
+        webhookId: sanitizedId
     });
 
     if (!delivery) {
@@ -303,15 +408,29 @@ const testWebhook = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const firmId = req.firmId;
 
-    // Verify webhook belongs to firm
-    const webhook = await Webhook.findOne({ _id: id, firmId });
+    // IDOR Protection: Sanitize and validate ObjectId
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('Invalid webhook ID format', 400);
+    }
+
+    // IDOR Protection: Verify webhook belongs to user's firm
+    const webhook = await Webhook.findOne({ _id: sanitizedId, firmId });
 
     if (!webhook) {
         throw CustomException('Webhook not found', 404);
     }
 
+    // Input validation: Validate test payload data
+    const testPayload = req.body || {};
+
+    // Validate test payload is an object
+    if (typeof testPayload !== 'object' || Array.isArray(testPayload)) {
+        throw CustomException('Test payload must be an object', 400);
+    }
+
     // Send test delivery
-    const delivery = await webhookService.testWebhook(id, req.body);
+    const delivery = await webhookService.testWebhook(sanitizedId, testPayload);
 
     res.json({
         success: true,
@@ -332,17 +451,29 @@ const retryDelivery = asyncHandler(async (req, res) => {
     const { id, deliveryId } = req.params;
     const firmId = req.firmId;
 
-    // Verify webhook belongs to firm
-    const webhook = await Webhook.findOne({ _id: id, firmId }).select('+secret');
+    // IDOR Protection: Sanitize and validate ObjectIds
+    const sanitizedId = sanitizeObjectId(id);
+    const sanitizedDeliveryId = sanitizeObjectId(deliveryId);
+
+    if (!sanitizedId) {
+        throw CustomException('Invalid webhook ID format', 400);
+    }
+
+    if (!sanitizedDeliveryId) {
+        throw CustomException('Invalid delivery ID format', 400);
+    }
+
+    // IDOR Protection: Verify webhook belongs to user's firm
+    const webhook = await Webhook.findOne({ _id: sanitizedId, firmId }).select('+secret');
 
     if (!webhook) {
         throw CustomException('Webhook not found', 404);
     }
 
-    // Get delivery
+    // Get delivery - verify it belongs to this webhook
     const delivery = await WebhookDelivery.findOne({
-        _id: deliveryId,
-        webhookId: id
+        _id: sanitizedDeliveryId,
+        webhookId: sanitizedId
     });
 
     if (!delivery) {
@@ -353,7 +484,12 @@ const retryDelivery = asyncHandler(async (req, res) => {
         throw CustomException('Delivery cannot be retried (max attempts reached or already successful)', 400);
     }
 
-    // Prepare headers
+    // Webhook signature validation: Verify signature exists
+    if (!delivery.signature) {
+        throw CustomException('Delivery signature is missing - cannot retry', 400);
+    }
+
+    // Prepare headers with webhook signature for authenticity
     const headers = {
         'Content-Type': 'application/json',
         'X-Webhook-Signature': delivery.signature,
@@ -364,10 +500,17 @@ const retryDelivery = asyncHandler(async (req, res) => {
         'User-Agent': 'Traf3li-Webhook/1.0'
     };
 
-    // Add custom headers
+    // Add custom headers (validate they are safe)
     if (webhook.headers) {
+        if (typeof webhook.headers !== 'object') {
+            throw CustomException('Invalid webhook headers configuration', 400);
+        }
+
         webhook.headers.forEach((value, key) => {
-            headers[key] = value;
+            // Prevent header injection
+            if (typeof key === 'string' && typeof value === 'string') {
+                headers[key] = value;
+            }
         });
     }
 
@@ -393,7 +536,14 @@ const enableWebhook = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
     const userId = req.userID;
 
-    const webhook = await Webhook.findOne({ _id: id, firmId });
+    // IDOR Protection: Sanitize and validate ObjectId
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('Invalid webhook ID format', 400);
+    }
+
+    // IDOR Protection: Verify webhook belongs to user's firm
+    const webhook = await Webhook.findOne({ _id: sanitizedId, firmId });
 
     if (!webhook) {
         throw CustomException('Webhook not found', 404);
@@ -414,11 +564,22 @@ const enableWebhook = asyncHandler(async (req, res) => {
  */
 const disableWebhook = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const { reason } = req.body;
     const firmId = req.firmId;
     const userId = req.userID;
 
-    const webhook = await Webhook.findOne({ _id: id, firmId });
+    // IDOR Protection: Sanitize and validate ObjectId
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('Invalid webhook ID format', 400);
+    }
+
+    // Input validation: Only allow reason field
+    const allowedFields = ['reason'];
+    const sanitizedInput = pickAllowedFields(req.body, allowedFields);
+    const { reason } = sanitizedInput;
+
+    // IDOR Protection: Verify webhook belongs to user's firm
+    const webhook = await Webhook.findOne({ _id: sanitizedId, firmId });
 
     if (!webhook) {
         throw CustomException('Webhook not found', 404);
@@ -482,8 +643,15 @@ const getWebhookSecret = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const firmId = req.firmId;
 
+    // IDOR Protection: Sanitize and validate ObjectId
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('Invalid webhook ID format', 400);
+    }
+
+    // IDOR Protection: Verify webhook belongs to user's firm
     // This should be restricted to admins only
-    const webhook = await Webhook.findOne({ _id: id, firmId }).select('+secret');
+    const webhook = await Webhook.findOne({ _id: sanitizedId, firmId }).select('+secret');
 
     if (!webhook) {
         throw CustomException('Webhook not found', 404);
@@ -507,7 +675,14 @@ const regenerateSecret = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
     const userId = req.userID;
 
-    const webhook = await Webhook.findOne({ _id: id, firmId }).select('+secret');
+    // IDOR Protection: Sanitize and validate ObjectId
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('Invalid webhook ID format', 400);
+    }
+
+    // IDOR Protection: Verify webhook belongs to user's firm
+    const webhook = await Webhook.findOne({ _id: sanitizedId, firmId }).select('+secret');
 
     if (!webhook) {
         throw CustomException('Webhook not found', 404);

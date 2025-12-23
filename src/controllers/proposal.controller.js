@@ -1,11 +1,18 @@
 const { Proposal, Job, Order, User } = require('../models');
 const { CustomException } = require('../utils');
 const { createNotification } = require('./notification.controller'); // ✅ ADDED
+const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 
 // Create proposal
 exports.createProposal = async (req, res, next) => {
     try {
-        const job = await Job.findById(req.body.jobId).populate('userID', 'username');
+        // SECURITY: Input validation - sanitize jobId
+        const jobId = sanitizeObjectId(req.body.jobId);
+        if (!jobId) {
+            throw CustomException('Invalid job ID format', 400);
+        }
+
+        const job = await Job.findById(jobId).populate('userID', 'username');
 
         if (!job) {
             throw CustomException('Job not found', 404);
@@ -21,7 +28,7 @@ exports.createProposal = async (req, res, next) => {
 
         // Check if already submitted
         const existing = await Proposal.findOne({
-            jobId: req.body.jobId,
+            jobId: jobId,
             lawyerId: req.userID
         });
 
@@ -29,13 +36,18 @@ exports.createProposal = async (req, res, next) => {
             throw CustomException('Already submitted proposal for this job', 400);
         }
 
+        // SECURITY: Mass assignment protection - only allow specific fields
+        const allowedFields = ['jobId', 'coverLetter', 'bidAmount', 'deliveryDays', 'additionalNotes'];
+        const safeData = pickAllowedFields(req.body, allowedFields);
+
         const proposal = await Proposal.create({
-            ...req.body,
+            ...safeData,
+            jobId: jobId,
             lawyerId: req.userID
         });
 
         // Increment proposals count
-        await Job.findByIdAndUpdate(req.body.jobId, {
+        await Job.findByIdAndUpdate(jobId, {
             $inc: { proposalsCount: 1 }
         });
 
@@ -65,17 +77,24 @@ exports.createProposal = async (req, res, next) => {
 // Get proposals for a job
 exports.getJobProposals = async (req, res, next) => {
     try {
-        const job = await Job.findById(req.params.jobId);
+        // SECURITY: Input validation - sanitize jobId
+        const jobId = sanitizeObjectId(req.params.jobId);
+        if (!jobId) {
+            throw CustomException('Invalid job ID format', 400);
+        }
+
+        const job = await Job.findById(jobId);
 
         if (!job) {
             throw CustomException('Job not found', 404);
         }
 
+        // SECURITY: IDOR protection - verify user owns the job
         if (job.userID.toString() !== req.userID) {
             throw CustomException('Not authorized', 403);
         }
 
-        const proposals = await Proposal.find({ jobId: req.params.jobId })
+        const proposals = await Proposal.find({ jobId: jobId })
             .populate('lawyerId', 'username image email phone description lawyerProfile')
             .sort({ createdAt: -1 });
 
@@ -101,7 +120,13 @@ exports.getMyProposals = async (req, res, next) => {
 // Accept proposal (UPDATED - redirect to payment)
 exports.acceptProposal = async (req, res, next) => {
     try {
-        const proposal = await Proposal.findById(req.params._id).populate('lawyerId', 'username');
+        // SECURITY: Input validation - sanitize proposal ID
+        const proposalId = sanitizeObjectId(req.params._id);
+        if (!proposalId) {
+            throw CustomException('Invalid proposal ID format', 400);
+        }
+
+        const proposal = await Proposal.findById(proposalId).populate('lawyerId', 'username');
 
         if (!proposal) {
             throw CustomException('Proposal not found', 404);
@@ -109,6 +134,11 @@ exports.acceptProposal = async (req, res, next) => {
 
         const job = await Job.findById(proposal.jobId);
 
+        if (!job) {
+            throw CustomException('Job not found', 404);
+        }
+
+        // SECURITY: IDOR protection - verify user owns the job
         if (job.userID.toString() !== req.userID) {
             throw CustomException('Not authorized', 403);
         }
@@ -159,7 +189,13 @@ exports.acceptProposal = async (req, res, next) => {
 // Reject proposal
 exports.rejectProposal = async (req, res, next) => {
     try {
-        const proposal = await Proposal.findById(req.params._id).populate('lawyerId', 'username');
+        // SECURITY: Input validation - sanitize proposal ID
+        const proposalId = sanitizeObjectId(req.params._id);
+        if (!proposalId) {
+            throw CustomException('Invalid proposal ID format', 400);
+        }
+
+        const proposal = await Proposal.findById(proposalId).populate('lawyerId', 'username');
 
         if (!proposal) {
             throw CustomException('Proposal not found', 404);
@@ -167,6 +203,11 @@ exports.rejectProposal = async (req, res, next) => {
 
         const job = await Job.findById(proposal.jobId);
 
+        if (!job) {
+            throw CustomException('Job not found', 404);
+        }
+
+        // SECURITY: IDOR protection - verify user owns the job
         if (job.userID.toString() !== req.userID) {
             throw CustomException('Not authorized', 403);
         }
@@ -198,12 +239,19 @@ exports.rejectProposal = async (req, res, next) => {
 // Withdraw proposal
 exports.withdrawProposal = async (req, res, next) => {
     try {
-        const proposal = await Proposal.findById(req.params._id);
+        // SECURITY: Input validation - sanitize proposal ID
+        const proposalId = sanitizeObjectId(req.params._id);
+        if (!proposalId) {
+            throw CustomException('Invalid proposal ID format', 400);
+        }
+
+        const proposal = await Proposal.findById(proposalId);
 
         if (!proposal) {
             throw CustomException('Proposal not found', 404);
         }
 
+        // SECURITY: IDOR protection - verify user is the lawyer who submitted the proposal
         if (proposal.lawyerId.toString() !== req.userID) {
             throw CustomException('Not authorized', 403);
         }

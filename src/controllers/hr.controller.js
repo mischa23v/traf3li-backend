@@ -1,6 +1,20 @@
 const { Employee } = require('../models');
 const { CustomException } = require('../utils');
 const asyncHandler = require('../utils/asyncHandler');
+const { pickAllowedFields, sanitizeString, sanitizeEmail, sanitizePhone, sanitizePagination } = require('../utils/securityUtils');
+
+// ═══════════════════════════════════════════════════════════════
+// ALLOWED FIELDS FOR MASS ASSIGNMENT PROTECTION
+// ═══════════════════════════════════════════════════════════════
+const ALLOWED_FIELDS = {
+    personalInfo: ['fullNameArabic', 'fullNameEnglish', 'nationalId', 'nationalIdType', 'nationalIdExpiry', 'nationality', 'isSaudi', 'gender', 'dateOfBirth', 'mobile', 'email', 'personalEmail', 'currentAddress', 'emergencyContact', 'maritalStatus', 'numberOfDependents'],
+    employment: ['jobTitle', 'jobTitleArabic', 'employmentStatus', 'employmentType', 'contractType', 'contractStartDate', 'contractEndDate', 'hireDate', 'probationPeriod', 'onProbation', 'workSchedule', 'reportsTo', 'departmentName'],
+    compensation: ['basicSalary', 'currency', 'allowances', 'paymentFrequency', 'paymentMethod', 'bankDetails'],
+    gosi: ['registered', 'gosiNumber', 'employeeContribution', 'employerContribution'],
+    organization: ['branchId', 'departmentName', 'teamId', 'supervisorId', 'costCenter'],
+    leave: ['annualLeaveEntitlement'],
+    allowance: ['name', 'nameAr', 'amount', 'taxable', 'includedInEOSB', 'includedInGOSI']
+};
 
 // ═══════════════════════════════════════════════════════════════
 // GET FORM OPTIONS
@@ -110,6 +124,11 @@ const createEmployee = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
+    // Validate authentication context
+    if (!lawyerId && !firmId) {
+        throw CustomException('Authentication context missing', 401);
+    }
+
     const {
         officeType,
         personalInfo,
@@ -120,10 +139,34 @@ const createEmployee = asyncHandler(async (req, res) => {
         leave
     } = req.body;
 
+    // Input validation
+    if (!personalInfo || !employment || !compensation) {
+        throw CustomException('Missing required fields: personalInfo, employment, compensation', 400);
+    }
+
+    // Filter and sanitize personalInfo
+    const sanitizedPersonalInfo = pickAllowedFields(personalInfo, ALLOWED_FIELDS.personalInfo);
+
+    // Validate required fields
+    if (!sanitizedPersonalInfo.fullNameArabic || !sanitizedPersonalInfo.fullNameEnglish) {
+        throw CustomException('Full names in both Arabic and English are required', 400);
+    }
+
+    // Sanitize string inputs
+    if (sanitizedPersonalInfo.mobile) {
+        sanitizedPersonalInfo.mobile = sanitizePhone(sanitizedPersonalInfo.mobile);
+    }
+    if (sanitizedPersonalInfo.email) {
+        sanitizedPersonalInfo.email = sanitizeEmail(sanitizedPersonalInfo.email);
+    }
+    if (sanitizedPersonalInfo.personalEmail) {
+        sanitizedPersonalInfo.personalEmail = sanitizeEmail(sanitizedPersonalInfo.personalEmail);
+    }
+
     // Check duplicate national ID (only if nationalId is provided)
-    if (personalInfo?.nationalId) {
+    if (sanitizedPersonalInfo.nationalId) {
         const existing = await Employee.findOne({
-            'personalInfo.nationalId': personalInfo.nationalId,
+            'personalInfo.nationalId': sanitizedPersonalInfo.nationalId,
             $or: [{ firmId }, { lawyerId }]
         });
         if (existing) {
@@ -131,85 +174,105 @@ const createEmployee = asyncHandler(async (req, res) => {
         }
     }
 
-    // Prepare employee data
+    // Filter and validate employment data
+    const sanitizedEmployment = pickAllowedFields(employment, ALLOWED_FIELDS.employment);
+    if (!sanitizedEmployment.jobTitle) {
+        throw CustomException('Job title is required', 400);
+    }
+
+    // Filter and validate compensation data
+    const sanitizedCompensation = pickAllowedFields(compensation, ALLOWED_FIELDS.compensation);
+    if (!sanitizedCompensation.basicSalary) {
+        throw CustomException('Basic salary is required', 400);
+    }
+
+    // Validate basicSalary is a positive number
+    if (typeof sanitizedCompensation.basicSalary !== 'number' || sanitizedCompensation.basicSalary <= 0) {
+        throw CustomException('Basic salary must be a positive number', 400);
+    }
+
+    // Prepare employee data with filtered inputs
     const employeeData = {
         officeType: officeType || 'solo',
         personalInfo: {
-            fullNameArabic: personalInfo.fullNameArabic,
-            fullNameEnglish: personalInfo.fullNameEnglish,
-            nationalId: personalInfo.nationalId,
-            nationalIdType: personalInfo.nationalIdType || 'saudi_id',
-            nationalIdExpiry: personalInfo.nationalIdExpiry,
-            nationality: personalInfo.nationality || 'Saudi',
-            isSaudi: personalInfo.isSaudi !== undefined ? personalInfo.isSaudi : true,
-            gender: personalInfo.gender,
-            dateOfBirth: personalInfo.dateOfBirth,
-            mobile: personalInfo.mobile,
-            email: personalInfo.email,
-            personalEmail: personalInfo.personalEmail,
-            currentAddress: personalInfo.currentAddress,
-            emergencyContact: personalInfo.emergencyContact,
-            maritalStatus: personalInfo.maritalStatus || 'single',
-            numberOfDependents: personalInfo.numberOfDependents || 0
+            fullNameArabic: sanitizedPersonalInfo.fullNameArabic,
+            fullNameEnglish: sanitizedPersonalInfo.fullNameEnglish,
+            nationalId: sanitizedPersonalInfo.nationalId,
+            nationalIdType: sanitizedPersonalInfo.nationalIdType || 'saudi_id',
+            nationalIdExpiry: sanitizedPersonalInfo.nationalIdExpiry,
+            nationality: sanitizedPersonalInfo.nationality || 'Saudi',
+            isSaudi: sanitizedPersonalInfo.isSaudi !== undefined ? sanitizedPersonalInfo.isSaudi : true,
+            gender: sanitizedPersonalInfo.gender,
+            dateOfBirth: sanitizedPersonalInfo.dateOfBirth,
+            mobile: sanitizedPersonalInfo.mobile,
+            email: sanitizedPersonalInfo.email,
+            personalEmail: sanitizedPersonalInfo.personalEmail,
+            currentAddress: sanitizedPersonalInfo.currentAddress,
+            emergencyContact: sanitizedPersonalInfo.emergencyContact,
+            maritalStatus: sanitizedPersonalInfo.maritalStatus || 'single',
+            numberOfDependents: sanitizedPersonalInfo.numberOfDependents || 0
         },
         employment: {
-            employmentStatus: employment.employmentStatus || 'active',
-            jobTitle: employment.jobTitle,
-            jobTitleArabic: employment.jobTitleArabic,
-            employmentType: employment.employmentType || 'full_time',
-            contractType: employment.contractType || 'indefinite',
-            contractStartDate: employment.contractStartDate,
-            contractEndDate: employment.contractEndDate,
-            hireDate: employment.hireDate,
-            probationPeriod: employment.probationPeriod !== undefined ? employment.probationPeriod : 90,
-            onProbation: employment.onProbation !== undefined ? employment.onProbation : true,
-            workSchedule: employment.workSchedule || {
+            employmentStatus: sanitizedEmployment.employmentStatus || 'active',
+            jobTitle: sanitizedEmployment.jobTitle,
+            jobTitleArabic: sanitizedEmployment.jobTitleArabic,
+            employmentType: sanitizedEmployment.employmentType || 'full_time',
+            contractType: sanitizedEmployment.contractType || 'indefinite',
+            contractStartDate: sanitizedEmployment.contractStartDate,
+            contractEndDate: sanitizedEmployment.contractEndDate,
+            hireDate: sanitizedEmployment.hireDate,
+            probationPeriod: sanitizedEmployment.probationPeriod !== undefined ? sanitizedEmployment.probationPeriod : 90,
+            onProbation: sanitizedEmployment.onProbation !== undefined ? sanitizedEmployment.onProbation : true,
+            workSchedule: sanitizedEmployment.workSchedule || {
                 weeklyHours: 48,
                 dailyHours: 8,
                 workDays: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday'],
                 restDay: 'Friday'
             },
-            reportsTo: employment.reportsTo,
-            departmentName: employment.departmentName
+            reportsTo: sanitizedEmployment.reportsTo,
+            departmentName: sanitizedEmployment.departmentName
         },
         compensation: {
-            basicSalary: compensation.basicSalary,
-            currency: compensation.currency || 'SAR',
-            allowances: compensation.allowances || [],
-            paymentFrequency: compensation.paymentFrequency || 'monthly',
-            paymentMethod: compensation.paymentMethod || 'bank_transfer',
-            bankDetails: compensation.bankDetails
+            basicSalary: sanitizedCompensation.basicSalary,
+            currency: sanitizedCompensation.currency || 'SAR',
+            allowances: sanitizedCompensation.allowances || [],
+            paymentFrequency: sanitizedCompensation.paymentFrequency || 'monthly',
+            paymentMethod: sanitizedCompensation.paymentMethod || 'bank_transfer',
+            bankDetails: sanitizedCompensation.bankDetails
         },
         firmId,
         lawyerId,
         createdBy: lawyerId
     };
 
-    // Add GOSI data if provided
+    // Add GOSI data if provided (with allowed fields only)
     if (gosi) {
+        const sanitizedGosi = pickAllowedFields(gosi, ALLOWED_FIELDS.gosi);
         employeeData.gosi = {
-            registered: gosi.registered || false,
-            gosiNumber: gosi.gosiNumber,
-            employeeContribution: gosi.employeeContribution !== undefined ? gosi.employeeContribution : 9.75,
-            employerContribution: gosi.employerContribution !== undefined ? gosi.employerContribution : 12.75
+            registered: sanitizedGosi.registered || false,
+            gosiNumber: sanitizedGosi.gosiNumber,
+            employeeContribution: sanitizedGosi.employeeContribution !== undefined ? sanitizedGosi.employeeContribution : 9.75,
+            employerContribution: sanitizedGosi.employerContribution !== undefined ? sanitizedGosi.employerContribution : 12.75
         };
     }
 
-    // Add organization data if provided (for medium/firm)
+    // Add organization data if provided (for medium/firm, with allowed fields only)
     if (organization) {
+        const sanitizedOrganization = pickAllowedFields(organization, ALLOWED_FIELDS.organization);
         employeeData.organization = {
-            branchId: organization.branchId,
-            departmentName: organization.departmentName,
-            teamId: organization.teamId,
-            supervisorId: organization.supervisorId,
-            costCenter: organization.costCenter
+            branchId: sanitizedOrganization.branchId,
+            departmentName: sanitizedOrganization.departmentName,
+            teamId: sanitizedOrganization.teamId,
+            supervisorId: sanitizedOrganization.supervisorId,
+            costCenter: sanitizedOrganization.costCenter
         };
     }
 
-    // Add leave data if provided
+    // Add leave data if provided (with allowed fields only)
     if (leave) {
+        const sanitizedLeave = pickAllowedFields(leave, ALLOWED_FIELDS.leave);
         employeeData.leave = {
-            annualLeaveEntitlement: leave.annualLeaveEntitlement || 21
+            annualLeaveEntitlement: sanitizedLeave.annualLeaveEntitlement || 21
         };
     }
 
@@ -230,14 +293,9 @@ const getEmployees = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
-    // Ensure we have at least one ownership identifier
+    // IDOR Protection: Ensure we have at least one ownership identifier
     if (!firmId && !lawyerId) {
-        return res.status(400).json({
-            success: false,
-            message: 'Authentication context missing',
-            employees: [],
-            pagination: { page: 1, limit: 20, total: 0, pages: 0 }
-        });
+        throw CustomException('Authentication context missing', 401);
     }
 
     const {
@@ -246,26 +304,49 @@ const getEmployees = asyncHandler(async (req, res) => {
         employmentType,
         officeType,
         search,
-        page = 1,
-        limit = 20
+        page,
+        limit
     } = req.query;
 
-    // Build query
+    // Sanitize pagination parameters
+    const { page: safePage, limit: safeLimit, skip } = sanitizePagination(
+        { page, limit },
+        { maxLimit: 100, defaultLimit: 20, defaultPage: 1 }
+    );
+
+    // Build query with IDOR protection (only return user's employees)
     const query = firmId ? { firmId } : { lawyerId };
 
-    if (status) query['employment.employmentStatus'] = status;
-    if (department) query['employment.departmentName'] = department;
-    if (employmentType) query['employment.employmentType'] = employmentType;
-    if (officeType) query.officeType = officeType;
+    // Validate and add filter parameters
+    const validStatuses = ['active', 'inactive', 'on_leave', 'terminated'];
+    if (status && validStatuses.includes(String(status).toLowerCase())) {
+        query['employment.employmentStatus'] = status;
+    }
 
-    if (search) {
+    if (department && typeof department === 'string') {
+        query['employment.departmentName'] = sanitizeString(department);
+    }
+
+    const validEmploymentTypes = ['full_time', 'part_time', 'contract', 'temporary'];
+    if (employmentType && validEmploymentTypes.includes(String(employmentType).toLowerCase())) {
+        query['employment.employmentType'] = employmentType;
+    }
+
+    const validOfficeTypes = ['solo', 'small', 'medium', 'firm'];
+    if (officeType && validOfficeTypes.includes(String(officeType).toLowerCase())) {
+        query.officeType = officeType;
+    }
+
+    // Sanitize search parameter
+    if (search && typeof search === 'string' && search.trim().length > 0) {
+        const sanitizedSearch = sanitizeString(search);
         query.$or = [
-            { 'personalInfo.fullNameArabic': { $regex: search, $options: 'i' } },
-            { 'personalInfo.fullNameEnglish': { $regex: search, $options: 'i' } },
-            { employeeId: { $regex: search, $options: 'i' } },
-            { 'personalInfo.nationalId': { $regex: search, $options: 'i' } },
-            { 'personalInfo.mobile': { $regex: search, $options: 'i' } },
-            { 'personalInfo.email': { $regex: search, $options: 'i' } }
+            { 'personalInfo.fullNameArabic': { $regex: sanitizedSearch, $options: 'i' } },
+            { 'personalInfo.fullNameEnglish': { $regex: sanitizedSearch, $options: 'i' } },
+            { employeeId: { $regex: sanitizedSearch, $options: 'i' } },
+            { 'personalInfo.nationalId': { $regex: sanitizedSearch, $options: 'i' } },
+            { 'personalInfo.mobile': { $regex: sanitizedSearch, $options: 'i' } },
+            { 'personalInfo.email': { $regex: sanitizedSearch, $options: 'i' } }
         ];
     }
 
@@ -274,9 +355,9 @@ const getEmployees = asyncHandler(async (req, res) => {
             .populate('employment.reportsTo', 'personalInfo.fullNameArabic personalInfo.fullNameEnglish')
             .populate('organization.supervisorId', 'personalInfo.fullNameArabic personalInfo.fullNameEnglish')
             .sort({ createdAt: -1 })
-            .limit(parseInt(limit))
-            .skip((parseInt(page) - 1) * parseInt(limit))
-            .lean(); // Use lean() for better performance and to avoid encryption issues
+            .limit(safeLimit)
+            .skip(skip)
+            .lean();
 
         const total = await Employee.countDocuments(query);
 
@@ -284,21 +365,15 @@ const getEmployees = asyncHandler(async (req, res) => {
             success: true,
             employees,
             pagination: {
-                page: parseInt(page),
-                limit: parseInt(limit),
+                page: safePage,
+                limit: safeLimit,
                 total,
-                pages: Math.ceil(total / parseInt(limit))
+                pages: Math.ceil(total / safeLimit)
             }
         });
     } catch (dbError) {
         console.error('Employee fetch error:', dbError);
-        return res.status(500).json({
-            success: false,
-            message: 'Failed to fetch employees',
-            error: process.env.NODE_ENV !== 'production' ? dbError.message : undefined,
-            employees: [],
-            pagination: { page: 1, limit: 20, total: 0, pages: 0 }
-        });
+        throw CustomException('Failed to fetch employees', 500);
     }
 });
 
@@ -343,13 +418,18 @@ const updateEmployee = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
+    // IDOR Protection: Validate ID format and ownership
+    if (!id || id.length !== 24) {
+        throw CustomException('Invalid employee ID', 400);
+    }
+
     const employee = await Employee.findById(id);
 
     if (!employee) {
         throw CustomException('Employee not found', 404);
     }
 
-    // Check access
+    // IDOR Protection: Verify ownership
     const hasAccess = firmId
         ? employee.firmId?.toString() === firmId.toString()
         : employee.lawyerId?.toString() === lawyerId;
@@ -358,7 +438,7 @@ const updateEmployee = asyncHandler(async (req, res) => {
         throw CustomException('Access denied', 403);
     }
 
-    // Build update object with nested fields
+    // Build update object with filtered nested fields (mass assignment protection)
     const updateData = {};
     const {
         officeType,
@@ -370,47 +450,77 @@ const updateEmployee = asyncHandler(async (req, res) => {
         leave
     } = req.body;
 
-    if (officeType) updateData.officeType = officeType;
+    // Validate and filter office type
+    const validOfficeTypes = ['solo', 'small', 'medium', 'firm'];
+    if (officeType && validOfficeTypes.includes(officeType)) {
+        updateData.officeType = officeType;
+    }
 
-    // Handle nested personalInfo updates
-    if (personalInfo) {
-        Object.keys(personalInfo).forEach(key => {
-            updateData[`personalInfo.${key}`] = personalInfo[key];
+    // Handle nested personalInfo updates (with allowed fields only)
+    if (personalInfo && typeof personalInfo === 'object') {
+        const sanitizedPersonalInfo = pickAllowedFields(personalInfo, ALLOWED_FIELDS.personalInfo);
+
+        // Sanitize email and phone inputs
+        if (sanitizedPersonalInfo.email) {
+            sanitizedPersonalInfo.email = sanitizeEmail(sanitizedPersonalInfo.email);
+        }
+        if (sanitizedPersonalInfo.mobile) {
+            sanitizedPersonalInfo.mobile = sanitizePhone(sanitizedPersonalInfo.mobile);
+        }
+        if (sanitizedPersonalInfo.personalEmail) {
+            sanitizedPersonalInfo.personalEmail = sanitizeEmail(sanitizedPersonalInfo.personalEmail);
+        }
+
+        Object.keys(sanitizedPersonalInfo).forEach(key => {
+            updateData[`personalInfo.${key}`] = sanitizedPersonalInfo[key];
         });
     }
 
-    // Handle nested employment updates
-    if (employment) {
-        Object.keys(employment).forEach(key => {
-            updateData[`employment.${key}`] = employment[key];
+    // Handle nested employment updates (with allowed fields only)
+    if (employment && typeof employment === 'object') {
+        const sanitizedEmployment = pickAllowedFields(employment, ALLOWED_FIELDS.employment);
+        Object.keys(sanitizedEmployment).forEach(key => {
+            updateData[`employment.${key}`] = sanitizedEmployment[key];
         });
     }
 
-    // Handle nested compensation updates
-    if (compensation) {
-        Object.keys(compensation).forEach(key => {
-            updateData[`compensation.${key}`] = compensation[key];
+    // Handle nested compensation updates (with allowed fields only)
+    if (compensation && typeof compensation === 'object') {
+        const sanitizedCompensation = pickAllowedFields(compensation, ALLOWED_FIELDS.compensation);
+
+        // Validate numeric fields
+        if (sanitizedCompensation.basicSalary !== undefined) {
+            if (typeof sanitizedCompensation.basicSalary !== 'number' || sanitizedCompensation.basicSalary <= 0) {
+                throw CustomException('Basic salary must be a positive number', 400);
+            }
+        }
+
+        Object.keys(sanitizedCompensation).forEach(key => {
+            updateData[`compensation.${key}`] = sanitizedCompensation[key];
         });
     }
 
-    // Handle nested gosi updates
-    if (gosi) {
-        Object.keys(gosi).forEach(key => {
-            updateData[`gosi.${key}`] = gosi[key];
+    // Handle nested gosi updates (with allowed fields only)
+    if (gosi && typeof gosi === 'object') {
+        const sanitizedGosi = pickAllowedFields(gosi, ALLOWED_FIELDS.gosi);
+        Object.keys(sanitizedGosi).forEach(key => {
+            updateData[`gosi.${key}`] = sanitizedGosi[key];
         });
     }
 
-    // Handle nested organization updates
-    if (organization) {
-        Object.keys(organization).forEach(key => {
-            updateData[`organization.${key}`] = organization[key];
+    // Handle nested organization updates (with allowed fields only)
+    if (organization && typeof organization === 'object') {
+        const sanitizedOrganization = pickAllowedFields(organization, ALLOWED_FIELDS.organization);
+        Object.keys(sanitizedOrganization).forEach(key => {
+            updateData[`organization.${key}`] = sanitizedOrganization[key];
         });
     }
 
-    // Handle nested leave updates
-    if (leave) {
-        Object.keys(leave).forEach(key => {
-            updateData[`leave.${key}`] = leave[key];
+    // Handle nested leave updates (with allowed fields only)
+    if (leave && typeof leave === 'object') {
+        const sanitizedLeave = pickAllowedFields(leave, ALLOWED_FIELDS.leave);
+        Object.keys(sanitizedLeave).forEach(key => {
+            updateData[`leave.${key}`] = sanitizedLeave[key];
         });
     }
 
@@ -438,13 +548,19 @@ const deleteEmployee = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
+    // IDOR Protection: Validate ID format
+    if (!id || id.length !== 24) {
+        throw CustomException('Invalid employee ID', 400);
+    }
+
+    // IDOR Protection: Verify ownership before deletion
     const employee = await Employee.findById(id);
 
     if (!employee) {
         throw CustomException('Employee not found', 404);
     }
 
-    // Check access
+    // IDOR Protection: Verify ownership
     const hasAccess = firmId
         ? employee.firmId?.toString() === firmId.toString()
         : employee.lawyerId?.toString() === lawyerId;
@@ -483,21 +599,34 @@ const getEmployeeStats = asyncHandler(async (req, res) => {
 // ═══════════════════════════════════════════════════════════════
 const addAllowance = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const { name, nameAr, amount, taxable, includedInEOSB, includedInGOSI } = req.body;
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
-    if (!name || amount === undefined) {
+    // IDOR Protection: Validate ID format
+    if (!id || id.length !== 24) {
+        throw CustomException('Invalid employee ID', 400);
+    }
+
+    // Filter allowance fields (mass assignment protection)
+    const sanitizedAllowance = pickAllowedFields(req.body, ALLOWED_FIELDS.allowance);
+
+    // Input validation
+    if (!sanitizedAllowance.name || sanitizedAllowance.amount === undefined) {
         throw CustomException('Allowance name and amount are required', 400);
     }
 
+    // Validate amount is a positive number
+    if (typeof sanitizedAllowance.amount !== 'number' || sanitizedAllowance.amount <= 0) {
+        throw CustomException('Allowance amount must be a positive number', 400);
+    }
+
+    // IDOR Protection: Verify ownership
     const employee = await Employee.findById(id);
 
     if (!employee) {
         throw CustomException('Employee not found', 404);
     }
 
-    // Check access
     const hasAccess = firmId
         ? employee.firmId?.toString() === firmId.toString()
         : employee.lawyerId?.toString() === lawyerId;
@@ -507,12 +636,12 @@ const addAllowance = asyncHandler(async (req, res) => {
     }
 
     employee.compensation.allowances.push({
-        name,
-        nameAr,
-        amount,
-        taxable: taxable !== undefined ? taxable : true,
-        includedInEOSB: includedInEOSB !== undefined ? includedInEOSB : true,
-        includedInGOSI: includedInGOSI !== undefined ? includedInGOSI : false
+        name: sanitizedAllowance.name,
+        nameAr: sanitizedAllowance.nameAr,
+        amount: sanitizedAllowance.amount,
+        taxable: sanitizedAllowance.taxable !== undefined ? sanitizedAllowance.taxable : true,
+        includedInEOSB: sanitizedAllowance.includedInEOSB !== undefined ? sanitizedAllowance.includedInEOSB : true,
+        includedInGOSI: sanitizedAllowance.includedInGOSI !== undefined ? sanitizedAllowance.includedInGOSI : false
     });
     await employee.save();
 
@@ -532,19 +661,37 @@ const removeAllowance = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
+    // IDOR Protection: Validate ID formats
+    if (!id || id.length !== 24) {
+        throw CustomException('Invalid employee ID', 400);
+    }
+
+    if (!allowanceId || allowanceId.length !== 24) {
+        throw CustomException('Invalid allowance ID', 400);
+    }
+
+    // IDOR Protection: Verify employee ownership
     const employee = await Employee.findById(id);
 
     if (!employee) {
         throw CustomException('Employee not found', 404);
     }
 
-    // Check access
     const hasAccess = firmId
         ? employee.firmId?.toString() === firmId.toString()
         : employee.lawyerId?.toString() === lawyerId;
 
     if (!hasAccess) {
         throw CustomException('Access denied', 403);
+    }
+
+    // Verify allowance exists before deletion
+    const allowanceExists = employee.compensation.allowances.some(
+        a => a._id.toString() === allowanceId
+    );
+
+    if (!allowanceExists) {
+        throw CustomException('Allowance not found', 404);
     }
 
     employee.compensation.allowances = employee.compensation.allowances.filter(
@@ -568,23 +715,51 @@ const bulkDeleteEmployees = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
+    // Input validation
     if (!ids || !Array.isArray(ids) || ids.length === 0) {
         throw CustomException('يجب توفير قائمة المعرفات / IDs list is required', 400);
     }
 
-    // Build access query
-    const accessQuery = firmId
-        ? { _id: { $in: ids }, firmId }
-        : { _id: { $in: ids }, lawyerId };
+    // Limit bulk delete to prevent abuse
+    const maxBulkDelete = 100;
+    if (ids.length > maxBulkDelete) {
+        throw CustomException(`Cannot delete more than ${maxBulkDelete} employees at once`, 400);
+    }
 
-    // Find employees that belong to the user
+    // IDOR Protection: Validate all IDs format
+    const validatedIds = ids.filter(id => {
+        if (!id || typeof id !== 'string' || id.length !== 24) {
+            return false;
+        }
+        return true;
+    });
+
+    if (validatedIds.length === 0) {
+        throw CustomException('No valid employee IDs provided', 400);
+    }
+
+    if (validatedIds.length !== ids.length) {
+        throw CustomException('Some employee IDs have invalid format', 400);
+    }
+
+    // IDOR Protection: Build access query (only delete user's employees)
+    const accessQuery = firmId
+        ? { _id: { $in: validatedIds }, firmId }
+        : { _id: { $in: validatedIds }, lawyerId };
+
+    // Verify all employees belong to the user before deletion
     const employees = await Employee.find(accessQuery);
 
     if (employees.length === 0) {
         throw CustomException('لم يتم العثور على موظفين / No employees found', 404);
     }
 
-    // Delete all found employees
+    // Ensure we're only deleting what was requested and belongs to user
+    if (employees.length !== validatedIds.length) {
+        throw CustomException('Some employees do not belong to you', 403);
+    }
+
+    // Delete all verified employees
     const result = await Employee.deleteMany(accessQuery);
 
     return res.json({

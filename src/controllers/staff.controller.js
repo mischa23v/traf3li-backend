@@ -1,10 +1,16 @@
 const { Staff } = require('../models');
 const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
+const { pickAllowedFields, sanitizeString, sanitizeEmail, sanitizePhone } = require('../utils/securityUtils');
 
 /**
  * Create staff member
  * POST /api/lawyers (or /api/staff)
+ *
+ * SECURITY:
+ * - Uses allowlist approach for field filtering
+ * - Validates all input fields
+ * - IDOR protected: staff must belong to user's firm
  */
 const createStaff = asyncHandler(async (req, res) => {
     if (req.isDeparted) {
@@ -14,23 +20,42 @@ const createStaff = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
+    // Only allow specific fields for creation (role will be set by admin/system)
+    const allowedCreateFields = ['firstName', 'lastName', 'email', 'phone', 'jobTitle', 'department', 'role'];
+    const filteredData = pickAllowedFields(req.body, allowedCreateFields);
+
+    // Input validation
+    if (!filteredData.firstName || sanitizeString(filteredData.firstName).trim() === '') {
+        throw CustomException('الاسم الأول مطلوب', 400);
+    }
+    if (!filteredData.lastName || sanitizeString(filteredData.lastName).trim() === '') {
+        throw CustomException('الاسم الأخير مطلوب', 400);
+    }
+    if (!filteredData.email || sanitizeEmail(filteredData.email).trim() === '') {
+        throw CustomException('البريد الإلكتروني مطلوب', 400);
+    }
+    if (!filteredData.role || sanitizeString(filteredData.role).trim() === '') {
+        throw CustomException('الدور الوظيفي مطلوب', 400);
+    }
+
+    // Sanitize string fields
     const staffData = {
-        ...req.body,
+        firstName: sanitizeString(filteredData.firstName),
+        lastName: sanitizeString(filteredData.lastName),
+        email: sanitizeEmail(filteredData.email),
+        phone: filteredData.phone ? sanitizePhone(filteredData.phone) : undefined,
+        jobTitle: filteredData.jobTitle ? sanitizeString(filteredData.jobTitle) : undefined,
+        department: filteredData.department ? sanitizeString(filteredData.department) : undefined,
+        role: sanitizeString(filteredData.role),
         lawyerId,
         firmId,
         createdBy: lawyerId
     };
 
-    // Validate required fields
-    if (!staffData.firstName || !staffData.lastName) {
-        throw CustomException('الاسم الأول والأخير مطلوبان', 400);
-    }
-    if (!staffData.email) {
-        throw CustomException('البريد الإلكتروني مطلوب', 400);
-    }
-    if (!staffData.role) {
-        throw CustomException('الدور الوظيفي مطلوب', 400);
-    }
+    // Remove undefined fields
+    Object.keys(staffData).forEach(key =>
+        staffData[key] === undefined && delete staffData[key]
+    );
 
     const staff = await Staff.create(staffData);
 
@@ -44,6 +69,10 @@ const createStaff = asyncHandler(async (req, res) => {
 /**
  * Get all staff with filters
  * GET /api/lawyers (or /api/staff)
+ *
+ * SECURITY:
+ * - IDOR protected: filters by firmId/lawyerId
+ * - Only returns staff that belong to user's firm/lawyer
  */
 const getStaff = asyncHandler(async (req, res) => {
     if (req.isDeparted) {
@@ -97,6 +126,10 @@ const getStaff = asyncHandler(async (req, res) => {
 /**
  * Get single staff member
  * GET /api/lawyers/:id (or /api/staff/:id)
+ *
+ * SECURITY:
+ * - IDOR protected: staff must belong to user's firm/lawyer
+ * - Returns 404 if staff doesn't exist or user doesn't have access
  */
 const getStaffById = asyncHandler(async (req, res) => {
     if (req.isDeparted) {
@@ -107,6 +140,7 @@ const getStaffById = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
+    // IDOR Protection: Query includes firmId/lawyerId to ensure staff belongs to user
     const accessQuery = firmId
         ? { $or: [{ _id: id }, { staffId: id }], firmId }
         : { $or: [{ _id: id }, { staffId: id }], lawyerId };
@@ -128,6 +162,12 @@ const getStaffById = asyncHandler(async (req, res) => {
 /**
  * Update staff member
  * PUT /api/lawyers/:id (or /api/staff/:id)
+ *
+ * SECURITY:
+ * - Uses strict allowlist approach (only 6 fields allowed)
+ * - NEVER allows: role, permissions, salary, rates, billing permissions
+ * - IDOR protected: staff must belong to user's firm/lawyer
+ * - Validates and sanitizes all input
  */
 const updateStaff = asyncHandler(async (req, res) => {
     if (req.isDeparted) {
@@ -138,6 +178,7 @@ const updateStaff = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
+    // IDOR Protection: Ensure staff belongs to user's firm/lawyer
     const accessQuery = firmId
         ? { $or: [{ _id: id }, { staffId: id }], firmId }
         : { $or: [{ _id: id }, { staffId: id }], lawyerId };
@@ -148,24 +189,61 @@ const updateStaff = asyncHandler(async (req, res) => {
         throw CustomException('عضو الفريق غير موجود', 404);
     }
 
-    const allowedFields = [
-        'salutation', 'firstName', 'middleName', 'lastName', 'preferredName', 'avatar',
-        'email', 'workEmail', 'phone', 'mobilePhone', 'officePhone', 'extension',
-        'role', 'status', 'employmentType', 'department', 'reportsTo', 'officeLocation',
-        'hireDate', 'startDate', 'terminationDate',
-        'barLicenses', 'practiceAreas', 'education', 'certifications', 'languages',
-        'hourlyRate', 'standardRate', 'discountedRate', 'premiumRate', 'costRate',
-        'billableHoursTarget', 'revenueTarget', 'utilizationTarget',
-        'canBillTime', 'canApproveTime', 'canViewRates', 'canEditRates',
-        'bio', 'bioAr', 'notes', 'tags'
-    ];
+    // STRICT ALLOWLIST: Only these 6 fields can be updated
+    // NEVER allow: role, permissions, salary, rates, billing permissions, other sensitive fields
+    const allowedUpdateFields = ['firstName', 'lastName', 'email', 'phone', 'jobTitle', 'department'];
+    const filteredData = pickAllowedFields(req.body, allowedUpdateFields);
 
-    allowedFields.forEach(field => {
-        if (req.body[field] !== undefined) {
-            staff[field] = req.body[field];
+    // Input validation and sanitization
+    const updates = {};
+
+    if (filteredData.firstName !== undefined) {
+        const sanitized = sanitizeString(filteredData.firstName);
+        if (!sanitized || sanitized.trim() === '') {
+            throw CustomException('الاسم الأول لا يمكن أن يكون فارغاً', 400);
         }
-    });
+        updates.firstName = sanitized;
+    }
 
+    if (filteredData.lastName !== undefined) {
+        const sanitized = sanitizeString(filteredData.lastName);
+        if (!sanitized || sanitized.trim() === '') {
+            throw CustomException('الاسم الأخير لا يمكن أن يكون فارغاً', 400);
+        }
+        updates.lastName = sanitized;
+    }
+
+    if (filteredData.email !== undefined) {
+        const sanitized = sanitizeEmail(filteredData.email);
+        if (!sanitized || sanitized.trim() === '') {
+            throw CustomException('البريد الإلكتروني غير صحيح', 400);
+        }
+        updates.email = sanitized;
+    }
+
+    if (filteredData.phone !== undefined) {
+        const sanitized = sanitizePhone(filteredData.phone);
+        if (sanitized && sanitized.trim() !== '') {
+            updates.phone = sanitized;
+        }
+    }
+
+    if (filteredData.jobTitle !== undefined) {
+        const sanitized = sanitizeString(filteredData.jobTitle);
+        if (sanitized && sanitized.trim() !== '') {
+            updates.jobTitle = sanitized;
+        }
+    }
+
+    if (filteredData.department !== undefined) {
+        const sanitized = sanitizeString(filteredData.department);
+        if (sanitized && sanitized.trim() !== '') {
+            updates.department = sanitized;
+        }
+    }
+
+    // Apply updates
+    Object.assign(staff, updates);
     staff.updatedBy = lawyerId;
     await staff.save();
 
@@ -179,6 +257,10 @@ const updateStaff = asyncHandler(async (req, res) => {
 /**
  * Delete staff member
  * DELETE /api/lawyers/:id (or /api/staff/:id)
+ *
+ * SECURITY:
+ * - IDOR protected: staff must belong to user's firm/lawyer
+ * - Returns 404 if staff doesn't exist or user doesn't have access
  */
 const deleteStaff = asyncHandler(async (req, res) => {
     if (req.isDeparted) {
@@ -189,6 +271,7 @@ const deleteStaff = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
+    // IDOR Protection: Query includes firmId/lawyerId to ensure staff belongs to user
     const accessQuery = firmId
         ? { $or: [{ _id: id }, { staffId: id }], firmId }
         : { $or: [{ _id: id }, { staffId: id }], lawyerId };
@@ -262,6 +345,11 @@ const getStats = asyncHandler(async (req, res) => {
 /**
  * Bulk delete staff members
  * POST /api/staff/bulk-delete
+ *
+ * SECURITY:
+ * - IDOR protected: only deletes staff that belong to user's firm/lawyer
+ * - Validates that IDs is an array and not empty
+ * - Only deletes the count of staff that user actually has access to
  */
 const bulkDeleteStaff = asyncHandler(async (req, res) => {
     if (req.isDeparted) {
@@ -276,7 +364,8 @@ const bulkDeleteStaff = asyncHandler(async (req, res) => {
         throw CustomException('يجب توفير قائمة المعرفات / IDs list is required', 400);
     }
 
-    // Build access query
+    // Build access query with IDOR Protection
+    // Only deletes staff that belong to user's firm/lawyer
     const accessQuery = firmId
         ? { _id: { $in: ids }, firmId }
         : { _id: { $in: ids }, lawyerId };

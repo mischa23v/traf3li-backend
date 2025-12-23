@@ -1,4 +1,5 @@
 const { AttendanceRecord, Employee, LeaveRequest } = require('../models');
+const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 
 /**
  * Attendance Controller
@@ -103,6 +104,14 @@ const getAttendanceById = async (req, res) => {
             });
         }
 
+        // IDOR Protection: Verify firmId ownership
+        if (req.user?.firmId && record.firmId?.toString() !== req.user.firmId.toString()) {
+            return res.status(403).json({
+                success: false,
+                message: 'Access denied: You do not have permission to view this attendance record'
+            });
+        }
+
         res.status(200).json({
             success: true,
             data: record
@@ -159,6 +168,13 @@ const getAttendanceByEmployeeAndDate = async (req, res) => {
  */
 const createAttendanceRecord = async (req, res) => {
     try {
+        // Mass Assignment Protection: Only allow specific fields
+        const allowedFields = [
+            'employeeId', 'date', 'checkIn', 'checkOut', 'status',
+            'shift', 'notes', 'notesAr', 'exception', 'firmId', 'lawyerId'
+        ];
+        const safeData = pickAllowedFields(req.body, allowedFields);
+
         const {
             employeeId,
             date,
@@ -171,10 +187,19 @@ const createAttendanceRecord = async (req, res) => {
             exception,
             firmId,
             lawyerId
-        } = req.body;
+        } = safeData;
+
+        // Sanitize ObjectId
+        const sanitizedEmployeeId = sanitizeObjectId(employeeId);
+        if (!sanitizedEmployeeId) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid employee ID format'
+            });
+        }
 
         // Check if employee exists
-        const employee = await Employee.findById(employeeId);
+        const employee = await Employee.findById(sanitizedEmployeeId);
         if (!employee) {
             return res.status(404).json({
                 success: false,
@@ -182,12 +207,75 @@ const createAttendanceRecord = async (req, res) => {
             });
         }
 
-        // Check for existing record
+        // IDOR Protection: Verify employee belongs to user's firm
+        const targetFirmId = firmId || req.user?.firmId;
+        if (employee.firmId?.toString() !== targetFirmId?.toString()) {
+            return res.status(403).json({
+                success: false,
+                message: 'Access denied: Employee does not belong to your organization'
+            });
+        }
+
+        // Date/Time Validation
         const targetDate = new Date(date);
+        if (isNaN(targetDate.getTime())) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid date format'
+            });
+        }
         targetDate.setHours(0, 0, 0, 0);
 
+        // Prevent time manipulation: Don't allow future dates
+        const today = new Date();
+        today.setHours(23, 59, 59, 999);
+        if (targetDate > today) {
+            return res.status(400).json({
+                success: false,
+                message: 'Cannot create attendance records for future dates'
+            });
+        }
+
+        // Validate check-in/check-out times if provided
+        if (checkIn?.time) {
+            const checkInTime = new Date(checkIn.time);
+            if (isNaN(checkInTime.getTime())) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Invalid check-in time format'
+                });
+            }
+            // Prevent time manipulation: Check-in must be on the same date
+            const checkInDate = new Date(checkInTime);
+            checkInDate.setHours(0, 0, 0, 0);
+            if (checkInDate.getTime() !== targetDate.getTime()) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Check-in time must be on the same date as the attendance record'
+                });
+            }
+        }
+
+        if (checkOut?.time) {
+            const checkOutTime = new Date(checkOut.time);
+            if (isNaN(checkOutTime.getTime())) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Invalid check-out time format'
+                });
+            }
+            // Validate check-out is after check-in
+            if (checkIn?.time && checkOutTime <= new Date(checkIn.time)) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Check-out time must be after check-in time'
+                });
+            }
+        }
+
+        // Check for existing record
         const existingRecord = await AttendanceRecord.findOne({
-            employeeId,
+            employeeId: sanitizedEmployeeId,
             date: targetDate
         });
 
@@ -199,7 +287,7 @@ const createAttendanceRecord = async (req, res) => {
         }
 
         const record = new AttendanceRecord({
-            employeeId,
+            employeeId: sanitizedEmployeeId,
             employeeName: employee.personalInfo?.fullNameEnglish || employee.personalInfo?.fullNameArabic,
             employeeNameAr: employee.personalInfo?.fullNameArabic,
             employeeNumber: employee.employeeId,
@@ -223,7 +311,7 @@ const createAttendanceRecord = async (req, res) => {
             notes,
             notesAr,
             exception,
-            firmId: firmId || req.user?.firmId,
+            firmId: targetFirmId,
             lawyerId: lawyerId || req.user?._id,
             createdBy: req.user?._id,
             approval: {
@@ -256,7 +344,13 @@ const createAttendanceRecord = async (req, res) => {
 const updateAttendanceRecord = async (req, res) => {
     try {
         const { id } = req.params;
-        const updates = req.body;
+
+        // Mass Assignment Protection: Only allow specific fields to be updated
+        const allowedFields = [
+            'status', 'shift', 'notes', 'notesAr', 'exception',
+            'checkIn', 'checkOut', 'updateReason'
+        ];
+        const updates = pickAllowedFields(req.body, allowedFields);
 
         const record = await AttendanceRecord.findById(id);
         if (!record) {
@@ -264,6 +358,54 @@ const updateAttendanceRecord = async (req, res) => {
                 success: false,
                 message: 'Attendance record not found'
             });
+        }
+
+        // IDOR Protection: Verify firmId ownership
+        if (req.user?.firmId && record.firmId?.toString() !== req.user.firmId.toString()) {
+            return res.status(403).json({
+                success: false,
+                message: 'Access denied: You do not have permission to update this attendance record'
+            });
+        }
+
+        // Date/Time Validation for check-in/check-out updates
+        if (updates.checkIn?.time) {
+            const checkInTime = new Date(updates.checkIn.time);
+            if (isNaN(checkInTime.getTime())) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Invalid check-in time format'
+                });
+            }
+            // Prevent time manipulation: Check-in must be on the same date as the record
+            const checkInDate = new Date(checkInTime);
+            checkInDate.setHours(0, 0, 0, 0);
+            const recordDate = new Date(record.date);
+            recordDate.setHours(0, 0, 0, 0);
+            if (checkInDate.getTime() !== recordDate.getTime()) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Check-in time must be on the same date as the attendance record'
+                });
+            }
+        }
+
+        if (updates.checkOut?.time) {
+            const checkOutTime = new Date(updates.checkOut.time);
+            if (isNaN(checkOutTime.getTime())) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Invalid check-out time format'
+                });
+            }
+            // Validate check-out is after check-in
+            const checkInTime = updates.checkIn?.time || record.checkIn?.time;
+            if (checkInTime && checkOutTime <= new Date(checkInTime)) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Check-out time must be after check-in time'
+                });
+            }
         }
 
         // Track history
@@ -280,9 +422,9 @@ const updateAttendanceRecord = async (req, res) => {
         record.history = record.history || [];
         record.history.push(historyEntry);
 
-        // Apply updates
+        // Apply updates (excluding updateReason which is just for history)
         Object.keys(updates).forEach(key => {
-            if (key !== 'updateReason' && key !== '_id') {
+            if (key !== 'updateReason') {
                 record[key] = updates[key];
             }
         });
@@ -313,7 +455,7 @@ const updateAttendanceRecord = async (req, res) => {
  */
 const deleteAttendanceRecord = async (req, res) => {
     try {
-        const record = await AttendanceRecord.findByIdAndDelete(req.params.id);
+        const record = await AttendanceRecord.findById(req.params.id);
 
         if (!record) {
             return res.status(404).json({
@@ -321,6 +463,16 @@ const deleteAttendanceRecord = async (req, res) => {
                 message: 'Attendance record not found'
             });
         }
+
+        // IDOR Protection: Verify firmId ownership
+        if (req.user?.firmId && record.firmId?.toString() !== req.user.firmId.toString()) {
+            return res.status(403).json({
+                success: false,
+                message: 'Access denied: You do not have permission to delete this attendance record'
+            });
+        }
+
+        await AttendanceRecord.findByIdAndDelete(req.params.id);
 
         res.status(200).json({
             success: true,
@@ -346,6 +498,13 @@ const deleteAttendanceRecord = async (req, res) => {
  */
 const checkIn = async (req, res) => {
     try {
+        // Mass Assignment Protection: Only allow specific fields
+        const allowedFields = [
+            'employeeId', 'source', 'deviceType', 'location',
+            'biometric', 'notes', 'photo', 'firmId', 'lawyerId'
+        ];
+        const safeData = pickAllowedFields(req.body, allowedFields);
+
         const {
             employeeId,
             source = 'web',
@@ -356,7 +515,36 @@ const checkIn = async (req, res) => {
             photo,
             firmId,
             lawyerId
-        } = req.body;
+        } = safeData;
+
+        // Sanitize ObjectId
+        const sanitizedEmployeeId = sanitizeObjectId(employeeId);
+        if (!sanitizedEmployeeId) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid employee ID format'
+            });
+        }
+
+        // IDOR Protection: Verify employee belongs to user's firm
+        const targetFirmId = firmId || req.user?.firmId;
+        const employee = await Employee.findById(sanitizedEmployeeId);
+        if (!employee) {
+            return res.status(404).json({
+                success: false,
+                message: 'Employee not found'
+            });
+        }
+
+        if (employee.firmId?.toString() !== targetFirmId?.toString()) {
+            return res.status(403).json({
+                success: false,
+                message: 'Access denied: Employee does not belong to your organization'
+            });
+        }
+
+        // Prevent time manipulation: Server time is used for check-in
+        // The AttendanceRecord.checkIn method should use server time, not client-provided time
 
         const checkInData = {
             source,
@@ -370,8 +558,8 @@ const checkIn = async (req, res) => {
         };
 
         const record = await AttendanceRecord.checkIn(
-            employeeId,
-            firmId || req.user?.firmId,
+            sanitizedEmployeeId,
+            targetFirmId,
             lawyerId || req.user?._id,
             checkInData
         );
@@ -403,6 +591,13 @@ const checkIn = async (req, res) => {
  */
 const checkOut = async (req, res) => {
     try {
+        // Mass Assignment Protection: Only allow specific fields
+        const allowedFields = [
+            'employeeId', 'source', 'deviceType', 'location',
+            'biometric', 'notes', 'photo', 'firmId'
+        ];
+        const safeData = pickAllowedFields(req.body, allowedFields);
+
         const {
             employeeId,
             source = 'web',
@@ -412,7 +607,36 @@ const checkOut = async (req, res) => {
             notes,
             photo,
             firmId
-        } = req.body;
+        } = safeData;
+
+        // Sanitize ObjectId
+        const sanitizedEmployeeId = sanitizeObjectId(employeeId);
+        if (!sanitizedEmployeeId) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid employee ID format'
+            });
+        }
+
+        // IDOR Protection: Verify employee belongs to user's firm
+        const targetFirmId = firmId || req.user?.firmId;
+        const employee = await Employee.findById(sanitizedEmployeeId);
+        if (!employee) {
+            return res.status(404).json({
+                success: false,
+                message: 'Employee not found'
+            });
+        }
+
+        if (employee.firmId?.toString() !== targetFirmId?.toString()) {
+            return res.status(403).json({
+                success: false,
+                message: 'Access denied: Employee does not belong to your organization'
+            });
+        }
+
+        // Prevent time manipulation: Server time is used for check-out
+        // The AttendanceRecord.checkOut method should use server time, not client-provided time
 
         const checkOutData = {
             source,
@@ -426,8 +650,8 @@ const checkOut = async (req, res) => {
         };
 
         const record = await AttendanceRecord.checkOut(
-            employeeId,
-            firmId || req.user?.firmId,
+            sanitizedEmployeeId,
+            targetFirmId,
             checkOutData
         );
 
@@ -517,13 +741,25 @@ const getCheckInStatus = async (req, res) => {
 const startBreak = async (req, res) => {
     try {
         const { id } = req.params;
-        const { type = 'personal', isPaid = true, notes } = req.body;
+
+        // Mass Assignment Protection: Only allow specific fields
+        const allowedFields = ['type', 'isPaid', 'notes'];
+        const safeData = pickAllowedFields(req.body, allowedFields);
+        const { type = 'personal', isPaid = true, notes } = safeData;
 
         const record = await AttendanceRecord.findById(id);
         if (!record) {
             return res.status(404).json({
                 success: false,
                 message: 'Attendance record not found'
+            });
+        }
+
+        // IDOR Protection: Verify firmId ownership
+        if (req.user?.firmId && record.firmId?.toString() !== req.user.firmId.toString()) {
+            return res.status(403).json({
+                success: false,
+                message: 'Access denied: You do not have permission to modify this attendance record'
             });
         }
 
@@ -578,13 +814,25 @@ const startBreak = async (req, res) => {
 const endBreak = async (req, res) => {
     try {
         const { id } = req.params;
-        const { maxDuration = 30 } = req.body;
+
+        // Mass Assignment Protection: Only allow specific fields
+        const allowedFields = ['maxDuration'];
+        const safeData = pickAllowedFields(req.body, allowedFields);
+        const { maxDuration = 30 } = safeData;
 
         const record = await AttendanceRecord.findById(id);
         if (!record) {
             return res.status(404).json({
                 success: false,
                 message: 'Attendance record not found'
+            });
+        }
+
+        // IDOR Protection: Verify firmId ownership
+        if (req.user?.firmId && record.firmId?.toString() !== req.user.firmId.toString()) {
+            return res.status(403).json({
+                success: false,
+                message: 'Access denied: You do not have permission to modify this attendance record'
             });
         }
 
@@ -662,6 +910,14 @@ const getBreaks = async (req, res) => {
 const submitCorrection = async (req, res) => {
     try {
         const { id } = req.params;
+
+        // Mass Assignment Protection: Only allow specific fields
+        const allowedFields = [
+            'field', 'originalValue', 'requestedValue',
+            'reason', 'reasonAr', 'supportingDocument'
+        ];
+        const safeData = pickAllowedFields(req.body, allowedFields);
+
         const {
             field,
             originalValue,
@@ -669,7 +925,7 @@ const submitCorrection = async (req, res) => {
             reason,
             reasonAr,
             supportingDocument
-        } = req.body;
+        } = safeData;
 
         const record = await AttendanceRecord.findById(id);
         if (!record) {
@@ -677,6 +933,48 @@ const submitCorrection = async (req, res) => {
                 success: false,
                 message: 'Attendance record not found'
             });
+        }
+
+        // IDOR Protection: Verify firmId ownership
+        if (req.user?.firmId && record.firmId?.toString() !== req.user.firmId.toString()) {
+            return res.status(403).json({
+                success: false,
+                message: 'Access denied: You do not have permission to submit corrections for this attendance record'
+            });
+        }
+
+        // Date/Time Validation for time-related corrections
+        if (field === 'checkIn' || field === 'checkOut') {
+            const requestedTime = new Date(requestedValue);
+            if (isNaN(requestedTime.getTime())) {
+                return res.status(400).json({
+                    success: false,
+                    message: `Invalid ${field} time format`
+                });
+            }
+
+            // Prevent time manipulation: Requested time must be on the same date
+            const requestedDate = new Date(requestedTime);
+            requestedDate.setHours(0, 0, 0, 0);
+            const recordDate = new Date(record.date);
+            recordDate.setHours(0, 0, 0, 0);
+            if (requestedDate.getTime() !== recordDate.getTime()) {
+                return res.status(400).json({
+                    success: false,
+                    message: `${field} correction must be on the same date as the attendance record`
+                });
+            }
+
+            // Validate check-out is after check-in
+            if (field === 'checkOut') {
+                const checkInTime = record.checkIn?.time;
+                if (checkInTime && requestedTime <= new Date(checkInTime)) {
+                    return res.status(400).json({
+                        success: false,
+                        message: 'Requested check-out time must be after check-in time'
+                    });
+                }
+            }
         }
 
         const correctionRequest = {
@@ -718,13 +1016,25 @@ const submitCorrection = async (req, res) => {
 const reviewCorrection = async (req, res) => {
     try {
         const { id, correctionId } = req.params;
-        const { status, reviewNotes } = req.body;
+
+        // Mass Assignment Protection: Only allow specific fields
+        const allowedFields = ['status', 'reviewNotes'];
+        const safeData = pickAllowedFields(req.body, allowedFields);
+        const { status, reviewNotes } = safeData;
 
         const record = await AttendanceRecord.findById(id);
         if (!record) {
             return res.status(404).json({
                 success: false,
                 message: 'Attendance record not found'
+            });
+        }
+
+        // IDOR Protection: Verify firmId ownership
+        if (req.user?.firmId && record.firmId?.toString() !== req.user.firmId.toString()) {
+            return res.status(403).json({
+                success: false,
+                message: 'Access denied: You do not have permission to review corrections for this attendance record'
             });
         }
 
@@ -736,6 +1046,15 @@ const reviewCorrection = async (req, res) => {
             });
         }
 
+        // Validate status value
+        const validStatuses = ['approved', 'rejected', 'pending'];
+        if (status && !validStatuses.includes(status)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid status value. Must be one of: approved, rejected, pending'
+            });
+        }
+
         correction.status = status;
         correction.reviewedBy = req.user?._id;
         correction.reviewedAt = new Date();
@@ -744,6 +1063,17 @@ const reviewCorrection = async (req, res) => {
         // Apply correction if approved
         if (status === 'approved') {
             const { field, requestedValue } = correction;
+
+            // Date/Time Validation when applying time corrections
+            if (field === 'checkIn' || field === 'checkOut') {
+                const requestedTime = new Date(requestedValue);
+                if (isNaN(requestedTime.getTime())) {
+                    return res.status(400).json({
+                        success: false,
+                        message: `Invalid ${field} time in correction request`
+                    });
+                }
+            }
 
             switch (field) {
                 case 'checkIn':
@@ -836,13 +1166,25 @@ const getPendingCorrections = async (req, res) => {
 const approveAttendance = async (req, res) => {
     try {
         const { id } = req.params;
-        const { notes } = req.body;
+
+        // Mass Assignment Protection: Only allow specific fields
+        const allowedFields = ['notes'];
+        const safeData = pickAllowedFields(req.body, allowedFields);
+        const { notes } = safeData;
 
         const record = await AttendanceRecord.findById(id);
         if (!record) {
             return res.status(404).json({
                 success: false,
                 message: 'Attendance record not found'
+            });
+        }
+
+        // IDOR Protection: Verify firmId ownership
+        if (req.user?.firmId && record.firmId?.toString() !== req.user.firmId.toString()) {
+            return res.status(403).json({
+                success: false,
+                message: 'Access denied: You do not have permission to approve this attendance record'
             });
         }
 
@@ -881,13 +1223,25 @@ const approveAttendance = async (req, res) => {
 const rejectAttendance = async (req, res) => {
     try {
         const { id } = req.params;
-        const { reason } = req.body;
+
+        // Mass Assignment Protection: Only allow specific fields
+        const allowedFields = ['reason'];
+        const safeData = pickAllowedFields(req.body, allowedFields);
+        const { reason } = safeData;
 
         const record = await AttendanceRecord.findById(id);
         if (!record) {
             return res.status(404).json({
                 success: false,
                 message: 'Attendance record not found'
+            });
+        }
+
+        // IDOR Protection: Verify firmId ownership
+        if (req.user?.firmId && record.firmId?.toString() !== req.user.firmId.toString()) {
+            return res.status(403).json({
+                success: false,
+                message: 'Access denied: You do not have permission to reject this attendance record'
             });
         }
 
@@ -927,6 +1281,14 @@ const rejectAttendance = async (req, res) => {
 const addViolation = async (req, res) => {
     try {
         const { id } = req.params;
+
+        // Mass Assignment Protection: Only allow specific fields
+        const allowedFields = [
+            'type', 'severity', 'description', 'descriptionAr',
+            'penaltyType', 'penaltyAmount', 'penaltyNotes'
+        ];
+        const safeData = pickAllowedFields(req.body, allowedFields);
+
         const {
             type,
             severity = 'minor',
@@ -935,7 +1297,7 @@ const addViolation = async (req, res) => {
             penaltyType,
             penaltyAmount,
             penaltyNotes
-        } = req.body;
+        } = safeData;
 
         const typeTranslations = {
             'late_arrival': 'تأخير في الحضور',
@@ -956,6 +1318,14 @@ const addViolation = async (req, res) => {
             return res.status(404).json({
                 success: false,
                 message: 'Attendance record not found'
+            });
+        }
+
+        // IDOR Protection: Verify firmId ownership
+        if (req.user?.firmId && record.firmId?.toString() !== req.user.firmId.toString()) {
+            return res.status(403).json({
+                success: false,
+                message: 'Access denied: You do not have permission to add violations to this attendance record'
             });
         }
 
@@ -1170,13 +1540,25 @@ const getViolations = async (req, res) => {
 const approveOvertime = async (req, res) => {
     try {
         const { id } = req.params;
-        const { notes, compensationType = 'payment' } = req.body;
+
+        // Mass Assignment Protection: Only allow specific fields
+        const allowedFields = ['notes', 'compensationType'];
+        const safeData = pickAllowedFields(req.body, allowedFields);
+        const { notes, compensationType = 'payment' } = safeData;
 
         const record = await AttendanceRecord.findById(id);
         if (!record) {
             return res.status(404).json({
                 success: false,
                 message: 'Attendance record not found'
+            });
+        }
+
+        // IDOR Protection: Verify firmId ownership
+        if (req.user?.firmId && record.firmId?.toString() !== req.user.firmId.toString()) {
+            return res.status(403).json({
+                success: false,
+                message: 'Access denied: You do not have permission to approve overtime for this attendance record'
             });
         }
 

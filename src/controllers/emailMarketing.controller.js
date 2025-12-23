@@ -9,6 +9,7 @@ const EmailTemplate = require('../models/emailTemplate.model');
 const EmailSubscriber = require('../models/emailSubscriber.model');
 const EmailSegment = require('../models/emailSegment.model');
 const EmailEvent = require('../models/emailEvent.model');
+const { pickAllowedFields, sanitizeObjectId, sanitizeEmail } = require('../utils/securityUtils');
 
 // ==================== CAMPAIGNS ====================
 
@@ -21,7 +22,13 @@ exports.createCampaign = async (req, res) => {
     const firmId = req.firmId;
     const userId = req.userID;
 
-    const campaign = await EmailMarketingService.createCampaign(firmId, req.body, userId);
+    // Mass assignment protection - only allow specific fields
+    const allowedFields = ['name', 'subject', 'preheader', 'templateId', 'segmentId',
+                          'type', 'senderName', 'senderEmail', 'replyTo', 'trackOpens',
+                          'trackClicks', 'scheduledAt', 'timezone', 'content', 'settings'];
+    const safeData = pickAllowedFields(req.body, allowedFields);
+
+    const campaign = await EmailMarketingService.createCampaign(firmId, safeData, userId);
 
     res.status(201).json({
       success: true,
@@ -124,9 +131,25 @@ exports.getCampaign = async (req, res) => {
 exports.updateCampaign = async (req, res) => {
   try {
     const { id } = req.params;
+    const firmId = req.firmId;
     const userId = req.userID;
 
-    const campaign = await EmailMarketingService.updateCampaign(id, req.body, userId);
+    // IDOR protection - verify campaign belongs to user's firm
+    const existingCampaign = await EmailCampaign.findOne({ _id: id, firmId });
+    if (!existingCampaign) {
+      return res.status(404).json({
+        success: false,
+        message: 'Campaign not found'
+      });
+    }
+
+    // Mass assignment protection - only allow specific fields
+    const allowedFields = ['name', 'subject', 'preheader', 'templateId', 'segmentId',
+                          'type', 'senderName', 'senderEmail', 'replyTo', 'trackOpens',
+                          'trackClicks', 'scheduledAt', 'timezone', 'content', 'settings', 'status'];
+    const safeData = pickAllowedFields(req.body, allowedFields);
+
+    const campaign = await EmailMarketingService.updateCampaign(id, safeData, userId);
 
     res.json({
       success: true,
@@ -149,6 +172,16 @@ exports.updateCampaign = async (req, res) => {
 exports.deleteCampaign = async (req, res) => {
   try {
     const { id } = req.params;
+    const firmId = req.firmId;
+
+    // IDOR protection - verify campaign belongs to user's firm
+    const campaign = await EmailCampaign.findOne({ _id: id, firmId });
+    if (!campaign) {
+      return res.status(404).json({
+        success: false,
+        message: 'Campaign not found'
+      });
+    }
 
     await EmailMarketingService.deleteCampaign(id);
 
@@ -172,7 +205,17 @@ exports.deleteCampaign = async (req, res) => {
 exports.duplicateCampaign = async (req, res) => {
   try {
     const { id } = req.params;
+    const firmId = req.firmId;
     const userId = req.userID;
+
+    // IDOR protection - verify campaign belongs to user's firm
+    const existingCampaign = await EmailCampaign.findOne({ _id: id, firmId });
+    if (!existingCampaign) {
+      return res.status(404).json({
+        success: false,
+        message: 'Campaign not found'
+      });
+    }
 
     const campaign = await EmailMarketingService.duplicateCampaign(id, userId);
 
@@ -197,14 +240,38 @@ exports.duplicateCampaign = async (req, res) => {
 exports.scheduleCampaign = async (req, res) => {
   try {
     const { id } = req.params;
-    const { scheduledAt, timezone } = req.body;
+    const firmId = req.firmId;
 
-    const campaign = await EmailMarketingService.scheduleCampaign(id, scheduledAt, timezone);
+    // IDOR protection - verify campaign belongs to user's firm
+    const campaign = await EmailCampaign.findOne({ _id: id, firmId });
+    if (!campaign) {
+      return res.status(404).json({
+        success: false,
+        message: 'Campaign not found'
+      });
+    }
+
+    // Input validation
+    const allowedFields = ['scheduledAt', 'timezone'];
+    const safeData = pickAllowedFields(req.body, allowedFields);
+
+    if (!safeData.scheduledAt) {
+      return res.status(400).json({
+        success: false,
+        message: 'scheduledAt is required'
+      });
+    }
+
+    const updatedCampaign = await EmailMarketingService.scheduleCampaign(
+      id,
+      safeData.scheduledAt,
+      safeData.timezone
+    );
 
     res.json({
       success: true,
       message: 'Campaign scheduled successfully',
-      data: campaign
+      data: updatedCampaign
     });
   } catch (error) {
     console.error('Schedule campaign error:', error);
@@ -222,13 +289,23 @@ exports.scheduleCampaign = async (req, res) => {
 exports.sendCampaign = async (req, res) => {
   try {
     const { id } = req.params;
+    const firmId = req.firmId;
 
-    const campaign = await EmailMarketingService.sendCampaign(id);
+    // IDOR protection - verify campaign belongs to user's firm
+    const campaign = await EmailCampaign.findOne({ _id: id, firmId });
+    if (!campaign) {
+      return res.status(404).json({
+        success: false,
+        message: 'Campaign not found'
+      });
+    }
+
+    const updatedCampaign = await EmailMarketingService.sendCampaign(id);
 
     res.json({
       success: true,
       message: 'Campaign sending started',
-      data: campaign
+      data: updatedCampaign
     });
   } catch (error) {
     console.error('Send campaign error:', error);
@@ -246,13 +323,23 @@ exports.sendCampaign = async (req, res) => {
 exports.pauseCampaign = async (req, res) => {
   try {
     const { id } = req.params;
+    const firmId = req.firmId;
 
-    const campaign = await EmailMarketingService.pauseCampaign(id);
+    // IDOR protection - verify campaign belongs to user's firm
+    const campaign = await EmailCampaign.findOne({ _id: id, firmId });
+    if (!campaign) {
+      return res.status(404).json({
+        success: false,
+        message: 'Campaign not found'
+      });
+    }
+
+    const updatedCampaign = await EmailMarketingService.pauseCampaign(id);
 
     res.json({
       success: true,
       message: 'Campaign paused',
-      data: campaign
+      data: updatedCampaign
     });
   } catch (error) {
     console.error('Pause campaign error:', error);
@@ -270,13 +357,23 @@ exports.pauseCampaign = async (req, res) => {
 exports.resumeCampaign = async (req, res) => {
   try {
     const { id } = req.params;
+    const firmId = req.firmId;
 
-    const campaign = await EmailMarketingService.resumeCampaign(id);
+    // IDOR protection - verify campaign belongs to user's firm
+    const campaign = await EmailCampaign.findOne({ _id: id, firmId });
+    if (!campaign) {
+      return res.status(404).json({
+        success: false,
+        message: 'Campaign not found'
+      });
+    }
+
+    const updatedCampaign = await EmailMarketingService.resumeCampaign(id);
 
     res.json({
       success: true,
       message: 'Campaign resumed',
-      data: campaign
+      data: updatedCampaign
     });
   } catch (error) {
     console.error('Resume campaign error:', error);
@@ -294,13 +391,23 @@ exports.resumeCampaign = async (req, res) => {
 exports.cancelCampaign = async (req, res) => {
   try {
     const { id } = req.params;
+    const firmId = req.firmId;
 
-    const campaign = await EmailMarketingService.cancelCampaign(id);
+    // IDOR protection - verify campaign belongs to user's firm
+    const campaign = await EmailCampaign.findOne({ _id: id, firmId });
+    if (!campaign) {
+      return res.status(404).json({
+        success: false,
+        message: 'Campaign not found'
+      });
+    }
+
+    const updatedCampaign = await EmailMarketingService.cancelCampaign(id);
 
     res.json({
       success: true,
       message: 'Campaign cancelled',
-      data: campaign
+      data: updatedCampaign
     });
   } catch (error) {
     console.error('Cancel campaign error:', error);
@@ -318,6 +425,7 @@ exports.cancelCampaign = async (req, res) => {
 exports.sendTestEmail = async (req, res) => {
   try {
     const { id } = req.params;
+    const firmId = req.firmId;
     const { testEmail } = req.body;
 
     if (!testEmail) {
@@ -327,7 +435,20 @@ exports.sendTestEmail = async (req, res) => {
       });
     }
 
-    const campaign = await EmailCampaign.findById(id);
+    // Email injection prevention - sanitize email
+    const sanitizedEmail = sanitizeEmail(testEmail);
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(sanitizedEmail)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid email address format'
+      });
+    }
+
+    // IDOR protection - verify campaign belongs to user's firm
+    const campaign = await EmailCampaign.findOne({ _id: id, firmId });
     if (!campaign) {
       return res.status(404).json({
         success: false,
@@ -337,7 +458,7 @@ exports.sendTestEmail = async (req, res) => {
 
     // Create temporary subscriber for test
     const testSubscriber = {
-      email: testEmail,
+      email: sanitizedEmail,
       firstName: 'Test',
       displayName: 'Test User'
     };
@@ -346,7 +467,7 @@ exports.sendTestEmail = async (req, res) => {
 
     res.json({
       success: true,
-      message: `Test email sent to ${testEmail}`
+      message: `Test email sent to ${sanitizedEmail}`
     });
   } catch (error) {
     console.error('Send test email error:', error);
@@ -364,6 +485,16 @@ exports.sendTestEmail = async (req, res) => {
 exports.getCampaignAnalytics = async (req, res) => {
   try {
     const { id } = req.params;
+    const firmId = req.firmId;
+
+    // IDOR protection - verify campaign belongs to user's firm
+    const campaign = await EmailCampaign.findOne({ _id: id, firmId });
+    if (!campaign) {
+      return res.status(404).json({
+        success: false,
+        message: 'Campaign not found'
+      });
+    }
 
     const analytics = await EmailMarketingService.getCampaignAnalytics(id);
 
@@ -391,7 +522,13 @@ exports.createTemplate = async (req, res) => {
     const firmId = req.firmId;
     const userId = req.userID;
 
-    const template = await EmailMarketingService.createTemplate(firmId, req.body, userId);
+    // Mass assignment protection - only allow specific fields
+    const allowedFields = ['name', 'description', 'category', 'subject', 'preheader',
+                          'htmlContent', 'textContent', 'thumbnail', 'isActive', 'isPublic',
+                          'variables', 'settings'];
+    const safeData = pickAllowedFields(req.body, allowedFields);
+
+    const template = await EmailMarketingService.createTemplate(firmId, safeData, userId);
 
     res.status(201).json({
       success: true,
@@ -521,6 +658,7 @@ exports.updateTemplate = async (req, res) => {
     const firmId = req.firmId;
     const userId = req.userID;
 
+    // IDOR protection already in place
     const template = await EmailTemplate.findOne({ _id: id, firmId });
     if (!template) {
       return res.status(404).json({
@@ -529,7 +667,13 @@ exports.updateTemplate = async (req, res) => {
       });
     }
 
-    Object.assign(template, req.body);
+    // Mass assignment protection - only allow specific fields
+    const allowedFields = ['name', 'description', 'category', 'subject', 'preheader',
+                          'htmlContent', 'textContent', 'thumbnail', 'isActive', 'isPublic',
+                          'variables', 'settings'];
+    const safeData = pickAllowedFields(req.body, allowedFields);
+
+    Object.assign(template, safeData);
     template.updatedBy = userId;
     await template.save();
 
@@ -586,9 +730,28 @@ exports.deleteTemplate = async (req, res) => {
 exports.previewTemplate = async (req, res) => {
   try {
     const { id } = req.params;
-    const sampleData = req.body;
+    const firmId = req.firmId;
 
-    const preview = await EmailMarketingService.previewTemplate(id, sampleData);
+    // IDOR protection - verify template belongs to user's firm or is public
+    const template = await EmailTemplate.findOne({
+      _id: id,
+      $or: [
+        { firmId: firmId },
+        { isPublic: true }
+      ]
+    });
+    if (!template) {
+      return res.status(404).json({
+        success: false,
+        message: 'Template not found'
+      });
+    }
+
+    // Mass assignment protection - limit preview data fields
+    const allowedFields = ['firstName', 'lastName', 'email', 'displayName', 'customFields'];
+    const safeData = pickAllowedFields(req.body, allowedFields);
+
+    const preview = await EmailMarketingService.previewTemplate(id, safeData);
 
     res.json({
       success: true,
@@ -614,7 +777,29 @@ exports.createSubscriber = async (req, res) => {
     const firmId = req.firmId;
     const userId = req.userID;
 
-    const subscriber = await EmailMarketingService.addSubscriber(firmId, req.body, userId);
+    // Mass assignment protection - only allow specific fields
+    const allowedFields = ['email', 'firstName', 'lastName', 'displayName', 'phone',
+                          'tags', 'customFields', 'status', 'source'];
+    const safeData = pickAllowedFields(req.body, allowedFields);
+
+    // Email injection prevention - sanitize and validate email
+    if (safeData.email) {
+      safeData.email = sanitizeEmail(safeData.email);
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(safeData.email)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid email address format'
+        });
+      }
+    } else {
+      return res.status(400).json({
+        success: false,
+        message: 'Email address is required'
+      });
+    }
+
+    const subscriber = await EmailMarketingService.addSubscriber(firmId, safeData, userId);
 
     res.status(201).json({
       success: true,
@@ -683,9 +868,36 @@ exports.getSubscribers = async (req, res) => {
 exports.updateSubscriber = async (req, res) => {
   try {
     const { id } = req.params;
+    const firmId = req.firmId;
     const userId = req.userID;
 
-    const subscriber = await EmailMarketingService.updateSubscriber(id, req.body, userId);
+    // IDOR protection - verify subscriber belongs to user's firm
+    const existingSubscriber = await EmailSubscriber.findOne({ _id: id, firmId });
+    if (!existingSubscriber) {
+      return res.status(404).json({
+        success: false,
+        message: 'Subscriber not found'
+      });
+    }
+
+    // Mass assignment protection - only allow specific fields
+    const allowedFields = ['email', 'firstName', 'lastName', 'displayName', 'phone',
+                          'tags', 'customFields', 'status'];
+    const safeData = pickAllowedFields(req.body, allowedFields);
+
+    // Email injection prevention - sanitize and validate email if provided
+    if (safeData.email) {
+      safeData.email = sanitizeEmail(safeData.email);
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(safeData.email)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid email address format'
+        });
+      }
+    }
+
+    const subscriber = await EmailMarketingService.updateSubscriber(id, safeData, userId);
 
     res.json({
       success: true,
@@ -750,7 +962,34 @@ exports.importSubscribers = async (req, res) => {
       });
     }
 
-    const result = await EmailMarketingService.importSubscribers(firmId, subscribers, userId);
+    // Mass assignment protection and email sanitization for each subscriber
+    const allowedFields = ['email', 'firstName', 'lastName', 'displayName', 'phone',
+                          'tags', 'customFields', 'status', 'source'];
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    const sanitizedSubscribers = subscribers.map(subscriber => {
+      // Filter allowed fields
+      const safeData = pickAllowedFields(subscriber, allowedFields);
+
+      // Sanitize email if present
+      if (safeData.email) {
+        safeData.email = sanitizeEmail(safeData.email);
+      }
+
+      return safeData;
+    }).filter(subscriber => {
+      // Only include subscribers with valid email addresses
+      return subscriber.email && emailRegex.test(subscriber.email);
+    });
+
+    if (sanitizedSubscribers.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'No valid subscribers to import'
+      });
+    }
+
+    const result = await EmailMarketingService.importSubscribers(firmId, sanitizedSubscribers, userId);
 
     res.json({
       success: true,
@@ -773,9 +1012,12 @@ exports.importSubscribers = async (req, res) => {
 exports.exportSubscribers = async (req, res) => {
   try {
     const firmId = req.firmId;
-    const filters = req.body;
 
-    const subscribers = await EmailMarketingService.exportSubscribers(firmId, filters);
+    // Mass assignment protection - only allow specific filter fields
+    const allowedFields = ['status', 'tags', 'startDate', 'endDate', 'segmentId', 'source'];
+    const safeFilters = pickAllowedFields(req.body, allowedFields);
+
+    const subscribers = await EmailMarketingService.exportSubscribers(firmId, safeFilters);
 
     res.json({
       success: true,

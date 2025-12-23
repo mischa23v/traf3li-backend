@@ -1,6 +1,8 @@
 const { PayrollRun, Employee, SalarySlip } = require('../models');
 const { CustomException } = require('../utils');
 const asyncHandler = require('../utils/asyncHandler');
+const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
+const mongoose = require('mongoose');
 
 // ═══════════════════════════════════════════════════════════════
 // GET ALL PAYROLL RUNS
@@ -78,7 +80,13 @@ const getPayrollRun = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
-    const payrollRun = await PayrollRun.findById(id)
+    // Sanitize ObjectId to prevent NoSQL injection
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('Invalid payroll run ID', 400);
+    }
+
+    const payrollRun = await PayrollRun.findById(sanitizedId)
         .populate('createdBy', 'firstName lastName')
         .populate('approvalWorkflow.finalApprover', 'firstName lastName')
         .populate('employeeList.employeeId', 'employeeId personalInfo.fullNameArabic personalInfo.fullNameEnglish');
@@ -87,6 +95,7 @@ const getPayrollRun = asyncHandler(async (req, res) => {
         throw CustomException('Payroll run not found', 404);
     }
 
+    // IDOR protection - verify firmId ownership
     const hasAccess = firmId
         ? payrollRun.firmId?.toString() === firmId.toString()
         : payrollRun.lawyerId?.toString() === lawyerId;
@@ -109,19 +118,13 @@ const createPayrollRun = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
-    const {
-        runName,
-        runNameAr,
-        payPeriod,
-        configuration,
-        notes
-    } = req.body;
+    // Mass assignment protection - only allow specific fields
+    const allowedFields = ['runName', 'runNameAr', 'payPeriod', 'configuration', 'notes'];
+    const safeData = pickAllowedFields(req.body, allowedFields);
 
     const payrollRun = await PayrollRun.create({
-        runName,
-        runNameAr,
-        payPeriod,
-        configuration: configuration || {
+        ...safeData,
+        configuration: safeData.configuration || {
             includedEmploymentStatuses: ['active'],
             includedEmployeeTypes: ['full_time', 'part_time', 'contract'],
             calculateGOSI: true,
@@ -131,7 +134,6 @@ const createPayrollRun = asyncHandler(async (req, res) => {
             processLoans: true,
             processAdvances: true
         },
-        notes,
         status: 'draft',
         firmId,
         lawyerId,
@@ -161,12 +163,19 @@ const updatePayrollRun = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
-    const payrollRun = await PayrollRun.findById(id);
+    // Sanitize ObjectId to prevent NoSQL injection
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('Invalid payroll run ID', 400);
+    }
+
+    const payrollRun = await PayrollRun.findById(sanitizedId);
 
     if (!payrollRun) {
         throw CustomException('Payroll run not found', 404);
     }
 
+    // IDOR protection - verify firmId ownership
     const hasAccess = firmId
         ? payrollRun.firmId?.toString() === firmId.toString()
         : payrollRun.lawyerId?.toString() === lawyerId;
@@ -179,29 +188,31 @@ const updatePayrollRun = asyncHandler(async (req, res) => {
         throw CustomException('Only draft or calculated runs can be updated', 400);
     }
 
-    const {
-        runName,
-        runNameAr,
-        payPeriod,
-        configuration,
-        notes
-    } = req.body;
+    // Mass assignment protection - only allow specific safe fields
+    const allowedFields = ['runName', 'runNameAr', 'payPeriod', 'configuration', 'notes'];
+    const safeData = pickAllowedFields(req.body, allowedFields);
 
-    if (runName) payrollRun.runName = runName;
-    if (runNameAr) payrollRun.runNameAr = runNameAr;
-    if (payPeriod) {
-        Object.keys(payPeriod).forEach(key => {
-            payrollRun.payPeriod[key] = payPeriod[key];
+    // Prevent salary manipulation - configuration changes only allowed in draft mode
+    if (payrollRun.status !== 'draft' && safeData.configuration) {
+        throw CustomException('Cannot modify configuration after draft status', 400);
+    }
+
+    // Update only allowed fields
+    if (safeData.runName) payrollRun.runName = safeData.runName;
+    if (safeData.runNameAr) payrollRun.runNameAr = safeData.runNameAr;
+    if (safeData.payPeriod) {
+        Object.keys(safeData.payPeriod).forEach(key => {
+            payrollRun.payPeriod[key] = safeData.payPeriod[key];
         });
     }
-    if (configuration) {
-        Object.keys(configuration).forEach(key => {
-            payrollRun.configuration[key] = configuration[key];
+    if (safeData.configuration && payrollRun.status === 'draft') {
+        Object.keys(safeData.configuration).forEach(key => {
+            payrollRun.configuration[key] = safeData.configuration[key];
         });
     }
-    if (notes) {
-        Object.keys(notes).forEach(key => {
-            payrollRun.notes[key] = notes[key];
+    if (safeData.notes) {
+        Object.keys(safeData.notes).forEach(key => {
+            payrollRun.notes[key] = safeData.notes[key];
         });
     }
 
@@ -224,12 +235,19 @@ const deletePayrollRun = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
-    const payrollRun = await PayrollRun.findById(id);
+    // Sanitize ObjectId to prevent NoSQL injection
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('Invalid payroll run ID', 400);
+    }
+
+    const payrollRun = await PayrollRun.findById(sanitizedId);
 
     if (!payrollRun) {
         throw CustomException('Payroll run not found', 404);
     }
 
+    // IDOR protection - verify firmId ownership
     const hasAccess = firmId
         ? payrollRun.firmId?.toString() === firmId.toString()
         : payrollRun.lawyerId?.toString() === lawyerId;
@@ -259,12 +277,19 @@ const calculatePayroll = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
-    const payrollRun = await PayrollRun.findById(id);
+    // Sanitize ObjectId to prevent NoSQL injection
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('Invalid payroll run ID', 400);
+    }
+
+    const payrollRun = await PayrollRun.findById(sanitizedId);
 
     if (!payrollRun) {
         throw CustomException('Payroll run not found', 404);
     }
 
+    // IDOR protection - verify firmId ownership
     const hasAccess = firmId
         ? payrollRun.firmId?.toString() === firmId.toString()
         : payrollRun.lawyerId?.toString() === lawyerId;
@@ -317,8 +342,23 @@ const calculatePayroll = asyncHandler(async (req, res) => {
     const employeeList = [];
 
     for (const emp of employees) {
-        const basicSalary = emp.compensation?.basicSalary || 0;
-        const allowances = (emp.compensation?.allowances || []).reduce((sum, a) => sum + (a.amount || 0), 0);
+        // Input validation for payroll amounts
+        const basicSalary = parseFloat(emp.compensation?.basicSalary) || 0;
+
+        // Validate salary amount
+        if (basicSalary < 0 || !isFinite(basicSalary) || basicSalary > 1000000) {
+            throw CustomException(`Invalid salary amount for employee ${emp.employeeId}`, 400);
+        }
+
+        // Validate allowances
+        const allowances = (emp.compensation?.allowances || []).reduce((sum, a) => {
+            const amount = parseFloat(a.amount) || 0;
+            if (amount < 0 || !isFinite(amount)) {
+                throw CustomException(`Invalid allowance amount for employee ${emp.employeeId}`, 400);
+            }
+            return sum + amount;
+        }, 0);
+
         const grossPay = basicSalary + allowances;
 
         // GOSI calculation
@@ -449,12 +489,19 @@ const validatePayroll = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
-    const payrollRun = await PayrollRun.findById(id);
+    // Sanitize ObjectId to prevent NoSQL injection
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('Invalid payroll run ID', 400);
+    }
+
+    const payrollRun = await PayrollRun.findById(sanitizedId);
 
     if (!payrollRun) {
         throw CustomException('Payroll run not found', 404);
     }
 
+    // IDOR protection - verify firmId ownership
     const hasAccess = firmId
         ? payrollRun.firmId?.toString() === firmId.toString()
         : payrollRun.lawyerId?.toString() === lawyerId;
@@ -547,14 +594,23 @@ const approvePayroll = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const lawyerId = req.userID;
     const firmId = req.firmId;
-    const { comments } = req.body;
 
-    const payrollRun = await PayrollRun.findById(id);
+    // Sanitize ObjectId to prevent NoSQL injection
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('Invalid payroll run ID', 400);
+    }
+
+    // Mass assignment protection - only allow comments field
+    const safeData = pickAllowedFields(req.body, ['comments']);
+
+    const payrollRun = await PayrollRun.findById(sanitizedId);
 
     if (!payrollRun) {
         throw CustomException('Payroll run not found', 404);
     }
 
+    // IDOR protection - verify firmId ownership
     const hasAccess = firmId
         ? payrollRun.firmId?.toString() === firmId.toString()
         : payrollRun.lawyerId?.toString() === lawyerId;
@@ -576,8 +632,8 @@ const approvePayroll = asyncHandler(async (req, res) => {
     payrollRun.approvalWorkflow.finalApprover = lawyerId;
     payrollRun.approvalWorkflow.finalApprovalDate = new Date();
 
-    if (comments) {
-        payrollRun.notes.approverNotes = comments;
+    if (safeData.comments) {
+        payrollRun.notes.approverNotes = safeData.comments;
     }
 
     payrollRun.processingLog.push({
@@ -585,7 +641,7 @@ const approvePayroll = asyncHandler(async (req, res) => {
         action: 'Payroll run approved',
         actionType: 'approval',
         performedBy: lawyerId,
-        details: comments,
+        details: safeData.comments,
         status: 'success'
     });
 
@@ -607,12 +663,19 @@ const processPayments = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
-    const payrollRun = await PayrollRun.findById(id);
+    // Sanitize ObjectId to prevent NoSQL injection
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('Invalid payroll run ID', 400);
+    }
+
+    const payrollRun = await PayrollRun.findById(sanitizedId);
 
     if (!payrollRun) {
         throw CustomException('Payroll run not found', 404);
     }
 
+    // IDOR protection - verify firmId ownership
     const hasAccess = firmId
         ? payrollRun.firmId?.toString() === firmId.toString()
         : payrollRun.lawyerId?.toString() === lawyerId;
@@ -625,122 +688,145 @@ const processPayments = asyncHandler(async (req, res) => {
         throw CustomException('Only approved runs can process payments', 400);
     }
 
-    payrollRun.status = 'processing_payment';
-    await payrollRun.save();
+    // Use MongoDB transaction for atomic payroll processing
+    const session = await mongoose.startSession();
+    session.startTransaction();
 
-    // Create salary slips for each employee
-    const slipsToCreate = [];
-    for (const emp of payrollRun.employeeList) {
-        if (emp.onHold) continue;
+    try {
+        // Update payroll run status within transaction
+        payrollRun.status = 'processing_payment';
+        await payrollRun.save({ session });
 
-        slipsToCreate.push({
-            employeeId: emp.employeeId,
-            employeeNumber: emp.employeeNumber,
-            employeeName: emp.employeeName,
-            employeeNameAr: emp.employeeNameAr,
-            nationalId: emp.nationalId,
-            jobTitle: emp.jobTitle,
-            department: emp.department,
-            payPeriod: {
-                month: payrollRun.payPeriod.month,
-                year: payrollRun.payPeriod.year,
-                calendarType: payrollRun.payPeriod.calendarType,
-                periodStart: payrollRun.payPeriod.periodStart,
-                periodEnd: payrollRun.payPeriod.periodEnd,
-                paymentDate: payrollRun.payPeriod.paymentDate,
-                workingDays: 22,
-                daysWorked: emp.isProrated ? emp.proratedDays : 22
-            },
-            earnings: {
-                basicSalary: emp.earnings.basicSalary,
-                allowances: [],
-                totalAllowances: emp.earnings.allowances,
-                overtime: { hours: 0, rate: 1.5, amount: emp.earnings.overtime },
-                bonus: emp.earnings.bonus,
-                commission: emp.earnings.commission,
-                arrears: 0,
-                totalEarnings: emp.earnings.grossPay
-            },
-            deductions: {
-                gosi: emp.deductions.gosi,
-                gosiEmployer: 0,
-                loans: emp.deductions.loans,
-                advances: emp.deductions.advances,
-                absences: emp.deductions.absences,
-                lateDeductions: emp.deductions.lateDeductions,
-                violations: emp.deductions.violations,
-                otherDeductions: emp.deductions.otherDeductions,
-                totalDeductions: emp.deductions.totalDeductions
-            },
-            netPay: emp.netPay,
-            payment: {
-                paymentMethod: emp.paymentMethod,
-                bankName: emp.bankName,
-                iban: emp.iban,
-                status: 'paid'
-            },
-            generatedBy: lawyerId,
-            firmId,
-            lawyerId
+        // Create salary slips for each employee
+        const slipsToCreate = [];
+        for (const emp of payrollRun.employeeList) {
+            if (emp.onHold) continue;
+
+            // Validate payment amounts within transaction
+            const netPay = parseFloat(emp.netPay);
+            if (netPay < 0 || !isFinite(netPay)) {
+                throw CustomException(`Invalid net pay for employee ${emp.employeeNumber}`, 400);
+            }
+
+            slipsToCreate.push({
+                employeeId: emp.employeeId,
+                employeeNumber: emp.employeeNumber,
+                employeeName: emp.employeeName,
+                employeeNameAr: emp.employeeNameAr,
+                nationalId: emp.nationalId,
+                jobTitle: emp.jobTitle,
+                department: emp.department,
+                payPeriod: {
+                    month: payrollRun.payPeriod.month,
+                    year: payrollRun.payPeriod.year,
+                    calendarType: payrollRun.payPeriod.calendarType,
+                    periodStart: payrollRun.payPeriod.periodStart,
+                    periodEnd: payrollRun.payPeriod.periodEnd,
+                    paymentDate: payrollRun.payPeriod.paymentDate,
+                    workingDays: 22,
+                    daysWorked: emp.isProrated ? emp.proratedDays : 22
+                },
+                earnings: {
+                    basicSalary: emp.earnings.basicSalary,
+                    allowances: [],
+                    totalAllowances: emp.earnings.allowances,
+                    overtime: { hours: 0, rate: 1.5, amount: emp.earnings.overtime },
+                    bonus: emp.earnings.bonus,
+                    commission: emp.earnings.commission,
+                    arrears: 0,
+                    totalEarnings: emp.earnings.grossPay
+                },
+                deductions: {
+                    gosi: emp.deductions.gosi,
+                    gosiEmployer: 0,
+                    loans: emp.deductions.loans,
+                    advances: emp.deductions.advances,
+                    absences: emp.deductions.absences,
+                    lateDeductions: emp.deductions.lateDeductions,
+                    violations: emp.deductions.violations,
+                    otherDeductions: emp.deductions.otherDeductions,
+                    totalDeductions: emp.deductions.totalDeductions
+                },
+                netPay: emp.netPay,
+                payment: {
+                    paymentMethod: emp.paymentMethod,
+                    bankName: emp.bankName,
+                    iban: emp.iban,
+                    status: 'paid'
+                },
+                generatedBy: lawyerId,
+                firmId,
+                lawyerId
+            });
+        }
+
+        // Bulk insert salary slips within transaction
+        const insertedSlips = await SalarySlip.insertMany(slipsToCreate, { session });
+
+        // Post each salary slip to General Ledger and update employee list
+        for (let i = 0; i < insertedSlips.length; i++) {
+            const slip = insertedSlips[i];
+
+            // Post to GL within transaction
+            try {
+                await slip.postToGL();
+            } catch (error) {
+                console.error(`Failed to post payroll to GL for slip ${slip.slipNumber}:`, error.message);
+                // Rollback transaction on GL posting failure
+                throw CustomException(`GL posting failed for slip ${slip.slipNumber}`, 500);
+            }
+
+            const empIndex = payrollRun.employeeList.findIndex(
+                e => e.employeeId.toString() === slip.employeeId.toString() && !e.onHold
+            );
+            if (empIndex !== -1) {
+                payrollRun.employeeList[empIndex].slipId = slip._id;
+                payrollRun.employeeList[empIndex].slipNumber = slip.slipNumber;
+                payrollRun.employeeList[empIndex].paymentStatus = 'paid';
+                payrollRun.employeeList[empIndex].paidOn = new Date();
+                payrollRun.employeeList[empIndex].status = 'paid';
+            }
+        }
+
+        payrollRun.status = 'paid';
+        payrollRun.paymentProcessing = {
+            paymentStatus: 'completed',
+            paidEmployees: insertedSlips.length,
+            pendingPayments: 0,
+            failedPayments: 0,
+            totalPaid: payrollRun.financialSummary.totalNetPay,
+            totalPending: 0,
+            totalFailed: 0,
+            paymentCompletionPercentage: 100
+        };
+
+        payrollRun.processingLog.push({
+            logId: `LOG-${Date.now()}`,
+            action: 'Payments processed and salary slips created',
+            actionType: 'payment',
+            performedBy: lawyerId,
+            status: 'success',
+            affectedEmployees: insertedSlips.length,
+            affectedAmount: payrollRun.financialSummary.totalNetPay
         });
+
+        await payrollRun.save({ session });
+
+        // Commit the transaction
+        await session.commitTransaction();
+        session.endSession();
+
+        return res.json({
+            success: true,
+            message: `Processed payments for ${insertedSlips.length} employees`,
+            payrollRun
+        });
+    } catch (error) {
+        // Rollback the transaction on error
+        await session.abortTransaction();
+        session.endSession();
+        throw error;
     }
-
-    // Bulk insert salary slips
-    const insertedSlips = await SalarySlip.insertMany(slipsToCreate);
-
-    // Post each salary slip to General Ledger and update employee list
-    for (let i = 0; i < insertedSlips.length; i++) {
-        const slip = insertedSlips[i];
-
-        // Post to GL
-        try {
-            await slip.postToGL();
-        } catch (error) {
-            console.error(`Failed to post payroll to GL for slip ${slip.slipNumber}:`, error.message);
-            // Continue processing other slips even if one fails
-        }
-
-        const empIndex = payrollRun.employeeList.findIndex(
-            e => e.employeeId.toString() === slip.employeeId.toString() && !e.onHold
-        );
-        if (empIndex !== -1) {
-            payrollRun.employeeList[empIndex].slipId = slip._id;
-            payrollRun.employeeList[empIndex].slipNumber = slip.slipNumber;
-            payrollRun.employeeList[empIndex].paymentStatus = 'paid';
-            payrollRun.employeeList[empIndex].paidOn = new Date();
-            payrollRun.employeeList[empIndex].status = 'paid';
-        }
-    }
-
-    payrollRun.status = 'paid';
-    payrollRun.paymentProcessing = {
-        paymentStatus: 'completed',
-        paidEmployees: insertedSlips.length,
-        pendingPayments: 0,
-        failedPayments: 0,
-        totalPaid: payrollRun.financialSummary.totalNetPay,
-        totalPending: 0,
-        totalFailed: 0,
-        paymentCompletionPercentage: 100
-    };
-
-    payrollRun.processingLog.push({
-        logId: `LOG-${Date.now()}`,
-        action: 'Payments processed and salary slips created',
-        actionType: 'payment',
-        performedBy: lawyerId,
-        status: 'success',
-        affectedEmployees: insertedSlips.length,
-        affectedAmount: payrollRun.financialSummary.totalNetPay
-    });
-
-    await payrollRun.save();
-
-    return res.json({
-        success: true,
-        message: `Processed payments for ${insertedSlips.length} employees`,
-        payrollRun
-    });
 });
 
 // ═══════════════════════════════════════════════════════════════
@@ -751,14 +837,23 @@ const cancelPayroll = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const lawyerId = req.userID;
     const firmId = req.firmId;
-    const { reason } = req.body;
 
-    const payrollRun = await PayrollRun.findById(id);
+    // Sanitize ObjectId to prevent NoSQL injection
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('Invalid payroll run ID', 400);
+    }
+
+    // Mass assignment protection - only allow reason field
+    const safeData = pickAllowedFields(req.body, ['reason']);
+
+    const payrollRun = await PayrollRun.findById(sanitizedId);
 
     if (!payrollRun) {
         throw CustomException('Payroll run not found', 404);
     }
 
+    // IDOR protection - verify firmId ownership
     const hasAccess = firmId
         ? payrollRun.firmId?.toString() === firmId.toString()
         : payrollRun.lawyerId?.toString() === lawyerId;
@@ -777,7 +872,7 @@ const cancelPayroll = asyncHandler(async (req, res) => {
         action: 'Payroll run cancelled',
         actionType: 'other',
         performedBy: lawyerId,
-        details: reason,
+        details: safeData.reason,
         status: 'success'
     });
 
@@ -799,12 +894,19 @@ const generateWPS = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
-    const payrollRun = await PayrollRun.findById(id);
+    // Sanitize ObjectId to prevent NoSQL injection
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('Invalid payroll run ID', 400);
+    }
+
+    const payrollRun = await PayrollRun.findById(sanitizedId);
 
     if (!payrollRun) {
         throw CustomException('Payroll run not found', 404);
     }
 
+    // IDOR protection - verify firmId ownership
     const hasAccess = firmId
         ? payrollRun.firmId?.toString() === firmId.toString()
         : payrollRun.lawyerId?.toString() === lawyerId;
@@ -853,14 +955,24 @@ const holdEmployee = asyncHandler(async (req, res) => {
     const { id, empId } = req.params;
     const lawyerId = req.userID;
     const firmId = req.firmId;
-    const { reason } = req.body;
 
-    const payrollRun = await PayrollRun.findById(id);
+    // Sanitize ObjectIds to prevent NoSQL injection
+    const sanitizedId = sanitizeObjectId(id);
+    const sanitizedEmpId = sanitizeObjectId(empId);
+    if (!sanitizedId || !sanitizedEmpId) {
+        throw CustomException('Invalid ID provided', 400);
+    }
+
+    // Mass assignment protection - only allow reason field
+    const safeData = pickAllowedFields(req.body, ['reason']);
+
+    const payrollRun = await PayrollRun.findById(sanitizedId);
 
     if (!payrollRun) {
         throw CustomException('Payroll run not found', 404);
     }
 
+    // IDOR protection - verify firmId ownership
     const hasAccess = firmId
         ? payrollRun.firmId?.toString() === firmId.toString()
         : payrollRun.lawyerId?.toString() === lawyerId;
@@ -870,7 +982,7 @@ const holdEmployee = asyncHandler(async (req, res) => {
     }
 
     const empIndex = payrollRun.employeeList.findIndex(
-        e => e.employeeId.toString() === empId
+        e => e.employeeId.toString() === sanitizedEmpId
     );
 
     if (empIndex === -1) {
@@ -878,7 +990,7 @@ const holdEmployee = asyncHandler(async (req, res) => {
     }
 
     payrollRun.employeeList[empIndex].onHold = true;
-    payrollRun.employeeList[empIndex].onHoldReason = reason;
+    payrollRun.employeeList[empIndex].onHoldReason = safeData.reason;
     payrollRun.employeeList[empIndex].onHoldBy = lawyerId;
     payrollRun.employeeList[empIndex].onHoldDate = new Date();
     payrollRun.employeeList[empIndex].status = 'on_hold';
@@ -903,12 +1015,20 @@ const unholdEmployee = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
-    const payrollRun = await PayrollRun.findById(id);
+    // Sanitize ObjectIds to prevent NoSQL injection
+    const sanitizedId = sanitizeObjectId(id);
+    const sanitizedEmpId = sanitizeObjectId(empId);
+    if (!sanitizedId || !sanitizedEmpId) {
+        throw CustomException('Invalid ID provided', 400);
+    }
+
+    const payrollRun = await PayrollRun.findById(sanitizedId);
 
     if (!payrollRun) {
         throw CustomException('Payroll run not found', 404);
     }
 
+    // IDOR protection - verify firmId ownership
     const hasAccess = firmId
         ? payrollRun.firmId?.toString() === firmId.toString()
         : payrollRun.lawyerId?.toString() === lawyerId;
@@ -918,7 +1038,7 @@ const unholdEmployee = asyncHandler(async (req, res) => {
     }
 
     const empIndex = payrollRun.employeeList.findIndex(
-        e => e.employeeId.toString() === empId
+        e => e.employeeId.toString() === sanitizedEmpId
     );
 
     if (empIndex === -1) {
@@ -949,12 +1069,19 @@ const sendNotifications = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
-    const payrollRun = await PayrollRun.findById(id);
+    // Sanitize ObjectId to prevent NoSQL injection
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('Invalid payroll run ID', 400);
+    }
+
+    const payrollRun = await PayrollRun.findById(sanitizedId);
 
     if (!payrollRun) {
         throw CustomException('Payroll run not found', 404);
     }
 
+    // IDOR protection - verify firmId ownership
     const hasAccess = firmId
         ? payrollRun.firmId?.toString() === firmId.toString()
         : payrollRun.lawyerId?.toString() === lawyerId;

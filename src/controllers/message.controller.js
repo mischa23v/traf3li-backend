@@ -1,11 +1,65 @@
 const { Message, Conversation } = require('../models');
 const { createNotification } = require('./notification.controller');
 const { getIO } = require('../configs/socket');
+const { pickAllowedFields, sanitizeForLog, sanitizeString } = require('../utils/securityUtils');
+
+/**
+ * Escape HTML entities to prevent XSS attacks
+ * Prevents script injection in message content
+ */
+const escapeHtml = (text) => {
+    if (!text) return '';
+    const map = {
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#039;'
+    };
+    return String(text).replace(/[&<>"']/g, char => map[char]);
+};
 
 const createMessage = async (request, response) => {
-    const { conversationID, description } = request.body;
-    
     try {
+        // SECURITY: Mass assignment protection - only allow specific fields
+        const allowedFields = ['conversationID', 'description'];
+        const safeInput = pickAllowedFields(request.body, allowedFields);
+
+        const { conversationID, description } = safeInput;
+
+        // Validate required fields
+        if (!conversationID) {
+            return response.status(400).send({
+                error: true,
+                message: 'conversationID is required'
+            });
+        }
+
+        // SECURITY: IDOR Protection - Verify user is a participant in this conversation
+        const conversation = await Conversation.findOne({ conversationID })
+            .populate('sellerID buyerID', '_id username');
+
+        if (!conversation) {
+            return response.status(404).send({
+                error: true,
+                message: 'Conversation not found'
+            });
+        }
+
+        // Verify user is either seller or buyer in this conversation
+        const userIdString = request.userID.toString();
+        const isParticipant =
+            conversation.sellerID._id.toString() === userIdString ||
+            conversation.buyerID._id.toString() === userIdString;
+
+        if (!isParticipant) {
+            console.error(`IDOR attempt: User ${sanitizeForLog(userIdString)} tried to access conversation ${sanitizeForLog(conversationID)}`);
+            return response.status(403).send({
+                error: true,
+                message: 'Unauthorized access to this conversation'
+            });
+        }
+
         // Handle attachments
         const attachments = [];
         if (request.files && request.files.length > 0) {
@@ -14,7 +68,7 @@ const createMessage = async (request, response) => {
                                 file.mimetype.startsWith('video/') ? 'video' :
                                 file.mimetype.includes('pdf') || file.mimetype.includes('document') ? 'document' :
                                 'other';
-                
+
                 attachments.push({
                     filename: file.filename,
                     originalName: file.originalname,
@@ -26,22 +80,25 @@ const createMessage = async (request, response) => {
             });
         }
 
+        // SECURITY: XSS Protection - Sanitize and escape description content
+        const sanitizedDescription = escapeHtml(sanitizeString(description || ''));
+
         const message = new Message({
             conversationID,
             userID: request.userID,
-            description: description || '',
+            description: sanitizedDescription,
             attachments
         });
-        
+
         await message.save();
-        
-        const conversation = await Conversation.findOneAndUpdate(
+
+        const updatedConversation = await Conversation.findOneAndUpdate(
             { conversationID },
             {
                 $set: {
                     readBySeller: request.isSeller,
                     readByBuyer: !request.isSeller,
-                    lastMessage: description || '📎 Attachment'
+                    lastMessage: sanitizedDescription || '📎 Attachment'
                 }
             },
             { new: true }
@@ -58,13 +115,13 @@ const createMessage = async (request, response) => {
         });
 
         // Create notification for recipient
-        const recipientId = request.isSeller 
-            ? conversation.buyerID._id 
-            : conversation.sellerID._id;
-        
+        const recipientId = request.isSeller
+            ? updatedConversation.buyerID._id
+            : updatedConversation.sellerID._id;
+
         const senderName = request.isSeller
-            ? conversation.sellerID.username
-            : conversation.buyerID.username;
+            ? updatedConversation.sellerID.username
+            : updatedConversation.buyerID.username;
 
         await createNotification({
             userId: recipientId,
@@ -83,6 +140,7 @@ const createMessage = async (request, response) => {
         return response.status(201).send(message);
     }
     catch({message, status = 500}) {
+        console.error(`Error creating message: ${sanitizeForLog(message)}`);
         return response.status(status).send({
             error: true,
             message
@@ -92,16 +150,41 @@ const createMessage = async (request, response) => {
 
 const getMessages = async (request, response) => {
     const { conversationID } = request.params;
-    
+
     try {
+        // SECURITY: IDOR Protection - Verify user is a participant in this conversation
+        const conversation = await Conversation.findOne({ conversationID });
+
+        if (!conversation) {
+            return response.status(404).send({
+                error: true,
+                message: 'Conversation not found'
+            });
+        }
+
+        // Verify user is either seller or buyer in this conversation
+        const userIdString = request.userID.toString();
+        const isParticipant =
+            conversation.sellerID.toString() === userIdString ||
+            conversation.buyerID.toString() === userIdString;
+
+        if (!isParticipant) {
+            console.error(`IDOR attempt: User ${sanitizeForLog(userIdString)} tried to access messages from conversation ${sanitizeForLog(conversationID)}`);
+            return response.status(403).send({
+                error: true,
+                message: 'Unauthorized access to this conversation'
+            });
+        }
+
         const messages = await Message.find({ conversationID })
             .populate('userID', 'username image email')
             .populate('readBy.userId', 'username')
             .sort({ createdAt: 1 });
-        
+
         return response.send(messages);
     }
     catch({message, status = 500}) {
+        console.error(`Error retrieving messages: ${sanitizeForLog(message)}`);
         return response.status(status).send({
             error: true,
             message
@@ -114,6 +197,30 @@ const markAsRead = async (request, response) => {
     const { conversationID } = request.params;
 
     try {
+        // SECURITY: IDOR Protection - Verify user is a participant in this conversation
+        const conversation = await Conversation.findOne({ conversationID });
+
+        if (!conversation) {
+            return response.status(404).send({
+                error: true,
+                message: 'Conversation not found'
+            });
+        }
+
+        // Verify user is either seller or buyer in this conversation
+        const userIdString = request.userID.toString();
+        const isParticipant =
+            conversation.sellerID.toString() === userIdString ||
+            conversation.buyerID.toString() === userIdString;
+
+        if (!isParticipant) {
+            console.error(`IDOR attempt: User ${sanitizeForLog(userIdString)} tried to mark messages as read in conversation ${sanitizeForLog(conversationID)}`);
+            return response.status(403).send({
+                error: true,
+                message: 'Unauthorized access to this conversation'
+            });
+        }
+
         await Message.updateMany(
             {
                 conversationID,
@@ -140,6 +247,7 @@ const markAsRead = async (request, response) => {
         return response.send({ success: true });
     }
     catch({message, status = 500}) {
+        console.error(`Error marking messages as read: ${sanitizeForLog(message)}`);
         return response.status(status).send({
             error: true,
             message
@@ -192,6 +300,7 @@ const getMessageStats = async (request, response) => {
         });
     }
     catch({message, status = 500}) {
+        console.error(`Error retrieving message stats: ${sanitizeForLog(message)}`);
         return response.status(status).send({
             error: true,
             message
