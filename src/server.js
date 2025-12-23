@@ -6,6 +6,12 @@
 require('dotenv').config();
 
 // ============================================
+// LOGGER INITIALIZATION - Must be after dotenv!
+// ============================================
+// Initialize logger early so it can be used for startup errors
+const logger = require('./utils/logger');
+
+// ============================================
 // ENVIRONMENT VALIDATION - Must be after dotenv!
 // ============================================
 // Validate all required environment variables before starting the server
@@ -16,9 +22,9 @@ try {
     validateRequiredEnvVars();
     displayConfigSummary();
 } catch (error) {
-    console.error('\n❌ STARTUP FAILED:', error.message);
-    console.error('\nServer cannot start without required environment variables.');
-    console.error('Please fix the configuration errors above and try again.\n');
+    logger.error('\n❌ STARTUP FAILED:', error.message);
+    logger.error('\nServer cannot start without required environment variables.');
+    logger.error('Please fix the configuration errors above and try again.\n');
     process.exit(1);
 }
 
@@ -51,7 +57,6 @@ const { startPlanJobs } = require('./jobs/planExpiration.job');
 const { startDataRetentionJob } = require('./jobs/dataRetention.job');
 const { scheduleSessionCleanup } = require('./jobs/sessionCleanup.job');
 const { initSocket } = require('./configs/socket');
-const logger = require('./utils/logger');
 const {
     smartRateLimiter,
     speedLimiter,
@@ -531,7 +536,7 @@ const corsOptions = {
             isProduction,
             timestamp: new Date().toISOString()
         });
-        console.log('🚫 CORS blocked origin:', origin);
+        logger.info('🚫 CORS blocked origin:', origin);
         callback(new Error('Not allowed by CORS'));
     },
     credentials: true, // CRITICAL: Allows HttpOnly cookies
@@ -1176,18 +1181,18 @@ const startServer = async () => {
         const CRON_STARTUP_DELAY_MS = parseInt(process.env.CRON_STARTUP_DELAY_MS) || 3000;
 
         setTimeout(() => {
-            console.log('🕐 Starting scheduled jobs after warmup delay...');
+            logger.info('🕐 Starting scheduled jobs after warmup delay...');
             scheduleTaskReminders();
             startRecurringInvoiceJobs();
             startTimeEntryJobs();
             startPlanJobs();
             startDataRetentionJob();
             scheduleSessionCleanup();
-            console.log('✅ All scheduled jobs started');
+            logger.info('✅ All scheduled jobs started');
         }, CRON_STARTUP_DELAY_MS);
 
     } catch (err) {
-        console.error('❌ Failed to initialize server:', err.message);
+        logger.error('❌ Failed to initialize server:', err.message);
         // Continue running - health checks should still work
     }
 };
@@ -1223,12 +1228,12 @@ server.listen(PORT, () => {
 
     // Keep console output for development convenience
     if (process.env.NODE_ENV !== 'production') {
-        console.log(`🚀 Server running on port ${PORT}`);
-        console.log(`⚡ Socket.io ready`);
-        console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
-        console.log(`🔐 CORS enabled for: traf3li.com, *.pages.dev, *.vercel.app, localhost`);
-        console.log(`📊 Request logging: enabled`);
-        console.log(`🛡️  Rate limiting: enabled`);
+        logger.info(`🚀 Server running on port ${PORT}`);
+        logger.info(`⚡ Socket.io ready`);
+        logger.info(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
+        logger.info(`🔐 CORS enabled for: traf3li.com, *.pages.dev, *.vercel.app, localhost`);
+        logger.info(`📊 Request logging: enabled`);
+        logger.info(`🛡️  Rate limiting: enabled`);
     }
 });
 
@@ -1237,12 +1242,12 @@ server.listen(PORT, () => {
 // ============================================
 // Global error handlers to prevent server crashes
 process.on('unhandledRejection', (reason, promise) => {
-    console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+    logger.error('Unhandled Rejection at:', promise, 'reason:', reason);
     // Don't exit - keep server running
 });
 
 process.on('uncaughtException', (error) => {
-    console.error('Uncaught Exception:', error);
+    logger.error('Uncaught Exception:', error);
     // Log the error but don't crash in production
     if (process.env.NODE_ENV === 'development') {
         process.exit(1);

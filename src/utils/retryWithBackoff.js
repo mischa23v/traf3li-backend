@@ -8,6 +8,8 @@
  * - Max retries limit
  */
 
+const logger = require('./logger');
+
 /**
  * Default retry configuration
  */
@@ -152,7 +154,7 @@ function withRetry(fn, options = {}) {
         // Calculate and apply delay
         const delay = calculateDelay(attempt, config);
 
-        console.warn(
+        logger.warn(
           `[Retry] Attempt ${attempt + 1}/${config.maxRetries + 1} failed: ${error.message}. ` +
           `Retrying in ${Math.round(delay)}ms...`
         );
@@ -206,7 +208,7 @@ function configureAxiosRetry(axiosInstance, options = {}) {
       // Calculate delay
       const delay = calculateDelay(originalRequest._retryCount - 1, config);
 
-      console.warn(
+      logger.warn(
         `[AxiosRetry] Request to ${originalRequest.url} failed. ` +
         `Retry ${originalRequest._retryCount}/${config.maxRetries} in ${Math.round(delay)}ms`
       );

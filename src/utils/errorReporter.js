@@ -1,4 +1,5 @@
 const { Sentry } = require('../configs/sentry');
+const logger = require('./logger');
 
 /**
  * Error Reporter Utility
@@ -17,7 +18,7 @@ const { Sentry } = require('../configs/sentry');
  */
 function captureException(error, context = {}) {
     if (!Sentry) {
-        console.error('Sentry not initialized. Error:', error);
+        logger.error('Sentry not initialized. Error:', error);
         return null;
     }
 
@@ -66,7 +67,7 @@ function captureException(error, context = {}) {
  */
 function captureMessage(message, level = 'info', context = {}) {
     if (!Sentry) {
-        console.log(`[${level.toUpperCase()}] ${message}`);
+        logger.info(`[${level.toUpperCase()}] ${message}`);
         return null;
     }
 

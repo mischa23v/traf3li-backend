@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const logger = require('../utils/logger');
 
 // Change tracking sub-schema for update operations
 const changeSchema = new mongoose.Schema({
@@ -343,7 +344,7 @@ auditLogSchema.statics.log = async function (logData) {
     return log;
   } catch (error) {
     // Don't let audit log failure break the main operation
-    console.error('Audit log creation failed:', error.message);
+    logger.error('Audit log creation failed:', error.message);
     return null;
   }
 };
@@ -369,7 +370,7 @@ auditLogSchema.statics.logBulk = async function (entries) {
     const logs = await this.insertMany(processedEntries, { ordered: false });
     return logs;
   } catch (error) {
-    console.error('Bulk audit log creation failed:', error.message);
+    logger.error('Bulk audit log creation failed:', error.message);
     return null;
   }
 };

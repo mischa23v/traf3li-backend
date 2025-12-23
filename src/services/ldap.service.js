@@ -7,6 +7,7 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const bcrypt = require('bcrypt');
 const { getDefaultPermissions } = require('../config/permissions.config');
+const logger = require('../utils/logger');
 
 const { JWT_SECRET } = process.env;
 
@@ -328,7 +329,7 @@ class LdapService {
                     });
                     await firm.save();
                 } catch (firmError) {
-                    console.error('Error adding user to firm:', firmError);
+                    logger.error('Error adding user to firm:', firmError);
                 }
             } else {
                 // Update existing user attributes (if enabled)
@@ -372,7 +373,7 @@ class LdapService {
             };
 
         } catch (error) {
-            console.error('LDAP authentication error:', error);
+            logger.error('LDAP authentication error:', error);
             return {
                 success: false,
                 message: 'LDAP authentication failed',
@@ -722,7 +723,7 @@ class LdapService {
                     await config.save();
                 }
             } catch (updateError) {
-                console.error('Failed to update sync status:', updateError);
+                logger.error('Failed to update sync status:', updateError);
             }
 
             return {

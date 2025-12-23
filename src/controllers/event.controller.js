@@ -4,6 +4,7 @@ const CustomException = require('../utils/CustomException');
 const nlpService = require('../services/nlp.service');
 const voiceToTaskService = require('../services/voiceToTask.service');
 const { pickAllowedFields } = require('../utils/securityUtils');
+const logger = require('../utils/logger');
 
 // ============================================
 // DATE/TIME VALIDATION
@@ -211,7 +212,7 @@ const createEvent = asyncHandler(async (req, res) => {
             event.taskId = linkedTask._id;
             await event.save();
         } catch (error) {
-            console.error('Error creating linked task from event:', error);
+            logger.error('Error creating linked task from event', { error: error.message });
             // Don't fail event creation if task creation fails
         }
     }
@@ -583,7 +584,7 @@ const updateEvent = asyncHandler(async (req, res) => {
                 await linkedTask.save();
             }
         } catch (error) {
-            console.error('Error syncing event with linked task:', error);
+            logger.error('Error syncing event with linked task', { error: error.message });
             // Don't fail event update if task sync fails
         }
     }
@@ -635,7 +636,7 @@ const deleteEvent = asyncHandler(async (req, res) => {
                 await linkedTask.save();
             }
         } catch (error) {
-            console.error('Error unlinking task from deleted event:', error);
+            logger.error('Error unlinking task from deleted event', { error: error.message });
             // Continue with event deletion even if unlinking fails
         }
     }
@@ -1346,7 +1347,7 @@ const syncTaskToCalendar = async (taskId) => {
             });
         }
     } catch (error) {
-        console.error('Error syncing task to calendar:', error);
+        logger.error('Error syncing task to calendar', { error: error.message });
     }
 };
 

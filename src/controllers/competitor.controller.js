@@ -7,6 +7,7 @@
 const Competitor = require('../models/competitor.model');
 const CrmActivity = require('../models/crmActivity.model');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
+const logger = require('../utils/logger');
 
 // ═══════════════════════════════════════════════════════════════
 // VALIDATION HELPERS
@@ -123,7 +124,7 @@ exports.getAll = async (req, res) => {
             data: competitors
         });
     } catch (error) {
-        console.error('Error getting competitors:', error);
+        logger.error('Error getting competitors', { error: error.message });
         res.status(500).json({
             success: false,
             message: 'خطأ في جلب المنافسين / Error fetching competitors',
@@ -175,7 +176,7 @@ exports.getById = async (req, res) => {
             data: competitor
         });
     } catch (error) {
-        console.error('Error getting competitor:', error);
+        logger.error('Error getting competitor', { error: error.message });
         res.status(500).json({
             success: false,
             message: 'خطأ في جلب المنافس / Error fetching competitor',
@@ -248,7 +249,7 @@ exports.create = async (req, res) => {
             data: competitor
         });
     } catch (error) {
-        console.error('Error creating competitor:', error);
+        logger.error('Error creating competitor', { error: error.message });
 
         if (error.code === 11000) {
             return res.status(400).json({
@@ -346,7 +347,7 @@ exports.update = async (req, res) => {
             data: competitor
         });
     } catch (error) {
-        console.error('Error updating competitor:', error);
+        logger.error('Error updating competitor', { error: error.message });
 
         if (error.code === 11000) {
             return res.status(400).json({
@@ -418,7 +419,7 @@ exports.delete = async (req, res) => {
             message: 'تم حذف المنافس بنجاح / Competitor deleted successfully'
         });
     } catch (error) {
-        console.error('Error deleting competitor:', error);
+        logger.error('Error deleting competitor', { error: error.message });
         res.status(500).json({
             success: false,
             message: 'خطأ في حذف المنافس / Error deleting competitor',
@@ -453,7 +454,7 @@ exports.getTopByLosses = async (req, res) => {
             data: competitors
         });
     } catch (error) {
-        console.error('Error getting top competitors:', error);
+        logger.error('Error getting top competitors', { error: error.message });
         res.status(500).json({
             success: false,
             message: 'خطأ في جلب أهم المنافسين / Error fetching top competitors',

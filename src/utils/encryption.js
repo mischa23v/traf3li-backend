@@ -1,5 +1,6 @@
 const crypto = require('crypto');
 const bcrypt = require('bcrypt');
+const logger = require('./logger');
 
 /**
  * Encryption utility for sensitive legal data
@@ -81,7 +82,7 @@ const encryptData = (plaintext) => {
       authTag: authTag.toString('hex'),
     };
   } catch (error) {
-    console.error('❌ Encryption failed:', error.message);
+    logger.error('Encryption failed:', error.message);
     throw new Error('Encryption failed');
   }
 };
@@ -111,10 +112,10 @@ const decryptData = (encryptedData) => {
     // Decrypt
     let decrypted = decipher.update(encryptedData.encrypted, 'hex', 'utf8');
     decrypted += decipher.final('utf8');
-    
+
     return decrypted;
   } catch (error) {
-    console.error('❌ Decryption failed:', error.message);
+    logger.error('Decryption failed:', error.message);
     throw new Error('Decryption failed - data may be corrupted or tampered with');
   }
 };
@@ -187,7 +188,7 @@ const encryptFile = (fileBuffer) => {
       authTag: authTag.toString('base64'),
     };
   } catch (error) {
-    console.error('❌ File encryption failed:', error.message);
+    logger.error('File encryption failed:', error.message);
     throw new Error('File encryption failed');
   }
 };
@@ -215,10 +216,10 @@ const decryptFile = (encryptedData) => {
       decipher.update(encrypted),
       decipher.final(),
     ]);
-    
+
     return decrypted;
   } catch (error) {
-    console.error('❌ File decryption failed:', error.message);
+    logger.error('File decryption failed:', error.message);
     throw new Error('File decryption failed - file may be corrupted or tampered with');
   }
 };
@@ -236,7 +237,7 @@ const encrypt = (plaintext) => {
     const { encrypted, iv, authTag } = encryptData(String(plaintext));
     return `${iv}:${authTag}:${encrypted}`;
   } catch (error) {
-    console.error('Encryption error:', error.message);
+    logger.error('Encryption error:', error.message);
     throw error;
   }
 };
@@ -259,7 +260,7 @@ const decrypt = (ciphertext) => {
     const [iv, authTag, encrypted] = parts;
     return decryptData({ iv, authTag, encrypted });
   } catch (error) {
-    console.error('Decryption error:', error.message);
+    logger.error('Decryption error:', error.message);
     throw error;
   }
 };
@@ -287,7 +288,7 @@ const hashPassword = async (password) => {
   try {
     return await bcrypt.hash(password, BCRYPT_ROUNDS);
   } catch (error) {
-    console.error('Password hashing error:', error.message);
+    logger.error('Password hashing error:', error.message);
     throw new Error('Password hashing failed');
   }
 };
@@ -304,7 +305,7 @@ const verifyPassword = async (password, hash) => {
   try {
     return await bcrypt.compare(password, hash);
   } catch (error) {
-    console.error('Password verification error:', error.message);
+    logger.error('Password verification error:', error.message);
     return false;
   }
 };
@@ -331,7 +332,7 @@ const encryptField = (value) => {
     const plaintext = typeof value === 'object' ? JSON.stringify(value) : String(value);
     return encryptData(plaintext);
   } catch (error) {
-    console.error('Field encryption error:', error.message);
+    logger.error('Field encryption error:', error.message);
     throw error;
   }
 };
@@ -359,7 +360,7 @@ const decryptField = (encryptedValue) => {
 
     return decrypted;
   } catch (error) {
-    console.error('Field decryption error:', error.message);
+    logger.error('Field decryption error:', error.message);
     return null;
   }
 };

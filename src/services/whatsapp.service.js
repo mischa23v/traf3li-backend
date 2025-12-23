@@ -6,6 +6,7 @@ const Lead = require('../models/lead.model');
 const Client = require('../models/client.model');
 const CrmActivity = require('../models/crmActivity.model');
 const axios = require('axios');
+const logger = require('../utils/logger');
 
 // ═══════════════════════════════════════════════════════════════
 // WHATSAPP SERVICE - MULTI-PROVIDER SUPPORT
@@ -135,7 +136,7 @@ class WhatsAppService {
                 conversation
             };
         } catch (error) {
-            console.error('Error sending template message:', error);
+            logger.error('Error sending template message:', error);
             throw error;
         }
     }
@@ -214,7 +215,7 @@ class WhatsAppService {
                 conversation
             };
         } catch (error) {
-            console.error('Error sending text message:', error);
+            logger.error('Error sending text message:', error);
             throw error;
         }
     }
@@ -285,7 +286,7 @@ class WhatsAppService {
                 conversation
             };
         } catch (error) {
-            console.error('Error sending media message:', error);
+            logger.error('Error sending media message:', error);
             throw error;
         }
     }
@@ -351,7 +352,7 @@ class WhatsAppService {
 
             return { success: true, message, conversation };
         } catch (error) {
-            console.error('Error sending location message:', error);
+            logger.error('Error sending location message:', error);
             throw error;
         }
     }
@@ -433,7 +434,7 @@ class WhatsAppService {
                 providerData: response.data
             };
         } catch (error) {
-            console.error('Meta API Error:', error.response?.data || error.message);
+            logger.error('Meta API Error:', error.response?.data || error.message);
             throw new Error(`Meta API Error: ${error.response?.data?.error?.message || error.message}`);
         }
     }
@@ -640,7 +641,7 @@ class WhatsAppService {
                 conversation
             };
         } catch (error) {
-            console.error('Error handling incoming message:', error);
+            logger.error('Error handling incoming message:', error);
             throw error;
         }
     }
@@ -666,7 +667,7 @@ class WhatsAppService {
             });
 
             if (!message) {
-                console.warn('Message not found for status update:', statusData.messageId);
+                logger.warn('Message not found for status update:', statusData.messageId);
                 return { success: false };
             }
 
@@ -675,7 +676,7 @@ class WhatsAppService {
 
             return { success: true, message };
         } catch (error) {
-            console.error('Error handling status update:', error);
+            logger.error('Error handling status update:', error);
             throw error;
         }
     }
@@ -736,7 +737,7 @@ class WhatsAppService {
                 conversation.automation.autoReplyAt = new Date();
                 await conversation.save();
             } catch (error) {
-                console.error('Error sending auto-reply:', error);
+                logger.error('Error sending auto-reply:', error);
             }
         }
     }
@@ -878,7 +879,7 @@ class WhatsAppService {
                 // Check if paused or cancelled
                 const currentBroadcast = await WhatsAppBroadcast.findById(broadcastId);
                 if (currentBroadcast.status === 'paused' || currentBroadcast.status === 'cancelled') {
-                    console.log(`Broadcast ${broadcastId} is ${currentBroadcast.status}, stopping`);
+                    logger.info(`Broadcast ${broadcastId} is ${currentBroadcast.status}, stopping`);
                     break;
                 }
 
@@ -888,7 +889,7 @@ class WhatsAppService {
                 if (pendingRecipients.length === 0) {
                     // All done
                     await currentBroadcast.complete();
-                    console.log(`Broadcast ${broadcastId} completed`);
+                    logger.info(`Broadcast ${broadcastId} completed`);
                     break;
                 }
 
@@ -898,7 +899,7 @@ class WhatsAppService {
                         await this.sendBroadcastMessage(currentBroadcast, recipient);
                         await this.delay(delayBetweenMessages);
                     } catch (error) {
-                        console.error(`Error sending to ${recipient.phoneNumber}:`, error.message);
+                        logger.error(`Error sending to ${recipient.phoneNumber}:`, error.message);
                     }
                 }
 
@@ -908,7 +909,7 @@ class WhatsAppService {
                 }
             }
         } catch (error) {
-            console.error(`Error processing broadcast ${broadcastId}:`, error);
+            logger.error(`Error processing broadcast ${broadcastId}:`, error);
             broadcast.status = 'failed';
             await broadcast.save();
             throw error;
@@ -1223,7 +1224,7 @@ class WhatsAppService {
                 }
             });
         } catch (error) {
-            console.error('Error logging WhatsApp activity:', error);
+            logger.error('Error logging WhatsApp activity:', error);
             // Don't throw - activity logging shouldn't break the main flow
         }
     }
@@ -1339,7 +1340,7 @@ class WhatsAppService {
 
             return messageData;
         } catch (error) {
-            console.error('Error parsing Meta webhook:', error);
+            logger.error('Error parsing Meta webhook:', error);
             return null;
         }
     }
@@ -1362,7 +1363,7 @@ class WhatsAppService {
                 error: status.errors?.[0]
             };
         } catch (error) {
-            console.error('Error parsing Meta status update:', error);
+            logger.error('Error parsing Meta status update:', error);
             return null;
         }
     }

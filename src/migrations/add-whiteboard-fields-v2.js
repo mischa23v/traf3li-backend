@@ -9,20 +9,21 @@
 
 const mongoose = require('mongoose');
 require('dotenv').config();
+const logger = require('../utils/logger');
 
 const connectDB = async () => {
     try {
         const mongoUri = process.env.MONGODB_URI || process.env.MONGO_URI;
         await mongoose.connect(mongoUri);
-        console.log('Connected to MongoDB');
+        logger.info('Connected to MongoDB');
     } catch (error) {
-        console.error('MongoDB connection error:', error);
+        logger.error('MongoDB connection error:', error);
         process.exit(1);
     }
 };
 
 const migrateWhiteboardFieldsV2 = async () => {
-    console.log('Starting Enhanced Whiteboard Fields Migration v2...\n');
+    logger.info('Starting Enhanced Whiteboard Fields Migration v2...\n');
 
     const CaseNotionBlock = require('../models/caseNotionBlock.model');
     const CaseNotionPage = require('../models/caseNotionPage.model');
@@ -32,18 +33,18 @@ const migrateWhiteboardFieldsV2 = async () => {
     // ═══════════════════════════════════════════════════════════════
     // 1. Add shapeType to all blocks (default to 'note' for document blocks)
     // ═══════════════════════════════════════════════════════════════
-    console.log('1. Adding shapeType field to blocks...');
+    logger.info('1. Adding shapeType field to blocks...');
     const shapeTypeResult = await CaseNotionBlock.updateMany(
         { shapeType: { $exists: false } },
         { $set: { shapeType: 'note' } }
     );
-    console.log(`   Updated ${shapeTypeResult.modifiedCount} blocks with shapeType`);
+    logger.info(`   Updated ${shapeTypeResult.modifiedCount} blocks with shapeType`);
     totalUpdated += shapeTypeResult.modifiedCount;
 
     // ═══════════════════════════════════════════════════════════════
     // 2. Add zIndex based on order (fractional indexing)
     // ═══════════════════════════════════════════════════════════════
-    console.log('2. Adding zIndex field to blocks...');
+    logger.info('2. Adding zIndex field to blocks...');
     const blocksWithoutZIndex = await CaseNotionBlock.find({
         zIndex: { $exists: false }
     }).sort({ pageId: 1, order: 1 });
@@ -71,13 +72,13 @@ const migrateWhiteboardFieldsV2 = async () => {
             zIndexUpdates++;
         }
     }
-    console.log(`   Updated ${zIndexUpdates} blocks with zIndex`);
+    logger.info(`   Updated ${zIndexUpdates} blocks with zIndex`);
     totalUpdated += zIndexUpdates;
 
     // ═══════════════════════════════════════════════════════════════
     // 3. Add default handles to all blocks
     // ═══════════════════════════════════════════════════════════════
-    console.log('3. Adding default handles to blocks...');
+    logger.info('3. Adding default handles to blocks...');
     const defaultHandles = [
         { id: 'top', position: 'top', type: 'both', offsetX: 0, offsetY: 0 },
         { id: 'right', position: 'right', type: 'both', offsetX: 0, offsetY: 0 },
@@ -88,24 +89,24 @@ const migrateWhiteboardFieldsV2 = async () => {
         { handles: { $exists: false } },
         { $set: { handles: defaultHandles } }
     );
-    console.log(`   Updated ${handlesResult.modifiedCount} blocks with handles`);
+    logger.info(`   Updated ${handlesResult.modifiedCount} blocks with handles`);
     totalUpdated += handlesResult.modifiedCount;
 
     // ═══════════════════════════════════════════════════════════════
     // 4. Add rotation and opacity fields
     // ═══════════════════════════════════════════════════════════════
-    console.log('4. Adding angle and opacity fields...');
+    logger.info('4. Adding angle and opacity fields...');
     const rotationResult = await CaseNotionBlock.updateMany(
         { angle: { $exists: false } },
         { $set: { angle: 0, opacity: 100 } }
     );
-    console.log(`   Updated ${rotationResult.modifiedCount} blocks with angle/opacity`);
+    logger.info(`   Updated ${rotationResult.modifiedCount} blocks with angle/opacity`);
     totalUpdated += rotationResult.modifiedCount;
 
     // ═══════════════════════════════════════════════════════════════
     // 5. Add stroke/fill styling fields
     // ═══════════════════════════════════════════════════════════════
-    console.log('5. Adding stroke/fill styling fields...');
+    logger.info('5. Adding stroke/fill styling fields...');
     const stylingResult = await CaseNotionBlock.updateMany(
         { strokeColor: { $exists: false } },
         {
@@ -117,13 +118,13 @@ const migrateWhiteboardFieldsV2 = async () => {
             }
         }
     );
-    console.log(`   Updated ${stylingResult.modifiedCount} blocks with styling`);
+    logger.info(`   Updated ${stylingResult.modifiedCount} blocks with styling`);
     totalUpdated += stylingResult.modifiedCount;
 
     // ═══════════════════════════════════════════════════════════════
     // 6. Add version control fields
     // ═══════════════════════════════════════════════════════════════
-    console.log('6. Adding version control fields...');
+    logger.info('6. Adding version control fields...');
     const versionResult = await CaseNotionBlock.updateMany(
         { version: { $exists: false } },
         {
@@ -134,24 +135,24 @@ const migrateWhiteboardFieldsV2 = async () => {
             }
         }
     );
-    console.log(`   Updated ${versionResult.modifiedCount} blocks with version fields`);
+    logger.info(`   Updated ${versionResult.modifiedCount} blocks with version fields`);
     totalUpdated += versionResult.modifiedCount;
 
     // ═══════════════════════════════════════════════════════════════
     // 7. Add boundElements array
     // ═══════════════════════════════════════════════════════════════
-    console.log('7. Adding boundElements array...');
+    logger.info('7. Adding boundElements array...');
     const boundResult = await CaseNotionBlock.updateMany(
         { boundElements: { $exists: false } },
         { $set: { boundElements: [] } }
     );
-    console.log(`   Updated ${boundResult.modifiedCount} blocks with boundElements`);
+    logger.info(`   Updated ${boundResult.modifiedCount} blocks with boundElements`);
     totalUpdated += boundResult.modifiedCount;
 
     // ═══════════════════════════════════════════════════════════════
     // 8. Spread out blocks that are at origin (0,0)
     // ═══════════════════════════════════════════════════════════════
-    console.log('8. Repositioning blocks at origin...');
+    logger.info('8. Repositioning blocks at origin...');
     const blocksAtOrigin = await CaseNotionBlock.find({
         canvasX: 0,
         canvasY: 0
@@ -193,13 +194,13 @@ const migrateWhiteboardFieldsV2 = async () => {
             repositionCount++;
         }
     }
-    console.log(`   Repositioned ${repositionCount} blocks from origin`);
+    logger.info(`   Repositioned ${repositionCount} blocks from origin`);
     totalUpdated += repositionCount;
 
     // ═══════════════════════════════════════════════════════════════
     // 9. Update page whiteboardConfig with enhanced defaults
     // ═══════════════════════════════════════════════════════════════
-    console.log('9. Updating page whiteboardConfig...');
+    logger.info('9. Updating page whiteboardConfig...');
     const pageConfigResult = await CaseNotionPage.updateMany(
         {},
         {
@@ -216,16 +217,16 @@ const migrateWhiteboardFieldsV2 = async () => {
             }
         }
     );
-    console.log(`   Updated ${pageConfigResult.modifiedCount} pages with enhanced config`);
+    logger.info(`   Updated ${pageConfigResult.modifiedCount} pages with enhanced config`);
     totalUpdated += pageConfigResult.modifiedCount;
 
     // ═══════════════════════════════════════════════════════════════
     // Summary
     // ═══════════════════════════════════════════════════════════════
-    console.log('\n═══════════════════════════════════════════════════════════════');
-    console.log(`Migration v2 completed successfully!`);
-    console.log(`Total updates: ${totalUpdated}`);
-    console.log('═══════════════════════════════════════════════════════════════\n');
+    logger.info('\n═══════════════════════════════════════════════════════════════');
+    logger.info(`Migration v2 completed successfully!`);
+    logger.info(`Total updates: ${totalUpdated}`);
+    logger.info('═══════════════════════════════════════════════════════════════\n');
 };
 
 const run = async () => {
@@ -233,10 +234,10 @@ const run = async () => {
         await connectDB();
         await migrateWhiteboardFieldsV2();
         await mongoose.disconnect();
-        console.log('Disconnected from MongoDB');
+        logger.info('Disconnected from MongoDB');
         process.exit(0);
     } catch (error) {
-        console.error('Migration failed:', error);
+        logger.error('Migration failed:', error);
         await mongoose.disconnect();
         process.exit(1);
     }

@@ -1,4 +1,5 @@
 const sanitizeHtml = require('sanitize-html');
+const logger = require('../utils/logger');
 
 /**
  * SANITIZATION MIDDLEWARE
@@ -190,7 +191,7 @@ function sanitizeBody(req, res, next) {
         try {
             req.body = sanitizeObject(req.body);
         } catch (error) {
-            console.error('Error sanitizing request body:', error);
+            logger.error('Error sanitizing request body:', error);
             return res.status(400).json({
                 error: true,
                 message: 'Invalid request data format'
@@ -208,7 +209,7 @@ function sanitizeQuery(req, res, next) {
         try {
             req.query = sanitizeObject(req.query);
         } catch (error) {
-            console.error('Error sanitizing query parameters:', error);
+            logger.error('Error sanitizing query parameters:', error);
             return res.status(400).json({
                 error: true,
                 message: 'Invalid query parameters format'
@@ -226,7 +227,7 @@ function sanitizeParams(req, res, next) {
         try {
             req.params = sanitizeObject(req.params);
         } catch (error) {
-            console.error('Error sanitizing URL parameters:', error);
+            logger.error('Error sanitizing URL parameters:', error);
             return res.status(400).json({
                 error: true,
                 message: 'Invalid URL parameters format'

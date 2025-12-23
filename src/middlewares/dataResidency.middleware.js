@@ -9,6 +9,7 @@
  *   router.post('/upload', enforceDataResidency({ strict: true }), uploadHandler);
  */
 
+const logger = require('../utils/logger');
 const dataResidencyService = require('../services/dataResidency.service');
 const geoip = require('geoip-lite');
 
@@ -95,7 +96,7 @@ function enforceDataResidency(options = {}) {
                 }
 
                 // Non-strict mode: log warning but allow
-                console.warn(`Data residency warning: Access from ${countryCode} for firm ${firmId}`);
+                logger.warn(`Data residency warning: Access from ${countryCode} for firm ${firmId}`);
             }
 
             // Attach residency info to request for downstream use
@@ -108,7 +109,7 @@ function enforceDataResidency(options = {}) {
 
             next();
         } catch (error) {
-            console.error('Data residency middleware error:', error);
+            logger.error('Data residency middleware error:', error);
 
             // On error, fail open in development, fail closed in production
             if (process.env.NODE_ENV === 'production' && strict) {
@@ -160,7 +161,7 @@ function validateDataOperation(operationType) {
             req.dataResidencyCompliance = compliance;
             next();
         } catch (error) {
-            console.error('Data operation validation error:', error);
+            logger.error('Data operation validation error:', error);
             next();
         }
     };
@@ -193,7 +194,7 @@ async function attachRegionConfig(req, res, next) {
 
         next();
     } catch (error) {
-        console.error('Region config attachment error:', error);
+        logger.error('Region config attachment error:', error);
         next();
     }
 }

@@ -5,6 +5,7 @@
  */
 
 const { createQueue } = require('../configs/queue');
+const logger = require('../utils/logger');
 
 // Optional: web-push for browser push notifications
 // Install with: npm install web-push
@@ -12,7 +13,7 @@ let webpush = null;
 try {
   webpush = require('web-push');
 } catch (err) {
-  console.warn('web-push not installed - push notifications disabled');
+  logger.warn('web-push not installed - push notifications disabled');
 }
 
 // Create notification queue
@@ -36,7 +37,7 @@ const notificationQueue = createQueue('notification', {
 notificationQueue.process(async (job) => {
   const { type, data } = job.data;
 
-  console.log(`🔔 Processing notification job ${job.id} of type: ${type}`);
+  logger.info(`🔔 Processing notification job ${job.id} of type: ${type}`);
 
   try {
     switch (type) {
@@ -59,7 +60,7 @@ notificationQueue.process(async (job) => {
         throw new Error(`Unknown notification type: ${type}`);
     }
   } catch (error) {
-    console.error(`❌ Notification job ${job.id} failed:`, error.message);
+    logger.error(`❌ Notification job ${job.id} failed:`, error.message);
     throw error;
   }
 });
@@ -72,7 +73,7 @@ async function sendPushNotification(data, job) {
 
   // Check if web-push is available
   if (!webpush) {
-    console.warn('web-push not installed - skipping push notification');
+    logger.warn('web-push not installed - skipping push notification');
     return { success: false, error: 'web-push not installed' };
   }
 
@@ -101,7 +102,7 @@ async function sendPushNotification(data, job) {
     await webpush.sendNotification(subscription, payload);
     await job.progress(100);
 
-    console.log(`✅ Push notification sent to user ${userId}`);
+    logger.info(`✅ Push notification sent to user ${userId}`);
     return {
       success: true,
       userId,
@@ -110,7 +111,7 @@ async function sendPushNotification(data, job) {
   } catch (error) {
     // If subscription is invalid, mark it for removal
     if (error.statusCode === 410) {
-      console.warn(`Push subscription expired for user ${userId}`);
+      logger.warn(`Push subscription expired for user ${userId}`);
       return {
         success: false,
         userId,
@@ -164,7 +165,7 @@ async function sendInAppNotification(data, job) {
 
   await job.progress(100);
 
-  console.log(`✅ In-app notification sent to user ${userId}`);
+  logger.info(`✅ In-app notification sent to user ${userId}`);
   return {
     success: true,
     userId,
@@ -184,7 +185,7 @@ async function sendSMSNotification(data, job) {
   // Examples: Twilio, AWS SNS, Nexmo, etc.
   // For Saudi Arabia: Unifonic, Jawwal SMS, etc.
 
-  console.log(`📱 Sending SMS to ${phoneNumber}: ${message}`);
+  logger.info(`📱 Sending SMS to ${phoneNumber}: ${message}`);
 
   await job.progress(60);
 
@@ -197,7 +198,7 @@ async function sendSMSNotification(data, job) {
 
   await job.progress(100);
 
-  console.log(`✅ SMS sent to ${phoneNumber}`);
+  logger.info(`✅ SMS sent to ${phoneNumber}`);
   return {
     success: true,
     phoneNumber,
@@ -227,7 +228,7 @@ async function sendWebhookNotification(data, job) {
 
   await job.progress(100);
 
-  console.log(`✅ Webhook notification sent to ${webhookUrl}`);
+  logger.info(`✅ Webhook notification sent to ${webhookUrl}`);
   return {
     success: true,
     webhookUrl,
@@ -275,7 +276,7 @@ async function sendBulkPushNotifications(data, job) {
       await job.progress(Math.floor(((i + 1) / total) * 100));
 
     } catch (error) {
-      console.error(`Failed to send notification to user ${user.userId}:`, error.message);
+      logger.error(`Failed to send notification to user ${user.userId}:`, error.message);
       results.push({
         userId: user.userId,
         success: false,
@@ -285,7 +286,7 @@ async function sendBulkPushNotifications(data, job) {
   }
 
   const successCount = results.filter(r => r.success).length;
-  console.log(`✅ Bulk push notifications sent: ${successCount}/${total}`);
+  logger.info(`✅ Bulk push notifications sent: ${successCount}/${total}`);
 
   return {
     success: true,

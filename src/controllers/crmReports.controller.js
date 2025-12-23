@@ -13,6 +13,7 @@ const LostReason = require('../models/lostReason.model');
 const Competitor = require('../models/competitor.model');
 const SalesStage = require('../models/salesStage.model');
 const { pickAllowedFields, sanitizeObjectId, sanitizePagination } = require('../utils/securityUtils');
+const logger = require('../utils/logger');
 
 // ═══════════════════════════════════════════════════════════════
 // CAMPAIGN EFFICIENCY REPORT
@@ -155,7 +156,7 @@ exports.getCampaignEfficiency = async (req, res) => {
             data: { campaigns, summary }
         });
     } catch (error) {
-        console.error('Error getting campaign efficiency report:', error);
+        logger.error('Error getting campaign efficiency report:', error);
         res.status(500).json({
             success: false,
             message: 'خطأ في جلب تقرير كفاءة الحملات / Error fetching campaign efficiency',
@@ -344,7 +345,7 @@ exports.getLeadOwnerEfficiency = async (req, res) => {
             data: { owners, summary }
         });
     } catch (error) {
-        console.error('Error getting lead owner efficiency report:', error);
+        logger.error('Error getting lead owner efficiency report:', error);
         res.status(500).json({
             success: false,
             message: 'خطأ في جلب تقرير كفاءة المالكين / Error fetching lead owner efficiency',
@@ -551,7 +552,7 @@ exports.getFirstResponseTime = async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('Error getting first response time report:', error);
+        logger.error('Error getting first response time report:', error);
         res.status(500).json({
             success: false,
             message: 'خطأ في جلب تقرير وقت الاستجابة / Error fetching response time report',
@@ -775,7 +776,7 @@ exports.getLostOpportunity = async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('Error getting lost opportunity report:', error);
+        logger.error('Error getting lost opportunity report:', error);
         res.status(500).json({
             success: false,
             message: 'خطأ في جلب تقرير الفرص المفقودة / Error fetching lost opportunity report',
@@ -948,7 +949,7 @@ exports.getSalesPipeline = async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('Error getting sales pipeline report:', error);
+        logger.error('Error getting sales pipeline report:', error);
         res.status(500).json({
             success: false,
             message: 'خطأ في جلب تقرير خط الأنابيب / Error fetching pipeline report',
@@ -1098,7 +1099,7 @@ exports.getProspectsEngaged = async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('Error getting prospects engaged report:', error);
+        logger.error('Error getting prospects engaged report:', error);
         res.status(500).json({
             success: false,
             message: 'خطأ في جلب تقرير العملاء المحتملين / Error fetching prospects report',
@@ -1285,7 +1286,7 @@ exports.getLeadConversionTime = async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('Error getting lead conversion time report:', error);
+        logger.error('Error getting lead conversion time report:', error);
         res.status(500).json({
             success: false,
             message: 'خطأ في جلب تقرير وقت التحويل / Error fetching conversion time report',

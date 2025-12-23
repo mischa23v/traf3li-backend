@@ -5,6 +5,7 @@
  * API keys are available for Professional and Enterprise plans.
  */
 
+const logger = require('../utils/logger');
 const ApiKey = require('../models/apiKey.model');
 const { hasApiAccess } = require('../config/plans.config');
 const AuditLog = require('../models/auditLog.model');
@@ -128,7 +129,7 @@ const apiKeyAuth = async (req, res, next) => {
 
         next();
     } catch (error) {
-        console.error('API key auth error:', error);
+        logger.error('API key auth error:', error);
         return res.status(500).json({
             success: false,
             error: 'Authentication error',

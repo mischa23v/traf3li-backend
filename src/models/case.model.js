@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const logger = require('../utils/logger');
 
 const caseSchema = new mongoose.Schema({
     // ═══════════════════════════════════════════════════════════════
@@ -1146,16 +1147,16 @@ caseSchema.post('findOneAndDelete', async function(doc) {
                 try {
                     await deleteObject(BUCKETS.general, document.fileKey);
                 } catch (err) {
-                    console.error(`S3 delete error for document ${document._id}:`, err);
+                    logger.error(`S3 delete error for document ${document._id}:`, err);
                 }
             }
 
             // Delete document records from database
             await Document.deleteMany({ caseId: doc._id });
 
-            console.log(`Deleted ${documents.length} documents for case ${doc._id}`);
+            logger.info(`Deleted ${documents.length} documents for case ${doc._id}`);
         } catch (error) {
-            console.error('Error cleaning up documents for deleted case:', error);
+            logger.error('Error cleaning up documents for deleted case:', error);
         }
     }
 });

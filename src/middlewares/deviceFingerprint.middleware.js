@@ -11,6 +11,7 @@
  * - Optional strict mode that blocks mismatched requests
  */
 
+const logger = require('../utils/logger');
 const cacheService = require('../services/cache.service');
 const AuditLog = require('../models/auditLog.model');
 
@@ -147,7 +148,7 @@ const validateDeviceFingerprintMiddleware = async (req, res, next) => {
         complianceTags: ['NCA-ECC', 'session-security'],
       });
 
-      console.warn('⚠️ [SECURITY] Device fingerprint mismatch:', {
+      logger.warn('⚠️ [SECURITY] Device fingerprint mismatch:', {
         userId: req.userID,
         ip: req.ip,
         endpoint: req.originalUrl,
@@ -166,7 +167,7 @@ const validateDeviceFingerprintMiddleware = async (req, res, next) => {
 
     next();
   } catch (error) {
-    console.error('Device fingerprint validation error:', error.message);
+    logger.error('Device fingerprint validation error:', error.message);
     // Don't block on errors - fail open for availability
     next();
   }

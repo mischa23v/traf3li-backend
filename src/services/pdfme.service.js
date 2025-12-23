@@ -11,6 +11,7 @@ const { text, image, barcodes, line, rectangle, ellipse, table } = require('@pdf
 const PdfmeTemplate = require('../models/pdfmeTemplate.model.js');
 const fs = require('fs').promises;
 const path = require('path');
+const logger = require('../utils/logger');
 
 // Available plugins for PDFMe - all supported schema types
 const plugins = {
@@ -96,7 +97,7 @@ class PdfmeService {
 
             return Buffer.from(pdf);
         } catch (error) {
-            console.error('PDF generation error:', error.message);
+            logger.error('PDF generation error:', error.message);
             throw error;
         }
     }
@@ -141,7 +142,7 @@ class PdfmeService {
 
             return this.generatePDF({ template, inputs });
         } catch (error) {
-            console.error('Invoice PDF generation error:', error.message);
+            logger.error('Invoice PDF generation error:', error.message);
             throw error;
         }
     }
@@ -633,7 +634,7 @@ class PdfmeService {
             const inputs = this.mapContractToInputs(contractData);
             return this.generatePDF({ template, inputs });
         } catch (error) {
-            console.error('Contract PDF generation error:', error.message);
+            logger.error('Contract PDF generation error:', error.message);
             throw error;
         }
     }
@@ -816,7 +817,7 @@ class PdfmeService {
             const inputs = this.mapReceiptToInputs(receiptData);
             return this.generatePDF({ template, inputs });
         } catch (error) {
-            console.error('Receipt PDF generation error:', error.message);
+            logger.error('Receipt PDF generation error:', error.message);
             throw error;
         }
     }
@@ -1064,7 +1065,7 @@ class PdfmeService {
 
             return filePath;
         } catch (error) {
-            console.error('Error saving PDF:', error.message);
+            logger.error('Error saving PDF:', error.message);
             throw new Error('Failed to save PDF file');
         }
     }

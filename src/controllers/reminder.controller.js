@@ -4,6 +4,7 @@ const CustomException = require('../utils/CustomException');
 const nlpService = require('../services/nlp.service');
 const voiceToTaskService = require('../services/voiceToTask.service');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
+const logger = require('../utils/logger');
 
 /**
  * Create reminder
@@ -1064,7 +1065,7 @@ const createReminderFromNaturalLanguage = asyncHandler(async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('Natural language reminder creation error:', error);
+        logger.error('Natural language reminder creation error:', error);
         throw CustomException(error.message || 'Failed to create reminder from natural language', 500);
     }
 });
@@ -1166,7 +1167,7 @@ const createReminderFromVoice = asyncHandler(async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('Voice reminder creation error:', error);
+        logger.error('Voice reminder creation error:', error);
         throw CustomException(error.message || 'Failed to create reminder from voice', 500);
     }
 });

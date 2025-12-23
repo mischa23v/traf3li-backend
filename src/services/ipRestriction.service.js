@@ -14,6 +14,7 @@ const ipRangeCheck = require('ip-range-check');
 const Firm = require('../models/firm.model');
 const auditLogService = require('./auditLog.service');
 const notificationDeliveryService = require('./notificationDelivery.service');
+const logger = require('../utils/logger');
 
 class IPRestrictionService {
   /**
@@ -70,7 +71,7 @@ class IPRestrictionService {
       // IP not allowed
       return { allowed: false, reason: 'IP not in whitelist' };
     } catch (error) {
-      console.error('IPRestrictionService.isIPAllowed error:', error);
+      logger.error('IPRestrictionService.isIPAllowed error:', error);
       // On error, fail open for safety (don't block access)
       return { allowed: true, reason: 'Error checking IP whitelist' };
     }
@@ -146,7 +147,7 @@ class IPRestrictionService {
         description
       };
     } catch (error) {
-      console.error('IPRestrictionService.addAllowedIP error:', error);
+      logger.error('IPRestrictionService.addAllowedIP error:', error);
       throw error;
     }
   }
@@ -209,7 +210,7 @@ class IPRestrictionService {
         removed: normalizedIP
       };
     } catch (error) {
-      console.error('IPRestrictionService.removeAllowedIP error:', error);
+      logger.error('IPRestrictionService.removeAllowedIP error:', error);
       throw error;
     }
   }
@@ -267,7 +268,7 @@ class IPRestrictionService {
         total: parsedWhitelist.length + temporaryAllowances.length
       };
     } catch (error) {
-      console.error('IPRestrictionService.getIPWhitelist error:', error);
+      logger.error('IPRestrictionService.getIPWhitelist error:', error);
       throw error;
     }
   }
@@ -339,7 +340,7 @@ class IPRestrictionService {
         }
       };
     } catch (error) {
-      console.error('IPRestrictionService.addTemporaryIP error:', error);
+      logger.error('IPRestrictionService.addTemporaryIP error:', error);
       throw error;
     }
   }
@@ -425,7 +426,7 @@ class IPRestrictionService {
         ipWhitelist: firm.enterpriseSettings.ipWhitelist
       };
     } catch (error) {
-      console.error('IPRestrictionService.enableIPWhitelist error:', error);
+      logger.error('IPRestrictionService.enableIPWhitelist error:', error);
       throw error;
     }
   }
@@ -472,7 +473,7 @@ class IPRestrictionService {
         enabled: false
       };
     } catch (error) {
-      console.error('IPRestrictionService.disableIPWhitelist error:', error);
+      logger.error('IPRestrictionService.disableIPWhitelist error:', error);
       throw error;
     }
   }
@@ -530,7 +531,7 @@ class IPRestrictionService {
             }
           });
         } catch (notifError) {
-          console.error('Failed to send notification:', notifError);
+          logger.error('Failed to send notification:', notifError);
         }
       }
 
@@ -554,11 +555,11 @@ class IPRestrictionService {
             }
           });
         } catch (notifError) {
-          console.error('Failed to send admin notification:', notifError);
+          logger.error('Failed to send admin notification:', notifError);
         }
       }
     } catch (error) {
-      console.error('IPRestrictionService.logBlockedAttempt error:', error);
+      logger.error('IPRestrictionService.logBlockedAttempt error:', error);
       // Don't throw - logging/notification failures shouldn't break the flow
     }
   }
@@ -585,7 +586,7 @@ class IPRestrictionService {
             return true;
           }
         } catch (error) {
-          console.error(`Invalid CIDR notation: ${entry}`);
+          logger.error(`Invalid CIDR notation: ${entry}`);
         }
       }
 
@@ -596,7 +597,7 @@ class IPRestrictionService {
             return true;
           }
         } catch (error) {
-          console.error(`Invalid IP range: ${entry}`);
+          logger.error(`Invalid IP range: ${entry}`);
         }
       }
     }

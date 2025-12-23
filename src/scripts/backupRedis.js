@@ -21,6 +21,7 @@ const { S3Client, PutObjectCommand, ListObjectsV2Command, DeleteObjectCommand } 
 const { Resend } = require('resend');
 const { getRedisClient, connectRedis } = require('../configs/redis');
 const backupConfig = require('../configs/backup.config');
+const logger = require('../utils/logger');
 
 const execAsync = promisify(exec);
 
@@ -33,7 +34,7 @@ class RedisBackupManager {
     const storageConfig = this.config.storage;
 
     if (this.storageType === 'none') {
-      console.warn('⚠️  No cloud storage configured (R2 or S3). Backups will only be stored locally.');
+      logger.warn('⚠️  No cloud storage configured (R2 or S3). Backups will only be stored locally.');
       this.storageClient = null;
     } else {
       const clientConfig = {
@@ -50,7 +51,7 @@ class RedisBackupManager {
       }
 
       this.storageClient = new S3Client(clientConfig);
-      console.log(`📦 Using ${this.storageType.toUpperCase()} for Redis backup storage`);
+      logger.info(`📦 Using ${this.storageType.toUpperCase()} for Redis backup storage`);
     }
 
     this.resend = this.config.notifications.resendApiKey
@@ -87,10 +88,10 @@ class RedisBackupManager {
    * Trigger Redis BGSAVE
    */
   async triggerRedisSave() {
-    console.log('\n💾 Triggering Redis BGSAVE...');
+    logger.info('\n💾 Triggering Redis BGSAVE...');
 
     if (this.dryRun) {
-      console.log('[DRY RUN] Would trigger Redis BGSAVE');
+      logger.info('[DRY RUN] Would trigger Redis BGSAVE');
       return;
     }
 
@@ -100,10 +101,10 @@ class RedisBackupManager {
 
       // Get current save time
       const lastSaveTime = await redisClient.lastsave();
-      console.log(`   Last save: ${new Date(lastSaveTime * 1000).toISOString()}`);
+      logger.info(`   Last save: ${new Date(lastSaveTime * 1000).toISOString()}`);
 
       // Trigger background save
-      console.log('⏳ Starting background save...');
+      logger.info('⏳ Starting background save...');
       await redisClient.bgsave();
 
       // Wait for save to complete
@@ -123,13 +124,13 @@ class RedisBackupManager {
 
             // Check for save errors
             if (info.includes('rdb_last_bgsave_status:ok')) {
-              console.log('✅ Redis BGSAVE completed successfully');
+              logger.info('✅ Redis BGSAVE completed successfully');
             } else {
               throw new Error('Redis BGSAVE reported an error');
             }
           }
         } catch (error) {
-          console.warn('⚠️  Error checking save status:', error.message);
+          logger.warn('⚠️  Error checking save status:', error.message);
         }
 
         attempts++;
@@ -141,11 +142,11 @@ class RedisBackupManager {
 
       // Get new save time
       const newSaveTime = await redisClient.lastsave();
-      console.log(`   New save: ${new Date(newSaveTime * 1000).toISOString()}`);
+      logger.info(`   New save: ${new Date(newSaveTime * 1000).toISOString()}`);
 
       return newSaveTime;
     } catch (error) {
-      console.error('❌ Redis BGSAVE failed:', error.message);
+      logger.error('❌ Redis BGSAVE failed:', error.message);
       throw error;
     }
   }
@@ -154,7 +155,7 @@ class RedisBackupManager {
    * Copy and compress RDB file
    */
   async copyAndCompressRDB(filename) {
-    console.log('\n📦 Copying and compressing RDB file...');
+    logger.info('\n📦 Copying and compressing RDB file...');
 
     // Ensure temp directory exists
     await fs.mkdir(this.config.backup.tempDir, { recursive: true });
@@ -162,7 +163,7 @@ class RedisBackupManager {
     const backupPath = path.join(this.config.backup.tempDir, filename);
 
     if (this.dryRun) {
-      console.log(`[DRY RUN] Would copy RDB and compress to: ${backupPath}`);
+      logger.info(`[DRY RUN] Would copy RDB and compress to: ${backupPath}`);
       return backupPath;
     }
 
@@ -179,11 +180,11 @@ class RedisBackupManager {
           rdbPath = path.join(dir[1], dbFilename[1]);
         }
       } catch (error) {
-        console.warn('⚠️  Could not get RDB path from Redis, using default');
+        logger.warn('⚠️  Could not get RDB path from Redis, using default');
         rdbPath = path.join(this.config.redis.dataDir, this.config.redis.rdbFilename);
       }
 
-      console.log(`   Source: ${rdbPath}`);
+      logger.info(`   Source: ${rdbPath}`);
 
       // Check if RDB file exists
       try {
@@ -195,7 +196,7 @@ class RedisBackupManager {
       // Get RDB file stats
       const rdbStats = await fs.stat(rdbPath);
       const rdbSizeMB = (rdbStats.size / (1024 * 1024)).toFixed(2);
-      console.log(`   RDB Size: ${rdbSizeMB} MB`);
+      logger.info(`   RDB Size: ${rdbSizeMB} MB`);
 
       // Copy and compress RDB file
       const startTime = Date.now();
@@ -210,15 +211,15 @@ class RedisBackupManager {
       const sizeMB = (stats.size / (1024 * 1024)).toFixed(2);
       const compressionRatio = ((1 - stats.size / rdbStats.size) * 100).toFixed(1);
 
-      console.log('✅ Compression complete');
-      console.log(`   Compressed Size: ${sizeMB} MB`);
-      console.log(`   Compression: ${compressionRatio}%`);
-      console.log(`   Duration: ${duration}s`);
-      console.log(`   Path: ${backupPath}`);
+      logger.info('✅ Compression complete');
+      logger.info(`   Compressed Size: ${sizeMB} MB`);
+      logger.info(`   Compression: ${compressionRatio}%`);
+      logger.info(`   Duration: ${duration}s`);
+      logger.info(`   Path: ${backupPath}`);
 
       return backupPath;
     } catch (error) {
-      console.error('❌ Copy and compression failed:', error.message);
+      logger.error('❌ Copy and compression failed:', error.message);
       throw error;
     }
   }
@@ -228,15 +229,15 @@ class RedisBackupManager {
    */
   async uploadToStorage(localPath, filename) {
     const storageLabel = this.storageType.toUpperCase();
-    console.log(`\n☁️  Uploading backup to ${storageLabel}...`);
+    logger.info(`\n☁️  Uploading backup to ${storageLabel}...`);
 
     if (!this.storageClient) {
-      console.warn('⚠️  No cloud storage configured, skipping upload');
+      logger.warn('⚠️  No cloud storage configured, skipping upload');
       return null;
     }
 
     if (this.dryRun) {
-      console.log(`[DRY RUN] Would upload ${filename} to ${storageLabel}`);
+      logger.info(`[DRY RUN] Would upload ${filename} to ${storageLabel}`);
       return;
     }
 
@@ -268,12 +269,12 @@ class RedisBackupManager {
       await this.storageClient.send(command);
 
       const urlPrefix = this.storageType === 'r2' ? 'r2://' : 's3://';
-      console.log('✅ Upload successful');
-      console.log(`   Key: ${urlPrefix}${bucket}/${storageKey}`);
+      logger.info('✅ Upload successful');
+      logger.info(`   Key: ${urlPrefix}${bucket}/${storageKey}`);
 
       return storageKey;
     } catch (error) {
-      console.error(`❌ ${storageLabel} upload failed:`, error.message);
+      logger.error(`❌ ${storageLabel} upload failed:`, error.message);
       throw error;
     }
   }
@@ -288,15 +289,15 @@ class RedisBackupManager {
    */
   async cleanupLocal(localPath) {
     if (this.dryRun) {
-      console.log(`[DRY RUN] Would delete local file: ${localPath}`);
+      logger.info(`[DRY RUN] Would delete local file: ${localPath}`);
       return;
     }
 
     try {
       await fs.unlink(localPath);
-      console.log('✅ Local backup file cleaned up');
+      logger.info('✅ Local backup file cleaned up');
     } catch (error) {
-      console.warn('⚠️  Failed to clean up local file:', error.message);
+      logger.warn('⚠️  Failed to clean up local file:', error.message);
     }
   }
 
@@ -304,15 +305,15 @@ class RedisBackupManager {
    * Enforce retention policy - delete old backups
    */
   async enforceRetentionPolicy() {
-    console.log('\n🗑️  Enforcing retention policy for Redis backups...');
+    logger.info('\n🗑️  Enforcing retention policy for Redis backups...');
 
     if (!this.storageClient) {
-      console.warn('⚠️  No cloud storage configured, skipping retention policy');
+      logger.warn('⚠️  No cloud storage configured, skipping retention policy');
       return;
     }
 
     if (this.dryRun) {
-      console.log('[DRY RUN] Would enforce retention policy');
+      logger.info('[DRY RUN] Would enforce retention policy');
       return;
     }
 
@@ -327,7 +328,7 @@ class RedisBackupManager {
       const response = await this.storageClient.send(command);
 
       if (!response.Contents || response.Contents.length === 0) {
-        console.log('No backups to clean up.');
+        logger.info('No backups to clean up.');
         return;
       }
 
@@ -349,18 +350,18 @@ class RedisBackupManager {
           });
 
           await this.storageClient.send(deleteCommand);
-          console.log(`   Deleted: ${backup.Key}`);
+          logger.info(`   Deleted: ${backup.Key}`);
           deletedCount++;
         }
       }
 
       if (deletedCount > 0) {
-        console.log(`✅ Deleted ${deletedCount} old backup(s)`);
+        logger.info(`✅ Deleted ${deletedCount} old backup(s)`);
       } else {
-        console.log('✅ No backups to delete');
+        logger.info('✅ No backups to delete');
       }
     } catch (error) {
-      console.error('❌ Failed to enforce retention policy:', error.message);
+      logger.error('❌ Failed to enforce retention policy:', error.message);
       throw error;
     }
   }
@@ -396,7 +397,7 @@ class RedisBackupManager {
     }
 
     if (this.dryRun) {
-      console.log('[DRY RUN] Would send email notification');
+      logger.info('[DRY RUN] Would send email notification');
       return;
     }
 
@@ -416,9 +417,9 @@ class RedisBackupManager {
         html: htmlContent,
       });
 
-      console.log('✅ Notification email sent');
+      logger.info('✅ Notification email sent');
     } catch (error) {
-      console.warn('⚠️  Failed to send notification:', error.message);
+      logger.warn('⚠️  Failed to send notification:', error.message);
     }
   }
 
@@ -510,12 +511,12 @@ class RedisBackupManager {
     let details = {};
 
     try {
-      console.log('='.repeat(60));
-      console.log('  REDIS BACKUP');
-      console.log('='.repeat(60));
+      logger.info('='.repeat(60));
+      logger.info('  REDIS BACKUP');
+      logger.info('='.repeat(60));
 
       if (this.dryRun) {
-        console.log('\n⚠️  DRY RUN MODE - No changes will be made\n');
+        logger.info('\n⚠️  DRY RUN MODE - No changes will be made\n');
       }
 
       // Get Redis info
@@ -550,10 +551,10 @@ class RedisBackupManager {
       const duration = ((Date.now() - startTime) / 1000).toFixed(2);
       details.duration = duration + 's';
 
-      console.log('\n' + '='.repeat(60));
-      console.log('✅ REDIS BACKUP COMPLETED SUCCESSFULLY');
-      console.log(`   Total Duration: ${duration}s`);
-      console.log('='.repeat(60) + '\n');
+      logger.info('\n' + '='.repeat(60));
+      logger.info('✅ REDIS BACKUP COMPLETED SUCCESSFULLY');
+      logger.info(`   Total Duration: ${duration}s`);
+      logger.info('='.repeat(60) + '\n');
 
       // Send success notification
       await this.sendNotification(true, details);
@@ -562,10 +563,10 @@ class RedisBackupManager {
     } catch (error) {
       details.error = error.message;
 
-      console.error('\n' + '='.repeat(60));
-      console.error('❌ REDIS BACKUP FAILED');
-      console.error('='.repeat(60));
-      console.error(error);
+      logger.error('\n' + '='.repeat(60));
+      logger.error('❌ REDIS BACKUP FAILED');
+      logger.error('='.repeat(60));
+      logger.error(error);
 
       // Send failure notification
       await this.sendNotification(false, details);

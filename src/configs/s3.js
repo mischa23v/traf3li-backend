@@ -7,6 +7,7 @@
  * R2 is S3-compatible, so we use the same AWS SDK.
  */
 
+const logger = require('../utils/logger');
 const {
     S3Client,
     PutObjectCommand,
@@ -57,7 +58,7 @@ if (isR2Configured()) {
             secretAccessKey: process.env.R2_SECRET_ACCESS_KEY
         }
     });
-    console.log('Storage client initialized with Cloudflare R2');
+    logger.info('Storage client initialized with Cloudflare R2');
 } else if (isS3ConfiguredOnly()) {
     // Fall back to AWS S3
     s3Client = new S3Client({
@@ -67,9 +68,9 @@ if (isR2Configured()) {
             secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY
         }
     });
-    console.log('Storage client initialized with AWS S3');
+    logger.info('Storage client initialized with AWS S3');
 } else {
-    console.log('No cloud storage configured - using local storage for file uploads');
+    logger.info('No cloud storage configured - using local storage for file uploads');
 }
 
 // ==================== BUCKET CONFIGURATION ====================
@@ -366,7 +367,7 @@ const logFileAccess = async (fileKey, bucket, userId, action, metadata = {}) => 
 
         await s3Client.send(command);
     } catch (err) {
-        console.error('Failed to log file access:', err.message);
+        logger.error('Failed to log file access:', err.message);
     }
 };
 
@@ -378,7 +379,7 @@ const logFileAccess = async (fileKey, bucket, userId, action, metadata = {}) => 
  */
 const deleteFile = async (fileKey, bucket = 'general') => {
     if (!isS3Configured() || !s3Client) {
-        console.log('Storage not configured, skipping delete for:', fileKey);
+        logger.info('Storage not configured, skipping delete for:', fileKey);
         return;
     }
 

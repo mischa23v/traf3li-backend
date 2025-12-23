@@ -16,6 +16,7 @@ const {
     checkRedis,
     getSystemInfo
 } = require('../services/health.service');
+const logger = require('../utils/logger');
 
 const router = express.Router();
 
@@ -299,7 +300,7 @@ router.get('/debug-auth', (req, res) => {
     };
 
     // Log for server-side debugging
-    console.log('[DEBUG-AUTH]', JSON.stringify(debugInfo, null, 2));
+    logger.info('[DEBUG-AUTH]', JSON.stringify(debugInfo, null, 2));
 
     res.status(200).json(debugInfo);
 });

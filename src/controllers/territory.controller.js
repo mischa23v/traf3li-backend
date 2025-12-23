@@ -7,6 +7,7 @@
 const Territory = require('../models/territory.model');
 const CrmActivity = require('../models/crmActivity.model');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
+const logger = require('../utils/logger');
 
 // ═══════════════════════════════════════════════════════════════
 // LIST TERRITORIES
@@ -73,7 +74,7 @@ exports.getAll = async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('Error getting territories:', error);
+        logger.error('Error getting territories:', error);
         res.status(500).json({
             success: false,
             message: 'خطأ في جلب المناطق / Error fetching territories',
@@ -108,7 +109,7 @@ exports.getTree = async (req, res) => {
             data: tree
         });
     } catch (error) {
-        console.error('Error getting territory tree:', error);
+        logger.error('Error getting territory tree:', error);
         res.status(500).json({
             success: false,
             message: 'خطأ في جلب شجرة المناطق / Error fetching territory tree',
@@ -160,7 +161,7 @@ exports.getById = async (req, res) => {
             data: territory
         });
     } catch (error) {
-        console.error('Error getting territory:', error);
+        logger.error('Error getting territory:', error);
         res.status(500).json({
             success: false,
             message: 'خطأ في جلب المنطقة / Error fetching territory',
@@ -274,7 +275,7 @@ exports.create = async (req, res) => {
             data: territory
         });
     } catch (error) {
-        console.error('Error creating territory:', error);
+        logger.error('Error creating territory:', error);
 
         if (error.code === 11000) {
             return res.status(400).json({
@@ -412,7 +413,7 @@ exports.update = async (req, res) => {
             data: territory
         });
     } catch (error) {
-        console.error('Error updating territory:', error);
+        logger.error('Error updating territory:', error);
 
         if (error.code === 11000) {
             return res.status(400).json({
@@ -495,7 +496,7 @@ exports.delete = async (req, res) => {
             message: 'تم حذف المنطقة بنجاح / Territory deleted successfully'
         });
     } catch (error) {
-        console.error('Error deleting territory:', error);
+        logger.error('Error deleting territory:', error);
         res.status(500).json({
             success: false,
             message: 'خطأ في حذف المنطقة / Error deleting territory',

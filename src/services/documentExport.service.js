@@ -5,6 +5,7 @@
  */
 
 const sanitizeHtml = require('sanitize-html');
+const logger = require('../utils/logger');
 
 // HTML sanitization config for document export (defense-in-depth against XSS)
 const EXPORT_SANITIZE_CONFIG = {
@@ -64,7 +65,7 @@ const getPuppeteer = () => {
         try {
             puppeteer = require('puppeteer');
         } catch (err) {
-            console.warn('Puppeteer not available - PDF export will be disabled');
+            logger.warn('Puppeteer not available - PDF export will be disabled');
             puppeteer = false;
         }
     }

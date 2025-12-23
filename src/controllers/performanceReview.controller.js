@@ -1,6 +1,7 @@
 const { PerformanceReview, ReviewTemplate, CalibrationSession, Employee } = require('../models');
 const mongoose = require('mongoose');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
+const logger = require('../utils/logger');
 
 /**
  * Performance Review Controller
@@ -89,7 +90,7 @@ const getPerformanceReviews = async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('Error fetching performance reviews:', error);
+        logger.error('Error fetching performance reviews:', error);
         res.status(500).json({
             success: false,
             message: 'Error fetching performance reviews',
@@ -211,7 +212,7 @@ const getPerformanceStats = async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('Error fetching performance stats:', error);
+        logger.error('Error fetching performance stats:', error);
         res.status(500).json({
             success: false,
             message: 'Error fetching performance statistics',
@@ -247,7 +248,7 @@ const getPerformanceReviewById = async (req, res) => {
             data: review
         });
     } catch (error) {
-        console.error('Error fetching performance review:', error);
+        logger.error('Error fetching performance review:', error);
         res.status(500).json({
             success: false,
             message: 'Error fetching performance review',
@@ -420,7 +421,7 @@ const createPerformanceReview = async (req, res) => {
             data: review
         });
     } catch (error) {
-        console.error('Error creating performance review:', error);
+        logger.error('Error creating performance review:', error);
         res.status(500).json({
             success: false,
             message: 'Error creating performance review',
@@ -493,7 +494,7 @@ const updatePerformanceReview = async (req, res) => {
             data: updatedReview
         });
     } catch (error) {
-        console.error('Error updating performance review:', error);
+        logger.error('Error updating performance review:', error);
         res.status(500).json({
             success: false,
             message: 'Error updating performance review',
@@ -532,7 +533,7 @@ const deletePerformanceReview = async (req, res) => {
             message: 'Performance review deleted successfully'
         });
     } catch (error) {
-        console.error('Error deleting performance review:', error);
+        logger.error('Error deleting performance review:', error);
         res.status(500).json({
             success: false,
             message: 'Error deleting performance review',
@@ -712,7 +713,7 @@ const submitSelfAssessment = async (req, res) => {
             data: review
         });
     } catch (error) {
-        console.error('Error submitting self-assessment:', error);
+        logger.error('Error submitting self-assessment:', error);
         res.status(500).json({
             success: false,
             message: 'Error submitting self-assessment',
@@ -970,7 +971,7 @@ const submitManagerAssessment = async (req, res) => {
             data: review
         });
     } catch (error) {
-        console.error('Error submitting manager assessment:', error);
+        logger.error('Error submitting manager assessment:', error);
         res.status(500).json({
             success: false,
             message: 'Error submitting manager assessment',
@@ -1061,7 +1062,7 @@ const request360Feedback = async (req, res) => {
             data: review.feedback360
         });
     } catch (error) {
-        console.error('Error requesting 360 feedback:', error);
+        logger.error('Error requesting 360 feedback:', error);
         res.status(500).json({
             success: false,
             message: 'Error requesting 360 feedback',
@@ -1193,7 +1194,7 @@ const submit360Feedback = async (req, res) => {
             message: 'Feedback submitted successfully'
         });
     } catch (error) {
-        console.error('Error submitting 360 feedback:', error);
+        logger.error('Error submitting 360 feedback:', error);
         res.status(500).json({
             success: false,
             message: 'Error submitting 360 feedback',
@@ -1266,7 +1267,7 @@ const createDevelopmentPlan = async (req, res) => {
             data: review.developmentPlan
         });
     } catch (error) {
-        console.error('Error creating development plan:', error);
+        logger.error('Error creating development plan:', error);
         res.status(500).json({
             success: false,
             message: 'Error creating development plan',
@@ -1337,7 +1338,7 @@ const updateDevelopmentPlanItem = async (req, res) => {
             data: item
         });
     } catch (error) {
-        console.error('Error updating development plan item:', error);
+        logger.error('Error updating development plan item:', error);
         res.status(500).json({
             success: false,
             message: 'Error updating development plan item',
@@ -1432,7 +1433,7 @@ const completeReview = async (req, res) => {
             data: review
         });
     } catch (error) {
-        console.error('Error completing review:', error);
+        logger.error('Error completing review:', error);
         res.status(500).json({
             success: false,
             message: 'Error completing review',
@@ -1548,7 +1549,7 @@ const acknowledgeReview = async (req, res) => {
             data: review
         });
     } catch (error) {
-        console.error('Error acknowledging review:', error);
+        logger.error('Error acknowledging review:', error);
         res.status(500).json({
             success: false,
             message: 'Error acknowledging review',
@@ -1618,7 +1619,7 @@ const submitForCalibration = async (req, res) => {
             data: review
         });
     } catch (error) {
-        console.error('Error submitting for calibration:', error);
+        logger.error('Error submitting for calibration:', error);
         res.status(500).json({
             success: false,
             message: 'Error submitting for calibration',
@@ -1685,7 +1686,7 @@ const applyCalibration = async (req, res) => {
             data: review
         });
     } catch (error) {
-        console.error('Error applying calibration:', error);
+        logger.error('Error applying calibration:', error);
         res.status(500).json({
             success: false,
             message: 'Error applying calibration',
@@ -1733,7 +1734,7 @@ const getEmployeeHistory = async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('Error fetching employee performance history:', error);
+        logger.error('Error fetching employee performance history:', error);
         res.status(500).json({
             success: false,
             message: 'Error fetching employee performance history',
@@ -1826,7 +1827,7 @@ const getTeamSummary = async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('Error fetching team performance summary:', error);
+        logger.error('Error fetching team performance summary:', error);
         res.status(500).json({
             success: false,
             message: 'Error fetching team performance summary',
@@ -1963,7 +1964,7 @@ const bulkCreateReviews = async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('Error bulk creating reviews:', error);
+        logger.error('Error bulk creating reviews:', error);
         res.status(500).json({
             success: false,
             message: 'Error bulk creating reviews',
@@ -2003,7 +2004,7 @@ const sendReminder = async (req, res) => {
             message: 'Reminder sent successfully'
         });
     } catch (error) {
-        console.error('Error sending reminder:', error);
+        logger.error('Error sending reminder:', error);
         res.status(500).json({
             success: false,
             message: 'Error sending reminder',
@@ -2028,7 +2029,7 @@ const getOverdueReviews = async (req, res) => {
             total: reviews.length
         });
     } catch (error) {
-        console.error('Error fetching overdue reviews:', error);
+        logger.error('Error fetching overdue reviews:', error);
         res.status(500).json({
             success: false,
             message: 'Error fetching overdue reviews',
@@ -2064,7 +2065,7 @@ const getTemplates = async (req, res) => {
             data: templates
         });
     } catch (error) {
-        console.error('Error fetching templates:', error);
+        logger.error('Error fetching templates:', error);
         res.status(500).json({
             success: false,
             message: 'Error fetching templates',
@@ -2113,7 +2114,7 @@ const createTemplate = async (req, res) => {
             data: template
         });
     } catch (error) {
-        console.error('Error creating template:', error);
+        logger.error('Error creating template:', error);
         res.status(500).json({
             success: false,
             message: 'Error creating template',
@@ -2168,7 +2169,7 @@ const updateTemplate = async (req, res) => {
             data: template
         });
     } catch (error) {
-        console.error('Error updating template:', error);
+        logger.error('Error updating template:', error);
         res.status(500).json({
             success: false,
             message: 'Error updating template',
@@ -2207,7 +2208,7 @@ const getCalibrationSessions = async (req, res) => {
             data: sessions
         });
     } catch (error) {
-        console.error('Error fetching calibration sessions:', error);
+        logger.error('Error fetching calibration sessions:', error);
         res.status(500).json({
             success: false,
             message: 'Error fetching calibration sessions',
@@ -2257,7 +2258,7 @@ const createCalibrationSession = async (req, res) => {
             data: session
         });
     } catch (error) {
-        console.error('Error creating calibration session:', error);
+        logger.error('Error creating calibration session:', error);
         res.status(500).json({
             success: false,
             message: 'Error creating calibration session',
@@ -2304,7 +2305,7 @@ const completeCalibrationSession = async (req, res) => {
             data: session
         });
     } catch (error) {
-        console.error('Error completing calibration session:', error);
+        logger.error('Error completing calibration session:', error);
         res.status(500).json({
             success: false,
             message: 'Error completing calibration session',
@@ -2352,7 +2353,7 @@ const bulkDeletePerformanceReviews = async (req, res) => {
             deletedCount: result.modifiedCount
         });
     } catch (error) {
-        console.error('Error bulk deleting performance reviews:', error);
+        logger.error('Error bulk deleting performance reviews:', error);
         res.status(500).json({
             success: false,
             message: 'Error bulk deleting performance reviews',

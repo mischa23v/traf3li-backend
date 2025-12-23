@@ -3,6 +3,7 @@
  * Attaches firm context to the request for multi-tenancy support
  */
 
+const logger = require('../utils/logger');
 const { User, Firm } = require('../models');
 
 /**
@@ -70,7 +71,7 @@ const attachFirmContext = async (req, res, next) => {
 
         next();
     } catch (error) {
-        console.error('Firm context middleware error:', error);
+        logger.error('Firm context middleware error:', error);
         return res.status(500).json({
             success: false,
             message: 'Failed to load firm context',

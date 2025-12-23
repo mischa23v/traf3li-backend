@@ -7,6 +7,7 @@
 const LostReason = require('../models/lostReason.model');
 const CrmActivity = require('../models/crmActivity.model');
 const { pickAllowedFields, sanitizeObjectId, sanitizeString } = require('../utils/securityUtils');
+const logger = require('../utils/logger');
 
 // ═══════════════════════════════════════════════════════════════
 // LIST LOST REASONS
@@ -43,7 +44,7 @@ exports.getAll = async (req, res) => {
             data: reasons
         });
     } catch (error) {
-        console.error('Error getting lost reasons:', error);
+        logger.error('Error getting lost reasons:', error);
         res.status(500).json({
             success: false,
             message: 'خطأ في جلب أسباب الخسارة / Error fetching lost reasons',
@@ -68,7 +69,7 @@ exports.getCategories = async (req, res) => {
             data: categories
         });
     } catch (error) {
-        console.error('Error getting categories:', error);
+        logger.error('Error getting categories:', error);
         res.status(500).json({
             success: false,
             message: 'خطأ في جلب الفئات / Error fetching categories',
@@ -120,7 +121,7 @@ exports.getById = async (req, res) => {
             data: reason
         });
     } catch (error) {
-        console.error('Error getting lost reason:', error);
+        logger.error('Error getting lost reason:', error);
         res.status(500).json({
             success: false,
             message: 'خطأ في جلب سبب الخسارة / Error fetching lost reason',
@@ -207,7 +208,7 @@ exports.create = async (req, res) => {
             data: reason
         });
     } catch (error) {
-        console.error('Error creating lost reason:', error);
+        logger.error('Error creating lost reason:', error);
         res.status(500).json({
             success: false,
             message: 'خطأ في إنشاء سبب الخسارة / Error creating lost reason',
@@ -320,7 +321,7 @@ exports.update = async (req, res) => {
             data: reason
         });
     } catch (error) {
-        console.error('Error updating lost reason:', error);
+        logger.error('Error updating lost reason:', error);
         res.status(500).json({
             success: false,
             message: 'خطأ في تحديث سبب الخسارة / Error updating lost reason',
@@ -384,7 +385,7 @@ exports.delete = async (req, res) => {
             message: 'تم حذف سبب الخسارة بنجاح / Lost reason deleted successfully'
         });
     } catch (error) {
-        console.error('Error deleting lost reason:', error);
+        logger.error('Error deleting lost reason:', error);
         res.status(500).json({
             success: false,
             message: 'خطأ في حذف سبب الخسارة / Error deleting lost reason',
@@ -421,7 +422,7 @@ exports.createDefaults = async (req, res) => {
             data: reasons
         });
     } catch (error) {
-        console.error('Error creating default lost reasons:', error);
+        logger.error('Error creating default lost reasons:', error);
         res.status(500).json({
             success: false,
             message: 'خطأ في إنشاء أسباب الخسارة الافتراضية / Error creating defaults',

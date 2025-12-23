@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const logger = require('../utils/logger');
 const {
     arabicNameSchema,
     nationalAddressSchema,
@@ -980,7 +981,7 @@ leadSchema.methods.convertToClient = async function(userId, options = {}) {
             });
         }
     } catch (error) {
-        console.error('Error transferring activities:', error);
+        logger.error('Error transferring activities:', error);
         // Continue with conversion even if activity transfer fails
     }
 

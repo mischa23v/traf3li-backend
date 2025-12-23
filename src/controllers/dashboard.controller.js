@@ -17,6 +17,7 @@ const {
 } = require('../models');
 const { CustomException } = require('../utils');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
+const logger = require('../utils/logger');
 
 // Helper function to verify firmId ownership
 const verifyFirmAccess = async (userId, firmId) => {
@@ -172,7 +173,7 @@ const getHeroStats = async (request, response) => {
             }
         });
     } catch (error) {
-        console.error('getHeroStats ERROR:', error);
+        logger.error('getHeroStats ERROR:', error);
         return response.status(500).json({
             error: true,
             message: error.message || 'Failed to fetch hero stats'
@@ -228,7 +229,7 @@ const getDashboardStats = async (request, response) => {
             }
         });
     } catch (error) {
-        console.error('getDashboardStats ERROR:', error);
+        logger.error('getDashboardStats ERROR:', error);
         return response.status(500).json({
             error: true,
             message: error.message || 'Failed to fetch dashboard stats'
@@ -308,7 +309,7 @@ const getFinancialSummary = async (request, response) => {
             }
         });
     } catch (error) {
-        console.error('getFinancialSummary ERROR:', error);
+        logger.error('getFinancialSummary ERROR:', error);
         return response.status(500).json({
             error: true,
             message: error.message || 'Failed to fetch financial summary'
@@ -355,7 +356,7 @@ const getTodayEvents = async (request, response) => {
             events
         });
     } catch (error) {
-        console.error('getTodayEvents ERROR:', error);
+        logger.error('getTodayEvents ERROR:', error);
         return response.status(500).json({
             error: true,
             message: error.message || 'Failed to fetch today\'s events'
@@ -405,7 +406,7 @@ const getRecentMessages = async (request, response) => {
             messages
         });
     } catch (error) {
-        console.error('getRecentMessages ERROR:', error);
+        logger.error('getRecentMessages ERROR:', error);
         return response.status(500).json({
             error: true,
             message: error.message || 'Failed to fetch recent messages'
@@ -482,7 +483,7 @@ const getActivityOverview = async (request, response) => {
             }
         });
     } catch (error) {
-        console.error('getActivityOverview ERROR:', error);
+        logger.error('getActivityOverview ERROR:', error);
         return response.status(500).json({
             error: true,
             message: error.message || 'Failed to fetch activity overview'
@@ -571,7 +572,7 @@ const getCRMStats = async (request, response) => {
             }
         });
     } catch (error) {
-        console.error('getCRMStats ERROR:', error);
+        logger.error('getCRMStats ERROR:', error);
         return response.status(500).json({
             error: true,
             message: error.message || 'Failed to fetch CRM stats'
@@ -637,7 +638,7 @@ const getHRStats = async (request, response) => {
                 totalEmployees = employeeStats[0]?.total[0]?.count || 0;
                 activeEmployees = employeeStats[0]?.active[0]?.count || 0;
             } catch (e) {
-                console.log('Employee model query failed:', e.message);
+                logger.info('Employee model query failed:', e.message);
             }
         }
 
@@ -650,7 +651,7 @@ const getHRStats = async (request, response) => {
                     status: { $in: ['present', 'Present', 'checked_in'] }
                 });
             } catch (e) {
-                console.log('Attendance model query failed:', e.message);
+                logger.info('Attendance model query failed:', e.message);
             }
         }
 
@@ -662,7 +663,7 @@ const getHRStats = async (request, response) => {
                     status: { $in: ['pending', 'Pending', 'submitted'] }
                 });
             } catch (e) {
-                console.log('LeaveRequest model query failed:', e.message);
+                logger.info('LeaveRequest model query failed:', e.message);
             }
         }
 
@@ -683,7 +684,7 @@ const getHRStats = async (request, response) => {
             }
         });
     } catch (error) {
-        console.error('getHRStats ERROR:', error);
+        logger.error('getHRStats ERROR:', error);
         return response.status(500).json({
             error: true,
             message: error.message || 'Failed to fetch HR stats'
@@ -764,7 +765,7 @@ const getFinanceStats = async (request, response) => {
             }
         });
     } catch (error) {
-        console.error('getFinanceStats ERROR:', error);
+        logger.error('getFinanceStats ERROR:', error);
         return response.status(500).json({
             error: true,
             message: error.message || 'Failed to fetch finance stats'
@@ -954,7 +955,7 @@ const getDashboardSummary = async (request, response) => {
             }
         });
     } catch (error) {
-        console.error('getDashboardSummary ERROR:', error);
+        logger.error('getDashboardSummary ERROR:', error);
         return response.status(500).json({
             error: true,
             message: error.message || 'Failed to fetch dashboard summary'
@@ -1097,7 +1098,7 @@ const getAnalytics = async (request, response) => {
             }
         });
     } catch (error) {
-        console.error('getAnalytics ERROR:', error);
+        logger.error('getAnalytics ERROR:', error);
         return response.status(500).json({
             error: true,
             message: error.message || 'Failed to fetch analytics'
@@ -1224,7 +1225,7 @@ const getReports = async (request, response) => {
             }
         });
     } catch (error) {
-        console.error('getReports ERROR:', error);
+        logger.error('getReports ERROR:', error);
         return response.status(500).json({
             error: true,
             message: error.message || 'Failed to fetch reports'

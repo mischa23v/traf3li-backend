@@ -8,6 +8,7 @@
  */
 
 const { validateSecrets } = require('./generateToken');
+const logger = require('./logger');
 
 /**
  * Validate required environment variables
@@ -15,7 +16,7 @@ const { validateSecrets } = require('./generateToken');
  * @throws {Error} If validation fails
  */
 const validateRequiredEnvVars = () => {
-  console.log('🔍 Validating environment variables...');
+  logger.info('Validating environment variables...');
 
   const errors = [];
   const warnings = [];
@@ -27,7 +28,7 @@ const validateRequiredEnvVars = () => {
   // JWT Secrets
   try {
     validateSecrets();
-    console.log('✅ JWT secrets validated');
+    logger.info('JWT secrets validated');
   } catch (error) {
     errors.push(`JWT Secrets: ${error.message}`);
   }
@@ -51,7 +52,7 @@ const validateRequiredEnvVars = () => {
       'Generate with: node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"'
     );
   } else {
-    console.log('✅ Encryption key validated');
+    logger.info('Encryption key validated');
   }
 
   // MongoDB URI
@@ -68,7 +69,7 @@ const validateRequiredEnvVars = () => {
       `Current value starts with: "${mongoUri.substring(0, 10)}..."`
     );
   } else {
-    console.log('✅ MongoDB URI validated');
+    logger.info('MongoDB URI validated');
   }
 
   // ============================================
@@ -83,7 +84,7 @@ const validateRequiredEnvVars = () => {
       'Error tracking will be disabled. Get your DSN from https://sentry.io'
     );
   } else {
-    console.log('✅ Sentry DSN configured');
+    logger.info('Sentry DSN configured');
   }
 
   // Redis URL (Caching & Queue Management)
@@ -95,7 +96,7 @@ const validateRequiredEnvVars = () => {
       'Format: redis://[host]:[port] or redis://[username]:[password]@[host]:[port]'
     );
   } else {
-    console.log('✅ Redis URL configured');
+    logger.info('Redis URL configured');
   }
 
   // AWS S3 Configuration (File Storage)
@@ -110,7 +111,7 @@ const validateRequiredEnvVars = () => {
       'File storage features may be limited.'
     );
   } else {
-    console.log('✅ AWS S3 configured');
+    logger.info('AWS S3 configured');
   }
 
   // Email Configuration (Resend)
@@ -121,7 +122,7 @@ const validateRequiredEnvVars = () => {
       'Email notifications will be disabled. Get your API key from https://resend.com'
     );
   } else {
-    console.log('✅ Email service configured');
+    logger.info('Email service configured');
   }
 
   // ============================================
@@ -169,7 +170,7 @@ const validateRequiredEnvVars = () => {
   // ============================================
 
   if (process.env.NODE_ENV === 'production') {
-    console.log('🔒 Running production environment checks...');
+    logger.info('Running production environment checks...');
 
     // Ensure HTTPS in production
     const clientUrl = process.env.CLIENT_URL;
@@ -209,35 +210,35 @@ const validateRequiredEnvVars = () => {
 
   // Display warnings
   if (warnings.length > 0) {
-    console.log('\n⚠️  WARNINGS:');
+    logger.warn('\nWARNINGS:');
     warnings.forEach((warning, index) => {
-      console.log(`   ${index + 1}. ${warning}`);
+      logger.warn(`   ${index + 1}. ${warning}`);
     });
-    console.log('');
+    logger.warn('');
   }
 
   // If there are errors, fail startup
   if (errors.length > 0) {
-    console.error('\n❌ ENVIRONMENT VALIDATION FAILED\n');
-    console.error('The following required environment variables are missing or invalid:\n');
+    logger.error('\nENVIRONMENT VALIDATION FAILED\n');
+    logger.error('The following required environment variables are missing or invalid:\n');
 
     errors.forEach((error, index) => {
-      console.error(`   ${index + 1}. ${error}`);
+      logger.error(`   ${index + 1}. ${error}`);
     });
 
-    console.error('\n📝 Quick Setup Guide:');
-    console.error('   1. Copy .env.example to .env: cp .env.example .env');
-    console.error('   2. Generate JWT secrets:');
-    console.error('      node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"');
-    console.error('   3. Generate encryption key:');
-    console.error('      node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"');
-    console.error('   4. Set MONGODB_URI to your database connection string');
-    console.error('   5. Configure other variables as needed\n');
+    logger.error('\nQuick Setup Guide:');
+    logger.error('   1. Copy .env.example to .env: cp .env.example .env');
+    logger.error('   2. Generate JWT secrets:');
+    logger.error('      node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"');
+    logger.error('   3. Generate encryption key:');
+    logger.error('      node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"');
+    logger.error('   4. Set MONGODB_URI to your database connection string');
+    logger.error('   5. Configure other variables as needed\n');
 
     throw new Error('Environment validation failed. Please fix the errors above and restart.');
   }
 
-  console.log('✅ All required environment variables validated successfully\n');
+  logger.info('All required environment variables validated successfully\n');
   return true;
 };
 
@@ -274,7 +275,7 @@ const validateEnvVar = (name, options = {}) => {
     if (required) {
       throw new Error(message);
     }
-    console.warn(`⚠️  ${message}`);
+    logger.warn(`${message}`);
     return false;
   }
 
@@ -283,7 +284,7 @@ const validateEnvVar = (name, options = {}) => {
     if (required) {
       throw new Error(message);
     }
-    console.warn(`⚠️  ${message}`);
+    logger.warn(`${message}`);
     return false;
   }
 
@@ -295,17 +296,17 @@ const validateEnvVar = (name, options = {}) => {
  * Masks sensitive values
  */
 const displayConfigSummary = () => {
-  console.log('📋 Configuration Summary:');
-  console.log(`   Node Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`   Server Port: ${process.env.PORT || '8080'}`);
-  console.log(`   MongoDB: ${process.env.MONGODB_URI ? '✅ Configured' : '❌ Not configured'}`);
-  console.log(`   Redis: ${process.env.REDIS_URL ? '✅ Configured' : '❌ Not configured'}`);
-  console.log(`   Sentry: ${process.env.SENTRY_DSN ? '✅ Configured' : '❌ Not configured'}`);
-  console.log(`   Email: ${process.env.RESEND_API_KEY ? '✅ Configured' : '❌ Not configured'}`);
-  console.log(`   AWS S3: ${process.env.AWS_ACCESS_KEY_ID ? '✅ Configured' : '❌ Not configured'}`);
-  console.log(`   JWT Secrets: ${process.env.JWT_SECRET ? '✅ Set' : '❌ Not set'}`);
-  console.log(`   Encryption Key: ${process.env.ENCRYPTION_KEY ? '✅ Set' : '❌ Not set'}`);
-  console.log('');
+  logger.info('Configuration Summary:');
+  logger.info(`   Node Environment: ${process.env.NODE_ENV || 'development'}`);
+  logger.info(`   Server Port: ${process.env.PORT || '8080'}`);
+  logger.info(`   MongoDB: ${process.env.MONGODB_URI ? 'Configured' : 'Not configured'}`);
+  logger.info(`   Redis: ${process.env.REDIS_URL ? 'Configured' : 'Not configured'}`);
+  logger.info(`   Sentry: ${process.env.SENTRY_DSN ? 'Configured' : 'Not configured'}`);
+  logger.info(`   Email: ${process.env.RESEND_API_KEY ? 'Configured' : 'Not configured'}`);
+  logger.info(`   AWS S3: ${process.env.AWS_ACCESS_KEY_ID ? 'Configured' : 'Not configured'}`);
+  logger.info(`   JWT Secrets: ${process.env.JWT_SECRET ? 'Set' : 'Not set'}`);
+  logger.info(`   Encryption Key: ${process.env.ENCRYPTION_KEY ? 'Set' : 'Not set'}`);
+  logger.info('');
 };
 
 module.exports = {

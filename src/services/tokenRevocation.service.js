@@ -26,6 +26,7 @@ const jwt = require('jsonwebtoken');
 const RevokedToken = require('../models/revokedToken.model');
 const cacheService = require('./cache.service');
 const auditLogService = require('./auditLog.service');
+const logger = require('../utils/logger');
 
 const { JWT_SECRET } = process.env;
 
@@ -59,7 +60,7 @@ const getTokenExpiry = (token) => {
     // Default to 7 days if no expiry found
     return new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
   } catch (error) {
-    console.error('Error decoding token for expiry:', error.message);
+    logger.error('Error decoding token for expiry:', error.message);
     // Default to 7 days if decoding fails
     return new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
   }
@@ -75,7 +76,7 @@ const getUserIdFromToken = (token) => {
     const decoded = jwt.decode(token);
     return decoded?._id || decoded?.userId || null;
   } catch (error) {
-    console.error('Error extracting userId from token:', error.message);
+    logger.error('Error extracting userId from token:', error.message);
     return null;
   }
 };
@@ -116,7 +117,7 @@ class TokenRevocationService {
 
       // If token already expired, no need to revoke
       if (ttl <= 0) {
-        console.log('Token already expired, skipping revocation');
+        logger.info('Token already expired, skipping revocation');
         return { success: true, alreadyExpired: true };
       }
 
@@ -172,7 +173,7 @@ class TokenRevocationService {
       // Wait for MongoDB and audit log (don't block on these)
       await Promise.allSettled([mongoPromise, auditPromise]);
 
-      console.log(`Token revoked successfully. Reason: ${reason}, TTL: ${ttl}s`);
+      logger.info(`Token revoked successfully. Reason: ${reason}, TTL: ${ttl}s`);
 
       return {
         success: true,
@@ -182,7 +183,7 @@ class TokenRevocationService {
         ttl
       };
     } catch (error) {
-      console.error('TokenRevocationService.revokeToken error:', error.message);
+      logger.error('TokenRevocationService.revokeToken error:', error.message);
       throw error;
     }
   }
@@ -250,7 +251,7 @@ class TokenRevocationService {
       // Wait for parallel operations
       await Promise.allSettled([mongoPromise, auditPromise]);
 
-      console.log(`All tokens revoked for user ${userId}. Reason: ${reason}`);
+      logger.info(`All tokens revoked for user ${userId}. Reason: ${reason}`);
 
       return {
         success: true,
@@ -260,7 +261,7 @@ class TokenRevocationService {
         expiresAt
       };
     } catch (error) {
-      console.error('TokenRevocationService.revokeAllUserTokens error:', error.message);
+      logger.error('TokenRevocationService.revokeAllUserTokens error:', error.message);
       throw error;
     }
   }
@@ -289,7 +290,7 @@ class TokenRevocationService {
         userId = decoded?._id || decoded?.userId;
         tokenIssuedAt = decoded?.iat ? new Date(decoded.iat * 1000) : null;
       } catch (error) {
-        console.error('Error decoding token:', error.message);
+        logger.error('Error decoding token:', error.message);
       }
 
       // 1. Check individual token revocation in Redis
@@ -297,7 +298,7 @@ class TokenRevocationService {
       const redisResult = await cacheService.get(redisKey);
 
       if (redisResult) {
-        console.log('Token found in Redis blacklist');
+        logger.info('Token found in Redis blacklist');
         return true;
       }
 
@@ -310,7 +311,7 @@ class TokenRevocationService {
           const revokedAt = new Date(userRevokeMarker.revokedAt);
           // If token was issued before the "revoke all" timestamp, it's revoked
           if (tokenIssuedAt < revokedAt) {
-            console.log('Token revoked by user-level revoke_all marker');
+            logger.info('Token revoked by user-level revoke_all marker');
             return true;
           }
         }
@@ -320,7 +321,7 @@ class TokenRevocationService {
       const mongoResult = await RevokedToken.isRevoked(tokenHash);
 
       if (mongoResult) {
-        console.log('Token found in MongoDB blacklist (cache miss)');
+        logger.info('Token found in MongoDB blacklist (cache miss)');
 
         // Backfill Redis cache for future lookups
         const expiresAt = getTokenExpiry(token);
@@ -339,12 +340,12 @@ class TokenRevocationService {
       // Token is not revoked
       return false;
     } catch (error) {
-      console.error('TokenRevocationService.isTokenRevoked error:', error.message);
+      logger.error('TokenRevocationService.isTokenRevoked error:', error.message);
 
       // SECURITY: On error, fail open (don't block valid tokens)
       // This prevents Redis/MongoDB outages from locking out all users
       // However, log this as a critical error for monitoring
-      console.error('⚠️ CRITICAL: Token revocation check failed, allowing token (fail-open)');
+      logger.error('⚠️ CRITICAL: Token revocation check failed, allowing token (fail-open)');
       return false;
     }
   }
@@ -360,10 +361,10 @@ class TokenRevocationService {
   async cleanupExpiredTokens() {
     try {
       const deletedCount = await RevokedToken.cleanupExpired();
-      console.log(`Cleaned up ${deletedCount} expired revoked tokens from MongoDB`);
+      logger.info(`Cleaned up ${deletedCount} expired revoked tokens from MongoDB`);
       return deletedCount;
     } catch (error) {
-      console.error('TokenRevocationService.cleanupExpiredTokens error:', error.message);
+      logger.error('TokenRevocationService.cleanupExpiredTokens error:', error.message);
       return 0;
     }
   }
@@ -379,7 +380,7 @@ class TokenRevocationService {
     try {
       return await RevokedToken.getUserRevocations(userId, options);
     } catch (error) {
-      console.error('TokenRevocationService.getUserRevocations error:', error.message);
+      logger.error('TokenRevocationService.getUserRevocations error:', error.message);
       return [];
     }
   }
@@ -394,7 +395,7 @@ class TokenRevocationService {
     try {
       return await RevokedToken.getRecentRevocations(filters);
     } catch (error) {
-      console.error('TokenRevocationService.getRecentRevocations error:', error.message);
+      logger.error('TokenRevocationService.getRecentRevocations error:', error.message);
       return [];
     }
   }
@@ -409,7 +410,7 @@ class TokenRevocationService {
     try {
       return await RevokedToken.getStats(filters);
     } catch (error) {
-      console.error('TokenRevocationService.getStats error:', error.message);
+      logger.error('TokenRevocationService.getStats error:', error.message);
       return { total: 0, byReason: {} };
     }
   }
@@ -449,7 +450,7 @@ class TokenRevocationService {
     try {
       return jwt.verify(token, JWT_SECRET);
     } catch (error) {
-      console.error('Token verification failed:', error.message);
+      logger.error('Token verification failed:', error.message);
       return null;
     }
   }

@@ -13,6 +13,7 @@
  */
 
 const axios = require('axios');
+const logger = require('../utils/logger');
 
 class LeanTechService {
     constructor() {
@@ -66,7 +67,7 @@ class LeanTechService {
 
             return this.accessToken;
         } catch (error) {
-            console.error('Lean OAuth token error:', error.response?.data || error.message);
+            logger.error('Lean OAuth token error:', error.response?.data || error.message);
             throw new Error('Failed to authenticate with Lean API');
         }
     }
@@ -98,7 +99,7 @@ class LeanTechService {
             );
             return response.data;
         } catch (error) {
-            console.error('Create customer error:', error.response?.data || error.message);
+            logger.error('Create customer error:', error.response?.data || error.message);
             throw new Error('Failed to create Lean customer');
         }
     }
@@ -115,7 +116,7 @@ class LeanTechService {
             );
             return response.data;
         } catch (error) {
-            console.error('Get customer error:', error.response?.data || error.message);
+            logger.error('Get customer error:', error.response?.data || error.message);
             throw new Error('Failed to get Lean customer');
         }
     }
@@ -133,7 +134,7 @@ class LeanTechService {
             );
             return response.data;
         } catch (error) {
-            console.error('Get banks error:', error.response?.data || error.message);
+            logger.error('Get banks error:', error.response?.data || error.message);
             throw new Error('Failed to get supported banks');
         }
     }
@@ -164,7 +165,7 @@ class LeanTechService {
                 expires_in: response.data.expires_in
             };
         } catch (error) {
-            console.error('Get customer token error:', error.response?.data || error.message);
+            logger.error('Get customer token error:', error.response?.data || error.message);
             throw new Error('Failed to get customer token for LinkSDK');
         }
     }
@@ -181,7 +182,7 @@ class LeanTechService {
             );
             return response.data;
         } catch (error) {
-            console.error('Get entities error:', error.response?.data || error.message);
+            logger.error('Get entities error:', error.response?.data || error.message);
             throw new Error('Failed to get connected entities');
         }
     }
@@ -206,7 +207,7 @@ class LeanTechService {
             );
             return response.data;
         } catch (error) {
-            console.error('Get accounts error:', error.response?.data || error.message);
+            logger.error('Get accounts error:', error.response?.data || error.message);
             throw new Error('Failed to get bank accounts');
         }
     }
@@ -227,7 +228,7 @@ class LeanTechService {
             );
             return response.data;
         } catch (error) {
-            console.error('Get balance error:', error.response?.data || error.message);
+            logger.error('Get balance error:', error.response?.data || error.message);
             throw new Error('Failed to get account balance');
         }
     }
@@ -255,7 +256,7 @@ class LeanTechService {
             );
             return response.data;
         } catch (error) {
-            console.error('Get transactions error:', error.response?.data || error.message);
+            logger.error('Get transactions error:', error.response?.data || error.message);
             throw new Error('Failed to get transactions');
         }
     }
@@ -275,7 +276,7 @@ class LeanTechService {
             );
             return response.data;
         } catch (error) {
-            console.error('Get identity error:', error.response?.data || error.message);
+            logger.error('Get identity error:', error.response?.data || error.message);
             throw new Error('Failed to get identity information');
         }
     }
@@ -296,7 +297,7 @@ class LeanTechService {
             );
             return response.data;
         } catch (error) {
-            console.error('Create payment source error:', error.response?.data || error.message);
+            logger.error('Create payment source error:', error.response?.data || error.message);
             throw new Error('Failed to create payment source');
         }
     }
@@ -316,7 +317,7 @@ class LeanTechService {
             );
             return response.data;
         } catch (error) {
-            console.error('Get destinations error:', error.response?.data || error.message);
+            logger.error('Get destinations error:', error.response?.data || error.message);
             throw new Error('Failed to get payment destinations');
         }
     }
@@ -337,7 +338,7 @@ class LeanTechService {
             );
             return response.data;
         } catch (error) {
-            console.error('Create destination error:', error.response?.data || error.message);
+            logger.error('Create destination error:', error.response?.data || error.message);
             throw new Error('Failed to create payment destination');
         }
     }
@@ -362,7 +363,7 @@ class LeanTechService {
             );
             return response.data;
         } catch (error) {
-            console.error('Initiate payment error:', error.response?.data || error.message);
+            logger.error('Initiate payment error:', error.response?.data || error.message);
             throw new Error('Failed to initiate payment');
         }
     }
@@ -379,7 +380,7 @@ class LeanTechService {
             );
             return response.data;
         } catch (error) {
-            console.error('Get payment status error:', error.response?.data || error.message);
+            logger.error('Get payment status error:', error.response?.data || error.message);
             throw new Error('Failed to get payment status');
         }
     }
@@ -396,7 +397,7 @@ class LeanTechService {
             );
             return response.data;
         } catch (error) {
-            console.error('Disconnect entity error:', error.response?.data || error.message);
+            logger.error('Disconnect entity error:', error.response?.data || error.message);
             throw new Error('Failed to disconnect bank account');
         }
     }
@@ -414,7 +415,7 @@ class LeanTechService {
             );
             return response.data;
         } catch (error) {
-            console.error('Refresh entity error:', error.response?.data || error.message);
+            logger.error('Refresh entity error:', error.response?.data || error.message);
             throw new Error('Failed to refresh entity data');
         }
     }

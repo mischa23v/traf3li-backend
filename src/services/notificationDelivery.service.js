@@ -13,6 +13,7 @@
  */
 
 const { Resend } = require('resend');
+const logger = require('../utils/logger');
 
 // Initialize Resend
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
@@ -138,7 +139,7 @@ class NotificationDeliveryService {
             results[channel] = { success: false, error: `Unknown channel: ${channel}` };
         }
       } catch (error) {
-        console.error(`Failed to send ${channel} notification:`, error.message);
+        logger.error(`Failed to send ${channel} notification:`, error.message);
         results[channel] = { success: false, error: error.message };
       }
     }
@@ -156,7 +157,7 @@ class NotificationDeliveryService {
     const { to, subject, message, userName = 'User', data = {}, bypassRateLimit = false } = options;
 
     if (!resend) {
-      console.warn('⚠️ Resend not configured. Email not sent.');
+      logger.warn('⚠️ Resend not configured. Email not sent.');
       return {
         success: false,
         error: 'Email service not configured',
@@ -168,7 +169,7 @@ class NotificationDeliveryService {
     if (!bypassRateLimit) {
       const rateCheck = checkEmailRateLimit(to);
       if (!rateCheck.allowed) {
-        console.log(`⏳ Email rate limited for ${to}. Wait ${rateCheck.waitMinutes} minutes.`);
+        logger.info(`⏳ Email rate limited for ${to}. Wait ${rateCheck.waitMinutes} minutes.`);
         return {
           success: false,
           rateLimited: true,
@@ -201,14 +202,14 @@ class NotificationDeliveryService {
       // Record successful send for rate limiting
       recordEmailSent(to);
 
-      console.log(`✅ Email sent to ${to}: ${sendData.id}`);
+      logger.info(`✅ Email sent to ${to}: ${sendData.id}`);
       return {
         success: true,
         messageId: sendData.id,
         channel: 'email'
       };
     } catch (error) {
-      console.error('❌ Email send error:', error.message);
+      logger.error('❌ Email send error:', error.message);
       return {
         success: false,
         error: error.message,
@@ -228,7 +229,7 @@ class NotificationDeliveryService {
 
     // Check if SMS provider is configured
     if (!process.env.TWILIO_ACCOUNT_SID && !process.env.MSG91_AUTH_KEY) {
-      console.warn('⚠️ SMS provider not configured. SMS not sent.');
+      logger.warn('⚠️ SMS provider not configured. SMS not sent.');
       return {
         success: false,
         error: 'SMS service not configured - requires company registration',
@@ -241,7 +242,7 @@ class NotificationDeliveryService {
     // Option 1: MSG91 (India/KSA)
     // Option 2: Twilio (International)
 
-    console.log(`📱 SMS stub: Would send to ${to}: ${message}`);
+    logger.info(`📱 SMS stub: Would send to ${to}: ${message}`);
     return {
       success: false,
       stub: true,
@@ -261,7 +262,7 @@ class NotificationDeliveryService {
 
     // Check if WhatsApp provider is configured
     if (!process.env.TWILIO_WHATSAPP && !process.env.MSG91_WHATSAPP_KEY) {
-      console.warn('⚠️ WhatsApp provider not configured. Message not sent.');
+      logger.warn('⚠️ WhatsApp provider not configured. Message not sent.');
       return {
         success: false,
         error: 'WhatsApp service not configured - requires company registration',
@@ -271,7 +272,7 @@ class NotificationDeliveryService {
     }
 
     // TODO: Implement when WhatsApp provider is configured
-    console.log(`💬 WhatsApp stub: Would send to ${to}: ${message}`);
+    logger.info(`💬 WhatsApp stub: Would send to ${to}: ${message}`);
     return {
       success: false,
       stub: true,
@@ -291,7 +292,7 @@ class NotificationDeliveryService {
 
     // Check if push is configured
     if (!process.env.VAPID_PUBLIC_KEY || !process.env.VAPID_PRIVATE_KEY) {
-      console.warn('⚠️ Push notifications not configured.');
+      logger.warn('⚠️ Push notifications not configured.');
       return {
         success: false,
         error: 'Push service not configured',
@@ -305,7 +306,7 @@ class NotificationDeliveryService {
     // const user = await User.findById(userId).select('pushSubscription').lean();
     // if (!user?.pushSubscription) return { success: false, error: 'User not subscribed to push' };
 
-    console.log(`🔔 Push stub: Would send to user ${userId}: ${title} - ${body}`);
+    logger.info(`🔔 Push stub: Would send to user ${userId}: ${title} - ${body}`);
     return {
       success: false,
       stub: true,
@@ -324,7 +325,7 @@ class NotificationDeliveryService {
    */
   static async sendEmailOTP(email, otpCode, userName = 'User') {
     if (!resend) {
-      console.warn('⚠️ Resend not configured. OTP email not sent.');
+      logger.warn('⚠️ Resend not configured. OTP email not sent.');
       return {
         success: false,
         error: 'Email service not configured'
@@ -351,14 +352,14 @@ class NotificationDeliveryService {
       // Don't record for rate limiting - OTP should not block other emails
       // OTP has its own rate limiting in EmailOTP model
 
-      console.log(`✅ OTP email sent to ${email}: ${data.id}`);
+      logger.info(`✅ OTP email sent to ${email}: ${data.id}`);
       return {
         success: true,
         messageId: data.id,
         email: email,
       };
     } catch (error) {
-      console.error('❌ OTP email error:', error.message);
+      logger.error('❌ OTP email error:', error.message);
       return {
         success: false,
         error: error.message,
@@ -401,7 +402,7 @@ class NotificationDeliveryService {
 
       return { success: true, messageId: data.id };
     } catch (error) {
-      console.error('❌ Welcome email error:', error.message);
+      logger.error('❌ Welcome email error:', error.message);
       return { success: false, error: error.message };
     }
   }
@@ -438,7 +439,7 @@ class NotificationDeliveryService {
 
       return { success: true, messageId: data.id };
     } catch (error) {
-      console.error('❌ Password reset email error:', error.message);
+      logger.error('❌ Password reset email error:', error.message);
       return { success: false, error: error.message };
     }
   }
@@ -457,7 +458,7 @@ class NotificationDeliveryService {
     // Check rate limit - only 1 email per hour per user
     const rateCheck = checkEmailRateLimit(user.email);
     if (!rateCheck.allowed) {
-      console.log(`⏳ Reminder email rate limited for ${user.email}. Skipping.`);
+      logger.info(`⏳ Reminder email rate limited for ${user.email}. Skipping.`);
       return {
         success: false,
         rateLimited: true,
@@ -485,7 +486,7 @@ class NotificationDeliveryService {
 
       return { success: true, messageId: data.id };
     } catch (error) {
-      console.error('❌ Reminder email error:', error.message);
+      logger.error('❌ Reminder email error:', error.message);
       return { success: false, error: error.message };
     }
   }

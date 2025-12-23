@@ -2,6 +2,7 @@ const express = require('express');
 const { userMiddleware, firmFilter } = require('../middlewares');
 const { auditAction } = require('../middlewares/auditLog.middleware');
 const { cacheResponse, invalidateCache } = require('../middlewares/cache.middleware');
+const { sanitizeObjectId } = require('../utils/securityUtils');
 const upload = require('../configs/multer');
 const {
     validateCreateClient,
@@ -139,7 +140,10 @@ app.post('/',
 app.get('/',
     userMiddleware,
     firmFilter,
-    cacheResponse(CLIENT_CACHE_TTL, (req) => `client:firm:${req.firmId || 'none'}:list:url:${req.originalUrl}`),
+    cacheResponse(CLIENT_CACHE_TTL, (req) => {
+        const sanitizedFirmId = sanitizeObjectId(req.firmId) || 'none';
+        return `client:firm:${sanitizedFirmId}:list:url:${req.originalUrl}`;
+    }),
     getClients
 );
 
@@ -174,7 +178,10 @@ app.get('/search',
     userMiddleware,
     firmFilter,
     validateSearchClients,
-    cacheResponse(CLIENT_CACHE_TTL, (req) => `client:firm:${req.firmId || 'none'}:search:url:${req.originalUrl}`),
+    cacheResponse(CLIENT_CACHE_TTL, (req) => {
+        const sanitizedFirmId = sanitizeObjectId(req.firmId) || 'none';
+        return `client:firm:${sanitizedFirmId}:search:url:${req.originalUrl}`;
+    }),
     searchClients
 );
 
@@ -201,7 +208,10 @@ app.get('/search',
 app.get('/stats',
     userMiddleware,
     firmFilter,
-    cacheResponse(CLIENT_CACHE_TTL, (req) => `client:firm:${req.firmId || 'none'}:stats`),
+    cacheResponse(CLIENT_CACHE_TTL, (req) => {
+        const sanitizedFirmId = sanitizeObjectId(req.firmId) || 'none';
+        return `client:firm:${sanitizedFirmId}:stats`;
+    }),
     getClientStats
 );
 
@@ -235,7 +245,10 @@ app.get('/stats',
 app.get('/top-revenue',
     userMiddleware,
     firmFilter,
-    cacheResponse(CLIENT_CACHE_TTL, (req) => `client:firm:${req.firmId || 'none'}:top-revenue`),
+    cacheResponse(CLIENT_CACHE_TTL, (req) => {
+        const sanitizedFirmId = sanitizeObjectId(req.firmId) || 'none';
+        return `client:firm:${sanitizedFirmId}:top-revenue`;
+    }),
     getTopClientsByRevenue
 );
 
@@ -251,7 +264,11 @@ app.get('/:id/full',
     userMiddleware,
     firmFilter,
     validateIdParam,
-    cacheResponse(CLIENT_CACHE_TTL, (req) => `client:firm:${req.firmId || 'none'}:${req.params.id}:full`),
+    cacheResponse(CLIENT_CACHE_TTL, (req) => {
+        const sanitizedFirmId = sanitizeObjectId(req.firmId) || 'none';
+        const sanitizedId = sanitizeObjectId(req.params.id);
+        return `client:firm:${sanitizedFirmId}:${sanitizedId}:full`;
+    }),
     getClientFull
 );
 
@@ -283,7 +300,11 @@ app.get('/:id',
     userMiddleware,
     firmFilter,
     validateIdParam,
-    cacheResponse(CLIENT_CACHE_TTL, (req) => `client:firm:${req.firmId || 'none'}:${req.params.id}:details`),
+    cacheResponse(CLIENT_CACHE_TTL, (req) => {
+        const sanitizedFirmId = sanitizeObjectId(req.firmId) || 'none';
+        const sanitizedId = sanitizeObjectId(req.params.id);
+        return `client:firm:${sanitizedFirmId}:${sanitizedId}:details`;
+    }),
     getClient
 );
 
@@ -376,7 +397,11 @@ app.get('/:id/billing-info',
     userMiddleware,
     firmFilter,
     validateIdParam,
-    cacheResponse(CLIENT_CACHE_TTL, (req) => `client:firm:${req.firmId || 'none'}:${req.params.id}:billing-info`),
+    cacheResponse(CLIENT_CACHE_TTL, (req) => {
+        const sanitizedFirmId = sanitizeObjectId(req.firmId) || 'none';
+        const sanitizedId = sanitizeObjectId(req.params.id);
+        return `client:firm:${sanitizedFirmId}:${sanitizedId}:billing-info`;
+    }),
     getBillingInfo
 );
 
@@ -384,7 +409,11 @@ app.get('/:id/cases',
     userMiddleware,
     firmFilter,
     validateIdParam,
-    cacheResponse(CLIENT_CACHE_TTL, (req) => `client:firm:${req.firmId || 'none'}:${req.params.id}:cases`),
+    cacheResponse(CLIENT_CACHE_TTL, (req) => {
+        const sanitizedFirmId = sanitizeObjectId(req.firmId) || 'none';
+        const sanitizedId = sanitizeObjectId(req.params.id);
+        return `client:firm:${sanitizedFirmId}:${sanitizedId}:cases`;
+    }),
     getClientCases
 );
 
@@ -392,7 +421,11 @@ app.get('/:id/invoices',
     userMiddleware,
     firmFilter,
     validateIdParam,
-    cacheResponse(CLIENT_CACHE_TTL, (req) => `client:firm:${req.firmId || 'none'}:${req.params.id}:invoices`),
+    cacheResponse(CLIENT_CACHE_TTL, (req) => {
+        const sanitizedFirmId = sanitizeObjectId(req.firmId) || 'none';
+        const sanitizedId = sanitizeObjectId(req.params.id);
+        return `client:firm:${sanitizedFirmId}:${sanitizedId}:invoices`;
+    }),
     getClientInvoices
 );
 
@@ -400,7 +433,11 @@ app.get('/:id/payments',
     userMiddleware,
     firmFilter,
     validateIdParam,
-    cacheResponse(CLIENT_CACHE_TTL, (req) => `client:firm:${req.firmId || 'none'}:${req.params.id}:payments`),
+    cacheResponse(CLIENT_CACHE_TTL, (req) => {
+        const sanitizedFirmId = sanitizeObjectId(req.firmId) || 'none';
+        const sanitizedId = sanitizeObjectId(req.params.id);
+        return `client:firm:${sanitizedFirmId}:${sanitizedId}:payments`;
+    }),
     getClientPayments
 );
 
@@ -422,7 +459,12 @@ app.get('/:id/wathq/:dataType',
     userMiddleware,
     firmFilter,
     validateIdParam,
-    cacheResponse(CLIENT_CACHE_TTL, (req) => `client:firm:${req.firmId || 'none'}:${req.params.id}:wathq:${req.params.dataType}`),
+    cacheResponse(CLIENT_CACHE_TTL, (req) => {
+        const sanitizedFirmId = sanitizeObjectId(req.firmId) || 'none';
+        const sanitizedId = sanitizeObjectId(req.params.id);
+        const sanitizedDataType = sanitizeObjectId(req.params.dataType) || req.params.dataType;
+        return `client:firm:${sanitizedFirmId}:${sanitizedId}:wathq:${sanitizedDataType}`;
+    }),
     getWathqData
 );
 
@@ -434,8 +476,13 @@ app.post('/:id/verify/absher',
     invalidateCache(['client:firm:{firmId}:{id}:*']),
     async (req, res) => {
         try {
+            const sanitizedId = sanitizeObjectId(req.params.id);
+            if (!sanitizedId) {
+                return res.status(400).json({ success: false, message: 'Invalid client ID' });
+            }
+
             const Client = require('../models/client.model');
-            const client = await Client.findById(req.params.id);
+            const client = await Client.findById(sanitizedId);
 
             if (!client) {
                 return res.status(404).json({ success: false, message: 'Client not found' });
@@ -477,8 +524,13 @@ app.post('/:id/verify/address',
     invalidateCache(['client:firm:{firmId}:{id}:*']),
     async (req, res) => {
         try {
+            const sanitizedId = sanitizeObjectId(req.params.id);
+            if (!sanitizedId) {
+                return res.status(400).json({ success: false, message: 'Invalid client ID' });
+            }
+
             const Client = require('../models/client.model');
-            const client = await Client.findById(req.params.id);
+            const client = await Client.findById(sanitizedId);
 
             if (!client) {
                 return res.status(404).json({ success: false, message: 'Client not found' });

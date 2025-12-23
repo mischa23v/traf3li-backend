@@ -17,6 +17,7 @@ const router = express.Router();
 const mongoose = require('mongoose');
 const { verifyToken } = require('../middlewares/jwt');
 const { attachFirmContext } = require('../middlewares/firmContext.middleware');
+const logger = require('../utils/logger');
 
 // Models
 const TimeEntry = require('../models/timeEntry.model');
@@ -100,7 +101,7 @@ router.get('/billable-items', async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Error fetching billable items:', error);
+    logger.error('Error fetching billable items:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 });
@@ -179,7 +180,7 @@ router.get('/open-invoices', async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Error fetching open invoices:', error);
+    logger.error('Error fetching open invoices:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 });
@@ -360,7 +361,7 @@ router.get('/financial-summary', async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Error fetching financial summary:', error);
+    logger.error('Error fetching financial summary:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 });
@@ -448,7 +449,7 @@ router.get('/client-portfolio/:clientId', async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Error fetching client portfolio:', error);
+    logger.error('Error fetching client portfolio:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 });
@@ -597,7 +598,7 @@ router.get('/hr-dashboard', async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Error fetching HR dashboard:', error);
+    logger.error('Error fetching HR dashboard:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 });
@@ -701,7 +702,7 @@ router.get('/case-financials/:caseId', async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Error fetching case financials:', error);
+    logger.error('Error fetching case financials:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 });

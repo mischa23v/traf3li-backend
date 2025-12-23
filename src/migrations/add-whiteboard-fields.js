@@ -12,21 +12,22 @@
 
 const mongoose = require('mongoose');
 require('dotenv').config();
+const logger = require('../utils/logger');
 
 // Connect to database
 const connectDB = async () => {
     try {
         const mongoUri = process.env.MONGODB_URI || process.env.MONGO_URI;
         await mongoose.connect(mongoUri);
-        console.log('Connected to MongoDB');
+        logger.info('Connected to MongoDB');
     } catch (error) {
-        console.error('MongoDB connection error:', error);
+        logger.error('MongoDB connection error:', error);
         process.exit(1);
     }
 };
 
 const migrateWhiteboardFields = async () => {
-    console.log('Starting Whiteboard/Brainstorm fields migration...\n');
+    logger.info('Starting Whiteboard/Brainstorm fields migration...\n');
 
     const CaseNotionBlock = require('../models/caseNotionBlock.model');
     const CaseNotionPage = require('../models/caseNotionPage.model');
@@ -36,14 +37,14 @@ const migrateWhiteboardFields = async () => {
     // ═══════════════════════════════════════════════════════════════
     // 1. Add default canvas position values to blocks (spread them out)
     // ═══════════════════════════════════════════════════════════════
-    console.log('1. Adding default canvas position values to blocks...');
+    logger.info('1. Adding default canvas position values to blocks...');
 
     // Get all blocks without canvas position, grouped by page
     const blocksWithoutPosition = await CaseNotionBlock.find({
         canvasX: { $exists: false }
     }).sort({ pageId: 1, order: 1 });
 
-    console.log(`   Found ${blocksWithoutPosition.length} blocks without canvas position`);
+    logger.info(`   Found ${blocksWithoutPosition.length} blocks without canvas position`);
 
     // Group by pageId and assign spread-out positions
     const blocksByPage = {};
@@ -84,13 +85,13 @@ const migrateWhiteboardFields = async () => {
             blockPositionUpdates++;
         }
     }
-    console.log(`   Updated ${blockPositionUpdates} blocks with spread-out canvas positions`);
+    logger.info(`   Updated ${blockPositionUpdates} blocks with spread-out canvas positions`);
     totalUpdated += blockPositionUpdates;
 
     // ═══════════════════════════════════════════════════════════════
     // 2. Add default visual styling values to blocks
     // ═══════════════════════════════════════════════════════════════
-    console.log('2. Adding default visual styling values to blocks...');
+    logger.info('2. Adding default visual styling values to blocks...');
     const blockStylingResult = await CaseNotionBlock.updateMany(
         { blockColor: { $exists: false } },
         {
@@ -100,13 +101,13 @@ const migrateWhiteboardFields = async () => {
             }
         }
     );
-    console.log(`   Updated ${blockStylingResult.modifiedCount} blocks with visual styling values`);
+    logger.info(`   Updated ${blockStylingResult.modifiedCount} blocks with visual styling values`);
     totalUpdated += blockStylingResult.modifiedCount;
 
     // ═══════════════════════════════════════════════════════════════
     // 3. Add default entity linking values to blocks
     // ═══════════════════════════════════════════════════════════════
-    console.log('3. Adding default entity linking values to blocks...');
+    logger.info('3. Adding default entity linking values to blocks...');
     const blockLinkingResult = await CaseNotionBlock.updateMany(
         { linkedEventId: { $exists: false } },
         {
@@ -118,13 +119,13 @@ const migrateWhiteboardFields = async () => {
             }
         }
     );
-    console.log(`   Updated ${blockLinkingResult.modifiedCount} blocks with entity linking values`);
+    logger.info(`   Updated ${blockLinkingResult.modifiedCount} blocks with entity linking values`);
     totalUpdated += blockLinkingResult.modifiedCount;
 
     // ═══════════════════════════════════════════════════════════════
     // 4. Add default grouping values to blocks
     // ═══════════════════════════════════════════════════════════════
-    console.log('4. Adding default grouping values to blocks...');
+    logger.info('4. Adding default grouping values to blocks...');
     const blockGroupingResult = await CaseNotionBlock.updateMany(
         { groupId: { $exists: false } },
         {
@@ -134,24 +135,24 @@ const migrateWhiteboardFields = async () => {
             }
         }
     );
-    console.log(`   Updated ${blockGroupingResult.modifiedCount} blocks with grouping values`);
+    logger.info(`   Updated ${blockGroupingResult.modifiedCount} blocks with grouping values`);
     totalUpdated += blockGroupingResult.modifiedCount;
 
     // ═══════════════════════════════════════════════════════════════
     // 5. Add default viewMode to pages
     // ═══════════════════════════════════════════════════════════════
-    console.log('5. Adding default viewMode to pages...');
+    logger.info('5. Adding default viewMode to pages...');
     const pageViewModeResult = await CaseNotionPage.updateMany(
         { viewMode: { $exists: false } },
         { $set: { viewMode: 'document' } }
     );
-    console.log(`   Updated ${pageViewModeResult.modifiedCount} pages with viewMode`);
+    logger.info(`   Updated ${pageViewModeResult.modifiedCount} pages with viewMode`);
     totalUpdated += pageViewModeResult.modifiedCount;
 
     // ═══════════════════════════════════════════════════════════════
     // 6. Add default whiteboardConfig to pages
     // ═══════════════════════════════════════════════════════════════
-    console.log('6. Adding default whiteboardConfig to pages...');
+    logger.info('6. Adding default whiteboardConfig to pages...');
     const pageWhiteboardConfigResult = await CaseNotionPage.updateMany(
         { whiteboardConfig: { $exists: false } },
         {
@@ -169,16 +170,16 @@ const migrateWhiteboardFields = async () => {
             }
         }
     );
-    console.log(`   Updated ${pageWhiteboardConfigResult.modifiedCount} pages with whiteboardConfig`);
+    logger.info(`   Updated ${pageWhiteboardConfigResult.modifiedCount} pages with whiteboardConfig`);
     totalUpdated += pageWhiteboardConfigResult.modifiedCount;
 
     // ═══════════════════════════════════════════════════════════════
     // Summary
     // ═══════════════════════════════════════════════════════════════
-    console.log('\n═══════════════════════════════════════════════════════════════');
-    console.log(`Migration completed successfully!`);
-    console.log(`Total documents updated: ${totalUpdated}`);
-    console.log('═══════════════════════════════════════════════════════════════\n');
+    logger.info('\n═══════════════════════════════════════════════════════════════');
+    logger.info(`Migration completed successfully!`);
+    logger.info(`Total documents updated: ${totalUpdated}`);
+    logger.info('═══════════════════════════════════════════════════════════════\n');
 };
 
 // Run migration
@@ -187,10 +188,10 @@ const run = async () => {
         await connectDB();
         await migrateWhiteboardFields();
         await mongoose.disconnect();
-        console.log('Disconnected from MongoDB');
+        logger.info('Disconnected from MongoDB');
         process.exit(0);
     } catch (error) {
-        console.error('Migration failed:', error);
+        logger.error('Migration failed:', error);
         await mongoose.disconnect();
         process.exit(1);
     }

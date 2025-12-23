@@ -17,6 +17,7 @@
  *   router.get('/cases/:id', requireRelation('cases', 'viewer', { resourceIdParam: 'id' }), getCase);
  */
 
+const logger = require('../utils/logger');
 const permissionEnforcer = require('../services/permissionEnforcer.service');
 const CustomException = require('../utils/CustomException');
 
@@ -260,7 +261,7 @@ function grantOnCreate(namespace, relation) {
                         req.userID
                     );
                 } catch (err) {
-                    console.error('Failed to grant relation on create:', err);
+                    logger.error('Failed to grant relation on create:', err);
                 }
             }
 
@@ -285,7 +286,7 @@ function revokeOnDelete(namespace) {
                     const RelationTuple = require('../models/relationTuple.model');
                     await RelationTuple.deleteForObject(req.firmId, namespace, resourceId);
                 } catch (err) {
-                    console.error('Failed to revoke relations on delete:', err);
+                    logger.error('Failed to revoke relations on delete:', err);
                 }
             }
 
@@ -359,7 +360,7 @@ function logAccess(namespace, action) {
                 });
             }
         } catch (err) {
-            console.error('Failed to log access:', err);
+            logger.error('Failed to log access:', err);
         }
 
         next();

@@ -18,6 +18,7 @@ const { User } = require('../models');
 const bcrypt = require('bcrypt');
 const auditLogService = require('../services/auditLog.service');
 const { pickAllowedFields, sanitizeObjectId, timingSafeEqual } = require('../utils/securityUtils');
+const logger = require('../utils/logger');
 
 // ========================================================================
 // Helper Functions
@@ -122,7 +123,7 @@ const setupMFA = async (request, response) => {
             }
         });
     } catch (error) {
-        console.error('Setup MFA error:', error.message);
+        logger.error('Setup MFA error:', error.message);
 
         return response.status(500).json({
             error: true,
@@ -262,7 +263,7 @@ const verifySetup = async (request, response) => {
             }
         });
     } catch (error) {
-        console.error('Verify setup error:', error.message);
+        logger.error('Verify setup error:', error.message);
 
         return response.status(500).json({
             error: true,
@@ -395,7 +396,7 @@ const verifyMFA = async (request, response) => {
             valid: true
         });
     } catch (error) {
-        console.error('Verify MFA error:', error.message);
+        logger.error('Verify MFA error:', error.message);
 
         return response.status(500).json({
             error: true,
@@ -491,7 +492,7 @@ const disableMFA = async (request, response) => {
             disabled: true
         });
     } catch (error) {
-        console.error('Disable MFA error:', error.message);
+        logger.error('Disable MFA error:', error.message);
 
         return response.status(500).json({
             error: true,
@@ -539,7 +540,7 @@ const generateBackupCodes = async (request, response) => {
             totalCodes: result.codes.length
         });
     } catch (error) {
-        console.error('Generate backup codes error:', error.message);
+        logger.error('Generate backup codes error:', error.message);
 
         if (error.message === 'User not found') {
             return response.status(404).json({
@@ -629,7 +630,7 @@ const verifyBackupCode = async (request, response) => {
             } : null
         });
     } catch (error) {
-        console.error('Verify backup code error:', error.message);
+        logger.error('Verify backup code error:', error.message);
 
         if (error.message === 'User not found') {
             return response.status(404).json({
@@ -681,7 +682,7 @@ const regenerateBackupCodes = async (request, response) => {
             totalCodes: result.codes.length
         });
     } catch (error) {
-        console.error('Regenerate backup codes error:', error.message);
+        logger.error('Regenerate backup codes error:', error.message);
 
         if (error.message === 'User not found') {
             return response.status(404).json({
@@ -745,7 +746,7 @@ const getBackupCodesCount = async (request, response) => {
             } : null
         });
     } catch (error) {
-        console.error('Get backup codes count error:', error.message);
+        logger.error('Get backup codes count error:', error.message);
 
         if (error.message === 'User not found') {
             return response.status(404).json({
@@ -792,7 +793,7 @@ const getMFAStatus = async (request, response) => {
             ...status
         });
     } catch (error) {
-        console.error('Get MFA status error:', error.message);
+        logger.error('Get MFA status error:', error.message);
 
         if (error.message === 'User not found') {
             return response.status(404).json({

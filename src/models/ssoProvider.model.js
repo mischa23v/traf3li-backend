@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const encryptionPlugin = require('./plugins/encryption.plugin');
+const logger = require('../utils/logger');
 
 /**
  * OAuth SSO Provider Model
@@ -375,7 +376,7 @@ ssoProviderSchema.statics.getProvider = async function(firmId, providerType) {
 
         return provider;
     } catch (error) {
-        console.error('Error fetching OAuth provider:', error);
+        logger.error('Error fetching OAuth provider:', error);
         throw new Error('Failed to fetch OAuth provider configuration');
     }
 };

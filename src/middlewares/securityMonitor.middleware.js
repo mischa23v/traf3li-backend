@@ -9,6 +9,7 @@
  */
 
 const securityMonitorService = require('../services/securityMonitor.service');
+const logger = require('../utils/logger');
 
 /**
  * Middleware to monitor sensitive operations
@@ -47,7 +48,7 @@ function monitorSensitiveOperation(operationType, options = {}) {
           ip,
           userAgent,
         }).catch(err => {
-          console.error('Security monitoring error:', err);
+          logger.error('Security monitoring error:', err);
           // Don't throw - monitoring failures shouldn't affect the response
         });
       }
@@ -88,7 +89,7 @@ function monitorLoginAttempt(options = {}) {
           email,
           userAgent,
         }).catch(err => {
-          console.error('Brute force detection error:', err);
+          logger.error('Brute force detection error:', err);
         });
       } else if (data && data.success === true) {
         // Successful login - check for account takeover
@@ -99,7 +100,7 @@ function monitorLoginAttempt(options = {}) {
             userAgent,
             ...options.loginInfo,
           }).catch(err => {
-            console.error('Account takeover detection error:', err);
+            logger.error('Account takeover detection error:', err);
           });
         }
       }
@@ -155,7 +156,7 @@ function monitorDataExport(options = {}) {
           ip,
           userAgent,
         }).catch(err => {
-          console.error('Data export monitoring error:', err);
+          logger.error('Data export monitoring error:', err);
         });
       }
     };
@@ -213,7 +214,7 @@ function monitorPermissionChange(options = {}) {
           ip,
           userAgent,
         }).catch(err => {
-          console.error('Permission change monitoring error:', err);
+          logger.error('Permission change monitoring error:', err);
         });
       }
 

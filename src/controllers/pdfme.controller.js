@@ -10,6 +10,7 @@ const QueueService = require('../services/queue.service');
 const { CustomException } = require('../utils');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 const mongoose = require('mongoose');
+const logger = require('../utils/logger');
 
 /**
  * Sanitize a string to be safe for use in filenames
@@ -75,7 +76,7 @@ const listTemplates = async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('Error listing templates:', error);
+        logger.error('Error listing templates', { error: error.message });
         res.status(500).json({
             success: false,
             error: {
@@ -141,7 +142,7 @@ const getTemplate = async (req, res) => {
             data: template
         });
     } catch (error) {
-        console.error('Error getting template:', error);
+        logger.error('Error getting template', { error: error.message });
         res.status(500).json({
             success: false,
             error: {
@@ -257,7 +258,7 @@ const createTemplate = async (req, res) => {
             messageAr: 'تم إنشاء القالب بنجاح'
         });
     } catch (error) {
-        console.error('Error creating template:', error);
+        logger.error('Error creating template', { error: error.message });
         res.status(500).json({
             success: false,
             error: {
@@ -405,7 +406,7 @@ const updateTemplate = async (req, res) => {
             messageAr: 'تم تحديث القالب بنجاح'
         });
     } catch (error) {
-        console.error('Error updating template:', error);
+        logger.error('Error updating template', { error: error.message });
         res.status(500).json({
             success: false,
             error: {
@@ -483,7 +484,7 @@ const deleteTemplate = async (req, res) => {
             messageAr: 'تم حذف القالب بنجاح'
         });
     } catch (error) {
-        console.error('Error deleting template:', error);
+        logger.error('Error deleting template', { error: error.message });
         res.status(500).json({
             success: false,
             error: {
@@ -551,7 +552,7 @@ const cloneTemplate = async (req, res) => {
             messageAr: 'تم نسخ القالب بنجاح'
         });
     } catch (error) {
-        console.error('Error cloning template:', error);
+        logger.error('Error cloning template', { error: error.message });
         res.status(500).json({
             success: false,
             error: {
@@ -618,7 +619,7 @@ const setDefaultTemplate = async (req, res) => {
             messageAr: 'تم تعيين القالب كافتراضي بنجاح'
         });
     } catch (error) {
-        console.error('Error setting default template:', error);
+        logger.error('Error setting default template', { error: error.message });
         res.status(500).json({
             success: false,
             error: {
@@ -752,7 +753,7 @@ const generatePDF = async (req, res) => {
             messageAr: 'تم إنشاء PDF بنجاح'
         });
     } catch (error) {
-        console.error('Error generating PDF:', error);
+        logger.error('Error generating PDF', { error: error.message });
         res.status(500).json({
             success: false,
             error: {
@@ -890,7 +891,7 @@ const generatePDFAsync = async (req, res) => {
             messageAr: 'تم إضافة مهمة إنشاء PDF إلى قائمة الانتظار'
         });
     } catch (error) {
-        console.error('Error queuing PDF generation:', error);
+        logger.error('Error queuing PDF generation', { error: error.message });
         res.status(500).json({
             success: false,
             error: {
@@ -957,7 +958,7 @@ const generateInvoicePDF = async (req, res) => {
             messageAr: 'تم إنشاء فاتورة PDF بنجاح'
         });
     } catch (error) {
-        console.error('Error generating invoice PDF:', error);
+        logger.error('Error generating invoice PDF', { error: error.message });
         res.status(500).json({
             success: false,
             error: {
@@ -1013,7 +1014,7 @@ const generateContractPDF = async (req, res) => {
             messageAr: 'تم إنشاء عقد PDF بنجاح'
         });
     } catch (error) {
-        console.error('Error generating contract PDF:', error);
+        logger.error('Error generating contract PDF', { error: error.message });
         res.status(500).json({
             success: false,
             error: {
@@ -1069,7 +1070,7 @@ const generateReceiptPDF = async (req, res) => {
             messageAr: 'تم إنشاء إيصال PDF بنجاح'
         });
     } catch (error) {
-        console.error('Error generating receipt PDF:', error);
+        logger.error('Error generating receipt PDF', { error: error.message });
         res.status(500).json({
             success: false,
             error: {
@@ -1147,7 +1148,7 @@ const downloadPDF = async (req, res) => {
 
         res.download(filePath, sanitizedFileName);
     } catch (error) {
-        console.error('Error downloading PDF:', error);
+        logger.error('Error downloading PDF', { error: error.message });
         res.status(500).json({
             success: false,
             error: {
@@ -1237,7 +1238,7 @@ const previewTemplate = async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('Error previewing template:', error);
+        logger.error('Error previewing template', { error: error.message });
         res.status(500).json({
             success: false,
             error: {
@@ -1304,7 +1305,7 @@ const getDefaultTemplate = async (req, res) => {
             isBuiltIn: false
         });
     } catch (error) {
-        console.error('Error getting default template:', error);
+        logger.error('Error getting default template', { error: error.message });
         res.status(500).json({
             success: false,
             error: {

@@ -13,6 +13,7 @@
 
 const { withCircuitBreaker, SERVICE_CONFIGS } = require('./circuitBreaker');
 const { withRetry, SERVICE_CONFIGS: RETRY_CONFIGS } = require('./retryWithBackoff');
+const logger = require('./logger');
 
 // Service-specific configurations
 const EXTERNAL_SERVICES = {
@@ -114,7 +115,7 @@ async function wrapExternalCall(serviceKey, fn, options = {}) {
   const service = EXTERNAL_SERVICES[serviceKey];
 
   if (!service) {
-    console.warn(`[ExternalServiceWrapper] Unknown service: ${serviceKey}, using default config`);
+    logger.warn(`[ExternalServiceWrapper] Unknown service: ${serviceKey}, using default config`);
     // Use external defaults for unknown services
     const defaultCircuit = SERVICE_CONFIGS.external;
     const defaultRetry = RETRY_CONFIGS.external;

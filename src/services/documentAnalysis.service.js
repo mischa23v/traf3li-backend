@@ -3,6 +3,7 @@ const DocumentAnalysis = require('../models/documentAnalysis.model');
 const Document = require('../models/document.model');
 const { getSignedUrl, BUCKETS } = require('../configs/s3');
 const axios = require('axios');
+const logger = require('../utils/logger');
 
 /**
  * Document Analysis Service
@@ -101,7 +102,7 @@ class DocumentAnalysisService {
     // For now, process immediately
     setTimeout(() => {
       this.analyzeDocument(documentId, options).catch(err => {
-        console.error('Analysis error:', err);
+        logger.error('Analysis error:', err);
       });
     }, 100);
 
@@ -145,7 +146,7 @@ class DocumentAnalysisService {
         fileName: document.originalName
       };
     } catch (error) {
-      console.error('Error extracting document text:', error);
+      logger.error('Error extracting document text:', error);
       throw new Error('Failed to extract document text');
     }
   }
@@ -226,7 +227,7 @@ class DocumentAnalysisService {
       results.tokensUsed = totalTokens;
       return results;
     } catch (error) {
-      console.error('AI analysis error:', error);
+      logger.error('AI analysis error:', error);
       throw error;
     }
   }
@@ -515,7 +516,7 @@ ${this._prepareTextForAnalysis(text)}`;
       }
       return {};
     } catch (error) {
-      console.error('Error parsing JSON response:', error);
+      logger.error('Error parsing JSON response:', error);
       return {};
     }
   }

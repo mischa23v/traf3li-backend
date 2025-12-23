@@ -21,6 +21,7 @@ const { Task, Case, Reminder, Notification, User, Event } = require('../models')
 const { createNotification } = require('../controllers/notification.controller');
 const NotificationDeliveryService = require('../services/notificationDelivery.service');
 const { DEFAULT_TIMEZONE } = require('./timezone');
+const logger = require('./logger');
 
 // Cron job options with Saudi Arabia timezone
 const cronOptions = {
@@ -192,7 +193,7 @@ const scheduleTaskReminders = () => {
   // 1. Task reminders - daily at 9:00 AM Saudi time
   // =========================================
   cron.schedule('0 9 * * *', async () => {
-    console.log('🔔 Running task reminders cron job...');
+    logger.info('Running task reminders cron job...');
 
     try {
       const now = new Date();
@@ -230,9 +231,9 @@ const scheduleTaskReminders = () => {
         });
       }
 
-      console.log(`✅ Sent ${tasks.length} task reminders`);
+      logger.info(`Sent ${tasks.length} task reminders`);
     } catch (error) {
-      console.error('❌ Error sending task reminders:', error);
+      logger.error('Error sending task reminders:', error);
     }
   }, cronOptions);
 
@@ -240,7 +241,7 @@ const scheduleTaskReminders = () => {
   // 2. Hearing reminders - every hour Saudi time
   // =========================================
   cron.schedule('0 * * * *', async () => {
-    console.log('🔔 Running hearing reminders cron job...');
+    logger.info('Running hearing reminders cron job...');
 
     try {
       const now = new Date();
@@ -287,9 +288,9 @@ const scheduleTaskReminders = () => {
         }
       }
 
-      console.log(`✅ Sent ${hearingCount} hearing reminders`);
+      logger.info(`Sent ${hearingCount} hearing reminders`);
     } catch (error) {
-      console.error('❌ Error sending hearing reminders:', error);
+      logger.error('Error sending hearing reminders:', error);
     }
   }, cronOptions);
 
@@ -315,7 +316,7 @@ const scheduleTaskReminders = () => {
 
       if (dueReminders.length === 0) return;
 
-      console.log(`🔔 Processing ${dueReminders.length} due reminders...`);
+      logger.info(`Processing ${dueReminders.length} due reminders...`);
 
       for (const reminder of dueReminders) {
         try {
@@ -331,7 +332,7 @@ const scheduleTaskReminders = () => {
           await reminder.save();
 
         } catch (err) {
-          console.error(`Failed to process reminder ${reminder._id}:`, err.message);
+          logger.error(`Failed to process reminder ${reminder._id}:`, err.message);
 
           // Track failed attempt
           reminder.notification = reminder.notification || {};
@@ -341,9 +342,9 @@ const scheduleTaskReminders = () => {
         }
       }
 
-      console.log(`✅ Processed ${dueReminders.length} reminders`);
+      logger.info(`Processed ${dueReminders.length} reminders`);
     } catch (error) {
-      console.error('❌ Error in reminder trigger:', error);
+      logger.error('Error in reminder trigger:', error);
     }
   }, cronOptions);
 
@@ -406,10 +407,10 @@ const scheduleTaskReminders = () => {
       }
 
       if (sentCount > 0) {
-        console.log(`✅ Sent ${sentCount} advance notifications`);
+        logger.info(`Sent ${sentCount} advance notifications`);
       }
     } catch (error) {
-      console.error('❌ Error in advance notification trigger:', error);
+      logger.error('Error in advance notification trigger:', error);
     }
   }, cronOptions);
 
@@ -418,7 +419,7 @@ const scheduleTaskReminders = () => {
   // Generates next instances of recurring reminders
   // =========================================
   cron.schedule('0 0 * * *', async () => {
-    console.log('🔄 Running recurring item generator...');
+    logger.info('Running recurring item generator...');
 
     try {
       // Find recurring reminders that need new instances
@@ -487,9 +488,9 @@ const scheduleTaskReminders = () => {
         generatedCount++;
       }
 
-      console.log(`✅ Generated ${generatedCount} recurring reminders`);
+      logger.info(`Generated ${generatedCount} recurring reminders`);
     } catch (error) {
-      console.error('❌ Error in recurring generator:', error);
+      logger.error('Error in recurring generator:', error);
     }
   }, cronOptions);
 
@@ -550,10 +551,10 @@ const scheduleTaskReminders = () => {
       }
 
       if (escalatedCount > 0) {
-        console.log(`🚨 Escalated ${escalatedCount} reminders`);
+        logger.info(`Escalated ${escalatedCount} reminders`);
       }
     } catch (error) {
-      console.error('❌ Error in escalation checker:', error);
+      logger.error('Error in escalation checker:', error);
     }
   }, cronOptions);
 
@@ -617,10 +618,10 @@ const scheduleTaskReminders = () => {
       }
 
       if (expiredSnoozes.length > 0) {
-        console.log(`✅ Reactivated ${expiredSnoozes.length} snoozed reminders`);
+        logger.info(`Reactivated ${expiredSnoozes.length} snoozed reminders`);
       }
     } catch (error) {
-      console.error('❌ Error in snoozed reminder checker:', error);
+      logger.error('Error in snoozed reminder checker:', error);
     }
   }, cronOptions);
 
@@ -629,7 +630,7 @@ const scheduleTaskReminders = () => {
   // Sends reminders for upcoming events based on event.reminders array
   // =========================================
   cron.schedule('0 * * * *', async () => {
-    console.log('📅 Running event reminders cron job...');
+    logger.info('Running event reminders cron job...');
 
     try {
       const now = new Date();
@@ -710,10 +711,10 @@ const scheduleTaskReminders = () => {
       }
 
       if (reminderCount > 0) {
-        console.log(`✅ Sent ${reminderCount} event reminders`);
+        logger.info(`Sent ${reminderCount} event reminders`);
       }
     } catch (error) {
-      console.error('❌ Error sending event reminders:', error);
+      logger.error('Error sending event reminders:', error);
     }
   }, cronOptions);
 
@@ -721,7 +722,7 @@ const scheduleTaskReminders = () => {
   // 9. Overdue task checker - DAILY at 10 AM Saudi time
   // =========================================
   cron.schedule('0 10 * * *', async () => {
-    console.log('⚠️ Running overdue task checker...');
+    logger.info('Running overdue task checker...');
 
     try {
       const now = new Date();
@@ -753,22 +754,22 @@ const scheduleTaskReminders = () => {
         });
       }
 
-      console.log(`✅ Found ${overdueTasks.length} overdue tasks`);
+      logger.info(`Found ${overdueTasks.length} overdue tasks`);
     } catch (error) {
-      console.error('❌ Error in overdue task checker:', error);
+      logger.error('Error in overdue task checker:', error);
     }
   }, cronOptions);
 
-  console.log(`✅ All cron jobs scheduled with timezone: ${DEFAULT_TIMEZONE}`);
-  console.log('✅ Task reminders cron job scheduled (daily at 9:00 AM Saudi time)');
-  console.log('✅ Hearing reminders cron job scheduled (every hour)');
-  console.log('✅ Reminder trigger cron job scheduled (every minute)');
-  console.log('✅ Advance notification trigger scheduled (every minute)');
-  console.log('✅ Recurring item generator scheduled (daily at midnight Saudi time)');
-  console.log('✅ Escalation checker scheduled (every 5 minutes)');
-  console.log('✅ Snoozed reminder checker scheduled (every minute)');
-  console.log('✅ Event reminders scheduled (every hour)');
-  console.log('✅ Overdue task checker scheduled (daily at 10 AM Saudi time)');
+  logger.info(`All cron jobs scheduled with timezone: ${DEFAULT_TIMEZONE}`);
+  logger.info('Task reminders cron job scheduled (daily at 9:00 AM Saudi time)');
+  logger.info('Hearing reminders cron job scheduled (every hour)');
+  logger.info('Reminder trigger cron job scheduled (every minute)');
+  logger.info('Advance notification trigger scheduled (every minute)');
+  logger.info('Recurring item generator scheduled (daily at midnight Saudi time)');
+  logger.info('Escalation checker scheduled (every 5 minutes)');
+  logger.info('Snoozed reminder checker scheduled (every minute)');
+  logger.info('Event reminders scheduled (every hour)');
+  logger.info('Overdue task checker scheduled (daily at 10 AM Saudi time)');
 };
 
 module.exports = {

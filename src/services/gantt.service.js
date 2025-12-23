@@ -1,5 +1,6 @@
 const Task = require('../models/task.model.js');
 const mongoose = require('mongoose');
+const logger = require('../utils/logger');
 
 /**
  * Gantt Chart Service
@@ -91,7 +92,7 @@ class GanttService {
         summary
       };
     } catch (error) {
-      console.error('Error in getGanttData:', error);
+      logger.error('Error in getGanttData:', error);
       throw error;
     }
   }
@@ -266,7 +267,7 @@ class GanttService {
 
       return task;
     } catch (error) {
-      console.error('Error in getTaskHierarchy:', error);
+      logger.error('Error in getTaskHierarchy:', error);
       throw error;
     }
   }
@@ -321,7 +322,7 @@ class GanttService {
         endDate: calculatedEndDate
       };
     } catch (error) {
-      console.error('Error in calculateTaskDates:', error);
+      logger.error('Error in calculateTaskDates:', error);
       throw error;
     }
   }
@@ -409,7 +410,7 @@ class GanttService {
 
       return task;
     } catch (error) {
-      console.error('Error in adjustForDependencies:', error);
+      logger.error('Error in adjustForDependencies:', error);
       throw error;
     }
   }
@@ -447,7 +448,7 @@ class GanttService {
 
       return updatedTasks;
     } catch (error) {
-      console.error('Error in propagateDateChanges:', error);
+      logger.error('Error in propagateDateChanges:', error);
       throw error;
     }
   }
@@ -624,7 +625,7 @@ class GanttService {
 
       return criticalPath;
     } catch (error) {
-      console.error('Error in calculateCriticalPath:', error);
+      logger.error('Error in calculateCriticalPath:', error);
       throw error;
     }
   }
@@ -679,7 +680,7 @@ class GanttService {
 
       return Math.max(0, slack);
     } catch (error) {
-      console.error('Error in calculateSlackTime:', error);
+      logger.error('Error in calculateSlackTime:', error);
       throw error;
     }
   }
@@ -721,7 +722,7 @@ class GanttService {
 
       return bottlenecks;
     } catch (error) {
-      console.error('Error in identifyBottlenecks:', error);
+      logger.error('Error in identifyBottlenecks:', error);
       throw error;
     }
   }
@@ -769,7 +770,7 @@ class GanttService {
         taskCount: tasks.length
       };
     } catch (error) {
-      console.error('Error in getProjectTimeline:', error);
+      logger.error('Error in getProjectTimeline:', error);
       throw error;
     }
   }
@@ -859,7 +860,7 @@ class GanttService {
 
       return Array.from(resourceMap.values());
     } catch (error) {
-      console.error('Error in getResourceAllocation:', error);
+      logger.error('Error in getResourceAllocation:', error);
       throw error;
     }
   }
@@ -929,7 +930,7 @@ class GanttService {
         workloadByDate
       };
     } catch (error) {
-      console.error('Error in getAssigneeWorkload:', error);
+      logger.error('Error in getAssigneeWorkload:', error);
       throw error;
     }
   }
@@ -969,7 +970,7 @@ class GanttService {
         conflicts
       };
     } catch (error) {
-      console.error('Error in checkResourceConflicts:', error);
+      logger.error('Error in checkResourceConflicts:', error);
       throw error;
     }
   }
@@ -1018,7 +1019,7 @@ class GanttService {
 
       return suggestions;
     } catch (error) {
-      console.error('Error in suggestOptimalAssignment:', error);
+      logger.error('Error in suggestOptimalAssignment:', error);
       throw error;
     }
   }
@@ -1085,7 +1086,7 @@ class GanttService {
 
       return { sourceTask, targetTask };
     } catch (error) {
-      console.error('Error in createDependency:', error);
+      logger.error('Error in createDependency:', error);
       throw error;
     }
   }
@@ -1122,7 +1123,7 @@ class GanttService {
 
       return { sourceTask, targetTask };
     } catch (error) {
-      console.error('Error in removeDependency:', error);
+      logger.error('Error in removeDependency:', error);
       throw error;
     }
   }
@@ -1138,7 +1139,7 @@ class GanttService {
       // Check if adding this dependency would create a cycle
       return !(await this.detectCircularDependency(sourceId, targetId));
     } catch (error) {
-      console.error('Error in validateDependency:', error);
+      logger.error('Error in validateDependency:', error);
       throw error;
     }
   }
@@ -1178,7 +1179,7 @@ class GanttService {
 
       return false; // No cycle
     } catch (error) {
-      console.error('Error in detectCircularDependency:', error);
+      logger.error('Error in detectCircularDependency:', error);
       throw error;
     }
   }
@@ -1211,7 +1212,7 @@ class GanttService {
         dependents // Tasks that depend on this task
       };
     } catch (error) {
-      console.error('Error in getDependencyChain:', error);
+      logger.error('Error in getDependencyChain:', error);
       throw error;
     }
   }
@@ -1316,7 +1317,7 @@ class GanttService {
 
       return task;
     } catch (error) {
-      console.error('Error in updateTaskDates:', error);
+      logger.error('Error in updateTaskDates:', error);
       throw error;
     }
   }
@@ -1346,7 +1347,7 @@ class GanttService {
 
       return task;
     } catch (error) {
-      console.error('Error in updateTaskDuration:', error);
+      logger.error('Error in updateTaskDuration:', error);
       throw error;
     }
   }
@@ -1371,7 +1372,7 @@ class GanttService {
 
       return task;
     } catch (error) {
-      console.error('Error in updateTaskProgress:', error);
+      logger.error('Error in updateTaskProgress:', error);
       throw error;
     }
   }
@@ -1408,7 +1409,7 @@ class GanttService {
 
       return task;
     } catch (error) {
-      console.error('Error in updateTaskParent:', error);
+      logger.error('Error in updateTaskParent:', error);
       throw error;
     }
   }
@@ -1434,7 +1435,7 @@ class GanttService {
 
       return tasks;
     } catch (error) {
-      console.error('Error in reorderTasks:', error);
+      logger.error('Error in reorderTasks:', error);
       throw error;
     }
   }
@@ -1550,7 +1551,7 @@ class GanttService {
       // Return updated tasks
       return await Task.find({ caseId: projectId }).lean();
     } catch (error) {
-      console.error('Error in autoSchedule:', error);
+      logger.error('Error in autoSchedule:', error);
       throw error;
     }
   }
@@ -1601,7 +1602,7 @@ class GanttService {
 
       return await Task.find({ caseId: projectId }).lean();
     } catch (error) {
-      console.error('Error in levelResources:', error);
+      logger.error('Error in levelResources:', error);
       throw error;
     }
   }
@@ -1629,7 +1630,7 @@ class GanttService {
 
       return milestone;
     } catch (error) {
-      console.error('Error in createMilestone:', error);
+      logger.error('Error in createMilestone:', error);
       throw error;
     }
   }
@@ -1655,7 +1656,7 @@ class GanttService {
 
       return milestones;
     } catch (error) {
-      console.error('Error in getMilestones:', error);
+      logger.error('Error in getMilestones:', error);
       throw error;
     }
   }
@@ -1692,7 +1693,7 @@ class GanttService {
       // For now, we'll return it
       return baseline;
     } catch (error) {
-      console.error('Error in createBaseline:', error);
+      logger.error('Error in createBaseline:', error);
       throw error;
     }
   }
@@ -1708,7 +1709,7 @@ class GanttService {
       // For now, return null
       return null;
     } catch (error) {
-      console.error('Error in getBaseline:', error);
+      logger.error('Error in getBaseline:', error);
       throw error;
     }
   }
@@ -1756,7 +1757,7 @@ class GanttService {
 
       return comparison;
     } catch (error) {
-      console.error('Error in compareToBaseline:', error);
+      logger.error('Error in compareToBaseline:', error);
       throw error;
     }
   }
@@ -1798,7 +1799,7 @@ class GanttService {
 
       return xml;
     } catch (error) {
-      console.error('Error in exportToMSProject:', error);
+      logger.error('Error in exportToMSProject:', error);
       throw error;
     }
   }
@@ -1815,7 +1816,7 @@ class GanttService {
       // Placeholder implementation
       throw new Error('PDF export not yet implemented');
     } catch (error) {
-      console.error('Error in exportToPDF:', error);
+      logger.error('Error in exportToPDF:', error);
       throw error;
     }
   }
@@ -1832,7 +1833,7 @@ class GanttService {
       // Placeholder implementation
       throw new Error('Image export not yet implemented');
     } catch (error) {
-      console.error('Error in exportToImage:', error);
+      logger.error('Error in exportToImage:', error);
       throw error;
     }
   }
@@ -1867,7 +1868,7 @@ class GanttService {
 
       return excelData;
     } catch (error) {
-      console.error('Error in exportToExcel:', error);
+      logger.error('Error in exportToExcel:', error);
       throw error;
     }
   }
@@ -2053,7 +2054,7 @@ class GanttService {
       try {
         summary.criticalPath = await this.calculateCriticalPath(projectId);
       } catch (error) {
-        console.error('Error calculating critical path:', error);
+        logger.error('Error calculating critical path:', error);
       }
     }
 

@@ -19,6 +19,7 @@ const mongoose = require('mongoose');
 const AuditLogService = require('./auditLog.service');
 const Activity = require('../models/activity.model');
 const ActivityType = require('../models/activityType.model');
+const logger = require('../utils/logger');
 
 class ActivityService {
   /**
@@ -40,14 +41,14 @@ class ActivityService {
     try {
       // Validate required fields
       if (!data.res_model || !data.res_id || !data.activity_type_id) {
-        console.error('ActivityService.scheduleActivity: Missing required fields');
+        logger.error('ActivityService.scheduleActivity: Missing required fields');
         return null;
       }
 
       // Fetch activity type to get configuration
-      const activityType = await ActivityType.findById(data.activity_type_id);
+      const activityType = await ActivityType.findById(data.activity_type_id).lean();
       if (!activityType) {
-        console.error('ActivityService.scheduleActivity: Activity type not found');
+        logger.error('ActivityService.scheduleActivity: Activity type not found');
         return null;
       }
 
@@ -107,7 +108,7 @@ class ActivityService {
 
       return activity;
     } catch (error) {
-      console.error('ActivityService.scheduleActivity failed:', error.message);
+      logger.error('ActivityService.scheduleActivity failed:', error.message);
       return null;
     }
   }
@@ -122,9 +123,9 @@ class ActivityService {
   async markAsDone(activityId, feedback = '', context = {}) {
     try {
       // Find activity
-      const activity = await Activity.findById(activityId);
+      const activity = await Activity.findById(activityId).lean();
       if (!activity) {
-        console.error('ActivityService.markAsDone: Activity not found');
+        logger.error('ActivityService.markAsDone: Activity not found');
         return null;
       }
 
@@ -158,14 +159,14 @@ class ActivityService {
       );
 
       // Check if activity type has chained activity
-      const activityType = await ActivityType.findById(activity.activity_type_id);
+      const activityType = await ActivityType.findById(activity.activity_type_id).lean();
       if (activityType?.triggered_next_type_id) {
         await this._triggerChainedActivity(activity, activityType, context);
       }
 
       return updatedActivity;
     } catch (error) {
-      console.error('ActivityService.markAsDone failed:', error.message);
+      logger.error('ActivityService.markAsDone failed:', error.message);
       return null;
     }
   }
@@ -178,9 +179,9 @@ class ActivityService {
    */
   async cancel(activityId, context = {}) {
     try {
-      const activity = await Activity.findById(activityId);
+      const activity = await Activity.findById(activityId).lean();
       if (!activity) {
-        console.error('ActivityService.cancel: Activity not found');
+        logger.error('ActivityService.cancel: Activity not found');
         return null;
       }
 
@@ -212,7 +213,7 @@ class ActivityService {
 
       return updatedActivity;
     } catch (error) {
-      console.error('ActivityService.cancel failed:', error.message);
+      logger.error('ActivityService.cancel failed:', error.message);
       return null;
     }
   }
@@ -226,9 +227,9 @@ class ActivityService {
    */
   async reschedule(activityId, newDeadline, context = {}) {
     try {
-      const activity = await Activity.findById(activityId);
+      const activity = await Activity.findById(activityId).lean();
       if (!activity) {
-        console.error('ActivityService.reschedule: Activity not found');
+        logger.error('ActivityService.reschedule: Activity not found');
         return null;
       }
 
@@ -267,7 +268,7 @@ class ActivityService {
 
       return updatedActivity;
     } catch (error) {
-      console.error('ActivityService.reschedule failed:', error.message);
+      logger.error('ActivityService.reschedule failed:', error.message);
       return null;
     }
   }
@@ -281,9 +282,9 @@ class ActivityService {
    */
   async reassign(activityId, newUserId, context = {}) {
     try {
-      const activity = await Activity.findById(activityId);
+      const activity = await Activity.findById(activityId).lean();
       if (!activity) {
-        console.error('ActivityService.reassign: Activity not found');
+        logger.error('ActivityService.reassign: Activity not found');
         return null;
       }
 
@@ -318,7 +319,7 @@ class ActivityService {
 
       return updatedActivity;
     } catch (error) {
-      console.error('ActivityService.reassign failed:', error.message);
+      logger.error('ActivityService.reassign failed:', error.message);
       return null;
     }
   }
@@ -357,11 +358,12 @@ class ActivityService {
         .populate('done_by', 'firstName lastName email')
         .sort({ date_deadline: 1 })
         .limit(options.limit || 50)
-        .skip(options.skip || 0);
+        .skip(options.skip || 0)
+        .lean();
 
       return activities;
     } catch (error) {
-      console.error('ActivityService.getActivitiesForRecord failed:', error.message);
+      logger.error('ActivityService.getActivitiesForRecord failed:', error.message);
       return [];
     }
   }
@@ -412,11 +414,12 @@ class ActivityService {
         .populate('created_by', 'firstName lastName email')
         .sort({ date_deadline: 1 })
         .limit(options.limit || 100)
-        .skip(options.skip || 0);
+        .skip(options.skip || 0)
+        .lean();
 
       return activities;
     } catch (error) {
-      console.error('ActivityService.getUserActivities failed:', error.message);
+      logger.error('ActivityService.getUserActivities failed:', error.message);
       return [];
     }
   }
@@ -506,7 +509,7 @@ class ActivityService {
         by_model: byModel
       };
     } catch (error) {
-      console.error('ActivityService.getActivityStats failed:', error.message);
+      logger.error('ActivityService.getActivityStats failed:', error.message);
       return {
         overdue_count: 0,
         today_count: 0,
@@ -538,11 +541,12 @@ class ActivityService {
         .populate('user_id', 'firstName lastName email avatar')
         .populate('created_by', 'firstName lastName email')
         .sort({ date_deadline: 1 })
-        .limit(500);
+        .limit(500)
+        .lean();
 
       return overdueActivities;
     } catch (error) {
-      console.error('ActivityService.getOverdueActivities failed:', error.message);
+      logger.error('ActivityService.getOverdueActivities failed:', error.message);
       return [];
     }
   }
@@ -607,7 +611,7 @@ class ActivityService {
       // TODO: Send actual notifications/emails
       // NotificationService.sendActivityReminders(reminders);
 
-      console.log('ActivityService.processReminders: Processed reminders', {
+      logger.info('ActivityService.processReminders: Processed reminders', {
         overdue: reminders.overdue.length,
         today: reminders.today.length,
         tomorrow: reminders.tomorrow.length,
@@ -622,7 +626,7 @@ class ActivityService {
         upcoming: reminders.upcoming.length
       };
     } catch (error) {
-      console.error('ActivityService.processReminders failed:', error.message);
+      logger.error('ActivityService.processReminders failed:', error.message);
       return {
         total: 0,
         overdue: 0,
@@ -707,9 +711,9 @@ class ActivityService {
    */
   async _triggerChainedActivity(completedActivity, activityType, context) {
     try {
-      const nextActivityType = await ActivityType.findById(activityType.triggered_next_type_id);
+      const nextActivityType = await ActivityType.findById(activityType.triggered_next_type_id).lean();
       if (!nextActivityType) {
-        console.error('ActivityService._triggerChainedActivity: Next activity type not found');
+        logger.error('ActivityService._triggerChainedActivity: Next activity type not found');
         return null;
       }
 
@@ -747,7 +751,7 @@ class ActivityService {
 
       return chainedActivity;
     } catch (error) {
-      console.error('ActivityService._triggerChainedActivity failed:', error.message);
+      logger.error('ActivityService._triggerChainedActivity failed:', error.message);
       return null;
     }
   }

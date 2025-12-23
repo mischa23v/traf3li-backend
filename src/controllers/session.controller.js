@@ -13,6 +13,7 @@ const sessionManager = require('../services/sessionManager.service');
 const auditLogService = require('../services/auditLog.service');
 const Session = require('../models/session.model');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
+const logger = require('../utils/logger');
 
 /**
  * Extract IP address from request
@@ -158,7 +159,7 @@ const getActiveSessions = async (request, response) => {
             count: formattedSessions.length
         });
     } catch (error) {
-        console.error('getActiveSessions error:', error.message);
+        logger.error('getActiveSessions error:', error.message);
         return response.status(500).json({
             error: true,
             message: 'Failed to retrieve active sessions'
@@ -280,7 +281,7 @@ const getCurrentSession = async (request, response) => {
 
         return response.status(200).json(responseData);
     } catch (error) {
-        console.error('getCurrentSession error:', error.message);
+        logger.error('getCurrentSession error:', error.message);
         return response.status(500).json({
             error: true,
             message: 'Failed to retrieve current session'
@@ -386,7 +387,7 @@ const terminateSession = async (request, response) => {
             message: 'Session terminated successfully'
         });
     } catch (error) {
-        console.error('terminateSession error:', error.message);
+        logger.error('terminateSession error:', error.message);
         return response.status(500).json({
             error: true,
             message: 'Failed to terminate session'
@@ -497,7 +498,7 @@ const terminateAllOtherSessions = async (request, response) => {
             terminatedCount: result.terminatedCount
         });
     } catch (error) {
-        console.error('terminateAllOtherSessions error:', error.message);
+        logger.error('terminateAllOtherSessions error:', error.message);
         return response.status(500).json({
             error: true,
             message: 'Failed to terminate sessions'
@@ -550,7 +551,7 @@ const getSessionStats = async (request, response) => {
             }
         });
     } catch (error) {
-        console.error('getSessionStats error:', error.message);
+        logger.error('getSessionStats error:', error.message);
         return response.status(500).json({
             error: true,
             message: 'Failed to retrieve session statistics'

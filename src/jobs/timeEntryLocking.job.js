@@ -10,6 +10,7 @@ const cron = require('node-cron');
 const TimeEntry = require('../models/timeEntry.model');
 const FiscalPeriod = require('../models/fiscalPeriod.model');
 const mongoose = require('mongoose');
+const logger = require('../utils/logger');
 
 // Track running jobs
 let jobsRunning = {
@@ -23,24 +24,24 @@ let jobsRunning = {
  */
 const lockEntriesForClosedPeriods = async () => {
     if (jobsRunning.lockPeriods) {
-        console.log('[Time Entry Jobs] Lock periods job still running, skipping...');
+        logger.info('[Time Entry Jobs] Lock periods job still running, skipping...');
         return;
     }
 
     jobsRunning.lockPeriods = true;
 
     try {
-        console.log('[Time Entry Jobs] Checking for entries to lock...');
+        logger.info('[Time Entry Jobs] Checking for entries to lock...');
 
         // Find all closed fiscal periods
         const closedPeriods = await FiscalPeriod.find({ status: 'closed' });
 
         if (closedPeriods.length === 0) {
-            console.log('[Time Entry Jobs] No closed fiscal periods found');
+            logger.info('[Time Entry Jobs] No closed fiscal periods found');
             return;
         }
 
-        console.log(`[Time Entry Jobs] Found ${closedPeriods.length} closed periods`);
+        logger.info(`[Time Entry Jobs] Found ${closedPeriods.length} closed periods`);
 
         let totalLocked = 0;
 
@@ -75,18 +76,18 @@ const lockEntriesForClosedPeriods = async () => {
                 );
 
                 if (result.modifiedCount > 0) {
-                    console.log(`[Time Entry Jobs] Locked ${result.modifiedCount} entries for period ${period.name}`);
+                    logger.info(`[Time Entry Jobs] Locked ${result.modifiedCount} entries for period ${period.name}`);
                     totalLocked += result.modifiedCount;
                 }
             } catch (error) {
-                console.error(`[Time Entry Jobs] Error locking entries for period ${period._id}:`, error.message);
+                logger.error(`[Time Entry Jobs] Error locking entries for period ${period._id}:`, error.message);
             }
         }
 
-        console.log(`[Time Entry Jobs] Total entries locked: ${totalLocked}`);
+        logger.info(`[Time Entry Jobs] Total entries locked: ${totalLocked}`);
 
     } catch (error) {
-        console.error('[Time Entry Jobs] Lock periods job error:', error);
+        logger.error('[Time Entry Jobs] Lock periods job error:', error);
     } finally {
         jobsRunning.lockPeriods = false;
     }
@@ -98,14 +99,14 @@ const lockEntriesForClosedPeriods = async () => {
  */
 const cleanupOldEntries = async () => {
     if (jobsRunning.cleanup) {
-        console.log('[Time Entry Jobs] Cleanup job still running, skipping...');
+        logger.info('[Time Entry Jobs] Cleanup job still running, skipping...');
         return;
     }
 
     jobsRunning.cleanup = true;
 
     try {
-        console.log('[Time Entry Jobs] Running cleanup...');
+        logger.info('[Time Entry Jobs] Running cleanup...');
 
         const ninetyDaysAgo = new Date();
         ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
@@ -117,7 +118,7 @@ const cleanupOldEntries = async () => {
         });
 
         if (rejectedResult.deletedCount > 0) {
-            console.log(`[Time Entry Jobs] Deleted ${rejectedResult.deletedCount} old rejected entries`);
+            logger.info(`[Time Entry Jobs] Deleted ${rejectedResult.deletedCount} old rejected entries`);
         }
 
         // Delete draft entries older than 90 days with no activity
@@ -128,13 +129,13 @@ const cleanupOldEntries = async () => {
         });
 
         if (draftResult.deletedCount > 0) {
-            console.log(`[Time Entry Jobs] Deleted ${draftResult.deletedCount} old draft entries`);
+            logger.info(`[Time Entry Jobs] Deleted ${draftResult.deletedCount} old draft entries`);
         }
 
-        console.log('[Time Entry Jobs] Cleanup complete');
+        logger.info('[Time Entry Jobs] Cleanup complete');
 
     } catch (error) {
-        console.error('[Time Entry Jobs] Cleanup job error:', error);
+        logger.error('[Time Entry Jobs] Cleanup job error:', error);
     } finally {
         jobsRunning.cleanup = false;
     }
@@ -146,7 +147,7 @@ const cleanupOldEntries = async () => {
  */
 const checkPendingApprovals = async () => {
     try {
-        console.log('[Time Entry Jobs] Checking for stale pending approvals...');
+        logger.info('[Time Entry Jobs] Checking for stale pending approvals...');
 
         const threeDaysAgo = new Date();
         threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
@@ -169,7 +170,7 @@ const checkPendingApprovals = async () => {
         ]);
 
         if (staleEntries.length > 0) {
-            console.log(`[Time Entry Jobs] Found ${staleEntries.length} managers with stale approvals`);
+            logger.info(`[Time Entry Jobs] Found ${staleEntries.length} managers with stale approvals`);
 
             const Notification = mongoose.model('Notification');
 
@@ -189,16 +190,16 @@ const checkPendingApprovals = async () => {
                             link: '/time-entries?status=pending-approval'
                         });
                     } catch (notifError) {
-                        console.error(`[Time Entry Jobs] Failed to send reminder to ${item._id}:`, notifError.message);
+                        logger.error(`[Time Entry Jobs] Failed to send reminder to ${item._id}:`, notifError.message);
                     }
                 }
             }
         } else {
-            console.log('[Time Entry Jobs] No stale pending approvals found');
+            logger.info('[Time Entry Jobs] No stale pending approvals found');
         }
 
     } catch (error) {
-        console.error('[Time Entry Jobs] Pending approvals check error:', error);
+        logger.error('[Time Entry Jobs] Pending approvals check error:', error);
     }
 };
 
@@ -206,41 +207,41 @@ const checkPendingApprovals = async () => {
  * Start all time entry jobs
  */
 function startTimeEntryJobs() {
-    console.log('[Time Entry Jobs] Starting time entry job scheduler...');
+    logger.info('[Time Entry Jobs] Starting time entry job scheduler...');
 
     // Daily at midnight: Lock entries for closed periods
     cron.schedule('0 0 * * *', () => {
         lockEntriesForClosedPeriods();
     });
-    console.log('[Time Entry Jobs] ✓ Period locking job: daily at midnight');
+    logger.info('[Time Entry Jobs] ✓ Period locking job: daily at midnight');
 
     // Daily at 9 AM: Check for stale pending approvals
     cron.schedule('0 9 * * *', () => {
         checkPendingApprovals();
     });
-    console.log('[Time Entry Jobs] ✓ Pending approvals check: daily at 9:00 AM');
+    logger.info('[Time Entry Jobs] ✓ Pending approvals check: daily at 9:00 AM');
 
     // Weekly on Sunday at 2 AM: Cleanup old entries
     cron.schedule('0 2 * * 0', () => {
         cleanupOldEntries();
     });
-    console.log('[Time Entry Jobs] ✓ Cleanup job: weekly on Sunday at 2:00 AM');
+    logger.info('[Time Entry Jobs] ✓ Cleanup job: weekly on Sunday at 2:00 AM');
 
-    console.log('[Time Entry Jobs] All time entry jobs started successfully');
+    logger.info('[Time Entry Jobs] All time entry jobs started successfully');
 }
 
 /**
  * Stop all jobs (for graceful shutdown)
  */
 function stopTimeEntryJobs() {
-    console.log('[Time Entry Jobs] Stopping time entry jobs...');
+    logger.info('[Time Entry Jobs] Stopping time entry jobs...');
 }
 
 /**
  * Manually trigger a specific job (for testing/admin)
  */
 async function triggerJob(jobName) {
-    console.log(`[Time Entry Jobs] Manually triggering ${jobName}...`);
+    logger.info(`[Time Entry Jobs] Manually triggering ${jobName}...`);
 
     switch (jobName) {
         case 'lockPeriods':
@@ -256,7 +257,7 @@ async function triggerJob(jobName) {
             throw new Error(`Unknown job: ${jobName}`);
     }
 
-    console.log(`[Time Entry Jobs] ${jobName} completed`);
+    logger.info(`[Time Entry Jobs] ${jobName} completed`);
 }
 
 /**

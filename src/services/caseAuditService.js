@@ -1,4 +1,5 @@
 const CaseAuditLog = require('../models/caseAuditLog.model');
+const logger = require('../utils/logger');
 
 /**
  * Case Audit Service
@@ -30,7 +31,7 @@ class CaseAuditService {
       });
       return entry;
     } catch (error) {
-      console.error('❌ CaseAuditService.log error:', error.message);
+      logger.error('❌ CaseAuditService.log error:', error.message);
       // Don't throw - audit logging shouldn't break main operations
       return null;
     }

@@ -1,5 +1,6 @@
 const nlpService = require('./nlp.service');
 const { Task, Reminder, Event } = require('../models');
+const logger = require('../utils/logger');
 
 /**
  * Voice to Task Service
@@ -94,7 +95,7 @@ class VoiceToTaskService {
         }
       };
     } catch (error) {
-      console.error('Voice transcription processing error:', error);
+      logger.error('Voice transcription processing error:', error);
       throw new Error(`Failed to process voice transcription: ${error.message}`);
     }
   }
@@ -188,7 +189,7 @@ class VoiceToTaskService {
           task.linkedEventId = linkedEvent._id;
           await task.save();
         } catch (error) {
-          console.error('Error creating linked calendar event:', error);
+          logger.error('Error creating linked calendar event:', error);
         }
       }
 
@@ -202,7 +203,7 @@ class VoiceToTaskService {
 
       return populatedTask;
     } catch (error) {
-      console.error('Create task from voice error:', error);
+      logger.error('Create task from voice error:', error);
       throw new Error(`Failed to create task from voice: ${error.message}`);
     }
   }
@@ -279,7 +280,7 @@ class VoiceToTaskService {
 
       return populatedReminder;
     } catch (error) {
-      console.error('Create reminder from voice error:', error);
+      logger.error('Create reminder from voice error:', error);
       throw new Error(`Failed to create reminder from voice: ${error.message}`);
     }
   }
@@ -354,7 +355,7 @@ class VoiceToTaskService {
 
       return populatedEvent;
     } catch (error) {
-      console.error('Create event from voice error:', error);
+      logger.error('Create event from voice error:', error);
       throw new Error(`Failed to create event from voice: ${error.message}`);
     }
   }
@@ -426,7 +427,7 @@ class VoiceToTaskService {
           metadata: processed.metadata
         });
       } catch (error) {
-        console.error(`Error processing memo ${memo.memoId}:`, error);
+        logger.error(`Error processing memo ${memo.memoId}:`, error);
         results.push({
           memoId: memo.memoId,
           success: false,
@@ -468,7 +469,7 @@ class VoiceToTaskService {
         return [result.eventData];
       }
     } catch (error) {
-      console.error('Multiple commands processing error:', error);
+      logger.error('Multiple commands processing error:', error);
       throw error;
     }
   }
@@ -512,7 +513,7 @@ class VoiceToTaskService {
 
       return taskData;
     } catch (error) {
-      console.error('Task parsing error:', error);
+      logger.error('Task parsing error:', error);
       // Fallback to basic parsing
       return {
         title: this._extractTitle(transcription),

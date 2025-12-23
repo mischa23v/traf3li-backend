@@ -11,6 +11,7 @@ const wathqService = require('../services/wathqService');
 const mojService = require('../services/mojService');
 const { verifyToken } = require('../middlewares/jwt');
 const { sensitiveRateLimiter } = require('../middlewares/rateLimiter.middleware');
+const logger = require('../utils/logger');
 
 // All routes require authentication
 router.use(verifyToken);
@@ -80,7 +81,7 @@ router.post('/yakeen', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Yakeen verification error:', error);
+    logger.error('Yakeen verification error:', error);
     return res.status(500).json({
       success: false,
       message: 'Verification failed',
@@ -127,7 +128,7 @@ router.post('/yakeen/address', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Yakeen address error:', error);
+    logger.error('Yakeen address error:', error);
     return res.status(500).json({
       success: false,
       message: 'Failed to retrieve address',
@@ -207,7 +208,7 @@ router.get('/wathq/:crNumber', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Wathq verification error:', error);
+    logger.error('Wathq verification error:', error);
     return res.status(500).json({
       success: false,
       message: 'Verification failed',
@@ -242,7 +243,7 @@ router.get('/wathq/:crNumber/basic', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Wathq basic info error:', error);
+    logger.error('Wathq basic info error:', error);
     return res.status(500).json({
       success: false,
       message: 'Failed to retrieve info'
@@ -275,7 +276,7 @@ router.get('/wathq/:crNumber/status', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Wathq status error:', error);
+    logger.error('Wathq status error:', error);
     return res.status(500).json({
       success: false,
       message: 'Failed to retrieve status'
@@ -308,7 +309,7 @@ router.get('/wathq/:crNumber/managers', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Wathq managers error:', error);
+    logger.error('Wathq managers error:', error);
     return res.status(500).json({
       success: false,
       message: 'Failed to retrieve managers'
@@ -341,7 +342,7 @@ router.get('/wathq/:crNumber/owners', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Wathq owners error:', error);
+    logger.error('Wathq owners error:', error);
     return res.status(500).json({
       success: false,
       message: 'Failed to retrieve owners'
@@ -374,7 +375,7 @@ router.get('/wathq/:crNumber/capital', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Wathq capital error:', error);
+    logger.error('Wathq capital error:', error);
     return res.status(500).json({
       success: false,
       message: 'Failed to retrieve capital info'
@@ -407,7 +408,7 @@ router.get('/wathq/:crNumber/branches', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Wathq branches error:', error);
+    logger.error('Wathq branches error:', error);
     return res.status(500).json({
       success: false,
       message: 'Failed to retrieve branches'
@@ -484,7 +485,7 @@ router.get('/moj/attorney/:attorneyId', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('MOJ attorney verification error:', error);
+    logger.error('MOJ attorney verification error:', error);
     return res.status(500).json({
       success: false,
       message: 'Verification failed',
@@ -531,7 +532,7 @@ router.post('/moj/attorney', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('MOJ attorney verification error:', error);
+    logger.error('MOJ attorney verification error:', error);
     return res.status(500).json({
       success: false,
       message: 'Verification failed',
@@ -578,7 +579,7 @@ router.get('/moj/license/:licenseNumber', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('MOJ license verification error:', error);
+    logger.error('MOJ license verification error:', error);
     return res.status(500).json({
       success: false,
       message: 'Verification failed',
@@ -638,7 +639,7 @@ router.get('/moj/poa/:poaNumber', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('MOJ POA verification error:', error);
+    logger.error('MOJ POA verification error:', error);
     return res.status(500).json({
       success: false,
       message: 'Verification failed',
@@ -685,7 +686,7 @@ router.post('/moj/poa', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('MOJ POA verification error:', error);
+    logger.error('MOJ POA verification error:', error);
     return res.status(500).json({
       success: false,
       message: 'Verification failed',
@@ -732,7 +733,7 @@ router.get('/moj/poa/list/:idNumber', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('MOJ POA list error:', error);
+    logger.error('MOJ POA list error:', error);
     return res.status(500).json({
       success: false,
       message: 'Failed to retrieve POA list',

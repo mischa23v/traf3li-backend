@@ -6,6 +6,7 @@
  */
 
 const cacheService = require("../services/cache.service");
+const logger = require('../utils/logger');
 
 /**
  * Cache key generators for common patterns
@@ -120,12 +121,12 @@ const cacheResponse = (ttl = 300, keyGenerator = null) => {
 
       if (cachedData !== null) {
         // Cache hit
-        console.log(`Cache HIT: ${cacheKey}`);
+        logger.info(`Cache HIT: ${cacheKey}`);
         return res.json(cachedData);
       }
 
       // Cache miss - intercept response
-      console.log(`Cache MISS: ${cacheKey}`);
+      logger.info(`Cache MISS: ${cacheKey}`);
 
       // Store original json method
       const originalJson = res.json.bind(res);
@@ -135,7 +136,7 @@ const cacheResponse = (ttl = 300, keyGenerator = null) => {
         // Only cache successful responses (status < 400)
         if (res.statusCode < 400 && data) {
           cacheService.set(cacheKey, data, ttl).catch(err => {
-            console.error(`Cache set error for key "${cacheKey}":`, err.message);
+            logger.error(`Cache set error for key "${cacheKey}":`, err.message);
           });
         }
 
@@ -145,7 +146,7 @@ const cacheResponse = (ttl = 300, keyGenerator = null) => {
 
       next();
     } catch (error) {
-      console.error("Cache middleware error:", error.message);
+      logger.error("Cache middleware error:", error.message);
       // On error, proceed without caching
       next();
     }
@@ -200,14 +201,15 @@ const invalidateCache = (patterns = []) => {
         });
 
         // Invalidate cache patterns asynchronously
-        Promise.all(processedPatterns.map(pattern => cacheService.delPattern(pattern)))
-          .then(results => {
+        (async () => {
+          try {
+            const results = await Promise.all(processedPatterns.map(pattern => cacheService.delPattern(pattern)));
             const totalDeleted = results.reduce((sum, count) => sum + count, 0);
-            console.log(`Cache invalidation: Deleted ${totalDeleted} keys for patterns:`, processedPatterns);
-          })
-          .catch(err => {
-            console.error("Cache invalidation error:", err.message);
-          });
+            logger.info(`Cache invalidation: Deleted ${totalDeleted} keys for patterns:`, processedPatterns);
+          } catch (err) {
+            logger.error("Cache invalidation error:", err.message);
+          }
+        })();
       }
 
       // Call original json method

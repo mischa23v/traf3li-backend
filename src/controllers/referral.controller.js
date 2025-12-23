@@ -2,6 +2,7 @@ const Referral = require('../models/referral.model');
 const Lead = require('../models/lead.model');
 const CrmActivity = require('../models/crmActivity.model');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
+const logger = require('../utils/logger');
 
 // ============================================
 // REFERRAL CRUD
@@ -84,7 +85,7 @@ exports.createReferral = async (req, res) => {
             data: referral
         });
     } catch (error) {
-        console.error('Error creating referral:', error);
+        logger.error('Error creating referral:', error);
         res.status(500).json({
             success: false,
             message: 'Error creating referral source',
@@ -139,7 +140,7 @@ exports.getReferrals = async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('Error getting referrals:', error);
+        logger.error('Error getting referrals:', error);
         res.status(500).json({
             success: false,
             message: 'Error getting referrals',
@@ -191,7 +192,7 @@ exports.getReferral = async (req, res) => {
             data: referral
         });
     } catch (error) {
-        console.error('Error getting referral:', error);
+        logger.error('Error getting referral:', error);
         res.status(500).json({
             success: false,
             message: 'Error getting referral',
@@ -306,7 +307,7 @@ exports.updateReferral = async (req, res) => {
             data: referral
         });
     } catch (error) {
-        console.error('Error updating referral:', error);
+        logger.error('Error updating referral:', error);
         res.status(500).json({
             success: false,
             message: 'Error updating referral',
@@ -369,7 +370,7 @@ exports.deleteReferral = async (req, res) => {
             message: 'Referral deleted successfully'
         });
     } catch (error) {
-        console.error('Error deleting referral:', error);
+        logger.error('Error deleting referral:', error);
         res.status(500).json({
             success: false,
             message: 'Error deleting referral',
@@ -476,7 +477,7 @@ exports.addLeadReferral = async (req, res) => {
             data: referral
         });
     } catch (error) {
-        console.error('Error adding lead referral:', error);
+        logger.error('Error adding lead referral:', error);
         res.status(500).json({
             success: false,
             message: 'Error adding lead referral',
@@ -551,7 +552,7 @@ exports.markConverted = async (req, res) => {
             data: referral
         });
     } catch (error) {
-        console.error('Error marking referral as converted:', error);
+        logger.error('Error marking referral as converted:', error);
         res.status(500).json({
             success: false,
             message: 'Error updating referral',
@@ -652,7 +653,7 @@ exports.recordPayment = async (req, res) => {
             data: referral
         });
     } catch (error) {
-        console.error('Error recording payment:', error);
+        logger.error('Error recording payment:', error);
         res.status(500).json({
             success: false,
             message: 'Error recording payment',
@@ -687,7 +688,7 @@ exports.getStats = async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('Error getting referral stats:', error);
+        logger.error('Error getting referral stats:', error);
         res.status(500).json({
             success: false,
             message: 'Error getting statistics',
@@ -718,7 +719,7 @@ exports.getTopReferrers = async (req, res) => {
             data: topReferrers
         });
     } catch (error) {
-        console.error('Error getting top referrers:', error);
+        logger.error('Error getting top referrers:', error);
         res.status(500).json({
             success: false,
             message: 'Error getting top referrers',
@@ -785,7 +786,7 @@ exports.calculateFee = async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('Error calculating fee:', error);
+        logger.error('Error calculating fee:', error);
         res.status(500).json({
             success: false,
             message: 'Error calculating fee',

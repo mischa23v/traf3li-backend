@@ -10,6 +10,7 @@ const { WPSService, SARIE_BANK_IDS } = require('../services/wps.service');
 const { SADADService, BILLER_CATEGORIES, COMMON_BILLERS } = require('../services/sadad.service');
 const { MudadService, GOSI_RATES } = require('../services/mudad.service');
 const mongoose = require('mongoose');
+const logger = require('../utils/logger');
 
 // ============================================
 // VALIDATION HELPERS
@@ -423,28 +424,28 @@ const handleLeanWebhook = asyncHandler(async (req, res) => {
 
     const { type, data } = req.body;
 
-    console.log('Lean webhook received:', type, data);
+    logger.info('Lean webhook received:', type, data);
 
     // Handle different webhook events
     switch (type) {
         case 'entity.created':
             // Bank account connected
-            console.log('New bank account connected:', data.entity_id);
+            logger.info('New bank account connected:', data.entity_id);
             break;
         case 'entity.data.refresh.updated':
             // Data refresh completed
-            console.log('Data refresh completed:', data.entity_id);
+            logger.info('Data refresh completed:', data.entity_id);
             break;
         case 'payment.completed':
             // Payment completed
-            console.log('Payment completed:', data.payment_intent_id);
+            logger.info('Payment completed:', data.payment_intent_id);
             break;
         case 'payment.failed':
             // Payment failed
-            console.log('Payment failed:', data.payment_intent_id, data.error);
+            logger.info('Payment failed:', data.payment_intent_id, data.error);
             break;
         default:
-            console.log('Unknown webhook type:', type);
+            logger.info('Unknown webhook type:', type);
     }
 
     res.json({ received: true });

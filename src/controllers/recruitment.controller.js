@@ -1,6 +1,7 @@
 const { JobPosting, Applicant } = require('../models');
 const mongoose = require('mongoose');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
+const logger = require('../utils/logger');
 
 /**
  * Recruitment Controller
@@ -75,7 +76,7 @@ exports.getJobPostings = async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('Error fetching job postings:', error);
+        logger.error('Error fetching job postings:', error);
         res.status(500).json({ success: false, message: 'Error fetching job postings', error: error.message });
     }
 };
@@ -104,7 +105,7 @@ exports.getJobPostingById = async (req, res) => {
 
         res.json({ success: true, data: job });
     } catch (error) {
-        console.error('Error fetching job posting:', error);
+        logger.error('Error fetching job posting:', error);
         res.status(500).json({ success: false, message: 'Error fetching job posting', error: error.message });
     }
 };
@@ -156,7 +157,7 @@ exports.createJobPosting = async (req, res) => {
             data: job
         });
     } catch (error) {
-        console.error('Error creating job posting:', error);
+        logger.error('Error creating job posting:', error);
         res.status(500).json({ success: false, message: 'Error creating job posting', error: error.message });
     }
 };
@@ -203,7 +204,7 @@ exports.updateJobPosting = async (req, res) => {
             data: job
         });
     } catch (error) {
-        console.error('Error updating job posting:', error);
+        logger.error('Error updating job posting:', error);
         res.status(500).json({ success: false, message: 'Error updating job posting', error: error.message });
     }
 };
@@ -245,7 +246,7 @@ exports.deleteJobPosting = async (req, res) => {
             message: 'Job posting deleted successfully'
         });
     } catch (error) {
-        console.error('Error deleting job posting:', error);
+        logger.error('Error deleting job posting:', error);
         res.status(500).json({ success: false, message: 'Error deleting job posting', error: error.message });
     }
 };
@@ -279,7 +280,7 @@ exports.changeJobStatus = async (req, res) => {
             data: job
         });
     } catch (error) {
-        console.error('Error changing job status:', error);
+        logger.error('Error changing job status:', error);
         res.status(500).json({ success: false, message: 'Error changing job status', error: error.message });
     }
 };
@@ -324,7 +325,7 @@ exports.publishJob = async (req, res) => {
             data: job
         });
     } catch (error) {
-        console.error('Error publishing job:', error);
+        logger.error('Error publishing job:', error);
         res.status(500).json({ success: false, message: 'Error publishing job', error: error.message });
     }
 };
@@ -378,7 +379,7 @@ exports.cloneJob = async (req, res) => {
             data: newJob
         });
     } catch (error) {
-        console.error('Error cloning job:', error);
+        logger.error('Error cloning job:', error);
         res.status(500).json({ success: false, message: 'Error cloning job', error: error.message });
     }
 };
@@ -412,7 +413,7 @@ exports.getRecruitmentStats = async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('Error fetching recruitment stats:', error);
+        logger.error('Error fetching recruitment stats:', error);
         res.status(500).json({ success: false, message: 'Error fetching recruitment stats', error: error.message });
     }
 };
@@ -436,7 +437,7 @@ exports.getJobsNearingDeadline = async (req, res) => {
             data: jobs
         });
     } catch (error) {
-        console.error('Error fetching jobs nearing deadline:', error);
+        logger.error('Error fetching jobs nearing deadline:', error);
         res.status(500).json({ success: false, message: 'Error fetching jobs', error: error.message });
     }
 };
@@ -468,7 +469,7 @@ exports.getApplicantStats = async (req, res) => {
             data: stats
         });
     } catch (error) {
-        console.error('Error fetching applicant stats:', error);
+        logger.error('Error fetching applicant stats:', error);
         res.status(500).json({ success: false, message: 'Error fetching applicant stats', error: error.message });
     }
 };
@@ -543,7 +544,7 @@ exports.getApplicants = async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('Error fetching applicants:', error);
+        logger.error('Error fetching applicants:', error);
         res.status(500).json({ success: false, message: 'Error fetching applicants', error: error.message });
     }
 };
@@ -572,7 +573,7 @@ exports.getApplicantById = async (req, res) => {
 
         res.json({ success: true, data: applicant });
     } catch (error) {
-        console.error('Error fetching applicant:', error);
+        logger.error('Error fetching applicant:', error);
         res.status(500).json({ success: false, message: 'Error fetching applicant', error: error.message });
     }
 };
@@ -727,7 +728,7 @@ exports.createApplicant = async (req, res) => {
             data: applicant
         });
     } catch (error) {
-        console.error('Error creating applicant:', error);
+        logger.error('Error creating applicant:', error);
         res.status(500).json({ success: false, message: 'Error creating applicant', error: error.message });
     }
 };
@@ -806,7 +807,7 @@ exports.updateApplicant = async (req, res) => {
             data: applicant
         });
     } catch (error) {
-        console.error('Error updating applicant:', error);
+        logger.error('Error updating applicant:', error);
         res.status(500).json({ success: false, message: 'Error updating applicant', error: error.message });
     }
 };
@@ -834,7 +835,7 @@ exports.deleteApplicant = async (req, res) => {
             message: 'Applicant deleted successfully'
         });
     } catch (error) {
-        console.error('Error deleting applicant:', error);
+        logger.error('Error deleting applicant:', error);
         res.status(500).json({ success: false, message: 'Error deleting applicant', error: error.message });
     }
 };
@@ -897,7 +898,7 @@ exports.updateApplicantStage = async (req, res) => {
             data: applicant
         });
     } catch (error) {
-        console.error('Error updating applicant stage:', error);
+        logger.error('Error updating applicant stage:', error);
         res.status(500).json({ success: false, message: 'Error updating stage', error: error.message });
     }
 };
@@ -958,7 +959,7 @@ exports.rejectApplicant = async (req, res) => {
             data: applicant
         });
     } catch (error) {
-        console.error('Error rejecting applicant:', error);
+        logger.error('Error rejecting applicant:', error);
         res.status(500).json({ success: false, message: 'Error rejecting applicant', error: error.message });
     }
 };
@@ -1016,7 +1017,7 @@ exports.getJobPipeline = async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('Error fetching pipeline:', error);
+        logger.error('Error fetching pipeline:', error);
         res.status(500).json({ success: false, message: 'Error fetching pipeline', error: error.message });
     }
 };
@@ -1078,7 +1079,7 @@ exports.scheduleInterview = async (req, res) => {
             data: applicant.interviews[applicant.interviews.length - 1]
         });
     } catch (error) {
-        console.error('Error scheduling interview:', error);
+        logger.error('Error scheduling interview:', error);
         res.status(500).json({ success: false, message: 'Error scheduling interview', error: error.message });
     }
 };
@@ -1124,7 +1125,7 @@ exports.updateInterview = async (req, res) => {
             data: interview
         });
     } catch (error) {
-        console.error('Error updating interview:', error);
+        logger.error('Error updating interview:', error);
         res.status(500).json({ success: false, message: 'Error updating interview', error: error.message });
     }
 };
@@ -1223,7 +1224,7 @@ exports.submitInterviewFeedback = async (req, res) => {
             data: interview
         });
     } catch (error) {
-        console.error('Error submitting feedback:', error);
+        logger.error('Error submitting feedback:', error);
         res.status(500).json({ success: false, message: 'Error submitting feedback', error: error.message });
     }
 };
@@ -1292,7 +1293,7 @@ exports.sendAssessment = async (req, res) => {
             data: applicant.assessments[applicant.assessments.length - 1]
         });
     } catch (error) {
-        console.error('Error sending assessment:', error);
+        logger.error('Error sending assessment:', error);
         res.status(500).json({ success: false, message: 'Error sending assessment', error: error.message });
     }
 };
@@ -1369,7 +1370,7 @@ exports.updateAssessmentResult = async (req, res) => {
             data: assessment
         });
     } catch (error) {
-        console.error('Error updating assessment:', error);
+        logger.error('Error updating assessment:', error);
         res.status(500).json({ success: false, message: 'Error updating assessment', error: error.message });
     }
 };
@@ -1432,7 +1433,7 @@ exports.createOffer = async (req, res) => {
             data: applicant.offers[applicant.offers.length - 1]
         });
     } catch (error) {
-        console.error('Error creating offer:', error);
+        logger.error('Error creating offer:', error);
         res.status(500).json({ success: false, message: 'Error creating offer', error: error.message });
     }
 };
@@ -1510,7 +1511,7 @@ exports.updateOffer = async (req, res) => {
             data: offer
         });
     } catch (error) {
-        console.error('Error updating offer:', error);
+        logger.error('Error updating offer:', error);
         res.status(500).json({ success: false, message: 'Error updating offer', error: error.message });
     }
 };
@@ -1574,7 +1575,7 @@ exports.addReference = async (req, res) => {
             data: applicant.references[applicant.references.length - 1]
         });
     } catch (error) {
-        console.error('Error adding reference:', error);
+        logger.error('Error adding reference:', error);
         res.status(500).json({ success: false, message: 'Error adding reference', error: error.message });
     }
 };
@@ -1635,7 +1636,7 @@ exports.updateReferenceCheck = async (req, res) => {
             data: reference
         });
     } catch (error) {
-        console.error('Error updating reference:', error);
+        logger.error('Error updating reference:', error);
         res.status(500).json({ success: false, message: 'Error updating reference', error: error.message });
     }
 };
@@ -1698,7 +1699,7 @@ exports.addNote = async (req, res) => {
             data: applicant.notes[applicant.notes.length - 1]
         });
     } catch (error) {
-        console.error('Error adding note:', error);
+        logger.error('Error adding note:', error);
         res.status(500).json({ success: false, message: 'Error adding note', error: error.message });
     }
 };
@@ -1753,7 +1754,7 @@ exports.logCommunication = async (req, res) => {
             data: applicant.communications[applicant.communications.length - 1]
         });
     } catch (error) {
-        console.error('Error logging communication:', error);
+        logger.error('Error logging communication:', error);
         res.status(500).json({ success: false, message: 'Error logging communication', error: error.message });
     }
 };
@@ -1806,7 +1807,7 @@ exports.getTalentPool = async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('Error fetching talent pool:', error);
+        logger.error('Error fetching talent pool:', error);
         res.status(500).json({ success: false, message: 'Error fetching talent pool', error: error.message });
     }
 };
@@ -1857,7 +1858,7 @@ exports.updateTalentPoolStatus = async (req, res) => {
             data: applicant
         });
     } catch (error) {
-        console.error('Error updating talent pool status:', error);
+        logger.error('Error updating talent pool status:', error);
         res.status(500).json({ success: false, message: 'Error updating talent pool', error: error.message });
     }
 };
@@ -1914,7 +1915,7 @@ exports.bulkUpdateStage = async (req, res) => {
             data: results
         });
     } catch (error) {
-        console.error('Error in bulk stage update:', error);
+        logger.error('Error in bulk stage update:', error);
         res.status(500).json({ success: false, message: 'Error in bulk update', error: error.message });
     }
 };
@@ -1985,7 +1986,7 @@ exports.bulkReject = async (req, res) => {
             data: results
         });
     } catch (error) {
-        console.error('Error in bulk rejection:', error);
+        logger.error('Error in bulk rejection:', error);
         res.status(500).json({ success: false, message: 'Error in bulk rejection', error: error.message });
     }
 };
@@ -2052,7 +2053,7 @@ exports.initiateBackgroundCheck = async (req, res) => {
             data: applicant.backgroundCheck
         });
     } catch (error) {
-        console.error('Error initiating background check:', error);
+        logger.error('Error initiating background check:', error);
         res.status(500).json({ success: false, message: 'Error initiating background check', error: error.message });
     }
 };
@@ -2108,7 +2109,7 @@ exports.updateBackgroundCheck = async (req, res) => {
             data: applicant.backgroundCheck
         });
     } catch (error) {
-        console.error('Error updating background check:', error);
+        logger.error('Error updating background check:', error);
         res.status(500).json({ success: false, message: 'Error updating background check', error: error.message });
     }
 };
@@ -2185,7 +2186,7 @@ exports.hireApplicant = async (req, res) => {
             data: applicant
         });
     } catch (error) {
-        console.error('Error hiring applicant:', error);
+        logger.error('Error hiring applicant:', error);
         res.status(500).json({ success: false, message: 'Error hiring applicant', error: error.message });
     }
 };
@@ -2220,7 +2221,7 @@ exports.bulkDeleteApplicants = async (req, res) => {
             deletedCount: result.deletedCount
         });
     } catch (error) {
-        console.error('Error bulk deleting applicants:', error);
+        logger.error('Error bulk deleting applicants:', error);
         res.status(500).json({
             success: false,
             message: 'Error bulk deleting applicants',

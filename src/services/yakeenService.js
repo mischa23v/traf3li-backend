@@ -18,6 +18,7 @@
  */
 
 const axios = require('axios');
+const logger = require('../utils/logger');
 
 class YakeenService {
   constructor() {
@@ -194,7 +195,7 @@ class YakeenService {
       };
 
     } catch (error) {
-      console.error('Yakeen verification error:', error.response?.data || error.message);
+      logger.error('Yakeen verification error:', error.response?.data || error.message);
 
       // Handle specific error codes
       if (error.response?.status === 401) {
@@ -295,7 +296,7 @@ class YakeenService {
       };
 
     } catch (error) {
-      console.error('Yakeen address error:', error.response?.data || error.message);
+      logger.error('Yakeen address error:', error.response?.data || error.message);
       return {
         success: false,
         error: error.response?.data?.message || error.message,

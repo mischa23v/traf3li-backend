@@ -17,6 +17,7 @@ const { User } = require('../models');
 const { generateBackupCodes, hashBackupCode, verifyBackupCode } = require('../utils/backupCodes');
 const { encrypt, decrypt } = require('../utils/encryption');
 const auditLogService = require('./auditLog.service');
+const logger = require('../utils/logger');
 
 const APP_NAME = process.env.APP_NAME || 'Traf3li';
 
@@ -43,7 +44,7 @@ const generateTOTPSecret = (userEmail) => {
       qrCodeUrl: secret.otpauth_url
     };
   } catch (error) {
-    console.error('Error generating TOTP secret:', error.message);
+    logger.error('Error generating TOTP secret:', error.message);
     throw new Error('Failed to generate MFA secret');
   }
 };
@@ -69,7 +70,7 @@ const generateQRCode = async (secret, email) => {
 
     return qrCodeDataUrl;
   } catch (error) {
-    console.error('Error generating QR code:', error.message);
+    logger.error('Error generating QR code:', error.message);
     throw new Error('Failed to generate QR code');
   }
 };
@@ -105,7 +106,7 @@ const verifyTOTP = (secret, token, window = 1) => {
 
     return verified;
   } catch (error) {
-    console.error('Error verifying TOTP token:', error.message);
+    logger.error('Error verifying TOTP token:', error.message);
     return false;
   }
 };
@@ -119,7 +120,7 @@ const encryptMFASecret = (secret) => {
   try {
     return encrypt(secret);
   } catch (error) {
-    console.error('Error encrypting MFA secret:', error.message);
+    logger.error('Error encrypting MFA secret:', error.message);
     throw new Error('Failed to encrypt MFA secret');
   }
 };
@@ -133,7 +134,7 @@ const decryptMFASecret = (encryptedSecret) => {
   try {
     return decrypt(encryptedSecret);
   } catch (error) {
-    console.error('Error decrypting MFA secret:', error.message);
+    logger.error('Error decrypting MFA secret:', error.message);
     throw new Error('Failed to decrypt MFA secret');
   }
 };
@@ -149,7 +150,7 @@ const validateMFASetup = (secret, token) => {
     // First verification during setup should be strict (no extra window)
     return verifyTOTP(secret, token, 1);
   } catch (error) {
-    console.error('Error validating MFA setup:', error.message);
+    logger.error('Error validating MFA setup:', error.message);
     return false;
   }
 };
@@ -221,7 +222,7 @@ const generateBackupCodesForUser = async (userId, count = 10) => {
             user
         };
     } catch (error) {
-        console.error('Generate backup codes error:', error.message);
+        logger.error('Generate backup codes error:', error.message);
         throw error;
     }
 };
@@ -333,7 +334,7 @@ const useBackupCode = async (userId, code) => {
             user
         };
     } catch (error) {
-        console.error('Use backup code error:', error.message);
+        logger.error('Use backup code error:', error.message);
         throw error;
     }
 };
@@ -390,7 +391,7 @@ const regenerateBackupCodes = async (userId, count = 10) => {
 
         return result;
     } catch (error) {
-        console.error('Regenerate backup codes error:', error.message);
+        logger.error('Regenerate backup codes error:', error.message);
         throw error;
     }
 };
@@ -415,7 +416,7 @@ const getBackupCodesCount = async (userId) => {
 
         return getRemainingBackupCodesCount(user.mfaBackupCodes);
     } catch (error) {
-        console.error('Get backup codes count error:', error.message);
+        logger.error('Get backup codes count error:', error.message);
         throw error;
     }
 };
@@ -460,7 +461,7 @@ const getMFAStatus = async (userId) => {
             remainingCodes
         };
     } catch (error) {
-        console.error('Get MFA status error:', error.message);
+        logger.error('Get MFA status error:', error.message);
         throw error;
     }
 };
@@ -504,7 +505,7 @@ const disableMFA = async (userId) => {
 
         return user;
     } catch (error) {
-        console.error('Disable MFA error:', error.message);
+        logger.error('Disable MFA error:', error.message);
         throw error;
     }
 };

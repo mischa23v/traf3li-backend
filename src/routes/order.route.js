@@ -1,13 +1,14 @@
 const express = require('express');
 const { userMiddleware } = require('../middlewares');
-const { 
-    getOrders, 
-    paymentIntent, 
+const {
+    getOrders,
+    paymentIntent,
     proposalPaymentIntent,
-    updatePaymentStatus, 
+    updatePaymentStatus,
     createTestContract,
     createTestProposalContract
 } = require('../controllers/order.controller');
+const logger = require('../utils/logger');
 
 const app = express.Router();
 
@@ -37,10 +38,10 @@ const isProduction = process.env.NODE_ENV === 'production';
 if (isTestMode && !isProduction) {
     app.post('/create-test-contract/:_id', userMiddleware, createTestContract);
     app.post('/create-test-proposal-contract/:_id', userMiddleware, createTestProposalContract);
-    console.log('⚠️  TEST MODE: Payment bypass endpoints enabled (development only)');
+    logger.info('⚠️  TEST MODE: Payment bypass endpoints enabled (development only)');
 } else if (isTestMode && isProduction) {
-    console.error('❌ SECURITY: TEST_MODE is set but ignored in production environment');
-    console.error('❌ Payment bypass endpoints are DISABLED for security');
+    logger.error('❌ SECURITY: TEST_MODE is set but ignored in production environment');
+    logger.error('❌ Payment bypass endpoints are DISABLED for security');
 }
 
 module.exports = app;

@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const logger = require('../utils/logger');
 
 // ═══════════════════════════════════════════════════════════════
 // BLOCK CONNECTION MODEL
@@ -246,7 +247,7 @@ blockConnectionSchema.post('save', async function(doc) {
             }
         );
     } catch (error) {
-        console.error('Error updating bidirectional binding:', error);
+        logger.error('Error updating bidirectional binding:', error);
         // Don't throw error to prevent connection creation from failing
         // The binding can be re-synced later if needed
     }
@@ -279,7 +280,7 @@ blockConnectionSchema.post('findOneAndDelete', async function(doc) {
             }
         );
     } catch (error) {
-        console.error('Error cleaning up bidirectional binding:', error);
+        logger.error('Error cleaning up bidirectional binding:', error);
     }
 });
 
@@ -299,7 +300,7 @@ blockConnectionSchema.post('deleteMany', async function() {
             }
         );
     } catch (error) {
-        console.error('Error cleaning up bidirectional binding on bulk delete:', error);
+        logger.error('Error cleaning up bidirectional binding on bulk delete:', error);
     }
 });
 

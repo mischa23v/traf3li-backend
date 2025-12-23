@@ -14,6 +14,7 @@ const { enforcePasswordPolicy, checkPasswordAge } = require('../utils/passwordPo
 const EmailService = require('../services/email.service');
 const auditLogService = require('../services/auditLog.service');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
+const logger = require('../utils/logger');
 
 const saltRounds = 12;
 
@@ -245,7 +246,7 @@ const changePassword = async (req, res) => {
                 `
             });
         } catch (emailError) {
-            console.error('Failed to send password change confirmation email:', emailError);
+            logger.error('Failed to send password change confirmation email:', emailError);
             // Don't fail the request if email fails
         }
 
@@ -261,7 +262,7 @@ const changePassword = async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('Change password error:', error);
+        logger.error('Change password error:', error);
         res.status(500).json({
             error: true,
             message: 'Failed to change password',
@@ -318,7 +319,7 @@ const getPasswordStatus = async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('Get password status error:', error);
+        logger.error('Get password status error:', error);
         res.status(500).json({
             error: true,
             message: 'Failed to get password status',

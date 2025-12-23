@@ -14,6 +14,7 @@ const BillPayment = require('../models/billPayment.model');
 const GeneralLedger = require('../models/generalLedger.model');
 const Account = require('../models/account.model');
 const { toHalalas } = require('../utils/currency');
+const logger = require('../utils/logger');
 
 // Connect to database
 const connectDB = async () => {
@@ -22,9 +23,9 @@ const connectDB = async () => {
             maxPoolSize: 10,
             minPoolSize: 2
         });
-        console.log('MongoDB connected for migration...');
+        logger.info('MongoDB connected for migration...');
     } catch (error) {
-        console.error('MongoDB connection error:', error);
+        logger.error('MongoDB connection error:', error);
         process.exit(1);
     }
 };
@@ -33,7 +34,7 @@ const connectDB = async () => {
  * Migrate bills to GL
  */
 const migrateBills = async () => {
-    console.log('\n=== Starting Bill Migration ===\n');
+    logger.info('\n=== Starting Bill Migration ===\n');
 
     // Get default accounts
     const apAccount = await Account.findOne({ code: '2101' }); // Accounts Payable
@@ -41,11 +42,11 @@ const migrateBills = async () => {
     const bankAccount = await Account.findOne({ code: '1102' }); // Bank Account - Main
 
     if (!apAccount || !expenseAccount || !bankAccount) {
-        console.error('Required accounts not found. Please run seed:accounts first.');
-        console.log('Missing accounts:');
-        if (!apAccount) console.log('  - 2101 (Accounts Payable)');
-        if (!expenseAccount) console.log('  - 5200 (Operating Expenses)');
-        if (!bankAccount) console.log('  - 1102 (Bank Account - Main)');
+        logger.error('Required accounts not found. Please run seed:accounts first.');
+        logger.info('Missing accounts:');
+        if (!apAccount) logger.info('  - 2101 (Accounts Payable)');
+        if (!expenseAccount) logger.info('  - 5200 (Operating Expenses)');
+        if (!bankAccount) logger.info('  - 1102 (Bank Account - Main)');
         process.exit(1);
     }
 
@@ -54,7 +55,7 @@ const migrateBills = async () => {
         status: { $ne: 'draft' }
     }).sort({ billDate: 1 });
 
-    console.log(`Found ${bills.length} bills to process`);
+    logger.info(`Found ${bills.length} bills to process`);
 
     let migratedCount = 0;
     let skippedCount = 0;
@@ -70,7 +71,7 @@ const migrateBills = async () => {
             });
 
             if (existingEntry) {
-                console.log(`⏭️  Bill ${bill.billNumber} already migrated, skipping`);
+                logger.info(`⏭️  Bill ${bill.billNumber} already migrated, skipping`);
                 skippedCount++;
                 continue;
             }
@@ -81,7 +82,7 @@ const migrateBills = async () => {
                 : toHalalas(bill.totalAmount);
 
             if (totalAmount <= 0) {
-                console.log(`⏭️  Bill ${bill.billNumber} has zero amount, skipping`);
+                logger.info(`⏭️  Bill ${bill.billNumber} has zero amount, skipping`);
                 skippedCount++;
                 continue;
             }
@@ -179,7 +180,7 @@ const migrateBills = async () => {
                 }
 
                 await session.commitTransaction();
-                console.log(`✅ Migrated bill ${bill.billNumber}`);
+                logger.info(`✅ Migrated bill ${bill.billNumber}`);
                 migratedCount++;
             } catch (error) {
                 await session.abortTransaction();
@@ -188,16 +189,16 @@ const migrateBills = async () => {
                 session.endSession();
             }
         } catch (error) {
-            console.error(`❌ Error migrating bill ${bill.billNumber}:`, error.message);
+            logger.error(`❌ Error migrating bill ${bill.billNumber}:`, error.message);
             errorCount++;
         }
     }
 
-    console.log('\n=== Bill Migration Complete ===');
-    console.log(`Total bills: ${bills.length}`);
-    console.log(`Migrated: ${migratedCount}`);
-    console.log(`Skipped: ${skippedCount}`);
-    console.log(`Errors: ${errorCount}`);
+    logger.info('\n=== Bill Migration Complete ===');
+    logger.info(`Total bills: ${bills.length}`);
+    logger.info(`Migrated: ${migratedCount}`);
+    logger.info(`Skipped: ${skippedCount}`);
+    logger.info(`Errors: ${errorCount}`);
 };
 
 /**
@@ -207,10 +208,10 @@ const main = async () => {
     try {
         await connectDB();
         await migrateBills();
-        console.log('\nMigration completed successfully!');
+        logger.info('\nMigration completed successfully!');
         process.exit(0);
     } catch (error) {
-        console.error('Migration failed:', error);
+        logger.error('Migration failed:', error);
         process.exit(1);
     }
 };

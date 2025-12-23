@@ -1,5 +1,6 @@
 const axios = require('axios');
 const { findSymbol, ALL_SYMBOLS } = require('../data/symbols');
+const logger = require('../utils/logger');
 
 // Simple in-memory cache with size limit to prevent memory leaks
 const priceCache = new Map();
@@ -130,7 +131,7 @@ class PriceService {
             this.setCache(cacheKey, priceData);
             return priceData;
         } catch (error) {
-            console.error(`Yahoo Finance error for ${yahooSymbol}:`, error.message);
+            logger.error(`Yahoo Finance error for ${yahooSymbol}:`, error.message);
             throw new Error(`Failed to fetch price for ${yahooSymbol}: ${error.message}`);
         }
     }
@@ -151,7 +152,7 @@ class PriceService {
                     symbolInfo
                 };
             } catch (error) {
-                console.error(`Failed to get price for ${symbol}:`, error.message);
+                logger.error(`Failed to get price for ${symbol}:`, error.message);
                 throw error;
             }
         }

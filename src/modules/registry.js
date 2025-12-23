@@ -5,6 +5,7 @@
  * Handles module registration, dependency resolution, and loading order.
  */
 
+const logger = require('../utils/logger');
 const modules = new Map();
 
 /**
@@ -18,7 +19,7 @@ const registerModule = (manifest) => {
   }
 
   if (modules.has(manifest.name)) {
-    console.warn(`Module "${manifest.name}" is already registered. Skipping.`);
+    logger.warn(`Module "${manifest.name}" is already registered. Skipping.`);
     return false;
   }
 
@@ -28,7 +29,7 @@ const registerModule = (manifest) => {
     initialized: false
   });
 
-  console.log(`✓ Registered module: ${manifest.name} v${manifest.version}`);
+  logger.info(`✓ Registered module: ${manifest.name} v${manifest.version}`);
   return true;
 };
 
@@ -128,7 +129,7 @@ const loadModules = (options = {}) => {
     const order = getDependencyOrder();
     const loaded = [];
 
-    console.log('Module loading order:', order);
+    logger.info('Module loading order:', order);
 
     for (const name of order) {
       const module = modules.get(name);
@@ -141,7 +142,7 @@ const loadModules = (options = {}) => {
       // Check dependencies
       const depCheck = checkDependencies(name);
       if (!depCheck.satisfied) {
-        console.error(`Cannot load "${name}": missing dependencies:`, depCheck.missing);
+        logger.error(`Cannot load "${name}": missing dependencies:`, depCheck.missing);
         continue;
       }
 
@@ -149,10 +150,10 @@ const loadModules = (options = {}) => {
       module.loaded = true;
     }
 
-    console.log(`Loaded ${loaded.length} modules:`, loaded);
+    logger.info(`Loaded ${loaded.length} modules:`, loaded);
     return loaded;
   } catch (error) {
-    console.error('Error loading modules:', error.message);
+    logger.error('Error loading modules:', error.message);
     throw error;
   }
 };

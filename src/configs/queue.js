@@ -9,6 +9,7 @@
 
 const Queue = require('bull');
 const Redis = require('ioredis');
+const logger = require('../utils/logger');
 
 // Store all queue instances for cleanup
 const queues = new Map();
@@ -24,18 +25,18 @@ const isRedisConfigured = () => {
   // Allow disabling queues entirely via environment variable
   // Set DISABLE_QUEUES=true to save Redis requests on free tier
   if (process.env.DISABLE_QUEUES === 'true') {
-    console.warn('⚠️  DISABLE_QUEUES=true - queues will run in mock mode to save Redis requests');
+    logger.warn('⚠️  DISABLE_QUEUES=true - queues will run in mock mode to save Redis requests');
     return false;
   }
 
   const redisUrl = process.env.REDIS_URL;
   if (!redisUrl) {
-    console.warn('⚠️  REDIS_URL not set - queues will be disabled');
+    logger.warn('⚠️  REDIS_URL not set - queues will be disabled');
     return false;
   }
   // Check for valid Redis URL format (redis:// or rediss://)
   if (!redisUrl.startsWith('redis://') && !redisUrl.startsWith('rediss://')) {
-    console.warn('⚠️  REDIS_URL is invalid (must start with redis:// or rediss://) - queues will be disabled');
+    logger.warn('⚠️  REDIS_URL is invalid (must start with redis:// or rediss://) - queues will be disabled');
     return false;
   }
   return true;
@@ -105,7 +106,7 @@ const createRedisClient = (type = 'client') => {
     // Limit reconnection attempts to prevent memory exhaustion
     retryStrategy: (times) => {
       if (times > 10) {
-        console.error(`Redis ${type}: Max retries (10) reached, stopping reconnection`);
+        logger.error(`Redis ${type}: Max retries (10) reached, stopping reconnection`);
         redisAvailable = false;
         return null; // Stop retrying
       }
@@ -122,12 +123,12 @@ const createRedisClient = (type = 'client') => {
     // Only log once per error type to reduce log spam
     if (!client._lastErrorMsg || client._lastErrorMsg !== err.message) {
       client._lastErrorMsg = err.message;
-      console.error(`Redis ${type} error:`, err.message);
+      logger.error(`Redis ${type} error:`, err.message);
     }
   });
 
   client.on('connect', () => {
-    console.log(`Redis ${type}: Connected`);
+    logger.info(`Redis ${type}: Connected`);
   });
 
   return client;
@@ -178,15 +179,15 @@ const getRedisOptions = () => {
  * This allows the app to run without Redis, just without queue functionality
  */
 const createMockQueue = (name) => {
-  console.warn(`⚠️  Queue "${name}" created in MOCK mode (Redis not available)`);
+  logger.warn(`⚠️  Queue "${name}" created in MOCK mode (Redis not available)`);
   return {
     name,
     add: async (data, opts) => {
-      console.warn(`⚠️  Queue "${name}": Job not added (Redis not available)`);
+      logger.warn(`⚠️  Queue "${name}": Job not added (Redis not available)`);
       return { id: `mock-${Date.now()}`, data, opts };
     },
     addBulk: async (jobs) => {
-      console.warn(`⚠️  Queue "${name}": Bulk jobs not added (Redis not available)`);
+      logger.warn(`⚠️  Queue "${name}": Bulk jobs not added (Redis not available)`);
       return jobs.map((j, i) => ({ id: `mock-${Date.now()}-${i}`, ...j }));
     },
     process: () => {},
@@ -246,35 +247,35 @@ const createQueue = (name, options = {}) => {
   // Event: Job completed successfully (only log in dev)
   queue.on('completed', (job, result) => {
     if (!isProduction) {
-      console.log(`✅ Job ${job.id} in queue "${name}" completed`);
+      logger.info(`✅ Job ${job.id} in queue "${name}" completed`);
     }
   });
 
   // Event: Job failed (always log failures)
   queue.on('failed', (job, err) => {
-    console.error(`❌ Job ${job.id} in queue "${name}" failed:`, err.message);
+    logger.error(`❌ Job ${job.id} in queue "${name}" failed:`, err.message);
     if (!isProduction && job.stacktrace && job.stacktrace.length > 0) {
-      console.error(`   Stack:`, job.stacktrace[0]);
+      logger.error(`   Stack:`, job.stacktrace[0]);
     }
   });
 
   // Event: Job stalled (always log - indicates worker issues)
   queue.on('stalled', (job) => {
-    console.warn(`⚠️  Job ${job.id} in queue "${name}" has stalled`);
+    logger.warn(`⚠️  Job ${job.id} in queue "${name}" has stalled`);
   });
 
   // Verbose events - only in development
   if (!isProduction) {
     queue.on('waiting', (jobId) => {
-      console.log(`⏳ Job ${jobId} in queue "${name}" is waiting`);
+      logger.info(`⏳ Job ${jobId} in queue "${name}" is waiting`);
     });
 
     queue.on('active', (job) => {
-      console.log(`🔄 Job ${job.id} in queue "${name}" is now active`);
+      logger.info(`🔄 Job ${job.id} in queue "${name}" is now active`);
     });
 
     queue.on('cleaned', (jobs, type) => {
-      console.log(`🧹 Queue "${name}" cleaned ${jobs.length} ${type} jobs`);
+      logger.info(`🧹 Queue "${name}" cleaned ${jobs.length} ${type} jobs`);
     });
   }
 
@@ -285,14 +286,14 @@ const createQueue = (name, options = {}) => {
     // Only log once per 5 seconds per queue to prevent log spam
     if (now - lastErrorTime > 5000) {
       lastErrorTime = now;
-      console.error(`💥 Queue "${name}" error:`, error.message);
+      logger.error(`💥 Queue "${name}" error:`, error.message);
     }
   });
 
   // Store queue instance
   queues.set(name, queue);
 
-  console.log(`📦 Queue "${name}" created`);
+  logger.info(`📦 Queue "${name}" created`);
   return queue;
 };
 
@@ -322,7 +323,7 @@ const closeQueue = async (name) => {
   if (queue) {
     await queue.close();
     queues.delete(name);
-    console.log(`🔒 Queue "${name}" closed`);
+    logger.info(`🔒 Queue "${name}" closed`);
   }
 };
 
@@ -330,16 +331,19 @@ const closeQueue = async (name) => {
  * Graceful shutdown - close all queues and shared Redis connections
  */
 const closeAllQueues = async () => {
-  console.log('🛑 Closing all queues...');
+  logger.info('🛑 Closing all queues...');
 
   const closePromises = [];
   for (const [name, queue] of queues.entries()) {
     closePromises.push(
-      queue.close().then(() => {
-        console.log(`   ✓ Queue "${name}" closed`);
-      }).catch((err) => {
-        console.error(`   ✗ Error closing queue "${name}":`, err.message);
-      })
+      (async () => {
+        try {
+          await queue.close();
+          logger.info(`   ✓ Queue "${name}" closed`);
+        } catch (err) {
+          logger.error(`   ✗ Error closing queue "${name}":`, err.message);
+        }
+      })()
     );
   }
 
@@ -351,9 +355,9 @@ const closeAllQueues = async () => {
     try {
       await sharedClient.quit();
       sharedClient = null;
-      console.log('   ✓ Shared Redis client closed');
+      logger.info('   ✓ Shared Redis client closed');
     } catch (err) {
-      console.error('   ✗ Error closing shared Redis client:', err.message);
+      logger.error('   ✗ Error closing shared Redis client:', err.message);
     }
   }
 
@@ -361,13 +365,13 @@ const closeAllQueues = async () => {
     try {
       await sharedSubscriber.quit();
       sharedSubscriber = null;
-      console.log('   ✓ Shared Redis subscriber closed');
+      logger.info('   ✓ Shared Redis subscriber closed');
     } catch (err) {
-      console.error('   ✗ Error closing shared Redis subscriber:', err.message);
+      logger.error('   ✗ Error closing shared Redis subscriber:', err.message);
     }
   }
 
-  console.log('✅ All queues closed');
+  logger.info('✅ All queues closed');
 };
 
 /**
@@ -380,7 +384,7 @@ const cleanQueue = async (name, grace = 86400000, type = 'completed') => {
   const queue = queues.get(name);
   if (queue) {
     const jobs = await queue.clean(grace, type);
-    console.log(`🧹 Cleaned ${jobs.length} ${type} jobs from queue "${name}"`);
+    logger.info(`🧹 Cleaned ${jobs.length} ${type} jobs from queue "${name}"`);
     return jobs;
   }
   return [];
@@ -394,7 +398,7 @@ const pauseQueue = async (name) => {
   const queue = queues.get(name);
   if (queue) {
     await queue.pause();
-    console.log(`⏸️  Queue "${name}" paused`);
+    logger.info(`⏸️  Queue "${name}" paused`);
     return true;
   }
   return false;
@@ -408,7 +412,7 @@ const resumeQueue = async (name) => {
   const queue = queues.get(name);
   if (queue) {
     await queue.resume();
-    console.log(`▶️  Queue "${name}" resumed`);
+    logger.info(`▶️  Queue "${name}" resumed`);
     return true;
   }
   return false;
@@ -453,13 +457,13 @@ const getQueueMetrics = async (name) => {
 
 // Graceful shutdown on process termination
 process.on('SIGTERM', async () => {
-  console.log('SIGTERM signal received: closing queues');
+  logger.info('SIGTERM signal received: closing queues');
   await closeAllQueues();
   process.exit(0);
 });
 
 process.on('SIGINT', async () => {
-  console.log('SIGINT signal received: closing queues');
+  logger.info('SIGINT signal received: closing queues');
   await closeAllQueues();
   process.exit(0);
 });

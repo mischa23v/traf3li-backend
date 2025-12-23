@@ -21,6 +21,7 @@ const path = require('path');
 const { S3Client, GetObjectCommand, ListObjectsV2Command } = require('@aws-sdk/client-s3');
 const readline = require('readline');
 const backupConfig = require('../configs/backup.config');
+const logger = require('../utils/logger');
 
 const execAsync = promisify(exec);
 
@@ -60,7 +61,7 @@ class RestoreManager {
    * List available backups for selection
    */
   async listAvailableBackups() {
-    console.log('\n📋 Available Backups:\n');
+    logger.info('\n📋 Available Backups:\n');
 
     try {
       const command = new ListObjectsV2Command({
@@ -71,7 +72,7 @@ class RestoreManager {
       const response = await this.s3Client.send(command);
 
       if (!response.Contents || response.Contents.length === 0) {
-        console.log('No backups found.');
+        logger.info('No backups found.');
         return [];
       }
 
@@ -82,15 +83,15 @@ class RestoreManager {
         .slice(0, 20); // Show only last 20 backups
 
       backups.forEach((backup, index) => {
-        console.log(`${index + 1}. ${backup.Key}`);
-        console.log(`   Size: ${(backup.Size / (1024 * 1024)).toFixed(2)} MB`);
-        console.log(`   Date: ${backup.LastModified.toISOString()}`);
-        console.log('');
+        logger.info(`${index + 1}. ${backup.Key}`);
+        logger.info(`   Size: ${(backup.Size / (1024 * 1024)).toFixed(2)} MB`);
+        logger.info(`   Date: ${backup.LastModified.toISOString()}`);
+        logger.info('');
       });
 
       return backups.map(b => b.Key);
     } catch (error) {
-      console.error('❌ Failed to list backups:', error.message);
+      logger.error('❌ Failed to list backups:', error.message);
       throw error;
     }
   }
@@ -99,7 +100,7 @@ class RestoreManager {
    * Download backup from S3
    */
   async downloadFromS3(s3Key) {
-    console.log('\n☁️  Downloading backup from S3...');
+    logger.info('\n☁️  Downloading backup from S3...');
 
     // Ensure temp directory exists
     await fs.mkdir(this.config.restore.tempDir, { recursive: true });
@@ -108,13 +109,13 @@ class RestoreManager {
     const localPath = path.join(this.config.restore.tempDir, filename);
 
     if (this.dryRun) {
-      console.log(`[DRY RUN] Would download from: s3://${this.config.s3.bucket}/${s3Key}`);
-      console.log(`[DRY RUN] To: ${localPath}`);
+      logger.info(`[DRY RUN] Would download from: s3://${this.config.s3.bucket}/${s3Key}`);
+      logger.info(`[DRY RUN] To: ${localPath}`);
       return localPath;
     }
 
     try {
-      console.log(`⏳ Downloading: ${s3Key}`);
+      logger.info(`⏳ Downloading: ${s3Key}`);
       const startTime = Date.now();
 
       const command = new GetObjectCommand({
@@ -138,14 +139,14 @@ class RestoreManager {
       const stats = await fs.stat(localPath);
       const sizeMB = (stats.size / (1024 * 1024)).toFixed(2);
 
-      console.log(`✅ Download complete`);
-      console.log(`   Size: ${sizeMB} MB`);
-      console.log(`   Duration: ${duration}s`);
-      console.log(`   Path: ${localPath}`);
+      logger.info(`✅ Download complete`);
+      logger.info(`   Size: ${sizeMB} MB`);
+      logger.info(`   Duration: ${duration}s`);
+      logger.info(`   Path: ${localPath}`);
 
       return localPath;
     } catch (error) {
-      console.error('❌ Download failed:', error.message);
+      logger.error('❌ Download failed:', error.message);
       throw error;
     }
   }
@@ -154,10 +155,10 @@ class RestoreManager {
    * Validate backup file
    */
   async validateBackup(localPath) {
-    console.log('\n🔍 Validating backup file...');
+    logger.info('\n🔍 Validating backup file...');
 
     if (this.dryRun) {
-      console.log(`[DRY RUN] Would validate: ${localPath}`);
+      logger.info(`[DRY RUN] Would validate: ${localPath}`);
       return true;
     }
 
@@ -175,13 +176,13 @@ class RestoreManager {
       const { stdout, stderr } = await execAsync(`gzip -t "${localPath}"`);
 
       if (stderr && !stderr.includes('OK')) {
-        console.warn('⚠️  Warning during validation:', stderr);
+        logger.warn('⚠️  Warning during validation:', stderr);
       }
 
-      console.log('✅ Backup file is valid');
+      logger.info('✅ Backup file is valid');
       return true;
     } catch (error) {
-      console.error('❌ Backup validation failed:', error.message);
+      logger.error('❌ Backup validation failed:', error.message);
       return false;
     }
   }
@@ -190,15 +191,15 @@ class RestoreManager {
    * Create safety backup before restore
    */
   async createSafetyBackup() {
-    console.log('\n💾 Creating safety backup before restore...');
+    logger.info('\n💾 Creating safety backup before restore...');
 
     if (this.skipBackup) {
-      console.log('⚠️  Skipping safety backup (--no-backup flag)');
+      logger.info('⚠️  Skipping safety backup (--no-backup flag)');
       return null;
     }
 
     if (this.dryRun) {
-      console.log('[DRY RUN] Would create safety backup');
+      logger.info('[DRY RUN] Would create safety backup');
       return null;
     }
 
@@ -212,19 +213,19 @@ class RestoreManager {
       const mongoUri = this.config.mongodb.uri;
       const dumpCommand = `mongodump --uri="${mongoUri}" --archive="${safetyPath}" --gzip`;
 
-      console.log('⏳ Creating safety backup...');
+      logger.info('⏳ Creating safety backup...');
       await execAsync(dumpCommand, { maxBuffer: 1024 * 1024 * 100 });
 
       const stats = await fs.stat(safetyPath);
       const sizeMB = (stats.size / (1024 * 1024)).toFixed(2);
 
-      console.log('✅ Safety backup created');
-      console.log(`   Path: ${safetyPath}`);
-      console.log(`   Size: ${sizeMB} MB`);
+      logger.info('✅ Safety backup created');
+      logger.info(`   Path: ${safetyPath}`);
+      logger.info(`   Size: ${sizeMB} MB`);
 
       return safetyPath;
     } catch (error) {
-      console.error('❌ Failed to create safety backup:', error.message);
+      logger.error('❌ Failed to create safety backup:', error.message);
       throw new Error('Safety backup failed. Restore aborted.');
     }
   }
@@ -233,12 +234,12 @@ class RestoreManager {
    * Restore database from backup
    */
   async restoreDatabase(localPath, oplogLimit = null) {
-    console.log('\n🔄 Restoring database...');
+    logger.info('\n🔄 Restoring database...');
 
     if (this.dryRun) {
-      console.log(`[DRY RUN] Would restore from: ${localPath}`);
+      logger.info(`[DRY RUN] Would restore from: ${localPath}`);
       if (oplogLimit) {
-        console.log(`[DRY RUN] With oplog limit: ${oplogLimit}`);
+        logger.info(`[DRY RUN] With oplog limit: ${oplogLimit}`);
       }
       return;
     }
@@ -252,10 +253,10 @@ class RestoreManager {
       // Add oplog replay for point-in-time recovery
       if (oplogLimit) {
         restoreCommand += ` --oplogReplay --oplogLimit="${oplogLimit}"`;
-        console.log(`⏰ Point-in-time recovery to: ${oplogLimit}`);
+        logger.info(`⏰ Point-in-time recovery to: ${oplogLimit}`);
       }
 
-      console.log('⏳ Running mongorestore...');
+      logger.info('⏳ Running mongorestore...');
       const startTime = Date.now();
 
       const { stdout, stderr } = await execAsync(restoreCommand, {
@@ -265,18 +266,18 @@ class RestoreManager {
       const duration = ((Date.now() - startTime) / 1000).toFixed(2);
 
       if (stderr && !stderr.includes('done')) {
-        console.warn('⚠️  Warning during restore:', stderr);
+        logger.warn('⚠️  Warning during restore:', stderr);
       }
 
-      console.log(`✅ Database restored successfully`);
-      console.log(`   Duration: ${duration}s`);
+      logger.info(`✅ Database restored successfully`);
+      logger.info(`   Duration: ${duration}s`);
 
       if (stdout) {
-        console.log('\n📝 Restore details:');
-        console.log(stdout);
+        logger.info('\n📝 Restore details:');
+        logger.info(stdout);
       }
     } catch (error) {
-      console.error('❌ Restore failed:', error.message);
+      logger.error('❌ Restore failed:', error.message);
       throw error;
     }
   }
@@ -285,10 +286,10 @@ class RestoreManager {
    * Validate restored database
    */
   async validateRestore() {
-    console.log('\n✅ Validating restored database...');
+    logger.info('\n✅ Validating restored database...');
 
     if (this.dryRun) {
-      console.log('[DRY RUN] Would validate restored database');
+      logger.info('[DRY RUN] Would validate restored database');
       return true;
     }
 
@@ -305,23 +306,23 @@ class RestoreManager {
       const db = mongoose.connection.db;
       const stats = await db.stats();
 
-      console.log('✅ Database is accessible');
-      console.log(`   Collections: ${stats.collections}`);
-      console.log(`   Data Size: ${(stats.dataSize / (1024 * 1024)).toFixed(2)} MB`);
-      console.log(`   Indexes: ${stats.indexes}`);
+      logger.info('✅ Database is accessible');
+      logger.info(`   Collections: ${stats.collections}`);
+      logger.info(`   Data Size: ${(stats.dataSize / (1024 * 1024)).toFixed(2)} MB`);
+      logger.info(`   Indexes: ${stats.indexes}`);
 
       // List collections
       const collections = await db.listCollections().toArray();
-      console.log(`\n📚 Collections (${collections.length}):`);
+      logger.info(`\n📚 Collections (${collections.length}):`);
       collections.forEach(col => {
-        console.log(`   - ${col.name}`);
+        logger.info(`   - ${col.name}`);
       });
 
       await mongoose.disconnect();
 
       return true;
     } catch (error) {
-      console.error('❌ Validation failed:', error.message);
+      logger.error('❌ Validation failed:', error.message);
       return false;
     }
   }
@@ -330,10 +331,10 @@ class RestoreManager {
    * Clean up temporary files
    */
   async cleanup(localPath, safetyBackupPath) {
-    console.log('\n🧹 Cleaning up...');
+    logger.info('\n🧹 Cleaning up...');
 
     if (this.dryRun) {
-      console.log('[DRY RUN] Would clean up temporary files');
+      logger.info('[DRY RUN] Would clean up temporary files');
       return;
     }
 
@@ -341,16 +342,16 @@ class RestoreManager {
       // Clean up downloaded backup
       if (localPath) {
         await fs.unlink(localPath);
-        console.log('✅ Downloaded backup cleaned up');
+        logger.info('✅ Downloaded backup cleaned up');
       }
 
       // Keep safety backup (don't delete automatically)
       if (safetyBackupPath) {
-        console.log(`ℹ️  Safety backup preserved at: ${safetyBackupPath}`);
-        console.log('   Delete manually after verifying restore');
+        logger.info(`ℹ️  Safety backup preserved at: ${safetyBackupPath}`);
+        logger.info('   Delete manually after verifying restore');
       }
     } catch (error) {
-      console.warn('⚠️  Cleanup warning:', error.message);
+      logger.warn('⚠️  Cleanup warning:', error.message);
     }
   }
 
@@ -368,11 +369,11 @@ class RestoreManager {
     });
 
     return new Promise(resolve => {
-      console.log('\n⚠️  WARNING: This will restore the database from:');
-      console.log(`   ${backupKey}`);
-      console.log('\n   All current data will be replaced!');
-      console.log(`   Environment: ${this.config.environment}`);
-      console.log(`   Database: ${this.config.mongodb.uri.split('@')[1] || 'localhost'}\n`);
+      logger.info('\n⚠️  WARNING: This will restore the database from:');
+      logger.info(`   ${backupKey}`);
+      logger.info('\n   All current data will be replaced!');
+      logger.info(`   Environment: ${this.config.environment}`);
+      logger.info(`   Database: ${this.config.mongodb.uri.split('@')[1] || 'localhost'}\n`);
 
       rl.question('Are you sure you want to continue? (yes/no): ', answer => {
         rl.close();
@@ -388,12 +389,12 @@ class RestoreManager {
     const startTime = Date.now();
 
     try {
-      console.log('='.repeat(60));
-      console.log('  MONGODB RESTORE');
-      console.log('='.repeat(60));
+      logger.info('='.repeat(60));
+      logger.info('  MONGODB RESTORE');
+      logger.info('='.repeat(60));
 
       if (this.dryRun) {
-        console.log('\n⚠️  DRY RUN MODE - No changes will be made\n');
+        logger.info('\n⚠️  DRY RUN MODE - No changes will be made\n');
       }
 
       // Parse arguments
@@ -402,7 +403,7 @@ class RestoreManager {
       // Confirm restore
       const confirmed = await this.confirmRestore(backupKey);
       if (!confirmed) {
-        console.log('\n❌ Restore cancelled by user');
+        logger.info('\n❌ Restore cancelled by user');
         process.exit(0);
       }
 
@@ -432,17 +433,17 @@ class RestoreManager {
 
       const duration = ((Date.now() - startTime) / 1000).toFixed(2);
 
-      console.log('\n' + '='.repeat(60));
-      console.log('✅ RESTORE COMPLETED SUCCESSFULLY');
-      console.log(`   Total Duration: ${duration}s`);
-      console.log('='.repeat(60) + '\n');
+      logger.info('\n' + '='.repeat(60));
+      logger.info('✅ RESTORE COMPLETED SUCCESSFULLY');
+      logger.info(`   Total Duration: ${duration}s`);
+      logger.info('='.repeat(60) + '\n');
 
       process.exit(0);
     } catch (error) {
-      console.error('\n' + '='.repeat(60));
-      console.error('❌ RESTORE FAILED');
-      console.error('='.repeat(60));
-      console.error(error);
+      logger.error('\n' + '='.repeat(60));
+      logger.error('❌ RESTORE FAILED');
+      logger.error('='.repeat(60));
+      logger.error(error);
       process.exit(1);
     }
   }
@@ -456,14 +457,14 @@ class RestoreManager {
   if (args.includes('--list')) {
     const manager = new RestoreManager();
     await manager.listAvailableBackups();
-    console.log('\nTo restore a backup, run:');
-    console.log('  node src/scripts/restore.js --backup=<s3-key>\n');
+    logger.info('\nTo restore a backup, run:');
+    logger.info('  node src/scripts/restore.js --backup=<s3-key>\n');
     process.exit(0);
   }
 
   // Handle --help flag
   if (args.includes('--help') || args.length === 0) {
-    console.log(`
+    logger.info(`
 MongoDB Restore Script
 
 Usage:

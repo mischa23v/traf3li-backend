@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const logger = require('../utils/logger');
 
 const smtpConfigSchema = new mongoose.Schema({
     firmId: {
@@ -118,7 +119,7 @@ smtpConfigSchema.statics.getConfig = async function(firmId) {
     }
 
     if (!config.isVerified) {
-        console.warn(`SMTP config for firm ${firmId} is not verified`);
+        logger.warn(`SMTP config for firm ${firmId} is not verified`);
     }
 
     return config;

@@ -1,5 +1,6 @@
 const SetupSection = require('../models/setupSection.model');
 const SetupTask = require('../models/setupTask.model');
+const logger = require('../utils/logger');
 
 // ═══════════════════════════════════════════════════════════════
 // SETUP SECTIONS
@@ -539,40 +540,40 @@ const tasks = [
 
 const seedSetupWizard = async () => {
     try {
-        console.log('🌱 Starting setup wizard seed...');
+        logger.info('🌱 Starting setup wizard seed...');
 
         // Clear existing data
-        console.log('🗑️  Clearing existing setup sections and tasks...');
+        logger.info('🗑️  Clearing existing setup sections and tasks...');
         await SetupSection.deleteMany({});
         await SetupTask.deleteMany({});
-        console.log('✅ Existing data cleared');
+        logger.info('✅ Existing data cleared');
 
         // Insert sections
-        console.log('📦 Inserting setup sections...');
+        logger.info('📦 Inserting setup sections...');
         const insertedSections = await SetupSection.insertMany(sections);
-        console.log(`✅ ${insertedSections.length} setup sections seeded`);
+        logger.info(`✅ ${insertedSections.length} setup sections seeded`);
 
         // Insert tasks
-        console.log('📋 Inserting setup tasks...');
+        logger.info('📋 Inserting setup tasks...');
         const insertedTasks = await SetupTask.insertMany(tasks);
-        console.log(`✅ ${insertedTasks.length} setup tasks seeded`);
+        logger.info(`✅ ${insertedTasks.length} setup tasks seeded`);
 
         // Summary
-        console.log('\n═══════════════════════════════════════════════════════');
-        console.log('✅ SETUP WIZARD SEED COMPLETE');
-        console.log('═══════════════════════════════════════════════════════');
-        console.log(`📊 Sections: ${insertedSections.length}`);
-        console.log(`📋 Tasks: ${insertedTasks.length}`);
-        console.log('\nSections breakdown:');
+        logger.info('\n═══════════════════════════════════════════════════════');
+        logger.info('✅ SETUP WIZARD SEED COMPLETE');
+        logger.info('═══════════════════════════════════════════════════════');
+        logger.info(`📊 Sections: ${insertedSections.length}`);
+        logger.info(`📋 Tasks: ${insertedTasks.length}`);
+        logger.info('\nSections breakdown:');
         for (const section of sections) {
             const sectionTasks = tasks.filter(t => t.sectionId === section.sectionId);
             const requiredTasks = sectionTasks.filter(t => t.isRequired).length;
-            console.log(`  • ${section.name}: ${sectionTasks.length} tasks (${requiredTasks} required)`);
+            logger.info(`  • ${section.name}: ${sectionTasks.length} tasks (${requiredTasks} required)`);
         }
-        console.log('═══════════════════════════════════════════════════════\n');
+        logger.info('═══════════════════════════════════════════════════════\n');
 
     } catch (error) {
-        console.error('❌ Setup wizard seed failed:', error);
+        logger.error('❌ Setup wizard seed failed:', error);
         throw error;
     }
 };

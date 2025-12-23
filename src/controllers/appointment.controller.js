@@ -8,6 +8,7 @@ const Appointment = require('../models/appointment.model');
 const CRMSettings = require('../models/crmSettings.model');
 const CrmActivity = require('../models/crmActivity.model');
 const { pickAllowedFields } = require('../utils/securityUtils');
+const logger = require('../utils/logger');
 
 // ═══════════════════════════════════════════════════════════════
 // SECURITY CONSTANTS
@@ -191,7 +192,7 @@ exports.getAll = async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('Error getting appointments:', error);
+        logger.error('Error getting appointments:', error);
         res.status(500).json({
             success: false,
             message: 'خطأ في جلب المواعيد / Error fetching appointments',
@@ -238,7 +239,7 @@ exports.getById = async (req, res) => {
             data: appointment
         });
     } catch (error) {
-        console.error('Error getting appointment:', error);
+        logger.error('Error getting appointment:', error);
         res.status(500).json({
             success: false,
             message: 'خطأ في جلب الموعد / Error fetching appointment',
@@ -307,7 +308,7 @@ exports.getAvailableSlots = async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('Error getting available slots:', error);
+        logger.error('Error getting available slots:', error);
         res.status(500).json({
             success: false,
             message: 'خطأ في جلب الفترات المتاحة / Error fetching available slots',
@@ -381,7 +382,7 @@ exports.create = async (req, res) => {
             data: appointment
         });
     } catch (error) {
-        console.error('Error creating appointment:', error);
+        logger.error('Error creating appointment:', error);
         res.status(500).json({
             success: false,
             message: 'خطأ في إنشاء الموعد / Error creating appointment',
@@ -485,7 +486,7 @@ exports.publicBook = async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('Error with public booking:', error);
+        logger.error('Error with public booking:', error);
         res.status(500).json({
             success: false,
             message: 'خطأ في الحجز / Error booking appointment',
@@ -569,7 +570,7 @@ exports.update = async (req, res) => {
             data: appointment
         });
     } catch (error) {
-        console.error('Error updating appointment:', error);
+        logger.error('Error updating appointment:', error);
         res.status(500).json({
             success: false,
             message: 'خطأ في تحديث الموعد / Error updating appointment',
@@ -639,7 +640,7 @@ exports.cancel = async (req, res) => {
             data: appointment
         });
     } catch (error) {
-        console.error('Error cancelling appointment:', error);
+        logger.error('Error cancelling appointment:', error);
         res.status(500).json({
             success: false,
             message: 'خطأ في إلغاء الموعد / Error cancelling appointment',
@@ -710,7 +711,7 @@ exports.complete = async (req, res) => {
             data: appointment
         });
     } catch (error) {
-        console.error('Error completing appointment:', error);
+        logger.error('Error completing appointment:', error);
         res.status(500).json({
             success: false,
             message: 'خطأ في إكمال الموعد / Error completing appointment',
@@ -768,7 +769,7 @@ exports.markNoShow = async (req, res) => {
             data: appointment
         });
     } catch (error) {
-        console.error('Error marking no-show:', error);
+        logger.error('Error marking no-show:', error);
         res.status(500).json({
             success: false,
             message: 'خطأ في تسجيل عدم الحضور / Error marking no-show',
@@ -826,7 +827,7 @@ exports.confirm = async (req, res) => {
             data: appointment
         });
     } catch (error) {
-        console.error('Error confirming appointment:', error);
+        logger.error('Error confirming appointment:', error);
         res.status(500).json({
             success: false,
             message: 'خطأ في تأكيد الموعد / Error confirming appointment',

@@ -3,6 +3,7 @@ const Pipeline = require('../models/pipeline.model');
 const CrmActivity = require('../models/crmActivity.model');
 const Client = require('../models/client.model');
 const { pickAllowedFields, sanitizeEmail, sanitizePhone } = require('../utils/securityUtils');
+const logger = require('../utils/logger');
 
 // ============================================
 // LEAD CRUD OPERATIONS
@@ -92,7 +93,7 @@ exports.createLead = async (req, res) => {
                     );
                     automationResults = automationResult;
                 } catch (automationError) {
-                    console.error('Initial stage automation error:', automationError);
+                    logger.error('Initial stage automation error:', automationError);
                     // Don't fail lead creation if automation fails
                 }
             }
@@ -118,7 +119,7 @@ exports.createLead = async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('Error creating lead:', error);
+        logger.error('Error creating lead:', error);
         res.status(500).json({
             success: false,
             message: 'Error creating lead',
@@ -182,7 +183,7 @@ exports.getLeads = async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('Error getting leads:', error);
+        logger.error('Error getting leads:', error);
         res.status(500).json({
             success: false,
             message: 'Error getting leads',
@@ -218,7 +219,8 @@ exports.getLead = async (req, res) => {
         .populate('organizationId', 'legalName tradeName type email phone')
         .populate('contactId', 'firstName lastName email phone title company')
         .populate('clientId', 'name clientId')
-        .populate('caseId', 'title caseNumber');
+        .populate('caseId', 'title caseNumber')
+        .lean();
 
         if (!lead) {
             return res.status(404).json({
@@ -238,7 +240,7 @@ exports.getLead = async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('Error getting lead:', error);
+        logger.error('Error getting lead:', error);
         res.status(500).json({
             success: false,
             message: 'Error getting lead',
@@ -343,7 +345,7 @@ exports.updateLead = async (req, res) => {
             data: lead
         });
     } catch (error) {
-        console.error('Error updating lead:', error);
+        logger.error('Error updating lead:', error);
         res.status(500).json({
             success: false,
             message: 'Error updating lead',
@@ -386,7 +388,7 @@ exports.deleteLead = async (req, res) => {
             message: 'Lead deleted successfully'
         });
     } catch (error) {
-        console.error('Error deleting lead:', error);
+        logger.error('Error deleting lead:', error);
         res.status(500).json({
             success: false,
             message: 'Error deleting lead',
@@ -430,7 +432,7 @@ exports.bulkDeleteLeads = async (req, res) => {
             deletedCount: result.deletedCount
         });
     } catch (error) {
-        console.error('Error bulk deleting leads:', error);
+        logger.error('Error bulk deleting leads:', error);
         res.status(500).json({
             success: false,
             message: 'Error bulk deleting leads',
@@ -486,7 +488,7 @@ exports.updateStatus = async (req, res) => {
             data: lead
         });
     } catch (error) {
-        console.error('Error updating lead status:', error);
+        logger.error('Error updating lead status:', error);
         res.status(500).json({
             success: false,
             message: 'Error updating lead status',
@@ -555,7 +557,7 @@ exports.moveToStage = async (req, res) => {
             try {
                 await PipelineAutomationService.executeOnExit(lead, oldStage, lawyerId);
             } catch (automationError) {
-                console.error('Stage exit automation error:', automationError);
+                logger.error('Stage exit automation error:', automationError);
                 // Don't fail the stage move if automation fails
             }
         }
@@ -586,7 +588,7 @@ exports.moveToStage = async (req, res) => {
             );
             automationResults = automationResult;
         } catch (automationError) {
-            console.error('Stage enter automation error:', automationError);
+            logger.error('Stage enter automation error:', automationError);
             // Don't fail the stage move if automation fails
         }
 
@@ -611,7 +613,7 @@ exports.moveToStage = async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('Error moving lead to stage:', error);
+        logger.error('Error moving lead to stage:', error);
         res.status(500).json({
             success: false,
             message: 'Error moving lead to stage',
@@ -693,7 +695,7 @@ exports.convertToClient = async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('Error converting lead:', error);
+        logger.error('Error converting lead:', error);
         res.status(500).json({
             success: false,
             message: 'Error converting lead to client',
@@ -717,7 +719,7 @@ exports.previewConversion = async (req, res) => {
             ? { $or: [{ _id: id }, { leadId: id }], firmId, convertedToClient: false }
             : { $or: [{ _id: id }, { leadId: id }], lawyerId, convertedToClient: false };
 
-        const lead = await Lead.findOne(accessQuery);
+        const lead = await Lead.findOne(accessQuery).lean();
 
         if (!lead) {
             return res.status(404).json({
@@ -764,7 +766,7 @@ exports.previewConversion = async (req, res) => {
             data: preview
         });
     } catch (error) {
-        console.error('Error previewing conversion:', error);
+        logger.error('Error previewing conversion:', error);
         res.status(500).json({
             success: false,
             message: 'Error previewing conversion',
@@ -804,7 +806,8 @@ exports.getStats = async (req, res) => {
         const recentLeads = await Lead.find(baseQuery)
             .sort({ createdAt: -1 })
             .limit(5)
-            .select('leadId displayName status createdAt estimatedValue');
+            .select('leadId displayName status createdAt estimatedValue')
+            .lean();
 
         res.json({
             success: true,
@@ -815,7 +818,7 @@ exports.getStats = async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('Error getting lead stats:', error);
+        logger.error('Error getting lead stats:', error);
         res.status(500).json({
             success: false,
             message: 'Error getting lead statistics',
@@ -857,7 +860,8 @@ exports.getByPipeline = async (req, res) => {
             .populate('organizationId', 'legalName tradeName type')
             .populate('contactId', 'firstName lastName email phone')
             .sort({ createdAt: -1 })
-            .limit(50);
+            .limit(50)
+            .lean();
         }
 
         res.json({
@@ -868,7 +872,7 @@ exports.getByPipeline = async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('Error getting leads by pipeline:', error);
+        logger.error('Error getting leads by pipeline:', error);
         res.status(500).json({
             success: false,
             message: 'Error getting leads by pipeline',
@@ -899,7 +903,7 @@ exports.getNeedingFollowUp = async (req, res) => {
             data: leads
         });
     } catch (error) {
-        console.error('Error getting leads needing follow-up:', error);
+        logger.error('Error getting leads needing follow-up:', error);
         res.status(500).json({
             success: false,
             message: 'Error getting leads',
@@ -977,7 +981,7 @@ exports.logActivity = async (req, res) => {
             data: activity
         });
     } catch (error) {
-        console.error('Error logging activity:', error);
+        logger.error('Error logging activity:', error);
         res.status(500).json({
             success: false,
             message: 'Error logging activity',
@@ -1022,7 +1026,7 @@ exports.getActivities = async (req, res) => {
             data: activities
         });
     } catch (error) {
-        console.error('Error getting lead activities:', error);
+        logger.error('Error getting lead activities:', error);
         res.status(500).json({
             success: false,
             message: 'Error getting activities',
@@ -1093,7 +1097,7 @@ exports.scheduleFollowUp = async (req, res) => {
             data: lead
         });
     } catch (error) {
-        console.error('Error scheduling follow-up:', error);
+        logger.error('Error scheduling follow-up:', error);
         res.status(500).json({
             success: false,
             message: 'Error scheduling follow-up',
@@ -1260,7 +1264,7 @@ exports.getCrmOverview = async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('getCrmOverview ERROR:', error);
+        logger.error('getCrmOverview ERROR:', error);
         res.status(500).json({
             success: false,
             message: 'Error getting CRM overview',

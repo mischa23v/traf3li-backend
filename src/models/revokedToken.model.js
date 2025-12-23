@@ -18,6 +18,7 @@
  */
 
 const mongoose = require('mongoose');
+const logger = require('../utils/logger');
 
 const revokedTokenSchema = new mongoose.Schema(
   {
@@ -189,7 +190,7 @@ revokedTokenSchema.statics.isRevoked = async function(tokenHash) {
     const exists = await this.exists({ tokenHash });
     return !!exists;
   } catch (error) {
-    console.error('RevokedToken.isRevoked error:', error.message);
+    logger.error('RevokedToken.isRevoked error:', error.message);
     // On error, fail open (don't block valid tokens due to DB issues)
     // But log this as it's a security concern
     return false;
@@ -209,10 +210,10 @@ revokedTokenSchema.statics.revokeToken = async function(data) {
   } catch (error) {
     // If duplicate (already revoked), that's fine
     if (error.code === 11000) {
-      console.log('Token already revoked:', data.tokenHash);
+      logger.info('Token already revoked:', data.tokenHash);
       return null;
     }
-    console.error('RevokedToken.revokeToken error:', error.message);
+    logger.error('RevokedToken.revokeToken error:', error.message);
     throw error;
   }
 };
@@ -253,7 +254,7 @@ revokedTokenSchema.statics.revokeAllUserTokens = async function(userId, reason, 
 
     return [marker];
   } catch (error) {
-    console.error('RevokedToken.revokeAllUserTokens error:', error.message);
+    logger.error('RevokedToken.revokeAllUserTokens error:', error.message);
     throw error;
   }
 };
@@ -328,10 +329,10 @@ revokedTokenSchema.statics.cleanupExpired = async function() {
     const result = await this.deleteMany({
       expiresAt: { $lt: new Date() }
     });
-    console.log(`Cleaned up ${result.deletedCount} expired revoked tokens`);
+    logger.info(`Cleaned up ${result.deletedCount} expired revoked tokens`);
     return result.deletedCount;
   } catch (error) {
-    console.error('RevokedToken.cleanupExpired error:', error.message);
+    logger.error('RevokedToken.cleanupExpired error:', error.message);
     return 0;
   }
 };

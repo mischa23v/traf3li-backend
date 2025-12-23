@@ -15,6 +15,7 @@
 
 const AuditLog = require('../models/auditLog.model');
 const mongoose = require('mongoose');
+const logger = require('../utils/logger');
 
 class AuditLogService {
   /**
@@ -85,7 +86,7 @@ class AuditLogService {
 
       return await AuditLog.log(logData);
     } catch (error) {
-      console.error('AuditLogService.log failed:', error.message);
+      logger.error('AuditLogService.log failed:', error.message);
       return null;
     }
   }
@@ -133,7 +134,7 @@ class AuditLogService {
 
       return await AuditLog.logBulk(processedEntries);
     } catch (error) {
-      console.error('AuditLogService.logBulk failed:', error.message);
+      logger.error('AuditLogService.logBulk failed:', error.message);
       return null;
     }
   }
@@ -149,7 +150,7 @@ class AuditLogService {
     try {
       return await AuditLog.getAuditTrail(entityType, entityId, options);
     } catch (error) {
-      console.error('AuditLogService.getAuditTrail failed:', error.message);
+      logger.error('AuditLogService.getAuditTrail failed:', error.message);
       return [];
     }
   }
@@ -165,7 +166,7 @@ class AuditLogService {
     try {
       return await AuditLog.getUserActivity(userId, dateRange, options);
     } catch (error) {
-      console.error('AuditLogService.getUserActivity failed:', error.message);
+      logger.error('AuditLogService.getUserActivity failed:', error.message);
       return [];
     }
   }
@@ -181,7 +182,7 @@ class AuditLogService {
     try {
       return await AuditLog.getSecurityEvents(firmId, dateRange, options);
     } catch (error) {
-      console.error('AuditLogService.getSecurityEvents failed:', error.message);
+      logger.error('AuditLogService.getSecurityEvents failed:', error.message);
       return [];
     }
   }
@@ -210,7 +211,7 @@ class AuditLogService {
         filename: `audit-log-${new Date().toISOString().split('T')[0]}.json`
       };
     } catch (error) {
-      console.error('AuditLogService.exportAuditLog failed:', error.message);
+      logger.error('AuditLogService.exportAuditLog failed:', error.message);
       return { data: [], format };
     }
   }
@@ -224,7 +225,7 @@ class AuditLogService {
     try {
       return await AuditLog.getFailedLogins(timeWindow);
     } catch (error) {
-      console.error('AuditLogService.getFailedLogins failed:', error.message);
+      logger.error('AuditLogService.getFailedLogins failed:', error.message);
       return [];
     }
   }
@@ -239,7 +240,7 @@ class AuditLogService {
     try {
       return await AuditLog.checkBruteForce(identifier, timeWindow);
     } catch (error) {
-      console.error('AuditLogService.checkBruteForce failed:', error.message);
+      logger.error('AuditLogService.checkBruteForce failed:', error.message);
       return 0;
     }
   }
@@ -253,7 +254,7 @@ class AuditLogService {
     try {
       return await AuditLog.getSuspiciousActivity(limit);
     } catch (error) {
-      console.error('AuditLogService.getSuspiciousActivity failed:', error.message);
+      logger.error('AuditLogService.getSuspiciousActivity failed:', error.message);
       return [];
     }
   }

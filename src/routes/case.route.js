@@ -1,6 +1,7 @@
 const express = require('express');
 const { userMiddleware, firmFilter } = require('../middlewares');
 const { cacheResponse, invalidateCache } = require('../middlewares/cache.middleware');
+const { sanitizeObjectId } = require('../utils/securityUtils');
 const {
     validateCreateCase,
     validateUpdateCase,
@@ -103,7 +104,11 @@ const specificCaseInvalidationPatterns = [
 app.get('/overview',
     userMiddleware,
     firmFilter,
-    cacheResponse(CASE_CACHE_TTL, (req) => `case:firm:${req.firmId || 'none'}:overview:${req.originalUrl}`),
+    cacheResponse(CASE_CACHE_TTL, (req) => {
+        // Use originalUrl but sanitize to prevent cache poisoning
+        const sanitizedUrl = req.originalUrl.replace(/[^a-zA-Z0-9_\-\.\/\?\&\=]/g, '');
+        return `case:firm:${req.firmId || 'none'}:overview:${sanitizedUrl}`;
+    }),
     getCasesOverview
 );
 
@@ -221,7 +226,11 @@ app.post('/',
 app.get('/',
     userMiddleware,
     firmFilter,
-    cacheResponse(CASE_CACHE_TTL, (req) => `case:firm:${req.firmId || 'none'}:list:url:${req.originalUrl}`),
+    cacheResponse(CASE_CACHE_TTL, (req) => {
+        // Use originalUrl but sanitize to prevent cache poisoning
+        const sanitizedUrl = req.originalUrl.replace(/[^a-zA-Z0-9_\-\.\/\?\&\=]/g, '');
+        return `case:firm:${req.firmId || 'none'}:list:url:${sanitizedUrl}`;
+    }),
     getCases
 );
 
@@ -262,7 +271,11 @@ app.get('/',
 app.get('/pipeline',
     userMiddleware,
     firmFilter,
-    cacheResponse(CASE_CACHE_TTL, (req) => `case:firm:${req.firmId || 'none'}:pipeline:${req.originalUrl}`),
+    cacheResponse(CASE_CACHE_TTL, (req) => {
+        // Use originalUrl but sanitize to prevent cache poisoning
+        const sanitizedUrl = req.originalUrl.replace(/[^a-zA-Z0-9_\-\.\/\?\&\=]/g, '');
+        return `case:firm:${req.firmId || 'none'}:pipeline:${sanitizedUrl}`;
+    }),
     casePipelineController.getCasesForPipeline
 );
 
@@ -302,7 +315,11 @@ app.get('/pipeline',
 app.get('/pipeline/statistics',
     userMiddleware,
     firmFilter,
-    cacheResponse(CASE_CACHE_TTL, (req) => `case:firm:${req.firmId || 'none'}:pipeline:statistics:${req.originalUrl}`),
+    cacheResponse(CASE_CACHE_TTL, (req) => {
+        // Use originalUrl but sanitize to prevent cache poisoning
+        const sanitizedUrl = req.originalUrl.replace(/[^a-zA-Z0-9_\-\.\/\?\&\=]/g, '');
+        return `case:firm:${req.firmId || 'none'}:pipeline:statistics:${sanitizedUrl}`;
+    }),
     casePipelineController.getPipelineStatistics
 );
 
@@ -363,7 +380,11 @@ app.get('/pipeline/stages/:category',
 app.get('/pipeline/grouped',
     userMiddleware,
     firmFilter,
-    cacheResponse(CASE_CACHE_TTL, (req) => `case:firm:${req.firmId || 'none'}:pipeline:grouped:${req.originalUrl}`),
+    cacheResponse(CASE_CACHE_TTL, (req) => {
+        // Use originalUrl but sanitize to prevent cache poisoning
+        const sanitizedUrl = req.originalUrl.replace(/[^a-zA-Z0-9_\-\.\/\?\&\=]/g, '');
+        return `case:firm:${req.firmId || 'none'}:pipeline:grouped:${sanitizedUrl}`;
+    }),
     casePipelineController.getCasesByStage
 );
 
@@ -375,7 +396,11 @@ app.get('/:_id/full',
     userMiddleware,
     firmFilter,
     validateObjectIdParam,
-    cacheResponse(CASE_CACHE_TTL, (req) => `case:firm:${req.firmId || 'none'}:${req.params._id}:full`),
+    cacheResponse(CASE_CACHE_TTL, (req) => {
+        const sanitizedId = sanitizeObjectId(req.params._id);
+        if (!sanitizedId) return 'case:invalid:id';
+        return `case:firm:${req.firmId || 'none'}:${sanitizedId}:full`;
+    }),
     getCaseFull
 );
 
@@ -412,7 +437,11 @@ app.get('/:_id',
     userMiddleware,
     firmFilter,
     validateObjectIdParam,
-    cacheResponse(CASE_CACHE_TTL, (req) => `case:firm:${req.firmId || 'none'}:${req.params._id}:details`),
+    cacheResponse(CASE_CACHE_TTL, (req) => {
+        const sanitizedId = sanitizeObjectId(req.params._id);
+        if (!sanitizedId) return 'case:invalid:id';
+        return `case:firm:${req.firmId || 'none'}:${sanitizedId}:details`;
+    }),
     getCase
 );
 
@@ -561,7 +590,11 @@ app.get('/:_id/notes',
     userMiddleware,
     firmFilter,
     validateObjectIdParam,
-    cacheResponse(CASE_CACHE_TTL, (req) => `case:firm:${req.firmId || 'none'}:${req.params._id}:notes`),
+    cacheResponse(CASE_CACHE_TTL, (req) => {
+        const sanitizedId = sanitizeObjectId(req.params._id);
+        if (!sanitizedId) return 'case:invalid:id';
+        return `case:firm:${req.firmId || 'none'}:${sanitizedId}:notes`;
+    }),
     casePipelineController.getNotes
 );
 
@@ -922,7 +955,11 @@ app.get('/:_id/audit',
     userMiddleware,
     firmFilter,
     validateObjectIdParam,
-    cacheResponse(CASE_CACHE_TTL, (req) => `case:firm:${req.firmId || 'none'}:${req.params._id}:audit`),
+    cacheResponse(CASE_CACHE_TTL, (req) => {
+        const sanitizedId = sanitizeObjectId(req.params._id);
+        if (!sanitizedId) return 'case:invalid:id';
+        return `case:firm:${req.firmId || 'none'}:${sanitizedId}:audit`;
+    }),
     getCaseAudit
 );
 
@@ -942,7 +979,11 @@ app.get('/:_id/rich-documents',
     userMiddleware,
     firmFilter,
     validateObjectIdParam,
-    cacheResponse(CASE_CACHE_TTL, (req) => `case:firm:${req.firmId || 'none'}:${req.params._id}:rich-documents:list`),
+    cacheResponse(CASE_CACHE_TTL, (req) => {
+        const sanitizedId = sanitizeObjectId(req.params._id);
+        if (!sanitizedId) return 'case:invalid:id';
+        return `case:firm:${req.firmId || 'none'}:${sanitizedId}:rich-documents:list`;
+    }),
     getRichDocuments
 );
 
@@ -951,7 +992,12 @@ app.get('/:_id/rich-documents/:docId',
     userMiddleware,
     firmFilter,
     validateNestedIdParam,
-    cacheResponse(CASE_CACHE_TTL, (req) => `case:firm:${req.firmId || 'none'}:${req.params._id}:rich-documents:${req.params.docId}`),
+    cacheResponse(CASE_CACHE_TTL, (req) => {
+        const sanitizedId = sanitizeObjectId(req.params._id);
+        const sanitizedDocId = sanitizeObjectId(req.params.docId);
+        if (!sanitizedId || !sanitizedDocId) return 'case:invalid:id';
+        return `case:firm:${req.firmId || 'none'}:${sanitizedId}:rich-documents:${sanitizedDocId}`;
+    }),
     getRichDocument
 );
 
@@ -979,7 +1025,12 @@ app.get('/:_id/rich-documents/:docId/versions',
     userMiddleware,
     firmFilter,
     validateNestedIdParam,
-    cacheResponse(CASE_CACHE_TTL, (req) => `case:firm:${req.firmId || 'none'}:${req.params._id}:rich-documents:${req.params.docId}:versions`),
+    cacheResponse(CASE_CACHE_TTL, (req) => {
+        const sanitizedId = sanitizeObjectId(req.params._id);
+        const sanitizedDocId = sanitizeObjectId(req.params.docId);
+        if (!sanitizedId || !sanitizedDocId) return 'case:invalid:id';
+        return `case:firm:${req.firmId || 'none'}:${sanitizedId}:rich-documents:${sanitizedDocId}:versions`;
+    }),
     getRichDocumentVersions
 );
 
@@ -1022,7 +1073,12 @@ app.get('/:_id/rich-documents/:docId/preview',
     userMiddleware,
     firmFilter,
     validateNestedIdParam,
-    cacheResponse(CASE_CACHE_TTL, (req) => `case:firm:${req.firmId || 'none'}:${req.params._id}:rich-documents:${req.params.docId}:preview`),
+    cacheResponse(CASE_CACHE_TTL, (req) => {
+        const sanitizedId = sanitizeObjectId(req.params._id);
+        const sanitizedDocId = sanitizeObjectId(req.params.docId);
+        if (!sanitizedId || !sanitizedDocId) return 'case:invalid:id';
+        return `case:firm:${req.firmId || 'none'}:${sanitizedId}:rich-documents:${sanitizedDocId}:preview`;
+    }),
     getRichDocumentPreview
 );
 

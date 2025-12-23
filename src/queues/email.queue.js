@@ -7,6 +7,7 @@
 
 const { createQueue } = require('../configs/queue');
 const { Resend } = require('resend');
+const logger = require('../utils/logger');
 
 // Initialize Resend
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
@@ -37,7 +38,7 @@ const emailQueue = createQueue('email', {
 emailQueue.process(async (job) => {
   const { type, data } = job.data;
 
-  console.log(`📧 Processing email job ${job.id} of type: ${type}`);
+  logger.info(`📧 Processing email job ${job.id} of type: ${type}`);
 
   try {
     switch (type) {
@@ -57,7 +58,7 @@ emailQueue.process(async (job) => {
         throw new Error(`Unknown email type: ${type}`);
     }
   } catch (error) {
-    console.error(`❌ Email job ${job.id} failed:`, error.message);
+    logger.error(`❌ Email job ${job.id} failed:`, error.message);
     throw error;
   }
 });
@@ -91,7 +92,7 @@ async function sendTransactionalEmail(data, job) {
 
   await job.progress(100);
 
-  console.log(`✅ Transactional email sent: ${result.id}`);
+  logger.info(`✅ Transactional email sent: ${result.id}`);
   return {
     success: true,
     messageId: result.id,
@@ -143,7 +144,7 @@ async function sendBulkEmails(data, job) {
       await job.progress(Math.floor(((i + 1) / total) * 100));
 
     } catch (error) {
-      console.error(`Failed to send to ${recipient.email}:`, error.message);
+      logger.error(`Failed to send to ${recipient.email}:`, error.message);
       results.push({
         email: recipient.email,
         success: false,
@@ -153,7 +154,7 @@ async function sendBulkEmails(data, job) {
   }
 
   const successCount = results.filter(r => r.success).length;
-  console.log(`✅ Bulk emails sent: ${successCount}/${total}`);
+  logger.info(`✅ Bulk emails sent: ${successCount}/${total}`);
 
   return {
     success: true,
@@ -189,7 +190,7 @@ async function sendTemplateEmail(data, job) {
 
   await job.progress(100);
 
-  console.log(`✅ Template email sent: ${result.id}`);
+  logger.info(`✅ Template email sent: ${result.id}`);
   return {
     success: true,
     messageId: result.id,
@@ -233,7 +234,7 @@ async function sendCampaignEmail(data, job) {
 
   await job.progress(100);
 
-  console.log(`✅ Campaign email sent: ${result.id}`);
+  logger.info(`✅ Campaign email sent: ${result.id}`);
   return {
     success: true,
     messageId: result.id,

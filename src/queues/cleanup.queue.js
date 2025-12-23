@@ -10,6 +10,7 @@
  */
 
 const { createQueue } = require('../configs/queue');
+const logger = require('../utils/logger');
 
 // Create cleanup queue
 const cleanupQueue = createQueue('cleanup', {
@@ -32,7 +33,7 @@ const cleanupQueue = createQueue('cleanup', {
 cleanupQueue.process(async (job) => {
   const { type, data } = job.data;
 
-  console.log(`🧹 Processing cleanup job ${job.id} of type: ${type}`);
+  logger.info(`🧹 Processing cleanup job ${job.id} of type: ${type}`);
 
   try {
     switch (type) {
@@ -61,7 +62,7 @@ cleanupQueue.process(async (job) => {
         throw new Error(`Unknown cleanup type: ${type}`);
     }
   } catch (error) {
-    console.error(`❌ Cleanup job ${job.id} failed:`, error.message);
+    logger.error(`❌ Cleanup job ${job.id} failed:`, error.message);
     throw error;
   }
 });
@@ -101,7 +102,7 @@ async function cleanupOldLogs(data, job) {
 
     await job.progress(100);
 
-    console.log(`✅ Cleaned up ${deletedCount} old log files`);
+    logger.info(`✅ Cleaned up ${deletedCount} old log files`);
     return {
       success: true,
       deletedCount,
@@ -151,7 +152,7 @@ async function cleanupTempFiles(data, job) {
       }
     } catch (error) {
       if (error.code !== 'ENOENT') {
-        console.error(`Error cleaning ${tempDir}:`, error.message);
+        logger.error(`Error cleaning ${tempDir}:`, error.message);
       }
     }
 
@@ -160,7 +161,7 @@ async function cleanupTempFiles(data, job) {
 
   await job.progress(100);
 
-  console.log(`✅ Cleaned up ${totalDeleted} temporary files`);
+  logger.info(`✅ Cleaned up ${totalDeleted} temporary files`);
   return {
     success: true,
     deletedCount: totalDeleted,
@@ -200,7 +201,7 @@ async function cleanupExpiredSessions(data, job) {
 
   await job.progress(100);
 
-  console.log(`✅ Cleaned up ${expiredCount} expired sessions`);
+  logger.info(`✅ Cleaned up ${expiredCount} expired sessions`);
   return {
     success: true,
     expiredCount,
@@ -227,9 +228,9 @@ async function cleanupExpiredTokens(data, job) {
 
     await job.progress(50);
 
-    console.log(`✅ Cleaned up ${expiredOtps.deletedCount} expired OTP tokens`);
+    logger.info(`✅ Cleaned up ${expiredOtps.deletedCount} expired OTP tokens`);
   } catch (error) {
-    console.error('Error cleaning OTP tokens:', error.message);
+    logger.error('Error cleaning OTP tokens:', error.message);
   }
 
   await job.progress(70);
@@ -267,14 +268,14 @@ async function cleanupOldNotifications(data, job) {
 
     await job.progress(100);
 
-    console.log(`✅ Cleaned up ${result.deletedCount} old notifications`);
+    logger.info(`✅ Cleaned up ${result.deletedCount} old notifications`);
     return {
       success: true,
       deletedCount: result.deletedCount,
       retentionDays
     };
   } catch (error) {
-    console.error('Error cleaning notifications:', error.message);
+    logger.error('Error cleaning notifications:', error.message);
     return { success: true, deletedCount: 0, error: error.message };
   }
 }
@@ -326,7 +327,7 @@ async function archiveOldAuditLogs(data, job) {
 
       await job.progress(100);
 
-      console.log(`✅ Archived ${result.deletedCount} audit logs to ${archiveFile}`);
+      logger.info(`✅ Archived ${result.deletedCount} audit logs to ${archiveFile}`);
       return {
         success: true,
         archivedCount: result.deletedCount,
@@ -342,7 +343,7 @@ async function archiveOldAuditLogs(data, job) {
       message: 'No logs to archive'
     };
   } catch (error) {
-    console.error('Error archiving audit logs:', error.message);
+    logger.error('Error archiving audit logs:', error.message);
     throw error;
   }
 }
@@ -367,15 +368,15 @@ async function cleanupFailedJobs(data, job) {
     try {
       const cleaned = await queue.clean(grace, 'failed');
       totalCleaned += cleaned.length;
-      console.log(`   Cleaned ${cleaned.length} failed jobs from ${name} queue`);
+      logger.info(`   Cleaned ${cleaned.length} failed jobs from ${name} queue`);
     } catch (error) {
-      console.error(`   Error cleaning ${name} queue:`, error.message);
+      logger.error(`   Error cleaning ${name} queue:`, error.message);
     }
   }
 
   await job.progress(100);
 
-  console.log(`✅ Cleaned up ${totalCleaned} failed jobs across all queues`);
+  logger.info(`✅ Cleaned up ${totalCleaned} failed jobs across all queues`);
   return {
     success: true,
     totalCleaned,

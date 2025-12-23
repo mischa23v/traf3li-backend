@@ -1,6 +1,7 @@
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const logger = require('../utils/logger');
 
 // Use absolute path from project root for container compatibility
 const uploadDir = path.join(process.cwd(), 'uploads', 'messages');
@@ -11,7 +12,7 @@ try {
     fs.mkdirSync(uploadDir, { recursive: true });
   }
 } catch (err) {
-  console.warn(`Warning: Could not create upload directory ${uploadDir}:`, err.message);
+  logger.warn(`Warning: Could not create upload directory ${uploadDir}:`, err.message);
   // Directory should be pre-created in Dockerfile for production
 }
 

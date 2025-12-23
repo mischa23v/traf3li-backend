@@ -4,6 +4,7 @@ const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
 const cache = require('../services/cache.service');
 const { pickAllowedFields, sanitizeObjectId, sanitizeString } = require('../utils/securityUtils');
+const logger = require('../utils/logger');
 
 // Helper to convert userId to ObjectId for aggregation pipelines
 const toObjectId = (id) => {
@@ -140,7 +141,7 @@ const invalidateUserCalendarCache = async (userId) => {
     try {
         await cache.delPattern(`calendar:*:${userId}:*`);
     } catch (error) {
-        console.error('Error invalidating calendar cache:', error.message);
+        logger.error('Error invalidating calendar cache:', error.message);
     }
 };
 
@@ -151,7 +152,7 @@ const invalidateItemCache = async (type, id) => {
     try {
         await cache.del(cacheKeys.itemDetails(type, id));
     } catch (error) {
-        console.error('Error invalidating item cache:', error.message);
+        logger.error('Error invalidating item cache:', error.message);
     }
 };
 
@@ -220,7 +221,8 @@ const getCalendarView = asyncHandler(async (req, res) => {
             .populate('attendees', 'username image email')
             .populate('caseId', 'title caseNumber category')
             .populate('taskId', 'title')
-            .sort({ startDate: 1 });
+            .sort({ startDate: 1 })
+            .lean();
 
         result.events = events.map(event => ({
             id: event._id,
@@ -260,7 +262,8 @@ const getCalendarView = asyncHandler(async (req, res) => {
             .populate('assignedTo', 'username image email')
             .populate('createdBy', 'username image email')
             .populate('caseId', 'title caseNumber category')
-            .sort({ dueDate: 1 });
+            .sort({ dueDate: 1 })
+            .lean();
 
         result.tasks = tasks.map(task => ({
             id: task._id,
@@ -299,7 +302,8 @@ const getCalendarView = asyncHandler(async (req, res) => {
             .populate('relatedCase', 'title caseNumber category')
             .populate('relatedTask', 'title')
             .populate('relatedEvent', 'title')
-            .sort({ reminderDate: 1 });
+            .sort({ reminderDate: 1 })
+            .lean();
 
         result.reminders = reminders.map(reminder => ({
             id: reminder._id,
@@ -338,7 +342,8 @@ const getCalendarView = asyncHandler(async (req, res) => {
 
         const cases = await Case.find(caseQuery)
             .populate('richDocuments.createdBy', 'firstName lastName')
-            .select('_id title caseNumber richDocuments');
+            .select('_id title caseNumber richDocuments')
+            .lean();
 
         // Extract rich documents that match the date range
         const caseDocuments = [];
@@ -426,7 +431,8 @@ const getCalendarByDate = asyncHandler(async (req, res) => {
     })
         .populate('createdBy', 'username image')
         .populate('caseId', 'title caseNumber')
-        .sort({ startDateTime: 1 });
+        .sort({ startDateTime: 1 })
+        .lean();
 
     // Fetch tasks
     const tasks = await Task.find({
@@ -438,7 +444,8 @@ const getCalendarByDate = asyncHandler(async (req, res) => {
     })
         .populate('assignedTo', 'username image')
         .populate('caseId', 'title caseNumber')
-        .sort({ dueDate: 1 });
+        .sort({ dueDate: 1 })
+        .lean();
 
     // Fetch reminders
     const reminders = await Reminder.find({
@@ -448,13 +455,14 @@ const getCalendarByDate = asyncHandler(async (req, res) => {
         .populate('relatedCase', 'title caseNumber')
         .populate('relatedTask', 'title')
         .populate('relatedEvent', 'title')
-        .sort({ reminderDateTime: 1 });
+        .sort({ reminderDateTime: 1 })
+        .lean();
 
     // Fetch case rich documents
     const cases = await Case.find({
         lawyerId: userId,
         'richDocuments.showOnCalendar': true
-    }).select('_id title caseNumber richDocuments');
+    }).select('_id title caseNumber richDocuments').lean();
 
     const caseDocuments = [];
     cases.forEach(caseDoc => {
@@ -528,7 +536,8 @@ const getCalendarByMonth = asyncHandler(async (req, res) => {
     })
         .populate('createdBy', 'username image')
         .populate('caseId', 'title caseNumber')
-        .sort({ startDateTime: 1 });
+        .sort({ startDateTime: 1 })
+        .lean();
 
     // Fetch tasks
     const tasks = await Task.find({
@@ -540,7 +549,8 @@ const getCalendarByMonth = asyncHandler(async (req, res) => {
     })
         .populate('assignedTo', 'username image')
         .populate('caseId', 'title caseNumber')
-        .sort({ dueDate: 1 });
+        .sort({ dueDate: 1 })
+        .lean();
 
     // Fetch reminders
     const reminders = await Reminder.find({
@@ -548,13 +558,14 @@ const getCalendarByMonth = asyncHandler(async (req, res) => {
         reminderDateTime: { $gte: startDate, $lte: endDate }
     })
         .populate('relatedCase', 'title caseNumber')
-        .sort({ reminderDateTime: 1 });
+        .sort({ reminderDateTime: 1 })
+        .lean();
 
     // Fetch case rich documents
     const casesWithDocs = await Case.find({
         lawyerId: userId,
         'richDocuments.showOnCalendar': true
-    }).select('_id title caseNumber richDocuments');
+    }).select('_id title caseNumber richDocuments').lean();
 
     const caseDocuments = [];
     casesWithDocs.forEach(caseDoc => {
@@ -664,7 +675,8 @@ const getUpcomingItems = asyncHandler(async (req, res) => {
         .populate('createdBy', 'username image')
         .populate('caseId', 'title caseNumber')
         .sort({ startDateTime: 1 })
-        .limit(20);
+        .limit(20)
+        .lean();
 
     // Fetch upcoming tasks
     const tasks = await Task.find({
@@ -678,7 +690,8 @@ const getUpcomingItems = asyncHandler(async (req, res) => {
         .populate('assignedTo', 'username image')
         .populate('caseId', 'title caseNumber')
         .sort({ dueDate: 1 })
-        .limit(20);
+        .limit(20)
+        .lean();
 
     // Fetch upcoming reminders
     const reminders = await Reminder.find({
@@ -690,13 +703,14 @@ const getUpcomingItems = asyncHandler(async (req, res) => {
         .populate('relatedTask', 'title')
         .populate('relatedEvent', 'title')
         .sort({ reminderDateTime: 1 })
-        .limit(20);
+        .limit(20)
+        .lean();
 
     // Fetch upcoming case rich documents
     const casesWithUpcomingDocs = await Case.find({
         lawyerId: userId,
         'richDocuments.showOnCalendar': true
-    }).select('_id title caseNumber richDocuments');
+    }).select('_id title caseNumber richDocuments').lean();
 
     const caseDocuments = [];
     casesWithUpcomingDocs.forEach(caseDoc => {
@@ -765,7 +779,8 @@ const getOverdueItems = asyncHandler(async (req, res) => {
     })
         .populate('assignedTo', 'username image')
         .populate('caseId', 'title caseNumber')
-        .sort({ dueDate: 1 });
+        .sort({ dueDate: 1 })
+        .lean();
 
     // Overdue reminders
     const reminders = await Reminder.find({
@@ -776,7 +791,8 @@ const getOverdueItems = asyncHandler(async (req, res) => {
         .populate('relatedCase', 'title caseNumber')
         .populate('relatedTask', 'title')
         .populate('relatedEvent', 'title')
-        .sort({ reminderDateTime: -1 });
+        .sort({ reminderDateTime: -1 })
+        .lean();
 
     // Past events (for reference)
     const pastEvents = await Event.find({
@@ -790,7 +806,8 @@ const getOverdueItems = asyncHandler(async (req, res) => {
         .populate('createdBy', 'username image')
         .populate('caseId', 'title caseNumber')
         .sort({ startDateTime: -1 })
-        .limit(10);
+        .limit(10)
+        .lean();
 
     res.status(200).json({
         success: true,
@@ -1514,16 +1531,22 @@ const getCalendarItemDetails = asyncHandler(async (req, res) => {
                 .populate('clientId', 'firstName lastName email phone')
                 .populate('taskId', 'title status dueDate')
                 .populate('agenda.presenter', 'firstName lastName')
-                .populate('actionItems.assignedTo', 'firstName lastName');
+                .populate('actionItems.assignedTo', 'firstName lastName')
+                .lean();
 
             if (!item) {
                 throw CustomException('Event not found', 404);
             }
 
             // Enhanced IDOR protection - verify ownership/access
+            const isAttendee = item.attendees?.some(attendee => {
+                const attendeeId = attendee.userId?._id || attendee.userId;
+                return attendeeId?.toString() === userId;
+            });
+
             const hasEventAccess = item.createdBy?._id?.toString() === userId ||
                 item.organizer?._id?.toString() === userId ||
-                (item.isUserAttendee && item.isUserAttendee(userId));
+                isAttendee;
 
             if (!hasEventAccess) {
                 throw CustomException('Access denied: You do not have permission to view this event', 403);
@@ -1536,7 +1559,8 @@ const getCalendarItemDetails = asyncHandler(async (req, res) => {
                 .populate('createdBy', 'username firstName lastName image email')
                 .populate('caseId', 'title caseNumber category')
                 .populate('clientId', 'firstName lastName email phone')
-                .populate('linkedEventId', 'title startDateTime');
+                .populate('linkedEventId', 'title startDateTime')
+                .lean();
 
             if (!item) {
                 throw CustomException('Task not found', 404);
@@ -1555,7 +1579,8 @@ const getCalendarItemDetails = asyncHandler(async (req, res) => {
             item = await Reminder.findById(sanitizedId)
                 .populate('relatedCase', 'title caseNumber category')
                 .populate('relatedTask', 'title status dueDate')
-                .populate('relatedEvent', 'title startDateTime');
+                .populate('relatedEvent', 'title startDateTime')
+                .lean();
 
             if (!item) {
                 throw CustomException('Reminder not found', 404);
@@ -1574,7 +1599,8 @@ const getCalendarItemDetails = asyncHandler(async (req, res) => {
                 'richDocuments._id': sanitizedId
             })
                 .populate('richDocuments.createdBy', 'firstName lastName')
-                .select('_id title caseNumber category richDocuments.$');
+                .select('_id title caseNumber category richDocuments.$')
+                .lean();
 
             if (!caseDoc || !caseDoc.richDocuments || caseDoc.richDocuments.length === 0) {
                 throw CustomException('Document not found or access denied', 404);

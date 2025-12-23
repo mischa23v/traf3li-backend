@@ -8,6 +8,7 @@ const { sanitizeRichText, sanitizeComment, stripHtml, hasDangerousContent } = re
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 const fs = require('fs');
 const path = require('path');
+const logger = require('../utils/logger');
 
 // Create task
 const createTask = asyncHandler(async (req, res) => {
@@ -166,7 +167,7 @@ const createTask = asyncHandler(async (req, res) => {
             task.linkedEventId = linkedEvent._id;
             await task.save();
         } catch (error) {
-            console.error('Error creating linked calendar event:', error);
+            logger.error('Error creating linked calendar event', { error: error.message });
             // Don't fail task creation if event creation fails
         }
     }
@@ -307,7 +308,8 @@ const getTask = asyncHandler(async (req, res) => {
         .populate('completedBy', 'firstName lastName')
         .populate('comments.userId', 'firstName lastName image')
         .populate('timeTracking.sessions.userId', 'firstName lastName')
-        .populate('linkedEventId', 'eventId title startDateTime status');
+        .populate('linkedEventId', 'eventId title startDateTime status')
+        .lean();
 
     if (!task) {
         throw CustomException('Task not found', 404);
@@ -514,7 +516,7 @@ const updateTask = asyncHandler(async (req, res) => {
             }
         }
     } catch (error) {
-        console.error('Error syncing task with calendar event:', error);
+        logger.error('Error syncing task with calendar event', { error: error.message });
         // Don't fail task update if event sync fails
     }
 
@@ -560,7 +562,7 @@ const deleteTask = asyncHandler(async (req, res) => {
         try {
             await Event.findByIdAndDelete(task.linkedEventId);
         } catch (error) {
-            console.error('Error deleting linked calendar event:', error);
+            logger.error('Error deleting linked calendar event', { error: error.message });
             // Continue with task deletion even if event deletion fails
         }
     }
@@ -986,7 +988,8 @@ const addComment = asyncHandler(async (req, res) => {
     await task.save();
 
     const populatedTask = await Task.findById(id)
-        .populate('comments.userId', 'firstName lastName image');
+        .populate('comments.userId', 'firstName lastName image')
+        .lean();
 
     res.status(201).json({
         success: true,
@@ -1235,7 +1238,8 @@ const getUpcomingTasks = asyncHandler(async (req, res) => {
     })
         .populate('assignedTo', 'firstName lastName image')
         .populate('caseId', 'title caseNumber')
-        .sort({ dueDate: 1 });
+        .sort({ dueDate: 1 })
+        .lean();
 
     res.status(200).json({
         success: true,
@@ -1261,6 +1265,7 @@ const getOverdueTasks = asyncHandler(async (req, res) => {
     })
         .populate('assignedTo', 'firstName lastName image')
         .populate('caseId', 'title caseNumber')
+        .lean()
         .sort({ dueDate: 1 });
 
     res.status(200).json({
@@ -1288,7 +1293,8 @@ const getTasksByCase = asyncHandler(async (req, res) => {
     const tasks = await Task.find({ caseId: sanitizedCaseId, firmId })
         .populate('assignedTo', 'firstName lastName image')
         .populate('createdBy', 'firstName lastName')
-        .sort({ dueDate: 1, priority: -1 });
+        .sort({ dueDate: 1, priority: -1 })
+        .lean();
 
     res.status(200).json({
         success: true,
@@ -1321,7 +1327,8 @@ const getTasksDueToday = asyncHandler(async (req, res) => {
         .populate('assignedTo', 'firstName lastName image')
         .populate('createdBy', 'firstName lastName image')
         .populate('caseId', 'title caseNumber')
-        .sort({ dueTime: 1, priority: -1 });
+        .sort({ dueTime: 1, priority: -1 })
+        .lean();
 
     res.status(200).json({
         success: true,
@@ -1381,7 +1388,8 @@ const getTemplates = asyncHandler(async (req, res) => {
         ]
     })
         .populate('createdBy', 'firstName lastName email image')
-        .sort({ createdAt: -1 });
+        .sort({ createdAt: -1 })
+        .lean();
 
     res.status(200).json({
         success: true,
@@ -1854,7 +1862,7 @@ const addAttachment = asyncHandler(async (req, res) => {
         try {
             downloadUrl = await getTaskFilePresignedUrl(newAttachment.fileKey, newAttachment.fileName);
         } catch (err) {
-            console.error('Error generating presigned URL:', err);
+            logger.error('Error generating presigned URL', { error: err.message });
         }
     }
 
@@ -1915,7 +1923,7 @@ const deleteAttachment = asyncHandler(async (req, res) => {
             }
         }
     } catch (err) {
-        console.error('Error deleting file from storage:', err);
+        logger.error('Error deleting file from storage', { error: err.message });
         // Continue with database removal even if file deletion fails
     }
 
@@ -2643,10 +2651,10 @@ const getAttachmentDownloadUrl = asyncHandler(async (req, res) => {
                 attachmentId,
                 fileName: attachment.fileName,
                 versionId: versionId || 'latest'
-            }).catch(err => console.error('Failed to log access:', err.message));
+            }).catch(err => logger.error('Failed to log access', { error: err.message }));
 
         } catch (err) {
-            console.error('Error generating presigned URL:', err);
+            logger.error('Error generating presigned URL', { error: err.message });
             throw CustomException('Error generating download URL', 500);
         }
     }
@@ -2716,7 +2724,7 @@ const getAttachmentVersions = asyncHandler(async (req, res) => {
             versions
         });
     } catch (err) {
-        console.error('Error listing versions:', err);
+        logger.error('Error listing versions', { error: err.message });
         // If versioning is not enabled, return empty array
         if (err.name === 'NoSuchBucket' || err.Code === 'NoSuchBucket') {
             throw CustomException('Bucket not found', 404);
@@ -2909,7 +2917,7 @@ const updateDocument = asyncHandler(async (req, res) => {
                 changeNote || 'Auto-saved before update'
             );
         } catch (err) {
-            console.error('Error saving document version:', err);
+            logger.error('Error saving document version', { error: err.message });
             // Continue with update even if version save fails
         }
     }
@@ -3012,7 +3020,7 @@ const getDocument = asyncHandler(async (req, res) => {
         try {
             downloadUrl = await getTaskFilePresignedUrl(document.fileKey, document.fileName);
         } catch (err) {
-            console.error('Error generating presigned URL:', err);
+            logger.error('Error generating presigned URL', { error: err.message });
         }
     }
 
@@ -3324,7 +3332,7 @@ const addVoiceMemo = asyncHandler(async (req, res) => {
         try {
             downloadUrl = await getTaskFilePresignedUrl(newVoiceMemo.fileKey, newVoiceMemo.fileName);
         } catch (err) {
-            console.error('Error generating presigned URL:', err);
+            logger.error('Error generating presigned URL', { error: err.message });
         }
     }
 
@@ -3464,7 +3472,7 @@ const processVoiceToItem = asyncHandler(async (req, res) => {
             metadata: processed.metadata
         });
     } catch (error) {
-        console.error('Voice to item conversion error:', error);
+        logger.error('Voice to item conversion error', { error: error.message });
         throw CustomException(error.message || 'Failed to create item from voice', 500);
     }
 });
@@ -3511,7 +3519,7 @@ const batchProcessVoiceMemos = asyncHandler(async (req, res) => {
             results
         });
     } catch (error) {
-        console.error('Batch voice processing error:', error);
+        logger.error('Batch voice processing error', { error: error.message });
         throw CustomException(error.message || 'Failed to process voice memos', 500);
     }
 });

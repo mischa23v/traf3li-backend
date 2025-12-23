@@ -7,6 +7,7 @@
 const { Resend } = require('resend');
 const EmailTemplateService = require('./emailTemplate.service');
 const QueueService = require('./queue.service');
+const logger = require('../utils/logger');
 
 // Initialize Resend
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
@@ -26,9 +27,9 @@ class EmailService {
    */
   static async sendEmail({ to, subject, html, attachments = [], replyTo = EMAIL_CONFIG.replyTo }, useQueue = true) {
     if (!resend) {
-      console.warn('Resend API key not configured. Email not sent.');
+      logger.warn('Resend API key not configured. Email not sent.');
       if (process.env.NODE_ENV === 'development') {
-        console.log('Email details:', { to, subject });
+        logger.info('Email details:', { to, subject });
         return { id: 'dev-mock-id', success: true };
       }
       throw new Error('Email service not configured');
@@ -45,12 +46,12 @@ class EmailService {
           attachments
         });
 
-        console.log(`📧 Email queued for ${to}: ${subject} (Job ID: ${job.jobId})`);
+        logger.info(`📧 Email queued for ${to}: ${subject} (Job ID: ${job.jobId})`);
         return { id: job.jobId, success: true, queued: true };
       } catch (error) {
-        console.error(`✗ Failed to queue email to ${to}:`, error.message);
+        logger.error(`✗ Failed to queue email to ${to}:`, error.message);
         // Fallback to sync sending if queue fails
-        console.log('Falling back to synchronous email sending...');
+        logger.info('Falling back to synchronous email sending...');
       }
     }
 
@@ -65,10 +66,10 @@ class EmailService {
         attachments: attachments.length > 0 ? attachments : undefined
       });
 
-      console.log(`✓ Email sent successfully to ${to}: ${subject}`);
+      logger.info(`✓ Email sent successfully to ${to}: ${subject}`);
       return result;
     } catch (error) {
-      console.error(`✗ Failed to send email to ${to}:`, error.message);
+      logger.error(`✗ Failed to send email to ${to}:`, error.message);
       throw new Error(`Failed to send email: ${error.message}`);
     }
   }

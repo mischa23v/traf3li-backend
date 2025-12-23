@@ -1,6 +1,7 @@
 const express = require('express');
 const { userMiddleware, firmFilter } = require('../middlewares');
 const { cacheResponse } = require('../middlewares/cache.middleware');
+const { sanitizeString } = require('../utils/securityUtils');
 const {
     getHeroStats,
     getDashboardStats,
@@ -60,7 +61,12 @@ app.get('/analytics',
 app.get('/reports',
     userMiddleware,
     firmFilter,
-    cacheResponse(DASHBOARD_CACHE_TTL, (req) => `dashboard:firm:${req.firmId || 'none'}:user:${req.userID || 'guest'}:reports:${req.query.period || 'month'}`),
+    cacheResponse(DASHBOARD_CACHE_TTL, (req) => {
+        const firmId = req.firmId || 'none';
+        const userId = req.userID || 'guest';
+        const period = sanitizeString(req.query.period) || 'month';
+        return `dashboard:firm:${firmId}:user:${userId}:reports:${period}`;
+    }),
     getReports
 );
 

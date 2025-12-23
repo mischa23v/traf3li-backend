@@ -2,6 +2,7 @@ const { User } = require('../models');
 const { CustomException, apiResponse } = require('../utils');
 const { pickAllowedFields, sanitizeObjectId, sanitizeEmail } = require('../utils/securityUtils');
 const bcrypt = require('bcrypt');
+const logger = require('../utils/logger');
 
 // Get user profile by ID (public)
 // UPDATED: Now uses standardized API response format
@@ -15,7 +16,7 @@ const getUserProfile = async (request, response) => {
             return apiResponse.badRequest(response, 'Invalid user ID format');
         }
 
-        const user = await User.findById(sanitizedId).select('-password');
+        const user = await User.findById(sanitizedId).select('-password').lean();
 
         if (!user) {
             return apiResponse.notFound(response, 'User not found');
@@ -42,8 +43,8 @@ const getLawyerProfile = async (request, response) => {
     const { username } = request.params;
     
     try {
-        const user = await User.findOne({ username }).select('-password');
-        
+        const user = await User.findOne({ username }).select('-password').lean();
+
         if (!user) {
             throw CustomException('User not found!', 404);
         }
@@ -54,7 +55,7 @@ const getLawyerProfile = async (request, response) => {
         
         // Get lawyer's gigs
         const { Gig } = require('../models');
-        const gigs = await Gig.find({ userID: user._id, isActive: true });
+        const gigs = await Gig.find({ userID: user._id, isActive: true }).lean();
         
         // Get all reviews for lawyer's gigs
         const { Review } = require('../models');
@@ -62,14 +63,15 @@ const getLawyerProfile = async (request, response) => {
         const reviews = await Review.find({ gigID: { $in: gigIDs } })
             .populate('userID', 'username image country')
             .populate('gigID', 'title')
-            .sort({ createdAt: -1 });
+            .sort({ createdAt: -1 })
+            .lean();
         
         // Get orders stats
         const { Order } = require('../models');
-        const completedOrders = await Order.find({ 
+        const completedOrders = await Order.find({
             sellerID: user._id,
-            isCompleted: true 
-        });
+            isCompleted: true
+        }).lean();
         
         const totalProjects = completedOrders.length;
         
@@ -213,7 +215,7 @@ const getLawyers = async (request, response) => {
                     priceRange: { min: priceMin, max: priceMax }
                 };
             } catch (gigError) {
-                console.error('Price calculation failed for lawyer:', lawyer._id);
+                logger.error('Price calculation failed for lawyer:', lawyer._id);
                 return {
                     ...lawyer,
                     priceRange: { min: 0, max: 0 }
@@ -242,8 +244,8 @@ const getLawyers = async (request, response) => {
             }
         });
     } catch (error) {
-        console.error('getLawyers ERROR:', error.message);
-        console.error('Full error:', error);
+        logger.error('getLawyers ERROR:', error.message);
+        logger.error('Full error:', error);
         return response.status(500).json({
             error: true,
             message: error.message || 'Failed to fetch lawyers'
@@ -405,7 +407,8 @@ const getTeamMembers = async (request, response) => {
             role: { $in: ['lawyer', 'admin', 'paralegal', 'assistant'] }
         })
             .select('_id firstName lastName email role image lawyerProfile.specialization')
-            .sort({ firstName: 1 });
+            .sort({ firstName: 1 })
+            .lean();
 
         // Transform to match expected format
         const formattedUsers = users.map(user => ({

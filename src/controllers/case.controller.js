@@ -510,7 +510,8 @@ const getCase = async (request, response) => {
             .populate('lawyerId', 'username firstName lastName image email lawyerProfile')
             .populate('clientId', 'username firstName lastName image email')
             .populate('contractId')
-            .populate('documents.uploadedBy', 'username firstName lastName');
+            .populate('documents.uploadedBy', 'username firstName lastName')
+            .lean();
 
         if (!caseDoc) {
             throw CustomException('Case not found!', 404);
@@ -1624,7 +1625,7 @@ const getStatistics = async (request, response) => {
             ? { firmId }
             : { lawyerId: request.userID };
 
-        const cases = await Case.find(queryFilter);
+        const cases = await Case.find(queryFilter).lean();
 
         // Calculate won amount (from cases with outcome = 'won')
         const wonCases = cases.filter(c => c.outcome === 'won');

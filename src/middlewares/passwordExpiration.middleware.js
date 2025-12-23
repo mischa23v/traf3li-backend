@@ -11,6 +11,7 @@
  */
 
 const { checkPasswordAge } = require('../utils/passwordPolicy');
+const logger = require('../utils/logger');
 
 /**
  * Middleware to check if user's password has expired
@@ -119,7 +120,7 @@ const checkPasswordExpiration = async (req, res, next) => {
         // Password is valid, continue
         next();
     } catch (error) {
-        console.error('Password expiration check error:', error);
+        logger.error('Password expiration check error:', error);
         // Don't block request on error, just log it
         next();
     }
@@ -186,7 +187,7 @@ const addPasswordExpiryWarning = async (req, res, next) => {
 
         next();
     } catch (error) {
-        console.error('Password expiry warning error:', error);
+        logger.error('Password expiry warning error:', error);
         next();
     }
 };

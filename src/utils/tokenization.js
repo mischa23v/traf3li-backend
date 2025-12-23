@@ -1,5 +1,6 @@
 const crypto = require('crypto');
 const { encryptData, decryptData } = require('./encryption');
+const logger = require('./logger');
 
 /**
  * Tokenization Utility for PCI Compliance
@@ -151,14 +152,14 @@ function detokenize(token) {
 
   // Check if token exists
   if (!tokenVault.has(token)) {
-    console.warn(`Token not found: ${token}`);
+    logger.warn(`Token not found: ${token}`);
     return null;
   }
 
   // Check if token is expired
   const expiresAt = tokenExpirations.get(token);
   if (expiresAt && Date.now() > expiresAt) {
-    console.warn(`Token expired: ${token}`);
+    logger.warn(`Token expired: ${token}`);
     // Clean up expired token
     tokenVault.delete(token);
     tokenExpirations.delete(token);
@@ -171,7 +172,7 @@ function detokenize(token) {
     const decrypted = decryptData(vaultEntry.data);
     return decrypted;
   } catch (error) {
-    console.error('Detokenization error:', error.message);
+    logger.error('Detokenization error:', error.message);
     return null;
   }
 }
@@ -362,7 +363,7 @@ function cleanupExpiredTokens() {
   }
 
   if (cleaned > 0) {
-    console.log(`Cleaned up ${cleaned} expired tokens`);
+    logger.info(`Cleaned up ${cleaned} expired tokens`);
   }
 
   return cleaned;
@@ -404,7 +405,7 @@ function clearVault() {
   const count = tokenVault.size;
   tokenVault.clear();
   tokenExpirations.clear();
-  console.log(`Cleared ${count} tokens from vault`);
+  logger.info(`Cleared ${count} tokens from vault`);
   return count;
 }
 
@@ -422,7 +423,7 @@ function clearVault() {
 function createDatabaseVault(db) {
   // This is a placeholder for production implementation
   // You would implement actual database storage here
-  console.warn('Database vault not implemented - using in-memory vault');
+  logger.warn('Database vault not implemented - using in-memory vault');
 
   return {
     tokenize,

@@ -2,6 +2,7 @@ const Anthropic = require('@anthropic-ai/sdk');
 // NOTE: Install chrono-node by running: npm install chrono-node
 const chrono = require('chrono-node');
 const AISettingsService = require('./aiSettings.service');
+const logger = require('../utils/logger');
 
 /**
  * Helper function to add hours to a date
@@ -104,7 +105,7 @@ class NLPService {
           return client;
         }
       } catch (error) {
-        console.warn('Failed to get firm API key:', error.message);
+        logger.warn('Failed to get firm API key:', error.message);
       }
     }
 
@@ -209,7 +210,7 @@ class NLPService {
 
       return result;
     } catch (error) {
-      console.error('NLP parsing error:', error);
+      logger.error('NLP parsing error:', error);
       throw new Error(`Failed to parse natural language: ${error.message}`);
     }
   }
@@ -262,7 +263,7 @@ class NLPService {
         }
       };
     } catch (error) {
-      console.error('Date parsing error:', error);
+      logger.error('Date parsing error:', error);
       return {
         startDateTime: null,
         endDateTime: null,
@@ -421,7 +422,7 @@ class NLPService {
       // Get firm-specific client
       const client = await this._getClientForFirm(firmId);
       if (!client) {
-        console.warn('No Anthropic client available, using fallback classification');
+        logger.warn('No Anthropic client available, using fallback classification');
         return this._fallbackIntentClassification(text);
       }
 
@@ -485,7 +486,7 @@ Focus on legal/law firm context. Common types include:
         tokensUsed: response.usage.input_tokens + response.usage.output_tokens
       };
     } catch (error) {
-      console.error('Intent classification error:', error);
+      logger.error('Intent classification error:', error);
 
       // Fallback to rule-based classification
       return this._fallbackIntentClassification(text);
@@ -615,7 +616,7 @@ Return ONLY the JSON object, no additional text.`;
         rawText: text
       };
     } catch (error) {
-      console.error('Reminder NLP parsing error:', error);
+      logger.error('Reminder NLP parsing error:', error);
       throw new Error(`Failed to parse reminder from text: ${error.message}`);
     }
   }
@@ -770,7 +771,7 @@ Return ONLY the JSON object, no additional text.`;
         rawParsing: rawResult
       };
     } catch (error) {
-      console.error('NLP parsing error:', error);
+      logger.error('NLP parsing error:', error);
       throw new Error(`Failed to parse event from text: ${error.message}`);
     }
   }
@@ -980,7 +981,7 @@ Return ONLY the JSON object, no additional text.`;
     // Get firm-specific client
     const client = await this._getClientForFirm(firmId);
     if (!client) {
-      console.warn('No Anthropic client available for parseMultipleEvents');
+      logger.warn('No Anthropic client available for parseMultipleEvents');
       return [];
     }
 
@@ -1033,7 +1034,7 @@ Return ONLY a JSON array, no additional text.`;
         confidence: 0.7 // Lower confidence for batch parsing
       }));
     } catch (error) {
-      console.error('Batch parsing error:', error);
+      logger.error('Batch parsing error:', error);
       return [];
     }
   }
@@ -1048,7 +1049,7 @@ Return ONLY a JSON array, no additional text.`;
     // Get firm-specific client
     const client = await this._getClientForFirm(firmId);
     if (!client) {
-      console.warn('No Anthropic client available for extractActionItems');
+      logger.warn('No Anthropic client available for extractActionItems');
       return [];
     }
 
@@ -1085,7 +1086,7 @@ Return ONLY a JSON array.`;
       const items = this._parseJSONResponse(response.content[0].text);
       return Array.isArray(items) ? items : [];
     } catch (error) {
-      console.error('Action items extraction error:', error);
+      logger.error('Action items extraction error:', error);
       return [];
     }
   }
@@ -1126,7 +1127,7 @@ Return ONLY the title, nothing else.`;
 
       return response.content[0].text.trim().replace(/['"]/g, '');
     } catch (error) {
-      console.error('Title suggestion error:', error);
+      logger.error('Title suggestion error:', error);
       return 'New Event';
     }
   }
@@ -1149,8 +1150,8 @@ Return ONLY the title, nothing else.`;
       // Try parsing the whole text
       return JSON.parse(cleanText);
     } catch (error) {
-      console.error('Error parsing JSON response:', error);
-      console.error('Raw text:', text);
+      logger.error('Error parsing JSON response:', error);
+      logger.error('Raw text:', text);
       return {};
     }
   }

@@ -1,3 +1,4 @@
+const logger = require('../utils/logger');
 const { encrypt, decrypt, maskValue } = require('../utils/encryption');
 
 /**
@@ -50,7 +51,7 @@ const encryptResponse = (fields = [], options = {}) => {
 
         return originalJson(encryptedData);
       } catch (error) {
-        console.error('Response encryption error:', error);
+        logger.error('Response encryption error:', error);
         // Don't expose encryption errors to client
         return originalJson(data);
       }
@@ -85,7 +86,7 @@ const decryptRequest = (fields = []) => {
             const decrypted = decrypt(value);
             setNestedValue(req.body, fieldPath, decrypted);
           } catch (error) {
-            console.error(`Failed to decrypt field ${fieldPath}:`, error.message);
+            logger.error(`Failed to decrypt field ${fieldPath}:`, error.message);
             return res.status(400).json({
               error: 'Invalid encrypted data',
               field: fieldPath,
@@ -96,7 +97,7 @@ const decryptRequest = (fields = []) => {
 
       next();
     } catch (error) {
-      console.error('Request decryption error:', error);
+      logger.error('Request decryption error:', error);
       return res.status(500).json({ error: 'Decryption failed' });
     }
   };
@@ -133,7 +134,7 @@ const maskResponse = (fields = [], visibleChars = 4) => {
 
         return originalJson(maskedData);
       } catch (error) {
-        console.error('Response masking error:', error);
+        logger.error('Response masking error:', error);
         return originalJson(data);
       }
     };
@@ -160,7 +161,7 @@ const transparentEncryption = (fields = []) => {
             const encrypted = encrypt(value);
             setNestedValue(req.body, fieldPath, encrypted);
           } catch (error) {
-            console.error(`Failed to encrypt request field ${fieldPath}:`, error.message);
+            logger.error(`Failed to encrypt request field ${fieldPath}:`, error.message);
           }
         }
       }
@@ -187,7 +188,7 @@ const transparentEncryption = (fields = []) => {
 
         return originalJson(decryptedData);
       } catch (error) {
-        console.error('Transparent encryption error:', error);
+        logger.error('Transparent encryption error:', error);
         return originalJson(data);
       }
     };
@@ -234,7 +235,7 @@ function processFields(obj, fields, mask, returnOriginal) {
           setNestedValue(obj, fieldPath, encrypted);
         }
       } catch (error) {
-        console.error(`Failed to process field ${fieldPath}:`, error.message);
+        logger.error(`Failed to process field ${fieldPath}:`, error.message);
       }
     }
   }
@@ -265,7 +266,7 @@ function decryptFields(obj, fields) {
         const decrypted = decrypt(value);
         setNestedValue(obj, fieldPath, decrypted);
       } catch (error) {
-        console.error(`Failed to decrypt field ${fieldPath}:`, error.message);
+        logger.error(`Failed to decrypt field ${fieldPath}:`, error.message);
       }
     }
   }

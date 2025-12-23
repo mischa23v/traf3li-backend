@@ -3,6 +3,7 @@ const LeadScoringConfig = require('../models/leadScoringConfig.model');
 const Lead = require('../models/lead.model');
 const CrmActivity = require('../models/crmActivity.model');
 const mongoose = require('mongoose');
+const logger = require('../utils/logger');
 
 // ═══════════════════════════════════════════════════════════════
 // LEAD SCORING SERVICE - AI-POWERED LEAD INTELLIGENCE
@@ -88,7 +89,7 @@ class LeadScoringService {
 
             return leadScore;
         } catch (error) {
-            console.error('Error calculating lead score:', error);
+            logger.error('Error calculating lead score:', error);
             throw error;
         }
     }
@@ -558,7 +559,7 @@ class LeadScoringService {
             await this.resetDecay(leadId);
             return leadScore;
         } catch (error) {
-            console.error(`Error recalculating score for lead ${leadId}:`, error);
+            logger.error(`Error recalculating score for lead ${leadId}:`, error);
         }
     }
 
@@ -598,7 +599,7 @@ class LeadScoringService {
 
             return Math.round(probability);
         } catch (error) {
-            console.error('Error predicting conversion:', error);
+            logger.error('Error predicting conversion:', error);
             return 50; // Default
         }
     }

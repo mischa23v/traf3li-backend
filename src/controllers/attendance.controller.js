@@ -1,5 +1,6 @@
 const { AttendanceRecord, Employee, LeaveRequest } = require('../models');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
+const logger = require('../utils/logger');
 
 /**
  * Attendance Controller
@@ -75,7 +76,7 @@ const getAttendanceRecords = async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('Error getting attendance records:', error);
+        logger.error('Error getting attendance records:', error);
         res.status(500).json({
             success: false,
             message: 'Error fetching attendance records',
@@ -117,7 +118,7 @@ const getAttendanceById = async (req, res) => {
             data: record
         });
     } catch (error) {
-        console.error('Error getting attendance record:', error);
+        logger.error('Error getting attendance record:', error);
         res.status(500).json({
             success: false,
             message: 'Error fetching attendance record',
@@ -153,7 +154,7 @@ const getAttendanceByEmployeeAndDate = async (req, res) => {
             data: record
         });
     } catch (error) {
-        console.error('Error getting attendance by date:', error);
+        logger.error('Error getting attendance by date:', error);
         res.status(500).json({
             success: false,
             message: 'Error fetching attendance record',
@@ -328,7 +329,7 @@ const createAttendanceRecord = async (req, res) => {
             data: record
         });
     } catch (error) {
-        console.error('Error creating attendance record:', error);
+        logger.error('Error creating attendance record:', error);
         res.status(500).json({
             success: false,
             message: 'Error creating attendance record',
@@ -440,7 +441,7 @@ const updateAttendanceRecord = async (req, res) => {
             data: record
         });
     } catch (error) {
-        console.error('Error updating attendance record:', error);
+        logger.error('Error updating attendance record:', error);
         res.status(500).json({
             success: false,
             message: 'Error updating attendance record',
@@ -479,7 +480,7 @@ const deleteAttendanceRecord = async (req, res) => {
             message: 'Attendance record deleted successfully'
         });
     } catch (error) {
-        console.error('Error deleting attendance record:', error);
+        logger.error('Error deleting attendance record:', error);
         res.status(500).json({
             success: false,
             message: 'Error deleting attendance record',
@@ -577,7 +578,7 @@ const checkIn = async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('Error during check-in:', error);
+        logger.error('Error during check-in:', error);
         res.status(400).json({
             success: false,
             message: error.message || 'Error during check-in'
@@ -671,7 +672,7 @@ const checkOut = async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('Error during check-out:', error);
+        logger.error('Error during check-out:', error);
         res.status(400).json({
             success: false,
             message: error.message || 'Error during check-out'
@@ -721,7 +722,7 @@ const getCheckInStatus = async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('Error getting check-in status:', error);
+        logger.error('Error getting check-in status:', error);
         res.status(500).json({
             success: false,
             message: 'Error getting check-in status',
@@ -798,7 +799,7 @@ const startBreak = async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('Error starting break:', error);
+        logger.error('Error starting break:', error);
         res.status(500).json({
             success: false,
             message: 'Error starting break',
@@ -857,7 +858,7 @@ const endBreak = async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('Error ending break:', error);
+        logger.error('Error ending break:', error);
         res.status(500).json({
             success: false,
             message: 'Error ending break',
@@ -890,7 +891,7 @@ const getBreaks = async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('Error getting breaks:', error);
+        logger.error('Error getting breaks:', error);
         res.status(500).json({
             success: false,
             message: 'Error getting breaks',
@@ -1000,7 +1001,7 @@ const submitCorrection = async (req, res) => {
             data: correctionRequest
         });
     } catch (error) {
-        console.error('Error submitting correction:', error);
+        logger.error('Error submitting correction:', error);
         res.status(500).json({
             success: false,
             message: 'Error submitting correction request',
@@ -1101,7 +1102,7 @@ const reviewCorrection = async (req, res) => {
             data: correction
         });
     } catch (error) {
-        console.error('Error reviewing correction:', error);
+        logger.error('Error reviewing correction:', error);
         res.status(500).json({
             success: false,
             message: 'Error reviewing correction request',
@@ -1146,7 +1147,7 @@ const getPendingCorrections = async (req, res) => {
             total: pendingCorrections.length
         });
     } catch (error) {
-        console.error('Error getting pending corrections:', error);
+        logger.error('Error getting pending corrections:', error);
         res.status(500).json({
             success: false,
             message: 'Error getting pending corrections',
@@ -1207,7 +1208,7 @@ const approveAttendance = async (req, res) => {
             data: record
         });
     } catch (error) {
-        console.error('Error approving attendance:', error);
+        logger.error('Error approving attendance:', error);
         res.status(500).json({
             success: false,
             message: 'Error approving attendance',
@@ -1261,7 +1262,7 @@ const rejectAttendance = async (req, res) => {
             data: record
         });
     } catch (error) {
-        console.error('Error rejecting attendance:', error);
+        logger.error('Error rejecting attendance:', error);
         res.status(500).json({
             success: false,
             message: 'Error rejecting attendance',
@@ -1357,7 +1358,7 @@ const addViolation = async (req, res) => {
             data: violation
         });
     } catch (error) {
-        console.error('Error adding violation:', error);
+        logger.error('Error adding violation:', error);
         res.status(500).json({
             success: false,
             message: 'Error adding violation',
@@ -1404,7 +1405,7 @@ const resolveViolation = async (req, res) => {
             data: record.violations[index]
         });
     } catch (error) {
-        console.error('Error resolving violation:', error);
+        logger.error('Error resolving violation:', error);
         res.status(500).json({
             success: false,
             message: 'Error resolving violation',
@@ -1451,7 +1452,7 @@ const appealViolation = async (req, res) => {
             data: record.violations[index]
         });
     } catch (error) {
-        console.error('Error submitting appeal:', error);
+        logger.error('Error submitting appeal:', error);
         res.status(500).json({
             success: false,
             message: 'Error submitting appeal',
@@ -1520,7 +1521,7 @@ const getViolations = async (req, res) => {
             total: allViolations.length
         });
     } catch (error) {
-        console.error('Error getting violations:', error);
+        logger.error('Error getting violations:', error);
         res.status(500).json({
             success: false,
             message: 'Error getting violations',
@@ -1584,7 +1585,7 @@ const approveOvertime = async (req, res) => {
             data: record.overtime
         });
     } catch (error) {
-        console.error('Error approving overtime:', error);
+        logger.error('Error approving overtime:', error);
         res.status(500).json({
             success: false,
             message: 'Error approving overtime',
@@ -1634,7 +1635,7 @@ const getTodayAttendance = async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('Error getting today attendance:', error);
+        logger.error('Error getting today attendance:', error);
         res.status(500).json({
             success: false,
             message: 'Error getting today attendance',
@@ -1671,7 +1672,7 @@ const getAttendanceSummary = async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('Error getting attendance summary:', error);
+        logger.error('Error getting attendance summary:', error);
         res.status(500).json({
             success: false,
             message: 'Error getting attendance summary',
@@ -1748,7 +1749,7 @@ const getMonthlyReport = async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('Error getting monthly report:', error);
+        logger.error('Error getting monthly report:', error);
         res.status(500).json({
             success: false,
             message: 'Error getting monthly report',
@@ -1804,7 +1805,7 @@ const getDepartmentStats = async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('Error getting department stats:', error);
+        logger.error('Error getting department stats:', error);
         res.status(500).json({
             success: false,
             message: 'Error getting department statistics',
@@ -1837,7 +1838,7 @@ const markAbsences = async (req, res) => {
             data: results
         });
     } catch (error) {
-        console.error('Error marking absences:', error);
+        logger.error('Error marking absences:', error);
         res.status(500).json({
             success: false,
             message: 'Error marking absences',
@@ -1943,7 +1944,7 @@ const importAttendance = async (req, res) => {
             data: results
         });
     } catch (error) {
-        console.error('Error importing attendance:', error);
+        logger.error('Error importing attendance:', error);
         res.status(500).json({
             success: false,
             message: 'Error importing attendance records',

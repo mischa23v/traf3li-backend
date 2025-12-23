@@ -2,6 +2,7 @@ const { Message, Conversation } = require('../models');
 const { createNotification } = require('./notification.controller');
 const { getIO } = require('../configs/socket');
 const { pickAllowedFields, sanitizeForLog, sanitizeString } = require('../utils/securityUtils');
+const logger = require('../utils/logger');
 
 /**
  * Escape HTML entities to prevent XSS attacks
@@ -53,7 +54,7 @@ const createMessage = async (request, response) => {
             conversation.buyerID._id.toString() === userIdString;
 
         if (!isParticipant) {
-            console.error(`IDOR attempt: User ${sanitizeForLog(userIdString)} tried to access conversation ${sanitizeForLog(conversationID)}`);
+            logger.error(`IDOR attempt: User ${sanitizeForLog(userIdString)} tried to access conversation ${sanitizeForLog(conversationID)}`);
             return response.status(403).send({
                 error: true,
                 message: 'Unauthorized access to this conversation'
@@ -140,7 +141,7 @@ const createMessage = async (request, response) => {
         return response.status(201).send(message);
     }
     catch({message, status = 500}) {
-        console.error(`Error creating message: ${sanitizeForLog(message)}`);
+        logger.error(`Error creating message: ${sanitizeForLog(message)}`);
         return response.status(status).send({
             error: true,
             message
@@ -169,7 +170,7 @@ const getMessages = async (request, response) => {
             conversation.buyerID.toString() === userIdString;
 
         if (!isParticipant) {
-            console.error(`IDOR attempt: User ${sanitizeForLog(userIdString)} tried to access messages from conversation ${sanitizeForLog(conversationID)}`);
+            logger.error(`IDOR attempt: User ${sanitizeForLog(userIdString)} tried to access messages from conversation ${sanitizeForLog(conversationID)}`);
             return response.status(403).send({
                 error: true,
                 message: 'Unauthorized access to this conversation'
@@ -184,7 +185,7 @@ const getMessages = async (request, response) => {
         return response.send(messages);
     }
     catch({message, status = 500}) {
-        console.error(`Error retrieving messages: ${sanitizeForLog(message)}`);
+        logger.error(`Error retrieving messages: ${sanitizeForLog(message)}`);
         return response.status(status).send({
             error: true,
             message
@@ -214,7 +215,7 @@ const markAsRead = async (request, response) => {
             conversation.buyerID.toString() === userIdString;
 
         if (!isParticipant) {
-            console.error(`IDOR attempt: User ${sanitizeForLog(userIdString)} tried to mark messages as read in conversation ${sanitizeForLog(conversationID)}`);
+            logger.error(`IDOR attempt: User ${sanitizeForLog(userIdString)} tried to mark messages as read in conversation ${sanitizeForLog(conversationID)}`);
             return response.status(403).send({
                 error: true,
                 message: 'Unauthorized access to this conversation'
@@ -247,7 +248,7 @@ const markAsRead = async (request, response) => {
         return response.send({ success: true });
     }
     catch({message, status = 500}) {
-        console.error(`Error marking messages as read: ${sanitizeForLog(message)}`);
+        logger.error(`Error marking messages as read: ${sanitizeForLog(message)}`);
         return response.status(status).send({
             error: true,
             message
@@ -300,7 +301,7 @@ const getMessageStats = async (request, response) => {
         });
     }
     catch({message, status = 500}) {
-        console.error(`Error retrieving message stats: ${sanitizeForLog(message)}`);
+        logger.error(`Error retrieving message stats: ${sanitizeForLog(message)}`);
         return response.status(status).send({
             error: true,
             message

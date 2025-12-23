@@ -17,6 +17,7 @@ const mongoose = require('mongoose');
 const { User, Invoice, Payment, Case, Client } = require('../models');
 const AuditLog = require('../models/auditLog.model');
 const Consent = require('../models/consent.model');
+const logger = require('../utils/logger');
 
 // Retention periods in days
 const RETENTION_PERIODS = {
@@ -35,7 +36,7 @@ async function archiveOldFinancialData() {
   const cutoffDate = new Date();
   cutoffDate.setDate(cutoffDate.getDate() - RETENTION_PERIODS.financialData);
 
-  console.log(`[DataRetention] Checking for financial data older than ${cutoffDate.toISOString()}`);
+  logger.info(`[DataRetention] Checking for financial data older than ${cutoffDate.toISOString()}`);
 
   // Mark old invoices as archived (don't delete)
   const invoiceResult = await Invoice.updateMany(
@@ -67,7 +68,7 @@ async function archiveOldFinancialData() {
     }
   );
 
-  console.log(`[DataRetention] Archived ${invoiceResult.modifiedCount} invoices, ${paymentResult.modifiedCount} payments`);
+  logger.info(`[DataRetention] Archived ${invoiceResult.modifiedCount} invoices, ${paymentResult.modifiedCount} payments`);
 
   return {
     invoices: invoiceResult.modifiedCount,
@@ -88,7 +89,7 @@ async function cleanupDepartedUsers() {
   const cutoffDate = new Date();
   cutoffDate.setDate(cutoffDate.getDate() - RETENTION_PERIODS.departedUserData);
 
-  console.log(`[DataRetention] Checking for departed users data older than ${cutoffDate.toISOString()}`);
+  logger.info(`[DataRetention] Checking for departed users data older than ${cutoffDate.toISOString()}`);
 
   // Find departed users past retention period
   // CRITICAL: Require both firmStatus AND departedAt to exist to prevent false matches
@@ -99,18 +100,18 @@ async function cleanupDepartedUsers() {
   }).select('_id email departedAt');
 
   if (departedUsers.length === 0) {
-    console.log('[DataRetention] No departed users to process');
+    logger.info('[DataRetention] No departed users to process');
     return { processed: 0 };
   }
 
   // Safety check: prevent mass anonymization (max 10 users per run)
   const MAX_USERS_PER_RUN = 10;
   if (departedUsers.length > MAX_USERS_PER_RUN) {
-    console.warn(`[DataRetention] WARNING: Found ${departedUsers.length} users to anonymize, limiting to ${MAX_USERS_PER_RUN}. Please review manually.`);
+    logger.warn(`[DataRetention] WARNING: Found ${departedUsers.length} users to anonymize, limiting to ${MAX_USERS_PER_RUN}. Please review manually.`);
   }
   const usersToProcess = departedUsers.slice(0, MAX_USERS_PER_RUN);
 
-  console.log(`[DataRetention] Found ${departedUsers.length} departed users, processing ${usersToProcess.length}`);
+  logger.info(`[DataRetention] Found ${departedUsers.length} departed users, processing ${usersToProcess.length}`);
 
   let processed = 0;
   for (const user of usersToProcess) {
@@ -154,11 +155,11 @@ async function cleanupDepartedUsers() {
 
       processed++;
     } catch (error) {
-      console.error(`[DataRetention] Error anonymizing user ${user._id}:`, error.message);
+      logger.error(`[DataRetention] Error anonymizing user ${user._id}:`, error.message);
     }
   }
 
-  console.log(`[DataRetention] Anonymized ${processed} departed users`);
+  logger.info(`[DataRetention] Anonymized ${processed} departed users`);
   return { processed };
 }
 
@@ -166,7 +167,7 @@ async function cleanupDepartedUsers() {
  * Process pending data deletion requests (PDPL compliance)
  */
 async function processDeletionRequests() {
-  console.log('[DataRetention] Processing pending deletion requests');
+  logger.info('[DataRetention] Processing pending deletion requests');
 
   const pendingRequests = await Consent.find({
     'deletionRequest.status': 'pending',
@@ -176,11 +177,11 @@ async function processDeletionRequests() {
   }).populate('userId', '_id email');
 
   if (pendingRequests.length === 0) {
-    console.log('[DataRetention] No pending deletion requests');
+    logger.info('[DataRetention] No pending deletion requests');
     return { processed: 0 };
   }
 
-  console.log(`[DataRetention] Found ${pendingRequests.length} deletion requests to process`);
+  logger.info(`[DataRetention] Found ${pendingRequests.length} deletion requests to process`);
 
   let processed = 0;
   for (const consent of pendingRequests) {
@@ -232,14 +233,14 @@ async function processDeletionRequests() {
 
       processed++;
     } catch (error) {
-      console.error(`[DataRetention] Error processing deletion for ${consent._id}:`, error.message);
+      logger.error(`[DataRetention] Error processing deletion for ${consent._id}:`, error.message);
       consent.deletionRequest.status = 'pending'; // Reset to retry
       consent.deletionRequest.notes = `Error: ${error.message}`;
       await consent.save();
     }
   }
 
-  console.log(`[DataRetention] Processed ${processed} deletion requests`);
+  logger.info(`[DataRetention] Processed ${processed} deletion requests`);
   return { processed };
 }
 
@@ -288,7 +289,7 @@ async function generateRetentionReport() {
     },
   };
 
-  console.log('[DataRetention] Report:', JSON.stringify(report, null, 2));
+  logger.info('[DataRetention] Report:', JSON.stringify(report, null, 2));
   return report;
 }
 
@@ -296,7 +297,7 @@ async function generateRetentionReport() {
  * Main cleanup job
  */
 async function runDataRetentionJob() {
-  console.log('[DataRetention] Starting data retention job...');
+  logger.info('[DataRetention] Starting data retention job...');
   const startTime = Date.now();
 
   try {
@@ -308,11 +309,11 @@ async function runDataRetentionJob() {
     };
 
     const duration = Date.now() - startTime;
-    console.log(`[DataRetention] Job completed in ${duration}ms`, results);
+    logger.info(`[DataRetention] Job completed in ${duration}ms`, results);
 
     return results;
   } catch (error) {
-    console.error('[DataRetention] Job failed:', error);
+    logger.error('[DataRetention] Job failed:', error);
     throw error;
   }
 }
@@ -323,15 +324,15 @@ async function runDataRetentionJob() {
 function startDataRetentionJob() {
   // Run daily at 2:00 AM
   cron.schedule('0 2 * * *', async () => {
-    console.log('[DataRetention] Scheduled job triggered');
+    logger.info('[DataRetention] Scheduled job triggered');
     try {
       await runDataRetentionJob();
     } catch (error) {
-      console.error('[DataRetention] Scheduled job error:', error);
+      logger.error('[DataRetention] Scheduled job error:', error);
     }
   });
 
-  console.log('✅ Data retention job scheduled (daily at 2:00 AM)');
+  logger.info('✅ Data retention job scheduled (daily at 2:00 AM)');
 }
 
 module.exports = {

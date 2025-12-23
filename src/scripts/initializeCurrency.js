@@ -8,68 +8,69 @@
 const mongoose = require('mongoose');
 const dotenv = require('dotenv');
 const currencyService = require('../services/currency.service');
+const logger = require('../utils/logger');
 
 // Load environment variables
 dotenv.config();
 
 async function initializeCurrency() {
     try {
-        console.log('🔗 Connecting to MongoDB...');
+        logger.info('🔗 Connecting to MongoDB...');
 
         await mongoose.connect(process.env.MONGODB_URI || process.env.MONGO_URI, {
             useNewUrlParser: true,
             useUnifiedTopology: true
         });
 
-        console.log('✅ Connected to MongoDB');
-        console.log('');
-        console.log('💱 Initializing currency exchange rates...');
-        console.log('');
+        logger.info('✅ Connected to MongoDB');
+        logger.info('');
+        logger.info('💱 Initializing currency exchange rates...');
+        logger.info('');
 
         // Initialize default rates
         await currencyService.initializeDefaultRates();
 
-        console.log('');
-        console.log('🌐 Fetching live rates from API...');
+        logger.info('');
+        logger.info('🌐 Fetching live rates from API...');
 
         try {
             // Try to fetch live rates
             const baseCurrencies = ['SAR', 'USD', 'EUR'];
             for (const currency of baseCurrencies) {
                 try {
-                    console.log(`  Updating ${currency} rates...`);
+                    logger.info(`  Updating ${currency} rates...`);
                     await currencyService.updateRatesFromAPI(currency);
                 } catch (error) {
-                    console.log(`  ⚠️  Could not fetch live rates for ${currency}: ${error.message}`);
+                    logger.info(`  ⚠️  Could not fetch live rates for ${currency}: ${error.message}`);
                 }
             }
         } catch (error) {
-            console.log('  ⚠️  Could not fetch live rates, using defaults');
+            logger.info('  ⚠️  Could not fetch live rates, using defaults');
         }
 
-        console.log('');
-        console.log('✅ Currency initialization completed!');
-        console.log('');
+        logger.info('');
+        logger.info('✅ Currency initialization completed!');
+        logger.info('');
 
         // Display summary
         const ExchangeRate = require('../models/exchangeRate.model');
         const count = await ExchangeRate.countDocuments({ isActive: true });
-        console.log(`📊 Total active exchange rates: ${count}`);
+        logger.info(`📊 Total active exchange rates: ${count}`);
 
         // Display supported currencies
         const currencies = await currencyService.getSupportedCurrencies('SAR');
-        console.log(`💰 Supported currencies: ${currencies.join(', ')}`);
+        logger.info(`💰 Supported currencies: ${currencies.join(', ')}`);
 
-        console.log('');
-        console.log('🎉 Setup complete! You can now use multi-currency features.');
-        console.log('');
+        logger.info('');
+        logger.info('🎉 Setup complete! You can now use multi-currency features.');
+        logger.info('');
 
     } catch (error) {
-        console.error('❌ Error initializing currency:', error);
+        logger.error('❌ Error initializing currency:', error);
         process.exit(1);
     } finally {
         await mongoose.connection.close();
-        console.log('🔌 Database connection closed');
+        logger.info('🔌 Database connection closed');
         process.exit(0);
     }
 }

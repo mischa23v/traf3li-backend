@@ -3,6 +3,8 @@
  * Exports CaseNotion pages to PDF format
  */
 
+const logger = require('../utils/logger');
+
 /**
  * Escape HTML special characters
  */
@@ -226,7 +228,7 @@ exports.exportPageToPdf = async (pageWithBlocks) => {
         await browser.close();
         return pdfBuffer;
     } catch (error) {
-        console.warn('Puppeteer not available, returning HTML instead:', error.message);
+        logger.warn('Puppeteer not available, returning HTML instead:', error.message);
         return Buffer.from(html, 'utf-8');
     }
 };

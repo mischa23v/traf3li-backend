@@ -6,6 +6,7 @@
 const fs = require('fs').promises;
 const path = require('path');
 const Mustache = require('mustache');
+const logger = require('../utils/logger');
 
 // Template directories
 const TEMPLATES_DIR = path.join(__dirname, '../templates/emails');
@@ -245,9 +246,9 @@ class EmailTemplateService {
         ...layouts.map(name => this.loadLayout(name))
       ]);
 
-      console.log('✓ Email templates preloaded successfully');
+      logger.info('✓ Email templates preloaded successfully');
     } catch (error) {
-      console.error('✗ Failed to preload email templates:', error.message);
+      logger.error('✗ Failed to preload email templates:', error.message);
     }
   }
 

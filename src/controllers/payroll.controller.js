@@ -2,6 +2,7 @@ const { SalarySlip, Employee } = require('../models');
 const { CustomException } = require('../utils');
 const asyncHandler = require('../utils/asyncHandler');
 const { pickAllowedFields, SENSITIVE_FIELDS } = require('../utils/securityUtils');
+const logger = require('../utils/logger');
 
 // ═══════════════════════════════════════════════════════════════
 // SALARY FIELD DEFINITIONS & VALIDATION
@@ -635,7 +636,7 @@ const paySalarySlip = asyncHandler(async (req, res) => {
     try {
         glEntry = await salarySlip.postToGL();
     } catch (error) {
-        console.error('Failed to post payroll to GL:', error.message);
+        logger.error('Failed to post payroll to GL:', error.message);
         // Don't fail the payment if GL posting fails - log it for review
     }
 
@@ -901,7 +902,7 @@ const bulkPay = asyncHandler(async (req, res) => {
                 glSuccessCount++;
             }
         } catch (error) {
-            console.error(`Failed to post payroll to GL for slip ${slip.slipNumber}:`, error.message);
+            logger.error(`Failed to post payroll to GL for slip ${slip.slipNumber}:`, error.message);
             glFailCount++;
         }
     }

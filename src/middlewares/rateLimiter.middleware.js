@@ -1,3 +1,4 @@
+const logger = require('../utils/logger');
 const rateLimit = require('express-rate-limit');
 const { ipKeyGenerator } = require('express-rate-limit');
 const MongoStore = require('rate-limit-mongo');
@@ -230,7 +231,7 @@ const checkRateLimit = async (userId, action, limit = 5, windowMs = 15 * 60 * 10
     // Placeholder implementation
     return false;
   } catch (error) {
-    console.error('❌ Rate limit check error:', error.message);
+    logger.error('❌ Rate limit check error:', error.message);
     return false;
   }
 };

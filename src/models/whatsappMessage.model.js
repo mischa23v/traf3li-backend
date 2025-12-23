@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const logger = require('../utils/logger');
 
 // ═══════════════════════════════════════════════════════════════
 // WHATSAPP MESSAGE MODEL - INDIVIDUAL MESSAGES
@@ -312,7 +313,7 @@ whatsappMessageSchema.post('save', async function(doc) {
             try {
                 await LeadScoringService.trackWhatsAppMessage(conversation.leadId);
             } catch (error) {
-                console.error('Error tracking WhatsApp message for lead scoring:', error);
+                logger.error('Error tracking WhatsApp message for lead scoring:', error);
             }
         }
     }

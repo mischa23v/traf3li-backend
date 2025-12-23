@@ -11,13 +11,14 @@
 const cron = require('node-cron');
 const mongoose = require('mongoose');
 const { Firm, User, Notification } = require('../models');
+const logger = require('../utils/logger');
 
 /**
  * Check and process expired trials
  * Runs daily at midnight
  */
 const processExpiredTrials = async () => {
-    console.log('[Plan Job] Checking for expired trials...');
+    logger.info('[Plan Job] Checking for expired trials...');
 
     try {
         const expiredTrials = await Firm.find({
@@ -26,7 +27,7 @@ const processExpiredTrials = async () => {
             'subscription.plan': { $ne: 'free' }
         });
 
-        console.log(`[Plan Job] Found ${expiredTrials.length} expired trials`);
+        logger.info(`[Plan Job] Found ${expiredTrials.length} expired trials`);
 
         for (const firm of expiredTrials) {
             try {
@@ -51,13 +52,13 @@ const processExpiredTrials = async () => {
                     }).catch(() => {});
                 }
 
-                console.log(`[Plan Job] Downgraded firm ${firm._id} from trial`);
+                logger.info(`[Plan Job] Downgraded firm ${firm._id} from trial`);
             } catch (error) {
-                console.error(`[Plan Job] Error processing firm ${firm._id}:`, error.message);
+                logger.error(`[Plan Job] Error processing firm ${firm._id}:`, error.message);
             }
         }
     } catch (error) {
-        console.error('[Plan Job] Error processing expired trials:', error.message);
+        logger.error('[Plan Job] Error processing expired trials:', error.message);
     }
 };
 
@@ -66,7 +67,7 @@ const processExpiredTrials = async () => {
  * Runs daily at midnight
  */
 const processExpiredPlans = async () => {
-    console.log('[Plan Job] Checking for expired paid plans...');
+    logger.info('[Plan Job] Checking for expired paid plans...');
 
     try {
         const expiredPlans = await Firm.find({
@@ -76,7 +77,7 @@ const processExpiredPlans = async () => {
             'billing.autoRenew': false
         });
 
-        console.log(`[Plan Job] Found ${expiredPlans.length} expired plans`);
+        logger.info(`[Plan Job] Found ${expiredPlans.length} expired plans`);
 
         for (const firm of expiredPlans) {
             try {
@@ -100,13 +101,13 @@ const processExpiredPlans = async () => {
                     }).catch(() => {});
                 }
 
-                console.log(`[Plan Job] Marked firm ${firm._id} as expired`);
+                logger.info(`[Plan Job] Marked firm ${firm._id} as expired`);
             } catch (error) {
-                console.error(`[Plan Job] Error processing firm ${firm._id}:`, error.message);
+                logger.error(`[Plan Job] Error processing firm ${firm._id}:`, error.message);
             }
         }
     } catch (error) {
-        console.error('[Plan Job] Error processing expired plans:', error.message);
+        logger.error('[Plan Job] Error processing expired plans:', error.message);
     }
 };
 
@@ -115,7 +116,7 @@ const processExpiredPlans = async () => {
  * Runs daily at 1 AM
  */
 const downgradeExpiredPlans = async () => {
-    console.log('[Plan Job] Downgrading expired plans after grace period...');
+    logger.info('[Plan Job] Downgrading expired plans after grace period...');
 
     try {
         const gracePeriodDays = 7;
@@ -128,20 +129,20 @@ const downgradeExpiredPlans = async () => {
             'subscription.plan': { $ne: 'free' }
         });
 
-        console.log(`[Plan Job] Found ${expiredPlans.length} plans to downgrade`);
+        logger.info(`[Plan Job] Found ${expiredPlans.length} plans to downgrade`);
 
         for (const firm of expiredPlans) {
             try {
                 firm.subscription.plan = 'free';
                 await firm.save();
 
-                console.log(`[Plan Job] Downgraded firm ${firm._id} to free plan`);
+                logger.info(`[Plan Job] Downgraded firm ${firm._id} to free plan`);
             } catch (error) {
-                console.error(`[Plan Job] Error downgrading firm ${firm._id}:`, error.message);
+                logger.error(`[Plan Job] Error downgrading firm ${firm._id}:`, error.message);
             }
         }
     } catch (error) {
-        console.error('[Plan Job] Error downgrading expired plans:', error.message);
+        logger.error('[Plan Job] Error downgrading expired plans:', error.message);
     }
 };
 
@@ -150,7 +151,7 @@ const downgradeExpiredPlans = async () => {
  * Runs on 1st of each month at midnight
  */
 const resetMonthlyApiCounters = async () => {
-    console.log('[Plan Job] Resetting monthly API call counters...');
+    logger.info('[Plan Job] Resetting monthly API call counters...');
 
     try {
         const result = await Firm.updateMany(
@@ -163,9 +164,9 @@ const resetMonthlyApiCounters = async () => {
             }
         );
 
-        console.log(`[Plan Job] Reset API counters for ${result.modifiedCount} firms`);
+        logger.info(`[Plan Job] Reset API counters for ${result.modifiedCount} firms`);
     } catch (error) {
-        console.error('[Plan Job] Error resetting API counters:', error.message);
+        logger.error('[Plan Job] Error resetting API counters:', error.message);
     }
 };
 
@@ -174,7 +175,7 @@ const resetMonthlyApiCounters = async () => {
  * Runs daily at 9 AM
  */
 const sendTrialWarnings = async () => {
-    console.log('[Plan Job] Sending trial expiration warnings...');
+    logger.info('[Plan Job] Sending trial expiration warnings...');
 
     try {
         // Find trials expiring in 3 days
@@ -189,7 +190,7 @@ const sendTrialWarnings = async () => {
             }
         });
 
-        console.log(`[Plan Job] Found ${expiringTrials.length} trials expiring soon`);
+        logger.info(`[Plan Job] Found ${expiringTrials.length} trials expiring soon`);
 
         for (const firm of expiringTrials) {
             try {
@@ -212,11 +213,11 @@ const sendTrialWarnings = async () => {
                     }).catch(() => {});
                 }
             } catch (error) {
-                console.error(`[Plan Job] Error sending warning to firm ${firm._id}:`, error.message);
+                logger.error(`[Plan Job] Error sending warning to firm ${firm._id}:`, error.message);
             }
         }
     } catch (error) {
-        console.error('[Plan Job] Error sending trial warnings:', error.message);
+        logger.error('[Plan Job] Error sending trial warnings:', error.message);
     }
 };
 
@@ -225,7 +226,7 @@ const sendTrialWarnings = async () => {
  * Runs daily at 10 AM
  */
 const sendUsageLimitWarnings = async () => {
-    console.log('[Plan Job] Checking for usage limit warnings...');
+    logger.info('[Plan Job] Checking for usage limit warnings...');
 
     try {
         const firms = await Firm.find({
@@ -277,11 +278,11 @@ const sendUsageLimitWarnings = async () => {
                     }
                 }
             } catch (error) {
-                console.error(`[Plan Job] Error checking usage for firm ${firm._id}:`, error.message);
+                logger.error(`[Plan Job] Error checking usage for firm ${firm._id}:`, error.message);
             }
         }
     } catch (error) {
-        console.error('[Plan Job] Error sending usage warnings:', error.message);
+        logger.error('[Plan Job] Error sending usage warnings:', error.message);
     }
 };
 
@@ -289,7 +290,7 @@ const sendUsageLimitWarnings = async () => {
  * Start all plan-related cron jobs
  */
 const startPlanJobs = () => {
-    console.log('[Plan Job] Starting plan expiration jobs...');
+    logger.info('[Plan Job] Starting plan expiration jobs...');
 
     // Check for expired trials - daily at midnight
     cron.schedule('0 0 * * *', () => {
@@ -319,7 +320,7 @@ const startPlanJobs = () => {
         timezone: 'Asia/Riyadh'
     });
 
-    console.log('[Plan Job] Plan expiration jobs scheduled');
+    logger.info('[Plan Job] Plan expiration jobs scheduled');
 };
 
 module.exports = {

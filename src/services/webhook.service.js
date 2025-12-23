@@ -3,6 +3,7 @@ const axios = require('axios');
 const Webhook = require('../models/webhook.model');
 const WebhookDelivery = require('../models/webhookDelivery.model');
 const { validateWebhookUrl } = require('../utils/urlValidator');
+const logger = require('../utils/logger');
 
 /**
  * Webhook Service
@@ -51,7 +52,7 @@ class WebhookService {
             const webhooks = await Webhook.getActiveWebhooksForEvent(event, firmId);
 
             if (webhooks.length === 0) {
-                console.log(`No active webhooks found for event: ${event} in firm: ${firmId}`);
+                logger.info(`No active webhooks found for event: ${event} in firm: ${firmId}`);
                 return;
             }
 
@@ -66,7 +67,7 @@ class WebhookService {
             // Don't wait for deliveries to complete (fire and forget)
             // But catch any errors to prevent unhandled rejections
             Promise.allSettled(deliveryPromises).catch(err => {
-                console.error('Error in webhook deliveries:', err);
+                logger.error('Error in webhook deliveries:', err);
             });
 
             return {
@@ -74,7 +75,7 @@ class WebhookService {
                 webhooks: filteredWebhooks.map(w => w._id)
             };
         } catch (error) {
-            console.error('Error triggering webhooks:', error);
+            logger.error('Error triggering webhooks:', error);
             throw error;
         }
     }
@@ -98,7 +99,7 @@ class WebhookService {
             }
 
             if (!webhook.isActive) {
-                console.log(`Webhook ${webhookId} is inactive, skipping delivery`);
+                logger.info(`Webhook ${webhookId} is inactive, skipping delivery`);
                 return;
             }
 
@@ -159,7 +160,7 @@ class WebhookService {
 
             return delivery;
         } catch (error) {
-            console.error('Error in webhook delivery:', error);
+            logger.error('Error in webhook delivery:', error);
             throw error;
         }
     }
@@ -184,7 +185,7 @@ class WebhookService {
                 });
             } catch (validationError) {
                 // URL validation failed at delivery time
-                console.error(`URL validation failed for webhook ${webhook._id}:`, validationError.message);
+                logger.error(`URL validation failed for webhook ${webhook._id}:`, validationError.message);
 
                 // Record failed attempt with validation error
                 await delivery.recordAttempt({
@@ -207,7 +208,7 @@ class WebhookService {
                         `URL validation failed: ${validationError.message}`,
                         null
                     );
-                    console.log(`Webhook ${webhook._id} auto-disabled due to URL validation failure`);
+                    logger.info(`Webhook ${webhook._id} auto-disabled due to URL validation failure`);
                 }
 
                 return false;
@@ -250,7 +251,7 @@ class WebhookService {
             await delivery.save();
 
             if (!success) {
-                console.warn(`Webhook delivery failed with status ${response.status}`);
+                logger.warn(`Webhook delivery failed with status ${response.status}`);
             }
 
             return success;
@@ -281,7 +282,7 @@ class WebhookService {
             // Update webhook statistics
             await webhook.updateStatistics(false, duration);
 
-            console.error('Webhook delivery error:', error.message);
+            logger.error('Webhook delivery error:', error.message);
 
             return false;
         }
@@ -295,14 +296,14 @@ class WebhookService {
             // Get deliveries that need retry
             const deliveries = await WebhookDelivery.getPendingRetries();
 
-            console.log(`Found ${deliveries.length} webhook deliveries to retry`);
+            logger.info(`Found ${deliveries.length} webhook deliveries to retry`);
 
             for (const delivery of deliveries) {
                 try {
                     const webhook = delivery.webhookId;
 
                     if (!webhook || !webhook.isActive) {
-                        console.log(`Skipping retry for inactive webhook ${delivery.webhookId}`);
+                        logger.info(`Skipping retry for inactive webhook ${delivery.webhookId}`);
                         continue;
                     }
 
@@ -327,13 +328,13 @@ class WebhookService {
                     // Attempt delivery
                     await this.attemptDelivery(delivery, webhook, headers, delivery.payload);
                 } catch (error) {
-                    console.error(`Error retrying delivery ${delivery._id}:`, error);
+                    logger.error(`Error retrying delivery ${delivery._id}:`, error);
                 }
             }
 
             return deliveries.length;
         } catch (error) {
-            console.error('Error in retryFailed:', error);
+            logger.error('Error in retryFailed:', error);
             throw error;
         }
     }
@@ -514,7 +515,7 @@ class WebhookService {
         // Check failure rate
         if (webhook.failureRate > 80 && webhook.statistics.totalDeliveries > 10) {
             await webhook.disable(reason || 'High failure rate detected', null);
-            console.log(`Webhook ${webhookId} auto-disabled due to high failure rate`);
+            logger.info(`Webhook ${webhookId} auto-disabled due to high failure rate`);
         }
     }
 

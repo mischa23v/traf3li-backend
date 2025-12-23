@@ -1,6 +1,7 @@
 const fs = require('fs').promises;
 const path = require('path');
 const { validateFile, validateFileSignature } = require('../utils/fileValidator');
+const logger = require('../utils/logger');
 
 /**
  * File Validation Middleware
@@ -118,7 +119,7 @@ function createFileValidationMiddleware(options = {}) {
             next();
 
         } catch (error) {
-            console.error('File validation middleware error:', error);
+            logger.error('File validation middleware error:', error);
 
             // Cleanup files on error
             if (req.file) {
@@ -195,7 +196,7 @@ async function cleanupFile(file) {
             await fs.unlink(file.path);
         }
     } catch (error) {
-        console.error('Error cleaning up file:', error);
+        logger.error('Error cleaning up file:', error);
         // Don't throw - cleanup is best effort
     }
 }
