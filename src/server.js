@@ -167,6 +167,7 @@ const {
     crmActivityRoute,
     staffRoute,
     leadScoringRoute,
+    mlScoringRoute,
     whatsappRoute,
 
     // HR
@@ -796,6 +797,7 @@ app.use('/api/referrals', referralRoute);
 app.use('/api/crm-activities', crmActivityRoute);
 app.use('/api/staff', staffRoute);
 app.use('/api/lead-scoring', leadScoringRoute);
+app.use('/api/ml', mlScoringRoute);  // ML-enhanced lead scoring
 app.use('/api/whatsapp', whatsappRoute);
 
 // ============================================
