@@ -16,6 +16,10 @@ const {
     generateWPS,
     holdEmployee,
     unholdEmployee,
+    excludeEmployee,
+    includeEmployee,
+    recalculateSingleEmployee,
+    exportPayrollReport,
     sendNotifications
 } = require('../controllers/payrollRun.controller');
 const { verifyToken } = require('../middlewares/jwt');
@@ -56,8 +60,15 @@ router.post('/:id/generate-wps', validateIdParam, generateWPS);
 // Notifications
 router.post('/:id/send-notifications', validateIdParam, sendNotifications);
 
+// Export payroll report (must be before employee-specific routes)
+// GET /api/hr/payroll-runs/:id/export?format=json|csv|xlsx|pdf
+router.get('/:id/export', validateIdParam, exportPayrollReport);
+
 // Employee-specific actions
 router.post('/:id/employees/:empId/hold', validateIdParam, holdEmployee);
 router.post('/:id/employees/:empId/unhold', validateIdParam, unholdEmployee);
+router.post('/:id/employees/:empId/exclude', validateIdParam, excludeEmployee);
+router.post('/:id/employees/:empId/include', validateIdParam, includeEmployee);
+router.post('/:id/employees/:empId/recalculate', validateIdParam, recalculateSingleEmployee);
 
 module.exports = router;

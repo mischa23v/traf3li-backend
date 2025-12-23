@@ -1114,6 +1114,490 @@ const sendNotifications = asyncHandler(async (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════════════
+// EXCLUDE EMPLOYEE FROM RUN
+// POST /api/hr/payroll-runs/:id/employees/:empId/exclude
+// ═══════════════════════════════════════════════════════════════
+const excludeEmployee = asyncHandler(async (req, res) => {
+    const { id, empId } = req.params;
+    const lawyerId = req.userID;
+    const firmId = req.firmId;
+
+    const sanitizedId = sanitizeObjectId(id);
+    const sanitizedEmpId = sanitizeObjectId(empId);
+    if (!sanitizedId || !sanitizedEmpId) {
+        throw CustomException('Invalid ID provided | معرف غير صالح', 400);
+    }
+
+    const safeData = pickAllowedFields(req.body, ['reason']);
+
+    const payrollRun = await PayrollRun.findById(sanitizedId);
+
+    if (!payrollRun) {
+        throw CustomException('Payroll run not found | دورة الرواتب غير موجودة', 404);
+    }
+
+    const hasAccess = firmId
+        ? payrollRun.firmId?.toString() === firmId.toString()
+        : payrollRun.lawyerId?.toString() === lawyerId;
+
+    if (!hasAccess) {
+        throw CustomException('Access denied | تم رفض الوصول', 403);
+    }
+
+    if (!['draft', 'calculated'].includes(payrollRun.status)) {
+        throw CustomException('Can only exclude employees in draft or calculated runs | يمكن استبعاد الموظفين فقط في الدورات المسودة أو المحسوبة', 400);
+    }
+
+    // Check if employee is in the run
+    const empIndex = payrollRun.employeeList.findIndex(
+        e => e.employeeId.toString() === sanitizedEmpId
+    );
+
+    if (empIndex === -1) {
+        throw CustomException('Employee not found in run | الموظف غير موجود في الدورة', 404);
+    }
+
+    // Remove from employee list
+    const excludedEmployee = payrollRun.employeeList[empIndex];
+    payrollRun.employeeList.splice(empIndex, 1);
+
+    // Add to excluded employees configuration
+    if (!payrollRun.configuration.excludedEmployees) {
+        payrollRun.configuration.excludedEmployees = [];
+    }
+    payrollRun.configuration.excludedEmployees.push({
+        employeeId: sanitizedEmpId,
+        reason: safeData.reason || 'Manually excluded',
+        excludedBy: lawyerId,
+        excludedAt: new Date()
+    });
+
+    // Update counts
+    payrollRun.employees.totalEmployees = payrollRun.employeeList.length;
+    payrollRun.employees.processedEmployees = payrollRun.employeeList.length;
+
+    // Recalculate totals
+    payrollRun.financialSummary.totalBasicSalary -= excludedEmployee.earnings.basicSalary || 0;
+    payrollRun.financialSummary.totalAllowances -= excludedEmployee.earnings.allowances || 0;
+    payrollRun.financialSummary.totalGrossPay -= excludedEmployee.earnings.grossPay || 0;
+    payrollRun.financialSummary.totalGOSI -= excludedEmployee.deductions.gosi || 0;
+    payrollRun.financialSummary.totalDeductions -= excludedEmployee.deductions.totalDeductions || 0;
+    payrollRun.financialSummary.totalNetPay -= excludedEmployee.netPay || 0;
+
+    payrollRun.processingLog.push({
+        logId: `LOG-${Date.now()}`,
+        action: `Employee excluded: ${excludedEmployee.employeeName}`,
+        actionType: 'other',
+        performedBy: lawyerId,
+        details: safeData.reason,
+        status: 'success',
+        affectedEmployees: 1,
+        affectedAmount: excludedEmployee.netPay
+    });
+
+    await payrollRun.save();
+
+    return res.json({
+        success: true,
+        message: 'Employee excluded from payroll run | تم استبعاد الموظف من دورة الرواتب',
+        excludedEmployee: {
+            employeeId: excludedEmployee.employeeId,
+            employeeName: excludedEmployee.employeeName,
+            netPay: excludedEmployee.netPay,
+            reason: safeData.reason
+        }
+    });
+});
+
+// ═══════════════════════════════════════════════════════════════
+// INCLUDE EMPLOYEE BACK IN RUN
+// POST /api/hr/payroll-runs/:id/employees/:empId/include
+// ═══════════════════════════════════════════════════════════════
+const includeEmployee = asyncHandler(async (req, res) => {
+    const { id, empId } = req.params;
+    const lawyerId = req.userID;
+    const firmId = req.firmId;
+
+    const sanitizedId = sanitizeObjectId(id);
+    const sanitizedEmpId = sanitizeObjectId(empId);
+    if (!sanitizedId || !sanitizedEmpId) {
+        throw CustomException('Invalid ID provided | معرف غير صالح', 400);
+    }
+
+    const payrollRun = await PayrollRun.findById(sanitizedId);
+
+    if (!payrollRun) {
+        throw CustomException('Payroll run not found | دورة الرواتب غير موجودة', 404);
+    }
+
+    const hasAccess = firmId
+        ? payrollRun.firmId?.toString() === firmId.toString()
+        : payrollRun.lawyerId?.toString() === lawyerId;
+
+    if (!hasAccess) {
+        throw CustomException('Access denied | تم رفض الوصول', 403);
+    }
+
+    if (!['draft', 'calculated'].includes(payrollRun.status)) {
+        throw CustomException('Can only include employees in draft or calculated runs | يمكن إضافة الموظفين فقط في الدورات المسودة أو المحسوبة', 400);
+    }
+
+    // Check if employee is in excluded list
+    const excludedIndex = (payrollRun.configuration.excludedEmployees || []).findIndex(
+        e => e.employeeId.toString() === sanitizedEmpId
+    );
+
+    if (excludedIndex === -1) {
+        throw CustomException('Employee is not in excluded list | الموظف ليس في قائمة المستبعدين', 404);
+    }
+
+    // Get employee data
+    const employee = await Employee.findById(sanitizedEmpId);
+    if (!employee) {
+        throw CustomException('Employee not found | الموظف غير موجود', 404);
+    }
+
+    // Remove from excluded list
+    payrollRun.configuration.excludedEmployees.splice(excludedIndex, 1);
+
+    // Calculate employee payroll data
+    const basicSalary = parseFloat(employee.compensation?.basicSalary) || 0;
+    const allowances = (employee.compensation?.allowances || []).reduce((sum, a) => sum + (parseFloat(a.amount) || 0), 0);
+    const grossPay = basicSalary + allowances;
+    const isSaudi = employee.personalInfo?.isSaudi !== false;
+    const gosiEmployee = payrollRun.configuration.calculateGOSI && isSaudi ? Math.round(basicSalary * 0.0975) : 0;
+    const netPay = grossPay - gosiEmployee;
+
+    // Add to employee list
+    const newEmployeeEntry = {
+        employeeId: employee._id,
+        employeeNumber: employee.employeeId,
+        employeeName: employee.personalInfo?.fullNameEnglish || employee.personalInfo?.fullNameArabic,
+        employeeNameAr: employee.personalInfo?.fullNameArabic,
+        nationalId: employee.personalInfo?.nationalId,
+        department: employee.employment?.departmentName || employee.organization?.departmentName,
+        jobTitle: employee.employment?.jobTitle,
+        earnings: {
+            basicSalary,
+            allowances,
+            overtime: 0,
+            bonus: 0,
+            commission: 0,
+            otherEarnings: 0,
+            grossPay
+        },
+        deductions: {
+            gosi: gosiEmployee,
+            loans: 0,
+            advances: 0,
+            absences: 0,
+            lateDeductions: 0,
+            violations: 0,
+            otherDeductions: 0,
+            totalDeductions: gosiEmployee
+        },
+        netPay,
+        status: 'calculated',
+        paymentMethod: employee.compensation?.paymentMethod || 'bank_transfer',
+        bankName: employee.compensation?.bankDetails?.bankName,
+        iban: employee.compensation?.bankDetails?.iban,
+        wpsIncluded: true,
+        calculatedOn: new Date()
+    };
+
+    payrollRun.employeeList.push(newEmployeeEntry);
+
+    // Update counts
+    payrollRun.employees.totalEmployees = payrollRun.employeeList.length;
+    payrollRun.employees.processedEmployees = payrollRun.employeeList.length;
+
+    // Update totals
+    payrollRun.financialSummary.totalBasicSalary += basicSalary;
+    payrollRun.financialSummary.totalAllowances += allowances;
+    payrollRun.financialSummary.totalGrossPay += grossPay;
+    payrollRun.financialSummary.totalGOSI += gosiEmployee;
+    payrollRun.financialSummary.totalDeductions += gosiEmployee;
+    payrollRun.financialSummary.totalNetPay += netPay;
+
+    payrollRun.processingLog.push({
+        logId: `LOG-${Date.now()}`,
+        action: `Employee included: ${newEmployeeEntry.employeeName}`,
+        actionType: 'other',
+        performedBy: lawyerId,
+        status: 'success',
+        affectedEmployees: 1,
+        affectedAmount: netPay
+    });
+
+    await payrollRun.save();
+
+    return res.json({
+        success: true,
+        message: 'Employee included in payroll run | تمت إضافة الموظف إلى دورة الرواتب',
+        employee: newEmployeeEntry
+    });
+});
+
+// ═══════════════════════════════════════════════════════════════
+// RECALCULATE SINGLE EMPLOYEE
+// POST /api/hr/payroll-runs/:id/employees/:empId/recalculate
+// ═══════════════════════════════════════════════════════════════
+const recalculateSingleEmployee = asyncHandler(async (req, res) => {
+    const { id, empId } = req.params;
+    const lawyerId = req.userID;
+    const firmId = req.firmId;
+
+    const sanitizedId = sanitizeObjectId(id);
+    const sanitizedEmpId = sanitizeObjectId(empId);
+    if (!sanitizedId || !sanitizedEmpId) {
+        throw CustomException('Invalid ID provided | معرف غير صالح', 400);
+    }
+
+    const payrollRun = await PayrollRun.findById(sanitizedId);
+
+    if (!payrollRun) {
+        throw CustomException('Payroll run not found | دورة الرواتب غير موجودة', 404);
+    }
+
+    const hasAccess = firmId
+        ? payrollRun.firmId?.toString() === firmId.toString()
+        : payrollRun.lawyerId?.toString() === lawyerId;
+
+    if (!hasAccess) {
+        throw CustomException('Access denied | تم رفض الوصول', 403);
+    }
+
+    if (!['draft', 'calculated'].includes(payrollRun.status)) {
+        throw CustomException('Can only recalculate in draft or calculated runs | يمكن إعادة الحساب فقط في الدورات المسودة أو المحسوبة', 400);
+    }
+
+    const empIndex = payrollRun.employeeList.findIndex(
+        e => e.employeeId.toString() === sanitizedEmpId
+    );
+
+    if (empIndex === -1) {
+        throw CustomException('Employee not found in run | الموظف غير موجود في الدورة', 404);
+    }
+
+    // Get fresh employee data
+    const employee = await Employee.findById(sanitizedEmpId);
+    if (!employee) {
+        throw CustomException('Employee not found | الموظف غير موجود', 404);
+    }
+
+    const oldData = payrollRun.employeeList[empIndex];
+
+    // Recalculate
+    const basicSalary = parseFloat(employee.compensation?.basicSalary) || 0;
+    const allowances = (employee.compensation?.allowances || []).reduce((sum, a) => sum + (parseFloat(a.amount) || 0), 0);
+    const grossPay = basicSalary + allowances;
+    const isSaudi = employee.personalInfo?.isSaudi !== false;
+    const gosiEmployee = payrollRun.configuration.calculateGOSI && isSaudi ? Math.round(basicSalary * 0.0975) : 0;
+    const gosiEmployer = payrollRun.configuration.calculateGOSI && isSaudi ? Math.round(basicSalary * 0.1275) : (payrollRun.configuration.calculateGOSI ? Math.round(basicSalary * 0.02) : 0);
+    const netPay = grossPay - gosiEmployee;
+
+    // Update employee entry
+    payrollRun.employeeList[empIndex] = {
+        ...payrollRun.employeeList[empIndex],
+        employeeName: employee.personalInfo?.fullNameEnglish || employee.personalInfo?.fullNameArabic,
+        employeeNameAr: employee.personalInfo?.fullNameArabic,
+        nationalId: employee.personalInfo?.nationalId,
+        department: employee.employment?.departmentName || employee.organization?.departmentName,
+        jobTitle: employee.employment?.jobTitle,
+        earnings: {
+            basicSalary,
+            allowances,
+            overtime: oldData.earnings?.overtime || 0,
+            bonus: oldData.earnings?.bonus || 0,
+            commission: oldData.earnings?.commission || 0,
+            otherEarnings: oldData.earnings?.otherEarnings || 0,
+            grossPay
+        },
+        deductions: {
+            gosi: gosiEmployee,
+            loans: oldData.deductions?.loans || 0,
+            advances: oldData.deductions?.advances || 0,
+            absences: oldData.deductions?.absences || 0,
+            lateDeductions: oldData.deductions?.lateDeductions || 0,
+            violations: oldData.deductions?.violations || 0,
+            otherDeductions: oldData.deductions?.otherDeductions || 0,
+            totalDeductions: gosiEmployee + (oldData.deductions?.loans || 0) + (oldData.deductions?.advances || 0)
+        },
+        netPay,
+        status: 'calculated',
+        paymentMethod: employee.compensation?.paymentMethod || 'bank_transfer',
+        bankName: employee.compensation?.bankDetails?.bankName,
+        iban: employee.compensation?.bankDetails?.iban,
+        calculatedOn: new Date()
+    };
+
+    // Update totals (subtract old, add new)
+    payrollRun.financialSummary.totalBasicSalary += (basicSalary - (oldData.earnings?.basicSalary || 0));
+    payrollRun.financialSummary.totalAllowances += (allowances - (oldData.earnings?.allowances || 0));
+    payrollRun.financialSummary.totalGrossPay += (grossPay - (oldData.earnings?.grossPay || 0));
+    payrollRun.financialSummary.totalGOSI += (gosiEmployee - (oldData.deductions?.gosi || 0));
+    payrollRun.financialSummary.totalDeductions += (gosiEmployee - (oldData.deductions?.totalDeductions || 0));
+    payrollRun.financialSummary.totalNetPay += (netPay - (oldData.netPay || 0));
+
+    payrollRun.processingLog.push({
+        logId: `LOG-${Date.now()}`,
+        action: `Employee recalculated: ${payrollRun.employeeList[empIndex].employeeName}`,
+        actionType: 'calculation',
+        performedBy: lawyerId,
+        status: 'success',
+        details: `Net pay changed from ${oldData.netPay} to ${netPay}`
+    });
+
+    await payrollRun.save();
+
+    return res.json({
+        success: true,
+        message: 'Employee recalculated successfully | تمت إعادة حساب الموظف بنجاح',
+        employee: payrollRun.employeeList[empIndex],
+        changes: {
+            oldNetPay: oldData.netPay,
+            newNetPay: netPay,
+            difference: netPay - oldData.netPay
+        }
+    });
+});
+
+// ═══════════════════════════════════════════════════════════════
+// EXPORT PAYROLL REPORT
+// GET /api/hr/payroll-runs/:id/export
+// ═══════════════════════════════════════════════════════════════
+const exportPayrollReport = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const { format = 'json' } = req.query;
+    const lawyerId = req.userID;
+    const firmId = req.firmId;
+
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('Invalid payroll run ID | معرف دورة الرواتب غير صالح', 400);
+    }
+
+    const validFormats = ['json', 'csv', 'xlsx', 'pdf'];
+    if (!validFormats.includes(format.toLowerCase())) {
+        throw CustomException(`Invalid format. Supported: ${validFormats.join(', ')} | تنسيق غير صالح`, 400);
+    }
+
+    const payrollRun = await PayrollRun.findById(sanitizedId)
+        .populate('employeeList.employeeId', 'employeeId personalInfo.fullNameArabic personalInfo.fullNameEnglish');
+
+    if (!payrollRun) {
+        throw CustomException('Payroll run not found | دورة الرواتب غير موجودة', 404);
+    }
+
+    const hasAccess = firmId
+        ? payrollRun.firmId?.toString() === firmId.toString()
+        : payrollRun.lawyerId?.toString() === lawyerId;
+
+    if (!hasAccess) {
+        throw CustomException('Access denied | تم رفض الوصول', 403);
+    }
+
+    // Prepare export data
+    const exportData = {
+        runInfo: {
+            runId: payrollRun.runId,
+            runName: payrollRun.runName,
+            runNameAr: payrollRun.runNameAr,
+            status: payrollRun.status,
+            payPeriod: payrollRun.payPeriod,
+            createdAt: payrollRun.createdAt
+        },
+        summary: payrollRun.financialSummary,
+        statistics: {
+            totalEmployees: payrollRun.employees.totalEmployees,
+            processedEmployees: payrollRun.employees.processedEmployees,
+            onHoldEmployees: payrollRun.employees.onHoldEmployees
+        },
+        employees: payrollRun.employeeList.map(emp => ({
+            employeeNumber: emp.employeeNumber,
+            employeeName: emp.employeeName,
+            employeeNameAr: emp.employeeNameAr,
+            department: emp.department,
+            jobTitle: emp.jobTitle,
+            basicSalary: emp.earnings.basicSalary,
+            allowances: emp.earnings.allowances,
+            grossPay: emp.earnings.grossPay,
+            gosiDeduction: emp.deductions.gosi,
+            loans: emp.deductions.loans,
+            advances: emp.deductions.advances,
+            otherDeductions: emp.deductions.otherDeductions,
+            totalDeductions: emp.deductions.totalDeductions,
+            netPay: emp.netPay,
+            paymentMethod: emp.paymentMethod,
+            bankName: emp.bankName,
+            iban: emp.iban,
+            status: emp.status
+        }))
+    };
+
+    // For JSON format, return directly
+    if (format.toLowerCase() === 'json') {
+        return res.json({
+            success: true,
+            message: 'Export generated successfully | تم إنشاء التقرير بنجاح',
+            format: 'json',
+            data: exportData
+        });
+    }
+
+    // For CSV format
+    if (format.toLowerCase() === 'csv') {
+        const headers = [
+            'Employee Number', 'Employee Name (EN)', 'Employee Name (AR)', 'Department', 'Job Title',
+            'Basic Salary', 'Allowances', 'Gross Pay', 'GOSI', 'Loans', 'Advances', 'Other Deductions',
+            'Total Deductions', 'Net Pay', 'Payment Method', 'Bank Name', 'IBAN', 'Status'
+        ];
+
+        let csv = headers.join(',') + '\n';
+        exportData.employees.forEach(emp => {
+            csv += [
+                emp.employeeNumber,
+                `"${emp.employeeName || ''}"`,
+                `"${emp.employeeNameAr || ''}"`,
+                `"${emp.department || ''}"`,
+                `"${emp.jobTitle || ''}"`,
+                emp.basicSalary,
+                emp.allowances,
+                emp.grossPay,
+                emp.gosiDeduction,
+                emp.loans,
+                emp.advances,
+                emp.otherDeductions,
+                emp.totalDeductions,
+                emp.netPay,
+                emp.paymentMethod,
+                `"${emp.bankName || ''}"`,
+                `"${emp.iban || ''}"`,
+                emp.status
+            ].join(',') + '\n';
+        });
+
+        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+        res.setHeader('Content-Disposition', `attachment; filename=payroll_${payrollRun.runId}.csv`);
+        return res.send('\uFEFF' + csv); // BOM for Arabic support
+    }
+
+    // For xlsx/pdf, return metadata - actual file generation would be done via queue/external service
+    return res.json({
+        success: true,
+        message: `Export request received. ${format.toUpperCase()} generation will be processed. | تم استلام طلب التصدير`,
+        format: format.toLowerCase(),
+        data: exportData,
+        meta: {
+            note: 'For xlsx/pdf formats, use a dedicated document generation service',
+            runId: payrollRun.runId,
+            employeeCount: exportData.employees.length,
+            totalNetPay: payrollRun.financialSummary.totalNetPay
+        }
+    });
+});
+
+// ═══════════════════════════════════════════════════════════════
 // BULK DELETE PAYROLL RUNS
 // POST /api/hr/payroll-runs/bulk-delete
 // ═══════════════════════════════════════════════════════════════
@@ -1156,5 +1640,9 @@ module.exports = {
     generateWPS,
     holdEmployee,
     unholdEmployee,
+    excludeEmployee,
+    includeEmployee,
+    recalculateSingleEmployee,
+    exportPayrollReport,
     sendNotifications
 };

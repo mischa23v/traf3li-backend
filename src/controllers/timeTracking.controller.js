@@ -1387,6 +1387,314 @@ const bulkDeleteTimeEntries = asyncHandler(async (req, res) => {
 });
 
 /**
+ * Get pending approval entries
+ * GET /api/time-tracking/entries/pending-approval
+ */
+const getPendingApprovalEntries = asyncHandler(async (req, res) => {
+    const { page = 1, limit = 25, assigneeId, clientId, caseId } = req.query;
+    const firmFilter = getFirmFilter(req);
+
+    const query = {
+        ...firmFilter,
+        status: 'submitted'
+    };
+
+    // Apply optional filters with IDOR protection
+    if (assigneeId) query.assigneeId = sanitizeObjectId(assigneeId);
+    if (clientId) query.clientId = sanitizeObjectId(clientId);
+    if (caseId) query.caseId = sanitizeObjectId(caseId);
+
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const limitNum = parseInt(limit);
+
+    const [entries, total] = await Promise.all([
+        TimeEntry.find(query)
+            .populate('assigneeId', 'name email firstName lastName')
+            .populate('userId', 'name email')
+            .populate('clientId', 'firstName lastName companyName')
+            .populate('caseId', 'title caseNumber')
+            .sort({ submittedAt: -1, createdAt: -1 })
+            .skip(skip)
+            .limit(limitNum),
+        TimeEntry.countDocuments(query)
+    ]);
+
+    // Calculate summary
+    const summary = await TimeEntry.aggregate([
+        { $match: query },
+        {
+            $group: {
+                _id: null,
+                totalEntries: { $sum: 1 },
+                totalDuration: { $sum: '$duration' },
+                totalAmount: { $sum: '$finalAmount' }
+            }
+        }
+    ]);
+
+    res.status(200).json({
+        success: true,
+        data: {
+            entries,
+            total,
+            page: parseInt(page),
+            totalPages: Math.ceil(total / limitNum),
+            summary: summary[0] || { totalEntries: 0, totalDuration: 0, totalAmount: 0 }
+        }
+    });
+});
+
+/**
+ * Submit time entry for approval
+ * POST /api/time-tracking/entries/:id/submit
+ */
+const submitTimeEntry = asyncHandler(async (req, res) => {
+    if (req.user?.departed || req.isDeparted) {
+        throw new CustomException('Departed users cannot submit time entries', 403);
+    }
+
+    const id = sanitizeObjectId(req.params.id);
+    const userId = req.userID || req.user?._id;
+    const firmFilter = getFirmFilter(req);
+
+    const timeEntry = await TimeEntry.findOne({ _id: id, ...firmFilter });
+
+    if (!timeEntry) {
+        throw new CustomException('Time entry not found | السجل غير موجود', 404);
+    }
+
+    if (timeEntry.status !== 'pending' && timeEntry.status !== 'draft') {
+        throw new CustomException('Only pending/draft entries can be submitted | يمكن تقديم السجلات المعلقة فقط', 400);
+    }
+
+    timeEntry.status = 'submitted';
+    timeEntry.submittedAt = new Date();
+    timeEntry.submittedBy = userId;
+    timeEntry.history.push({
+        action: 'submitted',
+        performedBy: userId,
+        timestamp: new Date(),
+        details: {}
+    });
+
+    await timeEntry.save();
+
+    // Log activity
+    if (BillingActivity && BillingActivity.logActivity) {
+        await BillingActivity.logActivity({
+            activityType: 'time_entry_submitted',
+            userId,
+            clientId: timeEntry.clientId,
+            relatedModel: 'TimeEntry',
+            relatedId: timeEntry._id,
+            description: `Time entry submitted for approval: ${timeEntry.description}`,
+            ipAddress: req.ip,
+            userAgent: req.get('user-agent')
+        });
+    }
+
+    await timeEntry.populate([
+        { path: 'assigneeId', select: 'name email' },
+        { path: 'clientId', select: 'firstName lastName companyName' },
+        { path: 'caseId', select: 'title caseNumber' }
+    ]);
+
+    res.status(200).json({
+        success: true,
+        message: 'Time entry submitted for approval | تم تقديم السجل للموافقة',
+        data: { timeEntry }
+    });
+});
+
+/**
+ * Bulk submit time entries for approval
+ * POST /api/time-tracking/entries/bulk-submit
+ */
+const bulkSubmitTimeEntries = asyncHandler(async (req, res) => {
+    if (req.user?.departed || req.isDeparted) {
+        throw new CustomException('Departed users cannot submit time entries', 403);
+    }
+
+    const allowedFields = ['entryIds'];
+    const sanitizedData = pickAllowedFields(req.body, allowedFields);
+    const { entryIds } = sanitizedData;
+
+    const userId = req.userID || req.user?._id;
+    const firmFilter = getFirmFilter(req);
+
+    if (!entryIds || !Array.isArray(entryIds) || entryIds.length === 0) {
+        throw new CustomException('Entry IDs are required | معرفات السجلات مطلوبة', 400);
+    }
+
+    if (entryIds.length > 100) {
+        throw new CustomException('Cannot submit more than 100 entries at once', 400);
+    }
+
+    const sanitizedIds = entryIds.map(id => sanitizeObjectId(id)).filter(Boolean);
+
+    const result = await TimeEntry.updateMany(
+        {
+            _id: { $in: sanitizedIds },
+            ...firmFilter,
+            status: { $in: ['pending', 'draft'] }
+        },
+        {
+            $set: {
+                status: 'submitted',
+                submittedAt: new Date(),
+                submittedBy: userId
+            },
+            $push: {
+                history: {
+                    action: 'submitted',
+                    performedBy: userId,
+                    timestamp: new Date(),
+                    details: { bulk: true }
+                }
+            }
+        }
+    );
+
+    res.status(200).json({
+        success: true,
+        message: `${result.modifiedCount} time entries submitted for approval | تم تقديم ${result.modifiedCount} سجل للموافقة`,
+        count: result.modifiedCount
+    });
+});
+
+/**
+ * Request changes to a time entry
+ * POST /api/time-tracking/entries/:id/request-changes
+ */
+const requestChangesTimeEntry = asyncHandler(async (req, res) => {
+    if (req.user?.departed || req.isDeparted) {
+        throw new CustomException('Departed users cannot request changes', 403);
+    }
+
+    const id = sanitizeObjectId(req.params.id);
+    const allowedFields = ['reason', 'requestedChanges'];
+    const sanitizedData = pickAllowedFields(req.body, allowedFields);
+    const { reason, requestedChanges } = sanitizedData;
+
+    const userId = req.userID || req.user?._id;
+    const firmFilter = getFirmFilter(req);
+
+    if (!reason || reason.trim().length === 0) {
+        throw new CustomException('Reason for changes is required | سبب التغييرات مطلوب', 400);
+    }
+
+    const timeEntry = await TimeEntry.findOne({ _id: id, ...firmFilter });
+
+    if (!timeEntry) {
+        throw new CustomException('Time entry not found | السجل غير موجود', 404);
+    }
+
+    if (timeEntry.status !== 'submitted') {
+        throw new CustomException('Only submitted entries can have changes requested | يمكن طلب تغييرات للسجلات المقدمة فقط', 400);
+    }
+
+    timeEntry.status = 'changes_requested';
+    timeEntry.changesRequestedAt = new Date();
+    timeEntry.changesRequestedBy = userId;
+    timeEntry.changesRequestedReason = reason;
+    timeEntry.requestedChanges = requestedChanges || [];
+    timeEntry.history.push({
+        action: 'changes_requested',
+        performedBy: userId,
+        timestamp: new Date(),
+        details: { reason, requestedChanges }
+    });
+
+    await timeEntry.save();
+
+    // Log activity
+    if (BillingActivity && BillingActivity.logActivity) {
+        await BillingActivity.logActivity({
+            activityType: 'time_entry_changes_requested',
+            userId,
+            clientId: timeEntry.clientId,
+            relatedModel: 'TimeEntry',
+            relatedId: timeEntry._id,
+            description: `Changes requested for time entry: ${reason}`,
+            ipAddress: req.ip,
+            userAgent: req.get('user-agent')
+        });
+    }
+
+    await timeEntry.populate([
+        { path: 'assigneeId', select: 'name email' },
+        { path: 'changesRequestedBy', select: 'name email' }
+    ]);
+
+    res.status(200).json({
+        success: true,
+        message: 'Changes requested for time entry | تم طلب تغييرات للسجل',
+        data: { timeEntry }
+    });
+});
+
+/**
+ * Bulk reject time entries
+ * POST /api/time-tracking/entries/bulk-reject
+ */
+const bulkRejectTimeEntries = asyncHandler(async (req, res) => {
+    if (req.user?.departed || req.isDeparted) {
+        throw new CustomException('Departed users cannot reject time entries', 403);
+    }
+
+    const allowedFields = ['entryIds', 'reason'];
+    const sanitizedData = pickAllowedFields(req.body, allowedFields);
+    const { entryIds, reason } = sanitizedData;
+
+    const userId = req.userID || req.user?._id;
+    const firmFilter = getFirmFilter(req);
+
+    if (!entryIds || !Array.isArray(entryIds) || entryIds.length === 0) {
+        throw new CustomException('Entry IDs are required | معرفات السجلات مطلوبة', 400);
+    }
+
+    if (!reason || reason.trim().length === 0) {
+        throw new CustomException('Rejection reason is required | سبب الرفض مطلوب', 400);
+    }
+
+    if (entryIds.length > 100) {
+        throw new CustomException('Cannot reject more than 100 entries at once', 400);
+    }
+
+    const sanitizedIds = entryIds.map(id => sanitizeObjectId(id)).filter(Boolean);
+
+    const result = await TimeEntry.updateMany(
+        {
+            _id: { $in: sanitizedIds },
+            ...firmFilter,
+            status: { $in: ['pending', 'submitted'] }
+        },
+        {
+            $set: {
+                status: 'rejected',
+                rejectedBy: userId,
+                rejectedAt: new Date(),
+                rejectionReason: reason
+            },
+            $push: {
+                history: {
+                    action: 'rejected',
+                    performedBy: userId,
+                    timestamp: new Date(),
+                    details: { reason, bulk: true }
+                }
+            }
+        }
+    );
+
+    res.status(200).json({
+        success: true,
+        message: `${result.modifiedCount} time entries rejected | تم رفض ${result.modifiedCount} سجل`,
+        count: result.modifiedCount
+    });
+});
+
+/**
  * Bulk approve time entries
  * POST /api/time-tracking/entries/bulk-approve
  */
@@ -1471,8 +1779,13 @@ module.exports = {
     writeDownTimeEntry,
 
     // Approval workflow
+    getPendingApprovalEntries,
+    submitTimeEntry,
+    bulkSubmitTimeEntries,
+    requestChangesTimeEntry,
     approveTimeEntry,
     rejectTimeEntry,
+    bulkRejectTimeEntries,
 
     // Analytics
     getTimeStats,

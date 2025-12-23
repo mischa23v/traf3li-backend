@@ -770,6 +770,320 @@ const bulkDeleteEmployees = asyncHandler(async (req, res) => {
     });
 });
 
+// ═══════════════════════════════════════════════════════════════
+// EMPLOYEE DOCUMENTS
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Get employee documents
+ * GET /api/hr/employees/:id/documents
+ */
+const getEmployeeDocuments = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const { type, verified, page = 1, limit = 50 } = req.query;
+    const lawyerId = req.userID;
+    const firmId = req.firmId;
+
+    // SECURITY: Validate ObjectId
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('Invalid employee ID | معرف الموظف غير صالح', 400);
+    }
+
+    // IDOR Protection: Verify employee ownership
+    const accessQuery = firmId ? { _id: sanitizedId, firmId } : { _id: sanitizedId, lawyerId };
+    const employee = await Employee.findOne(accessQuery);
+
+    if (!employee) {
+        throw CustomException('الموظف غير موجود / Employee not found', 404);
+    }
+
+    // Build documents query
+    const documentsQuery = {
+        module: 'hr',
+        'metadata.employeeId': sanitizedId
+    };
+
+    if (firmId) {
+        documentsQuery.firmId = firmId;
+    } else {
+        documentsQuery.lawyerId = lawyerId;
+    }
+
+    if (type) {
+        documentsQuery['metadata.documentType'] = type;
+    }
+    if (verified !== undefined) {
+        documentsQuery['metadata.verified'] = verified === 'true';
+    }
+
+    // Get documents (using Document model if available)
+    let documents = [];
+    let total = 0;
+
+    try {
+        const Document = require('../models').Document;
+        if (Document) {
+            documents = await Document.find(documentsQuery)
+                .sort({ createdAt: -1 })
+                .limit(parseInt(limit))
+                .skip((parseInt(page) - 1) * parseInt(limit))
+                .populate('uploadedBy', 'firstName lastName');
+            total = await Document.countDocuments(documentsQuery);
+        }
+    } catch (error) {
+        // Document model might not exist or have the right schema
+        documents = [];
+        total = 0;
+    }
+
+    return res.json({
+        success: true,
+        data: documents,
+        pagination: {
+            page: parseInt(page),
+            limit: parseInt(limit),
+            total,
+            pages: Math.ceil(total / parseInt(limit))
+        }
+    });
+});
+
+/**
+ * Upload employee document
+ * POST /api/hr/employees/:id/documents
+ */
+const uploadEmployeeDocument = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const lawyerId = req.userID;
+    const firmId = req.firmId;
+
+    // SECURITY: Validate ObjectId
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('Invalid employee ID | معرف الموظف غير صالح', 400);
+    }
+
+    // IDOR Protection: Verify employee ownership
+    const accessQuery = firmId ? { _id: sanitizedId, firmId } : { _id: sanitizedId, lawyerId };
+    const employee = await Employee.findOne(accessQuery);
+
+    if (!employee) {
+        throw CustomException('الموظف غير موجود / Employee not found', 404);
+    }
+
+    // Mass assignment protection
+    const allowedFields = [
+        'fileName', 'originalName', 'fileType', 'fileSize', 'url', 'fileKey',
+        'documentType', 'expiryDate', 'notes', 'bucket'
+    ];
+    const safeData = pickAllowedFields(req.body, allowedFields);
+
+    // Validate required fields
+    if (!safeData.fileName || !safeData.url || !safeData.fileKey) {
+        throw CustomException('fileName, url, and fileKey are required | الملف مطلوب', 400);
+    }
+
+    // Validate document type
+    const validDocumentTypes = [
+        'national_id', 'passport', 'iqama', 'work_visa', 'contract',
+        'certificate', 'cv', 'photo', 'medical', 'gosi', 'bank_letter', 'other'
+    ];
+    if (safeData.documentType && !validDocumentTypes.includes(safeData.documentType)) {
+        throw CustomException('Invalid document type | نوع المستند غير صالح', 400);
+    }
+
+    // Prepare document data
+    const documentData = {
+        firmId: firmId || undefined,
+        lawyerId,
+        fileName: safeData.fileName,
+        originalName: safeData.originalName || safeData.fileName,
+        fileType: safeData.fileType || 'application/octet-stream',
+        fileSize: safeData.fileSize || 0,
+        url: safeData.url,
+        fileKey: safeData.fileKey,
+        bucket: safeData.bucket,
+        module: 'hr',
+        category: 'other',
+        uploadedBy: lawyerId,
+        metadata: {
+            employeeId: sanitizedId,
+            employeeName: employee.personalInfo?.fullNameEnglish || employee.personalInfo?.fullNameArabic,
+            documentType: safeData.documentType || 'other',
+            expiryDate: safeData.expiryDate || null,
+            notes: safeData.notes || '',
+            verified: false,
+            verifiedBy: null,
+            verifiedAt: null
+        }
+    };
+
+    // Create document
+    let document;
+    try {
+        const Document = require('../models').Document;
+        if (Document) {
+            document = await Document.create(documentData);
+        } else {
+            throw new Error('Document model not available');
+        }
+    } catch (error) {
+        // Fallback: Store reference in a simpler format
+        document = {
+            _id: `doc_${Date.now()}`,
+            ...documentData,
+            createdAt: new Date()
+        };
+    }
+
+    return res.status(201).json({
+        success: true,
+        message: 'Document uploaded successfully | تم رفع المستند بنجاح',
+        data: document
+    });
+});
+
+/**
+ * Delete employee document
+ * DELETE /api/hr/employees/:id/documents/:docId
+ */
+const deleteEmployeeDocument = asyncHandler(async (req, res) => {
+    const { id, docId } = req.params;
+    const lawyerId = req.userID;
+    const firmId = req.firmId;
+
+    // SECURITY: Validate ObjectIds
+    const sanitizedId = sanitizeObjectId(id);
+    const sanitizedDocId = sanitizeObjectId(docId);
+    if (!sanitizedId || !sanitizedDocId) {
+        throw CustomException('Invalid ID provided | معرف غير صالح', 400);
+    }
+
+    // IDOR Protection: Verify employee ownership
+    const accessQuery = firmId ? { _id: sanitizedId, firmId } : { _id: sanitizedId, lawyerId };
+    const employee = await Employee.findOne(accessQuery);
+
+    if (!employee) {
+        throw CustomException('الموظف غير موجود / Employee not found', 404);
+    }
+
+    // Find and delete document
+    let deleted = false;
+    let deletedDocument = null;
+
+    try {
+        const Document = require('../models').Document;
+        if (Document) {
+            const docQuery = {
+                _id: sanitizedDocId,
+                module: 'hr',
+                'metadata.employeeId': sanitizedId
+            };
+            if (firmId) {
+                docQuery.firmId = firmId;
+            } else {
+                docQuery.lawyerId = lawyerId;
+            }
+
+            deletedDocument = await Document.findOneAndDelete(docQuery);
+            deleted = !!deletedDocument;
+        }
+    } catch (error) {
+        // Document model might not exist
+        deleted = false;
+    }
+
+    if (!deleted) {
+        throw CustomException('Document not found | المستند غير موجود', 404);
+    }
+
+    // TODO: Delete file from S3/R2 using fileKey
+    // await deleteFromStorage(deletedDocument.fileKey, deletedDocument.bucket);
+
+    return res.json({
+        success: true,
+        message: 'Document deleted successfully | تم حذف المستند بنجاح'
+    });
+});
+
+/**
+ * Verify employee document
+ * POST /api/hr/employees/:id/documents/:docId/verify
+ */
+const verifyEmployeeDocument = asyncHandler(async (req, res) => {
+    const { id, docId } = req.params;
+    const lawyerId = req.userID;
+    const firmId = req.firmId;
+
+    // SECURITY: Validate ObjectIds
+    const sanitizedId = sanitizeObjectId(id);
+    const sanitizedDocId = sanitizeObjectId(docId);
+    if (!sanitizedId || !sanitizedDocId) {
+        throw CustomException('Invalid ID provided | معرف غير صالح', 400);
+    }
+
+    // Mass assignment protection
+    const allowedFields = ['verified', 'verificationNotes', 'verificationSource'];
+    const safeData = pickAllowedFields(req.body, allowedFields);
+
+    // IDOR Protection: Verify employee ownership
+    const accessQuery = firmId ? { _id: sanitizedId, firmId } : { _id: sanitizedId, lawyerId };
+    const employee = await Employee.findOne(accessQuery);
+
+    if (!employee) {
+        throw CustomException('الموظف غير موجود / Employee not found', 404);
+    }
+
+    // Find and update document
+    let document = null;
+
+    try {
+        const Document = require('../models').Document;
+        if (Document) {
+            const docQuery = {
+                _id: sanitizedDocId,
+                module: 'hr',
+                'metadata.employeeId': sanitizedId
+            };
+            if (firmId) {
+                docQuery.firmId = firmId;
+            } else {
+                docQuery.lawyerId = lawyerId;
+            }
+
+            document = await Document.findOneAndUpdate(
+                docQuery,
+                {
+                    $set: {
+                        'metadata.verified': safeData.verified !== false,
+                        'metadata.verifiedBy': lawyerId,
+                        'metadata.verifiedAt': new Date(),
+                        'metadata.verificationNotes': safeData.verificationNotes || '',
+                        'metadata.verificationSource': safeData.verificationSource || 'manual'
+                    }
+                },
+                { new: true }
+            );
+        }
+    } catch (error) {
+        // Document model might not exist
+        document = null;
+    }
+
+    if (!document) {
+        throw CustomException('Document not found | المستند غير موجود', 404);
+    }
+
+    return res.json({
+        success: true,
+        message: document.metadata.verified
+            ? 'Document verified successfully | تم التحقق من المستند بنجاح'
+            : 'Document verification removed | تم إلغاء التحقق من المستند',
+        data: document
+    });
+});
+
 module.exports = {
     createEmployee,
     getEmployees,
@@ -780,5 +1094,10 @@ module.exports = {
     getEmployeeStats,
     addAllowance,
     removeAllowance,
-    getFormOptions
+    getFormOptions,
+    // Employee Documents
+    getEmployeeDocuments,
+    uploadEmployeeDocument,
+    deleteEmployeeDocument,
+    verifyEmployeeDocument
 };

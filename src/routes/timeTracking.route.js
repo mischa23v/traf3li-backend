@@ -20,8 +20,13 @@ const {
     writeDownTimeEntry,
 
     // Approval workflow
+    getPendingApprovalEntries,
+    submitTimeEntry,
+    bulkSubmitTimeEntries,
+    requestChangesTimeEntry,
     approveTimeEntry,
     rejectTimeEntry,
+    bulkRejectTimeEntries,
 
     // Analytics
     getTimeStats,
@@ -62,6 +67,11 @@ router.get('/activity-codes', userMiddleware, firmFilter, getActivityCodes);
 // Bulk Operations
 router.delete('/entries/bulk', userMiddleware, firmFilter, bulkDeleteTimeEntries);
 router.post('/entries/bulk-approve', userMiddleware, firmFilter, bulkApproveTimeEntries);
+router.post('/entries/bulk-reject', userMiddleware, firmFilter, bulkRejectTimeEntries);
+router.post('/entries/bulk-submit', userMiddleware, firmFilter, bulkSubmitTimeEntries);
+
+// Pending Approvals (must be before :id routes)
+router.get('/entries/pending-approval', userMiddleware, firmFilter, getPendingApprovalEntries);
 
 // ═══════════════════════════════════════════════════════════════
 // TIME ENTRY CRUD ROUTES
@@ -107,6 +117,15 @@ router.post('/entries/:id/write-down', userMiddleware, firmFilter, writeDownTime
 // ═══════════════════════════════════════════════════════════════
 // APPROVAL ROUTES
 // ═══════════════════════════════════════════════════════════════
+
+// Submit time entry for approval
+// POST /api/time-tracking/entries/:id/submit
+router.post('/entries/:id/submit', userMiddleware, firmFilter, submitTimeEntry);
+
+// Request changes to time entry
+// POST /api/time-tracking/entries/:id/request-changes
+// Body: { reason: string, requestedChanges: [] }
+router.post('/entries/:id/request-changes', userMiddleware, firmFilter, requestChangesTimeEntry);
 
 // Approve time entry
 // POST /api/time-tracking/entries/:id/approve

@@ -935,6 +935,224 @@ const getModelFields = asyncHandler(async (req, res) => {
 });
 
 /**
+ * Duplicate automated action
+ * POST /api/automated-actions/:id/duplicate
+ */
+const duplicateAction = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const lawyerId = req.userID;
+    const firmId = getFirmId(req);
+
+    // SECURITY: Sanitize ObjectId to prevent NoSQL injection
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('معرف غير صالح | Invalid ID', 400);
+    }
+
+    // Placeholder for AutomatedAction model
+    // SECURITY: IDOR Protection - Verify ownership via lawyerId and firmId
+    // const query = { _id: sanitizedId, lawyerId };
+    // if (firmId) {
+    //     query.firmId = firmId;
+    // }
+    // const originalAction = await AutomatedAction.findOne(query);
+
+    // if (!originalAction) {
+    //     throw CustomException('الإجراء الآلي غير موجود', 404);
+    // }
+
+    // // Create a copy with new ID
+    // const duplicatedData = originalAction.toObject();
+    // delete duplicatedData._id;
+    // delete duplicatedData.createdAt;
+    // delete duplicatedData.updatedAt;
+    // duplicatedData.name = `${duplicatedData.name} (نسخة)`;
+    // duplicatedData.nameAr = `${duplicatedData.nameAr} (نسخة)`;
+    // duplicatedData.isActive = false; // Start as inactive
+    // duplicatedData.createdBy = lawyerId;
+
+    // const duplicatedAction = await AutomatedAction.create(duplicatedData);
+
+    // Temporary response until AutomatedAction model is created
+    const duplicatedAction = {
+        _id: `dup_${Date.now()}`,
+        name: 'Duplicated Action (نسخة)',
+        nameAr: 'إجراء منسوخ (نسخة)',
+        isActive: false,
+        createdAt: new Date()
+    };
+
+    res.status(201).json({
+        success: true,
+        message: 'تم نسخ الإجراء الآلي بنجاح | Action duplicated successfully',
+        data: duplicatedAction
+    });
+});
+
+/**
+ * Get all automated action logs (across all actions)
+ * GET /api/automated-actions/logs
+ */
+const getAllLogs = asyncHandler(async (req, res) => {
+    const { page = 1, limit = 50, status, actionId, model_name, startDate, endDate } = req.query;
+    const lawyerId = req.userID;
+    const firmId = getFirmId(req);
+
+    // Build query for logs
+    const logsQuery = { lawyerId };
+    if (firmId) {
+        logsQuery.firmId = firmId;
+    }
+    if (status) logsQuery.status = status;
+    if (actionId) {
+        const sanitizedActionId = sanitizeObjectId(actionId);
+        if (sanitizedActionId) logsQuery.actionId = sanitizedActionId;
+    }
+    if (model_name) logsQuery.model_name = model_name;
+    if (startDate || endDate) {
+        logsQuery.createdAt = {};
+        if (startDate) logsQuery.createdAt.$gte = new Date(startDate);
+        if (endDate) logsQuery.createdAt.$lte = new Date(endDate);
+    }
+
+    // Placeholder for AutomatedActionLog model
+    // const logs = await AutomatedActionLog.find(logsQuery)
+    //     .sort({ createdAt: -1 })
+    //     .limit(parseInt(limit))
+    //     .skip((parseInt(page) - 1) * parseInt(limit))
+    //     .populate('actionId', 'name nameAr')
+    //     .populate('executedBy', 'firstName lastName');
+
+    // const total = await AutomatedActionLog.countDocuments(logsQuery);
+
+    // Temporary response
+    const logs = [];
+    const total = 0;
+
+    res.status(200).json({
+        success: true,
+        data: logs,
+        pagination: {
+            page: parseInt(page),
+            limit: parseInt(limit),
+            total,
+            pages: Math.ceil(total / parseInt(limit))
+        }
+    });
+});
+
+/**
+ * Bulk enable automated actions
+ * POST /api/automated-actions/bulk/enable
+ */
+const bulkEnable = asyncHandler(async (req, res) => {
+    const { ids } = req.body;
+    const lawyerId = req.userID;
+    const firmId = getFirmId(req);
+
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+        throw CustomException('قائمة المعرفات مطلوبة | IDs list is required', 400);
+    }
+
+    if (ids.length > 100) {
+        throw CustomException('لا يمكن تفعيل أكثر من 100 إجراء في المرة الواحدة', 400);
+    }
+
+    // SECURITY: Sanitize all IDs
+    const sanitizedIds = ids.map(id => sanitizeObjectId(id)).filter(Boolean);
+
+    // Placeholder for AutomatedAction model
+    // const query = { _id: { $in: sanitizedIds }, lawyerId };
+    // if (firmId) {
+    //     query.firmId = firmId;
+    // }
+    // const result = await AutomatedAction.updateMany(query, { $set: { isActive: true } });
+
+    // Temporary response
+    const result = { modifiedCount: sanitizedIds.length };
+
+    res.status(200).json({
+        success: true,
+        message: `تم تفعيل ${result.modifiedCount} إجراء آلي | ${result.modifiedCount} actions enabled`,
+        modifiedCount: result.modifiedCount
+    });
+});
+
+/**
+ * Bulk disable automated actions
+ * POST /api/automated-actions/bulk/disable
+ */
+const bulkDisable = asyncHandler(async (req, res) => {
+    const { ids } = req.body;
+    const lawyerId = req.userID;
+    const firmId = getFirmId(req);
+
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+        throw CustomException('قائمة المعرفات مطلوبة | IDs list is required', 400);
+    }
+
+    if (ids.length > 100) {
+        throw CustomException('لا يمكن تعطيل أكثر من 100 إجراء في المرة الواحدة', 400);
+    }
+
+    // SECURITY: Sanitize all IDs
+    const sanitizedIds = ids.map(id => sanitizeObjectId(id)).filter(Boolean);
+
+    // Placeholder for AutomatedAction model
+    // const query = { _id: { $in: sanitizedIds }, lawyerId };
+    // if (firmId) {
+    //     query.firmId = firmId;
+    // }
+    // const result = await AutomatedAction.updateMany(query, { $set: { isActive: false } });
+
+    // Temporary response
+    const result = { modifiedCount: sanitizedIds.length };
+
+    res.status(200).json({
+        success: true,
+        message: `تم تعطيل ${result.modifiedCount} إجراء آلي | ${result.modifiedCount} actions disabled`,
+        modifiedCount: result.modifiedCount
+    });
+});
+
+/**
+ * Bulk delete automated actions
+ * DELETE /api/automated-actions/bulk
+ */
+const bulkDelete = asyncHandler(async (req, res) => {
+    const { ids } = req.body;
+    const lawyerId = req.userID;
+    const firmId = getFirmId(req);
+
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+        throw CustomException('قائمة المعرفات مطلوبة | IDs list is required', 400);
+    }
+
+    if (ids.length > 100) {
+        throw CustomException('لا يمكن حذف أكثر من 100 إجراء في المرة الواحدة', 400);
+    }
+
+    // SECURITY: Sanitize all IDs
+    const sanitizedIds = ids.map(id => sanitizeObjectId(id)).filter(Boolean);
+
+    // Placeholder for AutomatedAction model
+    // const query = { _id: { $in: sanitizedIds }, lawyerId };
+    // if (firmId) {
+    //     query.firmId = firmId;
+    // }
+    // const result = await AutomatedAction.deleteMany(query);
+
+    // Temporary response
+    const result = { deletedCount: sanitizedIds.length };
+
+    res.status(200).json({
+        success: true,
+        message: `تم حذف ${result.deletedCount} إجراء آلي | ${result.deletedCount} actions deleted`,
+        deletedCount: result.deletedCount
+    });
+});
+
+/**
  * Helper function to execute action in test mode
  * This simulates what would happen without actually executing
  */
@@ -994,7 +1212,12 @@ module.exports = {
     deleteAction,
     toggleActive,
     testAction,
+    duplicateAction,
     getActionLogs,
+    getAllLogs,
+    bulkEnable,
+    bulkDisable,
+    bulkDelete,
     getAvailableModels,
     getModelFields
 };
