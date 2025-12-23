@@ -1,4 +1,5 @@
-const brain = require('brain.js');
+const synaptic = require('synaptic');
+const { Layer, Network, Trainer, Architect } = synaptic;
 const Lead = require('../models/lead.model');
 const LeadScore = require('../models/leadScore.model');
 const CrmActivity = require('../models/crmActivity.model');
@@ -12,11 +13,11 @@ const path = require('path');
  * Uses neural network for propensity prediction
  *
  * Model Architecture:
- * - Input: 15+ features from MLFeatureEngineering
+ * - Input: 15 features from MLFeatureEngineering
  * - Hidden layers: [32, 16, 8]
  * - Output: Conversion probability (0-1)
  *
- * Uses brain.js for neural network
+ * Uses synaptic for neural network (pure JavaScript, no GPU required)
  */
 
 class MLLeadScoringService {
@@ -71,17 +72,14 @@ class MLLeadScoringService {
             }
 
             // Create new neural network if no saved model
-            this.model = new brain.NeuralNetwork({
-                hiddenLayers: [32, 16, 8], // Deep architecture for complex patterns
-                activation: 'sigmoid',
-                learningRate: 0.01,
-                errorThresh: 0.005,
-                iterations: 20000,
-                log: false,
-                logPeriod: 1000
-            });
+            // Using synaptic Perceptron with architecture: 15 inputs -> 32 -> 16 -> 8 -> 1 output
+            const inputSize = this.featureConfig.features.length; // 15 features
+            this.model = new Architect.Perceptron(inputSize, 32, 16, 8, 1);
 
-            logger.info('New ML Lead Scoring model initialized');
+            // Create trainer with default options
+            this.trainer = new Trainer(this.model);
+
+            logger.info('New ML Lead Scoring model initialized with synaptic');
             return true;
         } catch (error) {
             logger.error('Error initializing ML model:', error);
@@ -363,21 +361,29 @@ class MLLeadScoringService {
             logger.info(`Training set: ${trainingData.length}, Validation set: ${validationData.length}`);
 
             // ═══════════════════════════════════════════════════════════════
-            // TRAIN NEURAL NETWORK
+            // TRAIN NEURAL NETWORK (using synaptic)
             // ═══════════════════════════════════════════════════════════════
             const startTime = Date.now();
 
-            const trainingStats = this.model.train(trainingData, {
+            // Format data for synaptic (input/output as arrays)
+            const synapticTrainingData = trainingData.map(d => ({
+                input: Object.values(d.input),
+                output: [d.output.converted]
+            }));
+
+            // Create trainer if not exists
+            if (!this.trainer) {
+                this.trainer = new Trainer(this.model);
+            }
+
+            // Train with synaptic
+            const trainingStats = this.trainer.train(synapticTrainingData, {
+                rate: options.learningRate || 0.1,
                 iterations: options.iterations || 20000,
-                errorThresh: options.errorThresh || 0.005,
-                log: true,
-                logPeriod: 1000,
-                learningRate: options.learningRate || 0.01,
-                callback: (stats) => {
-                    if (stats.iterations % 5000 === 0) {
-                        logger.info(`Training iteration ${stats.iterations}, error: ${stats.error.toFixed(4)}`);
-                    }
-                }
+                error: options.errorThresh || 0.005,
+                shuffle: true,
+                log: 1000,
+                cost: Trainer.cost.CROSS_ENTROPY
             });
 
             const trainingTime = ((Date.now() - startTime) / 1000).toFixed(2);
@@ -439,9 +445,10 @@ class MLLeadScoringService {
         let tp = 0, fp = 0, tn = 0, fn = 0;
 
         validationData.forEach(data => {
-            const prediction = this.model.run(data.input);
-            const predicted = prediction.converted >= 0.5 ? 1 : 0;
-            const actual = data.output.converted;
+            const inputArray = Array.isArray(data.input) ? data.input : Object.values(data.input);
+            const prediction = this.model.activate(inputArray);
+            const predicted = prediction[0] >= 0.5 ? 1 : 0;
+            const actual = Array.isArray(data.output) ? data.output[0] : data.output.converted;
 
             if (predicted === 1 && actual === 1) tp++;
             else if (predicted === 1 && actual === 0) fp++;
@@ -478,10 +485,13 @@ class MLLeadScoringService {
             }
 
             // Get predictions and actual outcomes
-            const predictions = validationData.map(data => ({
-                predicted: this.model.run(data.input).converted,
-                actual: data.output.converted
-            }));
+            const predictions = validationData.map(data => {
+                const inputArray = Array.isArray(data.input) ? data.input : Object.values(data.input);
+                return {
+                    predicted: this.model.activate(inputArray)[0],
+                    actual: Array.isArray(data.output) ? data.output[0] : data.output.converted
+                };
+            });
 
             // Sort by predicted probability
             predictions.sort((a, b) => a.predicted - b.predicted);
@@ -588,8 +598,10 @@ class MLLeadScoringService {
     calculateError(data) {
         let totalError = 0;
         data.forEach(item => {
-            const prediction = this.model.run(item.input);
-            const error = Math.pow(prediction.converted - item.output.converted, 2);
+            const inputArray = Array.isArray(item.input) ? item.input : Object.values(item.input);
+            const prediction = this.model.activate(inputArray);
+            const actual = Array.isArray(item.output) ? item.output[0] : item.output.converted;
+            const error = Math.pow(prediction[0] - actual, 2);
             totalError += error;
         });
         return totalError / data.length;
@@ -612,9 +624,10 @@ class MLLeadScoringService {
             // Extract features
             const features = await this.extractFeatures(leadId, firmId);
 
-            // Get raw prediction
-            const rawOutput = this.model.run(features);
-            const rawProbability = rawOutput.converted;
+            // Get raw prediction (synaptic uses activate() and returns array)
+            const featureArray = Object.values(features);
+            const rawOutput = this.model.activate(featureArray);
+            const rawProbability = rawOutput[0];
 
             // Calibrate probability
             const calibratedProbability = this.calibrateProbability(rawProbability);
@@ -687,10 +700,11 @@ class MLLeadScoringService {
             for (const [featureName, featureValue] of Object.entries(features)) {
                 // Create modified input with this feature set to baseline (0.5)
                 const modifiedInput = { ...features, [featureName]: 0.5 };
-                const modifiedOutput = this.model.run(modifiedInput);
+                const modifiedInputArray = Object.values(modifiedInput);
+                const modifiedOutput = this.model.activate(modifiedInputArray);
 
                 // Contribution is the difference
-                const contribution = (prediction.rawProbability / 100) - modifiedOutput.converted;
+                const contribution = (prediction.rawProbability / 100) - modifiedOutput[0];
                 contributions[featureName] = parseFloat((contribution * 100).toFixed(2));
             }
 
@@ -973,9 +987,9 @@ class MLLeadScoringService {
             const modelDataStr = await fs.readFile(modelPath, 'utf8');
             const modelData = JSON.parse(modelDataStr);
 
-            // Create new neural network and load weights
-            this.model = new brain.NeuralNetwork();
-            this.model.fromJSON(modelData.network);
+            // Create neural network from JSON (synaptic format)
+            this.model = Network.fromJSON(modelData.network);
+            this.trainer = new Trainer(this.model);
 
             // Restore configuration
             this.modelVersion = modelData.version;
