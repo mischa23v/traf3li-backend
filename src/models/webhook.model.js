@@ -34,7 +34,25 @@ const WEBHOOK_EVENTS = [
     'lead.created',
     'lead.updated',
     'lead.converted',
-    'lead.deleted'
+    'lead.deleted',
+
+    // Synchronous webhook events (blocking, wait for response)
+    'invoice.calculate_tax',
+    'payment.validate',
+    'shipping.calculate',
+    'discount.validate'
+];
+
+// ============ WEBHOOK TYPES ============
+const WEBHOOK_TYPES = ['async', 'sync'];
+
+// ============ SYNC WEBHOOK EVENTS ============
+// These events require synchronous processing and expect a response
+const SYNC_WEBHOOK_EVENTS = [
+    'invoice.calculate_tax',
+    'payment.validate',
+    'shipping.calculate',
+    'discount.validate'
 ];
 
 // ============ RETRY POLICY SCHEMA ============
@@ -97,6 +115,14 @@ const webhookSchema = new Schema({
         maxlength: 500
     },
 
+    // ============ WEBHOOK TYPE ============
+    type: {
+        type: String,
+        enum: WEBHOOK_TYPES,
+        default: 'async',
+        required: true
+    },
+
     // ============ EVENT SUBSCRIPTIONS ============
     events: {
         type: [String],
@@ -135,6 +161,83 @@ const webhookSchema = new Schema({
     retryPolicy: {
         type: RetryPolicySchema,
         default: () => ({})
+    },
+
+    // ============ SYNC WEBHOOK CONFIGURATION ============
+    syncConfig: {
+        // Timeout for synchronous webhooks (in milliseconds)
+        timeout: {
+            type: Number,
+            default: 20000, // 20 seconds
+            min: 1000,      // 1 second minimum
+            max: 60000      // 60 seconds maximum
+        },
+
+        // Expected response schema (JSON Schema format)
+        expectedResponseSchema: {
+            type: Schema.Types.Mixed,
+            default: null
+        },
+
+        // Fallback configuration when webhook fails or times out
+        fallback: {
+            // Fallback strategy: 'default_value', 'error', 'skip'
+            strategy: {
+                type: String,
+                enum: ['default_value', 'error', 'skip'],
+                default: 'error'
+            },
+
+            // Default value to return when strategy is 'default_value'
+            defaultValue: {
+                type: Schema.Types.Mixed,
+                default: null
+            },
+
+            // Custom error message for fallback
+            errorMessage: {
+                type: String,
+                default: null
+            },
+
+            // Custom error message in Arabic
+            errorMessageAr: {
+                type: String,
+                default: null
+            }
+        },
+
+        // Circuit breaker configuration for sync webhooks
+        circuitBreaker: {
+            enabled: {
+                type: Boolean,
+                default: true
+            },
+
+            // Number of failures before opening circuit
+            failureThreshold: {
+                type: Number,
+                default: 5,
+                min: 1,
+                max: 20
+            },
+
+            // Time window for counting failures (in milliseconds)
+            failureWindow: {
+                type: Number,
+                default: 60000, // 1 minute
+                min: 10000,     // 10 seconds
+                max: 300000     // 5 minutes
+            },
+
+            // Time to wait before attempting to close circuit (in milliseconds)
+            resetTimeout: {
+                type: Number,
+                default: 30000, // 30 seconds
+                min: 5000,      // 5 seconds
+                max: 600000     // 10 minutes
+            }
+        }
     },
 
     // ============ STATISTICS ============
