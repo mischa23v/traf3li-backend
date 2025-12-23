@@ -9,12 +9,16 @@ const express = require('express');
 const router = express.Router();
 const authenticate = require('../middlewares/authenticate');
 const { authorize } = require('../middlewares/authorize.middleware');
+const { apiRateLimiter } = require('../middlewares/rateLimiter.middleware');
 const AuditLog = require('../models/auditLog.model');
 const {
   receiveCspReport,
   getCspViolations,
   clearCspViolations
 } = require('../controllers/cspReport.controller');
+
+// Apply rate limiting to all routes
+router.use(apiRateLimiter);
 
 /**
  * POST /api/security/incidents/report

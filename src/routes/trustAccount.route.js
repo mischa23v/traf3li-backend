@@ -1,5 +1,6 @@
 const express = require('express');
 const { userMiddleware } = require('../middlewares');
+const { apiRateLimiter } = require('../middlewares/rateLimiter.middleware');
 const {
     // Trust Account
     createTrustAccount,
@@ -26,6 +27,8 @@ const {
 } = require('../controllers/trustAccount.controller');
 
 const app = express.Router();
+
+app.use(apiRateLimiter);
 
 // Trust Account CRUD
 app.get('/', userMiddleware, getTrustAccounts);

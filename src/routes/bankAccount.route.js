@@ -1,5 +1,6 @@
 const express = require('express');
 const { userMiddleware } = require('../middlewares');
+const { apiRateLimiter } = require('../middlewares/rateLimiter.middleware');
 const {
     createBankAccount,
     getBankAccounts,
@@ -14,6 +15,8 @@ const {
 } = require('../controllers/bankAccount.controller');
 
 const app = express.Router();
+
+app.use(apiRateLimiter);
 
 // Collection routes
 app.post('/', userMiddleware, createBankAccount);

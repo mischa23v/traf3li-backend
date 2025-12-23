@@ -2,10 +2,14 @@ const express = require('express');
 const router = express.Router();
 const whatsappController = require('../controllers/whatsapp.controller');
 const { userMiddleware, firmFilter } = require('../middlewares');
+const { apiRateLimiter } = require('../middlewares/rateLimiter.middleware');
 
 // ═══════════════════════════════════════════════════════════════
 // WHATSAPP ROUTES
 // ═══════════════════════════════════════════════════════════════
+
+// Apply rate limiting to all routes
+router.use(apiRateLimiter);
 
 // ───────────────────────────────────────────────────────────────
 // WEBHOOKS (Public endpoints)

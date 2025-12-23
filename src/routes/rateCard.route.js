@@ -1,5 +1,6 @@
 const express = require('express');
 const { userMiddleware } = require('../middlewares');
+const { apiRateLimiter } = require('../middlewares/rateLimiter.middleware');
 const {
     createRateCard,
     getRateCards,
@@ -15,6 +16,9 @@ const {
 } = require('../controllers/rateCard.controller');
 
 const app = express.Router();
+
+// Apply rate limiting
+app.use(apiRateLimiter);
 
 // Client/Case specific cards (must be before :id routes)
 app.get('/client/:clientId', userMiddleware, getRateCardForClient);

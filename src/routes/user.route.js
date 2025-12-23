@@ -1,6 +1,7 @@
 const express = require('express');
 const { userMiddleware } = require('../middlewares');
 const { auditAction } = require('../middlewares/auditLog.middleware');
+const { apiRateLimiter } = require('../middlewares/rateLimiter.middleware');
 const {
     getUserProfile,
     getLawyerProfile,
@@ -21,6 +22,9 @@ const {
 } = require('../controllers/firm.controller');
 
 const app = express.Router();
+
+// Apply rate limiting to all routes
+app.use(apiRateLimiter);
 
 // Get all lawyers with filters (public - no auth required)
 app.get('/lawyers', getLawyers);

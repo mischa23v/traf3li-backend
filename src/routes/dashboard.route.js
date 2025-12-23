@@ -1,6 +1,7 @@
 const express = require('express');
 const { userMiddleware, firmFilter } = require('../middlewares');
 const { cacheResponse } = require('../middlewares/cache.middleware');
+const { apiRateLimiter } = require('../middlewares/rateLimiter.middleware');
 const {
     getHeroStats,
     getDashboardStats,
@@ -17,6 +18,9 @@ const {
 } = require('../controllers/dashboard.controller');
 
 const app = express.Router();
+
+// Apply rate limiting to all dashboard routes
+app.use(apiRateLimiter);
 
 // Cache TTL: 5 minutes for dashboard endpoints
 // Dashboard data doesn't need real-time updates - saves Redis requests

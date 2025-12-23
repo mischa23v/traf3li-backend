@@ -2,10 +2,14 @@ const express = require('express');
 const router = express.Router();
 const { userMiddleware, firmFilter } = require('../middlewares');
 const { cacheResponse } = require('../middlewares/cache.middleware');
+const { apiRateLimiter } = require('../middlewares/rateLimiter.middleware');
 const kpiAnalyticsController = require('../controllers/kpiAnalytics.controller');
 
 // Cache TTL: 300 seconds (5 minutes) for analytics endpoints
 const ANALYTICS_CACHE_TTL = 300;
+
+// Apply rate limiting to all routes
+router.use(apiRateLimiter);
 
 /**
  * @openapi

@@ -1,7 +1,11 @@
 const express = require('express');
+const { apiRateLimiter } = require('../middlewares/rateLimiter.middleware');
 const { userMiddleware } = require('../middlewares');
 const { createQuestion, getQuestions, getQuestion, updateQuestion, deleteQuestion } = require('../controllers/question.controller');
 const app = express.Router();
+
+// Apply rate limiting
+app.use(apiRateLimiter);
 
 // Create question
 app.post('/', userMiddleware, createQuestion);

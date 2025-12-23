@@ -12,11 +12,15 @@ const router = express.Router();
 const auditLogService = require('../services/auditLog.service');
 const auditLogArchivingService = require('../services/auditLogArchiving.service');
 const { userMiddleware } = require('../middlewares');
+const { apiRateLimiter } = require('../middlewares/rateLimiter.middleware');
 const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
 
 // Apply authentication to all routes
 router.use(userMiddleware);
+
+// Apply rate limiting to all routes
+router.use(apiRateLimiter);
 
 // ═══════════════════════════════════════════════════════════════
 // AUDIT LOG ROUTES

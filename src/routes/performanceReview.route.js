@@ -3,6 +3,7 @@ const router = express.Router();
 const performanceReviewController = require('../controllers/performanceReview.controller');
 const { verifyToken } = require('../middlewares/jwt');
 const { attachFirmContext } = require('../middlewares/firmContext.middleware');
+const { apiRateLimiter } = require('../middlewares/rateLimiter.middleware');
 
 /**
  * Performance Review Routes
@@ -13,6 +14,7 @@ const { attachFirmContext } = require('../middlewares/firmContext.middleware');
 // Apply authentication middleware to all routes
 router.use(verifyToken);
 router.use(attachFirmContext);
+router.use(apiRateLimiter);
 
 // ═══════════════════════════════════════════════════════════════
 // STATISTICS & OVERDUE (must be before :id routes)

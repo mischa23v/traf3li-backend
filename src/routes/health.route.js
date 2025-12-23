@@ -10,6 +10,7 @@
 
 const express = require('express');
 const authenticate = require('../middlewares/authenticate');
+const { publicRateLimiter } = require('../middlewares/rateLimiter.middleware');
 const {
     performHealthCheck,
     checkDatabase,
@@ -18,6 +19,9 @@ const {
 } = require('../services/health.service');
 
 const router = express.Router();
+
+// Apply rate limiting to all health endpoints
+router.use(publicRateLimiter);
 
 /**
  * GET /health

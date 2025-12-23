@@ -1,6 +1,7 @@
 const express = require('express');
 const multer = require('multer');
 const { userMiddleware } = require('../middlewares');
+const { apiRateLimiter } = require('../middlewares/rateLimiter.middleware');
 const {
     createTransaction,
     getTransactions,
@@ -11,6 +12,9 @@ const {
 } = require('../controllers/bankTransaction.controller');
 
 const app = express.Router();
+
+// Apply rate limiting
+app.use(apiRateLimiter);
 
 // Configure multer for file uploads
 const storage = multer.memoryStorage();

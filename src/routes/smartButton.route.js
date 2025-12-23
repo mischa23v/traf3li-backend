@@ -1,12 +1,15 @@
 const express = require('express');
 const { userMiddleware, firmFilter } = require('../middlewares');
 const { cacheResponse } = require('../middlewares/cache.middleware');
+const { apiRateLimiter } = require('../middlewares/rateLimiter.middleware');
 const {
     getCounts,
     getBatchCounts
 } = require('../controllers/smartButton.controller');
 
 const app = express.Router();
+
+app.use(apiRateLimiter);
 
 // Cache TTL: 60 seconds (1 minute) for smart button counts
 // Short TTL since these are dynamic and should stay relatively fresh

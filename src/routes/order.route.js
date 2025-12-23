@@ -1,5 +1,6 @@
 const express = require('express');
 const { userMiddleware } = require('../middlewares');
+const { apiRateLimiter } = require('../middlewares/rateLimiter.middleware');
 const { 
     getOrders, 
     paymentIntent, 
@@ -10,6 +11,8 @@ const {
 } = require('../controllers/order.controller');
 
 const app = express.Router();
+
+app.use(apiRateLimiter);
 
 // Get all orders
 app.get('/', userMiddleware, getOrders);

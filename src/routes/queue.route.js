@@ -9,9 +9,13 @@ const express = require('express');
 const router = express.Router();
 const { authenticate } = require('../middlewares');
 const { requireAdmin } = require('../middlewares/authorize.middleware');
+const { apiRateLimiter } = require('../middlewares/rateLimiter.middleware');
 const asyncHandler = require('../utils/asyncHandler');
 const QueueService = require('../services/queue.service');
 const CustomException = require('../utils/CustomException');
+
+// Apply rate limiting to all queue routes
+router.use(apiRateLimiter);
 
 /**
  * @route   GET /api/queues

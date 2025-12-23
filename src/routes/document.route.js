@@ -1,6 +1,7 @@
 const express = require('express');
 const { userMiddleware } = require('../middlewares');
 const { auditAction } = require('../middlewares/auditLog.middleware');
+const { apiRateLimiter, uploadRateLimiter } = require('../middlewares/rateLimiter.middleware');
 const {
     getUploadUrl,
     confirmUpload,
@@ -25,9 +26,12 @@ const {
 
 const app = express.Router();
 
+// Apply rate limiting to all routes
+app.use(apiRateLimiter);
+
 // Upload operations
-app.post('/upload', userMiddleware, auditAction('upload_document', 'document', { severity: 'medium' }), getUploadUrl);
-app.post('/confirm', userMiddleware, auditAction('upload_document', 'document', { severity: 'medium' }), confirmUpload);
+app.post('/upload', uploadRateLimiter, userMiddleware, auditAction('upload_document', 'document', { severity: 'medium' }), getUploadUrl);
+app.post('/confirm', uploadRateLimiter, userMiddleware, auditAction('upload_document', 'document', { severity: 'medium' }), confirmUpload);
 
 // Search and stats (must be before :id routes)
 app.get('/search', userMiddleware, auditAction('search_query', 'search', { severity: 'low', skipGET: false }), searchDocuments);
@@ -53,7 +57,7 @@ app.get('/:id/download', userMiddleware, auditAction('download_document', 'docum
 
 // Version operations
 app.get('/:id/versions', userMiddleware, getVersionHistory);
-app.post('/:id/versions', userMiddleware, auditAction('upload_document_version', 'document', { severity: 'medium' }), uploadVersion);
+app.post('/:id/versions', uploadRateLimiter, userMiddleware, auditAction('upload_document_version', 'document', { severity: 'medium' }), uploadVersion);
 app.post('/:id/versions/:versionId/restore', userMiddleware, auditAction('restore_document_version', 'document', { severity: 'high', captureChanges: true }), restoreVersion);
 
 // Share operations

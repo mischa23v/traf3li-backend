@@ -1,4 +1,5 @@
 const express = require('express');
+const { apiRateLimiter } = require('../middlewares/rateLimiter.middleware');
 const { userMiddleware } = require('../middlewares');
 const {
     getRecurringTransactions,
@@ -14,6 +15,8 @@ const {
 } = require('../controllers/recurringTransaction.controller');
 
 const app = express.Router();
+
+app.use(apiRateLimiter);
 
 // List and search
 app.get('/', userMiddleware, getRecurringTransactions);

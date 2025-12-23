@@ -2,10 +2,14 @@ const express = require('express');
 const router = express.Router();
 const leadScoringController = require('../controllers/leadScoring.controller');
 const { userMiddleware, firmFilter, firmAdminOnly } = require('../middlewares');
+const { apiRateLimiter } = require('../middlewares/rateLimiter.middleware');
 
 // ═══════════════════════════════════════════════════════════════
 // LEAD SCORING ROUTES
 // ═══════════════════════════════════════════════════════════════
+
+// Apply rate limiting to all routes
+router.use(apiRateLimiter);
 
 // All routes require authentication and firm context
 router.use(userMiddleware, firmFilter);

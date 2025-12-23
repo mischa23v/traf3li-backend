@@ -10,6 +10,7 @@
 
 const express = require('express');
 const authenticate = require('../middlewares/authenticate');
+const { apiRateLimiter } = require('../middlewares/rateLimiter.middleware');
 const {
     checkDatabase,
     checkRedis,
@@ -20,6 +21,9 @@ const { getMetrics: getPerformanceMetrics, THRESHOLDS } = require('../middleware
 const os = require('os');
 
 const router = express.Router();
+
+// Apply rate limiting
+router.use(apiRateLimiter);
 
 // Metrics storage (in-memory)
 // In production, consider using a proper metrics library like prom-client

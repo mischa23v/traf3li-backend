@@ -17,6 +17,7 @@
 
 const express = require('express');
 const { userMiddleware, firmFilter } = require('../middlewares');
+const { apiRateLimiter } = require('../middlewares/rateLimiter.middleware');
 const {
     // CRUD
     createContract,
@@ -65,6 +66,9 @@ const {
 } = require('../controllers/legalContract.controller');
 
 const router = express.Router();
+
+// Apply rate limiting
+router.use(apiRateLimiter);
 
 // ============================================
 // REPORTING & SEARCH (before :contractId routes)

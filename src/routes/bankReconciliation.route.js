@@ -1,6 +1,7 @@
 const express = require('express');
 const multer = require('multer');
 const { userMiddleware } = require('../middlewares');
+const { apiRateLimiter } = require('../middlewares/rateLimiter.middleware');
 const {
     createReconciliation,
     getReconciliations,
@@ -52,6 +53,9 @@ const upload = multer({
         fileSize: 5 * 1024 * 1024 // 5MB limit
     }
 });
+
+// Apply rate limiting
+app.use(apiRateLimiter);
 
 // ============ BANK FEEDS ROUTES ============
 app.get('/feeds', userMiddleware, getBankFeeds);

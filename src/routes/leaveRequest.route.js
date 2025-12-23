@@ -24,6 +24,7 @@ const {
 } = require('../controllers/leaveRequest.controller');
 const { verifyToken } = require('../middlewares/jwt');
 const { attachFirmContext } = require('../middlewares/firmContext.middleware');
+const { apiRateLimiter } = require('../middlewares/rateLimiter.middleware');
 const {
     validateCreateLeaveRequest,
     validateUpdateLeaveRequest,
@@ -36,6 +37,7 @@ const {
 // All routes require authentication
 router.use(verifyToken);
 router.use(attachFirmContext);
+router.use(apiRateLimiter);
 
 // Static routes (must be before /:id to avoid conflict)
 router.get('/types', getLeaveTypes);

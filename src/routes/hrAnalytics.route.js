@@ -3,6 +3,7 @@ const router = express.Router();
 const HRAnalyticsController = require('../controllers/hrAnalytics.controller');
 const { userMiddleware, firmFilter } = require('../middlewares');
 const { authorize } = require('../middlewares/authorize.middleware');
+const { apiRateLimiter } = require('../middlewares/rateLimiter.middleware');
 
 /**
  * HR Analytics & Predictions Routes
@@ -11,6 +12,9 @@ const { authorize } = require('../middlewares/authorize.middleware');
 
 // Apply authentication middleware to all routes (checks both cookies AND Authorization header)
 router.use(userMiddleware);
+
+// Apply rate limiting to prevent abuse
+router.use(apiRateLimiter);
 
 // Apply firm filter middleware to set req.firmId (same as finance/invoice routes)
 router.use(firmFilter);

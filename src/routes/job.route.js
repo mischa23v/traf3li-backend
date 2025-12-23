@@ -1,15 +1,19 @@
 const express = require('express');
+const { apiRateLimiter } = require('../middlewares/rateLimiter.middleware');
 const { userMiddleware } = require('../middlewares');
-const { 
-    createJob, 
-    getJobs, 
-    getJob, 
-    updateJob, 
+const {
+    createJob,
+    getJobs,
+    getJob,
+    updateJob,
     deleteJob,
     getMyJobs
 } = require('../controllers/job.controller');
 
 const app = express.Router();
+
+// Apply rate limiting
+app.use(apiRateLimiter);
 
 // Create job
 app.post('/', userMiddleware, createJob);

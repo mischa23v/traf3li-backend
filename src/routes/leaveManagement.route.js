@@ -9,6 +9,7 @@ const express = require('express');
 const router = express.Router();
 const { verifyToken } = require('../middlewares/jwt');
 const { attachFirmContext } = require('../middlewares/firmContext.middleware');
+const { apiRateLimiter } = require('../middlewares/rateLimiter.middleware');
 const LeavePeriod = require('../models/leavePeriod.model');
 const LeavePolicy = require('../models/leavePolicy.model');
 const LeaveAllocation = require('../models/leaveAllocation.model');
@@ -18,6 +19,7 @@ const Employee = require('../models/employee.model');
 // Apply authentication to all routes
 router.use(verifyToken);
 router.use(attachFirmContext);
+router.use(apiRateLimiter);
 
 // ==================== LEAVE PERIODS ====================
 
