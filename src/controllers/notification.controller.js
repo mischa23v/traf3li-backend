@@ -428,12 +428,299 @@ const createBulkNotifications = async (notifications) => {
     }
 };
 
+// Get single notification by ID
+const getNotification = async (request, response) => {
+    try {
+        const { id } = request.params;
+
+        // Input validation
+        if (!request.userID) {
+            throw CustomException('Unauthorized', 401);
+        }
+
+        if (!id) {
+            throw CustomException('Notification ID is required', 400);
+        }
+
+        // Sanitize ID to prevent injection
+        const sanitizedId = sanitizeObjectId(id);
+        if (!sanitizedId) {
+            throw CustomException('Invalid notification ID', 400);
+        }
+
+        // IDOR Protection: Only allow user to access their own notifications
+        const notification = await Notification.findOne({
+            _id: sanitizedId,
+            userId: sanitizeObjectId(request.userID)
+        }).lean();
+
+        if (!notification) {
+            throw CustomException('Notification not found | الإشعار غير موجود', 404);
+        }
+
+        return response.status(200).json({
+            success: true,
+            data: notification
+        });
+    } catch ({ message, status = 500 }) {
+        return response.status(status).json({
+            success: false,
+            error: { message }
+        });
+    }
+};
+
+// Mark multiple notifications as read
+const markMultipleAsRead = async (request, response) => {
+    try {
+        const { ids } = request.body;
+
+        // Input validation
+        if (!request.userID) {
+            throw CustomException('Unauthorized', 401);
+        }
+
+        if (!ids || !Array.isArray(ids) || ids.length === 0) {
+            throw CustomException('IDs array is required | قائمة المعرفات مطلوبة', 400);
+        }
+
+        // Limit bulk operations to prevent abuse
+        if (ids.length > 100) {
+            throw CustomException('Cannot process more than 100 notifications at once', 400);
+        }
+
+        // Sanitize all IDs
+        const sanitizedIds = ids.map(id => sanitizeObjectId(id)).filter(Boolean);
+        if (sanitizedIds.length === 0) {
+            throw CustomException('No valid IDs provided', 400);
+        }
+
+        // IDOR Protection: Only update notifications for authenticated user
+        const result = await Notification.updateMany(
+            {
+                _id: { $in: sanitizedIds },
+                userId: sanitizeObjectId(request.userID),
+                read: false
+            },
+            { $set: { read: true, readAt: new Date() } }
+        );
+
+        // Get updated unread count
+        const unreadCount = await Notification.countDocuments({
+            userId: request.userID,
+            read: false
+        });
+
+        // Emit updated count via Socket.io
+        emitNotificationCount(request.userID, unreadCount);
+
+        return response.status(200).json({
+            success: true,
+            message: `${result.modifiedCount} notification(s) marked as read | تم تحديد ${result.modifiedCount} إشعار(ات) كمقروءة`,
+            modifiedCount: result.modifiedCount,
+            unreadCount
+        });
+    } catch ({ message, status = 500 }) {
+        return response.status(status).json({
+            success: false,
+            error: { message }
+        });
+    }
+};
+
+// Bulk delete notifications
+const bulkDeleteNotifications = async (request, response) => {
+    try {
+        const { ids } = request.body;
+
+        // Input validation
+        if (!request.userID) {
+            throw CustomException('Unauthorized', 401);
+        }
+
+        if (!ids || !Array.isArray(ids) || ids.length === 0) {
+            throw CustomException('IDs array is required | قائمة المعرفات مطلوبة', 400);
+        }
+
+        // Limit bulk operations to prevent abuse
+        if (ids.length > 100) {
+            throw CustomException('Cannot delete more than 100 notifications at once', 400);
+        }
+
+        // Sanitize all IDs
+        const sanitizedIds = ids.map(id => sanitizeObjectId(id)).filter(Boolean);
+        if (sanitizedIds.length === 0) {
+            throw CustomException('No valid IDs provided', 400);
+        }
+
+        // IDOR Protection: Only delete notifications for authenticated user
+        const result = await Notification.deleteMany({
+            _id: { $in: sanitizedIds },
+            userId: sanitizeObjectId(request.userID)
+        });
+
+        // Get updated unread count
+        const unreadCount = await Notification.countDocuments({
+            userId: request.userID,
+            read: false
+        });
+
+        // Emit updated count via Socket.io
+        emitNotificationCount(request.userID, unreadCount);
+
+        return response.status(200).json({
+            success: true,
+            message: `${result.deletedCount} notification(s) deleted | تم حذف ${result.deletedCount} إشعار(ات)`,
+            deletedCount: result.deletedCount,
+            unreadCount
+        });
+    } catch ({ message, status = 500 }) {
+        return response.status(status).json({
+            success: false,
+            error: { message }
+        });
+    }
+};
+
+// Clear all read notifications
+const clearReadNotifications = async (request, response) => {
+    try {
+        // Input validation
+        if (!request.userID) {
+            throw CustomException('Unauthorized', 401);
+        }
+
+        // IDOR Protection: Only delete notifications for authenticated user
+        const result = await Notification.deleteMany({
+            userId: sanitizeObjectId(request.userID),
+            read: true
+        });
+
+        return response.status(200).json({
+            success: true,
+            message: `${result.deletedCount} read notification(s) cleared | تم مسح ${result.deletedCount} إشعار(ات) مقروءة`,
+            deletedCount: result.deletedCount
+        });
+    } catch ({ message, status = 500 }) {
+        return response.status(status).json({
+            success: false,
+            error: { message }
+        });
+    }
+};
+
+// Get notifications by type
+const getNotificationsByType = async (request, response) => {
+    try {
+        const { type } = request.params;
+        const { read, page = 1, limit = 50 } = request.query;
+
+        // Input validation
+        if (!request.userID) {
+            throw CustomException('Unauthorized', 401);
+        }
+
+        // Validate type against allowed enum values
+        const allowedTypes = [
+            'order', 'proposal', 'proposal_accepted', 'task', 'task_assigned',
+            'message', 'chatter', 'hearing', 'hearing_reminder', 'deadline',
+            'case', 'case_update', 'event', 'review', 'payment', 'invoice',
+            'invoice_approval_required', 'invoice_approved', 'invoice_rejected',
+            'time_entry_submitted', 'time_entry_approved', 'time_entry_rejected',
+            'expense_submitted', 'expense_approved', 'expense_rejected',
+            'recurring_invoice', 'credit_note', 'debit_note', 'system', 'reminder', 'alert'
+        ];
+
+        if (!allowedTypes.includes(type)) {
+            throw CustomException('Invalid notification type | نوع الإشعار غير صالح', 400);
+        }
+
+        // Validate pagination parameters
+        const pageNum = Math.max(1, parseInt(page) || 1);
+        const limitNum = Math.min(100, Math.max(1, parseInt(limit) || 50));
+
+        // Build query
+        const query = {
+            userId: sanitizeObjectId(request.userID),
+            type
+        };
+
+        if (read !== undefined) {
+            query.read = read === 'true';
+        }
+
+        const notifications = await Notification.find(query)
+            .sort({ read: 1, createdAt: -1 })
+            .limit(limitNum)
+            .skip((pageNum - 1) * limitNum)
+            .lean();
+
+        const total = await Notification.countDocuments(query);
+
+        return response.status(200).json({
+            success: true,
+            data: notifications,
+            pagination: {
+                page: pageNum,
+                limit: limitNum,
+                total,
+                pages: Math.ceil(total / limitNum)
+            }
+        });
+    } catch ({ message, status = 500 }) {
+        return response.status(status).json({
+            success: false,
+            error: { message }
+        });
+    }
+};
+
+// Create notification (admin endpoint)
+const createNotificationEndpoint = async (request, response) => {
+    try {
+        // Input validation
+        if (!request.userID) {
+            throw CustomException('Unauthorized', 401);
+        }
+
+        // Get notification data from request body
+        const notificationData = {
+            ...request.body,
+            firmId: request.firmId
+        };
+
+        // Use the helper function to create the notification
+        const notification = await createNotification(notificationData);
+
+        if (!notification) {
+            throw CustomException('Failed to create notification | فشل في إنشاء الإشعار', 500);
+        }
+
+        return response.status(201).json({
+            success: true,
+            message: 'Notification created successfully | تم إنشاء الإشعار بنجاح',
+            data: notification
+        });
+    } catch ({ message, status = 500 }) {
+        return response.status(status).json({
+            success: false,
+            error: { message }
+        });
+    }
+};
+
 module.exports = {
     getNotifications,
+    getNotification,
     markAsRead,
     markAllAsRead,
+    markMultipleAsRead,
     deleteNotification,
+    bulkDeleteNotifications,
+    clearReadNotifications,
+    getNotificationsByType,
     getUnreadCount,
     createNotification,
+    createNotificationEndpoint,
     createBulkNotifications
 };

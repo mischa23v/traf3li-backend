@@ -19,7 +19,12 @@ const {
     deleteAction,
     toggleActive,
     testAction,
-    getActionLogs
+    duplicateAction,
+    getActionLogs,
+    getAllLogs,
+    bulkEnable,
+    bulkDisable,
+    bulkDelete
 } = require('../controllers/automatedAction.controller');
 
 const router = express.Router();
@@ -37,6 +42,25 @@ router.get('/models', getAvailableModels);
 
 // Get fields for a specific model
 router.get('/models/:modelName/fields', getModelFields);
+
+// Get all logs (across all actions)
+// GET /api/automated-actions/logs
+router.get('/logs', getAllLogs);
+
+// ============ BULK OPERATIONS ============
+// Must come before /:id routes
+
+// Bulk enable actions
+// POST /api/automated-actions/bulk/enable
+router.post('/bulk/enable', firmAdminOnly, bulkEnable);
+
+// Bulk disable actions
+// POST /api/automated-actions/bulk/disable
+router.post('/bulk/disable', firmAdminOnly, bulkDisable);
+
+// Bulk delete actions
+// DELETE /api/automated-actions/bulk
+router.delete('/bulk', firmAdminOnly, bulkDelete);
 
 // ============ CRUD OPERATIONS ============
 
@@ -65,5 +89,9 @@ router.post('/:id/test', testAction);
 
 // Get action execution logs
 router.get('/:id/logs', getActionLogs);
+
+// Duplicate action
+// POST /api/automated-actions/:id/duplicate
+router.post('/:id/duplicate', firmAdminOnly, duplicateAction);
 
 module.exports = router;
