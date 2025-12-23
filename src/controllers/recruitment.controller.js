@@ -1,5 +1,6 @@
 const { JobPosting, Applicant } = require('../models');
 const mongoose = require('mongoose');
+const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 
 /**
  * Recruitment Controller
@@ -89,9 +90,9 @@ exports.getJobPostingById = async (req, res) => {
         const lawyerId = req.userID || req.userId;
         const { id } = req.params;
 
-        // Build query based on firmId (firm) or lawyerId (solo lawyer)
+        // IDOR protection: Build query based on firmId (firm) or lawyerId (solo lawyer)
         const baseQuery = firmId ? { firmId } : { lawyerId };
-        const job = await JobPosting.findOne({ _id: id, ...baseQuery })
+        const job = await JobPosting.findOne({ _id: sanitizeObjectId(id), ...baseQuery })
             .populate('departmentId', 'name nameAr')
             .populate('recruitmentTeam.hiringManager.userId', 'name email')
             .populate('recruitmentTeam.recruiter.userId', 'name email')
@@ -119,14 +120,27 @@ exports.createJobPosting = async (req, res) => {
         const userId = req.userID || req.userId;
         const userName = req.user?.name;
 
+        // Mass assignment protection
+        const allowedFields = [
+            'title', 'titleAr', 'description', 'descriptionAr', 'requirements', 'requirementsAr',
+            'responsibilities', 'responsibilitiesAr', 'qualifications', 'qualificationsAr',
+            'benefits', 'benefitsAr', 'departmentId', 'category', 'employmentType', 'positionLevel',
+            'openings', 'location', 'locationAr', 'salaryRange', 'priority', 'urgency',
+            'applicationDeadline', 'expectedStartDate', 'workSchedule', 'remotePolicy',
+            'requiredSkills', 'preferredSkills', 'requiredCertifications', 'requiredLanguages',
+            'educationRequirements', 'experienceRequirements', 'recruitmentTeam', 'approvers',
+            'status', 'approvalStatus', 'isPublic', 'isFeatured', 'tags', 'customFields'
+        ];
+        const sanitizedData = pickAllowedFields(req.body, allowedFields);
+
         const jobData = {
-            ...req.body,
+            ...sanitizedData,
             firmId, // From middleware (null for solo lawyers)
             lawyerId, // From middleware
             createdBy: userId,
             updatedBy: userId,
             statusHistory: [{
-                status: req.body.status || 'draft',
+                status: sanitizedData.status || 'draft',
                 changedBy: userId,
                 changedByName: userName,
                 reason: 'Job posting created'
@@ -158,11 +172,24 @@ exports.updateJobPosting = async (req, res) => {
         const userId = req.userID || req.userId;
         const { id } = req.params;
 
-        // Build query based on firmId (firm) or lawyerId (solo lawyer)
+        // Mass assignment protection
+        const allowedFields = [
+            'title', 'titleAr', 'description', 'descriptionAr', 'requirements', 'requirementsAr',
+            'responsibilities', 'responsibilitiesAr', 'qualifications', 'qualificationsAr',
+            'benefits', 'benefitsAr', 'departmentId', 'category', 'employmentType', 'positionLevel',
+            'openings', 'location', 'locationAr', 'salaryRange', 'priority', 'urgency',
+            'applicationDeadline', 'expectedStartDate', 'workSchedule', 'remotePolicy',
+            'requiredSkills', 'preferredSkills', 'requiredCertifications', 'requiredLanguages',
+            'educationRequirements', 'experienceRequirements', 'recruitmentTeam', 'approvers',
+            'status', 'approvalStatus', 'isPublic', 'isFeatured', 'tags', 'customFields', 'filled', 'remaining'
+        ];
+        const sanitizedData = pickAllowedFields(req.body, allowedFields);
+
+        // IDOR protection: Build query based on firmId (firm) or lawyerId (solo lawyer)
         const baseQuery = firmId ? { firmId } : { lawyerId };
         const job = await JobPosting.findOneAndUpdate(
-            { _id: id, ...baseQuery },
-            { ...req.body, updatedBy: userId, updatedAt: new Date() },
+            { _id: sanitizeObjectId(id), ...baseQuery },
+            { ...sanitizedData, updatedBy: userId, updatedAt: new Date() },
             { new: true, runValidators: true }
         );
 
@@ -191,13 +218,13 @@ exports.deleteJobPosting = async (req, res) => {
         const lawyerId = req.userID || req.userId;
         const { id } = req.params;
 
-        // Build query based on firmId (firm) or lawyerId (solo lawyer)
+        // IDOR protection: Build query based on firmId (firm) or lawyerId (solo lawyer)
         const baseQuery = firmId ? { firmId } : { lawyerId };
 
         // Check if there are any applicants
         const applicantCount = await Applicant.countDocuments({
             ...baseQuery,
-            'applications.jobPostingId': id
+            'applications.jobPostingId': sanitizeObjectId(id)
         });
 
         if (applicantCount > 0) {
@@ -207,7 +234,7 @@ exports.deleteJobPosting = async (req, res) => {
             });
         }
 
-        const job = await JobPosting.findOneAndDelete({ _id: id, ...baseQuery });
+        const job = await JobPosting.findOneAndDelete({ _id: sanitizeObjectId(id), ...baseQuery });
 
         if (!job) {
             return res.status(404).json({ success: false, message: 'Job posting not found' });
@@ -236,9 +263,9 @@ exports.changeJobStatus = async (req, res) => {
         const { id } = req.params;
         const { status, reason } = req.body;
 
-        // Build query based on firmId (firm) or lawyerId (solo lawyer)
+        // IDOR protection: Build query based on firmId (firm) or lawyerId (solo lawyer)
         const baseQuery = firmId ? { firmId } : { lawyerId };
-        const job = await JobPosting.findOne({ _id: id, ...baseQuery });
+        const job = await JobPosting.findOne({ _id: sanitizeObjectId(id), ...baseQuery });
 
         if (!job) {
             return res.status(404).json({ success: false, message: 'Job posting not found' });
@@ -270,9 +297,9 @@ exports.publishJob = async (req, res) => {
         const { id } = req.params;
         const { channels } = req.body;
 
-        // Build query based on firmId (firm) or lawyerId (solo lawyer)
+        // IDOR protection: Build query based on firmId (firm) or lawyerId (solo lawyer)
         const baseQuery = firmId ? { firmId } : { lawyerId };
-        const job = await JobPosting.findOne({ _id: id, ...baseQuery });
+        const job = await JobPosting.findOne({ _id: sanitizeObjectId(id), ...baseQuery });
 
         if (!job) {
             return res.status(404).json({ success: false, message: 'Job posting not found' });
@@ -313,9 +340,9 @@ exports.cloneJob = async (req, res) => {
         const userId = req.userID || req.userId;
         const { id } = req.params;
 
-        // Build query based on firmId (firm) or lawyerId (solo lawyer)
+        // IDOR protection: Build query based on firmId (firm) or lawyerId (solo lawyer)
         const baseQuery = firmId ? { firmId } : { lawyerId };
-        const originalJob = await JobPosting.findOne({ _id: id, ...baseQuery });
+        const originalJob = await JobPosting.findOne({ _id: sanitizeObjectId(id), ...baseQuery });
 
         if (!originalJob) {
             return res.status(404).json({ success: false, message: 'Job posting not found' });
@@ -531,9 +558,9 @@ exports.getApplicantById = async (req, res) => {
         const lawyerId = req.userID || req.userId;
         const { id } = req.params;
 
-        // Build query based on firmId (firm) or lawyerId (solo lawyer)
+        // IDOR protection: Build query based on firmId (firm) or lawyerId (solo lawyer)
         const baseQuery = firmId ? { firmId } : { lawyerId };
-        const applicant = await Applicant.findOne({ _id: id, ...baseQuery })
+        const applicant = await Applicant.findOne({ _id: sanitizeObjectId(id), ...baseQuery })
             .populate('applications.jobPostingId', 'title titleAr jobId status')
             .populate('interviews.interviewers.userId', 'name email')
             .populate('notes.createdBy', 'name')
@@ -607,9 +634,52 @@ exports.createApplicant = async (req, res) => {
             });
         }
 
-        // Create new applicant
+        // Mass assignment protection - Create new applicant
+        const allowedFields = [
+            'fullName', 'fullNameAr', 'email', 'phone', 'alternatePhone', 'dateOfBirth',
+            'gender', 'nationality', 'nationalId', 'passportNumber', 'maritalStatus',
+            'address', 'city', 'country', 'linkedinProfile', 'portfolioUrl', 'website',
+            'currentJobTitle', 'currentEmployer', 'currentSalary', 'expectedSalary', 'noticePeriod',
+            'totalYearsExperience', 'skills', 'languages', 'education', 'workExperience',
+            'certifications', 'resume', 'resumeUrl', 'coverLetter', 'profilePhoto',
+            'availability', 'willingToRelocate', 'preferredWorkLocation', 'preferredWorkType',
+            'tags', 'talentPool', 'source', 'referredBy', 'notes', 'consent',
+            'jobPostingId', 'customFields'
+        ];
+        const sanitizedData = pickAllowedFields(req.body, allowedFields);
+
+        // Input validation for critical fields
+        if (!sanitizedData.fullName || !sanitizedData.email) {
+            return res.status(400).json({
+                success: false,
+                message: 'Full name and email are required'
+            });
+        }
+
+        // Email validation
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(sanitizedData.email)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid email format'
+            });
+        }
+
+        // Sanitize resume/document fields if present
+        if (sanitizedData.resumeUrl) {
+            // Basic URL validation
+            try {
+                new URL(sanitizedData.resumeUrl);
+            } catch (e) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Invalid resume URL format'
+                });
+            }
+        }
+
         const applicantData = {
-            ...req.body,
+            ...sanitizedData,
             firmId, // From middleware (null for solo lawyers)
             lawyerId, // From middleware
             createdBy: userId,
@@ -623,17 +693,17 @@ exports.createApplicant = async (req, res) => {
         };
 
         // If applying to a job
-        if (req.body.jobPostingId) {
-            const jobPosting = await JobPosting.findById(req.body.jobPostingId);
+        if (sanitizedData.jobPostingId) {
+            const jobPosting = await JobPosting.findById(sanitizeObjectId(sanitizedData.jobPostingId));
             if (!jobPosting) {
                 return res.status(404).json({ success: false, message: 'Job posting not found' });
             }
 
             applicantData.applications = [{
-                jobPostingId: req.body.jobPostingId,
+                jobPostingId: sanitizedData.jobPostingId,
                 jobTitle: jobPosting.title,
-                source: req.body.source || 'direct',
-                coverLetter: req.body.coverLetter,
+                source: sanitizedData.source || 'direct',
+                coverLetter: sanitizedData.coverLetter,
                 currentStage: 'applied',
                 status: 'active',
                 stageHistory: [{
@@ -641,7 +711,7 @@ exports.createApplicant = async (req, res) => {
                     enteredAt: new Date()
                 }]
             }];
-            applicantData.primaryApplication = req.body.jobPostingId;
+            applicantData.primaryApplication = sanitizedData.jobPostingId;
 
             // Update job statistics
             await jobPosting.updateStatistics('totalApplications');
@@ -674,11 +744,47 @@ exports.updateApplicant = async (req, res) => {
         const userName = req.user?.name;
         const { id } = req.params;
 
-        // Build query based on firmId (firm) or lawyerId (solo lawyer)
+        // Mass assignment protection
+        const allowedFields = [
+            'fullName', 'fullNameAr', 'email', 'phone', 'alternatePhone', 'dateOfBirth',
+            'gender', 'nationality', 'nationalId', 'passportNumber', 'maritalStatus',
+            'address', 'city', 'country', 'linkedinProfile', 'portfolioUrl', 'website',
+            'currentJobTitle', 'currentEmployer', 'currentSalary', 'expectedSalary', 'noticePeriod',
+            'totalYearsExperience', 'skills', 'languages', 'education', 'workExperience',
+            'certifications', 'resume', 'resumeUrl', 'coverLetter', 'profilePhoto',
+            'availability', 'willingToRelocate', 'preferredWorkLocation', 'preferredWorkType',
+            'tags', 'talentPool', 'overallRating', 'customFields'
+        ];
+        const sanitizedData = pickAllowedFields(req.body, allowedFields);
+
+        // Input validation for email if provided
+        if (sanitizedData.email) {
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!emailRegex.test(sanitizedData.email)) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Invalid email format'
+                });
+            }
+        }
+
+        // Sanitize resume/document fields if present
+        if (sanitizedData.resumeUrl) {
+            try {
+                new URL(sanitizedData.resumeUrl);
+            } catch (e) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Invalid resume URL format'
+                });
+            }
+        }
+
+        // IDOR protection: Build query based on firmId (firm) or lawyerId (solo lawyer)
         const baseQuery = firmId ? { firmId } : { lawyerId };
         const applicant = await Applicant.findOneAndUpdate(
-            { _id: id, ...baseQuery },
-            { ...req.body, updatedBy: userId, updatedAt: new Date() },
+            { _id: sanitizeObjectId(id), ...baseQuery },
+            { ...sanitizedData, updatedBy: userId, updatedAt: new Date() },
             { new: true, runValidators: true }
         );
 
@@ -715,9 +821,9 @@ exports.deleteApplicant = async (req, res) => {
         const lawyerId = req.userID || req.userId;
         const { id } = req.params;
 
-        // Build query based on firmId (firm) or lawyerId (solo lawyer)
+        // IDOR protection: Build query based on firmId (firm) or lawyerId (solo lawyer)
         const baseQuery = firmId ? { firmId } : { lawyerId };
-        const applicant = await Applicant.findOneAndDelete({ _id: id, ...baseQuery });
+        const applicant = await Applicant.findOneAndDelete({ _id: sanitizeObjectId(id), ...baseQuery });
 
         if (!applicant) {
             return res.status(404).json({ success: false, message: 'Applicant not found' });
@@ -746,9 +852,9 @@ exports.updateApplicantStage = async (req, res) => {
         const { id } = req.params;
         const { jobPostingId, stage, outcome, notes } = req.body;
 
-        // Build query based on firmId (firm) or lawyerId (solo lawyer)
+        // IDOR protection: Build query based on firmId (firm) or lawyerId (solo lawyer)
         const baseQuery = firmId ? { firmId } : { lawyerId };
-        const applicant = await Applicant.findOne({ _id: id, ...baseQuery });
+        const applicant = await Applicant.findOne({ _id: sanitizeObjectId(id), ...baseQuery });
 
         if (!applicant) {
             return res.status(404).json({ success: false, message: 'Applicant not found' });
@@ -809,9 +915,9 @@ exports.rejectApplicant = async (req, res) => {
         const { id } = req.params;
         const { jobPostingId, reason, sendEmail = false } = req.body;
 
-        // Build query based on firmId (firm) or lawyerId (solo lawyer)
+        // IDOR protection: Build query based on firmId (firm) or lawyerId (solo lawyer)
         const baseQuery = firmId ? { firmId } : { lawyerId };
-        const applicant = await Applicant.findOne({ _id: id, ...baseQuery });
+        const applicant = await Applicant.findOne({ _id: sanitizeObjectId(id), ...baseQuery });
 
         if (!applicant) {
             return res.status(404).json({ success: false, message: 'Applicant not found' });
@@ -931,23 +1037,39 @@ exports.scheduleInterview = async (req, res) => {
         const userName = req.user?.name;
         const { id } = req.params;
 
-        // Build query based on firmId (firm) or lawyerId (solo lawyer)
+        // Mass assignment protection
+        const allowedFields = [
+            'jobPostingId', 'interviewType', 'scheduledDate', 'duration', 'location',
+            'locationAr', 'interviewMode', 'meetingLink', 'interviewers', 'notes',
+            'jobRelated', 'stage', 'customFields'
+        ];
+        const sanitizedData = pickAllowedFields(req.body, allowedFields);
+
+        // Input validation
+        if (!sanitizedData.scheduledDate || !sanitizedData.interviewType) {
+            return res.status(400).json({
+                success: false,
+                message: 'Scheduled date and interview type are required'
+            });
+        }
+
+        // IDOR protection: Build query based on firmId (firm) or lawyerId (solo lawyer)
         const baseQuery = firmId ? { firmId } : { lawyerId };
-        const applicant = await Applicant.findOne({ _id: id, ...baseQuery });
+        const applicant = await Applicant.findOne({ _id: sanitizeObjectId(id), ...baseQuery });
 
         if (!applicant) {
             return res.status(404).json({ success: false, message: 'Applicant not found' });
         }
 
-        await applicant.scheduleInterview(req.body);
+        await applicant.scheduleInterview(sanitizedData);
 
         // Add activity
         await applicant.addActivity(
             'interview_scheduled',
-            `Interview scheduled for ${new Date(req.body.scheduledDate).toLocaleDateString()}`,
+            `Interview scheduled for ${new Date(sanitizedData.scheduledDate).toLocaleDateString()}`,
             userId,
             userName,
-            { interviewType: req.body.interviewType, scheduledDate: req.body.scheduledDate }
+            { interviewType: sanitizedData.interviewType, scheduledDate: sanitizedData.scheduledDate }
         );
 
         res.status(201).json({
@@ -972,20 +1094,27 @@ exports.updateInterview = async (req, res) => {
         const userId = req.userID || req.userId;
         const { id, interviewId } = req.params;
 
-        // Build query based on firmId (firm) or lawyerId (solo lawyer)
+        // Mass assignment protection
+        const allowedFields = [
+            'scheduledDate', 'duration', 'location', 'locationAr', 'interviewMode',
+            'meetingLink', 'interviewers', 'status', 'notes', 'customFields'
+        ];
+        const sanitizedData = pickAllowedFields(req.body, allowedFields);
+
+        // IDOR protection: Build query based on firmId (firm) or lawyerId (solo lawyer)
         const baseQuery = firmId ? { firmId } : { lawyerId };
-        const applicant = await Applicant.findOne({ _id: id, ...baseQuery });
+        const applicant = await Applicant.findOne({ _id: sanitizeObjectId(id), ...baseQuery });
 
         if (!applicant) {
             return res.status(404).json({ success: false, message: 'Applicant not found' });
         }
 
-        const interview = applicant.interviews.id(interviewId);
+        const interview = applicant.interviews.id(sanitizeObjectId(interviewId));
         if (!interview) {
             return res.status(404).json({ success: false, message: 'Interview not found' });
         }
 
-        Object.assign(interview, req.body);
+        Object.assign(interview, sanitizedData);
         applicant.updatedBy = userId;
         await applicant.save();
 
@@ -1012,15 +1141,33 @@ exports.submitInterviewFeedback = async (req, res) => {
         const userName = req.user?.name;
         const { id, interviewId } = req.params;
 
-        // Build query based on firmId (firm) or lawyerId (solo lawyer)
+        // Mass assignment protection
+        const allowedFields = [
+            'overallRating', 'technicalSkills', 'communicationSkills', 'cultureFit',
+            'strengths', 'weaknesses', 'recommendation', 'comments', 'detailedScores', 'customFields'
+        ];
+        const sanitizedData = pickAllowedFields(req.body, allowedFields);
+
+        // Input validation
+        if (sanitizedData.overallRating !== undefined) {
+            const rating = Number(sanitizedData.overallRating);
+            if (isNaN(rating) || rating < 0 || rating > 10) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Overall rating must be between 0 and 10'
+                });
+            }
+        }
+
+        // IDOR protection: Build query based on firmId (firm) or lawyerId (solo lawyer)
         const baseQuery = firmId ? { firmId } : { lawyerId };
-        const applicant = await Applicant.findOne({ _id: id, ...baseQuery });
+        const applicant = await Applicant.findOne({ _id: sanitizeObjectId(id), ...baseQuery });
 
         if (!applicant) {
             return res.status(404).json({ success: false, message: 'Applicant not found' });
         }
 
-        const interview = applicant.interviews.id(interviewId);
+        const interview = applicant.interviews.id(sanitizeObjectId(interviewId));
         if (!interview) {
             return res.status(404).json({ success: false, message: 'Interview not found' });
         }
@@ -1032,12 +1179,12 @@ exports.submitInterviewFeedback = async (req, res) => {
 
         if (existingFeedback) {
             Object.assign(existingFeedback, {
-                ...req.body,
+                ...sanitizedData,
                 submittedAt: new Date()
             });
         } else {
             interview.feedback.push({
-                ...req.body,
+                ...sanitizedData,
                 interviewerId: userId,
                 interviewerName: userName,
                 submittedAt: new Date()
@@ -1067,7 +1214,7 @@ exports.submitInterviewFeedback = async (req, res) => {
             `Interview feedback submitted`,
             userId,
             userName,
-            { interviewId, rating: req.body.overallRating }
+            { interviewId, rating: sanitizedData.overallRating }
         );
 
         res.json({
@@ -1097,9 +1244,24 @@ exports.sendAssessment = async (req, res) => {
         const userName = req.user?.name;
         const { id } = req.params;
 
-        // Build query based on firmId (firm) or lawyerId (solo lawyer)
+        // Mass assignment protection
+        const allowedFields = [
+            'assessmentName', 'assessmentType', 'provider', 'assessmentUrl', 'instructions',
+            'dueDate', 'estimatedDuration', 'maxScore', 'passingScore', 'jobPostingId', 'customFields'
+        ];
+        const sanitizedData = pickAllowedFields(req.body, allowedFields);
+
+        // Input validation
+        if (!sanitizedData.assessmentName || !sanitizedData.assessmentType) {
+            return res.status(400).json({
+                success: false,
+                message: 'Assessment name and type are required'
+            });
+        }
+
+        // IDOR protection: Build query based on firmId (firm) or lawyerId (solo lawyer)
         const baseQuery = firmId ? { firmId } : { lawyerId };
-        const applicant = await Applicant.findOne({ _id: id, ...baseQuery });
+        const applicant = await Applicant.findOne({ _id: sanitizeObjectId(id), ...baseQuery });
 
         if (!applicant) {
             return res.status(404).json({ success: false, message: 'Applicant not found' });
@@ -1107,7 +1269,7 @@ exports.sendAssessment = async (req, res) => {
 
         const assessmentId = `ASS-${applicant.applicantId}-${applicant.assessments.length + 1}`;
         applicant.assessments.push({
-            ...req.body,
+            ...sanitizedData,
             assessmentId,
             status: 'sent',
             sentAt: new Date()
@@ -1118,10 +1280,10 @@ exports.sendAssessment = async (req, res) => {
         // Add activity
         await applicant.addActivity(
             'assessment_sent',
-            `Assessment sent: ${req.body.assessmentName}`,
+            `Assessment sent: ${sanitizedData.assessmentName}`,
             userId,
             userName,
-            { assessmentType: req.body.assessmentType }
+            { assessmentType: sanitizedData.assessmentType }
         );
 
         res.status(201).json({
@@ -1147,28 +1309,45 @@ exports.updateAssessmentResult = async (req, res) => {
         const userName = req.user?.name;
         const { id, assessmentId } = req.params;
 
-        // Build query based on firmId (firm) or lawyerId (solo lawyer)
+        // Mass assignment protection
+        const allowedFields = [
+            'score', 'maxScore', 'passingScore', 'percentile', 'passed', 'results',
+            'feedback', 'completedAt', 'customFields'
+        ];
+        const sanitizedData = pickAllowedFields(req.body, allowedFields);
+
+        // Input validation
+        if (sanitizedData.score !== undefined && sanitizedData.maxScore !== undefined) {
+            if (sanitizedData.score > sanitizedData.maxScore) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Score cannot exceed maximum score'
+                });
+            }
+        }
+
+        // IDOR protection: Build query based on firmId (firm) or lawyerId (solo lawyer)
         const baseQuery = firmId ? { firmId } : { lawyerId };
-        const applicant = await Applicant.findOne({ _id: id, ...baseQuery });
+        const applicant = await Applicant.findOne({ _id: sanitizeObjectId(id), ...baseQuery });
 
         if (!applicant) {
             return res.status(404).json({ success: false, message: 'Applicant not found' });
         }
 
-        const assessment = applicant.assessments.id(assessmentId);
+        const assessment = applicant.assessments.id(sanitizeObjectId(assessmentId));
         if (!assessment) {
             return res.status(404).json({ success: false, message: 'Assessment not found' });
         }
 
         Object.assign(assessment, {
-            ...req.body,
+            ...sanitizedData,
             status: 'completed',
             completedAt: new Date()
         });
 
         // Calculate if passed
         if (assessment.score && assessment.maxScore) {
-            const passingThreshold = req.body.passingScore || (assessment.maxScore * 0.7);
+            const passingThreshold = sanitizedData.passingScore || (assessment.maxScore * 0.7);
             assessment.passed = assessment.score >= passingThreshold;
             assessment.percentile = Math.round((assessment.score / assessment.maxScore) * 100);
         }
@@ -1211,23 +1390,40 @@ exports.createOffer = async (req, res) => {
         const userName = req.user?.name;
         const { id } = req.params;
 
-        // Build query based on firmId (firm) or lawyerId (solo lawyer)
+        // Mass assignment protection
+        const allowedFields = [
+            'jobPostingId', 'positionTitle', 'positionTitleAr', 'departmentId', 'employmentType',
+            'startDate', 'salary', 'benefits', 'allowances', 'workSchedule', 'probationPeriod',
+            'contractDuration', 'location', 'locationAr', 'offerLetterUrl', 'expiryDate',
+            'terms', 'specialConditions', 'customFields'
+        ];
+        const sanitizedData = pickAllowedFields(req.body, allowedFields);
+
+        // Input validation
+        if (!sanitizedData.positionTitle || !sanitizedData.salary) {
+            return res.status(400).json({
+                success: false,
+                message: 'Position title and salary are required'
+            });
+        }
+
+        // IDOR protection: Build query based on firmId (firm) or lawyerId (solo lawyer)
         const baseQuery = firmId ? { firmId } : { lawyerId };
-        const applicant = await Applicant.findOne({ _id: id, ...baseQuery });
+        const applicant = await Applicant.findOne({ _id: sanitizeObjectId(id), ...baseQuery });
 
         if (!applicant) {
             return res.status(404).json({ success: false, message: 'Applicant not found' });
         }
 
-        await applicant.createOffer(req.body, userId);
+        await applicant.createOffer(sanitizedData, userId);
 
         // Add activity
         await applicant.addActivity(
             'offer_sent',
-            `Offer created for ${req.body.positionTitle}`,
+            `Offer created for ${sanitizedData.positionTitle}`,
             userId,
             userName,
-            { salary: req.body.salary?.amount }
+            { salary: sanitizedData.salary?.amount }
         );
 
         res.status(201).json({
@@ -1253,24 +1449,31 @@ exports.updateOffer = async (req, res) => {
         const userName = req.user?.name;
         const { id, offerId } = req.params;
 
-        // Build query based on firmId (firm) or lawyerId (solo lawyer)
+        // Mass assignment protection
+        const allowedFields = [
+            'status', 'salary', 'benefits', 'allowances', 'startDate', 'expiryDate',
+            'terms', 'specialConditions', 'declinedReason', 'negotiationNotes', 'customFields'
+        ];
+        const sanitizedData = pickAllowedFields(req.body, allowedFields);
+
+        // IDOR protection: Build query based on firmId (firm) or lawyerId (solo lawyer)
         const baseQuery = firmId ? { firmId } : { lawyerId };
-        const applicant = await Applicant.findOne({ _id: id, ...baseQuery });
+        const applicant = await Applicant.findOne({ _id: sanitizeObjectId(id), ...baseQuery });
 
         if (!applicant) {
             return res.status(404).json({ success: false, message: 'Applicant not found' });
         }
 
-        const offer = applicant.offers.id(offerId);
+        const offer = applicant.offers.id(sanitizeObjectId(offerId));
         if (!offer) {
             return res.status(404).json({ success: false, message: 'Offer not found' });
         }
 
         const previousStatus = offer.status;
-        Object.assign(offer, req.body);
+        Object.assign(offer, sanitizedData);
 
         // Track response
-        if (req.body.status === 'accepted' || req.body.status === 'declined') {
+        if (sanitizedData.status === 'accepted' || sanitizedData.status === 'declined') {
             offer.respondedAt = new Date();
         }
 
@@ -1280,13 +1483,13 @@ exports.updateOffer = async (req, res) => {
         if (offer.jobPostingId) {
             const jobPosting = await JobPosting.findById(offer.jobPostingId);
             if (jobPosting) {
-                if (req.body.status === 'sent' && previousStatus !== 'sent') {
+                if (sanitizedData.status === 'sent' && previousStatus !== 'sent') {
                     await jobPosting.updateStatistics('offersExtended');
                 }
-                if (req.body.status === 'accepted') {
+                if (sanitizedData.status === 'accepted') {
                     await jobPosting.updateStatistics('offersAccepted');
                 }
-                if (req.body.status === 'declined') {
+                if (sanitizedData.status === 'declined') {
                     await jobPosting.updateStatistics('offersDeclined');
                 }
             }
@@ -1294,11 +1497,11 @@ exports.updateOffer = async (req, res) => {
 
         // Add activity
         await applicant.addActivity(
-            req.body.status === 'accepted' ? 'offer_accepted' : req.body.status === 'declined' ? 'offer_declined' : 'other',
-            `Offer ${req.body.status}`,
+            sanitizedData.status === 'accepted' ? 'offer_accepted' : sanitizedData.status === 'declined' ? 'offer_declined' : 'other',
+            `Offer ${sanitizedData.status}`,
             userId,
             userName,
-            { offerId, status: req.body.status }
+            { offerId, status: sanitizedData.status }
         );
 
         res.json({
@@ -1327,15 +1530,41 @@ exports.addReference = async (req, res) => {
         const userId = req.userID || req.userId;
         const { id } = req.params;
 
-        // Build query based on firmId (firm) or lawyerId (solo lawyer)
+        // Mass assignment protection
+        const allowedFields = [
+            'name', 'relationship', 'company', 'position', 'email', 'phone',
+            'yearsKnown', 'notes', 'customFields'
+        ];
+        const sanitizedData = pickAllowedFields(req.body, allowedFields);
+
+        // Input validation
+        if (!sanitizedData.name || !sanitizedData.relationship) {
+            return res.status(400).json({
+                success: false,
+                message: 'Reference name and relationship are required'
+            });
+        }
+
+        // Email validation if provided
+        if (sanitizedData.email) {
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!emailRegex.test(sanitizedData.email)) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Invalid email format'
+                });
+            }
+        }
+
+        // IDOR protection: Build query based on firmId (firm) or lawyerId (solo lawyer)
         const baseQuery = firmId ? { firmId } : { lawyerId };
-        const applicant = await Applicant.findOne({ _id: id, ...baseQuery });
+        const applicant = await Applicant.findOne({ _id: sanitizeObjectId(id), ...baseQuery });
 
         if (!applicant) {
             return res.status(404).json({ success: false, message: 'Applicant not found' });
         }
 
-        applicant.references.push(req.body);
+        applicant.references.push(sanitizedData);
         applicant.updatedBy = userId;
         await applicant.save();
 
@@ -1362,22 +1591,28 @@ exports.updateReferenceCheck = async (req, res) => {
         const userName = req.user?.name;
         const { id, referenceId } = req.params;
 
-        // Build query based on firmId (firm) or lawyerId (solo lawyer)
+        // Mass assignment protection
+        const allowedFields = [
+            'response', 'contacted', 'contactedDate', 'notes', 'customFields'
+        ];
+        const sanitizedData = pickAllowedFields(req.body, allowedFields);
+
+        // IDOR protection: Build query based on firmId (firm) or lawyerId (solo lawyer)
         const baseQuery = firmId ? { firmId } : { lawyerId };
-        const applicant = await Applicant.findOne({ _id: id, ...baseQuery });
+        const applicant = await Applicant.findOne({ _id: sanitizeObjectId(id), ...baseQuery });
 
         if (!applicant) {
             return res.status(404).json({ success: false, message: 'Applicant not found' });
         }
 
-        const reference = applicant.references.id(referenceId);
+        const reference = applicant.references.id(sanitizeObjectId(referenceId));
         if (!reference) {
             return res.status(404).json({ success: false, message: 'Reference not found' });
         }
 
-        Object.assign(reference, req.body);
+        Object.assign(reference, sanitizedData);
 
-        if (req.body.response) {
+        if (sanitizedData.response) {
             reference.contacted = true;
             reference.contactedDate = new Date();
             reference.contactedBy = userId;
@@ -1421,20 +1656,32 @@ exports.addNote = async (req, res) => {
         const userName = req.user?.name;
         const { id } = req.params;
 
-        // Build query based on firmId (firm) or lawyerId (solo lawyer)
+        // Mass assignment protection
+        const allowedFields = ['noteType', 'content', 'isPrivate'];
+        const sanitizedData = pickAllowedFields(req.body, allowedFields);
+
+        // Input validation
+        if (!sanitizedData.content) {
+            return res.status(400).json({
+                success: false,
+                message: 'Note content is required'
+            });
+        }
+
+        // IDOR protection: Build query based on firmId (firm) or lawyerId (solo lawyer)
         const baseQuery = firmId ? { firmId } : { lawyerId };
-        const applicant = await Applicant.findOne({ _id: id, ...baseQuery });
+        const applicant = await Applicant.findOne({ _id: sanitizeObjectId(id), ...baseQuery });
 
         if (!applicant) {
             return res.status(404).json({ success: false, message: 'Applicant not found' });
         }
 
         await applicant.addNote(
-            req.body.noteType || 'general',
-            req.body.content,
+            sanitizedData.noteType || 'general',
+            sanitizedData.content,
             userId,
             userName,
-            req.body.isPrivate
+            sanitizedData.isPrivate
         );
 
         // Add activity
@@ -1468,16 +1715,31 @@ exports.logCommunication = async (req, res) => {
         const userName = req.user?.name;
         const { id } = req.params;
 
-        // Build query based on firmId (firm) or lawyerId (solo lawyer)
+        // Mass assignment protection
+        const allowedFields = [
+            'communicationType', 'subject', 'message', 'direction', 'status',
+            'attachments', 'metadata', 'customFields'
+        ];
+        const sanitizedData = pickAllowedFields(req.body, allowedFields);
+
+        // Input validation
+        if (!sanitizedData.communicationType || !sanitizedData.subject) {
+            return res.status(400).json({
+                success: false,
+                message: 'Communication type and subject are required'
+            });
+        }
+
+        // IDOR protection: Build query based on firmId (firm) or lawyerId (solo lawyer)
         const baseQuery = firmId ? { firmId } : { lawyerId };
-        const applicant = await Applicant.findOne({ _id: id, ...baseQuery });
+        const applicant = await Applicant.findOne({ _id: sanitizeObjectId(id), ...baseQuery });
 
         if (!applicant) {
             return res.status(404).json({ success: false, message: 'Applicant not found' });
         }
 
         applicant.communications.push({
-            ...req.body,
+            ...sanitizedData,
             sentBy: userId,
             sentByName: userName,
             sentAt: new Date()
@@ -1562,9 +1824,9 @@ exports.updateTalentPoolStatus = async (req, res) => {
         const { id } = req.params;
         const { talentPool, tags } = req.body;
 
-        // Build query based on firmId (firm) or lawyerId (solo lawyer)
+        // IDOR protection: Build query based on firmId (firm) or lawyerId (solo lawyer)
         const baseQuery = firmId ? { firmId } : { lawyerId };
-        const applicant = await Applicant.findOne({ _id: id, ...baseQuery });
+        const applicant = await Applicant.findOne({ _id: sanitizeObjectId(id), ...baseQuery });
 
         if (!applicant) {
             return res.status(404).json({ success: false, message: 'Applicant not found' });
@@ -1744,16 +2006,30 @@ exports.initiateBackgroundCheck = async (req, res) => {
         const userName = req.user?.name;
         const { id } = req.params;
 
-        // Build query based on firmId (firm) or lawyerId (solo lawyer)
+        // Mass assignment protection
+        const allowedFields = [
+            'provider', 'checkTypes', 'referenceNumber', 'requestedBy', 'notes', 'customFields'
+        ];
+        const sanitizedData = pickAllowedFields(req.body, allowedFields);
+
+        // Input validation
+        if (!sanitizedData.provider) {
+            return res.status(400).json({
+                success: false,
+                message: 'Background check provider is required'
+            });
+        }
+
+        // IDOR protection: Build query based on firmId (firm) or lawyerId (solo lawyer)
         const baseQuery = firmId ? { firmId } : { lawyerId };
-        const applicant = await Applicant.findOne({ _id: id, ...baseQuery });
+        const applicant = await Applicant.findOne({ _id: sanitizeObjectId(id), ...baseQuery });
 
         if (!applicant) {
             return res.status(404).json({ success: false, message: 'Applicant not found' });
         }
 
         applicant.backgroundCheck = {
-            ...req.body,
+            ...sanitizedData,
             status: 'in_progress',
             initiatedAt: new Date()
         };
@@ -1767,7 +2043,7 @@ exports.initiateBackgroundCheck = async (req, res) => {
             'Background check initiated',
             userId,
             userName,
-            { provider: req.body.provider }
+            { provider: sanitizedData.provider }
         );
 
         res.json({
@@ -1793,9 +2069,16 @@ exports.updateBackgroundCheck = async (req, res) => {
         const userName = req.user?.name;
         const { id } = req.params;
 
-        // Build query based on firmId (firm) or lawyerId (solo lawyer)
+        // Mass assignment protection
+        const allowedFields = [
+            'status', 'results', 'findings', 'cleared', 'reportUrl', 'completedAt',
+            'verifiedBy', 'notes', 'customFields'
+        ];
+        const sanitizedData = pickAllowedFields(req.body, allowedFields);
+
+        // IDOR protection: Build query based on firmId (firm) or lawyerId (solo lawyer)
         const baseQuery = firmId ? { firmId } : { lawyerId };
-        const applicant = await Applicant.findOne({ _id: id, ...baseQuery });
+        const applicant = await Applicant.findOne({ _id: sanitizeObjectId(id), ...baseQuery });
 
         if (!applicant) {
             return res.status(404).json({ success: false, message: 'Applicant not found' });
@@ -1803,7 +2086,7 @@ exports.updateBackgroundCheck = async (req, res) => {
 
         applicant.backgroundCheck = {
             ...applicant.backgroundCheck,
-            ...req.body,
+            ...sanitizedData,
             completedAt: new Date()
         };
 
@@ -1813,10 +2096,10 @@ exports.updateBackgroundCheck = async (req, res) => {
         // Add activity
         await applicant.addActivity(
             'other',
-            `Background check ${req.body.status}`,
+            `Background check ${sanitizedData.status}`,
             userId,
             userName,
-            { status: req.body.status }
+            { status: sanitizedData.status }
         );
 
         res.json({
@@ -1845,11 +2128,24 @@ exports.hireApplicant = async (req, res) => {
         const userId = req.userID || req.userId;
         const userName = req.user?.name;
         const { id } = req.params;
-        const { jobPostingId, startDate, employeeData } = req.body;
 
-        // Build query based on firmId (firm) or lawyerId (solo lawyer)
+        // Mass assignment protection
+        const allowedFields = ['jobPostingId', 'startDate', 'employeeData'];
+        const sanitizedData = pickAllowedFields(req.body, allowedFields);
+
+        // Input validation
+        if (!sanitizedData.jobPostingId || !sanitizedData.startDate) {
+            return res.status(400).json({
+                success: false,
+                message: 'Job posting ID and start date are required'
+            });
+        }
+
+        const { jobPostingId, startDate, employeeData } = sanitizedData;
+
+        // IDOR protection: Build query based on firmId (firm) or lawyerId (solo lawyer)
         const baseQuery = firmId ? { firmId } : { lawyerId };
-        const applicant = await Applicant.findOne({ _id: id, ...baseQuery });
+        const applicant = await Applicant.findOne({ _id: sanitizeObjectId(id), ...baseQuery });
 
         if (!applicant) {
             return res.status(404).json({ success: false, message: 'Applicant not found' });

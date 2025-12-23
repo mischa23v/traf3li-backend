@@ -3,6 +3,7 @@ const WhatsAppBroadcast = require('../models/whatsappBroadcast.model');
 const WhatsAppConversation = require('../models/whatsappConversation.model');
 const WhatsAppMessage = require('../models/whatsappMessage.model');
 const asyncHandler = require('express-async-handler');
+const { pickAllowedFields, sanitizeObjectId, sanitizePhone } = require('../utils/securityUtils');
 
 // ═══════════════════════════════════════════════════════════════
 // WHATSAPP CONTROLLER
@@ -29,14 +30,27 @@ class WhatsAppController {
             });
         }
 
+        // Validate and sanitize phone number
+        const sanitizedPhone = sanitizePhone(phoneNumber);
+        if (!sanitizedPhone) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid phone number format'
+            });
+        }
+
+        // Sanitize IDs if provided
+        const sanitizedLeadId = leadId ? sanitizeObjectId(leadId) : undefined;
+        const sanitizedClientId = clientId ? sanitizeObjectId(clientId) : undefined;
+
         const result = await WhatsAppService.sendTemplateMessage(
             firmId,
-            phoneNumber,
+            sanitizedPhone,
             templateName,
             variables || {},
             {
-                leadId,
-                clientId,
+                leadId: sanitizedLeadId,
+                clientId: sanitizedClientId,
                 sentBy: req.userID
             }
         );
@@ -64,15 +78,37 @@ class WhatsAppController {
             });
         }
 
+        // Validate and sanitize phone number
+        const sanitizedPhone = sanitizePhone(phoneNumber);
+        if (!sanitizedPhone) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid phone number format'
+            });
+        }
+
+        // Validate text message to prevent injection attacks
+        if (typeof text !== 'string' || text.length > 4096) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid text message. Must be a string with max 4096 characters'
+            });
+        }
+
+        // Sanitize IDs if provided
+        const sanitizedLeadId = leadId ? sanitizeObjectId(leadId) : undefined;
+        const sanitizedClientId = clientId ? sanitizeObjectId(clientId) : undefined;
+        const sanitizedReplyTo = replyTo ? sanitizeObjectId(replyTo) : undefined;
+
         const result = await WhatsAppService.sendTextMessage(
             firmId,
-            phoneNumber,
-            text,
+            sanitizedPhone,
+            text.trim(),
             {
-                leadId,
-                clientId,
+                leadId: sanitizedLeadId,
+                clientId: sanitizedClientId,
                 sentBy: req.userID,
-                replyTo
+                replyTo: sanitizedReplyTo
             }
         );
 
@@ -99,6 +135,15 @@ class WhatsAppController {
             });
         }
 
+        // Validate and sanitize phone number
+        const sanitizedPhone = sanitizePhone(phoneNumber);
+        if (!sanitizedPhone) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid phone number format'
+            });
+        }
+
         if (!['image', 'video', 'document', 'audio'].includes(type)) {
             return res.status(400).json({
                 success: false,
@@ -106,16 +151,28 @@ class WhatsAppController {
             });
         }
 
+        // Validate caption if provided
+        if (caption && (typeof caption !== 'string' || caption.length > 1024)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid caption. Must be a string with max 1024 characters'
+            });
+        }
+
+        // Sanitize IDs if provided
+        const sanitizedLeadId = leadId ? sanitizeObjectId(leadId) : undefined;
+        const sanitizedClientId = clientId ? sanitizeObjectId(clientId) : undefined;
+
         const result = await WhatsAppService.sendMediaMessage(
             firmId,
-            phoneNumber,
+            sanitizedPhone,
             type,
             mediaUrl,
             {
-                caption,
+                caption: caption ? caption.trim() : undefined,
                 fileName,
-                leadId,
-                clientId,
+                leadId: sanitizedLeadId,
+                clientId: sanitizedClientId,
                 sentBy: req.userID
             }
         );
@@ -143,16 +200,38 @@ class WhatsAppController {
             });
         }
 
+        // Validate and sanitize phone number
+        const sanitizedPhone = sanitizePhone(phoneNumber);
+        if (!sanitizedPhone) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid phone number format'
+            });
+        }
+
+        // Validate coordinates
+        if (typeof latitude !== 'number' || typeof longitude !== 'number' ||
+            latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid coordinates. Latitude must be -90 to 90, longitude -180 to 180'
+            });
+        }
+
+        // Sanitize IDs if provided
+        const sanitizedLeadId = leadId ? sanitizeObjectId(leadId) : undefined;
+        const sanitizedClientId = clientId ? sanitizeObjectId(clientId) : undefined;
+
         const result = await WhatsAppService.sendLocationMessage(
             firmId,
-            phoneNumber,
+            sanitizedPhone,
             latitude,
             longitude,
             name,
             address,
             {
-                leadId,
-                clientId,
+                leadId: sanitizedLeadId,
+                clientId: sanitizedClientId,
                 sentBy: req.userID
             }
         );
@@ -185,8 +264,31 @@ class WhatsAppController {
         } = req.body;
 
         // For Playwright testing - allow requests with defaults
-        const targetPhone = phoneNumber || '966500000000';
-        const messageText = text || 'Test message';
+        let targetPhone = phoneNumber || '966500000000';
+        let messageText = text || 'Test message';
+
+        // Validate and sanitize phone number
+        targetPhone = sanitizePhone(targetPhone);
+        if (!targetPhone) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid phone number format'
+            });
+        }
+
+        // Validate text message to prevent injection attacks
+        if (messageText && (typeof messageText !== 'string' || messageText.length > 4096)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid text message. Must be a string with max 4096 characters'
+            });
+        }
+        messageText = messageText.trim();
+
+        // Sanitize IDs if provided
+        const sanitizedLeadId = leadId ? sanitizeObjectId(leadId) : undefined;
+        const sanitizedClientId = clientId ? sanitizeObjectId(clientId) : undefined;
+        const sanitizedConversationId = conversationId ? sanitizeObjectId(conversationId) : undefined;
 
         let result;
         let conversation;
@@ -200,8 +302,8 @@ class WhatsAppController {
                     templateName,
                     variables || {},
                     {
-                        leadId,
-                        clientId,
+                        leadId: sanitizedLeadId,
+                        clientId: sanitizedClientId,
                         sentBy: userId
                     }
                 );
@@ -212,10 +314,10 @@ class WhatsAppController {
                     targetPhone,
                     messageText,
                     {
-                        leadId,
-                        clientId,
+                        leadId: sanitizedLeadId,
+                        clientId: sanitizedClientId,
                         sentBy: userId,
-                        conversationId
+                        conversationId: sanitizedConversationId
                     }
                 );
             }
@@ -242,9 +344,9 @@ class WhatsAppController {
                         conversationId: conversationIdStr,
                         phoneNumber: targetPhone,
                         contactName: targetPhone,
-                        contactType: leadId ? 'lead' : (clientId ? 'client' : 'unknown'),
-                        leadId,
-                        clientId,
+                        contactType: sanitizedLeadId ? 'lead' : (sanitizedClientId ? 'client' : 'unknown'),
+                        leadId: sanitizedLeadId,
+                        clientId: sanitizedClientId,
                         status: 'active',
                         messageCount: 0,
                         unreadCount: 0,
@@ -366,11 +468,29 @@ class WhatsAppController {
      */
     getConversation = asyncHandler(async (req, res) => {
         const { id } = req.params;
+        const firmId = req.firmId;
+
+        // Sanitize ID
+        const sanitizedId = sanitizeObjectId(id);
+        if (!sanitizedId && !id.startsWith('+') && !id.match(/^\d+$/)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid conversation ID or phone number'
+            });
+        }
 
         const conversation = await WhatsAppService.getOrCreateConversation(
-            req.firmId,
-            id // This could be conversation ID or phone number
+            firmId,
+            sanitizedId || id // This could be conversation ID or phone number
         );
+
+        // IDOR protection: Verify conversation belongs to this firm
+        if (conversation && conversation.firmId && conversation.firmId.toString() !== firmId?.toString()) {
+            return res.status(403).json({
+                success: false,
+                message: 'Access denied to this conversation'
+            });
+        }
 
         res.json({
             success: true,
@@ -425,6 +545,7 @@ class WhatsAppController {
     assignConversation = asyncHandler(async (req, res) => {
         const { id } = req.params;
         const { userId } = req.body;
+        const firmId = req.firmId;
 
         if (!userId) {
             return res.status(400).json({
@@ -433,7 +554,34 @@ class WhatsAppController {
             });
         }
 
-        const conversation = await WhatsAppService.assignConversation(id, userId);
+        // Sanitize IDs
+        const sanitizedConversationId = sanitizeObjectId(id);
+        const sanitizedUserId = sanitizeObjectId(userId);
+
+        if (!sanitizedConversationId || !sanitizedUserId) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid conversation ID or user ID'
+            });
+        }
+
+        // IDOR protection: Verify conversation belongs to this firm before assigning
+        const existingConversation = await WhatsAppConversation.findById(sanitizedConversationId);
+        if (!existingConversation) {
+            return res.status(404).json({
+                success: false,
+                message: 'Conversation not found'
+            });
+        }
+
+        if (existingConversation.firmId && existingConversation.firmId.toString() !== firmId?.toString()) {
+            return res.status(403).json({
+                success: false,
+                message: 'Access denied to this conversation'
+            });
+        }
+
+        const conversation = await WhatsAppService.assignConversation(sanitizedConversationId, sanitizedUserId);
 
         res.json({
             success: true,
@@ -450,6 +598,7 @@ class WhatsAppController {
     linkToLead = asyncHandler(async (req, res) => {
         const { id } = req.params;
         const { leadId } = req.body;
+        const firmId = req.firmId;
 
         if (!leadId) {
             return res.status(400).json({
@@ -458,7 +607,34 @@ class WhatsAppController {
             });
         }
 
-        const conversation = await WhatsAppService.linkToLead(id, leadId);
+        // Sanitize IDs
+        const sanitizedConversationId = sanitizeObjectId(id);
+        const sanitizedLeadId = sanitizeObjectId(leadId);
+
+        if (!sanitizedConversationId || !sanitizedLeadId) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid conversation ID or lead ID'
+            });
+        }
+
+        // IDOR protection: Verify conversation belongs to this firm before linking
+        const existingConversation = await WhatsAppConversation.findById(sanitizedConversationId);
+        if (!existingConversation) {
+            return res.status(404).json({
+                success: false,
+                message: 'Conversation not found'
+            });
+        }
+
+        if (existingConversation.firmId && existingConversation.firmId.toString() !== firmId?.toString()) {
+            return res.status(403).json({
+                success: false,
+                message: 'Access denied to this conversation'
+            });
+        }
+
+        const conversation = await WhatsAppService.linkToLead(sanitizedConversationId, sanitizedLeadId);
 
         res.json({
             success: true,
@@ -474,11 +650,40 @@ class WhatsAppController {
      */
     createLeadFromConversation = asyncHandler(async (req, res) => {
         const { id } = req.params;
-        const leadData = req.body;
+        const firmId = req.firmId;
+
+        // Sanitize conversation ID
+        const sanitizedConversationId = sanitizeObjectId(id);
+        if (!sanitizedConversationId) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid conversation ID'
+            });
+        }
+
+        // IDOR protection: Verify conversation belongs to this firm before creating lead
+        const existingConversation = await WhatsAppConversation.findById(sanitizedConversationId);
+        if (!existingConversation) {
+            return res.status(404).json({
+                success: false,
+                message: 'Conversation not found'
+            });
+        }
+
+        if (existingConversation.firmId && existingConversation.firmId.toString() !== firmId?.toString()) {
+            return res.status(403).json({
+                success: false,
+                message: 'Access denied to this conversation'
+            });
+        }
+
+        // Mass assignment protection: Only allow specific fields
+        const allowedFields = ['firstName', 'lastName', 'email', 'phoneNumber', 'source', 'status', 'notes', 'tags', 'customFields'];
+        const sanitizedLeadData = pickAllowedFields(req.body, allowedFields);
 
         const lead = await WhatsAppService.createLeadFromConversation(
-            id,
-            leadData,
+            sanitizedConversationId,
+            sanitizedLeadData,
             req.userID
         );
 
@@ -500,11 +705,14 @@ class WhatsAppController {
      */
     createTemplate = asyncHandler(async (req, res) => {
         const firmId = req.firmId;
-        const templateData = req.body;
+
+        // Mass assignment protection: Only allow specific fields
+        const allowedFields = ['name', 'category', 'language', 'useCase', 'status', 'header', 'body', 'footer', 'buttons', 'variables', 'metadata'];
+        const sanitizedTemplateData = pickAllowedFields(req.body, allowedFields);
 
         const template = await WhatsAppService.createTemplate(
             firmId,
-            templateData,
+            sanitizedTemplateData,
             req.userID
         );
 
@@ -803,8 +1011,17 @@ class WhatsAppController {
         const firmId = req.firmId;
         const userId = req.userID;
 
+        // Sanitize broadcast ID
+        const sanitizedBroadcastId = sanitizeObjectId(id);
+        if (!sanitizedBroadcastId) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid broadcast ID'
+            });
+        }
+
         // Build query - handle null firmId for solo lawyers
-        const query = { _id: id };
+        const query = { _id: sanitizedBroadcastId };
         if (firmId) {
             query.firmId = firmId;
         } else if (req.userID) {
@@ -820,6 +1037,14 @@ class WhatsAppController {
             });
         }
 
+        // IDOR protection: Double-check firmId ownership
+        if (firmId && broadcast.firmId && broadcast.firmId.toString() !== firmId.toString()) {
+            return res.status(403).json({
+                success: false,
+                message: 'Access denied to this broadcast'
+            });
+        }
+
         // Only allow updates if broadcast is in draft status
         if (!['draft', 'scheduled'].includes(broadcast.status)) {
             return res.status(400).json({
@@ -828,7 +1053,13 @@ class WhatsAppController {
             });
         }
 
-        Object.assign(broadcast, req.body);
+        // Mass assignment protection: Only allow specific fields
+        const allowedFields = ['name', 'description', 'type', 'template', 'textContent', 'mediaContent',
+                              'locationContent', 'audienceType', 'segmentId', 'targetTags', 'tagLogic',
+                              'excludeNumbers', 'sendingOptions', 'tags', 'scheduledAt', 'timezone'];
+        const sanitizedUpdateData = pickAllowedFields(req.body, allowedFields);
+
+        Object.assign(broadcast, sanitizedUpdateData);
         broadcast.updatedBy = userId;
         await broadcast.save();
 
@@ -1337,13 +1568,39 @@ class WhatsAppController {
             });
         }
 
-        const broadcast = await WhatsAppBroadcast.findOne({ _id: id, firmId })
+        // Sanitize broadcast ID
+        const sanitizedBroadcastId = sanitizeObjectId(id);
+        if (!sanitizedBroadcastId) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid broadcast ID'
+            });
+        }
+
+        // Validate and sanitize phone number
+        const sanitizedPhone = sanitizePhone(phoneNumber);
+        if (!sanitizedPhone) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid phone number format'
+            });
+        }
+
+        const broadcast = await WhatsAppBroadcast.findOne({ _id: sanitizedBroadcastId, firmId })
             .populate('template.templateId');
 
         if (!broadcast) {
             return res.status(404).json({
                 success: false,
                 message: 'Broadcast not found'
+            });
+        }
+
+        // IDOR protection: Verify broadcast belongs to this firm
+        if (firmId && broadcast.firmId && broadcast.firmId.toString() !== firmId.toString()) {
+            return res.status(403).json({
+                success: false,
+                message: 'Access denied to this broadcast'
             });
         }
 
@@ -1367,7 +1624,7 @@ class WhatsAppController {
 
             result = await WhatsAppService.sendTemplateMessage(
                 firmId,
-                phoneNumber,
+                sanitizedPhone,
                 broadcast.template.templateName,
                 variables,
                 { sentBy: req.userID }
@@ -1379,11 +1636,11 @@ class WhatsAppController {
                     text = text.replace(new RegExp(`{{${field}}}`, 'g'), testData[field] || '');
                 });
             }
-            result = await WhatsAppService.sendTextMessage(firmId, phoneNumber, text, { sentBy: req.userID });
+            result = await WhatsAppService.sendTextMessage(firmId, sanitizedPhone, text, { sentBy: req.userID });
         } else if (broadcast.type === 'media') {
             result = await WhatsAppService.sendMediaMessage(
                 firmId,
-                phoneNumber,
+                sanitizedPhone,
                 broadcast.mediaContent.type,
                 broadcast.mediaContent.mediaUrl,
                 {
@@ -1395,7 +1652,7 @@ class WhatsAppController {
         } else if (broadcast.type === 'location') {
             result = await WhatsAppService.sendLocationMessage(
                 firmId,
-                phoneNumber,
+                sanitizedPhone,
                 broadcast.locationContent.latitude,
                 broadcast.locationContent.longitude,
                 broadcast.locationContent.name,
@@ -1406,7 +1663,7 @@ class WhatsAppController {
 
         res.json({
             success: true,
-            message: `Test message sent to ${phoneNumber}`,
+            message: `Test message sent to ${sanitizedPhone}`,
             data: result
         });
     });

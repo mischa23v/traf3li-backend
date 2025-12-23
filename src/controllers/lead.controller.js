@@ -2,6 +2,7 @@ const Lead = require('../models/lead.model');
 const Pipeline = require('../models/pipeline.model');
 const CrmActivity = require('../models/crmActivity.model');
 const Client = require('../models/client.model');
+const { pickAllowedFields, sanitizeEmail, sanitizePhone } = require('../utils/securityUtils');
 
 // ============================================
 // LEAD CRUD OPERATIONS
@@ -20,8 +21,42 @@ exports.createLead = async (req, res) => {
 
         const lawyerId = req.userID;
         const firmId = req.firmId; // From firmFilter middleware
+
+        // ═══════════════════════════════════════════════════════════════
+        // MASS ASSIGNMENT PROTECTION - Only allow specific fields
+        // ═══════════════════════════════════════════════════════════════
+        const ALLOWED_LEAD_FIELDS = ['name', 'email', 'phone', 'source', 'status', 'notes', 'assignedTo'];
+        const sanitizedData = pickAllowedFields(req.body, ALLOWED_LEAD_FIELDS);
+
+        // ═══════════════════════════════════════════════════════════════
+        // INPUT VALIDATION - Email and Phone
+        // ═══════════════════════════════════════════════════════════════
+        if (sanitizedData.email) {
+            sanitizedData.email = sanitizeEmail(sanitizedData.email);
+            // Basic email validation
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!emailRegex.test(sanitizedData.email)) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Invalid email format'
+                });
+            }
+        }
+
+        if (sanitizedData.phone) {
+            sanitizedData.phone = sanitizePhone(sanitizedData.phone);
+            // Validate phone has at least 7 digits after sanitization
+            const digitsOnly = sanitizedData.phone.replace(/\D/g, '');
+            if (digitsOnly.length < 7) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Invalid phone number format'
+                });
+            }
+        }
+
         const leadData = {
-            ...req.body,
+            ...sanitizedData,
             lawyerId,
             firmId, // Add firmId for multi-tenancy
             createdBy: lawyerId
@@ -226,8 +261,43 @@ exports.updateLead = async (req, res) => {
         const { id } = req.params;
         const lawyerId = req.userID;
         const firmId = req.firmId; // From firmFilter middleware
-        const updates = req.body;
 
+        // ═══════════════════════════════════════════════════════════════
+        // MASS ASSIGNMENT PROTECTION - Only allow specific fields
+        // ═══════════════════════════════════════════════════════════════
+        const ALLOWED_LEAD_FIELDS = ['name', 'email', 'phone', 'source', 'status', 'notes', 'assignedTo'];
+        let updates = pickAllowedFields(req.body, ALLOWED_LEAD_FIELDS);
+
+        // ═══════════════════════════════════════════════════════════════
+        // INPUT VALIDATION - Email and Phone
+        // ═══════════════════════════════════════════════════════════════
+        if (updates.email) {
+            updates.email = sanitizeEmail(updates.email);
+            // Basic email validation
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!emailRegex.test(updates.email)) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Invalid email format'
+                });
+            }
+        }
+
+        if (updates.phone) {
+            updates.phone = sanitizePhone(updates.phone);
+            // Validate phone has at least 7 digits after sanitization
+            const digitsOnly = updates.phone.replace(/\D/g, '');
+            if (digitsOnly.length < 7) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Invalid phone number format'
+                });
+            }
+        }
+
+        // ═══════════════════════════════════════════════════════════════
+        // IDOR PROTECTION - Verify lead belongs to user's firm
+        // ═══════════════════════════════════════════════════════════════
         // Build query - firmId first, then lawyerId fallback
         const accessQuery = firmId
             ? { $or: [{ _id: id }, { leadId: id }], firmId }
@@ -245,11 +315,9 @@ exports.updateLead = async (req, res) => {
         // Track status change
         const oldStatus = lead.status;
 
-        // Apply updates
+        // Apply only allowed updates
         Object.keys(updates).forEach(key => {
-            if (key !== 'lawyerId' && key !== 'leadId' && key !== '_id') {
-                lead[key] = updates[key];
-            }
+            lead[key] = updates[key];
         });
 
         lead.lastModifiedBy = lawyerId;
@@ -639,12 +707,17 @@ exports.previewConversion = async (req, res) => {
     try {
         const { id } = req.params;
         const lawyerId = req.userID;
+        const firmId = req.firmId; // From firmFilter middleware
 
-        const lead = await Lead.findOne({
-            $or: [{ _id: id }, { leadId: id }],
-            lawyerId,
-            convertedToClient: false
-        });
+        // ═══════════════════════════════════════════════════════════════
+        // IDOR PROTECTION - Verify lead belongs to user's firm
+        // ═══════════════════════════════════════════════════════════════
+        // Build query - firmId first, then lawyerId fallback
+        const accessQuery = firmId
+            ? { $or: [{ _id: id }, { leadId: id }], firmId, convertedToClient: false }
+            : { $or: [{ _id: id }, { leadId: id }], lawyerId, convertedToClient: false };
+
+        const lead = await Lead.findOne(accessQuery);
 
         if (!lead) {
             return res.status(404).json({
@@ -852,12 +925,18 @@ exports.logActivity = async (req, res) => {
 
         const { id } = req.params;
         const lawyerId = req.userID;
+        const firmId = req.firmId; // From firmFilter middleware
         const activityData = req.body;
 
-        const lead = await Lead.findOne({
-            $or: [{ _id: id }, { leadId: id }],
-            lawyerId
-        });
+        // ═══════════════════════════════════════════════════════════════
+        // IDOR PROTECTION - Verify lead belongs to user's firm
+        // ═══════════════════════════════════════════════════════════════
+        // Build query - firmId first, then lawyerId fallback
+        const accessQuery = firmId
+            ? { $or: [{ _id: id }, { leadId: id }], firmId }
+            : { $or: [{ _id: id }, { leadId: id }], lawyerId };
+
+        const lead = await Lead.findOne(accessQuery);
 
         if (!lead) {
             return res.status(404).json({
@@ -912,12 +991,18 @@ exports.getActivities = async (req, res) => {
     try {
         const { id } = req.params;
         const lawyerId = req.userID;
+        const firmId = req.firmId; // From firmFilter middleware
         const { type, page = 1, limit = 20 } = req.query;
 
-        const lead = await Lead.findOne({
-            $or: [{ _id: id }, { leadId: id }],
-            lawyerId
-        });
+        // ═══════════════════════════════════════════════════════════════
+        // IDOR PROTECTION - Verify lead belongs to user's firm
+        // ═══════════════════════════════════════════════════════════════
+        // Build query - firmId first, then lawyerId fallback
+        const accessQuery = firmId
+            ? { $or: [{ _id: id }, { leadId: id }], firmId }
+            : { $or: [{ _id: id }, { leadId: id }], lawyerId };
+
+        const lead = await Lead.findOne(accessQuery);
 
         if (!lead) {
             return res.status(404).json({
@@ -960,11 +1045,17 @@ exports.scheduleFollowUp = async (req, res) => {
         const { id } = req.params;
         const { date, note } = req.body;
         const lawyerId = req.userID;
+        const firmId = req.firmId; // From firmFilter middleware
 
-        const lead = await Lead.findOne({
-            $or: [{ _id: id }, { leadId: id }],
-            lawyerId
-        });
+        // ═══════════════════════════════════════════════════════════════
+        // IDOR PROTECTION - Verify lead belongs to user's firm
+        // ═══════════════════════════════════════════════════════════════
+        // Build query - firmId first, then lawyerId fallback
+        const accessQuery = firmId
+            ? { $or: [{ _id: id }, { leadId: id }], firmId }
+            : { $or: [{ _id: id }, { leadId: id }], lawyerId };
+
+        const lead = await Lead.findOne(accessQuery);
 
         if (!lead) {
             return res.status(404).json({

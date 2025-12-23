@@ -1,64 +1,412 @@
 const { Vendor, BillingActivity } = require('../models');
 const { CustomException } = require('../utils');
 const asyncHandler = require('../utils/asyncHandler');
+const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
+const Joi = require('joi');
+
+// ============================================
+// VALIDATION SCHEMAS
+// ============================================
+
+// Vendor creation validation schema
+const vendorCreateSchema = Joi.object({
+    name: Joi.string()
+        .min(2)
+        .max(300)
+        .trim()
+        .required()
+        .messages({
+            'string.min': 'Vendor name must be at least 2 characters',
+            'string.max': 'Vendor name cannot exceed 300 characters',
+            'any.required': 'Vendor name is required'
+        }),
+    nameAr: Joi.string()
+        .max(300)
+        .trim()
+        .allow('', null)
+        .optional(),
+    email: Joi.string()
+        .email()
+        .trim()
+        .lowercase()
+        .max(255)
+        .allow('', null)
+        .optional(),
+    phone: Joi.string()
+        .pattern(/^[\d\s+()-]+$/)
+        .max(30)
+        .trim()
+        .allow('', null)
+        .optional()
+        .messages({
+            'string.pattern.base': 'Phone number contains invalid characters'
+        }),
+    taxNumber: Joi.string()
+        .trim()
+        .max(50)
+        .allow('', null)
+        .optional(),
+    address: Joi.string()
+        .max(500)
+        .trim()
+        .allow('', null)
+        .optional(),
+    city: Joi.string()
+        .max(100)
+        .trim()
+        .allow('', null)
+        .optional(),
+    country: Joi.string()
+        .length(2)
+        .uppercase()
+        .trim()
+        .default('SA')
+        .optional(),
+    postalCode: Joi.string()
+        .max(20)
+        .trim()
+        .allow('', null)
+        .optional(),
+    // Financial field validations
+    bankName: Joi.string()
+        .max(200)
+        .trim()
+        .allow('', null)
+        .optional(),
+    bankAccountNumber: Joi.string()
+        .pattern(/^[A-Z0-9]+$/)
+        .max(50)
+        .trim()
+        .allow('', null)
+        .optional()
+        .messages({
+            'string.pattern.base': 'Bank account number must contain only alphanumeric characters'
+        }),
+    bankIban: Joi.string()
+        .pattern(/^[A-Z]{2}[0-9]{2}[A-Z0-9]+$/)
+        .min(15)
+        .max(34)
+        .trim()
+        .uppercase()
+        .allow('', null)
+        .optional()
+        .messages({
+            'string.pattern.base': 'IBAN format is invalid (must start with 2 letters, 2 digits, followed by alphanumeric)',
+            'string.min': 'IBAN must be at least 15 characters',
+            'string.max': 'IBAN cannot exceed 34 characters'
+        }),
+    currency: Joi.string()
+        .length(3)
+        .uppercase()
+        .trim()
+        .pattern(/^[A-Z]{3}$/)
+        .default('SAR')
+        .optional()
+        .messages({
+            'string.pattern.base': 'Currency must be a valid 3-letter ISO code (e.g., SAR, USD, EUR)'
+        }),
+    paymentTerms: Joi.number()
+        .integer()
+        .min(0)
+        .max(365)
+        .default(30)
+        .optional()
+        .messages({
+            'number.min': 'Payment terms must be at least 0 days',
+            'number.max': 'Payment terms cannot exceed 365 days',
+            'number.integer': 'Payment terms must be a whole number'
+        }),
+    defaultCategory: Joi.string()
+        .max(100)
+        .trim()
+        .allow('', null)
+        .optional(),
+    website: Joi.string()
+        .uri()
+        .max(500)
+        .trim()
+        .allow('', null)
+        .optional()
+        .messages({
+            'string.uri': 'Website must be a valid URL'
+        }),
+    contactPerson: Joi.string()
+        .max(200)
+        .trim()
+        .allow('', null)
+        .optional(),
+    notes: Joi.string()
+        .max(2000)
+        .trim()
+        .allow('', null)
+        .optional(),
+    // Financial fields - additional validation
+    creditLimit: Joi.number()
+        .integer()
+        .min(0)
+        .optional()
+        .messages({
+            'number.min': 'Credit limit cannot be negative'
+        }),
+    openingBalance: Joi.number()
+        .integer()
+        .optional(),
+    openingBalanceDate: Joi.date()
+        .optional(),
+    defaultExpenseAccountId: Joi.string()
+        .pattern(/^[0-9a-fA-F]{24}$/)
+        .allow('', null)
+        .optional()
+        .messages({
+            'string.pattern.base': 'Invalid account ID format'
+        }),
+    payableAccountId: Joi.string()
+        .pattern(/^[0-9a-fA-F]{24}$/)
+        .allow('', null)
+        .optional()
+        .messages({
+            'string.pattern.base': 'Invalid account ID format'
+        })
+}).options({ stripUnknown: true, abortEarly: false });
+
+// Vendor update validation schema (all fields optional)
+const vendorUpdateSchema = Joi.object({
+    name: Joi.string()
+        .min(2)
+        .max(300)
+        .trim()
+        .optional()
+        .messages({
+            'string.min': 'Vendor name must be at least 2 characters',
+            'string.max': 'Vendor name cannot exceed 300 characters'
+        }),
+    nameAr: Joi.string()
+        .max(300)
+        .trim()
+        .allow('', null)
+        .optional(),
+    email: Joi.string()
+        .email()
+        .trim()
+        .lowercase()
+        .max(255)
+        .allow('', null)
+        .optional(),
+    phone: Joi.string()
+        .pattern(/^[\d\s+()-]+$/)
+        .max(30)
+        .trim()
+        .allow('', null)
+        .optional()
+        .messages({
+            'string.pattern.base': 'Phone number contains invalid characters'
+        }),
+    taxNumber: Joi.string()
+        .trim()
+        .max(50)
+        .allow('', null)
+        .optional(),
+    address: Joi.string()
+        .max(500)
+        .trim()
+        .allow('', null)
+        .optional(),
+    city: Joi.string()
+        .max(100)
+        .trim()
+        .allow('', null)
+        .optional(),
+    country: Joi.string()
+        .length(2)
+        .uppercase()
+        .trim()
+        .optional(),
+    postalCode: Joi.string()
+        .max(20)
+        .trim()
+        .allow('', null)
+        .optional(),
+    // Financial field validations
+    bankName: Joi.string()
+        .max(200)
+        .trim()
+        .allow('', null)
+        .optional(),
+    bankAccountNumber: Joi.string()
+        .pattern(/^[A-Z0-9]+$/)
+        .max(50)
+        .trim()
+        .allow('', null)
+        .optional()
+        .messages({
+            'string.pattern.base': 'Bank account number must contain only alphanumeric characters'
+        }),
+    bankIban: Joi.string()
+        .pattern(/^[A-Z]{2}[0-9]{2}[A-Z0-9]+$/)
+        .min(15)
+        .max(34)
+        .trim()
+        .uppercase()
+        .allow('', null)
+        .optional()
+        .messages({
+            'string.pattern.base': 'IBAN format is invalid',
+            'string.min': 'IBAN must be at least 15 characters',
+            'string.max': 'IBAN cannot exceed 34 characters'
+        }),
+    currency: Joi.string()
+        .length(3)
+        .uppercase()
+        .trim()
+        .pattern(/^[A-Z]{3}$/)
+        .optional()
+        .messages({
+            'string.pattern.base': 'Currency must be a valid 3-letter ISO code'
+        }),
+    paymentTerms: Joi.number()
+        .integer()
+        .min(0)
+        .max(365)
+        .optional()
+        .messages({
+            'number.min': 'Payment terms must be at least 0 days',
+            'number.max': 'Payment terms cannot exceed 365 days'
+        }),
+    defaultCategory: Joi.string()
+        .max(100)
+        .trim()
+        .allow('', null)
+        .optional(),
+    website: Joi.string()
+        .uri()
+        .max(500)
+        .trim()
+        .allow('', null)
+        .optional(),
+    contactPerson: Joi.string()
+        .max(200)
+        .trim()
+        .allow('', null)
+        .optional(),
+    notes: Joi.string()
+        .max(2000)
+        .trim()
+        .allow('', null)
+        .optional(),
+    isActive: Joi.boolean()
+        .optional(),
+    creditLimit: Joi.number()
+        .integer()
+        .min(0)
+        .optional(),
+    openingBalance: Joi.number()
+        .integer()
+        .optional(),
+    openingBalanceDate: Joi.date()
+        .optional(),
+    defaultExpenseAccountId: Joi.string()
+        .pattern(/^[0-9a-fA-F]{24}$/)
+        .allow('', null)
+        .optional(),
+    payableAccountId: Joi.string()
+        .pattern(/^[0-9a-fA-F]{24}$/)
+        .allow('', null)
+        .optional()
+}).options({ stripUnknown: true, abortEarly: false });
+
+// Allowed fields for vendor creation (mass assignment protection)
+const VENDOR_CREATE_ALLOWED_FIELDS = [
+    'name',
+    'nameAr',
+    'email',
+    'phone',
+    'taxNumber',
+    'address',
+    'city',
+    'country',
+    'postalCode',
+    'bankName',
+    'bankAccountNumber',
+    'bankIban',
+    'currency',
+    'paymentTerms',
+    'defaultCategory',
+    'website',
+    'contactPerson',
+    'notes',
+    'creditLimit',
+    'openingBalance',
+    'openingBalanceDate',
+    'defaultExpenseAccountId',
+    'payableAccountId'
+];
+
+// Allowed fields for vendor update (mass assignment protection)
+const VENDOR_UPDATE_ALLOWED_FIELDS = [
+    'name',
+    'nameAr',
+    'email',
+    'phone',
+    'taxNumber',
+    'address',
+    'city',
+    'country',
+    'postalCode',
+    'bankName',
+    'bankAccountNumber',
+    'bankIban',
+    'currency',
+    'paymentTerms',
+    'defaultCategory',
+    'website',
+    'contactPerson',
+    'notes',
+    'isActive',
+    'creditLimit',
+    'openingBalance',
+    'openingBalanceDate',
+    'defaultExpenseAccountId',
+    'payableAccountId'
+];
+
+// ============================================
+// CONTROLLER FUNCTIONS
+// ============================================
 
 // Create vendor
 const createVendor = asyncHandler(async (req, res) => {
-    const {
-        name,
-        nameAr,
-        email,
-        phone,
-        taxNumber,
-        address,
-        city,
-        country,
-        postalCode,
-        bankName,
-        bankAccountNumber,
-        bankIban,
-        currency,
-        paymentTerms,
-        defaultCategory,
-        website,
-        contactPerson,
-        notes
-    } = req.body;
-
     const lawyerId = req.userID;
 
-    if (!name || name.length < 2) {
-        throw CustomException('Vendor name is required (min 2 characters)', 400);
+    // Mass assignment protection - only allow specific fields
+    const filteredData = pickAllowedFields(req.body, VENDOR_CREATE_ALLOWED_FIELDS);
+
+    // Validate input with Joi
+    const { error, value: validatedData } = vendorCreateSchema.validate(filteredData);
+
+    if (error) {
+        const errorMessages = error.details.map(detail => detail.message).join(', ');
+        throw CustomException(`Validation failed: ${errorMessages}`, 400);
     }
 
-    const vendor = await Vendor.create({
-        name,
-        nameAr,
-        email,
-        phone,
-        taxNumber,
-        address,
-        city,
-        country: country || 'SA',
-        postalCode,
-        bankName,
-        bankAccountNumber,
-        bankIban,
-        currency: currency || 'SAR',
-        paymentTerms: paymentTerms || 30,
-        defaultCategory,
-        website,
-        contactPerson,
-        notes,
+    // Additional validation: If IBAN is provided, ensure bank details are complete
+    if (validatedData.bankIban && !validatedData.bankName) {
+        throw CustomException('Bank name is required when IBAN is provided', 400);
+    }
+
+    // IDOR Protection: lawyerId is set from authenticated user, not from request body
+    const vendorData = {
+        ...validatedData,
         lawyerId
-    });
+    };
+
+    const vendor = await Vendor.create(vendorData);
 
     await BillingActivity.logActivity({
         activityType: 'vendor_created',
         userId: lawyerId,
         relatedModel: 'Vendor',
         relatedId: vendor._id,
-        description: `Vendor "${name}" created`,
+        description: `Vendor "${validatedData.name}" created`,
         ipAddress: req.ip,
         userAgent: req.get('user-agent')
     });
@@ -113,12 +461,19 @@ const getVendor = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const lawyerId = req.userID;
 
-    const vendor = await Vendor.findById(id);
+    // Sanitize ObjectId to prevent NoSQL injection
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('Invalid vendor ID format', 400);
+    }
+
+    const vendor = await Vendor.findById(sanitizedId);
 
     if (!vendor) {
         throw CustomException('Vendor not found', 404);
     }
 
+    // IDOR Protection: Verify ownership
     if (vendor.lawyerId.toString() !== lawyerId) {
         throw CustomException('You do not have access to this vendor', 403);
     }
@@ -134,19 +489,47 @@ const updateVendor = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const lawyerId = req.userID;
 
-    const vendor = await Vendor.findById(id);
+    // Sanitize ObjectId to prevent NoSQL injection
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('Invalid vendor ID format', 400);
+    }
+
+    const vendor = await Vendor.findById(sanitizedId);
 
     if (!vendor) {
         throw CustomException('Vendor not found', 404);
     }
 
+    // IDOR Protection: Verify ownership
     if (vendor.lawyerId.toString() !== lawyerId) {
         throw CustomException('You do not have access to this vendor', 403);
     }
 
+    // Mass assignment protection - only allow specific fields
+    const filteredData = pickAllowedFields(req.body, VENDOR_UPDATE_ALLOWED_FIELDS);
+
+    // Validate input with Joi
+    const { error, value: validatedData } = vendorUpdateSchema.validate(filteredData);
+
+    if (error) {
+        const errorMessages = error.details.map(detail => detail.message).join(', ');
+        throw CustomException(`Validation failed: ${errorMessages}`, 400);
+    }
+
+    // Ensure no attempt to change ownership (lawyerId should never be updated from request)
+    if (validatedData.lawyerId) {
+        delete validatedData.lawyerId;
+    }
+
+    // Additional validation: If IBAN is provided, ensure bank details are complete
+    if (validatedData.bankIban && !validatedData.bankName && !vendor.bankName) {
+        throw CustomException('Bank name is required when IBAN is provided', 400);
+    }
+
     const updatedVendor = await Vendor.findByIdAndUpdate(
-        id,
-        { $set: req.body },
+        sanitizedId,
+        { $set: validatedData },
         { new: true, runValidators: true }
     );
 
@@ -162,24 +545,31 @@ const deleteVendor = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const lawyerId = req.userID;
 
-    const vendor = await Vendor.findById(id);
+    // Sanitize ObjectId to prevent NoSQL injection
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('Invalid vendor ID format', 400);
+    }
+
+    const vendor = await Vendor.findById(sanitizedId);
 
     if (!vendor) {
         throw CustomException('Vendor not found', 404);
     }
 
+    // IDOR Protection: Verify ownership
     if (vendor.lawyerId.toString() !== lawyerId) {
         throw CustomException('You do not have access to this vendor', 403);
     }
 
     // Check for existing bills
     const Bill = require('../models').Bill;
-    const billCount = await Bill.countDocuments({ vendorId: id });
+    const billCount = await Bill.countDocuments({ vendorId: sanitizedId });
     if (billCount > 0) {
         throw CustomException('Cannot delete vendor with existing bills. Deactivate instead.', 400);
     }
 
-    await Vendor.findByIdAndDelete(id);
+    await Vendor.findByIdAndDelete(sanitizedId);
 
     return res.json({
         success: true,
@@ -192,10 +582,17 @@ const getVendorSummary = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const lawyerId = req.userID;
 
-    const summary = await Vendor.getVendorSummary(id, lawyerId);
+    // Sanitize ObjectId to prevent NoSQL injection
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('Invalid vendor ID format', 400);
+    }
+
+    // getVendorSummary method already includes IDOR protection by checking lawyerId
+    const summary = await Vendor.getVendorSummary(sanitizedId, lawyerId);
 
     if (!summary) {
-        throw CustomException('Vendor not found', 404);
+        throw CustomException('Vendor not found or access denied', 404);
     }
 
     return res.json({

@@ -1,6 +1,7 @@
 const { Contact, Case, Client } = require('../models');
 const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
+const { pickAllowedFields, sanitizeString, sanitizeEmail, sanitizePhone, sanitizeObjectId } = require('../utils/securityUtils');
 
 /**
  * Create contact
@@ -15,8 +16,46 @@ const createContact = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
+    // MASS ASSIGNMENT PROTECTION: Only allow specific fields
+    const allowedFields = [
+        'salutation', 'salutationAr', 'firstName', 'middleName', 'lastName', 'preferredName', 'suffix', 'fullNameArabic',
+        'arabicName', // الاسم الرباعي - 4-part Arabic name structure
+        'type', 'primaryRole', 'relationshipTypes',
+        'email', 'phone', 'alternatePhone', 'emails', 'phones',
+        'company', 'organizationId', 'title', 'department',
+        'nationalId', 'iqamaNumber', 'passportNumber', 'passportCountry', 'dateOfBirth', 'nationality',
+        'address', 'buildingNumber', 'district', 'city', 'province', 'postalCode', 'country',
+        'preferredLanguage', 'preferredContactMethod', 'bestTimeToContact',
+        'doNotContact', 'doNotEmail', 'doNotCall', 'doNotSMS',
+        'conflictCheckStatus', 'conflictNotes', 'conflictCheckDate', 'conflictCheckedBy',
+        'status', 'priority', 'vipStatus',
+        'riskLevel', 'isBlacklisted', 'blacklistReason',
+        'tags', 'practiceAreas', 'notes'
+    ];
+
+    // Extract only allowed fields from request body
+    const safeContactData = pickAllowedFields(req.body, allowedFields);
+
+    // INPUT VALIDATION: Sanitize string inputs
+    if (safeContactData.firstName) {
+        safeContactData.firstName = sanitizeString(safeContactData.firstName);
+    }
+    if (safeContactData.lastName) {
+        safeContactData.lastName = sanitizeString(safeContactData.lastName);
+    }
+    if (safeContactData.email) {
+        safeContactData.email = sanitizeEmail(safeContactData.email);
+    }
+    if (safeContactData.phone) {
+        safeContactData.phone = sanitizePhone(safeContactData.phone);
+    }
+    if (safeContactData.alternatePhone) {
+        safeContactData.alternatePhone = sanitizePhone(safeContactData.alternatePhone);
+    }
+
+    // Ensure these system fields are not overridable (IDOR protection)
     const contactData = {
-        ...req.body,
+        ...safeContactData,
         lawyerId,
         firmId,
         createdBy: lawyerId
@@ -45,10 +84,10 @@ const createContact = asyncHandler(async (req, res) => {
         }
         // Also populate legacy firstName/lastName for backwards compatibility
         if (!contactData.firstName && contactData.arabicName.firstName) {
-            contactData.firstName = contactData.arabicName.firstName;
+            contactData.firstName = sanitizeString(contactData.arabicName.firstName);
         }
         if (!contactData.lastName && contactData.arabicName.familyName) {
-            contactData.lastName = contactData.arabicName.familyName;
+            contactData.lastName = sanitizeString(contactData.arabicName.familyName);
         }
     }
 
@@ -172,6 +211,7 @@ const updateContact = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
+    // IDOR PROTECTION: Verify contact belongs to user's firm
     const accessQuery = firmId
         ? { _id: id, firmId }
         : { _id: id, lawyerId };
@@ -182,7 +222,7 @@ const updateContact = asyncHandler(async (req, res) => {
         throw CustomException('جهة الاتصال غير موجودة', 404);
     }
 
-    // Fields that can be updated
+    // MASS ASSIGNMENT PROTECTION: Only allow specific fields
     const allowedFields = [
         'salutation', 'salutationAr', 'firstName', 'middleName', 'lastName', 'preferredName', 'suffix', 'fullNameArabic',
         'arabicName', // الاسم الرباعي - 4-part Arabic name structure
@@ -199,14 +239,33 @@ const updateContact = asyncHandler(async (req, res) => {
         'tags', 'practiceAreas', 'notes'
     ];
 
-    allowedFields.forEach(field => {
-        if (req.body[field] !== undefined) {
-            contact[field] = req.body[field];
-        }
+    // Extract only allowed fields from request body
+    const safeUpdateData = pickAllowedFields(req.body, allowedFields);
+
+    // INPUT VALIDATION: Sanitize string inputs before updating
+    if (safeUpdateData.firstName) {
+        safeUpdateData.firstName = sanitizeString(safeUpdateData.firstName);
+    }
+    if (safeUpdateData.lastName) {
+        safeUpdateData.lastName = sanitizeString(safeUpdateData.lastName);
+    }
+    if (safeUpdateData.email) {
+        safeUpdateData.email = sanitizeEmail(safeUpdateData.email);
+    }
+    if (safeUpdateData.phone) {
+        safeUpdateData.phone = sanitizePhone(safeUpdateData.phone);
+    }
+    if (safeUpdateData.alternatePhone) {
+        safeUpdateData.alternatePhone = sanitizePhone(safeUpdateData.alternatePhone);
+    }
+
+    // Apply safe updates to contact
+    Object.keys(safeUpdateData).forEach(field => {
+        contact[field] = safeUpdateData[field];
     });
 
     // Handle Arabic 4-part name (الاسم الرباعي) - auto-generate fullName
-    if (req.body.arabicName && contact.arabicName) {
+    if (safeUpdateData.arabicName && contact.arabicName) {
         if (!contact.arabicName.fullName) {
             const nameParts = [
                 contact.arabicName.firstName,
@@ -220,17 +279,20 @@ const updateContact = asyncHandler(async (req, res) => {
         }
         // Sync to legacy fields
         if (contact.arabicName.firstName && !contact.firstName) {
-            contact.firstName = contact.arabicName.firstName;
+            contact.firstName = sanitizeString(contact.arabicName.firstName);
         }
         if (contact.arabicName.familyName && !contact.lastName) {
-            contact.lastName = contact.arabicName.familyName;
+            contact.lastName = sanitizeString(contact.arabicName.familyName);
         }
         if (contact.arabicName.fullName && !contact.fullNameArabic) {
             contact.fullNameArabic = contact.arabicName.fullName;
         }
     }
 
+    // Ensure these system fields are not modifiable (IDOR protection)
     contact.updatedBy = lawyerId;
+    // firmId and lawyerId are not modified - they are tied to the existing document
+
     await contact.save();
 
     res.json({
@@ -340,32 +402,42 @@ const linkToCase = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
-    if (!caseId) {
-        throw CustomException('معرف القضية مطلوب', 400);
+    // INPUT VALIDATION: Validate and sanitize IDs
+    const sanitizedId = sanitizeObjectId(id);
+    const sanitizedCaseId = sanitizeObjectId(caseId);
+
+    if (!sanitizedId) {
+        throw CustomException('معرف جهة الاتصال غير صالح', 400);
     }
 
+    if (!sanitizedCaseId) {
+        throw CustomException('معرف القضية غير صالح', 400);
+    }
+
+    // IDOR PROTECTION: Verify contact belongs to user's firm
     const accessQuery = firmId
-        ? { _id: id, firmId }
-        : { _id: id, lawyerId };
+        ? { _id: sanitizedId, firmId }
+        : { _id: sanitizedId, lawyerId };
 
     const contact = await Contact.findOne(accessQuery);
     if (!contact) {
         throw CustomException('جهة الاتصال غير موجودة', 404);
     }
 
+    // IDOR PROTECTION: Verify case belongs to user's firm
     const caseQuery = firmId
-        ? { _id: caseId, firmId }
-        : { _id: caseId, lawyerId };
+        ? { _id: sanitizedCaseId, firmId }
+        : { _id: sanitizedCaseId, lawyerId };
     const caseExists = await Case.findOne(caseQuery);
     if (!caseExists) {
         throw CustomException('القضية غير موجودة', 404);
     }
 
-    if (!contact.linkedCases.includes(caseId)) {
-        contact.linkedCases.push(caseId);
+    if (!contact.linkedCases.includes(sanitizedCaseId)) {
+        contact.linkedCases.push(sanitizedCaseId);
         // Optionally update role if provided
         if (role && !contact.primaryRole) {
-            contact.primaryRole = role;
+            contact.primaryRole = sanitizeString(role);
         }
         await contact.save();
     }
@@ -393,20 +465,29 @@ const unlinkFromCase = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
-    if (!caseId) {
-        throw CustomException('معرف القضية مطلوب', 400);
+    // INPUT VALIDATION: Validate and sanitize IDs
+    const sanitizedId = sanitizeObjectId(id);
+    const sanitizedCaseId = sanitizeObjectId(caseId);
+
+    if (!sanitizedId) {
+        throw CustomException('معرف جهة الاتصال غير صالح', 400);
     }
 
+    if (!sanitizedCaseId) {
+        throw CustomException('معرف القضية غير صالح', 400);
+    }
+
+    // IDOR PROTECTION: Verify contact belongs to user's firm
     const accessQuery = firmId
-        ? { _id: id, firmId }
-        : { _id: id, lawyerId };
+        ? { _id: sanitizedId, firmId }
+        : { _id: sanitizedId, lawyerId };
 
     const contact = await Contact.findOne(accessQuery);
     if (!contact) {
         throw CustomException('جهة الاتصال غير موجودة', 404);
     }
 
-    contact.linkedCases = contact.linkedCases.filter(c => c.toString() !== caseId);
+    contact.linkedCases = contact.linkedCases.filter(c => c.toString() !== sanitizedCaseId);
     await contact.save();
 
     res.json({
@@ -472,29 +553,39 @@ const linkToClient = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
-    if (!clientId) {
-        throw CustomException('معرف العميل مطلوب', 400);
+    // INPUT VALIDATION: Validate and sanitize IDs
+    const sanitizedId = sanitizeObjectId(id);
+    const sanitizedClientId = sanitizeObjectId(clientId);
+
+    if (!sanitizedId) {
+        throw CustomException('معرف جهة الاتصال غير صالح', 400);
     }
 
+    if (!sanitizedClientId) {
+        throw CustomException('معرف العميل غير صالح', 400);
+    }
+
+    // IDOR PROTECTION: Verify contact belongs to user's firm
     const accessQuery = firmId
-        ? { _id: id, firmId }
-        : { _id: id, lawyerId };
+        ? { _id: sanitizedId, firmId }
+        : { _id: sanitizedId, lawyerId };
 
     const contact = await Contact.findOne(accessQuery);
     if (!contact) {
         throw CustomException('جهة الاتصال غير موجودة', 404);
     }
 
+    // IDOR PROTECTION: Verify client belongs to user's firm
     const clientQuery = firmId
-        ? { _id: clientId, firmId }
-        : { _id: clientId, lawyerId };
+        ? { _id: sanitizedClientId, firmId }
+        : { _id: sanitizedClientId, lawyerId };
     const clientExists = await Client.findOne(clientQuery);
     if (!clientExists) {
         throw CustomException('العميل غير موجود', 404);
     }
 
-    if (!contact.linkedClients.includes(clientId)) {
-        contact.linkedClients.push(clientId);
+    if (!contact.linkedClients.includes(sanitizedClientId)) {
+        contact.linkedClients.push(sanitizedClientId);
         await contact.save();
     }
 
@@ -521,20 +612,29 @@ const unlinkFromClient = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
-    if (!clientId) {
-        throw CustomException('معرف العميل مطلوب', 400);
+    // INPUT VALIDATION: Validate and sanitize IDs
+    const sanitizedId = sanitizeObjectId(id);
+    const sanitizedClientId = sanitizeObjectId(clientId);
+
+    if (!sanitizedId) {
+        throw CustomException('معرف جهة الاتصال غير صالح', 400);
     }
 
+    if (!sanitizedClientId) {
+        throw CustomException('معرف العميل غير صالح', 400);
+    }
+
+    // IDOR PROTECTION: Verify contact belongs to user's firm
     const accessQuery = firmId
-        ? { _id: id, firmId }
-        : { _id: id, lawyerId };
+        ? { _id: sanitizedId, firmId }
+        : { _id: sanitizedId, lawyerId };
 
     const contact = await Contact.findOne(accessQuery);
     if (!contact) {
         throw CustomException('جهة الاتصال غير موجودة', 404);
     }
 
-    contact.linkedClients = contact.linkedClients.filter(c => c.toString() !== clientId);
+    contact.linkedClients = contact.linkedClients.filter(c => c.toString() !== sanitizedClientId);
     await contact.save();
 
     res.json({

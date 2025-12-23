@@ -12,6 +12,73 @@
 const sessionManager = require('../services/sessionManager.service');
 const auditLogService = require('../services/auditLog.service');
 const Session = require('../models/session.model');
+const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
+
+/**
+ * Extract IP address from request
+ */
+const getClientIP = (request) => {
+    return request.ip ||
+           request.headers['x-forwarded-for']?.split(',')[0]?.trim() ||
+           request.connection?.remoteAddress ||
+           'unknown';
+};
+
+/**
+ * Extract user agent from request
+ */
+const getClientUserAgent = (request) => {
+    return request.headers['user-agent'] || 'unknown';
+};
+
+/**
+ * Validate session token format
+ */
+const validateSessionToken = (token) => {
+    if (!token || typeof token !== 'string') {
+        return null;
+    }
+
+    // Remove any whitespace and validate it's not empty
+    const trimmedToken = token.trim();
+    if (trimmedToken.length === 0 || trimmedToken.length > 500) {
+        return null;
+    }
+
+    return trimmedToken;
+};
+
+/**
+ * Detect suspicious session activity
+ */
+const detectSuspiciousActivity = (session, request) => {
+    const currentIP = getClientIP(request);
+    const currentUserAgent = getClientUserAgent(request);
+    const sessionIP = session.location?.ip || 'unknown';
+    const sessionUserAgent = session.deviceInfo?.userAgent || 'unknown';
+
+    const warnings = [];
+
+    // IP mismatch detection
+    if (currentIP !== 'unknown' && sessionIP !== 'unknown' && currentIP !== sessionIP) {
+        warnings.push({
+            type: 'ip_mismatch',
+            message: 'IP address changed',
+            details: { sessionIP, currentIP }
+        });
+    }
+
+    // User agent mismatch detection
+    if (currentUserAgent !== 'unknown' && sessionUserAgent !== 'unknown' && currentUserAgent !== sessionUserAgent) {
+        warnings.push({
+            type: 'user_agent_mismatch',
+            message: 'User agent changed',
+            details: { sessionUserAgent: sessionUserAgent.substring(0, 100), currentUserAgent: currentUserAgent.substring(0, 100) }
+        });
+    }
+
+    return warnings;
+};
 
 /**
  * Get all active sessions for the current user
@@ -28,10 +95,20 @@ const getActiveSessions = async (request, response) => {
             });
         }
 
-        const sessions = await sessionManager.getActiveSessions(userId);
+        // Sanitize userId to prevent NoSQL injection
+        const sanitizedUserId = sanitizeObjectId(userId.toString());
+        if (!sanitizedUserId) {
+            return response.status(400).json({
+                error: true,
+                message: 'Invalid user ID format'
+            });
+        }
 
-        // Get current session token hash to mark it in the response
-        const currentToken = request.cookies?.accessToken || request.headers.authorization?.replace('Bearer ', '');
+        const sessions = await sessionManager.getActiveSessions(sanitizedUserId);
+
+        // Get current session token and validate it
+        const rawToken = request.cookies?.accessToken || request.headers.authorization?.replace('Bearer ', '');
+        const currentToken = validateSessionToken(rawToken);
         const currentTokenHash = currentToken ? Session.hashToken(currentToken) : null;
 
         // Format sessions for response
@@ -60,11 +137,11 @@ const getActiveSessions = async (request, response) => {
             null,
             null,
             {
-                userId,
+                userId: sanitizedUserId,
                 userEmail: request.user?.email,
                 userRole: request.user?.role,
-                ipAddress: request.ip || request.headers['x-forwarded-for']?.split(',')[0] || 'unknown',
-                userAgent: request.headers['user-agent'] || 'unknown',
+                ipAddress: getClientIP(request),
+                userAgent: getClientUserAgent(request),
                 method: request.method,
                 endpoint: request.originalUrl,
                 severity: 'low',
@@ -96,12 +173,30 @@ const getActiveSessions = async (request, response) => {
 const getCurrentSession = async (request, response) => {
     try {
         const userId = request.userID || request.user?._id || request.user?.id;
-        const currentToken = request.cookies?.accessToken || request.headers.authorization?.replace('Bearer ', '');
+        const rawToken = request.cookies?.accessToken || request.headers.authorization?.replace('Bearer ', '');
 
-        if (!userId || !currentToken) {
+        if (!userId || !rawToken) {
             return response.status(401).json({
                 error: true,
                 message: 'Unauthorized'
+            });
+        }
+
+        // Sanitize userId to prevent NoSQL injection
+        const sanitizedUserId = sanitizeObjectId(userId.toString());
+        if (!sanitizedUserId) {
+            return response.status(400).json({
+                error: true,
+                message: 'Invalid user ID format'
+            });
+        }
+
+        // Validate session token
+        const currentToken = validateSessionToken(rawToken);
+        if (!currentToken) {
+            return response.status(400).json({
+                error: true,
+                message: 'Invalid session token format'
             });
         }
 
@@ -114,7 +209,50 @@ const getCurrentSession = async (request, response) => {
             });
         }
 
-        return response.status(200).json({
+        // IDOR Protection: Verify session belongs to authenticated user
+        if (session.userId.toString() !== sanitizedUserId) {
+            // Log suspicious activity
+            auditLogService.log(
+                'unauthorized_session_access_attempt',
+                'session',
+                session._id,
+                null,
+                {
+                    userId: sanitizedUserId,
+                    attemptedSessionUserId: session.userId.toString(),
+                    ipAddress: getClientIP(request),
+                    userAgent: getClientUserAgent(request),
+                    severity: 'high'
+                }
+            );
+
+            return response.status(403).json({
+                error: true,
+                message: 'Forbidden: Cannot access another user\'s session'
+            });
+        }
+
+        // Detect suspicious activity (IP/user-agent changes)
+        const warnings = detectSuspiciousActivity(session, request);
+        if (warnings.length > 0) {
+            // Log suspicious activity
+            auditLogService.log(
+                'suspicious_session_activity',
+                'session',
+                session._id,
+                null,
+                {
+                    userId: sanitizedUserId,
+                    userEmail: request.user?.email,
+                    ipAddress: getClientIP(request),
+                    userAgent: getClientUserAgent(request),
+                    severity: 'medium',
+                    warnings
+                }
+            );
+        }
+
+        const responseData = {
             error: false,
             message: 'Current session retrieved successfully',
             session: {
@@ -133,7 +271,14 @@ const getCurrentSession = async (request, response) => {
                 expiresAt: session.expiresAt,
                 isCurrent: true
             }
-        });
+        };
+
+        // Include security warnings if any
+        if (warnings.length > 0) {
+            responseData.securityWarnings = warnings;
+        }
+
+        return response.status(200).json(responseData);
     } catch (error) {
         console.error('getCurrentSession error:', error.message);
         return response.status(500).json({
@@ -150,7 +295,7 @@ const getCurrentSession = async (request, response) => {
 const terminateSession = async (request, response) => {
     try {
         const userId = request.userID || request.user?._id || request.user?.id;
-        const sessionId = request.params.id;
+        const rawSessionId = request.params.id;
 
         if (!userId) {
             return response.status(401).json({
@@ -159,14 +304,25 @@ const terminateSession = async (request, response) => {
             });
         }
 
-        if (!sessionId) {
+        // Sanitize userId to prevent NoSQL injection
+        const sanitizedUserId = sanitizeObjectId(userId.toString());
+        if (!sanitizedUserId) {
             return response.status(400).json({
                 error: true,
-                message: 'Session ID is required'
+                message: 'Invalid user ID format'
             });
         }
 
-        // Verify session belongs to user
+        // Validate and sanitize session ID to prevent IDOR and NoSQL injection
+        const sessionId = sanitizeObjectId(rawSessionId);
+        if (!sessionId) {
+            return response.status(400).json({
+                error: true,
+                message: 'Invalid session ID format'
+            });
+        }
+
+        // IDOR Protection: Verify session belongs to user
         const session = await Session.findById(sessionId);
 
         if (!session) {
@@ -176,15 +332,31 @@ const terminateSession = async (request, response) => {
             });
         }
 
-        if (session.userId.toString() !== userId.toString()) {
+        // IDOR Protection: Verify session ownership
+        if (session.userId.toString() !== sanitizedUserId) {
+            // Log unauthorized access attempt
+            auditLogService.log(
+                'unauthorized_session_termination_attempt',
+                'session',
+                sessionId,
+                null,
+                {
+                    userId: sanitizedUserId,
+                    attemptedSessionUserId: session.userId.toString(),
+                    ipAddress: getClientIP(request),
+                    userAgent: getClientUserAgent(request),
+                    severity: 'high'
+                }
+            );
+
             return response.status(403).json({
                 error: true,
                 message: 'Forbidden: Cannot terminate another user\'s session'
             });
         }
 
-        // Terminate the session
-        await sessionManager.terminateSession(sessionId, 'user_terminated', userId);
+        // Secure session invalidation
+        await sessionManager.terminateSession(sessionId, 'user_terminated', sanitizedUserId);
 
         // Log session termination (fire-and-forget)
         auditLogService.log(
@@ -193,11 +365,11 @@ const terminateSession = async (request, response) => {
             sessionId,
             null,
             {
-                userId,
+                userId: sanitizedUserId,
                 userEmail: request.user?.email,
                 userRole: request.user?.role,
-                ipAddress: request.ip || request.headers['x-forwarded-for']?.split(',')[0] || 'unknown',
-                userAgent: request.headers['user-agent'] || 'unknown',
+                ipAddress: getClientIP(request),
+                userAgent: getClientUserAgent(request),
                 method: request.method,
                 endpoint: request.originalUrl,
                 severity: 'medium',
@@ -229,12 +401,30 @@ const terminateSession = async (request, response) => {
 const terminateAllOtherSessions = async (request, response) => {
     try {
         const userId = request.userID || request.user?._id || request.user?.id;
-        const currentToken = request.cookies?.accessToken || request.headers.authorization?.replace('Bearer ', '');
+        const rawToken = request.cookies?.accessToken || request.headers.authorization?.replace('Bearer ', '');
 
-        if (!userId || !currentToken) {
+        if (!userId || !rawToken) {
             return response.status(401).json({
                 error: true,
                 message: 'Unauthorized'
+            });
+        }
+
+        // Sanitize userId to prevent NoSQL injection
+        const sanitizedUserId = sanitizeObjectId(userId.toString());
+        if (!sanitizedUserId) {
+            return response.status(400).json({
+                error: true,
+                message: 'Invalid user ID format'
+            });
+        }
+
+        // Validate session token
+        const currentToken = validateSessionToken(rawToken);
+        if (!currentToken) {
+            return response.status(400).json({
+                error: true,
+                message: 'Invalid session token format'
             });
         }
 
@@ -248,12 +438,35 @@ const terminateAllOtherSessions = async (request, response) => {
             });
         }
 
-        // Terminate all sessions except current
+        // IDOR Protection: Verify current session belongs to user
+        if (currentSession.userId.toString() !== sanitizedUserId) {
+            // Log suspicious activity
+            auditLogService.log(
+                'unauthorized_bulk_session_termination_attempt',
+                'session',
+                null,
+                null,
+                {
+                    userId: sanitizedUserId,
+                    attemptedSessionUserId: currentSession.userId.toString(),
+                    ipAddress: getClientIP(request),
+                    userAgent: getClientUserAgent(request),
+                    severity: 'critical'
+                }
+            );
+
+            return response.status(403).json({
+                error: true,
+                message: 'Forbidden: Session ownership mismatch'
+            });
+        }
+
+        // Secure session invalidation - terminate all sessions except current
         const result = await sessionManager.terminateAllSessions(
-            userId,
+            sanitizedUserId,
             currentSession._id,
             'user_terminated',
-            userId
+            sanitizedUserId
         );
 
         // Log bulk termination (fire-and-forget)
@@ -263,11 +476,11 @@ const terminateAllOtherSessions = async (request, response) => {
             null,
             null,
             {
-                userId,
+                userId: sanitizedUserId,
                 userEmail: request.user?.email,
                 userRole: request.user?.role,
-                ipAddress: request.ip || request.headers['x-forwarded-for']?.split(',')[0] || 'unknown',
-                userAgent: request.headers['user-agent'] || 'unknown',
+                ipAddress: getClientIP(request),
+                userAgent: getClientUserAgent(request),
                 method: request.method,
                 endpoint: request.originalUrl,
                 severity: 'medium',
@@ -307,7 +520,16 @@ const getSessionStats = async (request, response) => {
             });
         }
 
-        const stats = await sessionManager.getUserSessionStats(userId);
+        // Sanitize userId to prevent NoSQL injection
+        const sanitizedUserId = sanitizeObjectId(userId.toString());
+        if (!sanitizedUserId) {
+            return response.status(400).json({
+                error: true,
+                message: 'Invalid user ID format'
+            });
+        }
+
+        const stats = await sessionManager.getUserSessionStats(sanitizedUserId);
 
         return response.status(200).json({
             error: false,

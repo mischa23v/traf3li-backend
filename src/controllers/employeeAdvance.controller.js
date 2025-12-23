@@ -2,6 +2,7 @@ const { EmployeeAdvance, Employee } = require('../models');
 const { CustomException } = require('../utils');
 const asyncHandler = require('../utils/asyncHandler');
 const mongoose = require('mongoose');
+const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 
 // ═══════════════════════════════════════════════════════════════
 // ADVANCE POLICIES (Configurable)
@@ -309,6 +310,11 @@ const getAdvance = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
+    // INPUT VALIDATION
+    if (!sanitizeObjectId(advanceId)) {
+        throw CustomException('Invalid advance ID', 400);
+    }
+
     const advance = await EmployeeAdvance.findById(advanceId)
         .populate('employeeId', 'employeeId personalInfo employment compensation')
         .populate('createdBy', 'firstName lastName')
@@ -321,7 +327,7 @@ const getAdvance = asyncHandler(async (req, res) => {
         throw CustomException('Advance not found', 404);
     }
 
-    // Check access
+    // IDOR PROTECTION - Check access
     const hasAccess = firmId
         ? advance.firmId?.toString() === firmId.toString()
         : advance.lawyerId?.toString() === lawyerId;
@@ -344,7 +350,34 @@ const checkEligibility = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
-    const { employeeId, requestedAmount } = req.body;
+    // MASS ASSIGNMENT PROTECTION
+    const allowedFields = ['employeeId', 'requestedAmount'];
+    const safeData = pickAllowedFields(req.body, allowedFields);
+    const { employeeId, requestedAmount } = safeData;
+
+    // INPUT VALIDATION
+    if (!employeeId || !sanitizeObjectId(employeeId)) {
+        throw CustomException('Valid employee ID is required', 400);
+    }
+
+    // IDOR PROTECTION - Verify employee ownership
+    const employee = await Employee.findById(employeeId);
+    if (!employee) {
+        throw CustomException('Employee not found', 404);
+    }
+
+    const hasEmployeeAccess = firmId
+        ? employee.firmId?.toString() === firmId.toString()
+        : employee.lawyerId?.toString() === lawyerId;
+
+    if (!hasEmployeeAccess) {
+        throw CustomException('Access denied to this employee', 403);
+    }
+
+    // VALIDATE REQUESTED AMOUNT
+    if (requestedAmount !== undefined && (typeof requestedAmount !== 'number' || requestedAmount < 0)) {
+        throw CustomException('Valid requested amount is required', 400);
+    }
 
     const eligibility = await checkAdvanceEligibility(employeeId, requestedAmount || 0, firmId, lawyerId);
 
@@ -362,6 +395,23 @@ const createAdvance = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
+    // 1. MASS ASSIGNMENT PROTECTION - Only allow specific fields
+    const allowedFields = [
+        'employeeId',
+        'advanceType',
+        'advanceAmount',
+        'installments',
+        'startDate',
+        'reason',
+        'reasonAr',
+        'urgency',
+        'isEmergency',
+        'emergencyDetails',
+        'notes',
+        'skipEligibilityCheck'
+    ];
+    const safeData = pickAllowedFields(req.body, allowedFields);
+
     const {
         employeeId,
         advanceType,
@@ -375,7 +425,27 @@ const createAdvance = asyncHandler(async (req, res) => {
         emergencyDetails,
         notes,
         skipEligibilityCheck
-    } = req.body;
+    } = safeData;
+
+    // 2. INPUT VALIDATION
+    if (!employeeId || !sanitizeObjectId(employeeId)) {
+        throw CustomException('Valid employee ID is required', 400);
+    }
+    if (!advanceType || !ADVANCE_POLICIES.advanceTypes[advanceType]) {
+        throw CustomException('Valid advance type is required', 400);
+    }
+    if (!advanceAmount || typeof advanceAmount !== 'number' || advanceAmount <= 0) {
+        throw CustomException('Valid advance amount is required', 400);
+    }
+    if (!installments || typeof installments !== 'number' || installments <= 0) {
+        throw CustomException('Valid installments count is required', 400);
+    }
+
+    // 3. ADVANCE AMOUNT VALIDATION AND LIMITS
+    const typeConfig = ADVANCE_POLICIES.advanceTypes[advanceType];
+    if (installments > typeConfig.maxInstallments) {
+        throw CustomException(`Maximum ${typeConfig.maxInstallments} installments allowed for ${advanceType} advances`, 400);
+    }
 
     // Fetch employee
     const employee = await Employee.findById(employeeId);
@@ -383,13 +453,65 @@ const createAdvance = asyncHandler(async (req, res) => {
         throw CustomException('Employee not found', 404);
     }
 
-    // Check access to employee
+    // 4. IDOR PROTECTION - Verify firmId/employeeId ownership
     const hasEmployeeAccess = firmId
         ? employee.firmId?.toString() === firmId.toString()
         : employee.lawyerId?.toString() === lawyerId;
 
     if (!hasEmployeeAccess) {
         throw CustomException('Access denied to this employee', 403);
+    }
+
+    // 5. VALIDATE AMOUNT AGAINST SALARY AND TYPE LIMITS
+    const basicSalary = employee.compensation?.basicSalary || 0;
+    const totalAllowances = employee.compensation?.allowances?.reduce((sum, a) => sum + (a.amount || 0), 0) || 0;
+    const grossSalary = basicSalary + totalAllowances;
+
+    if (grossSalary === 0) {
+        throw CustomException('Cannot process advance: Employee has no salary configured', 400);
+    }
+
+    const maxAllowedByType = grossSalary * (typeConfig.maxPercentage / 100);
+    if (advanceAmount > maxAllowedByType) {
+        throw CustomException(
+            `Advance amount exceeds maximum allowed for ${advanceType} type (${typeConfig.maxPercentage}% of salary = ${maxAllowedByType.toLocaleString()} SAR)`,
+            400
+        );
+    }
+
+    // 6. TRACK AND LIMIT OUTSTANDING ADVANCES
+    const query = firmId ? { firmId, employeeId } : { lawyerId, employeeId };
+    const activeAdvances = await EmployeeAdvance.find({
+        ...query,
+        status: { $in: ['disbursed', 'recovering', 'pending', 'approved'] }
+    });
+
+    const activeAdvancesCount = activeAdvances.filter(
+        a => ['disbursed', 'recovering'].includes(a.status)
+    ).length;
+
+    if (activeAdvancesCount >= ADVANCE_POLICIES.maxActiveAdvances) {
+        throw CustomException(
+            `Maximum ${ADVANCE_POLICIES.maxActiveAdvances} active advance(s) allowed. Employee currently has ${activeAdvancesCount} active advance(s)`,
+            400
+        );
+    }
+
+    const totalOutstanding = activeAdvances.reduce(
+        (sum, adv) => sum + (adv.balance?.remainingBalance || 0), 0
+    );
+
+    const maxMonthlyDeduction = grossSalary * (ADVANCE_POLICIES.maxInstallmentPercentage / 100);
+    const currentDeductions = activeAdvances.reduce(
+        (sum, adv) => sum + (adv.repayment?.installmentAmount || 0), 0
+    );
+    const proposedInstallmentAmount = Math.ceil(advanceAmount / installments);
+
+    if (currentDeductions + proposedInstallmentAmount > maxMonthlyDeduction) {
+        throw CustomException(
+            `Proposed installment would exceed maximum monthly deduction limit (${ADVANCE_POLICIES.maxInstallmentPercentage}% of salary = ${maxMonthlyDeduction.toLocaleString()} SAR)`,
+            400
+        );
     }
 
     // Check eligibility (unless skipped for admin)
@@ -412,7 +534,6 @@ const createAdvance = asyncHandler(async (req, res) => {
     );
 
     // Determine if fast-track approval
-    const typeConfig = ADVANCE_POLICIES.advanceTypes[advanceType] || {};
     const fastTrack = isEmergency || typeConfig.fastTrack || false;
 
     // Prepare advance data
@@ -525,13 +646,18 @@ const updateAdvance = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
+    // Validate advanceId
+    if (!sanitizeObjectId(advanceId)) {
+        throw CustomException('Invalid advance ID', 400);
+    }
+
     const advance = await EmployeeAdvance.findById(advanceId);
 
     if (!advance) {
         throw CustomException('Advance not found', 404);
     }
 
-    // Check access
+    // IDOR PROTECTION - Check access
     const hasAccess = firmId
         ? advance.firmId?.toString() === firmId.toString()
         : advance.lawyerId?.toString() === lawyerId;
@@ -545,26 +671,53 @@ const updateAdvance = asyncHandler(async (req, res) => {
         throw CustomException('Cannot update advance in current status', 400);
     }
 
-    const allowedUpdates = [
+    // MASS ASSIGNMENT PROTECTION - Define allowed fields
+    const allowedUpdateFields = [
         'advanceType', 'advanceAmount', 'reason', 'reasonAr', 'urgency',
         'repayment', 'notes', 'documents', 'isEmergency', 'emergencyDetails'
     ];
 
-    // Apply updates
-    allowedUpdates.forEach(field => {
-        if (req.body[field] !== undefined) {
-            if (typeof req.body[field] === 'object' && !Array.isArray(req.body[field])) {
-                advance[field] = { ...advance[field]?.toObject?.() || advance[field] || {}, ...req.body[field] };
-            } else {
-                advance[field] = req.body[field];
+    const safeUpdates = pickAllowedFields(req.body, allowedUpdateFields);
+
+    // VALIDATE AMOUNT LIMITS if being updated
+    if (safeUpdates.advanceAmount !== undefined) {
+        if (typeof safeUpdates.advanceAmount !== 'number' || safeUpdates.advanceAmount <= 0) {
+            throw CustomException('Valid advance amount is required', 400);
+        }
+
+        // Get employee to validate against salary
+        const employee = await Employee.findById(advance.employeeId);
+        if (employee) {
+            const basicSalary = employee.compensation?.basicSalary || 0;
+            const totalAllowances = employee.compensation?.allowances?.reduce((sum, a) => sum + (a.amount || 0), 0) || 0;
+            const grossSalary = basicSalary + totalAllowances;
+
+            const advanceType = safeUpdates.advanceType || advance.advanceType;
+            const typeConfig = ADVANCE_POLICIES.advanceTypes[advanceType];
+            const maxAllowedByType = grossSalary * (typeConfig.maxPercentage / 100);
+
+            if (safeUpdates.advanceAmount > maxAllowedByType) {
+                throw CustomException(
+                    `Advance amount exceeds maximum allowed for ${advanceType} type (${typeConfig.maxPercentage}% of salary = ${maxAllowedByType.toLocaleString()} SAR)`,
+                    400
+                );
             }
+        }
+    }
+
+    // Apply updates
+    Object.keys(safeUpdates).forEach(field => {
+        if (typeof safeUpdates[field] === 'object' && !Array.isArray(safeUpdates[field])) {
+            advance[field] = { ...advance[field]?.toObject?.() || advance[field] || {}, ...safeUpdates[field] };
+        } else {
+            advance[field] = safeUpdates[field];
         }
     });
 
     // Recalculate if advance amount changed
-    if (req.body.advanceAmount) {
-        advance.balance.originalAmount = req.body.advanceAmount;
-        advance.balance.remainingBalance = req.body.advanceAmount - advance.balance.recoveredAmount;
+    if (safeUpdates.advanceAmount) {
+        advance.balance.originalAmount = safeUpdates.advanceAmount;
+        advance.balance.remainingBalance = safeUpdates.advanceAmount - advance.balance.recoveredAmount;
     }
 
     advance.lastModifiedBy = lawyerId;
@@ -586,13 +739,18 @@ const deleteAdvance = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
+    // INPUT VALIDATION
+    if (!sanitizeObjectId(advanceId)) {
+        throw CustomException('Invalid advance ID', 400);
+    }
+
     const advance = await EmployeeAdvance.findById(advanceId);
 
     if (!advance) {
         throw CustomException('Advance not found', 404);
     }
 
-    // Check access
+    // IDOR PROTECTION - Check access
     const hasAccess = firmId
         ? advance.firmId?.toString() === firmId.toString()
         : advance.lawyerId?.toString() === lawyerId;
@@ -623,7 +781,15 @@ const approveAdvance = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
-    const { approvedAmount, approvedInstallments, comments, conditions } = req.body;
+    // Validate advanceId
+    if (!sanitizeObjectId(advanceId)) {
+        throw CustomException('Invalid advance ID', 400);
+    }
+
+    // MASS ASSIGNMENT PROTECTION
+    const allowedFields = ['approvedAmount', 'approvedInstallments', 'comments', 'conditions'];
+    const safeData = pickAllowedFields(req.body, allowedFields);
+    const { approvedAmount, approvedInstallments, comments, conditions } = safeData;
 
     const advance = await EmployeeAdvance.findById(advanceId);
 
@@ -631,7 +797,7 @@ const approveAdvance = asyncHandler(async (req, res) => {
         throw CustomException('Advance not found', 404);
     }
 
-    // Check access
+    // IDOR PROTECTION - Check access
     const hasAccess = firmId
         ? advance.firmId?.toString() === firmId.toString()
         : advance.lawyerId?.toString() === lawyerId;
@@ -642,6 +808,56 @@ const approveAdvance = asyncHandler(async (req, res) => {
 
     if (advance.status !== 'pending') {
         throw CustomException('Only pending advances can be approved', 400);
+    }
+
+    // VALIDATE APPROVED AMOUNT
+    if (approvedAmount !== undefined) {
+        if (typeof approvedAmount !== 'number' || approvedAmount <= 0) {
+            throw CustomException('Valid approved amount is required', 400);
+        }
+
+        // Verify employee ownership and validate against salary limits
+        const employee = await Employee.findById(advance.employeeId);
+        if (!employee) {
+            throw CustomException('Employee not found', 404);
+        }
+
+        const hasEmployeeAccess = firmId
+            ? employee.firmId?.toString() === firmId.toString()
+            : employee.lawyerId?.toString() === lawyerId;
+
+        if (!hasEmployeeAccess) {
+            throw CustomException('Access denied to this employee', 403);
+        }
+
+        const basicSalary = employee.compensation?.basicSalary || 0;
+        const totalAllowances = employee.compensation?.allowances?.reduce((sum, a) => sum + (a.amount || 0), 0) || 0;
+        const grossSalary = basicSalary + totalAllowances;
+
+        const typeConfig = ADVANCE_POLICIES.advanceTypes[advance.advanceType];
+        const maxAllowedByType = grossSalary * (typeConfig.maxPercentage / 100);
+
+        if (approvedAmount > maxAllowedByType) {
+            throw CustomException(
+                `Approved amount exceeds maximum allowed for ${advance.advanceType} type (${typeConfig.maxPercentage}% of salary = ${maxAllowedByType.toLocaleString()} SAR)`,
+                400
+            );
+        }
+    }
+
+    // VALIDATE APPROVED INSTALLMENTS
+    if (approvedInstallments !== undefined) {
+        if (typeof approvedInstallments !== 'number' || approvedInstallments <= 0) {
+            throw CustomException('Valid installments count is required', 400);
+        }
+
+        const typeConfig = ADVANCE_POLICIES.advanceTypes[advance.advanceType];
+        if (approvedInstallments > typeConfig.maxInstallments) {
+            throw CustomException(
+                `Approved installments exceed maximum allowed for ${advance.advanceType} type (${typeConfig.maxInstallments} installments)`,
+                400
+            );
+        }
     }
 
     // Update approval workflow
@@ -721,7 +937,15 @@ const rejectAdvance = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
-    const { rejectionReason, comments } = req.body;
+    // INPUT VALIDATION
+    if (!sanitizeObjectId(advanceId)) {
+        throw CustomException('Invalid advance ID', 400);
+    }
+
+    // MASS ASSIGNMENT PROTECTION
+    const allowedFields = ['rejectionReason', 'comments'];
+    const safeData = pickAllowedFields(req.body, allowedFields);
+    const { rejectionReason, comments } = safeData;
 
     const advance = await EmployeeAdvance.findById(advanceId);
 
@@ -729,7 +953,7 @@ const rejectAdvance = asyncHandler(async (req, res) => {
         throw CustomException('Advance not found', 404);
     }
 
-    // Check access
+    // IDOR PROTECTION - Check access
     const hasAccess = firmId
         ? advance.firmId?.toString() === firmId.toString()
         : advance.lawyerId?.toString() === lawyerId;
@@ -779,6 +1003,22 @@ const disburseAdvance = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
+    // Validate advanceId
+    if (!sanitizeObjectId(advanceId)) {
+        throw CustomException('Invalid advance ID', 400);
+    }
+
+    // MASS ASSIGNMENT PROTECTION
+    const allowedFields = [
+        'disbursementMethod',
+        'bankDetails',
+        'checkDetails',
+        'cashDetails',
+        'transferReference',
+        'deductions'
+    ];
+    const safeData = pickAllowedFields(req.body, allowedFields);
+
     const {
         disbursementMethod,
         bankDetails,
@@ -786,114 +1026,158 @@ const disburseAdvance = asyncHandler(async (req, res) => {
         cashDetails,
         transferReference,
         deductions
-    } = req.body;
+    } = safeData;
 
-    const advance = await EmployeeAdvance.findById(advanceId);
-
-    if (!advance) {
-        throw CustomException('Advance not found', 404);
+    // INPUT VALIDATION
+    if (!disbursementMethod || !['bank_transfer', 'check', 'cash'].includes(disbursementMethod)) {
+        throw CustomException('Valid disbursement method is required (bank_transfer, check, or cash)', 400);
     }
 
-    // Check access
-    const hasAccess = firmId
-        ? advance.firmId?.toString() === firmId.toString()
-        : advance.lawyerId?.toString() === lawyerId;
+    // START MONGODB TRANSACTION FOR ADVANCE PROCESSING
+    const session = await mongoose.startSession();
+    session.startTransaction();
 
-    if (!hasAccess) {
-        throw CustomException('Access denied', 403);
-    }
+    try {
+        const advance = await EmployeeAdvance.findById(advanceId).session(session);
 
-    if (advance.status !== 'approved') {
-        throw CustomException('Advance must be approved before disbursement', 400);
-    }
+        if (!advance) {
+            await session.abortTransaction();
+            throw CustomException('Advance not found', 404);
+        }
 
-    // Calculate net disbursement
-    let totalDeductions = 0;
-    const disbursementDeductions = [];
-    if (deductions && Array.isArray(deductions)) {
-        deductions.forEach(d => {
-            totalDeductions += d.deductionAmount || 0;
-            disbursementDeductions.push(d);
+        // IDOR PROTECTION - Check access
+        const hasAccess = firmId
+            ? advance.firmId?.toString() === firmId.toString()
+            : advance.lawyerId?.toString() === lawyerId;
+
+        if (!hasAccess) {
+            await session.abortTransaction();
+            throw CustomException('Access denied', 403);
+        }
+
+        if (advance.status !== 'approved') {
+            await session.abortTransaction();
+            throw CustomException('Advance must be approved before disbursement', 400);
+        }
+
+        // VERIFY EMPLOYEE STILL HAS ACCESS
+        const employee = await Employee.findById(advance.employeeId).session(session);
+        if (!employee) {
+            await session.abortTransaction();
+            throw CustomException('Employee not found', 404);
+        }
+
+        const hasEmployeeAccess = firmId
+            ? employee.firmId?.toString() === firmId.toString()
+            : employee.lawyerId?.toString() === lawyerId;
+
+        if (!hasEmployeeAccess) {
+            await session.abortTransaction();
+            throw CustomException('Access denied to this employee', 403);
+        }
+
+        // Calculate net disbursement
+        let totalDeductions = 0;
+        const disbursementDeductions = [];
+        if (deductions && Array.isArray(deductions)) {
+            deductions.forEach(d => {
+                totalDeductions += d.deductionAmount || 0;
+                disbursementDeductions.push(d);
+            });
+        }
+
+        const netDisbursedAmount = (advance.approvedAmount || advance.advanceAmount) - totalDeductions;
+
+        if (netDisbursedAmount <= 0) {
+            await session.abortTransaction();
+            throw CustomException('Net disbursement amount must be greater than zero', 400);
+        }
+
+        // Update disbursement details
+        advance.disbursement = {
+            disbursementMethod,
+            disbursed: true,
+            disbursementDate: new Date(),
+            actualDisbursedAmount: advance.approvedAmount || advance.advanceAmount,
+            disbursementDeductions,
+            netDisbursedAmount,
+            urgentDisbursement: advance.isEmergency || advance.urgency === 'critical',
+            confirmationRequired: true,
+            confirmed: false
+        };
+
+        if (disbursementMethod === 'bank_transfer' && bankDetails) {
+            advance.disbursement.bankTransfer = {
+                bankName: bankDetails.bankName,
+                accountNumber: bankDetails.accountNumber,
+                iban: bankDetails.iban,
+                transferDate: new Date(),
+                transferReference: transferReference || `ADV-TRF-${Date.now()}`,
+                transferStatus: 'completed',
+                sameDayTransfer: advance.isEmergency
+            };
+        }
+
+        if (disbursementMethod === 'check' && checkDetails) {
+            advance.disbursement.check = {
+                checkNumber: checkDetails.checkNumber,
+                checkDate: new Date(checkDetails.checkDate),
+                issued: true,
+                issuedDate: new Date()
+            };
+        }
+
+        if (disbursementMethod === 'cash' && cashDetails) {
+            advance.disbursement.cash = {
+                disbursedOn: new Date(),
+                disbursedBy: lawyerId,
+                receiptNumber: cashDetails.receiptNumber || `ADV-RCP-${Date.now()}`
+            };
+        }
+
+        // Update status to recovering (ready for payroll deductions)
+        advance.status = 'recovering';
+        advance.disbursementDate = new Date();
+
+        // Set up payroll deduction
+        advance.payrollIntegration = {
+            payrollDeduction: {
+                active: true,
+                deductionCode: `ADV-${advance.advanceNumber}`,
+                deductionAmount: advance.repayment.installmentAmount,
+                deductionStartDate: advance.repayment.startDate,
+                deductionEndDate: advance.repayment.endDate,
+                deductionFrequency: 'monthly',
+                automaticDeduction: true
+            },
+            payrollDeductions: [],
+            failedDeductions: []
+        };
+
+        // Update analytics
+        const approvalDate = new Date(advance.approvalDate);
+        advance.analytics.approvalToDisbursementTime = Math.round((Date.now() - approvalDate) / (1000 * 60 * 60));
+        advance.analytics.totalProcessingTime = (advance.analytics.requestToApprovalTime || 0) +
+            advance.analytics.approvalToDisbursementTime;
+
+        advance.lastModifiedBy = lawyerId;
+        await advance.save({ session });
+
+        // COMMIT TRANSACTION
+        await session.commitTransaction();
+        session.endSession();
+
+        return res.json({
+            success: true,
+            message: 'Advance disbursed successfully',
+            data: advance
         });
+    } catch (error) {
+        // ROLLBACK TRANSACTION on error
+        await session.abortTransaction();
+        session.endSession();
+        throw error;
     }
-
-    const netDisbursedAmount = (advance.approvedAmount || advance.advanceAmount) - totalDeductions;
-
-    // Update disbursement details
-    advance.disbursement = {
-        disbursementMethod,
-        disbursed: true,
-        disbursementDate: new Date(),
-        actualDisbursedAmount: advance.approvedAmount || advance.advanceAmount,
-        disbursementDeductions,
-        netDisbursedAmount,
-        urgentDisbursement: advance.isEmergency || advance.urgency === 'critical',
-        confirmationRequired: true,
-        confirmed: false
-    };
-
-    if (disbursementMethod === 'bank_transfer' && bankDetails) {
-        advance.disbursement.bankTransfer = {
-            bankName: bankDetails.bankName,
-            accountNumber: bankDetails.accountNumber,
-            iban: bankDetails.iban,
-            transferDate: new Date(),
-            transferReference: transferReference || `ADV-TRF-${Date.now()}`,
-            transferStatus: 'completed',
-            sameDayTransfer: advance.isEmergency
-        };
-    }
-
-    if (disbursementMethod === 'check' && checkDetails) {
-        advance.disbursement.check = {
-            checkNumber: checkDetails.checkNumber,
-            checkDate: new Date(checkDetails.checkDate),
-            issued: true,
-            issuedDate: new Date()
-        };
-    }
-
-    if (disbursementMethod === 'cash' && cashDetails) {
-        advance.disbursement.cash = {
-            disbursedOn: new Date(),
-            disbursedBy: lawyerId,
-            receiptNumber: cashDetails.receiptNumber || `ADV-RCP-${Date.now()}`
-        };
-    }
-
-    // Update status to recovering (ready for payroll deductions)
-    advance.status = 'recovering';
-    advance.disbursementDate = new Date();
-
-    // Set up payroll deduction
-    advance.payrollIntegration = {
-        payrollDeduction: {
-            active: true,
-            deductionCode: `ADV-${advance.advanceNumber}`,
-            deductionAmount: advance.repayment.installmentAmount,
-            deductionStartDate: advance.repayment.startDate,
-            deductionEndDate: advance.repayment.endDate,
-            deductionFrequency: 'monthly',
-            automaticDeduction: true
-        },
-        payrollDeductions: [],
-        failedDeductions: []
-    };
-
-    // Update analytics
-    const approvalDate = new Date(advance.approvalDate);
-    advance.analytics.approvalToDisbursementTime = Math.round((Date.now() - approvalDate) / (1000 * 60 * 60));
-    advance.analytics.totalProcessingTime = (advance.analytics.requestToApprovalTime || 0) +
-        advance.analytics.approvalToDisbursementTime;
-
-    advance.lastModifiedBy = lawyerId;
-    await advance.save();
-
-    return res.json({
-        success: true,
-        message: 'Advance disbursed successfully',
-        data: advance
-    });
 });
 
 // ═══════════════════════════════════════════════════════════════
@@ -905,139 +1189,199 @@ const recordRecovery = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
+    // Validate advanceId
+    if (!sanitizeObjectId(advanceId)) {
+        throw CustomException('Invalid advance ID', 400);
+    }
+
+    // MASS ASSIGNMENT PROTECTION
+    const allowedFields = ['amount', 'recoveryMethod', 'recoveryDate', 'recoveryReference', 'notes'];
+    const safeData = pickAllowedFields(req.body, allowedFields);
+
     const {
         amount,
         recoveryMethod,
         recoveryDate,
         recoveryReference,
         notes
-    } = req.body;
+    } = safeData;
 
-    const advance = await EmployeeAdvance.findById(advanceId);
-
-    if (!advance) {
-        throw CustomException('Advance not found', 404);
+    // INPUT VALIDATION
+    if (!amount || typeof amount !== 'number' || amount <= 0) {
+        throw CustomException('Valid recovery amount is required', 400);
+    }
+    if (!recoveryMethod) {
+        throw CustomException('Recovery method is required', 400);
     }
 
-    // Check access
-    const hasAccess = firmId
-        ? advance.firmId?.toString() === firmId.toString()
-        : advance.lawyerId?.toString() === lawyerId;
+    // START MONGODB TRANSACTION FOR RECOVERY PROCESSING
+    const session = await mongoose.startSession();
+    session.startTransaction();
 
-    if (!hasAccess) {
-        throw CustomException('Access denied', 403);
-    }
+    try {
+        const advance = await EmployeeAdvance.findById(advanceId).session(session);
 
-    if (!['disbursed', 'recovering'].includes(advance.status)) {
-        throw CustomException('Can only record recoveries for disbursed/recovering advances', 400);
-    }
+        if (!advance) {
+            await session.abortTransaction();
+            throw CustomException('Advance not found', 404);
+        }
 
-    // Apply recovery to pending installments
-    let remainingRecovery = amount;
-    const recoveriesApplied = [];
-    const actualRecoveryDate = recoveryDate ? new Date(recoveryDate) : new Date();
+        // IDOR PROTECTION - Check access
+        const hasAccess = firmId
+            ? advance.firmId?.toString() === firmId.toString()
+            : advance.lawyerId?.toString() === lawyerId;
 
-    const pendingInstallments = advance.repaymentSchedule.installments
-        .filter(i => i.status !== 'paid' && i.status !== 'waived')
-        .sort((a, b) => a.installmentNumber - b.installmentNumber);
+        if (!hasAccess) {
+            await session.abortTransaction();
+            throw CustomException('Access denied', 403);
+        }
 
-    for (const installment of pendingInstallments) {
-        if (remainingRecovery <= 0) break;
+        if (!['disbursed', 'recovering'].includes(advance.status)) {
+            await session.abortTransaction();
+            throw CustomException('Can only record recoveries for disbursed/recovering advances', 400);
+        }
 
-        const amountDue = installment.installmentAmount - (installment.paidAmount || 0);
-        const recoveryApplied = Math.min(remainingRecovery, amountDue);
-
-        installment.paidAmount = (installment.paidAmount || 0) + recoveryApplied;
-        installment.status = installment.paidAmount >= installment.installmentAmount
-            ? 'paid'
-            : 'partial';
-
-        if (installment.status === 'paid') {
-            installment.paidDate = actualRecoveryDate;
-            installment.paymentMethod = recoveryMethod;
-            installment.paymentReference = recoveryReference;
-
-            // Check if late
-            const daysLate = Math.floor(
-                (actualRecoveryDate - new Date(installment.dueDate)) / (1000 * 60 * 60 * 24)
+        // VALIDATE RECOVERY AMOUNT
+        if (amount > advance.balance.remainingBalance) {
+            await session.abortTransaction();
+            throw CustomException(
+                `Recovery amount (${amount.toLocaleString()} SAR) cannot exceed remaining balance (${advance.balance.remainingBalance.toLocaleString()} SAR)`,
+                400
             );
-            if (daysLate > 0) {
-                installment.daysMissed = daysLate;
-                advance.recoveryPerformance.delayedRecoveries += 1;
-            } else {
-                advance.recoveryPerformance.onTimeRecoveries += 1;
-            }
-
-            advance.repaymentSchedule.summary.paidInstallments += 1;
-            advance.repaymentSchedule.summary.pendingInstallments -= 1;
         }
 
-        remainingRecovery -= recoveryApplied;
-        recoveriesApplied.push({
-            installmentNumber: installment.installmentNumber,
-            amountApplied: recoveryApplied
+        // VERIFY EMPLOYEE OWNERSHIP
+        const employee = await Employee.findById(advance.employeeId).session(session);
+        if (!employee) {
+            await session.abortTransaction();
+            throw CustomException('Employee not found', 404);
+        }
+
+        const hasEmployeeAccess = firmId
+            ? employee.firmId?.toString() === firmId.toString()
+            : employee.lawyerId?.toString() === lawyerId;
+
+        if (!hasEmployeeAccess) {
+            await session.abortTransaction();
+            throw CustomException('Access denied to this employee', 403);
+        }
+
+        // Apply recovery to pending installments
+        let remainingRecovery = amount;
+        const recoveriesApplied = [];
+        const actualRecoveryDate = recoveryDate ? new Date(recoveryDate) : new Date();
+
+        const pendingInstallments = advance.repaymentSchedule.installments
+            .filter(i => i.status !== 'paid' && i.status !== 'waived')
+            .sort((a, b) => a.installmentNumber - b.installmentNumber);
+
+        for (const installment of pendingInstallments) {
+            if (remainingRecovery <= 0) break;
+
+            const amountDue = installment.installmentAmount - (installment.paidAmount || 0);
+            const recoveryApplied = Math.min(remainingRecovery, amountDue);
+
+            installment.paidAmount = (installment.paidAmount || 0) + recoveryApplied;
+            installment.status = installment.paidAmount >= installment.installmentAmount
+                ? 'paid'
+                : 'partial';
+
+            if (installment.status === 'paid') {
+                installment.paidDate = actualRecoveryDate;
+                installment.paymentMethod = recoveryMethod;
+                installment.paymentReference = recoveryReference;
+
+                // Check if late
+                const daysLate = Math.floor(
+                    (actualRecoveryDate - new Date(installment.dueDate)) / (1000 * 60 * 60 * 24)
+                );
+                if (daysLate > 0) {
+                    installment.daysMissed = daysLate;
+                    advance.recoveryPerformance.delayedRecoveries += 1;
+                } else {
+                    advance.recoveryPerformance.onTimeRecoveries += 1;
+                }
+
+                advance.repaymentSchedule.summary.paidInstallments += 1;
+                advance.repaymentSchedule.summary.pendingInstallments -= 1;
+            }
+
+            remainingRecovery -= recoveryApplied;
+            recoveriesApplied.push({
+                installmentNumber: installment.installmentNumber,
+                amountApplied: recoveryApplied
+            });
+        }
+
+        // Update balance
+        advance.balance.recoveredAmount += amount;
+        advance.balance.remainingBalance = advance.balance.originalAmount - advance.balance.recoveredAmount;
+        advance.balance.completionPercentage = Math.round(
+            (advance.balance.recoveredAmount / advance.balance.originalAmount) * 100
+        );
+
+        // Add to recovery history
+        advance.recoveryHistory.push({
+            recoveryId: `RCV-${Date.now()}`,
+            recoveryDate: actualRecoveryDate,
+            recoveredAmount: amount,
+            recoveryMethod,
+            recoveryReference,
+            processedBy: lawyerId,
+            remainingBalance: advance.balance.remainingBalance,
+            receiptNumber: `RCP-${Date.now()}`,
+            notes
         });
-    }
 
-    // Update balance
-    advance.balance.recoveredAmount += amount;
-    advance.balance.remainingBalance = advance.balance.originalAmount - advance.balance.recoveredAmount;
-    advance.balance.completionPercentage = Math.round(
-        (advance.balance.recoveredAmount / advance.balance.originalAmount) * 100
-    );
+        // Update repayment schedule summary
+        advance.repaymentSchedule.summary.amountPaid = advance.balance.recoveredAmount;
+        advance.repaymentSchedule.summary.remainingAmount = advance.balance.remainingBalance;
 
-    // Add to recovery history
-    advance.recoveryHistory.push({
-        recoveryId: `RCV-${Date.now()}`,
-        recoveryDate: actualRecoveryDate,
-        recoveredAmount: amount,
-        recoveryMethod,
-        recoveryReference,
-        processedBy: lawyerId,
-        remainingBalance: advance.balance.remainingBalance,
-        receiptNumber: `RCP-${Date.now()}`,
-        notes
-    });
+        // Update recovery performance
+        advance.calculateRecoveryPerformance();
 
-    // Update repayment schedule summary
-    advance.repaymentSchedule.summary.amountPaid = advance.balance.recoveredAmount;
-    advance.repaymentSchedule.summary.remainingAmount = advance.balance.remainingBalance;
+        // Check if advance is completed
+        if (advance.balance.remainingBalance <= 0) {
+            advance.status = 'completed';
+            advance.completion = {
+                advanceCompleted: true,
+                completionDate: new Date(),
+                completionMethod: 'full_recovery',
+                finalRecovery: {
+                    recoveryDate: actualRecoveryDate,
+                    recoveryAmount: amount,
+                    recoveryReference
+                }
+            };
 
-    // Update recovery performance
-    advance.calculateRecoveryPerformance();
-
-    // Check if advance is completed
-    if (advance.balance.remainingBalance <= 0) {
-        advance.status = 'completed';
-        advance.completion = {
-            advanceCompleted: true,
-            completionDate: new Date(),
-            completionMethod: 'full_recovery',
-            finalRecovery: {
-                recoveryDate: actualRecoveryDate,
-                recoveryAmount: amount,
-                recoveryReference
+            // Deactivate payroll deduction
+            if (advance.payrollIntegration?.payrollDeduction) {
+                advance.payrollIntegration.payrollDeduction.active = false;
             }
-        };
-
-        // Deactivate payroll deduction
-        if (advance.payrollIntegration?.payrollDeduction) {
-            advance.payrollIntegration.payrollDeduction.active = false;
         }
+
+        advance.lastModifiedBy = lawyerId;
+        await advance.save({ session });
+
+        // COMMIT TRANSACTION
+        await session.commitTransaction();
+        session.endSession();
+
+        return res.json({
+            success: true,
+            message: 'Recovery recorded successfully',
+            data: {
+                advance,
+                recoveriesApplied,
+                remainingBalance: advance.balance.remainingBalance
+            }
+        });
+    } catch (error) {
+        // ROLLBACK TRANSACTION on error
+        await session.abortTransaction();
+        session.endSession();
+        throw error;
     }
-
-    advance.lastModifiedBy = lawyerId;
-    await advance.save();
-
-    return res.json({
-        success: true,
-        message: 'Recovery recorded successfully',
-        data: {
-            advance,
-            recoveriesApplied,
-            remainingBalance: advance.balance.remainingBalance
-        }
-    });
 });
 
 // ═══════════════════════════════════════════════════════════════
@@ -1538,7 +1882,15 @@ const uploadDocument = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
-    const { documentType, documentName, documentNameAr, fileUrl, notes } = req.body;
+    // INPUT VALIDATION
+    if (!sanitizeObjectId(advanceId)) {
+        throw CustomException('Invalid advance ID', 400);
+    }
+
+    // MASS ASSIGNMENT PROTECTION
+    const allowedFields = ['documentType', 'documentName', 'documentNameAr', 'fileUrl', 'notes'];
+    const safeData = pickAllowedFields(req.body, allowedFields);
+    const { documentType, documentName, documentNameAr, fileUrl, notes } = safeData;
 
     const advance = await EmployeeAdvance.findById(advanceId);
 
@@ -1546,7 +1898,7 @@ const uploadDocument = asyncHandler(async (req, res) => {
         throw CustomException('Advance not found', 404);
     }
 
-    // Check access
+    // IDOR PROTECTION - Check access
     const hasAccess = firmId
         ? advance.firmId?.toString() === firmId.toString()
         : advance.lawyerId?.toString() === lawyerId;
@@ -1590,7 +1942,15 @@ const addCommunication = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
-    const { communicationType, purpose, subject, message, sentTo, attachments } = req.body;
+    // INPUT VALIDATION
+    if (!sanitizeObjectId(advanceId)) {
+        throw CustomException('Invalid advance ID', 400);
+    }
+
+    // MASS ASSIGNMENT PROTECTION
+    const allowedFields = ['communicationType', 'purpose', 'subject', 'message', 'sentTo', 'attachments'];
+    const safeData = pickAllowedFields(req.body, allowedFields);
+    const { communicationType, purpose, subject, message, sentTo, attachments } = safeData;
 
     const advance = await EmployeeAdvance.findById(advanceId);
 
@@ -1598,7 +1958,7 @@ const addCommunication = asyncHandler(async (req, res) => {
         throw CustomException('Advance not found', 404);
     }
 
-    // Check access
+    // IDOR PROTECTION - Check access
     const hasAccess = firmId
         ? advance.firmId?.toString() === firmId.toString()
         : advance.lawyerId?.toString() === lawyerId;

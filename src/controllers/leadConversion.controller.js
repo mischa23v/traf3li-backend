@@ -14,6 +14,7 @@ const Competitor = require('../models/competitor.model');
 const SalesPerson = require('../models/salesPerson.model');
 const Territory = require('../models/territory.model');
 const CrmActivity = require('../models/crmActivity.model');
+const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 
 // ═══════════════════════════════════════════════════════════════
 // CREATE CASE FROM LEAD
@@ -34,17 +35,40 @@ exports.createCaseFromLead = async (req, res) => {
         const { id } = req.params;
         const firmId = req.firmId;
         const userId = req.userID;
-        const {
-            title,
-            caseType,
-            description,
-            estimatedValue,
-            salesStageId,
-            copyNotes,
-            copyDocuments
-        } = req.body;
 
-        // Find lead
+        // Mass assignment protection - only allow specific fields
+        const allowedFields = [
+            'title',
+            'caseType',
+            'description',
+            'estimatedValue',
+            'salesStageId',
+            'copyNotes',
+            'copyDocuments'
+        ];
+        const conversionData = pickAllowedFields(req.body, allowedFields);
+
+        // Input validation
+        if (conversionData.estimatedValue && (isNaN(conversionData.estimatedValue) || conversionData.estimatedValue < 0)) {
+            return res.status(400).json({
+                success: false,
+                message: 'قيمة تقديرية غير صالحة / Invalid estimated value'
+            });
+        }
+
+        // Sanitize ObjectId if provided
+        if (conversionData.salesStageId) {
+            const sanitizedStageId = sanitizeObjectId(conversionData.salesStageId);
+            if (!sanitizedStageId) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'معرف مرحلة المبيعات غير صالح / Invalid sales stage ID'
+                });
+            }
+            conversionData.salesStageId = sanitizedStageId;
+        }
+
+        // IDOR Protection - Verify lead belongs to the firm
         const lead = await Lead.findOne({ _id: id, firmId });
         if (!lead) {
             return res.status(404).json({
@@ -57,7 +81,7 @@ exports.createCaseFromLead = async (req, res) => {
         const settings = await CRMSettings.getOrCreate(firmId);
 
         // Determine sales stage
-        let stageId = salesStageId;
+        let stageId = conversionData.salesStageId;
         if (!stageId && settings.caseSettings?.defaultSalesStage) {
             stageId = settings.caseSettings.defaultSalesStage;
         }
@@ -83,9 +107,9 @@ exports.createCaseFromLead = async (req, res) => {
             firmId,
             lawyerId: userId,
             leadId: lead._id,
-            title: title || `Case for ${lead.displayName}`,
-            description: description || lead.intake?.caseDescription,
-            category: caseType || lead.intake?.caseType || 'other',
+            title: conversionData.title || `Case for ${lead.displayName}`,
+            description: conversionData.description || lead.intake?.caseDescription,
+            category: conversionData.caseType || lead.intake?.caseType || 'other',
 
             // CRM fields
             crmStatus: 'intake',
@@ -93,7 +117,7 @@ exports.createCaseFromLead = async (req, res) => {
             probability,
 
             // Value
-            estimatedValue: estimatedValue || lead.estimatedValue || lead.intake?.estimatedValue,
+            estimatedValue: conversionData.estimatedValue || lead.estimatedValue || lead.intake?.estimatedValue,
 
             // Transfer qualification
             qualification: lead.qualification ? {
@@ -146,7 +170,7 @@ exports.createCaseFromLead = async (req, res) => {
         await lead.save();
 
         // Copy notes if requested
-        if (copyNotes && settings.conversionSettings?.copyNotesToCase) {
+        if (conversionData.copyNotes && settings.conversionSettings?.copyNotesToCase) {
             // Notes would be copied here if there's a Note model
             // For now, we'll add a note to the case
             if (lead.notes) {
@@ -272,9 +296,38 @@ exports.updateCrmStage = async (req, res) => {
         const { id } = req.params;
         const firmId = req.firmId;
         const userId = req.userID;
-        const { stageId, probability, expectedCloseDate } = req.body;
 
-        // Find case
+        // Mass assignment protection - only allow specific fields
+        const allowedFields = ['stageId', 'probability', 'expectedCloseDate'];
+        const updateData = pickAllowedFields(req.body, allowedFields);
+
+        // Input validation
+        if (!updateData.stageId) {
+            return res.status(400).json({
+                success: false,
+                message: 'معرف المرحلة مطلوب / Stage ID is required'
+            });
+        }
+
+        // Sanitize ObjectId
+        const sanitizedStageId = sanitizeObjectId(updateData.stageId);
+        if (!sanitizedStageId) {
+            return res.status(400).json({
+                success: false,
+                message: 'معرف مرحلة غير صالح / Invalid stage ID'
+            });
+        }
+        updateData.stageId = sanitizedStageId;
+
+        // Validate probability if provided
+        if (updateData.probability !== undefined && (isNaN(updateData.probability) || updateData.probability < 0 || updateData.probability > 100)) {
+            return res.status(400).json({
+                success: false,
+                message: 'احتمالية غير صالحة / Invalid probability (must be 0-100)'
+            });
+        }
+
+        // IDOR Protection - Verify case belongs to the firm
         const caseDoc = await Case.findOne({ _id: id, firmId });
         if (!caseDoc) {
             return res.status(404).json({
@@ -283,8 +336,8 @@ exports.updateCrmStage = async (req, res) => {
             });
         }
 
-        // Get new stage
-        const newStage = await SalesStage.findOne({ _id: stageId, firmId });
+        // Get new stage - verify it belongs to the same firm (IDOR protection)
+        const newStage = await SalesStage.findOne({ _id: updateData.stageId, firmId });
         if (!newStage) {
             return res.status(404).json({
                 success: false,
@@ -313,10 +366,10 @@ exports.updateCrmStage = async (req, res) => {
         }
 
         // Update case
-        caseDoc.crmPipelineStageId = stageId;
-        caseDoc.probability = probability !== undefined ? probability : newStage.defaultProbability;
-        if (expectedCloseDate) {
-            caseDoc.expectedCloseDate = new Date(expectedCloseDate);
+        caseDoc.crmPipelineStageId = updateData.stageId;
+        caseDoc.probability = updateData.probability !== undefined ? updateData.probability : newStage.defaultProbability;
+        if (updateData.expectedCloseDate) {
+            caseDoc.expectedCloseDate = new Date(updateData.expectedCloseDate);
         }
 
         // Update status based on stage type
@@ -392,9 +445,32 @@ exports.markCaseAsWon = async (req, res) => {
         const { id } = req.params;
         const firmId = req.firmId;
         const userId = req.userID;
-        const { wonValue, acceptedQuoteId, createClient, notes } = req.body;
 
-        // Find case with lead
+        // Mass assignment protection - only allow specific fields
+        const allowedFields = ['wonValue', 'acceptedQuoteId', 'createClient', 'notes'];
+        const wonData = pickAllowedFields(req.body, allowedFields);
+
+        // Input validation
+        if (wonData.wonValue && (isNaN(wonData.wonValue) || wonData.wonValue < 0)) {
+            return res.status(400).json({
+                success: false,
+                message: 'قيمة الفوز غير صالحة / Invalid won value'
+            });
+        }
+
+        // Sanitize ObjectId if provided
+        if (wonData.acceptedQuoteId) {
+            const sanitizedQuoteId = sanitizeObjectId(wonData.acceptedQuoteId);
+            if (!sanitizedQuoteId) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'معرف عرض الأسعار غير صالح / Invalid quote ID'
+                });
+            }
+            wonData.acceptedQuoteId = sanitizedQuoteId;
+        }
+
+        // IDOR Protection - Verify case belongs to the firm
         const caseDoc = await Case.findOne({ _id: id, firmId }).populate('leadId');
         if (!caseDoc) {
             return res.status(404).json({
@@ -411,46 +487,70 @@ exports.markCaseAsWon = async (req, res) => {
         caseDoc.wonDate = new Date();
         caseDoc.status = 'won';
         caseDoc.outcome = 'won';
-        if (wonValue) {
-            caseDoc.estimatedValue = wonValue;
+        if (wonData.wonValue) {
+            caseDoc.estimatedValue = wonData.wonValue;
         }
-        if (acceptedQuoteId) {
-            caseDoc.acceptedQuoteId = acceptedQuoteId;
+        if (wonData.acceptedQuoteId) {
+            caseDoc.acceptedQuoteId = wonData.acceptedQuoteId;
         }
 
         await caseDoc.save();
 
-        // Create client if requested
+        // Create client if requested - Prevent unauthorized lead-to-client conversions
         let client = null;
-        if (createClient && caseDoc.leadId) {
+        if (wonData.createClient && caseDoc.leadId) {
             const lead = caseDoc.leadId;
+
+            // IDOR Protection - Verify lead belongs to the firm
+            if (lead.firmId.toString() !== firmId.toString()) {
+                return res.status(403).json({
+                    success: false,
+                    message: 'غير مصرح بتحويل هذا العميل المحتمل / Unauthorized to convert this lead'
+                });
+            }
+
+            // Prevent duplicate client creation
+            if (lead.convertedToClient) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'تم تحويل العميل المحتمل مسبقاً / Lead already converted to client'
+                });
+            }
+
+            // Mass assignment protection - only allow specific lead fields to be transferred
+            const allowedLeadFields = [
+                'firstName', 'lastName', 'fullNameArabic', 'email', 'phone',
+                'alternatePhone', 'whatsapp', 'companyName', 'companyNameAr',
+                'nationalId', 'crNumber', 'iqamaNumber', 'address', 'nationalAddress'
+            ];
+            const safeLeadData = pickAllowedFields(lead.toObject(), allowedLeadFields);
 
             const clientData = {
                 firmId,
                 lawyerId: userId,
                 clientType: lead.type === 'company' ? 'company' : 'individual',
 
-                // Personal info
-                firstName: lead.firstName,
-                lastName: lead.lastName,
-                fullNameArabic: lead.fullNameArabic,
-                email: lead.email,
-                phone: lead.phone,
-                alternatePhone: lead.alternatePhone,
-                whatsapp: lead.whatsapp,
+                // Personal info - using safe data
+                firstName: safeLeadData.firstName,
+                lastName: safeLeadData.lastName,
+                fullNameArabic: safeLeadData.fullNameArabic,
+                email: safeLeadData.email,
+                phone: safeLeadData.phone,
+                alternatePhone: safeLeadData.alternatePhone,
+                whatsapp: safeLeadData.whatsapp,
 
                 // Company info
-                companyName: lead.companyName,
-                companyNameArabic: lead.companyNameAr,
+                companyName: safeLeadData.companyName,
+                companyNameArabic: safeLeadData.companyNameAr,
 
                 // IDs
-                nationalId: lead.nationalId,
-                crNumber: lead.crNumber,
-                iqamaNumber: lead.iqamaNumber,
+                nationalId: safeLeadData.nationalId,
+                crNumber: safeLeadData.crNumber,
+                iqamaNumber: safeLeadData.iqamaNumber,
 
                 // Address
-                address: lead.address,
-                nationalAddress: lead.nationalAddress,
+                address: safeLeadData.address,
+                nationalAddress: safeLeadData.nationalAddress,
 
                 // Conversion tracking
                 convertedFromLeadId: lead._id,
@@ -492,7 +592,7 @@ exports.markCaseAsWon = async (req, res) => {
             await SalesPerson.updateAchievements(caseDoc.salesPersonId, {
                 year: currentYear,
                 addWonCase: true,
-                addWonValue: wonValue || caseDoc.estimatedValue || 0
+                addWonValue: wonData.wonValue || caseDoc.estimatedValue || 0
             });
         }
 
@@ -502,7 +602,7 @@ exports.markCaseAsWon = async (req, res) => {
             await Territory.updateAchievement(
                 caseDoc.territoryId,
                 currentYear,
-                wonValue || caseDoc.estimatedValue || 0
+                wonData.wonValue || caseDoc.estimatedValue || 0
             );
         }
 
@@ -519,7 +619,7 @@ exports.markCaseAsWon = async (req, res) => {
             entityId: caseDoc._id,
             entityName: caseDoc.title,
             title: `Case won: ${caseDoc.title}`,
-            description: notes || `Won value: ${wonValue || caseDoc.estimatedValue}`,
+            description: wonData.notes || `Won value: ${wonData.wonValue || caseDoc.estimatedValue}`,
             performedBy: userId
         });
 
@@ -560,9 +660,35 @@ exports.markCaseAsLost = async (req, res) => {
         const { id } = req.params;
         const firmId = req.firmId;
         const userId = req.userID;
-        const { lostReasonId, lostReasonDetails, competitorId } = req.body;
 
-        // Find case
+        // Mass assignment protection - only allow specific fields
+        const allowedFields = ['lostReasonId', 'lostReasonDetails', 'competitorId'];
+        const lostData = pickAllowedFields(req.body, allowedFields);
+
+        // Sanitize ObjectIds if provided
+        if (lostData.lostReasonId) {
+            const sanitizedReasonId = sanitizeObjectId(lostData.lostReasonId);
+            if (!sanitizedReasonId) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'معرف سبب الخسارة غير صالح / Invalid lost reason ID'
+                });
+            }
+            lostData.lostReasonId = sanitizedReasonId;
+        }
+
+        if (lostData.competitorId) {
+            const sanitizedCompetitorId = sanitizeObjectId(lostData.competitorId);
+            if (!sanitizedCompetitorId) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'معرف المنافس غير صالح / Invalid competitor ID'
+                });
+            }
+            lostData.competitorId = sanitizedCompetitorId;
+        }
+
+        // IDOR Protection - Verify case belongs to the firm
         const caseDoc = await Case.findOne({ _id: id, firmId });
         if (!caseDoc) {
             return res.status(404).json({
@@ -582,16 +708,16 @@ exports.markCaseAsLost = async (req, res) => {
         caseDoc.lostDate = new Date();
         caseDoc.status = 'lost';
         caseDoc.outcome = 'lost';
-        caseDoc.lostReasonId = lostReasonId;
-        caseDoc.lostReasonDetails = lostReasonDetails;
-        caseDoc.competitorId = competitorId;
+        caseDoc.lostReasonId = lostData.lostReasonId;
+        caseDoc.lostReasonDetails = lostData.lostReasonDetails;
+        caseDoc.competitorId = lostData.competitorId;
         caseDoc.stageWhenLost = currentStage?.name;
 
         await caseDoc.save();
 
         // Update competitor stats
-        if (competitorId) {
-            await Competitor.recordLoss(competitorId);
+        if (lostData.competitorId) {
+            await Competitor.recordLoss(lostData.competitorId);
         }
 
         // Update lead status
@@ -599,7 +725,7 @@ exports.markCaseAsLost = async (req, res) => {
             await Lead.findByIdAndUpdate(caseDoc.leadId, {
                 status: 'lost',
                 lostReason: 'other',
-                lostNotes: lostReasonDetails
+                lostNotes: lostData.lostReasonDetails
             });
         }
 
@@ -611,7 +737,7 @@ exports.markCaseAsLost = async (req, res) => {
             entityId: caseDoc._id,
             entityName: caseDoc.title,
             title: `Case lost: ${caseDoc.title}`,
-            description: lostReasonDetails || 'No details provided',
+            description: lostData.lostReasonDetails || 'No details provided',
             performedBy: userId
         });
 

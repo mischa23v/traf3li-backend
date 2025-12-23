@@ -1,12 +1,110 @@
 const { Retainer, Payment, Invoice, BillingActivity, Case } = require('../models');
 const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
+const { pickAllowedFields } = require('../utils/securityUtils');
+const mongoose = require('mongoose');
+
+// ============================================
+// SECURITY HELPERS
+// ============================================
+
+/**
+ * Validate and sanitize amount input
+ * Prevents negative amounts, zero amounts, NaN, Infinity, and excessive values
+ * @param {number} amount - Amount to validate
+ * @param {Object} options - Validation options
+ * @returns {number} - Validated amount in halalas
+ * @throws {Error} - If validation fails
+ */
+const validateAmount = (amount, options = {}) => {
+    const {
+        allowZero = false,
+        minAmount = 1,
+        maxAmount = 999999999999, // Prevent overflow and unrealistic amounts
+        fieldName = 'المبلغ'
+    } = options;
+
+    // Check if amount exists and is a number
+    if (amount === undefined || amount === null) {
+        throw CustomException(`${fieldName} مطلوب`, 400);
+    }
+
+    const numAmount = Number(amount);
+
+    // Check for NaN, Infinity, or negative numbers
+    if (!Number.isFinite(numAmount)) {
+        throw CustomException(`${fieldName} يجب أن يكون رقماً صحيحاً`, 400);
+    }
+
+    // Validate against minimum
+    if (!allowZero && numAmount < minAmount) {
+        throw CustomException(`${fieldName} يجب أن يكون أكبر من الصفر`, 400);
+    }
+
+    if (allowZero && numAmount < 0) {
+        throw CustomException(`${fieldName} لا يمكن أن يكون سالباً`, 400);
+    }
+
+    // Validate against maximum
+    if (numAmount > maxAmount) {
+        throw CustomException(`${fieldName} أكبر من المسموح به (الحد الأقصى: ${maxAmount})`, 400);
+    }
+
+    return Math.round(numAmount); // Ensure integer (halalas)
+};
+
+/**
+ * Verify IDOR authorization for retainer access
+ * Ensures user can only access their own retainers
+ * @param {Object} retainer - Retainer document
+ * @param {string} userId - Current user ID
+ * @throws {Error} - If user not authorized
+ */
+const verifyRetainerOwnership = (retainer, userId) => {
+    if (!retainer) {
+        throw CustomException('العربون غير موجود', 404);
+    }
+
+    if (retainer.lawyerId.toString() !== userId) {
+        throw CustomException('لا يمكنك الوصول إلى هذا العربون - الوصول مرفوض', 403);
+    }
+};
+
+/**
+ * Get MongoDB session for atomic operations
+ * Ensures all balance operations are atomic and prevent race conditions
+ * @returns {Promise<Session>} - MongoDB session
+ */
+const getSessionForAtomicOps = async () => {
+    return mongoose.startSession();
+};
 
 /**
  * Create retainer
  * POST /api/retainers
  */
 const createRetainer = asyncHandler(async (req, res) => {
+    const lawyerId = req.userID;
+
+    // Mass Assignment Protection: Use only allowed fields
+    const allowedFields = [
+        'clientId',
+        'caseId',
+        'retainerType',
+        'initialAmount',
+        'minimumBalance',
+        'startDate',
+        'endDate',
+        'autoReplenish',
+        'replenishThreshold',
+        'replenishAmount',
+        'agreementUrl',
+        'agreementSignedDate',
+        'notes',
+        'termsAndConditions'
+    ];
+
+    const input = pickAllowedFields(req.body, allowedFields);
     const {
         clientId,
         caseId,
@@ -22,21 +120,37 @@ const createRetainer = asyncHandler(async (req, res) => {
         agreementSignedDate,
         notes,
         termsAndConditions
-    } = req.body;
-
-    const lawyerId = req.userID;
+    } = input;
 
     // Validate required fields
-    if (!clientId || !retainerType || !initialAmount) {
+    if (!clientId || !retainerType || initialAmount === undefined) {
         throw CustomException('الحقول المطلوبة: العميل، نوع العربون، المبلغ الأولي', 400);
     }
 
-    // Validate case if provided
+    // Amount Validation: Validate initialAmount
+    const validatedInitialAmount = validateAmount(initialAmount, {
+        minAmount: 1,
+        maxAmount: 999999999999,
+        fieldName: 'المبلغ الأولي'
+    });
+
+    // Amount Validation: Validate minimumBalance
+    const validatedMinimumBalance = minimumBalance !== undefined
+        ? validateAmount(minimumBalance, {
+            allowZero: true,
+            minAmount: 0,
+            maxAmount: validatedInitialAmount,
+            fieldName: 'الحد الأدنى للرصيد'
+        })
+        : 0;
+
+    // Validate case if provided (IDOR Protection)
     if (caseId) {
         const caseDoc = await Case.findById(caseId);
         if (!caseDoc) {
             throw CustomException('القضية غير موجودة', 404);
         }
+        // IDOR: Verify case belongs to current lawyer
         if (caseDoc.lawyerId.toString() !== lawyerId) {
             throw CustomException('لا يمكنك الوصول إلى هذه القضية', 403);
         }
@@ -47,14 +161,27 @@ const createRetainer = asyncHandler(async (req, res) => {
         throw CustomException('التجديد التلقائي يتطلب حد التجديد ومبلغ التجديد', 400);
     }
 
+    // Amount Validation: Validate auto-replenish amounts if provided
+    if (autoReplenish) {
+        validateAmount(replenishThreshold, {
+            allowZero: true,
+            minAmount: 0,
+            fieldName: 'حد التجديد التلقائي'
+        });
+        validateAmount(replenishAmount, {
+            minAmount: 1,
+            fieldName: 'مبلغ التجديد التلقائي'
+        });
+    }
+
     const retainer = await Retainer.create({
         clientId,
         lawyerId,
         caseId,
         retainerType,
-        initialAmount,
-        currentBalance: initialAmount,
-        minimumBalance,
+        initialAmount: validatedInitialAmount,
+        currentBalance: validatedInitialAmount,
+        minimumBalance: validatedMinimumBalance,
         startDate: startDate ? new Date(startDate) : new Date(),
         endDate: endDate ? new Date(endDate) : null,
         autoReplenish,
@@ -71,7 +198,7 @@ const createRetainer = asyncHandler(async (req, res) => {
     // Add initial deposit
     retainer.deposits.push({
         date: new Date(),
-        amount: initialAmount,
+        amount: validatedInitialAmount,
         paymentId: null
     });
 
@@ -177,13 +304,8 @@ const getRetainer = asyncHandler(async (req, res) => {
         .populate('consumptions.invoiceId', 'invoiceNumber totalAmount')
         .populate('deposits.paymentId', 'paymentNumber amount paymentDate');
 
-    if (!retainer) {
-        throw CustomException('العربون غير موجود', 404);
-    }
-
-    if (retainer.lawyerId._id.toString() !== lawyerId) {
-        throw CustomException('لا يمكنك الوصول إلى هذا العربون', 403);
-    }
+    // IDOR Protection: Verify ownership using helper
+    verifyRetainerOwnership(retainer, lawyerId);
 
     res.status(200).json({
         success: true,
@@ -201,14 +323,10 @@ const updateRetainer = asyncHandler(async (req, res) => {
 
     const retainer = await Retainer.findById(id);
 
-    if (!retainer) {
-        throw CustomException('العربون غير موجود', 404);
-    }
+    // IDOR Protection: Verify ownership
+    verifyRetainerOwnership(retainer, lawyerId);
 
-    if (retainer.lawyerId.toString() !== lawyerId) {
-        throw CustomException('لا يمكنك الوصول إلى هذا العربون', 403);
-    }
-
+    // Mass Assignment Protection: Use pickAllowedFields
     const allowedFields = [
         'minimumBalance',
         'endDate',
@@ -221,11 +339,35 @@ const updateRetainer = asyncHandler(async (req, res) => {
         'termsAndConditions'
     ];
 
-    allowedFields.forEach(field => {
-        if (req.body[field] !== undefined) {
-            retainer[field] = req.body[field];
-        }
-    });
+    const safeInput = pickAllowedFields(req.body, allowedFields);
+
+    // Validate amounts if provided
+    if (safeInput.minimumBalance !== undefined) {
+        safeInput.minimumBalance = validateAmount(safeInput.minimumBalance, {
+            allowZero: true,
+            minAmount: 0,
+            maxAmount: retainer.currentBalance + 1000000, // Allow some buffer
+            fieldName: 'الحد الأدنى للرصيد'
+        });
+    }
+
+    if (safeInput.autoReplenish && safeInput.replenishThreshold !== undefined) {
+        safeInput.replenishThreshold = validateAmount(safeInput.replenishThreshold, {
+            allowZero: true,
+            minAmount: 0,
+            fieldName: 'حد التجديد التلقائي'
+        });
+    }
+
+    if (safeInput.autoReplenish && safeInput.replenishAmount !== undefined) {
+        safeInput.replenishAmount = validateAmount(safeInput.replenishAmount, {
+            minAmount: 1,
+            fieldName: 'مبلغ التجديد التلقائي'
+        });
+    }
+
+    // Apply only safe fields to retainer
+    Object.assign(retainer, safeInput);
 
     await retainer.save();
 
@@ -250,72 +392,88 @@ const consumeRetainer = asyncHandler(async (req, res) => {
     const { amount, invoiceId, description } = req.body;
     const lawyerId = req.userID;
 
-    if (!amount || amount <= 0) {
-        throw CustomException('المبلغ مطلوب ويجب أن يكون أكبر من صفر', 400);
-    }
+    // Amount Validation
+    const validatedAmount = validateAmount(amount, {
+        minAmount: 1,
+        maxAmount: 999999999999,
+        fieldName: 'مبلغ الاستهلاك'
+    });
 
-    const retainer = await Retainer.findById(id);
-
-    if (!retainer) {
-        throw CustomException('العربون غير موجود', 404);
-    }
-
-    if (retainer.lawyerId.toString() !== lawyerId) {
-        throw CustomException('لا يمكنك الوصول إلى هذا العربون', 403);
-    }
-
-    if (retainer.status !== 'active') {
-        throw CustomException('العربون غير نشط', 400);
-    }
-
-    // Validate invoice if provided
-    if (invoiceId) {
-        const invoice = await Invoice.findById(invoiceId);
-        if (!invoice) {
-            throw CustomException('الفاتورة غير موجودة', 404);
-        }
-    }
+    // Race Condition Protection: Start MongoDB session for atomic operations
+    const session = await getSessionForAtomicOps();
 
     try {
-        // Use the model method to consume
-        await retainer.consume(amount, invoiceId, description);
+        await session.withTransaction(async () => {
+            // Fetch retainer within transaction with lock
+            const retainer = await Retainer.findById(id).session(session);
 
-        // Log activity
-        await BillingActivity.logActivity({
-            activityType: 'retainer_consumed',
-            userId: lawyerId,
-            clientId: retainer.clientId,
-            relatedModel: 'Retainer',
-            relatedId: retainer._id,
-            description: `تم استهلاك ${amount} ريال من العربون. الرصيد الحالي: ${retainer.currentBalance}`,
-            changes: { consumed: amount, balance: retainer.currentBalance },
-            ipAddress: req.ip,
-            userAgent: req.get('user-agent')
-        });
+            // IDOR Protection: Verify ownership
+            verifyRetainerOwnership(retainer, lawyerId);
 
-        // Check if auto-replenish is needed
-        if (
-            retainer.autoReplenish &&
-            retainer.replenishThreshold &&
-            retainer.currentBalance <= retainer.replenishThreshold
-        ) {
-            // TODO: Trigger auto-replenishment process
-            // This could involve creating a pending payment or sending a notification
-        }
+            if (retainer.status !== 'active') {
+                throw CustomException('العربون غير نشط', 400);
+            }
 
-        await retainer.populate([
-            { path: 'clientId', select: 'username email' },
-            { path: 'caseId', select: 'title caseNumber' }
-        ]);
+            // Validate invoice if provided (IDOR Protection)
+            if (invoiceId) {
+                const invoice = await Invoice.findById(invoiceId).session(session);
+                if (!invoice) {
+                    throw CustomException('الفاتورة غير موجودة', 404);
+                }
+            }
 
-        res.status(200).json({
-            success: true,
-            message: 'تم استهلاك المبلغ من العربون بنجاح',
-            retainer,
-            lowBalanceAlert: retainer.currentBalance <= retainer.minimumBalance
+            // Validate sufficient balance (prevents race condition with another consume)
+            if (retainer.currentBalance < validatedAmount) {
+                throw CustomException('مبلغ العربون غير كافٍ - Insufficient retainer balance', 400);
+            }
+
+            // Use the model method to consume (passes session for atomic operation)
+            await retainer.consume(validatedAmount, invoiceId, description, session);
+
+            // Log activity within transaction
+            await BillingActivity.logActivity({
+                activityType: 'retainer_consumed',
+                userId: lawyerId,
+                clientId: retainer.clientId,
+                relatedModel: 'Retainer',
+                relatedId: retainer._id,
+                description: `تم استهلاك ${validatedAmount} ريال من العربون. الرصيد الحالي: ${retainer.currentBalance}`,
+                changes: { consumed: validatedAmount, balance: retainer.currentBalance },
+                ipAddress: req.ip,
+                userAgent: req.get('user-agent')
+            });
+
+            // Check if auto-replenish is needed
+            if (
+                retainer.autoReplenish &&
+                retainer.replenishThreshold &&
+                retainer.currentBalance <= retainer.replenishThreshold
+            ) {
+                // TODO: Trigger auto-replenishment process
+                // This could involve creating a pending payment or sending a notification
+            }
+
+            await retainer.populate([
+                { path: 'clientId', select: 'username email' },
+                { path: 'caseId', select: 'title caseNumber' }
+            ]);
+
+            res.status(200).json({
+                success: true,
+                message: 'تم استهلاك المبلغ من العربون بنجاح',
+                retainer,
+                lowBalanceAlert: retainer.currentBalance <= retainer.minimumBalance
+            });
+        }, {
+            readConcern: { level: 'snapshot' },
+            writeConcern: { w: 'majority' },
+            readPreference: 'primary',
+            maxCommitTimeMS: 30000
         });
     } catch (error) {
         throw CustomException(error.message, 400);
+    } finally {
+        await session.endSession();
     }
 });
 
@@ -328,60 +486,71 @@ const replenishRetainer = asyncHandler(async (req, res) => {
     const { amount, paymentId } = req.body;
     const lawyerId = req.userID;
 
-    if (!amount || amount <= 0) {
-        throw CustomException('المبلغ مطلوب ويجب أن يكون أكبر من صفر', 400);
-    }
+    // Amount Validation
+    const validatedAmount = validateAmount(amount, {
+        minAmount: 1,
+        maxAmount: 999999999999,
+        fieldName: 'مبلغ التجديد'
+    });
 
-    const retainer = await Retainer.findById(id);
-
-    if (!retainer) {
-        throw CustomException('العربون غير موجود', 404);
-    }
-
-    if (retainer.lawyerId.toString() !== lawyerId) {
-        throw CustomException('لا يمكنك الوصول إلى هذا العربون', 403);
-    }
-
-    // Validate payment if provided
-    if (paymentId) {
-        const payment = await Payment.findById(paymentId);
-        if (!payment) {
-            throw CustomException('الدفعة غير موجودة', 404);
-        }
-        if (payment.status !== 'completed') {
-            throw CustomException('يجب أن تكون الدفعة مكتملة', 400);
-        }
-    }
+    // Race Condition Protection: Start MongoDB session for atomic operations
+    const session = await getSessionForAtomicOps();
 
     try {
-        // Use the model method to replenish
-        await retainer.replenish(amount, paymentId);
+        await session.withTransaction(async () => {
+            // Fetch retainer within transaction with lock
+            const retainer = await Retainer.findById(id).session(session);
 
-        // Log activity
-        await BillingActivity.logActivity({
-            activityType: 'retainer_replenished',
-            userId: lawyerId,
-            clientId: retainer.clientId,
-            relatedModel: 'Retainer',
-            relatedId: retainer._id,
-            description: `تم تجديد العربون بمبلغ ${amount} ريال. الرصيد الحالي: ${retainer.currentBalance}`,
-            changes: { added: amount, balance: retainer.currentBalance },
-            ipAddress: req.ip,
-            userAgent: req.get('user-agent')
-        });
+            // IDOR Protection: Verify ownership
+            verifyRetainerOwnership(retainer, lawyerId);
 
-        await retainer.populate([
-            { path: 'clientId', select: 'username email' },
-            { path: 'caseId', select: 'title caseNumber' }
-        ]);
+            // Validate payment if provided (IDOR Protection)
+            if (paymentId) {
+                const payment = await Payment.findById(paymentId).session(session);
+                if (!payment) {
+                    throw CustomException('الدفعة غير موجودة', 404);
+                }
+                if (payment.status !== 'completed') {
+                    throw CustomException('يجب أن تكون الدفعة مكتملة', 400);
+                }
+            }
 
-        res.status(200).json({
-            success: true,
-            message: 'تم تجديد العربون بنجاح',
-            retainer
+            // Use the model method to replenish (passes session for atomic operation)
+            await retainer.replenish(validatedAmount, paymentId, session);
+
+            // Log activity within transaction
+            await BillingActivity.logActivity({
+                activityType: 'retainer_replenished',
+                userId: lawyerId,
+                clientId: retainer.clientId,
+                relatedModel: 'Retainer',
+                relatedId: retainer._id,
+                description: `تم تجديد العربون بمبلغ ${validatedAmount} ريال. الرصيد الحالي: ${retainer.currentBalance}`,
+                changes: { added: validatedAmount, balance: retainer.currentBalance },
+                ipAddress: req.ip,
+                userAgent: req.get('user-agent')
+            });
+
+            await retainer.populate([
+                { path: 'clientId', select: 'username email' },
+                { path: 'caseId', select: 'title caseNumber' }
+            ]);
+
+            res.status(200).json({
+                success: true,
+                message: 'تم تجديد العربون بنجاح',
+                retainer
+            });
+        }, {
+            readConcern: { level: 'snapshot' },
+            writeConcern: { w: 'majority' },
+            readPreference: 'primary',
+            maxCommitTimeMS: 30000
         });
     } catch (error) {
         throw CustomException(error.message, 400);
+    } finally {
+        await session.endSession();
     }
 });
 
@@ -394,50 +563,62 @@ const refundRetainer = asyncHandler(async (req, res) => {
     const { reason } = req.body;
     const lawyerId = req.userID;
 
-    const retainer = await Retainer.findById(id);
+    // Race Condition Protection: Start MongoDB session for atomic operations
+    const session = await getSessionForAtomicOps();
 
-    if (!retainer) {
-        throw CustomException('العربون غير موجود', 404);
+    try {
+        await session.withTransaction(async () => {
+            // Fetch retainer within transaction with lock
+            const retainer = await Retainer.findById(id).session(session);
+
+            // IDOR Protection: Verify ownership
+            verifyRetainerOwnership(retainer, lawyerId);
+
+            if (retainer.status === 'refunded') {
+                throw CustomException('تم استرداد العربون بالفعل', 400);
+            }
+
+            const refundAmount = retainer.currentBalance;
+
+            retainer.status = 'refunded';
+            retainer.currentBalance = 0;
+            await retainer.save({ session });
+
+            // Log activity within transaction
+            await BillingActivity.logActivity({
+                activityType: 'retainer_refunded',
+                userId: lawyerId,
+                clientId: retainer.clientId,
+                relatedModel: 'Retainer',
+                relatedId: retainer._id,
+                description: `تم استرداد العربون بمبلغ ${refundAmount} ريال. السبب: ${reason || 'غير محدد'}`,
+                changes: { refundedAmount: refundAmount },
+                ipAddress: req.ip,
+                userAgent: req.get('user-agent')
+            });
+
+            await retainer.populate([
+                { path: 'clientId', select: 'username email' },
+                { path: 'caseId', select: 'title caseNumber' }
+            ]);
+
+            res.status(200).json({
+                success: true,
+                message: 'تم استرداد العربون بنجاح',
+                retainer,
+                refundAmount
+            });
+        }, {
+            readConcern: { level: 'snapshot' },
+            writeConcern: { w: 'majority' },
+            readPreference: 'primary',
+            maxCommitTimeMS: 30000
+        });
+    } catch (error) {
+        throw CustomException(error.message, 400);
+    } finally {
+        await session.endSession();
     }
-
-    if (retainer.lawyerId.toString() !== lawyerId) {
-        throw CustomException('لا يمكنك الوصول إلى هذا العربون', 403);
-    }
-
-    if (retainer.status === 'refunded') {
-        throw CustomException('تم استرداد العربون بالفعل', 400);
-    }
-
-    const refundAmount = retainer.currentBalance;
-
-    retainer.status = 'refunded';
-    retainer.currentBalance = 0;
-    await retainer.save();
-
-    // Log activity
-    await BillingActivity.logActivity({
-        activityType: 'retainer_refunded',
-        userId: lawyerId,
-        clientId: retainer.clientId,
-        relatedModel: 'Retainer',
-        relatedId: retainer._id,
-        description: `تم استرداد العربون بمبلغ ${refundAmount} ريال. السبب: ${reason || 'غير محدد'}`,
-        changes: { refundedAmount: refundAmount },
-        ipAddress: req.ip,
-        userAgent: req.get('user-agent')
-    });
-
-    await retainer.populate([
-        { path: 'clientId', select: 'username email' },
-        { path: 'caseId', select: 'title caseNumber' }
-    ]);
-
-    res.status(200).json({
-        success: true,
-        message: 'تم استرداد العربون بنجاح',
-        retainer,
-        refundAmount
-    });
 });
 
 /**
@@ -452,13 +633,8 @@ const getRetainerHistory = asyncHandler(async (req, res) => {
         .populate('consumptions.invoiceId', 'invoiceNumber totalAmount')
         .populate('deposits.paymentId', 'paymentNumber amount paymentDate');
 
-    if (!retainer) {
-        throw CustomException('العربون غير موجود', 404);
-    }
-
-    if (retainer.lawyerId.toString() !== lawyerId) {
-        throw CustomException('لا يمكنك الوصول إلى هذا العربون', 403);
-    }
+    // IDOR Protection: Verify ownership using helper
+    verifyRetainerOwnership(retainer, lawyerId);
 
     // Combine and sort transactions chronologically
     const history = [

@@ -5,6 +5,64 @@ const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
 const { s3, getSignedUrl, deleteObject, BUCKETS } = require('../configs/s3');
 const crypto = require('crypto');
+const path = require('path');
+
+// Whitelist of allowed file types
+const ALLOWED_FILE_TYPES = [
+    'application/pdf',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/vnd.ms-excel',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'application/vnd.ms-powerpoint',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    'text/plain',
+    'text/csv',
+    'image/jpeg',
+    'image/png',
+    'image/gif',
+    'image/webp',
+    'application/zip',
+    'application/x-rar-compressed',
+    'application/json'
+];
+
+// Maximum file size in bytes (100 MB)
+const MAX_FILE_SIZE = 100 * 1024 * 1024;
+
+/**
+ * Validate file type
+ * @param {string} fileType - MIME type to validate
+ * @returns {boolean}
+ */
+const isAllowedFileType = (fileType) => {
+    return ALLOWED_FILE_TYPES.includes(fileType);
+};
+
+/**
+ * Validate file size
+ * @param {number} fileSize - File size in bytes
+ * @returns {boolean}
+ */
+const isValidFileSize = (fileSize) => {
+    return fileSize > 0 && fileSize <= MAX_FILE_SIZE;
+};
+
+/**
+ * Validate file path to prevent path traversal
+ * @param {string} filePath - File path to validate
+ * @returns {boolean}
+ */
+const isValidFilePath = (filePath) => {
+    if (!filePath || typeof filePath !== 'string') {
+        return false;
+    }
+    const safePath = path.normalize(filePath).replace(/^(\.\.(\/|\\|$))+/, '');
+    if (safePath.includes('..')) {
+        return false;
+    }
+    return true;
+};
 
 /**
  * Get the correct bucket based on module type
@@ -33,9 +91,15 @@ const getBucketForModule = (module) => {
 const getUploadUrl = asyncHandler(async (req, res) => {
     const { fileName, fileType, category, caseId, clientId, description, isConfidential, module } = req.body;
     const lawyerId = req.userID;
+    const firmId = req.firmId;
 
     if (!fileName || !fileType || !category) {
         throw CustomException('اسم الملف ونوعه والفئة مطلوبة', 400);
+    }
+
+    // Validate file type
+    if (!isAllowedFileType(fileType)) {
+        throw CustomException('نوع الملف غير مسموح. الأنواع المسموحة: PDF, Word, Excel, PowerPoint, صور، وملفات مضغوطة', 400);
     }
 
     // Determine bucket based on module
@@ -46,6 +110,11 @@ const getUploadUrl = asyncHandler(async (req, res) => {
     const month = String(new Date().getMonth() + 1).padStart(2, '0');
     const uniqueId = crypto.randomBytes(8).toString('hex');
     const fileKey = `${modulePrefix}/${lawyerId}/${year}/${month}/${uniqueId}-${fileName}`;
+
+    // Validate file path to prevent path traversal
+    if (!isValidFilePath(fileKey)) {
+        throw CustomException('اسم الملف يحتوي على أحرف غير صالحة', 400);
+    }
 
     const uploadUrl = await getSignedUrl(bucket, fileKey, fileType, 'putObject');
 
@@ -75,19 +144,33 @@ const confirmUpload = asyncHandler(async (req, res) => {
         module, bucket
     } = req.body;
     const lawyerId = req.userID;
+    const firmId = req.firmId; // From firmFilter middleware
 
-    if (!fileName || !fileKey || !category) {
+    // Validate required fields
+    if (!fileName || !fileKey || !category || !fileType || fileSize === undefined) {
         throw CustomException('بيانات الملف غير مكتملة', 400);
+    }
+
+    // Validate file type
+    if (!isAllowedFileType(fileType)) {
+        throw CustomException('نوع الملف غير مسموح', 400);
+    }
+
+    // Validate file size
+    if (!isValidFileSize(fileSize)) {
+        throw CustomException('حجم الملف غير صحيح أو يتجاوز الحد الأقصى (100 MB)', 400);
+    }
+
+    // Validate file path to prevent path traversal
+    if (!isValidFilePath(fileKey)) {
+        throw CustomException('مفتاح الملف يحتوي على أحرف غير صالحة', 400);
     }
 
     // Determine the actual bucket used
     const actualBucket = bucket || getBucketForModule(module);
 
-    const firmId = req.firmId; // From firmFilter middleware
-
-    const document = await Document.create({
-        lawyerId,
-        firmId, // Add firmId for multi-tenancy
+    // Mass assignment protection: only allow specific fields
+    const allowedFields = {
         fileName,
         originalName: originalName || fileName,
         fileType,
@@ -97,13 +180,17 @@ const confirmUpload = asyncHandler(async (req, res) => {
         bucket: actualBucket,
         module: module || 'documents',
         category,
-        caseId,
-        clientId,
-        description,
-        isConfidential: isConfidential || false,
-        tags: tags || [],
-        uploadedBy: lawyerId
-    });
+        caseId: caseId || null,
+        clientId: clientId || null,
+        description: description || '',
+        isConfidential: Boolean(isConfidential),
+        tags: Array.isArray(tags) ? tags : [],
+        uploadedBy: lawyerId,
+        lawyerId,
+        firmId
+    };
+
+    const document = await Document.create(allowedFields);
 
     // Increment usage counter for firm
     if (firmId) {
@@ -133,8 +220,10 @@ const getDocuments = asyncHandler(async (req, res) => {
         page = 1, limit = 50
     } = req.query;
     const lawyerId = req.userID;
+    const firmId = req.firmId; // IDOR protection
 
-    const query = { lawyerId };
+    // IDOR protection: documents must belong to user's firm
+    const query = { lawyerId, firmId };
 
     if (category) query.category = category;
     if (caseId) query.caseId = caseId;
@@ -177,8 +266,10 @@ const getDocuments = asyncHandler(async (req, res) => {
 const getDocument = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const lawyerId = req.userID;
+    const firmId = req.firmId; // IDOR protection
 
-    const document = await Document.findOne({ _id: id, lawyerId })
+    // IDOR protection: document must belong to user's firm
+    const document = await Document.findOne({ _id: id, lawyerId, firmId })
         .populate('uploadedBy', 'firstName lastName')
         .populate('caseId', 'title caseNumber')
         .populate('clientId', 'name fullName');
@@ -200,13 +291,16 @@ const getDocument = asyncHandler(async (req, res) => {
 const updateDocument = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const lawyerId = req.userID;
+    const firmId = req.firmId; // IDOR protection
 
-    const document = await Document.findOne({ _id: id, lawyerId });
+    // IDOR protection: document must belong to user's firm
+    const document = await Document.findOne({ _id: id, lawyerId, firmId });
 
     if (!document) {
         throw CustomException('المستند غير موجود', 404);
     }
 
+    // Mass assignment protection: whitelist allowed fields
     const allowedFields = [
         'fileName', 'category', 'description', 'tags',
         'isConfidential', 'caseId', 'clientId'
@@ -214,7 +308,14 @@ const updateDocument = asyncHandler(async (req, res) => {
 
     allowedFields.forEach(field => {
         if (req.body[field] !== undefined) {
-            document[field] = req.body[field];
+            // Additional validation for specific fields
+            if (field === 'isConfidential') {
+                document[field] = Boolean(req.body[field]);
+            } else if (field === 'tags') {
+                document[field] = Array.isArray(req.body[field]) ? req.body[field] : [];
+            } else {
+                document[field] = req.body[field];
+            }
         }
     });
 
@@ -234,11 +335,18 @@ const updateDocument = asyncHandler(async (req, res) => {
 const deleteDocument = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const lawyerId = req.userID;
+    const firmId = req.firmId; // IDOR protection
 
-    const document = await Document.findOne({ _id: id, lawyerId });
+    // IDOR protection: document must belong to user's firm
+    const document = await Document.findOne({ _id: id, lawyerId, firmId });
 
     if (!document) {
         throw CustomException('المستند غير موجود', 404);
+    }
+
+    // Validate file path before deletion
+    if (!isValidFilePath(document.fileKey)) {
+        throw CustomException('مفتاح الملف يحتوي على أحرف غير صالحة', 400);
     }
 
     // Delete from storage (use stored bucket or fallback to general)
@@ -251,14 +359,14 @@ const deleteDocument = asyncHandler(async (req, res) => {
 
     // Store fileSize before deletion for usage tracking
     const fileSize = document.fileSize || 0;
-    const firmId = document.firmId || req.firmId;
+    const docFirmId = document.firmId || firmId;
 
     await Document.findByIdAndDelete(id);
 
     // Decrement usage counter for firm
-    if (firmId) {
+    if (docFirmId) {
         const fileSizeMB = fileSize / (1024 * 1024);
-        await Firm.findByIdAndUpdate(firmId, {
+        await Firm.findByIdAndUpdate(docFirmId, {
             $inc: {
                 'usage.documentsCount': -1,
                 'usage.storageUsedMB': -fileSizeMB
@@ -279,8 +387,20 @@ const deleteDocument = asyncHandler(async (req, res) => {
 const getDocumentsByCase = asyncHandler(async (req, res) => {
     const { caseId } = req.params;
     const lawyerId = req.userID;
+    const firmId = req.firmId; // IDOR protection
 
-    const documents = await Document.getDocumentsByCase(lawyerId, caseId);
+    // IDOR protection: ensure case belongs to user's firm
+    const caseRecord = await Case.findOne({ _id: caseId, lawyerId, firmId });
+    if (!caseRecord) {
+        throw CustomException('القضية غير موجودة أو لا تنتمي إلى مؤسستك', 404);
+    }
+
+    // Get documents for the case (use Document.getDocumentsByCase if available, otherwise query directly)
+    const documents = await Document.find({
+        caseId: caseId,
+        lawyerId: lawyerId,
+        firmId: firmId  // IDOR protection
+    }).populate('uploadedBy', 'firstName lastName');
 
     res.status(200).json({
         success: true,
@@ -295,8 +415,20 @@ const getDocumentsByCase = asyncHandler(async (req, res) => {
 const getDocumentsByClient = asyncHandler(async (req, res) => {
     const { clientId } = req.params;
     const lawyerId = req.userID;
+    const firmId = req.firmId; // IDOR protection
 
-    const documents = await Document.getDocumentsByClient(lawyerId, clientId);
+    // IDOR protection: ensure client belongs to user's firm
+    const clientRecord = await Client.findOne({ _id: clientId, firmId });
+    if (!clientRecord) {
+        throw CustomException('العميل غير موجود أو لا ينتمي إلى مؤسستك', 404);
+    }
+
+    // Get documents for the client
+    const documents = await Document.find({
+        clientId: clientId,
+        lawyerId: lawyerId,
+        firmId: firmId  // IDOR protection
+    }).populate('uploadedBy', 'firstName lastName');
 
     res.status(200).json({
         success: true,
@@ -310,20 +442,22 @@ const getDocumentsByClient = asyncHandler(async (req, res) => {
  */
 const getDocumentStats = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
+    const firmId = req.firmId; // IDOR protection
 
-    const totalDocuments = await Document.countDocuments({ lawyerId });
+    // IDOR protection: statistics only for user's firm
+    const totalDocuments = await Document.countDocuments({ lawyerId, firmId });
 
     const byCategory = await Document.aggregate([
-        { $match: { lawyerId: lawyerId } },
+        { $match: { lawyerId: lawyerId, firmId: firmId } },
         { $group: { _id: '$category', count: { $sum: 1 }, totalSize: { $sum: '$fileSize' } } }
     ]);
 
     const totalSize = await Document.aggregate([
-        { $match: { lawyerId: lawyerId } },
+        { $match: { lawyerId: lawyerId, firmId: firmId } },
         { $group: { _id: null, total: { $sum: '$fileSize' } } }
     ]);
 
-    const recentDocuments = await Document.find({ lawyerId })
+    const recentDocuments = await Document.find({ lawyerId, firmId })
         .sort({ createdAt: -1 })
         .limit(5)
         .select('fileName category createdAt');
@@ -346,11 +480,18 @@ const getDocumentStats = asyncHandler(async (req, res) => {
 const downloadDocument = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const lawyerId = req.userID;
+    const firmId = req.firmId; // IDOR protection
 
-    const document = await Document.findOne({ _id: id, lawyerId });
+    // IDOR protection: document must belong to user's firm
+    const document = await Document.findOne({ _id: id, lawyerId, firmId });
 
     if (!document) {
         throw CustomException('المستند غير موجود', 404);
+    }
+
+    // Validate file path before downloading
+    if (!isValidFilePath(document.fileKey)) {
+        throw CustomException('مفتاح الملف يحتوي على أحرف غير صالحة', 400);
     }
 
     // Use stored bucket or fallback to general
@@ -380,11 +521,18 @@ const generateShareLink = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const { expiresInDays = 7 } = req.body;
     const lawyerId = req.userID;
+    const firmId = req.firmId; // IDOR protection
 
-    const document = await Document.findOne({ _id: id, lawyerId });
+    // IDOR protection: document must belong to user's firm
+    const document = await Document.findOne({ _id: id, lawyerId, firmId });
 
     if (!document) {
         throw CustomException('المستند غير موجود', 404);
+    }
+
+    // Validate expiration days
+    if (isNaN(expiresInDays) || expiresInDays < 1 || expiresInDays > 365) {
+        throw CustomException('يجب أن يكون عدد الأيام بين 1 و 365', 400);
     }
 
     const shareToken = Document.generateShareToken();
@@ -413,8 +561,10 @@ const generateShareLink = asyncHandler(async (req, res) => {
 const revokeShareLink = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const lawyerId = req.userID;
+    const firmId = req.firmId; // IDOR protection
 
-    const document = await Document.findOne({ _id: id, lawyerId });
+    // IDOR protection: document must belong to user's firm
+    const document = await Document.findOne({ _id: id, lawyerId, firmId });
 
     if (!document) {
         throw CustomException('المستند غير موجود', 404);
@@ -438,14 +588,36 @@ const uploadVersion = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const { fileName, originalName, fileSize, url, fileKey, changeNote, mimeType, fileType } = req.body;
     const lawyerId = req.userID;
+    const firmId = req.firmId; // IDOR protection
 
-    const document = await Document.findOne({ _id: id, lawyerId });
+    // IDOR protection: document must belong to user's firm
+    const document = await Document.findOne({ _id: id, lawyerId, firmId });
 
     if (!document) {
         throw CustomException('المستند غير موجود', 404);
     }
 
-    // Use DocumentVersionService for enhanced version management
+    // Validate required fields for version upload
+    if (!fileName || !fileSize || !fileKey || !fileType) {
+        throw CustomException('بيانات الإصدار الجديد غير مكتملة', 400);
+    }
+
+    // Validate file type
+    if (!isAllowedFileType(fileType)) {
+        throw CustomException('نوع الملف غير مسموح', 400);
+    }
+
+    // Validate file size
+    if (!isValidFileSize(fileSize)) {
+        throw CustomException('حجم الملف غير صحيح أو يتجاوز الحد الأقصى (100 MB)', 400);
+    }
+
+    // Validate file path
+    if (!isValidFilePath(fileKey)) {
+        throw CustomException('مفتاح الملف يحتوي على أحرف غير صالحة', 400);
+    }
+
+    // Mass assignment protection: only allow specific fields for version
     const file = {
         originalName: originalName || fileName,
         fileName: fileName,
@@ -477,8 +649,10 @@ const uploadVersion = asyncHandler(async (req, res) => {
 const getVersionHistory = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const lawyerId = req.userID;
+    const firmId = req.firmId; // IDOR protection
 
-    const document = await Document.findOne({ _id: id, lawyerId });
+    // IDOR protection: document must belong to user's firm
+    const document = await Document.findOne({ _id: id, lawyerId, firmId });
 
     if (!document) {
         throw CustomException('المستند غير موجود', 404);
@@ -501,8 +675,10 @@ const getVersionHistory = asyncHandler(async (req, res) => {
 const restoreVersion = asyncHandler(async (req, res) => {
     const { id, versionId } = req.params;
     const lawyerId = req.userID;
+    const firmId = req.firmId; // IDOR protection
 
-    const document = await Document.findOne({ _id: id, lawyerId });
+    // IDOR protection: document must belong to user's firm
+    const document = await Document.findOne({ _id: id, lawyerId, firmId });
 
     if (!document) {
         throw CustomException('المستند غير موجود', 404);
@@ -530,12 +706,22 @@ const restoreVersion = asyncHandler(async (req, res) => {
 const searchDocuments = asyncHandler(async (req, res) => {
     const { q } = req.query;
     const lawyerId = req.userID;
+    const firmId = req.firmId; // IDOR protection
 
     if (!q || q.length < 2) {
         throw CustomException('يجب أن يكون مصطلح البحث حرفين على الأقل', 400);
     }
 
-    const documents = await Document.searchDocuments(lawyerId, q);
+    // IDOR protection: search only documents belonging to user's firm
+    const documents = await Document.find({
+        lawyerId: lawyerId,
+        firmId: firmId,
+        $or: [
+            { fileName: { $regex: q, $options: 'i' } },
+            { originalName: { $regex: q, $options: 'i' } },
+            { description: { $regex: q, $options: 'i' } }
+        ]
+    }).limit(20);
 
     res.status(200).json({
         success: true,
@@ -551,8 +737,10 @@ const searchDocuments = asyncHandler(async (req, res) => {
 const getRecentDocuments = asyncHandler(async (req, res) => {
     const { limit = 10 } = req.query;
     const lawyerId = req.userID;
+    const firmId = req.firmId; // IDOR protection
 
-    const documents = await Document.find({ lawyerId })
+    // IDOR protection: get only recent documents from user's firm
+    const documents = await Document.find({ lawyerId, firmId })
         .sort({ createdAt: -1 })
         .limit(parseInt(limit))
         .populate('uploadedBy', 'firstName lastName')
@@ -571,18 +759,27 @@ const getRecentDocuments = asyncHandler(async (req, res) => {
 const bulkDeleteDocuments = asyncHandler(async (req, res) => {
     const { documentIds } = req.body;
     const lawyerId = req.userID;
+    const firmId = req.firmId; // IDOR protection
 
     if (!documentIds || !Array.isArray(documentIds) || documentIds.length === 0) {
         throw CustomException('معرفات المستندات مطلوبة', 400);
     }
 
+    // IDOR protection: only delete documents belonging to user's firm
     const documents = await Document.find({
         _id: { $in: documentIds },
-        lawyerId
+        lawyerId,
+        firmId
     });
 
     // Delete from storage (use stored bucket for each document)
     for (const doc of documents) {
+        // Validate file path before deletion
+        if (!isValidFilePath(doc.fileKey)) {
+            console.error('Invalid file path detected for document:', doc._id);
+            continue;
+        }
+
         const bucket = doc.bucket || getBucketForModule(doc.module) || BUCKETS.general;
         try {
             await deleteObject(bucket, doc.fileKey);
@@ -593,7 +790,8 @@ const bulkDeleteDocuments = asyncHandler(async (req, res) => {
 
     const result = await Document.deleteMany({
         _id: { $in: documentIds },
-        lawyerId
+        lawyerId,
+        firmId
     });
 
     res.status(200).json({
@@ -611,17 +809,20 @@ const moveDocument = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const { caseId } = req.body;
     const lawyerId = req.userID;
+    const firmId = req.firmId; // IDOR protection
 
-    const document = await Document.findOne({ _id: id, lawyerId });
+    // IDOR protection: document must belong to user's firm
+    const document = await Document.findOne({ _id: id, lawyerId, firmId });
 
     if (!document) {
         throw CustomException('المستند غير موجود', 404);
     }
 
     if (caseId) {
-        const caseExists = await Case.findOne({ _id: caseId, lawyerId });
+        // IDOR protection: case must belong to user's firm
+        const caseExists = await Case.findOne({ _id: caseId, lawyerId, firmId });
         if (!caseExists) {
-            throw CustomException('القضية غير موجودة', 404);
+            throw CustomException('القضية غير موجودة أو لا تنتمي إلى مؤسستك', 404);
         }
     }
 

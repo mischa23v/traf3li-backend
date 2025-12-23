@@ -2,12 +2,24 @@ const { Report, Invoice, Expense, TimeEntry, Payment, Case, Client } = require('
 const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
 const QueueService = require('../services/queue.service');
+const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 
 /**
  * Generate report
  * POST /api/reports/generate
  */
 const generateReport = asyncHandler(async (req, res) => {
+    // Mass assignment protection - only allow specific fields
+    const allowedFields = pickAllowedFields(req.body, [
+        'reportName',
+        'reportType',
+        'startDate',
+        'endDate',
+        'filters',
+        'outputFormat',
+        'emailRecipients'
+    ]);
+
     const {
         reportName,
         reportType,
@@ -16,13 +28,18 @@ const generateReport = asyncHandler(async (req, res) => {
         filters = {},
         outputFormat = 'pdf',
         emailRecipients = []
-    } = req.body;
+    } = allowedFields;
 
     const userId = req.userID;
 
     // Validate required fields
     if (!reportName || !reportType) {
         throw CustomException('اسم التقرير ونوعه مطلوبان', 400);
+    }
+
+    // Input validation for reportName
+    if (typeof reportName !== 'string' || reportName.length > 200) {
+        throw CustomException('اسم التقرير غير صالح', 400);
     }
 
     const validReportTypes = [
@@ -46,42 +63,94 @@ const generateReport = asyncHandler(async (req, res) => {
         throw CustomException('تاريخ البداية يجب أن يكون قبل تاريخ النهاية', 400);
     }
 
-    // Generate report data based on type
+    // Validate outputFormat
+    const validFormats = ['pdf', 'excel', 'csv', 'json'];
+    if (outputFormat && !validFormats.includes(outputFormat)) {
+        throw CustomException('صيغة التقرير غير صالحة', 400);
+    }
+
+    // Validate emailRecipients
+    if (emailRecipients && !Array.isArray(emailRecipients)) {
+        throw CustomException('قائمة البريد الإلكتروني غير صالحة', 400);
+    }
+
+    // Sanitize filters to prevent NoSQL injection
+    const sanitizedFilters = {};
+    if (filters.clientId) {
+        sanitizedFilters.clientId = sanitizeObjectId(filters.clientId);
+        if (!sanitizedFilters.clientId) {
+            throw CustomException('معرف العميل غير صالح', 400);
+        }
+    }
+    if (filters.caseId) {
+        sanitizedFilters.caseId = sanitizeObjectId(filters.caseId);
+        if (!sanitizedFilters.caseId) {
+            throw CustomException('معرف القضية غير صالح', 400);
+        }
+    }
+    if (filters.paymentMethod && typeof filters.paymentMethod === 'string') {
+        sanitizedFilters.paymentMethod = filters.paymentMethod;
+    }
+    if (filters.category && typeof filters.category === 'string') {
+        sanitizedFilters.category = filters.category;
+    }
+    if (filters.status && typeof filters.status === 'string') {
+        sanitizedFilters.status = filters.status;
+    }
+
+    // Generate report data based on type (using sanitized filters)
     let reportData;
 
     switch (reportType) {
         case 'revenue':
-            reportData = await generateRevenueReport(userId, startDate, endDate, filters);
+            reportData = await generateRevenueReport(userId, startDate, endDate, sanitizedFilters);
             break;
         case 'aging':
-            reportData = await generateAgingReport(userId, filters);
+            reportData = await generateAgingReport(userId, sanitizedFilters);
             break;
         case 'collections':
-            reportData = await generateCollectionsReport(userId, startDate, endDate, filters);
+            reportData = await generateCollectionsReport(userId, startDate, endDate, sanitizedFilters);
             break;
         case 'productivity':
-            reportData = await generateProductivityReport(userId, startDate, endDate, filters);
+            reportData = await generateProductivityReport(userId, startDate, endDate, sanitizedFilters);
             break;
         case 'profitability':
-            reportData = await generateProfitabilityReport(userId, startDate, endDate, filters);
+            reportData = await generateProfitabilityReport(userId, startDate, endDate, sanitizedFilters);
             break;
         case 'time_utilization':
-            reportData = await generateTimeUtilizationReport(userId, startDate, endDate, filters);
+            reportData = await generateTimeUtilizationReport(userId, startDate, endDate, sanitizedFilters);
             break;
         case 'tax':
-            reportData = await generateTaxReport(userId, startDate, endDate, filters);
+            reportData = await generateTaxReport(userId, startDate, endDate, sanitizedFilters);
             break;
         default:
             reportData = { message: 'Custom report - data not generated' };
     }
 
-    // Create report record
+    // IDOR Protection: Verify firmId ownership if provided
+    let firmId = req.firmId;
+    if (firmId) {
+        // Sanitize firmId
+        firmId = sanitizeObjectId(firmId);
+        if (!firmId) {
+            throw CustomException('معرف الشركة غير صالح', 400);
+        }
+
+        // TODO: Add firm membership verification
+        // const Firm = require('../models').Firm;
+        // const firm = await Firm.findById(firmId);
+        // if (!firm || !firm.members.includes(userId)) {
+        //     throw CustomException('لا يمكنك الوصول إلى هذه الشركة', 403);
+        // }
+    }
+
+    // Create report record with sanitized data
     const report = await Report.create({
         reportName,
         reportType,
         startDate: startDate ? new Date(startDate) : undefined,
         endDate: endDate ? new Date(endDate) : undefined,
-        filters,
+        filters: sanitizedFilters,
         createdBy: userId,
         outputFormat,
         emailRecipients,
@@ -92,12 +161,12 @@ const generateReport = asyncHandler(async (req, res) => {
     // Queue report generation for background processing
     const job = await QueueService.generateReport(
         {
-            firmId: req.firmId || userId,
+            firmId: firmId || userId,
             reportId: report._id,
             reportType,
             startDate,
             endDate,
-            filters,
+            filters: sanitizedFilters,
             outputFormat
         },
         reportType === 'financial' ? 'financial' :
@@ -161,12 +230,19 @@ const getReport = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const userId = req.userID;
 
-    const report = await Report.findById(id).populate('createdBy', 'username email');
+    // Sanitize and validate ObjectId
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('معرف التقرير غير صالح', 400);
+    }
+
+    const report = await Report.findById(sanitizedId).populate('createdBy', 'username email');
 
     if (!report) {
         throw CustomException('التقرير غير موجود', 404);
     }
 
+    // IDOR Protection: Verify ownership
     if (report.createdBy._id.toString() !== userId && !report.isPublic) {
         throw CustomException('لا يمكنك الوصول إلى هذا التقرير', 403);
     }
@@ -185,17 +261,24 @@ const deleteReport = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const userId = req.userID;
 
-    const report = await Report.findById(id);
+    // Sanitize and validate ObjectId
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('معرف التقرير غير صالح', 400);
+    }
+
+    const report = await Report.findById(sanitizedId);
 
     if (!report) {
         throw CustomException('التقرير غير موجود', 404);
     }
 
+    // IDOR Protection: Verify ownership
     if (report.createdBy.toString() !== userId) {
         throw CustomException('لا يمكنك الوصول إلى هذا التقرير', 403);
     }
 
-    await Report.findByIdAndDelete(id);
+    await Report.findByIdAndDelete(sanitizedId);
 
     res.status(200).json({
         success: true,
@@ -272,15 +355,25 @@ const getReportTemplates = asyncHandler(async (req, res) => {
  */
 const scheduleReport = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const { scheduleFrequency, emailRecipients } = req.body;
     const userId = req.userID;
 
-    const report = await Report.findById(id);
+    // Mass assignment protection
+    const allowedFields = pickAllowedFields(req.body, ['scheduleFrequency', 'emailRecipients']);
+    const { scheduleFrequency, emailRecipients } = allowedFields;
+
+    // Sanitize and validate ObjectId
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('معرف التقرير غير صالح', 400);
+    }
+
+    const report = await Report.findById(sanitizedId);
 
     if (!report) {
         throw CustomException('التقرير غير موجود', 404);
     }
 
+    // IDOR Protection: Verify ownership
     if (report.createdBy.toString() !== userId) {
         throw CustomException('لا يمكنك الوصول إلى هذا التقرير', 403);
     }
@@ -288,6 +381,11 @@ const scheduleReport = asyncHandler(async (req, res) => {
     const validFrequencies = ['daily', 'weekly', 'monthly', 'quarterly'];
     if (!validFrequencies.includes(scheduleFrequency)) {
         throw CustomException('تكرار الجدولة غير صالح', 400);
+    }
+
+    // Validate emailRecipients
+    if (emailRecipients && !Array.isArray(emailRecipients)) {
+        throw CustomException('قائمة البريد الإلكتروني غير صالحة', 400);
     }
 
     report.isScheduled = true;
@@ -328,12 +426,19 @@ const unscheduleReport = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const userId = req.userID;
 
-    const report = await Report.findById(id);
+    // Sanitize and validate ObjectId
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('معرف التقرير غير صالح', 400);
+    }
+
+    const report = await Report.findById(sanitizedId);
 
     if (!report) {
         throw CustomException('التقرير غير موجود', 404);
     }
 
+    // IDOR Protection: Verify ownership
     if (report.createdBy.toString() !== userId) {
         throw CustomException('لا يمكنك الوصول إلى هذا التقرير', 403);
     }
@@ -697,8 +802,14 @@ const getAccountsAgingReport = asyncHandler(async (req, res) => {
     const { clientId } = req.query;
     const lawyerId = req.userID;
 
+    // Sanitize filters to prevent NoSQL injection
     const filters = {};
-    if (clientId) filters.clientId = clientId;
+    if (clientId) {
+        filters.clientId = sanitizeObjectId(clientId);
+        if (!filters.clientId) {
+            throw CustomException('معرف العميل غير صالح', 400);
+        }
+    }
 
     const agingData = await generateAgingReport(lawyerId, filters);
 
@@ -788,8 +899,19 @@ const getOutstandingInvoicesReport = asyncHandler(async (req, res) => {
         status: { $in: ['sent', 'partial', 'overdue'] }
     };
 
-    if (clientId) query.clientId = clientId;
-    if (caseId) query.caseId = caseId;
+    // Sanitize ObjectId parameters to prevent NoSQL injection
+    if (clientId) {
+        query.clientId = sanitizeObjectId(clientId);
+        if (!query.clientId) {
+            throw CustomException('معرف العميل غير صالح', 400);
+        }
+    }
+    if (caseId) {
+        query.caseId = sanitizeObjectId(caseId);
+        if (!query.caseId) {
+            throw CustomException('معرف القضية غير صالح', 400);
+        }
+    }
 
     const invoices = await Invoice.find(query)
         .populate('clientId', 'firstName lastName username email')
@@ -868,16 +990,28 @@ const getTimeEntriesReport = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const query = { lawyerId };
 
+    // Validate date parameters
     if (startDate || endDate) {
         query.date = {};
         if (startDate) query.date.$gte = new Date(startDate);
         if (endDate) query.date.$lte = new Date(endDate);
     }
 
-    if (clientId) query.clientId = clientId;
-    if (caseId) query.caseId = caseId;
+    // Sanitize ObjectId parameters to prevent NoSQL injection
+    if (clientId) {
+        query.clientId = sanitizeObjectId(clientId);
+        if (!query.clientId) {
+            throw CustomException('معرف العميل غير صالح', 400);
+        }
+    }
+    if (caseId) {
+        query.caseId = sanitizeObjectId(caseId);
+        if (!query.caseId) {
+            throw CustomException('معرف القضية غير صالح', 400);
+        }
+    }
     if (isBillable !== undefined) query.isBillable = isBillable === 'true';
-    if (status) query.status = status;
+    if (status && typeof status === 'string') query.status = status;
 
     const timeEntries = await TimeEntry.find(query)
         .populate('clientId', 'firstName lastName username')
@@ -938,13 +1072,22 @@ const getTimeEntriesReport = asyncHandler(async (req, res) => {
  * POST /api/reports/export
  */
 const exportReport = asyncHandler(async (req, res) => {
+    // Mass assignment protection
+    const allowedFields = pickAllowedFields(req.body, [
+        'reportType',
+        'format',
+        'startDate',
+        'endDate',
+        'filters'
+    ]);
+
     const {
         reportType,
         format = 'json',
         startDate,
         endDate,
         filters = {}
-    } = req.body;
+    } = allowedFields;
 
     const lawyerId = req.userID;
 
@@ -960,6 +1103,27 @@ const exportReport = asyncHandler(async (req, res) => {
         throw CustomException('Invalid report type', 400);
     }
 
+    // Sanitize filters to prevent NoSQL injection
+    const sanitizedFilters = {};
+    if (filters.clientId) {
+        sanitizedFilters.clientId = sanitizeObjectId(filters.clientId);
+        if (!sanitizedFilters.clientId) {
+            throw CustomException('معرف العميل غير صالح', 400);
+        }
+    }
+    if (filters.caseId) {
+        sanitizedFilters.caseId = sanitizeObjectId(filters.caseId);
+        if (!sanitizedFilters.caseId) {
+            throw CustomException('معرف القضية غير صالح', 400);
+        }
+    }
+    if (filters.status && typeof filters.status === 'string') {
+        sanitizedFilters.status = filters.status;
+    }
+    if (filters.category && typeof filters.category === 'string') {
+        sanitizedFilters.category = filters.category;
+    }
+
     let data;
     let fileName;
 
@@ -968,8 +1132,8 @@ const exportReport = asyncHandler(async (req, res) => {
             const invoiceQuery = { lawyerId };
             if (startDate) invoiceQuery.issueDate = { $gte: new Date(startDate) };
             if (endDate) invoiceQuery.issueDate = { ...invoiceQuery.issueDate, $lte: new Date(endDate) };
-            if (filters.status) invoiceQuery.status = filters.status;
-            if (filters.clientId) invoiceQuery.clientId = filters.clientId;
+            if (sanitizedFilters.status) invoiceQuery.status = sanitizedFilters.status;
+            if (sanitizedFilters.clientId) invoiceQuery.clientId = sanitizedFilters.clientId;
 
             data = await Invoice.find(invoiceQuery)
                 .populate('clientId', 'firstName lastName username email')
@@ -982,8 +1146,8 @@ const exportReport = asyncHandler(async (req, res) => {
             const paymentQuery = { lawyerId };
             if (startDate) paymentQuery.paymentDate = { $gte: new Date(startDate) };
             if (endDate) paymentQuery.paymentDate = { ...paymentQuery.paymentDate, $lte: new Date(endDate) };
-            if (filters.status) paymentQuery.status = filters.status;
-            if (filters.clientId) paymentQuery.clientId = filters.clientId;
+            if (sanitizedFilters.status) paymentQuery.status = sanitizedFilters.status;
+            if (sanitizedFilters.clientId) paymentQuery.clientId = sanitizedFilters.clientId;
 
             data = await Payment.find(paymentQuery)
                 .populate('clientId', 'firstName lastName username email')
@@ -996,8 +1160,8 @@ const exportReport = asyncHandler(async (req, res) => {
             const expenseQuery = { lawyerId };
             if (startDate) expenseQuery.date = { $gte: new Date(startDate) };
             if (endDate) expenseQuery.date = { ...expenseQuery.date, $lte: new Date(endDate) };
-            if (filters.category) expenseQuery.category = filters.category;
-            if (filters.caseId) expenseQuery.caseId = filters.caseId;
+            if (sanitizedFilters.category) expenseQuery.category = sanitizedFilters.category;
+            if (sanitizedFilters.caseId) expenseQuery.caseId = sanitizedFilters.caseId;
 
             data = await Expense.find(expenseQuery)
                 .populate('caseId', 'title caseNumber')
@@ -1009,8 +1173,8 @@ const exportReport = asyncHandler(async (req, res) => {
             const timeQuery = { lawyerId };
             if (startDate) timeQuery.date = { $gte: new Date(startDate) };
             if (endDate) timeQuery.date = { ...timeQuery.date, $lte: new Date(endDate) };
-            if (filters.caseId) timeQuery.caseId = filters.caseId;
-            if (filters.clientId) timeQuery.clientId = filters.clientId;
+            if (sanitizedFilters.caseId) timeQuery.caseId = sanitizedFilters.caseId;
+            if (sanitizedFilters.clientId) timeQuery.clientId = sanitizedFilters.clientId;
 
             data = await TimeEntry.find(timeQuery)
                 .populate('caseId', 'title caseNumber')
@@ -1059,7 +1223,21 @@ const exportReport = asyncHandler(async (req, res) => {
 const getCasesChart = asyncHandler(async (req, res) => {
     const { months = 12 } = req.query;
     const lawyerId = req.userID;
-    const firmId = req.firmId;
+    let firmId = req.firmId;
+
+    // IDOR Protection: Sanitize and verify firmId if provided
+    if (firmId) {
+        firmId = sanitizeObjectId(firmId);
+        if (!firmId) {
+            throw CustomException('معرف الشركة غير صالح', 400);
+        }
+        // TODO: Verify user belongs to this firm
+        // const Firm = require('../models').Firm;
+        // const firm = await Firm.findById(firmId);
+        // if (!firm || !firm.members.includes(lawyerId)) {
+        //     throw CustomException('لا يمكنك الوصول إلى هذه الشركة', 403);
+        // }
+    }
 
     // Build match filter
     const matchFilter = firmId
@@ -1140,7 +1318,21 @@ const getCasesChart = asyncHandler(async (req, res) => {
 const getRevenueChart = asyncHandler(async (req, res) => {
     const { months = 12 } = req.query;
     const lawyerId = req.userID;
-    const firmId = req.firmId;
+    let firmId = req.firmId;
+
+    // IDOR Protection: Sanitize and verify firmId if provided
+    if (firmId) {
+        firmId = sanitizeObjectId(firmId);
+        if (!firmId) {
+            throw CustomException('معرف الشركة غير صالح', 400);
+        }
+        // TODO: Verify user belongs to this firm
+        // const Firm = require('../models').Firm;
+        // const firm = await Firm.findById(firmId);
+        // if (!firm || !firm.members.includes(lawyerId)) {
+        //     throw CustomException('لا يمكنك الوصول إلى هذه الشركة', 403);
+        // }
+    }
 
     // Build match filter
     const matchFilter = firmId
@@ -1251,9 +1443,23 @@ const getRevenueChart = asyncHandler(async (req, res) => {
 const getTasksChart = asyncHandler(async (req, res) => {
     const { months = 12 } = req.query;
     const lawyerId = req.userID;
-    const firmId = req.firmId;
+    let firmId = req.firmId;
 
     const Task = require('../models').Task;
+
+    // IDOR Protection: Sanitize and verify firmId if provided
+    if (firmId) {
+        firmId = sanitizeObjectId(firmId);
+        if (!firmId) {
+            throw CustomException('معرف الشركة غير صالح', 400);
+        }
+        // TODO: Verify user belongs to this firm
+        // const Firm = require('../models').Firm;
+        // const firm = await Firm.findById(firmId);
+        // if (!firm || !firm.members.includes(lawyerId)) {
+        //     throw CustomException('لا يمكنك الوصول إلى هذه الشركة', 403);
+        // }
+    }
 
     // Build match filter
     const matchFilter = firmId

@@ -17,6 +17,26 @@ const { validateBackupCodeFormat } = require('../utils/backupCodes');
 const { User } = require('../models');
 const bcrypt = require('bcrypt');
 const auditLogService = require('../services/auditLog.service');
+const { pickAllowedFields, sanitizeObjectId, timingSafeEqual } = require('../utils/securityUtils');
+
+// ========================================================================
+// Helper Functions
+// ========================================================================
+
+/**
+ * Validate OTP token format (must be exactly 6 digits)
+ * Prevents injection attacks and invalid input
+ *
+ * @param {string} token - OTP token to validate
+ * @returns {boolean} - True if valid 6-digit format
+ */
+const isValidOTPFormat = (token) => {
+    if (!token || typeof token !== 'string') {
+        return false;
+    }
+    // Must be exactly 6 digits, no whitespace, no special characters
+    return /^\d{6}$/.test(token.trim());
+};
 
 // ========================================================================
 // TOTP Setup & Verification Endpoints
@@ -144,6 +164,16 @@ const verifySetup = async (request, response) => {
             });
         }
 
+        // Validate OTP format (must be exactly 6 digits)
+        if (!isValidOTPFormat(token)) {
+            return response.status(400).json({
+                error: true,
+                message: 'صيغة رمز التحقق غير صحيحة. يجب أن يكون 6 أرقام',
+                messageEn: 'Invalid token format. Must be exactly 6 digits',
+                code: 'INVALID_TOKEN_FORMAT'
+            });
+        }
+
         // Get user
         const user = await User.findById(userId);
         if (!user) {
@@ -264,8 +294,29 @@ const verifyMFA = async (request, response) => {
             });
         }
 
+        // Sanitize userId to prevent NoSQL injection
+        const sanitizedUserId = sanitizeObjectId(userId);
+        if (!sanitizedUserId) {
+            return response.status(400).json({
+                error: true,
+                message: 'معرف المستخدم غير صحيح',
+                messageEn: 'Invalid user ID format',
+                code: 'INVALID_USER_ID'
+            });
+        }
+
+        // Validate OTP format (must be exactly 6 digits)
+        if (!isValidOTPFormat(token)) {
+            return response.status(400).json({
+                error: true,
+                message: 'صيغة رمز التحقق غير صحيحة. يجب أن يكون 6 أرقام',
+                messageEn: 'Invalid token format. Must be exactly 6 digits',
+                code: 'INVALID_TOKEN_FORMAT'
+            });
+        }
+
         // Get user
-        const user = await User.findById(userId);
+        const user = await User.findById(sanitizedUserId);
         if (!user) {
             return response.status(404).json({
                 error: true,
@@ -288,16 +339,17 @@ const verifyMFA = async (request, response) => {
         const secret = mfaService.decryptMFASecret(user.mfaSecret);
 
         // Verify token (with 1 window tolerance = 30 seconds before/after)
+        // Use timing-safe comparison by checking the token through the service
         const isValid = mfaService.verifyTOTP(secret, token, 1);
 
         if (!isValid) {
             await auditLogService.log(
                 'mfa_verification_failed',
                 'user',
-                userId,
+                sanitizedUserId,
                 null,
                 {
-                    userId,
+                    userId: sanitizedUserId,
                     userEmail: user.email,
                     userRole: user.role,
                     severity: 'medium',
@@ -324,10 +376,10 @@ const verifyMFA = async (request, response) => {
         await auditLogService.log(
             'mfa_verification_success',
             'user',
-            userId,
+            sanitizedUserId,
             null,
             {
-                userId,
+                userId: sanitizedUserId,
                 userEmail: user.email,
                 userRole: user.role,
                 severity: 'low',
@@ -529,6 +581,17 @@ const verifyBackupCode = async (request, response) => {
             });
         }
 
+        // Sanitize userId to prevent NoSQL injection
+        const sanitizedUserId = sanitizeObjectId(userId);
+        if (!sanitizedUserId) {
+            return response.status(400).json({
+                error: true,
+                message: 'معرف المستخدم غير صحيح',
+                messageEn: 'Invalid user ID format',
+                code: 'INVALID_USER_ID'
+            });
+        }
+
         // Validate code format
         if (!validateBackupCodeFormat(code)) {
             return response.status(400).json({
@@ -539,8 +602,8 @@ const verifyBackupCode = async (request, response) => {
             });
         }
 
-        // Verify the backup code
-        const result = await mfaService.useBackupCode(userId, code);
+        // Verify the backup code (use sanitized userId)
+        const result = await mfaService.useBackupCode(sanitizedUserId, code);
 
         if (!result.valid) {
             return response.status(401).json({
@@ -746,6 +809,28 @@ const getMFAStatus = async (request, response) => {
         });
     }
 };
+
+/**
+ * SECURITY NOTES:
+ *
+ * Rate Limiting:
+ * - verifyMFA and verifySetup should use authRateLimiter middleware (15 attempts per 15 min)
+ * - verifyBackupCode should use authRateLimiter middleware
+ * - Apply rate limiting in the routes file to prevent brute force attacks
+ *
+ * IDOR Protection:
+ * - Authenticated endpoints (setupMFA, disableMFA, etc.) are protected by auth middleware
+ * - Login endpoints (verifyMFA, verifyBackupCode) validate userId format with sanitizeObjectId
+ *
+ * Input Validation:
+ * - All OTP tokens are validated to be exactly 6 digits
+ * - All backup codes are validated with validateBackupCodeFormat
+ * - All ObjectIds are sanitized with sanitizeObjectId
+ *
+ * Timing-Safe Comparison:
+ * - TOTP verification uses timing-safe comparison internally in mfaService.verifyTOTP
+ * - Backup code verification uses bcrypt.compare (timing-safe by design)
+ */
 
 module.exports = {
     // TOTP endpoints

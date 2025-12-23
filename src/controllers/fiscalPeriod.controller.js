@@ -5,6 +5,7 @@
 const mongoose = require('mongoose');
 const FiscalPeriod = require('../models/fiscalPeriod.model');
 const { toSAR } = require('../utils/currency');
+const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 
 /**
  * Get all fiscal periods
@@ -33,8 +34,15 @@ const getFiscalPeriods = async (req, res) => {
  */
 const getFiscalPeriod = async (req, res) => {
     try {
+        // Sanitize and validate ID parameter
+        const periodId = sanitizeObjectId(req.params.id);
+        if (!periodId) {
+            return res.status(400).json({ success: false, message: 'Invalid period ID' });
+        }
+
+        // IDOR protection: verify ownership
         const period = await FiscalPeriod.findOne({
-            _id: req.params.id,
+            _id: periodId,
             lawyerId: req.user._id
         })
             .populate('closingEntry.journalEntryId')
@@ -57,9 +65,12 @@ const getFiscalPeriod = async (req, res) => {
  */
 const createFiscalYear = async (req, res) => {
     try {
-        const { fiscalYear, startMonth } = req.body;
+        // Mass assignment protection
+        const allowedFields = pickAllowedFields(req.body, ['fiscalYear', 'startMonth']);
+        const { fiscalYear, startMonth } = allowedFields;
         const lawyerId = req.user._id;
 
+        // Input validation
         if (!fiscalYear) {
             return res.status(400).json({
                 success: false,
@@ -67,29 +78,45 @@ const createFiscalYear = async (req, res) => {
             });
         }
 
+        const yearNum = parseInt(fiscalYear);
+        if (isNaN(yearNum) || yearNum < 1900 || yearNum > 2100) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid fiscal year. Must be between 1900 and 2100'
+            });
+        }
+
+        const monthNum = startMonth ? parseInt(startMonth) : 1;
+        if (isNaN(monthNum) || monthNum < 1 || monthNum > 12) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid start month. Must be between 1 and 12'
+            });
+        }
+
         // Check if fiscal year already exists
         const existing = await FiscalPeriod.findOne({
             lawyerId,
-            fiscalYear: parseInt(fiscalYear)
+            fiscalYear: yearNum
         });
 
         if (existing) {
             return res.status(400).json({
                 success: false,
-                message: `Fiscal year ${fiscalYear} already exists`
+                message: `Fiscal year ${yearNum} already exists`
             });
         }
 
         const periods = await FiscalPeriod.createFiscalYear(
             lawyerId,
-            parseInt(fiscalYear),
+            yearNum,
             req.user._id,
-            startMonth || 1
+            monthNum
         );
 
         res.status(201).json({
             success: true,
-            message: `Created ${periods.length} periods for fiscal year ${fiscalYear}`,
+            message: `Created ${periods.length} periods for fiscal year ${yearNum}`,
             data: periods
         });
     } catch (error) {
@@ -124,13 +151,28 @@ const getCurrentPeriod = async (req, res) => {
  */
 const openPeriod = async (req, res) => {
     try {
+        // Sanitize and validate ID parameter
+        const periodId = sanitizeObjectId(req.params.id);
+        if (!periodId) {
+            return res.status(400).json({ success: false, message: 'Invalid period ID' });
+        }
+
+        // IDOR protection: verify ownership
         const period = await FiscalPeriod.findOne({
-            _id: req.params.id,
+            _id: periodId,
             lawyerId: req.user._id
         });
 
         if (!period) {
             return res.status(404).json({ success: false, message: 'Fiscal period not found' });
+        }
+
+        // Prevent unauthorized modifications on locked periods
+        if (period.isLocked) {
+            return res.status(403).json({
+                success: false,
+                message: 'Cannot open a locked period'
+            });
         }
 
         await period.open(req.user._id);
@@ -147,18 +189,34 @@ const openPeriod = async (req, res) => {
  */
 const closePeriod = async (req, res) => {
     try {
+        // Sanitize and validate ID parameter
+        const periodId = sanitizeObjectId(req.params.id);
+        if (!periodId) {
+            return res.status(400).json({ success: false, message: 'Invalid period ID' });
+        }
+
         const session = await mongoose.startSession();
         session.startTransaction();
 
         try {
+            // IDOR protection: verify ownership
             const period = await FiscalPeriod.findOne({
-                _id: req.params.id,
+                _id: periodId,
                 lawyerId: req.user._id
             }).session(session);
 
             if (!period) {
                 await session.abortTransaction();
                 return res.status(404).json({ success: false, message: 'Fiscal period not found' });
+            }
+
+            // Prevent unauthorized modifications on locked periods
+            if (period.isLocked) {
+                await session.abortTransaction();
+                return res.status(403).json({
+                    success: false,
+                    message: 'Cannot close a locked period'
+                });
             }
 
             await period.close(req.user._id, session);
@@ -183,13 +241,28 @@ const closePeriod = async (req, res) => {
  */
 const reopenPeriod = async (req, res) => {
     try {
+        // Sanitize and validate ID parameter
+        const periodId = sanitizeObjectId(req.params.id);
+        if (!periodId) {
+            return res.status(400).json({ success: false, message: 'Invalid period ID' });
+        }
+
+        // IDOR protection: verify ownership
         const period = await FiscalPeriod.findOne({
-            _id: req.params.id,
+            _id: periodId,
             lawyerId: req.user._id
         });
 
         if (!period) {
             return res.status(404).json({ success: false, message: 'Fiscal period not found' });
+        }
+
+        // Prevent unauthorized modifications on locked periods
+        if (period.isLocked) {
+            return res.status(403).json({
+                success: false,
+                message: 'Cannot reopen a locked period'
+            });
         }
 
         await period.reopen(req.user._id);
@@ -206,15 +279,32 @@ const reopenPeriod = async (req, res) => {
  */
 const lockPeriod = async (req, res) => {
     try {
-        const { reason } = req.body;
+        // Sanitize and validate ID parameter
+        const periodId = sanitizeObjectId(req.params.id);
+        if (!periodId) {
+            return res.status(400).json({ success: false, message: 'Invalid period ID' });
+        }
 
+        // Mass assignment protection
+        const allowedFields = pickAllowedFields(req.body, ['reason']);
+        const { reason } = allowedFields;
+
+        // IDOR protection: verify ownership
         const period = await FiscalPeriod.findOne({
-            _id: req.params.id,
+            _id: periodId,
             lawyerId: req.user._id
         });
 
         if (!period) {
             return res.status(404).json({ success: false, message: 'Fiscal period not found' });
+        }
+
+        // Prevent locking already locked periods
+        if (period.isLocked) {
+            return res.status(400).json({
+                success: false,
+                message: 'Period is already locked'
+            });
         }
 
         await period.lock(req.user._id, reason);
@@ -231,8 +321,15 @@ const lockPeriod = async (req, res) => {
  */
 const calculateBalances = async (req, res) => {
     try {
+        // Sanitize and validate ID parameter
+        const periodId = sanitizeObjectId(req.params.id);
+        if (!periodId) {
+            return res.status(400).json({ success: false, message: 'Invalid period ID' });
+        }
+
+        // IDOR protection: verify ownership
         const period = await FiscalPeriod.findOne({
-            _id: req.params.id,
+            _id: periodId,
             lawyerId: req.user._id
         });
 
@@ -268,18 +365,34 @@ const calculateBalances = async (req, res) => {
  */
 const yearEndClosing = async (req, res) => {
     try {
+        // Sanitize and validate ID parameter
+        const periodId = sanitizeObjectId(req.params.id);
+        if (!periodId) {
+            return res.status(400).json({ success: false, message: 'Invalid period ID' });
+        }
+
         const session = await mongoose.startSession();
         session.startTransaction();
 
         try {
+            // IDOR protection: verify ownership
             const period = await FiscalPeriod.findOne({
-                _id: req.params.id,
+                _id: periodId,
                 lawyerId: req.user._id
             }).session(session);
 
             if (!period) {
                 await session.abortTransaction();
                 return res.status(404).json({ success: false, message: 'Fiscal period not found' });
+            }
+
+            // Prevent unauthorized modifications on locked periods
+            if (period.isLocked) {
+                await session.abortTransaction();
+                return res.status(403).json({
+                    success: false,
+                    message: 'Cannot perform year-end closing on a locked period'
+                });
             }
 
             const result = await period.performYearEndClosing(req.user._id, session);
@@ -314,6 +427,7 @@ const canPostToDate = async (req, res) => {
     try {
         const { date } = req.query;
 
+        // Input validation for date
         if (!date) {
             return res.status(400).json({
                 success: false,
@@ -321,8 +435,27 @@ const canPostToDate = async (req, res) => {
             });
         }
 
-        const canPost = await FiscalPeriod.canPostToDate(req.user._id, new Date(date));
-        const period = await FiscalPeriod.getPeriodForDate(req.user._id, new Date(date));
+        // Validate date format and ensure it's a valid date
+        const parsedDate = new Date(date);
+        if (isNaN(parsedDate.getTime())) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid date format. Please provide a valid date'
+            });
+        }
+
+        // Prevent dates too far in the past or future
+        const minDate = new Date('1900-01-01');
+        const maxDate = new Date('2100-12-31');
+        if (parsedDate < minDate || parsedDate > maxDate) {
+            return res.status(400).json({
+                success: false,
+                message: 'Date must be between 1900-01-01 and 2100-12-31'
+            });
+        }
+
+        const canPost = await FiscalPeriod.canPostToDate(req.user._id, parsedDate);
+        const period = await FiscalPeriod.getPeriodForDate(req.user._id, parsedDate);
 
         res.json({
             success: true,

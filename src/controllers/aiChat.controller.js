@@ -8,6 +8,76 @@ const CustomException = require('../utils/CustomException');
 const AIChatService = require('../services/aiChat.service');
 const { ChatHistory } = require('../models');
 const { v4: uuidv4 } = require('uuid');
+const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
+
+/**
+ * Validate and sanitize chat message input
+ * Prevents prompt injection and ensures message safety
+ */
+const validateChatMessage = (message) => {
+    if (!message || typeof message !== 'string') {
+        throw CustomException('Message is required and must be a string', 400);
+    }
+
+    const trimmedMessage = message.trim();
+
+    // Check minimum length
+    if (trimmedMessage.length === 0) {
+        throw CustomException('Message cannot be empty', 400);
+    }
+
+    // Check maximum length to prevent token flooding and prompt injection
+    const MAX_MESSAGE_LENGTH = 10000;
+    if (trimmedMessage.length > MAX_MESSAGE_LENGTH) {
+        throw CustomException(`Message exceeds maximum length of ${MAX_MESSAGE_LENGTH} characters`, 400);
+    }
+
+    // Detect potential prompt injection patterns
+    const injectionPatterns = [
+        /ignore\s+(all\s+)?(previous|prior|above)\s+(instructions?|prompts?|commands?)/i,
+        /disregard\s+(all\s+)?(previous|prior|above)/i,
+        /forget\s+(all\s+)?(previous|prior|above)/i,
+        /new\s+(instructions?|prompts?|commands?)\s*:/i,
+        /system\s*:\s*you\s+are/i,
+        /\[SYSTEM\]/i,
+        /\bprompt\s*=\s*/i,
+        /jailbreak/i,
+        /<\|im_start\|>/i,
+        /<\|im_end\|>/i
+    ];
+
+    for (const pattern of injectionPatterns) {
+        if (pattern.test(trimmedMessage)) {
+            throw CustomException('Message contains potentially unsafe content', 400);
+        }
+    }
+
+    // Remove null bytes and control characters
+    const sanitizedMessage = trimmedMessage.replace(/\0/g, '');
+
+    return sanitizedMessage;
+};
+
+/**
+ * Validate provider and model inputs
+ */
+const validateProviderAndModel = (provider, model) => {
+    const allowedProviders = ['anthropic', 'openai'];
+
+    if (provider && !allowedProviders.includes(provider)) {
+        throw CustomException('Invalid provider. Must be "anthropic" or "openai"', 400);
+    }
+
+    if (model && typeof model !== 'string') {
+        throw CustomException('Model must be a string', 400);
+    }
+
+    if (model && model.length > 100) {
+        throw CustomException('Model name exceeds maximum length', 400);
+    }
+
+    return true;
+};
 
 /**
  * Send a message and get AI response
@@ -15,14 +85,18 @@ const { v4: uuidv4 } = require('uuid');
  * Body: { message, conversationId?, provider?, model? }
  */
 const sendMessage = asyncHandler(async (req, res) => {
-    const { message, conversationId, provider, model } = req.body;
+    // Mass assignment protection - only allow specific fields
+    const allowedFields = pickAllowedFields(req.body, ['message', 'conversationId', 'provider', 'model']);
+    const { message, conversationId, provider, model } = allowedFields;
+
     const userId = req.userID;
     const firmId = req.firmId;
 
-    // Validate input
-    if (!message || message.trim().length === 0) {
-        throw CustomException('Message is required', 400);
-    }
+    // Validate and sanitize message input (prevent prompt injection)
+    const sanitizedMessage = validateChatMessage(message);
+
+    // Validate provider and model
+    validateProviderAndModel(provider, model);
 
     // Check if provider is configured for the firm
     const availableProviders = await AIChatService.getAvailableProviders(firmId);
@@ -44,9 +118,12 @@ const sendMessage = asyncHandler(async (req, res) => {
     let newConversationId = conversationId;
 
     if (conversationId) {
-        // Verify conversation exists and user owns it
+        // Sanitize conversationId to prevent injection
+        const sanitizedConversationId = conversationId;
+
+        // IDOR Protection: Verify conversation exists and user owns it
         conversation = await ChatHistory.findOne({
-            conversationId,
+            conversationId: sanitizedConversationId,
             userId,
             firmId
         });
@@ -64,9 +141,9 @@ const sendMessage = asyncHandler(async (req, res) => {
         newConversationId = uuidv4();
 
         // Generate a title from the first message (truncate if needed)
-        const title = message.length > 50
-            ? message.substring(0, 47) + '...'
-            : message;
+        const title = sanitizedMessage.length > 50
+            ? sanitizedMessage.substring(0, 47) + '...'
+            : sanitizedMessage;
 
         conversation = new ChatHistory({
             conversationId: newConversationId,
@@ -83,10 +160,10 @@ const sendMessage = asyncHandler(async (req, res) => {
         });
     }
 
-    // Add user message
+    // Add user message (use sanitized message)
     conversation.messages.push({
         role: 'user',
-        content: message,
+        content: sanitizedMessage,
         timestamp: new Date()
     });
 
@@ -151,14 +228,18 @@ const sendMessage = asyncHandler(async (req, res) => {
  * Body: { message, conversationId?, provider?, model? }
  */
 const streamMessage = asyncHandler(async (req, res) => {
-    const { message, conversationId, provider, model } = req.body;
+    // Mass assignment protection - only allow specific fields
+    const allowedFields = pickAllowedFields(req.body, ['message', 'conversationId', 'provider', 'model']);
+    const { message, conversationId, provider, model } = allowedFields;
+
     const userId = req.userID;
     const firmId = req.firmId;
 
-    // Validate input
-    if (!message || message.trim().length === 0) {
-        throw CustomException('Message is required', 400);
-    }
+    // Validate and sanitize message input (prevent prompt injection)
+    const sanitizedMessage = validateChatMessage(message);
+
+    // Validate provider and model
+    validateProviderAndModel(provider, model);
 
     // Check if provider is configured for the firm
     const availableProviders = await AIChatService.getAvailableProviders(firmId);
@@ -180,9 +261,12 @@ const streamMessage = asyncHandler(async (req, res) => {
     let newConversationId = conversationId;
 
     if (conversationId) {
-        // Verify conversation exists and user owns it
+        // Sanitize conversationId to prevent injection
+        const sanitizedConversationId = conversationId;
+
+        // IDOR Protection: Verify conversation exists and user owns it
         conversation = await ChatHistory.findOne({
-            conversationId,
+            conversationId: sanitizedConversationId,
             userId,
             firmId
         });
@@ -200,9 +284,9 @@ const streamMessage = asyncHandler(async (req, res) => {
         newConversationId = uuidv4();
 
         // Generate a title from the first message (truncate if needed)
-        const title = message.length > 50
-            ? message.substring(0, 47) + '...'
-            : message;
+        const title = sanitizedMessage.length > 50
+            ? sanitizedMessage.substring(0, 47) + '...'
+            : sanitizedMessage;
 
         conversation = new ChatHistory({
             conversationId: newConversationId,
@@ -219,10 +303,10 @@ const streamMessage = asyncHandler(async (req, res) => {
         });
     }
 
-    // Add user message
+    // Add user message (use sanitized message)
     conversation.messages.push({
         role: 'user',
-        content: message,
+        content: sanitizedMessage,
         timestamp: new Date()
     });
 
@@ -385,9 +469,12 @@ const getConversation = asyncHandler(async (req, res) => {
     const userId = req.userID;
     const firmId = req.firmId;
 
-    // Verify conversation exists and user owns it
+    // Sanitize conversationId
+    const sanitizedConversationId = conversationId;
+
+    // IDOR Protection: Verify conversation exists and user owns it
     const conversation = await ChatHistory.findOne({
-        conversationId,
+        conversationId: sanitizedConversationId,
         userId,
         firmId
     }).lean();
@@ -420,9 +507,12 @@ const deleteConversation = asyncHandler(async (req, res) => {
     const userId = req.userID;
     const firmId = req.firmId;
 
-    // Verify conversation exists and user owns it
+    // Sanitize conversationId
+    const sanitizedConversationId = conversationId;
+
+    // IDOR Protection: Verify conversation exists and user owns it
     const conversation = await ChatHistory.findOne({
-        conversationId,
+        conversationId: sanitizedConversationId,
         userId,
         firmId
     });
@@ -448,22 +538,32 @@ const deleteConversation = asyncHandler(async (req, res) => {
  */
 const updateConversationTitle = asyncHandler(async (req, res) => {
     const { conversationId } = req.params;
-    const { title } = req.body;
+
+    // Mass assignment protection - only allow title field
+    const allowedFields = pickAllowedFields(req.body, ['title']);
+    const { title } = allowedFields;
+
     const userId = req.userID;
     const firmId = req.firmId;
 
     // Validate input
-    if (!title || title.trim().length === 0) {
-        throw CustomException('Title is required', 400);
+    if (!title || typeof title !== 'string' || title.trim().length === 0) {
+        throw CustomException('Title is required and must be a non-empty string', 400);
     }
 
     if (title.length > 200) {
         throw CustomException('Title must be less than 200 characters', 400);
     }
 
-    // Verify conversation exists and user owns it
+    // Sanitize title - remove null bytes and excessive whitespace
+    const sanitizedTitle = title.trim().replace(/\0/g, '').replace(/\s{2,}/g, ' ');
+
+    // Sanitize conversationId
+    const sanitizedConversationId = conversationId;
+
+    // IDOR Protection: Verify conversation exists and user owns it
     const conversation = await ChatHistory.findOne({
-        conversationId,
+        conversationId: sanitizedConversationId,
         userId,
         firmId
     });
@@ -472,8 +572,8 @@ const updateConversationTitle = asyncHandler(async (req, res) => {
         throw CustomException('Conversation not found or you do not have access', 404);
     }
 
-    // Update title
-    conversation.title = title.trim();
+    // Update title with sanitized version
+    conversation.title = sanitizedTitle;
     await conversation.save();
 
     res.json({

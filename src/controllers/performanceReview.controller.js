@@ -1,5 +1,6 @@
 const { PerformanceReview, ReviewTemplate, CalibrationSession, Employee } = require('../models');
 const mongoose = require('mongoose');
+const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 
 /**
  * Performance Review Controller
@@ -261,6 +262,19 @@ const getPerformanceReviewById = async (req, res) => {
  */
 const createPerformanceReview = async (req, res) => {
     try {
+        // Mass assignment protection
+        const allowedFields = [
+            'employeeId',
+            'reviewType',
+            'reviewPeriod',
+            'templateId',
+            'goals',
+            'kpis',
+            'include360Feedback',
+            'feedbackProviders'
+        ];
+        const sanitizedBody = pickAllowedFields(req.body, allowedFields);
+
         const {
             employeeId,
             reviewType,
@@ -270,7 +284,7 @@ const createPerformanceReview = async (req, res) => {
             kpis,
             include360Feedback,
             feedbackProviders
-        } = req.body;
+        } = sanitizedBody;
 
         const firmId = req.firmId; // From firmContext middleware
         const lawyerId = req.userID || req.userId;
@@ -422,21 +436,46 @@ const createPerformanceReview = async (req, res) => {
 const updatePerformanceReview = async (req, res) => {
     try {
         const { id } = req.params;
-        const updates = req.body;
 
+        // Fetch review first for IDOR protection
+        const review = await PerformanceReview.findById(id);
+
+        if (!review) {
+            return res.status(404).json({
+                success: false,
+                message: 'Performance review not found'
+            });
+        }
+
+        // IDOR protection - verify authorization
+        const userId = req.user?._id?.toString();
+        const isReviewer = review.reviewerId?.toString() === userId;
+        const isManager = review.managerId?.toString() === userId;
+        const isEmployee = review.employeeId?.toString() === userId;
+        const firmId = req.firmId;
+        const lawyerId = req.userID || req.userId;
+
+        // Verify user has access to this review's firm/lawyer context
+        const hasAccess = firmId
+            ? review.firmId?.toString() === firmId?.toString()
+            : review.lawyerId?.toString() === lawyerId?.toString();
+
+        if (!hasAccess || (!isReviewer && !isManager && !isEmployee)) {
+            return res.status(403).json({
+                success: false,
+                message: 'Unauthorized to update this performance review'
+            });
+        }
+
+        // Mass assignment protection
         const allowedUpdates = [
             'goals', 'kpis', 'competencies', 'developmentPlan', 'strengths',
             'areasForImprovement', 'notes', 'nextSteps', 'dueDate', 'reviewPeriod'
         ];
 
-        const filteredUpdates = {};
-        Object.keys(updates).forEach(key => {
-            if (allowedUpdates.includes(key)) {
-                filteredUpdates[key] = updates[key];
-            }
-        });
+        const filteredUpdates = pickAllowedFields(req.body, allowedUpdates);
 
-        const review = await PerformanceReview.findByIdAndUpdate(
+        const updatedReview = await PerformanceReview.findByIdAndUpdate(
             id,
             {
                 $set: {
@@ -448,17 +487,10 @@ const updatePerformanceReview = async (req, res) => {
             { new: true, runValidators: true }
         );
 
-        if (!review) {
-            return res.status(404).json({
-                success: false,
-                message: 'Performance review not found'
-            });
-        }
-
         res.status(200).json({
             success: true,
             message: 'Performance review updated successfully',
-            data: review
+            data: updatedReview
         });
     } catch (error) {
         console.error('Error updating performance review:', error);
@@ -520,6 +552,29 @@ const deletePerformanceReview = async (req, res) => {
 const submitSelfAssessment = async (req, res) => {
     try {
         const { id } = req.params;
+
+        // Mass assignment protection
+        const allowedFields = [
+            'accomplishments',
+            'accomplishmentsAr',
+            'keyAchievements',
+            'challenges',
+            'challengesAr',
+            'strengths',
+            'strengthsAr',
+            'developmentNeeds',
+            'developmentNeedsAr',
+            'careerAspirations',
+            'careerAspirationsAr',
+            'trainingRequests',
+            'additionalComments',
+            'additionalCommentsAr',
+            'selfRating',
+            'competencyRatings',
+            'goalRatings'
+        ];
+        const sanitizedBody = pickAllowedFields(req.body, allowedFields);
+
         const {
             accomplishments,
             accomplishmentsAr,
@@ -538,7 +593,7 @@ const submitSelfAssessment = async (req, res) => {
             selfRating,
             competencyRatings,
             goalRatings
-        } = req.body;
+        } = sanitizedBody;
 
         const review = await PerformanceReview.findById(id);
 
@@ -546,6 +601,40 @@ const submitSelfAssessment = async (req, res) => {
             return res.status(404).json({
                 success: false,
                 message: 'Performance review not found'
+            });
+        }
+
+        // IDOR protection - verify employee is submitting their own assessment
+        const userId = req.user?._id?.toString();
+        const isEmployee = review.employeeId?.toString() === userId;
+
+        if (!isEmployee) {
+            return res.status(403).json({
+                success: false,
+                message: 'Unauthorized - only the employee can submit self-assessment'
+            });
+        }
+
+        // Input validation for ratings (1-5 scale)
+        const validateRating = (rating, fieldName) => {
+            if (rating !== undefined && rating !== null) {
+                if (typeof rating !== 'number' || rating < 1 || rating > 5) {
+                    throw new Error(`${fieldName} must be a number between 1 and 5`);
+                }
+            }
+        };
+
+        validateRating(selfRating, 'Self rating');
+
+        if (competencyRatings && Array.isArray(competencyRatings)) {
+            competencyRatings.forEach((cr, idx) => {
+                validateRating(cr.rating, `Competency rating ${idx + 1}`);
+            });
+        }
+
+        if (goalRatings && Array.isArray(goalRatings)) {
+            goalRatings.forEach((gr, idx) => {
+                validateRating(gr.rating, `Goal rating ${idx + 1}`);
             });
         }
 
@@ -643,6 +732,41 @@ const submitSelfAssessment = async (req, res) => {
 const submitManagerAssessment = async (req, res) => {
     try {
         const { id } = req.params;
+
+        // Mass assignment protection
+        const allowedFields = [
+            'overallComments',
+            'overallCommentsAr',
+            'keyAchievements',
+            'performanceHighlights',
+            'performanceHighlightsAr',
+            'areasExceeded',
+            'areasMet',
+            'areasBelow',
+            'improvementProgress',
+            'behavioralObservations',
+            'workQualityAssessment',
+            'collaborationAssessment',
+            'initiativeAssessment',
+            'adaptabilityAssessment',
+            'leadershipAssessment',
+            'technicalSkillsAssessment',
+            'communicationAssessment',
+            'attendanceAssessment',
+            'professionalismAssessment',
+            'overallRating',
+            'ratingJustification',
+            'potentialAssessment',
+            'recommendations',
+            'competencyRatings',
+            'goalRatings',
+            'kpiRatings',
+            'attorneyMetrics',
+            'strengths',
+            'areasForImprovement'
+        ];
+        const sanitizedBody = pickAllowedFields(req.body, allowedFields);
+
         const {
             overallComments,
             overallCommentsAr,
@@ -673,7 +797,7 @@ const submitManagerAssessment = async (req, res) => {
             attorneyMetrics,
             strengths,
             areasForImprovement
-        } = req.body;
+        } = sanitizedBody;
 
         const review = await PerformanceReview.findById(id);
 
@@ -681,6 +805,41 @@ const submitManagerAssessment = async (req, res) => {
             return res.status(404).json({
                 success: false,
                 message: 'Performance review not found'
+            });
+        }
+
+        // IDOR protection - verify user is the manager/reviewer
+        const userId = req.user?._id?.toString();
+        const isReviewer = review.reviewerId?.toString() === userId;
+        const isManager = review.managerId?.toString() === userId;
+
+        if (!isReviewer && !isManager) {
+            return res.status(403).json({
+                success: false,
+                message: 'Unauthorized - only the assigned manager/reviewer can submit manager assessment'
+            });
+        }
+
+        // Input validation for ratings (1-5 scale)
+        const validateRating = (rating, fieldName) => {
+            if (rating !== undefined && rating !== null) {
+                if (typeof rating !== 'number' || rating < 1 || rating > 5) {
+                    throw new Error(`${fieldName} must be a number between 1 and 5`);
+                }
+            }
+        };
+
+        validateRating(overallRating, 'Overall rating');
+
+        if (competencyRatings && Array.isArray(competencyRatings)) {
+            competencyRatings.forEach((cr, idx) => {
+                validateRating(cr.rating, `Competency rating ${idx + 1}`);
+            });
+        }
+
+        if (goalRatings && Array.isArray(goalRatings)) {
+            goalRatings.forEach((gr, idx) => {
+                validateRating(gr.rating, `Goal rating ${idx + 1}`);
             });
         }
 
@@ -831,7 +990,11 @@ const submitManagerAssessment = async (req, res) => {
 const request360Feedback = async (req, res) => {
     try {
         const { id } = req.params;
-        const { providers } = req.body;
+
+        // Mass assignment protection
+        const allowedFields = ['providers'];
+        const sanitizedBody = pickAllowedFields(req.body, allowedFields);
+        const { providers } = sanitizedBody;
 
         const review = await PerformanceReview.findById(id);
 
@@ -839,6 +1002,18 @@ const request360Feedback = async (req, res) => {
             return res.status(404).json({
                 success: false,
                 message: 'Performance review not found'
+            });
+        }
+
+        // IDOR protection - verify user is manager/reviewer
+        const userId = req.user?._id?.toString();
+        const isReviewer = review.reviewerId?.toString() === userId;
+        const isManager = review.managerId?.toString() === userId;
+
+        if (!isReviewer && !isManager) {
+            return res.status(403).json({
+                success: false,
+                message: 'Unauthorized - only the assigned manager/reviewer can request 360 feedback'
             });
         }
 
@@ -902,7 +1077,11 @@ const request360Feedback = async (req, res) => {
 const submit360Feedback = async (req, res) => {
     try {
         const { id, providerId } = req.params;
-        const { ratings, overallRating, strengths, areasForImprovement, specificFeedback } = req.body;
+
+        // Mass assignment protection
+        const allowedFields = ['ratings', 'overallRating', 'strengths', 'areasForImprovement', 'specificFeedback'];
+        const sanitizedBody = pickAllowedFields(req.body, allowedFields);
+        const { ratings, overallRating, strengths, areasForImprovement, specificFeedback } = sanitizedBody;
 
         const review = await PerformanceReview.findById(id);
 
@@ -922,6 +1101,32 @@ const submit360Feedback = async (req, res) => {
             return res.status(404).json({
                 success: false,
                 message: 'Feedback provider not found'
+            });
+        }
+
+        // IDOR protection - verify user is the assigned feedback provider
+        const userId = req.user?._id?.toString();
+        if (providerId !== userId) {
+            return res.status(403).json({
+                success: false,
+                message: 'Unauthorized - only the assigned feedback provider can submit this feedback'
+            });
+        }
+
+        // Input validation for ratings (1-5 scale)
+        const validateRating = (rating, fieldName) => {
+            if (rating !== undefined && rating !== null) {
+                if (typeof rating !== 'number' || rating < 1 || rating > 5) {
+                    throw new Error(`${fieldName} must be a number between 1 and 5`);
+                }
+            }
+        };
+
+        validateRating(overallRating, 'Overall rating');
+
+        if (ratings && Array.isArray(ratings)) {
+            ratings.forEach((r, idx) => {
+                validateRating(r.rating, `Rating ${idx + 1}`);
             });
         }
 
@@ -1008,7 +1213,11 @@ const submit360Feedback = async (req, res) => {
 const createDevelopmentPlan = async (req, res) => {
     try {
         const { id } = req.params;
-        const { items, trainingRecommendations, mentorAssigned, careerPath, careerAspirations, successionPlanning } = req.body;
+
+        // Mass assignment protection
+        const allowedFields = ['items', 'trainingRecommendations', 'mentorAssigned', 'careerPath', 'careerAspirations', 'successionPlanning'];
+        const sanitizedBody = pickAllowedFields(req.body, allowedFields);
+        const { items, trainingRecommendations, mentorAssigned, careerPath, careerAspirations, successionPlanning } = sanitizedBody;
 
         const review = await PerformanceReview.findById(id);
 
@@ -1016,6 +1225,18 @@ const createDevelopmentPlan = async (req, res) => {
             return res.status(404).json({
                 success: false,
                 message: 'Performance review not found'
+            });
+        }
+
+        // IDOR protection - verify user is manager/reviewer
+        const userId = req.user?._id?.toString();
+        const isReviewer = review.reviewerId?.toString() === userId;
+        const isManager = review.managerId?.toString() === userId;
+
+        if (!isReviewer && !isManager) {
+            return res.status(403).json({
+                success: false,
+                message: 'Unauthorized - only the assigned manager/reviewer can create development plan'
             });
         }
 
@@ -1061,7 +1282,11 @@ const createDevelopmentPlan = async (req, res) => {
 const updateDevelopmentPlanItem = async (req, res) => {
     try {
         const { id, itemId } = req.params;
-        const { status, progress, actions, completedActions } = req.body;
+
+        // Mass assignment protection
+        const allowedFields = ['status', 'progress', 'actions', 'completedActions'];
+        const sanitizedBody = pickAllowedFields(req.body, allowedFields);
+        const { status, progress, actions, completedActions } = sanitizedBody;
 
         const review = await PerformanceReview.findById(id);
 
@@ -1069,6 +1294,19 @@ const updateDevelopmentPlanItem = async (req, res) => {
             return res.status(404).json({
                 success: false,
                 message: 'Development plan not found'
+            });
+        }
+
+        // IDOR protection - verify user is manager/reviewer or employee
+        const userId = req.user?._id?.toString();
+        const isReviewer = review.reviewerId?.toString() === userId;
+        const isManager = review.managerId?.toString() === userId;
+        const isEmployee = review.employeeId?.toString() === userId;
+
+        if (!isReviewer && !isManager && !isEmployee) {
+            return res.status(403).json({
+                success: false,
+                message: 'Unauthorized - only the manager, reviewer, or employee can update development plan items'
             });
         }
 
@@ -1210,6 +1448,22 @@ const completeReview = async (req, res) => {
 const acknowledgeReview = async (req, res) => {
     try {
         const { id } = req.params;
+
+        // Mass assignment protection
+        const allowedFields = [
+            'agreesWithReview',
+            'agreement',
+            'employeeComments',
+            'employeeCommentsAr',
+            'disagreementAreas',
+            'disagreementExplanation',
+            'additionalAchievements',
+            'supportRequested',
+            'careerGoalsAlignment',
+            'signature'
+        ];
+        const sanitizedBody = pickAllowedFields(req.body, allowedFields);
+
         const {
             agreesWithReview,
             agreement,
@@ -1221,7 +1475,7 @@ const acknowledgeReview = async (req, res) => {
             supportRequested,
             careerGoalsAlignment,
             signature
-        } = req.body;
+        } = sanitizedBody;
 
         const review = await PerformanceReview.findById(id);
 
@@ -1229,6 +1483,17 @@ const acknowledgeReview = async (req, res) => {
             return res.status(404).json({
                 success: false,
                 message: 'Performance review not found'
+            });
+        }
+
+        // IDOR protection - verify employee is acknowledging their own review
+        const userId = req.user?._id?.toString();
+        const isEmployee = review.employeeId?.toString() === userId;
+
+        if (!isEmployee) {
+            return res.status(403).json({
+                success: false,
+                message: 'Unauthorized - only the employee can acknowledge their own review'
             });
         }
 
@@ -1303,7 +1568,11 @@ const acknowledgeReview = async (req, res) => {
 const submitForCalibration = async (req, res) => {
     try {
         const { id } = req.params;
-        const { calibrationSessionId } = req.body;
+
+        // Mass assignment protection
+        const allowedFields = ['calibrationSessionId'];
+        const sanitizedBody = pickAllowedFields(req.body, allowedFields);
+        const { calibrationSessionId } = sanitizedBody;
 
         const review = await PerformanceReview.findById(id);
 
@@ -1365,7 +1634,11 @@ const submitForCalibration = async (req, res) => {
 const applyCalibration = async (req, res) => {
     try {
         const { id } = req.params;
-        const { finalRating, adjustmentReason, comparativeRanking, calibrationNotes } = req.body;
+
+        // Mass assignment protection
+        const allowedFields = ['finalRating', 'adjustmentReason', 'comparativeRanking', 'calibrationNotes'];
+        const sanitizedBody = pickAllowedFields(req.body, allowedFields);
+        const { finalRating, adjustmentReason, comparativeRanking, calibrationNotes } = sanitizedBody;
 
         const review = await PerformanceReview.findById(id);
 
@@ -1374,6 +1647,16 @@ const applyCalibration = async (req, res) => {
                 success: false,
                 message: 'Performance review not found'
             });
+        }
+
+        // Input validation for rating (1-5 scale)
+        if (finalRating !== undefined && finalRating !== null) {
+            if (typeof finalRating !== 'number' || finalRating < 1 || finalRating > 5) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Final rating must be a number between 1 and 5'
+                });
+            }
         }
 
         // Update calibration data
@@ -1799,8 +2082,23 @@ const createTemplate = async (req, res) => {
         const firmId = req.firmId; // From firmContext middleware
         const lawyerId = req.userID || req.userId;
 
+        // Mass assignment protection - allow all reasonable template fields
+        const allowedFields = [
+            'name',
+            'nameAr',
+            'description',
+            'descriptionAr',
+            'reviewType',
+            'competencies',
+            'ratingScale',
+            'isActive',
+            'applicableRoles',
+            'applicableDepartments'
+        ];
+        const sanitizedBody = pickAllowedFields(req.body, allowedFields);
+
         const templateData = {
-            ...req.body,
+            ...sanitizedBody,
             firmId, // From middleware (null for solo lawyers)
             lawyerId, // From middleware
             createdBy: req.user?._id
@@ -1830,11 +2128,26 @@ const createTemplate = async (req, res) => {
  */
 const updateTemplate = async (req, res) => {
     try {
+        // Mass assignment protection
+        const allowedFields = [
+            'name',
+            'nameAr',
+            'description',
+            'descriptionAr',
+            'reviewType',
+            'competencies',
+            'ratingScale',
+            'isActive',
+            'applicableRoles',
+            'applicableDepartments'
+        ];
+        const sanitizedBody = pickAllowedFields(req.body, allowedFields);
+
         const template = await ReviewTemplate.findByIdAndUpdate(
             req.params.id,
             {
                 $set: {
-                    ...req.body,
+                    ...sanitizedBody,
                     updatedBy: req.user?._id,
                     updatedAt: new Date()
                 }
@@ -1912,8 +2225,23 @@ const createCalibrationSession = async (req, res) => {
         const firmId = req.firmId; // From firmContext middleware
         const lawyerId = req.userID || req.userId;
 
+        // Mass assignment protection
+        const allowedFields = [
+            'sessionName',
+            'sessionNameAr',
+            'description',
+            'descriptionAr',
+            'scheduledDate',
+            'departmentId',
+            'periodYear',
+            'reviewType',
+            'participants',
+            'reviewsIncluded'
+        ];
+        const sanitizedBody = pickAllowedFields(req.body, allowedFields);
+
         const sessionData = {
-            ...req.body,
+            ...sanitizedBody,
             firmId, // From middleware (null for solo lawyers)
             lawyerId, // From middleware
             createdBy: req.user?._id,

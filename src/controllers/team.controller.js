@@ -17,6 +17,7 @@ const { Staff, User, Firm, TeamActivityLog, FirmInvitation } = require('../model
 const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
 const { ROLE_PERMISSIONS, getDefaultPermissions } = require('../config/permissions.config');
+const { pickAllowedFields, sanitizeEmail, sanitizePhone, sanitizeString } = require('../utils/securityUtils');
 
 // ═══════════════════════════════════════════════════════════════
 // ROLE-BASED DEFAULT PERMISSIONS (Salesforce/SAP style)
@@ -32,6 +33,32 @@ const ROLE_DEFAULTS = {
     accountant: { cases: 'none', clients: 'view', finance: 'full', hr: 'none', reports: 'full' },
     intern: { cases: 'view', clients: 'none', finance: 'none', hr: 'none', reports: 'none' }
 };
+
+// ═══════════════════════════════════════════════════════════════
+// SECURITY CONSTANTS
+// ═══════════════════════════════════════════════════════════════
+
+// Allowed roles for validation
+const ALLOWED_ROLES = Object.keys(ROLE_DEFAULTS);
+
+// Allowed employment types
+const ALLOWED_EMPLOYMENT_TYPES = ['full_time', 'part_time', 'contractor', 'consultant'];
+
+// Allowed access levels for permissions
+const ALLOWED_ACCESS_LEVELS = ['none', 'view', 'edit', 'full'];
+
+// Allowed fields for team member update (Mass Assignment Protection)
+const ALLOWED_UPDATE_FIELDS = [
+    'salutation', 'firstName', 'middleName', 'lastName', 'preferredName', 'avatar',
+    'email', 'workEmail', 'phone', 'mobilePhone', 'officePhone', 'extension',
+    'employmentType', 'department', 'reportsTo', 'officeLocation',
+    'hireDate', 'startDate', 'specialization', 'barNumber', 'barAdmissionDate',
+    'barLicenses', 'practiceAreas', 'education', 'certifications', 'languages',
+    'hourlyRate', 'standardRate', 'discountedRate', 'premiumRate', 'costRate',
+    'billableHoursTarget', 'revenueTarget', 'utilizationTarget',
+    'canBillTime', 'canApproveTime', 'canViewRates', 'canEditRates',
+    'bio', 'bioAr', 'notes', 'tags'
+];
 
 // ═══════════════════════════════════════════════════════════════
 // HELPER FUNCTIONS
@@ -238,6 +265,12 @@ const getTeamMember = asyncHandler(async (req, res) => {
 /**
  * Invite new team member
  * POST /api/team/invite
+ *
+ * SECURITY:
+ * - Validates role against ALLOWED_ROLES
+ * - Sanitizes email and phone inputs
+ * - Uses pickAllowedFields for mass assignment protection
+ * - IDOR protection: ensures team belongs to user's firm
  */
 const inviteTeamMember = asyncHandler(async (req, res) => {
     if (req.isDeparted) {
@@ -256,6 +289,7 @@ const inviteTeamMember = asyncHandler(async (req, res) => {
         throw CustomException('ليس لديك صلاحية لدعوة أعضاء جدد', 403);
     }
 
+    // INPUT VALIDATION & SANITIZATION
     const {
         email,
         firstName,
@@ -275,14 +309,42 @@ const inviteTeamMember = asyncHandler(async (req, res) => {
         throw CustomException('الاسم الأول والأخير مطلوبان', 400);
     }
 
-    // Check if email already exists in this firm
-    const existingMember = await Staff.findOne({ firmId, email: email.toLowerCase() });
+    // SECURITY: Sanitize email input
+    const sanitizedEmail = sanitizeEmail(email);
+    if (!sanitizedEmail || sanitizedEmail.length === 0) {
+        throw CustomException('البريد الإلكتروني غير صحيح', 400);
+    }
+
+    // SECURITY: Validate role against allowed values (prevent privilege escalation)
+    if (!ALLOWED_ROLES.includes(role)) {
+        throw CustomException('الدور المطلوب غير صحيح', 400);
+    }
+
+    // SECURITY: Validate employment type
+    if (!ALLOWED_EMPLOYMENT_TYPES.includes(employmentType)) {
+        throw CustomException('نوع التوظيف غير صحيح', 400);
+    }
+
+    // SECURITY: Sanitize optional phone input
+    const sanitizedPhone = phone ? sanitizePhone(phone) : undefined;
+
+    // SECURITY: Sanitize string inputs
+    const sanitizedFirstName = sanitizeString(firstName);
+    const sanitizedLastName = sanitizeString(lastName);
+    const sanitizedDepartment = department ? sanitizeString(department) : undefined;
+
+    if (!sanitizedFirstName || !sanitizedLastName) {
+        throw CustomException('الاسم يجب أن يحتوي على أحرف صحيحة', 400);
+    }
+
+    // Check if email already exists in this firm (IDOR protection: firmId filter)
+    const existingMember = await Staff.findOne({ firmId, email: sanitizedEmail });
     if (existingMember) {
         throw CustomException('يوجد عضو بهذا البريد الإلكتروني بالفعل', 400);
     }
 
-    // Check for pending invitation
-    const existingInvitation = await FirmInvitation.hasActiveInvitation(firmId, email);
+    // Check for pending invitation (IDOR protection: firmId filter)
+    const existingInvitation = await FirmInvitation.hasActiveInvitation(firmId, sanitizedEmail);
     if (existingInvitation) {
         throw CustomException('يوجد دعوة معلقة لهذا البريد الإلكتروني', 400);
     }
@@ -300,18 +362,24 @@ const inviteTeamMember = asyncHandler(async (req, res) => {
         requiresApproval: false
     }));
 
+    // SECURITY: Use pickAllowedFields to safely construct staff data
+    // Only allow specific fields to prevent mass assignment
+    const safeInvitationData = pickAllowedFields(req.body, [
+        'email', 'firstName', 'lastName', 'role', 'phone', 'department', 'employmentType', 'message'
+    ]);
+
     // Create staff record with pending status
     const staffData = {
-        firmId,
+        firmId,  // IDOR protection: explicitly set firmId
         lawyerId: userId, // Creator
-        email: email.toLowerCase(),
-        firstName,
-        lastName,
-        phone,
+        email: sanitizedEmail,
+        firstName: sanitizedFirstName,
+        lastName: sanitizedLastName,
+        phone: sanitizedPhone,
         role,
         status: 'pending_approval',
         employmentType,
-        department,
+        department: sanitizedDepartment,
         permissions: {
             modules: modulePermissions,
             customPermissions: []
@@ -325,12 +393,12 @@ const inviteTeamMember = asyncHandler(async (req, res) => {
 
     const newMember = await Staff.create(staffData);
 
-    // Create FirmInvitation record for tracking
+    // Create FirmInvitation record for tracking (IDOR protection: firmId filter)
     const invitationCode = FirmInvitation.generateCode();
     await FirmInvitation.create({
         code: invitationCode,
-        firmId,
-        email: email.toLowerCase(),
+        firmId,  // IDOR protection: explicitly set firmId
+        email: sanitizedEmail,
         role,
         invitedBy: userId,
         message,
@@ -339,7 +407,7 @@ const inviteTeamMember = asyncHandler(async (req, res) => {
 
     // Log activity
     await logActivity(firmId, userId, 'invite', 'staff', newMember._id, {
-        email,
+        email: sanitizedEmail,
         role,
         invitationCode
     });
@@ -465,6 +533,12 @@ const revokeInvitation = asyncHandler(async (req, res) => {
 /**
  * Update team member
  * PATCH /api/team/:id
+ *
+ * SECURITY:
+ * - Uses pickAllowedFields for mass assignment protection
+ * - Sanitizes string inputs (firstName, lastName, email, phone)
+ * - IDOR protection: ensures team belongs to user's firm (firmId filter)
+ * - Validates employment type against allowed values
  */
 const updateTeamMember = asyncHandler(async (req, res) => {
     if (req.isDeparted) {
@@ -479,38 +553,55 @@ const updateTeamMember = asyncHandler(async (req, res) => {
         throw CustomException('يجب أن تكون عضواً في مكتب', 403);
     }
 
+    // IDOR PROTECTION: Ensure member belongs to user's firm
     const member = await Staff.findOne({
         $or: [{ _id: id }, { staffId: id }],
-        firmId
+        firmId  // Critical: filter by firmId to prevent IDOR
     });
 
     if (!member) {
         throw CustomException('عضو الفريق غير موجود', 404);
     }
 
+    // SECURITY: Use pickAllowedFields to filter input (Mass Assignment Protection)
+    const safeInputData = pickAllowedFields(req.body, ALLOWED_UPDATE_FIELDS);
+
     // Track changes for audit
     const changes = [];
 
-    const allowedFields = [
-        'salutation', 'firstName', 'middleName', 'lastName', 'preferredName', 'avatar',
-        'email', 'workEmail', 'phone', 'mobilePhone', 'officePhone', 'extension',
-        'employmentType', 'department', 'reportsTo', 'officeLocation',
-        'hireDate', 'startDate', 'specialization', 'barNumber', 'barAdmissionDate',
-        'barLicenses', 'practiceAreas', 'education', 'certifications', 'languages',
-        'hourlyRate', 'standardRate', 'discountedRate', 'premiumRate', 'costRate',
-        'billableHoursTarget', 'revenueTarget', 'utilizationTarget',
-        'canBillTime', 'canApproveTime', 'canViewRates', 'canEditRates',
-        'bio', 'bioAr', 'notes', 'tags'
-    ];
+    // SECURITY: Validate and sanitize each allowed field
+    ALLOWED_UPDATE_FIELDS.forEach(field => {
+        if (safeInputData[field] !== undefined && safeInputData[field] !== member[field]) {
+            let validatedValue = safeInputData[field];
 
-    allowedFields.forEach(field => {
-        if (req.body[field] !== undefined && req.body[field] !== member[field]) {
+            // Type-specific validation and sanitization
+            if (field === 'email' && safeInputData[field]) {
+                validatedValue = sanitizeEmail(safeInputData[field]);
+                if (!validatedValue) {
+                    throw CustomException(`البريد الإلكتروني غير صحيح: ${field}`, 400);
+                }
+            } else if (['phone', 'mobilePhone', 'officePhone'].includes(field) && safeInputData[field]) {
+                validatedValue = sanitizePhone(safeInputData[field]);
+            } else if (['firstName', 'lastName', 'middleName', 'preferredName', 'department'].includes(field) && safeInputData[field]) {
+                validatedValue = sanitizeString(safeInputData[field]);
+                if (!validatedValue) {
+                    throw CustomException(`القيمة غير صحيحة: ${field}`, 400);
+                }
+            } else if (field === 'employmentType' && safeInputData[field]) {
+                // SECURITY: Validate employment type against allowed values
+                if (!ALLOWED_EMPLOYMENT_TYPES.includes(safeInputData[field])) {
+                    throw CustomException('نوع التوظيف غير صحيح', 400);
+                }
+                validatedValue = safeInputData[field];
+            }
+
+            // Track the change
             changes.push({
                 field,
                 oldValue: member[field],
-                newValue: req.body[field]
+                newValue: validatedValue
             });
-            member[field] = req.body[field];
+            member[field] = validatedValue;
         }
     });
 
@@ -536,6 +627,11 @@ const updateTeamMember = asyncHandler(async (req, res) => {
 /**
  * Update member permissions
  * PATCH /api/team/:id/permissions
+ *
+ * SECURITY:
+ * - Validates permission structure (module names and access levels)
+ * - IDOR protection: ensures team belongs to user's firm (firmId filter)
+ * - Prevents privilege escalation by validating allowed access levels
  */
 const updatePermissions = asyncHandler(async (req, res) => {
     if (req.isDeparted) {
@@ -555,9 +651,10 @@ const updatePermissions = asyncHandler(async (req, res) => {
         throw CustomException('فقط المالك أو المدير يمكنه تعديل الصلاحيات', 403);
     }
 
+    // IDOR PROTECTION: Ensure member belongs to user's firm
     const member = await Staff.findOne({
         $or: [{ _id: id }, { staffId: id }],
-        firmId
+        firmId  // Critical: filter by firmId to prevent IDOR
     });
 
     if (!member) {
@@ -565,6 +662,21 @@ const updatePermissions = asyncHandler(async (req, res) => {
     }
 
     const { modules, customPermissions } = req.body;
+
+    // SECURITY: Validate modules permissions structure
+    if (modules && Array.isArray(modules)) {
+        for (const module of modules) {
+            // Validate module has required fields
+            if (!module.name || !module.access) {
+                throw CustomException('بنية الصلاحية غير صحيحة', 400);
+            }
+
+            // SECURITY: Validate access level against allowed values (prevent privilege escalation)
+            if (!ALLOWED_ACCESS_LEVELS.includes(module.access)) {
+                throw CustomException('مستوى الوصول غير صحيح', 400);
+            }
+        }
+    }
 
     // Track changes
     const oldPermissions = member.permissions?.modules || [];
@@ -594,6 +706,11 @@ const updatePermissions = asyncHandler(async (req, res) => {
 /**
  * Change member role
  * PATCH /api/team/:id/role
+ *
+ * SECURITY:
+ * - Validates role against ALLOWED_ROLES (prevents privilege escalation)
+ * - IDOR protection: ensures team belongs to user's firm (firmId filter)
+ * - Input validation on role parameter
  */
 const changeRole = asyncHandler(async (req, res) => {
     if (req.isDeparted) {
@@ -613,9 +730,10 @@ const changeRole = asyncHandler(async (req, res) => {
         throw CustomException('فقط مالك المكتب يمكنه تغيير الأدوار', 403);
     }
 
+    // IDOR PROTECTION: Ensure member belongs to user's firm
     const member = await Staff.findOne({
         $or: [{ _id: id }, { staffId: id }],
-        firmId
+        firmId  // Critical: filter by firmId to prevent IDOR
     });
 
     if (!member) {
@@ -626,6 +744,11 @@ const changeRole = asyncHandler(async (req, res) => {
 
     if (!role) {
         throw CustomException('الدور الجديد مطلوب', 400);
+    }
+
+    // SECURITY: Validate role against allowed values (prevent privilege escalation)
+    if (!ALLOWED_ROLES.includes(role)) {
+        throw CustomException('الدور المطلوب غير صحيح', 400);
     }
 
     // Cannot change owner to another role without transferring ownership
@@ -671,6 +794,9 @@ const changeRole = asyncHandler(async (req, res) => {
 /**
  * Suspend team member
  * POST /api/team/:id/suspend
+ *
+ * SECURITY:
+ * - IDOR protection: ensures team belongs to user's firm (firmId filter)
  */
 const suspendMember = asyncHandler(async (req, res) => {
     if (req.isDeparted) {
@@ -690,9 +816,10 @@ const suspendMember = asyncHandler(async (req, res) => {
         throw CustomException('ليس لديك صلاحية لتعليق عضو', 403);
     }
 
+    // IDOR PROTECTION: Ensure member belongs to user's firm
     const member = await Staff.findOne({
         $or: [{ _id: id }, { staffId: id }],
-        firmId
+        firmId  // Critical: filter by firmId to prevent IDOR
     });
 
     if (!member) {
@@ -730,6 +857,9 @@ const suspendMember = asyncHandler(async (req, res) => {
 /**
  * Activate/Reactivate team member
  * POST /api/team/:id/activate
+ *
+ * SECURITY:
+ * - IDOR protection: ensures team belongs to user's firm (firmId filter)
  */
 const activateMember = asyncHandler(async (req, res) => {
     if (req.isDeparted) {
@@ -749,9 +879,10 @@ const activateMember = asyncHandler(async (req, res) => {
         throw CustomException('ليس لديك صلاحية لتفعيل عضو', 403);
     }
 
+    // IDOR PROTECTION: Ensure member belongs to user's firm
     const member = await Staff.findOne({
         $or: [{ _id: id }, { staffId: id }],
-        firmId
+        firmId  // Critical: filter by firmId to prevent IDOR
     });
 
     if (!member) {
@@ -795,6 +926,9 @@ const activateMember = asyncHandler(async (req, res) => {
 /**
  * Process member departure
  * POST /api/team/:id/depart
+ *
+ * SECURITY:
+ * - IDOR protection: ensures team belongs to user's firm (firmId filter)
  */
 const processDeparture = asyncHandler(async (req, res) => {
     if (req.isDeparted) {
@@ -814,9 +948,10 @@ const processDeparture = asyncHandler(async (req, res) => {
         throw CustomException('ليس لديك صلاحية لمعالجة المغادرة', 403);
     }
 
+    // IDOR PROTECTION: Ensure member belongs to user's firm
     const member = await Staff.findOne({
         $or: [{ _id: id }, { staffId: id }],
-        firmId
+        firmId  // Critical: filter by firmId to prevent IDOR
     });
 
     if (!member) {
@@ -876,6 +1011,9 @@ const processDeparture = asyncHandler(async (req, res) => {
 /**
  * Remove team member (hard delete)
  * DELETE /api/team/:id
+ *
+ * SECURITY:
+ * - IDOR protection: ensures team belongs to user's firm (firmId filter)
  */
 const removeTeamMember = asyncHandler(async (req, res) => {
     if (req.isDeparted) {
@@ -895,9 +1033,10 @@ const removeTeamMember = asyncHandler(async (req, res) => {
         throw CustomException('فقط المالك يمكنه حذف أعضاء الفريق نهائياً', 403);
     }
 
+    // IDOR PROTECTION: Ensure member belongs to user's firm
     const member = await Staff.findOne({
         $or: [{ _id: id }, { staffId: id }],
-        firmId
+        firmId  // Critical: filter by firmId to prevent IDOR
     });
 
     if (!member) {

@@ -1,35 +1,84 @@
-const { Followup } = require('../models');
+const { Followup, Case, Client } = require('../models');
 const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
+const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 
 /**
  * Create follow-up
  * POST /api/followups
  */
 const createFollowup = asyncHandler(async (req, res) => {
-    const {
-        title, description, type, priority, dueDate, dueTime,
-        entityType, entityId, assignedTo, remindBefore, recurring
-    } = req.body;
     const lawyerId = req.userID;
 
-    if (!title || !type || !dueDate || !entityType || !entityId) {
+    // Mass assignment protection - only allow specific fields
+    const allowedFields = [
+        'title', 'description', 'type', 'priority', 'dueDate', 'dueTime',
+        'entityType', 'entityId', 'assignedTo', 'remindBefore', 'recurring'
+    ];
+    const safeData = pickAllowedFields(req.body, allowedFields);
+
+    // Validate required fields
+    if (!safeData.title || !safeData.type || !safeData.dueDate || !safeData.entityType || !safeData.entityId) {
         throw CustomException('العنوان والنوع وتاريخ الاستحقاق ونوع الكيان ومعرف الكيان مطلوبة', 400);
+    }
+
+    // Validate title length
+    if (safeData.title.trim().length === 0 || safeData.title.length > 200) {
+        throw CustomException('العنوان يجب أن يكون بين 1 و 200 حرف', 400);
+    }
+
+    // Validate description length if provided
+    if (safeData.description && safeData.description.length > 2000) {
+        throw CustomException('الوصف يجب ألا يتجاوز 2000 حرف', 400);
+    }
+
+    // Validate date
+    const dueDateObj = new Date(safeData.dueDate);
+    if (isNaN(dueDateObj.getTime())) {
+        throw CustomException('تاريخ الاستحقاق غير صالح', 400);
+    }
+
+    // Sanitize entityId
+    const sanitizedEntityId = sanitizeObjectId(safeData.entityId);
+    if (!sanitizedEntityId) {
+        throw CustomException('معرف الكيان غير صالح', 400);
+    }
+
+    // IDOR Protection: Verify entity ownership based on entityType
+    if (safeData.entityType === 'Case') {
+        const caseEntity = await Case.findOne({ _id: sanitizedEntityId, lawyerId });
+        if (!caseEntity) {
+            throw CustomException('القضية غير موجودة أو ليس لديك صلاحية للوصول إليها', 403);
+        }
+    } else if (safeData.entityType === 'Client') {
+        const clientEntity = await Client.findOne({ _id: sanitizedEntityId, lawyerId });
+        if (!clientEntity) {
+            throw CustomException('العميل غير موجود أو ليس لديك صلاحية للوصول إليه', 403);
+        }
+    }
+
+    // Sanitize assignedTo if provided
+    if (safeData.assignedTo) {
+        const sanitizedAssignedTo = sanitizeObjectId(safeData.assignedTo);
+        if (!sanitizedAssignedTo) {
+            throw CustomException('معرف المستخدم المعين غير صالح', 400);
+        }
+        safeData.assignedTo = sanitizedAssignedTo;
     }
 
     const followup = await Followup.create({
         lawyerId,
-        title: title.trim(),
-        description,
-        type,
-        priority: priority || 'medium',
-        dueDate,
-        dueTime,
-        entityType,
-        entityId,
-        assignedTo: assignedTo || lawyerId,
-        remindBefore,
-        recurring: recurring || { enabled: false }
+        title: safeData.title.trim(),
+        description: safeData.description,
+        type: safeData.type,
+        priority: safeData.priority || 'medium',
+        dueDate: dueDateObj,
+        dueTime: safeData.dueTime,
+        entityType: safeData.entityType,
+        entityId: sanitizedEntityId,
+        assignedTo: safeData.assignedTo || lawyerId,
+        remindBefore: safeData.remindBefore,
+        recurring: safeData.recurring || { enabled: false }
     });
 
     res.status(201).json({
@@ -93,13 +142,20 @@ const getFollowup = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const lawyerId = req.userID;
 
-    const followup = await Followup.findOne({ _id: id, lawyerId })
+    // Sanitize ID
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('معرف المتابعة غير صالح', 400);
+    }
+
+    // IDOR Protection: Verify followup ownership
+    const followup = await Followup.findOne({ _id: sanitizedId, lawyerId })
         .populate('assignedTo', 'firstName lastName')
         .populate('completedBy', 'firstName lastName')
         .populate('history.performedBy', 'firstName lastName');
 
     if (!followup) {
-        throw CustomException('المتابعة غير موجودة', 404);
+        throw CustomException('المتابعة غير موجودة أو ليس لديك صلاحية للوصول إليها', 404);
     }
 
     res.status(200).json({
@@ -116,20 +172,69 @@ const updateFollowup = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const lawyerId = req.userID;
 
-    const followup = await Followup.findOne({ _id: id, lawyerId });
-
-    if (!followup) {
-        throw CustomException('المتابعة غير موجودة', 404);
+    // Sanitize ID
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('معرف المتابعة غير صالح', 400);
     }
 
+    // IDOR Protection: Verify followup ownership
+    const followup = await Followup.findOne({ _id: sanitizedId, lawyerId });
+
+    if (!followup) {
+        throw CustomException('المتابعة غير موجودة أو ليس لديك صلاحية للوصول إليها', 404);
+    }
+
+    // Prevent modification of completed or cancelled followups
+    if (followup.status === 'completed' || followup.status === 'cancelled') {
+        throw CustomException('لا يمكن تعديل متابعة مكتملة أو ملغاة', 403);
+    }
+
+    // Mass assignment protection
     const allowedFields = [
         'title', 'description', 'type', 'priority', 'dueDate', 'dueTime',
         'assignedTo', 'remindBefore', 'recurring'
     ];
+    const safeData = pickAllowedFields(req.body, allowedFields);
 
-    allowedFields.forEach(field => {
-        if (req.body[field] !== undefined) {
-            followup[field] = req.body[field];
+    // Validate title if provided
+    if (safeData.title !== undefined) {
+        if (safeData.title.trim().length === 0 || safeData.title.length > 200) {
+            throw CustomException('العنوان يجب أن يكون بين 1 و 200 حرف', 400);
+        }
+        followup.title = safeData.title.trim();
+    }
+
+    // Validate description if provided
+    if (safeData.description !== undefined) {
+        if (safeData.description && safeData.description.length > 2000) {
+            throw CustomException('الوصف يجب ألا يتجاوز 2000 حرف', 400);
+        }
+        followup.description = safeData.description;
+    }
+
+    // Validate date if provided
+    if (safeData.dueDate !== undefined) {
+        const dueDateObj = new Date(safeData.dueDate);
+        if (isNaN(dueDateObj.getTime())) {
+            throw CustomException('تاريخ الاستحقاق غير صالح', 400);
+        }
+        followup.dueDate = dueDateObj;
+    }
+
+    // Validate and sanitize assignedTo if provided
+    if (safeData.assignedTo !== undefined) {
+        const sanitizedAssignedTo = sanitizeObjectId(safeData.assignedTo);
+        if (!sanitizedAssignedTo) {
+            throw CustomException('معرف المستخدم المعين غير صالح', 400);
+        }
+        followup.assignedTo = sanitizedAssignedTo;
+    }
+
+    // Update other fields
+    ['type', 'priority', 'dueTime', 'remindBefore', 'recurring'].forEach(field => {
+        if (safeData[field] !== undefined) {
+            followup[field] = safeData[field];
         }
     });
 
@@ -156,10 +261,17 @@ const deleteFollowup = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const lawyerId = req.userID;
 
-    const followup = await Followup.findOneAndDelete({ _id: id, lawyerId });
+    // Sanitize ID
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('معرف المتابعة غير صالح', 400);
+    }
+
+    // IDOR Protection: Only delete followups owned by the user
+    const followup = await Followup.findOneAndDelete({ _id: sanitizedId, lawyerId });
 
     if (!followup) {
-        throw CustomException('المتابعة غير موجودة', 404);
+        throw CustomException('المتابعة غير موجودة أو ليس لديك صلاحية للوصول إليها', 404);
     }
 
     res.status(200).json({
@@ -176,7 +288,26 @@ const getFollowupsByEntity = asyncHandler(async (req, res) => {
     const { entityType, entityId } = req.params;
     const lawyerId = req.userID;
 
-    const followups = await Followup.getByEntity(lawyerId, entityType, entityId);
+    // Sanitize entityId
+    const sanitizedEntityId = sanitizeObjectId(entityId);
+    if (!sanitizedEntityId) {
+        throw CustomException('معرف الكيان غير صالح', 400);
+    }
+
+    // IDOR Protection: Verify entity ownership
+    if (entityType === 'Case') {
+        const caseEntity = await Case.findOne({ _id: sanitizedEntityId, lawyerId });
+        if (!caseEntity) {
+            throw CustomException('القضية غير موجودة أو ليس لديك صلاحية للوصول إليها', 403);
+        }
+    } else if (entityType === 'Client') {
+        const clientEntity = await Client.findOne({ _id: sanitizedEntityId, lawyerId });
+        if (!clientEntity) {
+            throw CustomException('العميل غير موجود أو ليس لديك صلاحية للوصول إليه', 403);
+        }
+    }
+
+    const followups = await Followup.getByEntity(lawyerId, entityType, sanitizedEntityId);
 
     res.status(200).json({
         success: true,
@@ -254,23 +385,42 @@ const getTodayFollowups = asyncHandler(async (req, res) => {
  */
 const completeFollowup = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const { completionNotes } = req.body;
     const lawyerId = req.userID;
 
-    const followup = await Followup.findOne({ _id: id, lawyerId });
+    // Sanitize ID
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('معرف المتابعة غير صالح', 400);
+    }
+
+    // Mass assignment protection
+    const safeData = pickAllowedFields(req.body, ['completionNotes']);
+
+    // Validate completionNotes if provided
+    if (safeData.completionNotes && safeData.completionNotes.length > 2000) {
+        throw CustomException('ملاحظات الإكمال يجب ألا تتجاوز 2000 حرف', 400);
+    }
+
+    // IDOR Protection: Verify followup ownership
+    const followup = await Followup.findOne({ _id: sanitizedId, lawyerId });
 
     if (!followup) {
-        throw CustomException('المتابعة غير موجودة', 404);
+        throw CustomException('المتابعة غير موجودة أو ليس لديك صلاحية للوصول إليها', 404);
+    }
+
+    // Prevent completing already completed followups
+    if (followup.status === 'completed') {
+        throw CustomException('المتابعة مكتملة بالفعل', 400);
     }
 
     followup.status = 'completed';
     followup.completedAt = new Date();
     followup.completedBy = lawyerId;
-    followup.completionNotes = completionNotes;
+    followup.completionNotes = safeData.completionNotes;
 
     followup.history.push({
         action: 'completed',
-        note: completionNotes,
+        note: safeData.completionNotes,
         performedBy: lawyerId,
         performedAt: new Date()
     });
@@ -308,20 +458,42 @@ const completeFollowup = asyncHandler(async (req, res) => {
  */
 const cancelFollowup = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const { reason } = req.body;
     const lawyerId = req.userID;
 
-    const followup = await Followup.findOne({ _id: id, lawyerId });
+    // Sanitize ID
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('معرف المتابعة غير صالح', 400);
+    }
+
+    // Mass assignment protection
+    const safeData = pickAllowedFields(req.body, ['reason']);
+
+    // Validate reason if provided
+    if (safeData.reason && safeData.reason.length > 500) {
+        throw CustomException('سبب الإلغاء يجب ألا يتجاوز 500 حرف', 400);
+    }
+
+    // IDOR Protection: Verify followup ownership
+    const followup = await Followup.findOne({ _id: sanitizedId, lawyerId });
 
     if (!followup) {
-        throw CustomException('المتابعة غير موجودة', 404);
+        throw CustomException('المتابعة غير موجودة أو ليس لديك صلاحية للوصول إليها', 404);
+    }
+
+    // Prevent cancelling already cancelled or completed followups
+    if (followup.status === 'cancelled') {
+        throw CustomException('المتابعة ملغاة بالفعل', 400);
+    }
+    if (followup.status === 'completed') {
+        throw CustomException('لا يمكن إلغاء متابعة مكتملة', 400);
     }
 
     followup.status = 'cancelled';
 
     followup.history.push({
         action: 'cancelled',
-        note: reason,
+        note: safeData.reason,
         performedBy: lawyerId,
         performedAt: new Date()
     });
@@ -341,31 +513,59 @@ const cancelFollowup = asyncHandler(async (req, res) => {
  */
 const rescheduleFollowup = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const { newDueDate, newDueTime, reason } = req.body;
     const lawyerId = req.userID;
 
-    if (!newDueDate) {
+    // Sanitize ID
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('معرف المتابعة غير صالح', 400);
+    }
+
+    // Mass assignment protection
+    const safeData = pickAllowedFields(req.body, ['newDueDate', 'newDueTime', 'reason']);
+
+    // Validate required fields
+    if (!safeData.newDueDate) {
         throw CustomException('تاريخ الاستحقاق الجديد مطلوب', 400);
     }
 
-    const followup = await Followup.findOne({ _id: id, lawyerId });
+    // Validate new due date
+    const newDueDateObj = new Date(safeData.newDueDate);
+    if (isNaN(newDueDateObj.getTime())) {
+        throw CustomException('تاريخ الاستحقاق الجديد غير صالح', 400);
+    }
+
+    // Validate reason if provided
+    if (safeData.reason && safeData.reason.length > 500) {
+        throw CustomException('سبب إعادة الجدولة يجب ألا يتجاوز 500 حرف', 400);
+    }
+
+    // IDOR Protection: Verify followup ownership
+    const followup = await Followup.findOne({ _id: sanitizedId, lawyerId });
 
     if (!followup) {
-        throw CustomException('المتابعة غير موجودة', 404);
+        throw CustomException('المتابعة غير موجودة أو ليس لديك صلاحية للوصول إليها', 404);
+    }
+
+    // Prevent rescheduling completed or cancelled followups
+    if (followup.status === 'completed') {
+        throw CustomException('لا يمكن إعادة جدولة متابعة مكتملة', 400);
+    }
+    if (followup.status === 'cancelled') {
+        throw CustomException('لا يمكن إعادة جدولة متابعة ملغاة', 400);
     }
 
     const previousDueDate = followup.dueDate;
 
-    followup.status = 'rescheduled';
-    followup.dueDate = new Date(newDueDate);
-    if (newDueTime) followup.dueTime = newDueTime;
+    followup.dueDate = newDueDateObj;
+    if (safeData.newDueTime) followup.dueTime = safeData.newDueTime;
     followup.status = 'pending'; // Reset to pending after reschedule
 
     followup.history.push({
         action: 'rescheduled',
-        note: reason,
+        note: safeData.reason,
         previousDueDate,
-        newDueDate: new Date(newDueDate),
+        newDueDate: newDueDateObj,
         performedBy: lawyerId,
         performedAt: new Date()
     });
@@ -385,22 +585,36 @@ const rescheduleFollowup = asyncHandler(async (req, res) => {
  */
 const addNote = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const { note } = req.body;
     const lawyerId = req.userID;
 
-    if (!note) {
+    // Sanitize ID
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('معرف المتابعة غير صالح', 400);
+    }
+
+    // Mass assignment protection
+    const safeData = pickAllowedFields(req.body, ['note']);
+
+    // Validate note
+    if (!safeData.note || safeData.note.trim().length === 0) {
         throw CustomException('الملاحظة مطلوبة', 400);
     }
 
-    const followup = await Followup.findOne({ _id: id, lawyerId });
+    if (safeData.note.length > 2000) {
+        throw CustomException('الملاحظة يجب ألا تتجاوز 2000 حرف', 400);
+    }
+
+    // IDOR Protection: Verify followup ownership
+    const followup = await Followup.findOne({ _id: sanitizedId, lawyerId });
 
     if (!followup) {
-        throw CustomException('المتابعة غير موجودة', 404);
+        throw CustomException('المتابعة غير موجودة أو ليس لديك صلاحية للوصول إليها', 404);
     }
 
     followup.history.push({
         action: 'note_added',
-        note,
+        note: safeData.note.trim(),
         performedBy: lawyerId,
         performedAt: new Date()
     });
@@ -419,24 +633,51 @@ const addNote = asyncHandler(async (req, res) => {
  * POST /api/followups/bulk-complete
  */
 const bulkComplete = asyncHandler(async (req, res) => {
-    const { followupIds, completionNotes } = req.body;
     const lawyerId = req.userID;
 
-    if (!followupIds || !Array.isArray(followupIds) || followupIds.length === 0) {
+    // Mass assignment protection
+    const safeData = pickAllowedFields(req.body, ['followupIds', 'completionNotes']);
+
+    // Validate followupIds
+    if (!safeData.followupIds || !Array.isArray(safeData.followupIds) || safeData.followupIds.length === 0) {
         throw CustomException('معرفات المتابعات مطلوبة', 400);
     }
 
+    // Limit bulk operations to prevent abuse
+    if (safeData.followupIds.length > 100) {
+        throw CustomException('لا يمكن إكمال أكثر من 100 متابعة في وقت واحد', 400);
+    }
+
+    // Validate completionNotes if provided
+    if (safeData.completionNotes && safeData.completionNotes.length > 2000) {
+        throw CustomException('ملاحظات الإكمال يجب ألا تتجاوز 2000 حرف', 400);
+    }
+
+    // Sanitize all IDs
+    const sanitizedIds = safeData.followupIds
+        .map(id => sanitizeObjectId(id))
+        .filter(id => id !== null);
+
+    if (sanitizedIds.length === 0) {
+        throw CustomException('لا توجد معرفات صالحة', 400);
+    }
+
+    // IDOR Protection: Only update followups owned by the user
     const result = await Followup.updateMany(
-        { _id: { $in: followupIds }, lawyerId },
+        {
+            _id: { $in: sanitizedIds },
+            lawyerId,
+            status: { $nin: ['completed', 'cancelled'] } // Only update pending/rescheduled
+        },
         {
             status: 'completed',
             completedAt: new Date(),
             completedBy: lawyerId,
-            completionNotes,
+            completionNotes: safeData.completionNotes,
             $push: {
                 history: {
                     action: 'completed',
-                    note: completionNotes,
+                    note: safeData.completionNotes,
                     performedBy: lawyerId,
                     performedAt: new Date()
                 }
@@ -456,15 +697,33 @@ const bulkComplete = asyncHandler(async (req, res) => {
  * POST /api/followups/bulk-delete
  */
 const bulkDelete = asyncHandler(async (req, res) => {
-    const { followupIds } = req.body;
     const lawyerId = req.userID;
 
-    if (!followupIds || !Array.isArray(followupIds) || followupIds.length === 0) {
+    // Mass assignment protection
+    const safeData = pickAllowedFields(req.body, ['followupIds']);
+
+    // Validate followupIds
+    if (!safeData.followupIds || !Array.isArray(safeData.followupIds) || safeData.followupIds.length === 0) {
         throw CustomException('معرفات المتابعات مطلوبة', 400);
     }
 
+    // Limit bulk operations to prevent abuse
+    if (safeData.followupIds.length > 100) {
+        throw CustomException('لا يمكن حذف أكثر من 100 متابعة في وقت واحد', 400);
+    }
+
+    // Sanitize all IDs
+    const sanitizedIds = safeData.followupIds
+        .map(id => sanitizeObjectId(id))
+        .filter(id => id !== null);
+
+    if (sanitizedIds.length === 0) {
+        throw CustomException('لا توجد معرفات صالحة', 400);
+    }
+
+    // IDOR Protection: Only delete followups owned by the user
     const result = await Followup.deleteMany({
-        _id: { $in: followupIds },
+        _id: { $in: sanitizedIds },
         lawyerId
     });
 

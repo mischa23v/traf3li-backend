@@ -3,6 +3,7 @@ const { Training, Employee, ExpenseClaim, User } = require('../models');
 const { CustomException } = require('../utils');
 const asyncHandler = require('../utils/asyncHandler');
 const { v4: uuidv4 } = require('uuid');
+const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 
 /**
  * Training Controller - HR Management
@@ -239,6 +240,18 @@ const createTraining = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
+    // Mass assignment protection - only allow specific fields
+    const allowedFields = [
+        'employeeId', 'trainingTitle', 'trainingTitleAr', 'trainingDescription',
+        'trainingDescriptionAr', 'trainingType', 'trainingCategory', 'deliveryMethod',
+        'difficultyLevel', 'urgency', 'startDate', 'endDate', 'duration', 'locationType',
+        'venue', 'virtualDetails', 'provider', 'cleDetails', 'costs', 'complianceTracking',
+        'businessJustification', 'businessJustificationAr', 'justificationDetails',
+        'trainingObjectives', 'learningOutcomes', 'travelRequired', 'travelDetails',
+        'technicalRequirements', 'requestedBy'
+    ];
+    const safeData = pickAllowedFields(req.body, allowedFields);
+
     const {
         employeeId, trainingTitle, trainingTitleAr, trainingDescription,
         trainingDescriptionAr, trainingType, trainingCategory, deliveryMethod,
@@ -247,11 +260,40 @@ const createTraining = asyncHandler(async (req, res) => {
         businessJustification, businessJustificationAr, justificationDetails,
         trainingObjectives, learningOutcomes, travelRequired, travelDetails,
         technicalRequirements, requestedBy
-    } = req.body;
+    } = safeData;
 
-    // Validate employee
-    const employee = await Employee.findById(employeeId);
+    // Input validation
+    if (!employeeId || !trainingTitle || !startDate || !endDate) {
+        throw CustomException('Required fields missing: employeeId, trainingTitle, startDate, endDate', 400);
+    }
+
+    // Validate ObjectId
+    const sanitizedEmployeeId = sanitizeObjectId(employeeId);
+    if (!sanitizedEmployeeId) {
+        throw CustomException('Invalid employee ID format', 400);
+    }
+
+    // Validate dates
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+        throw CustomException('Invalid date format', 400);
+    }
+    if (end < start) {
+        throw CustomException('End date must be after start date', 400);
+    }
+
+    // Validate employee and IDOR protection
+    const employee = await Employee.findById(sanitizedEmployeeId);
     if (!employee) {
+        throw CustomException('Employee not found', 404);
+    }
+
+    // IDOR Protection - verify employee belongs to the same firm/lawyer
+    if (firmId && employee.firmId?.toString() !== firmId.toString()) {
+        throw CustomException('Employee not found', 404);
+    }
+    if (!firmId && employee.lawyerId?.toString() !== lawyerId.toString()) {
         throw CustomException('Employee not found', 404);
     }
 
@@ -278,7 +320,7 @@ const createTraining = asyncHandler(async (req, res) => {
         trainingNumber,
 
         // Employee info
-        employeeId,
+        employeeId: sanitizedEmployeeId,
         employeeNumber: employee.employeeId,
         employeeName: employee.personalInfo?.fullNameEnglish || employee.personalInfo?.fullNameArabic,
         employeeNameAr: employee.personalInfo?.fullNameArabic,
@@ -448,10 +490,25 @@ const updateTraining = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
     const { trainingId } = req.params;
 
-    const query = firmId ? { firmId, _id: trainingId } : { lawyerId, _id: trainingId };
+    // Validate and sanitize trainingId
+    const sanitizedTrainingId = sanitizeObjectId(trainingId);
+    if (!sanitizedTrainingId) {
+        throw CustomException('Invalid training ID format', 400);
+    }
+
+    // IDOR Protection - verify firmId/lawyerId ownership
+    const query = firmId ? { firmId, _id: sanitizedTrainingId } : { lawyerId, _id: sanitizedTrainingId };
 
     const training = await Training.findOne(query);
     if (!training) {
+        throw CustomException('Training not found', 404);
+    }
+
+    // Additional IDOR check - ensure training belongs to correct firm/lawyer
+    if (firmId && training.firmId?.toString() !== firmId.toString()) {
+        throw CustomException('Training not found', 404);
+    }
+    if (!firmId && training.lawyerId?.toString() !== lawyerId.toString()) {
         throw CustomException('Training not found', 404);
     }
 
@@ -460,6 +517,7 @@ const updateTraining = asyncHandler(async (req, res) => {
         throw CustomException(`Cannot update training in ${training.status} status`, 400);
     }
 
+    // Mass assignment protection - only allow specific fields
     const allowedUpdates = [
         'trainingTitle', 'trainingTitleAr', 'trainingDescription', 'trainingDescriptionAr',
         'trainingType', 'trainingCategory', 'deliveryMethod', 'difficultyLevel', 'urgency',
@@ -470,15 +528,31 @@ const updateTraining = asyncHandler(async (req, res) => {
         'notes'
     ];
 
+    const safeData = pickAllowedFields(req.body, allowedUpdates);
+
+    // Validate dates if being updated
+    if (safeData.startDate || safeData.endDate) {
+        const start = safeData.startDate ? new Date(safeData.startDate) : training.startDate;
+        const end = safeData.endDate ? new Date(safeData.endDate) : training.endDate;
+
+        if ((safeData.startDate && isNaN(start.getTime())) || (safeData.endDate && isNaN(end.getTime()))) {
+            throw CustomException('Invalid date format', 400);
+        }
+        if (end < start) {
+            throw CustomException('End date must be after start date', 400);
+        }
+    }
+
+    // Apply updates
     allowedUpdates.forEach(field => {
-        if (req.body[field] !== undefined) {
+        if (safeData[field] !== undefined) {
             if (field === 'costs') {
                 // Handle costs update carefully
-                Object.assign(training.costs, req.body[field]);
-            } else if (typeof req.body[field] === 'object' && !Array.isArray(req.body[field])) {
-                Object.assign(training[field], req.body[field]);
+                Object.assign(training.costs, safeData[field]);
+            } else if (typeof safeData[field] === 'object' && !Array.isArray(safeData[field])) {
+                Object.assign(training[field], safeData[field]);
             } else {
-                training[field] = req.body[field];
+                training[field] = safeData[field];
             }
         }
     });
@@ -503,10 +577,25 @@ const deleteTraining = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
     const { trainingId } = req.params;
 
-    const query = firmId ? { firmId, _id: trainingId } : { lawyerId, _id: trainingId };
+    // Validate and sanitize trainingId
+    const sanitizedTrainingId = sanitizeObjectId(trainingId);
+    if (!sanitizedTrainingId) {
+        throw CustomException('Invalid training ID format', 400);
+    }
+
+    // IDOR Protection - verify firmId/lawyerId ownership
+    const query = firmId ? { firmId, _id: sanitizedTrainingId } : { lawyerId, _id: sanitizedTrainingId };
 
     const training = await Training.findOne(query);
     if (!training) {
+        throw CustomException('Training not found', 404);
+    }
+
+    // Additional IDOR check
+    if (firmId && training.firmId?.toString() !== firmId.toString()) {
+        throw CustomException('Training not found', 404);
+    }
+    if (!firmId && training.lawyerId?.toString() !== lawyerId.toString()) {
         throw CustomException('Training not found', 404);
     }
 
@@ -515,7 +604,7 @@ const deleteTraining = asyncHandler(async (req, res) => {
         throw CustomException(`Cannot delete training in ${training.status} status`, 400);
     }
 
-    await Training.findByIdAndDelete(trainingId);
+    await Training.findByIdAndDelete(sanitizedTrainingId);
 
     return res.json({
         success: true,
@@ -577,12 +666,37 @@ const approveTraining = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
     const { trainingId } = req.params;
-    const { comments, approvedAmount, conditions } = req.body;
 
-    const query = firmId ? { firmId, _id: trainingId } : { lawyerId, _id: trainingId };
+    // Validate and sanitize trainingId
+    const sanitizedTrainingId = sanitizeObjectId(trainingId);
+    if (!sanitizedTrainingId) {
+        throw CustomException('Invalid training ID format', 400);
+    }
+
+    // Mass assignment protection - only allow specific fields
+    const allowedFields = ['comments', 'approvedAmount', 'conditions'];
+    const safeData = pickAllowedFields(req.body, allowedFields);
+
+    const { comments, approvedAmount, conditions } = safeData;
+
+    // Validate conditions if provided
+    if (conditions !== undefined && !Array.isArray(conditions)) {
+        throw CustomException('Conditions must be an array', 400);
+    }
+
+    // IDOR Protection - verify firmId/lawyerId ownership
+    const query = firmId ? { firmId, _id: sanitizedTrainingId } : { lawyerId, _id: sanitizedTrainingId };
 
     const training = await Training.findOne(query);
     if (!training) {
+        throw CustomException('Training not found', 404);
+    }
+
+    // Additional IDOR check
+    if (firmId && training.firmId?.toString() !== firmId.toString()) {
+        throw CustomException('Training not found', 404);
+    }
+    if (!firmId && training.lawyerId?.toString() !== lawyerId.toString()) {
         throw CustomException('Training not found', 404);
     }
 
@@ -646,16 +760,36 @@ const rejectTraining = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
     const { trainingId } = req.params;
-    const { reason, comments } = req.body;
+
+    // Validate and sanitize trainingId
+    const sanitizedTrainingId = sanitizeObjectId(trainingId);
+    if (!sanitizedTrainingId) {
+        throw CustomException('Invalid training ID format', 400);
+    }
+
+    // Mass assignment protection - only allow specific fields
+    const allowedFields = ['reason', 'comments'];
+    const safeData = pickAllowedFields(req.body, allowedFields);
+
+    const { reason, comments } = safeData;
 
     if (!reason) {
         throw CustomException('Rejection reason is required', 400);
     }
 
-    const query = firmId ? { firmId, _id: trainingId } : { lawyerId, _id: trainingId };
+    // IDOR Protection - verify firmId/lawyerId ownership
+    const query = firmId ? { firmId, _id: sanitizedTrainingId } : { lawyerId, _id: sanitizedTrainingId };
 
     const training = await Training.findOne(query);
     if (!training) {
+        throw CustomException('Training not found', 404);
+    }
+
+    // Additional IDOR check
+    if (firmId && training.firmId?.toString() !== firmId.toString()) {
+        throw CustomException('Training not found', 404);
+    }
+    if (!firmId && training.lawyerId?.toString() !== lawyerId.toString()) {
         throw CustomException('Training not found', 404);
     }
 
@@ -697,12 +831,32 @@ const enrollTraining = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
     const { trainingId } = req.params;
-    const { registrationNumber, confirmationNumber, enrollmentMethod, seatNumber } = req.body;
 
-    const query = firmId ? { firmId, _id: trainingId } : { lawyerId, _id: trainingId };
+    // Validate and sanitize trainingId
+    const sanitizedTrainingId = sanitizeObjectId(trainingId);
+    if (!sanitizedTrainingId) {
+        throw CustomException('Invalid training ID format', 400);
+    }
+
+    // Mass assignment protection - only allow specific fields
+    const allowedFields = ['registrationNumber', 'confirmationNumber', 'enrollmentMethod', 'seatNumber'];
+    const safeData = pickAllowedFields(req.body, allowedFields);
+
+    const { registrationNumber, confirmationNumber, enrollmentMethod, seatNumber } = safeData;
+
+    // IDOR Protection - verify firmId/lawyerId ownership
+    const query = firmId ? { firmId, _id: sanitizedTrainingId } : { lawyerId, _id: sanitizedTrainingId };
 
     const training = await Training.findOne(query);
     if (!training) {
+        throw CustomException('Training not found', 404);
+    }
+
+    // Additional IDOR check
+    if (firmId && training.firmId?.toString() !== firmId.toString()) {
+        throw CustomException('Training not found', 404);
+    }
+    if (!firmId && training.lawyerId?.toString() !== lawyerId.toString()) {
         throw CustomException('Training not found', 404);
     }
 
@@ -784,12 +938,43 @@ const completeTraining = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
     const { trainingId } = req.params;
-    const { finalScore, grade, passed, rank, totalParticipants } = req.body;
 
-    const query = firmId ? { firmId, _id: trainingId } : { lawyerId, _id: trainingId };
+    // Validate and sanitize trainingId
+    const sanitizedTrainingId = sanitizeObjectId(trainingId);
+    if (!sanitizedTrainingId) {
+        throw CustomException('Invalid training ID format', 400);
+    }
+
+    // Mass assignment protection - only allow specific fields
+    const allowedFields = ['finalScore', 'grade', 'passed', 'rank', 'totalParticipants'];
+    const safeData = pickAllowedFields(req.body, allowedFields);
+
+    const { finalScore, grade, passed, rank, totalParticipants } = safeData;
+
+    // Validate numeric inputs
+    if (finalScore !== undefined && (typeof finalScore !== 'number' || finalScore < 0 || finalScore > 100)) {
+        throw CustomException('Invalid final score (must be 0-100)', 400);
+    }
+    if (rank !== undefined && (typeof rank !== 'number' || rank < 1)) {
+        throw CustomException('Invalid rank value', 400);
+    }
+    if (totalParticipants !== undefined && (typeof totalParticipants !== 'number' || totalParticipants < 1)) {
+        throw CustomException('Invalid total participants value', 400);
+    }
+
+    // IDOR Protection - verify firmId/lawyerId ownership
+    const query = firmId ? { firmId, _id: sanitizedTrainingId } : { lawyerId, _id: sanitizedTrainingId };
 
     const training = await Training.findOne(query);
     if (!training) {
+        throw CustomException('Training not found', 404);
+    }
+
+    // Additional IDOR check
+    if (firmId && training.firmId?.toString() !== firmId.toString()) {
+        throw CustomException('Training not found', 404);
+    }
+    if (!firmId && training.lawyerId?.toString() !== lawyerId.toString()) {
         throw CustomException('Training not found', 404);
     }
 
@@ -881,15 +1066,59 @@ const recordAttendance = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
     const { trainingId } = req.params;
+
+    // Validate and sanitize trainingId
+    const sanitizedTrainingId = sanitizeObjectId(trainingId);
+    if (!sanitizedTrainingId) {
+        throw CustomException('Invalid training ID format', 400);
+    }
+
+    // Mass assignment protection - only allow specific fields
+    const allowedFields = [
+        'sessionNumber', 'sessionDate', 'attended', 'checkInTime', 'checkOutTime',
+        'attendanceMethod', 'late', 'lateMinutes', 'excused', 'excuseReason', 'notes'
+    ];
+    const safeData = pickAllowedFields(req.body, allowedFields);
+
     const {
         sessionNumber, sessionDate, attended, checkInTime, checkOutTime,
         attendanceMethod, late, lateMinutes, excused, excuseReason, notes
-    } = req.body;
+    } = safeData;
 
-    const query = firmId ? { firmId, _id: trainingId } : { lawyerId, _id: trainingId };
+    // Input validation
+    if (sessionNumber === undefined || sessionDate === undefined || attended === undefined) {
+        throw CustomException('Required fields missing: sessionNumber, sessionDate, attended', 400);
+    }
+
+    // Validate session number
+    if (typeof sessionNumber !== 'number' || sessionNumber < 1) {
+        throw CustomException('Invalid session number', 400);
+    }
+
+    // Validate session date
+    const parsedSessionDate = new Date(sessionDate);
+    if (isNaN(parsedSessionDate.getTime())) {
+        throw CustomException('Invalid session date format', 400);
+    }
+
+    // Validate lateMinutes if provided
+    if (lateMinutes !== undefined && (typeof lateMinutes !== 'number' || lateMinutes < 0)) {
+        throw CustomException('Invalid late minutes value', 400);
+    }
+
+    // IDOR Protection - verify firmId/lawyerId ownership
+    const query = firmId ? { firmId, _id: sanitizedTrainingId } : { lawyerId, _id: sanitizedTrainingId };
 
     const training = await Training.findOne(query);
     if (!training) {
+        throw CustomException('Training not found', 404);
+    }
+
+    // Additional IDOR check
+    if (firmId && training.firmId?.toString() !== firmId.toString()) {
+        throw CustomException('Training not found', 404);
+    }
+    if (!firmId && training.lawyerId?.toString() !== lawyerId.toString()) {
         throw CustomException('Training not found', 404);
     }
 
@@ -946,15 +1175,68 @@ const updateProgress = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
     const { trainingId } = req.params;
+
+    // Validate and sanitize trainingId
+    const sanitizedTrainingId = sanitizeObjectId(trainingId);
+    if (!sanitizedTrainingId) {
+        throw CustomException('Invalid training ID format', 400);
+    }
+
+    // Mass assignment protection - only allow specific fields
+    const allowedFields = [
+        'moduleNumber', 'moduleTitle', 'status', 'timeSpent', 'score', 'passed',
+        'videosWatched', 'documentsRead', 'quizzesTaken', 'forumPosts'
+    ];
+    const safeData = pickAllowedFields(req.body, allowedFields);
+
     const {
         moduleNumber, moduleTitle, status, timeSpent, score, passed,
         videosWatched, documentsRead, quizzesTaken, forumPosts
-    } = req.body;
+    } = safeData;
 
-    const query = firmId ? { firmId, _id: trainingId } : { lawyerId, _id: trainingId };
+    // Input validation
+    if (moduleNumber === undefined) {
+        throw CustomException('Module number is required', 400);
+    }
+
+    // Validate module number
+    if (typeof moduleNumber !== 'number' || moduleNumber < 1) {
+        throw CustomException('Invalid module number', 400);
+    }
+
+    // Validate numeric fields if provided
+    if (timeSpent !== undefined && (typeof timeSpent !== 'number' || timeSpent < 0)) {
+        throw CustomException('Invalid time spent value', 400);
+    }
+    if (score !== undefined && (typeof score !== 'number' || score < 0 || score > 100)) {
+        throw CustomException('Invalid score value (must be 0-100)', 400);
+    }
+    if (videosWatched !== undefined && (typeof videosWatched !== 'number' || videosWatched < 0)) {
+        throw CustomException('Invalid videos watched value', 400);
+    }
+    if (documentsRead !== undefined && (typeof documentsRead !== 'number' || documentsRead < 0)) {
+        throw CustomException('Invalid documents read value', 400);
+    }
+    if (quizzesTaken !== undefined && (typeof quizzesTaken !== 'number' || quizzesTaken < 0)) {
+        throw CustomException('Invalid quizzes taken value', 400);
+    }
+    if (forumPosts !== undefined && (typeof forumPosts !== 'number' || forumPosts < 0)) {
+        throw CustomException('Invalid forum posts value', 400);
+    }
+
+    // IDOR Protection - verify firmId/lawyerId ownership
+    const query = firmId ? { firmId, _id: sanitizedTrainingId } : { lawyerId, _id: sanitizedTrainingId };
 
     const training = await Training.findOne(query);
     if (!training) {
+        throw CustomException('Training not found', 404);
+    }
+
+    // Additional IDOR check
+    if (firmId && training.firmId?.toString() !== firmId.toString()) {
+        throw CustomException('Training not found', 404);
+    }
+    if (!firmId && training.lawyerId?.toString() !== lawyerId.toString()) {
         throw CustomException('Training not found', 404);
     }
 
@@ -1023,15 +1305,57 @@ const submitAssessment = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
     const { trainingId } = req.params;
+
+    // Validate and sanitize trainingId
+    const sanitizedTrainingId = sanitizeObjectId(trainingId);
+    if (!sanitizedTrainingId) {
+        throw CustomException('Invalid training ID format', 400);
+    }
+
+    // Mass assignment protection - only allow specific fields
+    const allowedFields = [
+        'assessmentType', 'assessmentTitle', 'score', 'maxScore', 'passingScore',
+        'timeSpent', 'feedback', 'areasOfStrength', 'areasForImprovement'
+    ];
+    const safeData = pickAllowedFields(req.body, allowedFields);
+
     const {
         assessmentType, assessmentTitle, score, maxScore, passingScore,
         timeSpent, feedback, areasOfStrength, areasForImprovement
-    } = req.body;
+    } = safeData;
 
-    const query = firmId ? { firmId, _id: trainingId } : { lawyerId, _id: trainingId };
+    // Input validation
+    if (!assessmentType || score === undefined) {
+        throw CustomException('Required fields missing: assessmentType, score', 400);
+    }
+
+    // Validate score values
+    if (typeof score !== 'number' || score < 0) {
+        throw CustomException('Invalid score value', 400);
+    }
+    if (maxScore !== undefined && (typeof maxScore !== 'number' || maxScore <= 0)) {
+        throw CustomException('Invalid max score value', 400);
+    }
+    if (passingScore !== undefined && (typeof passingScore !== 'number' || passingScore < 0 || passingScore > 100)) {
+        throw CustomException('Invalid passing score value (must be 0-100)', 400);
+    }
+    if (timeSpent !== undefined && (typeof timeSpent !== 'number' || timeSpent < 0)) {
+        throw CustomException('Invalid time spent value', 400);
+    }
+
+    // IDOR Protection - verify firmId/lawyerId ownership
+    const query = firmId ? { firmId, _id: sanitizedTrainingId } : { lawyerId, _id: sanitizedTrainingId };
 
     const training = await Training.findOne(query);
     if (!training) {
+        throw CustomException('Training not found', 404);
+    }
+
+    // Additional IDOR check
+    if (firmId && training.firmId?.toString() !== firmId.toString()) {
+        throw CustomException('Training not found', 404);
+    }
+    if (!firmId && training.lawyerId?.toString() !== lawyerId.toString()) {
         throw CustomException('Training not found', 404);
     }
 
@@ -1100,15 +1424,54 @@ const issueCertificate = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
     const { trainingId } = req.params;
+
+    // Validate and sanitize trainingId
+    const sanitizedTrainingId = sanitizeObjectId(trainingId);
+    if (!sanitizedTrainingId) {
+        throw CustomException('Invalid training ID format', 400);
+    }
+
+    // Mass assignment protection - only allow specific fields
+    const allowedFields = [
+        'certificateType', 'certificateUrl', 'validUntil', 'cleCredits', 'cpdPoints',
+        'verificationUrl', 'deliveryMethod'
+    ];
+    const safeData = pickAllowedFields(req.body, allowedFields);
+
     const {
         certificateType, certificateUrl, validUntil, cleCredits, cpdPoints,
         verificationUrl, deliveryMethod
-    } = req.body;
+    } = safeData;
 
-    const query = firmId ? { firmId, _id: trainingId } : { lawyerId, _id: trainingId };
+    // Validate date if provided
+    if (validUntil) {
+        const validUntilDate = new Date(validUntil);
+        if (isNaN(validUntilDate.getTime())) {
+            throw CustomException('Invalid validUntil date format', 400);
+        }
+    }
+
+    // Validate numeric fields
+    if (cleCredits !== undefined && (typeof cleCredits !== 'number' || cleCredits < 0)) {
+        throw CustomException('Invalid CLE credits value', 400);
+    }
+    if (cpdPoints !== undefined && (typeof cpdPoints !== 'number' || cpdPoints < 0)) {
+        throw CustomException('Invalid CPD points value', 400);
+    }
+
+    // IDOR Protection - verify firmId/lawyerId ownership
+    const query = firmId ? { firmId, _id: sanitizedTrainingId } : { lawyerId, _id: sanitizedTrainingId };
 
     const training = await Training.findOne(query);
     if (!training) {
+        throw CustomException('Training not found', 404);
+    }
+
+    // Additional IDOR check
+    if (firmId && training.firmId?.toString() !== firmId.toString()) {
+        throw CustomException('Training not found', 404);
+    }
+    if (!firmId && training.lawyerId?.toString() !== lawyerId.toString()) {
         throw CustomException('Training not found', 404);
     }
 
@@ -1159,12 +1522,44 @@ const submitEvaluation = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
     const { trainingId } = req.params;
-    const { ratings, openEndedFeedback } = req.body;
 
-    const query = firmId ? { firmId, _id: trainingId } : { lawyerId, _id: trainingId };
+    // Validate and sanitize trainingId
+    const sanitizedTrainingId = sanitizeObjectId(trainingId);
+    if (!sanitizedTrainingId) {
+        throw CustomException('Invalid training ID format', 400);
+    }
+
+    // Mass assignment protection - only allow specific fields
+    const allowedFields = ['ratings', 'openEndedFeedback'];
+    const safeData = pickAllowedFields(req.body, allowedFields);
+
+    const { ratings, openEndedFeedback } = safeData;
+
+    // Input validation
+    if (!ratings || typeof ratings !== 'object') {
+        throw CustomException('Ratings object is required', 400);
+    }
+
+    // Validate ratings values (should be numbers between 1-5)
+    for (const [key, value] of Object.entries(ratings)) {
+        if (typeof value === 'number' && (value < 1 || value > 5)) {
+            throw CustomException(`Invalid rating value for ${key} (must be 1-5)`, 400);
+        }
+    }
+
+    // IDOR Protection - verify firmId/lawyerId ownership
+    const query = firmId ? { firmId, _id: sanitizedTrainingId } : { lawyerId, _id: sanitizedTrainingId };
 
     const training = await Training.findOne(query);
     if (!training) {
+        throw CustomException('Training not found', 404);
+    }
+
+    // Additional IDOR check
+    if (firmId && training.firmId?.toString() !== firmId.toString()) {
+        throw CustomException('Training not found', 404);
+    }
+    if (!firmId && training.lawyerId?.toString() !== lawyerId.toString()) {
         throw CustomException('Training not found', 404);
     }
 
@@ -1199,16 +1594,37 @@ const recordPayment = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
     const { trainingId } = req.params;
-    const { amount, paymentMethod, paymentReference, paidBy, receiptUrl } = req.body;
 
-    if (!amount || amount <= 0) {
-        throw CustomException('Valid payment amount is required', 400);
+    // Validate and sanitize trainingId
+    const sanitizedTrainingId = sanitizeObjectId(trainingId);
+    if (!sanitizedTrainingId) {
+        throw CustomException('Invalid training ID format', 400);
     }
 
-    const query = firmId ? { firmId, _id: trainingId } : { lawyerId, _id: trainingId };
+    // Mass assignment protection - only allow specific fields
+    const allowedFields = ['amount', 'paymentMethod', 'paymentReference', 'paidBy', 'receiptUrl'];
+    const safeData = pickAllowedFields(req.body, allowedFields);
+
+    const { amount, paymentMethod, paymentReference, paidBy, receiptUrl } = safeData;
+
+    // Input validation
+    if (!amount || typeof amount !== 'number' || amount <= 0) {
+        throw CustomException('Valid payment amount is required (must be a positive number)', 400);
+    }
+
+    // IDOR Protection - verify firmId/lawyerId ownership
+    const query = firmId ? { firmId, _id: sanitizedTrainingId } : { lawyerId, _id: sanitizedTrainingId };
 
     const training = await Training.findOne(query);
     if (!training) {
+        throw CustomException('Training not found', 404);
+    }
+
+    // Additional IDOR check
+    if (firmId && training.firmId?.toString() !== firmId.toString()) {
+        throw CustomException('Training not found', 404);
+    }
+    if (!firmId && training.lawyerId?.toString() !== lawyerId.toString()) {
         throw CustomException('Training not found', 404);
     }
 
@@ -1249,15 +1665,36 @@ const recordPayment = asyncHandler(async (req, res) => {
 const bulkDeleteTrainings = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
-    const { ids } = req.body;
 
+    // Mass assignment protection - only allow specific fields
+    const allowedFields = ['ids'];
+    const safeData = pickAllowedFields(req.body, allowedFields);
+
+    const { ids } = safeData;
+
+    // Input validation
     if (!ids || !Array.isArray(ids) || ids.length === 0) {
-        throw CustomException('Training IDs are required', 400);
+        throw CustomException('Training IDs are required (must be a non-empty array)', 400);
     }
 
+    // Validate and sanitize each ID
+    const sanitizedIds = ids.map(id => {
+        const sanitizedId = sanitizeObjectId(id);
+        if (!sanitizedId) {
+            throw CustomException(`Invalid training ID format: ${id}`, 400);
+        }
+        return sanitizedId;
+    });
+
+    // Limit bulk delete to prevent abuse (max 100 at a time)
+    if (sanitizedIds.length > 100) {
+        throw CustomException('Cannot delete more than 100 trainings at once', 400);
+    }
+
+    // IDOR Protection - ensure all trainings belong to the user's firm/account
     const query = firmId
-        ? { firmId, _id: { $in: ids }, status: 'requested' }
-        : { lawyerId, _id: { $in: ids }, status: 'requested' };
+        ? { firmId, _id: { $in: sanitizedIds }, status: 'requested' }
+        : { lawyerId, _id: { $in: sanitizedIds }, status: 'requested' };
 
     const result = await Training.deleteMany(query);
 

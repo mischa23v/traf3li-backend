@@ -1,6 +1,7 @@
 const { Bill, Vendor, Case, BillingActivity } = require('../models');
 const { CustomException } = require('../utils');
 const asyncHandler = require('../utils/asyncHandler');
+const { pickAllowedFields } = require('../utils/securityUtils');
 
 // Create bill
 const createBill = asyncHandler(async (req, res) => {
@@ -187,6 +188,7 @@ const updateBill = asyncHandler(async (req, res) => {
         throw CustomException('Bill not found', 404);
     }
 
+    // IDOR Protection: Verify bill belongs to user's firm
     if (bill.lawyerId.toString() !== lawyerId) {
         throw CustomException('You do not have access to this bill', 403);
     }
@@ -199,11 +201,47 @@ const updateBill = asyncHandler(async (req, res) => {
         throw CustomException('Cannot edit a cancelled bill', 400);
     }
 
+    // Mass Assignment Protection: Only allow safe fields to be updated
+    const allowedFields = [
+        'vendorId',
+        'items',
+        'billDate',
+        'dueDate',
+        'taxRate',
+        'discountType',
+        'discountValue',
+        'caseId',
+        'categoryId',
+        'notes',
+        'internalNotes',
+        'reference',
+        'status'
+    ];
+
+    const safeUpdateData = pickAllowedFields(req.body, allowedFields);
+
+    // Validate amounts if provided
+    if (safeUpdateData.taxRate !== undefined && (typeof safeUpdateData.taxRate !== 'number' || safeUpdateData.taxRate < 0 || safeUpdateData.taxRate > 1)) {
+        throw CustomException('Tax rate must be a number between 0 and 1', 400);
+    }
+
+    if (safeUpdateData.discountValue !== undefined && (typeof safeUpdateData.discountValue !== 'number' || safeUpdateData.discountValue < 0)) {
+        throw CustomException('Discount value must be a positive number', 400);
+    }
+
+    if (safeUpdateData.items && Array.isArray(safeUpdateData.items)) {
+        for (const item of safeUpdateData.items) {
+            if (typeof item.amount !== 'number' || item.amount <= 0) {
+                throw CustomException('Item amounts must be positive numbers', 400);
+            }
+        }
+    }
+
     // Add to history - use $set for fields and $push for history
     const updateData = {
-        $set: { ...req.body },
+        $set: safeUpdateData,
         $push: {
-            history: { action: 'updated', performedBy: lawyerId, performedAt: new Date(), details: req.body }
+            history: { action: 'updated', performedBy: lawyerId, performedAt: new Date(), details: safeUpdateData }
         }
     };
 
@@ -685,6 +723,7 @@ const payBill = asyncHandler(async (req, res) => {
         throw CustomException('Bill not found', 404);
     }
 
+    // IDOR Protection: Verify bill belongs to current user
     if (bill.lawyerId.toString() !== lawyerId) {
         throw CustomException('Access denied', 403);
     }
@@ -695,72 +734,120 @@ const payBill = asyncHandler(async (req, res) => {
 
     const paymentAmount = amount || bill.balanceDue;
 
-    if (paymentAmount <= 0) {
-        throw CustomException('Payment amount must be greater than 0', 400);
+    // Validation: Payment amount must be a positive number
+    if (typeof paymentAmount !== 'number' || paymentAmount <= 0) {
+        throw CustomException('Payment amount must be a positive number greater than 0', 400);
     }
 
+    // Validation: Payment amount cannot exceed balance due
     if (paymentAmount > bill.balanceDue) {
         throw CustomException(`Payment amount (${paymentAmount}) exceeds balance due (${bill.balanceDue})`, 400);
     }
 
-    // Record the payment
-    const payment = {
-        amount: paymentAmount,
-        paymentMethod: paymentMethod || 'bank_transfer',
-        paymentDate: paymentDate ? new Date(paymentDate) : new Date(),
-        reference,
-        notes,
-        bankAccountId,
-        recordedBy: lawyerId,
-        recordedAt: new Date()
-    };
-
-    if (!bill.payments) {
-        bill.payments = [];
-    }
-    bill.payments.push(payment);
-
-    // Update totals
-    bill.paidAmount = (bill.paidAmount || 0) + paymentAmount;
-    bill.balanceDue = bill.totalAmount - bill.paidAmount;
-
-    // Update status
-    if (bill.balanceDue <= 0) {
-        bill.status = 'paid';
-        bill.paidAt = new Date();
-    } else {
-        bill.status = 'partial';
+    // Validation: Ensure no NaN or infinite values
+    if (!isFinite(paymentAmount)) {
+        throw CustomException('Invalid payment amount', 400);
     }
 
-    bill.history.push({
-        action: 'payment_recorded',
-        performedBy: lawyerId,
-        performedAt: new Date(),
-        notes: `Payment of ${paymentAmount} recorded. Balance due: ${bill.balanceDue}`
-    });
+    // Transaction Protection: Start session for atomic operations
+    const session = await Bill.startSession();
+    session.startTransaction();
 
-    await bill.save();
+    try {
+        // Re-fetch bill with lock to prevent race conditions
+        const lockedBill = await Bill.findById(id).session(session);
 
-    const populatedBill = await Bill.findById(bill._id)
-        .populate('vendorId', 'name vendorId email')
-        .populate('caseId', 'title caseNumber');
+        if (!lockedBill) {
+            throw CustomException('Bill not found', 404);
+        }
 
-    await BillingActivity.logActivity({
-        activityType: 'bill_payment',
-        userId: lawyerId,
-        relatedModel: 'Bill',
-        relatedId: bill._id,
-        description: `Payment of ${paymentAmount} recorded for bill ${bill.billNumber}`,
-        ipAddress: req.ip,
-        userAgent: req.get('user-agent')
-    });
+        // Verify bill still belongs to user (double-check within transaction)
+        if (lockedBill.lawyerId.toString() !== lawyerId) {
+            throw CustomException('Access denied', 403);
+        }
 
-    return res.json({
-        success: true,
-        message: 'Payment recorded successfully',
-        messageAr: 'تم تسجيل الدفع بنجاح',
-        bill: populatedBill
-    });
+        // Verify bill status hasn't changed
+        if (lockedBill.status === 'paid' || lockedBill.status === 'cancelled' || lockedBill.status === 'void') {
+            throw CustomException(`Cannot pay bill with status: ${lockedBill.status}`, 400);
+        }
+
+        // Verify amount hasn't changed significantly (prevent double payment)
+        if (paymentAmount > lockedBill.balanceDue) {
+            throw CustomException(`Payment amount (${paymentAmount}) exceeds current balance due (${lockedBill.balanceDue})`, 400);
+        }
+
+        // Record the payment (only safe fields)
+        const payment = {
+            amount: paymentAmount,
+            paymentMethod: paymentMethod || 'bank_transfer',
+            paymentDate: paymentDate ? new Date(paymentDate) : new Date(),
+            reference,
+            notes,
+            bankAccountId,
+            recordedBy: lawyerId,
+            recordedAt: new Date()
+        };
+
+        if (!lockedBill.payments) {
+            lockedBill.payments = [];
+        }
+        lockedBill.payments.push(payment);
+
+        // Update totals
+        lockedBill.paidAmount = (lockedBill.paidAmount || 0) + paymentAmount;
+        lockedBill.balanceDue = lockedBill.totalAmount - lockedBill.paidAmount;
+
+        // Validate calculated amounts are positive
+        if (!isFinite(lockedBill.paidAmount) || !isFinite(lockedBill.balanceDue)) {
+            throw CustomException('Invalid payment calculation', 400);
+        }
+
+        // Update status
+        if (lockedBill.balanceDue <= 0) {
+            lockedBill.status = 'paid';
+            lockedBill.paidAt = new Date();
+        } else {
+            lockedBill.status = 'partial';
+        }
+
+        lockedBill.history.push({
+            action: 'payment_recorded',
+            performedBy: lawyerId,
+            performedAt: new Date(),
+            notes: `Payment of ${paymentAmount} recorded. Balance due: ${lockedBill.balanceDue}`
+        });
+
+        await lockedBill.save({ session });
+
+        // Log activity within transaction
+        await BillingActivity.logActivity({
+            activityType: 'bill_payment',
+            userId: lawyerId,
+            relatedModel: 'Bill',
+            relatedId: lockedBill._id,
+            description: `Payment of ${paymentAmount} recorded for bill ${lockedBill.billNumber}`,
+            ipAddress: req.ip,
+            userAgent: req.get('user-agent')
+        });
+
+        await session.commitTransaction();
+
+        const populatedBill = await Bill.findById(lockedBill._id)
+            .populate('vendorId', 'name vendorId email')
+            .populate('caseId', 'title caseNumber');
+
+        return res.json({
+            success: true,
+            message: 'Payment recorded successfully',
+            messageAr: 'تم تسجيل الدفع بنجاح',
+            bill: populatedBill
+        });
+    } catch (error) {
+        await session.abortTransaction();
+        throw error;
+    } finally {
+        await session.endSession();
+    }
 });
 
 // Post bill to General Ledger

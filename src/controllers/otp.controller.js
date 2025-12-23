@@ -8,6 +8,7 @@ const { generateOTP, hashOTP } = require('../utils/otp.utils');
 const NotificationDeliveryService = require('../services/notificationDelivery.service');
 const jwt = require('jsonwebtoken');
 const { getCookieConfig } = require('./auth.controller');
+const { sanitizeObjectId, timingSafeEqual } = require('../utils/securityUtils');
 
 /**
  * Send OTP to email
@@ -126,18 +127,49 @@ const verifyOTP = async (req, res) => {
       });
     }
 
-    // Validate OTP format
-    if (!/^\d{6}$/.test(otp)) {
+    // Validate email format
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return res.status(400).json({
         success: false,
-        error: 'OTP must be 6 digits',
-        errorAr: 'رمز التحقق يجب أن يكون 6 أرقام'
+        error: 'Invalid email address',
+        errorAr: 'عنوان البريد الإلكتروني غير صالح'
       });
     }
 
-    // Verify OTP
-    const otpHash = hashOTP(otp);
-    const result = await EmailOTP.verifyOTP(email, otpHash, purpose);
+    // Validate OTP format - must be exactly 6 numeric digits
+    if (typeof otp !== 'string' || !/^\d{6}$/.test(otp)) {
+      return res.status(400).json({
+        success: false,
+        error: 'OTP must be exactly 6 numeric digits',
+        errorAr: 'رمز التحقق يجب أن يكون 6 أرقام بالضبط'
+      });
+    }
+
+    // Validate purpose
+    const validPurposes = ['login', 'registration', 'password_reset', 'email_verification', 'transaction'];
+    if (!validPurposes.includes(purpose)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid purpose',
+        errorAr: 'غرض غير صالح'
+      });
+    }
+
+    // Rate limiting for verification attempts (IP-based protection against brute force)
+    const ipAddress = req.ip || req.headers['x-forwarded-for'];
+    const verificationRateLimit = await EmailOTP.checkVerificationRateLimit(ipAddress, email);
+
+    if (verificationRateLimit.limited) {
+      return res.status(429).json({
+        success: false,
+        error: verificationRateLimit.message,
+        errorAr: verificationRateLimit.messageAr,
+        waitTime: verificationRateLimit.waitTime || 300
+      });
+    }
+
+    // Verify OTP with timing-safe comparison
+    const result = await EmailOTP.verifyOTP(email, otp, purpose, ipAddress);
 
     if (!result.success) {
       return res.status(400).json({

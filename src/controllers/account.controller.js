@@ -1,5 +1,6 @@
 const Account = require('../models/account.model');
 const asyncHandler = require('../utils/asyncHandler');
+const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 
 /**
  * Get all accounts
@@ -43,7 +44,16 @@ const getAccounts = asyncHandler(async (req, res) => {
  * GET /api/accounts/:id
  */
 const getAccount = asyncHandler(async (req, res) => {
-    const account = await Account.findById(req.params.id)
+    // Sanitize and validate account ID
+    const sanitizedId = sanitizeObjectId(req.params.id);
+    if (!sanitizedId) {
+        return res.status(400).json({
+            success: false,
+            error: 'Invalid account ID format'
+        });
+    }
+
+    const account = await Account.findById(sanitizedId)
         .populate('parentAccountId', 'code name')
         .populate('children', 'code name type');
 
@@ -54,7 +64,7 @@ const getAccount = asyncHandler(async (req, res) => {
         });
     }
 
-    // Get account balance
+    // Get account balance (read-only - calculated from general ledger)
     const balanceInfo = await Account.getAccountBalance(account._id);
 
     res.status(200).json({
@@ -71,58 +81,87 @@ const getAccount = asyncHandler(async (req, res) => {
  * POST /api/accounts
  */
 const createAccount = asyncHandler(async (req, res) => {
-    const {
-        code,
-        name,
-        nameAr,
-        type,
-        subType,
-        parentAccountId,
-        description,
-        descriptionAr,
-        isSystem
-    } = req.body;
+    // Mass assignment protection - only allow specific fields
+    const allowedFields = [
+        'code',
+        'name',
+        'nameAr',
+        'type',
+        'subType',
+        'parentAccountId',
+        'description',
+        'descriptionAr'
+    ];
+    const accountData = pickAllowedFields(req.body, allowedFields);
 
-    // Validate required fields
-    if (!code || !name || !type) {
+    // Input validation - validate required fields
+    if (!accountData.code || !accountData.name || !accountData.type) {
         return res.status(400).json({
             success: false,
             error: 'Code, name, and type are required'
         });
     }
 
-    // Check for duplicate code
-    const existingAccount = await Account.findOne({ code });
-    if (existingAccount) {
+    // Validate account code format (must be numeric)
+    if (!/^\d+$/.test(accountData.code)) {
         return res.status(400).json({
             success: false,
-            error: `Account with code ${code} already exists`
+            error: 'Account code must be numeric'
         });
     }
 
-    // Validate parent account if provided
-    if (parentAccountId) {
-        const parentAccount = await Account.findById(parentAccountId);
+    // Validate account type
+    const validTypes = ['Asset', 'Liability', 'Equity', 'Income', 'Expense'];
+    if (!validTypes.includes(accountData.type)) {
+        return res.status(400).json({
+            success: false,
+            error: 'Invalid account type'
+        });
+    }
+
+    // Validate name length
+    if (accountData.name.length > 100) {
+        return res.status(400).json({
+            success: false,
+            error: 'Account name cannot exceed 100 characters'
+        });
+    }
+
+    // Check for duplicate code
+    const existingAccount = await Account.findOne({ code: accountData.code });
+    if (existingAccount) {
+        return res.status(400).json({
+            success: false,
+            error: `Account with code ${accountData.code} already exists`
+        });
+    }
+
+    // Validate and sanitize parent account ID if provided
+    if (accountData.parentAccountId) {
+        const sanitizedParentId = sanitizeObjectId(accountData.parentAccountId);
+        if (!sanitizedParentId) {
+            return res.status(400).json({
+                success: false,
+                error: 'Invalid parent account ID format'
+            });
+        }
+
+        const parentAccount = await Account.findById(sanitizedParentId);
         if (!parentAccount) {
             return res.status(400).json({
                 success: false,
                 error: 'Parent account not found'
             });
         }
+
+        accountData.parentAccountId = sanitizedParentId;
     }
 
-    const account = await Account.create({
-        code,
-        name,
-        nameAr,
-        type,
-        subType,
-        parentAccountId,
-        description,
-        descriptionAr,
-        isSystem: isSystem || false,
-        createdBy: req.user?._id
-    });
+    // System-controlled fields
+    accountData.isSystem = false; // Users cannot create system accounts
+    accountData.createdBy = req.user?._id;
+
+    const account = await Account.create(accountData);
 
     res.status(201).json({
         success: true,
@@ -135,7 +174,16 @@ const createAccount = asyncHandler(async (req, res) => {
  * PATCH /api/accounts/:id
  */
 const updateAccount = asyncHandler(async (req, res) => {
-    const account = await Account.findById(req.params.id);
+    // Sanitize and validate account ID
+    const sanitizedId = sanitizeObjectId(req.params.id);
+    if (!sanitizedId) {
+        return res.status(400).json({
+            success: false,
+            error: 'Invalid account ID format'
+        });
+    }
+
+    const account = await Account.findById(sanitizedId);
 
     if (!account) {
         return res.status(404).json({
@@ -144,56 +192,115 @@ const updateAccount = asyncHandler(async (req, res) => {
         });
     }
 
-    // Don't allow changing code of system accounts
-    if (account.isSystem && req.body.code && req.body.code !== account.code) {
+    // Mass assignment protection - only allow specific fields
+    const allowedFields = [
+        'code',
+        'name',
+        'nameAr',
+        'type',
+        'subType',
+        'parentAccountId',
+        'description',
+        'descriptionAr',
+        'isActive'
+    ];
+    const updateData = pickAllowedFields(req.body, allowedFields);
+
+    // Protect system accounts from modification
+    if (account.isSystem) {
+        // System accounts cannot have their type or code changed
+        if (updateData.code && updateData.code !== account.code) {
+            return res.status(400).json({
+                success: false,
+                error: 'Cannot change code of system account'
+            });
+        }
+        if (updateData.type && updateData.type !== account.type) {
+            return res.status(400).json({
+                success: false,
+                error: 'Cannot change type of system account'
+            });
+        }
+    }
+
+    // Input validation for code if being changed
+    if (updateData.code) {
+        // Validate code format
+        if (!/^\d+$/.test(updateData.code)) {
+            return res.status(400).json({
+                success: false,
+                error: 'Account code must be numeric'
+            });
+        }
+
+        // Check for duplicate code
+        if (updateData.code !== account.code) {
+            const existingAccount = await Account.findOne({ code: updateData.code });
+            if (existingAccount) {
+                return res.status(400).json({
+                    success: false,
+                    error: `Account with code ${updateData.code} already exists`
+                });
+            }
+        }
+    }
+
+    // Validate account type if being changed
+    if (updateData.type) {
+        const validTypes = ['Asset', 'Liability', 'Equity', 'Income', 'Expense'];
+        if (!validTypes.includes(updateData.type)) {
+            return res.status(400).json({
+                success: false,
+                error: 'Invalid account type'
+            });
+        }
+    }
+
+    // Validate name length if being changed
+    if (updateData.name && updateData.name.length > 100) {
         return res.status(400).json({
             success: false,
-            error: 'Cannot change code of system account'
+            error: 'Account name cannot exceed 100 characters'
         });
     }
 
-    // Check for duplicate code if code is being changed
-    if (req.body.code && req.body.code !== account.code) {
-        const existingAccount = await Account.findOne({ code: req.body.code });
-        if (existingAccount) {
-            return res.status(400).json({
-                success: false,
-                error: `Account with code ${req.body.code} already exists`
-            });
+    // Validate and sanitize parent account if provided
+    if (updateData.parentAccountId !== undefined) {
+        if (updateData.parentAccountId) {
+            const sanitizedParentId = sanitizeObjectId(updateData.parentAccountId);
+            if (!sanitizedParentId) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Invalid parent account ID format'
+                });
+            }
+
+            // Prevent circular reference
+            if (sanitizedParentId === sanitizedId) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Account cannot be its own parent'
+                });
+            }
+
+            const parentAccount = await Account.findById(sanitizedParentId);
+            if (!parentAccount) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Parent account not found'
+                });
+            }
+
+            updateData.parentAccountId = sanitizedParentId;
         }
     }
 
-    // Validate parent account if provided
-    if (req.body.parentAccountId) {
-        // Prevent circular reference
-        if (req.body.parentAccountId === req.params.id) {
-            return res.status(400).json({
-                success: false,
-                error: 'Account cannot be its own parent'
-            });
-        }
-
-        const parentAccount = await Account.findById(req.body.parentAccountId);
-        if (!parentAccount) {
-            return res.status(400).json({
-                success: false,
-                error: 'Parent account not found'
-            });
-        }
-    }
-
-    // Update allowed fields
-    const allowedFields = [
-        'code', 'name', 'nameAr', 'type', 'subType',
-        'parentAccountId', 'description', 'descriptionAr', 'isActive'
-    ];
-
-    allowedFields.forEach(field => {
-        if (req.body[field] !== undefined) {
-            account[field] = req.body[field];
-        }
+    // Apply updates to account
+    Object.keys(updateData).forEach(field => {
+        account[field] = updateData[field];
     });
 
+    // System-controlled fields
     account.updatedBy = req.user?._id;
     await account.save();
 
@@ -208,7 +315,16 @@ const updateAccount = asyncHandler(async (req, res) => {
  * DELETE /api/accounts/:id
  */
 const deleteAccount = asyncHandler(async (req, res) => {
-    const account = await Account.findById(req.params.id);
+    // Sanitize and validate account ID
+    const sanitizedId = sanitizeObjectId(req.params.id);
+    if (!sanitizedId) {
+        return res.status(400).json({
+            success: false,
+            error: 'Invalid account ID format'
+        });
+    }
+
+    const account = await Account.findById(sanitizedId);
 
     if (!account) {
         return res.status(404).json({
@@ -217,7 +333,15 @@ const deleteAccount = asyncHandler(async (req, res) => {
         });
     }
 
-    // Check if can be deleted
+    // Protect system accounts from deletion
+    if (account.isSystem) {
+        return res.status(403).json({
+            success: false,
+            error: 'Cannot delete system account'
+        });
+    }
+
+    // Check if can be deleted (has children or transactions)
     const { canDelete, reason } = await account.canDelete();
     if (!canDelete) {
         return res.status(400).json({
@@ -241,9 +365,16 @@ const deleteAccount = asyncHandler(async (req, res) => {
  * Query params: asOfDate, caseId
  */
 const getAccountBalance = asyncHandler(async (req, res) => {
-    const { asOfDate, caseId } = req.query;
+    // Sanitize and validate account ID
+    const sanitizedId = sanitizeObjectId(req.params.id);
+    if (!sanitizedId) {
+        return res.status(400).json({
+            success: false,
+            error: 'Invalid account ID format'
+        });
+    }
 
-    const account = await Account.findById(req.params.id);
+    const account = await Account.findById(sanitizedId);
     if (!account) {
         return res.status(404).json({
             success: false,
@@ -251,10 +382,35 @@ const getAccountBalance = asyncHandler(async (req, res) => {
         });
     }
 
+    // Sanitize caseId if provided
+    let sanitizedCaseId = null;
+    if (req.query.caseId) {
+        sanitizedCaseId = sanitizeObjectId(req.query.caseId);
+        if (!sanitizedCaseId) {
+            return res.status(400).json({
+                success: false,
+                error: 'Invalid case ID format'
+            });
+        }
+    }
+
+    // Validate date if provided
+    let validatedDate = null;
+    if (req.query.asOfDate) {
+        validatedDate = new Date(req.query.asOfDate);
+        if (isNaN(validatedDate.getTime())) {
+            return res.status(400).json({
+                success: false,
+                error: 'Invalid date format'
+            });
+        }
+    }
+
+    // Get balance (read-only - calculated from general ledger)
     const balance = await Account.getAccountBalance(
-        req.params.id,
-        asOfDate ? new Date(asOfDate) : null,
-        caseId || null
+        sanitizedId,
+        validatedDate,
+        sanitizedCaseId
     );
 
     res.status(200).json({

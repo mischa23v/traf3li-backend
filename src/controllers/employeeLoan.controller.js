@@ -2,6 +2,7 @@ const { EmployeeLoan, Employee } = require('../models');
 const { CustomException } = require('../utils');
 const asyncHandler = require('../utils/asyncHandler');
 const mongoose = require('mongoose');
+const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 
 // ═══════════════════════════════════════════════════════════════
 // LOAN POLICIES (Configurable)
@@ -33,6 +34,72 @@ const LOAN_POLICIES = {
 // ═══════════════════════════════════════════════════════════════
 // HELPER FUNCTIONS
 // ═══════════════════════════════════════════════════════════════
+
+// Validate loan amount and interest rate
+function validateLoanAmountAndInterest(loanType, loanAmount, interestRate) {
+    // Validate loan amount is positive
+    if (!loanAmount || loanAmount <= 0) {
+        throw CustomException('Loan amount must be greater than zero', 400);
+    }
+
+    // Check if loan type exists
+    const loanPolicy = LOAN_POLICIES.loanTypes[loanType];
+    if (!loanPolicy) {
+        throw CustomException('Invalid loan type', 400);
+    }
+
+    // Validate against maximum amount for loan type
+    if (loanAmount > loanPolicy.maxAmount) {
+        throw CustomException(
+            `Loan amount exceeds maximum allowed for ${loanType} (max: ${loanPolicy.maxAmount})`,
+            400
+        );
+    }
+
+    // Validate interest rate (should be 0 for Islamic compliant loans)
+    if (interestRate !== undefined && interestRate !== 0) {
+        throw CustomException('Interest rate must be 0 for Islamic compliant loans', 400);
+    }
+
+    // Validate installments
+    return loanPolicy;
+}
+
+// Verify employee ownership
+async function verifyEmployeeOwnership(employeeId, firmId, lawyerId) {
+    const employee = await Employee.findById(sanitizeObjectId(employeeId));
+    if (!employee) {
+        throw CustomException('Employee not found', 404);
+    }
+
+    const hasAccess = firmId
+        ? employee.firmId?.toString() === firmId.toString()
+        : employee.lawyerId?.toString() === lawyerId;
+
+    if (!hasAccess) {
+        throw CustomException('Access denied to this employee', 403);
+    }
+
+    return employee;
+}
+
+// Verify loan ownership (IDOR protection)
+async function verifyLoanOwnership(loanId, firmId, lawyerId) {
+    const loan = await EmployeeLoan.findById(sanitizeObjectId(loanId));
+    if (!loan) {
+        throw CustomException('Loan not found', 404);
+    }
+
+    const hasAccess = firmId
+        ? loan.firmId?.toString() === firmId.toString()
+        : loan.lawyerId?.toString() === lawyerId;
+
+    if (!hasAccess) {
+        throw CustomException('Access denied', 403);
+    }
+
+    return loan;
+}
 
 // Generate installment schedule
 function generateInstallmentSchedule(loanAmount, numInstallments, firstDate) {
@@ -291,6 +358,9 @@ const getLoan = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
+    // IDOR Protection: Verify loan ownership
+    await verifyLoanOwnership(loanId, firmId, lawyerId);
+
     const loan = await EmployeeLoan.findById(loanId)
         .populate('employeeId', 'employeeId personalInfo employment compensation gosi')
         .populate('createdBy', 'firstName lastName')
@@ -298,19 +368,6 @@ const getLoan = asyncHandler(async (req, res) => {
         .populate('approvalWorkflow.workflowSteps.approverId', 'firstName lastName')
         .populate('disbursement.cash.disbursedBy', 'firstName lastName')
         .populate('disbursement.confirmedBy', 'firstName lastName');
-
-    if (!loan) {
-        throw CustomException('Loan not found', 404);
-    }
-
-    // Check access
-    const hasAccess = firmId
-        ? loan.firmId?.toString() === firmId.toString()
-        : loan.lawyerId?.toString() === lawyerId;
-
-    if (!hasAccess) {
-        throw CustomException('Access denied', 403);
-    }
 
     return res.json({
         success: true,
@@ -326,7 +383,19 @@ const checkEligibility = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
-    const { employeeId, requestedAmount } = req.body;
+    // Mass assignment protection
+    const allowedFields = pickAllowedFields(req.body, [
+        'employeeId', 'requestedAmount'
+    ]);
+
+    const { employeeId, requestedAmount } = allowedFields;
+
+    if (!employeeId) {
+        throw CustomException('Employee ID is required', 400);
+    }
+
+    // IDOR Protection: Verify employee ownership
+    await verifyEmployeeOwnership(employeeId, firmId, lawyerId);
 
     const eligibility = await checkLoanEligibility(employeeId, requestedAmount || 0, firmId, lawyerId);
 
@@ -344,6 +413,20 @@ const createLoan = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
+    // Mass assignment protection - only allow specific fields
+    const allowedFields = pickAllowedFields(req.body, [
+        'employeeId',
+        'loanType',
+        'loanAmount',
+        'installments',
+        'firstInstallmentDate',
+        'purpose',
+        'purposeAr',
+        'urgency',
+        'notes',
+        'skipEligibilityCheck'
+    ]);
+
     const {
         employeeId,
         loanType,
@@ -355,22 +438,26 @@ const createLoan = asyncHandler(async (req, res) => {
         urgency,
         notes,
         skipEligibilityCheck
-    } = req.body;
+    } = allowedFields;
 
-    // Fetch employee
-    const employee = await Employee.findById(employeeId);
-    if (!employee) {
-        throw CustomException('Employee not found', 404);
+    // Validate required fields
+    if (!employeeId || !loanType || !loanAmount || !installments || !firstInstallmentDate) {
+        throw CustomException('Missing required fields', 400);
     }
 
-    // Check access to employee
-    const hasEmployeeAccess = firmId
-        ? employee.firmId?.toString() === firmId.toString()
-        : employee.lawyerId?.toString() === lawyerId;
+    // Validate loan amount and interest rate
+    const loanPolicy = validateLoanAmountAndInterest(loanType, loanAmount, 0);
 
-    if (!hasEmployeeAccess) {
-        throw CustomException('Access denied to this employee', 403);
+    // Validate installments
+    if (installments <= 0 || installments > loanPolicy.maxInstallments) {
+        throw CustomException(
+            `Installments must be between 1 and ${loanPolicy.maxInstallments} for ${loanType}`,
+            400
+        );
     }
+
+    // IDOR Protection: Verify employee ownership
+    const employee = await verifyEmployeeOwnership(employeeId, firmId, lawyerId);
 
     // Check eligibility (unless skipped for admin)
     let eligibility = { eligible: true, eligibilityChecks: [], ineligibilityReasons: [] };
@@ -505,48 +592,46 @@ const updateLoan = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
-    const loan = await EmployeeLoan.findById(loanId);
-
-    if (!loan) {
-        throw CustomException('Loan not found', 404);
-    }
-
-    // Check access
-    const hasAccess = firmId
-        ? loan.firmId?.toString() === firmId.toString()
-        : loan.lawyerId?.toString() === lawyerId;
-
-    if (!hasAccess) {
-        throw CustomException('Access denied', 403);
-    }
+    // IDOR Protection: Verify loan ownership
+    const loan = await verifyLoanOwnership(loanId, firmId, lawyerId);
 
     // Prevent updates if active, completed, or cancelled
     if (['active', 'completed', 'cancelled', 'defaulted'].includes(loan.status)) {
         throw CustomException('Cannot update loan in current status', 400);
     }
 
-    const allowedUpdates = [
+    // Mass assignment protection - only allow specific fields
+    const allowedFields = pickAllowedFields(req.body, [
         'loanType', 'loanAmount', 'purpose', 'purposeAr', 'urgency',
         'repayment', 'notes', 'documents', 'guarantee'
-    ];
+    ]);
+
+    // Validate loan amount if being changed
+    if (allowedFields.loanAmount) {
+        validateLoanAmountAndInterest(
+            allowedFields.loanType || loan.loanType,
+            allowedFields.loanAmount,
+            0
+        );
+    }
 
     // Apply updates
-    allowedUpdates.forEach(field => {
-        if (req.body[field] !== undefined) {
-            if (typeof req.body[field] === 'object' && !Array.isArray(req.body[field])) {
-                loan[field] = { ...loan[field]?.toObject?.() || loan[field] || {}, ...req.body[field] };
+    Object.keys(allowedFields).forEach(field => {
+        if (allowedFields[field] !== undefined) {
+            if (typeof allowedFields[field] === 'object' && !Array.isArray(allowedFields[field])) {
+                loan[field] = { ...loan[field]?.toObject?.() || loan[field] || {}, ...allowedFields[field] };
             } else {
-                loan[field] = req.body[field];
+                loan[field] = allowedFields[field];
             }
         }
     });
 
     // Recalculate if loan amount changed
-    if (req.body.loanAmount) {
-        loan.balance.originalAmount = req.body.loanAmount;
-        loan.balance.remainingBalance = req.body.loanAmount - loan.balance.paidAmount;
-        loan.loanTerms.principalAmount = req.body.loanAmount;
-        loan.loanTerms.totalAmountPayable = req.body.loanAmount;
+    if (allowedFields.loanAmount) {
+        loan.balance.originalAmount = allowedFields.loanAmount;
+        loan.balance.remainingBalance = allowedFields.loanAmount - loan.balance.paidAmount;
+        loan.loanTerms.principalAmount = allowedFields.loanAmount;
+        loan.loanTerms.totalAmountPayable = allowedFields.loanAmount;
     }
 
     loan.lastModifiedBy = lawyerId;
@@ -568,20 +653,8 @@ const deleteLoan = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
-    const loan = await EmployeeLoan.findById(loanId);
-
-    if (!loan) {
-        throw CustomException('Loan not found', 404);
-    }
-
-    // Check access
-    const hasAccess = firmId
-        ? loan.firmId?.toString() === firmId.toString()
-        : loan.lawyerId?.toString() === lawyerId;
-
-    if (!hasAccess) {
-        throw CustomException('Access denied', 403);
-    }
+    // IDOR Protection: Verify loan ownership
+    const loan = await verifyLoanOwnership(loanId, firmId, lawyerId);
 
     // Only allow deletion if pending or draft
     if (!['pending', 'rejected'].includes(loan.status)) {
@@ -605,20 +678,8 @@ const submitLoan = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
-    const loan = await EmployeeLoan.findById(loanId);
-
-    if (!loan) {
-        throw CustomException('Loan not found', 404);
-    }
-
-    // Check access
-    const hasAccess = firmId
-        ? loan.firmId?.toString() === firmId.toString()
-        : loan.lawyerId?.toString() === lawyerId;
-
-    if (!hasAccess) {
-        throw CustomException('Access denied', 403);
-    }
+    // IDOR Protection: Verify loan ownership
+    const loan = await verifyLoanOwnership(loanId, firmId, lawyerId);
 
     if (loan.applicationStatus !== 'draft') {
         throw CustomException('Only draft applications can be submitted', 400);
@@ -645,25 +706,23 @@ const approveLoan = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
-    const { approvedAmount, approvedInstallments, comments, conditions } = req.body;
+    // Mass assignment protection
+    const allowedFields = pickAllowedFields(req.body, [
+        'approvedAmount', 'approvedInstallments', 'comments', 'conditions'
+    ]);
 
-    const loan = await EmployeeLoan.findById(loanId);
+    const { approvedAmount, approvedInstallments, comments, conditions } = allowedFields;
 
-    if (!loan) {
-        throw CustomException('Loan not found', 404);
-    }
-
-    // Check access
-    const hasAccess = firmId
-        ? loan.firmId?.toString() === firmId.toString()
-        : loan.lawyerId?.toString() === lawyerId;
-
-    if (!hasAccess) {
-        throw CustomException('Access denied', 403);
-    }
+    // IDOR Protection: Verify loan ownership
+    const loan = await verifyLoanOwnership(loanId, firmId, lawyerId);
 
     if (loan.status !== 'pending') {
         throw CustomException('Only pending loans can be approved', 400);
+    }
+
+    // Validate approved amount if provided
+    if (approvedAmount) {
+        validateLoanAmountAndInterest(loan.loanType, approvedAmount, 0);
     }
 
     // Update approval workflow
@@ -731,22 +790,15 @@ const rejectLoan = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
-    const { rejectionReason, comments } = req.body;
+    // Mass assignment protection
+    const allowedFields = pickAllowedFields(req.body, [
+        'rejectionReason', 'comments'
+    ]);
 
-    const loan = await EmployeeLoan.findById(loanId);
+    const { rejectionReason, comments } = allowedFields;
 
-    if (!loan) {
-        throw CustomException('Loan not found', 404);
-    }
-
-    // Check access
-    const hasAccess = firmId
-        ? loan.firmId?.toString() === firmId.toString()
-        : loan.lawyerId?.toString() === lawyerId;
-
-    if (!hasAccess) {
-        throw CustomException('Access denied', 403);
-    }
+    // IDOR Protection: Verify loan ownership
+    const loan = await verifyLoanOwnership(loanId, firmId, lawyerId);
 
     if (loan.status !== 'pending') {
         throw CustomException('Only pending loans can be rejected', 400);
@@ -789,6 +841,16 @@ const disburseLoan = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
+    // Mass assignment protection
+    const allowedFields = pickAllowedFields(req.body, [
+        'disbursementMethod',
+        'bankDetails',
+        'checkDetails',
+        'cashDetails',
+        'transferReference',
+        'deductions'
+    ]);
+
     const {
         disbursementMethod,
         bankDetails,
@@ -796,106 +858,126 @@ const disburseLoan = asyncHandler(async (req, res) => {
         cashDetails,
         transferReference,
         deductions
-    } = req.body;
+    } = allowedFields;
 
-    const loan = await EmployeeLoan.findById(loanId);
-
-    if (!loan) {
-        throw CustomException('Loan not found', 404);
+    // Validate disbursement method
+    const validMethods = ['bank_transfer', 'check', 'cash'];
+    if (!disbursementMethod || !validMethods.includes(disbursementMethod)) {
+        throw CustomException('Invalid disbursement method', 400);
     }
 
-    // Check access
-    const hasAccess = firmId
-        ? loan.firmId?.toString() === firmId.toString()
-        : loan.lawyerId?.toString() === lawyerId;
+    // Use MongoDB transaction for disbursement
+    const session = await mongoose.startSession();
+    session.startTransaction();
 
-    if (!hasAccess) {
-        throw CustomException('Access denied', 403);
-    }
+    try {
+        // IDOR Protection: Verify loan ownership
+        const loan = await verifyLoanOwnership(loanId, firmId, lawyerId);
 
-    if (loan.status !== 'approved') {
-        throw CustomException('Loan must be approved before disbursement', 400);
-    }
+        if (loan.status !== 'approved') {
+            throw CustomException('Loan must be approved before disbursement', 400);
+        }
 
-    // Calculate net disbursement
-    let totalDeductions = 0;
-    const disbursementDeductions = [];
-    if (deductions && Array.isArray(deductions)) {
-        deductions.forEach(d => {
-            totalDeductions += d.deductionAmount || 0;
-            disbursementDeductions.push(d);
+        // Validate deductions
+        let totalDeductions = 0;
+        if (deductions && Array.isArray(deductions)) {
+            deductions.forEach(d => {
+                if (d.deductionAmount && d.deductionAmount < 0) {
+                    throw CustomException('Deduction amount cannot be negative', 400);
+                }
+                totalDeductions += d.deductionAmount || 0;
+            });
+        }
+
+        const netDisbursedAmount = (loan.approvedAmount || loan.loanAmount) - totalDeductions;
+        if (netDisbursedAmount <= 0) {
+            throw CustomException('Net disbursed amount must be greater than zero', 400);
+        }
+
+        const disbursementDeductions = [];
+        if (deductions && Array.isArray(deductions)) {
+            deductions.forEach(d => {
+                disbursementDeductions.push(d);
+            });
+        }
+
+        // Update disbursement details
+        loan.disbursement = {
+            disbursementMethod,
+            disbursed: true,
+            disbursementDate: new Date(),
+            actualDisbursedAmount: loan.approvedAmount || loan.loanAmount,
+            disbursementDeductions,
+            netDisbursedAmount,
+            confirmationRequired: true,
+            confirmed: false
+        };
+
+        if (disbursementMethod === 'bank_transfer' && bankDetails) {
+            loan.disbursement.bankTransfer = {
+                bankName: bankDetails.bankName,
+                accountNumber: bankDetails.accountNumber,
+                iban: bankDetails.iban,
+                transferDate: new Date(),
+                transferReference: transferReference || `TRF-${Date.now()}`,
+                transferStatus: 'completed'
+            };
+        }
+
+        if (disbursementMethod === 'check' && checkDetails) {
+            loan.disbursement.check = {
+                checkNumber: checkDetails.checkNumber,
+                checkDate: new Date(checkDetails.checkDate),
+                issued: true,
+                issuedDate: new Date()
+            };
+        }
+
+        if (disbursementMethod === 'cash' && cashDetails) {
+            loan.disbursement.cash = {
+                disbursedOn: new Date(),
+                disbursedBy: lawyerId,
+                receiptNumber: cashDetails.receiptNumber || `RCP-${Date.now()}`
+            };
+        }
+
+        // Update loan status
+        loan.status = 'active';
+        loan.disbursementDate = new Date();
+
+        // Set up payroll deduction
+        loan.payrollIntegration = {
+            payrollDeduction: {
+                active: true,
+                deductionCode: `LOAN-${loan.loanNumber}`,
+                deductionAmount: loan.repayment.installmentAmount,
+                deductionStartDate: loan.repayment.firstInstallmentDate,
+                deductionEndDate: loan.repayment.lastInstallmentDate,
+                deductionFrequency: 'monthly',
+                automaticDeduction: true
+            },
+            payrollDeductions: [],
+            failedDeductions: []
+        };
+
+        loan.lastModifiedBy = lawyerId;
+        await loan.save({ session });
+
+        // Commit transaction
+        await session.commitTransaction();
+        session.endSession();
+
+        return res.json({
+            success: true,
+            message: 'Loan disbursed successfully',
+            data: loan
         });
+    } catch (error) {
+        // Rollback transaction on error
+        await session.abortTransaction();
+        session.endSession();
+        throw error;
     }
-
-    const netDisbursedAmount = (loan.approvedAmount || loan.loanAmount) - totalDeductions;
-
-    // Update disbursement details
-    loan.disbursement = {
-        disbursementMethod,
-        disbursed: true,
-        disbursementDate: new Date(),
-        actualDisbursedAmount: loan.approvedAmount || loan.loanAmount,
-        disbursementDeductions,
-        netDisbursedAmount,
-        confirmationRequired: true,
-        confirmed: false
-    };
-
-    if (disbursementMethod === 'bank_transfer' && bankDetails) {
-        loan.disbursement.bankTransfer = {
-            bankName: bankDetails.bankName,
-            accountNumber: bankDetails.accountNumber,
-            iban: bankDetails.iban,
-            transferDate: new Date(),
-            transferReference: transferReference || `TRF-${Date.now()}`,
-            transferStatus: 'completed'
-        };
-    }
-
-    if (disbursementMethod === 'check' && checkDetails) {
-        loan.disbursement.check = {
-            checkNumber: checkDetails.checkNumber,
-            checkDate: new Date(checkDetails.checkDate),
-            issued: true,
-            issuedDate: new Date()
-        };
-    }
-
-    if (disbursementMethod === 'cash' && cashDetails) {
-        loan.disbursement.cash = {
-            disbursedOn: new Date(),
-            disbursedBy: lawyerId,
-            receiptNumber: cashDetails.receiptNumber || `RCP-${Date.now()}`
-        };
-    }
-
-    // Update loan status
-    loan.status = 'active';
-    loan.disbursementDate = new Date();
-
-    // Set up payroll deduction
-    loan.payrollIntegration = {
-        payrollDeduction: {
-            active: true,
-            deductionCode: `LOAN-${loan.loanNumber}`,
-            deductionAmount: loan.repayment.installmentAmount,
-            deductionStartDate: loan.repayment.firstInstallmentDate,
-            deductionEndDate: loan.repayment.lastInstallmentDate,
-            deductionFrequency: 'monthly',
-            automaticDeduction: true
-        },
-        payrollDeductions: [],
-        failedDeductions: []
-    };
-
-    loan.lastModifiedBy = lawyerId;
-    await loan.save();
-
-    return res.json({
-        success: true,
-        message: 'Loan disbursed successfully',
-        data: loan
-    });
 });
 
 // ═══════════════════════════════════════════════════════════════
@@ -907,149 +989,174 @@ const recordPayment = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
+    // Mass assignment protection
+    const allowedFields = pickAllowedFields(req.body, [
+        'amount',
+        'paymentMethod',
+        'paymentDate',
+        'paymentReference',
+        'notes'
+    ]);
+
     const {
         amount,
         paymentMethod,
         paymentDate,
         paymentReference,
         notes
-    } = req.body;
+    } = allowedFields;
 
-    const loan = await EmployeeLoan.findById(loanId);
-
-    if (!loan) {
-        throw CustomException('Loan not found', 404);
+    // Validate payment amount
+    if (!amount || amount <= 0) {
+        throw CustomException('Payment amount must be greater than zero', 400);
     }
 
-    // Check access
-    const hasAccess = firmId
-        ? loan.firmId?.toString() === firmId.toString()
-        : loan.lawyerId?.toString() === lawyerId;
+    // Use MongoDB transaction for payment
+    const session = await mongoose.startSession();
+    session.startTransaction();
 
-    if (!hasAccess) {
-        throw CustomException('Access denied', 403);
-    }
+    try {
+        // IDOR Protection: Verify loan ownership
+        const loan = await verifyLoanOwnership(loanId, firmId, lawyerId);
 
-    if (loan.status !== 'active') {
-        throw CustomException('Can only record payments for active loans', 400);
-    }
+        if (loan.status !== 'active') {
+            throw CustomException('Can only record payments for active loans', 400);
+        }
 
-    // Apply payment to pending installments
-    let remainingPayment = amount;
-    const paymentsApplied = [];
-    const actualPaymentDate = paymentDate ? new Date(paymentDate) : new Date();
-
-    const pendingInstallments = loan.installments
-        .filter(i => i.status !== 'paid' && i.status !== 'waived')
-        .sort((a, b) => a.installmentNumber - b.installmentNumber);
-
-    for (const installment of pendingInstallments) {
-        if (remainingPayment <= 0) break;
-
-        const amountDue = installment.installmentAmount - (installment.paidAmount || 0);
-        const paymentApplied = Math.min(remainingPayment, amountDue);
-
-        installment.paidAmount = (installment.paidAmount || 0) + paymentApplied;
-        installment.status = installment.paidAmount >= installment.installmentAmount
-            ? 'paid'
-            : 'partial';
-
-        if (installment.status === 'paid') {
-            installment.paidDate = actualPaymentDate;
-            installment.paymentMethod = paymentMethod;
-            installment.paymentReference = paymentReference;
-
-            // Check if late
-            const daysLate = Math.floor(
-                (actualPaymentDate - new Date(installment.dueDate)) / (1000 * 60 * 60 * 24)
+        // Validate payment amount doesn't exceed remaining balance
+        if (amount > loan.balance.remainingBalance) {
+            throw CustomException(
+                `Payment amount (${amount}) exceeds remaining balance (${loan.balance.remainingBalance})`,
+                400
             );
-            if (daysLate > 0) {
-                installment.lateDays = daysLate;
-                loan.paymentPerformance.latePayments += 1;
-            } else {
-                loan.paymentPerformance.onTimePayments += 1;
-            }
         }
 
-        remainingPayment -= paymentApplied;
-        paymentsApplied.push({
-            installmentNumber: installment.installmentNumber,
-            amountApplied: paymentApplied
-        });
-    }
+        // Apply payment to pending installments
+        let remainingPayment = amount;
+        const paymentsApplied = [];
+        const actualPaymentDate = paymentDate ? new Date(paymentDate) : new Date();
 
-    // Update balance
-    loan.balance.paidAmount += amount;
-    loan.balance.remainingBalance = loan.balance.originalAmount - loan.balance.paidAmount;
-    loan.balance.completionPercentage = Math.round(
-        (loan.balance.paidAmount / loan.balance.originalAmount) * 100
-    );
+        const pendingInstallments = loan.installments
+            .filter(i => i.status !== 'paid' && i.status !== 'waived')
+            .sort((a, b) => a.installmentNumber - b.installmentNumber);
 
-    // Add to payment history
-    loan.paymentHistory.push({
-        paymentId: `PAY-${Date.now()}`,
-        paymentDate: actualPaymentDate,
-        principalPaid: amount,
-        totalPaid: amount,
-        paymentMethod,
-        paymentReference,
-        processedBy: lawyerId,
-        remainingBalance: loan.balance.remainingBalance,
-        receiptNumber: `RCP-${Date.now()}`,
-        notes
-    });
+        for (const installment of pendingInstallments) {
+            if (remainingPayment <= 0) break;
 
-    // Update payment performance
-    const totalPayments = loan.paymentPerformance.onTimePayments +
-        loan.paymentPerformance.latePayments;
-    if (totalPayments > 0) {
-        loan.paymentPerformance.onTimePercentage = Math.round(
-            (loan.paymentPerformance.onTimePayments / totalPayments) * 100
+            const amountDue = installment.installmentAmount - (installment.paidAmount || 0);
+            const paymentApplied = Math.min(remainingPayment, amountDue);
+
+            installment.paidAmount = (installment.paidAmount || 0) + paymentApplied;
+            installment.status = installment.paidAmount >= installment.installmentAmount
+                ? 'paid'
+                : 'partial';
+
+            if (installment.status === 'paid') {
+                installment.paidDate = actualPaymentDate;
+                installment.paymentMethod = paymentMethod;
+                installment.paymentReference = paymentReference;
+
+                // Check if late
+                const daysLate = Math.floor(
+                    (actualPaymentDate - new Date(installment.dueDate)) / (1000 * 60 * 60 * 24)
+                );
+                if (daysLate > 0) {
+                    installment.lateDays = daysLate;
+                    loan.paymentPerformance.latePayments += 1;
+                } else {
+                    loan.paymentPerformance.onTimePayments += 1;
+                }
+            }
+
+            remainingPayment -= paymentApplied;
+            paymentsApplied.push({
+                installmentNumber: installment.installmentNumber,
+                amountApplied: paymentApplied
+            });
+        }
+
+        // Update balance
+        loan.balance.paidAmount += amount;
+        loan.balance.remainingBalance = loan.balance.originalAmount - loan.balance.paidAmount;
+        loan.balance.completionPercentage = Math.round(
+            (loan.balance.paidAmount / loan.balance.originalAmount) * 100
         );
-    }
 
-    // Calculate rating
-    const percentage = loan.paymentPerformance.onTimePercentage;
-    if (percentage >= 95) {
-        loan.paymentPerformance.paymentRating = 'excellent';
-    } else if (percentage >= 80) {
-        loan.paymentPerformance.paymentRating = 'good';
-    } else if (percentage >= 60) {
-        loan.paymentPerformance.paymentRating = 'fair';
-    } else {
-        loan.paymentPerformance.paymentRating = 'poor';
-    }
+        // Add to payment history
+        loan.paymentHistory.push({
+            paymentId: `PAY-${Date.now()}`,
+            paymentDate: actualPaymentDate,
+            principalPaid: amount,
+            totalPaid: amount,
+            paymentMethod,
+            paymentReference,
+            processedBy: lawyerId,
+            remainingBalance: loan.balance.remainingBalance,
+            receiptNumber: `RCP-${Date.now()}`,
+            notes
+        });
 
-    // Update analytics
-    loan.analytics.totalAmountRepaid = loan.balance.paidAmount;
-
-    // Check if loan is completed
-    if (loan.balance.remainingBalance <= 0) {
-        loan.status = 'completed';
-        loan.completion = {
-            loanCompleted: true,
-            completionDate: new Date(),
-            completionMethod: 'full_repayment',
-            finalPayment: {
-                paymentDate: actualPaymentDate,
-                paymentAmount: amount,
-                paymentReference
-            }
-        };
-    }
-
-    loan.lastModifiedBy = lawyerId;
-    await loan.save();
-
-    return res.json({
-        success: true,
-        message: 'Payment recorded successfully',
-        data: {
-            loan,
-            paymentsApplied,
-            remainingBalance: loan.balance.remainingBalance
+        // Update payment performance
+        const totalPayments = loan.paymentPerformance.onTimePayments +
+            loan.paymentPerformance.latePayments;
+        if (totalPayments > 0) {
+            loan.paymentPerformance.onTimePercentage = Math.round(
+                (loan.paymentPerformance.onTimePayments / totalPayments) * 100
+            );
         }
-    });
+
+        // Calculate rating
+        const percentage = loan.paymentPerformance.onTimePercentage;
+        if (percentage >= 95) {
+            loan.paymentPerformance.paymentRating = 'excellent';
+        } else if (percentage >= 80) {
+            loan.paymentPerformance.paymentRating = 'good';
+        } else if (percentage >= 60) {
+            loan.paymentPerformance.paymentRating = 'fair';
+        } else {
+            loan.paymentPerformance.paymentRating = 'poor';
+        }
+
+        // Update analytics
+        loan.analytics.totalAmountRepaid = loan.balance.paidAmount;
+
+        // Check if loan is completed
+        if (loan.balance.remainingBalance <= 0) {
+            loan.status = 'completed';
+            loan.completion = {
+                loanCompleted: true,
+                completionDate: new Date(),
+                completionMethod: 'full_repayment',
+                finalPayment: {
+                    paymentDate: actualPaymentDate,
+                    paymentAmount: amount,
+                    paymentReference
+                }
+            };
+        }
+
+        loan.lastModifiedBy = lawyerId;
+        await loan.save({ session });
+
+        // Commit transaction
+        await session.commitTransaction();
+        session.endSession();
+
+        return res.json({
+            success: true,
+            message: 'Payment recorded successfully',
+            data: {
+                loan,
+                paymentsApplied,
+                remainingBalance: loan.balance.remainingBalance
+            }
+        });
+    } catch (error) {
+        // Rollback transaction on error
+        await session.abortTransaction();
+        session.endSession();
+        throw error;
+    }
 });
 
 // ═══════════════════════════════════════════════════════════════
@@ -1061,22 +1168,20 @@ const processPayrollDeduction = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
-    const { payrollRunId, payrollMonth, payrollYear, deductedAmount } = req.body;
+    // Mass assignment protection
+    const allowedFields = pickAllowedFields(req.body, [
+        'payrollRunId', 'payrollMonth', 'payrollYear', 'deductedAmount'
+    ]);
 
-    const loan = await EmployeeLoan.findById(loanId);
+    const { payrollRunId, payrollMonth, payrollYear, deductedAmount } = allowedFields;
 
-    if (!loan) {
-        throw CustomException('Loan not found', 404);
+    // Validate deducted amount
+    if (!deductedAmount || deductedAmount <= 0) {
+        throw CustomException('Deducted amount must be greater than zero', 400);
     }
 
-    // Check access
-    const hasAccess = firmId
-        ? loan.firmId?.toString() === firmId.toString()
-        : loan.lawyerId?.toString() === lawyerId;
-
-    if (!hasAccess) {
-        throw CustomException('Access denied', 403);
-    }
+    // IDOR Protection: Verify loan ownership
+    const loan = await verifyLoanOwnership(loanId, firmId, lawyerId);
 
     if (loan.status !== 'active') {
         throw CustomException('Can only process deductions for active loans', 400);
@@ -1126,20 +1231,8 @@ const calculateEarlySettlement = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
-    const loan = await EmployeeLoan.findById(loanId);
-
-    if (!loan) {
-        throw CustomException('Loan not found', 404);
-    }
-
-    // Check access
-    const hasAccess = firmId
-        ? loan.firmId?.toString() === firmId.toString()
-        : loan.lawyerId?.toString() === lawyerId;
-
-    if (!hasAccess) {
-        throw CustomException('Access denied', 403);
-    }
+    // IDOR Protection: Verify loan ownership
+    const loan = await verifyLoanOwnership(loanId, firmId, lawyerId);
 
     if (loan.status !== 'active') {
         throw CustomException('Only active loans can be settled early', 400);
@@ -1169,22 +1262,20 @@ const processEarlySettlement = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
-    const { settlementAmount, paymentMethod, paymentReference } = req.body;
+    // Mass assignment protection
+    const allowedFields = pickAllowedFields(req.body, [
+        'settlementAmount', 'paymentMethod', 'paymentReference'
+    ]);
 
-    const loan = await EmployeeLoan.findById(loanId);
+    const { settlementAmount, paymentMethod, paymentReference } = allowedFields;
 
-    if (!loan) {
-        throw CustomException('Loan not found', 404);
+    // Validate settlement amount
+    if (!settlementAmount || settlementAmount <= 0) {
+        throw CustomException('Settlement amount must be greater than zero', 400);
     }
 
-    // Check access
-    const hasAccess = firmId
-        ? loan.firmId?.toString() === firmId.toString()
-        : loan.lawyerId?.toString() === lawyerId;
-
-    if (!hasAccess) {
-        throw CustomException('Access denied', 403);
-    }
+    // IDOR Protection: Verify loan ownership
+    const loan = await verifyLoanOwnership(loanId, firmId, lawyerId);
 
     if (loan.status !== 'active') {
         throw CustomException('Only active loans can be settled early', 400);
@@ -1287,22 +1378,15 @@ const markAsDefaulted = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
-    const { defaultReason, notes } = req.body;
+    // Mass assignment protection
+    const allowedFields = pickAllowedFields(req.body, [
+        'defaultReason', 'notes'
+    ]);
 
-    const loan = await EmployeeLoan.findById(loanId);
+    const { defaultReason, notes } = allowedFields;
 
-    if (!loan) {
-        throw CustomException('Loan not found', 404);
-    }
-
-    // Check access
-    const hasAccess = firmId
-        ? loan.firmId?.toString() === firmId.toString()
-        : loan.lawyerId?.toString() === lawyerId;
-
-    if (!hasAccess) {
-        throw CustomException('Access denied', 403);
-    }
+    // IDOR Protection: Verify loan ownership
+    const loan = await verifyLoanOwnership(loanId, firmId, lawyerId);
 
     if (loan.status !== 'active') {
         throw CustomException('Only active loans can be marked as defaulted', 400);
@@ -1347,27 +1431,28 @@ const restructureLoan = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
+    // Mass assignment protection
+    const allowedFields = pickAllowedFields(req.body, [
+        'restructureReason',
+        'newInstallmentAmount',
+        'newInstallments',
+        'effectiveDate'
+    ]);
+
     const {
         restructureReason,
         newInstallmentAmount,
         newInstallments,
         effectiveDate
-    } = req.body;
+    } = allowedFields;
 
-    const loan = await EmployeeLoan.findById(loanId);
-
-    if (!loan) {
-        throw CustomException('Loan not found', 404);
+    // Validate new installments
+    if (newInstallments && newInstallments <= 0) {
+        throw CustomException('New installments must be greater than zero', 400);
     }
 
-    // Check access
-    const hasAccess = firmId
-        ? loan.firmId?.toString() === firmId.toString()
-        : loan.lawyerId?.toString() === lawyerId;
-
-    if (!hasAccess) {
-        throw CustomException('Access denied', 403);
-    }
+    // IDOR Protection: Verify loan ownership
+    const loan = await verifyLoanOwnership(loanId, firmId, lawyerId);
 
     if (!['active', 'defaulted'].includes(loan.status)) {
         throw CustomException('Only active or defaulted loans can be restructured', 400);
@@ -1466,20 +1551,8 @@ const issueClearanceLetter = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
-    const loan = await EmployeeLoan.findById(loanId);
-
-    if (!loan) {
-        throw CustomException('Loan not found', 404);
-    }
-
-    // Check access
-    const hasAccess = firmId
-        ? loan.firmId?.toString() === firmId.toString()
-        : loan.lawyerId?.toString() === lawyerId;
-
-    if (!hasAccess) {
-        throw CustomException('Access denied', 403);
-    }
+    // IDOR Protection: Verify loan ownership
+    const loan = await verifyLoanOwnership(loanId, firmId, lawyerId);
 
     if (loan.status !== 'completed') {
         throw CustomException('Clearance letter can only be issued for completed loans', 400);
@@ -1594,26 +1667,19 @@ const uploadDocument = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
-    const { documentType, documentName, documentNameAr, fileUrl, notes } = req.body;
+    // Mass assignment protection
+    const allowedFields = pickAllowedFields(req.body, [
+        'documentType', 'documentName', 'documentNameAr', 'fileUrl', 'notes'
+    ]);
 
-    const loan = await EmployeeLoan.findById(loanId);
-
-    if (!loan) {
-        throw CustomException('Loan not found', 404);
-    }
-
-    // Check access
-    const hasAccess = firmId
-        ? loan.firmId?.toString() === firmId.toString()
-        : loan.lawyerId?.toString() === lawyerId;
-
-    if (!hasAccess) {
-        throw CustomException('Access denied', 403);
-    }
+    const { documentType, documentName, documentNameAr, fileUrl, notes } = allowedFields;
 
     if (!documentType || !fileUrl) {
         throw CustomException('Document type and file URL are required', 400);
     }
+
+    // IDOR Protection: Verify loan ownership
+    const loan = await verifyLoanOwnership(loanId, firmId, lawyerId);
 
     const document = {
         documentType,
@@ -1646,22 +1712,15 @@ const addCommunication = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
-    const { communicationType, purpose, subject, message, sentTo, attachments } = req.body;
+    // Mass assignment protection
+    const allowedFields = pickAllowedFields(req.body, [
+        'communicationType', 'purpose', 'subject', 'message', 'sentTo', 'attachments'
+    ]);
 
-    const loan = await EmployeeLoan.findById(loanId);
+    const { communicationType, purpose, subject, message, sentTo, attachments } = allowedFields;
 
-    if (!loan) {
-        throw CustomException('Loan not found', 404);
-    }
-
-    // Check access
-    const hasAccess = firmId
-        ? loan.firmId?.toString() === firmId.toString()
-        : loan.lawyerId?.toString() === lawyerId;
-
-    if (!hasAccess) {
-        throw CustomException('Access denied', 403);
-    }
+    // IDOR Protection: Verify loan ownership
+    const loan = await verifyLoanOwnership(loanId, firmId, lawyerId);
 
     const communication = {
         communicationId: `COM-${Date.now()}`,

@@ -3,12 +3,36 @@ const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
 const nlpService = require('../services/nlp.service');
 const voiceToTaskService = require('../services/voiceToTask.service');
+const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 
 /**
  * Create reminder
  * POST /api/reminders
  */
 const createReminder = asyncHandler(async (req, res) => {
+    const userId = req.userID;
+
+    // Mass assignment protection - only allow specific fields
+    const allowedFields = [
+        'title',
+        'description',
+        'reminderDateTime',
+        'reminderDate',
+        'reminderTime',
+        'priority',
+        'type',
+        'relatedCase',
+        'relatedTask',
+        'relatedEvent',
+        'relatedInvoice',
+        'clientId',
+        'recurring',
+        'notification',
+        'tags',
+        'notes'
+    ];
+    const safeData = pickAllowedFields(req.body, allowedFields);
+
     const {
         title,
         description,
@@ -26,9 +50,7 @@ const createReminder = asyncHandler(async (req, res) => {
         notification: rawNotification,
         tags,
         notes
-    } = req.body;
-
-    const userId = req.userID;
+    } = safeData;
 
     // Normalize priority - map 'urgent' to 'critical'
     const priorityMap = { urgent: 'critical', normal: 'medium' };
@@ -60,27 +82,80 @@ const createReminder = asyncHandler(async (req, res) => {
     // Fields will use defaults if not provided
     const dateTime = reminderDateTime || (reminderDate && reminderTime ? new Date(`${reminderDate}T${reminderTime}`) : new Date());
 
-    // Validate related entities
+    // Input validation for dates and times
+    if (reminderDateTime) {
+        const parsedDate = new Date(reminderDateTime);
+        if (isNaN(parsedDate.getTime())) {
+            throw CustomException('Invalid reminderDateTime format', 400);
+        }
+    }
+
+    if (reminderDate) {
+        const parsedDate = new Date(reminderDate);
+        if (isNaN(parsedDate.getTime())) {
+            throw CustomException('Invalid reminderDate format', 400);
+        }
+    }
+
+    if (reminderTime && typeof reminderTime === 'string') {
+        const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/;
+        if (!timeRegex.test(reminderTime)) {
+            throw CustomException('Invalid reminderTime format. Expected HH:MM', 400);
+        }
+    }
+
+    // Validate and sanitize related entity IDs (IDOR protection)
+    let sanitizedRelatedCase = null;
     if (relatedCase) {
-        const caseDoc = await Case.findById(relatedCase);
+        sanitizedRelatedCase = sanitizeObjectId(relatedCase);
+        if (!sanitizedRelatedCase) {
+            throw CustomException('Invalid relatedCase ID format', 400);
+        }
+        const caseDoc = await Case.findById(sanitizedRelatedCase);
         if (!caseDoc) {
             throw CustomException('Case not found', 404);
         }
+        // IDOR: Verify the case belongs to the user
+        if (caseDoc.userId && caseDoc.userId.toString() !== userId) {
+            throw CustomException('You do not have access to this case', 403);
+        }
     }
 
+    let sanitizedRelatedTask = null;
     if (relatedTask) {
-        const task = await Task.findById(relatedTask);
+        sanitizedRelatedTask = sanitizeObjectId(relatedTask);
+        if (!sanitizedRelatedTask) {
+            throw CustomException('Invalid relatedTask ID format', 400);
+        }
+        const task = await Task.findById(sanitizedRelatedTask);
         if (!task) {
             throw CustomException('Task not found', 404);
         }
+        // IDOR: Verify the task belongs to the user
+        if (task.userId && task.userId.toString() !== userId) {
+            throw CustomException('You do not have access to this task', 403);
+        }
     }
 
+    let sanitizedRelatedEvent = null;
     if (relatedEvent) {
-        const event = await Event.findById(relatedEvent);
+        sanitizedRelatedEvent = sanitizeObjectId(relatedEvent);
+        if (!sanitizedRelatedEvent) {
+            throw CustomException('Invalid relatedEvent ID format', 400);
+        }
+        const event = await Event.findById(sanitizedRelatedEvent);
         if (!event) {
             throw CustomException('Event not found', 404);
         }
+        // IDOR: Verify the event belongs to the user
+        if (event.userId && event.userId.toString() !== userId) {
+            throw CustomException('You do not have access to this event', 403);
+        }
     }
+
+    // Sanitize other IDs
+    const sanitizedClientId = clientId ? sanitizeObjectId(clientId) : null;
+    const sanitizedRelatedInvoice = relatedInvoice ? sanitizeObjectId(relatedInvoice) : null;
 
     const reminder = await Reminder.create({
         title: title || 'Untitled Reminder',
@@ -91,11 +166,11 @@ const createReminder = asyncHandler(async (req, res) => {
         reminderTime: dateTime.toTimeString().substring(0, 5),
         priority,
         type,
-        relatedCase,
-        relatedTask,
-        relatedEvent,
-        relatedInvoice,
-        clientId,
+        relatedCase: sanitizedRelatedCase,
+        relatedTask: sanitizedRelatedTask,
+        relatedEvent: sanitizedRelatedEvent,
+        relatedInvoice: sanitizedRelatedInvoice,
+        clientId: sanitizedClientId,
         recurring: recurring || { enabled: false },
         notification,
         tags: tags || [],
@@ -246,7 +321,13 @@ const getReminder = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const userId = req.userID;
 
-    const reminder = await Reminder.findById(id)
+    // Sanitize and validate ID
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('Invalid reminder ID format', 400);
+    }
+
+    const reminder = await Reminder.findById(sanitizedId)
         .populate('relatedCase', 'title caseNumber category')
         .populate('relatedTask', 'title dueDate status')
         .populate('relatedEvent', 'title startDateTime location')
@@ -280,32 +361,112 @@ const updateReminder = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const userId = req.userID;
 
-    const reminder = await Reminder.findById(id);
+    // Sanitize and validate ID
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('Invalid reminder ID format', 400);
+    }
+
+    const reminder = await Reminder.findById(sanitizedId);
 
     if (!reminder) {
         throw CustomException('Reminder not found', 404);
     }
 
+    // IDOR protection - users can only update their own reminders
     if (reminder.userId.toString() !== userId) {
         throw CustomException('You can only update your own reminders', 403);
     }
 
+    // Mass assignment protection - only allow specific fields
     const allowedFields = [
         'title', 'description', 'reminderDateTime', 'priority', 'type',
         'relatedCase', 'relatedTask', 'relatedEvent', 'relatedInvoice',
         'clientId', 'recurring', 'notification', 'tags', 'notes'
     ];
+    const safeUpdates = pickAllowedFields(req.body, allowedFields);
 
-    allowedFields.forEach(field => {
-        if (req.body[field] !== undefined) {
-            reminder[field] = req.body[field];
+    // Input validation for dates and times
+    if (safeUpdates.reminderDateTime) {
+        const parsedDate = new Date(safeUpdates.reminderDateTime);
+        if (isNaN(parsedDate.getTime())) {
+            throw CustomException('Invalid reminderDateTime format', 400);
         }
+    }
+
+    // Validate and sanitize related entity IDs
+    if (safeUpdates.relatedCase) {
+        const sanitizedRelatedCase = sanitizeObjectId(safeUpdates.relatedCase);
+        if (!sanitizedRelatedCase) {
+            throw CustomException('Invalid relatedCase ID format', 400);
+        }
+        const caseDoc = await Case.findById(sanitizedRelatedCase);
+        if (!caseDoc) {
+            throw CustomException('Case not found', 404);
+        }
+        // IDOR: Verify the case belongs to the user
+        if (caseDoc.userId && caseDoc.userId.toString() !== userId) {
+            throw CustomException('You do not have access to this case', 403);
+        }
+        safeUpdates.relatedCase = sanitizedRelatedCase;
+    }
+
+    if (safeUpdates.relatedTask) {
+        const sanitizedRelatedTask = sanitizeObjectId(safeUpdates.relatedTask);
+        if (!sanitizedRelatedTask) {
+            throw CustomException('Invalid relatedTask ID format', 400);
+        }
+        const task = await Task.findById(sanitizedRelatedTask);
+        if (!task) {
+            throw CustomException('Task not found', 404);
+        }
+        // IDOR: Verify the task belongs to the user
+        if (task.userId && task.userId.toString() !== userId) {
+            throw CustomException('You do not have access to this task', 403);
+        }
+        safeUpdates.relatedTask = sanitizedRelatedTask;
+    }
+
+    if (safeUpdates.relatedEvent) {
+        const sanitizedRelatedEvent = sanitizeObjectId(safeUpdates.relatedEvent);
+        if (!sanitizedRelatedEvent) {
+            throw CustomException('Invalid relatedEvent ID format', 400);
+        }
+        const event = await Event.findById(sanitizedRelatedEvent);
+        if (!event) {
+            throw CustomException('Event not found', 404);
+        }
+        // IDOR: Verify the event belongs to the user
+        if (event.userId && event.userId.toString() !== userId) {
+            throw CustomException('You do not have access to this event', 403);
+        }
+        safeUpdates.relatedEvent = sanitizedRelatedEvent;
+    }
+
+    // Sanitize other IDs
+    if (safeUpdates.clientId) {
+        const sanitizedClientId = sanitizeObjectId(safeUpdates.clientId);
+        if (sanitizedClientId) {
+            safeUpdates.clientId = sanitizedClientId;
+        }
+    }
+
+    if (safeUpdates.relatedInvoice) {
+        const sanitizedRelatedInvoice = sanitizeObjectId(safeUpdates.relatedInvoice);
+        if (sanitizedRelatedInvoice) {
+            safeUpdates.relatedInvoice = sanitizedRelatedInvoice;
+        }
+    }
+
+    // Apply safe updates to reminder
+    Object.keys(safeUpdates).forEach(field => {
+        reminder[field] = safeUpdates[field];
     });
 
     // Update legacy fields
-    if (req.body.reminderDateTime) {
-        reminder.reminderDate = new Date(req.body.reminderDateTime);
-        reminder.reminderTime = new Date(req.body.reminderDateTime).toTimeString().substring(0, 5);
+    if (safeUpdates.reminderDateTime) {
+        reminder.reminderDate = new Date(safeUpdates.reminderDateTime);
+        reminder.reminderTime = new Date(safeUpdates.reminderDateTime).toTimeString().substring(0, 5);
     }
 
     await reminder.save();
@@ -331,17 +492,24 @@ const deleteReminder = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const userId = req.userID;
 
-    const reminder = await Reminder.findById(id);
+    // Sanitize and validate ID
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('Invalid reminder ID format', 400);
+    }
+
+    const reminder = await Reminder.findById(sanitizedId);
 
     if (!reminder) {
         throw CustomException('Reminder not found', 404);
     }
 
+    // IDOR protection - users can only delete their own reminders
     if (reminder.userId.toString() !== userId) {
         throw CustomException('You can only delete your own reminders', 403);
     }
 
-    await Reminder.findByIdAndDelete(id);
+    await Reminder.findByIdAndDelete(sanitizedId);
 
     res.status(200).json({
         success: true,
@@ -355,15 +523,25 @@ const deleteReminder = asyncHandler(async (req, res) => {
  */
 const completeReminder = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const { completionNote } = req.body;
     const userId = req.userID;
 
-    const reminder = await Reminder.findById(id);
+    // Sanitize and validate ID
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('Invalid reminder ID format', 400);
+    }
+
+    // Mass assignment protection - only allow completionNote
+    const safeData = pickAllowedFields(req.body, ['completionNote']);
+    const { completionNote } = safeData;
+
+    const reminder = await Reminder.findById(sanitizedId);
 
     if (!reminder) {
         throw CustomException('Reminder not found', 404);
     }
 
+    // IDOR protection - only owner or delegated user can complete
     const hasAccess = reminder.userId.toString() === userId ||
                       reminder.delegatedTo?.toString() === userId;
     if (!hasAccess) {
@@ -438,12 +616,19 @@ const dismissReminder = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const userId = req.userID;
 
-    const reminder = await Reminder.findById(id);
+    // Sanitize and validate ID
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('Invalid reminder ID format', 400);
+    }
+
+    const reminder = await Reminder.findById(sanitizedId);
 
     if (!reminder) {
         throw CustomException('Reminder not found', 404);
     }
 
+    // IDOR protection - only owner or delegated user can dismiss
     const hasAccess = reminder.userId.toString() === userId ||
                       reminder.delegatedTo?.toString() === userId;
     if (!hasAccess) {
@@ -470,15 +655,25 @@ const dismissReminder = asyncHandler(async (req, res) => {
  */
 const snoozeReminder = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const { snoozeMinutes, snoozeUntil, snoozeReason } = req.body;
     const userId = req.userID;
 
-    const reminder = await Reminder.findById(id);
+    // Sanitize and validate ID
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('Invalid reminder ID format', 400);
+    }
+
+    // Mass assignment protection - only allow specific fields
+    const safeData = pickAllowedFields(req.body, ['snoozeMinutes', 'snoozeUntil', 'snoozeReason']);
+    const { snoozeMinutes, snoozeUntil, snoozeReason } = safeData;
+
+    const reminder = await Reminder.findById(sanitizedId);
 
     if (!reminder) {
         throw CustomException('Reminder not found', 404);
     }
 
+    // IDOR protection - only owner or delegated user can snooze
     const hasAccess = reminder.userId.toString() === userId ||
                       reminder.delegatedTo?.toString() === userId;
     if (!hasAccess) {
@@ -491,10 +686,26 @@ const snoozeReminder = asyncHandler(async (req, res) => {
         throw CustomException(`Maximum snooze limit (${maxSnooze}) reached`, 400);
     }
 
+    // Validate snoozeMinutes if provided
+    if (snoozeMinutes !== undefined) {
+        const minutes = parseInt(snoozeMinutes, 10);
+        if (isNaN(minutes) || minutes < 1 || minutes > 10080) { // max 1 week
+            throw CustomException('Invalid snoozeMinutes. Must be between 1 and 10080 (1 week)', 400);
+        }
+    }
+
     // Calculate snooze until time
     let snoozeUntilDate;
     if (snoozeUntil) {
         snoozeUntilDate = new Date(snoozeUntil);
+        // Validate the date
+        if (isNaN(snoozeUntilDate.getTime())) {
+            throw CustomException('Invalid snoozeUntil date format', 400);
+        }
+        // Ensure snooze date is in the future
+        if (snoozeUntilDate <= new Date()) {
+            throw CustomException('snoozeUntil must be a future date', 400);
+        }
     } else if (snoozeMinutes) {
         snoozeUntilDate = new Date(Date.now() + snoozeMinutes * 60000);
     } else {
@@ -529,31 +740,47 @@ const snoozeReminder = asyncHandler(async (req, res) => {
  */
 const delegateReminder = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const { delegateTo, delegationNote } = req.body;
     const userId = req.userID;
+
+    // Sanitize and validate ID
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('Invalid reminder ID format', 400);
+    }
+
+    // Mass assignment protection - only allow specific fields
+    const safeData = pickAllowedFields(req.body, ['delegateTo', 'delegationNote']);
+    const { delegateTo, delegationNote } = safeData;
 
     if (!delegateTo) {
         throw CustomException('Delegate target user ID is required', 400);
     }
 
-    const reminder = await Reminder.findById(id);
+    // Sanitize and validate delegateTo ID
+    const sanitizedDelegateTo = sanitizeObjectId(delegateTo);
+    if (!sanitizedDelegateTo) {
+        throw CustomException('Invalid delegateTo user ID format', 400);
+    }
+
+    const reminder = await Reminder.findById(sanitizedId);
 
     if (!reminder) {
         throw CustomException('Reminder not found', 404);
     }
 
+    // IDOR protection - users can only delegate their own reminders
     if (reminder.userId.toString() !== userId) {
         throw CustomException('You can only delegate your own reminders', 403);
     }
 
     // Verify delegate user exists
-    const delegateUser = await User.findById(delegateTo);
+    const delegateUser = await User.findById(sanitizedDelegateTo);
     if (!delegateUser) {
         throw CustomException('Delegate user not found', 404);
     }
 
     reminder.status = 'delegated';
-    reminder.delegatedTo = delegateTo;
+    reminder.delegatedTo = sanitizedDelegateTo;
     reminder.delegatedAt = new Date();
     reminder.delegationNote = delegationNote;
     reminder.acknowledgedAt = new Date();
@@ -656,23 +883,38 @@ const getReminderStats = asyncHandler(async (req, res) => {
  * DELETE /api/reminders/bulk
  */
 const bulkDeleteReminders = asyncHandler(async (req, res) => {
-    const { reminderIds } = req.body;
     const userId = req.userID;
+
+    // Mass assignment protection - only allow reminderIds
+    const safeData = pickAllowedFields(req.body, ['reminderIds']);
+    const { reminderIds } = safeData;
 
     if (!reminderIds || !Array.isArray(reminderIds) || reminderIds.length === 0) {
         throw CustomException('Reminder IDs are required', 400);
     }
 
+    // Sanitize all IDs
+    const sanitizedIds = reminderIds.map(id => sanitizeObjectId(id)).filter(id => id !== null);
+
+    if (sanitizedIds.length === 0) {
+        throw CustomException('No valid reminder IDs provided', 400);
+    }
+
+    if (sanitizedIds.length !== reminderIds.length) {
+        throw CustomException('Some reminder IDs have invalid format', 400);
+    }
+
+    // IDOR protection - verify all reminders belong to the user
     const reminders = await Reminder.find({
-        _id: { $in: reminderIds },
+        _id: { $in: sanitizedIds },
         userId
     });
 
-    if (reminders.length !== reminderIds.length) {
-        throw CustomException('Some reminders cannot be deleted', 400);
+    if (reminders.length !== sanitizedIds.length) {
+        throw CustomException('Some reminders cannot be deleted (not found or unauthorized)', 403);
     }
 
-    await Reminder.deleteMany({ _id: { $in: reminderIds } });
+    await Reminder.deleteMany({ _id: { $in: sanitizedIds } });
 
     res.status(200).json({
         success: true,
@@ -686,32 +928,59 @@ const bulkDeleteReminders = asyncHandler(async (req, res) => {
  * PUT /api/reminders/bulk
  */
 const bulkUpdateReminders = asyncHandler(async (req, res) => {
-    const { reminderIds, updates } = req.body;
     const userId = req.userID;
+
+    // Mass assignment protection - only allow specific fields
+    const safeData = pickAllowedFields(req.body, ['reminderIds', 'updates']);
+    const { reminderIds, updates } = safeData;
 
     if (!reminderIds || !Array.isArray(reminderIds) || reminderIds.length === 0) {
         throw CustomException('Reminder IDs are required', 400);
     }
 
+    if (!updates || typeof updates !== 'object') {
+        throw CustomException('Updates object is required', 400);
+    }
+
+    // Sanitize all IDs
+    const sanitizedIds = reminderIds.map(id => sanitizeObjectId(id)).filter(id => id !== null);
+
+    if (sanitizedIds.length === 0) {
+        throw CustomException('No valid reminder IDs provided', 400);
+    }
+
+    if (sanitizedIds.length !== reminderIds.length) {
+        throw CustomException('Some reminder IDs have invalid format', 400);
+    }
+
+    // IDOR protection - verify all reminders belong to the user
     const reminders = await Reminder.find({
-        _id: { $in: reminderIds },
+        _id: { $in: sanitizedIds },
         userId
     });
 
-    if (reminders.length !== reminderIds.length) {
+    if (reminders.length !== sanitizedIds.length) {
         throw CustomException('Some reminders are not accessible', 403);
     }
 
+    // Mass assignment protection for updates - only allow specific fields
     const allowedUpdates = ['status', 'priority', 'reminderDateTime'];
-    const updateData = {};
-    allowedUpdates.forEach(field => {
-        if (updates[field] !== undefined) {
-            updateData[field] = updates[field];
+    const updateData = pickAllowedFields(updates, allowedUpdates);
+
+    if (Object.keys(updateData).length === 0) {
+        throw CustomException('No valid update fields provided', 400);
+    }
+
+    // Validate reminderDateTime if present
+    if (updateData.reminderDateTime) {
+        const parsedDate = new Date(updateData.reminderDateTime);
+        if (isNaN(parsedDate.getTime())) {
+            throw CustomException('Invalid reminderDateTime format', 400);
         }
-    });
+    }
 
     await Reminder.updateMany(
-        { _id: { $in: reminderIds } },
+        { _id: { $in: sanitizedIds } },
         { $set: updateData }
     );
 
@@ -727,8 +996,11 @@ const bulkUpdateReminders = asyncHandler(async (req, res) => {
  * POST /api/reminders/parse
  */
 const createReminderFromNaturalLanguage = asyncHandler(async (req, res) => {
-    const { text, timezone = 'Asia/Riyadh' } = req.body;
     const userId = req.userID;
+
+    // Mass assignment protection - only allow specific fields
+    const safeData = pickAllowedFields(req.body, ['text', 'timezone']);
+    const { text, timezone = 'Asia/Riyadh' } = safeData;
 
     if (!text || text.trim().length === 0) {
         throw CustomException('Natural language text is required', 400);
@@ -802,8 +1074,11 @@ const createReminderFromNaturalLanguage = asyncHandler(async (req, res) => {
  * POST /api/reminders/voice
  */
 const createReminderFromVoice = asyncHandler(async (req, res) => {
-    const { transcription, timezone = 'Asia/Riyadh', language = 'en' } = req.body;
     const userId = req.userID;
+
+    // Mass assignment protection - only allow specific fields
+    const safeData = pickAllowedFields(req.body, ['transcription', 'timezone', 'language']);
+    const { transcription, timezone = 'Asia/Riyadh', language = 'en' } = safeData;
 
     if (!transcription || transcription.trim().length === 0) {
         throw CustomException('Voice transcription is required', 400);

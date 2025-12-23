@@ -1,32 +1,80 @@
 const { Tag } = require('../models');
 const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
+const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
+const sanitizeHtml = require('sanitize-html');
+
+/**
+ * Sanitize tag input to prevent XSS
+ */
+const sanitizeTagInput = (input) => {
+    if (!input || typeof input !== 'string') {
+        return input;
+    }
+    // Allow only plain text, no HTML tags
+    return sanitizeHtml(input, {
+        allowedTags: [],
+        allowedAttributes: {}
+    });
+};
+
+/**
+ * Validate tag name
+ */
+const validateTagName = (name) => {
+    if (!name || typeof name !== 'string') {
+        throw CustomException('اسم الوسم مطلوب', 400);
+    }
+
+    const trimmedName = name.trim();
+
+    if (trimmedName.length < 1) {
+        throw CustomException('اسم الوسم يجب أن يحتوي على حرف واحد على الأقل', 400);
+    }
+
+    if (trimmedName.length > 100) {
+        throw CustomException('اسم الوسم يجب ألا يتجاوز 100 حرف', 400);
+    }
+
+    return trimmedName;
+};
 
 /**
  * Create tag
  * POST /api/tags
  */
 const createTag = asyncHandler(async (req, res) => {
-    const { name, nameAr, color, description, entityType } = req.body;
     const lawyerId = req.userID;
 
-    if (!name || !color) {
+    // Mass assignment protection - only allow specific fields
+    const allowedData = pickAllowedFields(req.body, ['name', 'nameAr', 'color', 'description', 'entityType']);
+
+    // Validate required fields
+    if (!allowedData.name || !allowedData.color) {
         throw CustomException('الاسم واللون مطلوبان', 400);
     }
 
+    // Validate and sanitize tag name
+    const validatedName = validateTagName(allowedData.name);
+
+    // Sanitize all text inputs to prevent XSS
+    const sanitizedData = {
+        name: sanitizeTagInput(validatedName),
+        nameAr: allowedData.nameAr ? sanitizeTagInput(allowedData.nameAr.trim()) : undefined,
+        color: allowedData.color,
+        description: allowedData.description ? sanitizeTagInput(allowedData.description) : undefined,
+        entityType: allowedData.entityType || 'all'
+    };
+
     // Check for duplicate name
-    const existing = await Tag.findOne({ lawyerId, name: name.trim() });
+    const existing = await Tag.findOne({ lawyerId, name: sanitizedData.name });
     if (existing) {
         throw CustomException('الوسم موجود بالفعل', 400);
     }
 
     const tag = await Tag.create({
         lawyerId,
-        name: name.trim(),
-        nameAr: nameAr?.trim(),
-        color,
-        description,
-        entityType: entityType || 'all'
+        ...sanitizedData
     });
 
     res.status(201).json({
@@ -87,7 +135,14 @@ const getTag = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const lawyerId = req.userID;
 
-    const tag = await Tag.findOne({ _id: id, lawyerId });
+    // Sanitize ObjectId to prevent NoSQL injection
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('معرف الوسم غير صالح', 400);
+    }
+
+    // IDOR protection - verify ownership by lawyerId
+    const tag = await Tag.findOne({ _id: sanitizedId, lawyerId });
 
     if (!tag) {
         throw CustomException('الوسم غير موجود', 404);
@@ -107,30 +162,58 @@ const updateTag = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const lawyerId = req.userID;
 
-    const tag = await Tag.findOne({ _id: id, lawyerId });
+    // Sanitize ObjectId to prevent NoSQL injection
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('معرف الوسم غير صالح', 400);
+    }
+
+    // IDOR protection - verify ownership by lawyerId
+    const tag = await Tag.findOne({ _id: sanitizedId, lawyerId });
 
     if (!tag) {
         throw CustomException('الوسم غير موجود', 404);
     }
 
-    // Check for duplicate name if name is being changed
-    if (req.body.name && req.body.name !== tag.name) {
-        const existing = await Tag.findOne({
-            lawyerId,
-            name: req.body.name.trim(),
-            _id: { $ne: id }
-        });
-        if (existing) {
-            throw CustomException('الوسم موجود بالفعل', 400);
+    // Mass assignment protection - only allow specific fields
+    const allowedData = pickAllowedFields(req.body, ['name', 'nameAr', 'color', 'description', 'entityType']);
+
+    // Validate and sanitize name if provided
+    if (allowedData.name !== undefined) {
+        const validatedName = validateTagName(allowedData.name);
+        const sanitizedName = sanitizeTagInput(validatedName);
+
+        // Check for duplicate name if name is being changed
+        if (sanitizedName !== tag.name) {
+            const existing = await Tag.findOne({
+                lawyerId,
+                name: sanitizedName,
+                _id: { $ne: sanitizedId }
+            });
+            if (existing) {
+                throw CustomException('الوسم موجود بالفعل', 400);
+            }
         }
+
+        tag.name = sanitizedName;
     }
 
-    const allowedFields = ['name', 'nameAr', 'color', 'description', 'entityType'];
-    allowedFields.forEach(field => {
-        if (req.body[field] !== undefined) {
-            tag[field] = req.body[field];
-        }
-    });
+    // Sanitize other text fields to prevent XSS
+    if (allowedData.nameAr !== undefined) {
+        tag.nameAr = sanitizeTagInput(allowedData.nameAr.trim());
+    }
+
+    if (allowedData.description !== undefined) {
+        tag.description = sanitizeTagInput(allowedData.description);
+    }
+
+    if (allowedData.color !== undefined) {
+        tag.color = allowedData.color;
+    }
+
+    if (allowedData.entityType !== undefined) {
+        tag.entityType = allowedData.entityType;
+    }
 
     await tag.save();
 
@@ -149,7 +232,14 @@ const deleteTag = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const lawyerId = req.userID;
 
-    const tag = await Tag.findOneAndDelete({ _id: id, lawyerId });
+    // Sanitize ObjectId to prevent NoSQL injection
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('معرف الوسم غير صالح', 400);
+    }
+
+    // IDOR protection - verify ownership by lawyerId
+    const tag = await Tag.findOneAndDelete({ _id: sanitizedId, lawyerId });
 
     if (!tag) {
         throw CustomException('الوسم غير موجود', 404);
@@ -204,20 +294,35 @@ const getPopularTags = asyncHandler(async (req, res) => {
  */
 const attachTag = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const { entityType, entityId } = req.body;
     const lawyerId = req.userID;
 
-    if (!entityType || !entityId) {
+    // Sanitize ObjectId to prevent NoSQL injection
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('معرف الوسم غير صالح', 400);
+    }
+
+    // Mass assignment protection - only allow specific fields
+    const allowedData = pickAllowedFields(req.body, ['entityType', 'entityId']);
+
+    if (!allowedData.entityType || !allowedData.entityId) {
         throw CustomException('نوع الكيان ومعرف الكيان مطلوبان', 400);
     }
 
-    const tag = await Tag.findOne({ _id: id, lawyerId });
+    // Sanitize entityId
+    const sanitizedEntityId = sanitizeObjectId(allowedData.entityId);
+    if (!sanitizedEntityId) {
+        throw CustomException('معرف الكيان غير صالح', 400);
+    }
+
+    // IDOR protection - verify ownership by lawyerId
+    const tag = await Tag.findOne({ _id: sanitizedId, lawyerId });
     if (!tag) {
         throw CustomException('الوسم غير موجود', 404);
     }
 
     // Increment usage count
-    await Tag.incrementUsage(id);
+    await Tag.incrementUsage(sanitizedId);
 
     res.status(200).json({
         success: true,
@@ -233,13 +338,20 @@ const detachTag = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const lawyerId = req.userID;
 
-    const tag = await Tag.findOne({ _id: id, lawyerId });
+    // Sanitize ObjectId to prevent NoSQL injection
+    const sanitizedId = sanitizeObjectId(id);
+    if (!sanitizedId) {
+        throw CustomException('معرف الوسم غير صالح', 400);
+    }
+
+    // IDOR protection - verify ownership by lawyerId
+    const tag = await Tag.findOne({ _id: sanitizedId, lawyerId });
     if (!tag) {
         throw CustomException('الوسم غير موجود', 404);
     }
 
     // Decrement usage count
-    await Tag.decrementUsage(id);
+    await Tag.decrementUsage(sanitizedId);
 
     res.status(200).json({
         success: true,
@@ -255,8 +367,15 @@ const getTagsForEntity = asyncHandler(async (req, res) => {
     const { entityType, entityId } = req.params;
     const lawyerId = req.userID;
 
+    // Sanitize entityId to prevent NoSQL injection
+    const sanitizedEntityId = sanitizeObjectId(entityId);
+    if (!sanitizedEntityId) {
+        throw CustomException('معرف الكيان غير صالح', 400);
+    }
+
     // This would need integration with specific entity models
     // For now, return tags that match the entity type
+    // IDOR protection - only return tags for the authenticated lawyer
     const tags = await Tag.find({
         lawyerId,
         $or: [
