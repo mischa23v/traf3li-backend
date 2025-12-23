@@ -3,7 +3,7 @@ const { deliverSync } = require('./webhookTransports');
 const { generateSignature, generateJWSSignature } = require('./webhookSignature');
 const webhookPayloadResolver = require('./webhookPayloadResolver');
 const logger = require('../utils/logger');
-const CustomException = require('../utils/customException');
+const CustomException = require('../utils/CustomException');
 
 /**
  * Circuit Breaker State

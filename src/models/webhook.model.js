@@ -157,6 +157,22 @@ const webhookSchema = new Schema({
         default: {}
     },
 
+    // ============ PAYLOAD CUSTOMIZATION ============
+    // GraphQL-style query to customize payload fields
+    payloadQuery: {
+        type: String,
+        trim: true,
+        maxlength: 5000,
+        default: null
+    },
+
+    // ============ SIGNATURE TYPE ============
+    // Use JWS instead of HMAC-SHA256
+    useJWS: {
+        type: Boolean,
+        default: false
+    },
+
     // ============ RETRY POLICY ============
     retryPolicy: {
         type: RetryPolicySchema,
