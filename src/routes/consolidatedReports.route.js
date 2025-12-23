@@ -90,4 +90,25 @@ router.get('/eliminations', consolidatedReportsController.getEliminationEntries)
  */
 router.post('/eliminations', consolidatedReportsController.createManualElimination);
 
+/**
+ * GET /api/reports/consolidated/auto-eliminations
+ * Get automatically calculated intercompany eliminations
+ * Query params:
+ *   - firmIds: Array of firm IDs (required, minimum 2)
+ *   - asOfDate: As of date for calculations (optional, defaults to today)
+ */
+router.get('/auto-eliminations', consolidatedReportsController.getAutoEliminations);
+
+/**
+ * GET /api/reports/consolidated/full-statement
+ * Get complete consolidated financial statement package
+ * Includes: Balance Sheet, Profit & Loss, Eliminations Schedule
+ * Query params:
+ *   - firmIds: Array of firm IDs (optional, defaults to all user's firms)
+ *   - startDate: Start date (required)
+ *   - endDate: End date (required)
+ *   - currency: Target currency (optional, default: SAR)
+ */
+router.get('/full-statement', consolidatedReportsController.getFullConsolidatedStatement);
+
 module.exports = router;

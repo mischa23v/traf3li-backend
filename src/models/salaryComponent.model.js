@@ -13,6 +13,7 @@
 
 const mongoose = require('mongoose');
 const Counter = require('./counter.model');
+const { calculateFormula, buildSalaryContext, validateFormula } = require('../services/salaryFormulaEngine');
 
 const salaryComponentSchema = new mongoose.Schema({
   // Unique identifier
@@ -309,9 +310,17 @@ salaryComponentSchema.methods.calculateAmount = function(baseSalary, grossSalary
       break;
 
     case 'formula':
-      // Formula evaluation would require a formula parser
-      // For now, return default amount
-      calculatedAmount = this.defaultAmount;
+      if (this.formula) {
+        // Use formula engine with basic context
+        calculatedAmount = calculateFormula(this.formula, {
+          basic: baseSalary,
+          gross: grossSalary,
+          net: netSalary,
+          custom: customBase
+        });
+      } else {
+        calculatedAmount = this.defaultAmount;
+      }
       break;
   }
 
@@ -340,6 +349,99 @@ salaryComponentSchema.methods.calculateAmount = function(baseSalary, grossSalary
   }
 
   return calculatedAmount;
+};
+
+/**
+ * Calculate amount with full context (employee, period, earnings)
+ * Supports all formula variables including service years, attendance, etc.
+ *
+ * @param {Object} employee - Employee data
+ * @param {Object} earnings - Current earnings totals
+ * @param {Object} period - Pay period data
+ * @returns {number} Calculated amount
+ */
+salaryComponentSchema.methods.calculateWithContext = function(employee = {}, earnings = {}, period = {}) {
+  let calculatedAmount = 0;
+
+  switch (this.calculationType) {
+    case 'fixed':
+      calculatedAmount = this.amount || this.defaultAmount;
+      break;
+
+    case 'percentage': {
+      const basic = employee.basicSalary || employee.basic || 0;
+      const gross = earnings.totalEarnings || 0;
+      const net = gross - (earnings.totalDeductions || 0);
+
+      let baseAmount;
+      switch (this.percentageOf) {
+        case 'basic':
+          baseAmount = basic;
+          break;
+        case 'gross':
+          baseAmount = gross;
+          break;
+        case 'net':
+          baseAmount = net;
+          break;
+        case 'custom':
+          baseAmount = employee.customBase || 0;
+          break;
+        default:
+          baseAmount = basic;
+      }
+      calculatedAmount = (baseAmount * this.percentage) / 100;
+      break;
+    }
+
+    case 'formula':
+      if (this.formula) {
+        const context = buildSalaryContext(employee, earnings, period);
+        calculatedAmount = calculateFormula(this.formula, context);
+      } else {
+        calculatedAmount = this.defaultAmount;
+      }
+      break;
+  }
+
+  // Apply min/max constraints
+  if (this.minAmount > 0) {
+    calculatedAmount = Math.max(calculatedAmount, this.minAmount);
+  }
+  if (this.maxAmount !== null && this.maxAmount > 0) {
+    calculatedAmount = Math.min(calculatedAmount, this.maxAmount);
+  }
+
+  // Apply rounding
+  switch (this.roundingType) {
+    case 'round':
+      calculatedAmount = Number(calculatedAmount.toFixed(this.roundingPrecision));
+      break;
+    case 'ceil': {
+      const ceilMultiplier = Math.pow(10, this.roundingPrecision);
+      calculatedAmount = Math.ceil(calculatedAmount * ceilMultiplier) / ceilMultiplier;
+      break;
+    }
+    case 'floor': {
+      const floorMultiplier = Math.pow(10, this.roundingPrecision);
+      calculatedAmount = Math.floor(calculatedAmount * floorMultiplier) / floorMultiplier;
+      break;
+    }
+    // 'none' - no rounding
+  }
+
+  return calculatedAmount;
+};
+
+/**
+ * Validate the formula syntax
+ * @returns {Object} { valid: boolean, error?: string, variables?: string[] }
+ */
+salaryComponentSchema.methods.validateFormulaField = function() {
+  if (this.calculationType !== 'formula' || !this.formula) {
+    return { valid: true };
+  }
+  return validateFormula(this.formula);
 };
 
 salaryComponentSchema.methods.calculateProration = function(amount, workedDays, totalDays) {
