@@ -23,7 +23,7 @@ const {
 } = require('../utils/securityUtils');
 const auditLogService = require('../services/auditLog.service');
 const tokenRevocationService = require('../services/tokenRevocation.service');
-const bcrypt = require('bcryptjs');
+const bcrypt = require('bcrypt');
 const crypto = require('crypto');
 
 /**
