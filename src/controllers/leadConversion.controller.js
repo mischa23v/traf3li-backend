@@ -15,6 +15,7 @@ const SalesPerson = require('../models/salesPerson.model');
 const Territory = require('../models/territory.model');
 const CrmActivity = require('../models/crmActivity.model');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
+const logger = require('../utils/logger');
 
 // ═══════════════════════════════════════════════════════════════
 // CREATE CASE FROM LEAD
@@ -216,7 +217,7 @@ exports.createCaseFromLead = async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('Error creating case from lead:', error);
+        logger.error('Error creating case from lead:', error);
         res.status(500).json({
             success: false,
             message: 'خطأ في إنشاء القضية / Error creating case',
@@ -268,7 +269,7 @@ exports.getLeadCases = async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('Error getting lead cases:', error);
+        logger.error('Error getting lead cases:', error);
         res.status(500).json({
             success: false,
             message: 'خطأ في جلب قضايا العميل / Error fetching lead cases',
@@ -417,7 +418,7 @@ exports.updateCrmStage = async (req, res) => {
             data: caseDoc
         });
     } catch (error) {
-        console.error('Error updating case CRM stage:', error);
+        logger.error('Error updating case CRM stage:', error);
         res.status(500).json({
             success: false,
             message: 'خطأ في تحديث مرحلة القضية / Error updating case stage',
@@ -632,7 +633,7 @@ exports.markCaseAsWon = async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('Error marking case as won:', error);
+        logger.error('Error marking case as won:', error);
         res.status(500).json({
             success: false,
             message: 'خطأ في تسجيل الفوز / Error marking case as won',
@@ -752,7 +753,7 @@ exports.markCaseAsLost = async (req, res) => {
             data: caseDoc
         });
     } catch (error) {
-        console.error('Error marking case as lost:', error);
+        logger.error('Error marking case as lost:', error);
         res.status(500).json({
             success: false,
             message: 'خطأ في تسجيل الخسارة / Error marking case as lost',
@@ -802,7 +803,7 @@ exports.getCaseQuotes = async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('Error getting case quotes:', error);
+        logger.error('Error getting case quotes:', error);
         res.status(500).json({
             success: false,
             message: 'خطأ في جلب عروض القضية / Error fetching case quotes',

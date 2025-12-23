@@ -17,6 +17,7 @@ const cron = require('node-cron');
 const { exec } = require('child_process');
 const { promisify } = require('util');
 const backupConfig = require('../configs/backup.config');
+const logger = require('../utils/logger');
 
 const execAsync = promisify(exec);
 
@@ -32,14 +33,14 @@ class BackupScheduler {
    */
   async executeBackup(type, script = 'backup.js') {
     if (this.isShuttingDown) {
-      console.log('⚠️  Backup skipped - scheduler is shutting down');
+      logger.info('⚠️  Backup skipped - scheduler is shutting down');
       return;
     }
 
     const timestamp = new Date().toISOString();
-    console.log(`\n${'='.repeat(60)}`);
-    console.log(`[${timestamp}] Starting ${type} backup...`);
-    console.log('='.repeat(60));
+    logger.info(`\n${'='.repeat(60)}`);
+    logger.info(`[${timestamp}] Starting ${type} backup...`);
+    logger.info('='.repeat(60));
 
     try {
       const scriptPath = `src/scripts/${script}`;
@@ -51,19 +52,19 @@ class BackupScheduler {
       });
 
       if (stdout) {
-        console.log(stdout);
+        logger.info(stdout);
       }
 
       if (stderr) {
-        console.error(stderr);
+        logger.error(stderr);
       }
 
-      console.log(`✅ ${type} backup completed successfully`);
+      logger.info(`✅ ${type} backup completed successfully`);
       return true;
     } catch (error) {
-      console.error(`❌ ${type} backup failed:`, error.message);
-      if (error.stdout) console.log(error.stdout);
-      if (error.stderr) console.error(error.stderr);
+      logger.error(`❌ ${type} backup failed:`, error.message);
+      if (error.stdout) logger.info(error.stdout);
+      if (error.stderr) logger.error(error.stderr);
       return false;
     }
   }
@@ -75,7 +76,7 @@ class BackupScheduler {
     const schedule = this.config.schedule.daily;
 
     if (!cron.validate(schedule)) {
-      console.error(`❌ Invalid cron schedule for daily backup: ${schedule}`);
+      logger.error(`❌ Invalid cron schedule for daily backup: ${schedule}`);
       return;
     }
 
@@ -84,7 +85,7 @@ class BackupScheduler {
     });
 
     this.jobs.push({ name: 'Daily MongoDB Backup', schedule, job });
-    console.log(`✅ Scheduled: Daily MongoDB Backup (${schedule})`);
+    logger.info(`✅ Scheduled: Daily MongoDB Backup (${schedule})`);
   }
 
   /**
@@ -94,7 +95,7 @@ class BackupScheduler {
     const schedule = this.config.schedule.weekly;
 
     if (!cron.validate(schedule)) {
-      console.error(`❌ Invalid cron schedule for weekly backup: ${schedule}`);
+      logger.error(`❌ Invalid cron schedule for weekly backup: ${schedule}`);
       return;
     }
 
@@ -103,7 +104,7 @@ class BackupScheduler {
     });
 
     this.jobs.push({ name: 'Weekly MongoDB Backup', schedule, job });
-    console.log(`✅ Scheduled: Weekly MongoDB Backup (${schedule})`);
+    logger.info(`✅ Scheduled: Weekly MongoDB Backup (${schedule})`);
   }
 
   /**
@@ -113,7 +114,7 @@ class BackupScheduler {
     const schedule = this.config.schedule.monthly;
 
     if (!cron.validate(schedule)) {
-      console.error(`❌ Invalid cron schedule for monthly backup: ${schedule}`);
+      logger.error(`❌ Invalid cron schedule for monthly backup: ${schedule}`);
       return;
     }
 
@@ -122,7 +123,7 @@ class BackupScheduler {
     });
 
     this.jobs.push({ name: 'Monthly MongoDB Backup', schedule, job });
-    console.log(`✅ Scheduled: Monthly MongoDB Backup (${schedule})`);
+    logger.info(`✅ Scheduled: Monthly MongoDB Backup (${schedule})`);
   }
 
   /**
@@ -132,7 +133,7 @@ class BackupScheduler {
     const schedule = this.config.schedule.redis;
 
     if (!cron.validate(schedule)) {
-      console.error(`❌ Invalid cron schedule for Redis backup: ${schedule}`);
+      logger.error(`❌ Invalid cron schedule for Redis backup: ${schedule}`);
       return;
     }
 
@@ -141,7 +142,7 @@ class BackupScheduler {
     });
 
     this.jobs.push({ name: 'Redis Backup', schedule, job });
-    console.log(`✅ Scheduled: Redis Backup (${schedule})`);
+    logger.info(`✅ Scheduled: Redis Backup (${schedule})`);
   }
 
   /**
@@ -149,7 +150,7 @@ class BackupScheduler {
    */
   schedulePITRSnapshots() {
     if (!this.config.backup.enablePITR) {
-      console.log('ℹ️  PITR snapshots disabled');
+      logger.info('ℹ️  PITR snapshots disabled');
       return;
     }
 
@@ -157,7 +158,7 @@ class BackupScheduler {
     const schedule = `*/${interval} * * * *`; // Every N minutes
 
     if (!cron.validate(schedule)) {
-      console.error(`❌ Invalid PITR interval: ${interval} minutes`);
+      logger.error(`❌ Invalid PITR interval: ${interval} minutes`);
       return;
     }
 
@@ -166,46 +167,46 @@ class BackupScheduler {
     });
 
     this.jobs.push({ name: 'PITR Snapshot', schedule, job });
-    console.log(`✅ Scheduled: PITR Snapshots (every ${interval} minutes)`);
+    logger.info(`✅ Scheduled: PITR Snapshots (every ${interval} minutes)`);
   }
 
   /**
    * Display backup schedule summary
    */
   displaySchedule() {
-    console.log('\n' + '='.repeat(60));
-    console.log('  BACKUP SCHEDULE');
-    console.log('='.repeat(60));
-    console.log(`Environment: ${this.config.environment}`);
-    console.log(`S3 Bucket: ${this.config.s3.bucket}`);
-    console.log('');
+    logger.info('\n' + '='.repeat(60));
+    logger.info('  BACKUP SCHEDULE');
+    logger.info('='.repeat(60));
+    logger.info(`Environment: ${this.config.environment}`);
+    logger.info(`S3 Bucket: ${this.config.s3.bucket}`);
+    logger.info('');
 
     if (this.jobs.length === 0) {
-      console.log('❌ No backup jobs scheduled');
+      logger.info('❌ No backup jobs scheduled');
       return;
     }
 
-    console.log('Scheduled Jobs:');
+    logger.info('Scheduled Jobs:');
     this.jobs.forEach((job, index) => {
-      console.log(`  ${index + 1}. ${job.name}`);
-      console.log(`     Schedule: ${job.schedule}`);
-      console.log(`     Next Run: ${this.getNextRun(job.schedule)}`);
-      console.log('');
+      logger.info(`  ${index + 1}. ${job.name}`);
+      logger.info(`     Schedule: ${job.schedule}`);
+      logger.info(`     Next Run: ${this.getNextRun(job.schedule)}`);
+      logger.info('');
     });
 
-    console.log('Retention Policies:');
-    console.log(`  Daily Backups: ${this.config.retention.dailyBackups} days`);
-    console.log(`  Weekly Backups: ${this.config.retention.weeklyBackups} weeks`);
-    console.log(`  Monthly Backups: ${this.config.retention.monthlyBackups} months`);
-    console.log('');
+    logger.info('Retention Policies:');
+    logger.info(`  Daily Backups: ${this.config.retention.dailyBackups} days`);
+    logger.info(`  Weekly Backups: ${this.config.retention.weeklyBackups} weeks`);
+    logger.info(`  Monthly Backups: ${this.config.retention.monthlyBackups} months`);
+    logger.info('');
 
-    console.log('Notifications:');
-    console.log(`  Enabled: ${this.config.notifications.enabled ? 'Yes' : 'No'}`);
+    logger.info('Notifications:');
+    logger.info(`  Enabled: ${this.config.notifications.enabled ? 'Yes' : 'No'}`);
     if (this.config.notifications.enabled) {
-      console.log(`  Email: ${this.config.notifications.email}`);
-      console.log(`  Notify on Success: ${this.config.notifications.notifyOnSuccess ? 'Yes' : 'No'}`);
+      logger.info(`  Email: ${this.config.notifications.email}`);
+      logger.info(`  Notify on Success: ${this.config.notifications.notifyOnSuccess ? 'Yes' : 'No'}`);
     }
-    console.log('='.repeat(60) + '\n');
+    logger.info('='.repeat(60) + '\n');
   }
 
   /**
@@ -246,7 +247,7 @@ class BackupScheduler {
    * Health check - verify backup system is operational
    */
   async healthCheck() {
-    console.log('\n🏥 Running backup system health check...\n');
+    logger.info('\n🏥 Running backup system health check...\n');
 
     const checks = [];
 
@@ -302,11 +303,11 @@ class BackupScheduler {
 
     // Display results
     checks.forEach(check => {
-      console.log(`${check.status} ${check.name}: ${check.message}`);
+      logger.info(`${check.status} ${check.name}: ${check.message}`);
     });
 
     const allHealthy = checks.every(check => check.status === '✅');
-    console.log('\n' + (allHealthy ? '✅ All systems operational' : '⚠️  Some issues detected') + '\n');
+    logger.info('\n' + (allHealthy ? '✅ All systems operational' : '⚠️  Some issues detected') + '\n');
 
     return allHealthy;
   }
@@ -320,22 +321,22 @@ class BackupScheduler {
     }
 
     this.isShuttingDown = true;
-    console.log('\n🛑 Shutting down backup scheduler...');
+    logger.info('\n🛑 Shutting down backup scheduler...');
 
     // Stop all cron jobs
     this.jobs.forEach(job => {
       job.job.stop();
-      console.log(`   Stopped: ${job.name}`);
+      logger.info(`   Stopped: ${job.name}`);
     });
 
-    console.log('✅ Backup scheduler stopped gracefully\n');
+    logger.info('✅ Backup scheduler stopped gracefully\n');
   }
 
   /**
    * Start all backup schedules
    */
   start() {
-    console.log('\n🚀 Starting backup scheduler...\n');
+    logger.info('\n🚀 Starting backup scheduler...\n');
 
     // Schedule all backup jobs
     this.scheduleDailyBackup();
@@ -354,15 +355,15 @@ class BackupScheduler {
     process.on('SIGTERM', () => this.shutdown());
     process.on('SIGINT', () => this.shutdown());
 
-    console.log('✅ Backup scheduler is running...');
-    console.log('   Press Ctrl+C to stop\n');
+    logger.info('✅ Backup scheduler is running...');
+    logger.info('   Press Ctrl+C to stop\n');
   }
 
   /**
    * Run a backup immediately (for testing)
    */
   async runNow(type = 'daily') {
-    console.log(`\n🔄 Running ${type} backup immediately...\n`);
+    logger.info(`\n🔄 Running ${type} backup immediately...\n`);
 
     const script = type === 'redis' ? 'backupRedis.js' : 'backup.js';
     await this.executeBackup(type, script);

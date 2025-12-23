@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const logger = require('../utils/logger');
 
 // Tracking value schema for field changes (Odoo-style)
 const trackingValueSchema = new mongoose.Schema({
@@ -350,7 +351,7 @@ threadMessageSchema.statics.postMessage = async function(data) {
         const chatterNotificationService = require('../services/chatterNotification.service');
         await chatterNotificationService.notifyFollowers(message);
     } catch (error) {
-        console.error('Failed to send chatter notifications:', error.message);
+        logger.error('Failed to send chatter notifications:', error.message);
         // Don't throw - notification failures shouldn't block message creation
     }
 
@@ -445,7 +446,7 @@ threadMessageSchema.statics.logFieldChanges = async function(res_model, res_id, 
         const chatterNotificationService = require('../services/chatterNotification.service');
         await chatterNotificationService.notifyFollowers(message);
     } catch (error) {
-        console.error('Failed to send chatter notifications for field changes:', error.message);
+        logger.error('Failed to send chatter notifications for field changes:', error.message);
         // Don't throw - notification failures shouldn't block message creation
     }
 

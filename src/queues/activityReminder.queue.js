@@ -9,6 +9,7 @@
  */
 
 const { createQueue } = require('../configs/queue');
+const logger = require('../utils/logger');
 
 // Create activity reminder queue
 const activityReminderQueue = createQueue('activity-reminders', {
@@ -35,7 +36,7 @@ const activityReminderQueue = createQueue('activity-reminders', {
 activityReminderQueue.process(async (job) => {
   const { type, data } = job.data;
 
-  console.log(`🔔 Processing activity reminder job ${job.id} of type: ${type}`);
+  logger.info(`🔔 Processing activity reminder job ${job.id} of type: ${type}`);
 
   try {
     switch (type) {
@@ -52,7 +53,7 @@ activityReminderQueue.process(async (job) => {
         throw new Error(`Unknown activity reminder type: ${type}`);
     }
   } catch (error) {
-    console.error(`❌ Activity reminder job ${job.id} failed:`, error.message);
+    logger.error(`❌ Activity reminder job ${job.id} failed:`, error.message);
     throw error;
   }
 });
@@ -83,7 +84,7 @@ async function processReminder(data, job) {
     .lean();
 
   if (!activity) {
-    console.warn(`Activity ${activityId} not found - may have been deleted`);
+    logger.warn(`Activity ${activityId} not found - may have been deleted`);
     return {
       success: false,
       error: 'Activity not found'
@@ -92,7 +93,7 @@ async function processReminder(data, job) {
 
   // Skip if activity is no longer scheduled
   if (activity.state !== 'scheduled') {
-    console.log(`Activity ${activityId} is no longer scheduled - skipping reminder`);
+    logger.info(`Activity ${activityId} is no longer scheduled - skipping reminder`);
     return {
       success: true,
       skipped: true,
@@ -141,7 +142,7 @@ async function processReminder(data, job) {
       }
     });
   } catch (error) {
-    console.error('Failed to send in-app notification:', error.message);
+    logger.error('Failed to send in-app notification:', error.message);
   }
 
   await job.progress(80);
@@ -172,12 +173,12 @@ async function processReminder(data, job) {
       }
     });
   } catch (error) {
-    console.error('Failed to send email notification:', error.message);
+    logger.error('Failed to send email notification:', error.message);
   }
 
   await job.progress(100);
 
-  console.log(`✅ Activity reminder sent for activity ${activityId} to user ${userId}`);
+  logger.info(`✅ Activity reminder sent for activity ${activityId} to user ${userId}`);
   return {
     success: true,
     activityId,
@@ -206,7 +207,7 @@ async function processOverdueCheck(data, job) {
   const overdueActivities = await Activity.getOverdueActivities(firmId);
 
   if (overdueActivities.length === 0) {
-    console.log(`No overdue activities found for firm ${firmId}`);
+    logger.info(`No overdue activities found for firm ${firmId}`);
     return {
       success: true,
       overdueCount: 0,
@@ -216,7 +217,7 @@ async function processOverdueCheck(data, job) {
 
   await job.progress(40);
 
-  console.log(`Found ${overdueActivities.length} overdue activities for firm ${firmId}`);
+  logger.info(`Found ${overdueActivities.length} overdue activities for firm ${firmId}`);
 
   // Group activities by user
   const activitiesByUser = {};
@@ -266,7 +267,7 @@ async function processOverdueCheck(data, job) {
 
       notificationsSent++;
     } catch (error) {
-      console.error(`Failed to notify user ${userId} about overdue activities:`, error.message);
+      logger.error(`Failed to notify user ${userId} about overdue activities:`, error.message);
     }
 
     // Update progress
@@ -275,7 +276,7 @@ async function processOverdueCheck(data, job) {
 
   await job.progress(100);
 
-  console.log(`✅ Overdue check completed for firm ${firmId}: ${overdueActivities.length} overdue, ${notificationsSent} notifications sent`);
+  logger.info(`✅ Overdue check completed for firm ${firmId}: ${overdueActivities.length} overdue, ${notificationsSent} notifications sent`);
   return {
     success: true,
     firmId,
@@ -305,7 +306,7 @@ async function processDailyDigest(data, job) {
   const user = await User.findById(userId).lean();
 
   if (!user) {
-    console.warn(`User ${userId} not found for daily digest`);
+    logger.warn(`User ${userId} not found for daily digest`);
     return {
       success: false,
       error: 'User not found'
@@ -352,7 +353,7 @@ async function processDailyDigest(data, job) {
 
   // Skip if no activities to report
   if (todayActivities.length === 0 && overdueActivities.length === 0 && upcomingActivities.length === 0) {
-    console.log(`No activities to report in daily digest for user ${userId}`);
+    logger.info(`No activities to report in daily digest for user ${userId}`);
     return {
       success: true,
       skipped: true,
@@ -385,7 +386,7 @@ async function processDailyDigest(data, job) {
 
     await job.progress(100);
 
-    console.log(`✅ Daily digest sent to user ${userId}`);
+    logger.info(`✅ Daily digest sent to user ${userId}`);
     return {
       success: true,
       userId,
@@ -394,7 +395,7 @@ async function processDailyDigest(data, job) {
       upcomingCount: upcomingActivities.length
     };
   } catch (error) {
-    console.error(`Failed to send daily digest to user ${userId}:`, error.message);
+    logger.error(`Failed to send daily digest to user ${userId}:`, error.message);
     throw error;
   }
 }
@@ -413,7 +414,7 @@ async function scheduleReminder(activityId, reminderTime, userId, firmId) {
   const delay = new Date(reminderTime) - new Date();
 
   if (delay <= 0) {
-    console.warn(`Reminder time for activity ${activityId} is in the past - skipping`);
+    logger.warn(`Reminder time for activity ${activityId} is in the past - skipping`);
     return { scheduled: false, reason: 'Time in past' };
   }
 
@@ -434,14 +435,14 @@ async function scheduleReminder(activityId, reminderTime, userId, firmId) {
       }
     );
 
-    console.log(`📅 Reminder scheduled for activity ${activityId} at ${reminderTime}`);
+    logger.info(`📅 Reminder scheduled for activity ${activityId} at ${reminderTime}`);
     return {
       scheduled: true,
       jobId: job.id,
       reminderTime
     };
   } catch (error) {
-    console.error(`Failed to schedule reminder for activity ${activityId}:`, error.message);
+    logger.error(`Failed to schedule reminder for activity ${activityId}:`, error.message);
     throw error;
   }
 }
@@ -458,13 +459,13 @@ async function cancelReminder(activityId) {
 
     if (job) {
       await job.remove();
-      console.log(`❌ Reminder cancelled for activity ${activityId}`);
+      logger.info(`❌ Reminder cancelled for activity ${activityId}`);
       return true;
     }
 
     return false;
   } catch (error) {
-    console.error(`Failed to cancel reminder for activity ${activityId}:`, error.message);
+    logger.error(`Failed to cancel reminder for activity ${activityId}:`, error.message);
     return false;
   }
 }
@@ -492,7 +493,7 @@ async function setupRecurringJobs(firmId) {
       }
     );
 
-    console.log(`⏰ Hourly overdue check scheduled for firm ${firmId}`);
+    logger.info(`⏰ Hourly overdue check scheduled for firm ${firmId}`);
 
     // Note: Daily digest should be scheduled per user, not per firm
     // This is typically handled when users opt-in for daily digests
@@ -503,7 +504,7 @@ async function setupRecurringJobs(firmId) {
       recurringJobs: ['overdue-check']
     };
   } catch (error) {
-    console.error(`Failed to setup recurring jobs for firm ${firmId}:`, error.message);
+    logger.error(`Failed to setup recurring jobs for firm ${firmId}:`, error.message);
     throw error;
   }
 }
@@ -534,14 +535,14 @@ async function scheduleDailyDigest(userId, firmId, timeString = '08:00') {
       }
     );
 
-    console.log(`📧 Daily digest scheduled for user ${userId} at ${timeString}`);
+    logger.info(`📧 Daily digest scheduled for user ${userId} at ${timeString}`);
     return {
       success: true,
       userId,
       time: timeString
     };
   } catch (error) {
-    console.error(`Failed to schedule daily digest for user ${userId}:`, error.message);
+    logger.error(`Failed to schedule daily digest for user ${userId}:`, error.message);
     throw error;
   }
 }
@@ -558,13 +559,13 @@ async function cancelDailyDigest(userId) {
 
     if (digestJob) {
       await activityReminderQueue.removeRepeatableByKey(digestJob.key);
-      console.log(`❌ Daily digest cancelled for user ${userId}`);
+      logger.info(`❌ Daily digest cancelled for user ${userId}`);
       return true;
     }
 
     return false;
   } catch (error) {
-    console.error(`Failed to cancel daily digest for user ${userId}:`, error.message);
+    logger.error(`Failed to cancel daily digest for user ${userId}:`, error.message);
     return false;
   }
 }

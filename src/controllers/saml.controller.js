@@ -5,6 +5,7 @@ const jwt = require('jsonwebtoken');
 const auditLogService = require('../services/auditLog.service');
 const { getCookieConfig } = require('./auth.controller');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
+const logger = require('../utils/logger');
 
 const { JWT_SECRET } = process.env;
 
@@ -122,7 +123,7 @@ const getSPMetadata = async (request, response) => {
         response.header('Content-Type', 'application/xml');
         return response.status(200).send(metadata);
     } catch (error) {
-        console.error('Get SP metadata error:', error);
+        logger.error('Get SP metadata error:', error);
         return response.status(error.status || 500).send({
             error: true,
             message: error.message || 'Failed to generate SP metadata'
@@ -168,7 +169,7 @@ const initiateLogin = async (request, response) => {
             }
         });
     } catch (error) {
-        console.error('Initiate SSO login error:', error);
+        logger.error('Initiate SSO login error:', error);
         return response.status(error.status || 500).send({
             error: true,
             message: error.message || 'Failed to initiate SSO login'
@@ -210,7 +211,7 @@ const assertionConsumerService = async (request, response) => {
         // Validate SAML response
         strategy.authenticate(request, async (error, user, info) => {
             if (error) {
-                console.error('SAML authentication error:', error);
+                logger.error('SAML authentication error:', error);
 
                 await auditLogService.log(
                     'sso_login_failed',
@@ -232,7 +233,7 @@ const assertionConsumerService = async (request, response) => {
             }
 
             if (!user) {
-                console.error('SAML authentication failed: No user returned');
+                logger.error('SAML authentication failed: No user returned');
 
                 const frontendUrl = process.env.DASHBOARD_URL || 'https://dashboard.traf3li.com';
                 return response.redirect(`${frontendUrl}/login?error=sso_failed&message=Authentication failed`);
@@ -283,7 +284,7 @@ const assertionConsumerService = async (request, response) => {
                 return response.redirect(`${frontendUrl}${relayState}?sso=success`);
 
             } catch (postAuthError) {
-                console.error('Post-authentication error:', postAuthError);
+                logger.error('Post-authentication error:', postAuthError);
 
                 const frontendUrl = process.env.DASHBOARD_URL || 'https://dashboard.traf3li.com';
                 return response.redirect(`${frontendUrl}/login?error=sso_failed&message=Post-authentication error`);
@@ -291,7 +292,7 @@ const assertionConsumerService = async (request, response) => {
         });
 
     } catch (error) {
-        console.error('ACS error:', error);
+        logger.error('ACS error:', error);
         const frontendUrl = process.env.DASHBOARD_URL || 'https://dashboard.traf3li.com';
         return response.redirect(`${frontendUrl}/login?error=sso_failed&message=${encodeURIComponent(error.message)}`);
     }
@@ -327,7 +328,7 @@ const initiateSingleLogout = async (request, response) => {
                 const verification = jwt.verify(accessToken, JWT_SECRET);
                 user = await User.findById(verification._id);
             } catch (error) {
-                console.error('Token verification error:', error);
+                logger.error('Token verification error:', error);
             }
         }
 
@@ -335,7 +336,7 @@ const initiateSingleLogout = async (request, response) => {
         if (user) {
             strategy.logout(request, (error, requestUrl) => {
                 if (error) {
-                    console.error('Logout error:', error);
+                    logger.error('Logout error:', error);
                     return response.status(500).send({
                         error: true,
                         message: 'Failed to initiate logout'
@@ -359,7 +360,7 @@ const initiateSingleLogout = async (request, response) => {
         }
 
     } catch (error) {
-        console.error('Initiate logout error:', error);
+        logger.error('Initiate logout error:', error);
         return response.status(error.status || 500).send({
             error: true,
             message: error.message || 'Failed to initiate logout'
@@ -385,7 +386,7 @@ const singleLogoutService = async (request, response) => {
         // Process logout response
         strategy.logout(request, (error) => {
             if (error) {
-                console.error('SLS error:', error);
+                logger.error('SLS error:', error);
                 return response.status(500).send({
                     error: true,
                     message: 'Logout failed'
@@ -402,7 +403,7 @@ const singleLogoutService = async (request, response) => {
         });
 
     } catch (error) {
-        console.error('SLS error:', error);
+        logger.error('SLS error:', error);
         const frontendUrl = process.env.DASHBOARD_URL || 'https://dashboard.traf3li.com';
         return response.redirect(`${frontendUrl}/login?error=logout_failed`);
     }
@@ -460,7 +461,7 @@ const getSAMLConfig = async (request, response) => {
         });
 
     } catch (error) {
-        console.error('Get SAML config error:', error);
+        logger.error('Get SAML config error:', error);
         return response.status(error.status || 500).send({
             error: true,
             message: error.message || 'Failed to get SAML configuration'
@@ -564,7 +565,7 @@ const updateSAMLConfig = async (request, response) => {
         });
 
     } catch (error) {
-        console.error('Update SAML config error:', error);
+        logger.error('Update SAML config error:', error);
         return response.status(error.status || 500).send({
             error: true,
             message: error.message || 'Failed to update SAML configuration'
@@ -632,7 +633,7 @@ const testSAMLConfig = async (request, response) => {
         }
 
     } catch (error) {
-        console.error('Test SAML config error:', error);
+        logger.error('Test SAML config error:', error);
         return response.status(error.status || 500).send({
             error: true,
             message: error.message || 'Failed to test SAML configuration'
@@ -691,7 +692,7 @@ async function buildUserData(user) {
                 };
             }
         } catch (firmError) {
-            console.log('Error fetching firm:', firmError.message);
+            logger.info('Error fetching firm:', firmError.message);
         }
     }
 

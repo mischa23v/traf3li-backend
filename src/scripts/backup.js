@@ -21,6 +21,7 @@ const fs = require('fs').promises;
 const path = require('path');
 const { S3Client, PutObjectCommand, ListObjectsV2Command, DeleteObjectCommand } = require('@aws-sdk/client-s3');
 const { Resend } = require('resend');
+const logger = require('../utils/logger');
 const backupConfig = require('../configs/backup.config');
 
 const execAsync = promisify(exec);
@@ -34,7 +35,7 @@ class BackupManager {
     const storageConfig = this.config.storage;
 
     if (this.storageType === 'none') {
-      console.warn('⚠️  No cloud storage configured (R2 or S3). Backups will only be stored locally.');
+      logger.warn('⚠️  No cloud storage configured (R2 or S3). Backups will only be stored locally.');
       this.storageClient = null;
     } else {
       const clientConfig = {
@@ -51,7 +52,7 @@ class BackupManager {
       }
 
       this.storageClient = new S3Client(clientConfig);
-      console.log(`📦 Using ${this.storageType.toUpperCase()} for backup storage`);
+      logger.info(`📦 Using ${this.storageType.toUpperCase()} for backup storage`);
     }
 
     this.resend = this.config.notifications.resendApiKey
@@ -89,7 +90,7 @@ class BackupManager {
    * Create local backup using mongodump
    */
   async createBackup(filename, type = 'daily') {
-    console.log(`\n📦 Starting ${type} MongoDB backup...`);
+    logger.info(`\n📦 Starting ${type} MongoDB backup...`);
 
     // Ensure temp directory exists
     await fs.mkdir(this.config.backup.tempDir, { recursive: true });
@@ -97,7 +98,7 @@ class BackupManager {
     const backupPath = path.join(this.config.backup.tempDir, filename);
 
     if (this.dryRun) {
-      console.log(`[DRY RUN] Would create backup at: ${backupPath}`);
+      logger.info(`[DRY RUN] Would create backup at: ${backupPath}`);
       return backupPath;
     }
 
@@ -119,16 +120,16 @@ class BackupManager {
       // Add oplog for point-in-time recovery (only for replica sets)
       if (this.config.backup.enablePITR && type === 'daily') {
         dumpCommand += ' --oplog';
-        console.log('✅ Point-in-time recovery enabled (oplog included)');
+        logger.info('✅ Point-in-time recovery enabled (oplog included)');
       }
 
-      console.log('⏳ Running mongodump...');
+      logger.info('⏳ Running mongodump...');
       const startTime = Date.now();
 
       const { stdout, stderr } = await execAsync(dumpCommand);
 
       if (stderr && !stderr.includes('writing')) {
-        console.warn('⚠️  Warning during backup:', stderr);
+        logger.warn('⚠️  Warning during backup:', stderr);
       }
 
       const duration = ((Date.now() - startTime) / 1000).toFixed(2);
@@ -137,10 +138,10 @@ class BackupManager {
       const stats = await fs.stat(backupPath);
       const sizeMB = (stats.size / (1024 * 1024)).toFixed(2);
 
-      console.log(`✅ Backup created successfully`);
-      console.log(`   Size: ${sizeMB} MB`);
-      console.log(`   Duration: ${duration}s`);
-      console.log(`   Path: ${backupPath}`);
+      logger.info(`✅ Backup created successfully`);
+      logger.info(`   Size: ${sizeMB} MB`);
+      logger.info(`   Duration: ${duration}s`);
+      logger.info(`   Path: ${backupPath}`);
 
       // Check if file size exceeds maximum
       if (stats.size > this.config.backup.maxFileSize) {
@@ -149,7 +150,7 @@ class BackupManager {
 
       return backupPath;
     } catch (error) {
-      console.error('❌ Backup creation failed:', error.message);
+      logger.error('❌ Backup creation failed:', error.message);
       throw error;
     }
   }
@@ -159,15 +160,15 @@ class BackupManager {
    */
   async uploadToStorage(localPath, filename, type = 'daily') {
     const storageLabel = this.storageType.toUpperCase();
-    console.log(`\n☁️  Uploading backup to ${storageLabel}...`);
+    logger.info(`\n☁️  Uploading backup to ${storageLabel}...`);
 
     if (!this.storageClient) {
-      console.warn('⚠️  No cloud storage configured, skipping upload');
+      logger.warn('⚠️  No cloud storage configured, skipping upload');
       return null;
     }
 
     if (this.dryRun) {
-      console.log(`[DRY RUN] Would upload ${filename} to ${storageLabel}`);
+      logger.info(`[DRY RUN] Would upload ${filename} to ${storageLabel}`);
       return;
     }
 
@@ -200,12 +201,12 @@ class BackupManager {
       await this.storageClient.send(command);
 
       const urlPrefix = this.storageType === 'r2' ? 'r2://' : 's3://';
-      console.log('✅ Upload successful');
-      console.log(`   Key: ${urlPrefix}${bucket}/${storageKey}`);
+      logger.info('✅ Upload successful');
+      logger.info(`   Key: ${urlPrefix}${bucket}/${storageKey}`);
 
       return storageKey;
     } catch (error) {
-      console.error(`❌ ${storageLabel} upload failed:`, error.message);
+      logger.error(`❌ ${storageLabel} upload failed:`, error.message);
       throw error;
     }
   }
@@ -228,15 +229,15 @@ class BackupManager {
    */
   async cleanupLocal(localPath) {
     if (this.dryRun) {
-      console.log(`[DRY RUN] Would delete local file: ${localPath}`);
+      logger.info(`[DRY RUN] Would delete local file: ${localPath}`);
       return;
     }
 
     try {
       await fs.unlink(localPath);
-      console.log('✅ Local backup file cleaned up');
+      logger.info('✅ Local backup file cleaned up');
     } catch (error) {
-      console.warn('⚠️  Failed to clean up local file:', error.message);
+      logger.warn('⚠️  Failed to clean up local file:', error.message);
     }
   }
 
@@ -244,10 +245,10 @@ class BackupManager {
    * List all backups in cloud storage
    */
   async listBackups(type = null) {
-    console.log('\n📋 Listing backups...\n');
+    logger.info('\n📋 Listing backups...\n');
 
     if (!this.storageClient) {
-      console.warn('⚠️  No cloud storage configured');
+      logger.warn('⚠️  No cloud storage configured');
       return [];
     }
 
@@ -264,7 +265,7 @@ class BackupManager {
       const response = await this.storageClient.send(command);
 
       if (!response.Contents || response.Contents.length === 0) {
-        console.log('No backups found.');
+        logger.info('No backups found.');
         return [];
       }
 
@@ -279,18 +280,18 @@ class BackupManager {
         }));
 
       // Display backups
-      console.log(`Found ${backups.length} backup(s):\n`);
+      logger.info(`Found ${backups.length} backup(s):\n`);
       backups.forEach((backup, index) => {
-        console.log(`${index + 1}. ${backup.key}`);
-        console.log(`   Size: ${backup.size}`);
-        console.log(`   Date: ${backup.lastModified}`);
-        console.log(`   Age: ${backup.age}`);
-        console.log('');
+        logger.info(`${index + 1}. ${backup.key}`);
+        logger.info(`   Size: ${backup.size}`);
+        logger.info(`   Date: ${backup.lastModified}`);
+        logger.info(`   Age: ${backup.age}`);
+        logger.info('');
       });
 
       return backups;
     } catch (error) {
-      console.error('❌ Failed to list backups:', error.message);
+      logger.error('❌ Failed to list backups:', error.message);
       throw error;
     }
   }
@@ -318,15 +319,15 @@ class BackupManager {
    * Enforce retention policy - delete old backups
    */
   async enforceRetentionPolicy(type = 'daily') {
-    console.log(`\n🗑️  Enforcing retention policy for ${type} backups...`);
+    logger.info(`\n🗑️  Enforcing retention policy for ${type} backups...`);
 
     if (!this.storageClient) {
-      console.warn('⚠️  No cloud storage configured, skipping retention policy');
+      logger.warn('⚠️  No cloud storage configured, skipping retention policy');
       return;
     }
 
     if (this.dryRun) {
-      console.log(`[DRY RUN] Would enforce retention policy`);
+      logger.info(`[DRY RUN] Would enforce retention policy`);
       return;
     }
 
@@ -341,7 +342,7 @@ class BackupManager {
       const response = await this.storageClient.send(command);
 
       if (!response.Contents || response.Contents.length === 0) {
-        console.log('No backups to clean up.');
+        logger.info('No backups to clean up.');
         return;
       }
 
@@ -377,18 +378,18 @@ class BackupManager {
           });
 
           await this.storageClient.send(deleteCommand);
-          console.log(`   Deleted: ${backup.Key}`);
+          logger.info(`   Deleted: ${backup.Key}`);
           deletedCount++;
         }
       }
 
       if (deletedCount > 0) {
-        console.log(`✅ Deleted ${deletedCount} old backup(s)`);
+        logger.info(`✅ Deleted ${deletedCount} old backup(s)`);
       } else {
-        console.log('✅ No backups to delete');
+        logger.info('✅ No backups to delete');
       }
     } catch (error) {
-      console.error('❌ Failed to enforce retention policy:', error.message);
+      logger.error('❌ Failed to enforce retention policy:', error.message);
       throw error;
     }
   }
@@ -406,7 +407,7 @@ class BackupManager {
     }
 
     if (this.dryRun) {
-      console.log(`[DRY RUN] Would send email notification`);
+      logger.info(`[DRY RUN] Would send email notification`);
       return;
     }
 
@@ -426,9 +427,9 @@ class BackupManager {
         html: htmlContent,
       });
 
-      console.log('✅ Notification email sent');
+      logger.info('✅ Notification email sent');
     } catch (error) {
-      console.warn('⚠️  Failed to send notification:', error.message);
+      logger.warn('⚠️  Failed to send notification:', error.message);
     }
   }
 
@@ -520,12 +521,12 @@ class BackupManager {
     let details = { type };
 
     try {
-      console.log('='.repeat(60));
-      console.log(`  MONGODB BACKUP - ${type.toUpperCase()}`);
-      console.log('='.repeat(60));
+      logger.info('='.repeat(60));
+      logger.info(`  MONGODB BACKUP - ${type.toUpperCase()}`);
+      logger.info('='.repeat(60));
 
       if (this.dryRun) {
-        console.log('\n⚠️  DRY RUN MODE - No changes will be made\n');
+        logger.info('\n⚠️  DRY RUN MODE - No changes will be made\n');
       }
 
       // Step 1: Create backup
@@ -552,10 +553,10 @@ class BackupManager {
       const duration = ((Date.now() - startTime) / 1000).toFixed(2);
       details.duration = duration + 's';
 
-      console.log('\n' + '='.repeat(60));
-      console.log('✅ BACKUP COMPLETED SUCCESSFULLY');
-      console.log(`   Total Duration: ${duration}s`);
-      console.log('='.repeat(60) + '\n');
+      logger.info('\n' + '='.repeat(60));
+      logger.info('✅ BACKUP COMPLETED SUCCESSFULLY');
+      logger.info(`   Total Duration: ${duration}s`);
+      logger.info('='.repeat(60) + '\n');
 
       // Send success notification
       await this.sendNotification(true, details);
@@ -564,10 +565,10 @@ class BackupManager {
     } catch (error) {
       details.error = error.message;
 
-      console.error('\n' + '='.repeat(60));
-      console.error('❌ BACKUP FAILED');
-      console.error('='.repeat(60));
-      console.error(error);
+      logger.error('\n' + '='.repeat(60));
+      logger.error('❌ BACKUP FAILED');
+      logger.error('='.repeat(60));
+      logger.error(error);
 
       // Send failure notification
       await this.sendNotification(false, details);
@@ -597,7 +598,7 @@ class BackupManager {
 
   // Validate type
   if (!['daily', 'weekly', 'monthly'].includes(type)) {
-    console.error('❌ Invalid backup type. Must be: daily, weekly, or monthly');
+    logger.error('❌ Invalid backup type. Must be: daily, weekly, or monthly');
     process.exit(1);
   }
 

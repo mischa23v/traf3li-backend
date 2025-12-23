@@ -1,6 +1,7 @@
 const Anthropic = require('@anthropic-ai/sdk');
 const axios = require('axios');
 const AISettingsService = require('./aiSettings.service');
+const logger = require('../utils/logger');
 
 /**
  * AI Chat Service
@@ -440,7 +441,7 @@ class AIChatService {
 
             return title || 'New Conversation';
         } catch (error) {
-            console.error('Error generating conversation title:', error.message);
+            logger.error('Error generating conversation title:', error.message);
             // Fallback: use first message content (truncated)
             const firstUserMessage = messages.find(m => m.role === 'user');
             if (firstUserMessage) {
@@ -468,7 +469,7 @@ class AIChatService {
                 openai: !!openaiKey
             };
         } catch (error) {
-            console.error('Error checking available providers:', error.message);
+            logger.error('Error checking available providers:', error.message);
             return {
                 anthropic: false,
                 openai: false
@@ -484,7 +485,7 @@ class AIChatService {
      * @throws {Error} Formatted error
      */
     static _handleError(error, provider) {
-        console.error(`AI Chat Error (${provider}):`, error.message);
+        logger.error(`AI Chat Error (${provider}):`, error.message);
 
         // Anthropic errors
         if (error.status === 401) {

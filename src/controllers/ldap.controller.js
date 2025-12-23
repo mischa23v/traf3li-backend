@@ -18,6 +18,7 @@ const { encryptField } = require('../utils/encryption');
 const { CustomException } = require('../utils');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 const Firm = require('../models/firm.model');
+const logger = require('../utils/logger');
 
 /**
  * Validate LDAP filter to prevent injection attacks
@@ -182,7 +183,7 @@ const getConfig = async (request, response) => {
         });
 
     } catch (error) {
-        console.error('Get LDAP config error:', error);
+        logger.error('Get LDAP config error:', error);
         return response.status(500).json({
             error: true,
             message: 'Failed to retrieve LDAP configuration',
@@ -424,7 +425,7 @@ const saveConfig = async (request, response) => {
         });
 
     } catch (error) {
-        console.error('Save LDAP config error:', error);
+        logger.error('Save LDAP config error:', error);
         return response.status(500).json({
             error: true,
             message: 'Failed to save LDAP configuration',
@@ -511,7 +512,7 @@ const testConnection = async (request, response) => {
         });
 
     } catch (error) {
-        console.error('Test LDAP connection error:', error);
+        logger.error('Test LDAP connection error:', error);
         return response.status(500).json({
             error: true,
             message: 'Connection test failed',
@@ -579,7 +580,7 @@ const testAuth = async (request, response) => {
         });
 
     } catch (error) {
-        console.error('Test LDAP auth error:', error);
+        logger.error('Test LDAP auth error:', error);
         return response.status(500).json({
             error: true,
             message: 'Authentication test failed',
@@ -645,7 +646,7 @@ const syncUsers = async (request, response) => {
         });
 
     } catch (error) {
-        console.error('Sync LDAP users error:', error);
+        logger.error('Sync LDAP users error:', error);
         return response.status(500).json({
             error: true,
             message: 'User synchronization failed',
@@ -752,7 +753,7 @@ const login = async (request, response) => {
         });
 
     } catch (error) {
-        console.error('LDAP login error:', error);
+        logger.error('LDAP login error:', error);
         return response.status(500).json({
             error: true,
             message: 'Login failed',

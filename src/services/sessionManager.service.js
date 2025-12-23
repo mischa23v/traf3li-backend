@@ -15,6 +15,7 @@ const Session = require('../models/session.model');
 const Notification = require('../models/notification.model');
 const Firm = require('../models/firm.model');
 const UAParser = require('ua-parser-js');
+const logger = require('../utils/logger');
 
 class SessionManagerService {
     /**
@@ -77,12 +78,12 @@ class SessionManagerService {
             // Send notification if new device (async, non-blocking)
             if (!isKnownDevice) {
                 this._notifyNewDevice(userId, parsedDeviceInfo, locationInfo, session._id)
-                    .catch(err => console.error('Failed to send new device notification:', err));
+                    .catch(err => logger.error('Failed to send new device notification:', err));
             }
 
             return session;
         } catch (error) {
-            console.error('SessionManager.createSession failed:', error.message);
+            logger.error('SessionManager.createSession failed:', error.message);
             throw error;
         }
     }
@@ -96,7 +97,7 @@ class SessionManagerService {
         try {
             return await Session.getActiveSessions(userId);
         } catch (error) {
-            console.error('SessionManager.getActiveSessions failed:', error.message);
+            logger.error('SessionManager.getActiveSessions failed:', error.message);
             return [];
         }
     }
@@ -115,12 +116,12 @@ class SessionManagerService {
             if (session) {
                 // Send notification (async, non-blocking)
                 this._notifySessionTerminated(session.userId, session, reason)
-                    .catch(err => console.error('Failed to send termination notification:', err));
+                    .catch(err => logger.error('Failed to send termination notification:', err));
             }
 
             return session;
         } catch (error) {
-            console.error('SessionManager.terminateSession failed:', error.message);
+            logger.error('SessionManager.terminateSession failed:', error.message);
             throw error;
         }
     }
@@ -146,7 +147,7 @@ class SessionManagerService {
             // Send notification if sessions were terminated (async, non-blocking)
             if (result.modifiedCount > 0) {
                 this._notifyBulkTermination(userId, result.modifiedCount, reason)
-                    .catch(err => console.error('Failed to send bulk termination notification:', err));
+                    .catch(err => logger.error('Failed to send bulk termination notification:', err));
             }
 
             return {
@@ -155,7 +156,7 @@ class SessionManagerService {
                 message: `${result.modifiedCount} session(s) terminated`
             };
         } catch (error) {
-            console.error('SessionManager.terminateAllSessions failed:', error.message);
+            logger.error('SessionManager.terminateAllSessions failed:', error.message);
             throw error;
         }
     }
@@ -205,7 +206,7 @@ class SessionManagerService {
                 currentCount: maxSessions
             };
         } catch (error) {
-            console.error('SessionManager.enforceSessionLimit failed:', error.message);
+            logger.error('SessionManager.enforceSessionLimit failed:', error.message);
             throw error;
         }
     }
@@ -223,7 +224,7 @@ class SessionManagerService {
             }
             return null;
         } catch (error) {
-            console.error('SessionManager.updateSessionActivity failed:', error.message);
+            logger.error('SessionManager.updateSessionActivity failed:', error.message);
             return null;
         }
     }
@@ -247,7 +248,7 @@ class SessionManagerService {
             }
             return null;
         } catch (error) {
-            console.error('SessionManager.updateSessionActivityByToken failed:', error.message);
+            logger.error('SessionManager.updateSessionActivityByToken failed:', error.message);
             return null;
         }
     }
@@ -261,7 +262,7 @@ class SessionManagerService {
         try {
             return await Session.findByToken(token);
         } catch (error) {
-            console.error('SessionManager.getSessionByToken failed:', error.message);
+            logger.error('SessionManager.getSessionByToken failed:', error.message);
             return null;
         }
     }
@@ -275,7 +276,7 @@ class SessionManagerService {
         try {
             return await Session.getUserStats(userId);
         } catch (error) {
-            console.error('SessionManager.getUserSessionStats failed:', error.message);
+            logger.error('SessionManager.getUserSessionStats failed:', error.message);
             return { activeCount: 0, totalCount: 0, recentSessions: [] };
         }
     }
@@ -305,7 +306,7 @@ class SessionManagerService {
 
             return limit && limit > 0 ? limit : 5; // Default to 5 if not set
         } catch (error) {
-            console.error('SessionManager.getSessionLimit failed:', error.message);
+            logger.error('SessionManager.getSessionLimit failed:', error.message);
             return 5; // Default limit
         }
     }
@@ -318,7 +319,7 @@ class SessionManagerService {
         try {
             return await Session.cleanupExpired();
         } catch (error) {
-            console.error('SessionManager.cleanupExpired failed:', error.message);
+            logger.error('SessionManager.cleanupExpired failed:', error.message);
             return 0;
         }
     }
@@ -333,7 +334,7 @@ class SessionManagerService {
         try {
             return await Session.getSessionsByIP(ipAddress, limit);
         } catch (error) {
-            console.error('SessionManager.getSessionsByIP failed:', error.message);
+            logger.error('SessionManager.getSessionsByIP failed:', error.message);
             return [];
         }
     }
@@ -385,7 +386,7 @@ class SessionManagerService {
                 }
             });
         } catch (error) {
-            console.error('Failed to create new device notification:', error.message);
+            logger.error('Failed to create new device notification:', error.message);
         }
     }
 
@@ -420,7 +421,7 @@ class SessionManagerService {
                 }
             });
         } catch (error) {
-            console.error('Failed to create session termination notification:', error.message);
+            logger.error('Failed to create session termination notification:', error.message);
         }
     }
 
@@ -450,7 +451,7 @@ class SessionManagerService {
                 }
             });
         } catch (error) {
-            console.error('Failed to create bulk termination notification:', error.message);
+            logger.error('Failed to create bulk termination notification:', error.message);
         }
     }
 }

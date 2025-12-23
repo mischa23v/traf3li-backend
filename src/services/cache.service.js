@@ -9,6 +9,7 @@
  */
 
 const { getRedisClient } = require("../configs/redis");
+const logger = require('../utils/logger');
 
 // In-memory cache for when Redis is disabled or unavailable
 const memoryCache = new Map();
@@ -26,7 +27,7 @@ const cacheMetrics = {
 };
 
 if (isRedisCacheDisabled) {
-  console.warn('⚠️  DISABLE_REDIS_CACHE=true - using in-memory cache to save Redis requests');
+  logger.warn('⚠️  DISABLE_REDIS_CACHE=true - using in-memory cache to save Redis requests');
 }
 
 /**
@@ -86,7 +87,7 @@ const get = async (key) => {
       return value;
     }
   } catch (error) {
-    console.error(`Cache.get error for key "${key}":`, error.message);
+    logger.error(`Cache.get error for key "${key}":`, error.message);
     cacheMetrics.errors++;
     cacheMetrics.misses++;
     return null;
@@ -122,7 +123,7 @@ const set = async (key, value, ttlSeconds = 300) => {
 
     return true;
   } catch (error) {
-    console.error(`Cache.set error for key "${key}":`, error.message);
+    logger.error(`Cache.set error for key "${key}":`, error.message);
     return false;
   }
 };
@@ -145,7 +146,7 @@ const del = async (key) => {
     await client.del(key);
     return true;
   } catch (error) {
-    console.error(`Cache.del error for key "${key}":`, error.message);
+    logger.error(`Cache.del error for key "${key}":`, error.message);
     return false;
   }
 };
@@ -187,10 +188,10 @@ const delPattern = async (pattern) => {
       }
     } while (cursor !== "0");
 
-    console.log(`Cache.delPattern: Deleted ${deletedCount} keys matching "${pattern}"`);
+    logger.info(`Cache.delPattern: Deleted ${deletedCount} keys matching "${pattern}"`);
     return deletedCount;
   } catch (error) {
-    console.error(`Cache.delPattern error for pattern "${pattern}":`, error.message);
+    logger.error(`Cache.delPattern error for pattern "${pattern}":`, error.message);
     return 0;
   }
 };
@@ -220,12 +221,12 @@ const getOrSet = async (key, fetchFn, ttl = 300) => {
 
     return data;
   } catch (error) {
-    console.error(`Cache.getOrSet error for key "${key}":`, error.message);
+    logger.error(`Cache.getOrSet error for key "${key}":`, error.message);
     // On error, attempt to fetch without caching
     try {
       return await fetchFn();
     } catch (fetchError) {
-      console.error(`Cache.getOrSet fetchFn error for key "${key}":`, fetchError.message);
+      logger.error(`Cache.getOrSet fetchFn error for key "${key}":`, fetchError.message);
       throw fetchError;
     }
   }
@@ -246,10 +247,10 @@ const invalidateByTags = async (tags) => {
       totalDeleted += deleted;
     }
 
-    console.log(`Cache.invalidateByTags: Deleted ${totalDeleted} keys for tags:`, tags);
+    logger.info(`Cache.invalidateByTags: Deleted ${totalDeleted} keys for tags:`, tags);
     return totalDeleted;
   } catch (error) {
-    console.error("Cache.invalidateByTags error:", error.message);
+    logger.error("Cache.invalidateByTags error:", error.message);
     return 0;
   }
 };
@@ -287,7 +288,7 @@ const exists = async (key) => {
     const result = await client.exists(key);
     return result === 1;
   } catch (error) {
-    console.error(`Cache.exists error for key "${key}":`, error.message);
+    logger.error(`Cache.exists error for key "${key}":`, error.message);
     return false;
   }
 };
@@ -302,7 +303,7 @@ const ttl = async (key) => {
     const client = getRedisClient();
     return await client.ttl(key);
   } catch (error) {
-    console.error(`Cache.ttl error for key "${key}":`, error.message);
+    logger.error(`Cache.ttl error for key "${key}":`, error.message);
     return -2;
   }
 };
@@ -321,7 +322,7 @@ const setMultiple = async (entries, ttlSeconds = 300) => {
     await Promise.all(promises);
     return true;
   } catch (error) {
-    console.error("Cache.setMultiple error:", error.message);
+    logger.error("Cache.setMultiple error:", error.message);
     return false;
   }
 };
@@ -343,7 +344,7 @@ const getMultiple = async (keys) => {
 
     return result;
   } catch (error) {
-    console.error("Cache.getMultiple error:", error.message);
+    logger.error("Cache.getMultiple error:", error.message);
     return {};
   }
 };
@@ -359,7 +360,7 @@ const increment = async (key, amount = 1) => {
     const client = getRedisClient();
     return await client.incrby(key, amount);
   } catch (error) {
-    console.error(`Cache.increment error for key "${key}":`, error.message);
+    logger.error(`Cache.increment error for key "${key}":`, error.message);
     return 0;
   }
 };
@@ -375,7 +376,7 @@ const decrement = async (key, amount = 1) => {
     const client = getRedisClient();
     return await client.decrby(key, amount);
   } catch (error) {
-    console.error(`Cache.decrement error for key "${key}":`, error.message);
+    logger.error(`Cache.decrement error for key "${key}":`, error.message);
     return 0;
   }
 };

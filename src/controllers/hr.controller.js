@@ -2,6 +2,7 @@ const { Employee } = require('../models');
 const { CustomException } = require('../utils');
 const asyncHandler = require('../utils/asyncHandler');
 const { pickAllowedFields, sanitizeString, sanitizeEmail, sanitizePhone, sanitizePagination } = require('../utils/securityUtils');
+const logger = require('../utils/logger');
 
 // ═══════════════════════════════════════════════════════════════
 // ALLOWED FIELDS FOR MASS ASSIGNMENT PROTECTION
@@ -372,7 +373,7 @@ const getEmployees = asyncHandler(async (req, res) => {
             }
         });
     } catch (dbError) {
-        console.error('Employee fetch error:', dbError);
+        logger.error('Employee fetch error:', dbError);
         throw CustomException('Failed to fetch employees', 500);
     }
 });

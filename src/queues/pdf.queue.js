@@ -9,13 +9,14 @@ const { createQueue } = require('../configs/queue');
 const puppeteer = require('puppeteer');
 const fs = require('fs').promises;
 const path = require('path');
+const logger = require('../utils/logger');
 
 // PDFMe imports for template-based PDF generation
 let PdfmeService = null;
 try {
     PdfmeService = require('../services/pdfme.service');
 } catch (err) {
-    console.log('PDFMe service not available, template-based PDF generation disabled');
+    logger.info('PDFMe service not available, template-based PDF generation disabled');
 }
 
 // Create PDF queue
@@ -64,7 +65,7 @@ async function getBrowser() {
 pdfQueue.process(async (job) => {
   const { type, data } = job.data;
 
-  console.log(`📄 Processing PDF job ${job.id} of type: ${type}`);
+  logger.info(`📄 Processing PDF job ${job.id} of type: ${type}`);
 
   try {
     switch (type) {
@@ -100,7 +101,7 @@ pdfQueue.process(async (job) => {
         throw new Error(`Unknown PDF type: ${type}`);
     }
   } catch (error) {
-    console.error(`❌ PDF job ${job.id} failed:`, error.message);
+    logger.error(`❌ PDF job ${job.id} failed:`, error.message);
     throw error;
   }
 });
@@ -139,7 +140,7 @@ async function generateInvoicePDF(data, job) {
 
   await job.progress(100);
 
-  console.log(`✅ Invoice PDF generated: ${fileName}`);
+  logger.info(`✅ Invoice PDF generated: ${fileName}`);
   return {
     success: true,
     invoiceId,
@@ -184,7 +185,7 @@ async function generateReportPDF(data, job) {
 
   await job.progress(100);
 
-  console.log(`✅ Report PDF generated: ${fileName}`);
+  logger.info(`✅ Report PDF generated: ${fileName}`);
   return {
     success: true,
     reportId,
@@ -220,7 +221,7 @@ async function generateStatementPDF(data, job) {
 
   await job.progress(100);
 
-  console.log(`✅ Statement PDF generated: ${fileName}`);
+  logger.info(`✅ Statement PDF generated: ${fileName}`);
   return {
     success: true,
     statementId,
@@ -255,7 +256,7 @@ async function generateContractPDF(data, job) {
 
   await job.progress(100);
 
-  console.log(`✅ Contract PDF generated: ${fileName}`);
+  logger.info(`✅ Contract PDF generated: ${fileName}`);
   return {
     success: true,
     contractId,
@@ -286,7 +287,7 @@ async function generateCustomPDF(data, job) {
 
   await job.progress(100);
 
-  console.log(`✅ Custom PDF generated: ${fileName}`);
+  logger.info(`✅ Custom PDF generated: ${fileName}`);
   return {
     success: true,
     fileName,
@@ -490,7 +491,7 @@ async function generatePdfmePDF(data, job) {
 
   await job.progress(100);
 
-  console.log(`✅ PDFMe PDF generated: ${fileName}`);
+  logger.info(`✅ PDFMe PDF generated: ${fileName}`);
   return {
     success: true,
     fileName,
@@ -536,7 +537,7 @@ async function generatePdfmeInvoicePDF(data, job) {
 
   await job.progress(100);
 
-  console.log(`✅ PDFMe Invoice PDF generated: ${fileName}`);
+  logger.info(`✅ PDFMe Invoice PDF generated: ${fileName}`);
   return {
     success: true,
     invoiceNumber,
@@ -573,7 +574,7 @@ async function generatePdfmeContractPDF(data, job) {
 
   await job.progress(100);
 
-  console.log(`✅ PDFMe Contract PDF generated: ${fileName}`);
+  logger.info(`✅ PDFMe Contract PDF generated: ${fileName}`);
   return {
     success: true,
     contractNumber,
@@ -610,7 +611,7 @@ async function generatePdfmeReceiptPDF(data, job) {
 
   await job.progress(100);
 
-  console.log(`✅ PDFMe Receipt PDF generated: ${fileName}`);
+  logger.info(`✅ PDFMe Receipt PDF generated: ${fileName}`);
   return {
     success: true,
     receiptNumber,
@@ -626,7 +627,7 @@ pdfQueue.on('close', async () => {
   if (browserInstance) {
     await browserInstance.close();
     browserInstance = null;
-    console.log('🔒 PDF browser instance closed');
+    logger.info('🔒 PDF browser instance closed');
   }
 });
 

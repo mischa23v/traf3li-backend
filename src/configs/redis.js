@@ -6,6 +6,7 @@
  */
 
 const Redis = require("ioredis");
+const logger = require("../utils/logger");
 
 let redisClient = null;
 let isConnected = false;
@@ -21,11 +22,11 @@ const createRedisClient = () => {
     maxRetriesPerRequest: 3,
     retryStrategy: (times) => {
       if (times > 10) {
-        console.error("Redis: Max retries reached, giving up");
+        logger.error("Redis: Max retries reached, giving up");
         return null;
       }
       const delay = Math.min(times * 100, 3000);
-      console.log(`Redis: Retry attempt ${times}, waiting ${delay}ms`);
+      logger.info(`Redis: Retry attempt ${times}, waiting ${delay}ms`);
       return delay;
     },
     reconnectOnError: (err) => {
@@ -48,30 +49,30 @@ const createRedisClient = () => {
 
   // Connection event handlers
   client.on("connect", () => {
-    console.log("Redis: Connecting...");
+    logger.info("Redis: Connecting...");
   });
 
   client.on("ready", () => {
     isConnected = true;
-    console.log("Redis: Connected and ready");
+    logger.info("Redis: Connected and ready");
   });
 
   client.on("error", (err) => {
-    console.error("Redis: Error:", err.message);
+    logger.error("Redis: Error:", err.message);
   });
 
   client.on("close", () => {
     isConnected = false;
-    console.log("Redis: Connection closed");
+    logger.info("Redis: Connection closed");
   });
 
   client.on("reconnecting", () => {
-    console.log("Redis: Reconnecting...");
+    logger.info("Redis: Reconnecting...");
   });
 
   client.on("end", () => {
     isConnected = false;
-    console.log("Redis: Connection ended");
+    logger.info("Redis: Connection ended");
   });
 
   return client;
@@ -113,7 +114,7 @@ const disconnectRedis = async () => {
     await redisClient.quit();
     redisClient = null;
     isConnected = false;
-    console.log("Redis: Disconnected");
+    logger.info("Redis: Disconnected");
   }
 };
 
@@ -150,12 +151,12 @@ const healthCheck = async () => {
  * Graceful shutdown - close connections properly
  */
 const gracefulShutdown = async () => {
-  console.log("Redis: Initiating graceful shutdown...");
+  logger.info("Redis: Initiating graceful shutdown...");
   try {
     await disconnectRedis();
-    console.log("Redis: Graceful shutdown completed");
+    logger.info("Redis: Graceful shutdown completed");
   } catch (error) {
-    console.error("Redis: Error during graceful shutdown:", error.message);
+    logger.error("Redis: Error during graceful shutdown:", error.message);
     throw error;
   }
 };

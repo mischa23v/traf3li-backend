@@ -1,6 +1,7 @@
 const CrmActivity = require('../models/crmActivity.model');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 const mongoose = require('mongoose');
+const logger = require('../utils/logger');
 
 // ============================================
 // SECURITY CONFIGURATION
@@ -158,7 +159,7 @@ const verifyEntityOwnership = async (entityType, entityId, lawyerId, firmId) => 
 
         return { valid: true };
     } catch (error) {
-        console.error('Error verifying entity ownership:', error);
+        logger.error('Error verifying entity ownership:', error);
         return { valid: false, error: 'Error verifying entity ownership' };
     }
 };
@@ -233,7 +234,7 @@ exports.createActivity = async (req, res) => {
             data: activity
         });
     } catch (error) {
-        console.error('Error creating activity:', error);
+        logger.error('Error creating activity:', error);
         res.status(500).json({
             success: false,
             message: 'Error creating activity',
@@ -284,7 +285,7 @@ exports.getActivities = async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('Error getting activities:', error);
+        logger.error('Error getting activities:', error);
         res.status(500).json({
             success: false,
             message: 'Error getting activities',
@@ -327,7 +328,7 @@ exports.getActivity = async (req, res) => {
             data: activity
         });
     } catch (error) {
-        console.error('Error getting activity:', error);
+        logger.error('Error getting activity:', error);
         res.status(500).json({
             success: false,
             message: 'Error getting activity',
@@ -433,7 +434,7 @@ exports.updateActivity = async (req, res) => {
             data: activity
         });
     } catch (error) {
-        console.error('Error updating activity:', error);
+        logger.error('Error updating activity:', error);
         res.status(500).json({
             success: false,
             message: 'Error updating activity',
@@ -474,7 +475,7 @@ exports.deleteActivity = async (req, res) => {
             message: 'Activity deleted successfully'
         });
     } catch (error) {
-        console.error('Error deleting activity:', error);
+        logger.error('Error deleting activity:', error);
         res.status(500).json({
             success: false,
             message: 'Error deleting activity',
@@ -550,7 +551,7 @@ exports.getEntityActivities = async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('Error getting entity activities:', error);
+        logger.error('Error getting entity activities:', error);
         res.status(500).json({
             success: false,
             message: 'Error getting activities',
@@ -582,7 +583,7 @@ exports.getTimeline = async (req, res) => {
             data: activities
         });
     } catch (error) {
-        console.error('Error getting timeline:', error);
+        logger.error('Error getting timeline:', error);
         res.status(500).json({
             success: false,
             message: 'Error getting timeline',
@@ -607,7 +608,7 @@ exports.getStats = async (req, res) => {
             data: stats
         });
     } catch (error) {
-        console.error('Error getting activity stats:', error);
+        logger.error('Error getting activity stats:', error);
         res.status(500).json({
             success: false,
             message: 'Error getting statistics',
@@ -637,7 +638,7 @@ exports.getUpcomingTasks = async (req, res) => {
             data: tasks
         });
     } catch (error) {
-        console.error('Error getting upcoming tasks:', error);
+        logger.error('Error getting upcoming tasks:', error);
         res.status(500).json({
             success: false,
             message: 'Error getting tasks',
@@ -684,7 +685,7 @@ exports.completeTask = async (req, res) => {
             data: activity
         });
     } catch (error) {
-        console.error('Error completing task:', error);
+        logger.error('Error completing task:', error);
         res.status(500).json({
             success: false,
             message: 'Error completing task',
@@ -780,7 +781,7 @@ exports.logCall = async (req, res) => {
             data: activity
         });
     } catch (error) {
-        console.error('Error logging call:', error);
+        logger.error('Error logging call:', error);
         res.status(500).json({
             success: false,
             message: 'Error logging call',
@@ -856,7 +857,7 @@ exports.logEmail = async (req, res) => {
             data: activity
         });
     } catch (error) {
-        console.error('Error logging email:', error);
+        logger.error('Error logging email:', error);
         res.status(500).json({
             success: false,
             message: 'Error logging email',
@@ -961,7 +962,7 @@ exports.logMeeting = async (req, res) => {
             data: activity
         });
     } catch (error) {
-        console.error('Error logging meeting:', error);
+        logger.error('Error logging meeting:', error);
         res.status(500).json({
             success: false,
             message: 'Error logging meeting',
@@ -1032,7 +1033,7 @@ exports.addNote = async (req, res) => {
             data: activity
         });
     } catch (error) {
-        console.error('Error adding note:', error);
+        logger.error('Error adding note:', error);
         res.status(500).json({
             success: false,
             message: 'Error adding note',

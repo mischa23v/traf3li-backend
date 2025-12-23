@@ -7,6 +7,7 @@ const BankFeed = require('../models/bankFeed.model');
 const BankReconciliation = require('../models/bankReconciliation.model');
 const BankAccount = require('../models/bankAccount.model');
 const mongoose = require('mongoose');
+const logger = require('../utils/logger');
 
 class BankReconciliationService {
     /**
@@ -139,7 +140,7 @@ class BankReconciliationService {
                         transactions.push(transaction);
                     }
                 } catch (error) {
-                    console.error('Error parsing row:', error.message);
+                    logger.error('Error parsing row:', error.message);
                 }
             }
 

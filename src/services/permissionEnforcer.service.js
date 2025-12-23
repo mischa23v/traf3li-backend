@@ -20,6 +20,7 @@
 const PermissionConfig = require('../models/permission.model');
 const RelationTuple = require('../models/relationTuple.model');
 const PolicyDecision = require('../models/policyDecision.model');
+const logger = require('../utils/logger');
 
 // Simple in-memory cache (consider Redis for production)
 const cache = new Map();
@@ -651,7 +652,7 @@ async function logDecision(firmId, request, context, result, metrics) {
             metrics
         });
     } catch (err) {
-        console.error('Failed to log policy decision:', err);
+        logger.error('Failed to log policy decision:', err);
     }
 }
 

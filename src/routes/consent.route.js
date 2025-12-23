@@ -18,6 +18,7 @@ const router = express.Router();
 const authenticate = require('../middlewares/authenticate');
 const Consent = require('../models/consent.model');
 const AuditLog = require('../models/auditLog.model');
+const logger = require('../utils/logger');
 
 // Valid consent categories
 const VALID_CATEGORIES = ['analytics', 'marketing', 'thirdParty', 'aiProcessing', 'communications'];
@@ -54,7 +55,7 @@ router.get('/', authenticate, async (req, res) => {
       },
     });
   } catch (error) {
-    console.error('Get consent error:', error);
+    logger.error('Get consent error:', error);
     res.status(500).json({
       success: false,
       error: 'Failed to retrieve consent status',
@@ -149,7 +150,7 @@ router.post('/', authenticate, async (req, res) => {
       },
     });
   } catch (error) {
-    console.error('Update consent error:', error);
+    logger.error('Update consent error:', error);
     res.status(500).json({
       success: false,
       error: 'Failed to update consent preferences',
@@ -213,7 +214,7 @@ router.put('/:category', authenticate, async (req, res) => {
       },
     });
   } catch (error) {
-    console.error('Update consent category error:', error);
+    logger.error('Update consent category error:', error);
     res.status(500).json({
       success: false,
       error: error.message || 'Failed to update consent',
@@ -269,7 +270,7 @@ router.delete('/', authenticate, async (req, res) => {
       },
     });
   } catch (error) {
-    console.error('Withdraw consent error:', error);
+    logger.error('Withdraw consent error:', error);
     res.status(500).json({
       success: false,
       error: 'Failed to withdraw consents',
@@ -332,7 +333,7 @@ router.post('/export', authenticate, async (req, res) => {
       },
     });
   } catch (error) {
-    console.error('Data export request error:', error);
+    logger.error('Data export request error:', error);
     res.status(500).json({
       success: false,
       error: 'Failed to request data export',
@@ -370,7 +371,7 @@ router.get('/history', authenticate, async (req, res) => {
       total: consent.history?.length || 0,
     });
   } catch (error) {
-    console.error('Get consent history error:', error);
+    logger.error('Get consent history error:', error);
     res.status(500).json({
       success: false,
       error: 'Failed to retrieve consent history',

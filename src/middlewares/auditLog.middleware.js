@@ -1,3 +1,4 @@
+const logger = require('../utils/logger');
 const AuditLog = require('../models/auditLog.model');
 const auditLogService = require('../services/auditLog.service');
 
@@ -57,7 +58,7 @@ const auditAction = (action, entityType, options = {}) => {
       try {
         beforeState = await options.getBeforeState(req);
       } catch (error) {
-        console.error('Failed to capture before state:', error.message);
+        logger.error('Failed to capture before state:', error.message);
       }
     }
 
@@ -111,7 +112,7 @@ const auditAction = (action, entityType, options = {}) => {
         const user = req.user;
 
         if (!user) {
-          console.warn('Audit log: No user found in request');
+          logger.warn('Audit log: No user found in request');
           return;
         }
 
@@ -192,7 +193,7 @@ const auditAction = (action, entityType, options = {}) => {
 
       } catch (error) {
         // Don't let audit log failure break the main operation
-        console.error('Failed to create audit log:', error.message);
+        logger.error('Failed to create audit log:', error.message);
       }
     }
   };
@@ -312,7 +313,7 @@ const logAuthEvent = async (action, data) => {
     
     await AuditLog.log(logData);
   } catch (error) {
-    console.error('❌ Failed to log auth event:', error.message);
+    logger.error('❌ Failed to log auth event:', error.message);
   }
 };
 
@@ -350,7 +351,7 @@ const checkSuspiciousActivity = async (userId, ipAddress) => {
     
     return false; // Not suspicious
   } catch (error) {
-    console.error('❌ Failed to check suspicious activity:', error.message);
+    logger.error('❌ Failed to check suspicious activity:', error.message);
     return false;
   }
 };

@@ -1,4 +1,5 @@
 const { Server } = require('socket.io');
+const logger = require('../utils/logger');
 
 let io;
 
@@ -55,7 +56,7 @@ const initSocket = (server) => {
   const activeRooms = new Map();
 
   io.on('connection', (socket) => {
-    console.log('✅ User connected:', socket.id);
+    logger.info('✅ User connected:', socket.id);
 
     // ═══════════════════════════════════════════════════════════════
     // USER CONNECTION & PRESENCE
@@ -75,7 +76,7 @@ const initSocket = (server) => {
         socketId: socket.id
       });
 
-      console.log(`👤 User ${userId} is online`);
+      logger.info(`👤 User ${userId} is online`);
     });
 
     // Update user presence (what they're viewing)
@@ -96,7 +97,7 @@ const initSocket = (server) => {
 
         // Notify others in the room
         socket.to(roomId).emit('user:joined', { userId, location });
-        console.log(`👁️ User ${userId} viewing ${roomId}`);
+        logger.info(`👁️ User ${userId} viewing ${roomId}`);
       }
     });
 
@@ -113,7 +114,7 @@ const initSocket = (server) => {
 
         // Notify others
         socket.to(roomId).emit('user:left', { userId, location });
-        console.log(`👋 User ${userId} left ${roomId}`);
+        logger.info(`👋 User ${userId} left ${roomId}`);
       }
     });
 
@@ -124,7 +125,7 @@ const initSocket = (server) => {
     // Join conversation room
     socket.on('conversation:join', (conversationId) => {
       socket.join(conversationId);
-      console.log(`💬 User joined conversation: ${conversationId}`);
+      logger.info(`💬 User joined conversation: ${conversationId}`);
     });
 
     // Typing indicator
@@ -156,14 +157,14 @@ const initSocket = (server) => {
     socket.on('task:join', (taskId) => {
       const roomId = `task:${taskId}`;
       socket.join(roomId);
-      console.log(`📋 User joined task: ${taskId}`);
+      logger.info(`📋 User joined task: ${taskId}`);
     });
 
     // Leave task room
     socket.on('task:leave', (taskId) => {
       const roomId = `task:${taskId}`;
       socket.leave(roomId);
-      console.log(`📋 User left task: ${taskId}`);
+      logger.info(`📋 User left task: ${taskId}`);
     });
 
     // Task update
@@ -186,7 +187,7 @@ const initSocket = (server) => {
     socket.on('gantt:join', (projectId) => {
       const roomId = `gantt:${projectId}`;
       socket.join(roomId);
-      console.log(`📊 User joined Gantt chart: ${projectId}`);
+      logger.info(`📊 User joined Gantt chart: ${projectId}`);
 
       // Notify others
       socket.to(roomId).emit('gantt:user:joined', {
@@ -199,7 +200,7 @@ const initSocket = (server) => {
     socket.on('gantt:leave', (projectId) => {
       const roomId = `gantt:${projectId}`;
       socket.leave(roomId);
-      console.log(`📊 User left Gantt chart: ${projectId}`);
+      logger.info(`📊 User left Gantt chart: ${projectId}`);
 
       // Notify others
       socket.to(roomId).emit('gantt:user:left', {
@@ -243,7 +244,7 @@ const initSocket = (server) => {
     socket.on('document:join', (docId) => {
       const roomId = `document:${docId}`;
       socket.join(roomId);
-      console.log(`📄 User joined document: ${docId}`);
+      logger.info(`📄 User joined document: ${docId}`);
 
       // Notify others
       socket.to(roomId).emit('document:user:joined', {
@@ -255,7 +256,7 @@ const initSocket = (server) => {
     socket.on('document:leave', (docId) => {
       const roomId = `document:${docId}`;
       socket.leave(roomId);
-      console.log(`📄 User left document: ${docId}`);
+      logger.info(`📄 User left document: ${docId}`);
 
       // Notify others
       socket.to(roomId).emit('document:user:left', {
@@ -307,14 +308,14 @@ const initSocket = (server) => {
     socket.on('case:join', (caseId) => {
       const roomId = `case:${caseId}`;
       socket.join(roomId);
-      console.log(`⚖️ User joined case: ${caseId}`);
+      logger.info(`⚖️ User joined case: ${caseId}`);
     });
 
     // Leave case room
     socket.on('case:leave', (caseId) => {
       const roomId = `case:${caseId}`;
       socket.leave(roomId);
-      console.log(`⚖️ User left case: ${caseId}`);
+      logger.info(`⚖️ User left case: ${caseId}`);
     });
 
     // Case update
@@ -331,7 +332,7 @@ const initSocket = (server) => {
     socket.on('firm:join', (firmId) => {
       const roomId = `firm:${firmId}`;
       socket.join(roomId);
-      console.log(`🏢 User joined firm room: ${firmId}`);
+      logger.info(`🏢 User joined firm room: ${firmId}`);
     });
 
     // Activity notification (firm-wide)
@@ -369,7 +370,7 @@ const initSocket = (server) => {
         emptyRooms.forEach(roomId => activeRooms.delete(roomId));
 
         io.emit('user:offline', { userId: socket.userId });
-        console.log(`👋 User ${socket.userId} is offline`);
+        logger.info(`👋 User ${socket.userId} is offline`);
       }
     });
   });
@@ -407,21 +408,21 @@ const getIO = () => {
 // Helper function to emit notification to specific user
 const emitNotification = (userId, notification) => {
   if (!io) {
-    console.error('Socket.io not initialized');
+    logger.error('Socket.io not initialized');
     return;
   }
-  
+
   io.to(`user:${userId}`).emit('notification:new', notification);
-  console.log(`🔔 Notification sent to user ${userId}:`, notification.title);
+  logger.info(`🔔 Notification sent to user ${userId}:`, notification.title);
 };
 
 // Helper function to emit notification count update
 const emitNotificationCount = (userId, count) => {
   if (!io) {
-    console.error('Socket.io not initialized');
+    logger.error('Socket.io not initialized');
     return;
   }
-  
+
   io.to(`user:${userId}`).emit('notification:count', { count });
 };
 

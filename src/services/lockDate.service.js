@@ -16,6 +16,7 @@
 const LockDate = require('../models/lockDate.model');
 const CustomException = require('../utils/CustomException');
 const mongoose = require('mongoose');
+const logger = require('../utils/logger');
 
 class LockDateService {
   /**
@@ -28,7 +29,7 @@ class LockDateService {
     try {
       return await LockDate.getLockDates(firmId);
     } catch (error) {
-      console.error('LockDateService.getLockDates failed:', error.message);
+      logger.error('LockDateService.getLockDates failed:', error.message);
       throw error;
     }
   }
@@ -103,7 +104,7 @@ class LockDateService {
 
       return updatedConfig;
     } catch (error) {
-      console.error('LockDateService.updateLockDate failed:', error.message);
+      logger.error('LockDateService.updateLockDate failed:', error.message);
       throw error;
     }
   }
@@ -119,7 +120,7 @@ class LockDateService {
     try {
       return await LockDate.checkDateLocked(firmId, date, lockType);
     } catch (error) {
-      console.error('LockDateService.checkDateLocked failed:', error.message);
+      logger.error('LockDateService.checkDateLocked failed:', error.message);
       // SECURITY: Fail secure - treat errors as locked to prevent unauthorized access
       return {
         isLocked: true,
@@ -190,7 +191,7 @@ class LockDateService {
 
       return true;
     } catch (error) {
-      console.error('LockDateService.validateTransaction failed:', error.message);
+      logger.error('LockDateService.validateTransaction failed:', error.message);
       throw error;
     }
   }
@@ -284,7 +285,7 @@ class LockDateService {
 
       return updatedConfig;
     } catch (error) {
-      console.error('LockDateService.lockPeriod failed:', error.message);
+      logger.error('LockDateService.lockPeriod failed:', error.message);
       throw error;
     }
   }
@@ -361,7 +362,7 @@ class LockDateService {
 
       return updatedConfig;
     } catch (error) {
-      console.error('LockDateService.reopenPeriod failed:', error.message);
+      logger.error('LockDateService.reopenPeriod failed:', error.message);
       throw error;
     }
   }
@@ -397,7 +398,7 @@ class LockDateService {
 
       return periods;
     } catch (error) {
-      console.error('LockDateService.getFiscalPeriods failed:', error.message);
+      logger.error('LockDateService.getFiscalPeriods failed:', error.message);
       return [];
     }
   }
@@ -439,7 +440,7 @@ class LockDateService {
 
       return history;
     } catch (error) {
-      console.error('LockDateService.getLockHistory failed:', error.message);
+      logger.error('LockDateService.getLockHistory failed:', error.message);
       return [];
     }
   }
@@ -509,7 +510,7 @@ class LockDateService {
       );
     } catch (error) {
       // Don't fail the main operation if audit logging fails
-      console.error('LockDateService._auditLockChange failed:', error.message);
+      logger.error('LockDateService._auditLockChange failed:', error.message);
     }
   }
 }

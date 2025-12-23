@@ -15,6 +15,7 @@
  */
 
 const axios = require('axios');
+const logger = require('../utils/logger');
 
 class MOJService {
   constructor() {
@@ -175,7 +176,7 @@ class MOJService {
       };
 
     } catch (error) {
-      console.error('MOJ attorney verification error:', error.response?.data || error.message);
+      logger.error('MOJ attorney verification error:', error.response?.data || error.message);
 
       if (error.response?.status === 404) {
         return {
@@ -255,7 +256,7 @@ class MOJService {
       };
 
     } catch (error) {
-      console.error('MOJ license verification error:', error.response?.data || error.message);
+      logger.error('MOJ license verification error:', error.response?.data || error.message);
       return {
         verified: false,
         error: error.response?.data?.message || error.message,
@@ -342,7 +343,7 @@ class MOJService {
       };
 
     } catch (error) {
-      console.error('MOJ POA verification error:', error.response?.data || error.message);
+      logger.error('MOJ POA verification error:', error.response?.data || error.message);
 
       if (error.response?.status === 404) {
         return {
@@ -423,7 +424,7 @@ class MOJService {
       };
 
     } catch (error) {
-      console.error('MOJ POA list error:', error.response?.data || error.message);
+      logger.error('MOJ POA list error:', error.response?.data || error.message);
       return {
         success: false,
         error: error.response?.data?.message || error.message,

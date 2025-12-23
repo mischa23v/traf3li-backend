@@ -6,6 +6,7 @@ const CustomException = require('../utils/CustomException');
 const wathqService = require('../services/wathqService');
 const webhookService = require('../services/webhook.service');
 const { pickAllowedFields, sanitizeEmail, sanitizePhone } = require('../utils/securityUtils');
+const logger = require('../utils/logger');
 
 // ============================================
 // ALLOWED FIELDS FOR CLIENT OPERATIONS
@@ -179,7 +180,7 @@ const createClient = asyncHandler(async (req, res) => {
     if (firmId) {
         await Firm.findByIdAndUpdate(firmId, {
             $inc: { 'usage.clients': 1 }
-        }).catch(err => console.error('Error updating client usage:', err.message));
+        }).catch(err => logger.error('Error updating client usage:', err.message));
     }
 
     // Log activity
@@ -456,7 +457,7 @@ const getClientCases = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
-    const client = await Client.findById(id);
+    const client = await Client.findById(id).lean();
     if (!client) {
         throw CustomException('العميل غير موجود', 404);
     }
@@ -500,7 +501,7 @@ const getClientInvoices = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
-    const client = await Client.findById(id);
+    const client = await Client.findById(id).lean();
     if (!client) {
         throw CustomException('العميل غير موجود', 404);
     }
@@ -544,7 +545,7 @@ const getClientPayments = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
-    const client = await Client.findById(id);
+    const client = await Client.findById(id).lean();
     if (!client) {
         throw CustomException('العميل غير موجود', 404);
     }
@@ -672,7 +673,7 @@ const updateClient = asyncHandler(async (req, res) => {
         ...updatedClient.toObject(),
         changedFields
     }, firmId).catch(err => {
-        console.error('Webhook trigger error:', err);
+        logger.error('Webhook trigger error:', err);
     });
 
     res.status(200).json({
@@ -755,7 +756,7 @@ const deleteClient = asyncHandler(async (req, res) => {
     if (firmId) {
         await Firm.findByIdAndUpdate(firmId, {
             $inc: { 'usage.clients': -1 }
-        }).catch(err => console.error('Error updating client usage:', err.message));
+        }).catch(err => logger.error('Error updating client usage:', err.message));
     }
 
     // Trigger webhook - fire and forget (async, don't await)
@@ -766,7 +767,7 @@ const deleteClient = asyncHandler(async (req, res) => {
         fullNameArabic: clientData.fullNameArabic,
         companyName: clientData.companyName
     }, firmId).catch(err => {
-        console.error('Webhook trigger error:', err);
+        logger.error('Webhook trigger error:', err);
     });
 
     res.status(200).json({
@@ -1369,7 +1370,7 @@ const getWathqData = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
-    const client = await Client.findById(id);
+    const client = await Client.findById(id).lean();
 
     if (!client) {
         throw CustomException('العميل غير موجود', 404);

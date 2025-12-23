@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const logger = require('../utils/logger');
 const {
     arabicNameSchema,
     nationalAddressSchema,
@@ -549,22 +550,22 @@ clientSchema.statics.initializeCounter = async function() {
         if (result.length > 0 && result[0].numericPart) {
             const currentMax = result[0].numericPart;
             await Counter.initializeCounter('client', currentMax);
-            console.log('📊 [CLIENT] Counter initialized to:', currentMax);
+            logger.info('📊 [CLIENT] Counter initialized to:', currentMax);
             return currentMax;
         }
     } catch (err) {
         // Fallback: If aggregation fails, just get the counter's current value
         // or let it start from 1
-        console.warn('⚠️ [CLIENT] Counter init aggregation warning:', err.message);
+        logger.warn('⚠️ [CLIENT] Counter init aggregation warning:', err.message);
         const existingCounter = await Counter.getCurrentValue('client');
         if (existingCounter > 0) {
-            console.log('📊 [CLIENT] Using existing counter value:', existingCounter);
+            logger.info('📊 [CLIENT] Using existing counter value:', existingCounter);
             return existingCounter;
         }
     }
 
     // No existing clients, counter will start at 1
-    console.log('📊 [CLIENT] No existing clients, counter will start at 1');
+    logger.info('📊 [CLIENT] No existing clients, counter will start at 1');
     return 0;
 };
 
@@ -610,16 +611,16 @@ clientSchema.post('findOneAndDelete', async function(doc) {
                 try {
                     await deleteObject(BUCKETS.general, document.fileKey);
                 } catch (err) {
-                    console.error(`S3 delete error for document ${document._id}:`, err);
+                    logger.error(`S3 delete error for document ${document._id}:`, err);
                 }
             }
 
             // Delete document records from database
             await Document.deleteMany({ clientId: doc._id });
 
-            console.log(`Deleted ${documents.length} documents for client ${doc._id}`);
+            logger.info(`Deleted ${documents.length} documents for client ${doc._id}`);
         } catch (error) {
-            console.error('Error cleaning up documents for deleted client:', error);
+            logger.error('Error cleaning up documents for deleted client:', error);
         }
     }
 });
@@ -648,17 +649,17 @@ clientSchema.pre('deleteMany', async function() {
                 try {
                     await deleteObject(BUCKETS.general, document.fileKey);
                 } catch (err) {
-                    console.error(`S3 delete error for document ${document._id}:`, err);
+                    logger.error(`S3 delete error for document ${document._id}:`, err);
                 }
             }
 
             // Delete document records from database
             await Document.deleteMany({ clientId: { $in: clientIds } });
 
-            console.log(`Deleted ${documents.length} documents for ${clientIds.length} clients`);
+            logger.info(`Deleted ${documents.length} documents for ${clientIds.length} clients`);
         }
     } catch (error) {
-        console.error('Error cleaning up documents for bulk deleted clients:', error);
+        logger.error('Error cleaning up documents for bulk deleted clients:', error);
     }
 });
 

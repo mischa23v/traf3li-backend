@@ -1,4 +1,5 @@
 const Sentry = require('@sentry/node');
+const logger = require('../utils/logger');
 
 // Optional: Try to import ProfilingIntegration (requires @sentry/profiling-node package)
 let ProfilingIntegration;
@@ -16,7 +17,7 @@ try {
 function initSentry(app) {
     // Skip initialization if DSN is not configured
     if (!process.env.SENTRY_DSN) {
-        console.warn('⚠️  Sentry DSN not configured - error tracking disabled');
+        logger.warn('⚠️  Sentry DSN not configured - error tracking disabled');
         return;
     }
 
@@ -135,10 +136,10 @@ function initSentry(app) {
         normalizeDepth: 5,
     });
 
-    console.log('✅ Sentry initialized successfully');
-    console.log(`   Environment: ${process.env.SENTRY_ENVIRONMENT || process.env.NODE_ENV || 'development'}`);
-    console.log(`   Release: traf3li-backend@${packageJson.version}`);
-    console.log(`   Traces Sample Rate: ${parseFloat(process.env.SENTRY_TRACES_SAMPLE_RATE) || 0.1}`);
+    logger.info('✅ Sentry initialized successfully');
+    logger.info(`   Environment: ${process.env.SENTRY_ENVIRONMENT || process.env.NODE_ENV || 'development'}`);
+    logger.info(`   Release: traf3li-backend@${packageJson.version}`);
+    logger.info(`   Traces Sample Rate: ${parseFloat(process.env.SENTRY_TRACES_SAMPLE_RATE) || 0.1}`);
 }
 
 /**

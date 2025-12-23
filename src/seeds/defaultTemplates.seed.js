@@ -5,6 +5,7 @@
 
 const mongoose = require('mongoose');
 require('dotenv').config();
+const logger = require('../utils/logger');
 
 const templates = [
     {
@@ -209,15 +210,15 @@ const seedTemplates = async () => {
     try {
         const mongoUri = process.env.MONGODB_URI || process.env.MONGO_URI;
         await mongoose.connect(mongoUri);
-        console.log('Connected to MongoDB');
+        logger.info('Connected to MongoDB');
 
         const PageTemplate = require('../models/pageTemplate.model');
 
         // Check existing templates
         const existingCount = await PageTemplate.countDocuments({ isGlobal: true });
-        
+
         if (existingCount > 0) {
-            console.log('Global templates already exist. Skipping seed.');
+            logger.info('Global templates already exist. Skipping seed.');
             await mongoose.disconnect();
             return;
         }
@@ -228,14 +229,14 @@ const seedTemplates = async () => {
                 ...template,
                 createdBy: new mongoose.Types.ObjectId() // Placeholder
             });
-            console.log('Created template:', template.name);
+            logger.info('Created template:', template.name);
         }
 
-        console.log('\nSeeded', templates.length, 'default templates');
+        logger.info('\nSeeded', templates.length, 'default templates');
         await mongoose.disconnect();
-        console.log('Disconnected from MongoDB');
+        logger.info('Disconnected from MongoDB');
     } catch (error) {
-        console.error('Seed failed:', error);
+        logger.error('Seed failed:', error);
         process.exit(1);
     }
 };

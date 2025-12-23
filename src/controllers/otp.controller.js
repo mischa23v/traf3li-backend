@@ -9,6 +9,7 @@ const NotificationDeliveryService = require('../services/notificationDelivery.se
 const jwt = require('jsonwebtoken');
 const { getCookieConfig } = require('./auth.controller');
 const { sanitizeObjectId, timingSafeEqual } = require('../utils/securityUtils');
+const logger = require('../utils/logger');
 
 /**
  * Send OTP to email
@@ -83,7 +84,7 @@ const sendOTP = async (req, res) => {
     );
 
     if (!emailResult.success) {
-      console.error('OTP email failed:', emailResult.error);
+      logger.error('OTP email failed:', emailResult.error);
       return res.status(500).json({
         success: false,
         error: 'Failed to send OTP email. Please try again.',
@@ -100,7 +101,7 @@ const sendOTP = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Send OTP error:', error);
+    logger.error('Send OTP error:', error);
     res.status(500).json({
       success: false,
       error: 'Internal server error',
@@ -255,7 +256,7 @@ const verifyOTP = async (req, res) => {
       });
 
   } catch (error) {
-    console.error('Verify OTP error:', error);
+    logger.error('Verify OTP error:', error);
     res.status(500).json({
       success: false,
       error: 'Internal server error',
@@ -300,7 +301,7 @@ const checkOTPStatus = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Check OTP status error:', error);
+    logger.error('Check OTP status error:', error);
     res.status(500).json({
       success: false,
       error: 'Internal server error'

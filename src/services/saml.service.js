@@ -2,6 +2,7 @@ const { Strategy: SamlStrategy } = require('@node-saml/passport-saml');
 const { Firm, User } = require('../models');
 const { CustomException } = require('../utils');
 const crypto = require('crypto');
+const logger = require('../utils/logger');
 
 /**
  * SAML/SSO Service for Enterprise Integration
@@ -350,7 +351,7 @@ class SAMLService {
 
             await firm.save();
         } catch (error) {
-            console.error('Error adding user to firm:', error);
+            logger.error('Error adding user to firm:', error);
             // Continue even if firm update fails
         }
 

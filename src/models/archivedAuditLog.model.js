@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const logger = require('../utils/logger');
 
 /**
  * Archived Audit Log Model
@@ -254,7 +255,7 @@ archivedAuditLogSchema.statics.archiveLogs = async function (auditLogs) {
       timestamp: new Date(),
     };
   } catch (error) {
-    console.error('Failed to archive audit logs:', error.message);
+    logger.error('Failed to archive audit logs:', error.message);
     return {
       success: false,
       archived: 0,

@@ -16,6 +16,7 @@
  */
 
 const mongoose = require('mongoose');
+const logger = require('../utils/logger');
 
 // Note: Assumes ThreadMessage model exists at ../models/threadMessage.model.js
 // If not, this import will need to be adjusted based on your actual model location
@@ -23,7 +24,7 @@ let ThreadMessage;
 try {
   ThreadMessage = require('../models/threadMessage.model');
 } catch (error) {
-  console.warn('ThreadMessage model not found. Service methods will fail until model is created.');
+  logger.warn('ThreadMessage model not found. Service methods will fail until model is created.');
 }
 
 // Import chatter notification service
@@ -31,7 +32,7 @@ let chatterNotificationService;
 try {
   chatterNotificationService = require('./chatterNotification.service');
 } catch (error) {
-  console.warn('ChatterNotification service not found. Notifications will be skipped.');
+  logger.warn('ChatterNotification service not found. Notifications will be skipped.');
 }
 
 class ThreadMessageService {
@@ -129,14 +130,14 @@ class ThreadMessageService {
         try {
           await chatterNotificationService.notifyFollowers(message);
         } catch (error) {
-          console.error('ThreadMessageService: Failed to send chatter notifications:', error.message);
+          logger.error('ThreadMessageService: Failed to send chatter notifications:', error.message);
           // Don't throw - notification failures shouldn't block message creation
         }
       }
 
       return message;
     } catch (error) {
-      console.error('ThreadMessageService.postMessage failed:', error.message);
+      logger.error('ThreadMessageService.postMessage failed:', error.message);
       return null;
     }
   }
@@ -161,7 +162,7 @@ class ThreadMessageService {
         is_internal: true
       }, context);
     } catch (error) {
-      console.error('ThreadMessageService.logNote failed:', error.message);
+      logger.error('ThreadMessageService.logNote failed:', error.message);
       return null;
     }
   }
@@ -211,7 +212,7 @@ class ThreadMessageService {
         is_internal: false
       }, context);
     } catch (error) {
-      console.error('ThreadMessageService.logFieldChanges failed:', error.message);
+      logger.error('ThreadMessageService.logFieldChanges failed:', error.message);
       return null;
     }
   }
@@ -249,7 +250,7 @@ class ThreadMessageService {
         is_internal: false
       }, context);
     } catch (error) {
-      console.error('ThreadMessageService.logStageChange failed:', error.message);
+      logger.error('ThreadMessageService.logStageChange failed:', error.message);
       return null;
     }
   }
@@ -283,7 +284,7 @@ class ThreadMessageService {
         is_internal: false
       }, context);
     } catch (error) {
-      console.error('ThreadMessageService.logActivityDone failed:', error.message);
+      logger.error('ThreadMessageService.logActivityDone failed:', error.message);
       return null;
     }
   }
@@ -330,7 +331,7 @@ class ThreadMessageService {
 
       return messages;
     } catch (error) {
-      console.error('ThreadMessageService.getMessages failed:', error.message);
+      logger.error('ThreadMessageService.getMessages failed:', error.message);
       return [];
     }
   }
@@ -367,7 +368,7 @@ class ThreadMessageService {
 
       return messages;
     } catch (error) {
-      console.error('ThreadMessageService.getMessagesForUser failed:', error.message);
+      logger.error('ThreadMessageService.getMessagesForUser failed:', error.message);
       return [];
     }
   }
@@ -409,7 +410,7 @@ class ThreadMessageService {
 
       return message;
     } catch (error) {
-      console.error('ThreadMessageService.starMessage failed:', error.message);
+      logger.error('ThreadMessageService.starMessage failed:', error.message);
       return null;
     }
   }
@@ -441,7 +442,7 @@ class ThreadMessageService {
 
       return messages;
     } catch (error) {
-      console.error('ThreadMessageService.getStarredMessages failed:', error.message);
+      logger.error('ThreadMessageService.getStarredMessages failed:', error.message);
       return [];
     }
   }
@@ -485,7 +486,7 @@ class ThreadMessageService {
 
       return messages;
     } catch (error) {
-      console.error('ThreadMessageService.searchMessages failed:', error.message);
+      logger.error('ThreadMessageService.searchMessages failed:', error.message);
       return [];
     }
   }
@@ -528,7 +529,7 @@ class ThreadMessageService {
 
       return Array.from(userIds);
     } catch (error) {
-      console.error('ThreadMessageService._parseMentions failed:', error.message);
+      logger.error('ThreadMessageService._parseMentions failed:', error.message);
       return [];
     }
   }
@@ -550,7 +551,7 @@ class ThreadMessageService {
       try {
         notificationService = require('./notificationDelivery.service');
       } catch (error) {
-        console.warn('NotificationDelivery service not found. Skipping notifications.');
+        logger.warn('NotificationDelivery service not found. Skipping notifications.');
         return;
       }
 
@@ -589,7 +590,7 @@ class ThreadMessageService {
         });
       }
     } catch (error) {
-      console.error('ThreadMessageService._notifyPartners failed:', error.message);
+      logger.error('ThreadMessageService._notifyPartners failed:', error.message);
     }
   }
 

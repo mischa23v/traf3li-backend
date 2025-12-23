@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const logger = require('../utils/logger');
 
 /**
  * Case-specific Audit Log Model
@@ -77,7 +78,7 @@ caseAuditLogSchema.statics.log = async function(logData) {
     await entry.save();
     return entry;
   } catch (error) {
-    console.error('❌ Case audit log error:', error.message);
+    logger.error('❌ Case audit log error:', error.message);
     // Don't throw - audit logging shouldn't break main operations
     return null;
   }

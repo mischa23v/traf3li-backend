@@ -14,6 +14,7 @@ const Payment = require('../models/payment.model');
 const GeneralLedger = require('../models/generalLedger.model');
 const Account = require('../models/account.model');
 const { toHalalas } = require('../utils/currency');
+const logger = require('../utils/logger');
 
 // Connect to database
 const connectDB = async () => {
@@ -22,9 +23,9 @@ const connectDB = async () => {
             maxPoolSize: 10,
             minPoolSize: 2
         });
-        console.log('MongoDB connected for migration...');
+        logger.info('MongoDB connected for migration...');
     } catch (error) {
-        console.error('MongoDB connection error:', error);
+        logger.error('MongoDB connection error:', error);
         process.exit(1);
     }
 };
@@ -33,7 +34,7 @@ const connectDB = async () => {
  * Migrate invoices to GL
  */
 const migrateInvoices = async () => {
-    console.log('\n=== Starting Invoice Migration ===\n');
+    logger.info('\n=== Starting Invoice Migration ===\n');
 
     // Get default accounts
     const arAccount = await Account.findOne({ code: '1110' }); // Accounts Receivable
@@ -41,11 +42,11 @@ const migrateInvoices = async () => {
     const bankAccount = await Account.findOne({ code: '1102' }); // Bank Account - Main
 
     if (!arAccount || !incomeAccount || !bankAccount) {
-        console.error('Required accounts not found. Please run seed:accounts first.');
-        console.log('Missing accounts:');
-        if (!arAccount) console.log('  - 1110 (Accounts Receivable)');
-        if (!incomeAccount) console.log('  - 4100 (Legal Service Fees)');
-        if (!bankAccount) console.log('  - 1102 (Bank Account - Main)');
+        logger.error('Required accounts not found. Please run seed:accounts first.');
+        logger.info('Missing accounts:');
+        if (!arAccount) logger.info('  - 1110 (Accounts Receivable)');
+        if (!incomeAccount) logger.info('  - 4100 (Legal Service Fees)');
+        if (!bankAccount) logger.info('  - 1102 (Bank Account - Main)');
         process.exit(1);
     }
 
@@ -54,7 +55,7 @@ const migrateInvoices = async () => {
         status: { $ne: 'draft' }
     }).sort({ issueDate: 1 });
 
-    console.log(`Found ${invoices.length} invoices to process`);
+    logger.info(`Found ${invoices.length} invoices to process`);
 
     let migratedCount = 0;
     let skippedCount = 0;
@@ -70,7 +71,7 @@ const migrateInvoices = async () => {
             });
 
             if (existingEntry) {
-                console.log(`⏭️  Invoice ${invoice.invoiceNumber} already migrated, skipping`);
+                logger.info(`⏭️  Invoice ${invoice.invoiceNumber} already migrated, skipping`);
                 skippedCount++;
                 continue;
             }
@@ -81,7 +82,7 @@ const migrateInvoices = async () => {
                 : toHalalas(invoice.totalAmount);
 
             if (amount <= 0) {
-                console.log(`⏭️  Invoice ${invoice.invoiceNumber} has zero amount, skipping`);
+                logger.info(`⏭️  Invoice ${invoice.invoiceNumber} has zero amount, skipping`);
                 skippedCount++;
                 continue;
             }
@@ -168,7 +169,7 @@ const migrateInvoices = async () => {
                 }
 
                 await session.commitTransaction();
-                console.log(`✅ Migrated invoice ${invoice.invoiceNumber}`);
+                logger.info(`✅ Migrated invoice ${invoice.invoiceNumber}`);
                 migratedCount++;
             } catch (error) {
                 await session.abortTransaction();
@@ -177,16 +178,16 @@ const migrateInvoices = async () => {
                 session.endSession();
             }
         } catch (error) {
-            console.error(`❌ Error migrating invoice ${invoice.invoiceNumber}:`, error.message);
+            logger.error(`❌ Error migrating invoice ${invoice.invoiceNumber}:`, error.message);
             errorCount++;
         }
     }
 
-    console.log('\n=== Invoice Migration Complete ===');
-    console.log(`Total invoices: ${invoices.length}`);
-    console.log(`Migrated: ${migratedCount}`);
-    console.log(`Skipped: ${skippedCount}`);
-    console.log(`Errors: ${errorCount}`);
+    logger.info('\n=== Invoice Migration Complete ===');
+    logger.info(`Total invoices: ${invoices.length}`);
+    logger.info(`Migrated: ${migratedCount}`);
+    logger.info(`Skipped: ${skippedCount}`);
+    logger.info(`Errors: ${errorCount}`);
 };
 
 /**
@@ -196,10 +197,10 @@ const main = async () => {
     try {
         await connectDB();
         await migrateInvoices();
-        console.log('\nMigration completed successfully!');
+        logger.info('\nMigration completed successfully!');
         process.exit(0);
     } catch (error) {
-        console.error('Migration failed:', error);
+        logger.error('Migration failed:', error);
         process.exit(1);
     }
 };

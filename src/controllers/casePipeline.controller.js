@@ -6,6 +6,7 @@ const Event = require('../models/event.model');
 const CaseNotionPage = require('../models/caseNotionPage.model');
 const CaseAuditService = require('../services/caseAuditService');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
+const logger = require('../utils/logger');
 
 // ═══════════════════════════════════════════════════════════════
 // VALID STAGES BY CATEGORY
@@ -31,15 +32,16 @@ exports.getCasesForPipeline = async (req, res) => {
         const userId = req.userID || req.user?._id;
 
         // DEBUG: Log all inputs
-        console.log('=== getCasesForPipeline DEBUG ===');
-        console.log('URL:', req.originalUrl);
-        console.log('req.userID:', req.userID);
-        console.log('req.user?._id:', req.user?._id?.toString());
-        console.log('userId resolved to:', userId?.toString());
-        console.log('req.user?.firmId:', req.user?.firmId?.toString());
-        console.log('req.firmId:', req.firmId?.toString());
-        console.log('req.isSoloLawyer:', req.isSoloLawyer);
-        console.log('Query params:', { category, outcome, priority, page, limit });
+        logger.info('getCasesForPipeline DEBUG', {
+            url: req.originalUrl,
+            reqUserID: req.userID,
+            reqUserId: req.user?._id?.toString(),
+            userIdResolved: userId?.toString(),
+            reqUserFirmId: req.user?.firmId?.toString(),
+            reqFirmId: req.firmId?.toString(),
+            isSoloLawyer: req.isSoloLawyer,
+            queryParams: { category, outcome, priority, page, limit }
+        });
 
         // Build match stage
         const matchStage = { deletedAt: null };
@@ -50,10 +52,10 @@ exports.getCasesForPipeline = async (req, res) => {
                 { firmId: new mongoose.Types.ObjectId(req.user.firmId) },
                 { lawyerId: new mongoose.Types.ObjectId(userId) }
             ];
-            console.log('Firm user - using $or filter with firmId:', req.user.firmId, 'and lawyerId:', userId);
+            logger.info('Firm user - using $or filter', { firmId: req.user.firmId, lawyerId: userId });
         } else {
             matchStage.lawyerId = new mongoose.Types.ObjectId(userId);
-            console.log('Non-firm user - filtering by lawyerId only:', userId);
+            logger.info('Non-firm user - filtering by lawyerId only', { lawyerId: userId });
         }
 
         // Apply filters
@@ -67,7 +69,7 @@ exports.getCasesForPipeline = async (req, res) => {
             matchStage.priority = priority;
         }
 
-        console.log('Final matchStage:', JSON.stringify(matchStage, null, 2));
+        logger.info('Final matchStage', { matchStage: JSON.stringify(matchStage, null, 2) });
 
         // Aggregation pipeline
         const cases = await Case.aggregate([
@@ -370,7 +372,7 @@ exports.moveCaseToStage = async (req, res) => {
                 notes
             });
         } catch (auditError) {
-            console.error('Audit log error:', auditError);
+            logger.error('Audit log error', { error: auditError.message });
         }
 
         res.json({
@@ -509,7 +511,7 @@ exports.endCase = async (req, res) => {
                 finalAmount
             });
         } catch (auditError) {
-            console.error('Audit log error:', auditError);
+            logger.error('Audit log error', { error: auditError.message });
         }
 
         res.json({
@@ -836,7 +838,7 @@ exports.getCasesByStage = async (req, res) => {
             data: grouped
         });
     } catch (error) {
-        console.error('Error getting cases by stage:', error);
+        logger.error('Error getting cases by stage', { error: error.message });
         res.status(500).json({
             success: false,
             message: 'Failed to get cases'
@@ -927,7 +929,7 @@ exports.getNotes = async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('Error getting notes:', error);
+        logger.error('Error getting notes', { error: error.message });
         res.status(500).json({
             success: false,
             message: 'Failed to get notes'
@@ -1021,7 +1023,7 @@ exports.addNote = async (req, res) => {
             data: caseDoc.notes[0]
         });
     } catch (error) {
-        console.error('Error adding note:', error);
+        logger.error('Error adding note', { error: error.message });
         res.status(500).json({
             success: false,
             message: 'Failed to add note'
@@ -1116,7 +1118,7 @@ exports.updateNote = async (req, res) => {
             data: note
         });
     } catch (error) {
-        console.error('Error updating note:', error);
+        logger.error('Error updating note', { error: error.message });
         res.status(500).json({
             success: false,
             message: 'Failed to update note'
@@ -1194,7 +1196,7 @@ exports.deleteNote = async (req, res) => {
             message: 'Note deleted successfully'
         });
     } catch (error) {
-        console.error('Error deleting note:', error);
+        logger.error('Error deleting note', { error: error.message });
         res.status(500).json({
             success: false,
             message: 'Failed to delete note'

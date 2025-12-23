@@ -16,6 +16,7 @@
 
 const axios = require('axios');
 const { WPSService } = require('./wps.service');
+const logger = require('../utils/logger');
 
 // GOSI contribution rates
 const GOSI_RATES = {
@@ -228,7 +229,7 @@ class MudadService {
                 summary: payrollData.summary,
             };
         } catch (error) {
-            console.error('Mudad submission error:', error);
+            logger.error('Mudad submission error:', error);
             return {
                 success: false,
                 error: error.message,
@@ -251,7 +252,7 @@ class MudadService {
                 processedAt: new Date().toISOString(),
             };
         } catch (error) {
-            console.error('Get status error:', error);
+            logger.error('Get status error:', error);
             throw new Error('Failed to get submission status');
         }
     }

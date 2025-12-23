@@ -11,6 +11,7 @@
  */
 
 const CircuitBreaker = require('opossum');
+const logger = require('./logger');
 
 // Default options for circuit breakers
 const DEFAULT_OPTIONS = {
@@ -51,27 +52,27 @@ function createBreaker(name, fn, options = {}) {
   });
 
   breaker.on('timeout', () => {
-    console.warn(`[CircuitBreaker] ${name}: Request timed out`);
+    logger.warn(`[CircuitBreaker] ${name}: Request timed out`);
   });
 
   breaker.on('reject', () => {
-    console.warn(`[CircuitBreaker] ${name}: Request rejected (circuit open)`);
+    logger.warn(`[CircuitBreaker] ${name}: Request rejected (circuit open)`);
   });
 
   breaker.on('open', () => {
-    console.error(`[CircuitBreaker] ${name}: Circuit OPENED - service appears down`);
+    logger.error(`[CircuitBreaker] ${name}: Circuit OPENED - service appears down`);
   });
 
   breaker.on('halfOpen', () => {
-    console.info(`[CircuitBreaker] ${name}: Circuit HALF-OPEN - testing service`);
+    logger.info(`[CircuitBreaker] ${name}: Circuit HALF-OPEN - testing service`);
   });
 
   breaker.on('close', () => {
-    console.info(`[CircuitBreaker] ${name}: Circuit CLOSED - service recovered`);
+    logger.info(`[CircuitBreaker] ${name}: Circuit CLOSED - service recovered`);
   });
 
   breaker.on('fallback', (result) => {
-    console.warn(`[CircuitBreaker] ${name}: Fallback executed`);
+    logger.warn(`[CircuitBreaker] ${name}: Fallback executed`);
   });
 
   breakers.set(name, breaker);
@@ -122,7 +123,7 @@ function resetBreaker(name) {
   const breaker = breakers.get(name);
   if (breaker) {
     breaker.close();
-    console.info(`[CircuitBreaker] ${name}: Circuit manually reset to CLOSED`);
+    logger.info(`[CircuitBreaker] ${name}: Circuit manually reset to CLOSED`);
   }
 }
 

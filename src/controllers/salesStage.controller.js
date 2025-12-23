@@ -7,6 +7,7 @@
 const SalesStage = require('../models/salesStage.model');
 const CrmActivity = require('../models/crmActivity.model');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
+const logger = require('../utils/logger');
 
 // ═══════════════════════════════════════════════════════════════
 // LIST SALES STAGES
@@ -43,7 +44,7 @@ exports.getAll = async (req, res) => {
             data: stages
         });
     } catch (error) {
-        console.error('Error getting sales stages:', error);
+        logger.error('Error getting sales stages:', error);
         res.status(500).json({
             success: false,
             message: 'خطأ في جلب مراحل المبيعات / Error fetching sales stages',
@@ -92,7 +93,7 @@ exports.getById = async (req, res) => {
             data: stage
         });
     } catch (error) {
-        console.error('Error getting sales stage:', error);
+        logger.error('Error getting sales stage:', error);
         res.status(500).json({
             success: false,
             message: 'خطأ في جلب مرحلة المبيعات / Error fetching sales stage',
@@ -196,7 +197,7 @@ exports.create = async (req, res) => {
             data: stage
         });
     } catch (error) {
-        console.error('Error creating sales stage:', error);
+        logger.error('Error creating sales stage:', error);
         res.status(500).json({
             success: false,
             message: 'خطأ في إنشاء مرحلة المبيعات / Error creating sales stage',
@@ -316,7 +317,7 @@ exports.update = async (req, res) => {
             data: stage
         });
     } catch (error) {
-        console.error('Error updating sales stage:', error);
+        logger.error('Error updating sales stage:', error);
         res.status(500).json({
             success: false,
             message: 'خطأ في تحديث مرحلة المبيعات / Error updating sales stage',
@@ -377,7 +378,7 @@ exports.delete = async (req, res) => {
             message: 'تم حذف مرحلة المبيعات بنجاح / Sales stage deleted successfully'
         });
     } catch (error) {
-        console.error('Error deleting sales stage:', error);
+        logger.error('Error deleting sales stage:', error);
         res.status(500).json({
             success: false,
             message: 'خطأ في حذف مرحلة المبيعات / Error deleting sales stage',
@@ -464,7 +465,7 @@ exports.reorder = async (req, res) => {
             data: updatedStages
         });
     } catch (error) {
-        console.error('Error reordering sales stages:', error);
+        logger.error('Error reordering sales stages:', error);
         res.status(500).json({
             success: false,
             message: 'خطأ في إعادة ترتيب مراحل المبيعات / Error reordering stages',
@@ -510,7 +511,7 @@ exports.createDefaults = async (req, res) => {
             data: stages
         });
     } catch (error) {
-        console.error('Error creating default sales stages:', error);
+        logger.error('Error creating default sales stages:', error);
         res.status(500).json({
             success: false,
             message: 'خطأ في إنشاء مراحل المبيعات الافتراضية / Error creating defaults',

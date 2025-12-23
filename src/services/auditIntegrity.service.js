@@ -13,6 +13,7 @@
 
 const crypto = require('crypto');
 const AuditLog = require('../models/auditLog.model');
+const logger = require('../utils/logger');
 
 // Secret key for HMAC signatures (should be in env)
 const AUDIT_SECRET = process.env.AUDIT_INTEGRITY_SECRET || process.env.JWT_SECRET;
@@ -121,7 +122,7 @@ async function logWithIntegrity(logData) {
     const log = await AuditLog.log(logData);
     return log;
   } catch (error) {
-    console.error('Audit integrity log error:', error.message);
+    logger.error('Audit integrity log error:', error.message);
     // Fall back to regular logging if integrity fails
     return AuditLog.log(logData);
   }

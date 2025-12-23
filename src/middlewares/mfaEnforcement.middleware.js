@@ -10,6 +10,8 @@
  * - partner: Partnership-level access
  */
 
+const logger = require('../utils/logger');
+
 // Roles that require MFA to be enabled
 const PRIVILEGED_ROLES = ['owner', 'admin', 'partner'];
 
@@ -82,7 +84,7 @@ const enforceMFA = (req, res, next) => {
     // MFA is enabled, proceed
     next();
   } catch (error) {
-    console.error('MFA enforcement error:', error.message);
+    logger.error('MFA enforcement error:', error.message);
     return res.status(500).json({
       success: false,
       error: 'خطأ في التحقق من المصادقة الثنائية',
@@ -132,7 +134,7 @@ const requireRecentMFA = (req, res, next) => {
 
     next();
   } catch (error) {
-    console.error('Recent MFA check error:', error.message);
+    logger.error('Recent MFA check error:', error.message);
     return res.status(500).json({
       success: false,
       error: 'خطأ في التحقق من المصادقة الثنائية',

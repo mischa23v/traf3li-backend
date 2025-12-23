@@ -11,6 +11,7 @@ const PageActivity = require('../models/pageActivity.model');
 const Task = require('../models/task.model');
 const Case = require('../models/case.model');
 const PageHistory = require('../models/pageHistory.model');
+const logger = require('../utils/logger');
 
 // ═══════════════════════════════════════════════════════════════
 // SECURITY HELPERS
@@ -249,14 +250,14 @@ exports.listPages = async (req, res) => {
         const userId = req.userID || req.user?._id;
 
         // DEBUG: Log all inputs
-        console.log('=== caseNotion.listPages DEBUG ===');
-        console.log('URL:', req.originalUrl);
-        console.log('caseId:', caseId);
-        console.log('req.userID:', req.userID);
-        console.log('req.user?._id:', req.user?._id?.toString());
-        console.log('userId resolved to:', userId?.toString());
-        console.log('req.user?.firmId:', req.user?.firmId?.toString());
-        console.log('req.case (from middleware):', req.case?._id?.toString());
+        logger.info('=== caseNotion.listPages DEBUG ===');
+        logger.info('URL:', req.originalUrl);
+        logger.info('caseId:', caseId);
+        logger.info('req.userID:', req.userID);
+        logger.info('req.user?._id:', req.user?._id?.toString());
+        logger.info('userId resolved to:', userId?.toString());
+        logger.info('req.user?.firmId:', req.user?.firmId?.toString());
+        logger.info('req.case (from middleware):', req.case?._id?.toString());
 
         const query = {
             caseId,
@@ -270,13 +271,13 @@ exports.listPages = async (req, res) => {
                 { lawyerId: userId },
                 { createdBy: userId }
             ];
-            console.log('Firm user - using $or filter');
+            logger.info('Firm user - using $or filter');
         } else {
             query.$or = [
                 { lawyerId: userId },
                 { createdBy: userId }
             ];
-            console.log('Non-firm user - using $or filter with lawyerId/createdBy');
+            logger.info('Non-firm user - using $or filter with lawyerId/createdBy');
         }
 
         if (pageType) query.pageType = pageType;
@@ -292,7 +293,7 @@ exports.listPages = async (req, res) => {
             query.$text = { $search: search };
         }
 
-        console.log('Final query:', JSON.stringify(query, null, 2));
+        logger.info('Final query:', JSON.stringify(query, null, 2));
 
         const pages = await CaseNotionPage.find(query)
             .sort({ isPinned: -1, isFavorite: -1, updatedAt: -1 })
@@ -303,14 +304,14 @@ exports.listPages = async (req, res) => {
 
         const count = await CaseNotionPage.countDocuments(query);
 
-        console.log('Found', count, 'pages');
+        logger.info('Found', count, 'pages');
 
         res.json({
             success: true,
             data: { pages, count, totalPages: Math.ceil(count / limit) }
         });
     } catch (error) {
-        console.log('listPages ERROR:', error.message);
+        logger.info('listPages ERROR:', error.message);
         res.status(500).json({ error: true, message: error.message });
     }
 };
@@ -414,7 +415,7 @@ exports.getPage = async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('Error getting page:', error);
+        logger.error('Error getting page:', error);
         res.status(500).json({ error: true, message: error.message });
     }
 };
@@ -2198,7 +2199,7 @@ exports.createConnection = async (req, res) => {
 
         res.status(201).json({ success: true, data: populatedConnection });
     } catch (error) {
-        console.error('Error creating connection:', error);
+        logger.error('Error creating connection:', error);
         res.status(500).json({ error: true, message: error.message });
     }
 };
@@ -2263,7 +2264,7 @@ exports.deleteConnection = async (req, res) => {
 
         res.json({ success: true, message: 'Connection deleted' });
     } catch (error) {
-        console.error('Error deleting connection:', error);
+        logger.error('Error deleting connection:', error);
         res.status(500).json({ error: true, message: error.message });
     }
 };
@@ -2641,7 +2642,7 @@ async function recordHistory(pageId, userId, actionType, elementIds, connectionI
         // Cleanup old history
         await PageHistory.cleanupOldHistory(pageId, userId);
     } catch (error) {
-        console.error('Error recording history:', error);
+        logger.error('Error recording history:', error);
     }
 }
 
@@ -2752,7 +2753,7 @@ exports.undo = async (req, res) => {
             actionType
         });
     } catch (error) {
-        console.error('Error in undo:', error);
+        logger.error('Error in undo:', error);
         res.status(500).json({ error: true, message: error.message });
     }
 };
@@ -2853,7 +2854,7 @@ exports.redo = async (req, res) => {
             actionType
         });
     } catch (error) {
-        console.error('Error in redo:', error);
+        logger.error('Error in redo:', error);
         res.status(500).json({ error: true, message: error.message });
     }
 };
@@ -3384,7 +3385,7 @@ exports.createShape = async (req, res) => {
 
         res.status(201).json({ success: true, data: shape });
     } catch (error) {
-        console.error('Error creating shape:', error);
+        logger.error('Error creating shape:', error);
         res.status(500).json({ error: true, message: error.message });
     }
 };
@@ -3458,7 +3459,7 @@ exports.createArrow = async (req, res) => {
 
         res.status(201).json({ success: true, data: arrow });
     } catch (error) {
-        console.error('Error creating arrow:', error);
+        logger.error('Error creating arrow:', error);
         res.status(500).json({ error: true, message: error.message });
     }
 };
@@ -3499,7 +3500,7 @@ exports.createFrame = async (req, res) => {
 
         res.status(201).json({ success: true, data: frame });
     } catch (error) {
-        console.error('Error creating frame:', error);
+        logger.error('Error creating frame:', error);
         res.status(500).json({ error: true, message: error.message });
     }
 };

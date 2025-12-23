@@ -1,4 +1,5 @@
 const { getIO } = require('../configs/socket');
+const logger = require('../utils/logger');
 
 /**
  * Collaboration Service
@@ -79,7 +80,7 @@ class CollaborationService {
 
       return presence;
     } catch (error) {
-      console.error('Error in updatePresence:', error);
+      logger.error('Error in updatePresence:', error);
       throw error;
     }
   }
@@ -112,7 +113,7 @@ class CollaborationService {
 
       return activeUsers;
     } catch (error) {
-      console.error('Error in getActiveUsers:', error);
+      logger.error('Error in getActiveUsers:', error);
       throw error;
     }
   }
@@ -127,7 +128,7 @@ class CollaborationService {
       const userIdStr = userId.toString();
       return this.presenceMap.get(userIdStr) || null;
     } catch (error) {
-      console.error('Error in getUserPresence:', error);
+      logger.error('Error in getUserPresence:', error);
       throw error;
     }
   }
@@ -159,7 +160,7 @@ class CollaborationService {
 
       this.presenceMap.delete(userIdStr);
     } catch (error) {
-      console.error('Error in removePresence:', error);
+      logger.error('Error in removePresence:', error);
       throw error;
     }
   }
@@ -185,7 +186,7 @@ class CollaborationService {
 
       return staleUsers.length;
     } catch (error) {
-      console.error('Error in cleanStalePresence:', error);
+      logger.error('Error in cleanStalePresence:', error);
       throw error;
     }
   }
@@ -225,7 +226,7 @@ class CollaborationService {
 
       return { userId: userIdStr, locationId, position };
     } catch (error) {
-      console.error('Error in updateCursor:', error);
+      logger.error('Error in updateCursor:', error);
       throw error;
     }
   }
@@ -258,7 +259,7 @@ class CollaborationService {
 
       return cursors;
     } catch (error) {
-      console.error('Error in getCursors:', error);
+      logger.error('Error in getCursors:', error);
       throw error;
     }
   }
@@ -281,7 +282,7 @@ class CollaborationService {
         io.to(locationId).emit('cursor:remove', { userId: userIdStr });
       }
     } catch (error) {
-      console.error('Error in removeCursor:', error);
+      logger.error('Error in removeCursor:', error);
       throw error;
     }
   }
@@ -322,7 +323,7 @@ class CollaborationService {
         io.to(roomId).emit('task:updated', updateData);
       }
     } catch (error) {
-      console.error('Error in broadcastTaskUpdate:', error);
+      logger.error('Error in broadcastTaskUpdate:', error);
       throw error;
     }
   }
@@ -357,7 +358,7 @@ class CollaborationService {
         io.to(roomId).emit('gantt:updated', updateData);
       }
     } catch (error) {
-      console.error('Error in broadcastGanttUpdate:', error);
+      logger.error('Error in broadcastGanttUpdate:', error);
       throw error;
     }
   }
@@ -392,7 +393,7 @@ class CollaborationService {
         io.to(roomId).emit('document:updated', updateData);
       }
     } catch (error) {
-      console.error('Error in broadcastDocumentUpdate:', error);
+      logger.error('Error in broadcastDocumentUpdate:', error);
       throw error;
     }
   }
@@ -427,7 +428,7 @@ class CollaborationService {
         io.to(roomId).emit('case:updated', updateData);
       }
     } catch (error) {
-      console.error('Error in broadcastCaseUpdate:', error);
+      logger.error('Error in broadcastCaseUpdate:', error);
       throw error;
     }
   }
@@ -455,7 +456,7 @@ class CollaborationService {
         });
       }
     } catch (error) {
-      console.error('Error in broadcastTyping:', error);
+      logger.error('Error in broadcastTyping:', error);
       throw error;
     }
   }
@@ -523,7 +524,7 @@ class CollaborationService {
         expiresAt: lock.lockedAt + (ttl * 1000)
       };
     } catch (error) {
-      console.error('Error in acquireLock:', error);
+      logger.error('Error in acquireLock:', error);
       throw error;
     }
   }
@@ -570,7 +571,7 @@ class CollaborationService {
         message: 'Lock released'
       };
     } catch (error) {
-      console.error('Error in releaseLock:', error);
+      logger.error('Error in releaseLock:', error);
       throw error;
     }
   }
@@ -611,7 +612,7 @@ class CollaborationService {
         expiresAt: lock.lockedAt + (lock.ttl * 1000)
       };
     } catch (error) {
-      console.error('Error in getLock:', error);
+      logger.error('Error in getLock:', error);
       throw error;
     }
   }
@@ -638,7 +639,7 @@ class CollaborationService {
 
       return expiredLocks.length;
     } catch (error) {
-      console.error('Error in cleanExpiredLocks:', error);
+      logger.error('Error in cleanExpiredLocks:', error);
       throw error;
     }
   }
@@ -669,7 +670,7 @@ class CollaborationService {
 
       return activityData;
     } catch (error) {
-      console.error('Error in recordActivity:', error);
+      logger.error('Error in recordActivity:', error);
       throw error;
     }
   }
@@ -686,7 +687,7 @@ class CollaborationService {
       // For now, return empty array (implement based on your activity storage)
       return [];
     } catch (error) {
-      console.error('Error in getRecentActivities:', error);
+      logger.error('Error in getRecentActivities:', error);
       throw error;
     }
   }
@@ -736,7 +737,7 @@ class CollaborationService {
         activeUsers
       };
     } catch (error) {
-      console.error('Error in joinRoom:', error);
+      logger.error('Error in joinRoom:', error);
       throw error;
     }
   }
@@ -778,7 +779,7 @@ class CollaborationService {
 
       return { success: true };
     } catch (error) {
-      console.error('Error in leaveRoom:', error);
+      logger.error('Error in leaveRoom:', error);
       throw error;
     }
   }
@@ -796,7 +797,7 @@ class CollaborationService {
 
       return Array.from(this.activeRooms.get(roomId));
     } catch (error) {
-      console.error('Error in getRoomUsers:', error);
+      logger.error('Error in getRoomUsers:', error);
       throw error;
     }
   }
@@ -813,14 +814,14 @@ class CollaborationService {
       const staleUsers = await this.cleanStalePresence();
       const expiredLocks = await this.cleanExpiredLocks();
 
-      console.log(`Cleanup: Removed ${staleUsers} stale users, ${expiredLocks} expired locks`);
+      logger.info(`Cleanup: Removed ${staleUsers} stale users, ${expiredLocks} expired locks`);
 
       return {
         staleUsers,
         expiredLocks
       };
     } catch (error) {
-      console.error('Error in runCleanup:', error);
+      logger.error('Error in runCleanup:', error);
       throw error;
     }
   }
@@ -838,7 +839,7 @@ class CollaborationService {
         activeCursors: Array.from(this.cursorMap.values()).reduce((sum, map) => sum + map.size, 0)
       };
     } catch (error) {
-      console.error('Error in getStats:', error);
+      logger.error('Error in getStats:', error);
       throw error;
     }
   }

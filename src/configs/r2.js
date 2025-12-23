@@ -10,6 +10,7 @@
  * - File versioning support
  */
 
+const logger = require('../utils/logger');
 const {
     S3Client,
     PutObjectCommand,
@@ -43,9 +44,9 @@ if (isR2Configured()) {
             secretAccessKey: process.env.R2_SECRET_ACCESS_KEY
         }
     });
-    console.log('R2 client initialized successfully');
+    logger.info('R2 client initialized successfully');
 } else {
-    console.log('R2 not configured - using local storage for file uploads');
+    logger.info('R2 not configured - using local storage for file uploads');
 }
 
 // Bucket names from environment variables
@@ -329,7 +330,7 @@ const logFileAccess = async (fileKey, bucket, userId, action, metadata = {}) => 
         await r2Client.send(command);
     } catch (err) {
         // Log error but don't fail the main operation
-        console.error('Failed to log file access to R2:', err.message);
+        logger.error('Failed to log file access to R2:', err.message);
     }
 };
 
@@ -388,7 +389,7 @@ const logBatchFileAccess = async (accessRecords) => {
 
             await r2Client.send(command);
         } catch (err) {
-            console.error('Failed to log batch file access:', err.message);
+            logger.error('Failed to log batch file access:', err.message);
         }
     });
 
@@ -454,7 +455,7 @@ const queryAccessLogs = async (bucket, options = {}) => {
 
             logs.push(logEntry);
         } catch (err) {
-            console.warn('Failed to parse log entry:', item.Key);
+            logger.warn('Failed to parse log entry:', item.Key);
         }
     }
 
@@ -469,7 +470,7 @@ const queryAccessLogs = async (bucket, options = {}) => {
  */
 const deleteFile = async (fileKey, bucket = 'documents') => {
     if (!isR2Configured() || !r2Client) {
-        console.log('R2 not configured, skipping R2 delete for:', fileKey);
+        logger.info('R2 not configured, skipping R2 delete for:', fileKey);
         return;
     }
 

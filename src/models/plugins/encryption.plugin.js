@@ -1,4 +1,5 @@
 const { encryptField, decryptField, createSearchableHash } = require('../../utils/encryption');
+const logger = require('../../utils/logger');
 
 /**
  * Mongoose Encryption Plugin
@@ -38,7 +39,7 @@ function encryptionPlugin(schema, options = {}) {
   } = options;
 
   if (!fields || fields.length === 0) {
-    console.warn('Encryption plugin: No fields specified for encryption');
+    logger.warn('Encryption plugin: No fields specified for encryption');
     return;
   }
 
@@ -124,7 +125,7 @@ function encryptionPlugin(schema, options = {}) {
 
         next();
       } catch (error) {
-        console.error('Encryption plugin save error:', error);
+        logger.error('Encryption plugin save error:', error);
         next(error);
       }
     });
@@ -296,7 +297,7 @@ function encryptionPlugin(schema, options = {}) {
    * @returns {Promise<Object>} Migration result
    */
   schema.statics.migrateEncryption = async function (filter = {}) {
-    console.log('Starting encryption migration...');
+    logger.info('Starting encryption migration...');
 
     const docs = await this.find(filter);
     let encrypted = 0;
@@ -336,7 +337,7 @@ function encryptionPlugin(schema, options = {}) {
           skipped++;
         }
       } catch (error) {
-        console.error(`Failed to encrypt document ${doc._id}:`, error.message);
+        logger.error(`Failed to encrypt document ${doc._id}:`, error.message);
         errors++;
       }
     }
@@ -348,7 +349,7 @@ function encryptionPlugin(schema, options = {}) {
       errors,
     };
 
-    console.log('Encryption migration completed:', result);
+    logger.info('Encryption migration completed:', result);
     return result;
   };
 }
@@ -373,7 +374,7 @@ function decryptDocument(doc, fields) {
         setNestedValue(doc, fieldPath, decrypted);
       }
     } catch (error) {
-      console.error(`Failed to decrypt field ${fieldPath}:`, error.message);
+      logger.error(`Failed to decrypt field ${fieldPath}:`, error.message);
       // Continue with other fields
     }
   }

@@ -13,6 +13,7 @@
 const AuditLog = require('../models/auditLog.model');
 const ArchivedAuditLog = require('../models/archivedAuditLog.model');
 const mongoose = require('mongoose');
+const logger = require('../utils/logger');
 
 class AuditLogArchivingService {
   constructor() {
@@ -35,8 +36,8 @@ class AuditLogArchivingService {
       firmId = null,
     } = options;
 
-    console.log(`Starting audit log archiving process...`);
-    console.log(`Threshold: ${thresholdDays} days, Batch size: ${batchSize}, Dry run: ${dryRun}`);
+    logger.info(`Starting audit log archiving process...`);
+    logger.info(`Threshold: ${thresholdDays} days, Batch size: ${batchSize}, Dry run: ${dryRun}`);
 
     try {
       // Calculate cutoff date
@@ -56,7 +57,7 @@ class AuditLogArchivingService {
       const totalToArchive = await AuditLog.countDocuments(query);
 
       if (totalToArchive === 0) {
-        console.log('No logs found to archive.');
+        logger.info('No logs found to archive.');
         return {
           success: true,
           archived: 0,
@@ -66,10 +67,10 @@ class AuditLogArchivingService {
         };
       }
 
-      console.log(`Found ${totalToArchive} logs to archive (older than ${cutoffDate.toISOString()})`);
+      logger.info(`Found ${totalToArchive} logs to archive (older than ${cutoffDate.toISOString()})`);
 
       if (dryRun) {
-        console.log('Dry run mode - no changes will be made.');
+        logger.info('Dry run mode - no changes will be made.');
         return {
           success: true,
           archived: 0,
@@ -88,7 +89,7 @@ class AuditLogArchivingService {
 
       while (hasMore) {
         batchNumber++;
-        console.log(`Processing batch ${batchNumber}...`);
+        logger.info(`Processing batch ${batchNumber}...`);
 
         // Fetch batch
         const logs = await AuditLog.find(query)
@@ -111,9 +112,9 @@ class AuditLogArchivingService {
           const deleteResult = await AuditLog.deleteMany({ _id: { $in: logIds } });
           totalDeleted += deleteResult.deletedCount;
 
-          console.log(`Batch ${batchNumber}: Archived ${archiveResult.archived}, Deleted ${deleteResult.deletedCount}`);
+          logger.info(`Batch ${batchNumber}: Archived ${archiveResult.archived}, Deleted ${deleteResult.deletedCount}`);
         } else {
-          console.error(`Batch ${batchNumber}: Archive failed - ${archiveResult.error}`);
+          logger.error(`Batch ${batchNumber}: Archive failed - ${archiveResult.error}`);
         }
 
         // Check if we've processed all logs
@@ -123,7 +124,7 @@ class AuditLogArchivingService {
       }
 
       const duration = Date.now() - startTime;
-      console.log(`Archiving completed: ${totalArchived} archived, ${totalDeleted} deleted in ${duration}ms`);
+      logger.info(`Archiving completed: ${totalArchived} archived, ${totalDeleted} deleted in ${duration}ms`);
 
       return {
         success: true,
@@ -134,7 +135,7 @@ class AuditLogArchivingService {
         cutoffDate,
       };
     } catch (error) {
-      console.error('Audit log archiving failed:', error);
+      logger.error('Audit log archiving failed:', error);
       return {
         success: false,
         error: error.message,
@@ -164,7 +165,7 @@ class AuditLogArchivingService {
         data: stats,
       };
     } catch (error) {
-      console.error('Failed to generate archive summary:', error);
+      logger.error('Failed to generate archive summary:', error);
       return {
         success: false,
         error: error.message,
@@ -180,7 +181,7 @@ class AuditLogArchivingService {
    */
   async verifyArchiveIntegrity(sampleSize = 100) {
     try {
-      console.log(`Verifying archive integrity (sample size: ${sampleSize})...`);
+      logger.info(`Verifying archive integrity (sample size: ${sampleSize})...`);
 
       // Get random sample of archived logs
       const archivedSample = await ArchivedAuditLog.aggregate([
@@ -227,11 +228,11 @@ class AuditLogArchivingService {
         result.errors = errors.slice(0, 10); // Return first 10 errors
       }
 
-      console.log(`Integrity verification complete: ${result.integrityScore}% integrity`);
+      logger.info(`Integrity verification complete: ${result.integrityScore}% integrity`);
 
       return result;
     } catch (error) {
-      console.error('Archive integrity verification failed:', error);
+      logger.error('Archive integrity verification failed:', error);
       return {
         success: false,
         error: error.message,
@@ -296,7 +297,7 @@ class AuditLogArchivingService {
         },
       };
     } catch (error) {
-      console.error('Failed to get archiving stats:', error);
+      logger.error('Failed to get archiving stats:', error);
       return {
         success: false,
         error: error.message,
@@ -313,7 +314,7 @@ class AuditLogArchivingService {
    */
   async restoreArchivedLogs(query = {}, limit = 100) {
     try {
-      console.log(`Restoring archived logs (limit: ${limit})...`);
+      logger.info(`Restoring archived logs (limit: ${limit})...`);
 
       // Find archived logs matching query
       const archivedLogs = await ArchivedAuditLog.find(query)
@@ -348,14 +349,14 @@ class AuditLogArchivingService {
       // Insert back into main collection
       const result = await AuditLog.insertMany(logsToRestore, { ordered: false });
 
-      console.log(`Restored ${result.length} archived logs to main collection`);
+      logger.info(`Restored ${result.length} archived logs to main collection`);
 
       return {
         success: true,
         restored: result.length,
       };
     } catch (error) {
-      console.error('Failed to restore archived logs:', error);
+      logger.error('Failed to restore archived logs:', error);
       return {
         success: false,
         error: error.message,
@@ -374,13 +375,13 @@ class AuditLogArchivingService {
       const cutoffDate = new Date();
       cutoffDate.setFullYear(cutoffDate.getFullYear() - retentionYears);
 
-      console.log(`Deleting archived logs older than ${cutoffDate.toISOString()}...`);
+      logger.info(`Deleting archived logs older than ${cutoffDate.toISOString()}...`);
 
       const result = await ArchivedAuditLog.deleteMany({
         timestamp: { $lt: cutoffDate },
       });
 
-      console.log(`Deleted ${result.deletedCount} old archived logs`);
+      logger.info(`Deleted ${result.deletedCount} old archived logs`);
 
       return {
         success: true,
@@ -388,7 +389,7 @@ class AuditLogArchivingService {
         cutoffDate,
       };
     } catch (error) {
-      console.error('Failed to delete old archived logs:', error);
+      logger.error('Failed to delete old archived logs:', error);
       return {
         success: false,
         error: error.message,

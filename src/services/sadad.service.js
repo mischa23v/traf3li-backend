@@ -20,6 +20,7 @@
  */
 
 const axios = require('axios');
+const logger = require('../utils/logger');
 
 // Common SADAD biller categories
 const BILLER_CATEGORIES = {
@@ -92,7 +93,7 @@ class SADADService {
 
             return this.accessToken;
         } catch (error) {
-            console.error('SADAD auth error:', error.response?.data || error.message);
+            logger.error('SADAD auth error:', error.response?.data || error.message);
             throw new Error('Failed to authenticate with SADAD service');
         }
     }
@@ -126,7 +127,7 @@ class SADADService {
             return response.data;
         } catch (error) {
             // Return common billers as fallback
-            console.warn('Using fallback biller list:', error.message);
+            logger.warn('Using fallback biller list:', error.message);
             let billers = Object.entries(COMMON_BILLERS).map(([code, biller]) => ({
                 billerCode: code,
                 ...biller
@@ -175,7 +176,7 @@ class SADADService {
                 }
             };
         } catch (error) {
-            console.error('Bill inquiry error:', error.response?.data || error.message);
+            logger.error('Bill inquiry error:', error.response?.data || error.message);
             return {
                 success: false,
                 error: error.response?.data?.message || 'Failed to inquire bill',
@@ -225,7 +226,7 @@ class SADADService {
                 }
             };
         } catch (error) {
-            console.error('Bill payment error:', error.response?.data || error.message);
+            logger.error('Bill payment error:', error.response?.data || error.message);
             return {
                 success: false,
                 error: error.response?.data?.message || 'Failed to process payment',
@@ -255,7 +256,7 @@ class SADADService {
                 completedAt: response.data.completedAt,
             };
         } catch (error) {
-            console.error('Payment status error:', error.response?.data || error.message);
+            logger.error('Payment status error:', error.response?.data || error.message);
             return {
                 success: false,
                 error: error.response?.data?.message || 'Failed to get payment status',
@@ -292,7 +293,7 @@ class SADADService {
                 pagination: response.data.pagination,
             };
         } catch (error) {
-            console.error('Payment history error:', error.response?.data || error.message);
+            logger.error('Payment history error:', error.response?.data || error.message);
             return {
                 success: false,
                 error: error.response?.data?.message || 'Failed to get payment history',

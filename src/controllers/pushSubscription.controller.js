@@ -5,6 +5,7 @@
 
 const { User } = require('../models');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
+const logger = require('../utils/logger');
 
 /**
  * Save push subscription
@@ -130,7 +131,7 @@ const savePushSubscription = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Save push subscription error:', error);
+    logger.error('Save push subscription error', { error: error.message });
     res.status(500).json({
       success: false,
       error: 'Internal server error',
@@ -161,7 +162,7 @@ const deletePushSubscription = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Delete push subscription error:', error);
+    logger.error('Delete push subscription error', { error: error.message });
     res.status(500).json({
       success: false,
       error: 'Internal server error',
@@ -202,7 +203,7 @@ const getPushSubscriptionStatus = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Get push subscription status error:', error);
+    logger.error('Get push subscription status error', { error: error.message });
     res.status(500).json({
       success: false,
       error: 'Internal server error',
@@ -300,7 +301,7 @@ const updateNotificationPreferences = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Update notification preferences error:', error);
+    logger.error('Update notification preferences error', { error: error.message });
     res.status(500).json({
       success: false,
       error: 'Internal server error',
@@ -331,7 +332,7 @@ const getVapidPublicKey = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Get VAPID public key error:', error);
+    logger.error('Get VAPID public key error', { error: error.message });
     res.status(500).json({
       success: false,
       error: 'Internal server error',

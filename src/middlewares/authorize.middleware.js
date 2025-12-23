@@ -1,10 +1,12 @@
 /**
  * Authorization middleware for role-based access control (RBAC)
- * 
+ *
  * Usage:
  * router.get('/admin/users', authenticate, authorize('admin'), getAllUsers);
  * router.get('/cases/:id', authenticate, authorize('lawyer', 'client'), getCase);
  */
+
+const logger = require('../utils/logger');
 
 /**
  * Check if user has required role
@@ -39,7 +41,7 @@ const authorize = (...allowedRoles) => {
       // User has required role, proceed
       next();
     } catch (error) {
-      console.error('❌ Authorization error:', error.message);
+      logger.error('❌ Authorization error:', error.message);
       return res.status(500).json({
         success: false,
         error: 'خطأ في التحقق من الصلاحيات',
@@ -148,7 +150,7 @@ const checkPermission = (permission) => {
 
       next();
     } catch (error) {
-      console.error('❌ Permission check error:', error.message);
+      logger.error('❌ Permission check error:', error.message);
       return res.status(500).json({
         success: false,
         error: 'خطأ في التحقق من الصلاحيات',
@@ -203,7 +205,7 @@ const requireActiveAccount = () => {
 
       next();
     } catch (error) {
-      console.error('❌ Account status check error:', error.message);
+      logger.error('❌ Account status check error:', error.message);
       return res.status(500).json({
         success: false,
         error: 'خطأ في التحقق من حالة الحساب',
@@ -248,7 +250,7 @@ const requireVerifiedLawyer = () => {
 
       next();
     } catch (error) {
-      console.error('❌ Lawyer verification check error:', error.message);
+      logger.error('❌ Lawyer verification check error:', error.message);
       return res.status(500).json({
         success: false,
         error: 'خطأ في التحقق من توثيق المحامي',

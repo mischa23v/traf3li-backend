@@ -2,6 +2,7 @@ const Task = require('../models/task.model');
 const Event = require('../models/event.model');
 const TimeEntry = require('../models/timeEntry.model');
 const mongoose = require('mongoose');
+const logger = require('../utils/logger');
 
 // ═══════════════════════════════════════════════════════════════
 // AI SMART SCHEDULING SERVICE - INTELLIGENT TASK SCHEDULING
@@ -83,7 +84,7 @@ class SmartSchedulingService {
                 )
             };
         } catch (error) {
-            console.error('Error getting user patterns:', error);
+            logger.error('Error getting user patterns:', error);
             throw error;
         }
     }
@@ -435,7 +436,7 @@ class SmartSchedulingService {
 
             return suggestion;
         } catch (error) {
-            console.error('Error suggesting best time:', error);
+            logger.error('Error suggesting best time:', error);
             throw error;
         }
     }
@@ -714,7 +715,7 @@ class SmartSchedulingService {
                 recommendation: this._getDurationRecommendation(estimatedMinutes, confidence)
             };
         } catch (error) {
-            console.error('Error predicting duration:', error);
+            logger.error('Error predicting duration:', error);
             throw error;
         }
     }
@@ -840,7 +841,7 @@ class SmartSchedulingService {
                 }
             };
         } catch (error) {
-            console.error('Error analyzing workload:', error);
+            logger.error('Error analyzing workload:', error);
             throw error;
         }
     }
@@ -1105,7 +1106,7 @@ class SmartSchedulingService {
 
             return nudges;
         } catch (error) {
-            console.error('Error getting daily nudges:', error);
+            logger.error('Error getting daily nudges:', error);
             throw error;
         }
     }
@@ -1151,7 +1152,7 @@ class SmartSchedulingService {
 
             return suggestions;
         } catch (error) {
-            console.error('Error auto-scheduling tasks:', error);
+            logger.error('Error auto-scheduling tasks:', error);
             throw error;
         }
     }

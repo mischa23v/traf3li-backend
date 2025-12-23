@@ -5,6 +5,7 @@
 const PriceLevel = require('../models/priceLevel.model');
 const { toHalalas, toSAR } = require('../utils/currency');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
+const logger = require('../utils/logger');
 
 /**
  * Get all price levels
@@ -24,7 +25,7 @@ const getPriceLevels = async (req, res) => {
 
         res.json({ success: true, data: priceLevels });
     } catch (error) {
-        console.error('Error fetching price levels:', error);
+        logger.error('Error fetching price levels:', error);
         res.status(500).json({ success: false, message: error.message });
     }
 };
@@ -51,7 +52,7 @@ const getPriceLevel = async (req, res) => {
 
         res.json({ success: true, data: priceLevel });
     } catch (error) {
-        console.error('Error fetching price level:', error);
+        logger.error('Error fetching price level:', error);
         res.status(500).json({ success: false, message: error.message });
     }
 };
@@ -176,7 +177,7 @@ const createPriceLevel = async (req, res) => {
 
         res.status(201).json({ success: true, data: priceLevel });
     } catch (error) {
-        console.error('Error creating price level:', error);
+        logger.error('Error creating price level:', error);
         res.status(500).json({ success: false, message: error.message });
     }
 };
@@ -272,7 +273,7 @@ const updatePriceLevel = async (req, res) => {
 
         res.json({ success: true, data: priceLevel });
     } catch (error) {
-        console.error('Error updating price level:', error);
+        logger.error('Error updating price level:', error);
         res.status(500).json({ success: false, message: error.message });
     }
 };
@@ -308,7 +309,7 @@ const deletePriceLevel = async (req, res) => {
 
         res.json({ success: true, message: 'Price level deleted' });
     } catch (error) {
-        console.error('Error deleting price level:', error);
+        logger.error('Error deleting price level:', error);
         res.status(500).json({ success: false, message: error.message });
     }
 };
@@ -366,7 +367,7 @@ const getClientRate = async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('Error getting client rate:', error);
+        logger.error('Error getting client rate:', error);
         res.status(500).json({ success: false, message: error.message });
     }
 };
@@ -396,7 +397,7 @@ const setDefault = async (req, res) => {
 
         res.json({ success: true, data: priceLevel });
     } catch (error) {
-        console.error('Error setting default price level:', error);
+        logger.error('Error setting default price level:', error);
         res.status(500).json({ success: false, message: error.message });
     }
 };

@@ -5,6 +5,7 @@
 
 const { Resend } = require('resend');
 const crypto = require('crypto');
+const logger = require('../utils/logger');
 
 /**
  * Escape HTML entities to prevent XSS in email variable replacement
@@ -216,7 +217,7 @@ class EmailMarketingService {
 
       // Send emails (async - don't wait)
       this.sendBulkEmails(campaign, subscribers).catch(error => {
-        console.error('Bulk email sending error:', error);
+        logger.error('Bulk email sending error:', error);
       });
 
       return campaign;
@@ -278,7 +279,7 @@ class EmailMarketingService {
    */
   static async sendBulkEmails(campaign, subscribers) {
     if (!resend) {
-      console.error('Resend not configured');
+      logger.error('Resend not configured');
       return { success: false, error: 'Email service not configured' };
     }
 
@@ -353,7 +354,7 @@ class EmailMarketingService {
         await new Promise(resolve => setTimeout(resolve, 100));
 
       } catch (error) {
-        console.error(`Failed to send to ${subscriber.email}:`, error.message);
+        logger.error(`Failed to send to ${subscriber.email}:`, error.message);
 
         // Track failed event
         await this.trackEvent('failed', campaign._id, subscriber._id, {
@@ -570,7 +571,7 @@ class EmailMarketingService {
           await subscriber.save();
         }
       } catch (error) {
-        console.error('Drip email send error:', error);
+        logger.error('Drip email send error:', error);
       }
     }
   }
@@ -647,7 +648,7 @@ class EmailMarketingService {
           }
         }
       } catch (error) {
-        console.error(`Trigger handling error for campaign ${campaign._id}:`, error);
+        logger.error(`Trigger handling error for campaign ${campaign._id}:`, error);
       }
     }
   }
@@ -860,7 +861,7 @@ class EmailMarketingService {
 
       return event;
     } catch (error) {
-      console.error('Track event error:', error);
+      logger.error('Track event error:', error);
     }
   }
 
@@ -1220,12 +1221,12 @@ class EmailMarketingService {
           break;
 
         default:
-          console.log('Unknown webhook event:', eventType);
+          logger.info('Unknown webhook event:', eventType);
       }
 
       return { success: true };
     } catch (error) {
-      console.error('Webhook handling error:', error);
+      logger.error('Webhook handling error:', error);
       return { success: false, error: error.message };
     }
   }

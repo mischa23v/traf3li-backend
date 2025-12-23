@@ -5,6 +5,7 @@ const { CustomException } = require('../utils');
 const BillingActivity = require('../models/billingActivity.model');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 const mongoose = require('mongoose');
+const logger = require('../utils/logger');
 
 // ═══════════════════════════════════════════════════════════════
 // HELPER: Get firm filter for multi-tenancy
@@ -244,7 +245,7 @@ const voidEntry = asyncHandler(async (req, res) => {
                     }
                 }], { session });
             } catch (err) {
-                console.error('Failed to log GL void activity:', err);
+                logger.error('Failed to log GL void activity:', err);
                 // Don't fail the transaction for logging errors
             }
         }

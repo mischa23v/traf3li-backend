@@ -9,6 +9,7 @@
  */
 
 const mongoose = require('mongoose');
+const logger = require('../utils/logger');
 
 const temporaryIPAllowanceSchema = new mongoose.Schema(
   {
@@ -184,7 +185,7 @@ temporaryIPAllowanceSchema.statics.cleanupExpired = async function() {
     }
   );
 
-  console.log(`Cleaned up ${result.modifiedCount} expired IP allowances`);
+  logger.info(`Cleaned up ${result.modifiedCount} expired IP allowances`);
   return result;
 };
 

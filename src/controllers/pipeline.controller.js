@@ -1,6 +1,7 @@
 const Pipeline = require('../models/pipeline.model');
 const Lead = require('../models/lead.model');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
+const logger = require('../utils/logger');
 
 // ============================================
 // PIPELINE CRUD
@@ -29,7 +30,7 @@ exports.createPipeline = async (req, res) => {
             data: pipeline
         });
     } catch (error) {
-        console.error('Error creating pipeline:', error);
+        logger.error('Error creating pipeline:', error);
         res.status(500).json({
             success: false,
             message: 'Error creating pipeline',
@@ -54,7 +55,7 @@ exports.getPipelines = async (req, res) => {
             data: pipelines
         });
     } catch (error) {
-        console.error('Error getting pipelines:', error);
+        logger.error('Error getting pipelines:', error);
         res.status(500).json({
             success: false,
             message: 'Error getting pipelines',
@@ -101,7 +102,7 @@ exports.getPipeline = async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('Error getting pipeline:', error);
+        logger.error('Error getting pipeline:', error);
         res.status(500).json({
             success: false,
             message: 'Error getting pipeline',
@@ -149,7 +150,7 @@ exports.updatePipeline = async (req, res) => {
             data: pipeline
         });
     } catch (error) {
-        console.error('Error updating pipeline:', error);
+        logger.error('Error updating pipeline:', error);
         res.status(500).json({
             success: false,
             message: 'Error updating pipeline',
@@ -194,7 +195,7 @@ exports.deletePipeline = async (req, res) => {
             message: 'Pipeline deleted successfully'
         });
     } catch (error) {
-        console.error('Error deleting pipeline:', error);
+        logger.error('Error deleting pipeline:', error);
         res.status(500).json({
             success: false,
             message: 'Error deleting pipeline',
@@ -246,7 +247,7 @@ exports.addStage = async (req, res) => {
             data: pipeline
         });
     } catch (error) {
-        console.error('Error adding stage:', error);
+        logger.error('Error adding stage:', error);
         res.status(500).json({
             success: false,
             message: 'Error adding stage',
@@ -307,7 +308,7 @@ exports.updateStage = async (req, res) => {
             data: pipeline
         });
     } catch (error) {
-        console.error('Error updating stage:', error);
+        logger.error('Error updating stage:', error);
         res.status(500).json({
             success: false,
             message: 'Error updating stage',
@@ -356,7 +357,7 @@ exports.removeStage = async (req, res) => {
             data: pipeline
         });
     } catch (error) {
-        console.error('Error removing stage:', error);
+        logger.error('Error removing stage:', error);
         res.status(500).json({
             success: false,
             message: 'Error removing stage',
@@ -422,7 +423,7 @@ exports.reorderStages = async (req, res) => {
             data: pipeline
         });
     } catch (error) {
-        console.error('Error reordering stages:', error);
+        logger.error('Error reordering stages:', error);
         res.status(500).json({
             success: false,
             message: 'Error reordering stages',
@@ -498,7 +499,7 @@ exports.getStats = async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('Error getting pipeline stats:', error);
+        logger.error('Error getting pipeline stats:', error);
         res.status(500).json({
             success: false,
             message: 'Error getting pipeline statistics',
@@ -542,7 +543,7 @@ exports.setDefault = async (req, res) => {
             data: pipeline
         });
     } catch (error) {
-        console.error('Error setting default pipeline:', error);
+        logger.error('Error setting default pipeline:', error);
         res.status(500).json({
             success: false,
             message: 'Error setting default pipeline',
@@ -606,7 +607,7 @@ exports.duplicatePipeline = async (req, res) => {
             data: duplicated
         });
     } catch (error) {
-        console.error('Error duplicating pipeline:', error);
+        logger.error('Error duplicating pipeline:', error);
         res.status(500).json({
             success: false,
             message: 'Error duplicating pipeline',

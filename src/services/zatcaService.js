@@ -11,6 +11,7 @@
 const crypto = require('crypto');
 const { v4: uuidv4 } = require('uuid');
 const axios = require('axios');
+const logger = require('../utils/logger');
 
 const ZATCA_API_URL = process.env.ZATCA_API_URL || 'https://gw-fatoora.zatca.gov.sa/e-invoicing/developer-portal';
 
@@ -316,7 +317,7 @@ const submitToZATCA = async (invoice) => {
 
         // Check if ZATCA API token is configured
         if (!process.env.ZATCA_API_TOKEN) {
-            console.warn('ZATCA API Token not configured - returning mock success');
+            logger.warn('ZATCA API Token not configured - returning mock success');
             return {
                 status: 'cleared',
                 cryptographicStamp: 'MOCK_STAMP_' + Date.now(),
@@ -372,7 +373,7 @@ const submitToZATCA = async (invoice) => {
         }
 
     } catch (error) {
-        console.error('ZATCA submission error:', error.response?.data || error.message);
+        logger.error('ZATCA submission error:', error.response?.data || error.message);
 
         // Return structured error
         if (error.response) {

@@ -16,6 +16,7 @@
 
 const mongoose = require('mongoose');
 const NotificationDeliveryService = require('./notificationDelivery.service');
+const logger = require('../utils/logger');
 
 class PipelineAutomationService {
     /**
@@ -44,7 +45,7 @@ class PipelineAutomationService {
             return { success: true, message: `No automation for trigger: ${trigger}` };
         }
 
-        console.log(`🤖 Executing ${applicableActions.length} automation(s) for stage: ${stage.name}, trigger: ${trigger}`);
+        logger.info(`🤖 Executing ${applicableActions.length} automation(s) for stage: ${stage.name}, trigger: ${trigger}`);
 
         const results = [];
         for (const autoAction of applicableActions) {
@@ -52,7 +53,7 @@ class PipelineAutomationService {
                 // Check for delay
                 if (autoAction.delayHours && autoAction.delayHours > 0) {
                     // Schedule for later execution (would require a job scheduler)
-                    console.log(`⏰ Action scheduled for ${autoAction.delayHours} hours delay`);
+                    logger.info(`⏰ Action scheduled for ${autoAction.delayHours} hours delay`);
                     // TODO: Implement with job scheduler (Bull, Agenda, etc.)
                     // For now, we'll execute immediately
                 }
@@ -68,7 +69,7 @@ class PipelineAutomationService {
 
                 results.push(result);
             } catch (error) {
-                console.error(`❌ Automation action failed:`, error);
+                logger.error(`❌ Automation action failed:`, error);
                 results.push({
                     action: autoAction.action,
                     success: false,
@@ -230,7 +231,7 @@ class PipelineAutomationService {
             firmId: entity.firmId
         });
 
-        console.log(`✅ Task created: ${task.title} (ID: ${task._id})`);
+        logger.info(`✅ Task created: ${task.title} (ID: ${task._id})`);
 
         return {
             action: 'create_task',
@@ -292,7 +293,7 @@ class PipelineAutomationService {
             }
         });
 
-        console.log(`✅ Notification created for user: ${recipientId}`);
+        logger.info(`✅ Notification created for user: ${recipientId}`);
 
         return {
             action: 'notify_user',
@@ -344,7 +345,7 @@ class PipelineAutomationService {
         entity.lastModifiedBy = userId;
         await entity.save();
 
-        console.log(`✅ Field updated: ${config.field} from ${oldValue} to ${entity[config.field]}`);
+        logger.info(`✅ Field updated: ${config.field} from ${oldValue} to ${entity[config.field]}`);
 
         return {
             action: 'update_field',

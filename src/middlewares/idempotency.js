@@ -7,6 +7,7 @@
  * Usage: Apply to financial endpoints that modify state (payments, etc.)
  */
 
+const logger = require('../utils/logger');
 const {
   setIfNotExists,
   getValue,
@@ -69,7 +70,7 @@ const checkIdempotency = (options = {}) => {
     // Check Redis connection
     if (!isRedisConnected()) {
       // If Redis is not available, log warning and proceed without idempotency
-      console.warn("Redis not connected, skipping idempotency check");
+      logger.warn("Redis not connected, skipping idempotency check");
       return next();
     }
 
@@ -131,7 +132,7 @@ const checkIdempotency = (options = {}) => {
             ttl
           );
         } catch (cacheError) {
-          console.error("Error caching idempotency response:", cacheError);
+          logger.error("Error caching idempotency response:", cacheError);
         }
         // Set header to indicate fresh response
         res.set("Idempotency-Key-Status", "fresh");
@@ -154,7 +155,7 @@ const checkIdempotency = (options = {}) => {
 
       next();
     } catch (error) {
-      console.error("Idempotency middleware error:", error);
+      logger.error("Idempotency middleware error:", error);
       // On Redis error, proceed without idempotency
       next();
     }

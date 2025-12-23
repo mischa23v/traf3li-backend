@@ -3,6 +3,7 @@ const { CustomException } = require('../utils');
 const asyncHandler = require('../utils/asyncHandler');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 const mongoose = require('mongoose');
+const logger = require('../utils/logger');
 
 // ═══════════════════════════════════════════════════════════════
 // GET ALL PAYROLL RUNS
@@ -771,7 +772,7 @@ const processPayments = asyncHandler(async (req, res) => {
             try {
                 await slip.postToGL();
             } catch (error) {
-                console.error(`Failed to post payroll to GL for slip ${slip.slipNumber}:`, error.message);
+                logger.error(`Failed to post payroll to GL for slip ${slip.slipNumber}:`, error.message);
                 // Rollback transaction on GL posting failure
                 throw CustomException(`GL posting failed for slip ${slip.slipNumber}`, 500);
             }

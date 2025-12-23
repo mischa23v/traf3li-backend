@@ -5,6 +5,7 @@
  * Used to gate features based on subscription tier.
  */
 
+const logger = require('../utils/logger');
 const { Firm, User } = require('../models');
 const {
     getPlanConfig,
@@ -71,7 +72,7 @@ const requireFeature = (feature) => {
             req.planConfig = getPlanConfig(plan);
             next();
         } catch (error) {
-            console.error('Plan feature check error:', error);
+            logger.error('Plan feature check error:', error);
             next(error);
         }
     };
@@ -103,7 +104,7 @@ const requirePlan = (minPlan) => {
             req.planConfig = getPlanConfig(plan);
             next();
         } catch (error) {
-            console.error('Plan level check error:', error);
+            logger.error('Plan level check error:', error);
             next(error);
         }
     };
@@ -144,7 +145,7 @@ const checkResourceLimit = (resource) => {
             req.plan = plan;
             next();
         } catch (error) {
-            console.error('Resource limit check error:', error);
+            logger.error('Resource limit check error:', error);
             next(error);
         }
     };
@@ -174,7 +175,7 @@ const requireApiAccess = () => {
             req.plan = plan;
             next();
         } catch (error) {
-            console.error('API access check error:', error);
+            logger.error('API access check error:', error);
             next(error);
         }
     };
@@ -224,7 +225,7 @@ const requireAnyFeature = (features) => {
             req.planConfig = getPlanConfig(plan);
             next();
         } catch (error) {
-            console.error('Feature check error:', error);
+            logger.error('Feature check error:', error);
             next(error);
         }
     };
@@ -258,7 +259,7 @@ const requireAllFeatures = (features) => {
             req.planConfig = getPlanConfig(plan);
             next();
         } catch (error) {
-            console.error('Feature check error:', error);
+            logger.error('Feature check error:', error);
             next(error);
         }
     };
@@ -298,7 +299,7 @@ const checkStorageLimit = (additionalMB = 0) => {
             req.plan = plan;
             next();
         } catch (error) {
-            console.error('Storage limit check error:', error);
+            logger.error('Storage limit check error:', error);
             next(error);
         }
     };

@@ -7,6 +7,7 @@
 const CRMSettings = require('../models/crmSettings.model');
 const CrmActivity = require('../models/crmActivity.model');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
+const logger = require('../utils/logger');
 
 // ═══════════════════════════════════════════════════════════════
 // GET CRM SETTINGS
@@ -48,7 +49,7 @@ exports.getSettings = async (req, res) => {
             data: settings
         });
     } catch (error) {
-        console.error('Error getting CRM settings:', error);
+        logger.error('Error getting CRM settings', { error: error.message });
         res.status(500).json({
             success: false,
             message: 'خطأ في جلب الإعدادات / Error fetching settings',
@@ -177,7 +178,7 @@ exports.updateSettings = async (req, res) => {
             data: settings
         });
     } catch (error) {
-        console.error('Error updating CRM settings:', error);
+        logger.error('Error updating CRM settings', { error: error.message });
         res.status(500).json({
             success: false,
             message: 'خطأ في تحديث الإعدادات / Error updating settings',
@@ -241,7 +242,7 @@ exports.resetSettings = async (req, res) => {
             data: settings
         });
     } catch (error) {
-        console.error('Error resetting CRM settings:', error);
+        logger.error('Error resetting CRM settings', { error: error.message });
         res.status(500).json({
             success: false,
             message: 'خطأ في إعادة تعيين الإعدادات / Error resetting settings',

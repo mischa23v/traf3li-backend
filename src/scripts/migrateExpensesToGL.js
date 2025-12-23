@@ -13,6 +13,7 @@ const Expense = require('../models/expense.model');
 const GeneralLedger = require('../models/generalLedger.model');
 const Account = require('../models/account.model');
 const { toHalalas } = require('../utils/currency');
+const logger = require('../utils/logger');
 
 // Connect to database
 const connectDB = async () => {
@@ -21,9 +22,9 @@ const connectDB = async () => {
             maxPoolSize: 10,
             minPoolSize: 2
         });
-        console.log('MongoDB connected for migration...');
+        logger.info('MongoDB connected for migration...');
     } catch (error) {
-        console.error('MongoDB connection error:', error);
+        logger.error('MongoDB connection error:', error);
         process.exit(1);
     }
 };
@@ -63,7 +64,7 @@ const categoryAccountMap = {
  * Migrate expenses to GL
  */
 const migrateExpenses = async () => {
-    console.log('\n=== Starting Expense Migration ===\n');
+    logger.info('\n=== Starting Expense Migration ===\n');
 
     // Get default accounts
     const bankAccount = await Account.findOne({ code: '1102' }); // Bank Account - Main
@@ -71,11 +72,11 @@ const migrateExpenses = async () => {
     const defaultExpenseAccount = await Account.findOne({ code: '5600' }); // Other Expenses
 
     if (!bankAccount || !cashAccount || !defaultExpenseAccount) {
-        console.error('Required accounts not found. Please run seed:accounts first.');
-        console.log('Missing accounts:');
-        if (!bankAccount) console.log('  - 1102 (Bank Account - Main)');
-        if (!cashAccount) console.log('  - 1101 (Cash on Hand)');
-        if (!defaultExpenseAccount) console.log('  - 5600 (Other Expenses)');
+        logger.error('Required accounts not found. Please run seed:accounts first.');
+        logger.info('Missing accounts:');
+        if (!bankAccount) logger.info('  - 1102 (Bank Account - Main)');
+        if (!cashAccount) logger.info('  - 1101 (Cash on Hand)');
+        if (!defaultExpenseAccount) logger.info('  - 5600 (Other Expenses)');
         process.exit(1);
     }
 
@@ -93,7 +94,7 @@ const migrateExpenses = async () => {
         status: 'approved'
     }).sort({ date: 1 });
 
-    console.log(`Found ${expenses.length} approved expenses to process`);
+    logger.info(`Found ${expenses.length} approved expenses to process`);
 
     let migratedCount = 0;
     let skippedCount = 0;
@@ -103,7 +104,7 @@ const migrateExpenses = async () => {
         try {
             // Check if already migrated (has GL entry)
             if (expense.glEntryId) {
-                console.log(`⏭️  Expense ${expense.expenseId} already migrated, skipping`);
+                logger.info(`⏭️  Expense ${expense.expenseId} already migrated, skipping`);
                 skippedCount++;
                 continue;
             }
@@ -115,7 +116,7 @@ const migrateExpenses = async () => {
             });
 
             if (existingEntry) {
-                console.log(`⏭️  Expense ${expense.expenseId} already has GL entry, skipping`);
+                logger.info(`⏭️  Expense ${expense.expenseId} already has GL entry, skipping`);
                 skippedCount++;
                 continue;
             }
@@ -126,7 +127,7 @@ const migrateExpenses = async () => {
                 : toHalalas(expense.amount);
 
             if (amount <= 0) {
-                console.log(`⏭️  Expense ${expense.expenseId} has zero amount, skipping`);
+                logger.info(`⏭️  Expense ${expense.expenseId} has zero amount, skipping`);
                 skippedCount++;
                 continue;
             }
@@ -184,7 +185,7 @@ const migrateExpenses = async () => {
                 await expense.save({ session });
 
                 await session.commitTransaction();
-                console.log(`✅ Migrated expense ${expense.expenseId}`);
+                logger.info(`✅ Migrated expense ${expense.expenseId}`);
                 migratedCount++;
             } catch (error) {
                 await session.abortTransaction();
@@ -193,16 +194,16 @@ const migrateExpenses = async () => {
                 session.endSession();
             }
         } catch (error) {
-            console.error(`❌ Error migrating expense ${expense.expenseId}:`, error.message);
+            logger.error(`❌ Error migrating expense ${expense.expenseId}:`, error.message);
             errorCount++;
         }
     }
 
-    console.log('\n=== Expense Migration Complete ===');
-    console.log(`Total expenses: ${expenses.length}`);
-    console.log(`Migrated: ${migratedCount}`);
-    console.log(`Skipped: ${skippedCount}`);
-    console.log(`Errors: ${errorCount}`);
+    logger.info('\n=== Expense Migration Complete ===');
+    logger.info(`Total expenses: ${expenses.length}`);
+    logger.info(`Migrated: ${migratedCount}`);
+    logger.info(`Skipped: ${skippedCount}`);
+    logger.info(`Errors: ${errorCount}`);
 };
 
 /**
@@ -212,10 +213,10 @@ const main = async () => {
     try {
         await connectDB();
         await migrateExpenses();
-        console.log('\nMigration completed successfully!');
+        logger.info('\nMigration completed successfully!');
         process.exit(0);
     } catch (error) {
-        console.error('Migration failed:', error);
+        logger.error('Migration failed:', error);
         process.exit(1);
     }
 };

@@ -5,6 +5,7 @@
  * Provides a unified interface for module management.
  */
 
+const logger = require('../utils/logger');
 const { defineModule } = require('./manifest');
 const registry = require('./registry');
 const loader = require('./loader');
@@ -20,9 +21,9 @@ const loader = require('./loader');
 const setupModules = async (app, options = {}) => {
   const { autoInstallOnly = false, modules: moduleNames = [] } = options;
 
-  console.log('\n========================================');
-  console.log('Module System Initialization');
-  console.log('========================================\n');
+  logger.info('\n========================================');
+  logger.info('Module System Initialization');
+  logger.info('========================================\n');
 
   try {
     // Get modules to load
@@ -31,7 +32,7 @@ const setupModules = async (app, options = {}) => {
     if (moduleNames.length > 0) {
       // Load specific modules
       modulesToLoad = moduleNames;
-      console.log('Loading specific modules:', modulesToLoad);
+      logger.info('Loading specific modules:', modulesToLoad);
     } else {
       // Load all modules (respecting autoInstallOnly)
       modulesToLoad = registry.loadModules({ autoInstallOnly });
@@ -46,7 +47,7 @@ const setupModules = async (app, options = {}) => {
         const manifest = registry.getModule(moduleName);
 
         if (!manifest) {
-          console.warn(`Module "${moduleName}" not found in registry`);
+          logger.warn(`Module "${moduleName}" not found in registry`);
           failedModules.push({ name: moduleName, error: 'Not found in registry' });
           continue;
         }
@@ -63,16 +64,16 @@ const setupModules = async (app, options = {}) => {
           components
         });
       } catch (error) {
-        console.error(`Failed to load module "${moduleName}":`, error.message);
+        logger.error(`Failed to load module "${moduleName}":`, error.message);
         failedModules.push({ name: moduleName, error: error.message });
       }
     }
 
-    console.log('\n========================================');
-    console.log(`Module System Ready`);
-    console.log(`Loaded: ${loadedModules.length} modules`);
-    console.log(`Failed: ${failedModules.length} modules`);
-    console.log('========================================\n');
+    logger.info('\n========================================');
+    logger.info(`Module System Ready`);
+    logger.info(`Loaded: ${loadedModules.length} modules`);
+    logger.info(`Failed: ${failedModules.length} modules`);
+    logger.info('========================================\n');
 
     return {
       success: true,
@@ -81,10 +82,10 @@ const setupModules = async (app, options = {}) => {
       total: loadedModules.length
     };
   } catch (error) {
-    console.error('\n========================================');
-    console.error('Module System Initialization Failed');
-    console.error('Error:', error.message);
-    console.error('========================================\n');
+    logger.error('\n========================================');
+    logger.error('Module System Initialization Failed');
+    logger.error('Error:', error.message);
+    logger.error('========================================\n');
 
     return {
       success: false,
@@ -106,7 +107,7 @@ const registerModuleFromFile = (manifestPath) => {
     const manifest = require(manifestPath);
     return registry.registerModule(manifest);
   } catch (error) {
-    console.error(`Failed to register module from "${manifestPath}":`, error.message);
+    logger.error(`Failed to register module from "${manifestPath}":`, error.message);
     return false;
   }
 };

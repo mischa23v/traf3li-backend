@@ -12,6 +12,7 @@
 
 const cron = require('node-cron');
 const sessionManager = require('../services/sessionManager.service');
+const logger = require('../utils/logger');
 
 /**
  * Clean up expired sessions
@@ -19,18 +20,18 @@ const sessionManager = require('../services/sessionManager.service');
  */
 async function cleanupExpiredSessions() {
     try {
-        console.log('[SessionCleanup] Starting expired sessions cleanup...');
+        logger.info('[SessionCleanup] Starting expired sessions cleanup...');
 
         const count = await sessionManager.cleanupExpired();
 
-        console.log(`[SessionCleanup] Cleaned up ${count} expired session(s)`);
+        logger.info(`[SessionCleanup] Cleaned up ${count} expired session(s)`);
 
         return {
             success: true,
             count
         };
     } catch (error) {
-        console.error('[SessionCleanup] Error cleaning up sessions:', error.message);
+        logger.error('[SessionCleanup] Error cleaning up sessions:', error.message);
         return {
             success: false,
             error: error.message
@@ -45,11 +46,11 @@ async function cleanupExpiredSessions() {
 function scheduleSessionCleanup() {
     // Run every hour at minute 0
     cron.schedule('0 * * * *', async () => {
-        console.log('[SessionCleanup] Running scheduled cleanup job');
+        logger.info('[SessionCleanup] Running scheduled cleanup job');
         await cleanupExpiredSessions();
     });
 
-    console.log('[SessionCleanup] Job scheduled: Every hour at minute 0');
+    logger.info('[SessionCleanup] Job scheduled: Every hour at minute 0');
 }
 
 // Export functions for manual execution and testing

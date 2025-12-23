@@ -18,6 +18,7 @@ const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
 const { ROLE_PERMISSIONS, getDefaultPermissions } = require('../config/permissions.config');
 const { pickAllowedFields, sanitizeEmail, sanitizePhone, sanitizeString } = require('../utils/securityUtils');
+const logger = require('../utils/logger');
 
 // ═══════════════════════════════════════════════════════════════
 // ROLE-BASED DEFAULT PERMISSIONS (Salesforce/SAP style)
@@ -79,7 +80,7 @@ const logActivity = async (firmId, userId, action, targetType, targetId, details
             timestamp: new Date()
         });
     } catch (error) {
-        console.error('Failed to log team activity:', error.message);
+        logger.error('Failed to log team activity:', error.message);
     }
 };
 
@@ -993,7 +994,7 @@ const processDeparture = asyncHandler(async (req, res) => {
             await firm.processDeparture(member.userId, userId, reason, notes);
         }
     } catch (error) {
-        console.error('Failed to update firm members:', error.message);
+        logger.error('Failed to update firm members:', error.message);
     }
 
     // Log activity
@@ -1063,7 +1064,7 @@ const removeTeamMember = asyncHandler(async (req, res) => {
                 await firm.removeMember(member.userId);
             }
         } catch (error) {
-            console.error('Failed to remove from firm:', error.message);
+            logger.error('Failed to remove from firm:', error.message);
         }
     }
 

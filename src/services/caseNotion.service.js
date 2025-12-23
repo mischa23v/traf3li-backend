@@ -5,6 +5,7 @@ const CaseNotionDatabaseView = require('../models/caseNotionDatabaseView.model')
 const { Case, Task, Event, Reminder, Document } = require('../models');
 const AISettingsService = require('./aiSettings.service');
 const Anthropic = require('@anthropic-ai/sdk');
+const logger = require('../utils/logger');
 
 /**
  * CaseNotion Service
@@ -66,7 +67,7 @@ class CaseNotionService {
 
       return page;
     } catch (error) {
-      console.error('Error in createPage:', error);
+      logger.error('Error in createPage:', error);
       throw error;
     }
   }
@@ -111,7 +112,7 @@ class CaseNotionService {
         blocks: blockTree
       };
     } catch (error) {
-      console.error('Error in getPage:', error);
+      logger.error('Error in getPage:', error);
       throw error;
     }
   }
@@ -149,7 +150,7 @@ class CaseNotionService {
 
       return page;
     } catch (error) {
-      console.error('Error in updatePage:', error);
+      logger.error('Error in updatePage:', error);
       throw error;
     }
   }
@@ -177,7 +178,7 @@ class CaseNotionService {
 
       return { success: true, message: 'Page archived successfully' };
     } catch (error) {
-      console.error('Error in deletePage:', error);
+      logger.error('Error in deletePage:', error);
       throw error;
     }
   }
@@ -243,7 +244,7 @@ class CaseNotionService {
 
       return duplicatePage;
     } catch (error) {
-      console.error('Error in duplicatePage:', error);
+      logger.error('Error in duplicatePage:', error);
       throw error;
     }
   }
@@ -284,7 +285,7 @@ class CaseNotionService {
 
       return page;
     } catch (error) {
-      console.error('Error in movePage:', error);
+      logger.error('Error in movePage:', error);
       throw error;
     }
   }
@@ -310,7 +311,7 @@ class CaseNotionService {
       // Build tree structure
       return this._buildPageTree(visiblePages);
     } catch (error) {
-      console.error('Error in getCasePageTree:', error);
+      logger.error('Error in getCasePageTree:', error);
       throw error;
     }
   }
@@ -340,7 +341,7 @@ class CaseNotionService {
 
       return visiblePages;
     } catch (error) {
-      console.error('Error in searchPages:', error);
+      logger.error('Error in searchPages:', error);
       throw error;
     }
   }
@@ -365,7 +366,7 @@ class CaseNotionService {
 
       return pages;
     } catch (error) {
-      console.error('Error in getRecentPages:', error);
+      logger.error('Error in getRecentPages:', error);
       throw error;
     }
   }
@@ -388,7 +389,7 @@ class CaseNotionService {
 
       return page;
     } catch (error) {
-      console.error('Error in toggleFavorite:', error);
+      logger.error('Error in toggleFavorite:', error);
       throw error;
     }
   }
@@ -459,7 +460,7 @@ class CaseNotionService {
 
       return block;
     } catch (error) {
-      console.error('Error in createBlock:', error);
+      logger.error('Error in createBlock:', error);
       throw error;
     }
   }
@@ -505,7 +506,7 @@ class CaseNotionService {
 
       return block;
     } catch (error) {
-      console.error('Error in updateBlock:', error);
+      logger.error('Error in updateBlock:', error);
       throw error;
     }
   }
@@ -533,7 +534,7 @@ class CaseNotionService {
 
       return { success: true, message: 'Block deleted successfully' };
     } catch (error) {
-      console.error('Error in deleteBlock:', error);
+      logger.error('Error in deleteBlock:', error);
       throw error;
     }
   }
@@ -560,7 +561,7 @@ class CaseNotionService {
 
       return block;
     } catch (error) {
-      console.error('Error in moveBlock:', error);
+      logger.error('Error in moveBlock:', error);
       throw error;
     }
   }
@@ -614,7 +615,7 @@ class CaseNotionService {
 
       return duplicateBlock;
     } catch (error) {
-      console.error('Error in duplicateBlock:', error);
+      logger.error('Error in duplicateBlock:', error);
       throw error;
     }
   }
@@ -633,7 +634,7 @@ class CaseNotionService {
 
       return this._buildBlockTree(blocks);
     } catch (error) {
-      console.error('Error in getPageBlocks:', error);
+      logger.error('Error in getPageBlocks:', error);
       throw error;
     }
   }
@@ -662,7 +663,7 @@ class CaseNotionService {
 
       return block;
     } catch (error) {
-      console.error('Error in nestBlock:', error);
+      logger.error('Error in nestBlock:', error);
       throw error;
     }
   }
@@ -687,7 +688,7 @@ class CaseNotionService {
 
       return block;
     } catch (error) {
-      console.error('Error in unnestBlock:', error);
+      logger.error('Error in unnestBlock:', error);
       throw error;
     }
   }
@@ -713,7 +714,7 @@ class CaseNotionService {
 
       return block;
     } catch (error) {
-      console.error('Error in convertBlockType:', error);
+      logger.error('Error in convertBlockType:', error);
       throw error;
     }
   }
@@ -739,7 +740,7 @@ class CaseNotionService {
 
       return blocks;
     } catch (error) {
-      console.error('Error in searchBlocks:', error);
+      logger.error('Error in searchBlocks:', error);
       throw error;
     }
   }
@@ -769,7 +770,7 @@ class CaseNotionService {
 
       return syncedBlock;
     } catch (error) {
-      console.error('Error in createSyncedBlock:', error);
+      logger.error('Error in createSyncedBlock:', error);
       throw error;
     }
   }
@@ -818,7 +819,7 @@ class CaseNotionService {
 
       return block;
     } catch (error) {
-      console.error('Error in insertSyncedBlock:', error);
+      logger.error('Error in insertSyncedBlock:', error);
       throw error;
     }
   }
@@ -862,7 +863,7 @@ class CaseNotionService {
         message: `Updated ${blockIds.length} synced instances`
       };
     } catch (error) {
-      console.error('Error in updateSyncedBlock:', error);
+      logger.error('Error in updateSyncedBlock:', error);
       throw error;
     }
   }
@@ -886,7 +887,7 @@ class CaseNotionService {
 
       return syncedBlocks;
     } catch (error) {
-      console.error('Error in getSyncedBlocks:', error);
+      logger.error('Error in getSyncedBlocks:', error);
       throw error;
     }
   }
@@ -911,7 +912,7 @@ class CaseNotionService {
 
       return syncedBlock.instances;
     } catch (error) {
-      console.error('Error in getSyncedBlockInstances:', error);
+      logger.error('Error in getSyncedBlockInstances:', error);
       throw error;
     }
   }
@@ -952,7 +953,7 @@ class CaseNotionService {
 
       return view;
     } catch (error) {
-      console.error('Error in createView:', error);
+      logger.error('Error in createView:', error);
       throw error;
     }
   }
@@ -969,7 +970,7 @@ class CaseNotionService {
 
       return views;
     } catch (error) {
-      console.error('Error in getViews:', error);
+      logger.error('Error in getViews:', error);
       throw error;
     }
   }
@@ -1002,7 +1003,7 @@ class CaseNotionService {
 
       return view;
     } catch (error) {
-      console.error('Error in updateView:', error);
+      logger.error('Error in updateView:', error);
       throw error;
     }
   }
@@ -1024,7 +1025,7 @@ class CaseNotionService {
 
       return { success: true, message: 'View deleted successfully' };
     } catch (error) {
-      console.error('Error in deleteView:', error);
+      logger.error('Error in deleteView:', error);
       throw error;
     }
   }
@@ -1082,7 +1083,7 @@ class CaseNotionService {
         totalCount: data.length
       };
     } catch (error) {
-      console.error('Error in executeView:', error);
+      logger.error('Error in executeView:', error);
       throw error;
     }
   }
@@ -1127,7 +1128,7 @@ class CaseNotionService {
 
       return { property, aggregation, result };
     } catch (error) {
-      console.error('Error in calculateRollup:', error);
+      logger.error('Error in calculateRollup:', error);
       throw error;
     }
   }
@@ -1157,7 +1158,7 @@ class CaseNotionService {
       const result = new Function(`return ${evaluableFormula}`)();
       return result;
     } catch (error) {
-      console.error('Error in evaluateFormula:', error);
+      logger.error('Error in evaluateFormula:', error);
       return null;
     }
   }
@@ -1192,7 +1193,7 @@ class CaseNotionService {
 
       return template;
     } catch (error) {
-      console.error('Error in createTemplate:', error);
+      logger.error('Error in createTemplate:', error);
       throw error;
     }
   }
@@ -1216,7 +1217,7 @@ class CaseNotionService {
 
       return templates;
     } catch (error) {
-      console.error('Error in getTemplates:', error);
+      logger.error('Error in getTemplates:', error);
       throw error;
     }
   }
@@ -1244,7 +1245,7 @@ class CaseNotionService {
 
       return newPage;
     } catch (error) {
-      console.error('Error in createFromTemplate:', error);
+      logger.error('Error in createFromTemplate:', error);
       throw error;
     }
   }
@@ -1309,7 +1310,7 @@ Generate concise, relevant content for this block type. Return only the content,
         tokensUsed: response.usage.input_tokens + response.usage.output_tokens
       };
     } catch (error) {
-      console.error('Error in aiAutofill:', error);
+      logger.error('Error in aiAutofill:', error);
       throw error;
     }
   }
@@ -1359,7 +1360,7 @@ Provide a clear, structured summary with key points.`
         tokensUsed: response.usage.input_tokens + response.usage.output_tokens
       };
     } catch (error) {
-      console.error('Error in aiSummarize:', error);
+      logger.error('Error in aiSummarize:', error);
       throw error;
     }
   }
@@ -1419,7 +1420,7 @@ Provide a detailed, accurate answer based only on the provided documentation. If
         tokensUsed: response.usage.input_tokens + response.usage.output_tokens
       };
     } catch (error) {
-      console.error('Error in aiAnswer:', error);
+      logger.error('Error in aiAnswer:', error);
       throw error;
     }
   }
@@ -1471,7 +1472,7 @@ Generate content suggestions based on the user's request and the existing page c
         tokensUsed: response.usage.input_tokens + response.usage.output_tokens
       };
     } catch (error) {
-      console.error('Error in aiSuggestContent:', error);
+      logger.error('Error in aiSuggestContent:', error);
       throw error;
     }
   }
@@ -1520,7 +1521,7 @@ Generate content suggestions based on the user's request and the existing page c
         lockedBy: userId
       };
     } catch (error) {
-      console.error('Error in lockBlock:', error);
+      logger.error('Error in lockBlock:', error);
       throw error;
     }
   }
@@ -1554,7 +1555,7 @@ Generate content suggestions based on the user's request and the existing page c
         message: 'Block unlocked'
       };
     } catch (error) {
-      console.error('Error in unlockBlock:', error);
+      logger.error('Error in unlockBlock:', error);
       throw error;
     }
   }
@@ -1589,7 +1590,7 @@ Generate content suggestions based on the user's request and the existing page c
 
       return activeLocks;
     } catch (error) {
-      console.error('Error in getActiveLocks:', error);
+      logger.error('Error in getActiveLocks:', error);
       throw error;
     }
   }
@@ -1613,7 +1614,7 @@ Generate content suggestions based on the user's request and the existing page c
         position
       };
     } catch (error) {
-      console.error('Error in recordCursor:', error);
+      logger.error('Error in recordCursor:', error);
       throw error;
     }
   }
@@ -1643,7 +1644,7 @@ Generate content suggestions based on the user's request and the existing page c
           throw new Error(`Unsupported format: ${format}`);
       }
     } catch (error) {
-      console.error('Error in exportPage:', error);
+      logger.error('Error in exportPage:', error);
       throw error;
     }
   }
@@ -1713,7 +1714,7 @@ Generate content suggestions based on the user's request and the existing page c
 
       return page;
     } catch (error) {
-      console.error('Error in importMarkdown:', error);
+      logger.error('Error in importMarkdown:', error);
       throw error;
     }
   }
@@ -1743,7 +1744,7 @@ Generate content suggestions based on the user's request and the existing page c
 
       return uniquePages;
     } catch (error) {
-      console.error('Error in getBacklinks:', error);
+      logger.error('Error in getBacklinks:', error);
       throw error;
     }
   }
@@ -1770,7 +1771,7 @@ Generate content suggestions based on the user's request and the existing page c
         backlinkCount: backlinks.length
       };
     } catch (error) {
-      console.error('Error in updateBacklinks:', error);
+      logger.error('Error in updateBacklinks:', error);
       throw error;
     }
   }

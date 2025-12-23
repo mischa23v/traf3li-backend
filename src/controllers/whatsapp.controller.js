@@ -4,6 +4,7 @@ const WhatsAppConversation = require('../models/whatsappConversation.model');
 const WhatsAppMessage = require('../models/whatsappMessage.model');
 const asyncHandler = require('express-async-handler');
 const { pickAllowedFields, sanitizeObjectId, sanitizePhone } = require('../utils/securityUtils');
+const logger = require('../utils/logger');
 
 // ═══════════════════════════════════════════════════════════════
 // WHATSAPP CONTROLLER
@@ -806,7 +807,7 @@ class WhatsAppController {
                 await WhatsAppService.handleStatusUpdate(payload, provider);
             }
         } catch (error) {
-            console.error('Error processing webhook:', error);
+            logger.error('Error processing webhook:', error);
         }
     });
 
@@ -1349,7 +1350,7 @@ class WhatsAppController {
 
         // Start async sending process
         WhatsAppService.processBroadcast(broadcast._id).catch(error => {
-            console.error('Error processing broadcast:', error);
+            logger.error('Error processing broadcast:', error);
         });
 
         res.json({
@@ -1424,7 +1425,7 @@ class WhatsAppController {
 
         // Continue sending process
         WhatsAppService.processBroadcast(broadcast._id).catch(error => {
-            console.error('Error processing broadcast:', error);
+            logger.error('Error processing broadcast:', error);
         });
 
         res.json({

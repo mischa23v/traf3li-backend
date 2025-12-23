@@ -16,6 +16,7 @@
 const AutomatedAction = require('../models/automatedAction.model');
 const Activity = require('../models/activity.model');
 const mongoose = require('mongoose');
+const logger = require('../utils/logger');
 
 // Service dependencies
 const emailService = require('./email.service');
@@ -73,7 +74,7 @@ class AutomatedActionService {
         totalPages: Math.ceil(total / limit)
       };
     } catch (error) {
-      console.error('AutomatedActionService.getActions failed:', error.message);
+      logger.error('AutomatedActionService.getActions failed:', error.message);
       throw error;
     }
   }
@@ -148,7 +149,7 @@ class AutomatedActionService {
 
       return action;
     } catch (error) {
-      console.error('AutomatedActionService.createAction failed:', error.message);
+      logger.error('AutomatedActionService.createAction failed:', error.message);
       throw error;
     }
   }
@@ -226,7 +227,7 @@ class AutomatedActionService {
 
       return action;
     } catch (error) {
-      console.error('AutomatedActionService.updateAction failed:', error.message);
+      logger.error('AutomatedActionService.updateAction failed:', error.message);
       throw error;
     }
   }
@@ -262,7 +263,7 @@ class AutomatedActionService {
 
       return action;
     } catch (error) {
-      console.error('AutomatedActionService.deleteAction failed:', error.message);
+      logger.error('AutomatedActionService.deleteAction failed:', error.message);
       throw error;
     }
   }
@@ -302,7 +303,7 @@ class AutomatedActionService {
 
       return action;
     } catch (error) {
-      console.error('AutomatedActionService.toggleActive failed:', error.message);
+      logger.error('AutomatedActionService.toggleActive failed:', error.message);
       throw error;
     }
   }
@@ -338,14 +339,14 @@ class AutomatedActionService {
           await this.executeAction(action, record, context);
           executedActions.push(action);
         } catch (error) {
-          console.error(`Failed to execute action ${action.name}:`, error.message);
+          logger.error(`Failed to execute action ${action.name}:`, error.message);
           // Continue with other actions
         }
       }
 
       return executedActions;
     } catch (error) {
-      console.error('AutomatedActionService.triggerOnCreate failed:', error.message);
+      logger.error('AutomatedActionService.triggerOnCreate failed:', error.message);
       return [];
     }
   }
@@ -402,14 +403,14 @@ class AutomatedActionService {
           await this.executeAction(action, record, context);
           executedActions.push(action);
         } catch (error) {
-          console.error(`Failed to execute action ${action.name}:`, error.message);
+          logger.error(`Failed to execute action ${action.name}:`, error.message);
           // Continue with other actions
         }
       }
 
       return executedActions;
     } catch (error) {
-      console.error('AutomatedActionService.triggerOnWrite failed:', error.message);
+      logger.error('AutomatedActionService.triggerOnWrite failed:', error.message);
       return [];
     }
   }
@@ -447,14 +448,14 @@ class AutomatedActionService {
           await this.executeAction(action, record, { ...context, fromStage, toStage });
           executedActions.push(action);
         } catch (error) {
-          console.error(`Failed to execute action ${action.name}:`, error.message);
+          logger.error(`Failed to execute action ${action.name}:`, error.message);
           // Continue with other actions
         }
       }
 
       return executedActions;
     } catch (error) {
-      console.error('AutomatedActionService.triggerOnStageChange failed:', error.message);
+      logger.error('AutomatedActionService.triggerOnStageChange failed:', error.message);
       return [];
     }
   }
@@ -517,7 +518,7 @@ class AutomatedActionService {
 
       return result;
     } catch (error) {
-      console.error('AutomatedActionService.executeAction failed:', error.message);
+      logger.error('AutomatedActionService.executeAction failed:', error.message);
 
       // Log failure
       await auditLogService.log(
@@ -592,17 +593,17 @@ class AutomatedActionService {
               await this.executeAction(action, record, { trigger: 'time_based' });
               executedActions.push({ action, record });
             } catch (error) {
-              console.error(`Failed to execute time-based action for record ${record._id}:`, error.message);
+              logger.error(`Failed to execute time-based action for record ${record._id}:`, error.message);
             }
           }
         } catch (error) {
-          console.error(`Failed to process time-based action ${action.name}:`, error.message);
+          logger.error(`Failed to process time-based action ${action.name}:`, error.message);
         }
       }
 
       return executedActions;
     } catch (error) {
-      console.error('AutomatedActionService.processTimeBasedActions failed:', error.message);
+      logger.error('AutomatedActionService.processTimeBasedActions failed:', error.message);
       return [];
     }
   }
@@ -685,7 +686,7 @@ class AutomatedActionService {
               matches = recordValue && String(recordValue).toLowerCase().includes(String(value).toLowerCase());
               break;
             default:
-              console.warn(`Unknown domain operator: ${operator}`);
+              logger.warn(`Unknown domain operator: ${operator}`);
               matches = false;
           }
 
@@ -697,7 +698,7 @@ class AutomatedActionService {
 
       return true;
     } catch (error) {
-      console.error('AutomatedActionService._checkDomain failed:', error.message);
+      logger.error('AutomatedActionService._checkDomain failed:', error.message);
       return false;
     }
   }
@@ -786,7 +787,7 @@ class AutomatedActionService {
         }
       }
     } catch (error) {
-      console.error('AutomatedActionService._applyDomainToQuery failed:', error.message);
+      logger.error('AutomatedActionService._applyDomainToQuery failed:', error.message);
     }
   }
 
@@ -843,7 +844,7 @@ class AutomatedActionService {
 
       return { updated: true, fields: Object.keys(updates) };
     } catch (error) {
-      console.error('AutomatedActionService._executeUpdateRecord failed:', error.message);
+      logger.error('AutomatedActionService._executeUpdateRecord failed:', error.message);
       throw error;
     }
   }
@@ -902,7 +903,7 @@ class AutomatedActionService {
 
       return { activity: activity._id };
     } catch (error) {
-      console.error('AutomatedActionService._executeCreateActivity failed:', error.message);
+      logger.error('AutomatedActionService._executeCreateActivity failed:', error.message);
       throw error;
     }
   }
@@ -935,7 +936,7 @@ class AutomatedActionService {
 
       return { email_sent: true, recipient: recipientEmail };
     } catch (error) {
-      console.error('AutomatedActionService._executeSendEmail failed:', error.message);
+      logger.error('AutomatedActionService._executeSendEmail failed:', error.message);
       throw error;
     }
   }
@@ -974,7 +975,7 @@ class AutomatedActionService {
 
       return { notifications_sent: notifications.length, user_ids: action.notification_user_ids };
     } catch (error) {
-      console.error('AutomatedActionService._executeSendNotification failed:', error.message);
+      logger.error('AutomatedActionService._executeSendNotification failed:', error.message);
       throw error;
     }
   }
@@ -1008,7 +1009,7 @@ class AutomatedActionService {
 
       return { webhook_sent: true, url: action.webhook_url };
     } catch (error) {
-      console.error('AutomatedActionService._executeWebhook failed:', error.message);
+      logger.error('AutomatedActionService._executeWebhook failed:', error.message);
       throw error;
     }
   }

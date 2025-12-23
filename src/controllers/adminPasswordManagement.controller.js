@@ -11,6 +11,7 @@ const { User, Firm } = require('../models');
 const EmailService = require('../services/email.service');
 const auditLogService = require('../services/auditLog.service');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
+const logger = require('../utils/logger');
 
 /**
  * Verify admin role with comprehensive checks
@@ -255,7 +256,7 @@ const expireUserPassword = async (req, res) => {
                     `
                 });
             } catch (emailError) {
-                console.error('Failed to send password expiration email:', emailError);
+                logger.error('Failed to send password expiration email:', emailError);
                 // Don't fail the request if email fails
             }
         }
@@ -274,7 +275,7 @@ const expireUserPassword = async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('Expire user password error:', error);
+        logger.error('Expire user password error:', error);
 
         // Log error
         await auditLogService.log({
@@ -475,12 +476,12 @@ const expireAllFirmPasswords = async (req, res) => {
                             `
                         });
                     } catch (emailError) {
-                        console.error(`Failed to send email to ${user.email}:`, emailError);
+                        logger.error(`Failed to send email to ${user.email}:`, emailError);
                         // Continue with other users
                     }
                 }
             } catch (emailError) {
-                console.error('Failed to send notification emails:', emailError);
+                logger.error('Failed to send notification emails:', emailError);
                 // Don't fail the request if emails fail
             }
         }
@@ -499,7 +500,7 @@ const expireAllFirmPasswords = async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('Expire all firm passwords error:', error);
+        logger.error('Expire all firm passwords error:', error);
 
         // Log error
         await auditLogService.log({
@@ -694,7 +695,7 @@ const getFirmPasswordStats = async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('Get firm password stats error:', error);
+        logger.error('Get firm password stats error:', error);
 
         // Log error
         await auditLogService.log({

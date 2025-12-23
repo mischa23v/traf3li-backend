@@ -14,6 +14,7 @@ const LeavePolicy = require('../models/leavePolicy.model');
 const LeaveAllocation = require('../models/leaveAllocation.model');
 const LeaveType = require('../models/leaveType.model');
 const Employee = require('../models/employee.model');
+const logger = require('../utils/logger');
 
 // Apply authentication to all routes
 router.use(verifyToken);
@@ -52,7 +53,7 @@ router.get('/leave-periods', async (req, res) => {
       data: periods
     });
   } catch (error) {
-    console.error('Error fetching leave periods:', error);
+    logger.error('Error fetching leave periods:', error);
     res.status(500).json({
       success: false,
       message: 'Error fetching leave periods',
@@ -82,7 +83,7 @@ router.get('/leave-periods/current', async (req, res) => {
       data: period
     });
   } catch (error) {
-    console.error('Error fetching current leave period:', error);
+    logger.error('Error fetching current leave period:', error);
     res.status(500).json({
       success: false,
       message: 'Error fetching current leave period',
@@ -115,7 +116,7 @@ router.get('/leave-periods/:id', async (req, res) => {
       data: period
     });
   } catch (error) {
-    console.error('Error fetching leave period:', error);
+    logger.error('Error fetching leave period:', error);
     res.status(500).json({
       success: false,
       message: 'Error fetching leave period',
@@ -145,7 +146,7 @@ router.post('/leave-periods', async (req, res) => {
       data: period
     });
   } catch (error) {
-    console.error('Error creating leave period:', error);
+    logger.error('Error creating leave period:', error);
     res.status(400).json({
       success: false,
       message: 'Error creating leave period',
@@ -180,7 +181,7 @@ router.put('/leave-periods/:id', async (req, res) => {
       data: period
     });
   } catch (error) {
-    console.error('Error updating leave period:', error);
+    logger.error('Error updating leave period:', error);
     res.status(400).json({
       success: false,
       message: 'Error updating leave period',
@@ -226,7 +227,7 @@ router.delete('/leave-periods/:id', async (req, res) => {
       message: 'Leave period deleted successfully'
     });
   } catch (error) {
-    console.error('Error deleting leave period:', error);
+    logger.error('Error deleting leave period:', error);
     res.status(500).json({
       success: false,
       message: 'Error deleting leave period',
@@ -264,7 +265,7 @@ router.post('/leave-periods/:id/activate', async (req, res) => {
       data: period
     });
   } catch (error) {
-    console.error('Error activating leave period:', error);
+    logger.error('Error activating leave period:', error);
     res.status(400).json({
       success: false,
       message: 'Error activating leave period',
@@ -302,7 +303,7 @@ router.post('/leave-periods/:id/close', async (req, res) => {
       data: period
     });
   } catch (error) {
-    console.error('Error closing leave period:', error);
+    logger.error('Error closing leave period:', error);
     res.status(400).json({
       success: false,
       message: 'Error closing leave period',
@@ -340,7 +341,7 @@ router.get('/leave-policies', async (req, res) => {
       data: policies
     });
   } catch (error) {
-    console.error('Error fetching leave policies:', error);
+    logger.error('Error fetching leave policies:', error);
     res.status(500).json({
       success: false,
       message: 'Error fetching leave policies',
@@ -370,7 +371,7 @@ router.get('/leave-policies/default', async (req, res) => {
       data: policy
     });
   } catch (error) {
-    console.error('Error fetching default leave policy:', error);
+    logger.error('Error fetching default leave policy:', error);
     res.status(500).json({
       success: false,
       message: 'Error fetching default leave policy',
@@ -407,7 +408,7 @@ router.get('/leave-policies/:id', async (req, res) => {
       data: policy
     });
   } catch (error) {
-    console.error('Error fetching leave policy:', error);
+    logger.error('Error fetching leave policy:', error);
     res.status(500).json({
       success: false,
       message: 'Error fetching leave policy',
@@ -444,7 +445,7 @@ router.post('/leave-policies', async (req, res) => {
       data: policy
     });
   } catch (error) {
-    console.error('Error creating leave policy:', error);
+    logger.error('Error creating leave policy:', error);
     res.status(400).json({
       success: false,
       message: 'Error creating leave policy',
@@ -482,7 +483,7 @@ router.put('/leave-policies/:id', async (req, res) => {
       data: policy
     });
   } catch (error) {
-    console.error('Error updating leave policy:', error);
+    logger.error('Error updating leave policy:', error);
     res.status(400).json({
       success: false,
       message: 'Error updating leave policy',
@@ -538,7 +539,7 @@ router.delete('/leave-policies/:id', async (req, res) => {
       message: 'Leave policy deleted successfully'
     });
   } catch (error) {
-    console.error('Error deleting leave policy:', error);
+    logger.error('Error deleting leave policy:', error);
     res.status(500).json({
       success: false,
       message: 'Error deleting leave policy',
@@ -585,7 +586,7 @@ router.post('/leave-policies/:id/clone', async (req, res) => {
       data: newPolicy
     });
   } catch (error) {
-    console.error('Error cloning leave policy:', error);
+    logger.error('Error cloning leave policy:', error);
     res.status(400).json({
       success: false,
       message: 'Error cloning leave policy',
@@ -625,7 +626,7 @@ router.get('/leave-allocations', async (req, res) => {
       data: allocations
     });
   } catch (error) {
-    console.error('Error fetching leave allocations:', error);
+    logger.error('Error fetching leave allocations:', error);
     res.status(500).json({
       success: false,
       message: 'Error fetching leave allocations',
@@ -655,7 +656,7 @@ router.get('/leave-allocations/employee/:employeeId', async (req, res) => {
       data: allocations
     });
   } catch (error) {
-    console.error('Error fetching employee allocations:', error);
+    logger.error('Error fetching employee allocations:', error);
     res.status(500).json({
       success: false,
       message: 'Error fetching employee allocations',
@@ -682,7 +683,7 @@ router.get('/leave-allocations/balance/:employeeId/:leaveTypeId', async (req, re
       data: { balance }
     });
   } catch (error) {
-    console.error('Error fetching leave balance:', error);
+    logger.error('Error fetching leave balance:', error);
     res.status(500).json({
       success: false,
       message: 'Error fetching leave balance',
@@ -721,7 +722,7 @@ router.get('/leave-allocations/:id', async (req, res) => {
       data: allocation
     });
   } catch (error) {
-    console.error('Error fetching leave allocation:', error);
+    logger.error('Error fetching leave allocation:', error);
     res.status(500).json({
       success: false,
       message: 'Error fetching leave allocation',
@@ -757,7 +758,7 @@ router.post('/leave-allocations', async (req, res) => {
       data: allocation
     });
   } catch (error) {
-    console.error('Error creating leave allocation:', error);
+    logger.error('Error creating leave allocation:', error);
     res.status(400).json({
       success: false,
       message: 'Error creating leave allocation',
@@ -796,7 +797,7 @@ router.post('/leave-allocations/bulk', async (req, res) => {
       data: createdAllocations
     });
   } catch (error) {
-    console.error('Error bulk creating leave allocations:', error);
+    logger.error('Error bulk creating leave allocations:', error);
     res.status(400).json({
       success: false,
       message: 'Error bulk creating leave allocations',
@@ -834,7 +835,7 @@ router.put('/leave-allocations/:id', async (req, res) => {
       data: allocation
     });
   } catch (error) {
-    console.error('Error updating leave allocation:', error);
+    logger.error('Error updating leave allocation:', error);
     res.status(400).json({
       success: false,
       message: 'Error updating leave allocation',
@@ -877,7 +878,7 @@ router.delete('/leave-allocations/:id', async (req, res) => {
       message: 'Leave allocation deleted successfully'
     });
   } catch (error) {
-    console.error('Error deleting leave allocation:', error);
+    logger.error('Error deleting leave allocation:', error);
     res.status(500).json({
       success: false,
       message: 'Error deleting leave allocation',
@@ -923,7 +924,7 @@ router.post('/leave-allocations/:id/approve', async (req, res) => {
       data: allocation
     });
   } catch (error) {
-    console.error('Error approving leave allocation:', error);
+    logger.error('Error approving leave allocation:', error);
     res.status(400).json({
       success: false,
       message: 'Error approving leave allocation',
@@ -974,7 +975,7 @@ router.post('/leave-allocations/:id/adjust', async (req, res) => {
       data: allocation
     });
   } catch (error) {
-    console.error('Error adjusting leave allocation:', error);
+    logger.error('Error adjusting leave allocation:', error);
     res.status(400).json({
       success: false,
       message: 'Error adjusting leave allocation',
@@ -1102,7 +1103,7 @@ router.post('/leave-allocations/generate', async (req, res) => {
       errors: errors.length > 0 ? errors : undefined
     });
   } catch (error) {
-    console.error('Error generating leave allocations:', error);
+    logger.error('Error generating leave allocations:', error);
     res.status(500).json({
       success: false,
       message: 'Error generating leave allocations',

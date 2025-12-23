@@ -2,6 +2,7 @@ const { Notification } = require('../models');
 const CustomException = require('../utils/CustomException');
 const { emitNotification, emitNotificationCount } = require('../configs/socket');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
+const logger = require('../utils/logger');
 
 // Get all notifications for user
 const getNotifications = async (request, response) => {
@@ -315,7 +316,7 @@ const createNotification = async (notificationData) => {
 
         return notification;
     } catch (error) {
-        console.error('Error creating notification:', error);
+        logger.error('Error creating notification:', error);
         return null;
     }
 };
@@ -422,7 +423,7 @@ const createBulkNotifications = async (notifications) => {
 
         return result;
     } catch (error) {
-        console.error('Error creating bulk notifications:', error);
+        logger.error('Error creating bulk notifications:', error);
         return [];
     }
 };

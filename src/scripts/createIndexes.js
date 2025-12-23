@@ -9,6 +9,7 @@
 
 require('dotenv').config();
 const mongoose = require('mongoose');
+const logger = require('../utils/logger');
 
 // Database connection
 const connectDB = async () => {
@@ -17,9 +18,9 @@ const connectDB = async () => {
             maxPoolSize: 10,
             minPoolSize: 2
         });
-        console.log('MongoDB connected for index creation...');
+        logger.info('MongoDB connected for index creation...');
     } catch (error) {
-        console.error('MongoDB connection error:', error);
+        logger.error('MongoDB connection error:', error);
         process.exit(1);
     }
 };
@@ -413,10 +414,10 @@ const createIndexesForCollection = async (collectionName, indexes) => {
         const existingIndexes = await collection.indexes();
         const existingIndexNames = new Set(existingIndexes.map(idx => idx.name));
 
-        console.log(`\n${'='.repeat(70)}`);
-        console.log(`Collection: ${collectionName}`);
-        console.log(`${'='.repeat(70)}`);
-        console.log(`Existing indexes: ${existingIndexNames.size}`);
+        logger.info(`\n${'='.repeat(70)}`);
+        logger.info(`Collection: ${collectionName}`);
+        logger.info(`${'='.repeat(70)}`);
+        logger.info(`Existing indexes: ${existingIndexNames.size}`);
 
         let created = 0;
         let skipped = 0;
@@ -425,25 +426,25 @@ const createIndexesForCollection = async (collectionName, indexes) => {
             const indexName = options.name;
 
             if (existingIndexNames.has(indexName)) {
-                console.log(`  ✓ ${indexName} - already exists`);
+                logger.info(`  ✓ ${indexName} - already exists`);
                 skipped++;
             } else {
                 try {
                     await collection.createIndex(keys, options);
-                    console.log(`  + ${indexName} - created`);
+                    logger.info(`  + ${indexName} - created`);
                     created++;
                 } catch (error) {
-                    console.error(`  ✗ ${indexName} - error: ${error.message}`);
+                    logger.error(`  ✗ ${indexName} - error: ${error.message}`);
                 }
             }
         }
 
-        console.log(`\nSummary: ${created} created, ${skipped} skipped`);
+        logger.info(`\nSummary: ${created} created, ${skipped} skipped`);
 
         return { created, skipped };
 
     } catch (error) {
-        console.error(`Error processing collection ${collectionName}:`, error.message);
+        logger.error(`Error processing collection ${collectionName}:`, error.message);
         return { created: 0, skipped: 0 };
     }
 };
@@ -455,11 +456,11 @@ const main = async () => {
     try {
         await connectDB();
 
-        console.log('\n');
-        console.log('╔' + '═'.repeat(68) + '╗');
-        console.log('║' + ' MongoDB Index Optimization Script'.padEnd(68) + '║');
-        console.log('╚' + '═'.repeat(68) + '╝');
-        console.log('\n');
+        logger.info('\n');
+        logger.info('╔' + '═'.repeat(68) + '╗');
+        logger.info('║' + ' MongoDB Index Optimization Script'.padEnd(68) + '║');
+        logger.info('╚' + '═'.repeat(68) + '╝');
+        logger.info('\n');
 
         let totalCreated = 0;
         let totalSkipped = 0;
@@ -472,18 +473,18 @@ const main = async () => {
         }
 
         // Final summary
-        console.log('\n');
-        console.log('╔' + '═'.repeat(68) + '╗');
-        console.log('║' + ' Final Summary'.padEnd(68) + '║');
-        console.log('╚' + '═'.repeat(68) + '╝');
-        console.log(`\nTotal indexes created: ${totalCreated}`);
-        console.log(`Total indexes skipped (already exist): ${totalSkipped}`);
-        console.log(`Total indexes processed: ${totalCreated + totalSkipped}`);
-        console.log('\n✅ Index optimization completed successfully!\n');
+        logger.info('\n');
+        logger.info('╔' + '═'.repeat(68) + '╗');
+        logger.info('║' + ' Final Summary'.padEnd(68) + '║');
+        logger.info('╚' + '═'.repeat(68) + '╝');
+        logger.info(`\nTotal indexes created: ${totalCreated}`);
+        logger.info(`Total indexes skipped (already exist): ${totalSkipped}`);
+        logger.info(`Total indexes processed: ${totalCreated + totalSkipped}`);
+        logger.info('\n✅ Index optimization completed successfully!\n');
 
         process.exit(0);
     } catch (error) {
-        console.error('\n❌ Index optimization failed:', error);
+        logger.error('\n❌ Index optimization failed:', error);
         process.exit(1);
     }
 };

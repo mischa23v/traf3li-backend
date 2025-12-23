@@ -23,6 +23,7 @@ const {
     sanitizePagination,
     sanitizeForLog
 } = require('../utils/securityUtils');
+const logger = require('../utils/logger');
 
 /**
  * Revoke all tokens for a specific user (admin action)
@@ -201,7 +202,7 @@ const revokeUserTokens = async (req, res) => {
             data: safeResponseData
         });
     } catch (error) {
-        console.error('Admin revokeUserTokens error:', sanitizeForLog(error.message));
+        logger.error('Admin revokeUserTokens error:', sanitizeForLog(error.message));
         return res.status(500).json({
             error: true,
             message: 'Failed to revoke tokens',
@@ -376,7 +377,7 @@ const getRecentRevocations = async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('Admin getRecentRevocations error:', sanitizeForLog(error.message));
+        logger.error('Admin getRecentRevocations error:', sanitizeForLog(error.message));
         return res.status(500).json({
             error: true,
             message: 'Failed to fetch revocations',
@@ -510,7 +511,7 @@ const getRevocationStats = async (req, res) => {
             data: safeStats
         });
     } catch (error) {
-        console.error('Admin getRevocationStats error:', sanitizeForLog(error.message));
+        logger.error('Admin getRevocationStats error:', sanitizeForLog(error.message));
         return res.status(500).json({
             error: true,
             message: 'Failed to fetch statistics',
@@ -718,7 +719,7 @@ const getUserRevocationHistory = async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('Admin getUserRevocationHistory error:', sanitizeForLog(error.message));
+        logger.error('Admin getUserRevocationHistory error:', sanitizeForLog(error.message));
         return res.status(500).json({
             error: true,
             message: 'Failed to fetch revocation history',
@@ -844,7 +845,7 @@ const cleanupExpiredTokens = async (req, res) => {
         });
     } catch (error) {
         // Log cleanup operation failure
-        console.error('Admin cleanupExpiredTokens error:', sanitizeForLog(error.message));
+        logger.error('Admin cleanupExpiredTokens error:', sanitizeForLog(error.message));
 
         // Log failed cleanup to audit trail
         try {
@@ -873,7 +874,7 @@ const cleanupExpiredTokens = async (req, res) => {
                 );
             }
         } catch (auditError) {
-            console.error('Failed to log cleanup error to audit trail:', auditError.message);
+            logger.error('Failed to log cleanup error to audit trail:', auditError.message);
         }
 
         return res.status(500).json({

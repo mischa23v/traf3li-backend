@@ -1,4 +1,5 @@
 const jwt = require('jsonwebtoken');
+const logger = require('./logger');
 
 /**
  * Token generation utilities for dual-token authentication
@@ -95,10 +96,10 @@ const generateAccessToken = (user) => {
       issuer: 'traf3li',
       audience: 'traf3li-users',
     };
-    
+
     return jwt.sign(payload, accessSecret, options);
   } catch (error) {
-    console.error('❌ Access token generation failed:', error.message);
+    logger.error('Access token generation failed:', error.message);
     throw new Error('Token generation failed');
   }
 };
@@ -122,10 +123,10 @@ const generateRefreshToken = (user) => {
       issuer: 'traf3li',
       audience: 'traf3li-users',
     };
-    
+
     return jwt.sign(payload, refreshSecret, options);
   } catch (error) {
-    console.error('❌ Refresh token generation failed:', error.message);
+    logger.error('Refresh token generation failed:', error.message);
     throw new Error('Token generation failed');
   }
 };

@@ -10,6 +10,7 @@ const SalesPerson = require('../models/salesPerson.model');
 const Lead = require('../models/lead.model');
 const Case = require('../models/case.model');
 const CrmActivity = require('../models/crmActivity.model');
+const logger = require('../utils/logger');
 
 // ═══════════════════════════════════════════════════════════════
 // LIST SALES PERSONS
@@ -84,7 +85,7 @@ exports.getAll = async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('Error getting sales persons:', error);
+        logger.error('Error getting sales persons:', error);
         res.status(500).json({
             success: false,
             message: 'خطأ في جلب مندوبي المبيعات / Error fetching sales persons',
@@ -119,7 +120,7 @@ exports.getTree = async (req, res) => {
             data: tree
         });
     } catch (error) {
-        console.error('Error getting sales person tree:', error);
+        logger.error('Error getting sales person tree:', error);
         res.status(500).json({
             success: false,
             message: 'خطأ في جلب شجرة مندوبي المبيعات / Error fetching sales person tree',
@@ -165,7 +166,7 @@ exports.getById = async (req, res) => {
             data: salesPerson
         });
     } catch (error) {
-        console.error('Error getting sales person:', error);
+        logger.error('Error getting sales person:', error);
         res.status(500).json({
             success: false,
             message: 'خطأ في جلب مندوب المبيعات / Error fetching sales person',
@@ -353,7 +354,7 @@ exports.getStats = async (req, res) => {
             data: stats
         });
     } catch (error) {
-        console.error('Error getting sales person stats:', error);
+        logger.error('Error getting sales person stats:', error);
         res.status(500).json({
             success: false,
             message: 'خطأ في جلب إحصائيات مندوب المبيعات / Error fetching stats',
@@ -472,7 +473,7 @@ exports.create = async (req, res) => {
             data: salesPerson
         });
     } catch (error) {
-        console.error('Error creating sales person:', error);
+        logger.error('Error creating sales person:', error);
         res.status(500).json({
             success: false,
             message: 'خطأ في إنشاء مندوب المبيعات / Error creating sales person',
@@ -590,7 +591,7 @@ exports.update = async (req, res) => {
             data: salesPerson
         });
     } catch (error) {
-        console.error('Error updating sales person:', error);
+        logger.error('Error updating sales person:', error);
         res.status(500).json({
             success: false,
             message: 'خطأ في تحديث مندوب المبيعات / Error updating sales person',
@@ -657,7 +658,7 @@ exports.delete = async (req, res) => {
             message: 'تم حذف مندوب المبيعات بنجاح / Sales person deleted successfully'
         });
     } catch (error) {
-        console.error('Error deleting sales person:', error);
+        logger.error('Error deleting sales person:', error);
         res.status(500).json({
             success: false,
             message: 'خطأ في حذف مندوب المبيعات / Error deleting sales person',

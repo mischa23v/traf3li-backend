@@ -15,6 +15,7 @@ const {
   getCspViolations,
   clearCspViolations
 } = require('../controllers/cspReport.controller');
+const logger = require('../utils/logger');
 
 /**
  * POST /api/security/incidents/report
@@ -95,7 +96,7 @@ router.post('/incidents/report', authenticate, async (req, res) => {
     });
 
     // Log to console for immediate visibility
-    console.error('🚨 [SECURITY INCIDENT REPORTED]', {
+    logger.error('🚨 [SECURITY INCIDENT REPORTED]', {
       id: incident?._id,
       type,
       severity,
@@ -120,7 +121,7 @@ router.post('/incidents/report', authenticate, async (req, res) => {
       },
     });
   } catch (error) {
-    console.error('Security incident reporting error:', error);
+    logger.error('Security incident reporting error:', error);
     res.status(500).json({
       success: false,
       error: 'Failed to report security incident',
@@ -174,7 +175,7 @@ router.get('/incidents', authenticate, authorize('admin', 'owner'), async (req, 
       count: incidents.length,
     });
   } catch (error) {
-    console.error('Get security incidents error:', error);
+    logger.error('Get security incidents error:', error);
     res.status(500).json({
       success: false,
       error: 'Failed to retrieve security incidents',
@@ -231,7 +232,7 @@ router.patch('/incidents/:id/status', authenticate, authorize('admin', 'owner'),
       data: incident,
     });
   } catch (error) {
-    console.error('Update incident status error:', error);
+    logger.error('Update incident status error:', error);
     res.status(500).json({
       success: false,
       error: 'Failed to update incident status',
@@ -285,7 +286,7 @@ router.get('/incidents/stats', authenticate, authorize('admin', 'owner'), async 
       },
     });
   } catch (error) {
-    console.error('Get incident stats error:', error);
+    logger.error('Get incident stats error:', error);
     res.status(500).json({
       success: false,
       error: 'Failed to retrieve incident statistics',
@@ -317,7 +318,7 @@ router.post('/vulnerability/report', async (req, res) => {
     }
 
     // Log vulnerability report
-    console.error('🔒 [VULNERABILITY REPORTED]', {
+    logger.error('🔒 [VULNERABILITY REPORTED]', {
       type,
       severity,
       reporter: reporterEmail,
@@ -358,7 +359,7 @@ router.post('/vulnerability/report', async (req, res) => {
       },
     });
   } catch (error) {
-    console.error('Vulnerability reporting error:', error);
+    logger.error('Vulnerability reporting error:', error);
     res.status(500).json({
       success: false,
       error: 'Failed to submit vulnerability report',

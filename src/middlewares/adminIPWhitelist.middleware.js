@@ -1,15 +1,16 @@
 /**
  * Admin IP Whitelist middleware
  * Restricts admin access to specific IP addresses for extra security
- * 
+ *
  * Set ADMIN_IP_WHITELIST in .env:
  * ADMIN_IP_WHITELIST=192.168.1.100,203.0.113.45,198.51.100.0/24
- * 
+ *
  * Usage:
  * router.get('/admin/users', authenticate, requireAdmin(), adminIPWhitelist(), getAllUsers);
  */
 
 const ipRangeCheck = require('ip-range-check');
+const logger = require('../utils/logger');
 
 /**
  * Check if admin request is from whitelisted IP
@@ -30,8 +31,8 @@ const adminIPWhitelist = (options = {}) => {
       // If no whitelist configured, allow all (but log warning)
       if (!whitelist) {
         if (process.env.NODE_ENV === 'production') {
-          console.warn('⚠️  WARNING: ADMIN_IP_WHITELIST not configured in production!');
-          console.warn('⚠️  Admin access is not IP-restricted!');
+          logger.warn('WARNING: ADMIN_IP_WHITELIST not configured in production!');
+          logger.warn('Admin access is not IP-restricted!');
         }
         return next();
       }
@@ -40,7 +41,7 @@ const adminIPWhitelist = (options = {}) => {
       const clientIP = getClientIP(req);
 
       if (!clientIP) {
-        console.error('❌ Could not determine client IP address');
+        logger.error('Could not determine client IP address');
         return res.status(403).json({
           success: false,
           error: 'غير قادر على تحديد عنوان IP',
@@ -64,7 +65,7 @@ const adminIPWhitelist = (options = {}) => {
           try {
             return ipRangeCheck(clientIP, allowedIP);
           } catch (error) {
-            console.error(`❌ Invalid CIDR range: ${allowedIP}`);
+            logger.error(`Invalid CIDR range: ${allowedIP}`);
             return false;
           }
         }
@@ -74,11 +75,11 @@ const adminIPWhitelist = (options = {}) => {
 
       if (!isAllowed) {
         // Log suspicious admin access attempt
-        console.error('🚨 SECURITY ALERT: Unauthorized admin access attempt');
-        console.error(`   User: ${req.user.email} (ID: ${req.user._id})`);
-        console.error(`   IP: ${clientIP}`);
-        console.error(`   Endpoint: ${req.method} ${req.originalUrl}`);
-        console.error(`   Time: ${new Date().toISOString()}`);
+        logger.error('SECURITY ALERT: Unauthorized admin access attempt');
+        logger.error(`   User: ${req.user.email} (ID: ${req.user._id})`);
+        logger.error(`   IP: ${clientIP}`);
+        logger.error(`   Endpoint: ${req.method} ${req.originalUrl}`);
+        logger.error(`   Time: ${new Date().toISOString()}`);
 
         // Send alert email/notification here (implement later)
         // await sendSecurityAlert({ ... });
@@ -98,7 +99,7 @@ const adminIPWhitelist = (options = {}) => {
       // IP is whitelisted, allow access
       next();
     } catch (error) {
-      console.error('❌ Admin IP whitelist check error:', error.message);
+      logger.error('Admin IP whitelist check error:', error.message);
       return res.status(500).json({
         success: false,
         error: 'خطأ في التحقق من عنوان IP',
@@ -170,10 +171,10 @@ const adminIPWhitelistByUser = () => {
         const isAllowed = req.user.allowedIPs.includes(clientIP);
 
         if (!isAllowed) {
-          console.error('🚨 SECURITY ALERT: Unauthorized admin access attempt');
-          console.error(`   User: ${req.user.email}`);
-          console.error(`   IP: ${clientIP}`);
-          console.error(`   Allowed IPs: ${req.user.allowedIPs.join(', ')}`);
+          logger.error('SECURITY ALERT: Unauthorized admin access attempt');
+          logger.error(`   User: ${req.user.email}`);
+          logger.error(`   IP: ${clientIP}`);
+          logger.error(`   Allowed IPs: ${req.user.allowedIPs.join(', ')}`);
 
           return res.status(403).json({
             success: false,
@@ -186,7 +187,7 @@ const adminIPWhitelistByUser = () => {
 
       next();
     } catch (error) {
-      console.error('❌ Admin IP whitelist check error:', error.message);
+      logger.error('Admin IP whitelist check error:', error.message);
       return res.status(500).json({
         success: false,
         error: 'خطأ في التحقق من عنوان IP',
@@ -203,7 +204,7 @@ const logAdminAccess = () => {
   return (req, res, next) => {
     if (req.user && req.user.role === 'admin') {
       const clientIP = getClientIP(req);
-      console.log('ℹ️  Admin access:', {
+      logger.info('Admin access:', {
         user: req.user.email,
         ip: clientIP,
         endpoint: `${req.method} ${req.originalUrl}`,

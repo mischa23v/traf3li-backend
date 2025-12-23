@@ -14,6 +14,7 @@
 const { Investment } = require('../models');
 const { priceService } = require('../services/priceService');
 const { findSymbol } = require('../data/symbols');
+const logger = require('../utils/logger');
 
 // Update interval in milliseconds (15 minutes)
 const UPDATE_INTERVAL = 15 * 60 * 1000;
@@ -79,11 +80,11 @@ async function updateMarketPrices(market) {
         });
 
         if (investments.length === 0) {
-            console.log(`[Price Update] No active investments in ${market}`);
+            logger.info(`[Price Update] No active investments in ${market}`);
             return { updated: 0, failed: 0 };
         }
 
-        console.log(`[Price Update] Updating ${investments.length} ${market} investments`);
+        logger.info(`[Price Update] Updating ${investments.length} ${market} investments`);
 
         let updated = 0;
         let failed = 0;
@@ -94,7 +95,7 @@ async function updateMarketPrices(market) {
                 const yahooSymbol = investment.yahooSymbol || symbolInfo?.yahoo;
 
                 if (!yahooSymbol) {
-                    console.warn(`[Price Update] No Yahoo symbol for ${investment.symbol}`);
+                    logger.warn(`[Price Update] No Yahoo symbol for ${investment.symbol}`);
                     failed++;
                     continue;
                 }
@@ -115,20 +116,20 @@ async function updateMarketPrices(market) {
 
                 await investment.save();
                 updated++;
-                console.log(`[Price Update] ${investment.symbol}: ${quote.price}`);
+                logger.info(`[Price Update] ${investment.symbol}: ${quote.price}`);
 
                 // Rate limiting between requests
                 await new Promise(r => setTimeout(r, 300));
             } catch (error) {
-                console.error(`[Price Update] Failed ${investment.symbol}:`, error.message);
+                logger.error(`[Price Update] Failed ${investment.symbol}:`, error.message);
                 failed++;
             }
         }
 
-        console.log(`[Price Update] ${market} complete: ${updated} updated, ${failed} failed`);
+        logger.info(`[Price Update] ${market} complete: ${updated} updated, ${failed} failed`);
         return { updated, failed };
     } catch (error) {
-        console.error(`[Price Update] ${market} job failed:`, error);
+        logger.error(`[Price Update] ${market} job failed:`, error);
         return { updated: 0, failed: 0, error: error.message };
     }
 }
@@ -138,26 +139,26 @@ async function updateMarketPrices(market) {
  */
 async function runUpdateCycle() {
     if (isRunning) {
-        console.log('[Price Update] Previous cycle still running, skipping...');
+        logger.info('[Price Update] Previous cycle still running, skipping...');
         return;
     }
 
     isRunning = true;
-    console.log('[Price Update] Starting update cycle...');
+    logger.info('[Price Update] Starting update cycle...');
 
     try {
         // Update Tadawul if market is open
         if (isTadawulOpen()) {
             await updateMarketPrices('tadawul');
         } else {
-            console.log('[Price Update] Tadawul market is closed');
+            logger.info('[Price Update] Tadawul market is closed');
         }
 
         // Update US markets if open
         if (isUSMarketOpen()) {
             await updateMarketPrices('us');
         } else {
-            console.log('[Price Update] US market is closed');
+            logger.info('[Price Update] US market is closed');
         }
 
         // Crypto and Forex are 24/7
@@ -170,9 +171,9 @@ async function runUpdateCycle() {
             await updateMarketPrices('commodities');
         }
 
-        console.log('[Price Update] Update cycle complete');
+        logger.info('[Price Update] Update cycle complete');
     } catch (error) {
-        console.error('[Price Update] Update cycle error:', error);
+        logger.error('[Price Update] Update cycle error:', error);
     } finally {
         isRunning = false;
     }
@@ -183,12 +184,12 @@ async function runUpdateCycle() {
  */
 function startPriceUpdater() {
     if (updateIntervalId) {
-        console.log('[Price Update] Already running');
+        logger.info('[Price Update] Already running');
         return;
     }
 
-    console.log('[Price Update] Starting price updater...');
-    console.log(`[Price Update] Update interval: ${UPDATE_INTERVAL / 60000} minutes`);
+    logger.info('[Price Update] Starting price updater...');
+    logger.info(`[Price Update] Update interval: ${UPDATE_INTERVAL / 60000} minutes`);
 
     // Run initial update after 30 seconds
     setTimeout(() => {
@@ -200,7 +201,7 @@ function startPriceUpdater() {
         runUpdateCycle();
     }, UPDATE_INTERVAL);
 
-    console.log('[Price Update] Price updater started');
+    logger.info('[Price Update] Price updater started');
 }
 
 /**
@@ -210,7 +211,7 @@ function stopPriceUpdater() {
     if (updateIntervalId) {
         clearInterval(updateIntervalId);
         updateIntervalId = null;
-        console.log('[Price Update] Price updater stopped');
+        logger.info('[Price Update] Price updater stopped');
     }
 }
 
@@ -218,7 +219,7 @@ function stopPriceUpdater() {
  * Manually trigger a price update for all markets
  */
 async function triggerManualUpdate() {
-    console.log('[Price Update] Manual update triggered');
+    logger.info('[Price Update] Manual update triggered');
     await runUpdateCycle();
 }
 

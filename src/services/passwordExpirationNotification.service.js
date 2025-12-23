@@ -12,6 +12,7 @@
 const { User, Firm } = require('../models');
 const EmailService = require('./email.service');
 const { checkPasswordAge } = require('../utils/passwordPolicy');
+const logger = require('../utils/logger');
 
 /**
  * Check all users and send password expiration warnings
@@ -21,7 +22,7 @@ const { checkPasswordAge } = require('../utils/passwordPolicy');
  */
 async function checkAndNotifyExpiringPasswords() {
     try {
-        console.log('Starting password expiration notification check...');
+        logger.info('Starting password expiration notification check...');
 
         const results = {
             total: 0,
@@ -36,7 +37,7 @@ async function checkAndNotifyExpiringPasswords() {
             'enterpriseSettings.enablePasswordExpiration': true
         }).select('_id enterpriseSettings').lean();
 
-        console.log(`Found ${firms.length} firms with password expiration enabled`);
+        logger.info(`Found ${firms.length} firms with password expiration enabled`);
 
         for (const firm of firms) {
             const maxAgeDays = firm.enterpriseSettings?.passwordMaxAgeDays || 90;
@@ -82,16 +83,16 @@ async function checkAndNotifyExpiringPasswords() {
                         results.sevenDayWarnings++;
                     }
                 } catch (error) {
-                    console.error(`Error processing user ${user._id}:`, error);
+                    logger.error(`Error processing user ${user._id}:`, error);
                     results.errors++;
                 }
             }
         }
 
-        console.log('Password expiration notification check completed:', results);
+        logger.info('Password expiration notification check completed:', results);
         return results;
     } catch (error) {
-        console.error('Error in checkAndNotifyExpiringPasswords:', error);
+        logger.error('Error in checkAndNotifyExpiringPasswords:', error);
         throw error;
     }
 }
@@ -215,7 +216,7 @@ async function sendPasswordExpiryWarning(user, daysRemaining, expiresAt) {
         html
     });
 
-    console.log(`Sent ${daysRemaining}-day expiry warning to ${user.email}`);
+    logger.info(`Sent ${daysRemaining}-day expiry warning to ${user.email}`);
 }
 
 /**
@@ -308,7 +309,7 @@ async function sendExpiredPasswordNotification(user, daysOverdue) {
         html
     });
 
-    console.log(`Sent expired password notification to ${user.email}`);
+    logger.info(`Sent expired password notification to ${user.email}`);
 }
 
 /**

@@ -10,6 +10,7 @@ const EmailSubscriber = require('../models/emailSubscriber.model');
 const EmailSegment = require('../models/emailSegment.model');
 const EmailEvent = require('../models/emailEvent.model');
 const { pickAllowedFields, sanitizeObjectId, sanitizeEmail } = require('../utils/securityUtils');
+const logger = require('../utils/logger');
 
 // ==================== CAMPAIGNS ====================
 
@@ -36,7 +37,7 @@ exports.createCampaign = async (req, res) => {
       data: campaign
     });
   } catch (error) {
-    console.error('Create campaign error:', error);
+    logger.error('Create campaign error:', error);
     res.status(500).json({
       success: false,
       message: error.message || 'Failed to create campaign'
@@ -81,7 +82,7 @@ exports.getCampaigns = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Get campaigns error:', error);
+    logger.error('Get campaigns error:', error);
     res.status(500).json({
       success: false,
       message: error.message || 'Failed to get campaigns'
@@ -116,7 +117,7 @@ exports.getCampaign = async (req, res) => {
       data: campaign
     });
   } catch (error) {
-    console.error('Get campaign error:', error);
+    logger.error('Get campaign error:', error);
     res.status(500).json({
       success: false,
       message: error.message || 'Failed to get campaign'
@@ -157,7 +158,7 @@ exports.updateCampaign = async (req, res) => {
       data: campaign
     });
   } catch (error) {
-    console.error('Update campaign error:', error);
+    logger.error('Update campaign error:', error);
     res.status(500).json({
       success: false,
       message: error.message || 'Failed to update campaign'
@@ -190,7 +191,7 @@ exports.deleteCampaign = async (req, res) => {
       message: 'Campaign deleted successfully'
     });
   } catch (error) {
-    console.error('Delete campaign error:', error);
+    logger.error('Delete campaign error:', error);
     res.status(500).json({
       success: false,
       message: error.message || 'Failed to delete campaign'
@@ -225,7 +226,7 @@ exports.duplicateCampaign = async (req, res) => {
       data: campaign
     });
   } catch (error) {
-    console.error('Duplicate campaign error:', error);
+    logger.error('Duplicate campaign error:', error);
     res.status(500).json({
       success: false,
       message: error.message || 'Failed to duplicate campaign'
@@ -274,7 +275,7 @@ exports.scheduleCampaign = async (req, res) => {
       data: updatedCampaign
     });
   } catch (error) {
-    console.error('Schedule campaign error:', error);
+    logger.error('Schedule campaign error:', error);
     res.status(500).json({
       success: false,
       message: error.message || 'Failed to schedule campaign'
@@ -308,7 +309,7 @@ exports.sendCampaign = async (req, res) => {
       data: updatedCampaign
     });
   } catch (error) {
-    console.error('Send campaign error:', error);
+    logger.error('Send campaign error:', error);
     res.status(500).json({
       success: false,
       message: error.message || 'Failed to send campaign'
@@ -342,7 +343,7 @@ exports.pauseCampaign = async (req, res) => {
       data: updatedCampaign
     });
   } catch (error) {
-    console.error('Pause campaign error:', error);
+    logger.error('Pause campaign error:', error);
     res.status(500).json({
       success: false,
       message: error.message || 'Failed to pause campaign'
@@ -376,7 +377,7 @@ exports.resumeCampaign = async (req, res) => {
       data: updatedCampaign
     });
   } catch (error) {
-    console.error('Resume campaign error:', error);
+    logger.error('Resume campaign error:', error);
     res.status(500).json({
       success: false,
       message: error.message || 'Failed to resume campaign'
@@ -410,7 +411,7 @@ exports.cancelCampaign = async (req, res) => {
       data: updatedCampaign
     });
   } catch (error) {
-    console.error('Cancel campaign error:', error);
+    logger.error('Cancel campaign error:', error);
     res.status(500).json({
       success: false,
       message: error.message || 'Failed to cancel campaign'
@@ -470,7 +471,7 @@ exports.sendTestEmail = async (req, res) => {
       message: `Test email sent to ${sanitizedEmail}`
     });
   } catch (error) {
-    console.error('Send test email error:', error);
+    logger.error('Send test email error:', error);
     res.status(500).json({
       success: false,
       message: error.message || 'Failed to send test email'
@@ -503,7 +504,7 @@ exports.getCampaignAnalytics = async (req, res) => {
       data: analytics
     });
   } catch (error) {
-    console.error('Get campaign analytics error:', error);
+    logger.error('Get campaign analytics error:', error);
     res.status(500).json({
       success: false,
       message: error.message || 'Failed to get analytics'
@@ -536,7 +537,7 @@ exports.createTemplate = async (req, res) => {
       data: template
     });
   } catch (error) {
-    console.error('Create template error:', error);
+    logger.error('Create template error:', error);
     res.status(500).json({
       success: false,
       message: error.message || 'Failed to create template'
@@ -582,7 +583,7 @@ exports.getTemplates = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Get templates error:', error);
+    logger.error('Get templates error:', error);
     res.status(500).json({
       success: false,
       message: error.message || 'Failed to get templates'
@@ -603,7 +604,7 @@ exports.getPublicTemplates = async (req, res) => {
       data: templates
     });
   } catch (error) {
-    console.error('Get public templates error:', error);
+    logger.error('Get public templates error:', error);
     res.status(500).json({
       success: false,
       message: error.message || 'Failed to get public templates'
@@ -640,7 +641,7 @@ exports.getTemplate = async (req, res) => {
       data: template
     });
   } catch (error) {
-    console.error('Get template error:', error);
+    logger.error('Get template error:', error);
     res.status(500).json({
       success: false,
       message: error.message || 'Failed to get template'
@@ -683,7 +684,7 @@ exports.updateTemplate = async (req, res) => {
       data: template
     });
   } catch (error) {
-    console.error('Update template error:', error);
+    logger.error('Update template error:', error);
     res.status(500).json({
       success: false,
       message: error.message || 'Failed to update template'
@@ -715,7 +716,7 @@ exports.deleteTemplate = async (req, res) => {
       message: 'Template deleted successfully'
     });
   } catch (error) {
-    console.error('Delete template error:', error);
+    logger.error('Delete template error:', error);
     res.status(500).json({
       success: false,
       message: error.message || 'Failed to delete template'
@@ -758,7 +759,7 @@ exports.previewTemplate = async (req, res) => {
       data: preview
     });
   } catch (error) {
-    console.error('Preview template error:', error);
+    logger.error('Preview template error:', error);
     res.status(500).json({
       success: false,
       message: error.message || 'Failed to preview template'
@@ -807,7 +808,7 @@ exports.createSubscriber = async (req, res) => {
       data: subscriber
     });
   } catch (error) {
-    console.error('Create subscriber error:', error);
+    logger.error('Create subscriber error:', error);
     res.status(500).json({
       success: false,
       message: error.message || 'Failed to add subscriber'
@@ -853,7 +854,7 @@ exports.getSubscribers = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Get subscribers error:', error);
+    logger.error('Get subscribers error:', error);
     res.status(500).json({
       success: false,
       message: error.message || 'Failed to get subscribers'
@@ -905,7 +906,7 @@ exports.updateSubscriber = async (req, res) => {
       data: subscriber
     });
   } catch (error) {
-    console.error('Update subscriber error:', error);
+    logger.error('Update subscriber error:', error);
     res.status(500).json({
       success: false,
       message: error.message || 'Failed to update subscriber'
@@ -937,7 +938,7 @@ exports.deleteSubscriber = async (req, res) => {
       message: 'Subscriber deleted successfully'
     });
   } catch (error) {
-    console.error('Delete subscriber error:', error);
+    logger.error('Delete subscriber error:', error);
     res.status(500).json({
       success: false,
       message: error.message || 'Failed to delete subscriber'
@@ -997,7 +998,7 @@ exports.importSubscribers = async (req, res) => {
       data: result
     });
   } catch (error) {
-    console.error('Import subscribers error:', error);
+    logger.error('Import subscribers error:', error);
     res.status(500).json({
       success: false,
       message: error.message || 'Failed to import subscribers'
@@ -1024,7 +1025,7 @@ exports.exportSubscribers = async (req, res) => {
       data: subscribers
     });
   } catch (error) {
-    console.error('Export subscribers error:', error);
+    logger.error('Export subscribers error:', error);
     res.status(500).json({
       success: false,
       message: error.message || 'Failed to export subscribers'
@@ -1056,7 +1057,7 @@ exports.unsubscribe = async (req, res) => {
       message: 'Unsubscribed successfully'
     });
   } catch (error) {
-    console.error('Unsubscribe error:', error);
+    logger.error('Unsubscribe error:', error);
     res.status(500).json({
       success: false,
       message: error.message || 'Failed to unsubscribe'
@@ -1083,7 +1084,7 @@ exports.createSegment = async (req, res) => {
       data: segment
     });
   } catch (error) {
-    console.error('Create segment error:', error);
+    logger.error('Create segment error:', error);
     res.status(500).json({
       success: false,
       message: error.message || 'Failed to create segment'
@@ -1113,7 +1114,7 @@ exports.getSegments = async (req, res) => {
       data: segments
     });
   } catch (error) {
-    console.error('Get segments error:', error);
+    logger.error('Get segments error:', error);
     res.status(500).json({
       success: false,
       message: error.message || 'Failed to get segments'
@@ -1145,7 +1146,7 @@ exports.getSegment = async (req, res) => {
       data: segment
     });
   } catch (error) {
-    console.error('Get segment error:', error);
+    logger.error('Get segment error:', error);
     res.status(500).json({
       success: false,
       message: error.message || 'Failed to get segment'
@@ -1186,7 +1187,7 @@ exports.updateSegment = async (req, res) => {
       data: segment
     });
   } catch (error) {
-    console.error('Update segment error:', error);
+    logger.error('Update segment error:', error);
     res.status(500).json({
       success: false,
       message: error.message || 'Failed to update segment'
@@ -1218,7 +1219,7 @@ exports.deleteSegment = async (req, res) => {
       message: 'Segment deleted successfully'
     });
   } catch (error) {
-    console.error('Delete segment error:', error);
+    logger.error('Delete segment error:', error);
     res.status(500).json({
       success: false,
       message: error.message || 'Failed to delete segment'
@@ -1254,7 +1255,7 @@ exports.getSegmentSubscribers = async (req, res) => {
       count: segment.subscriberCount
     });
   } catch (error) {
-    console.error('Get segment subscribers error:', error);
+    logger.error('Get segment subscribers error:', error);
     res.status(500).json({
       success: false,
       message: error.message || 'Failed to get segment subscribers'
@@ -1278,7 +1279,7 @@ exports.refreshSegment = async (req, res) => {
       count
     });
   } catch (error) {
-    console.error('Refresh segment error:', error);
+    logger.error('Refresh segment error:', error);
     res.status(500).json({
       success: false,
       message: error.message || 'Failed to refresh segment'
@@ -1308,7 +1309,7 @@ exports.getOverviewAnalytics = async (req, res) => {
       data: analytics
     });
   } catch (error) {
-    console.error('Get overview analytics error:', error);
+    logger.error('Get overview analytics error:', error);
     res.status(500).json({
       success: false,
       message: error.message || 'Failed to get analytics'
@@ -1359,7 +1360,7 @@ exports.getTrendsAnalytics = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Get trends analytics error:', error);
+    logger.error('Get trends analytics error:', error);
     res.status(500).json({
       success: false,
       message: error.message || 'Failed to get trends'
@@ -1381,7 +1382,7 @@ exports.handleResendWebhook = async (req, res) => {
 
     res.json({ success: true });
   } catch (error) {
-    console.error('Webhook error:', error);
+    logger.error('Webhook error:', error);
     res.status(500).json({ success: false });
   }
 };
@@ -1408,7 +1409,7 @@ exports.trackOpen = async (req, res) => {
     });
     res.end(pixel);
   } catch (error) {
-    console.error('Track open error:', error);
+    logger.error('Track open error:', error);
     res.status(200).end();
   }
 };
@@ -1441,7 +1442,7 @@ exports.handleUnsubscribe = async (req, res) => {
       </html>
     `);
   } catch (error) {
-    console.error('Unsubscribe error:', error);
+    logger.error('Unsubscribe error:', error);
     res.status(500).send('حدث خطأ');
   }
 };

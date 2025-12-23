@@ -7,6 +7,7 @@
 const LeadSource = require('../models/leadSource.model');
 const CrmActivity = require('../models/crmActivity.model');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
+const logger = require('../utils/logger');
 
 // ═══════════════════════════════════════════════════════════════
 // LIST LEAD SOURCES
@@ -46,7 +47,7 @@ exports.getAll = async (req, res) => {
             data: sources
         });
     } catch (error) {
-        console.error('Error getting lead sources:', error);
+        logger.error('Error getting lead sources:', error);
         res.status(500).json({
             success: false,
             message: 'خطأ في جلب مصادر العملاء المحتملين / Error fetching lead sources',
@@ -98,7 +99,7 @@ exports.getById = async (req, res) => {
             data: source
         });
     } catch (error) {
-        console.error('Error getting lead source:', error);
+        logger.error('Error getting lead source:', error);
         res.status(500).json({
             success: false,
             message: 'خطأ في جلب مصدر العميل / Error fetching lead source',
@@ -209,7 +210,7 @@ exports.create = async (req, res) => {
             data: source
         });
     } catch (error) {
-        console.error('Error creating lead source:', error);
+        logger.error('Error creating lead source:', error);
 
         if (error.code === 11000) {
             return res.status(400).json({
@@ -344,7 +345,7 @@ exports.update = async (req, res) => {
             data: source
         });
     } catch (error) {
-        console.error('Error updating lead source:', error);
+        logger.error('Error updating lead source:', error);
 
         if (error.code === 11000) {
             return res.status(400).json({
@@ -416,7 +417,7 @@ exports.delete = async (req, res) => {
             message: 'تم حذف مصدر العميل بنجاح / Lead source deleted successfully'
         });
     } catch (error) {
-        console.error('Error deleting lead source:', error);
+        logger.error('Error deleting lead source:', error);
         res.status(500).json({
             success: false,
             message: 'خطأ في حذف مصدر العميل / Error deleting lead source',
@@ -453,7 +454,7 @@ exports.createDefaults = async (req, res) => {
             data: sources
         });
     } catch (error) {
-        console.error('Error creating default lead sources:', error);
+        logger.error('Error creating default lead sources:', error);
         res.status(500).json({
             success: false,
             message: 'خطأ في إنشاء مصادر العملاء الافتراضية / Error creating defaults',

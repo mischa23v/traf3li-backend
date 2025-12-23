@@ -6,6 +6,7 @@ const mongoose = require('mongoose');
 const FiscalPeriod = require('../models/fiscalPeriod.model');
 const { toSAR } = require('../utils/currency');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
+const logger = require('../utils/logger');
 
 /**
  * Get all fiscal periods
@@ -24,7 +25,7 @@ const getFiscalPeriods = async (req, res) => {
 
         res.json({ success: true, data: periods });
     } catch (error) {
-        console.error('Error fetching fiscal periods:', error);
+        logger.error('Error fetching fiscal periods', { error: error.message });
         res.status(500).json({ success: false, message: error.message });
     }
 };
@@ -55,7 +56,7 @@ const getFiscalPeriod = async (req, res) => {
 
         res.json({ success: true, data: period });
     } catch (error) {
-        console.error('Error fetching fiscal period:', error);
+        logger.error('Error fetching fiscal period', { error: error.message });
         res.status(500).json({ success: false, message: error.message });
     }
 };
@@ -120,7 +121,7 @@ const createFiscalYear = async (req, res) => {
             data: periods
         });
     } catch (error) {
-        console.error('Error creating fiscal year:', error);
+        logger.error('Error creating fiscal year', { error: error.message });
         res.status(500).json({ success: false, message: error.message });
     }
 };
@@ -141,7 +142,7 @@ const getCurrentPeriod = async (req, res) => {
 
         res.json({ success: true, data: period });
     } catch (error) {
-        console.error('Error getting current period:', error);
+        logger.error('Error getting current period', { error: error.message });
         res.status(500).json({ success: false, message: error.message });
     }
 };
@@ -179,7 +180,7 @@ const openPeriod = async (req, res) => {
 
         res.json({ success: true, data: period });
     } catch (error) {
-        console.error('Error opening period:', error);
+        logger.error('Error opening period', { error: error.message });
         res.status(500).json({ success: false, message: error.message });
     }
 };
@@ -231,7 +232,7 @@ const closePeriod = async (req, res) => {
             session.endSession();
         }
     } catch (error) {
-        console.error('Error closing period:', error);
+        logger.error('Error closing period', { error: error.message });
         res.status(500).json({ success: false, message: error.message });
     }
 };
@@ -269,7 +270,7 @@ const reopenPeriod = async (req, res) => {
 
         res.json({ success: true, data: period });
     } catch (error) {
-        console.error('Error reopening period:', error);
+        logger.error('Error reopening period', { error: error.message });
         res.status(500).json({ success: false, message: error.message });
     }
 };
@@ -311,7 +312,7 @@ const lockPeriod = async (req, res) => {
 
         res.json({ success: true, data: period });
     } catch (error) {
-        console.error('Error locking period:', error);
+        logger.error('Error locking period', { error: error.message });
         res.status(500).json({ success: false, message: error.message });
     }
 };
@@ -355,7 +356,7 @@ const calculateBalances = async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('Error calculating balances:', error);
+        logger.error('Error calculating balances', { error: error.message });
         res.status(500).json({ success: false, message: error.message });
     }
 };
@@ -415,7 +416,7 @@ const yearEndClosing = async (req, res) => {
             session.endSession();
         }
     } catch (error) {
-        console.error('Error performing year-end closing:', error);
+        logger.error('Error performing year-end closing', { error: error.message });
         res.status(500).json({ success: false, message: error.message });
     }
 };
@@ -469,7 +470,7 @@ const canPostToDate = async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('Error checking post date:', error);
+        logger.error('Error checking post date', { error: error.message });
         res.status(500).json({ success: false, message: error.message });
     }
 };
@@ -499,7 +500,7 @@ const getFiscalYearsSummary = async (req, res) => {
 
         res.json({ success: true, data: years });
     } catch (error) {
-        console.error('Error getting fiscal years summary:', error);
+        logger.error('Error getting fiscal years summary', { error: error.message });
         res.status(500).json({ success: false, message: error.message });
     }
 };

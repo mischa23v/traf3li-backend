@@ -14,6 +14,7 @@ const asyncHandler = require('../utils/asyncHandler');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 const webhookService = require('../services/webhook.service');
 const stripe = require('stripe')(process.env.STRIPE_SECRET);
+const logger = require('../utils/logger');
 const {
     generateQRCode,
     generateInvoiceHash,
@@ -23,6 +24,7 @@ const {
     validateForZATCA,
     getComplianceStatus
 } = require('../services/zatcaService');
+const { schemas: invoiceSchemas } = require('../validators/invoice.validator');
 
 // ============ HELPER FUNCTIONS ============
 
@@ -85,103 +87,13 @@ const getDateFilter = (period) => {
 
 // ============ VALIDATION SCHEMAS ============
 
-const invoiceItemSchema = Joi.object({
-    description: Joi.string().required(),
-    quantity: Joi.number().min(0).required(),
-    unitPrice: Joi.number().min(0).required(),
-    total: Joi.number().min(0),
-    lineTotal: Joi.number().min(0),
-    type: Joi.string().valid('service', 'product', 'time', 'expense', 'flat_fee', 'discount', 'comment', 'subtotal'),
-    activityCode: Joi.string(),
-    taskType: Joi.string(),
-    attorneyId: Joi.string().regex(/^[0-9a-fA-F]{24}$/)
-});
+// Import shared schemas from validators (avoiding duplication)
+const invoiceItemSchema = invoiceSchemas.invoiceItem;
+const createInvoiceSchema = invoiceSchemas.createInvoice;
+const updateInvoiceSchema = invoiceSchemas.updateInvoice;
+const recordPaymentSchema = invoiceSchemas.recordPayment;
 
-const createInvoiceSchema = Joi.object({
-    clientId: Joi.string().regex(/^[0-9a-fA-F]{24}$/),
-    caseId: Joi.string().regex(/^[0-9a-fA-F]{24}$/),
-    contractId: Joi.string().regex(/^[0-9a-fA-F]{24}$/),
-    items: Joi.array().items(invoiceItemSchema).min(1).required(),
-    subtotal: Joi.number().min(0),
-    vatRate: Joi.number().min(0).max(100).default(15),
-    vatAmount: Joi.number().min(0),
-    totalAmount: Joi.number().min(0),
-    dueDate: Joi.date(),
-    paymentTerms: Joi.string().valid('due_on_receipt', 'net_7', 'net_15', 'net_30', 'net_45', 'net_60', 'net_90', 'eom').default('net_30'),
-    notes: Joi.string().max(2000),
-    customerNotes: Joi.string().max(2000),
-    internalNotes: Joi.string().max(2000),
-    discountType: Joi.string().valid('percentage', 'fixed'),
-    discountValue: Joi.number().min(0).default(0),
-    clientType: Joi.string().valid('individual', 'corporate'),
-    responsibleAttorneyId: Joi.string().regex(/^[0-9a-fA-F]{24}$/),
-    billingArrangement: Joi.string(),
-    departmentId: Joi.string().regex(/^[0-9a-fA-F]{24}$/),
-    locationId: Joi.string().regex(/^[0-9a-fA-F]{24}$/),
-    firmSize: Joi.string(),
-    customerPONumber: Joi.string().max(100),
-    matterNumber: Joi.string().max(100),
-    termsTemplate: Joi.string(),
-    termsAndConditions: Joi.string().max(5000),
-    zatca: Joi.object(),
-    applyFromRetainer: Joi.number().min(0).default(0),
-    paymentPlan: Joi.object(),
-    bankAccountId: Joi.string().regex(/^[0-9a-fA-F]{24}$/),
-    paymentInstructions: Joi.string().max(1000),
-    enableOnlinePayment: Joi.boolean().default(false),
-    lateFees: Joi.object(),
-    approval: Joi.object(),
-    email: Joi.object(),
-    attachments: Joi.array(),
-    wip: Joi.object(),
-    budget: Joi.object()
-});
-
-const updateInvoiceSchema = Joi.object({
-    items: Joi.array().items(invoiceItemSchema).min(1),
-    subtotal: Joi.number().min(0),
-    vatRate: Joi.number().min(0).max(100),
-    vatAmount: Joi.number().min(0),
-    totalAmount: Joi.number().min(0),
-    dueDate: Joi.date(),
-    paymentTerms: Joi.string().valid('due_on_receipt', 'net_7', 'net_15', 'net_30', 'net_45', 'net_60', 'net_90', 'eom'),
-    notes: Joi.string().max(2000),
-    customerNotes: Joi.string().max(2000),
-    internalNotes: Joi.string().max(2000),
-    discountType: Joi.string().valid('percentage', 'fixed'),
-    discountValue: Joi.number().min(0),
-    clientType: Joi.string().valid('individual', 'corporate'),
-    responsibleAttorneyId: Joi.string().regex(/^[0-9a-fA-F]{24}$/),
-    billingArrangement: Joi.string(),
-    departmentId: Joi.string().regex(/^[0-9a-fA-F]{24}$/),
-    locationId: Joi.string().regex(/^[0-9a-fA-F]{24}$/),
-    firmSize: Joi.string(),
-    customerPONumber: Joi.string().max(100),
-    matterNumber: Joi.string().max(100),
-    termsTemplate: Joi.string(),
-    termsAndConditions: Joi.string().max(5000),
-    zatca: Joi.object(),
-    paymentPlan: Joi.object(),
-    bankAccountId: Joi.string().regex(/^[0-9a-fA-F]{24}$/),
-    paymentInstructions: Joi.string().max(1000),
-    enableOnlinePayment: Joi.boolean(),
-    lateFees: Joi.object(),
-    approval: Joi.object(),
-    email: Joi.object(),
-    attachments: Joi.array(),
-    wip: Joi.object(),
-    budget: Joi.object()
-});
-
-const recordPaymentSchema = Joi.object({
-    amount: Joi.number().min(0.01).required(),
-    paymentMethod: Joi.string().valid('cash', 'bank_transfer', 'credit_card', 'check', 'online_gateway').default('bank_transfer'),
-    reference: Joi.string().max(200),
-    paymentDate: Joi.date(),
-    notes: Joi.string().max(1000),
-    bankAccountId: Joi.string().regex(/^[0-9a-fA-F]{24}$/)
-});
-
+// Controller-specific schemas (not in validators)
 const voidInvoiceSchema = Joi.object({
     reason: Joi.string().min(3).max(500).required()
 });
@@ -1872,7 +1784,8 @@ const getOverdueInvoices = asyncHandler(async (req, res) => {
     })
         .populate('clientId', 'firstName lastName username email phone')
         .populate('caseId', 'title caseNumber')
-        .sort({ dueDate: 1 });
+        .sort({ dueDate: 1 })
+        .lean();
 
     return res.json({
         success: true,
@@ -1943,7 +1856,7 @@ const confirmPayment = asyncHandler(async (req, res) => {
     const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
     if (!webhookSecret) {
-        console.error('❌ SECURITY: STRIPE_WEBHOOK_SECRET not configured');
+        logger.error('❌ SECURITY: STRIPE_WEBHOOK_SECRET not configured');
         throw CustomException('Webhook configuration error', 500);
     }
 
@@ -1954,7 +1867,7 @@ const confirmPayment = asyncHandler(async (req, res) => {
         const rawBody = req.rawBody || req.body;
 
         if (!sig) {
-            console.error('❌ SECURITY: Missing Stripe signature header');
+            logger.error('❌ SECURITY: Missing Stripe signature header');
             throw CustomException('Missing webhook signature', 401);
         }
 
@@ -1964,7 +1877,7 @@ const confirmPayment = asyncHandler(async (req, res) => {
             webhookSecret
         );
     } catch (err) {
-        console.error('❌ SECURITY: Stripe webhook signature verification failed:', err.message);
+        logger.error('❌ SECURITY: Stripe webhook signature verification failed:', err.message);
         throw CustomException('Invalid webhook signature', 401);
     }
 
@@ -1981,7 +1894,7 @@ const confirmPayment = asyncHandler(async (req, res) => {
 
     if (!invoice) {
         // Log but don't error - webhook might be for a different integration
-        console.warn(`Webhook received for unknown invoice with paymentIntent: ${paymentIntent}`);
+        logger.warn(`Webhook received for unknown invoice with paymentIntent: ${paymentIntent}`);
         return res.json({ received: true, processed: false, reason: 'unknown_invoice' });
     }
 

@@ -6,6 +6,7 @@
  */
 
 const { createQueue } = require('../configs/queue');
+const logger = require('../utils/logger');
 
 // Create report queue
 const reportQueue = createQueue('report', {
@@ -32,7 +33,7 @@ const reportQueue = createQueue('report', {
 reportQueue.process(async (job) => {
   const { type, data } = job.data;
 
-  console.log(`📊 Processing report job ${job.id} of type: ${type}`);
+  logger.info(`📊 Processing report job ${job.id} of type: ${type}`);
 
   try {
     switch (type) {
@@ -58,7 +59,7 @@ reportQueue.process(async (job) => {
         throw new Error(`Unknown report type: ${type}`);
     }
   } catch (error) {
-    console.error(`❌ Report job ${job.id} failed:`, error.message);
+    logger.error(`❌ Report job ${job.id} failed:`, error.message);
     throw error;
   }
 });
@@ -132,7 +133,7 @@ async function generateFinancialReport(data, job) {
 
   await job.progress(100);
 
-  console.log(`✅ Financial report generated: ${report._id}`);
+  logger.info(`✅ Financial report generated: ${report._id}`);
   return {
     success: true,
     reportId: report._id,
@@ -200,7 +201,7 @@ async function generateAnalyticsReport(data, job) {
 
   await job.progress(100);
 
-  console.log(`✅ Analytics report generated: ${report._id}`);
+  logger.info(`✅ Analytics report generated: ${report._id}`);
   return {
     success: true,
     reportId: report._id,
@@ -279,7 +280,7 @@ async function generateTimeUtilizationReport(data, job) {
 
   await job.progress(100);
 
-  console.log(`✅ Time utilization report generated: ${report._id}`);
+  logger.info(`✅ Time utilization report generated: ${report._id}`);
   return {
     success: true,
     reportId: report._id,
@@ -359,7 +360,7 @@ async function generateClientAgingReport(data, job) {
 
   await job.progress(100);
 
-  console.log(`✅ Client aging report generated: ${report._id}`);
+  logger.info(`✅ Client aging report generated: ${report._id}`);
   return {
     success: true,
     reportId: report._id,
@@ -400,7 +401,7 @@ async function generateCustomReport(data, job) {
 
   await job.progress(100);
 
-  console.log(`✅ Custom report generated: ${report._id}`);
+  logger.info(`✅ Custom report generated: ${report._id}`);
   return {
     success: true,
     reportId: report._id,
@@ -463,7 +464,7 @@ async function generateDataExport(data, job) {
 
   await job.progress(100);
 
-  console.log(`✅ Data export generated: ${fileName}`);
+  logger.info(`✅ Data export generated: ${fileName}`);
   return {
     success: true,
     exportType,

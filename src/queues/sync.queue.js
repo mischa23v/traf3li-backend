@@ -10,6 +10,7 @@
  */
 
 const { createQueue } = require('../configs/queue');
+const logger = require('../utils/logger');
 
 // Create sync queue
 const syncQueue = createQueue('sync', {
@@ -33,7 +34,7 @@ const syncQueue = createQueue('sync', {
 syncQueue.process(async (job) => {
   const { type, data } = job.data;
 
-  console.log(`🔄 Processing sync job ${job.id} of type: ${type}`);
+  logger.info(`🔄 Processing sync job ${job.id} of type: ${type}`);
 
   try {
     switch (type) {
@@ -62,7 +63,7 @@ syncQueue.process(async (job) => {
         throw new Error(`Unknown sync type: ${type}`);
     }
   } catch (error) {
-    console.error(`❌ Sync job ${job.id} failed:`, error.message);
+    logger.error(`❌ Sync job ${job.id} failed:`, error.message);
     throw error;
   }
 });
@@ -104,14 +105,14 @@ async function syncWhatsAppMessages(data, job) {
       savedCount++;
     } catch (error) {
       if (error.code !== 11000) { // Ignore duplicate key errors
-        console.error('Error saving message:', error.message);
+        logger.error('Error saving message:', error.message);
       }
     }
   }
 
   await job.progress(100);
 
-  console.log(`✅ Synced ${savedCount} WhatsApp messages`);
+  logger.info(`✅ Synced ${savedCount} WhatsApp messages`);
   return {
     success: true,
     syncedCount: savedCount,
@@ -172,14 +173,14 @@ async function syncBankTransactions(data, job) {
       savedCount++;
     } catch (error) {
       if (error.code !== 11000) {
-        console.error('Error saving transaction:', error.message);
+        logger.error('Error saving transaction:', error.message);
       }
     }
   }
 
   await job.progress(100);
 
-  console.log(`✅ Synced ${savedCount} bank transactions`);
+  logger.info(`✅ Synced ${savedCount} bank transactions`);
   return {
     success: true,
     syncedCount: savedCount,
@@ -236,7 +237,7 @@ async function syncPaymentStatus(data, job) {
 
   await job.progress(100);
 
-  console.log(`✅ Synced payment status: ${paymentId} -> ${status}`);
+  logger.info(`✅ Synced payment status: ${paymentId} -> ${status}`);
   return {
     success: true,
     paymentId,
@@ -279,7 +280,7 @@ async function syncZATCAInvoice(data, job) {
 
   await job.progress(100);
 
-  console.log(`✅ Synced invoice to ZATCA: ${invoiceId}`);
+  logger.info(`✅ Synced invoice to ZATCA: ${invoiceId}`);
   return {
     success: true,
     invoiceId,
@@ -317,7 +318,7 @@ async function syncMudadPayment(data, job) {
 
   await job.progress(100);
 
-  console.log(`✅ Synced Mudad payment: ${paymentId}`);
+  logger.info(`✅ Synced Mudad payment: ${paymentId}`);
   return {
     success: true,
     paymentId,
@@ -353,7 +354,7 @@ async function syncWathqContract(data, job) {
 
   await job.progress(100);
 
-  console.log(`✅ Synced Wathq contract: ${contractId}`);
+  logger.info(`✅ Synced Wathq contract: ${contractId}`);
   return {
     success: true,
     contractId,
@@ -388,7 +389,7 @@ async function syncCurrencyRates(data, job) {
 
   await job.progress(100);
 
-  console.log(`✅ Synced currency rates for ${baseCurrency}`);
+  logger.info(`✅ Synced currency rates for ${baseCurrency}`);
   return {
     success: true,
     baseCurrency,

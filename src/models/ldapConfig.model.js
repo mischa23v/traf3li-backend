@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const encryptionPlugin = require('./plugins/encryption.plugin');
+const logger = require('../utils/logger');
 
 /**
  * LDAP Configuration Model
@@ -460,7 +461,7 @@ ldapConfigSchema.statics.getConfig = async function(firmId) {
 
         return config;
     } catch (error) {
-        console.error('Error fetching LDAP config:', error);
+        logger.error('Error fetching LDAP config:', error);
         throw new Error('Failed to fetch LDAP configuration');
     }
 };

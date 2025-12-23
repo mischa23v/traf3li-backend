@@ -18,6 +18,7 @@ const {
 const WebAuthnCredential = require('../models/webauthnCredential.model');
 const cacheService = require('./cache.service');
 const { CustomException } = require('../utils');
+const logger = require('../utils/logger');
 
 // Configuration
 const RP_NAME = process.env.WEBAUTHN_RP_NAME || 'Traf3li';
@@ -89,7 +90,7 @@ const generateRegistrationOptions = async (user) => {
 
         return options;
     } catch (error) {
-        console.error('Error generating registration options:', error);
+        logger.error('Error generating registration options:', error);
         throw new CustomException(
             error.message || 'Failed to generate registration options',
             error.statusCode || 500
@@ -194,7 +195,7 @@ const verifyRegistration = async (credential, userId, credentialName) => {
             createdAt: newCredential.createdAt
         };
     } catch (error) {
-        console.error('Error verifying registration:', error);
+        logger.error('Error verifying registration:', error);
         throw new CustomException(
             error.message || 'Failed to verify registration',
             error.statusCode || 500
@@ -251,7 +252,7 @@ const generateAuthenticationOptions = async (user) => {
 
         return options;
     } catch (error) {
-        console.error('Error generating authentication options:', error);
+        logger.error('Error generating authentication options:', error);
         throw new CustomException(
             error.message || 'Failed to generate authentication options',
             error.statusCode || 500
@@ -338,7 +339,7 @@ const verifyAuthentication = async (credential, userId) => {
             }
         };
     } catch (error) {
-        console.error('Error verifying authentication:', error);
+        logger.error('Error verifying authentication:', error);
         throw new CustomException(
             error.message || 'Failed to verify authentication',
             error.statusCode || 500
@@ -367,7 +368,7 @@ const getUserCredentials = async (userId) => {
             backedUp: cred.backedUp
         }));
     } catch (error) {
-        console.error('Error getting user credentials:', error);
+        logger.error('Error getting user credentials:', error);
         throw new CustomException('Failed to retrieve credentials', 500);
     }
 };
@@ -407,7 +408,7 @@ const deleteCredential = async (credentialId, userId) => {
 
         return true;
     } catch (error) {
-        console.error('Error deleting credential:', error);
+        logger.error('Error deleting credential:', error);
         throw new CustomException(
             error.message || 'Failed to delete credential',
             error.statusCode || 500

@@ -1,6 +1,7 @@
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const logger = require('../utils/logger');
 
 // Import R2 config first (preferred), fall back to S3 if not available
 let storageClient = null;
@@ -27,10 +28,10 @@ try {
         const s3Commands = require('@aws-sdk/client-s3');
         getSignedUrl = presigner.getSignedUrl;
         GetObjectCommand = s3Commands.GetObjectCommand;
-        console.log('Using Cloudflare R2 for task uploads');
+        logger.info('Using Cloudflare R2 for task uploads');
     }
 } catch (err) {
-    console.log('R2 not available, trying S3...');
+    logger.info('R2 not available, trying S3...');
 }
 
 // Fall back to S3 if R2 not configured
@@ -49,10 +50,10 @@ if (!storageClient) {
             const s3Commands = require('@aws-sdk/client-s3');
             getSignedUrl = presigner.getSignedUrl;
             GetObjectCommand = s3Commands.GetObjectCommand;
-            console.log('Using AWS S3 for task uploads');
+            logger.info('Using AWS S3 for task uploads');
         }
     } catch (err) {
-        console.log('S3 modules not available, using local storage only');
+        logger.info('S3 modules not available, using local storage only');
     }
 }
 
@@ -115,7 +116,7 @@ const generateS3Key = (req, file) => {
 const uploadDir = 'uploads/tasks';
 if (!fs.existsSync(uploadDir)) {
     fs.mkdirSync(uploadDir, { recursive: true });
-    console.log('Created uploads/tasks directory');
+    logger.info('Created uploads/tasks directory');
 }
 
 let taskUpload;
@@ -170,7 +171,7 @@ if (isStorageConfigured() && multerS3) {
         fileFilter
     });
 
-    console.log(`Task uploads configured with ${storageType.toUpperCase()} storage`);
+    logger.info(`Task uploads configured with ${storageType.toUpperCase()} storage`);
 } else {
     // Local Storage Configuration (fallback)
     const localStorage = multer.diskStorage({
@@ -196,7 +197,7 @@ if (isStorageConfigured() && multerS3) {
         fileFilter
     });
 
-    console.log('Task uploads configured with local storage');
+    logger.info('Task uploads configured with local storage');
 }
 
 /**
@@ -249,7 +250,7 @@ const getTaskFilePresignedUrl = async (fileKey, filename = null, versionId = nul
             remoteIp: logOptions.remoteIp,
             userAgent: logOptions.userAgent,
             versionId
-        }).catch(err => console.error('Failed to log file access:', err.message));
+        }).catch(err => logger.error('Failed to log file access:', err.message));
     }
 
     return url;

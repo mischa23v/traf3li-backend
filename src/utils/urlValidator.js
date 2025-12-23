@@ -1,6 +1,7 @@
 const dns = require('dns').promises;
 const { URL } = require('url');
 const ipRangeCheck = require('ip-range-check');
+const logger = require('./logger');
 
 /**
  * URL Validator Utility for SSRF Protection
@@ -80,7 +81,7 @@ function isPrivateIP(ip) {
         try {
             return ipRangeCheck(cleanIP, PRIVATE_IP_RANGES);
         } catch (error) {
-            console.error('Error checking IPv4 range:', error);
+            logger.error('Error checking IPv4 range:', error);
             return true; // Err on the side of caution
         }
     }
@@ -90,7 +91,7 @@ function isPrivateIP(ip) {
         try {
             return ipRangeCheck(cleanIP, PRIVATE_IPV6_RANGES);
         } catch (error) {
-            console.error('Error checking IPv6 range:', error);
+            logger.error('Error checking IPv6 range:', error);
             return true; // Err on the side of caution
         }
     }
@@ -150,7 +151,7 @@ async function resolveAndValidateHostname(hostname) {
             addresses = addresses.concat(ipv4Addresses);
         } catch (error) {
             // IPv4 resolution failed, not necessarily an error
-            console.log(`IPv4 resolution failed for ${hostname}:`, error.message);
+            logger.info(`IPv4 resolution failed for ${hostname}:`, error.message);
         }
 
         // Try IPv6 resolution
@@ -159,7 +160,7 @@ async function resolveAndValidateHostname(hostname) {
             addresses = addresses.concat(ipv6Addresses);
         } catch (error) {
             // IPv6 resolution failed, not necessarily an error
-            console.log(`IPv6 resolution failed for ${hostname}:`, error.message);
+            logger.info(`IPv6 resolution failed for ${hostname}:`, error.message);
         }
 
         // If no addresses resolved, throw error

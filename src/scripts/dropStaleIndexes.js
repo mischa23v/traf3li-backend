@@ -9,20 +9,21 @@
 
 const mongoose = require('mongoose');
 require('dotenv').config();
+const logger = require('../utils/logger');
 
 const connectDB = async () => {
     try {
         const mongoUri = process.env.MONGODB_URI || process.env.MONGO_URI;
         await mongoose.connect(mongoUri);
-        console.log('Connected to MongoDB');
+        logger.info('Connected to MongoDB');
     } catch (error) {
-        console.error('MongoDB connection error:', error);
+        logger.error('MongoDB connection error:', error);
         process.exit(1);
     }
 };
 
 const dropStaleIndexes = async () => {
-    console.log('Checking for stale indexes...\n');
+    logger.info('Checking for stale indexes...\n');
 
     const db = mongoose.connection.db;
     const collection = db.collection('casenotionpages');
@@ -30,22 +31,22 @@ const dropStaleIndexes = async () => {
     try {
         // List all indexes
         const indexes = await collection.indexes();
-        console.log('Current indexes on casenotionpages:');
+        logger.info('Current indexes on casenotionpages:');
         indexes.forEach(idx => {
-            console.log(`  - ${idx.name}: ${JSON.stringify(idx.key)}`);
+            logger.info(`  - ${idx.name}: ${JSON.stringify(idx.key)}`);
         });
-        console.log('');
+        logger.info('');
 
         // Check if slug_1_caseId_1 exists
         const slugIndex = indexes.find(idx => idx.name === 'slug_1_caseId_1');
 
         if (slugIndex) {
-            console.log('Found stale index: slug_1_caseId_1');
-            console.log('Dropping index...');
+            logger.info('Found stale index: slug_1_caseId_1');
+            logger.info('Dropping index...');
             await collection.dropIndex('slug_1_caseId_1');
-            console.log('✓ Index dropped successfully!');
+            logger.info('✓ Index dropped successfully!');
         } else {
-            console.log('No stale slug index found.');
+            logger.info('No stale slug index found.');
         }
 
         // Also check for any other slug-related indexes
@@ -54,19 +55,19 @@ const dropStaleIndexes = async () => {
         );
 
         for (const idx of otherSlugIndexes) {
-            console.log(`Found additional slug index: ${idx.name}`);
-            console.log('Dropping index...');
+            logger.info(`Found additional slug index: ${idx.name}`);
+            logger.info('Dropping index...');
             await collection.dropIndex(idx.name);
-            console.log(`✓ Index ${idx.name} dropped successfully!`);
+            logger.info(`✓ Index ${idx.name} dropped successfully!`);
         }
 
-        console.log('\n═══════════════════════════════════════════════════════════════');
-        console.log('Stale index cleanup complete!');
-        console.log('═══════════════════════════════════════════════════════════════\n');
+        logger.info('\n═══════════════════════════════════════════════════════════════');
+        logger.info('Stale index cleanup complete!');
+        logger.info('═══════════════════════════════════════════════════════════════\n');
 
     } catch (error) {
         if (error.codeName === 'IndexNotFound') {
-            console.log('Index not found - already removed or never existed.');
+            logger.info('Index not found - already removed or never existed.');
         } else {
             throw error;
         }
@@ -78,10 +79,10 @@ const run = async () => {
         await connectDB();
         await dropStaleIndexes();
         await mongoose.disconnect();
-        console.log('Disconnected from MongoDB');
+        logger.info('Disconnected from MongoDB');
         process.exit(0);
     } catch (error) {
-        console.error('Failed:', error);
+        logger.error('Failed:', error);
         await mongoose.disconnect();
         process.exit(1);
     }

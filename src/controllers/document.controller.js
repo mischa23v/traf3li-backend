@@ -6,6 +6,7 @@ const CustomException = require('../utils/CustomException');
 const { s3, getSignedUrl, deleteObject, BUCKETS } = require('../configs/s3');
 const crypto = require('crypto');
 const path = require('path');
+const logger = require('../utils/logger');
 
 // Whitelist of allowed file types
 const ALLOWED_FILE_TYPES = [
@@ -200,7 +201,7 @@ const confirmUpload = asyncHandler(async (req, res) => {
                 'usage.documentsCount': 1,
                 'usage.storageUsedMB': fileSizeMB
             }
-        }).catch(err => console.error('Error updating document usage:', err.message));
+        }).catch(err => logger.error('Error updating document usage:', err.message));
     }
 
     res.status(201).json({
@@ -243,7 +244,8 @@ const getDocuments = asyncHandler(async (req, res) => {
         .skip((parseInt(page) - 1) * parseInt(limit))
         .populate('uploadedBy', 'firstName lastName')
         .populate('caseId', 'title caseNumber')
-        .populate('clientId', 'name fullName');
+        .populate('clientId', 'name fullName')
+        .lean();
 
     const total = await Document.countDocuments(query);
 
@@ -272,7 +274,8 @@ const getDocument = asyncHandler(async (req, res) => {
     const document = await Document.findOne({ _id: id, lawyerId, firmId })
         .populate('uploadedBy', 'firstName lastName')
         .populate('caseId', 'title caseNumber')
-        .populate('clientId', 'name fullName');
+        .populate('clientId', 'name fullName')
+        .lean();
 
     if (!document) {
         throw CustomException('المستند غير موجود', 404);
@@ -354,7 +357,7 @@ const deleteDocument = asyncHandler(async (req, res) => {
     try {
         await deleteObject(bucket, document.fileKey);
     } catch (err) {
-        console.error('Storage delete error:', err);
+        logger.error('Storage delete error:', err);
     }
 
     // Store fileSize before deletion for usage tracking
@@ -371,7 +374,7 @@ const deleteDocument = asyncHandler(async (req, res) => {
                 'usage.documentsCount': -1,
                 'usage.storageUsedMB': -fileSizeMB
             }
-        }).catch(err => console.error('Error updating document usage:', err.message));
+        }).catch(err => logger.error('Error updating document usage:', err.message));
     }
 
     res.status(200).json({
@@ -390,7 +393,7 @@ const getDocumentsByCase = asyncHandler(async (req, res) => {
     const firmId = req.firmId; // IDOR protection
 
     // IDOR protection: ensure case belongs to user's firm
-    const caseRecord = await Case.findOne({ _id: caseId, lawyerId, firmId });
+    const caseRecord = await Case.findOne({ _id: caseId, lawyerId, firmId }).lean();
     if (!caseRecord) {
         throw CustomException('القضية غير موجودة أو لا تنتمي إلى مؤسستك', 404);
     }
@@ -400,7 +403,7 @@ const getDocumentsByCase = asyncHandler(async (req, res) => {
         caseId: caseId,
         lawyerId: lawyerId,
         firmId: firmId  // IDOR protection
-    }).populate('uploadedBy', 'firstName lastName');
+    }).populate('uploadedBy', 'firstName lastName').lean();
 
     res.status(200).json({
         success: true,
@@ -418,7 +421,7 @@ const getDocumentsByClient = asyncHandler(async (req, res) => {
     const firmId = req.firmId; // IDOR protection
 
     // IDOR protection: ensure client belongs to user's firm
-    const clientRecord = await Client.findOne({ _id: clientId, firmId });
+    const clientRecord = await Client.findOne({ _id: clientId, firmId }).lean();
     if (!clientRecord) {
         throw CustomException('العميل غير موجود أو لا ينتمي إلى مؤسستك', 404);
     }
@@ -428,7 +431,7 @@ const getDocumentsByClient = asyncHandler(async (req, res) => {
         clientId: clientId,
         lawyerId: lawyerId,
         firmId: firmId  // IDOR protection
-    }).populate('uploadedBy', 'firstName lastName');
+    }).populate('uploadedBy', 'firstName lastName').lean();
 
     res.status(200).json({
         success: true,
@@ -460,7 +463,8 @@ const getDocumentStats = asyncHandler(async (req, res) => {
     const recentDocuments = await Document.find({ lawyerId, firmId })
         .sort({ createdAt: -1 })
         .limit(5)
-        .select('fileName category createdAt');
+        .select('fileName category createdAt')
+        .lean();
 
     res.status(200).json({
         success: true,
@@ -652,7 +656,7 @@ const getVersionHistory = asyncHandler(async (req, res) => {
     const firmId = req.firmId; // IDOR protection
 
     // IDOR protection: document must belong to user's firm
-    const document = await Document.findOne({ _id: id, lawyerId, firmId });
+    const document = await Document.findOne({ _id: id, lawyerId, firmId }).lean();
 
     if (!document) {
         throw CustomException('المستند غير موجود', 404);
@@ -721,7 +725,7 @@ const searchDocuments = asyncHandler(async (req, res) => {
             { originalName: { $regex: q, $options: 'i' } },
             { description: { $regex: q, $options: 'i' } }
         ]
-    }).limit(20);
+    }).limit(20).lean();
 
     res.status(200).json({
         success: true,
@@ -744,7 +748,8 @@ const getRecentDocuments = asyncHandler(async (req, res) => {
         .sort({ createdAt: -1 })
         .limit(parseInt(limit))
         .populate('uploadedBy', 'firstName lastName')
-        .populate('caseId', 'title caseNumber');
+        .populate('caseId', 'title caseNumber')
+        .lean();
 
     res.status(200).json({
         success: true,
@@ -776,7 +781,7 @@ const bulkDeleteDocuments = asyncHandler(async (req, res) => {
     for (const doc of documents) {
         // Validate file path before deletion
         if (!isValidFilePath(doc.fileKey)) {
-            console.error('Invalid file path detected for document:', doc._id);
+            logger.error('Invalid file path detected for document:', doc._id);
             continue;
         }
 
@@ -784,7 +789,7 @@ const bulkDeleteDocuments = asyncHandler(async (req, res) => {
         try {
             await deleteObject(bucket, doc.fileKey);
         } catch (err) {
-            console.error('Storage delete error:', err);
+            logger.error('Storage delete error:', err);
         }
     }
 
@@ -820,7 +825,7 @@ const moveDocument = asyncHandler(async (req, res) => {
 
     if (caseId) {
         // IDOR protection: case must belong to user's firm
-        const caseExists = await Case.findOne({ _id: caseId, lawyerId, firmId });
+        const caseExists = await Case.findOne({ _id: caseId, lawyerId, firmId }).lean();
         if (!caseExists) {
             throw CustomException('القضية غير موجودة أو لا تنتمي إلى مؤسستك', 404);
         }

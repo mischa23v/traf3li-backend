@@ -1,4 +1,5 @@
 const CaseAuditService = require('../services/caseAuditService');
+const logger = require('../utils/logger');
 
 /**
  * Case Audit Middleware
@@ -100,12 +101,12 @@ const caseAuditMiddleware = (resource, fieldsToTrack = null) => {
                 userAgent: req.get('user-agent') || 'unknown'
               }
             }).catch(err => {
-              console.error('❌ Case audit middleware error:', err.message);
+              logger.error('Case audit middleware error:', err.message);
             });
           }
         }
       } catch (error) {
-        console.error('❌ Case audit middleware error:', error.message);
+        logger.error('Case audit middleware error:', error.message);
       }
 
       return originalJson(data);
@@ -137,7 +138,7 @@ const loadExistingForAudit = (modelName) => {
         }
       }
     } catch (error) {
-      console.error('❌ loadExistingForAudit error:', error.message);
+      logger.error('loadExistingForAudit error:', error.message);
     }
     next();
   };

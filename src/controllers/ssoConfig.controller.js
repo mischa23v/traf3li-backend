@@ -21,6 +21,7 @@ const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils'
 const samlService = require('../services/saml.service');
 const crypto = require('crypto');
 const xml2js = require('xml2js');
+const logger = require('../utils/logger');
 
 // ═══════════════════════════════════════════════════════════════
 // SSO CONFIGURATION ENDPOINTS
@@ -713,7 +714,7 @@ function validateSSOUrl(url, urlType = 'sso') {
         if (!isTrustedDomain) {
             // Still allow it, but could add warning in response
             // This allows self-hosted SSO solutions
-            console.warn(`SSO URL uses non-standard domain: ${hostname}`);
+            logger.warn(`SSO URL uses non-standard domain: ${hostname}`);
         }
 
         return { valid: true, isCustomDomain: !isTrustedDomain };

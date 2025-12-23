@@ -26,6 +26,7 @@ const accountLockoutService = require('./accountLockout.service');
 const auditLogService = require('./auditLog.service');
 const emailService = require('./email.service');
 const webhookService = require('./webhook.service');
+const logger = require('../utils/logger');
 
 class SecurityMonitorService {
   /**
@@ -81,7 +82,7 @@ class SecurityMonitorService {
         message: 'No brute force pattern detected',
       };
     } catch (error) {
-      console.error('Error in detectBruteForce:', error);
+      logger.error('Error in detectBruteForce:', error);
       return { detected: false, error: error.message };
     }
   }
@@ -207,7 +208,7 @@ class SecurityMonitorService {
         message: 'No account takeover pattern detected',
       };
     } catch (error) {
-      console.error('Error in detectAccountTakeover:', error);
+      logger.error('Error in detectAccountTakeover:', error);
       return { detected: false, error: error.message };
     }
   }
@@ -353,7 +354,7 @@ class SecurityMonitorService {
         message: 'No significant anomalies detected',
       };
     } catch (error) {
-      console.error('Error in detectAnomalousActivity:', error);
+      logger.error('Error in detectAnomalousActivity:', error);
       return { detected: false, error: error.message };
     }
   }
@@ -382,7 +383,7 @@ class SecurityMonitorService {
       // Create incident
       const incident = await SecurityIncident.createIncident(incidentData);
 
-      console.log(`🚨 Security incident created: ${incident.type} (${incident.severity}) - ID: ${incident._id}`);
+      logger.info(`🚨 Security incident created: ${incident.type} (${incident.severity}) - ID: ${incident._id}`);
 
       // Log to audit trail
       await auditLogService.log(
@@ -406,7 +407,7 @@ class SecurityMonitorService {
 
       return incident;
     } catch (error) {
-      console.error('Error creating security incident:', error);
+      logger.error('Error creating security incident:', error);
       throw error;
     }
   }
@@ -421,7 +422,7 @@ class SecurityMonitorService {
     try {
       return await SecurityIncident.getIncidents(firmId, filters);
     } catch (error) {
-      console.error('Error getting security incidents:', error);
+      logger.error('Error getting security incidents:', error);
       throw error;
     }
   }
@@ -449,7 +450,7 @@ class SecurityMonitorService {
 
       return incident;
     } catch (error) {
-      console.error('Error getting incident by ID:', error);
+      logger.error('Error getting incident by ID:', error);
       throw error;
     }
   }
@@ -499,11 +500,11 @@ class SecurityMonitorService {
         }
       );
 
-      console.log(`✅ Security incident updated: ${incident._id} - Status: ${status}`);
+      logger.info(`✅ Security incident updated: ${incident._id} - Status: ${status}`);
 
       return incident;
     } catch (error) {
-      console.error('Error updating security incident:', error);
+      logger.error('Error updating security incident:', error);
       throw error;
     }
   }
@@ -532,7 +533,7 @@ class SecurityMonitorService {
         recentSecurityEvents: recentSecurityEvents.slice(0, 10),
       };
     } catch (error) {
-      console.error('Error getting dashboard stats:', error);
+      logger.error('Error getting dashboard stats:', error);
       throw error;
     }
   }
@@ -574,9 +575,9 @@ class SecurityMonitorService {
       // Send WebSocket notification
       await this.sendWebSocketAlert(incident, firmId, admins);
 
-      console.log(`🔔 Alerts sent for incident ${incident._id}`);
+      logger.info(`🔔 Alerts sent for incident ${incident._id}`);
     } catch (error) {
-      console.error('Error sending alerts:', error);
+      logger.error('Error sending alerts:', error);
       // Don't throw - alerting failures shouldn't break incident creation
     }
   }
@@ -675,9 +676,9 @@ class SecurityMonitorService {
       // Mark notification as sent
       await incident.markNotificationSent('email', { recipients });
 
-      console.log(`📧 Email alert sent to ${recipients.length} admin(s)`);
+      logger.info(`📧 Email alert sent to ${recipients.length} admin(s)`);
     } catch (error) {
-      console.error('Error sending email alert:', error);
+      logger.error('Error sending email alert:', error);
     }
   }
 
@@ -710,9 +711,9 @@ class SecurityMonitorService {
       // Mark notification as sent
       await incident.markNotificationSent('webhook');
 
-      console.log(`🔗 Webhook alert triggered for incident ${incident._id}`);
+      logger.info(`🔗 Webhook alert triggered for incident ${incident._id}`);
     } catch (error) {
-      console.error('Error sending webhook alert:', error);
+      logger.error('Error sending webhook alert:', error);
     }
   }
 
@@ -761,9 +762,9 @@ class SecurityMonitorService {
       // Mark notification as sent
       await incident.markNotificationSent('websocket');
 
-      console.log(`🔌 WebSocket alert sent for incident ${incident._id}`);
+      logger.info(`🔌 WebSocket alert sent for incident ${incident._id}`);
     } catch (error) {
-      console.error('Error sending WebSocket alert:', error);
+      logger.error('Error sending WebSocket alert:', error);
     }
   }
 

@@ -11,6 +11,7 @@
  *   router.post('/expenses', authenticate, checkExpenseLockDate, createExpense);
  */
 
+const logger = require('../utils/logger');
 const LockDate = require('../models/lockDate.model');
 
 /**
@@ -101,7 +102,7 @@ const checkLockDate = (lockType = 'all') => {
 
             next();
         } catch (error) {
-            console.error('Lock date check error:', error);
+            logger.error('Lock date check error:', error);
             // Don't block on error, log and continue
             next();
         }
@@ -157,7 +158,7 @@ const checkInvoiceLockDate = async (req, res, next) => {
 
         next();
     } catch (error) {
-        console.error('Invoice lock date check error:', error);
+        logger.error('Invoice lock date check error:', error);
         next();
     }
 };
@@ -213,7 +214,7 @@ const checkPaymentLockDate = async (req, res, next) => {
 
         next();
     } catch (error) {
-        console.error('Payment lock date check error:', error);
+        logger.error('Payment lock date check error:', error);
         next();
     }
 };
@@ -260,7 +261,7 @@ const checkExpenseLockDate = async (req, res, next) => {
 
         next();
     } catch (error) {
-        console.error('Expense lock date check error:', error);
+        logger.error('Expense lock date check error:', error);
         next();
     }
 };
@@ -307,7 +308,7 @@ const checkBankLockDate = async (req, res, next) => {
 
         next();
     } catch (error) {
-        console.error('Bank lock date check error:', error);
+        logger.error('Bank lock date check error:', error);
         next();
     }
 };
@@ -354,7 +355,7 @@ const checkJournalLockDate = async (req, res, next) => {
 
         next();
     } catch (error) {
-        console.error('Journal lock date check error:', error);
+        logger.error('Journal lock date check error:', error);
         next();
     }
 };
@@ -401,7 +402,7 @@ const requireUnlockedPeriod = (dateField = 'date') => {
 
             next();
         } catch (error) {
-            console.error('Period lock check error:', error);
+            logger.error('Period lock check error:', error);
             next();
         }
     };

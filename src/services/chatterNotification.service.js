@@ -15,6 +15,7 @@ const ThreadMessage = require('../models/threadMessage.model');
 const Notification = require('../models/notification.model');
 const EmailService = require('./email.service');
 const { emitNotification } = require('../configs/socket');
+const logger = require('../utils/logger');
 
 class ChatterNotificationService {
     /**
@@ -25,7 +26,7 @@ class ChatterNotificationService {
         try {
             // Ensure message is populated
             if (!message.author_id || !message.res_model || !message.res_id) {
-                console.warn('ChatterNotificationService: Invalid message data, skipping notifications');
+                logger.warn('ChatterNotificationService: Invalid message data, skipping notifications');
                 return;
             }
 
@@ -40,7 +41,7 @@ class ChatterNotificationService {
             }).populate('user_id', 'firstName lastName email notificationSettings');
 
             if (!followers || followers.length === 0) {
-                console.log('ChatterNotificationService: No followers to notify');
+                logger.info('ChatterNotificationService: No followers to notify');
                 return;
             }
 
@@ -64,7 +65,7 @@ class ChatterNotificationService {
 
                     await this.sendNotification(follower.user_id, message);
                 } catch (error) {
-                    console.error(`ChatterNotificationService: Error notifying follower ${follower.user_id?._id}:`, error.message);
+                    logger.error(`ChatterNotificationService: Error notifying follower ${follower.user_id?._id}:`, error.message);
                     // Continue with other followers even if one fails
                 }
             }
@@ -74,9 +75,9 @@ class ChatterNotificationService {
                 await this.notifyMentions(message);
             }
 
-            console.log(`ChatterNotificationService: Notified ${followers.length} follower(s) for message ${message._id}`);
+            logger.info(`ChatterNotificationService: Notified ${followers.length} follower(s) for message ${message._id}`);
         } catch (error) {
-            console.error('ChatterNotificationService.notifyFollowers failed:', error.message);
+            logger.error('ChatterNotificationService.notifyFollowers failed:', error.message);
         }
     }
 
@@ -134,7 +135,7 @@ class ChatterNotificationService {
                     timestamp: new Date()
                 });
             } catch (socketError) {
-                console.error('ChatterNotificationService: Socket emission failed:', socketError.message);
+                logger.error('ChatterNotificationService: Socket emission failed:', socketError.message);
                 // Don't throw - continue with other notification types
             }
 
@@ -143,7 +144,7 @@ class ChatterNotificationService {
                 await this.sendEmailNotification(user, message, authorName);
             }
         } catch (error) {
-            console.error('ChatterNotificationService.sendNotification failed:', error.message);
+            logger.error('ChatterNotificationService.sendNotification failed:', error.message);
             throw error;
         }
     }
@@ -210,16 +211,16 @@ class ChatterNotificationService {
                             });
                         } catch (followError) {
                             // Ignore if already following or other errors
-                            console.warn(`ChatterNotificationService: Could not auto-follow user ${partnerId}:`, followError.message);
+                            logger.warn(`ChatterNotificationService: Could not auto-follow user ${partnerId}:`, followError.message);
                         }
                     }
                 } catch (error) {
-                    console.error(`ChatterNotificationService: Error notifying mention ${partnerId}:`, error.message);
+                    logger.error(`ChatterNotificationService: Error notifying mention ${partnerId}:`, error.message);
                     // Continue with other mentions
                 }
             }
         } catch (error) {
-            console.error('ChatterNotificationService.notifyMentions failed:', error.message);
+            logger.error('ChatterNotificationService.notifyMentions failed:', error.message);
         }
     }
 
@@ -304,9 +305,9 @@ class ChatterNotificationService {
                 html: html
             });
 
-            console.log(`ChatterNotificationService: Email sent to ${user.email}`);
+            logger.info(`ChatterNotificationService: Email sent to ${user.email}`);
         } catch (error) {
-            console.error('ChatterNotificationService.sendEmailNotification failed:', error.message);
+            logger.error('ChatterNotificationService.sendEmailNotification failed:', error.message);
             // Don't throw - email failures shouldn't block other notifications
         }
     }
@@ -342,7 +343,7 @@ class ChatterNotificationService {
 
             return true;
         } catch (error) {
-            console.error('ChatterNotificationService.shouldSendEmail failed:', error.message);
+            logger.error('ChatterNotificationService.shouldSendEmail failed:', error.message);
             return false; // Default to no email on error
         }
     }

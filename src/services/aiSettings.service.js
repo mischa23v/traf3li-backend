@@ -2,6 +2,7 @@ const crypto = require('crypto');
 const Firm = require('../models/firm.model');
 const Anthropic = require('@anthropic-ai/sdk');
 const axios = require('axios');
+const logger = require('../utils/logger');
 
 /**
  * AI Settings Service
@@ -57,7 +58,7 @@ function decryptApiKey(encryptedData) {
 
         return decrypted;
     } catch (error) {
-        console.error('Error decrypting API key:', error.message);
+        logger.error('Error decrypting API key:', error.message);
         return null;
     }
 }

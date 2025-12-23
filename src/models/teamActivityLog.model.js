@@ -6,6 +6,7 @@
  */
 
 const mongoose = require('mongoose');
+const logger = require('../utils/logger');
 
 // Change tracking sub-schema
 const changeSchema = new mongoose.Schema({
@@ -189,7 +190,7 @@ teamActivityLogSchema.statics.log = async function(logData) {
         return log;
     } catch (error) {
         // Don't let audit log failure break the main operation
-        console.error('Team activity log creation failed:', error.message);
+        logger.error('Team activity log creation failed:', error.message);
         return null;
     }
 };

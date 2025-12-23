@@ -6,6 +6,7 @@ const RecurringTransaction = require('../models/recurringTransaction.model');
 const { toHalalas, toSAR } = require('../utils/currency');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 const mongoose = require('mongoose');
+const logger = require('../utils/logger');
 
 /**
  * Get all recurring transactions
@@ -83,7 +84,7 @@ const getRecurringTransactions = async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('Error fetching recurring transactions:', error);
+        logger.error('Error fetching recurring transactions:', error);
         res.status(500).json({ success: false, message: error.message });
     }
 };
@@ -113,7 +114,7 @@ const getRecurringTransaction = async (req, res) => {
 
         res.json({ success: true, data: transaction });
     } catch (error) {
-        console.error('Error fetching recurring transaction:', error);
+        logger.error('Error fetching recurring transaction:', error);
         res.status(500).json({ success: false, message: error.message });
     }
 };
@@ -358,7 +359,7 @@ const createRecurringTransaction = async (req, res) => {
         res.status(201).json({ success: true, data: transaction });
     } catch (error) {
         await session.abortTransaction();
-        console.error('Error creating recurring transaction:', error);
+        logger.error('Error creating recurring transaction:', error);
         res.status(500).json({ success: false, message: error.message });
     } finally {
         session.endSession();
@@ -538,7 +539,7 @@ const updateRecurringTransaction = async (req, res) => {
         res.json({ success: true, data: transaction });
     } catch (error) {
         await session.abortTransaction();
-        console.error('Error updating recurring transaction:', error);
+        logger.error('Error updating recurring transaction:', error);
         res.status(500).json({ success: false, message: error.message });
     } finally {
         session.endSession();
@@ -573,7 +574,7 @@ const pauseRecurringTransaction = async (req, res) => {
 
         res.json({ success: true, data: transaction });
     } catch (error) {
-        console.error('Error pausing recurring transaction:', error);
+        logger.error('Error pausing recurring transaction:', error);
         res.status(500).json({ success: false, message: error.message });
     }
 };
@@ -611,7 +612,7 @@ const resumeRecurringTransaction = async (req, res) => {
 
         res.json({ success: true, data: transaction });
     } catch (error) {
-        console.error('Error resuming recurring transaction:', error);
+        logger.error('Error resuming recurring transaction:', error);
         res.status(500).json({ success: false, message: error.message });
     }
 };
@@ -644,7 +645,7 @@ const cancelRecurringTransaction = async (req, res) => {
 
         res.json({ success: true, data: transaction });
     } catch (error) {
-        console.error('Error cancelling recurring transaction:', error);
+        logger.error('Error cancelling recurring transaction:', error);
         res.status(500).json({ success: false, message: error.message });
     }
 };
@@ -676,7 +677,7 @@ const generateTransaction = async (req, res) => {
             data: generated
         });
     } catch (error) {
-        console.error('Error generating transaction:', error);
+        logger.error('Error generating transaction:', error);
         res.status(500).json({ success: false, message: error.message });
     }
 };
@@ -694,7 +695,7 @@ const processDueTransactions = async (req, res) => {
             data: result
         });
     } catch (error) {
-        console.error('Error processing due transactions:', error);
+        logger.error('Error processing due transactions:', error);
         res.status(500).json({ success: false, message: error.message });
     }
 };
@@ -730,7 +731,7 @@ const getUpcomingTransactions = async (req, res) => {
 
         res.json({ success: true, data: transactions });
     } catch (error) {
-        console.error('Error fetching upcoming transactions:', error);
+        logger.error('Error fetching upcoming transactions:', error);
         res.status(500).json({ success: false, message: error.message });
     }
 };

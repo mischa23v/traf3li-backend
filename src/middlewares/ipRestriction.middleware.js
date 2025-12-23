@@ -15,6 +15,7 @@
  * - Requires user to be authenticated (userMiddleware)
  */
 
+const logger = require('../utils/logger');
 const ipRestrictionService = require('../services/ipRestriction.service');
 const { getClientIP } = require('./adminIPWhitelist.middleware');
 
@@ -42,7 +43,7 @@ const ipRestrictionMiddleware = async (req, res, next) => {
         const user = await User.findById(userId).select('firmId').lean();
         firmId = user?.firmId;
       } catch (error) {
-        console.error('Failed to get user firmId:', error);
+        logger.error('Failed to get user firmId:', error);
       }
     }
 
@@ -55,7 +56,7 @@ const ipRestrictionMiddleware = async (req, res, next) => {
     const clientIP = getClientIP(req);
 
     if (!clientIP) {
-      console.error('IP Restriction: Could not determine client IP');
+      logger.error('IP Restriction: Could not determine client IP');
       return res.status(403).json({
         success: false,
         error: 'غير قادر على تحديد عنوان IP',
@@ -78,7 +79,7 @@ const ipRestrictionMiddleware = async (req, res, next) => {
         url: req.originalUrl
       });
 
-      console.warn('🚨 IP RESTRICTION: Access blocked', {
+      logger.warn('🚨 IP RESTRICTION: Access blocked', {
         firmId,
         userId,
         clientIP,
@@ -124,16 +125,16 @@ const ipRestrictionMiddleware = async (req, res, next) => {
           }
         );
       } catch (error) {
-        console.error('Failed to record temporary IP usage:', error);
+        logger.error('Failed to record temporary IP usage:', error);
       }
     }
 
     next();
   } catch (error) {
-    console.error('IP Restriction Middleware error:', error);
+    logger.error('IP Restriction Middleware error:', error);
     // On error, fail open (allow access) to prevent lockout
     // But log the error for investigation
-    console.error('⚠️  IP restriction check failed - allowing access (fail-open)', {
+    logger.error('⚠️  IP restriction check failed - allowing access (fail-open)', {
       error: error.message,
       stack: error.stack
     });

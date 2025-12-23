@@ -5,6 +5,7 @@ const { priceService } = require('../services/priceService');
 const { findSymbol, searchSymbols, ALL_SYMBOLS } = require('../data/symbols');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 const mongoose = require('mongoose');
+const logger = require('../utils/logger');
 
 // ═══════════════════════════════════════════════════════════════
 // CREATE INVESTMENT
@@ -199,7 +200,7 @@ const createInvestment = asyncHandler(async (req, res) => {
             await investment.save();
         }
     } catch (error) {
-        console.error(`Failed to get initial price for ${symbol}:`, error.message);
+        logger.error('Failed to get initial price', { symbol, error: error.message });
         // Continue without price update
     }
 

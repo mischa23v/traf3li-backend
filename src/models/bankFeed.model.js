@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const crypto = require('crypto');
+const logger = require('../utils/logger');
 
 const columnMappingSchema = new mongoose.Schema({
     date: { type: String, trim: true },
@@ -185,7 +186,7 @@ bankFeedSchema.pre('save', function(next) {
             encrypted += cipher.final('hex');
             this.credentials.accessToken = iv.toString('hex') + ':' + encrypted;
         } catch (error) {
-            console.error('Error encrypting access token:', error);
+            logger.error('Error encrypting access token:', error);
         }
     }
 
@@ -197,7 +198,7 @@ bankFeedSchema.pre('save', function(next) {
             encrypted += cipher.final('hex');
             this.credentials.refreshToken = iv.toString('hex') + ':' + encrypted;
         } catch (error) {
-            console.error('Error encrypting refresh token:', error);
+            logger.error('Error encrypting refresh token:', error);
         }
     }
 
@@ -218,7 +219,7 @@ bankFeedSchema.methods.decryptCredentials = function() {
             decryptedToken += decipher.final('utf8');
             decrypted.accessToken = decryptedToken;
         } catch (error) {
-            console.error('Error decrypting access token:', error);
+            logger.error('Error decrypting access token:', error);
         }
     }
 
@@ -232,7 +233,7 @@ bankFeedSchema.methods.decryptCredentials = function() {
             decryptedToken += decipher.final('utf8');
             decrypted.refreshToken = decryptedToken;
         } catch (error) {
-            console.error('Error decrypting refresh token:', error);
+            logger.error('Error decrypting refresh token:', error);
         }
     }
 

@@ -9,6 +9,7 @@
  * - Middlewares
  */
 
+const logger = require('../utils/logger');
 const path = require('path');
 const { markModuleInitialized } = require('./registry');
 
@@ -24,7 +25,7 @@ const loadServices = (manifest) => {
     return services;
   }
 
-  console.log(`  Loading services for module "${manifest.name}":`, manifest.services);
+  logger.info(`  Loading services for module "${manifest.name}":`, manifest.services);
 
   for (const serviceName of manifest.services) {
     try {
@@ -51,12 +52,12 @@ const loadServices = (manifest) => {
 
       if (service) {
         services[serviceName] = service;
-        console.log(`    ✓ Loaded service: ${serviceName} from ${path.basename(loadedFrom)}`);
+        logger.info(`    ✓ Loaded service: ${serviceName} from ${path.basename(loadedFrom)}`);
       } else {
-        console.warn(`    ✗ Service not found: ${serviceName}`);
+        logger.warn(`    ✗ Service not found: ${serviceName}`);
       }
     } catch (error) {
-      console.error(`    ✗ Error loading service "${serviceName}":`, error.message);
+      logger.error(`    ✗ Error loading service "${serviceName}":`, error.message);
     }
   }
 
@@ -77,11 +78,11 @@ const loadRoutes = (manifest, app) => {
   }
 
   if (!app) {
-    console.warn(`  Cannot load routes for "${manifest.name}": app instance not provided`);
+    logger.warn(`  Cannot load routes for "${manifest.name}": app instance not provided`);
     return routes;
   }
 
-  console.log(`  Loading routes for module "${manifest.name}":`, manifest.routes);
+  logger.info(`  Loading routes for module "${manifest.name}":`, manifest.routes);
 
   for (const routeName of manifest.routes) {
     try {
@@ -111,12 +112,12 @@ const loadRoutes = (manifest, app) => {
         const mountPath = `/api/${routeName}`;
         app.use(mountPath, route);
         routes[routeName] = route;
-        console.log(`    ✓ Mounted route: ${mountPath} from ${path.basename(loadedFrom)}`);
+        logger.info(`    ✓ Mounted route: ${mountPath} from ${path.basename(loadedFrom)}`);
       } else {
-        console.warn(`    ✗ Route not found: ${routeName}`);
+        logger.warn(`    ✗ Route not found: ${routeName}`);
       }
     } catch (error) {
-      console.error(`    ✗ Error loading route "${routeName}":`, error.message);
+      logger.error(`    ✗ Error loading route "${routeName}":`, error.message);
     }
   }
 
@@ -135,7 +136,7 @@ const loadModels = (manifest) => {
     return models;
   }
 
-  console.log(`  Loading models for module "${manifest.name}":`, manifest.models);
+  logger.info(`  Loading models for module "${manifest.name}":`, manifest.models);
 
   for (const modelName of manifest.models) {
     try {
@@ -162,12 +163,12 @@ const loadModels = (manifest) => {
 
       if (model) {
         models[modelName] = model;
-        console.log(`    ✓ Loaded model: ${modelName} from ${path.basename(loadedFrom)}`);
+        logger.info(`    ✓ Loaded model: ${modelName} from ${path.basename(loadedFrom)}`);
       } else {
-        console.warn(`    ✗ Model not found: ${modelName}`);
+        logger.warn(`    ✗ Model not found: ${modelName}`);
       }
     } catch (error) {
-      console.error(`    ✗ Error loading model "${modelName}":`, error.message);
+      logger.error(`    ✗ Error loading model "${modelName}":`, error.message);
     }
   }
 
@@ -186,7 +187,7 @@ const loadQueues = (manifest) => {
     return queues;
   }
 
-  console.log(`  Loading queues for module "${manifest.name}":`, manifest.queues);
+  logger.info(`  Loading queues for module "${manifest.name}":`, manifest.queues);
 
   for (const queueName of manifest.queues) {
     try {
@@ -213,12 +214,12 @@ const loadQueues = (manifest) => {
 
       if (queue) {
         queues[queueName] = queue;
-        console.log(`    ✓ Loaded queue: ${queueName} from ${path.basename(loadedFrom)}`);
+        logger.info(`    ✓ Loaded queue: ${queueName} from ${path.basename(loadedFrom)}`);
       } else {
-        console.warn(`    ✗ Queue not found: ${queueName}`);
+        logger.warn(`    ✗ Queue not found: ${queueName}`);
       }
     } catch (error) {
-      console.error(`    ✗ Error loading queue "${queueName}":`, error.message);
+      logger.error(`    ✗ Error loading queue "${queueName}":`, error.message);
     }
   }
 
@@ -237,7 +238,7 @@ const loadMiddlewares = (manifest) => {
     return middlewares;
   }
 
-  console.log(`  Loading middlewares for module "${manifest.name}":`, manifest.middlewares);
+  logger.info(`  Loading middlewares for module "${manifest.name}":`, manifest.middlewares);
 
   for (const middlewareName of manifest.middlewares) {
     try {
@@ -264,12 +265,12 @@ const loadMiddlewares = (manifest) => {
 
       if (middleware) {
         middlewares[middlewareName] = middleware;
-        console.log(`    ✓ Loaded middleware: ${middlewareName} from ${path.basename(loadedFrom)}`);
+        logger.info(`    ✓ Loaded middleware: ${middlewareName} from ${path.basename(loadedFrom)}`);
       } else {
-        console.warn(`    ✗ Middleware not found: ${middlewareName}`);
+        logger.warn(`    ✗ Middleware not found: ${middlewareName}`);
       }
     } catch (error) {
-      console.error(`    ✗ Error loading middleware "${middlewareName}":`, error.message);
+      logger.error(`    ✗ Error loading middleware "${middlewareName}":`, error.message);
     }
   }
 
@@ -283,7 +284,7 @@ const loadMiddlewares = (manifest) => {
  * @returns {Object} All loaded components
  */
 const loadModule = (manifest, app = null) => {
-  console.log(`Loading module: ${manifest.name} v${manifest.version}`);
+  logger.info(`Loading module: ${manifest.name} v${manifest.version}`);
 
   const components = {
     services: loadServices(manifest),
@@ -303,17 +304,17 @@ const loadModule = (manifest, app = null) => {
  * @returns {Promise<boolean>} Success status
  */
 const initializeModule = async (manifest, components) => {
-  console.log(`Initializing module: ${manifest.name}`);
+  logger.info(`Initializing module: ${manifest.name}`);
 
   try {
     // Call any initialization hooks if they exist
     // This is a hook for future expansion - modules can define init functions
 
     markModuleInitialized(manifest.name);
-    console.log(`✓ Initialized module: ${manifest.name}`);
+    logger.info(`✓ Initialized module: ${manifest.name}`);
     return true;
   } catch (error) {
-    console.error(`✗ Error initializing module "${manifest.name}":`, error.message);
+    logger.error(`✗ Error initializing module "${manifest.name}":`, error.message);
     return false;
   }
 };

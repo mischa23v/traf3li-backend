@@ -11,6 +11,7 @@
  * UPDATED: Now uses Redis for horizontal scaling across multiple instances
  */
 
+const logger = require('../utils/logger');
 const jwt = require('jsonwebtoken');
 const cacheService = require('../services/cache.service');
 
@@ -125,7 +126,7 @@ const checkSessionTimeout = async (req, res, next) => {
 
         next();
     } catch (error) {
-        console.error('Session timeout check error:', error.message);
+        logger.error('Session timeout check error:', error.message);
         // Fail open - don't block requests due to timeout check errors
         next();
     }
@@ -140,7 +141,7 @@ async function recordActivity(userId) {
         try {
             await cacheService.set(`${SESSION_KEY_PREFIX}${userId}`, Date.now(), SESSION_TTL_SECONDS);
         } catch (error) {
-            console.error('Error recording session activity:', error.message);
+            logger.error('Error recording session activity:', error.message);
         }
     }
 }
@@ -154,7 +155,7 @@ async function clearSessionActivity(userId) {
         try {
             await cacheService.del(`${SESSION_KEY_PREFIX}${userId}`);
         } catch (error) {
-            console.error('Error clearing session activity:', error.message);
+            logger.error('Error clearing session activity:', error.message);
         }
     }
 }

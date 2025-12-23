@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 const { Schema } = mongoose;
 const { validateWebhookUrl } = require('../utils/urlValidator');
+const logger = require('../utils/logger');
 
 // ============ WEBHOOK EVENTS ============
 const WEBHOOK_EVENTS = [
@@ -262,7 +263,7 @@ webhookSchema.pre('save', async function(next) {
         });
 
         // URL is valid, continue with save
-        console.log(`Webhook URL validated: ${validation.hostname} resolves to ${validation.ips.join(', ')}`);
+        logger.info(`Webhook URL validated: ${validation.hostname} resolves to ${validation.ips.join(', ')}`);
         next();
     } catch (error) {
         // URL validation failed, reject the save

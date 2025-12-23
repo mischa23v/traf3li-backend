@@ -4,6 +4,7 @@
  * This file demonstrates how to use the module manifest system.
  */
 
+const logger = require('../utils/logger');
 const {
   defineModule,
   registerModule,
@@ -35,18 +36,18 @@ registerModule(coreModule);
 
 // Example 4: Setup all modules (in a real app, you'd pass the Express app)
 const runExample = async () => {
-  console.log('\n=== Module System Example ===\n');
+  logger.info('\n=== Module System Example ===\n');
 
   // Show status before setup
-  console.log('Status before setup:');
-  console.log(JSON.stringify(getStatus(), null, 2));
+  logger.info('Status before setup:');
+  logger.info(JSON.stringify(getStatus(), null, 2));
 
   // In a real application, you would do:
   // const app = express();
   // await setupModules(app);
 
-  console.log('\nTo use in your Express app:');
-  console.log(`
+  logger.info('\nTo use in your Express app:');
+  logger.info(`
 const express = require('express');
 const { setupModules, registerModule } = require('./modules');
 const coreModule = require('./modules/core/manifest');
@@ -72,7 +73,7 @@ app.listen(3000);
 
 // Run example if called directly
 if (require.main === module) {
-  runExample().catch(console.error);
+  runExample().catch(logger.error);
 }
 
 module.exports = { runExample };

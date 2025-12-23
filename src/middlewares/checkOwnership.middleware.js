@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const logger = require('../utils/logger');
 
 /**
  * Ownership check middleware
@@ -84,7 +85,7 @@ const checkOwnership = (modelName, paramName = 'id', options = {}) => {
       req.resource = resource;
       next();
     } catch (error) {
-      console.error('❌ Ownership check error:', error.message);
+      logger.error('Ownership check error:', error.message);
       return res.status(500).json({
         success: false,
         error: 'خطأ في التحقق من ملكية المورد',
@@ -183,7 +184,7 @@ const checkResourceOwnership = (resource, user, modelName, options) => {
         return resource[options.ownerField].toString() === userId;
       }
       // Cannot determine ownership
-      console.warn(`⚠️  Unknown model for ownership check: ${modelName}`);
+      logger.warn(`Unknown model for ownership check: ${modelName}`);
       return false;
   }
 };
@@ -269,7 +270,7 @@ const checkModifyPermission = (modelName, paramName = 'id') => {
       req.resource = resource;
       next();
     } catch (error) {
-      console.error('❌ Modify permission check error:', error.message);
+      logger.error('Modify permission check error:', error.message);
       return res.status(500).json({
         success: false,
         error: 'خطأ في التحقق من صلاحية التعديل',

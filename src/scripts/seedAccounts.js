@@ -10,6 +10,7 @@
 require("dotenv").config();
 const mongoose = require("mongoose");
 const Account = require("../models/account.model");
+const logger = require("../utils/logger");
 
 // Database connection
 const connectDB = async () => {
@@ -18,9 +19,9 @@ const connectDB = async () => {
       maxPoolSize: 10,
       minPoolSize: 2
     });
-    console.log("MongoDB connected for seeding...");
+    logger.info("MongoDB connected for seeding...");
   } catch (error) {
-    console.error("MongoDB connection error:", error);
+    logger.error("MongoDB connection error:", error);
     process.exit(1);
   }
 };
@@ -118,7 +119,7 @@ const defaultAccounts = [
  * Seed accounts
  */
 const seedAccounts = async () => {
-  console.log("Starting account seeding...");
+  logger.info("Starting account seeding...");
 
   // Keep track of created accounts for parent references
   const accountMap = new Map();
@@ -129,7 +130,7 @@ const seedAccounts = async () => {
     try {
       const existing = await Account.findOne({ code });
       if (existing) {
-        console.log(`✓ Account ${code} (${name}) already exists`);
+        logger.info(`✓ Account ${code} (${name}) already exists`);
         accountMap.set(code, existing._id);
         continue;
       }
@@ -145,9 +146,9 @@ const seedAccounts = async () => {
       });
 
       accountMap.set(code, account._id);
-      console.log(`✓ Created account ${code}: ${name}`);
+      logger.info(`✓ Created account ${code}: ${name}`);
     } catch (error) {
-      console.error(`✗ Error creating account ${code}:`, error.message);
+      logger.error(`✗ Error creating account ${code}:`, error.message);
     }
   }
 
@@ -161,14 +162,14 @@ const seedAccounts = async () => {
     try {
       const existing = await Account.findOne({ code });
       if (existing) {
-        console.log(`✓ Account ${code} (${name}) already exists`);
+        logger.info(`✓ Account ${code} (${name}) already exists`);
         accountMap.set(code, existing._id);
         continue;
       }
 
       const parentAccountId = accountMap.get(parentCode);
       if (!parentAccountId) {
-        console.error(`✗ Parent account ${parentCode} not found for ${code}`);
+        logger.error(`✗ Parent account ${parentCode} not found for ${code}`);
         continue;
       }
 
@@ -183,19 +184,19 @@ const seedAccounts = async () => {
       });
 
       accountMap.set(code, account._id);
-      console.log(`✓ Created account ${code}: ${name}`);
+      logger.info(`✓ Created account ${code}: ${name}`);
     } catch (error) {
-      console.error(`✗ Error creating account ${code}:`, error.message);
+      logger.error(`✗ Error creating account ${code}:`, error.message);
     }
   }
 
   // Summary
   const totalAccounts = await Account.countDocuments();
-  console.log(`\n=== Seeding Complete ===`);
-  console.log(`Total accounts in database: ${totalAccounts}`);
+  logger.info(`\n=== Seeding Complete ===`);
+  logger.info(`Total accounts in database: ${totalAccounts}`);
 
   // Print account hierarchy
-  console.log(`\n=== Account Hierarchy ===`);
+  logger.info(`\n=== Account Hierarchy ===`);
   const hierarchy = await Account.getHierarchy();
   printHierarchy(hierarchy, 0);
 };
@@ -207,7 +208,7 @@ const printHierarchy = (accounts, level) => {
   const indent = "  ".repeat(level);
   for (const account of accounts) {
     const systemMark = account.isSystem ? " [SYSTEM]" : "";
-    console.log(`${indent}${account.code} - ${account.name}${systemMark}`);
+    logger.info(`${indent}${account.code} - ${account.name}${systemMark}`);
     if (account.children && account.children.length > 0) {
       printHierarchy(account.children, level + 1);
     }
@@ -221,10 +222,10 @@ const main = async () => {
   try {
     await connectDB();
     await seedAccounts();
-    console.log("\nSeeding completed successfully!");
+    logger.info("\nSeeding completed successfully!");
     process.exit(0);
   } catch (error) {
-    console.error("Seeding failed:", error);
+    logger.error("Seeding failed:", error);
     process.exit(1);
   }
 };

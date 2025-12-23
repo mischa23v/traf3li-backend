@@ -11,6 +11,7 @@
  */
 
 const mongoose = require('mongoose');
+const logger = require('../utils/logger');
 
 // In-memory store for failed attempts (for single-instance deployments)
 // For production multi-instance, use Redis or MongoDB
@@ -100,7 +101,7 @@ async function isAccountLocked(email, ip) {
 
         return { locked: false };
     } catch (error) {
-        console.error('Account lockout check error:', error.message);
+        logger.error('Account lockout check error:', error.message);
         // Fail open - don't lock users out due to system errors
         return { locked: false };
     }
@@ -138,7 +139,7 @@ async function checkLockStatus(identifier, type) {
 
         return { locked: false, attempts: record.attempts };
     } catch (error) {
-        console.error('Check lock status error:', error.message);
+        logger.error('Check lock status error:', error.message);
         return { locked: false };
     }
 }
@@ -180,7 +181,7 @@ async function recordFailedAttempt(email, ip, userAgent = '') {
             attemptsRemaining: lowestRemaining,
         };
     } catch (error) {
-        console.error('Record failed attempt error:', error.message);
+        logger.error('Record failed attempt error:', error.message);
         return { locked: false };
     }
 }
@@ -230,7 +231,7 @@ async function incrementAttempt(identifier, type, ip, userAgent) {
             attemptsRemaining: LOCKOUT_POLICY.maxAttempts - record.attempts,
         };
     } catch (error) {
-        console.error('Increment attempt error:', error.message);
+        logger.error('Increment attempt error:', error.message);
         return { locked: false, attemptsRemaining: LOCKOUT_POLICY.maxAttempts };
     }
 }
@@ -257,7 +258,7 @@ async function clearFailedAttempts(email, ip) {
 
         await Promise.all(deletePromises);
     } catch (error) {
-        console.error('Clear failed attempts error:', error.message);
+        logger.error('Clear failed attempts error:', error.message);
     }
 }
 
@@ -296,7 +297,7 @@ async function getLockoutStatus(email) {
             maxAttempts: LOCKOUT_POLICY.maxAttempts,
         };
     } catch (error) {
-        console.error('Get lockout status error:', error.message);
+        logger.error('Get lockout status error:', error.message);
         return { attempts: 0, locked: false, maxAttempts: LOCKOUT_POLICY.maxAttempts };
     }
 }
@@ -311,7 +312,7 @@ async function unlockAccount(email) {
         await FailedLoginAttempt.deleteOne({ identifier: normalizedEmail, type: 'email' });
         return { success: true, message: 'Account unlocked successfully' };
     } catch (error) {
-        console.error('Unlock account error:', error.message);
+        logger.error('Unlock account error:', error.message);
         return { success: false, message: error.message };
     }
 }

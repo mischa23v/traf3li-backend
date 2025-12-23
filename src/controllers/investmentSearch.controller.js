@@ -2,6 +2,7 @@ const { CustomException } = require('../utils');
 const asyncHandler = require('../utils/asyncHandler');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 const { priceService } = require('../services/priceService');
+const logger = require('../utils/logger');
 const {
     findSymbol,
     searchSymbols,
@@ -351,7 +352,7 @@ const getSymbolDetails = asyncHandler(async (req, res) => {
             lastUpdated: quoteData.lastUpdated
         };
     } catch (error) {
-        console.error(`Failed to get quote for ${sanitizedSymbol}:`, error.message);
+        logger.error(`Failed to get quote for ${sanitizedSymbol}:`, error.message);
     }
 
     return res.json({
