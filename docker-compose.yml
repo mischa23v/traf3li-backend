@@ -3,12 +3,14 @@
 # ============================================
 # Run with: docker-compose up -d
 # Stop with: docker-compose down
+# Development: docker-compose up -d app-dev
+# Logs: docker-compose logs -f app
 
 version: '3.8'
 
 services:
   # ============================================
-  # APPLICATION
+  # APPLICATION (PRODUCTION)
   # ============================================
   app:
     build:
@@ -43,6 +45,49 @@ services:
       start_period: 40s
     volumes:
       - ./logs:/app/logs
+    profiles:
+      - production
+
+  # ============================================
+  # APPLICATION (DEVELOPMENT - HOT RELOAD)
+  # ============================================
+  app-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: traf3li-backend-dev
+    restart: unless-stopped
+    ports:
+      - "${PORT:-3000}:3000"
+    environment:
+      - NODE_ENV=development
+      - PORT=3000
+      - MONGODB_URI=mongodb://mongo:27017/traf3li
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=${JWT_SECRET:-dev_jwt_secret_change_in_production}
+      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET:-dev_refresh_secret_change_in_production}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY:-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef}
+      - ENCRYPTION_ALGORITHM=aes-256-gcm
+      - SMTP_HOST=mailhog
+      - SMTP_PORT=1025
+      - EMAIL_FROM=dev@traf3li.local
+      - LOG_LEVEL=debug
+    env_file:
+      - .env
+    depends_on:
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      mailhog:
+        condition: service_started
+    networks:
+      - traf3li-network
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - ./logs:/app/logs
+    command: npm run dev
 
   # ============================================
   # MONGODB
@@ -88,6 +133,21 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+
+  # ============================================
+  # MAILHOG (Email Testing for Development)
+  # ============================================
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: traf3li-mailhog
+    restart: unless-stopped
+    ports:
+      - "1025:1025"  # SMTP server
+      - "8025:8025"  # Web UI
+    networks:
+      - traf3li-network
+    profiles:
+      - development
 
 # ============================================
 # VOLUMES

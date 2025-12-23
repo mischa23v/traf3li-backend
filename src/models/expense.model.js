@@ -961,4 +961,23 @@ expenseSchema.statics.PAYMENT_METHODS = PAYMENT_METHODS;
 expenseSchema.statics.TRIP_PURPOSES = TRIP_PURPOSES;
 expenseSchema.statics.GOVERNMENT_ENTITIES = GOVERNMENT_ENTITIES;
 
+// ═══════════════════════════════════════════════════════════════
+// FIRM ISOLATION PLUGIN (RLS-like enforcement)
+// ═══════════════════════════════════════════════════════════════
+const firmIsolationPlugin = require('./plugins/firmIsolation.plugin');
+
+/**
+ * Apply Row-Level Security (RLS) plugin to enforce firm-level data isolation.
+ * This ensures that all queries automatically filter by firmId unless explicitly bypassed.
+ *
+ * Usage:
+ *   // Normal queries (firmId required):
+ *   await Expense.find({ firmId: myFirmId, status: 'approved' });
+ *
+ *   // System-level queries (bypass):
+ *   await Expense.findWithoutFirmFilter({ _id: expenseId });
+ *   await Expense.find({}).setOptions({ bypassFirmFilter: true });
+ */
+expenseSchema.plugin(firmIsolationPlugin);
+
 module.exports = mongoose.model('Expense', expenseSchema);

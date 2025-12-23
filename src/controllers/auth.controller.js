@@ -12,6 +12,10 @@ const { recordActivity, clearSessionActivity } = require('../middlewares/session
 const mfaService = require('../services/mfa.service');
 const { validateBackupCodeFormat } = require('../utils/backupCodes');
 const logger = require('../utils/contextLogger');
+const refreshTokenService = require('../services/refreshToken.service');
+const { generateAccessToken } = require('../utils/generateToken');
+const magicLinkService = require('../services/magicLink.service');
+const emailVerificationService = require('../services/emailVerification.service');
 
 const { JWT_SECRET, NODE_ENV } = process.env;
 
@@ -476,6 +480,26 @@ const authRegister = async (request, response) => {
             responseData.message = 'تم إنشاء الحساب بنجاح كمحامي مستقل';
         }
 
+        // Send email verification (fire-and-forget, non-blocking)
+        (async () => {
+            try {
+                const userName = `${firstName} ${lastName}`;
+                await emailVerificationService.sendVerificationEmail(
+                    user._id.toString(),
+                    email,
+                    userName,
+                    'ar' // Default to Arabic
+                );
+            } catch (error) {
+                logger.error('Failed to send verification email during registration', {
+                    error: error.message,
+                    userId: user._id,
+                    email
+                });
+                // Don't fail registration if email sending fails
+            }
+        })();
+
         return response.status(201).send(responseData);
     }
     catch({message}) {
@@ -759,10 +783,25 @@ const authLogin = async (request, response) => {
             // PERF: With .lean(), user is already a plain object (no _doc needed)
             const { password: pwd, ...data } = user;
 
-            const token = jwt.sign({
-                _id: user._id,
-                isSeller: user.isSeller
-            }, JWT_SECRET, { expiresIn: '7 days' });
+            // Generate access token (short-lived, 15 minutes)
+            const accessToken = generateAccessToken(user);
+
+            // Create device info for refresh token
+            const deviceInfo = {
+                userAgent: userAgent,
+                ip: ipAddress,
+                deviceId: request.headers['x-device-id'] || null,
+                browser: request.headers['sec-ch-ua'] || null,
+                os: request.headers['sec-ch-ua-platform'] || null,
+                device: request.headers['sec-ch-ua-mobile'] === '?1' ? 'mobile' : 'desktop'
+            };
+
+            // Generate refresh token (long-lived, 7 days)
+            const refreshToken = await refreshTokenService.createRefreshToken(
+                user._id.toString(),
+                deviceInfo,
+                user.firmId
+            );
 
             // Get cookie config based on request context (same-origin proxy vs cross-origin)
             const cookieConfig = getCookieConfig(request);
@@ -827,7 +866,7 @@ const authLogin = async (request, response) => {
             }
 
             // Create session record (fire-and-forget for performance)
-            sessionManager.createSession(user._id, token, {
+            sessionManager.createSession(user._id, accessToken, {
                 userAgent: userAgent,
                 ip: ipAddress,
                 firmId: user.firmId,
@@ -871,11 +910,23 @@ const authLogin = async (request, response) => {
                 }
             );
 
-            return response.cookie('accessToken', token, cookieConfig)
+            // Set refresh token cookie config (longer expiry)
+            const refreshCookieConfig = {
+                ...cookieConfig,
+                maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+            };
+
+            return response
+                .cookie('accessToken', accessToken, cookieConfig)
+                .cookie('refreshToken', refreshToken, refreshCookieConfig)
                 .status(202).send({
                     error: false,
                     message: 'Success!',
-                    user: userData
+                    user: userData,
+                    tokens: {
+                        accessToken,
+                        refreshToken
+                    }
                 });
         }
 
@@ -928,22 +979,23 @@ const authLogin = async (request, response) => {
 
 const authLogout = async (request, response) => {
     try {
-        // Get token from request (set by JWT middleware)
-        const token = request.token || request.cookies?.accessToken;
+        // Get tokens from request (set by JWT middleware or cookies)
+        const accessToken = request.token || request.cookies?.accessToken;
+        const refreshToken = request.cookies?.refreshToken;
 
         // Extract user info (may come from JWT middleware or request.user)
         const userId = request.userId || request.userID || request.user?._id || request.user?.id;
 
-        // If we have a token, revoke it
-        if (token && userId) {
+        // If we have tokens, revoke them
+        if (accessToken && userId) {
             const tokenRevocationService = require('../services/tokenRevocation.service');
             const { User } = require('../models');
 
             // Get user details for audit trail
             const user = await User.findById(userId).select('email firmId').lean();
 
-            // Revoke the token
-            await tokenRevocationService.revokeToken(token, 'logout', {
+            // Revoke the access token
+            await tokenRevocationService.revokeToken(accessToken, 'logout', {
                 userId,
                 userEmail: user?.email,
                 firmId: user?.firmId,
@@ -952,6 +1004,17 @@ const authLogout = async (request, response) => {
             });
 
             logger.audit('token_revoked', { reason: 'logout' });
+        }
+
+        // Revoke refresh token if present
+        if (refreshToken) {
+            try {
+                await refreshTokenService.revokeRefreshToken(refreshToken, 'logout');
+                logger.info('Refresh token revoked on logout', { userId });
+            } catch (error) {
+                logger.warn('Failed to revoke refresh token on logout', { error: error.message });
+                // Continue with logout even if refresh token revocation fails
+            }
         }
 
         // Clear session activity tracking
@@ -998,22 +1061,26 @@ const authLogout = async (request, response) => {
         // Use same cookie config as login to ensure cookie is properly cleared
         const cookieConfig = getCookieConfig(request);
 
-        return response.clearCookie('accessToken', cookieConfig)
-        .send({
-            error: false,
-            message: 'User have been logged out!'
-        });
+        return response
+            .clearCookie('accessToken', cookieConfig)
+            .clearCookie('refreshToken', cookieConfig)
+            .send({
+                error: false,
+                message: 'User have been logged out!'
+            });
     } catch (error) {
         logger.error('Logout failed', { error: error.message });
 
-        // Even if token revocation fails, still clear the cookie
+        // Even if token revocation fails, still clear the cookies
         const cookieConfig = getCookieConfig(request);
 
-        return response.clearCookie('accessToken', cookieConfig)
-        .send({
-            error: false,
-            message: 'User have been logged out!'
-        });
+        return response
+            .clearCookie('accessToken', cookieConfig)
+            .clearCookie('refreshToken', cookieConfig)
+            .send({
+                error: false,
+                message: 'User have been logged out!'
+            });
     }
 }
 
@@ -1338,6 +1405,461 @@ const getOnboardingStatus = async (request, response) => {
     }
 };
 
+/**
+ * Send magic link for passwordless authentication
+ * POST /api/auth/magic-link/send
+ */
+const sendMagicLink = async (request, response) => {
+    const { email, purpose = 'login', redirectUrl } = request.body;
+
+    try {
+        const ipAddress = request.ip || request.headers['x-forwarded-for']?.split(',')[0] || 'unknown';
+        const userAgent = request.headers['user-agent'] || 'unknown';
+
+        const result = await magicLinkService.sendMagicLink(
+            email,
+            purpose,
+            redirectUrl,
+            { ip: ipAddress, userAgent }
+        );
+
+        if (!result.success) {
+            return response.status(400).json({
+                error: true,
+                message: result.message,
+                messageEn: result.messageEn,
+                code: result.code
+            });
+        }
+
+        // Log the request
+        await auditLogService.log(
+            'magic_link_requested',
+            'user',
+            null,
+            null,
+            {
+                email,
+                purpose,
+                ipAddress,
+                userAgent,
+                severity: 'low'
+            }
+        );
+
+        return response.status(200).json({
+            error: false,
+            message: result.message,
+            messageEn: result.messageEn,
+            expiresInMinutes: result.expiresInMinutes
+        });
+    } catch (error) {
+        logger.error('Failed to send magic link', { error: error.message, email });
+        return response.status(500).json({
+            error: true,
+            message: 'حدث خطأ أثناء إرسال رابط تسجيل الدخول',
+            messageEn: 'An error occurred while sending the login link'
+        });
+    }
+};
+
+/**
+ * Verify magic link and authenticate user
+ * POST /api/auth/magic-link/verify
+ */
+const verifyMagicLink = async (request, response) => {
+    const { token } = request.body;
+
+    try {
+        const ipAddress = request.ip || request.headers['x-forwarded-for']?.split(',')[0] || 'unknown';
+        const userAgent = request.headers['user-agent'] || 'unknown';
+
+        const result = await magicLinkService.verifyMagicLink(token, { ip: ipAddress, userAgent });
+
+        if (!result.valid) {
+            // Log failed verification
+            await auditLogService.log(
+                'magic_link_verification_failed',
+                'user',
+                null,
+                null,
+                {
+                    token: token.substring(0, 8) + '...',
+                    reason: result.code,
+                    ipAddress,
+                    userAgent,
+                    severity: 'medium'
+                }
+            );
+
+            return response.status(400).json({
+                error: true,
+                message: result.message,
+                messageEn: result.messageEn,
+                code: result.code
+            });
+        }
+
+        // For register purpose, return email for frontend to complete registration
+        if (result.purpose === 'register') {
+            return response.status(200).json({
+                error: false,
+                message: result.message,
+                messageEn: result.messageEn,
+                purpose: result.purpose,
+                email: result.email,
+                redirectUrl: result.redirectUrl
+            });
+        }
+
+        // For login/verify_email, authenticate the user
+        const user = result.user;
+
+        // Record session activity
+        recordActivity(user._id.toString());
+
+        // Generate JWT token
+        const jwtToken = jwt.sign({
+            _id: user._id,
+            isSeller: user.isSeller
+        }, JWT_SECRET, { expiresIn: '7 days' });
+
+        // Get cookie config based on request context
+        const cookieConfig = getCookieConfig(request);
+
+        // Build user data with firm info if applicable
+        const userData = {
+            ...user,
+            isSoloLawyer: user.isSoloLawyer || false,
+            lawyerWorkMode: user.lawyerWorkMode || null
+        };
+
+        // If user is a lawyer, get firm information
+        if (user.role === 'lawyer' || user.isSeller) {
+            if (user.firmId) {
+                try {
+                    const firm = await Firm.findById(user.firmId)
+                        .select('name nameEnglish licenseNumber status members subscription');
+
+                    if (firm) {
+                        const member = firm.members.find(
+                            m => m.userId.toString() === user._id.toString()
+                        );
+
+                        userData.firm = {
+                            id: firm._id,
+                            name: firm.name,
+                            nameEn: firm.nameEnglish,
+                            status: firm.status
+                        };
+                        userData.firmRole = member?.role || user.firmRole;
+                        userData.firmStatus = member?.status || user.firmStatus;
+
+                        if (member) {
+                            userData.permissions = member.permissions || getDefaultPermissions(member.role);
+                        }
+
+                        userData.tenant = {
+                            id: firm._id,
+                            name: firm.name,
+                            nameEn: firm.nameEnglish,
+                            status: firm.status,
+                            subscription: {
+                                plan: firm.subscription?.plan || 'free',
+                                status: firm.subscription?.status || 'trial'
+                            }
+                        };
+                    }
+                } catch (firmError) {
+                    logger.warn('Failed to fetch firm data', { error: firmError.message });
+                }
+            } else if (checkIsSoloLawyer(user)) {
+                userData.firm = null;
+                userData.firmRole = null;
+                userData.firmStatus = null;
+                userData.isSoloLawyer = true;
+                userData.tenant = null;
+                userData.permissions = getSoloLawyerPermissions();
+            }
+        }
+
+        // Create session record
+        sessionManager.createSession(user._id, jwtToken, {
+            userAgent,
+            ip: ipAddress,
+            firmId: user.firmId,
+            country: request.headers['cf-ipcountry'] || null,
+            city: request.headers['cf-ipcity'] || null,
+            region: request.headers['cf-ipregion'] || null,
+            timezone: user.timezone || 'Asia/Riyadh'
+        }).catch(err => logger.error('Failed to create session', { error: err.message }));
+
+        // Enforce session limit
+        (async () => {
+            try {
+                const limit = await sessionManager.getSessionLimit(user._id, user.firmId);
+                await sessionManager.enforceSessionLimit(user._id, limit);
+            } catch (err) {
+                logger.error('Failed to enforce session limit', { error: err.message });
+            }
+        })();
+
+        // Log successful login
+        await auditLogService.log(
+            'magic_link_login_success',
+            'user',
+            user._id,
+            null,
+            {
+                userId: user._id,
+                userEmail: user.email,
+                userRole: user.role,
+                userName: `${user.firstName} ${user.lastName}`,
+                firmId: user.firmId,
+                ipAddress,
+                userAgent,
+                purpose: result.purpose,
+                severity: 'low'
+            }
+        );
+
+        return response.cookie('accessToken', jwtToken, cookieConfig)
+            .status(200).json({
+                error: false,
+                message: 'تم تسجيل الدخول بنجاح',
+                messageEn: 'Login successful',
+                user: userData,
+                redirectUrl: result.redirectUrl
+            });
+    } catch (error) {
+        logger.error('Failed to verify magic link', { error: error.message });
+        return response.status(500).json({
+            error: true,
+            message: 'حدث خطأ أثناء التحقق من رابط تسجيل الدخول',
+            messageEn: 'An error occurred while verifying the login link'
+        });
+    }
+};
+
+/**
+ * Verify email with token
+ * POST /api/auth/verify-email
+ */
+const verifyEmail = async (request, response) => {
+    try {
+        const { token } = request.body;
+
+        if (!token) {
+            return response.status(400).json({
+                error: true,
+                message: 'رمز التفعيل مطلوب',
+                messageEn: 'Verification token required',
+                code: 'TOKEN_REQUIRED'
+            });
+        }
+
+        const result = await emailVerificationService.verifyEmail(token);
+
+        if (!result.success) {
+            return response.status(400).json({
+                error: true,
+                message: result.message,
+                messageEn: result.messageEn,
+                code: result.code
+            });
+        }
+
+        // Log successful verification
+        await auditLogService.log(
+            'email_verified',
+            'user',
+            result.user.id,
+            null,
+            {
+                userId: result.user.id,
+                userEmail: result.user.email,
+                userName: result.user.name,
+                ipAddress: request.ip || request.headers['x-forwarded-for']?.split(',')[0] || 'unknown',
+                userAgent: request.headers['user-agent'] || 'unknown',
+                method: request.method,
+                endpoint: request.originalUrl,
+                severity: 'low',
+            }
+        );
+
+        return response.status(200).json({
+            error: false,
+            message: result.message,
+            messageEn: result.messageEn,
+            user: result.user
+        });
+    } catch (error) {
+        logger.error('Email verification failed', { error: error.message });
+        return response.status(500).json({
+            error: true,
+            message: 'حدث خطأ أثناء تفعيل البريد الإلكتروني',
+            messageEn: 'An error occurred while verifying email'
+        });
+    }
+};
+
+/**
+ * Resend verification email
+ * POST /api/auth/resend-verification
+ */
+const resendVerificationEmail = async (request, response) => {
+    try {
+        // Get user ID from authenticated request
+        const userId = request.userID || request.userId || request.user?._id || request.user?.id;
+
+        if (!userId) {
+            return response.status(401).json({
+                error: true,
+                message: 'يجب تسجيل الدخول',
+                messageEn: 'Authentication required',
+                code: 'AUTH_REQUIRED'
+            });
+        }
+
+        const result = await emailVerificationService.resendVerificationEmail(userId);
+
+        if (!result.success) {
+            const statusCode = result.code === 'RATE_LIMITED' ? 429 : 400;
+            return response.status(statusCode).json({
+                error: true,
+                message: result.message,
+                messageEn: result.messageEn,
+                code: result.code,
+                waitTime: result.waitTime
+            });
+        }
+
+        return response.status(200).json({
+            error: false,
+            message: result.message,
+            messageEn: result.messageEn,
+            expiresAt: result.expiresAt
+        });
+    } catch (error) {
+        logger.error('Failed to resend verification email', { error: error.message });
+        return response.status(500).json({
+            error: true,
+            message: 'حدث خطأ أثناء إعادة إرسال رابط التفعيل',
+            messageEn: 'An error occurred while resending verification link'
+        });
+    }
+};
+
+/**
+ * Refresh access token using refresh token
+ * POST /api/auth/refresh
+ */
+const refreshAccessToken = async (request, response) => {
+    try {
+        // Get refresh token from cookie or body
+        const refreshToken = request.cookies?.refreshToken || request.body?.refreshToken;
+
+        if (!refreshToken) {
+            return response.status(401).json({
+                error: true,
+                message: 'Refresh token required',
+                messageAr: 'رمز التحديث مطلوب',
+                code: 'REFRESH_TOKEN_REQUIRED'
+            });
+        }
+
+        // Refresh the access token (with rotation)
+        const result = await refreshTokenService.refreshAccessToken(refreshToken);
+
+        // Get cookie config
+        const cookieConfig = getCookieConfig(request);
+
+        // Set refresh token cookie config (longer expiry)
+        const refreshCookieConfig = {
+            ...cookieConfig,
+            maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+        };
+
+        // Log successful refresh
+        await auditLogService.log(
+            'token_refreshed_success',
+            'user',
+            result.user.id,
+            null,
+            {
+                userId: result.user.id,
+                userEmail: result.user.email,
+                ipAddress: request.ip || request.headers['x-forwarded-for']?.split(',')[0] || 'unknown',
+                userAgent: request.headers['user-agent'] || 'unknown',
+                severity: 'low'
+            }
+        );
+
+        // Return new tokens
+        return response
+            .cookie('accessToken', result.accessToken, cookieConfig)
+            .cookie('refreshToken', result.refreshToken, refreshCookieConfig)
+            .status(200).json({
+                error: false,
+                message: 'Token refreshed successfully',
+                messageAr: 'تم تحديث الرمز بنجاح',
+                tokens: {
+                    accessToken: result.accessToken,
+                    refreshToken: result.refreshToken
+                },
+                user: result.user
+            });
+    } catch (error) {
+        logger.error('Token refresh failed', { error: error.message });
+
+        // Handle specific error codes
+        const errorCode = error.message;
+        let statusCode = 401;
+        let message = 'فشل تحديث الرمز';
+        let messageEn = 'Token refresh failed';
+        let code = 'REFRESH_FAILED';
+
+        switch (errorCode) {
+            case 'INVALID_REFRESH_TOKEN':
+                message = 'رمز التحديث غير صالح';
+                messageEn = 'Invalid refresh token';
+                code = 'INVALID_REFRESH_TOKEN';
+                break;
+            case 'REFRESH_TOKEN_EXPIRED':
+                message = 'انتهت صلاحية رمز التحديث';
+                messageEn = 'Refresh token expired';
+                code = 'REFRESH_TOKEN_EXPIRED';
+                break;
+            case 'REFRESH_TOKEN_REVOKED':
+                message = 'تم إلغاء رمز التحديث';
+                messageEn = 'Refresh token revoked';
+                code = 'REFRESH_TOKEN_REVOKED';
+                break;
+            case 'TOKEN_REUSE_DETECTED':
+                statusCode = 403;
+                message = 'تم اكتشاف إعادة استخدام رمز التحديث - تم إلغاء جميع الجلسات';
+                messageEn = 'Token reuse detected - all sessions revoked';
+                code = 'TOKEN_REUSE_DETECTED';
+                break;
+            case 'USER_NOT_FOUND':
+                message = 'المستخدم غير موجود';
+                messageEn = 'User not found';
+                code = 'USER_NOT_FOUND';
+                break;
+            default:
+                message = 'حدث خطأ أثناء تحديث الرمز';
+                messageEn = 'An error occurred while refreshing token';
+        }
+
+        return response.status(statusCode).json({
+            error: true,
+            message,
+            messageEn,
+            code
+        });
+    }
+};
+
 module.exports = {
     authLogin,
     authLogout,
@@ -1346,6 +1868,11 @@ module.exports = {
     authStatus,
     checkAvailability,
     getOnboardingStatus,
+    refreshAccessToken,
     getCookieConfig,
-    getCookieDomain
+    getCookieDomain,
+    sendMagicLink,
+    verifyMagicLink,
+    verifyEmail,
+    resendVerificationEmail
 };

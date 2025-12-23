@@ -985,4 +985,23 @@ paymentSchema.statics.CHECK_STATUSES = CHECK_STATUSES;
 paymentSchema.statics.REFUND_REASONS = REFUND_REASONS;
 paymentSchema.statics.CARD_TYPES = CARD_TYPES;
 
+// ═══════════════════════════════════════════════════════════════
+// FIRM ISOLATION PLUGIN (RLS-like enforcement)
+// ═══════════════════════════════════════════════════════════════
+const firmIsolationPlugin = require('./plugins/firmIsolation.plugin');
+
+/**
+ * Apply Row-Level Security (RLS) plugin to enforce firm-level data isolation.
+ * This ensures that all queries automatically filter by firmId unless explicitly bypassed.
+ *
+ * Usage:
+ *   // Normal queries (firmId required):
+ *   await Payment.find({ firmId: myFirmId, status: 'completed' });
+ *
+ *   // System-level queries (bypass):
+ *   await Payment.findWithoutFirmFilter({ _id: paymentId });
+ *   await Payment.find({}).setOptions({ bypassFirmFilter: true });
+ */
+paymentSchema.plugin(firmIsolationPlugin);
+
 module.exports = mongoose.model('Payment', paymentSchema);

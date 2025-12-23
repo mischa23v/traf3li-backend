@@ -3,17 +3,41 @@
  *
  * This middleware ensures that:
  * 1. Users can only access data belonging to their firm
- * 2. All queries are automatically filtered by firmId
+ * 2. All queries are automatically filtered by firmId (RLS-like enforcement)
  * 3. Role-based permissions are enforced
  * 4. Departed employees have restricted access
+ *
+ * ═══════════════════════════════════════════════════════════════
+ * ROW-LEVEL SECURITY (RLS) INTEGRATION
+ * ═══════════════════════════════════════════════════════════════
+ *
+ * This middleware works in conjunction with the firmIsolation plugin to
+ * provide database-level Row-Level Security (RLS) enforcement similar to
+ * PostgreSQL's RLS feature.
+ *
+ * How it works:
+ * 1. Middleware sets req.firmId and req.firmQuery based on authenticated user
+ * 2. Controllers MUST use req.firmQuery when querying multi-tenant models
+ * 3. firmIsolation plugin enforces firmId filtering at the database query level
+ * 4. Queries without firmId will throw an error unless explicitly bypassed
  *
  * Usage:
  *   // After userMiddleware in routes
  *   router.get('/clients', userMiddleware, firmFilter, getClients);
  *   router.post('/clients', userMiddleware, checkFirmPermission('clients', 'edit'), createClient);
  *
- *   // In controllers, use req.firmId, req.firmQuery, req.permissions
- *   const clients = await Client.find({ ...req.firmQuery, ...otherFilters });
+ *   // In controllers, ALWAYS use req.firmQuery for multi-tenant queries:
+ *   const clients = await Client.find({ ...req.firmQuery, status: 'active' });
+ *   const client = await Client.findOne({ ...req.firmQuery, _id: clientId });
+ *
+ *   // For system-level operations (admin only), use bypass methods:
+ *   const allClients = await Client.findWithoutFirmFilter({ status: 'active' });
+ *
+ * Security guarantees:
+ * - Even if a developer forgets to add firmId to a query, the plugin will catch it
+ * - Cross-firm data leakage is prevented at the database query layer
+ * - Aggregation pipelines are also protected and require firmId in first $match
+ * - Solo lawyers are handled separately with their own isolation logic
  */
 
 const mongoose = require('mongoose');

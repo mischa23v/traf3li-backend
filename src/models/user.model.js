@@ -53,6 +53,18 @@ const userSchema = new mongoose.Schema({
         required: false,
     },
 
+    // Email verification
+    isEmailVerified: {
+        type: Boolean,
+        default: false,
+        required: false,
+    },
+    emailVerifiedAt: {
+        type: Date,
+        default: null,
+        required: false,
+    },
+
     // Location info
     country: {
         type: String,
