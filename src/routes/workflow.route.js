@@ -1,4 +1,5 @@
 const express = require('express');
+const { apiRateLimiter } = require('../middlewares/rateLimiter.middleware');
 const { userMiddleware } = require('../middlewares');
 const {
     createWorkflow,
@@ -23,6 +24,8 @@ const {
 } = require('../controllers/workflow.controller');
 
 const app = express.Router();
+
+app.use(apiRateLimiter);
 
 // Presets (must be before :id routes)
 app.get('/presets', userMiddleware, getPresets);

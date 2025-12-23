@@ -1,5 +1,6 @@
 const express = require('express');
 const { userMiddleware, firmFilter } = require('../middlewares');
+const { apiRateLimiter } = require('../middlewares/rateLimiter.middleware');
 const {
     createBroker,
     getBrokers,
@@ -10,6 +11,9 @@ const {
 } = require('../controllers/brokers.controller');
 
 const router = express.Router();
+
+// Apply rate limiting
+router.use(apiRateLimiter);
 
 // ═══════════════════════════════════════════════════════════════
 // CRUD ROUTES

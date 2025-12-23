@@ -1,5 +1,6 @@
 const express = require('express');
 const { userMiddleware, firmFilter } = require('../middlewares');
+const { searchRateLimiter } = require('../middlewares/rateLimiter.middleware');
 const {
     searchInvestmentSymbols,
     getQuote,
@@ -19,13 +20,13 @@ const router = express.Router();
 // ═══════════════════════════════════════════════════════════════
 
 // Search symbols
-router.get('/symbols', userMiddleware, firmFilter, searchInvestmentSymbols);
+router.get('/symbols', searchRateLimiter, userMiddleware, firmFilter, searchInvestmentSymbols);
 
 // Get quote for a symbol
-router.get('/quote', userMiddleware, firmFilter, getQuote);
+router.get('/quote', searchRateLimiter, userMiddleware, firmFilter, getQuote);
 
 // Get batch quotes
-router.post('/quotes', userMiddleware, firmFilter, getBatchQuotes);
+router.post('/quotes', searchRateLimiter, userMiddleware, firmFilter, getBatchQuotes);
 
 // ═══════════════════════════════════════════════════════════════
 // REFERENCE DATA ROUTES

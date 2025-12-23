@@ -2,9 +2,11 @@ const express = require('express');
 const router = express.Router();
 const referralController = require('../controllers/referral.controller');
 const { userMiddleware } = require('../middlewares');
+const { apiRateLimiter } = require('../middlewares/rateLimiter.middleware');
 
 // Apply authentication to all routes
 router.use(userMiddleware);
+router.use(apiRateLimiter);
 
 // ============================================
 // REFERRAL ROUTES

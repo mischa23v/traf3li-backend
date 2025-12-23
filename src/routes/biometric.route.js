@@ -46,10 +46,12 @@ const {
 
 const { verifyToken } = require('../middlewares/jwt');
 const { attachFirmContext } = require('../middlewares/firmContext.middleware');
+const { sensitiveRateLimiter } = require('../middlewares/rateLimiter.middleware');
 
 // All routes require authentication
 router.use(verifyToken);
 router.use(attachFirmContext);
+router.use(sensitiveRateLimiter);
 
 // ═══════════════════════════════════════════════════════════════
 // DEVICE ROUTES

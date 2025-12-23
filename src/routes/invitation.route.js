@@ -7,6 +7,7 @@
  */
 
 const express = require('express');
+const { apiRateLimiter } = require('../middlewares/rateLimiter.middleware');
 const { userMiddleware } = require('../middlewares');
 const {
     validateInvitationCode,
@@ -14,6 +15,9 @@ const {
 } = require('../controllers/firm.controller');
 
 const app = express.Router();
+
+// Apply rate limiting to all routes
+app.use(apiRateLimiter);
 
 // ═══════════════════════════════════════════════════════════════
 // PUBLIC ENDPOINTS

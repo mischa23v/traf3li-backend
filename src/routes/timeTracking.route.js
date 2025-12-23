@@ -1,5 +1,6 @@
 const express = require('express');
 const { userMiddleware, firmFilter } = require('../middlewares');
+const { apiRateLimiter } = require('../middlewares/rateLimiter.middleware');
 const {
     // Timer operations
     startTimer,
@@ -37,6 +38,9 @@ const {
 } = require('../controllers/timeTracking.controller');
 
 const router = express.Router();
+
+// Apply rate limiting
+router.use(apiRateLimiter);
 
 // ═══════════════════════════════════════════════════════════════
 // TIMER ROUTES

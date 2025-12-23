@@ -1,4 +1,5 @@
 const express = require('express');
+const { apiRateLimiter } = require('../middlewares/rateLimiter.middleware');
 const { userMiddleware } = require('../middlewares');
 const {
     createTag,
@@ -14,6 +15,8 @@ const {
 } = require('../controllers/tag.controller');
 
 const app = express.Router();
+
+app.use(apiRateLimiter);
 
 // Search and popular tags (must be before :id routes)
 app.get('/search', userMiddleware, searchTags);

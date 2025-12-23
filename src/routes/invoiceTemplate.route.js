@@ -1,5 +1,6 @@
 const express = require('express');
 const { userMiddleware } = require('../middlewares');
+const { apiRateLimiter } = require('../middlewares/rateLimiter.middleware');
 const {
     createTemplate,
     getTemplates,
@@ -15,6 +16,9 @@ const {
 } = require('../controllers/invoiceTemplate.controller');
 
 const app = express.Router();
+
+// Apply rate limiting
+app.use(apiRateLimiter);
 
 // Default template (must be before :id routes)
 app.get('/default', userMiddleware, getDefaultTemplate);

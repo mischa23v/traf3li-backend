@@ -2,9 +2,13 @@ const express = require('express');
 const router = express.Router();
 const crmActivityController = require('../controllers/crmActivity.controller');
 const { userMiddleware } = require('../middlewares');
+const { apiRateLimiter } = require('../middlewares/rateLimiter.middleware');
 
 // Apply authentication to all routes
 router.use(userMiddleware);
+
+// Apply rate limiting to all routes
+router.use(apiRateLimiter);
 
 // ============================================
 // CRM ACTIVITY ROUTES

@@ -1190,3 +1190,20 @@ server.listen(PORT, () => {
         console.log(`🛡️  Rate limiting: enabled`);
     }
 });
+
+// ============================================
+// GLOBAL ERROR HANDLERS - Prevent Server Crashes
+// ============================================
+// Global error handlers to prevent server crashes
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+    // Don't exit - keep server running
+});
+
+process.on('uncaughtException', (error) => {
+    console.error('Uncaught Exception:', error);
+    // Log the error but don't crash in production
+    if (process.env.NODE_ENV === 'development') {
+        process.exit(1);
+    }
+});

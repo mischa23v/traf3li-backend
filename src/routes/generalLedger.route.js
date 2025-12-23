@@ -1,5 +1,6 @@
 const express = require('express');
 const { userMiddleware, firmFilter } = require('../middlewares');
+const { apiRateLimiter } = require('../middlewares/rateLimiter.middleware');
 const {
     getEntries,
     getEntry,
@@ -14,6 +15,8 @@ const {
 } = require('../controllers/generalLedger.controller');
 
 const router = express.Router();
+
+router.use(apiRateLimiter);
 
 // ═══════════════════════════════════════════════════════════════
 // STATIC ROUTES (must be before parameterized routes)

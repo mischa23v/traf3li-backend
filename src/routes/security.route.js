@@ -11,8 +11,12 @@ const express = require('express');
 const router = express.Router();
 const securityMonitorService = require('../services/securityMonitor.service');
 const { userMiddleware } = require('../middlewares');
+const { sensitiveRateLimiter } = require('../middlewares/rateLimiter.middleware');
 const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
+
+// Apply rate limiting to all security routes
+router.use(sensitiveRateLimiter);
 
 // Apply authentication to all routes
 router.use(userMiddleware);

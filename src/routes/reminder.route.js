@@ -1,5 +1,6 @@
 const express = require('express');
 const { userMiddleware } = require('../middlewares');
+const { apiRateLimiter } = require('../middlewares/rateLimiter.middleware');
 const {
     createReminder,
     getReminders,
@@ -35,6 +36,8 @@ const {
 } = require('../controllers/locationReminder.controller');
 
 const app = express.Router();
+
+app.use(apiRateLimiter);
 
 // Location-based reminder routes (must be before parameterized routes)
 app.get('/location/summary', userMiddleware, getLocationRemindersSummary);

@@ -1,4 +1,5 @@
 const express = require('express');
+const { apiRateLimiter } = require('../middlewares/rateLimiter.middleware');
 const { userMiddleware } = require('../middlewares');
 const {
     createRetainer,
@@ -14,6 +15,8 @@ const {
 } = require('../controllers/retainer.controller');
 
 const app = express.Router();
+
+app.use(apiRateLimiter);
 
 // Retainer CRUD
 app.post('/', userMiddleware, createRetainer);

@@ -10,9 +10,13 @@ const yakeenService = require('../services/yakeenService');
 const wathqService = require('../services/wathqService');
 const mojService = require('../services/mojService');
 const { verifyToken } = require('../middlewares/jwt');
+const { sensitiveRateLimiter } = require('../middlewares/rateLimiter.middleware');
 
 // All routes require authentication
 router.use(verifyToken);
+
+// Apply rate limiting to all verification routes (sensitive auth operations)
+router.use(sensitiveRateLimiter);
 
 // ═══════════════════════════════════════════════════════════════
 // YAKEEN API ROUTES (National ID Verification)

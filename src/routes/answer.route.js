@@ -1,7 +1,10 @@
 const express = require('express');
+const { apiRateLimiter } = require('../middlewares/rateLimiter.middleware');
 const { userMiddleware } = require('../middlewares');
 const { createAnswer, getAnswers, updateAnswer, deleteAnswer, likeAnswer, verifyAnswer } = require('../controllers/answer.controller');
 const app = express.Router();
+
+app.use(apiRateLimiter);
 
 // Create answer
 app.post('/', userMiddleware, createAnswer);

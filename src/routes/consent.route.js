@@ -16,8 +16,12 @@
 const express = require('express');
 const router = express.Router();
 const authenticate = require('../middlewares/authenticate');
+const { apiRateLimiter } = require('../middlewares/rateLimiter.middleware');
 const Consent = require('../models/consent.model');
 const AuditLog = require('../models/auditLog.model');
+
+// Apply rate limiting
+router.use(apiRateLimiter);
 
 // Valid consent categories
 const VALID_CATEGORIES = ['analytics', 'marketing', 'thirdParty', 'aiProcessing', 'communications'];

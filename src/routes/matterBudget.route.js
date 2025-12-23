@@ -1,4 +1,5 @@
 const express = require('express');
+const { apiRateLimiter } = require('../middlewares/rateLimiter.middleware');
 const { userMiddleware } = require('../middlewares');
 const {
     // Budget CRUD
@@ -28,6 +29,9 @@ const {
 } = require('../controllers/matterBudget.controller');
 
 const app = express.Router();
+
+// Apply rate limiting
+app.use(apiRateLimiter);
 
 // Alerts (must be before :id routes)
 app.get('/alerts', userMiddleware, getBudgetAlerts);

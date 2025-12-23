@@ -1,4 +1,5 @@
 const express = require('express');
+const { apiRateLimiter } = require('../middlewares/rateLimiter.middleware');
 const { userMiddleware } = require('../middlewares');
 const {
     generateStatement,
@@ -10,6 +11,8 @@ const {
 } = require('../controllers/statement.controller');
 
 const app = express.Router();
+
+app.use(apiRateLimiter);
 
 // Statement CRUD
 app.post('/', userMiddleware, generateStatement);

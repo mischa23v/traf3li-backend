@@ -11,6 +11,7 @@ const apiKeyController = require('../controllers/apiKey.controller');
 const { userMiddleware } = require('../middlewares');
 const { firmFilter, firmAdminOnly } = require('../middlewares/firmFilter.middleware');
 const { requireFeature } = require('../middlewares/planCheck.middleware');
+const { sensitiveRateLimiter } = require('../middlewares/rateLimiter.middleware');
 
 // All routes require authentication and firm membership
 router.use(userMiddleware);
@@ -18,6 +19,9 @@ router.use(firmFilter);
 
 // All routes require api_access feature (Professional+)
 router.use(requireFeature('api_access'));
+
+// Rate limiting for sensitive API key operations
+router.use(sensitiveRateLimiter);
 
 // Get all API keys
 router.get('/', apiKeyController.getApiKeys);

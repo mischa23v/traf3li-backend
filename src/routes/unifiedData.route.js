@@ -17,6 +17,7 @@ const router = express.Router();
 const mongoose = require('mongoose');
 const { verifyToken } = require('../middlewares/jwt');
 const { attachFirmContext } = require('../middlewares/firmContext.middleware');
+const { apiRateLimiter } = require('../middlewares/rateLimiter.middleware');
 
 // Models
 const TimeEntry = require('../models/timeEntry.model');
@@ -32,6 +33,7 @@ const PayrollRun = require('../models/payrollRun.model');
 // Apply authentication to all routes
 router.use(verifyToken);
 router.use(attachFirmContext);
+router.use(apiRateLimiter);
 
 // ==================== BILLABLE ITEMS ====================
 

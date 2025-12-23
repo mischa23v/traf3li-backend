@@ -1,5 +1,6 @@
 const express = require('express');
 const { userMiddleware, firmFilter } = require('../middlewares');
+const { apiRateLimiter } = require('../middlewares/rateLimiter.middleware');
 const {
     getUserPatterns,
     suggestBestTime,
@@ -10,6 +11,9 @@ const {
 } = require('../controllers/smartScheduling.controller');
 
 const app = express.Router();
+
+// Apply rate limiting
+app.use(apiRateLimiter);
 
 // ==============================================
 // SMART SCHEDULING & NLP ROUTES

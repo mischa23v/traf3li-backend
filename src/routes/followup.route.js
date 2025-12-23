@@ -1,5 +1,6 @@
 const express = require('express');
 const { userMiddleware } = require('../middlewares');
+const { apiRateLimiter } = require('../middlewares/rateLimiter.middleware');
 const {
     createFollowup,
     getFollowups,
@@ -20,6 +21,8 @@ const {
 } = require('../controllers/followup.controller');
 
 const app = express.Router();
+
+app.use(apiRateLimiter);
 
 // Special queries (must be before :id routes)
 app.get('/upcoming', userMiddleware, getUpcomingFollowups);

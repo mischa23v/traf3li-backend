@@ -1,4 +1,5 @@
 const express = require('express');
+const { apiRateLimiter } = require('../middlewares/rateLimiter.middleware');
 const { userMiddleware, firmFilter } = require('../middlewares');
 const {
     createTrade,
@@ -14,6 +15,9 @@ const {
 } = require('../controllers/trades.controller');
 
 const router = express.Router();
+
+// Apply rate limiting
+router.use(apiRateLimiter);
 
 // ═══════════════════════════════════════════════════════════════
 // STATIC ROUTES (must be before parameterized routes)

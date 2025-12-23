@@ -2,10 +2,14 @@ const express = require('express');
 const router = express.Router();
 const emailMarketingController = require('../controllers/emailMarketing.controller');
 const { userMiddleware, firmFilter } = require('../middlewares');
+const { apiRateLimiter } = require('../middlewares/rateLimiter.middleware');
 
 // ============================================
 // EMAIL MARKETING ROUTES
 // ============================================
+
+// Apply rate limiting to all routes
+router.use(apiRateLimiter);
 
 // Apply authentication and firm filter to all protected routes
 router.use('/campaigns', userMiddleware, firmFilter);

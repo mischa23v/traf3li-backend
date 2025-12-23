@@ -3,6 +3,7 @@ const router = express.Router();
 const expenseClaimController = require('../controllers/expenseClaim.controller');
 const { verifyToken } = require('../middlewares/jwt');
 const { attachFirmContext } = require('../middlewares/firmContext.middleware');
+const { apiRateLimiter } = require('../middlewares/rateLimiter.middleware');
 
 /**
  * Expense Claim Routes - HR Management
@@ -13,6 +14,7 @@ const { attachFirmContext } = require('../middlewares/firmContext.middleware');
 // Apply authentication middleware
 router.use(verifyToken);
 router.use(attachFirmContext);
+router.use(apiRateLimiter);
 
 // ═══════════════════════════════════════════════════════════════
 // STATIC ROUTES (must come before parameterized routes)

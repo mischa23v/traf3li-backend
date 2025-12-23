@@ -3,6 +3,7 @@ const router = express.Router();
 const recruitmentController = require('../controllers/recruitment.controller');
 const { verifyToken } = require('../middlewares/jwt');
 const { attachFirmContext } = require('../middlewares/firmContext.middleware');
+const { apiRateLimiter } = require('../middlewares/rateLimiter.middleware');
 
 /**
  * Recruitment Routes
@@ -13,6 +14,7 @@ const { attachFirmContext } = require('../middlewares/firmContext.middleware');
 // Apply authentication middleware to all routes
 router.use(verifyToken);
 router.use(attachFirmContext);
+router.use(apiRateLimiter);
 
 // ═══════════════════════════════════════════════════════════════
 // STATISTICS (must be before :id routes)
