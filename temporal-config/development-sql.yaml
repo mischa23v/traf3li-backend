@@ -1,0 +1,7 @@
+# Dynamic config for Temporal development
+limit.maxIDLength:
+  - value: 1000
+    constraints: {}
+system.forceSearchAttributesCacheRefreshOnRead:
+  - value: true
+    constraints: {}
