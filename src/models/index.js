@@ -202,6 +202,10 @@ const GeofenceZone = require('./geofenceZone.model');
 // AI Chat Models
 const ChatHistory = require('./chatHistory.model');
 
+// Churn Prediction Models
+const CustomerHealthScore = require('./customerHealthScore.model');
+const ChurnEvent = require('./churnEvent.model');
+
 // CaseNotion Models (Notion-like workspace)
 const CaseNotionBlock = require('./caseNotionBlock.model');
 const CaseNotionPage = require('./caseNotionPage.model');
@@ -448,6 +452,10 @@ module.exports = {
 
     // AI Chat
     ChatHistory,
+
+    // Churn Prediction
+    CustomerHealthScore,
+    ChurnEvent,
 
     // CaseNotion (Notion-like workspace)
     CaseNotionBlock,

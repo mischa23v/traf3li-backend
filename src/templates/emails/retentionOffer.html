@@ -1,0 +1,161 @@
+<div class="icon-container">
+    <div class="icon success">🎁</div>
+</div>
+
+<h1 style="color: #059669;">{{title}}</h1>
+
+<p>{{greeting}}</p>
+
+<p>{{messageText}}</p>
+
+<!-- Offer Highlight -->
+<div style="background: linear-gradient(135deg, #059669 0%, #047857 100%); color: white; padding: 40px; margin: 30px 0; border-radius: 15px; text-align: center; box-shadow: 0 10px 30px rgba(5, 150, 105, 0.3);">
+    <h2 style="color: white; margin: 0 0 20px 0; font-size: 32px;">{{offerTitle}}</h2>
+
+    <div style="background-color: rgba(255, 255, 255, 0.2); padding: 25px; border-radius: 10px; margin: 20px 0;">
+        <p style="color: white; font-size: 48px; font-weight: bold; margin: 0; line-height: 1;">
+            {{discountPercentage}}%
+        </p>
+        <p style="color: white; font-size: 20px; margin: 10px 0 0 0;">
+            {{discountLabel}}
+        </p>
+    </div>
+
+    <p style="color: white; margin: 20px 0 0 0; font-size: 16px; opacity: 0.95;">
+        {{offerDescription}}
+    </p>
+
+    {{#discountCode}}
+    <div style="background-color: white; padding: 15px; border-radius: 8px; margin: 25px 0 0 0;">
+        <p style="margin: 0; color: #059669; font-size: 14px;">{{codeLabel}}</p>
+        <p style="margin: 5px 0 0 0; color: #047857; font-size: 24px; font-weight: bold; font-family: monospace; letter-spacing: 2px;">
+            {{discountCode}}
+        </p>
+    </div>
+    {{/discountCode}}
+</div>
+
+<!-- Offer Details -->
+<div class="info-section">
+    <h3>📋 {{offerDetailsTitle}}</h3>
+
+    <table width="100%" cellspacing="0" cellpadding="12" style="margin-top: 15px;">
+        <tr>
+            <td style="color: #374151; width: 40%;"><strong>{{discountAmountLabel}}:</strong></td>
+            <td style="color: #059669; font-size: 18px; font-weight: bold;">{{discountPercentage}}% {{offLabel}}</td>
+        </tr>
+        <tr>
+            <td style="color: #374151;"><strong>{{validUntilLabel}}:</strong></td>
+            <td style="color: #374151;">{{validUntil}}</td>
+        </tr>
+        <tr>
+            <td style="color: #374151;"><strong>{{applicableToLabel}}:</strong></td>
+            <td style="color: #374151;">{{applicableTo}}</td>
+        </tr>
+        {{#minimumCommitment}}
+        <tr>
+            <td style="color: #374151;"><strong>{{minimumCommitmentLabel}}:</strong></td>
+            <td style="color: #374151;">{{minimumCommitment}}</td>
+        </tr>
+        {{/minimumCommitment}}
+    </table>
+</div>
+
+<!-- Why Stay Section -->
+<div class="info-section" style="background-color: #dbeafe; border-left-color: #3b82f6;">
+    <h3 style="color: #1e40af;">⭐ {{whyStayTitle}}</h3>
+    <p style="color: #1e40af;">{{whyStayIntro}}</p>
+
+    <table width="100%" cellspacing="0" cellpadding="0" style="margin-top: 20px;">
+        {{#benefits}}
+        <tr>
+            <td style="padding: 12px 0;">
+                <div style="background-color: white; padding: 15px; border-radius: 8px; border-left: 4px solid #3b82f6;">
+                    <p style="margin: 0; color: #1e40af;">
+                        <strong>{{icon}} {{title}}</strong>
+                    </p>
+                    <p style="margin: 8px 0 0 0; color: #1e40af; font-size: 14px;">{{description}}</p>
+                </div>
+            </td>
+        </tr>
+        {{/benefits}}
+    </table>
+</div>
+
+<!-- Success Stories (Optional) -->
+{{#hasSuccessStories}}
+<div class="info-section">
+    <h3>💼 {{successStoriesTitle}}</h3>
+    <p>{{successStoriesIntro}}</p>
+
+    {{#successStories}}
+    <div style="background-color: #f9fafb; padding: 20px; margin: 15px 0; border-radius: 8px; border-left: 4px solid #8b5cf6;">
+        <p style="margin: 0; color: #374151; font-style: italic;">"{{quote}}"</p>
+        <p style="margin: 10px 0 0 0; color: #6b7280; font-size: 14px;">
+            <strong>— {{author}}</strong>, {{company}}
+        </p>
+    </div>
+    {{/successStories}}
+</div>
+{{/hasSuccessStories}}
+
+<!-- How to Redeem -->
+<div style="background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 25px; margin: 30px 0; border-radius: 4px;">
+    <h3 style="color: #92400e; margin: 0 0 15px 0;">🎯 {{howToRedeemTitle}}</h3>
+    <ol style="margin: 0; padding-left: 20px; color: #92400e; line-height: 1.8;">
+        <li>{{redeemStep1}}</li>
+        <li>{{redeemStep2}}</li>
+        <li>{{redeemStep3}}</li>
+        {{#redeemStep4}}
+        <li>{{redeemStep4}}</li>
+        {{/redeemStep4}}
+    </ol>
+</div>
+
+<!-- CTA Buttons -->
+<div style="text-align: center; margin: 40px 0;">
+    {{#claimOfferUrl}}
+    <a href="{{claimOfferUrl}}" class="button" style="background: linear-gradient(135deg, #059669 0%, #047857 100%); font-size: 18px; padding: 18px 50px; margin: 10px;">
+        🎁 {{claimOfferButtonText}}
+    </a>
+    {{/claimOfferUrl}}
+
+    {{#learnMoreUrl}}
+    <a href="{{learnMoreUrl}}" class="button" style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); margin: 10px;">
+        📖 {{learnMoreButtonText}}
+    </a>
+    {{/learnMoreUrl}}
+</div>
+
+<!-- Urgency Note -->
+<div style="background-color: #fee2e2; border: 2px dashed #dc2626; padding: 20px; margin: 30px 0; border-radius: 8px; text-align: center;">
+    <p style="margin: 0; color: #991b1b; font-size: 16px; font-weight: bold;">
+        ⏰ {{urgencyMessage}}
+    </p>
+    <p style="margin: 10px 0 0 0; color: #991b1b; font-size: 14px;">
+        {{offerExpiresLabel}}: <strong>{{validUntil}}</strong>
+    </p>
+</div>
+
+<!-- Support Contact -->
+<div style="background-color: #f9fafb; padding: 20px; margin: 25px 0; border-radius: 8px; border: 1px solid #e5e7eb;">
+    <h4 style="margin: 0 0 10px 0; color: #374151;">{{questionsTitle}}</h4>
+    <p style="margin: 0; color: #6b7280;">
+        {{questionsMessage}}
+    </p>
+    <p style="margin: 15px 0 0 0; color: #374151;">
+        <strong>{{emailLabel}}:</strong> {{supportEmail}}<br>
+        <strong>{{phoneLabel}}:</strong> {{supportPhone}}
+    </p>
+</div>
+
+<hr class="divider">
+
+<p>{{closingText}}</p>
+
+<p><strong>{{signatureTeam}}</strong><br>
+{{signatureTitle}}</p>
+
+<p style="font-size: 11px; color: #999; margin-top: 30px;">
+    {{termsAndConditions}}
+</p>

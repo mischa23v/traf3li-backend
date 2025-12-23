@@ -1,0 +1,119 @@
+<div class="icon-container">
+    <div class="icon warning">⚠️</div>
+</div>
+
+<h1 style="color: #f59e0b;">{{title}}</h1>
+
+<p>{{greeting}}</p>
+
+<p>{{messageText}}</p>
+
+<!-- Health Score Indicator -->
+{{#healthScore}}
+<div style="background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 20px; margin: 25px 0; border-radius: 4px;">
+    <p style="color: #92400e; margin: 0;">
+        <strong>{{healthScoreLabel}}:</strong> <span style="font-size: 20px; font-weight: bold;">{{healthScore}}/100</span>
+    </p>
+    <p style="color: #92400e; margin: 10px 0 0 0; font-size: 14px;">
+        {{healthScoreMessage}}
+    </p>
+</div>
+{{/healthScore}}
+
+<!-- Check-in Message -->
+<div class="info-section">
+    <h3>{{checkInTitle}}</h3>
+    <p>{{checkInMessage}}</p>
+
+    <p>{{checkInQuestions}}</p>
+    <ul style="margin: 15px 0; padding-left: 20px; line-height: 1.8;">
+        <li>{{checkInQuestion1}}</li>
+        <li>{{checkInQuestion2}}</li>
+        <li>{{checkInQuestion3}}</li>
+    </ul>
+</div>
+
+<!-- Engagement Tips -->
+<div class="info-section" style="background-color: #dbeafe; border-left-color: #3b82f6;">
+    <h3 style="color: #1e40af;">💡 {{tipsTitle}}</h3>
+    <p style="color: #1e40af;">{{tipsIntro}}</p>
+
+    {{#tips}}
+    <div style="background-color: white; padding: 15px; margin: 15px 0; border-radius: 5px; border-left: 3px solid #3b82f6;">
+        <p style="margin: 0; color: #1e40af;">
+            <strong>{{number}}.</strong> {{text}}
+        </p>
+    </div>
+    {{/tips}}
+</div>
+
+<!-- Resources Section -->
+<div class="info-section">
+    <h3>📚 {{resourcesTitle}}</h3>
+    <p>{{resourcesIntro}}</p>
+
+    <table width="100%" cellspacing="0" cellpadding="10" style="margin-top: 15px;">
+        {{#resources}}
+        <tr>
+            <td style="padding: 12px; background-color: #f9fafb; border-radius: 5px; margin-bottom: 10px;">
+                <a href="{{url}}" style="color: #3b82f6; text-decoration: none; font-weight: 600;">
+                    {{icon}} {{title}}
+                </a>
+                <p style="margin: 5px 0 0 0; color: #6b7280; font-size: 14px;">{{description}}</p>
+            </td>
+        </tr>
+        {{/resources}}
+    </table>
+</div>
+
+<!-- Support Offer -->
+<div style="background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%); color: white; padding: 25px; margin: 30px 0; border-radius: 10px;">
+    <h3 style="color: white; margin: 0 0 15px 0;">🤝 {{supportOfferTitle}}</h3>
+    <p style="color: white; margin: 0; font-size: 16px; line-height: 1.6;">
+        {{supportOfferMessage}}
+    </p>
+</div>
+
+<!-- Action Buttons -->
+<div style="text-align: center; margin: 35px 0;">
+    {{#contactSupportUrl}}
+    <a href="{{contactSupportUrl}}" class="button" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); margin: 10px;">
+        💬 {{contactSupportButtonText}}
+    </a>
+    {{/contactSupportUrl}}
+
+    {{#exploreResourcesUrl}}
+    <a href="{{exploreResourcesUrl}}" class="button" style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); margin: 10px;">
+        📚 {{exploreResourcesButtonText}}
+    </a>
+    {{/exploreResourcesUrl}}
+
+    {{#dashboardUrl}}
+    <a href="{{dashboardUrl}}" class="button" style="background: linear-gradient(135deg, #059669 0%, #047857 100%); margin: 10px;">
+        🏠 {{dashboardButtonText}}
+    </a>
+    {{/dashboardUrl}}
+</div>
+
+<!-- Quick Help -->
+<div style="background-color: #f9fafb; padding: 20px; margin: 25px 0; border-radius: 8px; border: 1px solid #e5e7eb;">
+    <h4 style="margin: 0 0 10px 0; color: #374151;">{{quickHelpTitle}}</h4>
+    <p style="margin: 0; color: #6b7280; font-size: 14px;">
+        {{quickHelpMessage}}
+    </p>
+    <p style="margin: 15px 0 0 0; color: #374151;">
+        <strong>{{emailLabel}}:</strong> {{supportEmail}}<br>
+        <strong>{{availabilityLabel}}:</strong> {{availability}}
+    </p>
+</div>
+
+<hr class="divider">
+
+<p>{{closingText}}</p>
+
+<p><strong>{{signatureTeam}}</strong><br>
+{{signatureTitle}}</p>
+
+<p style="font-size: 12px; color: #666; margin-top: 30px; font-style: italic;">
+    {{footerNote}}
+</p>

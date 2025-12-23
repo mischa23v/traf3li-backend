@@ -1,0 +1,122 @@
+<div class="icon-container">
+    <div class="icon critical">🚨</div>
+</div>
+
+<h1 style="color: #dc2626;">{{title}}</h1>
+
+<p>{{greeting}}</p>
+
+<p>{{messageText}}</p>
+
+<!-- Critical Alert Box -->
+<div style="background-color: #fee2e2; border-left: 4px solid #dc2626; padding: 25px; margin: 30px 0; border-radius: 4px;">
+    <h3 style="color: #991b1b; margin: 0 0 15px 0;">⚠️ {{criticalAlertTitle}}</h3>
+    <p style="color: #991b1b; margin: 0; font-size: 16px; line-height: 1.6;">
+        <strong>{{criticalAlertMessage}}</strong>
+    </p>
+    {{#healthScore}}
+    <p style="color: #991b1b; margin: 15px 0 0 0;">
+        <strong>{{healthScoreLabel}}:</strong> <span style="font-size: 20px; font-weight: bold;">{{healthScore}}/100</span>
+    </p>
+    {{/healthScore}}
+</div>
+
+<!-- Feedback Request -->
+<div class="info-section">
+    <h3>{{feedbackTitle}}</h3>
+    <p>{{feedbackMessage}}</p>
+
+    <ul style="margin: 20px 0; padding-left: 20px; line-height: 2;">
+        <li>{{question1}}</li>
+        <li>{{question2}}</li>
+        <li>{{question3}}</li>
+    </ul>
+</div>
+
+<!-- Solutions We Offer -->
+<div class="info-section" style="background-color: #dbeafe; border-left-color: #3b82f6;">
+    <h3 style="color: #1e40af;">💡 {{solutionsTitle}}</h3>
+    <p style="color: #1e40af;">{{solutionsMessage}}</p>
+
+    <table width="100%" cellspacing="0" cellpadding="12" style="margin-top: 20px;">
+        <tr>
+            <td style="padding: 15px; background-color: white; border-radius: 5px; margin-bottom: 10px;">
+                <strong style="color: #1e40af; font-size: 16px;">✓ {{solution1Title}}</strong>
+                <p style="margin: 5px 0 0 0; color: #1e40af;">{{solution1Description}}</p>
+            </td>
+        </tr>
+        <tr>
+            <td style="padding: 15px; background-color: white; border-radius: 5px; margin-bottom: 10px;">
+                <strong style="color: #1e40af; font-size: 16px;">✓ {{solution2Title}}</strong>
+                <p style="margin: 5px 0 0 0; color: #1e40af;">{{solution2Description}}</p>
+            </td>
+        </tr>
+        <tr>
+            <td style="padding: 15px; background-color: white; border-radius: 5px; margin-bottom: 10px;">
+                <strong style="color: #1e40af; font-size: 16px;">✓ {{solution3Title}}</strong>
+                <p style="margin: 5px 0 0 0; color: #1e40af;">{{solution3Description}}</p>
+            </td>
+        </tr>
+        <tr>
+            <td style="padding: 15px; background-color: white; border-radius: 5px; margin-bottom: 10px;">
+                <strong style="color: #1e40af; font-size: 16px;">✓ {{solution4Title}}</strong>
+                <p style="margin: 5px 0 0 0; color: #1e40af;">{{solution4Description}}</p>
+            </td>
+        </tr>
+    </table>
+</div>
+
+<!-- Special Retention Offer -->
+{{#hasRetentionOffer}}
+<div style="background: linear-gradient(135deg, #059669 0%, #047857 100%); color: white; padding: 30px; margin: 30px 0; border-radius: 10px; text-align: center;">
+    <h3 style="color: white; margin: 0 0 15px 0;">🎁 {{offerTitle}}</h3>
+    <p style="color: white; font-size: 32px; font-weight: bold; margin: 10px 0;">{{discountPercentage}}% OFF</p>
+    <p style="color: white; margin: 10px 0 0 0; font-size: 16px;">{{offerDescription}}</p>
+    <p style="color: white; margin: 15px 0 0 0; font-size: 14px; opacity: 0.9;">
+        {{offerValidityLabel}}: <strong>{{offerValidUntil}}</strong>
+    </p>
+</div>
+{{/hasRetentionOffer}}
+
+<!-- Action Buttons -->
+<div style="text-align: center; margin: 40px 0;">
+    {{#scheduleCallUrl}}
+    <a href="{{scheduleCallUrl}}" class="button" style="background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%); margin: 10px;">
+        📞 {{scheduleCallButtonText}}
+    </a>
+    {{/scheduleCallUrl}}
+
+    {{#giveFeedbackUrl}}
+    <a href="{{giveFeedbackUrl}}" class="button" style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); margin: 10px;">
+        💬 {{giveFeedbackButtonText}}
+    </a>
+    {{/giveFeedbackUrl}}
+</div>
+
+<!-- Contact Information -->
+<div style="background-color: #f9fafb; padding: 25px; margin: 30px 0; border-radius: 8px; border: 1px solid #e5e7eb;">
+    <h3 style="margin: 0 0 15px 0; color: #374151;">{{directContactTitle}}</h3>
+    <p style="margin: 10px 0; color: #374151;">
+        <strong>{{emailLabel}}:</strong> {{supportEmail}}<br>
+        <strong>{{phoneLabel}}:</strong> {{supportPhone}}<br>
+        <strong>{{availabilityLabel}}:</strong> {{availability}}
+    </p>
+</div>
+
+<!-- Urgent Note -->
+<div class="warning-box">
+    <p style="color: #92400e; margin: 0; font-size: 15px;">
+        <strong>⏰ {{urgentNoteTitle}}:</strong> {{urgentNoteMessage}}
+    </p>
+</div>
+
+<hr class="divider">
+
+<p>{{closingText}}</p>
+
+<p><strong>{{signatureTeam}}</strong><br>
+{{signatureTitle}}</p>
+
+<p style="font-size: 12px; color: #666; margin-top: 30px;">
+    {{footerNote}}
+</p>

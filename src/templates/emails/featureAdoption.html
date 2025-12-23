@@ -1,0 +1,193 @@
+<div class="icon-container">
+    <div class="icon info">💡</div>
+</div>
+
+<h1 style="color: #8b5cf6;">{{title}}</h1>
+
+<p>{{greeting}}</p>
+
+<p>{{messageText}}</p>
+
+<!-- Usage Insight -->
+{{#usageInsight}}
+<div style="background-color: #ede9fe; border-left: 4px solid #8b5cf6; padding: 20px; margin: 25px 0; border-radius: 4px;">
+    <h3 style="color: #5b21b6; margin: 0 0 10px 0;">📊 {{usageInsightTitle}}</h3>
+    <p style="color: #5b21b6; margin: 0;">
+        {{usageInsightMessage}}
+    </p>
+</div>
+{{/usageInsight}}
+
+<!-- Feature Showcase -->
+<div class="info-section">
+    <h3>🚀 {{featuresTitle}}</h3>
+    <p>{{featuresIntro}}</p>
+</div>
+
+{{#features}}
+<div style="background-color: #f9fafb; padding: 25px; margin: 20px 0; border-radius: 10px; border: 2px solid #e5e7eb;">
+    <table width="100%" cellspacing="0" cellpadding="0">
+        <tr>
+            <td width="80" valign="top">
+                <div style="width: 60px; height: 60px; background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 28px; color: white; text-align: center; line-height: 60px;">
+                    {{icon}}
+                </div>
+            </td>
+            <td valign="top" style="padding-left: 20px;">
+                <h3 style="margin: 0 0 10px 0; color: #8b5cf6; font-size: 20px;">{{name}}</h3>
+                <p style="margin: 0 0 15px 0; color: #374151; font-size: 15px; line-height: 1.6;">
+                    {{description}}
+                </p>
+
+                {{#benefits}}
+                <div style="margin: 8px 0;">
+                    <p style="margin: 0; color: #059669; font-size: 14px;">
+                        <strong>✓</strong> {{.}}
+                    </p>
+                </div>
+                {{/benefits}}
+
+                {{#howToUse}}
+                <div style="background-color: white; padding: 15px; margin-top: 15px; border-radius: 5px; border-left: 3px solid #3b82f6;">
+                    <p style="margin: 0; color: #1e40af; font-size: 13px;">
+                        <strong>💡 {{quickTipLabel}}:</strong> {{howToUse}}
+                    </p>
+                </div>
+                {{/howToUse}}
+
+                {{#demoUrl}}
+                <div style="margin-top: 15px;">
+                    <a href="{{demoUrl}}" style="display: inline-block; background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%); color: white; text-decoration: none; padding: 10px 25px; border-radius: 5px; font-size: 14px; font-weight: 600;">
+                        📹 {{watchDemoText}}
+                    </a>
+                </div>
+                {{/demoUrl}}
+            </td>
+        </tr>
+    </table>
+</div>
+{{/features}}
+
+<!-- Value Proposition -->
+<div style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); color: white; padding: 30px; margin: 30px 0; border-radius: 10px;">
+    <h3 style="color: white; margin: 0 0 15px 0;">🎯 {{valuePropositionTitle}}</h3>
+    <p style="color: white; margin: 0; font-size: 16px; line-height: 1.7;">
+        {{valuePropositionMessage}}
+    </p>
+
+    {{#timesSaved}}
+    <div style="background-color: rgba(255, 255, 255, 0.2); padding: 20px; border-radius: 8px; margin: 20px 0; text-align: center;">
+        <p style="color: white; font-size: 36px; font-weight: bold; margin: 0;">{{hoursSaved}}</p>
+        <p style="color: white; margin: 5px 0 0 0;">{{hoursSavedLabel}}</p>
+    </div>
+    {{/timesSaved}}
+</div>
+
+<!-- Getting Started Guide -->
+<div class="info-section">
+    <h3>🎓 {{gettingStartedTitle}}</h3>
+    <p>{{gettingStartedIntro}}</p>
+
+    <table width="100%" cellspacing="0" cellpadding="0" style="margin-top: 20px;">
+        {{#gettingStartedSteps}}
+        <tr>
+            <td style="padding: 12px 0;">
+                <div style="background-color: #f9fafb; padding: 18px; border-radius: 8px; border-left: 4px solid #8b5cf6;">
+                    <table width="100%" cellspacing="0" cellpadding="0">
+                        <tr>
+                            <td width="40" valign="top">
+                                <div style="width: 32px; height: 32px; background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%); border-radius: 50%; color: white; text-align: center; line-height: 32px; font-weight: bold; font-size: 14px;">
+                                    {{stepNumber}}
+                                </div>
+                            </td>
+                            <td valign="top" style="padding-left: 15px;">
+                                <p style="margin: 0; color: #374151; font-weight: 600;">{{stepTitle}}</p>
+                                <p style="margin: 5px 0 0 0; color: #6b7280; font-size: 14px;">{{stepDescription}}</p>
+                            </td>
+                        </tr>
+                    </table>
+                </div>
+            </td>
+        </tr>
+        {{/gettingStartedSteps}}
+    </table>
+</div>
+
+<!-- Resources -->
+<div class="info-section" style="background-color: #fef3c7; border-left-color: #f59e0b;">
+    <h3 style="color: #92400e;">📚 {{resourcesTitle}}</h3>
+    <p style="color: #92400e;">{{resourcesIntro}}</p>
+
+    <table width="100%" cellspacing="0" cellpadding="8" style="margin-top: 15px;">
+        {{#resources}}
+        <tr>
+            <td style="padding: 10px; background-color: white; border-radius: 5px;">
+                <a href="{{url}}" style="color: #f59e0b; text-decoration: none; font-weight: 600; font-size: 15px;">
+                    {{icon}} {{title}}
+                </a>
+                <p style="margin: 5px 0 0 0; color: #92400e; font-size: 13px;">{{description}}</p>
+            </td>
+        </tr>
+        {{/resources}}
+    </table>
+</div>
+
+<!-- Personal Training Offer -->
+<div style="background-color: #dcfce7; border: 2px solid #059669; padding: 25px; margin: 30px 0; border-radius: 10px;">
+    <h3 style="color: #047857; margin: 0 0 15px 0;">🤝 {{personalTrainingTitle}}</h3>
+    <p style="color: #065f46; margin: 0; font-size: 15px; line-height: 1.6;">
+        {{personalTrainingMessage}}
+    </p>
+    <div style="margin-top: 20px;">
+        {{#bookTrainingUrl}}
+        <a href="{{bookTrainingUrl}}" style="display: inline-block; background: linear-gradient(135deg, #059669 0%, #047857 100%); color: white; text-decoration: none; padding: 12px 30px; border-radius: 5px; font-weight: bold;">
+            📅 {{bookTrainingButtonText}}
+        </a>
+        {{/bookTrainingUrl}}
+    </div>
+</div>
+
+<!-- Action Buttons -->
+<div style="text-align: center; margin: 40px 0;">
+    {{#exploreAllFeaturesUrl}}
+    <a href="{{exploreAllFeaturesUrl}}" class="button" style="background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%); font-size: 16px; padding: 15px 40px; margin: 10px;">
+        🚀 {{exploreAllFeaturesButtonText}}
+    </a>
+    {{/exploreAllFeaturesUrl}}
+
+    {{#helpCenterUrl}}
+    <a href="{{helpCenterUrl}}" class="button" style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); margin: 10px;">
+        📖 {{helpCenterButtonText}}
+    </a>
+    {{/helpCenterUrl}}
+</div>
+
+<!-- Success Tip -->
+<div style="background-color: #f0fdf4; border-left: 4px solid #059669; padding: 20px; margin: 25px 0; border-radius: 4px;">
+    <p style="margin: 0; color: #065f46;">
+        <strong>💚 {{successTipLabel}}:</strong> {{successTipMessage}}
+    </p>
+</div>
+
+<!-- Support -->
+<div style="background-color: #f9fafb; padding: 20px; margin: 25px 0; border-radius: 8px; border: 1px solid #e5e7eb;">
+    <h4 style="margin: 0 0 10px 0; color: #374151;">{{needHelpTitle}}</h4>
+    <p style="margin: 0; color: #6b7280; font-size: 14px;">
+        {{needHelpMessage}}
+    </p>
+    <p style="margin: 15px 0 0 0; color: #374151;">
+        <strong>{{emailLabel}}:</strong> {{supportEmail}}<br>
+        <strong>{{liveChatLabel}}:</strong> {{liveChatUrl}}
+    </p>
+</div>
+
+<hr class="divider">
+
+<p>{{closingText}}</p>
+
+<p><strong>{{signatureTeam}}</strong><br>
+{{signatureTitle}}</p>
+
+<p style="font-size: 12px; color: #666; margin-top: 30px; font-style: italic;">
+    {{footerNote}}
+</p>
