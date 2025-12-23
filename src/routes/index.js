@@ -77,6 +77,7 @@ const referralRoute = require('./referral.route');
 const crmActivityRoute = require('./crmActivity.route');
 const staffRoute = require('./staff.route');
 const leadScoringRoute = require('./leadScoring.route');
+const mlScoringRoute = require('./mlScoring.route');
 const whatsappRoute = require('./whatsapp.route');
 
 // HR Routes
@@ -330,6 +331,7 @@ module.exports = {
     crmActivityRoute,
     staffRoute,
     leadScoringRoute,
+    mlScoringRoute,
     whatsappRoute,
 
     // HR
