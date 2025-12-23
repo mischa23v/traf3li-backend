@@ -1,6 +1,5 @@
 const express = require('express');
 const { userMiddleware } = require('../middlewares');
-const { apiRateLimiter } = require('../middlewares/rateLimiter.middleware');
 const { getActivityOverview } = require('../controllers/dashboard.controller');
 const {
     getActivities,
@@ -10,8 +9,6 @@ const {
 } = require('../controllers/activity.controller');
 
 const app = express.Router();
-
-app.use(apiRateLimiter);
 
 // Activity summary and overview
 app.get('/summary', userMiddleware, getActivitySummary);

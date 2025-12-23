@@ -16,10 +16,6 @@ const {
 } = require('../validators/crm.validator');
 const { verifyToken } = require('../middlewares/jwt');
 const { firmFilter } = require('../middlewares/firmFilter.middleware');
-const { apiRateLimiter } = require('../middlewares/rateLimiter.middleware');
-
-// Apply rate limiting to all routes
-router.use(apiRateLimiter);
 
 // ═══════════════════════════════════════════════════════════════
 // PUBLIC ROUTES (no auth required)

@@ -3,7 +3,6 @@ const router = express.Router();
 const employeeAdvanceController = require('../controllers/employeeAdvance.controller');
 const { verifyToken } = require('../middlewares/jwt');
 const { attachFirmContext } = require('../middlewares/firmContext.middleware');
-const { apiRateLimiter } = require('../middlewares/rateLimiter.middleware');
 const {
     validateCreateAdvance,
     validateUpdateAdvance,
@@ -17,7 +16,6 @@ const {
 // Apply authentication middleware
 router.use(verifyToken);
 router.use(attachFirmContext);
-router.use(apiRateLimiter);
 
 // ═══════════════════════════════════════════════════════════════
 // STATIC ROUTES (must come before parameterized routes)

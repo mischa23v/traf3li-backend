@@ -52,7 +52,15 @@ const { startDataRetentionJob } = require('./jobs/dataRetention.job');
 const { scheduleSessionCleanup } = require('./jobs/sessionCleanup.job');
 const { initSocket } = require('./configs/socket');
 const logger = require('./utils/logger');
-const { apiRateLimiter, speedLimiter, smartRateLimiter, authRateLimiter } = require('./middlewares/rateLimiter.middleware');
+const {
+    smartRateLimiter,
+    speedLimiter,
+    authRateLimiter,
+    sensitiveRateLimiter,
+    paymentRateLimiter,
+    uploadRateLimiter,
+    searchRateLimiter
+} = require('./middlewares/rateLimiter.middleware');
 const { sanitizeAll } = require('./middlewares/sanitize.middleware');
 const {
     originCheck,
@@ -581,9 +589,42 @@ app.use(sentrySetUserContext);
 // ✅ SENTRY: Add request breadcrumbs for error tracking
 app.use(addRequestBreadcrumb);
 
+// ============================================
+// CENTRALIZED RATE LIMITING (Best Practice)
+// ============================================
+// Layer 1: Specific stricter limits for sensitive routes (applied first)
+// Layer 2: General smart rate limiter for all other routes
+
+// ✅ SECURITY: Authentication routes - strict limits to prevent brute force
+// 15 attempts per 15 minutes, skips successful requests
+app.use('/api/auth', authRateLimiter);
+app.use('/api/v1/auth', authRateLimiter);
+
+// ✅ SECURITY: MFA and security-sensitive operations - very strict
+// 3 attempts per hour for password reset, account deletion, etc.
+app.use('/api/v1/mfa', sensitiveRateLimiter);
+app.use('/api/v1/security', sensitiveRateLimiter);
+
+// ✅ SECURITY: Payment routes - prevent payment spam
+// 10 payment attempts per hour
+app.use('/api/payments', paymentRateLimiter);
+app.use('/api/v1/billing', paymentRateLimiter);
+app.use('/api/v1/invoices', paymentRateLimiter);
+app.use('/api/v1/subscriptions', paymentRateLimiter);
+
+// ✅ SECURITY: File upload routes - prevent upload abuse
+// 50 uploads per hour
+app.use('/api/v1/documents/upload', uploadRateLimiter);
+app.use('/api/v1/files/upload', uploadRateLimiter);
+
+// ✅ SECURITY: Search routes - prevent search abuse
+// 30 searches per minute
+app.use('/api/v1/search', searchRateLimiter);
+
 // ✅ SECURITY: Smart API rate limiting (per-user for authenticated, per-IP for unauthenticated)
-// Uses user ID for authenticated requests (100 req/min), IP for unauthenticated (20 req/min)
+// Uses user ID for authenticated requests (400 req/min), IP for unauthenticated (30 req/min)
 // This allows dashboard parallel API calls while still protecting against abuse
+// NOTE: This is the fallback for all routes not covered by specific limiters above
 app.use('/api', smartRateLimiter);
 
 // ✅ SECURITY: Speed limiter - adds progressive delay after threshold

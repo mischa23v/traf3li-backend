@@ -1,7 +1,6 @@
 const express = require('express');
 const multer = require('multer');
 const { userMiddleware, firmFilter } = require('../middlewares');
-const { apiRateLimiter } = require('../middlewares/rateLimiter.middleware');
 const {
     createEvent,
     getEvents,
@@ -32,9 +31,6 @@ const {
 } = require('../controllers/event.controller');
 
 const app = express.Router();
-
-// Apply rate limiting
-app.use(apiRateLimiter);
 
 // Multer config for ICS file uploads (memory storage)
 const icsUpload = multer({

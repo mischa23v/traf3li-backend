@@ -3,7 +3,6 @@ const router = express.Router();
 const employeeBenefitController = require('../controllers/employeeBenefit.controller');
 const { verifyToken } = require('../middlewares/jwt');
 const { attachFirmContext } = require('../middlewares/firmContext.middleware');
-const { apiRateLimiter } = require('../middlewares/rateLimiter.middleware');
 const {
     validateCreateBenefit,
     validateUpdateBenefit,
@@ -18,7 +17,6 @@ const {
 // MIDDLEWARE
 // ═══════════════════════════════════════════════════════════════
 
-router.use(apiRateLimiter);
 router.use(verifyToken);
 router.use(attachFirmContext);
 

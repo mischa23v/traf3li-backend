@@ -1,6 +1,5 @@
 const express = require('express');
 const { userMiddleware, firmFilter } = require('../middlewares');
-const { apiRateLimiter } = require('../middlewares/rateLimiter.middleware');
 const { cacheResponse, invalidateCache } = require('../middlewares/cache.middleware');
 const {
     validateCreatePage,
@@ -21,9 +20,6 @@ const caseNotionController = require('../controllers/caseNotion.controller');
 const CaseNotionBlock = require('../models/caseNotionBlock.model');
 
 const router = express.Router();
-
-// Apply rate limiting to all routes
-router.use(apiRateLimiter);
 
 // Cache TTL
 const NOTION_CACHE_TTL = 300;

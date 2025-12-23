@@ -9,10 +9,6 @@ const router = express.Router();
 const planController = require('../controllers/plan.controller');
 const { userMiddleware } = require('../middlewares');
 const { firmFilter, firmAdminOnly } = require('../middlewares/firmFilter.middleware');
-const { apiRateLimiter } = require('../middlewares/rateLimiter.middleware');
-
-// Apply rate limiting
-router.use(apiRateLimiter);
 
 // Public route - get all plans
 router.get('/', planController.getPlans);

@@ -2,7 +2,6 @@ const express = require('express');
 const { userMiddleware, firmFilter } = require('../middlewares');
 const { auditAction } = require('../middlewares/auditLog.middleware');
 const { cacheResponse, invalidateCache } = require('../middlewares/cache.middleware');
-const { apiRateLimiter } = require('../middlewares/rateLimiter.middleware');
 const upload = require('../configs/multer');
 const {
     validateCreateClient,
@@ -41,9 +40,6 @@ const {
 } = require('../controllers/client.controller');
 
 const app = express.Router();
-
-// Apply rate limiting to all client routes
-app.use(apiRateLimiter);
 
 // Cache TTL: 300 seconds (5 minutes) for client endpoints
 const CLIENT_CACHE_TTL = 300;

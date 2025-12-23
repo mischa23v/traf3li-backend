@@ -1,6 +1,5 @@
 const express = require('express');
 const { userMiddleware, firmFilter } = require('../middlewares');
-const { apiRateLimiter } = require('../middlewares/rateLimiter.middleware');
 const {
     createStaff,
     getStaff,
@@ -13,9 +12,6 @@ const {
 } = require('../controllers/staff.controller');
 
 const router = express.Router();
-
-// Apply rate limiting to all routes
-router.use(apiRateLimiter);
 
 // Apply authentication and firm filter to all routes
 router.use(userMiddleware, firmFilter);

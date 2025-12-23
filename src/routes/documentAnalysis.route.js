@@ -1,6 +1,5 @@
 const express = require('express');
 const { userMiddleware } = require('../middlewares');
-const { apiRateLimiter } = require('../middlewares/rateLimiter.middleware');
 const {
   analyzeDocument,
   getAnalysis,
@@ -16,8 +15,6 @@ const {
 } = require('../controllers/documentAnalysis.controller');
 
 const app = express.Router();
-
-app.use(apiRateLimiter);
 
 // Stats and search (must be before :documentId routes)
 app.get('/stats', userMiddleware, getStats);

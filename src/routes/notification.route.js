@@ -1,6 +1,5 @@
 const express = require('express');
 const { userMiddleware } = require('../middlewares');
-const { apiRateLimiter } = require('../middlewares/rateLimiter.middleware');
 const {
     getNotifications,
     markAsRead,
@@ -10,8 +9,6 @@ const {
 } = require('../controllers/notification.controller');
 
 const app = express.Router();
-
-app.use(apiRateLimiter);
 
 // Get all notifications
 app.get('/', userMiddleware, getNotifications);

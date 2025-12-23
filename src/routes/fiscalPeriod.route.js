@@ -1,6 +1,5 @@
 const express = require('express');
 const { userMiddleware } = require('../middlewares');
-const { apiRateLimiter } = require('../middlewares/rateLimiter.middleware');
 const {
     getFiscalPeriods,
     getFiscalPeriod,
@@ -17,9 +16,6 @@ const {
 } = require('../controllers/fiscalPeriod.controller');
 
 const app = express.Router();
-
-// Apply rate limiting
-app.use(apiRateLimiter);
 
 // List and utilities
 app.get('/', userMiddleware, getFiscalPeriods);

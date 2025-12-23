@@ -12,12 +12,10 @@ const {
     validateRestructureLoan,
     validateEmployeeIdParam
 } = require('../validators/hr.validator');
-const { apiRateLimiter } = require('../middlewares/rateLimiter.middleware');
 
 // Apply authentication middleware
 router.use(verifyToken);
 router.use(attachFirmContext);
-router.use(apiRateLimiter);
 
 // ═══════════════════════════════════════════════════════════════
 // STATIC ROUTES (must come before parameterized routes)

@@ -4,12 +4,10 @@ const setupWizardController = require('../controllers/setupWizard.controller');
 const { verifyToken } = require('../middlewares/jwt');
 const { attachFirmContext } = require('../middlewares/firmContext.middleware');
 const { requireAdmin } = require('../middlewares/permission.middleware');
-const { apiRateLimiter } = require('../middlewares/rateLimiter.middleware');
 
 // Apply authentication and firm context middleware to all routes
 router.use(verifyToken);
 router.use(attachFirmContext);
-router.use(apiRateLimiter);
 
 // ═══════════════════════════════════════════════════════════════
 // USER ENDPOINTS - Setup Wizard Progress

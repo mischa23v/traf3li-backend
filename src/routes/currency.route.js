@@ -1,6 +1,5 @@
 const express = require('express');
 const { userMiddleware } = require('../middlewares');
-const { apiRateLimiter } = require('../middlewares/rateLimiter.middleware');
 const {
     getExchangeRates,
     convertAmount,
@@ -11,9 +10,6 @@ const {
 } = require('../controllers/bankReconciliation.controller');
 
 const app = express.Router();
-
-// Apply rate limiting
-app.use(apiRateLimiter);
 
 // Get currency settings
 app.get('/settings', userMiddleware, getCurrencySettings);

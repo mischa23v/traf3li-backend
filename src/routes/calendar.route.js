@@ -1,6 +1,5 @@
 const express = require('express');
 const { userMiddleware } = require('../middlewares');
-const { apiRateLimiter } = require('../middlewares/rateLimiter.middleware');
 const {
     getCalendarView,
     getCalendarByDate,
@@ -18,9 +17,6 @@ const {
 } = require('../controllers/calendar.controller');
 
 const app = express.Router();
-
-// Apply rate limiting
-app.use(apiRateLimiter);
 
 // ==========================================
 // AGGREGATED ENDPOINTS (GOLD STANDARD - Use these for best performance)

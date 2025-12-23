@@ -1,7 +1,6 @@
 const express = require('express');
 const { userMiddleware } = require('../middlewares');
 const { requiredIdempotency } = require('../middlewares/idempotency');
-const { apiRateLimiter } = require('../middlewares/rateLimiter.middleware');
 const {
     createTransaction,
     getTransactions,
@@ -16,8 +15,6 @@ const {
 } = require('../controllers/transaction.controller');
 
 const app = express.Router();
-
-app.use(apiRateLimiter);
 
 // Transaction CRUD
 app.post('/', userMiddleware, requiredIdempotency, createTransaction);

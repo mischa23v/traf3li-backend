@@ -10,7 +10,6 @@
 const express = require('express');
 const { userMiddleware, firmFilter, financeAccessOnly } = require('../middlewares');
 const { auditAction } = require('../middlewares/auditLog.middleware');
-const { apiRateLimiter } = require('../middlewares/rateLimiter.middleware');
 const {
     // Transactions
     getTransactions,
@@ -30,9 +29,6 @@ const {
 } = require('../controllers/interCompany.controller');
 
 const router = express.Router();
-
-// Apply rate limiting
-router.use(apiRateLimiter);
 
 // All routes require authentication and firm context
 router.use(userMiddleware);

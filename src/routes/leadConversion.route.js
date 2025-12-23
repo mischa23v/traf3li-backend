@@ -16,10 +16,8 @@ const {
 } = require('../validators/crm.validator');
 const { verifyToken } = require('../middlewares/jwt');
 const { firmFilter } = require('../middlewares/firmFilter.middleware');
-const { apiRateLimiter } = require('../middlewares/rateLimiter.middleware');
 
-// Apply rate limiting, authentication and firm filter middleware
-router.use(apiRateLimiter);
+// Apply authentication and firm filter middleware
 router.use(verifyToken, firmFilter);
 
 // ═══════════════════════════════════════════════════════════════

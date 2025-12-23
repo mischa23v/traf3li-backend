@@ -1,7 +1,6 @@
 const express = require('express');
 const { userMiddleware } = require('../middlewares');
 const { auditAction } = require('../middlewares/auditLog.middleware');
-const { apiRateLimiter } = require('../middlewares/rateLimiter.middleware');
 const {
     createExportJob,
     getExportJobs,
@@ -22,8 +21,6 @@ const {
 } = require('../controllers/dataExport.controller');
 
 const app = express.Router();
-
-app.use(apiRateLimiter);
 
 // Export operations
 app.post('/export', userMiddleware, auditAction('export_data', 'export_job', { severity: 'critical' }), createExportJob);

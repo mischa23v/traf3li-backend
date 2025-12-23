@@ -1,6 +1,5 @@
 const express = require('express');
 const { userMiddleware } = require('../middlewares');
-const { apiRateLimiter } = require('../middlewares/rateLimiter.middleware');
 const {
     getPriceLevels,
     getPriceLevel,
@@ -12,8 +11,6 @@ const {
 } = require('../controllers/priceLevel.controller');
 
 const app = express.Router();
-
-app.use(apiRateLimiter);
 
 // List and utilities
 app.get('/', userMiddleware, getPriceLevels);

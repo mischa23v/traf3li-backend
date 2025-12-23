@@ -1,6 +1,5 @@
 const express = require('express');
 const { userMiddleware, firmFilter } = require('../middlewares');
-const { apiRateLimiter } = require('../middlewares/rateLimiter.middleware');
 const {
     createOrganization,
     getOrganizations,
@@ -18,7 +17,6 @@ const {
 const router = express.Router();
 
 // Apply authentication and firm filter to all routes
-router.use(apiRateLimiter);
 router.use(userMiddleware, firmFilter);
 
 // ============================================
