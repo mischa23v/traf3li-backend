@@ -236,6 +236,9 @@ const WhatsAppConversation = require('./whatsappConversation.model');
 const WhatsAppTemplate = require('./whatsappTemplate.model');
 const WhatsAppBroadcast = require('./whatsappBroadcast.model');
 
+// Omnichannel Inbox Model
+const OmnichannelConversation = require('./omnichannelConversation.model');
+
 // API Key Model
 const ApiKey = require('./apiKey.model');
 
@@ -518,6 +521,9 @@ module.exports = {
     WhatsAppConversation,
     WhatsAppTemplate,
     WhatsAppBroadcast,
+
+    // Omnichannel Inbox
+    OmnichannelConversation,
 
     // API Keys
     ApiKey,

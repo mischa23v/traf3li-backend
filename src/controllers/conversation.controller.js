@@ -1,15 +1,217 @@
 /**
- * Omnichannel Conversation/Inbox Controller
+ * Conversation Controller
  *
- * Provides unified inbox endpoints for managing conversations across
- * multiple channels (email, WhatsApp, SMS, live chat, social media)
+ * This controller handles TWO distinct features:
+ *
+ * 1. MARKETPLACE CONVERSATIONS (seller/buyer chat)
+ *    - Routes: /api/conversation (singular - old route)
+ *    - Functions: getConversations, createConversation, getSingleConversation, updateConversation
+ *
+ * 2. OMNICHANNEL INBOX (CRM unified inbox)
+ *    - Routes: /api/conversations (plural - new route)
+ *    - Functions: getInbox, getConversation, addMessage, assignConversation, etc.
  */
 
+const { Conversation } = require('../models');
 const asyncHandler = require('../utils/asyncHandler');
-const CustomException = require('../utils/CustomException');
+const { CustomException } = require('../utils');
 const OmnichannelInboxService = require('../services/omnichannelInbox.service');
 const { pickAllowedFields, sanitizeObjectId, sanitizeString } = require('../utils/securityUtils');
 const logger = require('../utils/logger');
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// MARKETPLACE CONVERSATION FUNCTIONS (Seller/Buyer)
+// Used by: /api/conversation routes (conversation.route.js)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Create a new marketplace conversation
+ * POST /api/conversation
+ */
+const createConversation = async (request, response) => {
+    try {
+        // Mass assignment protection - only allow specific fields
+        const allowedFields = pickAllowedFields(request.body, ['to', 'from']);
+        const { to, from } = allowedFields;
+
+        // Input validation
+        if (!to || !from) {
+            throw CustomException('Both "to" and "from" fields are required', 400);
+        }
+
+        // Sanitize ObjectIds to prevent injection
+        const sanitizedTo = sanitizeObjectId(to);
+        const sanitizedFrom = sanitizeObjectId(from);
+
+        if (!sanitizedTo || !sanitizedFrom) {
+            throw CustomException('Invalid user IDs provided', 400);
+        }
+
+        // IDOR protection - ensure the authenticated user is part of the conversation
+        if (request.isSeller && sanitizedFrom !== request.userID) {
+            throw CustomException('Unauthorized: You can only create conversations as yourself', 403);
+        }
+        if (!request.isSeller && sanitizedTo !== request.userID && sanitizedFrom !== request.userID) {
+            throw CustomException('Unauthorized: You must be part of the conversation', 403);
+        }
+
+        const conversation = new Conversation({
+            sellerID: request.isSeller ? request.userID : sanitizedTo,
+            buyerID: request.isSeller ? sanitizedFrom : request.userID,
+            readBySeller: request.isSeller,
+            readByBuyer: !request.isSeller
+        });
+
+        await conversation.save();
+        return response.status(201).send(conversation);
+    }
+    catch ({message, status = 500}) {
+        return response.status(status).send({
+            error: true,
+            message
+        })
+    }
+};
+
+/**
+ * Get all marketplace conversations for current user
+ * GET /api/conversation
+ */
+const getConversations = async (request, response) => {
+    try {
+        const conversation = await Conversation.find(request.isSeller ? { sellerID: request.userID } : { buyerID: request.userID }).populate(request.isSeller ? 'buyerID' : 'sellerID', 'username image email').sort({ updatedAt: -1 });
+        return response.send(conversation);
+    }
+    catch ({ message, status = 500 }) {
+        return response.status(status).send({
+            error: true,
+            message
+        })
+    }
+};
+
+/**
+ * Get a single marketplace conversation by seller and buyer IDs
+ * GET /api/conversation/single/:sellerID/:buyerID
+ */
+const getSingleConversation = async (request, response) => {
+    try {
+        const { sellerID, buyerID } = request.params;
+
+        // Input validation
+        if (!sellerID || !buyerID) {
+            throw CustomException('Both sellerID and buyerID are required', 400);
+        }
+
+        // Sanitize ObjectIds to prevent injection
+        const sanitizedSellerID = sanitizeObjectId(sellerID);
+        const sanitizedBuyerID = sanitizeObjectId(buyerID);
+
+        if (!sanitizedSellerID || !sanitizedBuyerID) {
+            throw CustomException('Invalid IDs provided', 400);
+        }
+
+        const conversation = await Conversation.findOne({ sellerID: sanitizedSellerID, buyerID: sanitizedBuyerID });
+
+        if (!conversation) {
+            throw CustomException('No such conversation found!', 404);
+        }
+
+        // IDOR protection - ensure the authenticated user is part of this conversation
+        const isAuthorized = (
+            conversation.sellerID.toString() === request.userID ||
+            conversation.buyerID.toString() === request.userID
+        );
+
+        if (!isAuthorized) {
+            throw CustomException('Unauthorized: You can only access your own conversations', 403);
+        }
+
+        return response.send(conversation);
+    }
+    catch ({ message, status = 500 }) {
+        return response.status(status).send({
+            error: true,
+            message
+        })
+    }
+};
+
+/**
+ * Update a marketplace conversation (mark as read)
+ * PATCH /api/conversation/:conversationID
+ */
+const updateConversation = async (request, response) => {
+    try {
+        const { conversationID } = request.params;
+
+        // Input validation
+        if (!conversationID) {
+            throw CustomException('conversationID is required', 400);
+        }
+
+        // Sanitize ObjectId to prevent injection
+        const sanitizedConversationID = sanitizeObjectId(conversationID);
+
+        if (!sanitizedConversationID) {
+            throw CustomException('Invalid conversationID provided', 400);
+        }
+
+        // First, fetch the conversation to verify ownership
+        const existingConversation = await Conversation.findOne({ conversationID: sanitizedConversationID });
+
+        if (!existingConversation) {
+            throw CustomException('Conversation not found', 404);
+        }
+
+        // IDOR protection - ensure the authenticated user is part of this conversation
+        const isAuthorized = (
+            existingConversation.sellerID.toString() === request.userID ||
+            existingConversation.buyerID.toString() === request.userID
+        );
+
+        if (!isAuthorized) {
+            throw CustomException('Unauthorized: You can only update your own conversations', 403);
+        }
+
+        // Mass assignment protection - only allow specific fields to be updated
+        const allowedFields = pickAllowedFields(request.body, ['readBySeller', 'readByBuyer']);
+
+        // Build update object with only allowed fields
+        const updateData = {};
+        if (allowedFields.readBySeller !== undefined) {
+            updateData.readBySeller = Boolean(allowedFields.readBySeller);
+        }
+        if (allowedFields.readByBuyer !== undefined) {
+            updateData.readByBuyer = Boolean(allowedFields.readByBuyer);
+        }
+
+        // If no valid fields to update, use default behavior (mark as read)
+        if (Object.keys(updateData).length === 0) {
+            updateData.readBySeller = true;
+            updateData.readByBuyer = true;
+        }
+
+        const conversation = await Conversation.findOneAndUpdate(
+            { conversationID: sanitizedConversationID },
+            { $set: updateData },
+            { new: true }
+        );
+
+        return response.send(conversation);
+    }
+    catch ({ message, status = 500 }) {
+        return response.status(status).send({
+            error: true,
+            message
+        })
+    }
+};
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// OMNICHANNEL INBOX FUNCTIONS (CRM Unified Inbox)
+// Used by: /api/conversations routes (conversation.routes.js)
+// ═══════════════════════════════════════════════════════════════════════════════
 
 /**
  * Get unified inbox
@@ -57,7 +259,7 @@ const getInbox = asyncHandler(async (req, res) => {
 });
 
 /**
- * Get single conversation with full history
+ * Get single omnichannel conversation with full history
  * GET /api/conversations/:id
  */
 const getConversation = asyncHandler(async (req, res) => {
@@ -90,7 +292,7 @@ const getConversation = asyncHandler(async (req, res) => {
 });
 
 /**
- * Add message to conversation
+ * Add message to omnichannel conversation
  * POST /api/conversations/:id/messages
  */
 const addMessage = asyncHandler(async (req, res) => {
@@ -139,7 +341,7 @@ const addMessage = asyncHandler(async (req, res) => {
 });
 
 /**
- * Assign conversation to a user
+ * Assign omnichannel conversation to a user
  * POST /api/conversations/:id/assign
  */
 const assignConversation = asyncHandler(async (req, res) => {
@@ -187,7 +389,7 @@ const assignConversation = asyncHandler(async (req, res) => {
 });
 
 /**
- * Snooze conversation until a specific date
+ * Snooze omnichannel conversation until a specific date
  * POST /api/conversations/:id/snooze
  */
 const snoozeConversation = asyncHandler(async (req, res) => {
@@ -236,7 +438,7 @@ const snoozeConversation = asyncHandler(async (req, res) => {
 });
 
 /**
- * Close conversation
+ * Close omnichannel conversation
  * POST /api/conversations/:id/close
  */
 const closeConversation = asyncHandler(async (req, res) => {
@@ -279,7 +481,7 @@ const closeConversation = asyncHandler(async (req, res) => {
 });
 
 /**
- * Reopen a closed conversation
+ * Reopen a closed omnichannel conversation
  * POST /api/conversations/:id/reopen
  */
 const reopenConversation = asyncHandler(async (req, res) => {
@@ -341,7 +543,7 @@ const getStats = asyncHandler(async (req, res) => {
 });
 
 /**
- * Update conversation tags
+ * Update omnichannel conversation tags
  * PUT /api/conversations/:id/tags
  */
 const updateTags = asyncHandler(async (req, res) => {
@@ -384,7 +586,7 @@ const updateTags = asyncHandler(async (req, res) => {
 });
 
 /**
- * Update conversation priority
+ * Update omnichannel conversation priority
  * PUT /api/conversations/:id/priority
  */
 const updatePriority = asyncHandler(async (req, res) => {
@@ -424,7 +626,18 @@ const updatePriority = asyncHandler(async (req, res) => {
     });
 });
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// EXPORTS
+// ═══════════════════════════════════════════════════════════════════════════════
+
 module.exports = {
+    // Marketplace functions (used by conversation.route.js)
+    createConversation,
+    getConversations,
+    getSingleConversation,
+    updateConversation,
+
+    // Omnichannel inbox functions (used by conversation.routes.js)
     getInbox,
     getConversation,
     addMessage,
