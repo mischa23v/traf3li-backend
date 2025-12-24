@@ -385,7 +385,6 @@ const getOrganizationsByClient = asyncHandler(async (req, res) => {
         throw CustomException('العميل غير موجود أو ليس لديك صلاحية للوصول إليه', 404);
     }
 
-    const isSoloLawyer = req.isSoloLawyer;
     const query = { linkedClients: sanitizedClientId };
     if (isSoloLawyer || !firmId) {
         query.lawyerId = lawyerId;
