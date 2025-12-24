@@ -579,28 +579,229 @@ async function generateSeriesName(doc, pattern) {
 }
 
 /**
- * Evaluate depends_on expression
- * Simple parser for expressions like: eval:doc.status == 'Active'
+ * Safe expression evaluator for depends_on expressions
+ * Handles patterns like: doc.status == 'Active', doc.amount > 0
+ * Uses whitelist approach - NO eval/new Function
  */
 function evaluateDependsOn(doc, expression) {
     if (!expression) return true;
 
-    if (expression.startsWith('eval:')) {
-        const expr = expression.replace('eval:', '').trim();
-        try {
-            // Create a safe evaluation context
-            const safeDoc = { ...doc.toObject() };
-            // eslint-disable-next-line no-new-func
-            const fn = new Function('doc', `return ${expr}`);
-            return fn(safeDoc);
-        } catch (e) {
-            logger.warn('Failed to evaluate depends_on expression', { expression, error: e.message });
-            return true;
+    // Simple field reference: depends_on: "fieldname"
+    if (!expression.startsWith('eval:')) {
+        return !!doc[expression];
+    }
+
+    const expr = expression.replace('eval:', '').trim();
+
+    try {
+        const safeDoc = typeof doc.toObject === 'function' ? doc.toObject() : { ...doc };
+        return safeEvaluateExpression(expr, safeDoc);
+    } catch (e) {
+        logger.warn('Failed to evaluate depends_on expression', { expression, error: e.message });
+        return true;
+    }
+}
+
+/**
+ * Safe expression evaluator using whitelist approach
+ * Supports: doc.field, comparisons (==, !=, >, <, >=, <=), logical (&&, ||, !)
+ * NO dynamic code execution
+ */
+function safeEvaluateExpression(expr, doc) {
+    // Tokenize and parse the expression safely
+    const tokens = tokenizeExpression(expr);
+    return evaluateTokens(tokens, doc);
+}
+
+/**
+ * Tokenize expression into safe tokens
+ */
+function tokenizeExpression(expr) {
+    const tokens = [];
+    let i = 0;
+
+    while (i < expr.length) {
+        // Skip whitespace
+        if (/\s/.test(expr[i])) {
+            i++;
+            continue;
+        }
+
+        // String literal
+        if (expr[i] === "'" || expr[i] === '"') {
+            const quote = expr[i];
+            let str = '';
+            i++;
+            while (i < expr.length && expr[i] !== quote) {
+                str += expr[i];
+                i++;
+            }
+            i++; // skip closing quote
+            tokens.push({ type: 'string', value: str });
+            continue;
+        }
+
+        // Number
+        if (/\d/.test(expr[i]) || (expr[i] === '-' && /\d/.test(expr[i + 1]))) {
+            let num = '';
+            if (expr[i] === '-') {
+                num = '-';
+                i++;
+            }
+            while (i < expr.length && /[\d.]/.test(expr[i])) {
+                num += expr[i];
+                i++;
+            }
+            tokens.push({ type: 'number', value: parseFloat(num) });
+            continue;
+        }
+
+        // Operators
+        const operators = ['===', '!==', '==', '!=', '>=', '<=', '&&', '||', '>', '<', '!', '(', ')'];
+        let matched = false;
+        for (const op of operators) {
+            if (expr.substring(i, i + op.length) === op) {
+                tokens.push({ type: 'operator', value: op });
+                i += op.length;
+                matched = true;
+                break;
+            }
+        }
+        if (matched) continue;
+
+        // Identifier (doc.field or field)
+        if (/[a-zA-Z_]/.test(expr[i])) {
+            let id = '';
+            while (i < expr.length && /[a-zA-Z0-9_.]/.test(expr[i])) {
+                id += expr[i];
+                i++;
+            }
+            // Handle boolean literals
+            if (id === 'true') {
+                tokens.push({ type: 'boolean', value: true });
+            } else if (id === 'false') {
+                tokens.push({ type: 'boolean', value: false });
+            } else if (id === 'null' || id === 'undefined') {
+                tokens.push({ type: 'null', value: null });
+            } else {
+                tokens.push({ type: 'identifier', value: id });
+            }
+            continue;
+        }
+
+        // Unknown character, skip
+        i++;
+    }
+
+    return tokens;
+}
+
+/**
+ * Evaluate tokens safely
+ */
+function evaluateTokens(tokens, doc) {
+    // Simple recursive descent parser for: expr -> comparison ((&&, ||) comparison)*
+    let pos = 0;
+
+    function getValue(token) {
+        if (!token) return null;
+        switch (token.type) {
+            case 'string':
+            case 'number':
+            case 'boolean':
+                return token.value;
+            case 'null':
+                return null;
+            case 'identifier': {
+                const path = token.value.replace(/^doc\./, '');
+                // Safely access nested properties
+                const parts = path.split('.');
+                let value = doc;
+                for (const part of parts) {
+                    if (value == null) return null;
+                    // Prevent prototype pollution
+                    if (part === '__proto__' || part === 'constructor' || part === 'prototype') {
+                        return null;
+                    }
+                    value = value[part];
+                }
+                return value;
+            }
+            default:
+                return null;
         }
     }
 
-    // Simple field reference: depends_on: "fieldname"
-    return !!doc[expression];
+    function parseComparison() {
+        // Handle NOT operator
+        if (tokens[pos] && tokens[pos].type === 'operator' && tokens[pos].value === '!') {
+            pos++;
+            return !parseComparison();
+        }
+
+        // Handle parentheses
+        if (tokens[pos] && tokens[pos].type === 'operator' && tokens[pos].value === '(') {
+            pos++;
+            const result = parseOr();
+            if (tokens[pos] && tokens[pos].value === ')') pos++;
+            return result;
+        }
+
+        const left = getValue(tokens[pos]);
+        pos++;
+
+        if (!tokens[pos] || tokens[pos].type !== 'operator') {
+            return !!left;
+        }
+
+        const op = tokens[pos].value;
+        if (!['==', '===', '!=', '!==', '>', '<', '>=', '<='].includes(op)) {
+            return !!left;
+        }
+
+        pos++;
+        const right = getValue(tokens[pos]);
+        pos++;
+
+        switch (op) {
+            case '==':
+            case '===':
+                return left === right;
+            case '!=':
+            case '!==':
+                return left !== right;
+            case '>':
+                return left > right;
+            case '<':
+                return left < right;
+            case '>=':
+                return left >= right;
+            case '<=':
+                return left <= right;
+            default:
+                return false;
+        }
+    }
+
+    function parseAnd() {
+        let result = parseComparison();
+        while (tokens[pos] && tokens[pos].value === '&&') {
+            pos++;
+            result = result && parseComparison();
+        }
+        return result;
+    }
+
+    function parseOr() {
+        let result = parseAnd();
+        while (tokens[pos] && tokens[pos].value === '||') {
+            pos++;
+            result = result || parseAnd();
+        }
+        return result;
+    }
+
+    return parseOr();
 }
 
 // Create singleton instance

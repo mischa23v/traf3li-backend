@@ -1135,30 +1135,133 @@ class CaseNotionService {
 
   /**
    * Evaluate formula for a row
-   * @param {string} formula - Formula string
+   * Uses safe math expression parser - NO eval/new Function
+   * @param {string} formula - Formula string (e.g., "{{quantity}} * {{price}}")
    * @param {Object} rowData - Row data
    * @returns {*} Evaluated result
    */
   static evaluateFormula(formula, rowData) {
     try {
-      // Simple formula evaluator
-      // Replace field references with values
+      // Replace field references with numeric values
       let evaluableFormula = formula;
 
-      // Match {{fieldName}} patterns
+      // Match {{fieldName}} patterns and replace with values
       const fieldMatches = formula.matchAll(/\{\{(\w+)\}\}/g);
       for (const match of fieldMatches) {
         const fieldName = match[1];
-        const value = rowData[fieldName] || 0;
-        evaluableFormula = evaluableFormula.replace(match[0], value);
+        // Prevent prototype pollution
+        if (fieldName === '__proto__' || fieldName === 'constructor' || fieldName === 'prototype') {
+          return null;
+        }
+        const value = Number(rowData[fieldName]) || 0;
+        evaluableFormula = evaluableFormula.replace(match[0], String(value));
       }
 
-      // Evaluate using Function (safer than eval)
-      // eslint-disable-next-line no-new-func
-      const result = new Function(`return ${evaluableFormula}`)();
-      return result;
+      // Use safe math expression evaluator
+      return this.safeMathEvaluate(evaluableFormula);
     } catch (error) {
       logger.error('Error in evaluateFormula:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Safe math expression evaluator using recursive descent parser
+   * Supports: +, -, *, /, %, parentheses, numbers (including decimals and negatives)
+   * NO dynamic code execution
+   * @param {string} expr - Math expression string
+   * @returns {number|null} Result or null on error
+   */
+  static safeMathEvaluate(expr) {
+    // Remove all whitespace
+    expr = expr.replace(/\s+/g, '');
+
+    // Validate that expression only contains allowed characters
+    if (!/^[\d+\-*/%().]+$/.test(expr)) {
+      logger.warn('Invalid characters in math expression', { expr });
+      return null;
+    }
+
+    let pos = 0;
+
+    const parseNumber = () => {
+      let numStr = '';
+      // Handle negative numbers
+      if (expr[pos] === '-') {
+        numStr += '-';
+        pos++;
+      }
+      // Parse digits and decimal point
+      while (pos < expr.length && /[\d.]/.test(expr[pos])) {
+        numStr += expr[pos];
+        pos++;
+      }
+      if (numStr === '' || numStr === '-') {
+        throw new Error('Expected number');
+      }
+      return parseFloat(numStr);
+    };
+
+    const parseFactor = () => {
+      if (expr[pos] === '(') {
+        pos++; // skip '('
+        const result = parseExpression();
+        if (expr[pos] === ')') {
+          pos++; // skip ')'
+        }
+        return result;
+      }
+      return parseNumber();
+    };
+
+    const parseTerm = () => {
+      let result = parseFactor();
+      while (pos < expr.length && (expr[pos] === '*' || expr[pos] === '/' || expr[pos] === '%')) {
+        const op = expr[pos];
+        pos++;
+        const right = parseFactor();
+        if (op === '*') {
+          result *= right;
+        } else if (op === '/') {
+          if (right === 0) {
+            throw new Error('Division by zero');
+          }
+          result /= right;
+        } else if (op === '%') {
+          if (right === 0) {
+            throw new Error('Modulo by zero');
+          }
+          result %= right;
+        }
+      }
+      return result;
+    };
+
+    const parseExpression = () => {
+      let result = parseTerm();
+      while (pos < expr.length && (expr[pos] === '+' || expr[pos] === '-')) {
+        const op = expr[pos];
+        pos++;
+        const right = parseTerm();
+        if (op === '+') {
+          result += right;
+        } else {
+          result -= right;
+        }
+      }
+      return result;
+    };
+
+    try {
+      const result = parseExpression();
+      // Check for trailing characters (invalid expression)
+      if (pos < expr.length) {
+        logger.warn('Unexpected characters at end of expression', { expr, pos });
+        return null;
+      }
+      return isNaN(result) ? null : result;
+    } catch (error) {
+      logger.warn('Error parsing math expression', { expr, error: error.message });
       return null;
     }
   }

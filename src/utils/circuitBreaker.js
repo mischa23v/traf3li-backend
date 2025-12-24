@@ -23,8 +23,38 @@ const DEFAULT_OPTIONS = {
   rollingCountBuckets: 10,           // Number of buckets for rolling window
 };
 
-// Store for circuit breaker instances
+// Store for circuit breaker instances with access tracking
 const breakers = new Map();
+const breakerLastAccess = new Map();
+const MAX_BREAKERS = 100; // Maximum number of circuit breakers to prevent unbounded growth
+const BREAKER_IDLE_TTL = 60 * 60 * 1000; // 1 hour - remove idle breakers after this time
+const CLEANUP_INTERVAL = 10 * 60 * 1000; // 10 minutes
+
+// Periodic cleanup of idle circuit breakers to prevent memory leak
+const breakerCleanupInterval = setInterval(() => {
+  const now = Date.now();
+  let cleanedCount = 0;
+
+  breakerLastAccess.forEach((lastAccess, name) => {
+    if (now - lastAccess > BREAKER_IDLE_TTL) {
+      const breaker = breakers.get(name);
+      if (breaker) {
+        breaker.shutdown(); // Clean up the circuit breaker
+        breakers.delete(name);
+        breakerLastAccess.delete(name);
+        cleanedCount++;
+        logger.debug(`[CircuitBreaker] ${name}: Removed due to inactivity`);
+      }
+    }
+  });
+
+  if (cleanedCount > 0) {
+    logger.info(`[CircuitBreaker] Cleanup: Removed ${cleanedCount} idle breakers, ${breakers.size} remaining`);
+  }
+}, CLEANUP_INTERVAL);
+
+// Ensure cleanup interval doesn't prevent process exit
+breakerCleanupInterval.unref();
 
 /**
  * Create or get a circuit breaker for a service
@@ -34,8 +64,34 @@ const breakers = new Map();
  * @returns {CircuitBreaker} - The circuit breaker instance
  */
 function createBreaker(name, fn, options = {}) {
+  // Update last access time
+  breakerLastAccess.set(name, Date.now());
+
   if (breakers.has(name)) {
     return breakers.get(name);
+  }
+
+  // Check if we're at capacity and need to remove old breakers
+  if (breakers.size >= MAX_BREAKERS) {
+    let oldestName = null;
+    let oldestTime = Infinity;
+
+    breakerLastAccess.forEach((lastAccess, breakerName) => {
+      if (lastAccess < oldestTime) {
+        oldestTime = lastAccess;
+        oldestName = breakerName;
+      }
+    });
+
+    if (oldestName) {
+      const oldBreaker = breakers.get(oldestName);
+      if (oldBreaker) {
+        oldBreaker.shutdown();
+      }
+      breakers.delete(oldestName);
+      breakerLastAccess.delete(oldestName);
+      logger.warn(`[CircuitBreaker] Removed oldest breaker '${oldestName}' to make room for '${name}'`);
+    }
   }
 
   const breakerOptions = {

@@ -2,6 +2,7 @@ const { Server } = require('socket.io');
 const logger = require('../utils/logger');
 
 let io;
+let cleanupInterval = null;
 
 // Allowed origins for Socket.io (matching Express CORS)
 const allowedOrigins = [
@@ -16,6 +17,47 @@ const allowedOrigins = [
   process.env.CLIENT_URL,
   process.env.DASHBOARD_URL
 ].filter(Boolean);
+
+/**
+ * Initialize Redis adapter for Socket.io horizontal scaling
+ * This allows multiple server instances to share Socket.io state
+ */
+const initRedisAdapter = async (ioInstance) => {
+  // Only use Redis adapter in production or if explicitly enabled
+  if (process.env.SOCKET_REDIS_ENABLED !== 'true' && process.env.NODE_ENV !== 'production') {
+    logger.info('📡 Socket.io running in single-instance mode (no Redis adapter)');
+    return;
+  }
+
+  try {
+    const { createAdapter } = require('@socket.io/redis-adapter');
+    const { createClient } = require('redis');
+
+    const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
+
+    const pubClient = createClient({ url: redisUrl });
+    const subClient = pubClient.duplicate();
+
+    // Add error handlers
+    pubClient.on('error', (err) => {
+      logger.error('Socket.io Redis pub client error:', err.message);
+    });
+    subClient.on('error', (err) => {
+      logger.error('Socket.io Redis sub client error:', err.message);
+    });
+
+    await Promise.all([pubClient.connect(), subClient.connect()]);
+
+    ioInstance.adapter(createAdapter(pubClient, subClient));
+    logger.info('✅ Socket.io Redis adapter initialized for horizontal scaling');
+
+    // Store clients for cleanup
+    ioInstance._redisClients = { pubClient, subClient };
+  } catch (error) {
+    logger.warn('⚠️ Failed to initialize Socket.io Redis adapter, falling back to in-memory:', error.message);
+    logger.info('📡 Socket.io running in single-instance mode');
+  }
+};
 
 const initSocket = (server) => {
   io = new Server(server, {
@@ -45,7 +87,17 @@ const initSocket = (server) => {
       },
       credentials: true,
       methods: ['GET', 'POST']
+    },
+    // Connection state recovery for reliability
+    connectionStateRecovery: {
+      maxDisconnectionDuration: 2 * 60 * 1000, // 2 minutes
+      skipMiddlewares: true
     }
+  });
+
+  // Initialize Redis adapter asynchronously
+  initRedisAdapter(io).catch(err => {
+    logger.error('Redis adapter initialization failed:', err.message);
   });
 
   // Store online users
@@ -376,14 +428,15 @@ const initSocket = (server) => {
   });
 
   // Periodic cleanup of stale data (every 5 minutes)
-  setInterval(() => {
+  // Store interval reference for cleanup on shutdown
+  cleanupInterval = setInterval(() => {
     const now = Date.now();
     const staleThreshold = 30 * 60 * 1000; // 30 minutes
 
     // Clean up stale presence data
-    userPresence.forEach((data, oderId) => {
+    userPresence.forEach((data, userId) => {
       if (now - data.timestamp > staleThreshold) {
-        userPresence.delete(oderId);
+        userPresence.delete(userId);
       }
     });
 
@@ -392,6 +445,12 @@ const initSocket = (server) => {
       if (users.size === 0) {
         activeRooms.delete(roomId);
       }
+    });
+
+    logger.debug('Socket.io cleanup completed', {
+      presenceCount: userPresence.size,
+      activeRoomsCount: activeRooms.size,
+      onlineUsersCount: onlineUsers.size
     });
   }, 5 * 60 * 1000);
 
@@ -426,9 +485,51 @@ const emitNotificationCount = (userId, count) => {
   io.to(`user:${userId}`).emit('notification:count', { count });
 };
 
-module.exports = { 
-  initSocket, 
+/**
+ * Gracefully shutdown Socket.io
+ * Cleans up intervals, closes connections, and disconnects Redis adapter
+ */
+const shutdownSocket = async () => {
+  logger.info('🔌 Shutting down Socket.io...');
+
+  // Clear cleanup interval
+  if (cleanupInterval) {
+    clearInterval(cleanupInterval);
+    cleanupInterval = null;
+    logger.info('✅ Socket.io cleanup interval cleared');
+  }
+
+  if (io) {
+    // Close Redis adapter connections if they exist
+    if (io._redisClients) {
+      const { pubClient, subClient } = io._redisClients;
+      try {
+        await Promise.all([
+          pubClient.quit(),
+          subClient.quit()
+        ]);
+        logger.info('✅ Socket.io Redis adapter connections closed');
+      } catch (error) {
+        logger.warn('⚠️ Error closing Redis adapter connections:', error.message);
+      }
+    }
+
+    // Disconnect all sockets
+    const sockets = await io.fetchSockets();
+    for (const socket of sockets) {
+      socket.disconnect(true);
+    }
+
+    // Close the server
+    io.close();
+    logger.info('✅ Socket.io server closed');
+  }
+};
+
+module.exports = {
+  initSocket,
   getIO,
   emitNotification,
-  emitNotificationCount 
+  emitNotificationCount,
+  shutdownSocket
 };

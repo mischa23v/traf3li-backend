@@ -33,6 +33,49 @@ if (process.env.STRIPE_SECRET_KEY) {
 }
 
 // ═══════════════════════════════════════════════════════════════
+// WEBHOOK IDEMPOTENCY
+// ═══════════════════════════════════════════════════════════════
+// Track processed webhook events to prevent duplicate processing
+// In production, this should use Redis or a database for persistence
+const processedWebhookEvents = new Map();
+const WEBHOOK_EVENT_TTL = 24 * 60 * 60 * 1000; // 24 hours
+const MAX_PROCESSED_EVENTS = 10000;
+
+// Cleanup old processed events periodically
+const webhookCleanupInterval = setInterval(() => {
+    const now = Date.now();
+    let cleanedCount = 0;
+
+    processedWebhookEvents.forEach((timestamp, eventId) => {
+        if (now - timestamp > WEBHOOK_EVENT_TTL) {
+            processedWebhookEvents.delete(eventId);
+            cleanedCount++;
+        }
+    });
+
+    // Emergency cleanup if map is too large
+    if (processedWebhookEvents.size > MAX_PROCESSED_EVENTS) {
+        const entriesToRemove = processedWebhookEvents.size - MAX_PROCESSED_EVENTS;
+        let removed = 0;
+        for (const key of processedWebhookEvents.keys()) {
+            if (removed >= entriesToRemove) break;
+            processedWebhookEvents.delete(key);
+            removed++;
+        }
+        logger.warn('Webhook idempotency cache emergency cleanup', { removed });
+    }
+
+    if (cleanedCount > 0) {
+        logger.debug('Webhook idempotency cache cleanup', {
+            cleanedCount,
+            currentSize: processedWebhookEvents.size
+        });
+    }
+}, 60 * 60 * 1000); // Every hour
+
+webhookCleanupInterval.unref();
+
+// ═══════════════════════════════════════════════════════════════
 // HELPER FUNCTIONS
 // ═══════════════════════════════════════════════════════════════
 
@@ -692,17 +735,35 @@ class StripeService {
     }
 
     /**
-     * Handle webhook event
+     * Handle webhook event with idempotency check
      * @param {Object} event - Stripe event object
      * @returns {Promise<Object>} - Handling result
      */
     async handleWebhookEvent(event) {
         const eventType = event.type;
+        const eventId = event.id;
         const eventData = event.data.object;
+
+        // Idempotency check - prevent duplicate processing
+        if (processedWebhookEvents.has(eventId)) {
+            logger.info('Webhook event already processed (idempotency check)', {
+                eventType,
+                eventId
+            });
+            return {
+                handled: true,
+                duplicate: true,
+                eventType,
+                eventId
+            };
+        }
+
+        // Mark event as being processed
+        processedWebhookEvents.set(eventId, Date.now());
 
         logger.info('Processing webhook event', {
             eventType,
-            eventId: event.id
+            eventId
         });
 
         switch (eventType) {

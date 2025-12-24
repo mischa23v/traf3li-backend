@@ -51,6 +51,7 @@ services:
   # ============================================
   # APPLICATION (DEVELOPMENT - HOT RELOAD)
   # ============================================
+  # SECURITY NOTE: Secrets are loaded from .env file. Never commit hardcoded secrets.
   app-dev:
     build:
       context: .
@@ -64,9 +65,10 @@ services:
       - PORT=3000
       - MONGODB_URI=mongodb://mongo:27017/traf3li
       - REDIS_URL=redis://redis:6379
-      - JWT_SECRET=${JWT_SECRET:-dev_jwt_secret_change_in_production}
-      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET:-dev_refresh_secret_change_in_production}
-      - ENCRYPTION_KEY=${ENCRYPTION_KEY:-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef}
+      # SECURITY: These MUST be set in .env file - no defaults provided
+      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET must be set in .env}
+      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET:?JWT_REFRESH_SECRET must be set in .env}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY:?ENCRYPTION_KEY must be set in .env}
       - ENCRYPTION_ALGORITHM=aes-256-gcm
       - SMTP_HOST=mailhog
       - SMTP_PORT=1025
@@ -92,15 +94,20 @@ services:
   # ============================================
   # MONGODB
   # ============================================
+  # SECURITY: In production, use managed MongoDB (Atlas) instead
+  # Port is only exposed to Docker network by default
   mongo:
     image: mongo:7.0
     container_name: traf3li-mongo
     restart: unless-stopped
+    # SECURITY: Only expose port in development via profile
+    # Use 'docker compose --profile dev-expose up' to access from host
     ports:
-      - "27017:27017"
+      - "${MONGO_EXPOSE_PORT:-127.0.0.1:27017}:27017"
     environment:
-      - MONGO_INITDB_ROOT_USERNAME=${MONGO_ROOT_USER:-admin}
-      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_ROOT_PASSWORD:-changeme}
+      # SECURITY: These MUST be set in .env file
+      - MONGO_INITDB_ROOT_USERNAME=${MONGO_ROOT_USER:?MONGO_ROOT_USER must be set}
+      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_ROOT_PASSWORD:?MONGO_ROOT_PASSWORD must be set}
       - MONGO_INITDB_DATABASE=traf3li
     volumes:
       - mongo-data:/data/db
@@ -117,13 +124,16 @@ services:
   # ============================================
   # REDIS (Rate Limiting & Caching)
   # ============================================
+  # SECURITY: In production, use managed Redis or ensure password is set
   redis:
     image: redis:7-alpine
     container_name: traf3li-redis
     restart: unless-stopped
+    # SECURITY: Bind to localhost only, not 0.0.0.0
     ports:
-      - "6379:6379"
-    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-}
+      - "${REDIS_EXPOSE_PORT:-127.0.0.1:6379}:6379"
+    # SECURITY: Always require password authentication
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:?REDIS_PASSWORD must be set}
     volumes:
       - redis-data:/data
     networks:

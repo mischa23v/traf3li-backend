@@ -8,6 +8,7 @@ const express = require('express');
 const router = express.Router();
 const kycController = require('../controllers/kyc.controller');
 const authenticate = require('../middlewares/authenticate');
+const { requireAdmin, logAdminAction } = require('../middlewares/adminAuth.middleware');
 
 // All KYC routes require authentication
 router.use(authenticate);
@@ -65,29 +66,26 @@ router.post('/webhook', kycController.handleWebhook);
 // ADMIN KYC ENDPOINTS
 // ═══════════════════════════════════════════════════════════════
 
-// Note: These endpoints should be protected with admin middleware
-// Import and use: const adminAuth = require('../middlewares/adminAuth.middleware');
-
 /**
  * @route   POST /api/kyc/review
  * @desc    Manually review and approve/reject KYC (Admin only)
  * @access  Private (Admin)
  * @body    { userId, approved, notes?, documentIndex? }
  */
-router.post('/review', kycController.reviewKYC);
+router.post('/review', requireAdmin(), logAdminAction(), kycController.reviewKYC);
 
 /**
  * @route   GET /api/kyc/admin/pending
  * @desc    Get all pending KYC verifications (Admin only)
  * @access  Private (Admin)
  */
-router.get('/admin/pending', kycController.getPendingVerifications);
+router.get('/admin/pending', requireAdmin(), logAdminAction(), kycController.getPendingVerifications);
 
 /**
  * @route   GET /api/kyc/admin/stats
  * @desc    Get KYC verification statistics (Admin only)
  * @access  Private (Admin)
  */
-router.get('/admin/stats', kycController.getKYCStats);
+router.get('/admin/stats', requireAdmin(), logAdminAction(), kycController.getKYCStats);
 
 module.exports = router;

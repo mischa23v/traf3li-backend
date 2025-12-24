@@ -67,14 +67,89 @@ jobs:
     needs: [security-check, test]
 
     steps:
-      - name: Deploy to EC2
+      - name: Deploy to EC2 with rollback capability
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: 15.185.200.21
-          username: ec2-user
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
+            set -e
+
             cd ~/traf3li-backend
+
+            # Store current commit for rollback
+            CURRENT_COMMIT=$(git rev-parse HEAD)
+            echo "Current commit: $CURRENT_COMMIT"
+
+            # Create deployment log
+            DEPLOY_LOG=~/deployments.log
+            echo "$(date '+%Y-%m-%d %H:%M:%S') - Starting deployment from $CURRENT_COMMIT" >> $DEPLOY_LOG
+
+            # Backup function
+            backup_before_deploy() {
+                echo "Creating pre-deployment backup..."
+                BACKUP_DIR=~/backups/$(date '+%Y%m%d_%H%M%S')
+                mkdir -p $BACKUP_DIR
+
+                # Backup current code state
+                git stash push -m "pre-deploy-backup" 2>/dev/null || true
+
+                # Backup PM2 process list
+                pm2 save 2>/dev/null || true
+
+                echo "Backup created at $BACKUP_DIR"
+            }
+
+            # Rollback function
+            rollback() {
+                echo "Deployment failed! Rolling back to $CURRENT_COMMIT..."
+                git checkout $CURRENT_COMMIT
+                npm ci --production
+                pm2 restart traf3li-backend
+                echo "$(date '+%Y-%m-%d %H:%M:%S') - Rollback to $CURRENT_COMMIT completed" >> $DEPLOY_LOG
+            }
+
+            # Set trap for rollback on failure
+            trap rollback ERR
+
+            # Pre-deployment backup
+            backup_before_deploy
+
+            # Pull latest code
+            echo "Pulling latest code..."
+            git fetch origin main
+            git checkout main
             git pull origin main
+            NEW_COMMIT=$(git rev-parse HEAD)
+            echo "New commit: $NEW_COMMIT"
+
+            # Install dependencies
+            echo "Installing dependencies..."
             npm ci --production
-            pm2 restart traf3li-backend
+
+            # Reload application with zero-downtime
+            echo "Reloading application..."
+            pm2 reload traf3li-backend --update-env
+
+            # Health check
+            echo "Running health check..."
+            sleep 5
+            HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/health/ready || echo "000")
+            if [ "$HTTP_STATUS" != "200" ]; then
+                echo "Health check failed! Status: $HTTP_STATUS"
+                exit 1
+            fi
+
+            echo "$(date '+%Y-%m-%d %H:%M:%S') - Deployment successful: $CURRENT_COMMIT -> $NEW_COMMIT" >> $DEPLOY_LOG
+            echo "Deployment completed successfully!"
+
+      - name: Notify on failure
+        if: failure()
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            echo "$(date '+%Y-%m-%d %H:%M:%S') - DEPLOYMENT FAILED" >> ~/deployments.log
