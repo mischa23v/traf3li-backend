@@ -1717,7 +1717,6 @@ const getStats = asyncHandler(async (req, res) => {
         }
     ]);
 
-    const isSoloLawyer = req.isSoloLawyer;
     const overdueMatchFilter = {};
     if (isSoloLawyer || !firmId) {
         overdueMatchFilter.lawyerId = new mongoose.Types.ObjectId(lawyerId);
