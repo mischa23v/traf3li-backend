@@ -104,10 +104,21 @@ const getCookieDomain = (request) => {
     return undefined;
 };
 
-// Helper to get cookie config based on request context
-// Uses more permissive settings for same-origin proxy requests
-const getCookieConfig = (request) => {
+// ═══════════════════════════════════════════════════════════════
+// COOKIE EXPIRY CONSTANTS - Must match JWT expiry times
+// ═══════════════════════════════════════════════════════════════
+const ACCESS_TOKEN_COOKIE_MAX_AGE = 15 * 60 * 1000; // 15 minutes (matches JWT)
+const REFRESH_TOKEN_COOKIE_MAX_AGE = 7 * 24 * 60 * 60 * 1000; // 7 days (matches JWT)
+
+/**
+ * Helper to get cookie config based on request context
+ * Uses more permissive settings for same-origin proxy requests
+ * @param {Object} request - Express request object
+ * @param {string} tokenType - 'access' or 'refresh' to set appropriate maxAge
+ */
+const getCookieConfig = (request, tokenType = 'access') => {
     const isSameOrigin = isSameOriginProxy(request);
+    const maxAge = tokenType === 'refresh' ? REFRESH_TOKEN_COOKIE_MAX_AGE : ACCESS_TOKEN_COOKIE_MAX_AGE;
 
     if (isSameOrigin) {
         // Same-origin via proxy: use Lax (more compatible with browser privacy)
@@ -115,7 +126,7 @@ const getCookieConfig = (request) => {
             httpOnly: true,
             sameSite: 'lax',
             secure: isProductionEnv,
-            maxAge: 60 * 60 * 24 * 7 * 1000, // 7 days
+            maxAge,
             path: '/'
             // No domain - let browser scope to exact origin
             // No partitioned - not needed for same-origin
@@ -130,7 +141,7 @@ const getCookieConfig = (request) => {
         httpOnly: true,
         sameSite: isProductionEnv ? 'none' : 'lax', // 'lax' works better for localhost
         secure: isProductionEnv, // false for localhost (HTTP), true for production (HTTPS)
-        maxAge: 60 * 60 * 24 * 7 * 1000, // 7 days
+        maxAge,
         path: '/',
         domain: cookieDomain,
         partitioned: isProductionEnv // CHIPS only needed in production
@@ -910,14 +921,11 @@ const authLogin = async (request, response) => {
                 }
             );
 
-            // Set refresh token cookie config (longer expiry)
-            const refreshCookieConfig = {
-                ...cookieConfig,
-                maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
-            };
+            // Get refresh token cookie config with proper expiry
+            const refreshCookieConfig = getCookieConfig(request, 'refresh');
 
             return response
-                .cookie('accessToken', accessToken, cookieConfig)
+                .cookie('accessToken', accessToken, getCookieConfig(request, 'access'))
                 .cookie('refreshToken', refreshToken, refreshCookieConfig)
                 .status(202).send({
                     error: false,
@@ -1771,14 +1779,9 @@ const refreshAccessToken = async (request, response) => {
         // Refresh the access token (with rotation)
         const result = await refreshTokenService.refreshAccessToken(refreshToken);
 
-        // Get cookie config
-        const cookieConfig = getCookieConfig(request);
-
-        // Set refresh token cookie config (longer expiry)
-        const refreshCookieConfig = {
-            ...cookieConfig,
-            maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
-        };
+        // Get cookie configs for access and refresh tokens (with proper expiry)
+        const accessCookieConfig = getCookieConfig(request, 'access');
+        const refreshCookieConfig = getCookieConfig(request, 'refresh');
 
         // Log successful refresh
         await auditLogService.log(
@@ -1797,7 +1800,7 @@ const refreshAccessToken = async (request, response) => {
 
         // Return new tokens
         return response
-            .cookie('accessToken', result.accessToken, cookieConfig)
+            .cookie('accessToken', result.accessToken, accessCookieConfig)
             .cookie('refreshToken', result.refreshToken, refreshCookieConfig)
             .status(200).json({
                 error: false,
