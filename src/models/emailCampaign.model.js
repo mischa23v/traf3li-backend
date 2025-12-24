@@ -132,6 +132,8 @@ emailCampaignSchema.index({ firmId: 1, status: 1 });
 emailCampaignSchema.index({ firmId: 1, scheduledAt: 1 });
 emailCampaignSchema.index({ firmId: 1, type: 1 });
 emailCampaignSchema.index({ createdBy: 1, createdAt: -1 });
+// Compound index for scheduled campaign queries (fixes 551ms slow query)
+emailCampaignSchema.index({ status: 1, scheduledAt: 1 });
 
 // Calculate rates before saving
 emailCampaignSchema.pre('save', function(next) {

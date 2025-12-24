@@ -96,6 +96,8 @@ emailSubscriberSchema.index({ firmId: 1, email: 1 }, { unique: true });
 emailSubscriberSchema.index({ firmId: 1, status: 1 });
 emailSubscriberSchema.index({ firmId: 1, tags: 1 });
 emailSubscriberSchema.index({ 'engagement.engagementScore': -1 });
+// Index for drip campaign status queries (fixes 548-625ms slow query)
+emailSubscriberSchema.index({ 'dripCampaigns.status': 1 });
 
 // Virtual for display name
 emailSubscriberSchema.virtual('displayName').get(function() {
