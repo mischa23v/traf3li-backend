@@ -10,12 +10,13 @@
 const express = require('express');
 const router = express.Router();
 const lifecycleController = require('../controllers/lifecycle.controller');
-const { authenticate } = require('../middlewares');
+const { userMiddleware, firmFilter } = require('../middlewares');
 const { authorize } = require('../middlewares/authorize.middleware');
 
 // ============ APPLY MIDDLEWARE ============
-// All lifecycle routes require authentication
-router.use(authenticate);
+// All lifecycle routes require authentication and firm filtering
+router.use(userMiddleware);
+router.use(firmFilter);
 
 // ============================================
 // WORKFLOW MANAGEMENT

@@ -940,6 +940,18 @@ async function getTotalApproversCount(levelConfig, instance) {
 }
 
 // ═══════════════════════════════════════════════════════════════
+// FIRM ISOLATION PLUGIN (RLS-like enforcement)
+// ═══════════════════════════════════════════════════════════════
+const firmIsolationPlugin = require('./plugins/firmIsolation.plugin');
+
+/**
+ * Apply Row-Level Security (RLS) plugin to enforce firm-level data isolation.
+ * This ensures all queries automatically filter by firmId from the request context.
+ */
+approvalWorkflowSchema.plugin(firmIsolationPlugin);
+approvalInstanceSchema.plugin(firmIsolationPlugin);
+
+// ═══════════════════════════════════════════════════════════════
 // EXPORT MODELS
 // ═══════════════════════════════════════════════════════════════
 

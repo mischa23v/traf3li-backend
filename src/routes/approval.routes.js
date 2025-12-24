@@ -1,18 +1,19 @@
 /**
  * Approval Routes - Workflow and Approval Management API
  *
- * All routes require authentication.
+ * All routes require authentication and firm filtering.
  * Workflow management routes require admin or owner authorization.
  */
 
 const express = require('express');
 const router = express.Router();
 const approvalController = require('../controllers/approval.controller');
-const authenticate = require('../middlewares/authenticate');
+const { userMiddleware, firmFilter } = require('../middlewares');
 const { authorize } = require('../middlewares/authorize.middleware');
 
-// Apply authentication to all routes
-router.use(authenticate);
+// Apply authentication and firm filtering to all routes
+router.use(userMiddleware);
+router.use(firmFilter);
 
 // ═══════════════════════════════════════════════════════════════
 // WORKFLOW MANAGEMENT ROUTES

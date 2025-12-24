@@ -1,10 +1,11 @@
 const express = require('express');
 const router = express.Router();
 const dealHealthController = require('../controllers/dealHealth.controller');
-const authenticate = require('../middlewares/authenticate');
+const { userMiddleware, firmFilter } = require('../middlewares');
 
-// Apply authentication to all routes
-router.use(authenticate);
+// Apply authentication and firm filtering to all routes
+router.use(userMiddleware);
+router.use(firmFilter);
 
 // ============================================
 // DEAL HEALTH ROUTES

@@ -623,6 +623,18 @@ fieldDependencySchema.methods.getDeleteBlockerMessage = function() {
 };
 
 // ═══════════════════════════════════════════════════════════════
+// FIRM ISOLATION PLUGIN (RLS-like enforcement)
+// ═══════════════════════════════════════════════════════════════
+const firmIsolationPlugin = require('./plugins/firmIsolation.plugin');
+
+/**
+ * Apply Row-Level Security (RLS) plugin to enforce firm-level data isolation.
+ * This ensures all queries automatically filter by firmId from the request context.
+ */
+formulaFieldSchema.plugin(firmIsolationPlugin);
+fieldDependencySchema.plugin(firmIsolationPlugin);
+
+// ═══════════════════════════════════════════════════════════════
 // MODELS
 // ═══════════════════════════════════════════════════════════════
 
