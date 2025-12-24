@@ -3,6 +3,9 @@ const { CustomException, apiResponse } = require('../utils');
 const { pickAllowedFields, sanitizeObjectId, sanitizeEmail } = require('../utils/securityUtils');
 const bcrypt = require('bcrypt');
 const logger = require('../utils/logger');
+const tokenRevocationService = require('../services/tokenRevocation.service');
+const RefreshToken = require('../models/refreshToken.model');
+const Session = require('../models/session.model');
 
 // Get user profile by ID (public)
 // UPDATED: Now uses standardized API response format
@@ -381,6 +384,42 @@ const deleteUser = async (request, response) => {
             throw CustomException('You can only delete your own account!', 403);
         }
 
+        // Get user before deletion for token revocation
+        const userToDelete = await User.findById(sanitizedId);
+        if (!userToDelete) {
+            throw CustomException('User not found', 404);
+        }
+
+        // ════════════════════════════════════════════════════════════════
+        // CRITICAL SECURITY: Revoke all tokens before account deletion
+        // This prevents any stolen tokens from being used after deletion
+        // ════════════════════════════════════════════════════════════════
+        try {
+            // 1. Revoke all tokens in token blacklist (Redis + MongoDB)
+            await tokenRevocationService.revokeAllUserTokens(sanitizedId, 'account_deleted', {
+                userEmail: userToDelete.email,
+                firmId: userToDelete.firmId,
+                revokedBy: sanitizedId,
+                ipAddress: request.ip,
+                userAgent: request.headers['user-agent']
+            });
+
+            // 2. Delete all refresh tokens for this user
+            await RefreshToken.deleteMany({ userId: sanitizedId });
+
+            // 3. Delete all sessions for this user
+            await Session.deleteMany({ userId: sanitizedId });
+
+            logger.info('All tokens and sessions revoked before account deletion', { userId: sanitizedId });
+        } catch (revokeError) {
+            // Log error but continue with deletion
+            logger.error('Failed to revoke tokens before account deletion:', {
+                userId: sanitizedId,
+                error: revokeError.message
+            });
+        }
+
+        // Now delete the user
         const deletedUser = await User.findByIdAndDelete(sanitizedId);
 
         if (!deletedUser) {

@@ -29,6 +29,7 @@ exports.getAll = async (req, res) => {
         }
 
         const firmId = req.firmId;
+        const lawyerId = req.userID;
         const {
             enabled,
             parentId,
@@ -39,7 +40,13 @@ exports.getAll = async (req, res) => {
             limit = 50
         } = req.query;
 
-        const query = { firmId };
+        const isSoloLawyer = req.isSoloLawyer;
+        const query = {};
+        if (isSoloLawyer || !firmId) {
+            query.lawyerId = lawyerId;
+        } else {
+            query.firmId = firmId;
+        }
 
         if (enabled !== undefined) {
             query.enabled = enabled === 'true';

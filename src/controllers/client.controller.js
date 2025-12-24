@@ -237,9 +237,15 @@ const getClients = asyncHandler(async (req, res) => {
 
     const lawyerId = req.userID;
     const firmId = req.firmId; // From firmFilter middleware
+    const isSoloLawyer = req.isSoloLawyer;
 
-    // Build query: use firmId if available, otherwise fall back to lawyerId
-    const query = firmId ? { firmId } : { lawyerId };
+    // Build query based on user type
+    const query = {};
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
 
     if (status) query.status = status;
     if (clientType) query.clientType = clientType;
@@ -299,6 +305,7 @@ const getClient = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const lawyerId = req.userID;
     const firmId = req.firmId; // From firmFilter middleware
+    const isSoloLawyer = req.isSoloLawyer;
 
     const client = await Client.findById(id)
         .populate('assignments.responsibleLawyerId', 'firstName lastName email')
@@ -323,7 +330,12 @@ const getClient = asyncHandler(async (req, res) => {
     }
 
     // Build filter for related data queries
-    const dataFilter = firmId ? { firmId } : { lawyerId };
+    const dataFilter = {};
+    if (isSoloLawyer || !firmId) {
+        dataFilter.lawyerId = lawyerId;
+    } else {
+        dataFilter.firmId = firmId;
+    }
 
     // Get related data
     const [cases, invoices, payments] = await Promise.all([
@@ -345,9 +357,12 @@ const getClient = asyncHandler(async (req, res) => {
     ]);
 
     // Build aggregation match filter
-    const aggFilter = firmId
-        ? { clientId: new mongoose.Types.ObjectId(id), firmId: new mongoose.Types.ObjectId(firmId) }
-        : { clientId: new mongoose.Types.ObjectId(id), lawyerId: new mongoose.Types.ObjectId(lawyerId) };
+    const aggFilter = { clientId: new mongoose.Types.ObjectId(id) };
+    if (isSoloLawyer || !firmId) {
+        aggFilter.lawyerId = new mongoose.Types.ObjectId(lawyerId);
+    } else {
+        aggFilter.firmId = new mongoose.Types.ObjectId(firmId);
+    }
 
     // Calculate totals
     const [totalInvoiced, totalPaid, outstandingBalance] = await Promise.all([
@@ -456,6 +471,7 @@ const getClientCases = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const lawyerId = req.userID;
     const firmId = req.firmId;
+    const isSoloLawyer = req.isSoloLawyer;
 
     const client = await Client.findById(id).lean();
     if (!client) {
@@ -471,7 +487,12 @@ const getClientCases = asyncHandler(async (req, res) => {
         throw CustomException('لا يمكنك الوصول إلى هذا العميل', 403);
     }
 
-    const dataFilter = firmId ? { firmId } : { lawyerId };
+    const dataFilter = {};
+    if (isSoloLawyer || !firmId) {
+        dataFilter.lawyerId = lawyerId;
+    } else {
+        dataFilter.firmId = firmId;
+    }
     const cases = await Case.find({ clientId: id, ...dataFilter })
         .populate('responsibleAttorneyId', 'firstName lastName')
         .sort({ createdAt: -1 })
@@ -500,6 +521,7 @@ const getClientInvoices = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const lawyerId = req.userID;
     const firmId = req.firmId;
+    const isSoloLawyer = req.isSoloLawyer;
 
     const client = await Client.findById(id).lean();
     if (!client) {
@@ -515,7 +537,12 @@ const getClientInvoices = asyncHandler(async (req, res) => {
         throw CustomException('لا يمكنك الوصول إلى هذا العميل', 403);
     }
 
-    const dataFilter = firmId ? { firmId } : { lawyerId };
+    const dataFilter = {};
+    if (isSoloLawyer || !firmId) {
+        dataFilter.lawyerId = lawyerId;
+    } else {
+        dataFilter.firmId = firmId;
+    }
     const invoices = await Invoice.find({ clientId: id, ...dataFilter })
         .select('invoiceNumber issueDate dueDate totalAmount amountPaid balanceDue status')
         .sort({ issueDate: -1 })
@@ -544,6 +571,7 @@ const getClientPayments = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const lawyerId = req.userID;
     const firmId = req.firmId;
+    const isSoloLawyer = req.isSoloLawyer;
 
     const client = await Client.findById(id).lean();
     if (!client) {
@@ -559,7 +587,12 @@ const getClientPayments = asyncHandler(async (req, res) => {
         throw CustomException('لا يمكنك الوصول إلى هذا العميل', 403);
     }
 
-    const dataFilter = firmId ? { firmId } : { lawyerId };
+    const dataFilter = {};
+    if (isSoloLawyer || !firmId) {
+        dataFilter.lawyerId = lawyerId;
+    } else {
+        dataFilter.firmId = firmId;
+    }
     const payments = await Payment.find({ clientId: id, ...dataFilter })
         .select('paymentNumber paymentDate amount paymentMethod status')
         .sort({ paymentDate: -1 })
@@ -700,6 +733,7 @@ const deleteClient = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const lawyerId = req.userID;
     const firmId = req.firmId;
+    const isSoloLawyer = req.isSoloLawyer;
 
     const client = await Client.findById(id);
 
@@ -717,7 +751,12 @@ const deleteClient = asyncHandler(async (req, res) => {
     }
 
     // Check if client has active cases or unpaid invoices
-    const dataFilter = firmId ? { firmId } : { lawyerId };
+    const dataFilter = {};
+    if (isSoloLawyer || !firmId) {
+        dataFilter.lawyerId = lawyerId;
+    } else {
+        dataFilter.firmId = firmId;
+    }
     const [activeCases, unpaidInvoices] = await Promise.all([
         Case.countDocuments({ clientId: id, ...dataFilter, status: { $in: ['active', 'pending'] } }),
         Invoice.countDocuments({ clientId: id, ...dataFilter, status: { $in: ['draft', 'sent', 'partial'] } })
@@ -815,11 +854,15 @@ const getClientStats = asyncHandler(async (req, res) => {
 
     const lawyerId = req.userID;
     const firmId = req.firmId;
+    const isSoloLawyer = req.isSoloLawyer;
 
-    // Build match filter based on firmId or lawyerId
-    const matchFilter = firmId
-        ? { firmId: new mongoose.Types.ObjectId(firmId) }
-        : { lawyerId: new mongoose.Types.ObjectId(lawyerId) };
+    // Build match filter based on user type
+    const matchFilter = {};
+    if (isSoloLawyer || !firmId) {
+        matchFilter.lawyerId = new mongoose.Types.ObjectId(lawyerId);
+    } else {
+        matchFilter.firmId = new mongoose.Types.ObjectId(firmId);
+    }
 
     const stats = await Client.aggregate([
         { $match: matchFilter },
@@ -860,11 +903,15 @@ const getTopClientsByRevenue = asyncHandler(async (req, res) => {
     const { limit = 10 } = req.query;
     const lawyerId = req.userID;
     const firmId = req.firmId;
+    const isSoloLawyer = req.isSoloLawyer;
 
-    // Build match filter based on firmId or lawyerId
-    const matchFilter = firmId
-        ? { firmId: new mongoose.Types.ObjectId(firmId), status: 'paid' }
-        : { lawyerId: new mongoose.Types.ObjectId(lawyerId), status: 'paid' };
+    // Build match filter based on user type
+    const matchFilter = { status: 'paid' };
+    if (isSoloLawyer || !firmId) {
+        matchFilter.lawyerId = new mongoose.Types.ObjectId(lawyerId);
+    } else {
+        matchFilter.firmId = new mongoose.Types.ObjectId(firmId);
+    }
 
     const topClients = await Invoice.aggregate([
         { $match: matchFilter },
@@ -917,13 +964,19 @@ const bulkDeleteClients = asyncHandler(async (req, res) => {
     const { clientIds } = req.body;
     const lawyerId = req.userID;
     const firmId = req.firmId;
+    const isSoloLawyer = req.isSoloLawyer;
 
     if (!clientIds || !Array.isArray(clientIds) || clientIds.length === 0) {
         throw CustomException('معرفات العملاء مطلوبة', 400);
     }
 
     // Build filter for ownership check
-    const ownerFilter = firmId ? { firmId } : { lawyerId };
+    const ownerFilter = {};
+    if (isSoloLawyer || !firmId) {
+        ownerFilter.lawyerId = lawyerId;
+    } else {
+        ownerFilter.firmId = firmId;
+    }
 
     // Verify all clients belong to firm/lawyer
     const clients = await Client.find({ _id: { $in: clientIds }, ...ownerFilter });
@@ -933,7 +986,12 @@ const bulkDeleteClients = asyncHandler(async (req, res) => {
     }
 
     // Check for active cases or unpaid invoices
-    const dataFilter = firmId ? { firmId } : { lawyerId };
+    const dataFilter = {};
+    if (isSoloLawyer || !firmId) {
+        dataFilter.lawyerId = lawyerId;
+    } else {
+        dataFilter.firmId = firmId;
+    }
     for (const client of clients) {
         const [activeCases, unpaidInvoices] = await Promise.all([
             Case.countDocuments({ clientId: client._id, ...dataFilter, status: { $in: ['active', 'pending'] } }),
@@ -1440,9 +1498,15 @@ const getClientFull = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const lawyerId = req.userID;
     const firmId = req.firmId;
+    const isSoloLawyer = req.isSoloLawyer;
 
     // Build filter for related data
-    const dataFilter = firmId ? { firmId } : { lawyerId };
+    const dataFilter = {};
+    if (isSoloLawyer || !firmId) {
+        dataFilter.lawyerId = lawyerId;
+    } else {
+        dataFilter.firmId = firmId;
+    }
 
     // First fetch client to check access before fetching related data
     const client = await Client.findById(id).lean();

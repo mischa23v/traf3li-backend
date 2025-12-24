@@ -85,7 +85,13 @@ const getAssignments = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
-    const query = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const query = {};
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
 
     // Filters
     const {
@@ -169,7 +175,13 @@ const getAssignment = asyncHandler(async (req, res) => {
     const sanitizedAssignmentId = sanitizeObjectId(assignmentId);
 
     // IDOR protection
-    const query = firmId ? { firmId, _id: sanitizedAssignmentId } : { lawyerId, _id: sanitizedAssignmentId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const query = { _id: sanitizedAssignmentId };
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
 
     const assignment = await AssetAssignment.findOne(query)
         .populate('employeeId', 'employeeId personalInfo employment')
@@ -232,9 +244,13 @@ const createAssignment = asyncHandler(async (req, res) => {
     const sanitizedEmployeeId = sanitizeObjectId(employeeId);
 
     // Validate employee exists and belongs to the same firm (IDOR protection)
-    const employeeQuery = firmId
-        ? { _id: sanitizedEmployeeId, firmId }
-        : { _id: sanitizedEmployeeId, lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const employeeQuery = { _id: sanitizedEmployeeId };
+    if (isSoloLawyer || !firmId) {
+        employeeQuery.lawyerId = lawyerId;
+    } else {
+        employeeQuery.firmId = firmId;
+    }
 
     const employee = await Employee.findOne(employeeQuery);
     if (!employee) {
@@ -361,7 +377,13 @@ const updateAssignment = asyncHandler(async (req, res) => {
     const sanitizedAssignmentId = sanitizeObjectId(assignmentId);
 
     // IDOR protection
-    const query = firmId ? { firmId, _id: sanitizedAssignmentId } : { lawyerId, _id: sanitizedAssignmentId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const query = { _id: sanitizedAssignmentId };
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
 
     const assignment = await AssetAssignment.findOne(query);
     if (!assignment) {
@@ -414,7 +436,13 @@ const deleteAssignment = asyncHandler(async (req, res) => {
     const sanitizedAssignmentId = sanitizeObjectId(assignmentId);
 
     // IDOR protection
-    const query = firmId ? { firmId, _id: sanitizedAssignmentId } : { lawyerId, _id: sanitizedAssignmentId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const query = { _id: sanitizedAssignmentId };
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
 
     const assignment = await AssetAssignment.findOne(query);
     if (!assignment) {
@@ -452,7 +480,13 @@ const acknowledgeAssignment = asyncHandler(async (req, res) => {
     const sanitizedData = pickAllowedFields(req.body, allowedFields);
 
     // IDOR protection
-    const query = firmId ? { firmId, _id: sanitizedAssignmentId } : { lawyerId, _id: sanitizedAssignmentId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const query = { _id: sanitizedAssignmentId };
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
 
     const assignment = await AssetAssignment.findOne(query);
     if (!assignment) {
@@ -502,7 +536,13 @@ const initiateReturn = asyncHandler(async (req, res) => {
     const sanitizedData = pickAllowedFields(req.body, allowedFields);
 
     // IDOR protection
-    const query = firmId ? { firmId, _id: sanitizedAssignmentId } : { lawyerId, _id: sanitizedAssignmentId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const query = { _id: sanitizedAssignmentId };
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
 
     const assignment = await AssetAssignment.findOne(query);
     if (!assignment) {
@@ -559,7 +599,13 @@ const completeReturn = asyncHandler(async (req, res) => {
     const sanitizedData = pickAllowedFields(req.body, allowedFields);
 
     // IDOR protection
-    const query = firmId ? { firmId, _id: sanitizedAssignmentId } : { lawyerId, _id: sanitizedAssignmentId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const query = { _id: sanitizedAssignmentId };
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
 
     const assignment = await AssetAssignment.findOne(query);
     if (!assignment) {
@@ -626,7 +672,13 @@ const recordMaintenance = asyncHandler(async (req, res) => {
     const sanitizedData = pickAllowedFields(req.body, allowedFields);
 
     // IDOR protection
-    const query = firmId ? { firmId, _id: sanitizedAssignmentId } : { lawyerId, _id: sanitizedAssignmentId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const query = { _id: sanitizedAssignmentId };
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
 
     const assignment = await AssetAssignment.findOne(query);
     if (!assignment) {
@@ -701,7 +753,13 @@ const reportRepair = asyncHandler(async (req, res) => {
     const sanitizedData = pickAllowedFields(req.body, allowedFields);
 
     // IDOR protection
-    const query = firmId ? { firmId, _id: sanitizedAssignmentId } : { lawyerId, _id: sanitizedAssignmentId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const query = { _id: sanitizedAssignmentId };
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
 
     const assignment = await AssetAssignment.findOne(query);
     if (!assignment) {
@@ -767,7 +825,13 @@ const updateRepairStatus = asyncHandler(async (req, res) => {
     const sanitizedData = pickAllowedFields(req.body, allowedFields);
 
     // IDOR protection
-    const query = firmId ? { firmId, _id: sanitizedAssignmentId } : { lawyerId, _id: sanitizedAssignmentId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const query = { _id: sanitizedAssignmentId };
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
 
     const assignment = await AssetAssignment.findOne(query);
     if (!assignment) {
@@ -825,7 +889,13 @@ const reportIncident = asyncHandler(async (req, res) => {
     const sanitizedData = pickAllowedFields(req.body, allowedFields);
 
     // IDOR protection
-    const query = firmId ? { firmId, _id: sanitizedAssignmentId } : { lawyerId, _id: sanitizedAssignmentId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const query = { _id: sanitizedAssignmentId };
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
 
     const assignment = await AssetAssignment.findOne(query);
     if (!assignment) {
@@ -893,7 +963,13 @@ const updateStatus = asyncHandler(async (req, res) => {
     const sanitizedData = pickAllowedFields(req.body, allowedFields);
 
     // IDOR protection
-    const query = firmId ? { firmId, _id: sanitizedAssignmentId } : { lawyerId, _id: sanitizedAssignmentId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const query = { _id: sanitizedAssignmentId };
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
 
     const assignment = await AssetAssignment.findOne(query);
     if (!assignment) {
@@ -944,7 +1020,13 @@ const transferAsset = asyncHandler(async (req, res) => {
     const sanitizedData = pickAllowedFields(req.body, allowedFields);
 
     // IDOR protection
-    const query = firmId ? { firmId, _id: sanitizedAssignmentId } : { lawyerId, _id: sanitizedAssignmentId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const query = { _id: sanitizedAssignmentId };
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
 
     const assignment = await AssetAssignment.findOne(query);
     if (!assignment) {
@@ -958,9 +1040,13 @@ const transferAsset = asyncHandler(async (req, res) => {
         const sanitizedEmployeeId = sanitizeObjectId(sanitizedData.transferToEmployeeId);
 
         // Validate employee exists and belongs to the same firm (IDOR protection)
-        const employeeQuery = firmId
-            ? { _id: sanitizedEmployeeId, firmId }
-            : { _id: sanitizedEmployeeId, lawyerId };
+        const isSoloLawyer2 = req.isSoloLawyer;
+        const employeeQuery = { _id: sanitizedEmployeeId };
+        if (isSoloLawyer2 || !firmId) {
+            employeeQuery.lawyerId = lawyerId;
+        } else {
+            employeeQuery.firmId = firmId;
+        }
 
         newEmployee = await Employee.findOne(employeeQuery);
         if (!newEmployee) {
@@ -1048,7 +1134,13 @@ const issueClearance = asyncHandler(async (req, res) => {
     const sanitizedData = pickAllowedFields(req.body, allowedFields);
 
     // IDOR protection
-    const query = firmId ? { firmId, _id: sanitizedAssignmentId } : { lawyerId, _id: sanitizedAssignmentId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const query = { _id: sanitizedAssignmentId };
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
 
     const assignment = await AssetAssignment.findOne(query);
     if (!assignment) {
@@ -1105,9 +1197,13 @@ const bulkDeleteAssignments = asyncHandler(async (req, res) => {
     const sanitizedIds = ids.map(id => sanitizeObjectId(id));
 
     // IDOR protection - only delete assignments belonging to user's firm
-    const query = firmId
-        ? { firmId, _id: { $in: sanitizedIds }, status: 'assigned' }
-        : { lawyerId, _id: { $in: sanitizedIds }, status: 'assigned' };
+    const isSoloLawyer = req.isSoloLawyer;
+    const query = { _id: { $in: sanitizedIds }, status: 'assigned' };
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
 
     const result = await AssetAssignment.deleteMany(query);
 
@@ -1255,9 +1351,13 @@ const getAssignmentsByEmployee = asyncHandler(async (req, res) => {
     const sanitizedEmployeeId = sanitizeObjectId(employeeId);
 
     // IDOR protection
-    const query = firmId
-        ? { firmId, employeeId: sanitizedEmployeeId }
-        : { lawyerId, employeeId: sanitizedEmployeeId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const query = { employeeId: sanitizedEmployeeId };
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
 
     if (status) query.status = status;
     if (includeHistory === 'false') {
@@ -1301,17 +1401,16 @@ const getOverdueReturns = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
     const { page = 1, limit = 20 } = req.query;
 
-    const query = firmId
-        ? {
-            firmId,
-            'returnProcess.returnDueDate': { $lt: new Date() },
-            'returnProcess.returnCompleted': { $ne: true }
-        }
-        : {
-            lawyerId,
-            'returnProcess.returnDueDate': { $lt: new Date() },
-            'returnProcess.returnCompleted': { $ne: true }
-        };
+    const isSoloLawyer = req.isSoloLawyer;
+    const query = {
+        'returnProcess.returnDueDate': { $lt: new Date() },
+        'returnProcess.returnCompleted': { $ne: true }
+    };
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
 
     const assignments = await AssetAssignment.find(query)
         .populate('employeeId', 'employeeId personalInfo')
@@ -1349,17 +1448,16 @@ const getMaintenanceDue = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
     const { page = 1, limit = 20 } = req.query;
 
-    const query = firmId
-        ? {
-            firmId,
-            'maintenanceSchedule.nextMaintenanceDue': { $lte: new Date() },
-            status: { $in: ['assigned', 'in_use'] }
-        }
-        : {
-            lawyerId,
-            'maintenanceSchedule.nextMaintenanceDue': { $lte: new Date() },
-            status: { $in: ['assigned', 'in_use'] }
-        };
+    const isSoloLawyer = req.isSoloLawyer;
+    const query = {
+        'maintenanceSchedule.nextMaintenanceDue': { $lte: new Date() },
+        status: { $in: ['assigned', 'in_use'] }
+    };
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
 
     const assignments = await AssetAssignment.find(query)
         .populate('employeeId', 'employeeId personalInfo')
@@ -1393,17 +1491,16 @@ const getWarrantyExpiring = asyncHandler(async (req, res) => {
 
     const futureDate = new Date(Date.now() + parseInt(days) * 24 * 60 * 60 * 1000);
 
-    const query = firmId
-        ? {
-            firmId,
-            'warranty.warrantyEndDate': { $lte: futureDate, $gte: new Date() },
-            status: { $in: ['assigned', 'in_use'] }
-        }
-        : {
-            lawyerId,
-            'warranty.warrantyEndDate': { $lte: futureDate, $gte: new Date() },
-            status: { $in: ['assigned', 'in_use'] }
-        };
+    const isSoloLawyer = req.isSoloLawyer;
+    const query = {
+        'warranty.warrantyEndDate': { $lte: futureDate, $gte: new Date() },
+        status: { $in: ['assigned', 'in_use'] }
+    };
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
 
     const assignments = await AssetAssignment.find(query)
         .populate('employeeId', 'employeeId personalInfo')
@@ -1435,7 +1532,13 @@ const exportAssignments = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
     const { format = 'json', status, assetType, department, dateFrom, dateTo } = req.query;
 
-    const query = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const query = {};
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
 
     if (status) query.status = status;
     if (assetType) query.assetType = assetType;

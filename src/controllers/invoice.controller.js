@@ -274,7 +274,13 @@ const createInvoice = asyncHandler(async (req, res) => {
 
     // Handle retainer application validation
     if (applyFromRetainer > 0) {
-        const retainerQuery = firmId ? { clientId, firmId, status: 'active' } : { clientId, lawyerId, status: 'active' };
+        const isSoloLawyer = req.isSoloLawyer;
+        const retainerQuery = { clientId, status: 'active' };
+        if (isSoloLawyer || !firmId) {
+            retainerQuery.lawyerId = lawyerId;
+        } else {
+            retainerQuery.firmId = firmId;
+        }
         const retainer = await Retainer.findOne(retainerQuery);
 
         if (!retainer || retainer.currentBalance < applyFromRetainer) {
@@ -404,12 +410,14 @@ const getInvoices = asyncHandler(async (req, res) => {
     const firmId = req.firmId; // From firmFilter middleware
 
     // Build filters based on firmId or user role
-    let filters;
-    if (firmId) {
-        // If user has firmId, show all firm invoices
-        filters = { firmId };
-    } else if (user.role === 'lawyer') {
-        filters = { lawyerId: req.userID };
+    const isSoloLawyer = req.isSoloLawyer;
+    let filters = {};
+    if (user.role === 'lawyer') {
+        if (isSoloLawyer || !firmId) {
+            filters.lawyerId = req.userID;
+        } else {
+            filters.firmId = firmId;
+        }
     } else {
         filters = { clientId: req.userID };
     }
@@ -1695,9 +1703,13 @@ const getStats = asyncHandler(async (req, res) => {
     const dateFilter = getDateFilter(period);
 
     // Build match filter based on firmId or lawyerId
-    const matchFilter = firmId
-        ? { firmId: new mongoose.Types.ObjectId(firmId), createdAt: dateFilter }
-        : { lawyerId: new mongoose.Types.ObjectId(lawyerId), createdAt: dateFilter };
+    const isSoloLawyer = req.isSoloLawyer;
+    const matchFilter = { createdAt: dateFilter };
+    if (isSoloLawyer || !firmId) {
+        matchFilter.lawyerId = new mongoose.Types.ObjectId(lawyerId);
+    } else {
+        matchFilter.firmId = new mongoose.Types.ObjectId(firmId);
+    }
 
     const stats = await Invoice.aggregate([
         { $match: matchFilter },
@@ -1712,9 +1724,13 @@ const getStats = asyncHandler(async (req, res) => {
         }
     ]);
 
-    const overdueMatchFilter = firmId
-        ? { firmId: new mongoose.Types.ObjectId(firmId) }
-        : { lawyerId: new mongoose.Types.ObjectId(lawyerId) };
+    const isSoloLawyer = req.isSoloLawyer;
+    const overdueMatchFilter = {};
+    if (isSoloLawyer || !firmId) {
+        overdueMatchFilter.lawyerId = new mongoose.Types.ObjectId(lawyerId);
+    } else {
+        overdueMatchFilter.firmId = new mongoose.Types.ObjectId(firmId);
+    }
 
     const overdue = await Invoice.aggregate([
         {
@@ -1766,7 +1782,13 @@ const getOverdueInvoices = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
 
     // Build filter based on firmId or lawyerId
-    const queryFilter = firmId ? { firmId } : { lawyerId: req.userID };
+    const isSoloLawyer = req.isSoloLawyer;
+    const queryFilter = {};
+    if (isSoloLawyer || !firmId) {
+        queryFilter.lawyerId = req.userID;
+    } else {
+        queryFilter.firmId = firmId;
+    }
 
     // Update status to overdue for past-due invoices
     await Invoice.updateMany(
@@ -2115,9 +2137,13 @@ const getBillableItems = asyncHandler(async (req, res) => {
     if (endDate) dateFilter.$lte = new Date(endDate);
 
     // Base query based on firmId or lawyerId
-    const baseQuery = firmId
-        ? { firmId: new mongoose.Types.ObjectId(firmId) }
-        : { lawyerId: new mongoose.Types.ObjectId(lawyerId) };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = new mongoose.Types.ObjectId(lawyerId);
+    } else {
+        baseQuery.firmId = new mongoose.Types.ObjectId(firmId);
+    }
     if (clientId) baseQuery.clientId = new mongoose.Types.ObjectId(clientId);
     if (caseId) baseQuery.caseId = new mongoose.Types.ObjectId(caseId);
 
@@ -2287,7 +2313,13 @@ const getOpenInvoices = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
 
     // Build filter based on firmId or lawyerId
-    const queryFilter = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const queryFilter = {};
+    if (isSoloLawyer || !firmId) {
+        queryFilter.lawyerId = lawyerId;
+    } else {
+        queryFilter.firmId = firmId;
+    }
 
     const invoices = await Invoice.find({
         ...queryFilter,
@@ -2329,9 +2361,13 @@ const bulkDeleteInvoices = asyncHandler(async (req, res) => {
     }
 
     // Build access query - can only delete draft or sent invoices (not paid/partial)
-    const accessQuery = firmId
-        ? { _id: { $in: ids }, firmId, status: { $nin: ['paid', 'partial'] } }
-        : { _id: { $in: ids }, lawyerId, status: { $nin: ['paid', 'partial'] } };
+    const isSoloLawyer = req.isSoloLawyer;
+    const accessQuery = { _id: { $in: ids }, status: { $nin: ['paid', 'partial'] } };
+    if (isSoloLawyer || !firmId) {
+        accessQuery.lawyerId = lawyerId;
+    } else {
+        accessQuery.firmId = firmId;
+    }
 
     // Find invoices to check retainer applications
     const invoices = await Invoice.find(accessQuery);

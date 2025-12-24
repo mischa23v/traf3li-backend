@@ -288,7 +288,13 @@ const getLoans = asyncHandler(async (req, res) => {
     } = req.query;
 
     // Build query
-    const query = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const query = {};
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
 
     if (status) query.status = status;
     if (loanType) query.loanType = loanType;

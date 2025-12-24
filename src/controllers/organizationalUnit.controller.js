@@ -20,7 +20,13 @@ const getOrganizationalUnits = asyncHandler(async (req, res) => {
         sort = '-createdOn'
     } = req.query;
 
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
     const query = { ...baseQuery };
 
     // Apply filters
@@ -72,7 +78,13 @@ const getOrganizationalUnits = asyncHandler(async (req, res) => {
 
 const getOrganizationalUnitStats = asyncHandler(async (req, res) => {
     const { firmId, lawyerId } = req;
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
 
     const [
         totalUnits,
@@ -164,7 +176,13 @@ const getOrganizationalUnit = asyncHandler(async (req, res) => {
     const { firmId, lawyerId } = req;
     const { id } = req.params;
 
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
     const unit = await OrganizationalUnit.findOne({ _id: id, ...baseQuery })
         .populate('parentUnitId', 'unitId unitCode unitName unitNameAr level')
         .populate('managerId', 'firstName lastName email')
@@ -191,7 +209,13 @@ const getChildUnits = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const { includeDescendants } = req.query;
 
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
 
     // Verify parent exists
     const parent = await OrganizationalUnit.findOne({ _id: id, ...baseQuery });
@@ -222,7 +246,13 @@ const getUnitPath = asyncHandler(async (req, res) => {
     const { firmId, lawyerId } = req;
     const { id } = req.params;
 
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
 
     // Verify unit exists
     const unit = await OrganizationalUnit.findOne({ _id: id, ...baseQuery });
@@ -269,7 +299,13 @@ const createOrganizationalUnit = asyncHandler(async (req, res) => {
             throw new CustomException('Invalid parent unit ID format', 400);
         }
 
-        const baseQuery = firmId ? { firmId } : { lawyerId };
+        const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
         const parent = await OrganizationalUnit.findOne({
             _id: sanitizedParentId,
             ...baseQuery
@@ -320,7 +356,13 @@ const updateOrganizationalUnit = asyncHandler(async (req, res) => {
     }
 
     // IDOR protection - verify ownership
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
     const unit = await OrganizationalUnit.findOne({ _id: sanitizedId, ...baseQuery });
 
     if (!unit) {
@@ -388,7 +430,13 @@ const deleteOrganizationalUnit = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const { force } = req.query;
 
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
     const unit = await OrganizationalUnit.findOne({ _id: id, ...baseQuery });
 
     if (!unit) {
@@ -464,7 +512,13 @@ const bulkDeleteOrganizationalUnits = asyncHandler(async (req, res) => {
     }
 
     // IDOR protection - verify ownership
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
 
     // Verify all units belong to the firm/lawyer
     const units = await OrganizationalUnit.find({
@@ -521,7 +575,13 @@ const moveOrganizationalUnit = asyncHandler(async (req, res) => {
     const { newParentId } = moveData;
 
     // IDOR protection - verify ownership
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
     const unit = await OrganizationalUnit.findOne({ _id: sanitizedId, ...baseQuery });
 
     if (!unit) {
@@ -619,7 +679,13 @@ const dissolveOrganizationalUnit = asyncHandler(async (req, res) => {
     const { successorUnitId, reason, reassignChildrenTo } = dissolveData;
 
     // IDOR protection - verify ownership
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
     const unit = await OrganizationalUnit.findOne({ _id: sanitizedId, ...baseQuery });
 
     if (!unit) {
@@ -687,7 +753,13 @@ const activateOrganizationalUnit = asyncHandler(async (req, res) => {
     const { firmId, lawyerId, userId } = req;
     const { id } = req.params;
 
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
     const unit = await OrganizationalUnit.findOne({ _id: id, ...baseQuery });
 
     if (!unit) {
@@ -730,7 +802,13 @@ const deactivateOrganizationalUnit = asyncHandler(async (req, res) => {
     const { reason } = deactivateData;
 
     // IDOR protection - verify ownership
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
     const unit = await OrganizationalUnit.findOne({ _id: sanitizedId, ...baseQuery });
 
     if (!unit) {
@@ -807,7 +885,13 @@ const updateHeadcount = asyncHandler(async (req, res) => {
     }
 
     // IDOR protection - verify ownership
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
     const unit = await OrganizationalUnit.findOne({ _id: sanitizedId, ...baseQuery });
 
     if (!unit) {
@@ -862,7 +946,13 @@ const updateBudget = asyncHandler(async (req, res) => {
     }
 
     // IDOR protection - verify ownership
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
     const unit = await OrganizationalUnit.findOne({ _id: sanitizedId, ...baseQuery });
 
     if (!unit) {
@@ -923,7 +1013,13 @@ const addKPI = asyncHandler(async (req, res) => {
     }
 
     // IDOR protection - verify ownership
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
     const unit = await OrganizationalUnit.findOne({ _id: sanitizedId, ...baseQuery });
 
     if (!unit) {
@@ -988,7 +1084,13 @@ const updateKPI = asyncHandler(async (req, res) => {
     }
 
     // IDOR protection - verify ownership
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
     const unit = await OrganizationalUnit.findOne({ _id: sanitizedId, ...baseQuery });
 
     if (!unit) {
@@ -1030,7 +1132,13 @@ const deleteKPI = asyncHandler(async (req, res) => {
     const { firmId, lawyerId, userId } = req;
     const { id, kpiId } = req.params;
 
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
     const unit = await OrganizationalUnit.findOne({ _id: id, ...baseQuery });
 
     if (!unit) {
@@ -1089,7 +1197,13 @@ const addLeadershipPosition = asyncHandler(async (req, res) => {
     }
 
     // IDOR protection - verify ownership
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
     const unit = await OrganizationalUnit.findOne({ _id: sanitizedId, ...baseQuery });
 
     if (!unit) {
@@ -1158,7 +1272,13 @@ const updateLeadershipPosition = asyncHandler(async (req, res) => {
     }
 
     // IDOR protection - verify ownership
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
     const unit = await OrganizationalUnit.findOne({ _id: sanitizedId, ...baseQuery });
 
     if (!unit) {
@@ -1201,7 +1321,13 @@ const deleteLeadershipPosition = asyncHandler(async (req, res) => {
     const { firmId, lawyerId, userId } = req;
     const { id, positionId } = req.params;
 
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
     const unit = await OrganizationalUnit.findOne({ _id: id, ...baseQuery });
 
     if (!unit) {
@@ -1253,7 +1379,13 @@ const addDocument = asyncHandler(async (req, res) => {
     const documentData = pickAllowedFields(req.body, allowedFields);
 
     // IDOR protection - verify ownership
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
     const unit = await OrganizationalUnit.findOne({ _id: sanitizedId, ...baseQuery });
 
     if (!unit) {
@@ -1284,7 +1416,13 @@ const exportOrganizationalUnits = asyncHandler(async (req, res) => {
     const { firmId, lawyerId } = req;
     const { format = 'json', status } = req.query;
 
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
     const query = { ...baseQuery };
 
     if (status) query.status = status;

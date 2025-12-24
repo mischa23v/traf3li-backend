@@ -96,6 +96,12 @@ const vendorSchema = new mongoose.Schema({
         required: true,
         index: true
     },
+    // Multi-tenancy: For firm users, firmId is set; for solo lawyers, only lawyerId is used
+    firmId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Firm',
+        index: true
+    },
     // Accounting integration
     defaultExpenseAccountId: {
         type: mongoose.Schema.Types.ObjectId,
@@ -125,6 +131,8 @@ const vendorSchema = new mongoose.Schema({
 // Indexes
 vendorSchema.index({ lawyerId: 1, isActive: 1 });
 vendorSchema.index({ lawyerId: 1, country: 1 });
+vendorSchema.index({ firmId: 1, isActive: 1 });
+vendorSchema.index({ firmId: 1, lawyerId: 1 });
 vendorSchema.index({ name: 'text', email: 'text', nameAr: 'text' });
 
 // Pre-save hook to generate vendor ID

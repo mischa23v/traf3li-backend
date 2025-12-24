@@ -13,6 +13,8 @@
  */
 
 const { User, Case, Invoice, Payment, AuditLog, RevokedToken } = require('../models');
+const RefreshToken = require('../models/refreshToken.model');
+const Session = require('../models/session.model');
 const logger = require('../utils/logger');
 const {
     sanitizeForLog,
@@ -357,8 +359,8 @@ const updateUserStatus = async (req, res) => {
         targetUser.status = status;
         await targetUser.save();
 
-        // If suspending or banning, revoke all tokens
-        if (status === 'suspended' || status === 'banned') {
+        // If suspending, banning, or deleting, revoke all tokens and terminate sessions
+        if (status === 'suspended' || status === 'banned' || status === 'deleted') {
             await tokenRevocationService.revokeAllUserTokens(
                 targetUserId,
                 `account_${status}`,
@@ -372,6 +374,19 @@ const updateUserStatus = async (req, res) => {
                         reason: sanitizeString(reason || `Account ${status}`),
                         oldStatus,
                         newStatus: status
+                    }
+                }
+            );
+
+            // Also delete refresh tokens and terminate sessions
+            await RefreshToken.deleteMany({ userId: targetUserId });
+            await Session.updateMany(
+                { userId: targetUserId },
+                {
+                    $set: {
+                        isTerminated: true,
+                        terminatedAt: new Date(),
+                        terminationReason: `account_${status}`
                     }
                 }
             );

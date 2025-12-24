@@ -108,7 +108,13 @@ async function verifyRecordOwnership(recordId, firmId, lawyerId) {
 const getCompensationRecords = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
 
     const {
         search,
@@ -189,7 +195,13 @@ const getCompensationRecords = asyncHandler(async (req, res) => {
 const getCompensationStats = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
 
     const { officeId } = req.query;
     if (officeId) baseQuery.officeId = officeId;
@@ -344,7 +356,13 @@ const getCompensationRecord = asyncHandler(async (req, res) => {
     // IDOR protection - verify ownership
     await verifyRecordOwnership(req.params.id, firmId, lawyerId);
 
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
     const record = await CompensationReward.findOne({
         $or: [
             { _id: sanitizeObjectId(req.params.id) },
@@ -369,7 +387,13 @@ const getCompensationRecord = asyncHandler(async (req, res) => {
 const getEmployeeCompensation = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
     const { employeeId } = req.params;
 
     // Sanitize employeeId
@@ -532,7 +556,13 @@ const updateCompensationRecord = asyncHandler(async (req, res) => {
     // IDOR protection - verify ownership
     await verifyRecordOwnership(req.params.id, firmId, lawyerId);
 
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
     const record = await CompensationReward.findOne({
         $or: [{ _id: sanitizeObjectId(req.params.id) }, { compensationId: req.params.id }],
         ...baseQuery
@@ -592,7 +622,13 @@ const deleteCompensationRecord = asyncHandler(async (req, res) => {
     // IDOR protection - verify ownership
     await verifyRecordOwnership(req.params.id, firmId, lawyerId);
 
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
     const record = await CompensationReward.findOne({
         $or: [{ _id: sanitizeObjectId(req.params.id) }, { compensationId: req.params.id }],
         ...baseQuery
@@ -621,7 +657,13 @@ const deleteCompensationRecord = asyncHandler(async (req, res) => {
 const bulkDeleteRecords = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
     const { ids } = req.body;
 
     if (!ids || !Array.isArray(ids) || ids.length === 0) {
@@ -703,7 +745,13 @@ const processSalaryIncrease = asyncHandler(async (req, res) => {
     session.startTransaction();
 
     try {
-        const baseQuery = firmId ? { firmId } : { lawyerId };
+        const isSoloLawyer = req.isSoloLawyer;
+        const baseQuery = {};
+        if (isSoloLawyer || !firmId) {
+            baseQuery.lawyerId = lawyerId;
+        } else {
+            baseQuery.firmId = firmId;
+        }
         const record = await CompensationReward.findOne({
             $or: [{ _id: sanitizeObjectId(req.params.id) }, { compensationId: req.params.id }],
             ...baseQuery
@@ -818,7 +866,13 @@ const addAllowance = asyncHandler(async (req, res) => {
     // Input validation
     validateCompensationAmount(sanitizedData.amount, 'Allowance amount');
 
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
     const record = await CompensationReward.findOne({
         $or: [{ _id: sanitizeObjectId(req.params.id) }, { compensationId: req.params.id }],
         ...baseQuery
@@ -869,7 +923,13 @@ const updateAllowance = asyncHandler(async (req, res) => {
         validateCompensationAmount(sanitizedData.amount, 'Allowance amount');
     }
 
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
     const record = await CompensationReward.findOne({
         $or: [{ _id: sanitizeObjectId(req.params.id) }, { compensationId: req.params.id }],
         ...baseQuery
@@ -914,7 +974,13 @@ const removeAllowance = asyncHandler(async (req, res) => {
     // IDOR protection - verify ownership
     await verifyRecordOwnership(req.params.id, firmId, lawyerId);
 
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
     const record = await CompensationReward.findOne({
         $or: [{ _id: sanitizeObjectId(req.params.id) }, { compensationId: req.params.id }],
         ...baseQuery
@@ -988,7 +1054,13 @@ const processBonus = asyncHandler(async (req, res) => {
     session.startTransaction();
 
     try {
-        const baseQuery = firmId ? { firmId } : { lawyerId };
+        const isSoloLawyer = req.isSoloLawyer;
+        const baseQuery = {};
+        if (isSoloLawyer || !firmId) {
+            baseQuery.lawyerId = lawyerId;
+        } else {
+            baseQuery.firmId = firmId;
+        }
         const record = await CompensationReward.findOne({
             $or: [{ _id: sanitizeObjectId(req.params.id) }, { compensationId: req.params.id }],
             ...baseQuery
@@ -1072,7 +1144,13 @@ const submitForReview = asyncHandler(async (req, res) => {
     // Input validation
     validateCompensationAmount(recommendedIncrease, 'Recommended increase');
 
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
     const record = await CompensationReward.findOne({
         $or: [{ _id: sanitizeObjectId(req.params.id) }, { compensationId: req.params.id }],
         ...baseQuery
@@ -1136,7 +1214,13 @@ const approveReview = asyncHandler(async (req, res) => {
     // Input validation
     validateCompensationAmount(approvedIncrease, 'Approved increase');
 
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
     const record = await CompensationReward.findOne({
         $or: [{ _id: sanitizeObjectId(req.params.id) }, { compensationId: req.params.id }],
         ...baseQuery
@@ -1187,7 +1271,13 @@ const declineReview = asyncHandler(async (req, res) => {
     const sanitizedData = pickAllowedFields(req.body, allowedFields);
     const { reason } = sanitizedData;
 
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
     const record = await CompensationReward.findOne({
         $or: [{ _id: sanitizeObjectId(req.params.id) }, { compensationId: req.params.id }],
         ...baseQuery
@@ -1239,7 +1329,13 @@ const addRecognition = asyncHandler(async (req, res) => {
         validateCompensationAmount(sanitizedData.monetaryValue, 'Monetary value');
     }
 
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
     const record = await CompensationReward.findOne({
         $or: [{ _id: sanitizeObjectId(req.params.id) }, { compensationId: req.params.id }],
         ...baseQuery
@@ -1283,7 +1379,13 @@ const addRecognition = asyncHandler(async (req, res) => {
 const generateTotalRewardsStatement = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
 
     const record = await CompensationReward.findOne({
         $or: [{ _id: req.params.id }, { compensationId: req.params.id }],
@@ -1400,7 +1502,13 @@ const generateTotalRewardsStatement = asyncHandler(async (req, res) => {
 const exportCompensation = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
 
     const { format = 'json', status, department, payGrade } = req.query;
 
@@ -1458,7 +1566,13 @@ const exportCompensation = asyncHandler(async (req, res) => {
 const getPendingReviews = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
 
     const records = await CompensationReward.find({
         ...baseQuery,

@@ -52,9 +52,16 @@ exports.createCampaign = async (req, res) => {
 exports.getCampaigns = async (req, res) => {
   try {
     const firmId = req.firmId;
+    const lawyerId = req.userID;
     const { status, type, page = 1, limit = 20, sortBy = 'createdAt', sortOrder = 'desc' } = req.query;
 
-    const query = { firmId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const query = {};
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
     if (status) query.status = status;
     if (type) query.type = type;
 
@@ -552,11 +559,13 @@ exports.createTemplate = async (req, res) => {
 exports.getTemplates = async (req, res) => {
   try {
     const firmId = req.firmId;
+    const lawyerId = req.userID;
     const { category, isActive, page = 1, limit = 20 } = req.query;
 
+    const isSoloLawyer = req.isSoloLawyer;
     const query = {
       $or: [
-        { firmId: firmId },
+        isSoloLawyer || !firmId ? { lawyerId: lawyerId } : { firmId: firmId },
         { isPublic: true }
       ]
     };
@@ -823,9 +832,16 @@ exports.createSubscriber = async (req, res) => {
 exports.getSubscribers = async (req, res) => {
   try {
     const firmId = req.firmId;
+    const lawyerId = req.userID;
     const { status, tags, search, page = 1, limit = 50 } = req.query;
 
-    const query = { firmId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const query = {};
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
     if (status) query.status = status;
     if (tags) query.tags = { $in: tags.split(',') };
     if (search) {
@@ -1099,9 +1115,16 @@ exports.createSegment = async (req, res) => {
 exports.getSegments = async (req, res) => {
   try {
     const firmId = req.firmId;
+    const lawyerId = req.userID;
     const { isActive, isDynamic } = req.query;
 
-    const query = { firmId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const query = {};
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
     if (isActive !== undefined) query.isActive = isActive === 'true';
     if (isDynamic !== undefined) query.isDynamic = isDynamic === 'true';
 
@@ -1324,6 +1347,7 @@ exports.getOverviewAnalytics = async (req, res) => {
 exports.getTrendsAnalytics = async (req, res) => {
   try {
     const firmId = req.firmId;
+    const lawyerId = req.userID;
     const { period = 'month' } = req.query;
 
     // Calculate date range based on period
@@ -1345,10 +1369,16 @@ exports.getTrendsAnalytics = async (req, res) => {
         break;
     }
 
-    const campaigns = await EmailCampaign.find({
-      firmId,
-      createdAt: { $gte: startDate }
-    }).sort({ createdAt: 1 });
+    const isSoloLawyer = req.isSoloLawyer;
+    const query = {};
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
+    query.createdAt = { $gte: startDate };
+
+    const campaigns = await EmailCampaign.find(query).sort({ createdAt: 1 });
 
     res.json({
       success: true,

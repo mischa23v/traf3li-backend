@@ -23,7 +23,13 @@ const getSuccessionPlans = asyncHandler(async (req, res) => {
         sort = '-createdOn'
     } = req.query;
 
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
     const query = { ...baseQuery };
 
     // Apply filters
@@ -81,7 +87,13 @@ const getSuccessionPlans = asyncHandler(async (req, res) => {
 
 const getSuccessionPlanStats = asyncHandler(async (req, res) => {
     const { firmId, lawyerId } = req;
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
 
     const activeQuery = {
         ...baseQuery,
@@ -234,7 +246,13 @@ const getByPosition = asyncHandler(async (req, res) => {
     const { firmId, lawyerId } = req;
     const positionId = sanitizeObjectId(req.params.positionId, 'Position ID');
 
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
     const plans = await SuccessionPlan.find({
         ...baseQuery,
         'criticalPosition.positionId': positionId
@@ -255,7 +273,13 @@ const getByIncumbent = asyncHandler(async (req, res) => {
     const { firmId, lawyerId } = req;
     const incumbentId = sanitizeObjectId(req.params.incumbentId, 'Incumbent ID');
 
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
     const plans = await SuccessionPlan.find({
         ...baseQuery,
         'incumbent.employeeId': incumbentId
@@ -276,7 +300,13 @@ const getSuccessionPlan = asyncHandler(async (req, res) => {
     const { firmId, lawyerId } = req;
     const id = sanitizeObjectId(req.params.id, 'Succession plan ID');
 
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
     const plan = await SuccessionPlan.findOne({ _id: id, ...baseQuery })
         .populate('criticalPosition.positionId')
         .populate('criticalPosition.departmentId', 'unitId unitName unitNameAr')
@@ -389,7 +419,13 @@ const updateSuccessionPlan = asyncHandler(async (req, res) => {
     const { firmId, lawyerId, userId } = req;
     const id = sanitizeObjectId(req.params.id, 'Succession plan ID');
 
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
     const plan = await SuccessionPlan.findOne({ _id: id, ...baseQuery });
 
     if (!plan) {
@@ -467,7 +503,13 @@ const deleteSuccessionPlan = asyncHandler(async (req, res) => {
     const { firmId, lawyerId } = req;
     const id = sanitizeObjectId(req.params.id, 'Succession plan ID');
 
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
     const plan = await SuccessionPlan.findOne({ _id: id, ...baseQuery });
 
     if (!plan) {
@@ -497,7 +539,13 @@ const bulkDeleteSuccessionPlans = asyncHandler(async (req, res) => {
     // Sanitize all IDs
     const sanitizedIds = ids.map((id, index) => sanitizeObjectId(id, `Plan ID at index ${index}`));
 
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
     const result = await SuccessionPlan.deleteMany({
         _id: { $in: sanitizedIds },
         ...baseQuery
@@ -518,7 +566,13 @@ const addSuccessor = asyncHandler(async (req, res) => {
     const { firmId, lawyerId, userId } = req;
     const id = sanitizeObjectId(req.params.id, 'Succession plan ID');
 
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
     const plan = await SuccessionPlan.findOne({ _id: id, ...baseQuery });
 
     if (!plan) {
@@ -586,7 +640,13 @@ const updateSuccessor = asyncHandler(async (req, res) => {
     const id = sanitizeObjectId(req.params.id, 'Succession plan ID');
     const { successorId } = req.params;
 
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
     const plan = await SuccessionPlan.findOne({ _id: id, ...baseQuery });
 
     if (!plan) {
@@ -651,7 +711,13 @@ const removeSuccessor = asyncHandler(async (req, res) => {
     const id = sanitizeObjectId(req.params.id, 'Succession plan ID');
     const { successorId } = req.params;
 
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
     const plan = await SuccessionPlan.findOne({ _id: id, ...baseQuery });
 
     if (!plan) {
@@ -685,7 +751,13 @@ const updateSuccessorReadiness = asyncHandler(async (req, res) => {
     const id = sanitizeObjectId(req.params.id, 'Succession plan ID');
     const { successorId } = req.params;
 
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
     const plan = await SuccessionPlan.findOne({ _id: id, ...baseQuery });
 
     if (!plan) {
@@ -744,7 +816,13 @@ const updateSuccessorDevelopmentPlan = asyncHandler(async (req, res) => {
     const id = sanitizeObjectId(req.params.id, 'Succession plan ID');
     const { successorId } = req.params;
 
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
     const plan = await SuccessionPlan.findOne({ _id: id, ...baseQuery });
 
     if (!plan) {
@@ -802,7 +880,13 @@ const submitForApproval = asyncHandler(async (req, res) => {
     const { firmId, lawyerId, userId } = req;
     const id = sanitizeObjectId(req.params.id, 'Succession plan ID');
 
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
     const plan = await SuccessionPlan.findOne({ _id: id, ...baseQuery });
 
     if (!plan) {
@@ -838,7 +922,13 @@ const approvePlan = asyncHandler(async (req, res) => {
         ? req.body.comments
         : undefined;
 
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
     const plan = await SuccessionPlan.findOne({ _id: id, ...baseQuery });
 
     if (!plan) {
@@ -890,7 +980,13 @@ const rejectPlan = asyncHandler(async (req, res) => {
         ? req.body.reason
         : undefined;
 
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
     const plan = await SuccessionPlan.findOne({ _id: id, ...baseQuery });
 
     if (!plan) {
@@ -931,7 +1027,13 @@ const activatePlan = asyncHandler(async (req, res) => {
     const { firmId, lawyerId, userId } = req;
     const id = sanitizeObjectId(req.params.id, 'Succession plan ID');
 
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
     const plan = await SuccessionPlan.findOne({ _id: id, ...baseQuery });
 
     if (!plan) {
@@ -967,7 +1069,13 @@ const archivePlan = asyncHandler(async (req, res) => {
         ? req.body.reason
         : undefined;
 
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
     const plan = await SuccessionPlan.findOne({ _id: id, ...baseQuery });
 
     if (!plan) {
@@ -998,7 +1106,13 @@ const addReview = asyncHandler(async (req, res) => {
     const { firmId, lawyerId, userId, user } = req;
     const id = sanitizeObjectId(req.params.id, 'Succession plan ID');
 
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
     const plan = await SuccessionPlan.findOne({ _id: id, ...baseQuery });
 
     if (!plan) {
@@ -1074,7 +1188,13 @@ const addAction = asyncHandler(async (req, res) => {
     const { firmId, lawyerId, userId } = req;
     const id = sanitizeObjectId(req.params.id, 'Succession plan ID');
 
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
     const plan = await SuccessionPlan.findOne({ _id: id, ...baseQuery });
 
     if (!plan) {
@@ -1144,7 +1264,13 @@ const updateAction = asyncHandler(async (req, res) => {
     const id = sanitizeObjectId(req.params.id, 'Succession plan ID');
     const { actionId } = req.params;
 
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
     const plan = await SuccessionPlan.findOne({ _id: id, ...baseQuery });
 
     if (!plan) {
@@ -1212,7 +1338,13 @@ const addDocument = asyncHandler(async (req, res) => {
     const { firmId, lawyerId, userId } = req;
     const id = sanitizeObjectId(req.params.id, 'Succession plan ID');
 
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
     const plan = await SuccessionPlan.findOne({ _id: id, ...baseQuery });
 
     if (!plan) {
@@ -1265,7 +1397,13 @@ const exportSuccessionPlans = asyncHandler(async (req, res) => {
     const { firmId, lawyerId } = req;
     const { format = 'json', planStatus, criticalityLevel } = req.query;
 
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
     const query = { ...baseQuery };
 
     if (planStatus) query.planStatus = planStatus;

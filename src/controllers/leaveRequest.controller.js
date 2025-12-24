@@ -154,7 +154,13 @@ const getLeaveRequests = asyncHandler(async (req, res) => {
     } = req.query;
 
     // Build query
-    const query = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const query = {};
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
 
     if (status) query.status = status;
     if (leaveType) query.leaveType = leaveType;
@@ -1170,7 +1176,13 @@ const getTeamCalendar = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
     const { startDate, endDate, department } = req.query;
 
-    const query = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const query = {};
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
     query.status = { $in: ['approved', 'completed'] };
     query.$or = [
         { 'dates.startDate': { $gte: new Date(startDate), $lte: new Date(endDate) } },
@@ -1284,7 +1296,13 @@ const getPendingApprovals = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
     const { page = 1, limit = 20 } = req.query;
 
-    const query = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const query = {};
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
     query.status = { $in: ['submitted', 'pending_approval'] };
 
     const pendingRequests = await LeaveRequest.find(query)

@@ -137,7 +137,13 @@ const getTrainings = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
-    const query = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const query = {};
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
 
     // Filters
     const {
@@ -210,7 +216,13 @@ const getTraining = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
     const { trainingId } = req.params;
 
-    const query = firmId ? { firmId, _id: trainingId } : { lawyerId, _id: trainingId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const query = { _id: trainingId };
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
 
     const training = await Training.findOne(query)
         .populate('employeeId', 'employeeId personalInfo compensation')
@@ -497,7 +509,13 @@ const updateTraining = asyncHandler(async (req, res) => {
     }
 
     // IDOR Protection - verify firmId/lawyerId ownership
-    const query = firmId ? { firmId, _id: sanitizedTrainingId } : { lawyerId, _id: sanitizedTrainingId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const query = { _id: sanitizedTrainingId };
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
 
     const training = await Training.findOne(query);
     if (!training) {
@@ -584,7 +602,13 @@ const deleteTraining = asyncHandler(async (req, res) => {
     }
 
     // IDOR Protection - verify firmId/lawyerId ownership
-    const query = firmId ? { firmId, _id: sanitizedTrainingId } : { lawyerId, _id: sanitizedTrainingId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const query = { _id: sanitizedTrainingId };
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
 
     const training = await Training.findOne(query);
     if (!training) {
@@ -685,7 +709,13 @@ const approveTraining = asyncHandler(async (req, res) => {
     }
 
     // IDOR Protection - verify firmId/lawyerId ownership
-    const query = firmId ? { firmId, _id: sanitizedTrainingId } : { lawyerId, _id: sanitizedTrainingId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const query = { _id: sanitizedTrainingId };
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
 
     const training = await Training.findOne(query);
     if (!training) {
@@ -778,7 +808,13 @@ const rejectTraining = asyncHandler(async (req, res) => {
     }
 
     // IDOR Protection - verify firmId/lawyerId ownership
-    const query = firmId ? { firmId, _id: sanitizedTrainingId } : { lawyerId, _id: sanitizedTrainingId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const query = { _id: sanitizedTrainingId };
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
 
     const training = await Training.findOne(query);
     if (!training) {
@@ -845,7 +881,13 @@ const enrollTraining = asyncHandler(async (req, res) => {
     const { registrationNumber, confirmationNumber, enrollmentMethod, seatNumber } = safeData;
 
     // IDOR Protection - verify firmId/lawyerId ownership
-    const query = firmId ? { firmId, _id: sanitizedTrainingId } : { lawyerId, _id: sanitizedTrainingId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const query = { _id: sanitizedTrainingId };
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
 
     const training = await Training.findOne(query);
     if (!training) {
@@ -901,7 +943,13 @@ const startTraining = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
     const { trainingId } = req.params;
 
-    const query = firmId ? { firmId, _id: trainingId } : { lawyerId, _id: trainingId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const query = { _id: trainingId };
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
 
     const training = await Training.findOne(query);
     if (!training) {
@@ -963,7 +1011,13 @@ const completeTraining = asyncHandler(async (req, res) => {
     }
 
     // IDOR Protection - verify firmId/lawyerId ownership
-    const query = firmId ? { firmId, _id: sanitizedTrainingId } : { lawyerId, _id: sanitizedTrainingId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const query = { _id: sanitizedTrainingId };
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
 
     const training = await Training.findOne(query);
     if (!training) {
@@ -1034,7 +1088,13 @@ const cancelTraining = asyncHandler(async (req, res) => {
         throw CustomException('Cancellation reason is required', 400);
     }
 
-    const query = firmId ? { firmId, _id: trainingId } : { lawyerId, _id: trainingId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const query = { _id: trainingId };
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
 
     const training = await Training.findOne(query);
     if (!training) {
@@ -1107,7 +1167,13 @@ const recordAttendance = asyncHandler(async (req, res) => {
     }
 
     // IDOR Protection - verify firmId/lawyerId ownership
-    const query = firmId ? { firmId, _id: sanitizedTrainingId } : { lawyerId, _id: sanitizedTrainingId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const query = { _id: sanitizedTrainingId };
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
 
     const training = await Training.findOne(query);
     if (!training) {
@@ -1225,7 +1291,13 @@ const updateProgress = asyncHandler(async (req, res) => {
     }
 
     // IDOR Protection - verify firmId/lawyerId ownership
-    const query = firmId ? { firmId, _id: sanitizedTrainingId } : { lawyerId, _id: sanitizedTrainingId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const query = { _id: sanitizedTrainingId };
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
 
     const training = await Training.findOne(query);
     if (!training) {
@@ -1344,7 +1416,13 @@ const submitAssessment = asyncHandler(async (req, res) => {
     }
 
     // IDOR Protection - verify firmId/lawyerId ownership
-    const query = firmId ? { firmId, _id: sanitizedTrainingId } : { lawyerId, _id: sanitizedTrainingId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const query = { _id: sanitizedTrainingId };
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
 
     const training = await Training.findOne(query);
     if (!training) {
@@ -1460,7 +1538,13 @@ const issueCertificate = asyncHandler(async (req, res) => {
     }
 
     // IDOR Protection - verify firmId/lawyerId ownership
-    const query = firmId ? { firmId, _id: sanitizedTrainingId } : { lawyerId, _id: sanitizedTrainingId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const query = { _id: sanitizedTrainingId };
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
 
     const training = await Training.findOne(query);
     if (!training) {
@@ -1548,7 +1632,13 @@ const submitEvaluation = asyncHandler(async (req, res) => {
     }
 
     // IDOR Protection - verify firmId/lawyerId ownership
-    const query = firmId ? { firmId, _id: sanitizedTrainingId } : { lawyerId, _id: sanitizedTrainingId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const query = { _id: sanitizedTrainingId };
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
 
     const training = await Training.findOne(query);
     if (!training) {
@@ -1613,7 +1703,13 @@ const recordPayment = asyncHandler(async (req, res) => {
     }
 
     // IDOR Protection - verify firmId/lawyerId ownership
-    const query = firmId ? { firmId, _id: sanitizedTrainingId } : { lawyerId, _id: sanitizedTrainingId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const query = { _id: sanitizedTrainingId };
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
 
     const training = await Training.findOne(query);
     if (!training) {
@@ -1692,9 +1788,13 @@ const bulkDeleteTrainings = asyncHandler(async (req, res) => {
     }
 
     // IDOR Protection - ensure all trainings belong to the user's firm/account
-    const query = firmId
-        ? { firmId, _id: { $in: sanitizedIds }, status: 'requested' }
-        : { lawyerId, _id: { $in: sanitizedIds }, status: 'requested' };
+    const isSoloLawyer = req.isSoloLawyer;
+    const query = { _id: { $in: sanitizedIds }, status: 'requested' };
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
 
     const result = await Training.deleteMany(query);
 
@@ -1715,7 +1815,13 @@ const getTrainingStats = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
     const { year, department, employeeId } = req.query;
 
-    const matchQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const matchQuery = {};
+    if (isSoloLawyer || !firmId) {
+        matchQuery.lawyerId = lawyerId;
+    } else {
+        matchQuery.firmId = firmId;
+    }
 
     if (year) {
         matchQuery.startDate = {
@@ -1821,9 +1927,13 @@ const getTrainingsByEmployee = asyncHandler(async (req, res) => {
     const { employeeId } = req.params;
     const { status, year, page = 1, limit = 20 } = req.query;
 
-    const query = firmId
-        ? { firmId, employeeId }
-        : { lawyerId, employeeId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const query = { employeeId };
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
 
     if (status) query.status = status;
     if (year) {
@@ -1887,9 +1997,13 @@ const getPendingApprovals = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
     const { page = 1, limit = 20 } = req.query;
 
-    const query = firmId
-        ? { firmId, 'approvalWorkflow.finalStatus': 'pending', requestStatus: 'submitted' }
-        : { lawyerId, 'approvalWorkflow.finalStatus': 'pending', requestStatus: 'submitted' };
+    const isSoloLawyer = req.isSoloLawyer;
+    const query = { 'approvalWorkflow.finalStatus': 'pending', requestStatus: 'submitted' };
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
 
     const trainings = await Training.find(query)
         .populate('employeeId', 'employeeId personalInfo')
@@ -1925,17 +2039,16 @@ const getUpcomingTrainings = asyncHandler(async (req, res) => {
     const futureDate = new Date();
     futureDate.setDate(futureDate.getDate() + parseInt(days));
 
-    const query = firmId
-        ? {
-            firmId,
-            startDate: { $gte: new Date(), $lte: futureDate },
-            status: { $in: ['approved', 'enrolled'] }
-        }
-        : {
-            lawyerId,
-            startDate: { $gte: new Date(), $lte: futureDate },
-            status: { $in: ['approved', 'enrolled'] }
-        };
+    const isSoloLawyer = req.isSoloLawyer;
+    const query = {
+        startDate: { $gte: new Date(), $lte: futureDate },
+        status: { $in: ['approved', 'enrolled'] }
+    };
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
 
     const trainings = await Training.find(query)
         .populate('employeeId', 'employeeId personalInfo')
@@ -1967,19 +2080,17 @@ const getOverdueCompliance = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
     const { page = 1, limit = 20 } = req.query;
 
-    const query = firmId
-        ? {
-            firmId,
-            'complianceTracking.isMandatory': true,
-            'complianceTracking.overdue': true,
-            'completion.completed': false
-        }
-        : {
-            lawyerId,
-            'complianceTracking.isMandatory': true,
-            'complianceTracking.overdue': true,
-            'completion.completed': false
-        };
+    const isSoloLawyer = req.isSoloLawyer;
+    const query = {
+        'complianceTracking.isMandatory': true,
+        'complianceTracking.overdue': true,
+        'completion.completed': false
+    };
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
 
     const trainings = await Training.find(query)
         .populate('employeeId', 'employeeId personalInfo')
@@ -2014,27 +2125,21 @@ const getCLESummary = asyncHandler(async (req, res) => {
 
     const currentYear = year || new Date().getFullYear();
 
-    const matchQuery = firmId
-        ? {
-            firmId,
-            employeeId: new mongoose.Types.ObjectId(employeeId),
-            'cleDetails.isCLE': true,
-            status: 'completed',
-            'completion.completionDate': {
-                $gte: new Date(`${currentYear}-01-01`),
-                $lte: new Date(`${currentYear}-12-31`)
-            }
+    const isSoloLawyer = req.isSoloLawyer;
+    const matchQuery = {
+        employeeId: new mongoose.Types.ObjectId(employeeId),
+        'cleDetails.isCLE': true,
+        status: 'completed',
+        'completion.completionDate': {
+            $gte: new Date(`${currentYear}-01-01`),
+            $lte: new Date(`${currentYear}-12-31`)
         }
-        : {
-            lawyerId,
-            employeeId: new mongoose.Types.ObjectId(employeeId),
-            'cleDetails.isCLE': true,
-            status: 'completed',
-            'completion.completionDate': {
-                $gte: new Date(`${currentYear}-01-01`),
-                $lte: new Date(`${currentYear}-12-31`)
-            }
-        };
+    };
+    if (isSoloLawyer || !firmId) {
+        matchQuery.lawyerId = lawyerId;
+    } else {
+        matchQuery.firmId = firmId;
+    }
 
     const trainings = await Training.find(matchQuery)
         .select('trainingTitle cleDetails completion.completionDate certificate');
@@ -2106,7 +2211,13 @@ const getTrainingCalendar = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
     const { startDate, endDate, department, employeeId } = req.query;
 
-    const query = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const query = {};
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
 
     // Default to current month if no dates provided
     const start = startDate ? new Date(startDate) : new Date(new Date().setDate(1));
@@ -2152,7 +2263,13 @@ const getProviders = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
-    const matchQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const matchQuery = {};
+    if (isSoloLawyer || !firmId) {
+        matchQuery.lawyerId = lawyerId;
+    } else {
+        matchQuery.firmId = firmId;
+    }
 
     const providers = await Training.aggregate([
         { $match: matchQuery },
@@ -2192,7 +2309,13 @@ const exportTrainings = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
     const { format = 'json', status, dateFrom, dateTo, department, employeeId } = req.query;
 
-    const query = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const query = {};
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
 
     if (status) query.status = status;
     if (department) query.department = department;

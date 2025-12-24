@@ -18,6 +18,7 @@
  */
 
 const mongoose = require('mongoose');
+const { validateWebhookUrlSync } = require('../utils/urlValidator');
 
 // ═══════════════════════════════════════════════════════════════
 // MAIN SCHEMA
@@ -186,16 +187,19 @@ const automatedActionSchema = new mongoose.Schema({
         validate: {
             validator: function(v) {
                 if (!v) return true; // Optional field
-                // In production, require HTTPS
-                if (process.env.NODE_ENV === 'production') {
-                    return /^https:\/\/.+/.test(v);
-                }
-                // In development, allow HTTP
-                return /^https?:\/\/.+/.test(v);
+                // Use SSRF-safe URL validation
+                const result = validateWebhookUrlSync(v, {
+                    allowHttp: process.env.NODE_ENV !== 'production'
+                });
+                return result.valid;
             },
-            message: props => process.env.NODE_ENV === 'production'
-                ? 'Webhook URL must use HTTPS in production'
-                : 'Invalid webhook URL'
+            message: props => {
+                if (!props.value) return 'Invalid webhook URL';
+                const result = validateWebhookUrlSync(props.value, {
+                    allowHttp: process.env.NODE_ENV !== 'production'
+                });
+                return result.error || 'Invalid webhook URL - private/internal addresses are not allowed';
+            }
         }
     },
     webhook_method: {

@@ -141,9 +141,10 @@ const createExpense = asyncHandler(async (req, res) => {
         }
 
         // Check access via firmId or lawyerId
-        const hasAccess = firmId
-            ? caseDoc.firmId && caseDoc.firmId.toString() === firmId.toString()
-            : caseDoc.lawyerId.toString() === lawyerId;
+        const isSoloLawyer = req.isSoloLawyer;
+        const hasAccess = (isSoloLawyer || !firmId)
+            ? caseDoc.lawyerId.toString() === lawyerId
+            : caseDoc.firmId && caseDoc.firmId.toString() === firmId.toString();
 
         if (!hasAccess) {
             throw CustomException('You do not have access to this case', 403);
@@ -275,8 +276,14 @@ const getExpenses = asyncHandler(async (req, res) => {
         throw CustomException('ليس لديك صلاحية للوصول إلى المصروفات', 403);
     }
 
-    // Build filters - firmId first, then lawyerId fallback
-    const filters = firmId ? { firmId } : { lawyerId };
+    // Build filters - solo lawyer or no firmId uses lawyerId
+    const isSoloLawyer = req.isSoloLawyer;
+    const filters = {};
+    if (isSoloLawyer || !firmId) {
+        filters.lawyerId = lawyerId;
+    } else {
+        filters.firmId = firmId;
+    }
 
     if (status) filters.status = status;
     if (category) filters.category = category;
@@ -353,10 +360,11 @@ const getExpense = asyncHandler(async (req, res) => {
         throw CustomException('Expense not found', 404);
     }
 
-    // Check access - firmId first, then lawyerId
-    const hasAccess = firmId
-        ? expense.firmId && expense.firmId.toString() === firmId.toString()
-        : expense.lawyerId._id.toString() === lawyerId;
+    // Check access - solo lawyer or no firmId uses lawyerId
+    const isSoloLawyer = req.isSoloLawyer;
+    const hasAccess = (isSoloLawyer || !firmId)
+        ? expense.lawyerId._id.toString() === lawyerId
+        : expense.firmId && expense.firmId.toString() === firmId.toString();
 
     if (!hasAccess) {
         throw CustomException('You do not have access to this expense', 403);
@@ -388,10 +396,11 @@ const updateExpense = asyncHandler(async (req, res) => {
         throw CustomException('Expense not found', 404);
     }
 
-    // IDOR Protection: Check access - firmId first, then lawyerId
-    const hasAccess = firmId
-        ? expense.firmId && expense.firmId.toString() === firmId.toString()
-        : expense.lawyerId.toString() === lawyerId;
+    // IDOR Protection: Check access - solo lawyer or no firmId uses lawyerId
+    const isSoloLawyer = req.isSoloLawyer;
+    const hasAccess = (isSoloLawyer || !firmId)
+        ? expense.lawyerId.toString() === lawyerId
+        : expense.firmId && expense.firmId.toString() === firmId.toString();
 
     if (!hasAccess) {
         throw CustomException('You do not have access to this expense', 403);
@@ -484,10 +493,11 @@ const deleteExpense = asyncHandler(async (req, res) => {
         throw CustomException('Expense not found', 404);
     }
 
-    // Check access - firmId first, then lawyerId
-    const hasAccess = firmId
-        ? expense.firmId && expense.firmId.toString() === firmId.toString()
-        : expense.lawyerId.toString() === lawyerId;
+    // Check access - solo lawyer or no firmId uses lawyerId
+    const isSoloLawyer = req.isSoloLawyer;
+    const hasAccess = (isSoloLawyer || !firmId)
+        ? expense.lawyerId.toString() === lawyerId
+        : expense.firmId && expense.firmId.toString() === firmId.toString();
 
     if (!hasAccess) {
         throw CustomException('You do not have access to this expense', 403);
@@ -545,9 +555,10 @@ const submitExpense = asyncHandler(async (req, res) => {
     }
 
     // Check access
-    const hasAccess = firmId
-        ? expense.firmId && expense.firmId.toString() === firmId.toString()
-        : expense.lawyerId.toString() === lawyerId;
+    const isSoloLawyer = req.isSoloLawyer;
+    const hasAccess = (isSoloLawyer || !firmId)
+        ? expense.lawyerId.toString() === lawyerId
+        : expense.firmId && expense.firmId.toString() === firmId.toString();
 
     if (!hasAccess) {
         throw CustomException('You do not have access to this expense', 403);
@@ -600,9 +611,10 @@ const approveExpense = asyncHandler(async (req, res) => {
     }
 
     // Check access
-    const hasAccess = firmId
-        ? expense.firmId && expense.firmId.toString() === firmId.toString()
-        : expense.lawyerId.toString() === lawyerId;
+    const isSoloLawyer = req.isSoloLawyer;
+    const hasAccess = (isSoloLawyer || !firmId)
+        ? expense.lawyerId.toString() === lawyerId
+        : expense.firmId && expense.firmId.toString() === firmId.toString();
 
     if (!hasAccess) {
         throw CustomException('You do not have access to this expense', 403);
@@ -679,9 +691,10 @@ const rejectExpense = asyncHandler(async (req, res) => {
     }
 
     // Check access
-    const hasAccess = firmId
-        ? expense.firmId && expense.firmId.toString() === firmId.toString()
-        : expense.lawyerId.toString() === lawyerId;
+    const isSoloLawyer = req.isSoloLawyer;
+    const hasAccess = (isSoloLawyer || !firmId)
+        ? expense.lawyerId.toString() === lawyerId
+        : expense.firmId && expense.firmId.toString() === firmId.toString();
 
     if (!hasAccess) {
         throw CustomException('You do not have access to this expense', 403);
@@ -739,9 +752,10 @@ const markAsReimbursed = asyncHandler(async (req, res) => {
     }
 
     // Check access
-    const hasAccess = firmId
-        ? expense.firmId && expense.firmId.toString() === firmId.toString()
-        : expense.lawyerId.toString() === lawyerId;
+    const isSoloLawyer = req.isSoloLawyer;
+    const hasAccess = (isSoloLawyer || !firmId)
+        ? expense.lawyerId.toString() === lawyerId
+        : expense.firmId && expense.firmId.toString() === firmId.toString();
 
     if (!hasAccess) {
         throw CustomException('You do not have access to this expense', 403);
@@ -786,8 +800,14 @@ const getExpenseStats = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
-    // Build filters - firmId first, then lawyerId fallback
-    const filters = firmId ? { firmId } : { lawyerId };
+    // Build filters - solo lawyer or no firmId uses lawyerId
+    const isSoloLawyer = req.isSoloLawyer;
+    const filters = {};
+    if (isSoloLawyer || !firmId) {
+        filters.lawyerId = lawyerId;
+    } else {
+        filters.firmId = firmId;
+    }
 
     if (caseId) filters.caseId = caseId;
     if (clientId) filters.clientId = clientId;
@@ -804,9 +824,12 @@ const getExpenseStats = asyncHandler(async (req, res) => {
     });
 
     // Get expenses by month
-    const matchStage = firmId
-        ? { firmId: new mongoose.Types.ObjectId(firmId) }
-        : { lawyerId: new mongoose.Types.ObjectId(lawyerId) };
+    const matchStage = {};
+    if (isSoloLawyer || !firmId) {
+        matchStage.lawyerId = new mongoose.Types.ObjectId(lawyerId);
+    } else {
+        matchStage.firmId = new mongoose.Types.ObjectId(firmId);
+    }
     if (startDate) matchStage.date = { $gte: new Date(startDate) };
     if (endDate) matchStage.date = { ...matchStage.date, $lte: new Date(endDate) };
 
@@ -840,8 +863,14 @@ const getExpenseStats = asyncHandler(async (req, res) => {
     ]);
 
     // Get pending reimbursements
+    const pendingReimbursementsFilter = {};
+    if (isSoloLawyer || !firmId) {
+        pendingReimbursementsFilter.lawyerId = lawyerId;
+    } else {
+        pendingReimbursementsFilter.firmId = firmId;
+    }
     const pendingReimbursements = await Expense.getPendingReimbursements(
-        firmId ? { firmId } : { lawyerId }
+        pendingReimbursementsFilter
     );
 
     return res.json({
@@ -868,8 +897,14 @@ const getExpensesByCategory = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
-    // Build filters - firmId first, then lawyerId fallback
-    const filters = firmId ? { firmId } : { lawyerId };
+    // Build filters - solo lawyer or no firmId uses lawyerId
+    const isSoloLawyer = req.isSoloLawyer;
+    const filters = {};
+    if (isSoloLawyer || !firmId) {
+        filters.lawyerId = lawyerId;
+    } else {
+        filters.firmId = firmId;
+    }
 
     if (caseId) filters.caseId = caseId;
     if (startDate) filters.startDate = startDate;
@@ -908,9 +943,10 @@ const uploadReceipt = asyncHandler(async (req, res) => {
     }
 
     // Check access
-    const hasAccess = firmId
-        ? expense.firmId && expense.firmId.toString() === firmId.toString()
-        : expense.lawyerId.toString() === lawyerId;
+    const isSoloLawyer = req.isSoloLawyer;
+    const hasAccess = (isSoloLawyer || !firmId)
+        ? expense.lawyerId.toString() === lawyerId
+        : expense.firmId && expense.firmId.toString() === firmId.toString();
 
     if (!hasAccess) {
         throw CustomException('You do not have access to this expense', 403);
@@ -1049,9 +1085,10 @@ const bulkApproveExpenses = asyncHandler(async (req, res) => {
             }
 
             // Check access
-            const hasAccess = firmId
-                ? expense.firmId && expense.firmId.toString() === firmId.toString()
-                : expense.lawyerId.toString() === lawyerId;
+            const isSoloLawyer = req.isSoloLawyer;
+            const hasAccess = (isSoloLawyer || !firmId)
+                ? expense.lawyerId.toString() === lawyerId
+                : expense.firmId && expense.firmId.toString() === firmId.toString();
 
             if (!hasAccess) {
                 results.failed.push({ id: expenseId, error: 'No access' });
@@ -1125,21 +1162,18 @@ const bulkDeleteExpenses = asyncHandler(async (req, res) => {
     }
 
     // Build access query - can only delete draft/pending/rejected expenses (not approved/paid/invoiced)
-    const accessQuery = firmId
-        ? {
-            _id: { $in: ids },
-            firmId,
-            status: { $nin: ['approved', 'paid'] },
-            reimbursementStatus: { $ne: 'paid' },
-            invoiceId: { $exists: false }
-          }
-        : {
-            _id: { $in: ids },
-            lawyerId,
-            status: { $nin: ['approved', 'paid'] },
-            reimbursementStatus: { $ne: 'paid' },
-            invoiceId: { $exists: false }
-          };
+    const isSoloLawyer = req.isSoloLawyer;
+    const accessQuery = {
+        _id: { $in: ids },
+        status: { $nin: ['approved', 'paid'] },
+        reimbursementStatus: { $ne: 'paid' },
+        invoiceId: { $exists: false }
+    };
+    if (isSoloLawyer || !firmId) {
+        accessQuery.lawyerId = lawyerId;
+    } else {
+        accessQuery.firmId = firmId;
+    }
 
     const result = await Expense.deleteMany(accessQuery);
 

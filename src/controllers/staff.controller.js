@@ -105,7 +105,13 @@ const getStaff = asyncHandler(async (req, res) => {
     const staff = await Staff.getStaff(lawyerId, filters);
 
     // Count query
-    const countQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const countQuery = {};
+    if (isSoloLawyer || !firmId) {
+        countQuery.lawyerId = lawyerId;
+    } else {
+        countQuery.firmId = firmId;
+    }
     if (role) countQuery.role = role;
     if (status) countQuery.status = status;
     if (department) countQuery.department = department;

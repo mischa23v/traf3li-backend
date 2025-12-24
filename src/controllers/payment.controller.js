@@ -326,7 +326,13 @@ const getPayments = asyncHandler(async (req, res) => {
     }
 
     // Build query based on firmId or lawyerId
-    const query = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const query = {};
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
 
     if (status) query.status = status;
     if (paymentType) query.paymentType = paymentType;
@@ -1351,7 +1357,13 @@ const getPaymentStats = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
 
     // Build filters
-    const filters = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const filters = {};
+    if (isSoloLawyer || !firmId) {
+        filters.lawyerId = lawyerId;
+    } else {
+        filters.firmId = firmId;
+    }
     if (startDate) filters.startDate = startDate;
     if (endDate) filters.endDate = endDate;
     if (customerId || clientId) filters.customerId = customerId || clientId;
@@ -1363,14 +1375,23 @@ const getPaymentStats = asyncHandler(async (req, res) => {
     const byMethod = await Payment.getPaymentsByMethod(filters);
 
     // Get unreconciled payments
-    const unreconciled = await Payment.getUnreconciledPayments(
-        firmId ? { firmId } : { lawyerId }
-    );
+    const isSoloLawyer = req.isSoloLawyer;
+    const unreconciledQuery = {};
+    if (isSoloLawyer || !firmId) {
+        unreconciledQuery.lawyerId = lawyerId;
+    } else {
+        unreconciledQuery.firmId = firmId;
+    }
+    const unreconciled = await Payment.getUnreconciledPayments(unreconciledQuery);
 
     // Get pending checks
-    const pendingChecks = await Payment.getPendingChecks(
-        firmId ? { firmId } : { lawyerId }
-    );
+    const pendingChecksQuery = {};
+    if (isSoloLawyer || !firmId) {
+        pendingChecksQuery.lawyerId = lawyerId;
+    } else {
+        pendingChecksQuery.firmId = firmId;
+    }
+    const pendingChecks = await Payment.getPendingChecks(pendingChecksQuery);
 
     res.status(200).json({
         success: true,
@@ -1399,9 +1420,13 @@ const getPaymentsSummary = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
 
     // Build query based on firmId or lawyerId
-    const baseQuery = firmId
-        ? { firmId: new mongoose.Types.ObjectId(firmId) }
-        : { lawyerId: new mongoose.Types.ObjectId(lawyerId) };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = new mongoose.Types.ObjectId(lawyerId);
+    } else {
+        baseQuery.firmId = new mongoose.Types.ObjectId(firmId);
+    }
     const matchQuery = { ...baseQuery, status: 'completed', isRefund: { $ne: true } };
 
     if (startDate || endDate) {
@@ -1491,7 +1516,13 @@ const getUnreconciledPayments = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
     const lawyerId = req.userID;
 
-    const filters = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const filters = {};
+    if (isSoloLawyer || !firmId) {
+        filters.lawyerId = lawyerId;
+    } else {
+        filters.firmId = firmId;
+    }
     if (paymentMethod) filters.paymentMethod = paymentMethod;
 
     const payments = await Payment.getUnreconciledPayments(filters);
@@ -1516,7 +1547,13 @@ const getPendingChecks = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
     const lawyerId = req.userID;
 
-    const filters = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const filters = {};
+    if (isSoloLawyer || !firmId) {
+        filters.lawyerId = lawyerId;
+    } else {
+        filters.firmId = firmId;
+    }
     const checks = await Payment.getPendingChecks(filters);
 
     res.status(200).json({
@@ -1719,9 +1756,13 @@ const bulkDeletePayments = asyncHandler(async (req, res) => {
     }
 
     // Build query based on firmId or lawyerId
-    const accessQuery = firmId
-        ? { firmId }
-        : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const accessQuery = {};
+    if (isSoloLawyer || !firmId) {
+        accessQuery.lawyerId = lawyerId;
+    } else {
+        accessQuery.firmId = firmId;
+    }
 
     // Verify all payments belong to user/firm and are not completed/refunded
     const payments = await Payment.find({

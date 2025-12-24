@@ -316,7 +316,13 @@ const getEmployees = asyncHandler(async (req, res) => {
     );
 
     // Build query with IDOR protection (only return user's employees)
-    const query = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const query = {};
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
 
     // Validate and add filter parameters
     const validStatuses = ['active', 'inactive', 'on_leave', 'terminated'];
