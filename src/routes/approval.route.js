@@ -9,17 +9,12 @@ const { userMiddleware, firmFilter } = require('../middlewares');
 const {
     getApprovalRules,
     updateApprovalRules,
-    addApprovalRule,
-    deleteApprovalRule,
-    getRuleTemplates,
     getPendingApprovals,
-    getMyRequests,
     getApprovalRequest,
     approveRequest,
     rejectRequest,
-    cancelRequest,
-    getApprovalStats,
-    checkApprovalRequired
+    cancelApproval,
+    getApprovalHistory
 } = require('../controllers/approval.controller');
 
 const router = express.Router();
@@ -37,15 +32,6 @@ router.get('/rules', getApprovalRules);
 // PUT /api/approvals/rules - Update all approval rules
 router.put('/rules', updateApprovalRules);
 
-// POST /api/approvals/rules - Add a new approval rule
-router.post('/rules', addApprovalRule);
-
-// DELETE /api/approvals/rules/:ruleId - Delete an approval rule
-router.delete('/rules/:ruleId', deleteApprovalRule);
-
-// GET /api/approvals/templates - Get default rule templates
-router.get('/templates', getRuleTemplates);
-
 // ═══════════════════════════════════════════════════════════════
 // PENDING APPROVALS
 // ═══════════════════════════════════════════════════════════════
@@ -53,14 +39,8 @@ router.get('/templates', getRuleTemplates);
 // GET /api/approvals/pending - Get pending approvals for current user
 router.get('/pending', getPendingApprovals);
 
-// GET /api/approvals/my-requests - Get my submitted requests
-router.get('/my-requests', getMyRequests);
-
-// GET /api/approvals/stats - Get approval statistics
-router.get('/stats', getApprovalStats);
-
-// POST /api/approvals/check - Check if action requires approval
-router.post('/check', checkApprovalRequired);
+// GET /api/approvals/history - Get approval history
+router.get('/history', getApprovalHistory);
 
 // ═══════════════════════════════════════════════════════════════
 // INDIVIDUAL APPROVAL REQUESTS
@@ -76,6 +56,6 @@ router.post('/:id/approve', approveRequest);
 router.post('/:id/reject', rejectRequest);
 
 // POST /api/approvals/:id/cancel - Cancel a request (by requester)
-router.post('/:id/cancel', cancelRequest);
+router.post('/:id/cancel', cancelApproval);
 
 module.exports = router;
