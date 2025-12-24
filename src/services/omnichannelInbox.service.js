@@ -1,5 +1,5 @@
 /**
- * Omnichannel Inbox Service - Unified Conversation Management
+ * Omnichannel Inbox Service - Unified OmnichannelConversation Management
  *
  * This service provides a high-level API for managing omnichannel conversations
  * across email, WhatsApp, SMS, live chat, and social media channels.
@@ -9,13 +9,13 @@
  * - Intelligent conversation routing
  * - SLA tracking and management
  * - Real-time updates via WebSocket
- * - Conversation assignment and team management
+ * - OmnichannelConversation assignment and team management
  * - Snooze and priority management
  * - Comprehensive statistics and analytics
  */
 
 const mongoose = require('mongoose');
-const Conversation = require('../models/conversation.model');
+const OmnichannelOmnichannelConversation = require('../models/omnichannelOmnichannelConversation.model');
 const AuditLogService = require('./auditLog.service');
 const { getIO } = require('../configs/socket');
 const logger = require('../utils/logger');
@@ -115,14 +115,14 @@ class OmnichannelInboxService {
 
       // Execute query with population
       const [conversations, total] = await Promise.all([
-        Conversation.find(query)
+        OmnichannelConversation.find(query)
           .populate('contactId', 'firstName lastName email phone avatar')
           .populate('assignedTo', 'firstName lastName email avatar')
           .sort({ lastMessageAt: -1 })
           .limit(limit)
           .skip(skip)
           .lean(),
-        Conversation.countDocuments(query)
+        OmnichannelConversation.countDocuments(query)
       ]);
 
       return {
@@ -144,18 +144,18 @@ class OmnichannelInboxService {
 
   /**
    * Route conversation based on routing rules
-   * @param {String|ObjectId} conversationId - Conversation ID
+   * @param {String|ObjectId} conversationId - OmnichannelConversation ID
    * @param {Object} rules - Routing rules configuration
    * @param {Object} rules.conditions - Conditions to match (channel, customer tier, language, keywords)
    * @param {Object} rules.action - Routing action (assign to user, team, or queue)
    * @returns {Promise<Object>} - Updated conversation
    */
-  async routeConversation(conversationId, rules) {
+  async routeOmnichannelConversation(conversationId, rules) {
     try {
-      const conversation = await Conversation.findById(conversationId);
+      const conversation = await OmnichannelConversation.findById(conversationId);
 
       if (!conversation) {
-        throw new Error('Conversation not found');
+        throw new Error('OmnichannelConversation not found');
       }
 
       // Match conditions
@@ -210,7 +210,7 @@ class OmnichannelInboxService {
         );
 
         // Broadcast update
-        this._broadcastConversationUpdate(conversationId, {
+        this._broadcastOmnichannelConversationUpdate(conversationId, {
           type: 'routed',
           assignedTo: conversation.assignedTo,
           team: conversation.team
@@ -219,27 +219,27 @@ class OmnichannelInboxService {
 
       return conversation;
     } catch (error) {
-      logger.error('OmnichannelInboxService.routeConversation failed:', error.message);
+      logger.error('OmnichannelInboxService.routeOmnichannelConversation failed:', error.message);
       throw error;
     }
   }
 
   /**
    * Get conversation with full history
-   * @param {String|ObjectId} conversationId - Conversation ID
+   * @param {String|ObjectId} conversationId - OmnichannelConversation ID
    * @param {String|ObjectId} viewingAgentId - Agent viewing the conversation (optional)
-   * @returns {Promise<Object>} - Conversation with messages
+   * @returns {Promise<Object>} - OmnichannelConversation with messages
    */
-  async getConversation(conversationId, viewingAgentId = null) {
+  async getOmnichannelConversation(conversationId, viewingAgentId = null) {
     try {
-      const conversation = await Conversation.findById(conversationId)
+      const conversation = await OmnichannelConversation.findById(conversationId)
         .populate('contactId', 'firstName lastName email phone avatar')
         .populate('assignedTo', 'firstName lastName email avatar')
         .populate('messages.sentBy', 'firstName lastName email avatar')
         .lean();
 
       if (!conversation) {
-        throw new Error('Conversation not found');
+        throw new Error('OmnichannelConversation not found');
       }
 
       // Mark messages as read for viewing agent
@@ -249,14 +249,14 @@ class OmnichannelInboxService {
 
       return conversation;
     } catch (error) {
-      logger.error('OmnichannelInboxService.getConversation failed:', error.message);
+      logger.error('OmnichannelInboxService.getOmnichannelConversation failed:', error.message);
       throw error;
     }
   }
 
   /**
    * Add message to conversation
-   * @param {String|ObjectId} conversationId - Conversation ID
+   * @param {String|ObjectId} conversationId - OmnichannelConversation ID
    * @param {Object} messageData - Message data
    * @param {String} messageData.content - Message content
    * @param {String} messageData.direction - 'inbound' or 'outbound'
@@ -267,10 +267,10 @@ class OmnichannelInboxService {
    */
   async addMessage(conversationId, messageData, userId = null) {
     try {
-      const conversation = await Conversation.findById(conversationId);
+      const conversation = await OmnichannelConversation.findById(conversationId);
 
       if (!conversation) {
-        throw new Error('Conversation not found');
+        throw new Error('OmnichannelConversation not found');
       }
 
       // Prepare message object
@@ -312,7 +312,7 @@ class OmnichannelInboxService {
       );
 
       // Broadcast to WebSocket
-      this._broadcastConversationUpdate(conversationId, {
+      this._broadcastOmnichannelConversationUpdate(conversationId, {
         type: 'new_message',
         message: message,
         conversationId: conversationId
@@ -327,17 +327,17 @@ class OmnichannelInboxService {
 
   /**
    * Assign conversation to a user
-   * @param {String|ObjectId} conversationId - Conversation ID
+   * @param {String|ObjectId} conversationId - OmnichannelConversation ID
    * @param {String|ObjectId} assigneeId - User ID to assign to
    * @param {String|ObjectId} assignedBy - User ID who is assigning
    * @returns {Promise<Object>} - Updated conversation
    */
-  async assignConversation(conversationId, assigneeId, assignedBy) {
+  async assignOmnichannelConversation(conversationId, assigneeId, assignedBy) {
     try {
-      const conversation = await Conversation.findById(conversationId);
+      const conversation = await OmnichannelConversation.findById(conversationId);
 
       if (!conversation) {
-        throw new Error('Conversation not found');
+        throw new Error('OmnichannelConversation not found');
       }
 
       const previousAssignee = conversation.assignedTo;
@@ -366,7 +366,7 @@ class OmnichannelInboxService {
       );
 
       // Broadcast update
-      this._broadcastConversationUpdate(conversationId, {
+      this._broadcastOmnichannelConversationUpdate(conversationId, {
         type: 'assigned',
         assignedTo: conversation.assignedTo,
         assignedBy: assignedBy
@@ -377,24 +377,24 @@ class OmnichannelInboxService {
 
       return conversation;
     } catch (error) {
-      logger.error('OmnichannelInboxService.assignConversation failed:', error.message);
+      logger.error('OmnichannelInboxService.assignOmnichannelConversation failed:', error.message);
       throw error;
     }
   }
 
   /**
    * Snooze conversation until a specific date
-   * @param {String|ObjectId} conversationId - Conversation ID
+   * @param {String|ObjectId} conversationId - OmnichannelConversation ID
    * @param {Date} until - Date to snooze until
    * @param {String|ObjectId} userId - User ID who is snoozing
    * @returns {Promise<Object>} - Updated conversation
    */
-  async snoozeConversation(conversationId, until, userId) {
+  async snoozeOmnichannelConversation(conversationId, until, userId) {
     try {
-      const conversation = await Conversation.findById(conversationId);
+      const conversation = await OmnichannelConversation.findById(conversationId);
 
       if (!conversation) {
-        throw new Error('Conversation not found');
+        throw new Error('OmnichannelConversation not found');
       }
 
       // Set snooze
@@ -418,7 +418,7 @@ class OmnichannelInboxService {
       );
 
       // Broadcast update
-      this._broadcastConversationUpdate(conversationId, {
+      this._broadcastOmnichannelConversationUpdate(conversationId, {
         type: 'snoozed',
         snoozeUntil: until,
         status: 'snoozed'
@@ -429,24 +429,24 @@ class OmnichannelInboxService {
 
       return conversation;
     } catch (error) {
-      logger.error('OmnichannelInboxService.snoozeConversation failed:', error.message);
+      logger.error('OmnichannelInboxService.snoozeOmnichannelConversation failed:', error.message);
       throw error;
     }
   }
 
   /**
    * Close conversation
-   * @param {String|ObjectId} conversationId - Conversation ID
+   * @param {String|ObjectId} conversationId - OmnichannelConversation ID
    * @param {String|ObjectId} userId - User ID who is closing
    * @param {Object} resolution - Resolution details (optional)
    * @returns {Promise<Object>} - Updated conversation
    */
-  async closeConversation(conversationId, userId, resolution = {}) {
+  async closeOmnichannelConversation(conversationId, userId, resolution = {}) {
     try {
-      const conversation = await Conversation.findById(conversationId);
+      const conversation = await OmnichannelConversation.findById(conversationId);
 
       if (!conversation) {
-        throw new Error('Conversation not found');
+        throw new Error('OmnichannelConversation not found');
       }
 
       // Close conversation
@@ -483,7 +483,7 @@ class OmnichannelInboxService {
       );
 
       // Broadcast update
-      this._broadcastConversationUpdate(conversationId, {
+      this._broadcastOmnichannelConversationUpdate(conversationId, {
         type: 'closed',
         status: 'closed',
         resolution
@@ -494,23 +494,23 @@ class OmnichannelInboxService {
 
       return conversation;
     } catch (error) {
-      logger.error('OmnichannelInboxService.closeConversation failed:', error.message);
+      logger.error('OmnichannelInboxService.closeOmnichannelConversation failed:', error.message);
       throw error;
     }
   }
 
   /**
    * Reopen a closed conversation
-   * @param {String|ObjectId} conversationId - Conversation ID
+   * @param {String|ObjectId} conversationId - OmnichannelConversation ID
    * @param {String|ObjectId} userId - User ID who is reopening
    * @returns {Promise<Object>} - Updated conversation
    */
-  async reopenConversation(conversationId, userId) {
+  async reopenOmnichannelConversation(conversationId, userId) {
     try {
-      const conversation = await Conversation.findById(conversationId);
+      const conversation = await OmnichannelConversation.findById(conversationId);
 
       if (!conversation) {
-        throw new Error('Conversation not found');
+        throw new Error('OmnichannelConversation not found');
       }
 
       // Reopen conversation
@@ -534,14 +534,14 @@ class OmnichannelInboxService {
       );
 
       // Broadcast update
-      this._broadcastConversationUpdate(conversationId, {
+      this._broadcastOmnichannelConversationUpdate(conversationId, {
         type: 'reopened',
         status: 'open'
       });
 
       return conversation;
     } catch (error) {
-      logger.error('OmnichannelInboxService.reopenConversation failed:', error.message);
+      logger.error('OmnichannelInboxService.reopenOmnichannelConversation failed:', error.message);
       throw error;
     }
   }
@@ -550,7 +550,7 @@ class OmnichannelInboxService {
    * Get conversation statistics for dashboard
    * @param {String|ObjectId} firmId - Firm ID
    * @param {String|ObjectId} agentId - Agent ID (optional, for agent-specific stats)
-   * @returns {Promise<Object>} - Conversation statistics
+   * @returns {Promise<Object>} - OmnichannelConversation statistics
    */
   async getStats(firmId, agentId = null) {
     try {
@@ -563,7 +563,7 @@ class OmnichannelInboxService {
       }
 
       // Get counts by status
-      const statusCounts = await Conversation.aggregate([
+      const statusCounts = await OmnichannelConversation.aggregate([
         { $match: matchQuery },
         {
           $group: {
@@ -574,7 +574,7 @@ class OmnichannelInboxService {
       ]);
 
       // Get counts by channel
-      const channelCounts = await Conversation.aggregate([
+      const channelCounts = await OmnichannelConversation.aggregate([
         { $match: { ...matchQuery, status: 'open' } },
         {
           $group: {
@@ -585,7 +585,7 @@ class OmnichannelInboxService {
       ]);
 
       // Get counts by priority
-      const priorityCounts = await Conversation.aggregate([
+      const priorityCounts = await OmnichannelConversation.aggregate([
         { $match: { ...matchQuery, status: 'open' } },
         {
           $group: {
@@ -596,7 +596,7 @@ class OmnichannelInboxService {
       ]);
 
       // Calculate average response time (in minutes)
-      const avgResponseTimeResult = await Conversation.aggregate([
+      const avgResponseTimeResult = await OmnichannelConversation.aggregate([
         {
           $match: {
             ...matchQuery,
@@ -623,7 +623,7 @@ class OmnichannelInboxService {
       ]);
 
       // Get unassigned count
-      const unassignedCount = await Conversation.countDocuments({
+      const unassignedCount = await OmnichannelConversation.countDocuments({
         ...matchQuery,
         assignedTo: null,
         status: 'open'
@@ -661,12 +661,12 @@ class OmnichannelInboxService {
    * @param {String|ObjectId} contactId - Contact ID
    * @param {String} channel - Channel type
    * @param {String} channelIdentifier - Channel-specific identifier
-   * @returns {Promise<Object>} - Conversation (existing or newly created)
+   * @returns {Promise<Object>} - OmnichannelConversation (existing or newly created)
    */
-  async findOrCreateConversation(firmId, contactId, channel, channelIdentifier) {
+  async findOrCreateOmnichannelConversation(firmId, contactId, channel, channelIdentifier) {
     try {
       // Use the model's static method
-      const conversation = await Conversation.findOrCreate({
+      const conversation = await OmnichannelConversation.findOrCreate({
         firmId: new mongoose.Types.ObjectId(firmId),
         contactId: new mongoose.Types.ObjectId(contactId),
         channel,
@@ -693,24 +693,24 @@ class OmnichannelInboxService {
 
       return conversation;
     } catch (error) {
-      logger.error('OmnichannelInboxService.findOrCreateConversation failed:', error.message);
+      logger.error('OmnichannelInboxService.findOrCreateOmnichannelConversation failed:', error.message);
       throw error;
     }
   }
 
   /**
    * Update conversation tags
-   * @param {String|ObjectId} conversationId - Conversation ID
+   * @param {String|ObjectId} conversationId - OmnichannelConversation ID
    * @param {Array<String>} tags - Array of tags
    * @param {String|ObjectId} userId - User ID
    * @returns {Promise<Object>} - Updated conversation
    */
   async updateTags(conversationId, tags, userId) {
     try {
-      const conversation = await Conversation.findById(conversationId);
+      const conversation = await OmnichannelConversation.findById(conversationId);
 
       if (!conversation) {
-        throw new Error('Conversation not found');
+        throw new Error('OmnichannelConversation not found');
       }
 
       const previousTags = conversation.tags || [];
@@ -734,7 +734,7 @@ class OmnichannelInboxService {
       );
 
       // Broadcast update
-      this._broadcastConversationUpdate(conversationId, {
+      this._broadcastOmnichannelConversationUpdate(conversationId, {
         type: 'tags_updated',
         tags
       });
@@ -748,17 +748,17 @@ class OmnichannelInboxService {
 
   /**
    * Update conversation priority
-   * @param {String|ObjectId} conversationId - Conversation ID
+   * @param {String|ObjectId} conversationId - OmnichannelConversation ID
    * @param {String} priority - Priority level ('urgent', 'high', 'normal', 'low')
    * @param {String|ObjectId} userId - User ID
    * @returns {Promise<Object>} - Updated conversation
    */
   async updatePriority(conversationId, priority, userId) {
     try {
-      const conversation = await Conversation.findById(conversationId);
+      const conversation = await OmnichannelConversation.findById(conversationId);
 
       if (!conversation) {
-        throw new Error('Conversation not found');
+        throw new Error('OmnichannelConversation not found');
       }
 
       const previousPriority = conversation.priority;
@@ -782,7 +782,7 @@ class OmnichannelInboxService {
       );
 
       // Broadcast update
-      this._broadcastConversationUpdate(conversationId, {
+      this._broadcastOmnichannelConversationUpdate(conversationId, {
         type: 'priority_updated',
         priority
       });
@@ -801,7 +801,7 @@ class OmnichannelInboxService {
   /**
    * Mark messages as read for a specific user
    * @private
-   * @param {String|ObjectId} conversationId - Conversation ID
+   * @param {String|ObjectId} conversationId - OmnichannelConversation ID
    * @param {String|ObjectId} userId - User ID
    */
   async _markMessagesAsRead(conversationId, userId) {
@@ -809,7 +809,7 @@ class OmnichannelInboxService {
       const now = new Date();
 
       // Update all unread messages in the conversation
-      await Conversation.updateOne(
+      await OmnichannelConversation.updateOne(
         { _id: conversationId },
         {
           $set: {
@@ -834,10 +834,10 @@ class OmnichannelInboxService {
   /**
    * Broadcast conversation update via WebSocket
    * @private
-   * @param {String|ObjectId} conversationId - Conversation ID
+   * @param {String|ObjectId} conversationId - OmnichannelConversation ID
    * @param {Object} updateData - Update data to broadcast
    */
-  _broadcastConversationUpdate(conversationId, updateData) {
+  _broadcastOmnichannelConversationUpdate(conversationId, updateData) {
     try {
       const io = getIO();
 
@@ -854,7 +854,7 @@ class OmnichannelInboxService {
         timestamp: new Date()
       });
     } catch (error) {
-      logger.error('OmnichannelInboxService._broadcastConversationUpdate failed:', error.message);
+      logger.error('OmnichannelInboxService._broadcastOmnichannelConversationUpdate failed:', error.message);
       // Don't throw - broadcasting failure shouldn't break the operation
     }
   }
