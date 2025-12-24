@@ -62,6 +62,10 @@ const { startEmailCampaignJobs } = require('./jobs/emailCampaign.job');
 const { startAllJobs: startMLScoringJobs } = require('./jobs/mlScoring.job');
 const { startPriceUpdater } = require('./jobs/priceUpdater');
 const runAuditLogArchiving = require('./jobs/auditLogArchiving.job');
+const { startSLABreachJob } = require('./jobs/slaBreachCheck.job');
+const { startStuckDealJob } = require('./jobs/stuckDealDetection.job');
+const { startDealHealthJob } = require('./jobs/dealHealthScoring.job');
+const { startCycleAutoCompleteJob } = require('./jobs/cycleAutoComplete.job');
 const cron = require('node-cron');
 const { initSocket, shutdownSocket } = require('./configs/socket');
 const mongoose = require('mongoose');
@@ -178,6 +182,22 @@ const {
     leadScoringRoute,
     mlScoringRoute,
     whatsappRoute,
+
+    // CRM Enhancement
+    slaRoutes,
+    conversationRoutes,
+    macroRoutes,
+    approvalRoutes,
+    viewRoutes,
+    automationRoutes,
+    timelineRoutes,
+    cycleRoutes,
+    dealRoomRoutes,
+    reportRoutes,
+    deduplicationRoutes,
+    commandPaletteRoutes,
+    lifecycleRoutes,
+    dealHealthRoutes,
 
     // HR
     hrRoute,
@@ -827,6 +847,24 @@ app.use('/api/ml', mlScoringRoute);  // ML-enhanced lead scoring
 app.use('/api/whatsapp', whatsappRoute);
 
 // ============================================
+// CRM ENHANCEMENT ROUTES
+// ============================================
+app.use('/api/sla', slaRoutes);
+app.use('/api/conversations', conversationRoutes);
+app.use('/api/macros', macroRoutes);
+app.use('/api/approvals', approvalRoutes);
+app.use('/api/views', viewRoutes);
+app.use('/api/automations', automationRoutes);
+app.use('/api/timeline', timelineRoutes);
+app.use('/api/cycles', cycleRoutes);
+app.use('/api/deal-rooms', dealRoomRoutes);
+app.use('/api/reports', reportRoutes);
+app.use('/api/deduplication', deduplicationRoutes);
+app.use('/api/command-palette', commandPaletteRoutes);
+app.use('/api/lifecycle', lifecycleRoutes);
+app.use('/api/deals/health', dealHealthRoutes);
+
+// ============================================
 // HR ROUTES (Sensitive Employee Data)
 // ============================================
 app.use('/api/hr', noCache, hrRoute); // No cache for HR data
@@ -1245,6 +1283,38 @@ const startServer = async () => {
                 logger.info('✅ Price updater jobs started');
             } catch (error) {
                 logger.warn('⚠️ Price updater jobs failed to start:', error.message);
+            }
+
+            // SLA Breach Check Job
+            try {
+                startSLABreachJob();
+                logger.info('✅ SLA breach check job started');
+            } catch (error) {
+                logger.warn('⚠️ SLA breach check job failed to start:', error.message);
+            }
+
+            // Stuck Deal Detection Job
+            try {
+                startStuckDealJob();
+                logger.info('✅ Stuck deal detection job started');
+            } catch (error) {
+                logger.warn('⚠️ Stuck deal detection job failed to start:', error.message);
+            }
+
+            // Deal Health Scoring Job
+            try {
+                startDealHealthJob();
+                logger.info('✅ Deal health scoring job started');
+            } catch (error) {
+                logger.warn('⚠️ Deal health scoring job failed to start:', error.message);
+            }
+
+            // Cycle Auto-Complete Job
+            try {
+                startCycleAutoCompleteJob();
+                logger.info('✅ Cycle auto-complete job started');
+            } catch (error) {
+                logger.warn('⚠️ Cycle auto-complete job failed to start:', error.message);
             }
 
             // Audit Log Archiving - Run daily at 2:30 AM

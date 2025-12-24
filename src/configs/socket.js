@@ -1,8 +1,14 @@
 const { Server } = require('socket.io');
 const logger = require('../utils/logger');
 
+// Import socket handlers
+const TicketCollisionHandler = require('../sockets/ticketCollision.socket');
+const TimelineSocketHandler = require('../sockets/timeline.socket');
+
 let io;
 let cleanupInterval = null;
+let ticketCollisionHandler = null;
+let timelineHandler = null;
 
 // Allowed origins for Socket.io (matching Express CORS)
 const allowedOrigins = [
@@ -99,6 +105,18 @@ const initSocket = (server) => {
   initRedisAdapter(io).catch(err => {
     logger.error('Redis adapter initialization failed:', err.message);
   });
+
+  // ═══════════════════════════════════════════════════════════════
+  // INITIALIZE MODULAR SOCKET HANDLERS
+  // ═══════════════════════════════════════════════════════════════
+
+  // Ticket collision detection handler
+  ticketCollisionHandler = new TicketCollisionHandler(io);
+  ticketCollisionHandler.initialize();
+
+  // Timeline real-time updates handler
+  timelineHandler = new TimelineSocketHandler(io);
+  timelineHandler.initialize();
 
   // Store online users
   const onlineUsers = new Map();
@@ -499,6 +517,17 @@ const shutdownSocket = async () => {
     logger.info('✅ Socket.io cleanup interval cleared');
   }
 
+  // Shutdown modular socket handlers
+  if (ticketCollisionHandler) {
+    ticketCollisionHandler.shutdown();
+    ticketCollisionHandler = null;
+  }
+
+  if (timelineHandler) {
+    timelineHandler.shutdown();
+    timelineHandler = null;
+  }
+
   if (io) {
     // Close Redis adapter connections if they exist
     if (io._redisClients) {
@@ -526,10 +555,30 @@ const shutdownSocket = async () => {
   }
 };
 
+// Helper function to get ticket collision handler
+const getTicketCollisionHandler = () => {
+  if (!ticketCollisionHandler) {
+    logger.warn('Ticket collision handler not initialized');
+    return null;
+  }
+  return ticketCollisionHandler;
+};
+
+// Helper function to get timeline handler
+const getTimelineHandler = () => {
+  if (!timelineHandler) {
+    logger.warn('Timeline handler not initialized');
+    return null;
+  }
+  return timelineHandler;
+};
+
 module.exports = {
   initSocket,
   getIO,
   emitNotification,
   emitNotificationCount,
-  shutdownSocket
+  shutdownSocket,
+  getTicketCollisionHandler,
+  getTimelineHandler
 };

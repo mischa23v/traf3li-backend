@@ -82,6 +82,22 @@ const leadScoringRoute = require('./leadScoring.route');
 const mlScoringRoute = require('./mlScoring.route');
 const whatsappRoute = require('./whatsapp.route');
 
+// CRM Enhancement Routes
+const slaRoutes = require('./sla.routes');
+const conversationRoutes = require('./conversation.routes');
+const macroRoutes = require('./macro.routes');
+const approvalRoutes = require('./approval.routes');
+const viewRoutes = require('./view.routes');
+const automationRoutes = require('./automation.routes');
+const timelineRoutes = require('./timeline.routes');
+const cycleRoutes = require('./cycle.routes');
+const dealRoomRoutes = require('./dealRoom.routes');
+const reportRoutes = require('./report.routes');
+const deduplicationRoutes = require('./deduplication.routes');
+const commandPaletteRoutes = require('./commandPalette.routes');
+const lifecycleRoutes = require('./lifecycle.routes');
+const dealHealthRoutes = require('./dealHealth.routes');
+
 // HR Routes
 const hrRoute = require('./hr.route');
 const payrollRoute = require('./payroll.route');
@@ -340,6 +356,22 @@ module.exports = {
     leadScoringRoute,
     mlScoringRoute,
     whatsappRoute,
+
+    // CRM Enhancement
+    slaRoutes,
+    conversationRoutes,
+    macroRoutes,
+    approvalRoutes,
+    viewRoutes,
+    automationRoutes,
+    timelineRoutes,
+    cycleRoutes,
+    dealRoomRoutes,
+    reportRoutes,
+    deduplicationRoutes,
+    commandPaletteRoutes,
+    lifecycleRoutes,
+    dealHealthRoutes,
 
     // HR
     hrRoute,

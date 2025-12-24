@@ -327,6 +327,20 @@ const leadSchema = new mongoose.Schema({
         enum: ['price', 'competitor', 'no_response', 'not_qualified', 'timing', 'other']
     },
     lostNotes: String,
+    stageChangedAt: Date,
+
+    // ═══════════════════════════════════════════════════════════════
+    // FORECAST MANAGEMENT
+    // ═══════════════════════════════════════════════════════════════
+    forecastCategory: {
+        type: String,
+        enum: ['pipeline', 'best_case', 'commit', 'closed_won', 'omitted'],
+        default: 'pipeline'
+    },
+    forecastCategoryAuto: { type: Boolean, default: true },
+    forecastOverrideReason: String,
+    forecastOverrideBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    forecastOverrideAt: Date,
 
     // ═══════════════════════════════════════════════════════════════
     // SOURCE & ACQUISITION
@@ -371,6 +385,51 @@ const leadSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User'
     }],
+
+    // ═══════════════════════════════════════════════════════════════
+    // STAKEHOLDER MAPPING
+    // ═══════════════════════════════════════════════════════════════
+    stakeholders: [{
+        contactId: { type: mongoose.Schema.Types.ObjectId, ref: 'Contact' },
+        role: {
+            type: String,
+            enum: ['champion', 'decision_maker', 'influencer', 'user', 'blocker', 'economic_buyer', 'technical_buyer', 'coach']
+        },
+        influence: { type: Number, min: 1, max: 10 },
+        sentiment: {
+            type: String,
+            enum: ['strongly_positive', 'positive', 'neutral', 'negative', 'strongly_negative', 'unknown'],
+            default: 'unknown'
+        },
+        engagementScore: Number,
+        lastEngagement: Date,
+        notes: String,
+        addedAt: { type: Date, default: Date.now },
+        addedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
+    }],
+
+    // ═══════════════════════════════════════════════════════════════
+    // DEAL HEALTH & INTELLIGENCE
+    // ═══════════════════════════════════════════════════════════════
+    dealHealth: {
+        score: { type: Number, min: 0, max: 100 },
+        grade: { type: String, enum: ['A', 'B', 'C', 'D', 'F'] },
+        lastCalculatedAt: Date,
+        factors: {
+            activityRecency: Number,
+            engagementVelocity: Number,
+            stageProgression: Number,
+            stakeholderCoverage: Number,
+            nextStepClarity: Number,
+            competitorRisk: Number
+        },
+        recommendations: [{
+            priority: { type: String, enum: ['high', 'medium', 'low'] },
+            message: String
+        }],
+        isStuck: { type: Boolean, default: false },
+        stuckSince: Date
+    },
 
     // ═══════════════════════════════════════════════════════════════
     // ACTIVITY TRACKING
@@ -468,6 +527,12 @@ leadSchema.index({ identityType: 1 });
 leadSchema.index({ conflictCheckStatus: 1 });
 leadSchema.index({ isVerified: 1 });
 leadSchema.index({ riskLevel: 1 });
+
+// Forecast & Deal Health Indexes
+leadSchema.index({ forecastCategory: 1 });
+leadSchema.index({ 'dealHealth.score': 1 });
+leadSchema.index({ firmId: 1, forecastCategory: 1, expectedCloseDate: 1 });
+leadSchema.index({ firmId: 1, 'dealHealth.grade': 1 });
 
 // ═══════════════════════════════════════════════════════════════
 // VIRTUALS

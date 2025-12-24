@@ -301,6 +301,38 @@ const taskSchema = new mongoose.Schema({
             'filing_deadline', 'appeal_deadline', 'discovery', 'deposition',
             'mediation', 'settlement', 'research', 'drafting', 'other'],
         default: 'general'
+    },
+    // Cycle/Sprint Support
+    cycleId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Cycle',
+        index: true
+    },
+    rolledOverFrom: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Cycle'
+    },
+    rolloverCount: {
+        type: Number,
+        default: 0
+    },
+    // Lifecycle Workflow Integration
+    lifecycleInstanceId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'LifecycleInstance'
+    },
+    lifecycleTaskRef: {
+        type: String,
+        trim: true
+    },
+    // Automation Tracking
+    createdByAutomation: {
+        type: Boolean,
+        default: false
+    },
+    automationId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Automation'
     }
 }, {
     versionKey: false,
@@ -324,6 +356,14 @@ taskSchema.index({ createdAt: -1 });
 // Dashboard query indexes
 taskSchema.index({ firmId: 1, status: 1 });
 taskSchema.index({ firmId: 1, status: 1, createdAt: -1 });
+// Cycle/Sprint query indexes
+taskSchema.index({ cycleId: 1, status: 1 });
+taskSchema.index({ cycleId: 1, assignedTo: 1 });
+taskSchema.index({ firmId: 1, cycleId: 1 });
+// Lifecycle and automation indexes
+taskSchema.index({ lifecycleInstanceId: 1 });
+taskSchema.index({ automationId: 1 });
+taskSchema.index({ createdByAutomation: 1 });
 
 // Pre-save hook to calculate progress from subtasks and budget
 taskSchema.pre('save', function (next) {
