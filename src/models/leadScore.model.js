@@ -424,6 +424,9 @@ leadScoreSchema.index({ 'salesPriority.slaDeadline': 1 });
 leadScoreSchema.index({ firmId: 1, 'conversion.converted': 1 });
 leadScoreSchema.index({ 'conversion.convertedAt': -1 });
 
+// ML Scoring Query Indexes (fixes 158ms slow query for ML recalculation)
+leadScoreSchema.index({ totalScore: 1, 'calculation.lastCalculatedAt': 1 });
+
 // ═══════════════════════════════════════════════════════════════
 // VIRTUALS
 // ═══════════════════════════════════════════════════════════════
