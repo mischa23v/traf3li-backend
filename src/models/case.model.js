@@ -1088,6 +1088,8 @@ caseSchema.index({ clientId: 1, status: 1 });
 caseSchema.index({ firmId: 1, status: 1, createdAt: -1 });
 caseSchema.index({ firmId: 1, lawyerId: 1, status: 1 });
 caseSchema.index({ firmId: 1, priority: 1, status: 1 });
+caseSchema.index({ firmId: 1, clientId: 1 });
+caseSchema.index({ firmId: 1, nextHearing: 1 });
 caseSchema.index({ 'richDocuments.showOnCalendar': 1, 'richDocuments.calendarDate': 1 });
 caseSchema.index({ 'richDocuments.documentType': 1 });
 caseSchema.index({ 'richDocuments.status': 1 });

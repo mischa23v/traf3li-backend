@@ -7,6 +7,7 @@ const orderRoute = require('./order.route');
 const conversationRoute = require('./conversation.route');
 const messageRoute = require('./message.route');
 const reviewRoute = require('./review.route');
+const disputeRoute = require('./dispute.route');
 const userRoute = require('./user.route');
 const jobRoute = require('./job.route');
 const proposalRoute = require('./proposal.route');
@@ -41,6 +42,7 @@ const reminderRoute = require('./reminder.route');
 const clientRoute = require('./client.route');
 const calendarRoute = require('./calendar.route');
 const lawyerRoute = require('./lawyer.route');
+const payoutRoute = require('./payout.route');
 
 // New API Routes
 const tagRoute = require('./tag.route');
@@ -208,6 +210,9 @@ const pdfmeRoute = require('./pdfme.route');
 // Saudi Government API Integration Routes
 const verifyRoute = require('./verify.route');
 
+// KYC/AML Verification Routes
+const kycRoute = require('./kyc.route');
+
 // Extended HR Routes (ERPNext HRMS parity)
 const shiftRoute = require('./shift.route');
 const leaveManagementRoute = require('./leaveManagement.route');
@@ -261,6 +266,7 @@ module.exports = {
     conversationRoute,
     messageRoute,
     reviewRoute,
+    disputeRoute,
     userRoute,
     jobRoute,
     proposalRoute,
@@ -295,6 +301,7 @@ module.exports = {
     clientRoute,
     calendarRoute,
     lawyerRoute,
+    payoutRoute,
 
     // New API Routes
     tagRoute,
@@ -461,6 +468,9 @@ module.exports = {
 
     // Saudi Government API Integration
     verifyRoute,
+
+    // KYC/AML Verification
+    kycRoute,
 
     // Extended HR (ERPNext HRMS parity)
     shiftRoute,

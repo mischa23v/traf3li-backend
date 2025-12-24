@@ -15,6 +15,7 @@
  */
 
 const mongoose = require('mongoose');
+const logger = require('../utils/logger');
 
 /**
  * Individual tax bracket
@@ -495,7 +496,10 @@ incomeTaxSlabSchema.statics.createDefaultSlabs = async function(firmId, createdB
         } catch (error) {
             // Skip if exists
             if (error.code !== 11000) {
-                console.error(`Error creating tax slab for ${slab.countryCode}:`, error.message);
+                logger.error('Error creating tax slab', {
+                    countryCode: slab.countryCode,
+                    error: error.message
+                });
             }
         }
     }

@@ -16,6 +16,7 @@
 
 const axios = require('axios');
 const logger = require('../utils/logger');
+const { wrapExternalCall } = require('../utils/externalServiceWrapper');
 
 class MOJService {
   constructor() {
@@ -150,14 +151,16 @@ class MOJService {
     }
 
     try {
-      const response = await this.client.get(
-        `${this.baseUrl}/lawyers/verify/${attorneyId}`,
-        {
-          headers: {
-            'Authorization': this.getAuthHeader()
+      const response = await wrapExternalCall('moj', async () => {
+        return await this.client.get(
+          `${this.baseUrl}/lawyers/verify/${attorneyId}`,
+          {
+            headers: {
+              'Authorization': this.getAuthHeader()
+            }
           }
-        }
-      );
+        );
+      });
 
       if (response.data && response.data.valid !== false) {
         const data = this.normalizeAttorneyResponse(response.data);
@@ -230,14 +233,16 @@ class MOJService {
     }
 
     try {
-      const response = await this.client.get(
-        `${this.baseUrl}/lawyers/license/${licenseNumber}`,
-        {
-          headers: {
-            'Authorization': this.getAuthHeader()
+      const response = await wrapExternalCall('moj', async () => {
+        return await this.client.get(
+          `${this.baseUrl}/lawyers/license/${licenseNumber}`,
+          {
+            headers: {
+              'Authorization': this.getAuthHeader()
+            }
           }
-        }
-      );
+        );
+      });
 
       if (response.data && response.data.valid !== false) {
         const data = this.normalizeAttorneyResponse(response.data);
@@ -320,10 +325,12 @@ class MOJService {
         endpoint += `?idNumber=${idNumber}`;
       }
 
-      const response = await this.client.get(endpoint, {
-        headers: {
-          'Authorization': this.getAuthHeader()
-        }
+      const response = await wrapExternalCall('moj', async () => {
+        return await this.client.get(endpoint, {
+          headers: {
+            'Authorization': this.getAuthHeader()
+          }
+        });
       });
 
       if (response.data && response.data.valid !== false) {
@@ -400,14 +407,16 @@ class MOJService {
     }
 
     try {
-      const response = await this.client.get(
-        `${this.baseUrl}/poa/list/${idNumber}?role=${role}`,
-        {
-          headers: {
-            'Authorization': this.getAuthHeader()
+      const response = await wrapExternalCall('moj', async () => {
+        return await this.client.get(
+          `${this.baseUrl}/poa/list/${idNumber}?role=${role}`,
+          {
+            headers: {
+              'Authorization': this.getAuthHeader()
+            }
           }
-        }
-      );
+        );
+      });
 
       if (response.data) {
         return {

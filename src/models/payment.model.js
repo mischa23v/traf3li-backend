@@ -485,6 +485,11 @@ paymentSchema.index({ invoiceId: 1 });
 paymentSchema.index({ paymentType: 1, status: 1 });
 paymentSchema.index({ 'reconciliation.isReconciled': 1 });
 paymentSchema.index({ 'checkDetails.status': 1 });
+// Compound indexes for multi-tenant dashboard queries
+paymentSchema.index({ firmId: 1, status: 1, createdAt: -1 });
+paymentSchema.index({ firmId: 1, customerId: 1 });
+paymentSchema.index({ firmId: 1, clientId: 1 });
+paymentSchema.index({ firmId: 1, lawyerId: 1, status: 1 });
 
 // ═══════════════════════════════════════════════════════════════
 // PRE-SAVE HOOKS

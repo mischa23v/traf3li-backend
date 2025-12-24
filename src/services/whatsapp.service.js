@@ -7,6 +7,7 @@ const Client = require('../models/client.model');
 const CrmActivity = require('../models/crmActivity.model');
 const axios = require('axios');
 const logger = require('../utils/logger');
+const { wrapExternalCall } = require('../utils/externalServiceWrapper');
 
 // ═══════════════════════════════════════════════════════════════
 // WHATSAPP SERVICE - MULTI-PROVIDER SUPPORT
@@ -421,11 +422,13 @@ class WhatsAppService {
         }
 
         try {
-            const response = await axios.post(url, payload, {
-                headers: {
-                    'Authorization': `Bearer ${config.accessToken}`,
-                    'Content-Type': 'application/json'
-                }
+            const response = await wrapExternalCall('whatsapp', async () => {
+                return await axios.post(url, payload, {
+                    headers: {
+                        'Authorization': `Bearer ${config.accessToken}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
             });
 
             return {

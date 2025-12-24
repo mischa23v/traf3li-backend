@@ -161,6 +161,7 @@ class ChurnAnalyticsService {
             // Calculate health scores dynamically
             const subscriptions = await Subscription.aggregate([
                 { $match: { ...matchStage, status: { $in: ['active', 'trialing'] } } },
+                { $limit: 10000 },
                 {
                     $lookup: {
                         from: 'invoices',
@@ -258,7 +259,8 @@ class ChurnAnalyticsService {
                         count: { $sum: 1 }
                     }
                 },
-                { $sort: { _id: 1 } }
+                { $sort: { _id: 1 } },
+                { $limit: 1000 }
             ]);
 
             return trend.map(item => ({
@@ -512,7 +514,8 @@ class ChurnAnalyticsService {
                         }
                     }
                 },
-                { $sort: { count: -1 } }
+                { $sort: { count: -1 } },
+                { $limit: 1000 }
             ]);
 
             return breakdown.map(item => ({
@@ -580,7 +583,8 @@ class ChurnAnalyticsService {
                         }
                     }
                 },
-                { $sort: { churnRate: -1 } }
+                { $sort: { churnRate: -1 } },
+                { $limit: 1000 }
             ]);
 
             return segments.map(seg => ({
@@ -767,7 +771,8 @@ class ChurnAnalyticsService {
                         count: { $sum: 1 }
                     }
                 },
-                { $sort: { _id: 1 } }
+                { $sort: { _id: 1 } },
+                { $limit: 1000 }
             ]);
 
             return churnedSubscriptions.map(item => ({

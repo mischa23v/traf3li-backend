@@ -499,6 +499,8 @@ invoiceSchema.index({ responsibleAttorneyId: 1 });
 invoiceSchema.index({ firmId: 1, status: 1, dueDate: -1 });
 invoiceSchema.index({ firmId: 1, status: 1, createdAt: -1 });
 invoiceSchema.index({ firmId: 1, lawyerId: 1, status: 1 });
+invoiceSchema.index({ firmId: 1, clientId: 1 });
+invoiceSchema.index({ firmId: 1, dueDate: 1 });
 
 // ============ VIRTUALS ============
 invoiceSchema.virtual('isOverdue').get(function() {
@@ -551,23 +553,29 @@ invoiceSchema.virtual('computedAmountPaid').get(async function() {
 });
 
 // ============ STATICS ============
-invoiceSchema.statics.generateInvoiceNumber = async function() {
-    const date = new Date();
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
+/**
+ * Generate unique invoice number using atomic counter
+ * Format: INV-{YEAR}-{SEQUENCE} (e.g., INV-2025-000001)
+ * Per-firm sequence ensures no gaps and prevents race conditions
+ *
+ * @param {ObjectId} firmId - Firm ID for multi-tenant sequence isolation
+ * @returns {Promise<String>} - Generated invoice number
+ */
+invoiceSchema.statics.generateInvoiceNumber = async function(firmId = null) {
+    const Counter = require('./counter.model');
+    const year = new Date().getFullYear();
 
-    // Find the last invoice of this month
-    const lastInvoice = await this.findOne({
-        invoiceNumber: new RegExp(`^INV-${year}${month}-`)
-    }).sort({ invoiceNumber: -1 });
+    // Create counter ID: invoice_{firmId}_{year} for per-firm, per-year sequences
+    // If no firmId, use 'global' for backwards compatibility
+    const counterId = firmId
+        ? `invoice_${firmId}_${year}`
+        : `invoice_global_${year}`;
 
-    let sequence = 1;
-    if (lastInvoice) {
-        const lastSequence = parseInt(lastInvoice.invoiceNumber.split('-')[2]);
-        sequence = lastSequence + 1;
-    }
+    // Get next sequence atomically (prevents race conditions)
+    const seq = await Counter.getNextSequence(counterId);
 
-    return `INV-${year}${month}-${String(sequence).padStart(4, '0')}`;
+    // Format: INV-{YEAR}-{SEQUENCE}
+    return `INV-${year}-${String(seq).padStart(6, '0')}`;
 };
 
 invoiceSchema.statics.getOverdueInvoices = function(lawyerId = null) {
@@ -594,9 +602,9 @@ invoiceSchema.pre('save', async function(next) {
     const normalizeHalalas = (value = 0) => Number.isInteger(value) ? value : toHalalas(value);
     const multiplyToHalalas = (quantity = 0, unitPrice = 0) => toHalalas((quantity || 0) * (unitPrice || 0));
 
-    // Auto-generate invoice number if not provided
+    // Auto-generate invoice number if not provided (using atomic counter)
     if (this.isNew && !this.invoiceNumber) {
-        this.invoiceNumber = await this.constructor.generateInvoiceNumber();
+        this.invoiceNumber = await this.constructor.generateInvoiceNumber(this.firmId);
     }
 
     // Normalize incoming numeric fields to halalas so all arithmetic stays in smallest unit

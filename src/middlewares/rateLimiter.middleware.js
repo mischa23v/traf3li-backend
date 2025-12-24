@@ -1,17 +1,18 @@
 const logger = require('../utils/logger');
 const rateLimit = require('express-rate-limit');
 const { ipKeyGenerator } = require('express-rate-limit');
-const MongoStore = require('rate-limit-mongo');
+const RedisStore = require('rate-limit-redis');
+const { getRedisClient, isRedisConnected } = require('../configs/redis');
 
 /**
  * Rate limiting middleware to prevent brute force and API abuse
- * 
- * Uses MongoDB to store rate limit data (shared across multiple server instances)
- * Falls back to memory store if MongoDB is not available
+ *
+ * Uses Redis to store rate limit data (shared across multiple server instances)
+ * Falls back to memory store if Redis is not available
  */
 
 /**
- * Create rate limiter with MongoDB store
+ * Create rate limiter with Redis store
  * @param {object} options - Rate limit options
  * @returns {Function} - Express middleware
  */
@@ -34,13 +35,20 @@ const createRateLimiter = (options = {}) => {
 
   const config = { ...defaultOptions, ...options };
 
-  // Use MongoDB store if URI is available
-  if (process.env.MONGODB_URI) {
-    config.store = new MongoStore({
-      uri: process.env.MONGODB_URI,
-      collectionName: 'rateLimits',
-      expireTimeMs: config.windowMs,
-    });
+  // Use Redis store if available
+  try {
+    const redisClient = getRedisClient();
+    if (redisClient) {
+      config.store = new RedisStore({
+        sendCommand: (...args) => redisClient.call(...args),
+        prefix: 'rate-limit:',
+      });
+      logger.info('Rate limiter: Using Redis store');
+    } else {
+      logger.warn('Rate limiter: Redis client not available, using memory store');
+    }
+  } catch (error) {
+    logger.warn('Rate limiter: Failed to initialize Redis store, using memory store:', error.message);
   }
 
   return rateLimit(config);

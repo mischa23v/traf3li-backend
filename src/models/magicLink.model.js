@@ -62,6 +62,10 @@ magicLinkSchema.index({ expiresAt: 1, isUsed: 1 });
 // Index for verification queries
 magicLinkSchema.index({ token: 1, isUsed: 1, expiresAt: 1 });
 
+// TTL index to auto-delete expired magic links
+// Delete immediately after expiration as they're single-use and short-lived
+magicLinkSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
+
 // Static method to find valid magic link by token
 magicLinkSchema.statics.findValidByToken = async function(token) {
     return await this.findOne({

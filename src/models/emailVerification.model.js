@@ -44,6 +44,10 @@ const emailVerificationSchema = new mongoose.Schema({
 // Index for efficient cleanup of expired tokens
 emailVerificationSchema.index({ expiresAt: 1, isUsed: 1 });
 
+// TTL index to auto-delete expired tokens
+// Delete 30 days after expiration to maintain audit trail
+emailVerificationSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 30 * 24 * 60 * 60 });
+
 // Index for finding tokens by userId
 emailVerificationSchema.index({ userId: 1, isUsed: 1 });
 

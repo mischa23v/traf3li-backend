@@ -20,6 +20,7 @@
 
 const axios = require('axios');
 const logger = require('../utils/logger');
+const { wrapExternalCall } = require('../utils/externalServiceWrapper');
 
 class WathqService {
   constructor() {
@@ -89,16 +90,18 @@ class WathqService {
   }
 
   /**
-   * Make authenticated request to Wathq API
+   * Make authenticated request to Wathq API (with circuit breaker protection)
    */
   async makeRequest(endpoint, method = 'GET') {
     try {
-      const response = await this.client({
-        method,
-        url: `${this.baseUrl}${endpoint}`,
-        headers: {
-          'Authorization': this.getAuthHeader()
-        }
+      const response = await wrapExternalCall('wathq', async () => {
+        return await this.client({
+          method,
+          url: `${this.baseUrl}${endpoint}`,
+          headers: {
+            'Authorization': this.getAuthHeader()
+          }
+        });
       });
       return { success: true, data: response.data };
     } catch (error) {

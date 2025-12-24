@@ -2,10 +2,14 @@
  * Health Check Routes
  *
  * Provides multiple health check endpoints:
- * - Basic health check for load balancers
- * - Kubernetes liveness probe
- * - Kubernetes readiness probe
- * - Detailed health check (protected)
+ * - GET /health - Basic health check for load balancers
+ * - GET /health/live - Kubernetes liveness probe
+ * - GET /health/ready - Kubernetes readiness probe
+ * - GET /health/deep - Deep health check with all service checks (protected)
+ * - GET /health/detailed - Comprehensive health check (protected)
+ * - GET /health/ping - Simple ping endpoint
+ * - GET /health/circuits - Circuit breaker status (protected)
+ * - GET /health/cache - Cache performance stats (protected)
  */
 
 const express = require('express');
@@ -14,7 +18,11 @@ const {
     performHealthCheck,
     checkDatabase,
     checkRedis,
-    getSystemInfo
+    checkStripe,
+    checkDiskSpace,
+    checkMemory,
+    getSystemInfo,
+    measureDbLatency
 } = require('../services/health.service');
 const logger = require('../utils/logger');
 
@@ -144,6 +152,149 @@ router.get('/detailed', authenticate, async (req, res) => {
             system: systemInfo
         });
     } catch (error) {
+        res.status(503).json({
+            status: 'unhealthy',
+            timestamp: new Date().toISOString(),
+            error: error.message
+        });
+    }
+});
+
+/**
+ * GET /health/deep
+ * Deep health check with detailed service monitoring
+ * Checks all dependencies: MongoDB, Redis, Stripe, disk, memory
+ * Protected endpoint - requires authentication
+ */
+router.get('/deep', authenticate, async (req, res) => {
+    try {
+        const health = {
+            status: 'healthy',
+            timestamp: new Date().toISOString(),
+            uptime: Math.floor(process.uptime()),
+            services: {}
+        };
+
+        // Check MongoDB
+        try {
+            const dbHealth = await checkDatabase();
+            health.services.mongodb = {
+                status: dbHealth.status === 'up' ? 'healthy' : 'unhealthy',
+                responseTime: dbHealth.responseTime || dbHealth.latencyMs,
+                database: dbHealth.database,
+                collections: dbHealth.collections
+            };
+
+            if (dbHealth.status !== 'up') {
+                health.status = 'degraded';
+                health.services.mongodb.error = dbHealth.message;
+            }
+        } catch (error) {
+            health.services.mongodb = {
+                status: 'unhealthy',
+                error: error.message
+            };
+            health.status = 'degraded';
+        }
+
+        // Check Redis
+        try {
+            const redisHealth = await checkRedis();
+            health.services.redis = {
+                status: redisHealth.status === 'up' ? 'healthy' : 'unhealthy',
+                responseTime: redisHealth.responseTime || redisHealth.latencyMs,
+                version: redisHealth.version,
+                memoryUsed: redisHealth.memoryUsed
+            };
+
+            if (redisHealth.status !== 'up') {
+                health.status = 'degraded';
+                health.services.redis.error = redisHealth.message;
+            }
+        } catch (error) {
+            health.services.redis = {
+                status: 'unhealthy',
+                error: error.message
+            };
+            health.status = 'degraded';
+        }
+
+        // Check Stripe
+        try {
+            const stripeHealth = await checkStripe();
+            health.services.stripe = {
+                status: stripeHealth.status === 'up' ? 'healthy' :
+                        stripeHealth.status === 'not_configured' ? 'not_configured' : 'unhealthy'
+            };
+
+            if (stripeHealth.status === 'up') {
+                health.services.stripe.responseTime = stripeHealth.responseTime || stripeHealth.latencyMs;
+            } else if (stripeHealth.status === 'down') {
+                health.services.stripe.error = stripeHealth.message;
+                // Don't mark as degraded for Stripe - it's optional
+            }
+        } catch (error) {
+            health.services.stripe = {
+                status: 'unhealthy',
+                error: error.message
+            };
+        }
+
+        // Check disk space
+        try {
+            const diskHealth = await checkDiskSpace();
+            health.services.disk = {
+                status: diskHealth.healthy ? 'healthy' : 'warning',
+                total: diskHealth.total,
+                free: diskHealth.free,
+                used: diskHealth.used,
+                usedPercent: diskHealth.usedPercent
+            };
+
+            if (!diskHealth.healthy) {
+                health.status = 'degraded';
+            }
+        } catch (error) {
+            health.services.disk = {
+                status: 'unknown',
+                error: error.message
+            };
+        }
+
+        // Check memory
+        try {
+            const memoryHealth = checkMemory();
+            const memUsage = process.memoryUsage();
+            const heapUsedPercent = (memUsage.heapUsed / memUsage.heapTotal) * 100;
+
+            health.services.memory = {
+                status: heapUsedPercent < 90 ? 'healthy' : 'warning',
+                heapUsed: Math.round(memUsage.heapUsed / 1024 / 1024) + 'MB',
+                heapTotal: Math.round(memUsage.heapTotal / 1024 / 1024) + 'MB',
+                heapUsedPercent: heapUsedPercent.toFixed(2) + '%',
+                systemTotal: memoryHealth.total,
+                systemFree: memoryHealth.free,
+                systemUsed: memoryHealth.used,
+                systemUsedPercent: memoryHealth.usedPercent
+            };
+
+            if (heapUsedPercent >= 90) {
+                health.status = 'degraded';
+            }
+        } catch (error) {
+            health.services.memory = {
+                status: 'unknown',
+                error: error.message
+            };
+        }
+
+        // Determine HTTP status code
+        const statusCode = health.status === 'healthy' ? 200 :
+                          health.status === 'degraded' ? 200 : 503;
+
+        res.status(statusCode).json(health);
+    } catch (error) {
+        logger.error('Deep health check failed:', error);
         res.status(503).json({
             status: 'unhealthy',
             timestamp: new Date().toISOString(),

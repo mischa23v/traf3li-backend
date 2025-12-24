@@ -1,0 +1,7 @@
+Contact: mailto:security@traf3li.com
+Expires: 2026-12-31T23:59:59.000Z
+Encryption: https://traf3li.com/pgp-key.txt
+Preferred-Languages: en, ar
+Canonical: https://api.traf3li.com/.well-known/security.txt
+Policy: https://traf3li.com/security-policy
+Hiring: https://traf3li.com/careers

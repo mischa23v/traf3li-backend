@@ -500,6 +500,11 @@ clientSchema.index({ conflictCheckStatus: 1 });
 clientSchema.index({ isVerified: 1 });
 clientSchema.index({ riskLevel: 1 });
 
+// Compound indexes for multi-tenant dashboard queries
+clientSchema.index({ firmId: 1, status: 1, createdAt: -1 });
+clientSchema.index({ firmId: 1, lawyerId: 1, status: 1 });
+clientSchema.index({ firmId: 1, clientTier: 1, status: 1 });
+
 // ─────────────────────────────────────────────────────────
 // GENERATE CLIENT NUMBER (Atomic Counter)
 // ─────────────────────────────────────────────────────────

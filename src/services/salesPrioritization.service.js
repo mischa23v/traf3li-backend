@@ -853,7 +853,8 @@ class SalesPrioritizationService {
                         }
                     }
                 },
-                { $sort: { activeLeads: -1 } }
+                { $sort: { activeLeads: -1 } },
+                { $limit: 1000 }
             ]);
 
             return workload;

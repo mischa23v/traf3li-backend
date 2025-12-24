@@ -454,6 +454,8 @@ leadSchema.index({ firstName: 'text', lastName: 'text', companyName: 'text', ema
 leadSchema.index({ firmId: 1, status: 1, createdAt: -1 });
 leadSchema.index({ firmId: 1, lawyerId: 1, status: 1 });
 leadSchema.index({ firmId: 1, convertedToClient: 1, createdAt: -1 });
+leadSchema.index({ firmId: 1, assignedTo: 1, status: 1 });
+leadSchema.index({ firmId: 1, nextFollowUpDate: 1 });
 
 // Najiz Indexes
 leadSchema.index({ nationalId: 1 }, { sparse: true });

@@ -51,6 +51,7 @@ class ChurnReportsService {
                                     canceledAt: { $gte: weekAgo, $lte: now }
                                 }
                             },
+                            { $limit: 10000 },
                             {
                                 $group: {
                                     _id: null,

@@ -11,6 +11,7 @@
  */
 
 const bcrypt = require('bcrypt');
+const crypto = require('crypto');
 
 // Salt rounds for bcrypt hashing - OWASP recommends minimum 10, we use 12 for better security
 const SALT_ROUNDS = 12;
@@ -36,7 +37,7 @@ const generateBackupCodes = (count = 10) => {
         // Generate 8 random characters
         let code = '';
         for (let j = 0; j < 8; j++) {
-            const randomIndex = Math.floor(Math.random() * CHARSET.length);
+            const randomIndex = crypto.randomInt(0, CHARSET.length);
             code += CHARSET[randomIndex];
         }
 

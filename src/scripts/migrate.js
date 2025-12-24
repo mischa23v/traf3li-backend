@@ -59,7 +59,7 @@ const connectDB = async () => {
 
 // Display help
 const showHelp = () => {
-    console.log(`
+    logger.info(`
 Migration CLI
 
 Usage:
@@ -91,29 +91,29 @@ Examples:
 
 // Display migration status
 const displayStatus = (statusData) => {
-    console.log('\n' + '='.repeat(90));
-    console.log('MIGRATION STATUS');
-    console.log('='.repeat(90));
+    logger.info('\n' + '='.repeat(90));
+    logger.info('MIGRATION STATUS');
+    logger.info('='.repeat(90));
 
-    console.log('\nSummary:');
-    console.log(`  Total:     ${statusData.summary.total}`);
-    console.log(`  Applied:   ${statusData.summary.applied}`);
-    console.log(`  Pending:   ${statusData.summary.pending}`);
-    console.log(`  Failed:    ${statusData.summary.failed}`);
-    console.log(`  Reverted:  ${statusData.summary.reverted}`);
-    console.log(`  Modified:  ${statusData.summary.modified}`);
+    logger.info('\nSummary:');
+    logger.info(`  Total:     ${statusData.summary.total}`);
+    logger.info(`  Applied:   ${statusData.summary.applied}`);
+    logger.info(`  Pending:   ${statusData.summary.pending}`);
+    logger.info(`  Failed:    ${statusData.summary.failed}`);
+    logger.info(`  Reverted:  ${statusData.summary.reverted}`);
+    logger.info(`  Modified:  ${statusData.summary.modified}`);
 
     if (statusData.migrations.length > 0) {
-        console.log('\nMigrations:');
-        console.log('─'.repeat(90));
-        console.log(
+        logger.info('\nMigrations:');
+        logger.info('─'.repeat(90));
+        logger.info(
             'Status'.padEnd(12) +
             'Name'.padEnd(40) +
             'Version'.padEnd(12) +
             'Applied At'.padEnd(20) +
             'Duration'
         );
-        console.log('─'.repeat(90));
+        logger.info('─'.repeat(90));
 
         for (const migration of statusData.migrations) {
             const statusIcon = {
@@ -131,80 +131,80 @@ const displayStatus = (statusData) => {
                 : '-'.padEnd(19);
             const durationStr = migration.duration ? `${migration.duration}ms` : '-';
 
-            console.log(`${statusStr}${nameStr}${versionStr}${appliedStr}  ${durationStr}`);
+            logger.info(`${statusStr}${nameStr}${versionStr}${appliedStr}  ${durationStr}`);
 
             if (!migration.checksumMatch && migration.status === 'applied') {
-                console.log(`  ⚠️  WARNING: Migration file has been modified after being applied!`);
+                logger.warn(`  ⚠️  WARNING: Migration file has been modified after being applied!`);
             }
 
             if (migration.error) {
-                console.log(`  ERROR: ${migration.error}`);
+                logger.error(`  ERROR: ${migration.error}`);
             }
         }
     }
 
-    console.log('='.repeat(90) + '\n');
+    logger.info('='.repeat(90) + '\n');
 };
 
 // Display validation results
 const displayValidation = (validationData) => {
-    console.log('\n' + '='.repeat(90));
-    console.log('MIGRATION VALIDATION');
-    console.log('='.repeat(90));
+    logger.info('\n' + '='.repeat(90));
+    logger.info('MIGRATION VALIDATION');
+    logger.info('='.repeat(90));
 
-    console.log(`\nTotal migrations checked: ${validationData.totalChecked}`);
-    console.log(`Status: ${validationData.valid ? '✓ VALID' : '✗ INVALID'}\n`);
+    logger.info(`\nTotal migrations checked: ${validationData.totalChecked}`);
+    logger.info(`Status: ${validationData.valid ? '✓ VALID' : '✗ INVALID'}\n`);
 
     if (validationData.issues.modified.length > 0) {
-        console.log('⚠️  Modified Migrations (checksum mismatch):');
-        console.log('─'.repeat(90));
+        logger.warn('⚠️  Modified Migrations (checksum mismatch):');
+        logger.info('─'.repeat(90));
         for (const issue of validationData.issues.modified) {
-            console.log(`  • ${issue.name}`);
-            console.log(`    Applied at: ${new Date(issue.appliedAt).toISOString()}`);
-            console.log(`    Message: ${issue.message}`);
-            console.log(`    Old checksum: ${issue.oldChecksum}`);
-            console.log(`    New checksum: ${issue.newChecksum}`);
-            console.log('');
+            logger.warn(`  • ${issue.name}`);
+            logger.info(`    Applied at: ${new Date(issue.appliedAt).toISOString()}`);
+            logger.info(`    Message: ${issue.message}`);
+            logger.info(`    Old checksum: ${issue.oldChecksum}`);
+            logger.info(`    New checksum: ${issue.newChecksum}`);
+            logger.info('');
         }
     }
 
     if (validationData.issues.missing.length > 0) {
-        console.log('✗ Missing Migrations:');
-        console.log('─'.repeat(90));
+        logger.error('✗ Missing Migrations:');
+        logger.info('─'.repeat(90));
         for (const issue of validationData.issues.missing) {
-            console.log(`  • ${issue.name}`);
-            console.log(`    Applied at: ${new Date(issue.appliedAt).toISOString()}`);
-            console.log(`    Message: ${issue.message}`);
-            console.log('');
+            logger.error(`  • ${issue.name}`);
+            logger.info(`    Applied at: ${new Date(issue.appliedAt).toISOString()}`);
+            logger.info(`    Message: ${issue.message}`);
+            logger.info('');
         }
     }
 
     if (validationData.valid) {
-        console.log('✓ All migrations are valid. No issues detected.');
+        logger.info('✓ All migrations are valid. No issues detected.');
     }
 
-    console.log('='.repeat(90) + '\n');
+    logger.info('='.repeat(90) + '\n');
 };
 
 // Display migration history
 const displayHistory = (history) => {
-    console.log('\n' + '='.repeat(90));
-    console.log('MIGRATION HISTORY');
-    console.log('='.repeat(90));
+    logger.info('\n' + '='.repeat(90));
+    logger.info('MIGRATION HISTORY');
+    logger.info('='.repeat(90));
 
     if (history.length === 0) {
-        console.log('\nNo migration history found.\n');
+        logger.info('\nNo migration history found.\n');
         return;
     }
 
-    console.log('\n' + '─'.repeat(90));
-    console.log(
+    logger.info('\n' + '─'.repeat(90));
+    logger.info(
         'Status'.padEnd(12) +
         'Name'.padEnd(40) +
         'Applied At'.padEnd(22) +
         'By'
     );
-    console.log('─'.repeat(90));
+    logger.info('─'.repeat(90));
 
     for (const entry of history) {
         const statusIcon = {
@@ -221,18 +221,18 @@ const displayHistory = (history) => {
             : '-'.padEnd(19);
         const byStr = entry.appliedBy || '-';
 
-        console.log(`${statusStr}${nameStr}${appliedStr}  ${byStr}`);
+        logger.info(`${statusStr}${nameStr}${appliedStr}  ${byStr}`);
 
         if (entry.error) {
-            console.log(`  ERROR: ${entry.error}`);
+            logger.error(`  ERROR: ${entry.error}`);
         }
 
         if (entry.revertedAt) {
-            console.log(`  Reverted at: ${new Date(entry.revertedAt).toISOString()} by ${entry.revertedBy}`);
+            logger.info(`  Reverted at: ${new Date(entry.revertedAt).toISOString()} by ${entry.revertedBy}`);
         }
     }
 
-    console.log('='.repeat(90) + '\n');
+    logger.info('='.repeat(90) + '\n');
 };
 
 // Main execution

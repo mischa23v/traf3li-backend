@@ -3,6 +3,7 @@ const User = require('./user.model');
 const Gig = require('./gig.model');
 const Order = require('./order.model');
 const Review = require('./review.model');
+const Dispute = require('./dispute.model');
 const Message = require('./message.model');
 const Conversation = require('./conversation.model');
 const Job = require('./job.model');
@@ -25,6 +26,7 @@ const Invoice = require('./invoice.model');
 const Expense = require('./expense.model');
 const TimeEntry = require('./timeEntry.model');
 const Payment = require('./payment.model');
+const Payout = require('./payout.model');
 const Retainer = require('./retainer.model');
 const Statement = require('./statement.model');
 const Transaction = require('./transaction.model');
@@ -261,6 +263,7 @@ module.exports = {
     Gig,
     Order,
     Review,
+    Dispute,
     Message,
     Conversation,
     Job,
@@ -283,6 +286,7 @@ module.exports = {
     Expense,
     TimeEntry,
     Payment,
+    Payout,
     Retainer,
     Statement,
     Transaction,

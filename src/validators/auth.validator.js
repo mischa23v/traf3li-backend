@@ -170,6 +170,41 @@ const verifyMagicLinkSchema = Joi.object({
         })
 });
 
+/**
+ * Forgot password validation schema
+ */
+const forgotPasswordSchema = Joi.object({
+    email: Joi.string()
+        .email()
+        .required()
+        .messages({
+            'string.email': 'البريد الإلكتروني غير صالح / Invalid email format',
+            'any.required': 'البريد الإلكتروني مطلوب / Email is required'
+        })
+});
+
+/**
+ * Reset password validation schema
+ */
+const resetPasswordSchema = Joi.object({
+    token: Joi.string()
+        .required()
+        .messages({
+            'any.required': 'رمز إعادة التعيين مطلوب / Reset token is required'
+        }),
+    newPassword: Joi.string()
+        .min(8)
+        .max(128)
+        .pattern(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*(),.?":{}|<>])/)
+        .required()
+        .messages({
+            'string.min': 'كلمة المرور يجب أن تكون 8 أحرف على الأقل / Password must be at least 8 characters',
+            'string.max': 'كلمة المرور طويلة جداً / Password is too long',
+            'string.pattern.base': 'كلمة المرور يجب أن تحتوي على حرف كبير وحرف صغير ورقم ورمز خاص / Password must contain uppercase, lowercase, number and special character',
+            'any.required': 'كلمة المرور الجديدة مطلوبة / New password is required'
+        })
+});
+
 // ============================================
 // VALIDATION MIDDLEWARE FACTORY
 // ============================================
@@ -218,7 +253,9 @@ module.exports = {
         verifyOTP: verifyOTPSchema,
         checkAvailability: checkAvailabilitySchema,
         sendMagicLink: sendMagicLinkSchema,
-        verifyMagicLink: verifyMagicLinkSchema
+        verifyMagicLink: verifyMagicLinkSchema,
+        forgotPassword: forgotPasswordSchema,
+        resetPassword: resetPasswordSchema
     },
 
     // Middleware (for route use)
@@ -229,6 +266,8 @@ module.exports = {
     validateCheckAvailability: validate(checkAvailabilitySchema),
     validateSendMagicLink: validate(sendMagicLinkSchema),
     validateVerifyMagicLink: validate(verifyMagicLinkSchema),
+    validateForgotPassword: validate(forgotPasswordSchema),
+    validateResetPassword: validate(resetPasswordSchema),
 
     // Generic validate function
     validate

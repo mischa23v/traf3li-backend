@@ -1518,7 +1518,8 @@ class LegalContractService {
                         count: { $sum: 1 },
                         totalValue: { $sum: '$financialTerms.totalValue' }
                     }
-                }
+                },
+                { $limit: 1000 }
             ]);
 
             // Get overall counts

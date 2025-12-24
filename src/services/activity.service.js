@@ -484,7 +484,8 @@ class ActivityService {
             count: { $sum: 1 }
           }
         },
-        { $sort: { count: -1 } }
+        { $sort: { count: -1 } },
+        { $limit: 1000 }
       ]);
 
       // Activities by model
@@ -496,7 +497,8 @@ class ActivityService {
             count: { $sum: 1 }
           }
         },
-        { $sort: { count: -1 } }
+        { $sort: { count: -1 } },
+        { $limit: 1000 }
       ]);
 
       return {

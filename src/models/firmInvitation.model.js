@@ -137,6 +137,10 @@ firmInvitationSchema.index({ firmId: 1, email: 1 });
 firmInvitationSchema.index({ firmId: 1, status: 1 });
 firmInvitationSchema.index({ expiresAt: 1, status: 1 });
 
+// TTL index to auto-delete expired/completed invitations
+// Delete 90 days after expiration to maintain audit trail for accepted/rejected invitations
+firmInvitationSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 90 * 24 * 60 * 60 });
+
 // ═══════════════════════════════════════════════════════════════
 // STATIC METHODS
 // ═══════════════════════════════════════════════════════════════

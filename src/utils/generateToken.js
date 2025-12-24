@@ -95,6 +95,7 @@ const generateAccessToken = (user) => {
       expiresIn: '15m', // 15 minutes
       issuer: 'traf3li',
       audience: 'traf3li-users',
+      algorithm: 'HS256',
     };
 
     return jwt.sign(payload, accessSecret, options);
@@ -122,6 +123,7 @@ const generateRefreshToken = (user) => {
       expiresIn: '7d', // 7 days
       issuer: 'traf3li',
       audience: 'traf3li-users',
+      algorithm: 'HS256',
     };
 
     return jwt.sign(payload, refreshSecret, options);
@@ -143,8 +145,9 @@ const verifyAccessToken = (token) => {
     const options = {
       issuer: 'traf3li',
       audience: 'traf3li-users',
+      algorithms: ['HS256'],
     };
-    
+
     return jwt.verify(token, accessSecret, options);
   } catch (error) {
     if (error.name === 'TokenExpiredError') {
@@ -169,8 +172,9 @@ const verifyRefreshToken = (token) => {
     const options = {
       issuer: 'traf3li',
       audience: 'traf3li-users',
+      algorithms: ['HS256'],
     };
-    
+
     return jwt.verify(token, refreshSecret, options);
   } catch (error) {
     if (error.name === 'TokenExpiredError') {
