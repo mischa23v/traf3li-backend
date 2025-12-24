@@ -57,6 +57,10 @@ const { startPlanJobs } = require('./jobs/planExpiration.job');
 const { startDataRetentionJob } = require('./jobs/dataRetention.job');
 const { scheduleSessionCleanup } = require('./jobs/sessionCleanup.job');
 const { startCustomerHealthJobs } = require('./jobs/customerHealth.job');
+const { startEmailCampaignJobs } = require('./jobs/emailCampaign.job');
+const { startAllJobs: startMLScoringJobs } = require('./jobs/mlScoring.job');
+const runAuditLogArchiving = require('./jobs/auditLogArchiving.job');
+const cron = require('node-cron');
 const { initSocket } = require('./configs/socket');
 const {
     smartRateLimiter,
@@ -1207,6 +1211,35 @@ const startServer = async () => {
             startDataRetentionJob();
             scheduleSessionCleanup();
             startCustomerHealthJobs();
+
+            // Email Marketing Campaign Jobs
+            try {
+                startEmailCampaignJobs();
+                logger.info('✅ Email campaign jobs started');
+            } catch (error) {
+                logger.warn('⚠️ Email campaign jobs failed to start:', error.message);
+            }
+
+            // ML Scoring Jobs
+            try {
+                startMLScoringJobs();
+                logger.info('✅ ML scoring jobs started');
+            } catch (error) {
+                logger.warn('⚠️ ML scoring jobs failed to start:', error.message);
+            }
+
+            // Audit Log Archiving - Run daily at 2:30 AM
+            cron.schedule('30 2 * * *', async () => {
+                try {
+                    logger.info('🗄️ Starting audit log archiving...');
+                    await runAuditLogArchiving();
+                    logger.info('✅ Audit log archiving completed');
+                } catch (error) {
+                    logger.error('❌ Audit log archiving failed:', error.message);
+                }
+            });
+            logger.info('✅ Audit log archiving scheduled (daily at 2:30 AM)');
+
             logger.info('✅ All scheduled jobs started');
         }, CRON_STARTUP_DELAY_MS);
 
