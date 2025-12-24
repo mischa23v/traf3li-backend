@@ -1,25 +1,14 @@
 const express = require('express');
 const { userMiddleware } = require('../middlewares');
 const {
-    generateReport,
-    getReports,
+    listReports,
+    createReport,
     getReport,
     deleteReport,
-    getReportTemplates,
-    scheduleReport,
-    unscheduleReport,
-    // Direct report endpoints
-    getAccountsAgingReport,
-    getRevenueByClientReport,
-    getOutstandingInvoicesReport,
-    getTimeEntriesReport,
+    executeReport,
     exportReport,
-    // Chart endpoints
-    getCasesChart,
-    getRevenueChart,
-    getTasksChart
+    updateSchedule
 } = require('../controllers/report.controller');
-const { firmFilter } = require('../middlewares');
 
 // Accounting reports
 const {
@@ -52,27 +41,17 @@ app.get('/vendor-ledger', userMiddleware, getVendorLedger);
 app.get('/gross-profit', userMiddleware, getGrossProfitReport);
 app.get('/cost-center', userMiddleware, getCostCenterReport);
 
-// Direct report endpoints (must be before /:id routes)
-app.get('/accounts-aging', userMiddleware, getAccountsAgingReport);
-app.get('/revenue-by-client', userMiddleware, getRevenueByClientReport);
-app.get('/outstanding-invoices', userMiddleware, getOutstandingInvoicesReport);
-app.get('/time-entries', userMiddleware, getTimeEntriesReport);
+// Report export
 app.post('/export', userMiddleware, exportReport);
 
-// Chart endpoints for dashboard (must be before /:id routes)
-app.get('/cases-chart', userMiddleware, firmFilter, getCasesChart);
-app.get('/revenue-chart', userMiddleware, firmFilter, getRevenueChart);
-app.get('/tasks-chart', userMiddleware, firmFilter, getTasksChart);
-
 // Report operations
-app.post('/generate', userMiddleware, generateReport);
-app.get('/', userMiddleware, getReports);
-app.get('/templates', userMiddleware, getReportTemplates);
+app.post('/generate', userMiddleware, createReport);
+app.get('/', userMiddleware, listReports);
 app.get('/:id', userMiddleware, getReport);
 app.delete('/:id', userMiddleware, deleteReport);
+app.post('/:id/execute', userMiddleware, executeReport);
 
 // Report scheduling
-app.post('/:id/schedule', userMiddleware, scheduleReport);
-app.delete('/:id/schedule', userMiddleware, unscheduleReport);
+app.put('/:id/schedule', userMiddleware, updateSchedule);
 
 module.exports = app;
