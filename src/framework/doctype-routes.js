@@ -457,7 +457,9 @@ function buildQuery(req, docType, filtersJson, searchTerm) {
     // Add search term for search_fields
     if (searchTerm && docType.search_fields) {
         const searchFields = docType.search_fields.split(',').map(f => f.trim());
-        const searchRegex = new RegExp(searchTerm, 'i');
+        // Escape special regex characters to prevent ReDoS attacks
+        const escapedSearchTerm = searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const searchRegex = new RegExp(escapedSearchTerm, 'i');
         query.$or = searchFields.map(field => ({ [field]: searchRegex }));
     }
 

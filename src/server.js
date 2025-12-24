@@ -63,7 +63,8 @@ const { startAllJobs: startMLScoringJobs } = require('./jobs/mlScoring.job');
 const { startPriceUpdater } = require('./jobs/priceUpdater');
 const runAuditLogArchiving = require('./jobs/auditLogArchiving.job');
 const cron = require('node-cron');
-const { initSocket } = require('./configs/socket');
+const { initSocket, shutdownSocket } = require('./configs/socket');
+const mongoose = require('mongoose');
 const {
     smartRateLimiter,
     speedLimiter,
@@ -1321,5 +1322,79 @@ process.on('uncaughtException', (error) => {
     // Log the error but don't crash in production
     if (process.env.NODE_ENV === 'development') {
         process.exit(1);
+    }
+});
+
+// ============================================
+// GRACEFUL SHUTDOWN - Clean resource cleanup
+// ============================================
+let isShuttingDown = false;
+
+const gracefulShutdown = async (signal) => {
+    if (isShuttingDown) {
+        logger.warn(`Shutdown already in progress, ignoring ${signal}`);
+        return;
+    }
+
+    isShuttingDown = true;
+    logger.info(`\n🛑 Received ${signal}. Starting graceful shutdown...`);
+
+    // Set a hard timeout for shutdown (30 seconds)
+    const shutdownTimeout = setTimeout(() => {
+        logger.error('❌ Graceful shutdown timed out. Forcing exit.');
+        process.exit(1);
+    }, 30000);
+
+    try {
+        // 1. Stop accepting new connections
+        logger.info('📡 Closing HTTP server...');
+        await new Promise((resolve, reject) => {
+            server.close((err) => {
+                if (err) {
+                    logger.error('Error closing HTTP server:', err.message);
+                    reject(err);
+                } else {
+                    logger.info('✅ HTTP server closed');
+                    resolve();
+                }
+            });
+        });
+
+        // 2. Close Socket.io connections
+        logger.info('🔌 Closing Socket.io connections...');
+        await shutdownSocket();
+
+        // 3. Close MongoDB connection
+        logger.info('🗄️ Closing MongoDB connection...');
+        await mongoose.connection.close();
+        logger.info('✅ MongoDB connection closed');
+
+        // 4. Stop cron jobs (node-cron doesn't have a global stop, but tasks will be GC'd)
+        logger.info('⏰ Cron jobs will be stopped on process exit');
+
+        clearTimeout(shutdownTimeout);
+        logger.info('✅ Graceful shutdown completed');
+        process.exit(0);
+    } catch (error) {
+        clearTimeout(shutdownTimeout);
+        logger.error('❌ Error during graceful shutdown:', error.message);
+        process.exit(1);
+    }
+};
+
+// Handle shutdown signals
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+
+// Handle HTTP server errors
+server.on('error', (error) => {
+    if (error.code === 'EADDRINUSE') {
+        logger.error(`❌ Port ${PORT} is already in use`);
+        process.exit(1);
+    } else if (error.code === 'EACCES') {
+        logger.error(`❌ Permission denied to use port ${PORT}`);
+        process.exit(1);
+    } else {
+        logger.error('❌ HTTP server error:', error);
     }
 });

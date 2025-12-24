@@ -23,6 +23,44 @@ const TOKEN_PATTERN = /^[A-Za-z0-9_-]+$/; // Only alphanumeric, underscore, hyph
 const verificationAttempts = new Map();
 const MAX_ATTEMPTS_PER_MINUTE = 10;
 const RATE_LIMIT_WINDOW = 60000; // 1 minute
+const CLEANUP_INTERVAL = 5 * 60 * 1000; // 5 minutes
+const MAX_MAP_SIZE = 10000; // Maximum entries to prevent unbounded growth
+
+// Periodic cleanup of stale rate limit entries to prevent memory leak
+const rateLimitCleanupInterval = setInterval(() => {
+    const now = Date.now();
+    let cleanedCount = 0;
+
+    verificationAttempts.forEach((attempts, identifier) => {
+        // Remove entries where all attempts are outside the window
+        const recentAttempts = attempts.filter(timestamp => now - timestamp < RATE_LIMIT_WINDOW);
+        if (recentAttempts.length === 0) {
+            verificationAttempts.delete(identifier);
+            cleanedCount++;
+        } else {
+            verificationAttempts.set(identifier, recentAttempts);
+        }
+    });
+
+    // Emergency cleanup if map is too large - remove oldest entries
+    if (verificationAttempts.size > MAX_MAP_SIZE) {
+        const entriesToRemove = verificationAttempts.size - MAX_MAP_SIZE;
+        let removed = 0;
+        for (const key of verificationAttempts.keys()) {
+            if (removed >= entriesToRemove) break;
+            verificationAttempts.delete(key);
+            removed++;
+        }
+        logger.warn('Captcha rate limit map emergency cleanup', { removed, currentSize: verificationAttempts.size });
+    }
+
+    if (cleanedCount > 0) {
+        logger.debug('Captcha rate limit cleanup', { cleanedCount, currentSize: verificationAttempts.size });
+    }
+}, CLEANUP_INTERVAL);
+
+// Ensure cleanup interval doesn't prevent process exit
+rateLimitCleanupInterval.unref();
 
 /**
  * Validate and sanitize CAPTCHA token input
