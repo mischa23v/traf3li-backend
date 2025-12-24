@@ -1,10 +1,11 @@
 const express = require('express');
 const router = express.Router();
 const timelineController = require('../controllers/timeline.controller');
-const { authenticate } = require('../middlewares');
+const { userMiddleware, firmFilter } = require('../middlewares');
 
-// Apply authentication to all routes
-router.use(authenticate);
+// Apply authentication and firm filtering to all routes
+router.use(userMiddleware);
+router.use(firmFilter);
 
 // ============================================
 // TIMELINE ROUTES

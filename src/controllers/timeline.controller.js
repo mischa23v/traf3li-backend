@@ -2,6 +2,7 @@ const UnifiedTimelineService = require('../services/unifiedTimeline.service');
 const { sanitizeObjectId } = require('../utils/securityUtils');
 const logger = require('../utils/logger');
 const CustomException = require('../utils/CustomException');
+const asyncHandler = require('../utils/asyncHandler');
 
 /**
  * Timeline Controller
@@ -99,91 +100,59 @@ const parseQueryOptions = (query) => {
  * - dateTo: Filter activities to this date (ISO date string)
  * - types: Comma-separated activity types (e.g., "call,email,meeting")
  */
-const getTimeline = async (req, res) => {
-    try {
-        const { entityType, entityId } = req.params;
-        const userId = req.userID;
-        const firmId = req.firmId || req.user?.firmId;
+const getTimeline = asyncHandler(async (req, res) => {
+    const { entityType, entityId } = req.params;
+    const userId = req.userID;
+    const firmId = req.firmId || req.user?.firmId;
 
-        // Validate entity type
-        if (!validateEntityType(entityType)) {
-            return res.status(400).json({
-                success: false,
-                message: `Invalid entity type. Must be one of: client, contact, lead, case, organization`
-            });
-        }
-
-        // Validate entity ID format
-        const sanitizedEntityId = sanitizeObjectId(entityId);
-        if (!sanitizedEntityId) {
-            return res.status(400).json({
-                success: false,
-                message: 'Invalid entity ID format'
-            });
-        }
-
-        // Parse and validate query parameters
-        let options;
-        try {
-            options = parseQueryOptions(req.query);
-        } catch (error) {
-            return res.status(400).json({
-                success: false,
-                message: error.message
-            });
-        }
-
-        // Add firmId to options for multi-tenancy filtering
-        if (firmId) {
-            options.firmId = firmId;
-        }
-
-        // TODO: Add IDOR protection - verify entity ownership
-        // This should verify that the user has access to the specified entity
-        // For now, the service will filter by firmId
-
-        logger.info('Getting timeline', {
-            userId,
-            entityType,
-            entityId: sanitizedEntityId,
-            options
-        });
-
-        // Get timeline from service
-        const timeline = await UnifiedTimelineService.getTimeline(
-            entityType,
-            sanitizedEntityId,
-            options
+    // Validate entity type
+    if (!validateEntityType(entityType)) {
+        throw new CustomException(
+            'نوع الكيان غير صالح / Invalid entity type. Must be one of: client, contact, lead, case, organization',
+            400
         );
-
-        return res.status(200).json({
-            success: true,
-            data: {
-                items: timeline.items,
-                pagination: {
-                    hasMore: timeline.hasMore,
-                    nextCursor: timeline.nextCursor,
-                    total: timeline.total
-                }
-            }
-        });
-    } catch (error) {
-        logger.error('Timeline controller - getTimeline error:', error);
-
-        // Handle specific error types
-        if (error.name === 'CastError') {
-            return res.status(400).json({
-                success: false,
-                message: 'Invalid ID format'
-            });
-        }
-
-        return res.status(500).json({
-            success: false,
-            message: error.message || 'Failed to retrieve timeline'
-        });
     }
-};
+
+    // Validate entity ID format
+    const sanitizedEntityId = sanitizeObjectId(entityId);
+    if (!sanitizedEntityId) {
+        throw new CustomException('معرف الكيان غير صالح / Invalid entity ID format', 400);
+    }
+
+    // Parse and validate query parameters
+    const options = parseQueryOptions(req.query);
+
+    // Add firmId to options for multi-tenancy filtering
+    if (firmId) {
+        options.firmId = firmId;
+    }
+
+    logger.info('Getting timeline', {
+        userId,
+        entityType,
+        entityId: sanitizedEntityId,
+        options
+    });
+
+    // Get timeline from service
+    const timeline = await UnifiedTimelineService.getTimeline(
+        entityType,
+        sanitizedEntityId,
+        options
+    );
+
+    res.status(200).json({
+        success: true,
+        data: {
+            items: timeline.items,
+            pagination: {
+                hasMore: timeline.hasMore,
+                nextCursor: timeline.nextCursor,
+                total: timeline.total
+            }
+        }
+    });
+});
 
 /**
  * Get timeline summary for an entity
@@ -193,100 +162,68 @@ const getTimeline = async (req, res) => {
  * - dateFrom: Filter activities from this date (ISO date string)
  * - dateTo: Filter activities to this date (ISO date string)
  */
-const getTimelineSummary = async (req, res) => {
-    try {
-        const { entityType, entityId } = req.params;
-        const userId = req.userID;
-        const firmId = req.firmId || req.user?.firmId;
+const getTimelineSummary = asyncHandler(async (req, res) => {
+    const { entityType, entityId } = req.params;
+    const userId = req.userID;
+    const firmId = req.firmId || req.user?.firmId;
 
-        // Validate entity type
-        if (!validateEntityType(entityType)) {
-            return res.status(400).json({
-                success: false,
-                message: `Invalid entity type. Must be one of: client, contact, lead, case, organization`
-            });
-        }
-
-        // Validate entity ID format
-        const sanitizedEntityId = sanitizeObjectId(entityId);
-        if (!sanitizedEntityId) {
-            return res.status(400).json({
-                success: false,
-                message: 'Invalid entity ID format'
-            });
-        }
-
-        // Parse date filters
-        const options = {};
-        if (req.query.dateFrom) {
-            const dateFrom = new Date(req.query.dateFrom);
-            if (isNaN(dateFrom.getTime())) {
-                return res.status(400).json({
-                    success: false,
-                    message: 'Invalid dateFrom parameter. Must be a valid date'
-                });
-            }
-            options.dateFrom = dateFrom;
-        }
-
-        if (req.query.dateTo) {
-            const dateTo = new Date(req.query.dateTo);
-            if (isNaN(dateTo.getTime())) {
-                return res.status(400).json({
-                    success: false,
-                    message: 'Invalid dateTo parameter. Must be a valid date'
-                });
-            }
-            options.dateTo = dateTo;
-        }
-
-        // Validate date range
-        if (options.dateFrom && options.dateTo && options.dateFrom > options.dateTo) {
-            return res.status(400).json({
-                success: false,
-                message: 'dateFrom cannot be after dateTo'
-            });
-        }
-
-        // TODO: Add IDOR protection - verify entity ownership
-        // This should verify that the user has access to the specified entity
-
-        logger.info('Getting timeline summary', {
-            userId,
-            entityType,
-            entityId: sanitizedEntityId,
-            options
-        });
-
-        // Get timeline summary from service
-        const summary = await UnifiedTimelineService.getTimelineSummary(
-            entityType,
-            sanitizedEntityId,
-            firmId,
-            options
+    // Validate entity type
+    if (!validateEntityType(entityType)) {
+        throw new CustomException(
+            'نوع الكيان غير صالح / Invalid entity type. Must be one of: client, contact, lead, case, organization',
+            400
         );
-
-        return res.status(200).json({
-            success: true,
-            data: summary
-        });
-    } catch (error) {
-        logger.error('Timeline controller - getTimelineSummary error:', error);
-
-        // Handle specific error types
-        if (error.name === 'CastError') {
-            return res.status(400).json({
-                success: false,
-                message: 'Invalid ID format'
-            });
-        }
-
-        return res.status(500).json({
-            success: false,
-            message: error.message || 'Failed to retrieve timeline summary'
-        });
     }
-};
+
+    // Validate entity ID format
+    const sanitizedEntityId = sanitizeObjectId(entityId);
+    if (!sanitizedEntityId) {
+        throw new CustomException('معرف الكيان غير صالح / Invalid entity ID format', 400);
+    }
+
+    // Parse date filters
+    const options = {};
+    if (req.query.dateFrom) {
+        const dateFrom = new Date(req.query.dateFrom);
+        if (isNaN(dateFrom.getTime())) {
+            throw new CustomException('تاريخ البدء غير صالح / Invalid dateFrom parameter', 400);
+        }
+        options.dateFrom = dateFrom;
+    }
+
+    if (req.query.dateTo) {
+        const dateTo = new Date(req.query.dateTo);
+        if (isNaN(dateTo.getTime())) {
+            throw new CustomException('تاريخ الانتهاء غير صالح / Invalid dateTo parameter', 400);
+        }
+        options.dateTo = dateTo;
+    }
+
+    // Validate date range
+    if (options.dateFrom && options.dateTo && options.dateFrom > options.dateTo) {
+        throw new CustomException('تاريخ البدء لا يمكن أن يكون بعد تاريخ الانتهاء / dateFrom cannot be after dateTo', 400);
+    }
+
+    logger.info('Getting timeline summary', {
+        userId,
+        entityType,
+        entityId: sanitizedEntityId,
+        options
+    });
+
+    // Get timeline summary from service
+    const summary = await UnifiedTimelineService.getTimelineSummary(
+        entityType,
+        sanitizedEntityId,
+        firmId,
+        options
+    );
+
+    res.status(200).json({
+        success: true,
+        data: summary
+    });
+});
 
 // ============================================
 // EXPORTS

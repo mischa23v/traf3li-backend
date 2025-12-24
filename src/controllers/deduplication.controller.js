@@ -1,8 +1,9 @@
 const DeduplicationService = require('../services/deduplication.service');
-const asyncHandler = require('express-async-handler');
+const asyncHandler = require('../utils/asyncHandler');
 const { sanitizeObjectId } = require('../utils/securityUtils');
 const Contact = require('../models/contact.model');
 const logger = require('../utils/logger');
+const CustomException = require('../utils/CustomException');
 
 // ═══════════════════════════════════════════════════════════════
 // DEDUPLICATION CONTROLLER

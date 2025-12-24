@@ -1,12 +1,13 @@
 const express = require('express');
 const router = express.Router();
 const reportController = require('../controllers/report.controller');
-const { authenticate } = require('../middlewares');
+const { userMiddleware, firmFilter } = require('../middlewares');
 
 // ═══════════════════════════════════════════════════════════════
 // MIDDLEWARE
 // ═══════════════════════════════════════════════════════════════
-router.use(authenticate);
+router.use(userMiddleware);
+router.use(firmFilter);
 
 // ═══════════════════════════════════════════════════════════════
 // STATIC ROUTES (must come before parameterized routes)
