@@ -1375,7 +1375,6 @@ const getPaymentStats = asyncHandler(async (req, res) => {
     const byMethod = await Payment.getPaymentsByMethod(filters);
 
     // Get unreconciled payments
-    const isSoloLawyer = req.isSoloLawyer;
     const unreconciledQuery = {};
     if (isSoloLawyer || !firmId) {
         unreconciledQuery.lawyerId = lawyerId;
