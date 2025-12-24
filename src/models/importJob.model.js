@@ -54,7 +54,11 @@ const importJobSchema = new mongoose.Schema({
     },
     sourceFileUrl: String,
     sourceFileName: String,
-    completedAt: Date
+    completedAt: Date,
+    expiresAt: {
+        type: Date,
+        default: () => new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days from now
+    }
 }, {
     versionKey: false,
     timestamps: true
@@ -63,6 +67,10 @@ const importJobSchema = new mongoose.Schema({
 // Indexes
 importJobSchema.index({ lawyerId: 1, status: 1 });
 importJobSchema.index({ lawyerId: 1, entityType: 1 });
+
+// TTL index to auto-delete old import jobs
+// Delete immediately after expiration (7 days after creation)
+importJobSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
 // Static method: Create import job
 importJobSchema.statics.createJob = async function(lawyerId, entityType, options = {}) {

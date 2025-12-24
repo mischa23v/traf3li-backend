@@ -14,6 +14,7 @@
 
 const axios = require('axios');
 const logger = require('../utils/logger');
+const { wrapExternalCall } = require('../utils/externalServiceWrapper');
 
 class LeanTechService {
     constructor() {
@@ -36,6 +37,20 @@ class LeanTechService {
     }
 
     /**
+     * Make API request with circuit breaker protection
+     */
+    async makeRequest(method, url, data, headers) {
+        return wrapExternalCall('leantech', async () => {
+            return await axios({
+                method,
+                url,
+                data,
+                headers
+            });
+        });
+    }
+
+    /**
      * Generate OAuth2 access token
      * Must be done on backend - never expose client_secret to frontend
      */
@@ -46,7 +61,8 @@ class LeanTechService {
         }
 
         try {
-            const response = await axios.post(
+            const response = await this.makeRequest(
+                'POST',
                 `${this.authUrl}/oauth2/token`,
                 new URLSearchParams({
                     client_id: this.clientId,
@@ -55,9 +71,7 @@ class LeanTechService {
                     scope: 'api'
                 }),
                 {
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded'
-                    }
+                    'Content-Type': 'application/x-www-form-urlencoded'
                 }
             );
 
@@ -92,10 +106,11 @@ class LeanTechService {
     async createCustomer(appUserId) {
         try {
             const headers = await this.getHeaders();
-            const response = await axios.post(
+            const response = await this.makeRequest(
+                'POST',
                 `${this.getApiUrl()}/customers/v1`,
                 { app_user_id: appUserId },
-                { headers }
+                headers
             );
             return response.data;
         } catch (error) {

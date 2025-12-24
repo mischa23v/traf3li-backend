@@ -876,6 +876,7 @@ exports.getByPipeline = async (req, res) => {
     try {
         const lawyerId = req.userID;
         const { pipelineId } = req.params;
+        const mongoose = require('mongoose');
 
         let pipeline;
         if (pipelineId) {
@@ -891,21 +892,119 @@ exports.getByPipeline = async (req, res) => {
             });
         }
 
-        // Get leads grouped by stage
+        // ═══════════════════════════════════════════════════════════════
+        // OPTIMIZED: Single aggregation query instead of N+1 queries
+        // ═══════════════════════════════════════════════════════════════
+        const leadsAggregation = await Lead.aggregate([
+            // Match all leads for this pipeline
+            {
+                $match: {
+                    lawyerId: new mongoose.Types.ObjectId(lawyerId),
+                    pipelineId: pipeline._id,
+                    convertedToClient: false
+                }
+            },
+            // Sort by createdAt
+            {
+                $sort: { createdAt: -1 }
+            },
+            // Lookup assignedTo user
+            {
+                $lookup: {
+                    from: 'users',
+                    localField: 'assignedTo',
+                    foreignField: '_id',
+                    as: 'assignedTo'
+                }
+            },
+            {
+                $unwind: {
+                    path: '$assignedTo',
+                    preserveNullAndEmptyArrays: true
+                }
+            },
+            // Lookup organization
+            {
+                $lookup: {
+                    from: 'organizations',
+                    localField: 'organizationId',
+                    foreignField: '_id',
+                    as: 'organizationId'
+                }
+            },
+            {
+                $unwind: {
+                    path: '$organizationId',
+                    preserveNullAndEmptyArrays: true
+                }
+            },
+            // Lookup contact
+            {
+                $lookup: {
+                    from: 'contacts',
+                    localField: 'contactId',
+                    foreignField: '_id',
+                    as: 'contactId'
+                }
+            },
+            {
+                $unwind: {
+                    path: '$contactId',
+                    preserveNullAndEmptyArrays: true
+                }
+            },
+            // Project only needed fields
+            {
+                $project: {
+                    pipelineStageId: 1,
+                    leadId: 1,
+                    displayName: 1,
+                    status: 1,
+                    estimatedValue: 1,
+                    probability: 1,
+                    createdAt: 1,
+                    'assignedTo._id': 1,
+                    'assignedTo.firstName': 1,
+                    'assignedTo.lastName': 1,
+                    'assignedTo.avatar': 1,
+                    'organizationId._id': 1,
+                    'organizationId.legalName': 1,
+                    'organizationId.tradeName': 1,
+                    'organizationId.type': 1,
+                    'contactId._id': 1,
+                    'contactId.firstName': 1,
+                    'contactId.lastName': 1,
+                    'contactId.email': 1,
+                    'contactId.phone': 1
+                }
+            },
+            // Group by stage
+            {
+                $group: {
+                    _id: '$pipelineStageId',
+                    leads: { $push: '$$ROOT' }
+                }
+            },
+            // Limit to 50 leads per stage
+            {
+                $project: {
+                    _id: 1,
+                    leads: { $slice: ['$leads', 50] }
+                }
+            }
+        ]);
+
+        // Initialize leadsByStage with empty arrays for all stages
         const leadsByStage = {};
         for (const stage of pipeline.stages) {
-            leadsByStage[stage.stageId] = await Lead.find({
-                lawyerId,
-                pipelineId: pipeline._id,
-                pipelineStageId: stage.stageId,
-                convertedToClient: false
-            })
-            .populate('assignedTo', 'firstName lastName avatar')
-            .populate('organizationId', 'legalName tradeName type')
-            .populate('contactId', 'firstName lastName email phone')
-            .sort({ createdAt: -1 })
-            .limit(50)
-            .lean();
+            leadsByStage[stage.stageId] = [];
+        }
+
+        // Populate leadsByStage with aggregation results
+        for (const stageGroup of leadsAggregation) {
+            if (stageGroup._id) {
+                leadsByStage[stageGroup._id] = stageGroup.leads;
+            }
         }
 
         res.json({

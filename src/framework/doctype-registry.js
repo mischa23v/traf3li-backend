@@ -14,6 +14,7 @@
 const mongoose = require('mongoose');
 const fs = require('fs');
 const path = require('path');
+const logger = require('../utils/logger');
 
 /**
  * Field type mappings from DocType to Mongoose
@@ -126,7 +127,7 @@ class DocTypeRegistry {
      */
     loadFromDirectory(dir) {
         if (!fs.existsSync(dir)) {
-            console.warn(`DocType directory ${dir} does not exist`);
+            logger.warn('DocType directory does not exist', { directory: dir });
             return;
         }
 
@@ -292,7 +293,7 @@ class DocTypeRegistry {
 
         const baseType = FIELD_TYPE_MAP[fieldtype];
         if (!baseType) {
-            console.warn(`Unknown field type: ${fieldtype} for field ${fieldname}`);
+            logger.warn('Unknown field type in DocType', { fieldtype, fieldname });
             return null;
         }
 
@@ -593,7 +594,7 @@ function evaluateDependsOn(doc, expression) {
             const fn = new Function('doc', `return ${expr}`);
             return fn(safeDoc);
         } catch (e) {
-            console.warn('Failed to evaluate depends_on:', expression, e);
+            logger.warn('Failed to evaluate depends_on expression', { expression, error: e.message });
             return true;
         }
     }

@@ -172,8 +172,14 @@ bankFeedSchema.index({ firmId: 1, bankAccountId: 1 });
 bankFeedSchema.index({ lawyerId: 1, status: 1 });
 bankFeedSchema.index({ status: 1, nextImportAt: 1 });
 
-// Encryption key for credentials (in production, use env variable)
-const ENCRYPTION_KEY = process.env.FEED_ENCRYPTION_KEY || 'traf3li-bank-feed-encryption-key-32b';
+// Encryption key for credentials - MUST be set in environment
+const ENCRYPTION_KEY = process.env.FEED_ENCRYPTION_KEY;
+if (!ENCRYPTION_KEY) {
+    throw new Error('FEED_ENCRYPTION_KEY environment variable is required');
+}
+if (ENCRYPTION_KEY.length !== 32) {
+    throw new Error('FEED_ENCRYPTION_KEY must be exactly 32 characters');
+}
 const ALGORITHM = 'aes-256-cbc';
 
 // Encrypt credentials before saving

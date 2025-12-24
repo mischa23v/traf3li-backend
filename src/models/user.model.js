@@ -32,6 +32,29 @@ const userSchema = new mongoose.Schema({
         type: String,
         required: true,
     },
+
+    // ═══════════════════════════════════════════════════════════════
+    // PASSWORD RESET
+    // ═══════════════════════════════════════════════════════════════
+    // Hashed token for password reset (expires in 15-30 minutes)
+    passwordResetToken: {
+        type: String,
+        required: false,
+        default: null
+    },
+    // Expiration timestamp for reset token
+    passwordResetExpires: {
+        type: Date,
+        required: false,
+        default: null
+    },
+    // Track when password reset was requested (for rate limiting)
+    passwordResetRequestedAt: {
+        type: Date,
+        required: false,
+        default: null
+    },
+
     firstName: {
         type: String,
         required: true,
@@ -390,6 +413,51 @@ const userSchema = new mongoose.Schema({
     },
 
     // ═══════════════════════════════════════════════════════════════
+    // STRIPE CONNECT (Lawyer Payouts)
+    // ═══════════════════════════════════════════════════════════════
+    // Stripe Connect account ID for receiving payouts
+    stripeConnectAccountId: {
+        type: String,
+        required: false,
+        default: null,
+        index: true,
+        sparse: true
+    },
+    // Whether lawyer can receive payouts
+    stripePayoutEnabled: {
+        type: Boolean,
+        default: false,
+        required: false
+    },
+    // Whether Stripe Connect onboarding is complete
+    stripeOnboardingComplete: {
+        type: Boolean,
+        default: false,
+        required: false
+    },
+    // When onboarding was completed
+    stripeOnboardingCompletedAt: {
+        type: Date,
+        required: false,
+        default: null
+    },
+    // Stripe account status (active, pending, restricted, disabled)
+    stripeAccountStatus: {
+        type: String,
+        enum: ['active', 'pending', 'restricted', 'disabled', null],
+        default: null,
+        required: false
+    },
+    // Platform commission rate (percentage)
+    platformCommissionRate: {
+        type: Number,
+        default: 10, // 10% default commission
+        min: 0,
+        max: 100,
+        required: false
+    },
+
+    // ═══════════════════════════════════════════════════════════════
     // PASSWORD ROTATION & EXPIRATION
     // ═══════════════════════════════════════════════════════════════
     // When the password was last changed
@@ -450,6 +518,155 @@ const userSchema = new mongoose.Schema({
             type: Boolean,
             default: false
         }
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // KYC/AML VERIFICATION (Know Your Customer / Anti-Money Laundering)
+    // ═══════════════════════════════════════════════════════════════
+    // Current KYC verification status
+    kycStatus: {
+        type: String,
+        enum: ['pending', 'verified', 'rejected', 'expired', null],
+        default: null,
+        required: false,
+        index: true
+    },
+    // When KYC was verified
+    kycVerifiedAt: {
+        type: Date,
+        default: null,
+        required: false
+    },
+    // When KYC will expire (Saudi Arabia: typically 1 year for residents, 5 years for citizens)
+    kycExpiresAt: {
+        type: Date,
+        default: null,
+        required: false
+    },
+    // Submitted documents for KYC verification
+    kycDocuments: [{
+        type: {
+            type: String,
+            enum: ['national_id', 'iqama', 'passport', 'commercial_registration', 'power_of_attorney', 'address_proof', 'selfie'],
+            required: true
+        },
+        documentId: {
+            type: String,
+            required: false  // External document ID from Yakeen/Wathq
+        },
+        documentNumber: {
+            type: String,
+            required: false  // Actual ID/CR number
+        },
+        fileUrl: {
+            type: String,
+            required: false  // URL to uploaded document image
+        },
+        verifiedAt: {
+            type: Date,
+            required: false
+        },
+        expiresAt: {
+            type: Date,
+            required: false
+        },
+        verificationSource: {
+            type: String,
+            enum: ['yakeen', 'wathq', 'manual', null],
+            default: null
+        },
+        status: {
+            type: String,
+            enum: ['pending', 'verified', 'rejected'],
+            default: 'pending'
+        },
+        rejectionReason: {
+            type: String,
+            required: false
+        },
+        uploadedAt: {
+            type: Date,
+            default: Date.now
+        }
+    }],
+    // Reason for KYC rejection (if applicable)
+    kycRejectionReason: {
+        type: String,
+        required: false,
+        default: null
+    },
+    // Verified identity data from Yakeen API
+    kycVerifiedIdentity: {
+        nationalId: { type: String, required: false },
+        fullNameAr: { type: String, required: false },
+        fullNameEn: { type: String, required: false },
+        dateOfBirth: { type: String, required: false },
+        nationality: { type: String, required: false },
+        gender: { type: String, required: false },
+        verificationSource: { type: String, required: false },
+        verifiedAt: { type: Date, required: false }
+    },
+    // Verified business data from Wathq API (for lawyers/firms)
+    kycVerifiedBusiness: {
+        crNumber: { type: String, required: false },
+        companyName: { type: String, required: false },
+        entityType: { type: String, required: false },
+        status: { type: String, required: false },
+        isActive: { type: Boolean, required: false },
+        verificationSource: { type: String, required: false },
+        verifiedAt: { type: Date, required: false }
+    },
+    // AML risk score (0-100, higher = more risk)
+    amlRiskScore: {
+        type: Number,
+        min: 0,
+        max: 100,
+        default: 0,
+        required: false
+    },
+    // AML screening results
+    amlScreening: {
+        lastScreenedAt: { type: Date, required: false },
+        status: {
+            type: String,
+            enum: ['clear', 'review', 'flagged', null],
+            default: null
+        },
+        flags: [{
+            type: { type: String, required: true },
+            description: { type: String, required: false },
+            severity: {
+                type: String,
+                enum: ['low', 'medium', 'high'],
+                required: true
+            },
+            detectedAt: { type: Date, default: Date.now }
+        }]
+    },
+    // When KYC process was initiated
+    kycInitiatedAt: {
+        type: Date,
+        required: false,
+        default: null
+    },
+    // Admin who verified/rejected KYC (for manual review)
+    kycReviewedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        required: false,
+        default: null
+    },
+    // Timestamp when KYC was reviewed
+    kycReviewedAt: {
+        type: Date,
+        required: false,
+        default: null
+    },
+    // Notes from KYC review
+    kycReviewNotes: {
+        type: String,
+        required: false,
+        default: null
     }
 }, {
     versionKey: false,
@@ -472,5 +689,24 @@ userSchema.plugin(encryptionPlugin, {
     ],
     searchableFields: []  // Phone/MFA not searchable for security
 });
+
+// ─────────────────────────────────────────────────────────
+// FIRM ISOLATION PLUGIN (RLS-like enforcement)
+// ─────────────────────────────────────────────────────────
+const firmIsolationPlugin = require('./plugins/firmIsolation.plugin');
+
+/**
+ * Apply Row-Level Security (RLS) plugin to enforce firm-level data isolation.
+ * This ensures that all queries automatically filter by firmId unless explicitly bypassed.
+ *
+ * Usage:
+ *   // Normal queries (firmId required):
+ *   await User.find({ firmId: myFirmId, role: 'lawyer' });
+ *
+ *   // System-level queries (bypass):
+ *   await User.findWithoutFirmFilter({ _id: userId });
+ *   await User.find({}).setOptions({ bypassFirmFilter: true });
+ */
+userSchema.plugin(firmIsolationPlugin);
 
 module.exports = mongoose.model('User', userSchema);

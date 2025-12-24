@@ -42,6 +42,8 @@
  * @module services/salaryFormulaEngine
  */
 
+const logger = require('../utils/logger');
+
 /**
  * Tokenize a formula string
  * @param {string} formula - Formula string
@@ -235,7 +237,7 @@ function evaluate(node, context) {
         case 'variable': {
             const value = context[node.name];
             if (value === undefined) {
-                console.warn(`Unknown variable: ${node.name}, using 0`);
+                logger.warn(`Unknown variable in formula: ${node.name}, defaulting to 0`);
                 return 0;
             }
             return typeof value === 'number' ? value : parseFloat(value) || 0;
@@ -367,7 +369,11 @@ function calculateFormula(formula, context = {}) {
         const ast = parse(tokens);
         return evaluate(ast, context);
     } catch (error) {
-        console.error(`Formula evaluation error: ${error.message}`, { formula, context });
+        logger.error('Formula evaluation error', {
+            error: error.message,
+            formula,
+            context: Object.keys(context)
+        });
         return 0;
     }
 }

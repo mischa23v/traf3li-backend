@@ -1,5 +1,5 @@
 const express = require('express');
-const { authLogin, authLogout, authLogoutAll, authRegister, authStatus, checkAvailability, getOnboardingStatus, refreshAccessToken, sendMagicLink, verifyMagicLink, verifyEmail, resendVerificationEmail } = require('../controllers/auth.controller');
+const { authLogin, authLogout, authLogoutAll, authRegister, authStatus, checkAvailability, getOnboardingStatus, refreshAccessToken, sendMagicLink, verifyMagicLink, verifyEmail, resendVerificationEmail, forgotPassword, resetPassword } = require('../controllers/auth.controller');
 const { sendOTP, verifyOTP, resendOTP, checkOTPStatus } = require('../controllers/otp.controller');
 const {
     generateBackupCodes,
@@ -25,7 +25,9 @@ const {
     validateVerifyOTP,
     validateCheckAvailability,
     validateSendMagicLink,
-    validateVerifyMagicLink
+    validateVerifyMagicLink,
+    validateForgotPassword,
+    validateResetPassword
 } = require('../validators/auth.validator');
 
 const app = express.Router();
@@ -1007,6 +1009,132 @@ app.post('/change-password', authenticate, authRateLimiter, changePassword);
  *         $ref: '#/components/responses/Unauthorized'
  */
 app.get('/password-status', authenticate, publicRateLimiter, getPasswordStatus);
+
+/**
+ * @openapi
+ * /api/auth/forgot-password:
+ *   post:
+ *     summary: Request password reset
+ *     description: Sends a password reset link to the user's email. Rate limited to 3 requests per hour per email.
+ *     tags:
+ *       - Password Management
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 description: User's email address
+ *     responses:
+ *       200:
+ *         description: Password reset email sent (or email not found - prevents enumeration)
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                 messageEn:
+ *                   type: string
+ *                 expiresInMinutes:
+ *                   type: number
+ *                   example: 30
+ *       429:
+ *         description: Too many requests
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                 messageEn:
+ *                   type: string
+ *                 code:
+ *                   type: string
+ *                   example: RATE_LIMIT_EXCEEDED
+ *       500:
+ *         description: Server error
+ */
+app.post('/forgot-password', sensitiveRateLimiter, validateForgotPassword, forgotPassword);
+
+/**
+ * @openapi
+ * /api/auth/reset-password:
+ *   post:
+ *     summary: Reset password with token
+ *     description: Resets user's password using the token sent via email. Token expires in 30 minutes.
+ *     tags:
+ *       - Password Management
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - token
+ *               - newPassword
+ *             properties:
+ *               token:
+ *                 type: string
+ *                 description: Password reset token from email
+ *               newPassword:
+ *                 type: string
+ *                 description: New password (must meet policy requirements - min 8 chars, uppercase, lowercase, number, special char)
+ *     responses:
+ *       200:
+ *         description: Password reset successful
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                 messageEn:
+ *                   type: string
+ *       400:
+ *         description: Invalid or expired token, or weak password
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                 messageEn:
+ *                   type: string
+ *                 code:
+ *                   type: string
+ *                   example: INVALID_TOKEN
+ *                 errors:
+ *                   type: array
+ *                   items:
+ *                     type: string
+ *       500:
+ *         description: Server error
+ */
+app.post('/reset-password', authRateLimiter, validateResetPassword, resetPassword);
 
 // ========== Email Verification ==========
 /**

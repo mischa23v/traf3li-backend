@@ -8,6 +8,7 @@ const { Resend } = require('resend');
 const EmailTemplateService = require('./emailTemplate.service');
 const QueueService = require('./queue.service');
 const logger = require('../utils/logger');
+const { wrapExternalCall } = require('../utils/externalServiceWrapper');
 
 // Initialize Resend
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
@@ -55,15 +56,17 @@ class EmailService {
       }
     }
 
-    // Synchronous email sending (immediate)
+    // Synchronous email sending (immediate) - wrapped with circuit breaker
     try {
-      const result = await resend.emails.send({
-        from: `${EMAIL_CONFIG.fromName} <${EMAIL_CONFIG.from}>`,
-        to: Array.isArray(to) ? to : [to],
-        subject,
-        html,
-        replyTo,
-        attachments: attachments.length > 0 ? attachments : undefined
+      const result = await wrapExternalCall('resend', async () => {
+        return await resend.emails.send({
+          from: `${EMAIL_CONFIG.fromName} <${EMAIL_CONFIG.from}>`,
+          to: Array.isArray(to) ? to : [to],
+          subject,
+          html,
+          replyTo,
+          attachments: attachments.length > 0 ? attachments : undefined
+        });
       });
 
       logger.info(`✓ Email sent successfully to ${to}: ${subject}`);

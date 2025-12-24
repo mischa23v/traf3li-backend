@@ -639,7 +639,8 @@ class LocationRemindersService {
               $sum: { $cond: ['$locationTrigger.triggered', 0, 1] }
             }
           }
-        }
+        },
+        { $limit: 1000 }
       ]);
 
       // Get total counts

@@ -19,6 +19,7 @@
 
 const axios = require('axios');
 const logger = require('../utils/logger');
+const { wrapExternalCall } = require('../utils/externalServiceWrapper');
 
 class YakeenService {
   constructor() {
@@ -167,15 +168,17 @@ class YakeenService {
       // Convert birth date to Hijri format (required by Yakeen)
       const hijriBirthDate = this.convertToHijri(birthDate);
 
-      const response = await this.client.post(`${this.baseUrl}${endpoint}`, {
-        NIN: nationalId,
-        DateOfBirth: hijriBirthDate,
-        ChargeCode: this.chargeCode
-      }, {
-        auth: {
-          username: this.username,
-          password: this.password
-        }
+      const response = await wrapExternalCall('yakeen', async () => {
+        return await this.client.post(`${this.baseUrl}${endpoint}`, {
+          NIN: nationalId,
+          DateOfBirth: hijriBirthDate,
+          ChargeCode: this.chargeCode
+        }, {
+          auth: {
+            username: this.username,
+            password: this.password
+          }
+        });
       });
 
       if (response.data && (response.data.success !== false)) {
@@ -255,15 +258,17 @@ class YakeenService {
       const endpoint = isCitizen ? '/Yakeen/CitizenAddressInfo' : '/Yakeen/AlienAddressInfo';
       const hijriBirthDate = this.convertToHijri(birthDate);
 
-      const response = await this.client.post(`${this.baseUrl}${endpoint}`, {
-        NIN: nationalId,
-        DateOfBirth: hijriBirthDate,
-        ChargeCode: this.chargeCode
-      }, {
-        auth: {
-          username: this.username,
-          password: this.password
-        }
+      const response = await wrapExternalCall('yakeen', async () => {
+        return await this.client.post(`${this.baseUrl}${endpoint}`, {
+          NIN: nationalId,
+          DateOfBirth: hijriBirthDate,
+          ChargeCode: this.chargeCode
+        }, {
+          auth: {
+            username: this.username,
+            password: this.password
+          }
+        });
       });
 
       if (response.data && response.data.success !== false) {

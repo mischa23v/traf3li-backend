@@ -21,6 +21,7 @@
 
 const axios = require('axios');
 const logger = require('../utils/logger');
+const { wrapExternalCall } = require('../utils/externalServiceWrapper');
 
 // Common SADAD biller categories
 const BILLER_CATEGORIES = {
@@ -73,20 +74,22 @@ class SADADService {
         }
 
         try {
-            const response = await axios.post(
-                `${this.bankApiUrl}/oauth2/token`,
-                new URLSearchParams({
-                    grant_type: 'client_credentials',
-                    client_id: this.clientId,
-                    client_secret: this.clientSecret,
-                    scope: 'sadad'
-                }),
-                {
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded'
+            const response = await wrapExternalCall('sadad', async () => {
+                return await axios.post(
+                    `${this.bankApiUrl}/oauth2/token`,
+                    new URLSearchParams({
+                        grant_type: 'client_credentials',
+                        client_id: this.clientId,
+                        client_secret: this.clientSecret,
+                        scope: 'sadad'
+                    }),
+                    {
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded'
+                        }
                     }
-                }
-            );
+                );
+            });
 
             this.accessToken = response.data.access_token;
             this.tokenExpiry = Date.now() + (response.data.expires_in - 60) * 1000;
@@ -119,10 +122,12 @@ class SADADService {
             const headers = await this.getHeaders();
             const params = category ? { category } : {};
 
-            const response = await axios.get(
-                `${this.bankApiUrl}/sadad/v1/billers`,
-                { headers, params }
-            );
+            const response = await wrapExternalCall('sadad', async () => {
+                return await axios.get(
+                    `${this.bankApiUrl}/sadad/v1/billers`,
+                    { headers, params }
+                );
+            });
 
             return response.data;
         } catch (error) {
@@ -150,14 +155,16 @@ class SADADService {
         try {
             const headers = await this.getHeaders();
 
-            const response = await axios.post(
-                `${this.bankApiUrl}/sadad/v1/bills/inquiry`,
-                {
-                    billerCode: billerCode,
-                    billNumber: billNumber,
-                },
-                { headers }
-            );
+            const response = await wrapExternalCall('sadad', async () => {
+                return await axios.post(
+                    `${this.bankApiUrl}/sadad/v1/bills/inquiry`,
+                    {
+                        billerCode: billerCode,
+                        billNumber: billNumber,
+                    },
+                    { headers }
+                );
+            });
 
             return {
                 success: true,
@@ -199,18 +206,20 @@ class SADADService {
                 return { success: false, errors: validation.errors };
             }
 
-            const response = await axios.post(
-                `${this.bankApiUrl}/sadad/v1/bills/payment`,
-                {
-                    billerCode: paymentData.billerCode,
-                    billNumber: paymentData.billNumber,
-                    amount: paymentData.amount,
-                    debitAccount: paymentData.debitAccount, // IBAN
-                    paymentReference: paymentData.reference || `PAY${Date.now()}`,
-                    remarks: paymentData.remarks,
-                },
-                { headers }
-            );
+            const response = await wrapExternalCall('sadad', async () => {
+                return await axios.post(
+                    `${this.bankApiUrl}/sadad/v1/bills/payment`,
+                    {
+                        billerCode: paymentData.billerCode,
+                        billNumber: paymentData.billNumber,
+                        amount: paymentData.amount,
+                        debitAccount: paymentData.debitAccount, // IBAN
+                        paymentReference: paymentData.reference || `PAY${Date.now()}`,
+                        remarks: paymentData.remarks,
+                    },
+                    { headers }
+                );
+            });
 
             return {
                 success: true,
@@ -243,10 +252,12 @@ class SADADService {
         try {
             const headers = await this.getHeaders();
 
-            const response = await axios.get(
-                `${this.bankApiUrl}/sadad/v1/payments/${transactionId}/status`,
-                { headers }
-            );
+            const response = await wrapExternalCall('sadad', async () => {
+                return await axios.get(
+                    `${this.bankApiUrl}/sadad/v1/payments/${transactionId}/status`,
+                    { headers }
+                );
+            });
 
             return {
                 success: true,
@@ -272,20 +283,22 @@ class SADADService {
         try {
             const headers = await this.getHeaders();
 
-            const response = await axios.get(
-                `${this.bankApiUrl}/sadad/v1/payments/history`,
-                {
-                    headers,
-                    params: {
-                        fromDate: options.fromDate,
-                        toDate: options.toDate,
-                        billerCode: options.billerCode,
-                        status: options.status,
-                        page: options.page || 1,
-                        pageSize: options.pageSize || 20,
+            const response = await wrapExternalCall('sadad', async () => {
+                return await axios.get(
+                    `${this.bankApiUrl}/sadad/v1/payments/history`,
+                    {
+                        headers,
+                        params: {
+                            fromDate: options.fromDate,
+                            toDate: options.toDate,
+                            billerCode: options.billerCode,
+                            status: options.status,
+                            page: options.page || 1,
+                            pageSize: options.pageSize || 20,
+                        }
                     }
-                }
-            );
+                );
+            });
 
             return {
                 success: true,

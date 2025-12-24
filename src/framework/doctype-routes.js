@@ -18,6 +18,7 @@ const { sanitizeObjectId, pickAllowedFields } = require('../utils/securityUtils'
 const { userMiddleware } = require('../middlewares/user-middleware');
 const { firmFilter } = require('../middlewares/firmContext');
 const CustomException = require('../utils/CustomException');
+const logger = require('../utils/logger');
 
 /**
  * Permission levels
@@ -538,7 +539,7 @@ function mountAllRoutes(app, prefix = '/api/resource') {
         const router = generateRoutes(name);
 
         app.use(`${prefix}/${routeName}`, router);
-        console.log(`[DocType] Mounted: ${prefix}/${routeName}`);
+        logger.info(`[DocType] Mounted route`, { prefix, routeName, path: `${prefix}/${routeName}` });
     }
 }
 

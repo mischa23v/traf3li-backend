@@ -10,6 +10,7 @@ const PreparedReport = require('../models/preparedReport.model');
 const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
 const { sanitizeObjectId, pickAllowedFields } = require('../utils/securityUtils');
+const logger = require('../utils/logger');
 
 /**
  * Get all prepared reports
@@ -253,7 +254,7 @@ async function generateReportAsync(report, firmId, userId) {
         const { data, summary } = await generator(firmId, report.parameters);
         await report.markReady(data, summary);
     } catch (error) {
-        console.error(`Error generating report ${report._id}:`, error);
+        logger.error(`Error generating report ${report._id}`, { error: error.message, stack: error.stack, reportId: report._id });
         await report.markFailed(error);
     }
 }

@@ -595,7 +595,8 @@ class MLFeatureEngineeringService {
                             ]
                         }
                     }
-                }
+                },
+                { $limit: 1000 }
             ]);
 
             // Convert to object format

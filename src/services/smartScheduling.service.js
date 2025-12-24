@@ -102,6 +102,7 @@ class SmartSchedulingService {
                     completedAt: { $gte: startDate, $lte: endDate }
                 }
             },
+            { $limit: 10000 },
             {
                 $project: {
                     hour: { $hour: '$completedAt' },
@@ -208,6 +209,7 @@ class SmartSchedulingService {
                     date: { $gte: startDate, $lte: endDate }
                 }
             },
+            { $limit: 10000 },
             {
                 $project: {
                     hour: {
@@ -267,6 +269,7 @@ class SmartSchedulingService {
                     status: { $in: ['completed', 'confirmed', 'scheduled'] }
                 }
             },
+            { $limit: 10000 },
             {
                 $project: {
                     hour: { $hour: '$startDateTime' },

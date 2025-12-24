@@ -14,7 +14,7 @@ const ALGORITHM = 'aes-256-gcm';
 const IV_LENGTH = 16; // 16 bytes for AES
 const AUTH_TAG_LENGTH = 16; // 16 bytes for GCM auth tag
 const SALT_LENGTH = 32; // 32 bytes for key derivation
-const BCRYPT_ROUNDS = 10; // Bcrypt salt rounds
+const BCRYPT_ROUNDS = 12; // Bcrypt salt rounds
 
 /**
  * Get encryption key from environment variable

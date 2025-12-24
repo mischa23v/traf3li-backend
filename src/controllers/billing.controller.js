@@ -1144,6 +1144,29 @@ exports.handleStripeWebhook = asyncHandler(async (req, res) => {
                 logger.info('Payment method detached', { paymentMethodId: event.data.object.id });
                 break;
 
+            // ═══════════════════════════════════════════════════════════════
+            // STRIPE CONNECT EVENTS (Lawyer Payouts)
+            // ═══════════════════════════════════════════════════════════════
+            case 'account.updated':
+                await handleConnectAccountUpdated(event.data.object);
+                break;
+
+            case 'payout.paid':
+                await handlePayoutPaid(event.data.object);
+                break;
+
+            case 'payout.failed':
+                await handlePayoutFailed(event.data.object);
+                break;
+
+            case 'transfer.created':
+                logger.info('Transfer created', { transferId: event.data.object.id });
+                break;
+
+            case 'transfer.updated':
+                logger.info('Transfer updated', { transferId: event.data.object.id });
+                break;
+
             default:
                 logger.info('Unhandled webhook event type', { type: event.type });
         }
@@ -1420,5 +1443,138 @@ async function handleInvoiceCreatedOrFinalized(stripeInvoice) {
         });
 
         logger.info('Billing invoice updated from webhook', { invoiceId: billingInvoice._id });
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// STRIPE CONNECT WEBHOOK HANDLERS
+// ═══════════════════════════════════════════════════════════════
+
+const payoutService = require('../services/payout.service');
+const { User, Payout } = require('../models');
+
+/**
+ * Handle Connect account update from Stripe
+ * Updates lawyer account status based on Stripe verification
+ */
+async function handleConnectAccountUpdated(account) {
+    const { id, payouts_enabled, details_submitted, requirements } = account;
+
+    logger.info('Connect account updated', {
+        accountId: id,
+        payoutsEnabled: payouts_enabled,
+        detailsSubmitted: details_submitted
+    });
+
+    try {
+        // Update account status in our database
+        await payoutService.updateAccountStatus(id, {
+            payouts_enabled,
+            details_submitted,
+            requirements
+        });
+    } catch (error) {
+        logger.error('Error updating Connect account status', {
+            accountId: id,
+            error: error.message
+        });
+    }
+}
+
+/**
+ * Handle successful payout from Stripe
+ * Updates payout status to paid
+ */
+async function handlePayoutPaid(stripePayout) {
+    const { id, amount, currency, arrival_date, balance_transaction, metadata } = stripePayout;
+
+    logger.info('Payout paid webhook received', {
+        stripePayoutId: id,
+        amount,
+        currency
+    });
+
+    try {
+        // Find payout by Stripe payout ID or transfer ID
+        let payout = await Payout.findOne({ stripePayoutId: id });
+
+        // If not found by payout ID, try by metadata
+        if (!payout && metadata?.payoutId) {
+            payout = await Payout.findById(metadata.payoutId);
+        }
+
+        if (!payout) {
+            logger.warn('Payout not found for Stripe payout', {
+                stripePayoutId: id,
+                metadata
+            });
+            return;
+        }
+
+        // Update payout status
+        await payout.markAsPaid(id, balance_transaction);
+
+        // Set expected arrival date if provided
+        if (arrival_date) {
+            payout.expectedArrivalDate = new Date(arrival_date * 1000);
+            await payout.save();
+        }
+
+        logger.info('Payout marked as paid', {
+            payoutId: payout._id,
+            payoutNumber: payout.payoutNumber,
+            stripePayoutId: id
+        });
+    } catch (error) {
+        logger.error('Error handling payout paid webhook', {
+            stripePayoutId: id,
+            error: error.message
+        });
+    }
+}
+
+/**
+ * Handle failed payout from Stripe
+ * Updates payout status to failed
+ */
+async function handlePayoutFailed(stripePayout) {
+    const { id, failure_message, failure_code, metadata } = stripePayout;
+
+    logger.warn('Payout failed webhook received', {
+        stripePayoutId: id,
+        failureMessage: failure_message,
+        failureCode: failure_code
+    });
+
+    try {
+        // Find payout by Stripe payout ID or metadata
+        let payout = await Payout.findOne({ stripePayoutId: id });
+
+        if (!payout && metadata?.payoutId) {
+            payout = await Payout.findById(metadata.payoutId);
+        }
+
+        if (!payout) {
+            logger.warn('Payout not found for failed payout', {
+                stripePayoutId: id,
+                metadata
+            });
+            return;
+        }
+
+        // Update payout status to failed
+        await payout.markAsFailed(failure_message, failure_code);
+
+        logger.info('Payout marked as failed', {
+            payoutId: payout._id,
+            payoutNumber: payout.payoutNumber,
+            stripePayoutId: id,
+            failureReason: failure_message
+        });
+    } catch (error) {
+        logger.error('Error handling payout failed webhook', {
+            stripePayoutId: id,
+            error: error.message
+        });
     }
 }

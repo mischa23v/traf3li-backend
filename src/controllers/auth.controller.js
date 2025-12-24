@@ -1860,6 +1860,237 @@ const refreshAccessToken = async (request, response) => {
     }
 };
 
+/**
+ * Request password reset
+ * POST /api/auth/forgot-password
+ */
+const forgotPassword = async (request, response) => {
+    const { email } = request.body;
+    const ipAddress = request.ip || request.headers['x-forwarded-for']?.split(',')[0] || 'unknown';
+
+    try {
+        // Find user by email
+        const user = await User.findOne({ email: email.toLowerCase() }).select('_id email firstName lastName passwordResetRequestedAt').lean();
+
+        // SECURITY: Always return success even if user doesn't exist
+        // This prevents email enumeration attacks
+        if (!user) {
+            logger.warn('Password reset requested for non-existent email', { email });
+            return response.status(200).json({
+                error: false,
+                message: 'إذا كان البريد الإلكتروني موجوداً، سيتم إرسال رابط إعادة تعيين كلمة المرور',
+                messageEn: 'If the email exists, a password reset link will be sent'
+            });
+        }
+
+        // RATE LIMITING: Check if user has requested reset recently (max 3 per hour)
+        const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+        if (user.passwordResetRequestedAt && user.passwordResetRequestedAt > oneHourAgo) {
+            const resetCount = await User.countDocuments({
+                _id: user._id,
+                passwordResetRequestedAt: { $gte: oneHourAgo }
+            });
+
+            if (resetCount >= 3) {
+                logger.warn('Password reset rate limit exceeded', { userId: user._id, email, ipAddress });
+                return response.status(429).json({
+                    error: true,
+                    message: 'تم تجاوز الحد الأقصى لطلبات إعادة تعيين كلمة المرور. يرجى المحاولة لاحقاً',
+                    messageEn: 'Too many password reset requests. Please try again later',
+                    code: 'RATE_LIMIT_EXCEEDED'
+                });
+            }
+        }
+
+        // Generate secure reset token (32 bytes = 64 hex characters)
+        const crypto = require('crypto');
+        const resetToken = crypto.randomBytes(32).toString('hex');
+
+        // Hash the token before storing (using SHA256)
+        const hashedToken = crypto.createHash('sha256').update(resetToken).digest('hex');
+
+        // Set token expiration (30 minutes from now)
+        const expiresAt = new Date(Date.now() + 30 * 60 * 1000);
+
+        // Update user with reset token and expiration
+        await User.findByIdAndUpdate(user._id, {
+            passwordResetToken: hashedToken,
+            passwordResetExpires: expiresAt,
+            passwordResetRequestedAt: new Date()
+        });
+
+        // Send password reset email
+        const emailService = require('../services/email.service');
+        const userName = `${user.firstName} ${user.lastName}`;
+
+        try {
+            await emailService.sendPasswordReset(
+                {
+                    email: user.email,
+                    name: userName
+                },
+                resetToken,
+                'ar' // Default to Arabic
+            );
+
+            logger.info('Password reset email sent successfully', { userId: user._id, email });
+        } catch (emailError) {
+            logger.error('Failed to send password reset email', {
+                error: emailError.message,
+                userId: user._id,
+                email
+            });
+
+            // Clear the reset token if email fails
+            await User.findByIdAndUpdate(user._id, {
+                passwordResetToken: null,
+                passwordResetExpires: null
+            });
+
+            return response.status(500).json({
+                error: true,
+                message: 'فشل في إرسال بريد إعادة تعيين كلمة المرور',
+                messageEn: 'Failed to send password reset email'
+            });
+        }
+
+        // Log the password reset request
+        await auditLogService.log(
+            'password_reset_requested',
+            'user',
+            user._id,
+            null,
+            {
+                userId: user._id,
+                userEmail: user.email,
+                ipAddress,
+                userAgent: request.headers['user-agent'] || 'unknown',
+                severity: 'medium'
+            }
+        );
+
+        return response.status(200).json({
+            error: false,
+            message: 'تم إرسال رابط إعادة تعيين كلمة المرور إلى بريدك الإلكتروني',
+            messageEn: 'Password reset link has been sent to your email',
+            expiresInMinutes: 30
+        });
+    } catch (error) {
+        logger.error('Forgot password failed', { error: error.message, email });
+        return response.status(500).json({
+            error: true,
+            message: 'حدث خطأ أثناء معالجة طلبك',
+            messageEn: 'An error occurred while processing your request'
+        });
+    }
+};
+
+/**
+ * Reset password with token
+ * POST /api/auth/reset-password
+ */
+const resetPassword = async (request, response) => {
+    const { token, newPassword } = request.body;
+    const ipAddress = request.ip || request.headers['x-forwarded-for']?.split(',')[0] || 'unknown';
+
+    try {
+        // Hash the provided token to compare with stored hash
+        const crypto = require('crypto');
+        const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
+
+        // Find user with matching token and non-expired token
+        const user = await User.findOne({
+            passwordResetToken: hashedToken,
+            passwordResetExpires: { $gt: Date.now() }
+        }).select('_id email firstName lastName password passwordResetToken passwordResetExpires');
+
+        if (!user) {
+            logger.warn('Invalid or expired password reset token', { ipAddress });
+
+            // Log failed attempt
+            await auditLogService.log(
+                'password_reset_failed',
+                'user',
+                null,
+                null,
+                {
+                    reason: 'Invalid or expired token',
+                    ipAddress,
+                    userAgent: request.headers['user-agent'] || 'unknown',
+                    severity: 'medium'
+                }
+            );
+
+            return response.status(400).json({
+                error: true,
+                message: 'رمز إعادة التعيين غير صالح أو منتهي الصلاحية',
+                messageEn: 'Invalid or expired reset token',
+                code: 'INVALID_TOKEN'
+            });
+        }
+
+        // Validate password policy
+        const passwordValidation = validatePassword(newPassword, {
+            email: user.email,
+            firstName: user.firstName,
+            lastName: user.lastName
+        });
+
+        if (!passwordValidation.valid) {
+            return response.status(400).json({
+                error: true,
+                message: passwordValidation.errorsAr.join('. '),
+                messageEn: passwordValidation.errors.join('. '),
+                code: 'WEAK_PASSWORD',
+                errors: passwordValidation.errors
+            });
+        }
+
+        // Hash the new password
+        const hashedPassword = await bcrypt.hash(newPassword, saltRounds);
+
+        // Update user password and clear reset token
+        await User.findByIdAndUpdate(user._id, {
+            password: hashedPassword,
+            passwordResetToken: null,
+            passwordResetExpires: null,
+            passwordResetRequestedAt: null,
+            passwordChangedAt: new Date(),
+            mustChangePassword: false
+        });
+
+        // Log successful password reset
+        await auditLogService.log(
+            'password_reset_success',
+            'user',
+            user._id,
+            null,
+            {
+                userId: user._id,
+                userEmail: user.email,
+                ipAddress,
+                userAgent: request.headers['user-agent'] || 'unknown',
+                severity: 'medium'
+            }
+        );
+
+        logger.info('Password reset successful', { userId: user._id, email: user.email });
+
+        return response.status(200).json({
+            error: false,
+            message: 'تم إعادة تعيين كلمة المرور بنجاح',
+            messageEn: 'Password has been reset successfully'
+        });
+    } catch (error) {
+        logger.error('Reset password failed', { error: error.message });
+        return response.status(500).json({
+            error: true,
+            message: 'حدث خطأ أثناء إعادة تعيين كلمة المرور',
+            messageEn: 'An error occurred while resetting password'
+        });
+    }
+};
+
 module.exports = {
     authLogin,
     authLogout,
@@ -1874,5 +2105,7 @@ module.exports = {
     sendMagicLink,
     verifyMagicLink,
     verifyEmail,
-    resendVerificationEmail
+    resendVerificationEmail,
+    forgotPassword,
+    resetPassword
 };

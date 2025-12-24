@@ -108,6 +108,10 @@ temporaryIPAllowanceSchema.index({ firmId: 1, ipAddress: 1, expiresAt: 1 });
 // Index for cleanup of expired allowances
 temporaryIPAllowanceSchema.index({ expiresAt: 1, isActive: 1 });
 
+// TTL index to auto-delete expired IP allowances
+// Delete 7 days after expiration to maintain short audit trail
+temporaryIPAllowanceSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 7 * 24 * 60 * 60 });
+
 // ═══════════════════════════════════════════════════════════════
 // INSTANCE METHODS
 // ═══════════════════════════════════════════════════════════════

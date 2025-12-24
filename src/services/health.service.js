@@ -17,6 +17,16 @@ const os = require('os');
 const fs = require('fs').promises;
 
 /**
+ * Measure database latency with a simple query
+ * @returns {Promise<number>} Latency in milliseconds
+ */
+const measureDbLatency = async () => {
+    const startTime = Date.now();
+    await mongoose.connection.db.admin().ping();
+    return Date.now() - startTime;
+};
+
+/**
  * Check MongoDB database health
  * @returns {Promise<Object>} Database health status
  */
@@ -29,7 +39,8 @@ const checkDatabase = async () => {
             return {
                 status: 'down',
                 message: 'Database not connected',
-                readyState: mongoose.connection.readyState
+                readyState: mongoose.connection.readyState,
+                healthy: false
             };
         }
 
@@ -44,6 +55,7 @@ const checkDatabase = async () => {
             status: 'up',
             latency: `${latency}ms`,
             latencyMs: latency,
+            responseTime: latency,
             database: mongoose.connection.db.databaseName,
             collections: stats.collections,
             dataSize: formatBytes(stats.dataSize),
@@ -98,6 +110,7 @@ const checkRedis = async () => {
             status: 'up',
             latency: `${latency}ms`,
             latencyMs: latency,
+            responseTime: latency,
             version,
             memoryUsed,
             healthy: latency < 500 // Warn if latency > 500ms
@@ -207,6 +220,44 @@ const checkMalwareScan = async () => {
 };
 
 /**
+ * Check Stripe payment service
+ * @returns {Promise<Object>} Stripe health status
+ */
+const checkStripe = async () => {
+    try {
+        if (!process.env.STRIPE_SECRET_KEY) {
+            return {
+                status: 'not_configured',
+                message: 'Stripe API key not configured',
+                healthy: true // Not critical if payment system isn't set up yet
+            };
+        }
+
+        const startTime = Date.now();
+        const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+
+        // Make actual API call to verify connectivity
+        await stripe.balance.retrieve();
+        const latency = Date.now() - startTime;
+
+        return {
+            status: 'up',
+            latency: `${latency}ms`,
+            latencyMs: latency,
+            responseTime: latency,
+            healthy: latency < 2000 // Warn if latency > 2s
+        };
+    } catch (error) {
+        return {
+            status: 'down',
+            message: error.message,
+            error: error.type || 'unknown_error',
+            healthy: false
+        };
+    }
+};
+
+/**
  * Check external services (S3, Stripe, ClamAV)
  * @returns {Promise<Object>} External services status
  */
@@ -229,8 +280,10 @@ const checkExternalServices = async () => {
             services.s3 = {
                 status: 'up',
                 latency: `${latency}ms`,
+                latencyMs: latency,
+                responseTime: latency,
                 bucket: BUCKETS.general,
-                healthy: true
+                healthy: latency < 2000
             };
         } else {
             services.s3 = {
@@ -247,27 +300,8 @@ const checkExternalServices = async () => {
         };
     }
 
-    // Check Stripe
-    try {
-        if (process.env.STRIPE_SECRET_KEY) {
-            // Just verify the key is set, don't make actual API calls
-            services.stripe = {
-                status: 'configured',
-                healthy: true
-            };
-        } else {
-            services.stripe = {
-                status: 'not_configured',
-                healthy: true // Not critical for app
-            };
-        }
-    } catch (error) {
-        services.stripe = {
-            status: 'unknown',
-            message: error.message,
-            healthy: true
-        };
-    }
+    // Check Stripe with actual API call
+    services.stripe = await checkStripe();
 
     // Check ClamAV malware scanning
     services.malwareScan = await checkMalwareScan();
@@ -397,8 +431,10 @@ const formatUptime = (seconds) => {
 };
 
 module.exports = {
+    measureDbLatency,
     checkDatabase,
     checkRedis,
+    checkStripe,
     checkDiskSpace,
     checkMemory,
     checkMalwareScan,

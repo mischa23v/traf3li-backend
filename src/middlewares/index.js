@@ -84,6 +84,21 @@ const {
     extractTransactionDate,
     extractFirmId
 } = require('./lockDate.middleware');
+const {
+    apiVersionMiddleware,
+    addNonVersionedDeprecationWarning,
+    getVersionInfo,
+    getSupportedVersions,
+    SUPPORTED_VERSIONS,
+    DEFAULT_VERSION,
+    VERSION_INFO
+} = require('./apiVersion.middleware');
+const {
+    deprecationWarning,
+    softDeprecationWarning,
+    endpointRemovalWarning,
+    getDeprecationStatus
+} = require('./deprecation.middleware');
 
 module.exports = {
     userMiddleware,
@@ -163,5 +178,18 @@ module.exports = {
     checkJournalLockDate,
     requireUnlockedPeriod,
     extractTransactionDate,
-    extractFirmId
+    extractFirmId,
+    // API versioning middleware
+    apiVersionMiddleware,
+    addNonVersionedDeprecationWarning,
+    getVersionInfo,
+    getSupportedVersions,
+    SUPPORTED_VERSIONS,
+    DEFAULT_VERSION,
+    VERSION_INFO,
+    // Deprecation warning middleware
+    deprecationWarning,
+    softDeprecationWarning,
+    endpointRemovalWarning,
+    getDeprecationStatus
 }

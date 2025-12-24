@@ -12,6 +12,7 @@ const crypto = require('crypto');
 const { v4: uuidv4 } = require('uuid');
 const axios = require('axios');
 const logger = require('../utils/logger');
+const { wrapExternalCall } = require('../utils/externalServiceWrapper');
 
 const ZATCA_API_URL = process.env.ZATCA_API_URL || 'https://gw-fatoora.zatca.gov.sa/e-invoicing/developer-portal';
 
@@ -329,20 +330,22 @@ const submitToZATCA = async (invoice) => {
             };
         }
 
-        // Submit to ZATCA API
-        const response = await axios.post(
-            `${ZATCA_API_URL}/${endpoint}`,
-            requestBody,
-            {
-                headers: {
-                    'Accept': 'application/json',
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${process.env.ZATCA_API_TOKEN}`,
-                    'Clearance-Status': isB2B ? '1' : '0'
-                },
-                timeout: 30000 // 30 second timeout
-            }
-        );
+        // Submit to ZATCA API (with circuit breaker protection)
+        const response = await wrapExternalCall('zatca', async () => {
+            return await axios.post(
+                `${ZATCA_API_URL}/${endpoint}`,
+                requestBody,
+                {
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${process.env.ZATCA_API_TOKEN}`,
+                        'Clearance-Status': isB2B ? '1' : '0'
+                    },
+                    timeout: 30000 // 30 second timeout
+                }
+            );
+        });
 
         // Handle success response
         if (response.data.clearanceStatus === 'CLEARED' || response.data.reportingStatus === 'REPORTED') {

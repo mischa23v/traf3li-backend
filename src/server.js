@@ -43,6 +43,7 @@ const {
 
 const express = require('express');
 const http = require('http');
+const path = require('path');
 const cors = require('cors');
 const helmet = require('helmet');
 const compression = require('compression');
@@ -90,6 +91,7 @@ const {
     addNonVersionedDeprecationWarning
 } = require('./middlewares/apiVersion.middleware');
 const performanceMiddleware = require('./middlewares/performance.middleware');
+const { metricsMiddleware } = require('./routes/metrics.route');
 const {
     // Marketplace
     gigRoute,
@@ -102,6 +104,7 @@ const {
     conversationRoute,
     messageRoute,
     reviewRoute,
+    disputeRoute,
     userRoute,
     jobRoute,
     proposalRoute,
@@ -292,6 +295,9 @@ const {
 
     // Saudi Government API Integration
     verifyRoute,
+
+    // KYC/AML Verification
+    kycRoute,
 
     // Extended HR (ERPNext HRMS parity)
     shiftRoute,
@@ -601,6 +607,9 @@ app.use(logger.requestMiddleware);
 // ✅ PERFORMANCE: Track API response times (target: < 300ms)
 app.use(performanceMiddleware);
 
+// ✅ METRICS: Track HTTP metrics for Prometheus monitoring
+app.use(metricsMiddleware);
+
 // ✅ SENTRY: Add user context for authenticated requests
 app.use(sentrySetUserContext);
 
@@ -689,6 +698,16 @@ app.use('/uploads', express.static('uploads', {
 }));
 
 // ============================================
+// SECURITY.TXT - RFC 9116 Compliance
+// ============================================
+// Security vulnerability reporting endpoint following RFC 9116 standard
+// This allows security researchers to report vulnerabilities responsibly
+app.get('/.well-known/security.txt', (req, res) => {
+    res.type('text/plain');
+    res.sendFile(path.join(__dirname, 'static', '.well-known', 'security.txt'));
+});
+
+// ============================================
 // API VERSIONED ROUTES (v1, v2, etc.)
 // ============================================
 // Mount versioned routes - these are the primary endpoints going forward
@@ -719,6 +738,7 @@ app.use('/api/orders', orderRoute);
 app.use('/api/conversations', conversationRoute);
 app.use('/api/messages', messageRoute);
 app.use('/api/reviews', reviewRoute);
+app.use('/api/disputes', noCache, disputeRoute); // Dispute resolution system
 app.use('/api/users', noCache, userRoute); // No cache for user data
 app.use('/api/jobs', jobRoute);
 app.use('/api/proposals', proposalRoute);
@@ -940,6 +960,12 @@ app.use('/api/saudi-banking', noCache, saudiBankingRoute); // No cache for banki
 app.use('/api/verify', noCache, verifyRoute); // No cache for verification data
 
 // ============================================
+// KYC/AML VERIFICATION ROUTES
+// ============================================
+// Know Your Customer and Anti-Money Laundering verification
+app.use('/api/kyc', noCache, kycRoute); // No cache for KYC verification data
+
+// ============================================
 // EXTENDED HR ROUTES (ERPNext HRMS Parity)
 // ============================================
 // Shift management (shift types, assignments)
@@ -1061,19 +1087,10 @@ app.use('/api/churn', noCache, churnRoute);
 // ============================================
 // 404 HANDLER - Must be after all routes
 // ============================================
-// Handle 404 errors with CORS headers
+// Handle 404 errors
+// Note: CORS headers are not set here to prevent exposing error details to unauthorized origins
+// CORS preflight requests are handled by the main CORS middleware
 app.use((req, res, next) => {
-    // Set CORS headers for 404 responses
-    const origin = req.headers.origin;
-    if (origin) {
-        // Check if origin is allowed
-        const isAllowed = allowedOrigins.includes(origin) || origin.includes('.pages.dev') || origin.includes('.vercel.app');
-        if (isAllowed) {
-            res.setHeader('Access-Control-Allow-Origin', origin);
-            res.setHeader('Access-Control-Allow-Credentials', 'true');
-        }
-    }
-
     res.status(404).json({
         success: false,
         error: {
@@ -1098,17 +1115,9 @@ app.use(getErrorHandler());
 // CUSTOM ERROR HANDLER - Must be last
 // ============================================
 // Error handling middleware with bilingual support
+// Note: CORS headers are not set here to prevent exposing error details to unauthorized origins
+// CORS preflight requests are handled by the main CORS middleware
 app.use((err, req, res, next) => {
-    // Set CORS headers for error responses
-    const origin = req.headers.origin;
-    if (origin) {
-        const isAllowed = allowedOrigins.includes(origin) || origin.includes('.pages.dev') || origin.includes('.vercel.app');
-        if (isAllowed) {
-            res.setHeader('Access-Control-Allow-Origin', origin);
-            res.setHeader('Access-Control-Allow-Credentials', 'true');
-        }
-    }
-
     // Log error with structured logger
     logger.logError(err, {
         requestId: req.id,

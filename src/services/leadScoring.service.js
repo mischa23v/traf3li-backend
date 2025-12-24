@@ -926,7 +926,8 @@ class LeadScoringService {
                     count: { $sum: 1 }
                 }
             },
-            { $sort: { _id: 1 } }
+            { $sort: { _id: 1 } },
+            { $limit: 1000 }
         ]);
 
         return trends;
@@ -965,7 +966,8 @@ class LeadScoringService {
                     }
                 }
             },
-            { $sort: { _id: 1 } }
+            { $sort: { _id: 1 } },
+            { $limit: 1000 }
         ]);
 
         return analysis;
