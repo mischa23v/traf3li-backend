@@ -187,7 +187,12 @@ creditNoteSchema.index({ lawyerId: 1, creditNoteNumber: 1 }, { unique: true, spa
  */
 creditNoteSchema.statics.generateNumber = async function(firmId, lawyerId) {
     const year = new Date().getFullYear();
-    const query = firmId ? { firmId } : { lawyerId };
+    const query = {};
+    if (firmId) {
+        query.firmId = firmId;
+    } else if (lawyerId) {
+        query.lawyerId = lawyerId;
+    }
 
     const lastCN = await this.findOne({
         ...query,

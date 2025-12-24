@@ -1045,7 +1045,12 @@ grievanceSchema.pre('save', async function(next) {
     // Auto-generate grievanceId
     if (!this.grievanceId) {
         const year = new Date().getFullYear();
-        const query = this.firmId ? { firmId: this.firmId } : { lawyerId: this.lawyerId };
+        const query = {};
+        if (this.firmId) {
+            query.firmId = this.firmId;
+        } else if (this.lawyerId) {
+            query.lawyerId = this.lawyerId;
+        }
         const count = await this.constructor.countDocuments({
             ...query,
             grievanceId: new RegExp(`^GRV-${year}-`)
@@ -1078,7 +1083,12 @@ grievanceSchema.pre('save', async function(next) {
 // Generate grievance number
 grievanceSchema.statics.generateGrievanceNumber = async function(firmId, lawyerId) {
     const year = new Date().getFullYear();
-    const query = firmId ? { firmId } : { lawyerId };
+    const query = {};
+    if (firmId) {
+        query.firmId = firmId;
+    } else if (lawyerId) {
+        query.lawyerId = lawyerId;
+    }
     const count = await this.countDocuments({
         ...query,
         grievanceId: new RegExp(`^GRV-${year}-`)
@@ -1097,7 +1107,12 @@ grievanceSchema.statics.getEmployeeGrievances = function(employeeId, status = nu
 
 // Get active grievances
 grievanceSchema.statics.getActiveGrievances = function(firmId, lawyerId) {
-    const query = firmId ? { firmId } : { lawyerId };
+    const query = {};
+    if (firmId) {
+        query.firmId = firmId;
+    } else if (lawyerId) {
+        query.lawyerId = lawyerId;
+    }
     return this.find({
         ...query,
         status: { $in: ['submitted', 'under_review', 'investigating'] }
@@ -1106,7 +1121,12 @@ grievanceSchema.statics.getActiveGrievances = function(firmId, lawyerId) {
 
 // Get overdue grievances
 grievanceSchema.statics.getOverdueGrievances = function(firmId, lawyerId, daysThreshold = 30) {
-    const query = firmId ? { firmId } : { lawyerId };
+    const query = {};
+    if (firmId) {
+        query.firmId = firmId;
+    } else if (lawyerId) {
+        query.lawyerId = lawyerId;
+    }
     const thresholdDate = new Date();
     thresholdDate.setDate(thresholdDate.getDate() - daysThreshold);
 

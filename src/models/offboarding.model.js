@@ -1253,7 +1253,12 @@ ${resignationAdjustment ? `Adjustment (${resignationAdjustment.entitlementPercen
 
 // Get offboardings for firm or solo lawyer
 offboardingSchema.statics.getOffboardings = function(firmId, lawyerId, filters = {}) {
-    const query = firmId ? { firmId } : { lawyerId };
+    const query = {};
+    if (firmId) {
+        query.firmId = firmId;
+    } else if (lawyerId) {
+        query.lawyerId = lawyerId;
+    }
     return this.find({ ...query, ...filters })
         .populate('employeeId', 'employeeId personalInfo.fullNameArabic personalInfo.fullNameEnglish')
         .populate('managerId', 'firstName lastName email')
@@ -1263,7 +1268,12 @@ offboardingSchema.statics.getOffboardings = function(firmId, lawyerId, filters =
 
 // Get stats
 offboardingSchema.statics.getStats = async function(firmId, lawyerId) {
-    const query = firmId ? { firmId } : { lawyerId };
+    const query = {};
+    if (firmId) {
+        query.firmId = firmId;
+    } else if (lawyerId) {
+        query.lawyerId = lawyerId;
+    }
 
     const [stats] = await this.aggregate([
         { $match: query },
@@ -1370,7 +1380,12 @@ offboardingSchema.statics.getStats = async function(firmId, lawyerId) {
 
 // Get pending clearances
 offboardingSchema.statics.getPendingClearances = async function(firmId, lawyerId) {
-    const query = firmId ? { firmId } : { lawyerId };
+    const query = {};
+    if (firmId) {
+        query.firmId = firmId;
+    } else if (lawyerId) {
+        query.lawyerId = lawyerId;
+    }
     query.status = 'clearance_pending';
     query['clearance.allClearancesObtained'] = false;
 
@@ -1381,7 +1396,12 @@ offboardingSchema.statics.getPendingClearances = async function(firmId, lawyerId
 
 // Get pending settlements
 offboardingSchema.statics.getPendingSettlements = async function(firmId, lawyerId) {
-    const query = firmId ? { firmId } : { lawyerId };
+    const query = {};
+    if (firmId) {
+        query.firmId = firmId;
+    } else if (lawyerId) {
+        query.lawyerId = lawyerId;
+    }
     query['finalSettlement.calculated'] = true;
     query['finalSettlement.payment.paymentStatus'] = { $in: ['pending', 'processed'] };
 

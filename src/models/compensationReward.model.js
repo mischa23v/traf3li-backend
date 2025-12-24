@@ -1108,7 +1108,12 @@ CompensationRewardSchema.pre('save', async function(next) {
     // Auto-generate compensationId
     if (!this.compensationId) {
         const year = new Date().getFullYear();
-        const query = this.firmId ? { firmId: this.firmId } : { lawyerId: this.lawyerId };
+        const query = {};
+        if (this.firmId) {
+            query.firmId = this.firmId;
+        } else if (this.lawyerId) {
+            query.lawyerId = this.lawyerId;
+        }
         const count = await this.constructor.countDocuments({
             ...query,
             compensationId: new RegExp(`^COMP-${year}-`)
@@ -1234,7 +1239,12 @@ CompensationRewardSchema.statics.getCompensationHistory = function(employeeId) {
 
 // Get records pending review
 CompensationRewardSchema.statics.getPendingReviews = function(firmId, lawyerId) {
-    const query = firmId ? { firmId } : { lawyerId };
+    const query = {};
+    if (firmId) {
+        query.firmId = firmId;
+    } else if (lawyerId) {
+        query.lawyerId = lawyerId;
+    }
     return this.find({
         ...query,
         status: 'active',

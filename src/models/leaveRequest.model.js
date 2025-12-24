@@ -582,8 +582,15 @@ leaveRequestSchema.pre('save', async function (next) {
 // ═══════════════════════════════════════════════════════════════
 
 // Get leave statistics
-leaveRequestSchema.statics.getStats = async function (firmId, lawyerId, month, year) {
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+leaveRequestSchema.statics.getStats = async function (firmId, lawyerId, month, year, options = {}) {
+    const baseQuery = {};
+
+    // Models receive context as parameter, so check for isSoloLawyer in the context/options
+    if (options.isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
 
     const query = { ...baseQuery };
     if (month && year) {
@@ -650,8 +657,16 @@ leaveRequestSchema.statics.getStats = async function (firmId, lawyerId, month, y
 };
 
 // Check for conflicts
-leaveRequestSchema.statics.checkConflicts = async function (employeeId, startDate, endDate, excludeRequestId, firmId, lawyerId, department) {
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+leaveRequestSchema.statics.checkConflicts = async function (employeeId, startDate, endDate, excludeRequestId, firmId, lawyerId, department, options = {}) {
+    const baseQuery = {};
+
+    // Models receive context as parameter, so check for isSoloLawyer in the context/options
+    if (options.isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
+
     const conflicts = [];
 
     // Check for overlapping leaves for the same employee

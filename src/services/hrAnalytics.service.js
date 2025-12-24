@@ -17,7 +17,7 @@ class HRAnalyticsService {
      * Get complete dashboard data
      */
     static async getDashboard(firmId, lawyerId, filters = {}) {
-        const baseQuery = firmId ? { firmId } : { lawyerId };
+        const baseQuery = filters?.isSoloLawyer ? { lawyerId } : { firmId };
         const dateRange = this._getDateRange(filters);
 
         const [
@@ -66,7 +66,7 @@ class HRAnalyticsService {
      * 1. WORKFORCE DEMOGRAPHICS
      */
     static async getWorkforceDemographics(firmId, lawyerId, filters = {}) {
-        const baseQuery = firmId ? { firmId } : { lawyerId };
+        const baseQuery = filters?.isSoloLawyer ? { lawyerId } : { firmId };
         const query = {
             ...baseQuery,
             ...(filters.department && { 'organization.departmentName': filters.department }),
@@ -157,7 +157,7 @@ class HRAnalyticsService {
      * 2. TURNOVER ANALYSIS
      */
     static async getTurnoverAnalysis(firmId, lawyerId, filters = {}) {
-        const baseQuery = firmId ? { firmId } : { lawyerId };
+        const baseQuery = filters?.isSoloLawyer ? { lawyerId } : { firmId };
         const dateRange = this._getDateRange(filters);
 
         // Get separations in period
@@ -288,7 +288,7 @@ class HRAnalyticsService {
      * 3. ABSENTEEISM TRACKING
      */
     static async getAbsenteeismMetrics(firmId, lawyerId, filters = {}) {
-        const baseQuery = firmId ? { firmId } : { lawyerId };
+        const baseQuery = filters?.isSoloLawyer ? { lawyerId } : { firmId };
         const dateRange = this._getDateRange(filters);
 
         const query = {
@@ -394,7 +394,7 @@ class HRAnalyticsService {
      * 4. LEAVE ANALYTICS
      */
     static async getLeaveAnalytics(firmId, lawyerId, filters = {}) {
-        const baseQuery = firmId ? { firmId } : { lawyerId };
+        const baseQuery = filters?.isSoloLawyer ? { lawyerId } : { firmId };
         const dateRange = this._getDateRange(filters);
 
         const query = {
@@ -503,7 +503,7 @@ class HRAnalyticsService {
      * 5. ATTENDANCE ANALYTICS
      */
     static async getAttendanceAnalytics(firmId, lawyerId, filters = {}) {
-        const baseQuery = firmId ? { firmId } : { lawyerId };
+        const baseQuery = filters?.isSoloLawyer ? { lawyerId } : { firmId };
         const dateRange = this._getDateRange(filters);
 
         const query = {
@@ -641,7 +641,7 @@ class HRAnalyticsService {
      * 6. PERFORMANCE ANALYTICS
      */
     static async getPerformanceAnalytics(firmId, lawyerId, filters = {}) {
-        const baseQuery = firmId ? { firmId } : { lawyerId };
+        const baseQuery = filters?.isSoloLawyer ? { lawyerId } : { firmId };
         const dateRange = this._getDateRange(filters);
 
         const query = {
@@ -768,7 +768,7 @@ class HRAnalyticsService {
      * 7. RECRUITMENT ANALYTICS
      */
     static async getRecruitmentAnalytics(firmId, lawyerId, filters = {}) {
-        const baseQuery = firmId ? { firmId } : { lawyerId };
+        const baseQuery = filters?.isSoloLawyer ? { lawyerId } : { firmId };
         const dateRange = this._getDateRange(filters);
 
         // Get new hires in period
@@ -877,7 +877,7 @@ class HRAnalyticsService {
      * 8. COMPENSATION ANALYTICS
      */
     static async getCompensationAnalytics(firmId, lawyerId, filters = {}) {
-        const baseQuery = firmId ? { firmId } : { lawyerId };
+        const baseQuery = filters?.isSoloLawyer ? { lawyerId } : { firmId };
 
         const employees = await Employee.find({
             ...baseQuery,
@@ -990,7 +990,7 @@ class HRAnalyticsService {
      * 9. TRAINING ANALYTICS
      */
     static async getTrainingAnalytics(firmId, lawyerId, filters = {}) {
-        const baseQuery = firmId ? { firmId } : { lawyerId };
+        const baseQuery = filters?.isSoloLawyer ? { lawyerId } : { firmId };
         const dateRange = this._getDateRange(filters);
 
         // Note: This assumes a Training model exists
@@ -1041,8 +1041,8 @@ class HRAnalyticsService {
     /**
      * SAUDIZATION COMPLIANCE
      */
-    static async getSaudizationCompliance(firmId, lawyerId) {
-        const baseQuery = firmId ? { firmId } : { lawyerId };
+    static async getSaudizationCompliance(firmId, lawyerId, options = {}) {
+        const baseQuery = options?.isSoloLawyer ? { lawyerId } : { firmId };
 
         const employees = await Employee.find({
             ...baseQuery,
@@ -1602,7 +1602,7 @@ class HRAnalyticsService {
     static async _getPreviousPeriodComparison(firmId, lawyerId, metric, filters) {
         // Get previous period snapshot for comparison
         const previousSnapshot = await HRAnalyticsSnapshot.findOne({
-            ...(firmId ? { firmId } : { lawyerId }),
+            ...(filters?.isSoloLawyer ? { lawyerId } : { firmId }),
             snapshotType: 'monthly'
         }).sort({ snapshotDate: -1 }).skip(1);
 

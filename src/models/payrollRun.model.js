@@ -682,7 +682,12 @@ payrollRunSchema.pre('save', async function (next) {
 // ═══════════════════════════════════════════════════════════════
 
 payrollRunSchema.statics.getStats = async function (firmId, lawyerId) {
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const baseQuery = {};
+    if (firmId) {
+        baseQuery.firmId = firmId;
+    } else if (lawyerId) {
+        baseQuery.lawyerId = lawyerId;
+    }
     const now = new Date();
     const currentMonth = now.getMonth() + 1;
     const currentYear = now.getFullYear();

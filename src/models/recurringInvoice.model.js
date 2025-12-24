@@ -349,7 +349,12 @@ recurringInvoiceSchema.statics.getDueForGeneration = async function(firmId = nul
  * Static: Get statistics
  */
 recurringInvoiceSchema.statics.getStats = async function(firmId, lawyerId) {
-    const query = firmId ? { firmId } : { lawyerId };
+    const query = {};
+    if (firmId) {
+        query.firmId = firmId;
+    } else if (lawyerId) {
+        query.lawyerId = lawyerId;
+    }
 
     const stats = await this.aggregate([
         { $match: query },

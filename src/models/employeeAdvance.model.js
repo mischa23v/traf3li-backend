@@ -955,8 +955,16 @@ employeeAdvanceSchema.methods.calculateRecoveryPerformance = function() {
 // ═══════════════════════════════════════════════════════════════
 
 // Get advances for firm or solo lawyer
-employeeAdvanceSchema.statics.getAdvances = function(firmId, lawyerId, filters = {}) {
-    const query = firmId ? { firmId } : { lawyerId };
+employeeAdvanceSchema.statics.getAdvances = function(firmId, lawyerId, filters = {}, options = {}) {
+    const query = {};
+
+    // Models receive context as parameter, so check for isSoloLawyer in the context/options
+    if (options.isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
+
     return this.find({ ...query, ...filters })
         .populate('employeeId', 'employeeId personalInfo.fullNameArabic personalInfo.fullNameEnglish compensation.basicSalary')
         .populate('createdBy', 'firstName lastName')
@@ -964,8 +972,15 @@ employeeAdvanceSchema.statics.getAdvances = function(firmId, lawyerId, filters =
 };
 
 // Get stats
-employeeAdvanceSchema.statics.getStats = async function(firmId, lawyerId) {
-    const query = firmId ? { firmId } : { lawyerId };
+employeeAdvanceSchema.statics.getStats = async function(firmId, lawyerId, options = {}) {
+    const query = {};
+
+    // Models receive context as parameter, so check for isSoloLawyer in the context/options
+    if (options.isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
 
     const [stats] = await this.aggregate([
         { $match: query },
@@ -1085,8 +1100,16 @@ employeeAdvanceSchema.statics.getStats = async function(firmId, lawyerId) {
 };
 
 // Get overdue recoveries
-employeeAdvanceSchema.statics.getOverdueRecoveries = async function(firmId, lawyerId) {
-    const query = firmId ? { firmId } : { lawyerId };
+employeeAdvanceSchema.statics.getOverdueRecoveries = async function(firmId, lawyerId, options = {}) {
+    const query = {};
+
+    // Models receive context as parameter, so check for isSoloLawyer in the context/options
+    if (options.isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
+
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
@@ -1130,8 +1153,15 @@ employeeAdvanceSchema.statics.getOverdueRecoveries = async function(firmId, lawy
 };
 
 // Get pending approvals
-employeeAdvanceSchema.statics.getPendingApprovals = async function(firmId, lawyerId) {
-    const query = firmId ? { firmId } : { lawyerId };
+employeeAdvanceSchema.statics.getPendingApprovals = async function(firmId, lawyerId, options = {}) {
+    const query = {};
+
+    // Models receive context as parameter, so check for isSoloLawyer in the context/options
+    if (options.isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
 
     return this.find({
         ...query,
@@ -1143,8 +1173,15 @@ employeeAdvanceSchema.statics.getPendingApprovals = async function(firmId, lawye
 };
 
 // Get emergency advances
-employeeAdvanceSchema.statics.getEmergencyAdvances = async function(firmId, lawyerId) {
-    const query = firmId ? { firmId } : { lawyerId };
+employeeAdvanceSchema.statics.getEmergencyAdvances = async function(firmId, lawyerId, options = {}) {
+    const query = {};
+
+    // Models receive context as parameter, so check for isSoloLawyer in the context/options
+    if (options.isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
 
     return this.find({
         ...query,
@@ -1156,8 +1193,15 @@ employeeAdvanceSchema.statics.getEmergencyAdvances = async function(firmId, lawy
 };
 
 // Get advances by employee
-employeeAdvanceSchema.statics.getByEmployee = async function(employeeId, firmId, lawyerId) {
-    const query = firmId ? { firmId, employeeId } : { lawyerId, employeeId };
+employeeAdvanceSchema.statics.getByEmployee = async function(employeeId, firmId, lawyerId, options = {}) {
+    const query = { employeeId };
+
+    // Models receive context as parameter, so check for isSoloLawyer in the context/options
+    if (options.isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
 
     return this.find(query)
         .populate('createdBy', 'firstName lastName')
