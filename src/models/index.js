@@ -65,6 +65,9 @@ const ExportTemplate = require('./exportTemplate.model');
 const SavedReport = require('./savedReport.model');
 const DashboardWidget = require('./dashboardWidget.model');
 
+// View Configuration Models
+const View = require('./view.model');
+
 // Conflict Check Model
 const ConflictCheck = require('./conflictCheck.model');
 
@@ -119,6 +122,7 @@ const CrmActivity = require('./crmActivity.model');
 const Referral = require('./referral.model');
 const Staff = require('./staff.model');
 const Pipeline = require('./pipeline.model');
+const DealRoom = require('./dealRoom.model');
 
 // HR Models
 const Employee = require('./employee.model');
@@ -141,10 +145,16 @@ const Onboarding = require('./onboarding.model');
 // Offboarding Model
 const Offboarding = require('./offboarding.model');
 
+// Lifecycle Workflow Models (HR-style lifecycle management)
+const { LifecycleWorkflow, LifecycleInstance } = require('./lifecycleWorkflow.model');
+
 // Setup Wizard Models (App Onboarding)
 const SetupSection = require('./setupSection.model');
 const SetupTask = require('./setupTask.model');
 const UserSetupProgress = require('./userSetupProgress.model');
+
+// User Activity Model (Command Palette)
+const UserActivity = require('./userActivity.model');
 
 // Employee Loan Model
 const EmployeeLoan = require('./employeeLoan.model');
@@ -174,6 +184,7 @@ const TeamActivityLog = require('./teamActivityLog.model');
 // Approval Workflow Models
 const ApprovalRule = require('./approvalRule.model');
 const ApprovalRequest = require('./approvalRequest.model');
+const { ApprovalWorkflow, ApprovalInstance } = require('./approvalWorkflow.model');
 
 // Permission & Authorization Models
 const PermissionConfig = require('./permission.model');
@@ -240,6 +251,23 @@ const ActivityType = require('./activityType.model');
 const ThreadMessage = require('./threadMessage.model');
 const LockDate = require('./lockDate.model');
 const AutomatedAction = require('./automatedAction.model');
+const Automation = require('./automation.model');
+const Macro = require('./macro.model');
+
+// SLA Models
+const { SLA, SLAInstance } = require('./sla.model');
+
+// Formula Field Models
+const { FormulaField, FieldDependency } = require('./formulaField.model');
+
+// Cycle Model
+const Cycle = require('./cycle.model');
+
+// Report Definition Model
+const ReportDefinition = require('./reportDefinition.model');
+
+// Compliance Audit Model
+const ComplianceAudit = require('./complianceAudit.model');
 
 // Inter-Company Transaction Models
 const InterCompanyTransaction = require('./interCompanyTransaction.model');
@@ -325,6 +353,9 @@ module.exports = {
     SavedReport,
     DashboardWidget,
 
+    // View Configuration
+    View,
+
     // Conflict Check
     ConflictCheck,
 
@@ -372,6 +403,7 @@ module.exports = {
     Referral,
     Staff,
     Pipeline,
+    DealRoom,
 
     // HR
     Employee,
@@ -394,10 +426,17 @@ module.exports = {
     // Offboarding
     Offboarding,
 
+    // Lifecycle Workflows
+    LifecycleWorkflow,
+    LifecycleInstance,
+
     // Setup Wizard (App Onboarding)
     SetupSection,
     SetupTask,
     UserSetupProgress,
+
+    // User Activity (Command Palette)
+    UserActivity,
 
     // Employee Loans
     EmployeeLoan,
@@ -426,6 +465,8 @@ module.exports = {
 
     // Approval Workflow
     ApprovalRule,
+    ApprovalWorkflow,
+    ApprovalInstance,
     ApprovalRequest,
 
     // Permission & Authorization
@@ -500,6 +541,25 @@ module.exports = {
     ThreadMessage,
     LockDate,
     AutomatedAction,
+    Automation,
+    Macro,
+
+    // SLA
+    SLA,
+    SLAInstance,
+
+    // Formula Fields
+    FormulaField,
+    FieldDependency,
+
+    // Cycle
+    Cycle,
+
+    // Report Definition
+    ReportDefinition,
+
+    // Compliance Audit
+    ComplianceAudit,
 
     // Inter-Company Transactions
     InterCompanyTransaction,

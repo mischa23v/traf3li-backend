@@ -886,6 +886,65 @@ const contactSchema = new mongoose.Schema({
     }],
 
     // ═══════════════════════════════════════════════════════════════
+    // DEDUPLICATION & MERGE TRACKING
+    // ═══════════════════════════════════════════════════════════════
+    duplicateOf: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Contact'
+    },
+    duplicateScore: {
+        type: Number,
+        min: 0,
+        max: 100
+    },
+    duplicateCheckedAt: {
+        type: Date
+    },
+    mergedFrom: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Contact'
+    }],
+    mergedAt: {
+        type: Date
+    },
+    mergedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
+    },
+    isMaster: {
+        type: Boolean,
+        default: true
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // ENRICHMENT DATA
+    // ═══════════════════════════════════════════════════════════════
+    enrichmentData: {
+        clearbit: mongoose.Schema.Types.Mixed,
+        zoominfo: mongoose.Schema.Types.Mixed,
+        lastEnrichedAt: Date,
+        enrichmentSource: String,
+        confidence: Number
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // ENHANCED COMMUNICATION PREFERENCES
+    // ═══════════════════════════════════════════════════════════════
+    communicationPreferences: {
+        preferredChannel: {
+            type: String,
+            enum: ['email', 'phone', 'whatsapp', 'sms']
+        },
+        preferredTime: String,
+        timezone: String,
+        doNotContact: {
+            type: Boolean,
+            default: false
+        },
+        doNotContactReason: String
+    },
+
+    // ═══════════════════════════════════════════════════════════════
     // AUDIT
     // ═══════════════════════════════════════════════════════════════
     createdBy: {
@@ -927,6 +986,11 @@ contactSchema.index({ 'nationalAddress.shortAddress': 1 }, { sparse: true });
 // Arabic name search index
 contactSchema.index({ 'arabicName.firstName': 1, 'arabicName.familyName': 1 });
 contactSchema.index({ 'arabicName.fullName': 'text', firstName: 'text', lastName: 'text', email: 'text', company: 'text', fullNameArabic: 'text' });
+
+// Deduplication indexes
+contactSchema.index({ duplicateOf: 1 }, { sparse: true });
+contactSchema.index({ isMaster: 1, status: 1 });
+contactSchema.index({ firmId: 1, isMaster: 1 }, { sparse: true });
 
 // ═══════════════════════════════════════════════════════════════
 // VIRTUALS
