@@ -14,6 +14,9 @@ const logger = require('../utils/logger');
 // Store all queue instances for cleanup
 const queues = new Map();
 
+// Dead Letter Queue instance
+let deadLetterQueue = null;
+
 // Shared Redis clients for all queues (prevents connection explosion)
 let sharedClient = null;
 let sharedSubscriber = null;
@@ -252,10 +255,38 @@ const createQueue = (name, options = {}) => {
   });
 
   // Event: Job failed (always log failures)
-  queue.on('failed', (job, err) => {
+  queue.on('failed', async (job, err) => {
     logger.error(`❌ Job ${job.id} in queue "${name}" failed:`, err.message);
     if (!isProduction && job.stacktrace && job.stacktrace.length > 0) {
       logger.error(`   Stack:`, job.stacktrace[0]);
+    }
+
+    // Move to Dead Letter Queue if all retries exhausted
+    const maxAttempts = job.opts?.attempts || defaultJobOptions.attempts || 3;
+    if (job.attemptsMade >= maxAttempts) {
+      try {
+        // Import inline to avoid circular dependency
+        const dlq = getDeadLetterQueue();
+        await dlq.add({
+          originalQueue: name,
+          originalJobId: job.id,
+          jobData: job.data,
+          error: err.message,
+          stack: err.stack,
+          failedAt: new Date().toISOString(),
+          attempts: job.attemptsMade,
+          opts: {
+            priority: job.opts?.priority,
+            delay: job.opts?.delay
+          }
+        }, {
+          jobId: `dlq-${name}-${job.id}-${Date.now()}`,
+          priority: 1
+        });
+        logger.warn(`📤 Job ${job.id} from "${name}" moved to Dead Letter Queue after ${job.attemptsMade} attempts`);
+      } catch (dlqError) {
+        logger.error(`Failed to move job to DLQ:`, dlqError.message);
+      }
     }
   });
 
@@ -419,6 +450,177 @@ const resumeQueue = async (name) => {
 };
 
 /**
+ * Get or create the Dead Letter Queue
+ * The DLQ captures jobs that have failed all retry attempts
+ * @returns {Queue} Dead Letter Queue instance
+ */
+const getDeadLetterQueue = () => {
+  if (!redisAvailable) {
+    return createMockQueue('dead-letter');
+  }
+
+  if (!deadLetterQueue) {
+    deadLetterQueue = new Queue('dead-letter', {
+      ...getRedisOptions(),
+      settings: {
+        ...queueSettings,
+        // DLQ specific settings - keep failed jobs longer for analysis
+        stalledInterval: 3600000, // 1 hour
+        guardInterval: 600000 // 10 minutes
+      },
+      defaultJobOptions: {
+        attempts: 1, // Don't retry DLQ jobs
+        removeOnComplete: {
+          age: 604800, // Keep for 7 days
+          count: 1000
+        },
+        removeOnFail: {
+          age: 2592000, // Keep for 30 days
+          count: 500
+        }
+      }
+    });
+
+    // Log DLQ events
+    deadLetterQueue.on('completed', (job) => {
+      logger.info(`🗄️ DLQ job ${job.id} processed`, {
+        originalQueue: job.data.originalQueue,
+        originalJobId: job.data.originalJobId
+      });
+    });
+
+    deadLetterQueue.on('error', (error) => {
+      logger.error('💥 Dead Letter Queue error:', error.message);
+    });
+
+    // Process DLQ jobs (alert admins about critical failures)
+    deadLetterQueue.process(async (job) => {
+      const { originalQueue, originalJobId, error, failedAt, attempts, data } = job.data;
+
+      logger.error('📥 Job moved to Dead Letter Queue', {
+        originalQueue,
+        originalJobId,
+        error,
+        failedAt,
+        attempts,
+        dataKeys: data ? Object.keys(data) : []
+      });
+
+      // Here you could add:
+      // - Admin email notification
+      // - Slack/Discord webhook
+      // - Metrics tracking
+      // - Automatic retry scheduling for later
+
+      return { processed: true, alertSent: false };
+    });
+
+    logger.info('🗄️ Dead Letter Queue initialized');
+  }
+
+  return deadLetterQueue;
+};
+
+/**
+ * Move failed job to Dead Letter Queue
+ * @param {Object} job - Failed Bull job
+ * @param {Error} error - Error that caused the failure
+ * @param {string} queueName - Original queue name
+ */
+const moveToDeadLetter = async (job, error, queueName) => {
+  const dlq = getDeadLetterQueue();
+
+  await dlq.add({
+    originalQueue: queueName,
+    originalJobId: job.id,
+    jobData: job.data,
+    error: error.message,
+    stack: error.stack,
+    failedAt: new Date().toISOString(),
+    attempts: job.attemptsMade,
+    opts: {
+      priority: job.opts?.priority,
+      delay: job.opts?.delay
+    }
+  }, {
+    jobId: `dlq-${queueName}-${job.id}`,
+    priority: 1 // High priority in DLQ
+  });
+
+  logger.warn(`📤 Job ${job.id} from "${queueName}" moved to Dead Letter Queue`);
+};
+
+/**
+ * Get Dead Letter Queue metrics
+ */
+const getDLQMetrics = async () => {
+  const dlq = getDeadLetterQueue();
+  if (!dlq || !dlq.getJobCounts) {
+    return { waiting: 0, active: 0, completed: 0, failed: 0 };
+  }
+
+  return dlq.getJobCounts();
+};
+
+/**
+ * Get failed jobs from Dead Letter Queue
+ * @param {number} start - Start index
+ * @param {number} end - End index
+ */
+const getDLQJobs = async (start = 0, end = 100) => {
+  const dlq = getDeadLetterQueue();
+  if (!dlq || !dlq.getJobs) {
+    return [];
+  }
+
+  const jobs = await dlq.getJobs(['waiting', 'active', 'completed'], start, end);
+  return jobs.map(job => ({
+    id: job.id,
+    originalQueue: job.data.originalQueue,
+    originalJobId: job.data.originalJobId,
+    error: job.data.error,
+    failedAt: job.data.failedAt,
+    attempts: job.data.attempts,
+    processedOn: job.processedOn,
+    finishedOn: job.finishedOn
+  }));
+};
+
+/**
+ * Retry a job from Dead Letter Queue
+ * @param {string} dlqJobId - DLQ job ID
+ */
+const retryDLQJob = async (dlqJobId) => {
+  const dlq = getDeadLetterQueue();
+  const dlqJob = await dlq.getJob(dlqJobId);
+
+  if (!dlqJob) {
+    throw new Error('DLQ job not found');
+  }
+
+  const { originalQueue, jobData, opts } = dlqJob.data;
+  const originalQ = getQueue(originalQueue);
+
+  if (!originalQ) {
+    throw new Error(`Original queue "${originalQueue}" not found`);
+  }
+
+  // Re-add job to original queue
+  const newJob = await originalQ.add(jobData, {
+    ...opts,
+    attempts: 3, // Reset attempts
+    removeOnComplete: true
+  });
+
+  // Remove from DLQ
+  await dlqJob.remove();
+
+  logger.info(`🔄 DLQ job ${dlqJobId} retried as job ${newJob.id} in "${originalQueue}"`);
+
+  return newJob;
+};
+
+/**
  * Get queue metrics
  * @param {string} name - Queue name
  */
@@ -478,5 +680,11 @@ module.exports = {
   pauseQueue,
   resumeQueue,
   getQueueMetrics,
-  defaultJobOptions
+  defaultJobOptions,
+  // Dead Letter Queue functions
+  getDeadLetterQueue,
+  moveToDeadLetter,
+  getDLQMetrics,
+  getDLQJobs,
+  retryDLQJob
 };

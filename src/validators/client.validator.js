@@ -3,9 +3,29 @@
  *
  * Uses Joi for request validation on client endpoints.
  * Provides both validation schemas and middleware functions.
+ *
+ * VALIDATION MODES:
+ * - Production (NODE_ENV=production): Strict validation enabled
+ * - Development/Test: Relaxed validation (set DISABLE_STRICT_VALIDATION=true to relax)
  */
 
 const Joi = require('joi');
+
+// ============================================
+// ENVIRONMENT-BASED VALIDATION CONTROL
+// ============================================
+
+/**
+ * Determine if strict validation should be enabled
+ * - Production: Always strict (unless explicitly disabled)
+ * - Development/Test: Relaxed by default, strict if explicitly enabled
+ */
+const isProduction = process.env.NODE_ENV === 'production';
+const disableStrictValidation = process.env.DISABLE_STRICT_VALIDATION === 'true';
+const enableStrictValidation = isProduction || process.env.ENABLE_STRICT_VALIDATION === 'true';
+
+// Use strict patterns in production, relaxed patterns in dev/test (unless overridden)
+const useStrictPatterns = enableStrictValidation && !disableStrictValidation;
 
 // ============================================
 // CUSTOM VALIDATORS
@@ -13,31 +33,39 @@ const Joi = require('joi');
 
 /**
  * Saudi National ID pattern (10 digits, starts with 1 or 2)
- * NOTE: Disabled for Playwright testing - accepts any value
+ * In production: Strict validation
+ * In development/test: Accepts any value (for Playwright testing)
  */
-// const saudiNationalIdPattern = /^[12]\d{9}$/;
-const saudiNationalIdPattern = /.*/;
+const saudiNationalIdPatternStrict = /^[12]\d{9}$/;
+const saudiNationalIdPatternRelaxed = /.*/;
+const saudiNationalIdPattern = useStrictPatterns ? saudiNationalIdPatternStrict : saudiNationalIdPatternRelaxed;
 
 /**
  * Saudi phone number pattern (+966 or 05 format)
- * NOTE: Disabled for Playwright testing - accepts any value
+ * In production: Strict validation
+ * In development/test: Accepts any value (for Playwright testing)
  */
-// const saudiPhonePattern = /^(\+966|966|05)[0-9]{8,9}$/;
-const saudiPhonePattern = /.*/;
+const saudiPhonePatternStrict = /^(\+966|966|05)[0-9]{8,9}$/;
+const saudiPhonePatternRelaxed = /.*/;
+const saudiPhonePattern = useStrictPatterns ? saudiPhonePatternStrict : saudiPhonePatternRelaxed;
 
 /**
  * Saudi commercial registration pattern (10 digits)
- * NOTE: Disabled for Playwright testing - accepts any value
+ * In production: Strict validation
+ * In development/test: Accepts any value (for Playwright testing)
  */
-// const saudiCRPattern = /^\d{10}$/;
-const saudiCRPattern = /.*/;
+const saudiCRPatternStrict = /^\d{10}$/;
+const saudiCRPatternRelaxed = /.*/;
+const saudiCRPattern = useStrictPatterns ? saudiCRPatternStrict : saudiCRPatternRelaxed;
 
 /**
  * Saudi postal code pattern (5 digits)
- * NOTE: Disabled for Playwright testing - accepts any value
+ * In production: Strict validation
+ * In development/test: Accepts any value (for Playwright testing)
  */
-// const postalCodePattern = /^\d{5}$/;
-const postalCodePattern = /.*/;
+const postalCodePatternStrict = /^\d{5}$/;
+const postalCodePatternRelaxed = /.*/;
+const postalCodePattern = useStrictPatterns ? postalCodePatternStrict : postalCodePatternRelaxed;
 
 // ============================================
 // REUSABLE FIELD SCHEMAS
@@ -50,14 +78,25 @@ const phoneSchema = Joi.string()
         'any.required': 'رقم الهاتف مطلوب / Phone number is required'
     });
 
-// NOTE: Email validation disabled for Playwright testing - accepts any value
-const emailSchema = Joi.string()
-    // .email()  // Disabled for testing
-    .lowercase()
-    .messages({
-        'string.email': 'البريد الإلكتروني غير صالح / Invalid email format',
-        'string.empty': 'البريد الإلكتروني لا يمكن أن يكون فارغاً / Email cannot be empty'
-    });
+/**
+ * Email validation
+ * In production: Strict email format validation
+ * In development/test: Relaxed validation (for Playwright testing)
+ */
+const emailSchema = useStrictPatterns
+    ? Joi.string()
+        .email()
+        .lowercase()
+        .messages({
+            'string.email': 'البريد الإلكتروني غير صالح / Invalid email format',
+            'string.empty': 'البريد الإلكتروني لا يمكن أن يكون فارغاً / Email cannot be empty'
+        })
+    : Joi.string()
+        .lowercase()
+        .messages({
+            'string.email': 'البريد الإلكتروني غير صالح / Invalid email format',
+            'string.empty': 'البريد الإلكتروني لا يمكن أن يكون فارغاً / Email cannot be empty'
+        });
 
 const nationalIdSchema = Joi.string()
     .pattern(saudiNationalIdPattern)

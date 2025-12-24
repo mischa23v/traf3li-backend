@@ -13,6 +13,9 @@ const PasswordHistory = require('../models/passwordHistory.model');
 const { enforcePasswordPolicy, checkPasswordAge } = require('../utils/passwordPolicy');
 const EmailService = require('../services/email.service');
 const auditLogService = require('../services/auditLog.service');
+const tokenRevocationService = require('../services/tokenRevocation.service');
+const RefreshToken = require('../models/refreshToken.model');
+const Session = require('../models/session.model');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 const logger = require('../utils/logger');
 
@@ -201,18 +204,73 @@ const changePassword = async (req, res) => {
 
         await user.save();
 
+        // ════════════════════════════════════════════════════════════════
+        // CRITICAL SECURITY: Revoke all existing tokens on password change
+        // This prevents compromised tokens from being used after password change
+        // ════════════════════════════════════════════════════════════════
+        try {
+            // 1. Revoke all tokens in token blacklist (Redis + MongoDB)
+            await tokenRevocationService.revokeAllUserTokens(userId, 'password_change', {
+                userEmail: user.email,
+                firmId: user.firmId,
+                revokedBy: userId,
+                ipAddress: req.ip,
+                userAgent: req.headers['user-agent']
+            });
+
+            // 2. Delete all refresh tokens for this user
+            await RefreshToken.deleteMany({ userId });
+
+            // 3. Terminate all sessions except current (if we have current session info)
+            const currentTokenHash = req.tokenHash; // Set by auth middleware if available
+            if (currentTokenHash) {
+                await Session.updateMany(
+                    { userId, tokenHash: { $ne: currentTokenHash } },
+                    {
+                        $set: {
+                            isTerminated: true,
+                            terminatedAt: new Date(),
+                            terminationReason: 'password_change'
+                        }
+                    }
+                );
+            } else {
+                // Terminate all sessions if we don't know current session
+                await Session.updateMany(
+                    { userId },
+                    {
+                        $set: {
+                            isTerminated: true,
+                            terminatedAt: new Date(),
+                            terminationReason: 'password_change'
+                        }
+                    }
+                );
+            }
+
+            logger.info('All tokens and sessions revoked after password change', { userId });
+        } catch (revokeError) {
+            // Log error but don't fail the password change
+            // Password was already changed - token revocation is secondary
+            logger.error('Failed to revoke tokens after password change:', {
+                userId,
+                error: revokeError.message
+            });
+        }
+
         // Log successful password change
         await auditLogService.log({
             userId,
             action: 'password_changed',
             category: 'security',
             result: 'success',
-            description: 'User successfully changed password',
+            description: 'User successfully changed password - all tokens revoked',
             ipAddress: req.ip,
             userAgent: req.headers['user-agent'],
             metadata: {
                 passwordExpiresAt,
-                strengthScore: policyCheck.strength.score
+                strengthScore: policyCheck.strength.score,
+                tokensRevoked: true
             }
         });
 

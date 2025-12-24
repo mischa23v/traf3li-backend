@@ -376,6 +376,8 @@ const VENDOR_UPDATE_ALLOWED_FIELDS = [
 // Create vendor
 const createVendor = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
+    const firmId = req.firmId;
+    const isSoloLawyer = req.isSoloLawyer;
 
     // Mass assignment protection - only allow specific fields
     const filteredData = pickAllowedFields(req.body, VENDOR_CREATE_ALLOWED_FIELDS);
@@ -393,11 +395,17 @@ const createVendor = asyncHandler(async (req, res) => {
         throw CustomException('Bank name is required when IBAN is provided', 400);
     }
 
-    // IDOR Protection: lawyerId is set from authenticated user, not from request body
+    // IDOR Protection: ownership is set from authenticated user, not from request body
+    // Support both solo lawyers (lawyerId) and firm users (firmId)
     const vendorData = {
         ...validatedData,
         lawyerId
     };
+
+    // Add firmId for firm users
+    if (!isSoloLawyer && firmId) {
+        vendorData.firmId = firmId;
+    }
 
     const vendor = await Vendor.create(vendorData);
 
@@ -429,7 +437,18 @@ const getVendors = asyncHandler(async (req, res) => {
     } = req.query;
 
     const lawyerId = req.userID;
-    const filters = { lawyerId };
+    const firmId = req.firmId;
+    const isSoloLawyer = req.isSoloLawyer;
+
+    // Build ownership filter based on user type (solo vs firm)
+    const filters = {};
+    if (isSoloLawyer || !firmId) {
+        // Solo lawyers filter by lawyerId
+        filters.lawyerId = lawyerId;
+    } else {
+        // Firm users filter by firmId
+        filters.firmId = firmId;
+    }
 
     if (isActive !== undefined) filters.isActive = isActive === 'true';
     if (country) filters.country = country;
@@ -460,6 +479,8 @@ const getVendors = asyncHandler(async (req, res) => {
 const getVendor = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const lawyerId = req.userID;
+    const firmId = req.firmId;
+    const isSoloLawyer = req.isSoloLawyer;
 
     // Sanitize ObjectId to prevent NoSQL injection
     const sanitizedId = sanitizeObjectId(id);
@@ -467,15 +488,21 @@ const getVendor = asyncHandler(async (req, res) => {
         throw CustomException('Invalid vendor ID format', 400);
     }
 
-    const vendor = await Vendor.findById(sanitizedId);
-
-    if (!vendor) {
-        throw CustomException('Vendor not found', 404);
+    // Build ownership query based on user type (firm vs solo)
+    const ownershipQuery = { _id: sanitizedId };
+    if (isSoloLawyer || !firmId) {
+        // Solo lawyers filter by lawyerId
+        ownershipQuery.lawyerId = lawyerId;
+    } else {
+        // Firm users filter by firmId
+        ownershipQuery.firmId = firmId;
     }
 
-    // IDOR Protection: Verify ownership
-    if (vendor.lawyerId.toString() !== lawyerId) {
-        throw CustomException('You do not have access to this vendor', 403);
+    // Find vendor with ownership verification (prevents IDOR)
+    const vendor = await Vendor.findOne(ownershipQuery);
+
+    if (!vendor) {
+        throw CustomException('Vendor not found or access denied', 404);
     }
 
     return res.json({
@@ -488,6 +515,8 @@ const getVendor = asyncHandler(async (req, res) => {
 const updateVendor = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const lawyerId = req.userID;
+    const firmId = req.firmId;
+    const isSoloLawyer = req.isSoloLawyer;
 
     // Sanitize ObjectId to prevent NoSQL injection
     const sanitizedId = sanitizeObjectId(id);
@@ -495,15 +524,21 @@ const updateVendor = asyncHandler(async (req, res) => {
         throw CustomException('Invalid vendor ID format', 400);
     }
 
-    const vendor = await Vendor.findById(sanitizedId);
-
-    if (!vendor) {
-        throw CustomException('Vendor not found', 404);
+    // Build ownership query based on user type (firm vs solo)
+    const ownershipQuery = { _id: sanitizedId };
+    if (isSoloLawyer || !firmId) {
+        // Solo lawyers filter by lawyerId
+        ownershipQuery.lawyerId = lawyerId;
+    } else {
+        // Firm users filter by firmId
+        ownershipQuery.firmId = firmId;
     }
 
-    // IDOR Protection: Verify ownership
-    if (vendor.lawyerId.toString() !== lawyerId) {
-        throw CustomException('You do not have access to this vendor', 403);
+    // Find vendor with ownership verification (prevents IDOR)
+    const vendor = await Vendor.findOne(ownershipQuery);
+
+    if (!vendor) {
+        throw CustomException('Vendor not found or access denied', 404);
     }
 
     // Mass assignment protection - only allow specific fields
@@ -517,18 +552,18 @@ const updateVendor = asyncHandler(async (req, res) => {
         throw CustomException(`Validation failed: ${errorMessages}`, 400);
     }
 
-    // Ensure no attempt to change ownership (lawyerId should never be updated from request)
-    if (validatedData.lawyerId) {
-        delete validatedData.lawyerId;
-    }
+    // Ensure no attempt to change ownership (lawyerId/firmId should never be updated from request)
+    delete validatedData.lawyerId;
+    delete validatedData.firmId;
 
     // Additional validation: If IBAN is provided, ensure bank details are complete
     if (validatedData.bankIban && !validatedData.bankName && !vendor.bankName) {
         throw CustomException('Bank name is required when IBAN is provided', 400);
     }
 
-    const updatedVendor = await Vendor.findByIdAndUpdate(
-        sanitizedId,
+    // Update with ownership verification to prevent race condition
+    const updatedVendor = await Vendor.findOneAndUpdate(
+        ownershipQuery,
         { $set: validatedData },
         { new: true, runValidators: true }
     );
@@ -544,6 +579,8 @@ const updateVendor = asyncHandler(async (req, res) => {
 const deleteVendor = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const lawyerId = req.userID;
+    const firmId = req.firmId;
+    const isSoloLawyer = req.isSoloLawyer;
 
     // Sanitize ObjectId to prevent NoSQL injection
     const sanitizedId = sanitizeObjectId(id);
@@ -551,25 +588,38 @@ const deleteVendor = asyncHandler(async (req, res) => {
         throw CustomException('Invalid vendor ID format', 400);
     }
 
-    const vendor = await Vendor.findById(sanitizedId);
+    // Build ownership query based on user type (firm vs solo)
+    const ownershipQuery = { _id: sanitizedId };
+    if (isSoloLawyer || !firmId) {
+        // Solo lawyers filter by lawyerId
+        ownershipQuery.lawyerId = lawyerId;
+    } else {
+        // Firm users filter by firmId
+        ownershipQuery.firmId = firmId;
+    }
+
+    // Find vendor with ownership verification (prevents IDOR)
+    const vendor = await Vendor.findOne(ownershipQuery);
 
     if (!vendor) {
-        throw CustomException('Vendor not found', 404);
+        throw CustomException('Vendor not found or access denied', 404);
     }
 
-    // IDOR Protection: Verify ownership
-    if (vendor.lawyerId.toString() !== lawyerId) {
-        throw CustomException('You do not have access to this vendor', 403);
-    }
-
-    // Check for existing bills
+    // Check for existing bills with ownership filter
     const Bill = require('../models').Bill;
-    const billCount = await Bill.countDocuments({ vendorId: sanitizedId });
+    const billQuery = { vendorId: sanitizedId };
+    if (isSoloLawyer || !firmId) {
+        billQuery.lawyerId = lawyerId;
+    } else {
+        billQuery.firmId = firmId;
+    }
+    const billCount = await Bill.countDocuments(billQuery);
     if (billCount > 0) {
         throw CustomException('Cannot delete vendor with existing bills. Deactivate instead.', 400);
     }
 
-    await Vendor.findByIdAndDelete(sanitizedId);
+    // Delete with ownership verification to prevent race condition
+    await Vendor.findOneAndDelete(ownershipQuery);
 
     return res.json({
         success: true,
