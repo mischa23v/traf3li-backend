@@ -59,6 +59,7 @@ const { scheduleSessionCleanup } = require('./jobs/sessionCleanup.job');
 const { startCustomerHealthJobs } = require('./jobs/customerHealth.job');
 const { startEmailCampaignJobs } = require('./jobs/emailCampaign.job');
 const { startAllJobs: startMLScoringJobs } = require('./jobs/mlScoring.job');
+const { startPriceUpdater } = require('./jobs/priceUpdater');
 const runAuditLogArchiving = require('./jobs/auditLogArchiving.job');
 const cron = require('node-cron');
 const { initSocket } = require('./configs/socket');
@@ -1226,6 +1227,14 @@ const startServer = async () => {
                 logger.info('✅ ML scoring jobs started');
             } catch (error) {
                 logger.warn('⚠️ ML scoring jobs failed to start:', error.message);
+            }
+
+            // Price Updater Jobs
+            try {
+                startPriceUpdater();
+                logger.info('✅ Price updater jobs started');
+            } catch (error) {
+                logger.warn('⚠️ Price updater jobs failed to start:', error.message);
             }
 
             // Audit Log Archiving - Run daily at 2:30 AM

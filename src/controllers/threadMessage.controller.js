@@ -208,6 +208,7 @@ const postNote = asyncHandler(async (req, res) => {
  */
 const getMessages = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
+    const lawyerId = req.userID;
     const {
         res_model,
         res_id,
@@ -216,8 +217,14 @@ const getMessages = asyncHandler(async (req, res) => {
         limit = 50
     } = req.query;
 
-    // IDOR Protection - always filter by firmId
-    const query = { firmId };
+    // IDOR Protection - always filter by firmId or lawyerId
+    const isSoloLawyer = req.isSoloLawyer;
+    const query = {};
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
 
     if (res_model) query.res_model = res_model;
     if (res_id) {
@@ -294,11 +301,15 @@ const getMyMentions = asyncHandler(async (req, res) => {
     const userId = req.userID;
     const firmId = req.firmId;
 
-    // IDOR Protection - filter by firmId and mentioned user
-    const query = {
-        firmId,
-        partner_ids: userId
-    };
+    // IDOR Protection - filter by firmId/lawyerId and mentioned user
+    const isSoloLawyer = req.isSoloLawyer;
+    const query = {};
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = userId;
+    } else {
+        query.firmId = firmId;
+    }
+    query.partner_ids = userId;
 
     const messages = await ThreadMessage.find(query)
         .sort({ createdAt: -1 })
@@ -380,11 +391,15 @@ const getStarred = asyncHandler(async (req, res) => {
     const userId = req.userID;
     const firmId = req.firmId;
 
-    // IDOR Protection - filter by firmId and starred user
-    const query = {
-        firmId,
-        starred_partner_ids: userId
-    };
+    // IDOR Protection - filter by firmId/lawyerId and starred user
+    const isSoloLawyer = req.isSoloLawyer;
+    const query = {};
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = userId;
+    } else {
+        query.firmId = firmId;
+    }
+    query.starred_partner_ids = userId;
 
     const messages = await ThreadMessage.find(query)
         .sort({ createdAt: -1 })
@@ -414,6 +429,7 @@ const getStarred = asyncHandler(async (req, res) => {
 const searchMessages = asyncHandler(async (req, res) => {
     const { q, res_model, page = 1, limit = 50 } = req.query;
     const firmId = req.firmId;
+    const lawyerId = req.userID;
 
     if (!q) {
         throw CustomException('مصطلح البحث مطلوب', 400);
@@ -424,11 +440,15 @@ const searchMessages = asyncHandler(async (req, res) => {
         throw CustomException('مصطلح البحث غير صالح', 400);
     }
 
-    // IDOR Protection - always filter by firmId
-    const query = {
-        firmId,
-        $text: { $search: q }
-    };
+    // IDOR Protection - always filter by firmId or lawyerId
+    const isSoloLawyer = req.isSoloLawyer;
+    const query = {};
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
+    query.$text = { $search: q };
 
     if (res_model) {
         query.res_model = res_model;

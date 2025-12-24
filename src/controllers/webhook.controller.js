@@ -110,9 +110,16 @@ const getWebhooks = asyncHandler(async (req, res) => {
     } = req.query;
 
     const firmId = req.firmId;
+    const lawyerId = req.userID;
 
     // Build query
-    const query = { firmId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const query = {};
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
 
     if (status !== undefined) {
         query.isActive = status === 'active';
@@ -600,8 +607,12 @@ const disableWebhook = asyncHandler(async (req, res) => {
  */
 const getWebhookStats = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
+    const lawyerId = req.userID;
 
-    const stats = await webhookService.getStats(firmId);
+    const isSoloLawyer = req.isSoloLawyer;
+    const entityId = (isSoloLawyer || !firmId) ? lawyerId : firmId;
+
+    const stats = await webhookService.getStats(entityId);
 
     res.json({
         success: true,

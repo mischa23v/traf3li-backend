@@ -22,7 +22,13 @@ const getPayrollRuns = asyncHandler(async (req, res) => {
         limit = 20
     } = req.query;
 
-    const query = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const query = {};
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
 
     if (month) query['payPeriod.month'] = parseInt(month);
     if (year) query['payPeriod.year'] = parseInt(year);
@@ -308,7 +314,13 @@ const calculatePayroll = asyncHandler(async (req, res) => {
     await payrollRun.save();
 
     // Get employees based on configuration
-    const employeeQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const employeeQuery = {};
+    if (isSoloLawyer || !firmId) {
+        employeeQuery.lawyerId = lawyerId;
+    } else {
+        employeeQuery.firmId = firmId;
+    }
     employeeQuery['employment.employmentStatus'] = {
         $in: payrollRun.configuration.includedEmploymentStatuses || ['active']
     };

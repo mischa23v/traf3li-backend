@@ -257,7 +257,13 @@ async function verifyEmployeeOwnership(employeeId, firmId, lawyerId) {
 const getBenefits = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
 
     const {
         search,
@@ -337,7 +343,13 @@ const getBenefits = asyncHandler(async (req, res) => {
 const getBenefit = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
 
     // Sanitize benefit ID
     const benefitId = sanitizeObjectId(req.params.id);
@@ -366,7 +378,13 @@ const getBenefit = asyncHandler(async (req, res) => {
 const getEmployeeBenefits = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
 
     const { employeeId } = req.params;
 
@@ -405,7 +423,13 @@ const getEmployeeBenefits = asyncHandler(async (req, res) => {
 const getBenefitStats = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
 
     const [
         totalBenefits,
@@ -653,7 +677,13 @@ const createBenefit = asyncHandler(async (req, res) => {
 const updateBenefit = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
 
     // Sanitize benefit ID
     const benefitId = sanitizeObjectId(req.params.id);
@@ -758,7 +788,13 @@ const updateBenefit = asyncHandler(async (req, res) => {
 const deleteBenefit = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
 
     // Sanitize benefit ID
     const benefitId = sanitizeObjectId(req.params.id);
@@ -794,7 +830,13 @@ const deleteBenefit = asyncHandler(async (req, res) => {
 const bulkDeleteBenefits = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
 
     const { ids } = req.body;
 
@@ -833,7 +875,13 @@ const bulkDeleteBenefits = asyncHandler(async (req, res) => {
 const activateBenefit = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
 
     // Sanitize benefit ID
     const benefitId = sanitizeObjectId(req.params.id);
@@ -878,7 +926,13 @@ const activateBenefit = asyncHandler(async (req, res) => {
 const suspendBenefit = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
 
     // Sanitize benefit ID
     const benefitId = sanitizeObjectId(req.params.id);
@@ -919,7 +973,13 @@ const suspendBenefit = asyncHandler(async (req, res) => {
 const terminateBenefit = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
 
     // Sanitize benefit ID
     const benefitId = sanitizeObjectId(req.params.id);
@@ -985,7 +1045,13 @@ const terminateBenefit = asyncHandler(async (req, res) => {
 const addDependent = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
 
     // Sanitize benefit ID
     const benefitId = sanitizeObjectId(req.params.id);
@@ -1043,7 +1109,13 @@ const addDependent = asyncHandler(async (req, res) => {
 const removeDependent = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
 
     // Sanitize benefit ID
     const benefitId = sanitizeObjectId(req.params.id);
@@ -1088,7 +1160,13 @@ const removeDependent = asyncHandler(async (req, res) => {
 const updateBeneficiary = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
 
     // Sanitize benefit ID
     const benefitId = sanitizeObjectId(req.params.id);
@@ -1146,7 +1224,13 @@ const updateBeneficiary = asyncHandler(async (req, res) => {
 const addBeneficiary = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
 
     // Sanitize benefit ID
     const benefitId = sanitizeObjectId(req.params.id);
@@ -1204,7 +1288,13 @@ const addBeneficiary = asyncHandler(async (req, res) => {
 const removeBeneficiary = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
 
     // Sanitize benefit ID
     const benefitId = sanitizeObjectId(req.params.id);
@@ -1250,7 +1340,13 @@ const removeBeneficiary = asyncHandler(async (req, res) => {
 const submitClaim = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
 
     // Sanitize benefit ID
     const benefitId = sanitizeObjectId(req.params.id);
@@ -1335,7 +1431,13 @@ const submitClaim = asyncHandler(async (req, res) => {
 const updateClaimStatus = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
 
     // Sanitize benefit ID
     const benefitId = sanitizeObjectId(req.params.id);
@@ -1434,7 +1536,13 @@ const updateClaimStatus = asyncHandler(async (req, res) => {
 const requestPreAuth = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
 
     // Sanitize benefit ID
     const benefitId = sanitizeObjectId(req.params.id);
@@ -1516,7 +1624,13 @@ const requestPreAuth = asyncHandler(async (req, res) => {
 const reportQualifyingEvent = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
 
     // Sanitize benefit ID
     const benefitId = sanitizeObjectId(req.params.id);
@@ -1592,7 +1706,13 @@ const reportQualifyingEvent = asyncHandler(async (req, res) => {
 const exportBenefits = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
 
     const { format = 'json', status, benefitType } = req.query;
 
@@ -1656,7 +1776,13 @@ const exportBenefits = asyncHandler(async (req, res) => {
 const getExpiringBenefits = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
 
     const daysAhead = parseInt(req.query.days) || 30;
     const futureDate = new Date();

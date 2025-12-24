@@ -119,6 +119,7 @@ const getContacts = asyncHandler(async (req, res) => {
 
     const lawyerId = req.userID;
     const firmId = req.firmId;
+    const isSoloLawyer = req.isSoloLawyer;
     const {
         type, status, primaryRole, search, organizationId,
         conflictCheckStatus, vipStatus, tags,
@@ -129,7 +130,7 @@ const getContacts = asyncHandler(async (req, res) => {
     const parsedPage = parseInt(page) || 1;
 
     const filters = {
-        firmId,
+        firmId: (isSoloLawyer || !firmId) ? undefined : firmId,
         type,
         status,
         primaryRole,
@@ -146,8 +147,13 @@ const getContacts = asyncHandler(async (req, res) => {
 
     const contacts = await Contact.getContacts(lawyerId, filters);
 
-    // Build count query
-    const countQuery = firmId ? { firmId } : { lawyerId };
+    // Build count query based on user type
+    const countQuery = {};
+    if (isSoloLawyer || !firmId) {
+        countQuery.lawyerId = lawyerId;
+    } else {
+        countQuery.firmId = firmId;
+    }
     if (type) countQuery.type = type;
     if (status) countQuery.status = status;
     if (primaryRole) countQuery.primaryRole = primaryRole;
@@ -178,10 +184,15 @@ const getContact = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const lawyerId = req.userID;
     const firmId = req.firmId;
+    const isSoloLawyer = req.isSoloLawyer;
 
-    const accessQuery = firmId
-        ? { _id: id, firmId }
-        : { _id: id, lawyerId };
+    // Build query based on user type
+    const accessQuery = { _id: id };
+    if (isSoloLawyer || !firmId) {
+        accessQuery.lawyerId = lawyerId;
+    } else {
+        accessQuery.firmId = firmId;
+    }
 
     const contact = await Contact.findOne(accessQuery)
         .populate('linkedCases', 'title caseNumber status')
@@ -210,11 +221,15 @@ const updateContact = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const lawyerId = req.userID;
     const firmId = req.firmId;
+    const isSoloLawyer = req.isSoloLawyer;
 
     // IDOR PROTECTION: Verify contact belongs to user's firm
-    const accessQuery = firmId
-        ? { _id: id, firmId }
-        : { _id: id, lawyerId };
+    const accessQuery = { _id: id };
+    if (isSoloLawyer || !firmId) {
+        accessQuery.lawyerId = lawyerId;
+    } else {
+        accessQuery.firmId = firmId;
+    }
 
     const contact = await Contact.findOne(accessQuery);
 
@@ -314,10 +329,15 @@ const deleteContact = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const lawyerId = req.userID;
     const firmId = req.firmId;
+    const isSoloLawyer = req.isSoloLawyer;
 
-    const accessQuery = firmId
-        ? { _id: id, firmId }
-        : { _id: id, lawyerId };
+    // Build query based on user type
+    const accessQuery = { _id: id };
+    if (isSoloLawyer || !firmId) {
+        accessQuery.lawyerId = lawyerId;
+    } else {
+        accessQuery.firmId = firmId;
+    }
 
     const contact = await Contact.findOneAndDelete(accessQuery);
 
@@ -343,14 +363,19 @@ const bulkDeleteContacts = asyncHandler(async (req, res) => {
     const { ids } = req.body;
     const lawyerId = req.userID;
     const firmId = req.firmId;
+    const isSoloLawyer = req.isSoloLawyer;
 
     if (!ids || !Array.isArray(ids) || ids.length === 0) {
         throw CustomException('معرفات جهات الاتصال مطلوبة', 400);
     }
 
-    const accessQuery = firmId
-        ? { _id: { $in: ids }, firmId }
-        : { _id: { $in: ids }, lawyerId };
+    // Build query based on user type
+    const accessQuery = { _id: { $in: ids } };
+    if (isSoloLawyer || !firmId) {
+        accessQuery.lawyerId = lawyerId;
+    } else {
+        accessQuery.firmId = firmId;
+    }
 
     const result = await Contact.deleteMany(accessQuery);
 
@@ -401,6 +426,7 @@ const linkToCase = asyncHandler(async (req, res) => {
     const { caseId, role } = req.body;
     const lawyerId = req.userID;
     const firmId = req.firmId;
+    const isSoloLawyer = req.isSoloLawyer;
 
     // INPUT VALIDATION: Validate and sanitize IDs
     const sanitizedId = sanitizeObjectId(id);
@@ -415,9 +441,12 @@ const linkToCase = asyncHandler(async (req, res) => {
     }
 
     // IDOR PROTECTION: Verify contact belongs to user's firm
-    const accessQuery = firmId
-        ? { _id: sanitizedId, firmId }
-        : { _id: sanitizedId, lawyerId };
+    const accessQuery = { _id: sanitizedId };
+    if (isSoloLawyer || !firmId) {
+        accessQuery.lawyerId = lawyerId;
+    } else {
+        accessQuery.firmId = firmId;
+    }
 
     const contact = await Contact.findOne(accessQuery);
     if (!contact) {
@@ -425,9 +454,12 @@ const linkToCase = asyncHandler(async (req, res) => {
     }
 
     // IDOR PROTECTION: Verify case belongs to user's firm
-    const caseQuery = firmId
-        ? { _id: sanitizedCaseId, firmId }
-        : { _id: sanitizedCaseId, lawyerId };
+    const caseQuery = { _id: sanitizedCaseId };
+    if (isSoloLawyer || !firmId) {
+        caseQuery.lawyerId = lawyerId;
+    } else {
+        caseQuery.firmId = firmId;
+    }
     const caseExists = await Case.findOne(caseQuery);
     if (!caseExists) {
         throw CustomException('القضية غير موجودة', 404);
@@ -464,6 +496,7 @@ const unlinkFromCase = asyncHandler(async (req, res) => {
     const caseId = req.params.caseId || req.body.caseId;
     const lawyerId = req.userID;
     const firmId = req.firmId;
+    const isSoloLawyer = req.isSoloLawyer;
 
     // INPUT VALIDATION: Validate and sanitize IDs
     const sanitizedId = sanitizeObjectId(id);
@@ -478,9 +511,12 @@ const unlinkFromCase = asyncHandler(async (req, res) => {
     }
 
     // IDOR PROTECTION: Verify contact belongs to user's firm
-    const accessQuery = firmId
-        ? { _id: sanitizedId, firmId }
-        : { _id: sanitizedId, lawyerId };
+    const accessQuery = { _id: sanitizedId };
+    if (isSoloLawyer || !firmId) {
+        accessQuery.lawyerId = lawyerId;
+    } else {
+        accessQuery.firmId = firmId;
+    }
 
     const contact = await Contact.findOne(accessQuery);
     if (!contact) {
@@ -505,10 +541,15 @@ const getContactsByCase = asyncHandler(async (req, res) => {
     const { caseId } = req.params;
     const lawyerId = req.userID;
     const firmId = req.firmId;
+    const isSoloLawyer = req.isSoloLawyer;
 
-    const query = firmId
-        ? { firmId, linkedCases: caseId }
-        : { lawyerId, linkedCases: caseId };
+    // Build query based on user type
+    const query = { linkedCases: caseId };
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
 
     const contacts = await Contact.find(query).sort({ createdAt: -1 });
 
@@ -526,10 +567,15 @@ const getContactsByClient = asyncHandler(async (req, res) => {
     const { clientId } = req.params;
     const lawyerId = req.userID;
     const firmId = req.firmId;
+    const isSoloLawyer = req.isSoloLawyer;
 
-    const query = firmId
-        ? { firmId, linkedClients: clientId }
-        : { lawyerId, linkedClients: clientId };
+    // Build query based on user type
+    const query = { linkedClients: clientId };
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
 
     const contacts = await Contact.find(query).sort({ createdAt: -1 });
 
@@ -552,6 +598,7 @@ const linkToClient = asyncHandler(async (req, res) => {
     const { clientId } = req.body;
     const lawyerId = req.userID;
     const firmId = req.firmId;
+    const isSoloLawyer = req.isSoloLawyer;
 
     // INPUT VALIDATION: Validate and sanitize IDs
     const sanitizedId = sanitizeObjectId(id);
@@ -566,9 +613,12 @@ const linkToClient = asyncHandler(async (req, res) => {
     }
 
     // IDOR PROTECTION: Verify contact belongs to user's firm
-    const accessQuery = firmId
-        ? { _id: sanitizedId, firmId }
-        : { _id: sanitizedId, lawyerId };
+    const accessQuery = { _id: sanitizedId };
+    if (isSoloLawyer || !firmId) {
+        accessQuery.lawyerId = lawyerId;
+    } else {
+        accessQuery.firmId = firmId;
+    }
 
     const contact = await Contact.findOne(accessQuery);
     if (!contact) {
@@ -576,9 +626,12 @@ const linkToClient = asyncHandler(async (req, res) => {
     }
 
     // IDOR PROTECTION: Verify client belongs to user's firm
-    const clientQuery = firmId
-        ? { _id: sanitizedClientId, firmId }
-        : { _id: sanitizedClientId, lawyerId };
+    const clientQuery = { _id: sanitizedClientId };
+    if (isSoloLawyer || !firmId) {
+        clientQuery.lawyerId = lawyerId;
+    } else {
+        clientQuery.firmId = firmId;
+    }
     const clientExists = await Client.findOne(clientQuery);
     if (!clientExists) {
         throw CustomException('العميل غير موجود', 404);
@@ -611,6 +664,7 @@ const unlinkFromClient = asyncHandler(async (req, res) => {
     const clientId = req.params.clientId || req.body.clientId;
     const lawyerId = req.userID;
     const firmId = req.firmId;
+    const isSoloLawyer = req.isSoloLawyer;
 
     // INPUT VALIDATION: Validate and sanitize IDs
     const sanitizedId = sanitizeObjectId(id);
@@ -625,9 +679,12 @@ const unlinkFromClient = asyncHandler(async (req, res) => {
     }
 
     // IDOR PROTECTION: Verify contact belongs to user's firm
-    const accessQuery = firmId
-        ? { _id: sanitizedId, firmId }
-        : { _id: sanitizedId, lawyerId };
+    const accessQuery = { _id: sanitizedId };
+    if (isSoloLawyer || !firmId) {
+        accessQuery.lawyerId = lawyerId;
+    } else {
+        accessQuery.firmId = firmId;
+    }
 
     const contact = await Contact.findOne(accessQuery);
     if (!contact) {

@@ -24,7 +24,13 @@ const getJobPositions = asyncHandler(async (req, res) => {
         sort = '-createdOn'
     } = req.query;
 
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
     const query = { ...baseQuery };
 
     // Apply filters
@@ -81,7 +87,13 @@ const getJobPositions = asyncHandler(async (req, res) => {
 
 const getJobPositionStats = asyncHandler(async (req, res) => {
     const { firmId, lawyerId } = req;
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
 
     const [
         totalPositions,
@@ -153,7 +165,13 @@ const getJobPositionStats = asyncHandler(async (req, res) => {
 
 const getVacantPositions = asyncHandler(async (req, res) => {
     const { firmId, lawyerId } = req;
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
 
     const positions = await JobPosition.find({
         ...baseQuery,
@@ -181,7 +199,13 @@ const getPositionsByDepartment = asyncHandler(async (req, res) => {
     const { departmentId } = req.params;
 
     // IDOR Protection - verify ownership
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
 
     const positions = await JobPosition.find({
         ...baseQuery,
@@ -208,7 +232,13 @@ const getPositionHierarchy = asyncHandler(async (req, res) => {
     const { id } = req.params;
 
     // IDOR Protection - verify ownership
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
     const position = await JobPosition.findOne({ _id: sanitizeObjectId(id), ...baseQuery })
         .populate('reportsTo.positionId');
 
@@ -261,7 +291,13 @@ const getJobPosition = asyncHandler(async (req, res) => {
     const { id } = req.params;
 
     // IDOR Protection - verify ownership
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
     const position = await JobPosition.findOne({ _id: sanitizeObjectId(id), ...baseQuery })
         .populate('departmentId', 'unitId unitCode unitName unitNameAr')
         .populate('divisionId', 'unitId unitName unitNameAr')
@@ -404,7 +440,13 @@ const updateJobPosition = asyncHandler(async (req, res) => {
     const { id } = req.params;
 
     // IDOR Protection - verify ownership
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
     const oldPosition = await JobPosition.findOne({ _id: sanitizeObjectId(id), ...baseQuery });
 
     if (!oldPosition) {
@@ -542,7 +584,13 @@ const deleteJobPosition = asyncHandler(async (req, res) => {
     const { id } = req.params;
 
     // IDOR Protection - verify ownership
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
     const position = await JobPosition.findOne({ _id: sanitizeObjectId(id), ...baseQuery });
 
     if (!position) {
@@ -598,7 +646,13 @@ const bulkDeleteJobPositions = asyncHandler(async (req, res) => {
     const sanitizedIds = ids.map(id => sanitizeObjectId(id));
 
     // IDOR Protection - verify ownership
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
 
     // Check for positions with direct reports
     const positionsWithReports = await JobPosition.find({
@@ -638,7 +692,13 @@ const freezePosition = asyncHandler(async (req, res) => {
     const { reason, effectiveDate } = pickAllowedFields(req.body, allowedFields);
 
     // IDOR Protection - verify ownership
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
     const position = await JobPosition.findOne({ _id: sanitizeObjectId(id), ...baseQuery });
 
     if (!position) {
@@ -678,7 +738,13 @@ const unfreezePosition = asyncHandler(async (req, res) => {
     const { id } = req.params;
 
     // IDOR Protection - verify ownership
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
     const position = await JobPosition.findOne({ _id: sanitizeObjectId(id), ...baseQuery });
 
     if (!position) {
@@ -721,7 +787,13 @@ const eliminatePosition = asyncHandler(async (req, res) => {
     const { reason, effectiveDate } = pickAllowedFields(req.body, allowedFields);
 
     // IDOR Protection - verify ownership
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
     const position = await JobPosition.findOne({ _id: sanitizeObjectId(id), ...baseQuery });
 
     if (!position) {
@@ -778,7 +850,13 @@ const markPositionVacant = asyncHandler(async (req, res) => {
     const { reason, vacantSince, knowledgeTransferCompleted } = pickAllowedFields(req.body, allowedFields);
 
     // IDOR Protection - verify ownership
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
     const position = await JobPosition.findOne({ _id: sanitizeObjectId(id), ...baseQuery });
 
     if (!position) {
@@ -863,7 +941,13 @@ const fillPosition = asyncHandler(async (req, res) => {
     const sanitizedEmployeeId = sanitizeObjectId(employeeId);
 
     // IDOR Protection - verify ownership
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
     const position = await JobPosition.findOne({ _id: sanitizeObjectId(id), ...baseQuery });
 
     if (!position) {
@@ -917,7 +1001,13 @@ const vacatePosition = asyncHandler(async (req, res) => {
     const { reason, effectiveDate } = pickAllowedFields(req.body, allowedFields);
 
     // IDOR Protection - verify ownership
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
     const position = await JobPosition.findOne({ _id: sanitizeObjectId(id), ...baseQuery });
 
     if (!position) {
@@ -984,7 +1074,13 @@ const clonePosition = asyncHandler(async (req, res) => {
     const { newPositionNumber, newJobTitle } = pickAllowedFields(req.body, allowedFields);
 
     // IDOR Protection - verify ownership
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
     const original = await JobPosition.findOne({ _id: sanitizeObjectId(id), ...baseQuery }).lean();
 
     if (!original) {
@@ -1050,7 +1146,13 @@ const updateResponsibilities = asyncHandler(async (req, res) => {
     }
 
     // IDOR Protection - verify ownership
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
     const position = await JobPosition.findOne({ _id: sanitizeObjectId(id), ...baseQuery });
 
     if (!position) {
@@ -1093,7 +1195,13 @@ const updateQualifications = asyncHandler(async (req, res) => {
     }
 
     // IDOR Protection - verify ownership
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
     const position = await JobPosition.findOne({ _id: sanitizeObjectId(id), ...baseQuery });
 
     if (!position) {
@@ -1134,7 +1242,13 @@ const updateSalaryRange = asyncHandler(async (req, res) => {
     const salaryData = pickAllowedFields(req.body, allowedFields);
 
     // IDOR Protection - verify ownership
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
     const position = await JobPosition.findOne({ _id: sanitizeObjectId(id), ...baseQuery });
 
     if (!position) {
@@ -1221,7 +1335,13 @@ const updateCompetencies = asyncHandler(async (req, res) => {
     }
 
     // IDOR Protection - verify ownership
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
     const position = await JobPosition.findOne({ _id: sanitizeObjectId(id), ...baseQuery });
 
     if (!position) {
@@ -1262,7 +1382,13 @@ const addDocument = asyncHandler(async (req, res) => {
     }
 
     // IDOR Protection - verify ownership
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
     const position = await JobPosition.findOne({ _id: sanitizeObjectId(id), ...baseQuery });
 
     if (!position) {
@@ -1294,7 +1420,13 @@ const exportJobPositions = asyncHandler(async (req, res) => {
     const { firmId, lawyerId } = req;
     const { format = 'json', status, jobFamily, departmentId } = req.query;
 
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
     const query = { ...baseQuery };
 
     if (status) query.status = status;

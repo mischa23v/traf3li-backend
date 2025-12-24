@@ -143,7 +143,13 @@ const getSalarySlips = asyncHandler(async (req, res) => {
     } = req.query;
 
     // Build query
-    const query = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const query = {};
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
 
     if (month) query['payPeriod.month'] = parseInt(month);
     if (year) query['payPeriod.year'] = parseInt(year);
@@ -699,7 +705,13 @@ const generateBulkPayroll = asyncHandler(async (req, res) => {
     }
 
     // Get employees (active only)
-    const employeeQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const employeeQuery = {};
+    if (isSoloLawyer || !firmId) {
+        employeeQuery.lawyerId = lawyerId;
+    } else {
+        employeeQuery.firmId = firmId;
+    }
     employeeQuery['employment.employmentStatus'] = 'active';
 
     if (employeeIds && employeeIds.length > 0) {
@@ -781,7 +793,13 @@ const bulkApprove = asyncHandler(async (req, res) => {
         throw CustomException('Maximum 1000 salary slips can be processed at once', 400);
     }
 
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
 
     // SECURITY: Verify all slips belong to user and are in valid state before processing
     const slipsToProcess = await SalarySlip.find({
@@ -849,7 +867,13 @@ const bulkPay = asyncHandler(async (req, res) => {
         }
     }
 
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
 
     // SECURITY: Verify all slips belong to user and are in valid state before processing
     const slipsToProcess = await SalarySlip.find({
@@ -935,7 +959,13 @@ const submitToWPS = asyncHandler(async (req, res) => {
         throw CustomException('Maximum 1000 salary slips can be submitted at once', 400);
     }
 
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
 
     // SECURITY: Verify all slips belong to user and are in valid state before processing
     const slipsToProcess = await SalarySlip.find({
@@ -995,7 +1025,13 @@ const bulkDeleteSalarySlips = asyncHandler(async (req, res) => {
         throw CustomException('Maximum 1000 salary slips can be deleted at once / الحد الأقصى 1000 قسيمة راتب', 400);
     }
 
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
 
     // SECURITY: IDOR Protection - Verify all slips belong to user and are in valid state before processing
     const slipsToDelete = await SalarySlip.find({

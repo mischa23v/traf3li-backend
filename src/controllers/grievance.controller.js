@@ -138,7 +138,13 @@ function calculateRiskAssessment(grievanceType, severity, protectedDisclosure) {
 const getGrievances = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
 
     const {
         search,
@@ -220,7 +226,13 @@ const getGrievances = asyncHandler(async (req, res) => {
 const getGrievance = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
 
     // Sanitize ObjectId
     const sanitizedId = sanitizeObjectId(req.params.id);
@@ -268,7 +280,13 @@ const getGrievance = asyncHandler(async (req, res) => {
 const getEmployeeGrievances = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
 
     // Sanitize ObjectId
     const sanitizedEmployeeId = sanitizeObjectId(req.params.employeeId);
@@ -312,7 +330,13 @@ const getEmployeeGrievances = asyncHandler(async (req, res) => {
 const getGrievanceStats = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
 
     const [
         totalGrievances,
@@ -431,7 +455,13 @@ const createGrievance = asyncHandler(async (req, res) => {
     }
 
     // IDOR Protection: Validate employee belongs to the firm/lawyer
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
     const employee = await Employee.findOne({
         _id: sanitizedEmployeeId,
         ...baseQuery
@@ -539,7 +569,13 @@ const createGrievance = asyncHandler(async (req, res) => {
 const updateGrievance = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
 
     // Sanitize ObjectId
     const sanitizedId = sanitizeObjectId(req.params.id);
@@ -616,7 +652,13 @@ const updateGrievance = asyncHandler(async (req, res) => {
 const deleteGrievance = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
 
     const grievance = await Grievance.findOne({
         _id: req.params.id,
@@ -646,7 +688,13 @@ const deleteGrievance = asyncHandler(async (req, res) => {
 const bulkDeleteGrievances = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
 
     const { ids } = req.body;
 
@@ -678,7 +726,13 @@ const bulkDeleteGrievances = asyncHandler(async (req, res) => {
 const acknowledgeGrievance = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
 
     const grievance = await Grievance.findOne({
         _id: req.params.id,
@@ -728,7 +782,13 @@ const acknowledgeGrievance = asyncHandler(async (req, res) => {
 const startInvestigation = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
 
     // Sanitize ObjectId
     const sanitizedId = sanitizeObjectId(req.params.id);
@@ -815,7 +875,13 @@ const startInvestigation = asyncHandler(async (req, res) => {
 const completeInvestigation = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
 
     // Sanitize ObjectId
     const sanitizedId = sanitizeObjectId(req.params.id);
@@ -914,7 +980,13 @@ const completeInvestigation = asyncHandler(async (req, res) => {
 const resolveGrievance = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
 
     // Sanitize ObjectId
     const sanitizedId = sanitizeObjectId(req.params.id);
@@ -1016,7 +1088,13 @@ const resolveGrievance = asyncHandler(async (req, res) => {
 const escalateGrievance = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
 
     const { reason, escalateTo } = req.body;
 
@@ -1063,7 +1141,13 @@ const escalateGrievance = asyncHandler(async (req, res) => {
 const withdrawGrievance = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
 
     const { reason, reasonCategory, coerced } = req.body;
 
@@ -1129,7 +1213,13 @@ const withdrawGrievance = asyncHandler(async (req, res) => {
 const closeGrievance = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
 
     const { closureReason, lessonsLearned } = req.body;
 
@@ -1199,7 +1289,13 @@ const closeGrievance = asyncHandler(async (req, res) => {
 const addTimelineEvent = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
 
     // Sanitize ObjectId
     const sanitizedId = sanitizeObjectId(req.params.id);
@@ -1264,7 +1360,13 @@ const addTimelineEvent = asyncHandler(async (req, res) => {
 const addWitness = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
 
     // Sanitize ObjectId
     const sanitizedId = sanitizeObjectId(req.params.id);
@@ -1333,7 +1435,13 @@ const addWitness = asyncHandler(async (req, res) => {
 const addEvidence = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
 
     // Sanitize ObjectId
     const sanitizedId = sanitizeObjectId(req.params.id);
@@ -1456,7 +1564,13 @@ const addEvidence = asyncHandler(async (req, res) => {
 const addInterview = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
 
     // Sanitize ObjectId
     const sanitizedId = sanitizeObjectId(req.params.id);
@@ -1550,7 +1664,13 @@ const addInterview = asyncHandler(async (req, res) => {
 const fileAppeal = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
 
     const { appealBy, appealGrounds, appealNarrative, reliefSought } = req.body;
 
@@ -1608,7 +1728,13 @@ const fileAppeal = asyncHandler(async (req, res) => {
 const decideAppeal = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
 
     const { appealDecision, decisionRationale, modifications, reviewLevel } = req.body;
 
@@ -1666,7 +1792,13 @@ const decideAppeal = asyncHandler(async (req, res) => {
 const escalateToLaborOffice = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
 
     const { escalationReason, laborOffice, submittedBy } = req.body;
 
@@ -1726,7 +1858,13 @@ const escalateToLaborOffice = asyncHandler(async (req, res) => {
 const exportGrievances = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
 
     const { format = 'json', status, grievanceType, fromDate, toDate } = req.query;
 
@@ -1787,7 +1925,13 @@ const exportGrievances = asyncHandler(async (req, res) => {
 const getOverdueGrievances = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
 
     const daysThreshold = parseInt(req.query.days) || GRIEVANCE_POLICIES.resolution.targetDays;
     const thresholdDate = new Date();

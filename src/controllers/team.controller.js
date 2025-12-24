@@ -156,7 +156,7 @@ const getTeam = asyncHandler(async (req, res) => {
     const parsedLimit = Math.min(parseInt(limit) || 50, 100);
     const parsedPage = parseInt(page) || 1;
 
-    // CRITICAL: Always filter by firmId
+    // CRITICAL: Always filter by firmId (team.controller is intentionally firm-only)
     const query = { firmId };
 
     if (role) query.role = role;

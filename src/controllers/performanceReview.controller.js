@@ -38,9 +38,13 @@ const getPerformanceReviews = async (req, res) => {
         const lawyerId = req.userID || req.userId;
 
         // Build query based on firmId (firm) or lawyerId (solo lawyer)
-        const query = firmId
-            ? { firmId, isDeleted: false }
-            : { lawyerId, isDeleted: false };
+        const isSoloLawyer = req.isSoloLawyer;
+        const query = { isDeleted: false };
+        if (isSoloLawyer || !firmId) {
+            query.lawyerId = lawyerId;
+        } else {
+            query.firmId = firmId;
+        }
 
         // Filters
         if (reviewType) query.reviewType = reviewType;
@@ -110,9 +114,13 @@ const getPerformanceStats = async (req, res) => {
         const lawyerId = req.userID || req.userId;
 
         // Build match filter based on firmId (firm) or lawyerId (solo lawyer)
-        const match = firmId
-            ? { firmId: new mongoose.Types.ObjectId(firmId), isDeleted: false }
-            : { lawyerId: new mongoose.Types.ObjectId(lawyerId), isDeleted: false };
+        const isSoloLawyer = req.isSoloLawyer;
+        const match = { isDeleted: false };
+        if (isSoloLawyer || !firmId) {
+            match.lawyerId = new mongoose.Types.ObjectId(lawyerId);
+        } else {
+            match.firmId = new mongoose.Types.ObjectId(firmId);
+        }
 
         if (periodYear) {
             match['reviewPeriod.startDate'] = {
@@ -1755,9 +1763,13 @@ const getTeamSummary = async (req, res) => {
         const lawyerId = req.userID || req.userId;
 
         // Build match filter based on firmId (firm) or lawyerId (solo lawyer)
-        const baseFilter = firmId
-            ? { firmId: new mongoose.Types.ObjectId(firmId) }
-            : { lawyerId: new mongoose.Types.ObjectId(lawyerId) };
+        const isSoloLawyer = req.isSoloLawyer;
+        const baseFilter = {};
+        if (isSoloLawyer || !firmId) {
+            baseFilter.lawyerId = new mongoose.Types.ObjectId(lawyerId);
+        } else {
+            baseFilter.firmId = new mongoose.Types.ObjectId(firmId);
+        }
 
         const match = {
             ...baseFilter,
@@ -1852,9 +1864,13 @@ const bulkCreateReviews = async (req, res) => {
         const lawyerId = req.userID || req.userId;
 
         // Build employee filter based on firmId (firm) or lawyerId (solo lawyer)
-        const baseEmployeeFilter = firmId
-            ? { firmId, 'employmentDetails.employmentStatus': 'active' }
-            : { lawyerId, 'employmentDetails.employmentStatus': 'active' };
+        const isSoloLawyer = req.isSoloLawyer;
+        const baseEmployeeFilter = { 'employmentDetails.employmentStatus': 'active' };
+        if (isSoloLawyer || !firmId) {
+            baseEmployeeFilter.lawyerId = lawyerId;
+        } else {
+            baseEmployeeFilter.firmId = firmId;
+        }
 
         let targetEmployees;
 
@@ -2053,9 +2069,13 @@ const getTemplates = async (req, res) => {
         const lawyerId = req.userID || req.userId;
 
         // Build query based on firmId (firm) or lawyerId (solo lawyer)
-        const query = firmId
-            ? { firmId, isActive: true }
-            : { lawyerId, isActive: true };
+        const isSoloLawyer = req.isSoloLawyer;
+        const query = { isActive: true };
+        if (isSoloLawyer || !firmId) {
+            query.lawyerId = lawyerId;
+        } else {
+            query.firmId = firmId;
+        }
         if (reviewType) query.reviewType = reviewType;
 
         const templates = await ReviewTemplate.find(query).sort({ name: 1 });
@@ -2193,7 +2213,13 @@ const getCalibrationSessions = async (req, res) => {
         const lawyerId = req.userID || req.userId;
 
         // Build query based on firmId (firm) or lawyerId (solo lawyer)
-        const query = firmId ? { firmId } : { lawyerId };
+        const isSoloLawyer = req.isSoloLawyer;
+        const query = {};
+        if (isSoloLawyer || !firmId) {
+            query.lawyerId = lawyerId;
+        } else {
+            query.firmId = firmId;
+        }
         if (periodYear) query.periodYear = parseInt(periodYear);
         if (status) query.status = status;
         if (departmentId) query.departmentId = departmentId;

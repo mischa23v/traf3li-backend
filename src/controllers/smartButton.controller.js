@@ -42,7 +42,13 @@ const getCounts = asyncHandler(async (req, res) => {
     let counts = {};
 
     // Build base query: use firmId if available, otherwise fall back to lawyerId
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
 
     // Verify ownership of the record before returning counts
     const modelMap = {
@@ -394,7 +400,13 @@ const getBatchCounts = asyncHandler(async (req, res) => {
         throw CustomException('No valid record IDs provided', 400);
     }
 
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+    const isSoloLawyer = req.isSoloLawyer;
+    const baseQuery = {};
+    if (isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
 
     // Verify ownership: Only return counts for records that belong to the user/firm
     const modelMap = {

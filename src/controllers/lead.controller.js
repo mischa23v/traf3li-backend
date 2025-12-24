@@ -141,6 +141,7 @@ exports.getLeads = async (req, res) => {
 
         const lawyerId = req.userID;
         const firmId = req.firmId; // From firmFilter middleware
+        const isSoloLawyer = req.isSoloLawyer;
         const {
             status, source, assignedTo, pipelineId, search,
             convertedToClient, sortBy, sortOrder,
@@ -164,8 +165,13 @@ exports.getLeads = async (req, res) => {
         // Use firmId-aware getLeads
         const leads = await Lead.getLeads(lawyerId, filters);
 
-        // Build count query - firmId first, then lawyerId fallback
-        const countQuery = firmId ? { firmId } : { lawyerId };
+        // Build count query based on user type
+        const countQuery = {};
+        if (isSoloLawyer || !firmId) {
+            countQuery.lawyerId = lawyerId;
+        } else {
+            countQuery.firmId = firmId;
+        }
         const total = await Lead.countDocuments({
             ...countQuery,
             ...(status ? { status } : {}),
@@ -206,11 +212,15 @@ exports.getLead = async (req, res) => {
         const { id } = req.params;
         const lawyerId = req.userID;
         const firmId = req.firmId; // From firmFilter middleware
+        const isSoloLawyer = req.isSoloLawyer;
 
-        // Build query - firmId first, then lawyerId fallback
-        const accessQuery = firmId
-            ? { $or: [{ _id: id }, { leadId: id }], firmId }
-            : { $or: [{ _id: id }, { leadId: id }], lawyerId };
+        // Build query based on user type
+        const accessQuery = { $or: [{ _id: id }, { leadId: id }] };
+        if (isSoloLawyer || !firmId) {
+            accessQuery.lawyerId = lawyerId;
+        } else {
+            accessQuery.firmId = firmId;
+        }
 
         const lead = await Lead.findOne(accessQuery)
         .populate('assignedTo', 'firstName lastName avatar email')
@@ -263,6 +273,7 @@ exports.updateLead = async (req, res) => {
         const { id } = req.params;
         const lawyerId = req.userID;
         const firmId = req.firmId; // From firmFilter middleware
+        const isSoloLawyer = req.isSoloLawyer;
 
         // ═══════════════════════════════════════════════════════════════
         // MASS ASSIGNMENT PROTECTION - Only allow specific fields
@@ -300,10 +311,13 @@ exports.updateLead = async (req, res) => {
         // ═══════════════════════════════════════════════════════════════
         // IDOR PROTECTION - Verify lead belongs to user's firm
         // ═══════════════════════════════════════════════════════════════
-        // Build query - firmId first, then lawyerId fallback
-        const accessQuery = firmId
-            ? { $or: [{ _id: id }, { leadId: id }], firmId }
-            : { $or: [{ _id: id }, { leadId: id }], lawyerId };
+        // Build query based on user type
+        const accessQuery = { $or: [{ _id: id }, { leadId: id }] };
+        if (isSoloLawyer || !firmId) {
+            accessQuery.lawyerId = lawyerId;
+        } else {
+            accessQuery.firmId = firmId;
+        }
 
         const lead = await Lead.findOne(accessQuery);
 
@@ -368,11 +382,15 @@ exports.deleteLead = async (req, res) => {
         const { id } = req.params;
         const lawyerId = req.userID;
         const firmId = req.firmId; // From firmFilter middleware
+        const isSoloLawyer = req.isSoloLawyer;
 
-        // Build query - firmId first, then lawyerId fallback
-        const accessQuery = firmId
-            ? { $or: [{ _id: id }, { leadId: id }], firmId, convertedToClient: false }
-            : { $or: [{ _id: id }, { leadId: id }], lawyerId, convertedToClient: false };
+        // Build query based on user type
+        const accessQuery = { $or: [{ _id: id }, { leadId: id }], convertedToClient: false };
+        if (isSoloLawyer || !firmId) {
+            accessQuery.lawyerId = lawyerId;
+        } else {
+            accessQuery.firmId = firmId;
+        }
 
         const lead = await Lead.findOneAndDelete(accessQuery);
 
@@ -411,6 +429,7 @@ exports.bulkDeleteLeads = async (req, res) => {
         const { ids } = req.body;
         const lawyerId = req.userID;
         const firmId = req.firmId;
+        const isSoloLawyer = req.isSoloLawyer;
 
         if (!ids || !Array.isArray(ids) || ids.length === 0) {
             return res.status(400).json({
@@ -419,10 +438,13 @@ exports.bulkDeleteLeads = async (req, res) => {
             });
         }
 
-        // Build access query - only delete non-converted leads
-        const accessQuery = firmId
-            ? { _id: { $in: ids }, firmId, convertedToClient: false }
-            : { _id: { $in: ids }, lawyerId, convertedToClient: false };
+        // Build access query based on user type - only delete non-converted leads
+        const accessQuery = { _id: { $in: ids }, convertedToClient: false };
+        if (isSoloLawyer || !firmId) {
+            accessQuery.lawyerId = lawyerId;
+        } else {
+            accessQuery.firmId = firmId;
+        }
 
         const result = await Lead.deleteMany(accessQuery);
 
@@ -460,11 +482,15 @@ exports.updateStatus = async (req, res) => {
         const { status, notes, lostReason } = req.body;
         const lawyerId = req.userID;
         const firmId = req.firmId; // From firmFilter middleware
+        const isSoloLawyer = req.isSoloLawyer;
 
-        // Build query - firmId first, then lawyerId fallback
-        const accessQuery = firmId
-            ? { $or: [{ _id: id }, { leadId: id }], firmId }
-            : { $or: [{ _id: id }, { leadId: id }], lawyerId };
+        // Build query based on user type
+        const accessQuery = { $or: [{ _id: id }, { leadId: id }] };
+        if (isSoloLawyer || !firmId) {
+            accessQuery.lawyerId = lawyerId;
+        } else {
+            accessQuery.firmId = firmId;
+        }
 
         const lead = await Lead.findOne(accessQuery);
 
@@ -512,11 +538,15 @@ exports.moveToStage = async (req, res) => {
         const { stageId, notes } = req.body;
         const lawyerId = req.userID;
         const firmId = req.firmId; // From firmFilter middleware
+        const isSoloLawyer = req.isSoloLawyer;
 
-        // Build query - firmId first, then lawyerId fallback
-        const accessQuery = firmId
-            ? { $or: [{ _id: id }, { leadId: id }], firmId }
-            : { $or: [{ _id: id }, { leadId: id }], lawyerId };
+        // Build query based on user type
+        const accessQuery = { $or: [{ _id: id }, { leadId: id }] };
+        if (isSoloLawyer || !firmId) {
+            accessQuery.lawyerId = lawyerId;
+        } else {
+            accessQuery.firmId = firmId;
+        }
 
         const lead = await Lead.findOne(accessQuery);
 
@@ -640,12 +670,16 @@ exports.convertToClient = async (req, res) => {
         const { id } = req.params;
         const lawyerId = req.userID;
         const firmId = req.firmId; // From firmFilter middleware
+        const isSoloLawyer = req.isSoloLawyer;
         const { createCase, caseTitle } = req.body;
 
-        // Build query - firmId first, then lawyerId fallback
-        const accessQuery = firmId
-            ? { $or: [{ _id: id }, { leadId: id }], firmId, convertedToClient: false }
-            : { $or: [{ _id: id }, { leadId: id }], lawyerId, convertedToClient: false };
+        // Build query based on user type
+        const accessQuery = { $or: [{ _id: id }, { leadId: id }], convertedToClient: false };
+        if (isSoloLawyer || !firmId) {
+            accessQuery.lawyerId = lawyerId;
+        } else {
+            accessQuery.firmId = firmId;
+        }
 
         const lead = await Lead.findOne(accessQuery);
 
@@ -710,14 +744,18 @@ exports.previewConversion = async (req, res) => {
         const { id } = req.params;
         const lawyerId = req.userID;
         const firmId = req.firmId; // From firmFilter middleware
+        const isSoloLawyer = req.isSoloLawyer;
 
         // ═══════════════════════════════════════════════════════════════
         // IDOR PROTECTION - Verify lead belongs to user's firm
         // ═══════════════════════════════════════════════════════════════
-        // Build query - firmId first, then lawyerId fallback
-        const accessQuery = firmId
-            ? { $or: [{ _id: id }, { leadId: id }], firmId, convertedToClient: false }
-            : { $or: [{ _id: id }, { leadId: id }], lawyerId, convertedToClient: false };
+        // Build query based on user type
+        const accessQuery = { $or: [{ _id: id }, { leadId: id }], convertedToClient: false };
+        if (isSoloLawyer || !firmId) {
+            accessQuery.lawyerId = lawyerId;
+        } else {
+            accessQuery.firmId = firmId;
+        }
 
         const lead = await Lead.findOne(accessQuery).lean();
 
@@ -792,6 +830,7 @@ exports.getStats = async (req, res) => {
 
         const lawyerId = req.userID;
         const firmId = req.firmId; // From firmFilter middleware
+        const isSoloLawyer = req.isSoloLawyer;
         const { startDate, endDate } = req.query;
 
         const stats = await Lead.getPipelineStats(lawyerId, { start: startDate, end: endDate, firmId });
@@ -799,8 +838,13 @@ exports.getStats = async (req, res) => {
         // Get leads needing follow-up
         const needsFollowUp = await Lead.getNeedingFollowUp(lawyerId, 10, firmId);
 
-        // Build query - firmId first, then lawyerId fallback
-        const baseQuery = firmId ? { firmId } : { lawyerId };
+        // Build query based on user type
+        const baseQuery = {};
+        if (isSoloLawyer || !firmId) {
+            baseQuery.lawyerId = lawyerId;
+        } else {
+            baseQuery.firmId = firmId;
+        }
 
         // Get recent leads
         const recentLeads = await Lead.find(baseQuery)
@@ -930,15 +974,19 @@ exports.logActivity = async (req, res) => {
         const { id } = req.params;
         const lawyerId = req.userID;
         const firmId = req.firmId; // From firmFilter middleware
+        const isSoloLawyer = req.isSoloLawyer;
         const activityData = req.body;
 
         // ═══════════════════════════════════════════════════════════════
         // IDOR PROTECTION - Verify lead belongs to user's firm
         // ═══════════════════════════════════════════════════════════════
-        // Build query - firmId first, then lawyerId fallback
-        const accessQuery = firmId
-            ? { $or: [{ _id: id }, { leadId: id }], firmId }
-            : { $or: [{ _id: id }, { leadId: id }], lawyerId };
+        // Build query based on user type
+        const accessQuery = { $or: [{ _id: id }, { leadId: id }] };
+        if (isSoloLawyer || !firmId) {
+            accessQuery.lawyerId = lawyerId;
+        } else {
+            accessQuery.firmId = firmId;
+        }
 
         const lead = await Lead.findOne(accessQuery);
 
@@ -996,15 +1044,19 @@ exports.getActivities = async (req, res) => {
         const { id } = req.params;
         const lawyerId = req.userID;
         const firmId = req.firmId; // From firmFilter middleware
+        const isSoloLawyer = req.isSoloLawyer;
         const { type, page = 1, limit = 20 } = req.query;
 
         // ═══════════════════════════════════════════════════════════════
         // IDOR PROTECTION - Verify lead belongs to user's firm
         // ═══════════════════════════════════════════════════════════════
-        // Build query - firmId first, then lawyerId fallback
-        const accessQuery = firmId
-            ? { $or: [{ _id: id }, { leadId: id }], firmId }
-            : { $or: [{ _id: id }, { leadId: id }], lawyerId };
+        // Build query based on user type
+        const accessQuery = { $or: [{ _id: id }, { leadId: id }] };
+        if (isSoloLawyer || !firmId) {
+            accessQuery.lawyerId = lawyerId;
+        } else {
+            accessQuery.firmId = firmId;
+        }
 
         const lead = await Lead.findOne(accessQuery);
 
@@ -1050,14 +1102,18 @@ exports.scheduleFollowUp = async (req, res) => {
         const { date, note } = req.body;
         const lawyerId = req.userID;
         const firmId = req.firmId; // From firmFilter middleware
+        const isSoloLawyer = req.isSoloLawyer;
 
         // ═══════════════════════════════════════════════════════════════
         // IDOR PROTECTION - Verify lead belongs to user's firm
         // ═══════════════════════════════════════════════════════════════
-        // Build query - firmId first, then lawyerId fallback
-        const accessQuery = firmId
-            ? { $or: [{ _id: id }, { leadId: id }], firmId }
-            : { $or: [{ _id: id }, { leadId: id }], lawyerId };
+        // Build query based on user type
+        const accessQuery = { $or: [{ _id: id }, { leadId: id }] };
+        if (isSoloLawyer || !firmId) {
+            accessQuery.lawyerId = lawyerId;
+        } else {
+            accessQuery.firmId = firmId;
+        }
 
         const lead = await Lead.findOne(accessQuery);
 
@@ -1119,11 +1175,16 @@ exports.getCrmOverview = async (req, res) => {
     try {
         const lawyerId = req.userID;
         const firmId = req.firmId;
+        const isSoloLawyer = req.isSoloLawyer;
         const mongoose = require('mongoose');
 
-        const matchFilter = firmId
-            ? { firmId: new mongoose.Types.ObjectId(firmId) }
-            : { lawyerId: new mongoose.Types.ObjectId(lawyerId) };
+        // Build match filter based on user type
+        const matchFilter = {};
+        if (isSoloLawyer || !firmId) {
+            matchFilter.lawyerId = new mongoose.Types.ObjectId(lawyerId);
+        } else {
+            matchFilter.firmId = new mongoose.Types.ObjectId(firmId);
+        }
 
         // Get date ranges
         const now = new Date();
