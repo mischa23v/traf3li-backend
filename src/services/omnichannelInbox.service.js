@@ -15,7 +15,7 @@
  */
 
 const mongoose = require('mongoose');
-const OmnichannelOmnichannelConversation = require('../models/omnichannelOmnichannelConversation.model');
+const OmnichannelConversation = require('../models/omnichannelConversation.model');
 const AuditLogService = require('./auditLog.service');
 const { getIO } = require('../configs/socket');
 const logger = require('../utils/logger');
