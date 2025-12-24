@@ -1229,7 +1229,12 @@ successionPlanSchema.pre('save', async function(next) {
     // Auto-generate successionPlanId
     if (!this.successionPlanId) {
         const year = new Date().getFullYear();
-        const query = this.firmId ? { firmId: this.firmId } : { lawyerId: this.lawyerId };
+        const query = {};
+        if (this.firmId) {
+            query.firmId = this.firmId;
+        } else if (this.lawyerId) {
+            query.lawyerId = this.lawyerId;
+        }
         const count = await this.constructor.countDocuments({
             ...query,
             successionPlanId: new RegExp(`^SUC-${year}-`)
@@ -1239,7 +1244,12 @@ successionPlanSchema.pre('save', async function(next) {
 
     // Auto-generate planNumber if not provided
     if (!this.planNumber) {
-        const query = this.firmId ? { firmId: this.firmId } : { lawyerId: this.lawyerId };
+        const query = {};
+        if (this.firmId) {
+            query.firmId = this.firmId;
+        } else if (this.lawyerId) {
+            query.lawyerId = this.lawyerId;
+        }
         const count = await this.constructor.countDocuments(query);
         this.planNumber = `SP-${String(count + 1).padStart(5, '0')}`;
     }
@@ -1294,7 +1304,12 @@ successionPlanSchema.pre('save', async function(next) {
 
 // Get plans needing review
 successionPlanSchema.statics.getPlansNeedingReview = async function(firmId, lawyerId) {
-    const query = firmId ? { firmId } : { lawyerId };
+    const query = {};
+    if (firmId) {
+        query.firmId = firmId;
+    } else if (lawyerId) {
+        query.lawyerId = lawyerId;
+    }
     return this.find({
         ...query,
         'planDetails.nextReviewDate': { $lte: new Date() },
@@ -1304,7 +1319,12 @@ successionPlanSchema.statics.getPlansNeedingReview = async function(firmId, lawy
 
 // Get high risk plans
 successionPlanSchema.statics.getHighRiskPlans = async function(firmId, lawyerId) {
-    const query = firmId ? { firmId } : { lawyerId };
+    const query = {};
+    if (firmId) {
+        query.firmId = firmId;
+    } else if (lawyerId) {
+        query.lawyerId = lawyerId;
+    }
     return this.find({
         ...query,
         $or: [
@@ -1317,7 +1337,12 @@ successionPlanSchema.statics.getHighRiskPlans = async function(firmId, lawyerId)
 
 // Get critical positions without successors
 successionPlanSchema.statics.getCriticalWithoutSuccessors = async function(firmId, lawyerId) {
-    const query = firmId ? { firmId } : { lawyerId };
+    const query = {};
+    if (firmId) {
+        query.firmId = firmId;
+    } else if (lawyerId) {
+        query.lawyerId = lawyerId;
+    }
     return this.find({
         ...query,
         'criticalPosition.criticalityAssessment.criticalityLevel': { $in: ['critical', 'important'] },

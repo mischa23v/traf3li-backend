@@ -313,8 +313,16 @@ employeeSchema.pre('save', async function(next) {
 // ═══════════════════════════════════════════════════════════════
 
 // Get employees for firm or solo lawyer
-employeeSchema.statics.getEmployees = function(firmId, lawyerId, filters = {}) {
-    const query = firmId ? { firmId } : { lawyerId };
+employeeSchema.statics.getEmployees = function(firmId, lawyerId, filters = {}, options = {}) {
+    const query = {};
+
+    // Models receive context as parameter, so check for isSoloLawyer in the context/options
+    if (options.isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
+
     return this.find({ ...query, ...filters })
         .populate('employment.reportsTo', 'personalInfo.fullNameArabic personalInfo.fullNameEnglish')
         .populate('organization.supervisorId', 'personalInfo.fullNameArabic personalInfo.fullNameEnglish')
@@ -322,8 +330,15 @@ employeeSchema.statics.getEmployees = function(firmId, lawyerId, filters = {}) {
 };
 
 // Get employee stats
-employeeSchema.statics.getStats = async function(firmId, lawyerId) {
-    const query = firmId ? { firmId } : { lawyerId };
+employeeSchema.statics.getStats = async function(firmId, lawyerId, options = {}) {
+    const query = {};
+
+    // Models receive context as parameter, so check for isSoloLawyer in the context/options
+    if (options.isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
 
     const [stats] = await this.aggregate([
         { $match: query },

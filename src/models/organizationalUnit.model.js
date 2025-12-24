@@ -955,7 +955,12 @@ organizationalUnitSchema.pre('save', async function(next) {
     // Auto-generate unitId
     if (!this.unitId) {
         const year = new Date().getFullYear();
-        const query = this.firmId ? { firmId: this.firmId } : { lawyerId: this.lawyerId };
+        const query = {};
+        if (this.firmId) {
+            query.firmId = this.firmId;
+        } else if (this.lawyerId) {
+            query.lawyerId = this.lawyerId;
+        }
         const count = await this.constructor.countDocuments({
             ...query,
             unitId: new RegExp(`^OU-${year}-`)
@@ -1051,7 +1056,12 @@ organizationalUnitSchema.post('save', async function(doc) {
 // Generate unit code
 organizationalUnitSchema.statics.generateUnitCode = async function(firmId, lawyerId, unitType) {
     const prefix = unitType.substring(0, 3).toUpperCase();
-    const query = firmId ? { firmId } : { lawyerId };
+    const query = {};
+    if (firmId) {
+        query.firmId = firmId;
+    } else if (lawyerId) {
+        query.lawyerId = lawyerId;
+    }
     const count = await this.countDocuments({
         ...query,
         unitType
@@ -1061,7 +1071,12 @@ organizationalUnitSchema.statics.generateUnitCode = async function(firmId, lawye
 
 // Build hierarchy tree
 organizationalUnitSchema.statics.buildTree = async function(firmId, lawyerId, parentId = null) {
-    const query = firmId ? { firmId, parentUnitId: parentId } : { lawyerId, parentUnitId: parentId };
+    const query = { parentUnitId: parentId };
+    if (firmId) {
+        query.firmId = firmId;
+    } else if (lawyerId) {
+        query.lawyerId = lawyerId;
+    }
 
     const units = await this.find(query).sort({ level: 1, 'chartPosition.displayOrder': 1 });
 

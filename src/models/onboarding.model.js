@@ -1281,7 +1281,12 @@ onboardingSchema.methods.calculateCompletionPercentage = function() {
 
 // Get onboardings for firm or solo lawyer
 onboardingSchema.statics.getOnboardings = function(firmId, lawyerId, filters = {}) {
-    const query = firmId ? { firmId } : { lawyerId };
+    const query = {};
+    if (firmId) {
+        query.firmId = firmId;
+    } else if (lawyerId) {
+        query.lawyerId = lawyerId;
+    }
     return this.find({ ...query, ...filters })
         .populate('employeeId', 'employeeId personalInfo.fullNameArabic personalInfo.fullNameEnglish')
         .populate('managerId', 'firstName lastName email')
@@ -1291,7 +1296,12 @@ onboardingSchema.statics.getOnboardings = function(firmId, lawyerId, filters = {
 
 // Get stats
 onboardingSchema.statics.getStats = async function(firmId, lawyerId) {
-    const query = firmId ? { firmId } : { lawyerId };
+    const query = {};
+    if (firmId) {
+        query.firmId = firmId;
+    } else if (lawyerId) {
+        query.lawyerId = lawyerId;
+    }
 
     const [stats] = await this.aggregate([
         { $match: query },
@@ -1390,7 +1400,12 @@ onboardingSchema.statics.getStats = async function(firmId, lawyerId) {
 
 // Get upcoming reviews
 onboardingSchema.statics.getUpcomingReviews = async function(firmId, lawyerId, days = 30) {
-    const query = firmId ? { firmId } : { lawyerId };
+    const query = {};
+    if (firmId) {
+        query.firmId = firmId;
+    } else if (lawyerId) {
+        query.lawyerId = lawyerId;
+    }
     const futureDate = new Date();
     futureDate.setDate(futureDate.getDate() + days);
 

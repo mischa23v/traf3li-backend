@@ -1232,7 +1232,12 @@ jobPositionSchema.pre('save', async function(next) {
     // Auto-generate positionId
     if (!this.positionId) {
         const year = new Date().getFullYear();
-        const query = this.firmId ? { firmId: this.firmId } : { lawyerId: this.lawyerId };
+        const query = {};
+        if (this.firmId) {
+            query.firmId = this.firmId;
+        } else if (this.lawyerId) {
+            query.lawyerId = this.lawyerId;
+        }
         const count = await this.constructor.countDocuments({
             ...query,
             positionId: new RegExp(`^POS-${year}-`)
@@ -1242,7 +1247,12 @@ jobPositionSchema.pre('save', async function(next) {
 
     // Auto-generate positionNumber if not provided
     if (!this.positionNumber) {
-        const query = this.firmId ? { firmId: this.firmId } : { lawyerId: this.lawyerId };
+        const query = {};
+        if (this.firmId) {
+            query.firmId = this.firmId;
+        } else if (this.lawyerId) {
+            query.lawyerId = this.lawyerId;
+        }
         const lastPosition = await this.constructor.findOne(query)
             .sort({ positionNumber: -1 })
             .select('positionNumber');
@@ -1291,7 +1301,12 @@ jobPositionSchema.pre('save', async function(next) {
 
 // Generate position number
 jobPositionSchema.statics.generatePositionNumber = async function(firmId, lawyerId) {
-    const query = firmId ? { firmId } : { lawyerId };
+    const query = {};
+    if (firmId) {
+        query.firmId = firmId;
+    } else if (lawyerId) {
+        query.lawyerId = lawyerId;
+    }
     const lastPosition = await this.findOne(query)
         .sort({ positionNumber: -1 })
         .select('positionNumber');
@@ -1331,7 +1346,12 @@ jobPositionSchema.statics.getReportingChain = async function(positionId) {
 
 // Get all direct and indirect reports
 jobPositionSchema.statics.getAllReports = async function(positionId, firmId, lawyerId) {
-    const query = firmId ? { firmId } : { lawyerId };
+    const query = {};
+    if (firmId) {
+        query.firmId = firmId;
+    } else if (lawyerId) {
+        query.lawyerId = lawyerId;
+    }
     const allReports = [];
 
     const getReports = async (parentId, level = 1) => {
@@ -1356,7 +1376,12 @@ jobPositionSchema.statics.getAllReports = async function(positionId, firmId, law
 
 // Build org chart tree from a position
 jobPositionSchema.statics.buildOrgChart = async function(firmId, lawyerId, rootPositionId = null) {
-    const query = firmId ? { firmId } : { lawyerId };
+    const query = {};
+    if (firmId) {
+        query.firmId = firmId;
+    } else if (lawyerId) {
+        query.lawyerId = lawyerId;
+    }
 
     const buildTree = async (parentId) => {
         const positions = await this.find({

@@ -16,7 +16,7 @@ class HRPredictionsService {
      * Predicts likelihood of employee leaving based on multiple factors
      */
     static async getAttritionRiskScores(firmId, lawyerId, filters = {}) {
-        const baseQuery = firmId ? { firmId } : { lawyerId };
+        const baseQuery = filters?.isSoloLawyer ? { lawyerId } : { firmId };
 
         const employees = await Employee.find({
             ...baseQuery,
@@ -25,7 +25,7 @@ class HRPredictionsService {
         }).lean();
 
         const attritionScores = await Promise.all(
-            employees.map(employee => this._calculateAttritionRisk(employee, firmId, lawyerId))
+            employees.map(employee => this._calculateAttritionRisk(employee, firmId, lawyerId, filters))
         );
 
         // Sort by risk score (highest first)
@@ -66,20 +66,20 @@ class HRPredictionsService {
     /**
      * Get individual employee attrition risk
      */
-    static async getEmployeeAttritionRisk(firmId, lawyerId, employeeId) {
+    static async getEmployeeAttritionRisk(firmId, lawyerId, employeeId, options = {}) {
         const employee = await Employee.findOne({
             _id: employeeId,
-            ...(firmId ? { firmId } : { lawyerId })
+            ...(options?.isSoloLawyer ? { lawyerId } : { firmId })
         }).lean();
 
         if (!employee) {
             throw new Error('Employee not found');
         }
 
-        const riskAnalysis = await this._calculateAttritionRisk(employee, firmId, lawyerId);
+        const riskAnalysis = await this._calculateAttritionRisk(employee, firmId, lawyerId, options);
 
         // Get similar employees who left
-        const similarDepartures = await this._findSimilarDepartures(employee, firmId, lawyerId);
+        const similarDepartures = await this._findSimilarDepartures(employee, firmId, lawyerId, options);
 
         // Suggested interventions
         const interventions = this._suggestRetentionInterventions(riskAnalysis);
@@ -102,7 +102,7 @@ class HRPredictionsService {
     /**
      * Calculate attrition risk for an employee
      */
-    static async _calculateAttritionRisk(employee, firmId, lawyerId) {
+    static async _calculateAttritionRisk(employee, firmId, lawyerId, options = {}) {
         const factors = [];
         let totalScore = 0;
         const weights = {
@@ -191,7 +191,7 @@ class HRPredictionsService {
         // 3. Salary Factor (below market = higher risk)
         const salary = employee.compensation?.basicSalary || 0;
         const allEmployees = await Employee.find({
-            ...(firmId ? { firmId } : { lawyerId }),
+            ...(options?.isSoloLawyer ? { lawyerId } : { firmId }),
             'employment.employmentStatus': 'active',
             'employment.jobTitle': employee.employment?.jobTitle
         }).lean();
@@ -516,9 +516,9 @@ class HRPredictionsService {
     /**
      * Find similar employees who left
      */
-    static async _findSimilarDepartures(employee, firmId, lawyerId) {
+    static async _findSimilarDepartures(employee, firmId, lawyerId, options = {}) {
         const departures = await Employee.find({
-            ...(firmId ? { firmId } : { lawyerId }),
+            ...(options?.isSoloLawyer ? { lawyerId } : { firmId }),
             'employment.employmentStatus': { $in: ['terminated', 'resigned'] },
             'employment.jobTitle': employee.employment?.jobTitle,
             'employment.terminationDate': { $gte: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000) }
@@ -567,8 +567,8 @@ class HRPredictionsService {
      * 2. WORKFORCE FORECASTING
      * Predict headcount, attrition, and hiring needs
      */
-    static async getWorkforceForecast(firmId, lawyerId, months = 12) {
-        const baseQuery = firmId ? { firmId } : { lawyerId };
+    static async getWorkforceForecast(firmId, lawyerId, months = 12, options = {}) {
+        const baseQuery = options?.isSoloLawyer ? { lawyerId } : { firmId };
 
         // Get current headcount
         const currentHeadcount = await Employee.countDocuments({
@@ -591,7 +591,7 @@ class HRPredictionsService {
         const monthlyTurnoverRate = annualTurnoverRate / 12;
 
         // Get attrition risk scores
-        const attritionData = await this.getAttritionRiskScores(firmId, lawyerId);
+        const attritionData = await this.getAttritionRiskScores(firmId, lawyerId, options);
         const highRiskCount = attritionData.highRiskEmployees.length;
 
         // Forecast by month
@@ -673,8 +673,8 @@ class HRPredictionsService {
      * 3. PERFORMANCE PREDICTIONS
      * Identify high-potential employees and predict performance trajectory
      */
-    static async getHighPotentialEmployees(firmId, lawyerId, limit = 20) {
-        const baseQuery = firmId ? { firmId } : { lawyerId };
+    static async getHighPotentialEmployees(firmId, lawyerId, limit = 20, options = {}) {
+        const baseQuery = options?.isSoloLawyer ? { lawyerId } : { firmId };
 
         const employees = await Employee.find({
             ...baseQuery,
@@ -682,7 +682,7 @@ class HRPredictionsService {
         }).lean();
 
         const predictions = await Promise.all(
-            employees.map(employee => this._predictPerformanceTrajectory(employee, firmId, lawyerId))
+            employees.map(employee => this._predictPerformanceTrajectory(employee, firmId, lawyerId, options))
         );
 
         // Filter and sort high-potential employees
@@ -728,7 +728,7 @@ class HRPredictionsService {
     /**
      * Predict performance trajectory for an employee
      */
-    static async _predictPerformanceTrajectory(employee, firmId, lawyerId) {
+    static async _predictPerformanceTrajectory(employee, firmId, lawyerId, options = {}) {
         let potentialScore = 50; // Base score
         const indicators = [];
 
@@ -859,8 +859,8 @@ class HRPredictionsService {
      * 4. ABSENCE PREDICTIONS
      * Predict likely absence days and identify at-risk employees
      */
-    static async getAbsencePredictions(firmId, lawyerId) {
-        const baseQuery = firmId ? { firmId } : { lawyerId };
+    static async getAbsencePredictions(firmId, lawyerId, options = {}) {
+        const baseQuery = options?.isSoloLawyer ? { lawyerId } : { firmId };
 
         const employees = await Employee.find({
             ...baseQuery,
@@ -868,7 +868,7 @@ class HRPredictionsService {
         }).lean();
 
         const predictions = await Promise.all(
-            employees.map(employee => this._predictAbsenceLikelihood(employee, firmId, lawyerId))
+            employees.map(employee => this._predictAbsenceLikelihood(employee, firmId, lawyerId, options))
         );
 
         // Sort by risk
@@ -905,7 +905,7 @@ class HRPredictionsService {
     /**
      * Predict absence likelihood for an employee
      */
-    static async _predictAbsenceLikelihood(employee, firmId, lawyerId) {
+    static async _predictAbsenceLikelihood(employee, firmId, lawyerId, options = {}) {
         // Get historical absence data
         const last90Days = new Date();
         last90Days.setDate(last90Days.getDate() - 90);
@@ -973,8 +973,8 @@ class HRPredictionsService {
      * 5. ENGAGEMENT PREDICTIONS
      * Predict engagement trends and flight risk
      */
-    static async getEngagementPredictions(firmId, lawyerId) {
-        const baseQuery = firmId ? { firmId } : { lawyerId };
+    static async getEngagementPredictions(firmId, lawyerId, options = {}) {
+        const baseQuery = options?.isSoloLawyer ? { lawyerId } : { firmId };
 
         const employees = await Employee.find({
             ...baseQuery,
@@ -982,7 +982,7 @@ class HRPredictionsService {
         }).lean();
 
         const predictions = await Promise.all(
-            employees.map(employee => this._predictEngagementScore(employee, firmId, lawyerId))
+            employees.map(employee => this._predictEngagementScore(employee, firmId, lawyerId, options))
         );
 
         // Calculate trends
@@ -1029,7 +1029,7 @@ class HRPredictionsService {
     /**
      * Predict engagement score for an employee
      */
-    static async _predictEngagementScore(employee, firmId, lawyerId) {
+    static async _predictEngagementScore(employee, firmId, lawyerId, options = {}) {
         let engagementScore = 50; // Base score
         const indicators = [];
 

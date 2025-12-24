@@ -867,9 +867,17 @@ employeeBenefitSchema.pre('save', async function(next) {
 // ═══════════════════════════════════════════════════════════════
 
 // Generate enrollment number
-employeeBenefitSchema.statics.generateEnrollmentNumber = async function(firmId, lawyerId) {
+employeeBenefitSchema.statics.generateEnrollmentNumber = async function(firmId, lawyerId, options = {}) {
     const year = new Date().getFullYear();
-    const query = firmId ? { firmId } : { lawyerId };
+    const query = {};
+
+    // Models receive context as parameter, so check for isSoloLawyer in the context/options
+    if (options.isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
+
     const count = await this.countDocuments({
         ...query,
         benefitEnrollmentId: new RegExp(`^BEN-${year}-`)
@@ -899,8 +907,16 @@ employeeBenefitSchema.statics.getActiveBenefits = function(employeeId) {
 };
 
 // Get benefits expiring soon
-employeeBenefitSchema.statics.getExpiringBenefits = function(firmId, lawyerId, daysAhead = 30) {
-    const query = firmId ? { firmId } : { lawyerId };
+employeeBenefitSchema.statics.getExpiringBenefits = function(firmId, lawyerId, daysAhead = 30, options = {}) {
+    const query = {};
+
+    // Models receive context as parameter, so check for isSoloLawyer in the context/options
+    if (options.isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
+
     const futureDate = new Date();
     futureDate.setDate(futureDate.getDate() + daysAhead);
 
@@ -915,8 +931,16 @@ employeeBenefitSchema.statics.getExpiringBenefits = function(firmId, lawyerId, d
 };
 
 // Get total benefit costs by type
-employeeBenefitSchema.statics.getCostsByType = function(firmId, lawyerId) {
-    const match = firmId ? { firmId: new mongoose.Types.ObjectId(firmId) } : { lawyerId: new mongoose.Types.ObjectId(lawyerId) };
+employeeBenefitSchema.statics.getCostsByType = function(firmId, lawyerId, options = {}) {
+    const match = {};
+
+    // Models receive context as parameter, so check for isSoloLawyer in the context/options
+    if (options.isSoloLawyer || !firmId) {
+        match.lawyerId = new mongoose.Types.ObjectId(lawyerId);
+    } else {
+        match.firmId = new mongoose.Types.ObjectId(firmId);
+    }
+
     match.status = 'active';
 
     return this.aggregate([

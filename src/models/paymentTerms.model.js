@@ -266,7 +266,12 @@ paymentTermsSchema.methods.calculateLateFee = function(invoiceDate, dueDate, amo
  * Set as default (and unset others)
  */
 paymentTermsSchema.methods.setAsDefault = async function(userId) {
-    const query = this.firmId ? { firmId: this.firmId } : { lawyerId: this.lawyerId };
+    const query = {};
+    if (this.firmId) {
+        query.firmId = this.firmId;
+    } else if (this.lawyerId) {
+        query.lawyerId = this.lawyerId;
+    }
 
     // Unset other defaults
     await mongoose.model('PaymentTerms').updateMany(
@@ -284,7 +289,12 @@ paymentTermsSchema.methods.setAsDefault = async function(userId) {
  * Static: Initialize default payment terms
  */
 paymentTermsSchema.statics.initializeDefaults = async function(firmId, lawyerId, userId) {
-    const query = firmId ? { firmId } : { lawyerId };
+    const query = {};
+    if (firmId) {
+        query.firmId = firmId;
+    } else if (lawyerId) {
+        query.lawyerId = lawyerId;
+    }
 
     const defaults = [
         {
@@ -389,7 +399,12 @@ paymentTermsSchema.statics.initializeDefaults = async function(firmId, lawyerId,
  * Static: Get default term
  */
 paymentTermsSchema.statics.getDefault = async function(firmId, lawyerId) {
-    const query = firmId ? { firmId } : { lawyerId };
+    const query = {};
+    if (firmId) {
+        query.firmId = firmId;
+    } else if (lawyerId) {
+        query.lawyerId = lawyerId;
+    }
     return this.findOne({ ...query, isDefault: true, isActive: true });
 };
 

@@ -321,7 +321,12 @@ expensePolicySchema.methods.isApplicableToUser = async function(userId, userRole
  * Set as default policy
  */
 expensePolicySchema.methods.setAsDefault = async function(userId) {
-    const query = this.firmId ? { firmId: this.firmId } : { lawyerId: this.lawyerId };
+    const query = {};
+    if (this.firmId) {
+        query.firmId = this.firmId;
+    } else if (this.lawyerId) {
+        query.lawyerId = this.lawyerId;
+    }
 
     await mongoose.model('ExpensePolicy').updateMany(
         { ...query, _id: { $ne: this._id } },
@@ -338,7 +343,12 @@ expensePolicySchema.methods.setAsDefault = async function(userId) {
  * Static: Get applicable policy for user
  */
 expensePolicySchema.statics.getApplicablePolicy = async function(firmId, lawyerId, userId, userRole, userDepartment) {
-    const query = firmId ? { firmId } : { lawyerId };
+    const query = {};
+    if (firmId) {
+        query.firmId = firmId;
+    } else if (lawyerId) {
+        query.lawyerId = lawyerId;
+    }
 
     // Try to find specific policy for user
     const userPolicy = await this.findOne({
@@ -383,7 +393,12 @@ expensePolicySchema.statics.getApplicablePolicy = async function(firmId, lawyerI
  * Static: Create default policy
  */
 expensePolicySchema.statics.createDefaultPolicy = async function(firmId, lawyerId, userId) {
-    const query = firmId ? { firmId } : { lawyerId };
+    const query = {};
+    if (firmId) {
+        query.firmId = firmId;
+    } else if (lawyerId) {
+        query.lawyerId = lawyerId;
+    }
 
     return this.create({
         ...query,

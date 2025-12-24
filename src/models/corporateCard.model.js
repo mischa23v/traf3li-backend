@@ -421,7 +421,12 @@ corporateCardSchema.methods.updateMonthlyStats = function() {
  * Static: Get summary for firm
  */
 corporateCardSchema.statics.getSummary = async function(firmId, lawyerId) {
-    const query = firmId ? { firmId } : { lawyerId };
+    const query = {};
+    if (firmId) {
+        query.firmId = firmId;
+    } else if (lawyerId) {
+        query.lawyerId = lawyerId;
+    }
 
     const cards = await this.find({ ...query, status: { $in: ['active', 'blocked'] } });
 
@@ -440,7 +445,12 @@ corporateCardSchema.statics.getSummary = async function(firmId, lawyerId) {
  * Static: Get spending by category
  */
 corporateCardSchema.statics.getSpendingByCategory = async function(firmId, lawyerId, startDate, endDate) {
-    const query = firmId ? { firmId } : { lawyerId };
+    const query = {};
+    if (firmId) {
+        query.firmId = firmId;
+    } else if (lawyerId) {
+        query.lawyerId = lawyerId;
+    }
 
     const result = await this.aggregate([
         { $match: { ...query, status: { $in: ['active', 'blocked'] } } },

@@ -363,8 +363,16 @@ salarySlipSchema.pre('save', async function (next) {
 // ═══════════════════════════════════════════════════════════════
 
 // Get stats for a period
-salarySlipSchema.statics.getStats = async function (firmId, lawyerId, month, year) {
-    const baseQuery = firmId ? { firmId } : { lawyerId };
+salarySlipSchema.statics.getStats = async function (firmId, lawyerId, month, year, options = {}) {
+    const baseQuery = {};
+
+    // Models receive context as parameter, so check for isSoloLawyer in the context/options
+    if (options.isSoloLawyer || !firmId) {
+        baseQuery.lawyerId = lawyerId;
+    } else {
+        baseQuery.firmId = firmId;
+    }
+
     const query = { ...baseQuery };
 
     if (month) query['payPeriod.month'] = parseInt(month);

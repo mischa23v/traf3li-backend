@@ -170,7 +170,12 @@ financeSetupSchema.index({ lawyerId: 1 }, { unique: true, sparse: true });
  * Get or create finance setup for firm/lawyer
  */
 financeSetupSchema.statics.getOrCreate = async function(firmId, lawyerId, userId) {
-    const query = firmId ? { firmId } : { lawyerId };
+    const query = {};
+    if (firmId) {
+        query.firmId = firmId;
+    } else if (lawyerId) {
+        query.lawyerId = lawyerId;
+    }
 
     let setup = await this.findOne(query);
     if (!setup) {
