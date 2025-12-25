@@ -313,6 +313,38 @@ const IncidentExecution = require('./incidentExecution.model');
 const Plugin = require('./plugin.model');
 const PluginInstallation = require('./pluginInstallation.model');
 
+// Dunning Models
+const DunningPolicy = require('./dunningPolicy.model');
+const DunningHistory = require('./dunningHistory.model');
+
+// Policy Violation Model
+const PolicyViolation = require('./policyViolation.model');
+
+// Walkthrough Model
+const Walkthrough = require('./walkthrough.model');
+
+// Keyboard Shortcut Model
+const KeyboardShortcut = require('./keyboardShortcut.model');
+
+// Saved Filter Model
+const SavedFilter = require('./savedFilter.model');
+
+// Field History Model
+const FieldHistory = require('./fieldHistory.model');
+
+// Workflow Instance Model
+const WorkflowInstance = require('./workflowInstance.model');
+
+// Custom Field Models
+const CustomField = require('./customField.model');
+const CustomFieldValue = require('./customFieldValue.model');
+
+// AI Interaction Model
+const AIInteraction = require('./aiInteraction.model');
+
+// Google Calendar Integration Model
+const GoogleCalendarIntegration = require('./googleCalendarIntegration.model');
+
 module.exports = {
     // Marketplace
     User,
@@ -631,5 +663,37 @@ module.exports = {
 
     // Plugin System
     Plugin,
-    PluginInstallation
+    PluginInstallation,
+
+    // Dunning
+    DunningPolicy,
+    DunningHistory,
+
+    // Policy Violation
+    PolicyViolation,
+
+    // Walkthrough
+    Walkthrough,
+
+    // Keyboard Shortcuts
+    KeyboardShortcut,
+
+    // Saved Filters
+    SavedFilter,
+
+    // Field History
+    FieldHistory,
+
+    // Workflow Instance
+    WorkflowInstance,
+
+    // Custom Fields
+    CustomField,
+    CustomFieldValue,
+
+    // AI Interaction
+    AIInteraction,
+
+    // Google Calendar Integration
+    GoogleCalendarIntegration
 };
