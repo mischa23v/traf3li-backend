@@ -3,36 +3,26 @@
  *
  * Extracts API version from:
  * 1. URL path (/api/v1/, /api/v2/)
- * 2. API-Version header
+ * 2. X-API-Version header
  * 3. Accept header (application/vnd.traf3li.v1+json)
  *
  * Sets req.apiVersion and validates version
  * Adds deprecation warnings for old versions
+ * Supports version negotiation and transformation
  */
 
 const logger = require('../utils/logger');
-
-// Supported API versions
-const SUPPORTED_VERSIONS = ['v1', 'v2'];
-const DEFAULT_VERSION = 'v1';
-const DEPRECATED_VERSIONS = []; // Add versions here when deprecated
-const SUNSET_VERSIONS = []; // Add versions here when sunset date is set
-
-// Deprecation and sunset information
-const VERSION_INFO = {
-    v1: {
-        released: '2024-01-01',
-        deprecationDate: null, // Set when deprecating
-        sunsetDate: null, // Set when planning removal
-        status: 'stable'
-    },
-    v2: {
-        released: '2025-01-01',
-        deprecationDate: null,
-        sunsetDate: null,
-        status: 'beta' // 'beta', 'stable', 'deprecated', 'sunset'
-    }
-};
+const apiVersionService = require('../services/apiVersion.service');
+const {
+    SUPPORTED_VERSIONS,
+    DEFAULT_VERSION,
+    VERSION_HEADERS,
+    getVersionConfig,
+    isVersionSupported,
+    isVersionDeprecated,
+    isVersionSunset,
+    getDeprecationInfo
+} = require('../config/apiVersions');
 
 /**
  * Extract version from URL path
@@ -46,12 +36,12 @@ const extractVersionFromPath = (path) => {
 };
 
 /**
- * Extract version from API-Version header
+ * Extract version from X-API-Version header
  * @param {Object} headers - Request headers
  * @returns {String|null} - Extracted version or null
  */
 const extractVersionFromHeader = (headers) => {
-    const versionHeader = headers['api-version'];
+    const versionHeader = headers['x-api-version'] || headers['api-version'];
     if (!versionHeader) return null;
 
     // Support both "v1" and "1" formats
@@ -78,25 +68,7 @@ const extractVersionFromAccept = (headers) => {
  * @returns {Boolean} - True if valid, false otherwise
  */
 const isValidVersion = (version) => {
-    return SUPPORTED_VERSIONS.includes(version);
-};
-
-/**
- * Check if version is deprecated
- * @param {String} version - Version to check
- * @returns {Boolean} - True if deprecated, false otherwise
- */
-const isDeprecated = (version) => {
-    return DEPRECATED_VERSIONS.includes(version);
-};
-
-/**
- * Check if version is sunset (removed)
- * @param {String} version - Version to check
- * @returns {Boolean} - True if sunset, false otherwise
- */
-const isSunset = (version) => {
-    return SUNSET_VERSIONS.includes(version);
+    return isVersionSupported(version);
 };
 
 /**
@@ -105,22 +77,28 @@ const isSunset = (version) => {
  * @param {String} version - API version
  */
 const addDeprecationHeaders = (res, version) => {
-    const versionInfo = VERSION_INFO[version];
+    const deprecationInfo = getDeprecationInfo(version);
 
-    if (isDeprecated(version) && versionInfo) {
-        res.set('Deprecation', 'true');
+    if (deprecationInfo) {
+        res.set(VERSION_HEADERS.DEPRECATION, 'true');
 
-        if (versionInfo.deprecationDate) {
-            res.set('X-API-Deprecated-Since', versionInfo.deprecationDate);
+        if (deprecationInfo.deprecatedDate) {
+            res.set(VERSION_HEADERS.DEPRECATED_SINCE, deprecationInfo.deprecatedDate);
         }
 
-        if (versionInfo.sunsetDate) {
-            res.set('Sunset', versionInfo.sunsetDate);
-            res.set('X-API-Sunset-Date', versionInfo.sunsetDate);
+        if (deprecationInfo.sunsetDate) {
+            res.set(VERSION_HEADERS.SUNSET, deprecationInfo.sunsetDate);
+            res.set(VERSION_HEADERS.SUNSET_DATE, deprecationInfo.sunsetDate);
         }
 
-        res.set('X-API-Deprecation-Info', 'https://docs.traf3li.com/api/deprecation');
-        res.set('Link', '<https://docs.traf3li.com/api/migration>; rel="alternate"');
+        res.set(VERSION_HEADERS.DEPRECATION_INFO, 'https://docs.traf3li.com/api/deprecation');
+        res.set(VERSION_HEADERS.MIGRATION_GUIDE, `<${deprecationInfo.migrationGuide}>; rel="alternate"`);
+
+        // Add warning header with days until sunset
+        if (deprecationInfo.daysUntilSunset) {
+            const warningMessage = `299 - "API version ${version} is deprecated. Will be removed in ${deprecationInfo.daysUntilSunset} days. Migrate to ${deprecationInfo.recommendedVersion}."`;
+            res.set(VERSION_HEADERS.WARNING, warningMessage);
+        }
     }
 };
 
@@ -130,8 +108,17 @@ const addDeprecationHeaders = (res, version) => {
  * @param {String} version - API version
  */
 const addVersionHeaders = (res, version) => {
-    res.set('X-API-Version', version);
-    res.set('X-API-Status', VERSION_INFO[version]?.status || 'unknown');
+    const versionConfig = getVersionConfig(version);
+
+    res.set(VERSION_HEADERS.CURRENT_VERSION, version);
+    res.set(VERSION_HEADERS.VERSION_STATUS, versionConfig?.status || 'unknown');
+    res.set(VERSION_HEADERS.AVAILABLE_VERSIONS, SUPPORTED_VERSIONS.join(', '));
+    res.set(VERSION_HEADERS.LATEST_VERSION, apiVersionService.getSupportedVersions().slice(-1)[0]);
+
+    // Add documentation link
+    if (versionConfig?.documentation) {
+        res.set('X-API-Documentation', versionConfig.documentation);
+    }
 };
 
 /**
@@ -167,7 +154,9 @@ const apiVersionMiddleware = (req, res, next) => {
         }
 
         // Check if version is sunset
-        if (isSunset(apiVersion)) {
+        if (isVersionSunset(apiVersion)) {
+            const versionConfig = getVersionConfig(apiVersion);
+
             logger.warn('Sunset API version requested', {
                 version: apiVersion,
                 path: req.path,
@@ -176,12 +165,13 @@ const apiVersionMiddleware = (req, res, next) => {
 
             return res.status(410).json({
                 success: false,
-                error: true,
-                message: `API version ${apiVersion} has been sunset and is no longer available`,
-                code: 'API_VERSION_SUNSET',
-                supportedVersions: SUPPORTED_VERSIONS,
-                sunsetDate: VERSION_INFO[apiVersion]?.sunsetDate,
-                migrationGuide: 'https://docs.traf3li.com/api/migration'
+                error: {
+                    code: 'API_VERSION_SUNSET',
+                    message: `API version ${apiVersion} has been sunset and is no longer available`,
+                    supportedVersions: SUPPORTED_VERSIONS,
+                    sunsetDate: versionConfig?.sunsetDate,
+                    migrationGuide: versionConfig?.migrationGuide || 'https://docs.traf3li.com/api/migration'
+                }
             });
         }
 
@@ -193,8 +183,10 @@ const apiVersionMiddleware = (req, res, next) => {
         addVersionHeaders(res, apiVersion);
 
         // Add deprecation headers if applicable
-        if (isDeprecated(apiVersion)) {
+        if (isVersionDeprecated(apiVersion)) {
             addDeprecationHeaders(res, apiVersion);
+
+            const deprecationInfo = getDeprecationInfo(apiVersion);
 
             // Log deprecation warning
             logger.warn('Deprecated API version used', {
@@ -202,8 +194,9 @@ const apiVersionMiddleware = (req, res, next) => {
                 path: req.path,
                 ip: req.ip,
                 userAgent: req.get('user-agent'),
-                deprecationDate: VERSION_INFO[apiVersion]?.deprecationDate,
-                sunsetDate: VERSION_INFO[apiVersion]?.sunsetDate
+                deprecationDate: deprecationInfo?.deprecatedDate,
+                sunsetDate: deprecationInfo?.sunsetDate,
+                daysUntilSunset: deprecationInfo?.daysUntilSunset
             });
         }
 
@@ -251,28 +244,54 @@ const addNonVersionedDeprecationWarning = (req, res, next) => {
 };
 
 /**
+ * Middleware to enforce minimum API version
+ * @param {string} minVersion - Minimum required version
+ * @returns {Function} Express middleware
+ */
+const requireMinVersion = (minVersion) => {
+    return (req, res, next) => {
+        const currentVersion = req.apiVersion || DEFAULT_VERSION;
+
+        if (apiVersionService.compareVersions(currentVersion, minVersion) < 0) {
+            return res.status(426).json({
+                success: false,
+                error: {
+                    code: 'UPGRADE_REQUIRED',
+                    message: `This endpoint requires API version ${minVersion} or higher`,
+                    currentVersion,
+                    requiredVersion: minVersion,
+                    upgradeGuide: 'https://docs.traf3li.com/api/upgrade'
+                }
+            });
+        }
+
+        next();
+    };
+};
+
+/**
  * Get version info for a specific version
  * @param {String} version - Version to get info for
  * @returns {Object} - Version information
  */
-const getVersionInfo = (version) => {
-    return VERSION_INFO[version] || null;
+const getVersionInformation = (version) => {
+    return getVersionConfig(version);
 };
 
 /**
  * Get all supported versions
  * @returns {Array} - Array of supported versions
  */
-const getSupportedVersions = () => {
-    return [...SUPPORTED_VERSIONS];
+const getSupportedVersionsList = () => {
+    return apiVersionService.getSupportedVersions();
 };
 
 module.exports = {
     apiVersionMiddleware,
     addNonVersionedDeprecationWarning,
-    getVersionInfo,
-    getSupportedVersions,
+    requireMinVersion,
+    getVersionInfo: getVersionInformation,
+    getSupportedVersions: getSupportedVersionsList,
     SUPPORTED_VERSIONS,
-    DEFAULT_VERSION,
-    VERSION_INFO
+    DEFAULT_VERSION
 };

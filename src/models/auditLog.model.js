@@ -591,6 +591,171 @@ auditLogSchema.statics.checkBruteForce = async function (identifier, timeWindow 
   return failedAttempts;
 };
 
+// ═══════════════════════════════════════════════════════════════
+// HASH CHAIN & INTEGRITY METHODS
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Calculate hash for a log entry
+ * This creates a tamper-evident hash chain for compliance
+ * @param {Object} logData - Log data to hash
+ * @param {String} previousHash - Hash of previous log entry
+ * @returns {String} - Calculated hash
+ */
+auditLogSchema.statics.calculateHash = function (logData, previousHash = '') {
+  const crypto = require('crypto');
+
+  // Create a deterministic string representation of the log
+  const hashInput = JSON.stringify({
+    timestamp: logData.timestamp,
+    userId: logData.userId,
+    action: logData.action,
+    entityType: logData.entityType || logData.resourceType,
+    entityId: logData.entityId || logData.resourceId,
+    previousHash,
+  });
+
+  return crypto.createHash('sha256').update(hashInput).digest('hex');
+};
+
+/**
+ * Pre-save hook to calculate and store hash chain
+ * This ensures every audit log entry is linked to the previous one
+ */
+auditLogSchema.pre('save', async function (next) {
+  if (this.isNew) {
+    try {
+      // Get the most recent log for this firm to establish chain
+      const previousLog = await this.constructor.findOne({
+        firmId: this.firmId,
+      })
+        .sort({ timestamp: -1 })
+        .select('integrity')
+        .lean();
+
+      const previousHash = previousLog?.integrity?.hash || '';
+
+      // Calculate hash for this log
+      const hash = this.constructor.calculateHash(this, previousHash);
+
+      // Store integrity information
+      this.integrity = {
+        previousHash,
+        hash,
+        algorithm: 'sha256',
+        version: '1.0',
+      };
+    } catch (error) {
+      logger.error('Failed to calculate hash for audit log:', error.message);
+      // Don't fail the save if hash calculation fails
+      // This ensures audit logging is resilient
+    }
+  }
+
+  next();
+});
+
+/**
+ * Verify hash chain integrity for a sequence of logs
+ * @param {Array} logs - Array of audit logs to verify (sorted by timestamp)
+ * @returns {Object} - Verification result
+ */
+auditLogSchema.statics.verifyHashChain = async function (logs) {
+  if (!logs || logs.length === 0) {
+    return {
+      success: true,
+      verified: 0,
+      failed: 0,
+      isIntact: true,
+    };
+  }
+
+  let verified = 0;
+  let failed = 0;
+  const errors = [];
+
+  for (let i = 0; i < logs.length; i++) {
+    const log = logs[i];
+
+    if (!log.integrity || !log.integrity.hash) {
+      // Skip logs without integrity data (old logs before hash chain was implemented)
+      continue;
+    }
+
+    // Recalculate hash to verify it hasn't been tampered with
+    const expectedHash = this.calculateHash(log, log.integrity.previousHash || '');
+
+    if (log.integrity.hash === expectedHash) {
+      verified++;
+
+      // If not the first log, verify chain linkage
+      if (i > 0 && logs[i - 1].integrity) {
+        if (log.integrity.previousHash !== logs[i - 1].integrity.hash) {
+          failed++;
+          errors.push({
+            logId: log._id,
+            timestamp: log.timestamp,
+            reason: 'Hash chain broken - previous hash mismatch',
+          });
+        }
+      }
+    } else {
+      failed++;
+      errors.push({
+        logId: log._id,
+        timestamp: log.timestamp,
+        reason: 'Hash mismatch - possible tampering',
+        expected: expectedHash,
+        actual: log.integrity.hash,
+      });
+    }
+  }
+
+  return {
+    success: true,
+    verified,
+    failed,
+    total: logs.length,
+    isIntact: failed === 0,
+    errors: errors.slice(0, 10), // Return first 10 errors
+  };
+};
+
+/**
+ * Compress diff data for storage efficiency
+ * @param {Object} beforeState - State before change
+ * @param {Object} afterState - State after change
+ * @returns {Object} - Compressed diff
+ */
+auditLogSchema.statics.compressDiff = function (beforeState, afterState) {
+  if (!beforeState || !afterState) {
+    return null;
+  }
+
+  const diff = {};
+  const allKeys = new Set([...Object.keys(beforeState), ...Object.keys(afterState)]);
+
+  for (const key of allKeys) {
+    // Skip MongoDB internal fields
+    if (key === '_id' || key === '__v' || key === 'updatedAt' || key === 'createdAt') {
+      continue;
+    }
+
+    const oldValue = beforeState[key];
+    const newValue = afterState[key];
+
+    // Only store changed fields
+    if (JSON.stringify(oldValue) !== JSON.stringify(newValue)) {
+      diff[key] = {
+        old: oldValue,
+        new: newValue,
+      };
+    }
+  }
+
+  return diff;
+};
+
 const AuditLog = mongoose.model('AuditLog', auditLogSchema);
 
 module.exports = AuditLog;

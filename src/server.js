@@ -57,12 +57,15 @@ const { startTimeEntryJobs } = require('./jobs/timeEntryLocking.job');
 const { startPlanJobs } = require('./jobs/planExpiration.job');
 const { startDataRetentionJob } = require('./jobs/dataRetention.job');
 const { scheduleSessionCleanup } = require('./jobs/sessionCleanup.job');
+const { scheduleSandboxCleanup } = require('./jobs/sandboxCleanup.job');
 const { startCustomerHealthJobs } = require('./jobs/customerHealth.job');
 const { startEmailCampaignJobs } = require('./jobs/emailCampaign.job');
+const { startNotificationDigestJobs } = require('./jobs/notificationDigest.job');
 const { startAllJobs: startMLScoringJobs } = require('./jobs/mlScoring.job');
 const { startPriceUpdater } = require('./jobs/priceUpdater');
 const runAuditLogArchiving = require('./jobs/auditLogArchiving.job');
 const { startSLABreachJob } = require('./jobs/slaBreachCheck.job');
+const { startSLOMonitoringJob } = require('./jobs/sloMonitoring.job');
 const { startStuckDealJob } = require('./jobs/stuckDealDetection.job');
 const { startDealHealthJob } = require('./jobs/dealHealthScoring.job');
 const { startCycleAutoCompleteJob } = require('./jobs/cycleAutoComplete.job');
@@ -105,6 +108,7 @@ const {
     captchaRoute,
     adminRoute,
     adminApiRoute,
+    adminToolsRoute,
     orderRoute,
     conversationRoute,
     messageRoute,
@@ -125,6 +129,7 @@ const {
     taskRoute,
     ganttRoute,
     notificationRoute,
+    notificationPreferenceRoute,
     eventRoute,
 
     // Dashboard Finance
@@ -138,6 +143,7 @@ const {
     statementRoute,
     transactionRoute,
     reportRoute,
+    dunningRoute,
 
     // Dashboard Organization
     reminderRoute,
@@ -188,6 +194,7 @@ const {
     conversationRoutes,
     macroRoutes,
     approvalRoutes,
+    bulkActionsRoutes,
     viewRoutes,
     automationRoutes,
     timelineRoutes,
@@ -196,6 +203,7 @@ const {
     reportRoutes,
     deduplicationRoutes,
     commandPaletteRoutes,
+    keyboardShortcutRoutes,
     lifecycleRoutes,
     dealHealthRoutes,
 
@@ -359,7 +367,25 @@ const {
     oauthRoute,
 
     // Churn Management
-    churnRoute
+    churnRoute,
+
+    // Saved Filters
+    savedFilterRoutes,
+
+    // Google Calendar Integration
+    googleCalendarRoute,
+
+    // Analytics (Event-based Analytics System)
+    analyticsRoutes,
+
+    // Cloud Storage Integration
+    cloudStorageRoutes,
+
+    // Offline Sync
+    offlineSyncRoutes,
+
+    // Sandbox/Demo Environment
+    sandboxRoute
 } = require('./routes');
 
 // Import versioned routes
@@ -751,6 +777,7 @@ app.use('/api/auth/mfa', noCache, mfaRoute); // MFA/TOTP authentication endpoint
 app.use('/api/auth', noCache, captchaRoute); // CAPTCHA verification endpoints
 app.use('/api/admin', noCache, adminRoute); // Admin endpoints for token management
 app.use('/api/admin-api', noCache, adminApiRoute); // Comprehensive Admin API for Appsmith/Budibase integration
+app.use('/api/admin/tools', noCache, adminToolsRoute); // Admin tools for system management
 app.use('/api/auth/webauthn', noCache, webauthnRoute); // WebAuthn/FIDO2 authentication
 app.use('/api/auth/saml', noCache, samlRoute); // SAML/SSO enterprise authentication
 app.use('/api/auth/ldap', noCache, ldapRoute); // LDAP/Active Directory authentication (public login endpoint)
@@ -778,6 +805,7 @@ app.use('/api/cases', noCache, temporalCaseRoute); // Temporal workflow routes f
 app.use('/api/tasks', taskRoute);
 app.use('/api/gantt', ganttRoute);
 app.use('/api/notifications', noCache, notificationRoute); // No cache for notifications
+app.use('/api/notification-preferences', noCache, notificationPreferenceRoute); // No cache for preferences
 app.use('/api/events', eventRoute);
 
 // ============================================
@@ -793,6 +821,7 @@ app.use('/api/billing-rates', billingRateRoute);
 app.use('/api/statements', noCache, statementRoute);
 app.use('/api/transactions', noCache, transactionRoute);
 app.use('/api/reports', noCache, reportRoute);
+app.use('/api/dunning', noCache, dunningRoute); // No cache for dunning data
 
 // ============================================
 // DASHBOARD ORGANIZATION ROUTES
@@ -801,6 +830,21 @@ app.use('/api/reminders', reminderRoute);
 app.use('/api/clients', clientRoute);
 app.use('/api/calendar', calendarRoute);
 app.use('/api/lawyers', lawyerRoute);
+
+// ============================================
+// CALENDAR INTEGRATIONS
+// ============================================
+app.use('/api/google-calendar', noCache, googleCalendarRoute); // No cache for calendar integration
+
+// ============================================
+// CLOUD STORAGE INTEGRATIONS
+// ============================================
+app.use('/api/storage', noCache, cloudStorageRoutes); // No cache for cloud storage operations
+
+// ============================================
+// OFFLINE SYNC (PWA OFFLINE FUNCTIONALITY)
+// ============================================
+app.use('/api/offline', noCache, offlineSyncRoutes); // No cache for offline sync operations
 
 // ============================================
 // NEW API ROUTES
@@ -853,7 +897,9 @@ app.use('/api/sla', slaRoutes);
 app.use('/api/conversations', conversationRoutes);
 app.use('/api/macros', macroRoutes);
 app.use('/api/approvals', approvalRoutes);
+app.use('/api/bulk-actions', bulkActionsRoutes);
 app.use('/api/views', viewRoutes);
+app.use('/api/saved-filters', savedFilterRoutes);
 app.use('/api/automations', automationRoutes);
 app.use('/api/timeline', timelineRoutes);
 app.use('/api/cycles', cycleRoutes);
@@ -861,6 +907,7 @@ app.use('/api/deal-rooms', dealRoomRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/deduplication', deduplicationRoutes);
 app.use('/api/command-palette', commandPaletteRoutes);
+app.use('/api/keyboard-shortcuts', keyboardShortcutRoutes);
 app.use('/api/lifecycle', lifecycleRoutes);
 app.use('/api/deals/health', dealHealthRoutes);
 
@@ -894,8 +941,11 @@ app.use('/api/hr/compensation-rewards', noCache, compensationRewardRoute);  // A
 // Analytics Reports Routes
 app.use('/api/analytics-reports', analyticsReportRoute);
 
-// KPI Analytics Routes
-app.use('/api/analytics', kpiAnalyticsRoute);
+// Event-based Analytics Routes (Comprehensive Analytics System)
+app.use('/api/analytics', noCache, analyticsRoutes);
+
+// KPI Analytics Routes (Legacy - consider migrating to /api/analytics/kpi)
+app.use('/api/analytics/kpi', kpiAnalyticsRoute);
 
 // Accounting Routes
 app.use('/api/accounts', accountRoute);
@@ -1025,6 +1075,9 @@ app.use('/api/unified', noCache, unifiedDataRoute);
 // Plan & Subscription Routes
 app.use('/api/plans', planRoute);
 app.use('/api/api-keys', apiKeyRoute);
+
+// Sandbox/Demo Environment Routes
+app.use('/api/sandbox', noCache, sandboxRoute); // No cache for sandbox operations
 
 // ============================================
 // WEBHOOK ROUTES (Third-Party Integrations)
@@ -1259,6 +1312,7 @@ const startServer = async () => {
             startPlanJobs();
             startDataRetentionJob();
             scheduleSessionCleanup();
+            scheduleSandboxCleanup();
             startCustomerHealthJobs();
 
             // Email Marketing Campaign Jobs
@@ -1267,6 +1321,14 @@ const startServer = async () => {
                 logger.info('✅ Email campaign jobs started');
             } catch (error) {
                 logger.warn('⚠️ Email campaign jobs failed to start:', error.message);
+            }
+
+            // Notification Digest Jobs
+            try {
+                startNotificationDigestJobs();
+                logger.info('✅ Notification digest jobs started');
+            } catch (error) {
+                logger.warn('⚠️ Notification digest jobs failed to start:', error.message);
             }
 
             // ML Scoring Jobs
@@ -1291,6 +1353,14 @@ const startServer = async () => {
                 logger.info('✅ SLA breach check job started');
             } catch (error) {
                 logger.warn('⚠️ SLA breach check job failed to start:', error.message);
+            }
+
+            // SLO Monitoring Job
+            try {
+                startSLOMonitoringJob();
+                logger.info('✅ SLO monitoring job started');
+            } catch (error) {
+                logger.warn('⚠️ SLO monitoring job failed to start:', error.message);
             }
 
             // Stuck Deal Detection Job

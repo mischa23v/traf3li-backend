@@ -971,4 +971,112 @@ router.post(
   })
 );
 
+// ═══════════════════════════════════════════════════════════════
+// ENHANCED ENDPOINTS (Using New Controller Methods)
+// ═══════════════════════════════════════════════════════════════
+
+const auditLogController = require('../controllers/auditLog.controller');
+
+/**
+ * POST /api/audit-logs/log-with-diff
+ * Log with automatic diff calculation
+ */
+router.post('/log-with-diff', auditLogController.logWithDiff);
+
+/**
+ * POST /api/audit-logs/log-bulk-action
+ * Log bulk action
+ */
+router.post('/log-bulk-action', auditLogController.logBulkAction);
+
+/**
+ * POST /api/audit-logs/log-security-event
+ * Log security event
+ */
+router.post('/log-security-event', auditLogController.logSecurityEvent);
+
+/**
+ * GET /api/audit-logs/search
+ * Full-text search across audit logs
+ */
+router.get('/search', auditLogController.searchLogs);
+
+/**
+ * GET /api/audit-logs/by-action/:action
+ * Get logs by action type
+ */
+router.get('/by-action/:action', auditLogController.getLogsByAction);
+
+/**
+ * GET /api/audit-logs/by-date-range
+ * Get logs within a date range
+ */
+router.get('/by-date-range', auditLogController.getLogsByDateRange);
+
+/**
+ * GET /api/audit-logs/analytics/activity-summary
+ * Get activity summary
+ */
+router.get('/analytics/activity-summary', auditLogController.getActivitySummary);
+
+/**
+ * GET /api/audit-logs/analytics/top-users
+ * Get most active users
+ */
+router.get('/analytics/top-users', auditLogController.getTopUsers);
+
+/**
+ * GET /api/audit-logs/analytics/top-actions
+ * Get most common actions
+ */
+router.get('/analytics/top-actions', auditLogController.getTopActions);
+
+/**
+ * GET /api/audit-logs/analytics/anomalies
+ * Detect anomalies
+ */
+router.get('/analytics/anomalies', auditLogController.getAnomalies);
+
+/**
+ * POST /api/audit-logs/compliance/generate-report
+ * Generate compliance report
+ */
+router.post('/compliance/generate-report', auditLogController.generateComplianceReport);
+
+/**
+ * POST /api/audit-logs/compliance/verify-integrity
+ * Verify log integrity
+ */
+router.post('/compliance/verify-integrity', auditLogController.verifyLogIntegrity);
+
+/**
+ * POST /api/audit-logs/compliance/export-for-audit
+ * Export for external auditors
+ */
+router.post('/compliance/export-for-audit', auditLogController.exportForAudit);
+
+/**
+ * GET /api/audit-logs/compliance/retention-status
+ * Get retention status
+ */
+router.get('/compliance/retention-status', auditLogController.getRetentionStatus);
+
+/**
+ * GET /api/audit-logs/archive/stats
+ * Get archive statistics (using controller)
+ */
+router.get('/archive/stats', auditLogController.getArchiveStats);
+
+/**
+ * POST /api/audit-logs/archive/run
+ * Trigger archiving (using controller)
+ */
+router.post('/archive/run', auditLogController.runArchiving);
+
+/**
+ * POST /api/audit-logs/archive/verify
+ * Verify archive integrity (using controller)
+ */
+router.post('/archive/verify', auditLogController.verifyArchiveIntegrity);
+
 module.exports = router;

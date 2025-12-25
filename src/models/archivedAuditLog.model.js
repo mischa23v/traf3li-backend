@@ -357,6 +357,107 @@ archivedAuditLogSchema.statics.getArchiveStats = async function (filters = {}) {
   };
 };
 
+// ═══════════════════════════════════════════════════════════════
+// HASH CHAIN VERIFICATION FOR ARCHIVED LOGS
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Verify hash chain integrity across archive
+ * Ensures archived logs maintain tamper-evident hash chain
+ * @param {String} firmId - Firm ID
+ * @param {Object} dateRange - Optional date range
+ * @returns {Promise<Object>} - Verification result
+ */
+archivedAuditLogSchema.statics.verifyArchiveHashChain = async function (firmId, dateRange = {}) {
+  const query = { firmId };
+
+  if (dateRange.start || dateRange.end) {
+    query.timestamp = {};
+    if (dateRange.start) query.timestamp.$gte = new Date(dateRange.start);
+    if (dateRange.end) query.timestamp.$lte = new Date(dateRange.end);
+  }
+
+  const logs = await this.find(query)
+    .sort({ timestamp: 1 })
+    .select('integrity timestamp action')
+    .lean();
+
+  let verified = 0;
+  let failed = 0;
+  const errors = [];
+
+  for (let i = 1; i < logs.length; i++) {
+    const currentLog = logs[i];
+    const previousLog = logs[i - 1];
+
+    // Verify hash chain linkage
+    if (currentLog.integrity?.previousHash === previousLog.integrity?.hash) {
+      verified++;
+    } else {
+      failed++;
+      errors.push({
+        logId: currentLog._id,
+        timestamp: currentLog.timestamp,
+        reason: 'Hash chain broken in archive',
+        expected: previousLog.integrity?.hash,
+        actual: currentLog.integrity?.previousHash,
+      });
+    }
+  }
+
+  return {
+    success: true,
+    verified,
+    failed,
+    total: logs.length,
+    isIntact: failed === 0,
+    errors: errors.slice(0, 10),
+  };
+};
+
+/**
+ * Ensure hash chain continuity when archiving
+ * Verifies that the first archived log links to the last active log
+ * @param {String} firmId - Firm ID
+ * @returns {Promise<Object>} - Continuity check result
+ */
+archivedAuditLogSchema.statics.verifyArchiveContinuity = async function (firmId) {
+  const AuditLog = require('./auditLog.model');
+
+  // Get newest active log
+  const newestActive = await AuditLog.findOne({ firmId })
+    .sort({ timestamp: -1 })
+    .select('integrity timestamp')
+    .lean();
+
+  // Get oldest archived log
+  const oldestArchived = await this.findOne({ firmId })
+    .sort({ timestamp: 1 })
+    .select('integrity timestamp')
+    .lean();
+
+  if (!newestActive || !oldestArchived) {
+    return {
+      success: true,
+      hasContinuity: true,
+      message: 'Insufficient data to verify continuity',
+    };
+  }
+
+  // Check if there's a gap between active and archived logs
+  const hasContinuity = newestActive.timestamp <= oldestArchived.timestamp;
+
+  return {
+    success: true,
+    hasContinuity,
+    newestActiveTimestamp: newestActive.timestamp,
+    oldestArchivedTimestamp: oldestArchived.timestamp,
+    message: hasContinuity
+      ? 'Hash chain continuity maintained'
+      : 'Warning: Potential gap between active and archived logs',
+  };
+};
+
 const ArchivedAuditLog = mongoose.model('ArchivedAuditLog', archivedAuditLogSchema);
 
 module.exports = ArchivedAuditLog;

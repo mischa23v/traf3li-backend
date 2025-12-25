@@ -20,6 +20,7 @@ const Case = require('./case.model');
 const Task = require('./task.model');
 const Event = require('./event.model');
 const Notification = require('./notification.model');
+const NotificationPreference = require('./notificationPreference.model');
 
 // Dashboard Finance Models
 const Invoice = require('./invoice.model');
@@ -205,6 +206,9 @@ const InvestmentTransaction = require('./investmentTransaction.model');
 // Analytics Report Model
 const AnalyticsReport = require('./analyticsReport.model');
 
+// Analytics Event Model (Event-based Analytics)
+const AnalyticsEvent = require('./analyticsEvent.model');
+
 // Document Analysis Model (AI-powered)
 const DocumentAnalysis = require('./documentAnalysis.model');
 
@@ -245,6 +249,9 @@ const ApiKey = require('./apiKey.model');
 // Webhook Model
 const Webhook = require('./webhook.model');
 
+// Sandbox/Demo Environment Model
+const Sandbox = require('./sandbox.model');
+
 // PDPL Consent Model
 const Consent = require('./consent.model');
 
@@ -259,6 +266,10 @@ const Macro = require('./macro.model');
 
 // SLA Models
 const { SLA, SLAInstance } = require('./sla.model');
+
+// SLO Models (Service Level Objectives)
+const SLO = require('./slo.model');
+const SLOMeasurement = require('./sloMeasurement.model');
 
 // Formula Field Models
 const { FormulaField, FieldDependency } = require('./formulaField.model');
@@ -288,6 +299,20 @@ const SsoUserLink = require('./ssoUserLink.model');
 // Migration Models
 const MigrationLog = require('./migrationLog.model');
 
+// Status Page Models
+const SystemComponent = require('./systemComponent.model');
+const Incident = require('./incident.model');
+const MaintenanceWindow = require('./maintenanceWindow.model');
+const StatusSubscriber = require('./statusSubscriber.model');
+
+// Incident Playbook Models
+const Playbook = require('./playbook.model');
+const IncidentExecution = require('./incidentExecution.model');
+
+// Plugin System Models
+const Plugin = require('./plugin.model');
+const PluginInstallation = require('./pluginInstallation.model');
+
 module.exports = {
     // Marketplace
     User,
@@ -311,6 +336,7 @@ module.exports = {
     Task,
     Event,
     Notification,
+    NotificationPreference,
 
     // Dashboard Finance
     Invoice,
@@ -491,6 +517,9 @@ module.exports = {
     // Analytics Reports
     AnalyticsReport,
 
+    // Analytics Events
+    AnalyticsEvent,
+
     // Document Analysis
     DocumentAnalysis,
 
@@ -531,6 +560,9 @@ module.exports = {
     // Webhooks
     Webhook,
 
+    // Sandbox/Demo Environment
+    Sandbox,
+
     // PDPL Consent
     Consent,
 
@@ -553,6 +585,10 @@ module.exports = {
     // SLA
     SLA,
     SLAInstance,
+
+    // SLO (Service Level Objectives)
+    SLO,
+    SLOMeasurement,
 
     // Formula Fields
     FormulaField,
@@ -581,5 +617,19 @@ module.exports = {
     SsoUserLink,
 
     // Migration
-    MigrationLog
+    MigrationLog,
+
+    // Status Page
+    SystemComponent,
+    Incident,
+    MaintenanceWindow,
+    StatusSubscriber,
+
+    // Incident Playbooks
+    Playbook,
+    IncidentExecution,
+
+    // Plugin System
+    Plugin,
+    PluginInstallation
 };

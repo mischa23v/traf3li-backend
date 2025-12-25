@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html dir="<%= language === 'ar' ? 'rtl' : 'ltr' %>" lang="<%= language %>">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><%= language === 'ar' ? 'التقرير المالي' : 'Financial Report' %></title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;600;700&display=swap');
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'IBM Plex Sans Arabic', 'Segoe UI', Tahoma, sans-serif;
+            direction: <%= language === 'ar' ? 'rtl' : 'ltr' %>;
+            padding: 40px;
+            color: #1a1a1a;
+            font-size: 12pt;
+            line-height: 1.6;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+            padding-bottom: 20px;
+            border-bottom: 3px solid #2563eb;
+        }
+
+        .header h1 {
+            font-size: 28pt;
+            color: #1e40af;
+            margin-bottom: 10px;
+            font-weight: 700;
+        }
+
+        .header .subtitle {
+            font-size: 14pt;
+            color: #64748b;
+            margin-top: 5px;
+        }
+
+        .report-info {
+            background: #f8fafc;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .report-info .info-item {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .report-info .info-label {
+            font-size: 10pt;
+            color: #64748b;
+            font-weight: 600;
+            text-transform: uppercase;
+            margin-bottom: 5px;
+        }
+
+        .report-info .info-value {
+            font-size: 12pt;
+            color: #1e293b;
+            font-weight: 600;
+        }
+
+        .summary-section {
+            margin-bottom: 40px;
+        }
+
+        .section-title {
+            font-size: 18pt;
+            color: #1e40af;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #e2e8f0;
+            font-weight: 600;
+        }
+
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .metric-card {
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        .metric-card.highlight {
+            background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%);
+            color: white;
+            border: none;
+        }
+
+        .metric-card.positive {
+            border-left: 4px solid #10b981;
+        }
+
+        .metric-card.negative {
+            border-left: 4px solid #ef4444;
+        }
+
+        .metric-label {
+            font-size: 11pt;
+            color: #64748b;
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+
+        .metric-card.highlight .metric-label {
+            color: #bfdbfe;
+        }
+
+        .metric-value {
+            font-size: 24pt;
+            font-weight: 700;
+            color: #1e293b;
+        }
+
+        .metric-card.highlight .metric-value {
+            color: white;
+        }
+
+        .metric-currency {
+            font-size: 14pt;
+            color: #64748b;
+            margin-<%= language === 'ar' ? 'right' : 'left' %>: 5px;
+        }
+
+        .metric-card.highlight .metric-currency {
+            color: #dbeafe;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            background: white;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        thead {
+            background: #f8fafc;
+        }
+
+        th {
+            padding: 15px;
+            text-align: <%= language === 'ar' ? 'right' : 'left' %>;
+            font-weight: 600;
+            font-size: 11pt;
+            color: #475569;
+            text-transform: uppercase;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        td {
+            padding: 12px 15px;
+            text-align: <%= language === 'ar' ? 'right' : 'left' %>;
+            border-bottom: 1px solid #f1f5f9;
+            font-size: 11pt;
+        }
+
+        tr:hover {
+            background: #f8fafc;
+        }
+
+        .currency {
+            font-weight: 600;
+            color: #1e293b;
+            font-family: 'Courier New', monospace;
+        }
+
+        .positive-amount {
+            color: #10b981;
+        }
+
+        .negative-amount {
+            color: #ef4444;
+        }
+
+        .footer {
+            margin-top: 50px;
+            padding-top: 20px;
+            border-top: 2px solid #e2e8f0;
+            text-align: center;
+            color: #64748b;
+            font-size: 10pt;
+        }
+
+        .footer .generated-date {
+            margin-top: 10px;
+            font-style: italic;
+        }
+
+        @media print {
+            body {
+                padding: 20px;
+            }
+
+            .metric-card {
+                break-inside: avoid;
+            }
+
+            table {
+                page-break-inside: avoid;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1><%= firmName || (language === 'ar' ? 'التقرير المالي' : 'Financial Report') %></h1>
+        <div class="subtitle">
+            <%= language === 'ar' ? 'ملخص الأداء المالي' : 'Financial Performance Summary' %>
+        </div>
+    </div>
+
+    <div class="report-info">
+        <div class="info-item">
+            <div class="info-label"><%= language === 'ar' ? 'الفترة' : 'Period' %></div>
+            <div class="info-value"><%= dateRange %></div>
+        </div>
+        <div class="info-item">
+            <div class="info-label"><%= language === 'ar' ? 'تاريخ التقرير' : 'Report Date' %></div>
+            <div class="info-value"><%= reportDate %></div>
+        </div>
+        <div class="info-item">
+            <div class="info-label"><%= language === 'ar' ? 'العملة' : 'Currency' %></div>
+            <div class="info-value"><%= currency || 'SAR' %></div>
+        </div>
+    </div>
+
+    <div class="summary-section">
+        <h2 class="section-title"><%= language === 'ar' ? 'المقاييس الرئيسية' : 'Key Metrics' %></h2>
+
+        <div class="metrics-grid">
+            <div class="metric-card positive">
+                <div class="metric-label"><%= language === 'ar' ? 'إجمالي الإيرادات' : 'Total Revenue' %></div>
+                <div class="metric-value">
+                    <%= totalRevenue.toLocaleString('ar-SA', {minimumFractionDigits: 2, maximumFractionDigits: 2}) %>
+                    <span class="metric-currency"><%= currency || 'SAR' %></span>
+                </div>
+            </div>
+
+            <div class="metric-card positive">
+                <div class="metric-label"><%= language === 'ar' ? 'إجمالي المحصل' : 'Total Collected' %></div>
+                <div class="metric-value">
+                    <%= totalCollected.toLocaleString('ar-SA', {minimumFractionDigits: 2, maximumFractionDigits: 2}) %>
+                    <span class="metric-currency"><%= currency || 'SAR' %></span>
+                </div>
+            </div>
+
+            <div class="metric-card negative">
+                <div class="metric-label"><%= language === 'ar' ? 'المستحق' : 'Outstanding' %></div>
+                <div class="metric-value">
+                    <%= outstanding.toLocaleString('ar-SA', {minimumFractionDigits: 2, maximumFractionDigits: 2}) %>
+                    <span class="metric-currency"><%= currency || 'SAR' %></span>
+                </div>
+            </div>
+
+            <div class="metric-card">
+                <div class="metric-label"><%= language === 'ar' ? 'إجمالي المصروفات' : 'Total Expenses' %></div>
+                <div class="metric-value">
+                    <%= totalExpenses.toLocaleString('ar-SA', {minimumFractionDigits: 2, maximumFractionDigits: 2}) %>
+                    <span class="metric-currency"><%= currency || 'SAR' %></span>
+                </div>
+            </div>
+
+            <div class="metric-card highlight" style="grid-column: span 2;">
+                <div class="metric-label"><%= language === 'ar' ? 'صافي الدخل' : 'Net Income' %></div>
+                <div class="metric-value">
+                    <%= netIncome.toLocaleString('ar-SA', {minimumFractionDigits: 2, maximumFractionDigits: 2}) %>
+                    <span class="metric-currency"><%= currency || 'SAR' %></span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <% if (details && details.length > 0) { %>
+    <div class="summary-section">
+        <h2 class="section-title"><%= language === 'ar' ? 'التفاصيل' : 'Details' %></h2>
+
+        <table>
+            <thead>
+                <tr>
+                    <th><%= language === 'ar' ? 'البند' : 'Item' %></th>
+                    <th><%= language === 'ar' ? 'المبلغ' : 'Amount' %></th>
+                </tr>
+            </thead>
+            <tbody>
+                <% details.forEach(function(item) { %>
+                <tr>
+                    <td><%= language === 'ar' ? item.labelAr : item.label %></td>
+                    <td class="currency <%= item.amount >= 0 ? 'positive-amount' : 'negative-amount' %>">
+                        <%= item.amount.toLocaleString('ar-SA', {minimumFractionDigits: 2, maximumFractionDigits: 2}) %>
+                        <%= currency || 'SAR' %>
+                    </td>
+                </tr>
+                <% }); %>
+            </tbody>
+        </table>
+    </div>
+    <% } %>
+
+    <div class="footer">
+        <div><%= language === 'ar' ? 'تم إنشاء هذا التقرير تلقائيًا بواسطة نظام ترافعلي' : 'This report was automatically generated by Traf3li System' %></div>
+        <div class="generated-date">
+            <%= language === 'ar' ? 'تاريخ الإنشاء:' : 'Generated on:' %>
+            <%= new Date().toLocaleString(language === 'ar' ? 'ar-SA' : 'en-US', {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            }) %>
+        </div>
+    </div>
+</body>
+</html>

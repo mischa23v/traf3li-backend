@@ -22,6 +22,7 @@ require('../queues/notification.queue');
 require('../queues/report.queue');
 require('../queues/cleanup.queue');
 require('../queues/sync.queue');
+require('../queues/bulkActions.queue');
 
 class QueueService {
   /**

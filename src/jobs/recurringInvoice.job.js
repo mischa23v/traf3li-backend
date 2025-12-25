@@ -1,18 +1,46 @@
 /**
- * Recurring Invoice Job Scheduler
+ * Recurring Invoice Job Scheduler for TRAF3LI
  *
- * Automated tasks:
- * - Every 15 minutes: Process due recurring invoices
- * - Daily at midnight: Send upcoming invoice notifications
- * - Daily at 1 AM: Clean up cancelled recurring invoices with no history
+ * Automated tasks for recurring invoice generation and management:
+ * - Process due recurring invoices (configurable, default: daily at 9 AM)
+ * - Send upcoming invoice notifications (daily at midnight)
+ * - Clean up cancelled recurring invoices (daily at 1 AM)
+ *
+ * Features:
+ * - Configurable schedule via environment variables
+ * - Automatic retry logic with exponential backoff
+ * - Comprehensive error handling and notifications
+ * - Job statistics tracking and monitoring
+ * - Audit logging for compliance
+ * - Manual trigger support for testing/admin
+ * - Multi-tenant support with firm isolation
  */
 
 const cron = require('node-cron');
-const RecurringInvoice = require('../models/recurringInvoice.model');
-const Invoice = require('../models/invoice.model');
+const RecurringInvoiceService = require('../services/recurringInvoice.service');
 const Notification = require('../models/notification.model');
-const mongoose = require('mongoose');
+const AuditLog = require('../models/auditLog.model');
 const logger = require('../utils/logger');
+
+// Job configuration
+const RECURRING_INVOICE_JOB_CONFIG = {
+    generateInvoices: {
+        cron: process.env.RECURRING_INVOICE_CRON_SCHEDULE || '0 9 * * *', // Daily at 9 AM (configurable)
+        timeout: 60 * 60 * 1000, // 60 minutes
+        retries: parseInt(process.env.RECURRING_INVOICE_MAX_RETRIES) || 3,
+        timezone: process.env.TZ || 'Asia/Riyadh'
+    },
+    sendNotifications: {
+        cron: process.env.RECURRING_INVOICE_NOTIFICATION_CRON || '0 0 * * *', // Daily at midnight
+        daysAhead: parseInt(process.env.RECURRING_INVOICE_NOTIFICATION_DAYS) || 3,
+        timezone: process.env.TZ || 'Asia/Riyadh'
+    },
+    cleanup: {
+        cron: process.env.RECURRING_INVOICE_CLEANUP_CRON || '0 1 * * *', // Daily at 1 AM
+        retentionDays: parseInt(process.env.RECURRING_INVOICE_CLEANUP_DAYS) || 30,
+        timezone: process.env.TZ || 'Asia/Riyadh'
+    }
+};
 
 // Track running jobs
 let jobsRunning = {
@@ -21,199 +49,182 @@ let jobsRunning = {
     cleanup: false
 };
 
+// Track job statistics
+let jobStats = {
+    generateInvoices: {
+        lastRun: null,
+        lastSuccess: null,
+        lastError: null,
+        totalRuns: 0,
+        totalProcessed: 0,
+        totalGenerated: 0,
+        totalFailed: 0,
+        totalErrors: 0,
+        consecutiveErrors: 0
+    },
+    sendNotifications: {
+        lastRun: null,
+        lastSuccess: null,
+        lastError: null,
+        totalRuns: 0,
+        totalSent: 0,
+        totalErrors: 0
+    },
+    cleanup: {
+        lastRun: null,
+        lastSuccess: null,
+        lastError: null,
+        totalRuns: 0,
+        totalDeleted: 0,
+        totalErrors: 0
+    }
+};
+
 /**
  * Generate invoices from recurring templates
- * Runs every 15 minutes to check for invoices due for generation
+ * Main job function that processes all due recurring invoices
  */
-const generateRecurringInvoices = async () => {
+const generateRecurringInvoices = async (retryCount = 0) => {
     if (jobsRunning.generateInvoices) {
         logger.info('[Recurring Invoice Jobs] Invoice generation job still running, skipping...');
-        return;
+        return { skipped: true, reason: 'already_running' };
     }
 
     jobsRunning.generateInvoices = true;
+    const startTime = Date.now();
 
     try {
-        const now = new Date();
-        logger.info(`[Recurring Invoice Jobs] Checking for due recurring invoices at ${now.toISOString()}`);
+        logger.info('[Recurring Invoice Jobs] Starting recurring invoice generation job...');
+        jobStats.generateInvoices.lastRun = new Date();
+        jobStats.generateInvoices.totalRuns++;
 
-        // Find all recurring invoices due for generation
-        const dueRecurringInvoices = await RecurringInvoice.getDueForGeneration();
+        // Use service to process recurring invoices
+        const result = await RecurringInvoiceService.processDueRecurringInvoices(null, {
+            maxRetries: RECURRING_INVOICE_JOB_CONFIG.generateInvoices.retries
+        });
 
-        if (dueRecurringInvoices.length === 0) {
-            logger.info('[Recurring Invoice Jobs] No recurring invoices due for generation');
-            return;
+        const duration = Date.now() - startTime;
+
+        // Update statistics
+        jobStats.generateInvoices.lastSuccess = new Date();
+        jobStats.generateInvoices.totalProcessed += result.processed;
+        jobStats.generateInvoices.totalGenerated += result.generated;
+        jobStats.generateInvoices.totalFailed += result.failed;
+        jobStats.generateInvoices.consecutiveErrors = 0;
+
+        logger.info(`[Recurring Invoice Jobs] Generation complete in ${duration}ms`);
+        logger.info(`[Recurring Invoice Jobs] Summary: ${result.generated} generated, ${result.completed} completed, ${result.failed} failed, ${result.paused} paused`);
+
+        // Send success notification if there were any issues
+        if (result.failed > 0 || result.paused > 0) {
+            await sendJobSummaryNotification('warning', result, duration);
         }
 
-        logger.info(`[Recurring Invoice Jobs] Found ${dueRecurringInvoices.length} recurring invoices to process`);
-
-        let generated = 0;
-        let failed = 0;
-        let paused = 0;
-
-        for (const recurring of dueRecurringInvoices) {
-            const session = await mongoose.startSession();
-            session.startTransaction();
-
-            try {
-                // Check end conditions
-                if (recurring.schedule.endDate && now > recurring.schedule.endDate) {
-                    recurring.status = 'completed';
-                    await recurring.save({ session });
-                    logger.info(`[Recurring Invoice Jobs] Recurring invoice ${recurring._id} completed (end date reached)`);
-                    await session.commitTransaction();
-                    continue;
-                }
-
-                if (recurring.schedule.maxOccurrences && recurring.generatedCount >= recurring.schedule.maxOccurrences) {
-                    recurring.status = 'completed';
-                    await recurring.save({ session });
-                    logger.info(`[Recurring Invoice Jobs] Recurring invoice ${recurring._id} completed (max occurrences reached)`);
-                    await session.commitTransaction();
-                    continue;
-                }
-
-                // Generate invoice
-                const invoice = await createInvoiceFromRecurring(recurring, session);
-
-                // Update recurring invoice
-                recurring.lastGeneratedDate = now;
-                recurring.generatedCount += 1;
-                recurring.generatedInvoices.push({
-                    invoiceId: invoice._id,
-                    invoiceNumber: invoice.invoiceNumber,
-                    generatedAt: now,
-                    amount: invoice.total.total,
-                    status: invoice.status
-                });
-
-                // Calculate next generation date
-                recurring.nextGenerationDate = recurring.calculateNextGenerationDate();
-
-                // Check if this was the last occurrence
-                if (recurring.schedule.maxOccurrences && recurring.generatedCount >= recurring.schedule.maxOccurrences) {
-                    recurring.status = 'completed';
-                }
-
-                await recurring.save({ session });
-                await session.commitTransaction();
-
-                generated++;
-                logger.info(`[Recurring Invoice Jobs] Generated invoice ${invoice.invoiceNumber} from recurring ${recurring.name}`);
-
-                // Send notification
-                await sendInvoiceGeneratedNotification(recurring, invoice);
-
-            } catch (error) {
-                await session.abortTransaction();
-                logger.error(`[Recurring Invoice Jobs] Failed to generate invoice for ${recurring._id}:`, error.message);
-
-                // Increment failure count
-                recurring.failureCount = (recurring.failureCount || 0) + 1;
-                recurring.lastFailureReason = error.message;
-
-                // Pause if too many failures
-                if (recurring.failureCount >= 3) {
-                    recurring.status = 'paused';
-                    paused++;
-                    logger.info(`[Recurring Invoice Jobs] Paused recurring invoice ${recurring._id} after 3 failures`);
-                }
-
-                await recurring.save();
-                failed++;
-            } finally {
-                session.endSession();
+        // Log to audit trail
+        await logJobAudit({
+            action: 'recurring_invoice_job_completed',
+            entityType: 'system',
+            details: {
+                duration,
+                ...result,
+                retryCount
             }
-        }
+        });
 
-        logger.info(`[Recurring Invoice Jobs] Generation complete: ${generated} generated, ${failed} failed, ${paused} paused`);
+        return result;
 
     } catch (error) {
+        const duration = Date.now() - startTime;
         logger.error('[Recurring Invoice Jobs] Invoice generation job error:', error);
+
+        // Update error statistics
+        jobStats.generateInvoices.lastError = {
+            time: new Date(),
+            message: error.message,
+            stack: error.stack
+        };
+        jobStats.generateInvoices.totalErrors++;
+        jobStats.generateInvoices.consecutiveErrors++;
+
+        // Retry logic with exponential backoff
+        if (retryCount < RECURRING_INVOICE_JOB_CONFIG.generateInvoices.retries) {
+            const backoffMs = Math.pow(2, retryCount) * 1000; // 1s, 2s, 4s, etc.
+            logger.info(`[Recurring Invoice Jobs] Retrying in ${backoffMs}ms (attempt ${retryCount + 1}/${RECURRING_INVOICE_JOB_CONFIG.generateInvoices.retries})...`);
+
+            await new Promise(resolve => setTimeout(resolve, backoffMs));
+
+            jobsRunning.generateInvoices = false;
+            return await generateRecurringInvoices(retryCount + 1);
+        }
+
+        // Send failure notification after all retries exhausted
+        await sendJobErrorNotification(error, duration, retryCount);
+
+        // Log error to audit trail
+        await logJobAudit({
+            action: 'recurring_invoice_job_failed',
+            entityType: 'system',
+            details: {
+                duration,
+                error: error.message,
+                stack: error.stack,
+                retryCount
+            }
+        });
+
+        throw error;
+
     } finally {
         jobsRunning.generateInvoices = false;
     }
 };
 
 /**
- * Create invoice from recurring template
+ * Send job summary notification to system admins
+ * @param {String} type - Notification type ('success', 'warning', 'error')
+ * @param {Object} result - Job execution result
+ * @param {Number} duration - Job duration in ms
  */
-const createInvoiceFromRecurring = async (recurring, session) => {
-    const now = new Date();
+const sendJobSummaryNotification = async (type, result, duration) => {
+    try {
+        const priority = type === 'error' ? 'high' : type === 'warning' ? 'medium' : 'low';
 
-    // Calculate due date based on payment terms
-    let dueDate = new Date(now);
-    if (recurring.paymentTerms === 'net_7') {
-        dueDate.setDate(dueDate.getDate() + 7);
-    } else if (recurring.paymentTerms === 'net_14') {
-        dueDate.setDate(dueDate.getDate() + 14);
-    } else if (recurring.paymentTerms === 'net_30') {
-        dueDate.setDate(dueDate.getDate() + 30);
-    } else if (recurring.paymentTerms === 'net_45') {
-        dueDate.setDate(dueDate.getDate() + 45);
-    } else if (recurring.paymentTerms === 'net_60') {
-        dueDate.setDate(dueDate.getDate() + 60);
-    } else if (recurring.paymentTerms === 'net_90') {
-        dueDate.setDate(dueDate.getDate() + 90);
+        // This would typically go to system admins or monitoring
+        logger.info(`[Recurring Invoice Jobs] Job summary notification (${type}):`, {
+            type,
+            priority,
+            result,
+            duration
+        });
+
+        // You can implement actual notification sending here
+        // For example, send to admin users or monitoring system
+
+    } catch (error) {
+        logger.error('[Recurring Invoice Jobs] Failed to send job summary notification:', error.message);
     }
-    // due_on_receipt: dueDate stays as today
-
-    // Create invoice (invoiceNumber will be auto-generated by model's pre-save hook)
-    const invoice = new Invoice({
-        firmId: recurring.firmId,
-        lawyerId: recurring.lawyerId,
-        // invoiceNumber will be auto-generated using atomic counter
-        clientId: recurring.clientId,
-        caseId: recurring.caseId,
-        issueDate: now,
-        dueDate,
-        items: recurring.items.map(item => ({
-            description: item.description,
-            type: item.type,
-            quantity: item.quantity,
-            unitPrice: item.unitPrice,
-            taxRate: item.taxRate || 15,
-            amount: item.quantity * item.unitPrice,
-            taxAmount: Math.round((item.quantity * item.unitPrice * (item.taxRate || 15)) / 100)
-        })),
-        subtotal: recurring.subtotal,
-        taxAmount: recurring.taxAmount,
-        total: recurring.total,
-        status: recurring.settings?.autoSend ? 'sent' : 'draft',
-        currency: recurring.currency || 'SAR',
-        notes: recurring.notes,
-        terms: recurring.termsAndConditions,
-        recurringInvoiceId: recurring._id,
-        createdBy: recurring.createdBy
-    });
-
-    await invoice.save({ session });
-
-    return invoice;
 };
 
 /**
- * Send notification when invoice is generated
+ * Send job error notification
+ * @param {Error} error - Error object
+ * @param {Number} duration - Job duration in ms
+ * @param {Number} retryCount - Number of retries attempted
  */
-const sendInvoiceGeneratedNotification = async (recurring, invoice) => {
+const sendJobErrorNotification = async (error, duration, retryCount) => {
     try {
-        await Notification.create({
-            firmId: recurring.firmId,
-            userId: recurring.createdBy,
-            type: 'invoice',
-            title: 'Recurring Invoice Generated',
-            titleAr: 'تم إنشاء فاتورة متكررة',
-            message: `Invoice ${invoice.invoiceNumber} has been automatically generated from "${recurring.name}"`,
-            messageAr: `تم إنشاء الفاتورة ${invoice.invoiceNumber} تلقائياً من "${recurring.name}"`,
-            link: `/invoices/${invoice._id}`,
-            data: {
-                invoiceId: invoice._id,
-                recurringInvoiceId: recurring._id,
-                amount: invoice.total
-            }
+        logger.error(`[Recurring Invoice Jobs] Job error notification:`, {
+            error: error.message,
+            stack: error.stack,
+            duration,
+            retryCount
         });
-    } catch (error) {
-        logger.error('[Recurring Invoice Jobs] Failed to send notification:', error.message);
+
+        // Send to system admins or monitoring system
+        // Example: Send to Slack, email, or monitoring dashboard
+
+    } catch (err) {
+        logger.error('[Recurring Invoice Jobs] Failed to send job error notification:', err.message);
     }
 };
 
@@ -224,63 +235,64 @@ const sendInvoiceGeneratedNotification = async (recurring, invoice) => {
 const sendUpcomingNotifications = async () => {
     if (jobsRunning.sendNotifications) {
         logger.info('[Recurring Invoice Jobs] Notification job still running, skipping...');
-        return;
+        return { skipped: true, reason: 'already_running' };
     }
 
     jobsRunning.sendNotifications = true;
+    const startTime = Date.now();
 
     try {
-        logger.info('[Recurring Invoice Jobs] Checking for upcoming recurring invoices...');
+        logger.info('[Recurring Invoice Jobs] Starting upcoming notifications job...');
+        jobStats.sendNotifications.lastRun = new Date();
+        jobStats.sendNotifications.totalRuns++;
 
-        // Find recurring invoices that will generate in the next 3 days
-        const threeDaysFromNow = new Date();
-        threeDaysFromNow.setDate(threeDaysFromNow.getDate() + 3);
+        // Use service to send notifications
+        const result = await RecurringInvoiceService.sendUpcomingNotifications(
+            RECURRING_INVOICE_JOB_CONFIG.sendNotifications.daysAhead
+        );
 
-        const upcomingRecurring = await RecurringInvoice.find({
-            status: 'active',
-            'settings.notifyBeforeGeneration': true,
-            nextGenerationDate: {
-                $gte: new Date(),
-                $lte: threeDaysFromNow
+        const duration = Date.now() - startTime;
+
+        // Update statistics
+        jobStats.sendNotifications.lastSuccess = new Date();
+        jobStats.sendNotifications.totalSent += result.sent;
+
+        logger.info(`[Recurring Invoice Jobs] Notification job complete in ${duration}ms`);
+        logger.info(`[Recurring Invoice Jobs] Summary: ${result.sent} sent, ${result.failed} failed`);
+
+        // Log to audit trail
+        await logJobAudit({
+            action: 'recurring_invoice_notifications_sent',
+            entityType: 'system',
+            details: {
+                duration,
+                ...result
             }
         });
 
-        if (upcomingRecurring.length === 0) {
-            logger.info('[Recurring Invoice Jobs] No upcoming notifications to send');
-            return;
-        }
-
-        logger.info(`[Recurring Invoice Jobs] Sending notifications for ${upcomingRecurring.length} upcoming invoices`);
-
-        for (const recurring of upcomingRecurring) {
-            try {
-                const daysUntil = Math.ceil(
-                    (recurring.nextGenerationDate - new Date()) / (1000 * 60 * 60 * 24)
-                );
-
-                await Notification.create({
-                    firmId: recurring.firmId,
-                    userId: recurring.createdBy,
-                    type: 'invoice',
-                    title: 'Upcoming Recurring Invoice',
-                    titleAr: 'فاتورة متكررة قادمة',
-                    message: `"${recurring.name}" will generate an invoice in ${daysUntil} day${daysUntil > 1 ? 's' : ''}`,
-                    messageAr: `"${recurring.name}" ستنشئ فاتورة خلال ${daysUntil} يوم`,
-                    link: `/recurring-invoices/${recurring._id}`,
-                    data: {
-                        recurringInvoiceId: recurring._id,
-                        nextGenerationDate: recurring.nextGenerationDate
-                    }
-                });
-            } catch (error) {
-                logger.error(`[Recurring Invoice Jobs] Failed to send notification for ${recurring._id}:`, error.message);
-            }
-        }
-
-        logger.info('[Recurring Invoice Jobs] Upcoming notifications sent');
+        return result;
 
     } catch (error) {
         logger.error('[Recurring Invoice Jobs] Notification job error:', error);
+
+        // Update error statistics
+        jobStats.sendNotifications.lastError = {
+            time: new Date(),
+            message: error.message
+        };
+        jobStats.sendNotifications.totalErrors++;
+
+        // Log error to audit trail
+        await logJobAudit({
+            action: 'recurring_invoice_notifications_failed',
+            entityType: 'system',
+            details: {
+                error: error.message
+            }
+        });
+
+        throw error;
+
     } finally {
         jobsRunning.sendNotifications = false;
     }
@@ -293,36 +305,99 @@ const sendUpcomingNotifications = async () => {
 const cleanupCancelledRecurring = async () => {
     if (jobsRunning.cleanup) {
         logger.info('[Recurring Invoice Jobs] Cleanup job still running, skipping...');
-        return;
+        return { skipped: true, reason: 'already_running' };
     }
 
     jobsRunning.cleanup = true;
+    const startTime = Date.now();
 
     try {
-        logger.info('[Recurring Invoice Jobs] Running cleanup...');
+        logger.info('[Recurring Invoice Jobs] Starting cleanup job...');
+        jobStats.cleanup.lastRun = new Date();
+        jobStats.cleanup.totalRuns++;
 
-        // Delete cancelled recurring invoices with no generated invoices that are older than 30 days
-        const thirtyDaysAgo = new Date();
-        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        // Use service to cleanup
+        const result = await RecurringInvoiceService.cleanupCancelledRecurring(
+            RECURRING_INVOICE_JOB_CONFIG.cleanup.retentionDays
+        );
 
-        const result = await RecurringInvoice.deleteMany({
-            status: 'cancelled',
-            generatedCount: 0,
-            createdAt: { $lt: thirtyDaysAgo }
+        const duration = Date.now() - startTime;
+
+        // Update statistics
+        jobStats.cleanup.lastSuccess = new Date();
+        jobStats.cleanup.totalDeleted += result.deleted;
+
+        logger.info(`[Recurring Invoice Jobs] Cleanup job complete in ${duration}ms`);
+        logger.info(`[Recurring Invoice Jobs] Summary: ${result.deleted} deleted`);
+
+        // Log to audit trail
+        await logJobAudit({
+            action: 'recurring_invoice_cleanup_completed',
+            entityType: 'system',
+            details: {
+                duration,
+                ...result,
+                retentionDays: RECURRING_INVOICE_JOB_CONFIG.cleanup.retentionDays
+            }
         });
 
-        if (result.deletedCount > 0) {
-            logger.info(`[Recurring Invoice Jobs] Deleted ${result.deletedCount} cancelled recurring invoices`);
-        } else {
-            logger.info('[Recurring Invoice Jobs] No recurring invoices to clean up');
-        }
-
-        logger.info('[Recurring Invoice Jobs] Cleanup complete');
+        return result;
 
     } catch (error) {
         logger.error('[Recurring Invoice Jobs] Cleanup job error:', error);
+
+        // Update error statistics
+        jobStats.cleanup.lastError = {
+            time: new Date(),
+            message: error.message
+        };
+        jobStats.cleanup.totalErrors++;
+
+        // Log error to audit trail
+        await logJobAudit({
+            action: 'recurring_invoice_cleanup_failed',
+            entityType: 'system',
+            details: {
+                error: error.message
+            }
+        });
+
+        throw error;
+
     } finally {
         jobsRunning.cleanup = false;
+    }
+};
+
+/**
+ * Log job action to audit trail
+ * @param {Object} data - Audit log data
+ */
+const logJobAudit = async (data) => {
+    try {
+        const auditData = {
+            action: data.action,
+            entityType: data.entityType || 'system',
+            entityId: data.entityId || null,
+            resourceType: data.entityType || 'system',
+            resourceId: data.entityId || null,
+            firmId: data.firmId || null,
+            userId: data.userId || null,
+            userEmail: 'system',
+            userRole: 'system',
+            severity: 'info',
+            category: 'automation',
+            description: `Recurring invoice job: ${data.action}`,
+            metadata: data.details || {},
+            ipAddress: '127.0.0.1',
+            timestamp: new Date()
+        };
+
+        await AuditLog.create(auditData);
+
+    } catch (error) {
+        logger.error('[Recurring Invoice Jobs] Error logging to audit:', error);
+        // Don't throw - audit logging failure shouldn't stop the process
     }
 };
 
@@ -332,25 +407,66 @@ const cleanupCancelledRecurring = async () => {
 function startRecurringInvoiceJobs() {
     logger.info('[Recurring Invoice Jobs] Starting recurring invoice job scheduler...');
 
-    // Every 15 minutes: Generate due invoices
-    cron.schedule('*/15 * * * *', () => {
-        generateRecurringInvoices();
-    });
-    logger.info('[Recurring Invoice Jobs] ✓ Invoice generation job: every 15 minutes');
+    // Generate due invoices - configurable schedule (default: daily at 9 AM)
+    cron.schedule(
+        RECURRING_INVOICE_JOB_CONFIG.generateInvoices.cron,
+        () => {
+            generateRecurringInvoices().catch(err => {
+                logger.error('[Recurring Invoice Jobs] Unhandled error in generateRecurringInvoices:', err);
+            });
+        },
+        {
+            timezone: RECURRING_INVOICE_JOB_CONFIG.generateInvoices.timezone
+        }
+    );
+    logger.info(`[Recurring Invoice Jobs] ✓ Invoice generation job: ${RECURRING_INVOICE_JOB_CONFIG.generateInvoices.cron} (${RECURRING_INVOICE_JOB_CONFIG.generateInvoices.timezone})`);
 
-    // Daily at midnight: Send upcoming notifications
-    cron.schedule('0 0 * * *', () => {
-        sendUpcomingNotifications();
-    });
-    logger.info('[Recurring Invoice Jobs] ✓ Upcoming notifications job: daily at midnight');
+    // Send upcoming notifications - configurable schedule (default: daily at midnight)
+    cron.schedule(
+        RECURRING_INVOICE_JOB_CONFIG.sendNotifications.cron,
+        () => {
+            sendUpcomingNotifications().catch(err => {
+                logger.error('[Recurring Invoice Jobs] Unhandled error in sendUpcomingNotifications:', err);
+            });
+        },
+        {
+            timezone: RECURRING_INVOICE_JOB_CONFIG.sendNotifications.timezone
+        }
+    );
+    logger.info(`[Recurring Invoice Jobs] ✓ Upcoming notifications job: ${RECURRING_INVOICE_JOB_CONFIG.sendNotifications.cron} (${RECURRING_INVOICE_JOB_CONFIG.sendNotifications.timezone})`);
 
-    // Daily at 1 AM: Cleanup
-    cron.schedule('0 1 * * *', () => {
-        cleanupCancelledRecurring();
-    });
-    logger.info('[Recurring Invoice Jobs] ✓ Cleanup job: daily at 1:00 AM');
+    // Cleanup - configurable schedule (default: daily at 1 AM)
+    cron.schedule(
+        RECURRING_INVOICE_JOB_CONFIG.cleanup.cron,
+        () => {
+            cleanupCancelledRecurring().catch(err => {
+                logger.error('[Recurring Invoice Jobs] Unhandled error in cleanupCancelledRecurring:', err);
+            });
+        },
+        {
+            timezone: RECURRING_INVOICE_JOB_CONFIG.cleanup.timezone
+        }
+    );
+    logger.info(`[Recurring Invoice Jobs] ✓ Cleanup job: ${RECURRING_INVOICE_JOB_CONFIG.cleanup.cron} (${RECURRING_INVOICE_JOB_CONFIG.cleanup.timezone})`);
 
     logger.info('[Recurring Invoice Jobs] All recurring invoice jobs started successfully');
+    logger.info('[Recurring Invoice Jobs] Configuration:', {
+        generateInvoices: {
+            schedule: RECURRING_INVOICE_JOB_CONFIG.generateInvoices.cron,
+            retries: RECURRING_INVOICE_JOB_CONFIG.generateInvoices.retries,
+            timezone: RECURRING_INVOICE_JOB_CONFIG.generateInvoices.timezone
+        },
+        sendNotifications: {
+            schedule: RECURRING_INVOICE_JOB_CONFIG.sendNotifications.cron,
+            daysAhead: RECURRING_INVOICE_JOB_CONFIG.sendNotifications.daysAhead,
+            timezone: RECURRING_INVOICE_JOB_CONFIG.sendNotifications.timezone
+        },
+        cleanup: {
+            schedule: RECURRING_INVOICE_JOB_CONFIG.cleanup.cron,
+            retentionDays: RECURRING_INVOICE_JOB_CONFIG.cleanup.retentionDays,
+            timezone: RECURRING_INVOICE_JOB_CONFIG.cleanup.timezone
+        }
+    });
 }
 
 /**
@@ -359,51 +475,174 @@ function startRecurringInvoiceJobs() {
 function stopRecurringInvoiceJobs() {
     logger.info('[Recurring Invoice Jobs] Stopping recurring invoice jobs...');
     // Jobs will stop automatically when process exits
+    // Log final statistics
+    logger.info('[Recurring Invoice Jobs] Final statistics:', jobStats);
 }
 
 /**
  * Manually trigger a specific job (for testing/admin)
+ * @param {String} jobName - Job name ('generateInvoices', 'sendNotifications', 'cleanup', or 'all')
+ * @param {Object} options - Job options
+ * @returns {Promise<Object>} - Job execution result
  */
-async function triggerJob(jobName) {
+async function triggerJob(jobName, options = {}) {
     logger.info(`[Recurring Invoice Jobs] Manually triggering ${jobName}...`);
 
-    switch (jobName) {
-        case 'generateInvoices':
-            await generateRecurringInvoices();
-            break;
-        case 'sendNotifications':
-            await sendUpcomingNotifications();
-            break;
-        case 'cleanup':
-            await cleanupCancelledRecurring();
-            break;
-        default:
-            throw new Error(`Unknown job: ${jobName}`);
-    }
+    let result;
 
-    logger.info(`[Recurring Invoice Jobs] ${jobName} completed`);
+    try {
+        switch (jobName) {
+            case 'generateInvoices':
+                result = await generateRecurringInvoices();
+                break;
+            case 'sendNotifications':
+                result = await sendUpcomingNotifications();
+                break;
+            case 'cleanup':
+                result = await cleanupCancelledRecurring();
+                break;
+            case 'all':
+                // Run all jobs sequentially
+                const generateResult = await generateRecurringInvoices();
+                const notificationResult = await sendUpcomingNotifications();
+                const cleanupResult = await cleanupCancelledRecurring();
+                result = {
+                    generateInvoices: generateResult,
+                    sendNotifications: notificationResult,
+                    cleanup: cleanupResult
+                };
+                break;
+            default:
+                throw new Error(`Unknown job: ${jobName}. Valid options: generateInvoices, sendNotifications, cleanup, all`);
+        }
+
+        logger.info(`[Recurring Invoice Jobs] ${jobName} completed successfully`);
+        return { success: true, job: jobName, result };
+
+    } catch (error) {
+        logger.error(`[Recurring Invoice Jobs] ${jobName} failed:`, error);
+        throw error;
+    }
 }
 
 /**
- * Get job status
+ * Get job status and statistics
+ * @returns {Object} - Job status and statistics
  */
 function getJobStatus() {
     return {
         jobs: {
             generateInvoices: {
                 running: jobsRunning.generateInvoices,
-                schedule: 'Every 15 minutes'
+                schedule: RECURRING_INVOICE_JOB_CONFIG.generateInvoices.cron,
+                timezone: RECURRING_INVOICE_JOB_CONFIG.generateInvoices.timezone,
+                retries: RECURRING_INVOICE_JOB_CONFIG.generateInvoices.retries,
+                description: 'Process due recurring invoices and generate new invoices'
             },
             sendNotifications: {
                 running: jobsRunning.sendNotifications,
-                schedule: 'Daily at midnight'
+                schedule: RECURRING_INVOICE_JOB_CONFIG.sendNotifications.cron,
+                timezone: RECURRING_INVOICE_JOB_CONFIG.sendNotifications.timezone,
+                daysAhead: RECURRING_INVOICE_JOB_CONFIG.sendNotifications.daysAhead,
+                description: 'Send notifications for upcoming recurring invoices'
             },
             cleanup: {
                 running: jobsRunning.cleanup,
-                schedule: 'Daily at 1:00 AM'
+                schedule: RECURRING_INVOICE_JOB_CONFIG.cleanup.cron,
+                timezone: RECURRING_INVOICE_JOB_CONFIG.cleanup.timezone,
+                retentionDays: RECURRING_INVOICE_JOB_CONFIG.cleanup.retentionDays,
+                description: 'Clean up cancelled recurring invoices'
             }
-        }
+        },
+        statistics: {
+            generateInvoices: {
+                ...jobStats.generateInvoices,
+                healthStatus: getJobHealthStatus('generateInvoices')
+            },
+            sendNotifications: {
+                ...jobStats.sendNotifications,
+                healthStatus: getJobHealthStatus('sendNotifications')
+            },
+            cleanup: {
+                ...jobStats.cleanup,
+                healthStatus: getJobHealthStatus('cleanup')
+            }
+        },
+        config: RECURRING_INVOICE_JOB_CONFIG
     };
+}
+
+/**
+ * Get health status for a job
+ * @param {String} jobName - Job name
+ * @returns {String} - Health status ('healthy', 'warning', 'error')
+ */
+function getJobHealthStatus(jobName) {
+    const stats = jobStats[jobName];
+
+    if (!stats || !stats.lastRun) {
+        return 'unknown';
+    }
+
+    // Check if job has run in the last 48 hours
+    const hoursSinceLastRun = (Date.now() - new Date(stats.lastRun).getTime()) / (1000 * 60 * 60);
+    if (hoursSinceLastRun > 48) {
+        return 'error';
+    }
+
+    // Check for consecutive errors
+    if (stats.consecutiveErrors && stats.consecutiveErrors >= 3) {
+        return 'error';
+    }
+
+    // Check error rate
+    if (stats.totalRuns > 0) {
+        const errorRate = stats.totalErrors / stats.totalRuns;
+        if (errorRate > 0.5) {
+            return 'warning';
+        }
+    }
+
+    return 'healthy';
+}
+
+/**
+ * Reset job statistics
+ * @param {String} jobName - Job name (optional, resets all if not provided)
+ */
+function resetJobStatistics(jobName = null) {
+    if (jobName) {
+        if (jobStats[jobName]) {
+            jobStats[jobName] = {
+                lastRun: null,
+                lastSuccess: null,
+                lastError: null,
+                totalRuns: 0,
+                totalProcessed: 0,
+                totalGenerated: 0,
+                totalFailed: 0,
+                totalErrors: 0,
+                consecutiveErrors: 0
+            };
+            logger.info(`[Recurring Invoice Jobs] Statistics reset for ${jobName}`);
+        }
+    } else {
+        // Reset all
+        for (const key in jobStats) {
+            jobStats[key] = {
+                lastRun: null,
+                lastSuccess: null,
+                lastError: null,
+                totalRuns: 0,
+                totalProcessed: 0,
+                totalGenerated: 0,
+                totalFailed: 0,
+                totalErrors: 0,
+                consecutiveErrors: 0
+            };
+        }
+        logger.info('[Recurring Invoice Jobs] All statistics reset');
+    }
 }
 
 module.exports = {
@@ -411,8 +650,11 @@ module.exports = {
     stopRecurringInvoiceJobs,
     triggerJob,
     getJobStatus,
+    resetJobStatistics,
     // Export individual functions for testing
     generateRecurringInvoices,
     sendUpcomingNotifications,
-    cleanupCancelledRecurring
+    cleanupCancelledRecurring,
+    // Export configuration for reference
+    RECURRING_INVOICE_JOB_CONFIG
 };

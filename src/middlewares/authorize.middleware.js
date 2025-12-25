@@ -113,6 +113,7 @@ const checkPermission = (permission) => {
           'view_all_invoices',
           'manage_payments',
           'export_data',
+          'manage:integrations',
         ],
         lawyer: [
           'view_own_cases',
@@ -125,6 +126,7 @@ const checkPermission = (permission) => {
           'track_time',
           'message_clients',
           'view_own_clients',
+          'manage:integrations',
         ],
         client: [
           'view_own_cases',

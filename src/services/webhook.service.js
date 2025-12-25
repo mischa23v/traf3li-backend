@@ -532,6 +532,205 @@ class WebhookService {
             deliveries: deliveryStats
         };
     }
+
+    /**
+     * Create webhook
+     * @param {Object} data - Webhook data
+     * @param {String} userId - User ID creating the webhook
+     * @param {String} firmId - Firm ID
+     * @returns {Promise<Object>} - Created webhook
+     */
+    async createWebhook(data, userId, firmId) {
+        const { url, events, name, description, headers, retryPolicy, filters, metadata, timeout } = data;
+
+        // Generate a random secret for signature verification
+        const secret = this.generateSecret();
+
+        const webhook = await Webhook.create({
+            firmId,
+            url,
+            name,
+            description,
+            events,
+            secret,
+            headers: headers || {},
+            retryPolicy: retryPolicy || {},
+            filters: filters || {},
+            metadata: metadata || {},
+            syncConfig: {
+                timeout: timeout || 20000
+            },
+            createdBy: userId,
+            isActive: true
+        });
+
+        return webhook;
+    }
+
+    /**
+     * Update webhook
+     * @param {String} webhookId - Webhook ID
+     * @param {Object} data - Update data
+     * @returns {Promise<Object>} - Updated webhook
+     */
+    async updateWebhook(webhookId, data) {
+        const webhook = await Webhook.findById(webhookId);
+
+        if (!webhook) {
+            throw new Error('Webhook not found');
+        }
+
+        // Update allowed fields
+        const allowedFields = ['name', 'description', 'events', 'headers', 'retryPolicy', 'filters', 'metadata', 'isActive'];
+        allowedFields.forEach(field => {
+            if (data[field] !== undefined) {
+                webhook[field] = data[field];
+            }
+        });
+
+        // Update timeout if provided
+        if (data.timeout !== undefined) {
+            webhook.syncConfig = webhook.syncConfig || {};
+            webhook.syncConfig.timeout = data.timeout;
+        }
+
+        await webhook.save();
+        return webhook;
+    }
+
+    /**
+     * Delete webhook
+     * @param {String} webhookId - Webhook ID
+     * @returns {Promise<void>}
+     */
+    async deleteWebhook(webhookId) {
+        const webhook = await Webhook.findById(webhookId);
+
+        if (!webhook) {
+            throw new Error('Webhook not found');
+        }
+
+        await webhook.deleteOne();
+
+        // Also delete associated deliveries
+        await WebhookDelivery.deleteMany({ webhookId });
+    }
+
+    /**
+     * Get webhooks for a firm
+     * @param {String} firmId - Firm ID
+     * @returns {Promise<Array>} - List of webhooks
+     */
+    async getWebhooks(firmId) {
+        return await Webhook.find({ firmId })
+            .select('-secret') // Don't return secrets
+            .sort({ createdAt: -1 });
+    }
+
+    /**
+     * Trigger webhook for a specific event
+     * This is a convenience method that wraps the trigger method
+     * @param {String} event - Event type
+     * @param {Object} payload - Event payload
+     * @param {String} firmId - Firm ID
+     * @returns {Promise<Object>} - Trigger result
+     */
+    async triggerWebhook(event, payload, firmId) {
+        return await this.trigger(event, payload, firmId);
+    }
+
+    /**
+     * Process delivery (attempt to deliver a pending webhook)
+     * @param {String} deliveryId - Delivery ID
+     * @returns {Promise<Object>} - Delivery result
+     */
+    async processDelivery(deliveryId) {
+        const delivery = await WebhookDelivery.findById(deliveryId).populate('webhookId');
+
+        if (!delivery) {
+            throw new Error('Delivery not found');
+        }
+
+        if (!delivery.webhookId) {
+            throw new Error('Associated webhook not found');
+        }
+
+        // Prepare headers
+        const headers = {
+            'Content-Type': 'application/json',
+            'X-Webhook-Signature': delivery.signature,
+            'X-Webhook-Event': delivery.event,
+            'X-Webhook-ID': delivery.webhookId._id.toString(),
+            'X-Webhook-Timestamp': new Date().toISOString(),
+            'User-Agent': 'Traf3li-Webhook/1.0'
+        };
+
+        // Add custom headers
+        if (delivery.webhookId.headers) {
+            delivery.webhookId.headers.forEach((value, key) => {
+                headers[key] = value;
+            });
+        }
+
+        // Attempt delivery
+        await this.attemptDelivery(delivery, delivery.webhookId, headers, delivery.payload);
+
+        return delivery;
+    }
+
+    /**
+     * Retry a specific delivery
+     * @param {String} deliveryId - Delivery ID
+     * @returns {Promise<Object>} - Delivery result
+     */
+    async retryDelivery(deliveryId) {
+        const delivery = await WebhookDelivery.findById(deliveryId).populate('webhookId');
+
+        if (!delivery) {
+            throw new Error('Delivery not found');
+        }
+
+        if (!delivery.webhookId) {
+            throw new Error('Associated webhook not found');
+        }
+
+        if (!delivery.canRetry) {
+            throw new Error('Delivery cannot be retried (max attempts reached or already succeeded)');
+        }
+
+        // Prepare headers
+        const headers = {
+            'Content-Type': 'application/json',
+            'X-Webhook-Signature': delivery.signature,
+            'X-Webhook-Event': delivery.event,
+            'X-Webhook-ID': delivery.webhookId._id.toString(),
+            'X-Webhook-Timestamp': new Date().toISOString(),
+            'X-Webhook-Retry': delivery.currentAttempt + 1,
+            'User-Agent': 'Traf3li-Webhook/1.0'
+        };
+
+        // Add custom headers
+        if (delivery.webhookId.headers) {
+            delivery.webhookId.headers.forEach((value, key) => {
+                headers[key] = value;
+            });
+        }
+
+        // Attempt delivery
+        await this.attemptDelivery(delivery, delivery.webhookId, headers, delivery.payload);
+
+        return delivery;
+    }
+
+    /**
+     * Sign payload with webhook secret
+     * @param {Object} payload - Payload to sign
+     * @param {String} secret - Webhook secret
+     * @returns {String} - HMAC signature
+     */
+    signPayload(payload, secret) {
+        return this.generateSignature(payload, secret);
+    }
 }
 
 module.exports = new WebhookService();

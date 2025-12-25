@@ -1,0 +1,92 @@
+{
+  "sheets": [
+    {
+      "name": "<%= language === 'ar' ? 'الفواتير' : 'Invoices' %>",
+      "data": "<%= JSON.stringify(invoices) %>",
+      "columns": [
+        {
+          "header": "<%= language === 'ar' ? 'رقم الفاتورة' : 'Invoice Number' %>",
+          "key": "invoiceNumber",
+          "width": 15
+        },
+        {
+          "header": "<%= language === 'ar' ? 'العميل' : 'Client' %>",
+          "key": "clientName",
+          "width": 25
+        },
+        {
+          "header": "<%= language === 'ar' ? 'رقم القضية' : 'Case Number' %>",
+          "key": "caseNumber",
+          "width": 15
+        },
+        {
+          "header": "<%= language === 'ar' ? 'تاريخ الإصدار' : 'Issue Date' %>",
+          "key": "issueDate",
+          "width": 15,
+          "format": "date"
+        },
+        {
+          "header": "<%= language === 'ar' ? 'تاريخ الاستحقاق' : 'Due Date' %>",
+          "key": "dueDate",
+          "width": 15,
+          "format": "date"
+        },
+        {
+          "header": "<%= language === 'ar' ? 'المجموع الفرعي' : 'Subtotal' %>",
+          "key": "subtotal",
+          "width": 15,
+          "format": "currency"
+        },
+        {
+          "header": "<%= language === 'ar' ? 'ضريبة القيمة المضافة' : 'VAT' %>",
+          "key": "vatAmount",
+          "width": 15,
+          "format": "currency"
+        },
+        {
+          "header": "<%= language === 'ar' ? 'الإجمالي' : 'Total' %>",
+          "key": "total",
+          "width": 15,
+          "format": "currency"
+        },
+        {
+          "header": "<%= language === 'ar' ? 'المدفوع' : 'Paid' %>",
+          "key": "paidAmount",
+          "width": 15,
+          "format": "currency"
+        },
+        {
+          "header": "<%= language === 'ar' ? 'الرصيد' : 'Balance' %>",
+          "key": "balance",
+          "width": 15,
+          "format": "currency"
+        },
+        {
+          "header": "<%= language === 'ar' ? 'الحالة' : 'Status' %>",
+          "key": "status",
+          "width": 12
+        }
+      ]
+    }
+  ],
+  "styles": {
+    "header": {
+      "font": {
+        "bold": true,
+        "size": 12
+      },
+      "fill": {
+        "type": "pattern",
+        "pattern": "solid",
+        "fgColor": {
+          "argb": "FFE0E0E0"
+        }
+      },
+      "alignment": {
+        "vertical": "middle",
+        "horizontal": "center"
+      }
+    },
+    "alternateRows": true
+  }
+}
