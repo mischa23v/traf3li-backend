@@ -30,7 +30,7 @@ const listTemplates = asyncHandler(async (req, res) => {
     const userId = req.userID;
 
     if (!firmId) {
-        throw CustomException('E91A 'D41C) E7DH( | Firm ID is required', 400);
+        throw CustomException("E91A 'D41C) E7DH( | Firm ID is required", 400);
     }
 
     // SECURITY: Sanitize and validate pagination parameters
@@ -88,7 +88,7 @@ const createTemplate = asyncHandler(async (req, res) => {
     const userId = req.userID;
 
     if (!firmId) {
-        throw CustomException('E91A 'D41C) E7DH( | Firm ID is required', 400);
+        throw CustomException("E91A 'D41C) E7DH( | Firm ID is required", 400);
     }
 
     // SECURITY: Mass assignment protection
@@ -111,16 +111,16 @@ const createTemplate = asyncHandler(async (req, res) => {
 
     // Validate required fields
     if (!safeData.name || typeof safeData.name !== 'string') {
-        throw CustomException(''D'3E E7DH( | Name is required', 400);
+        throw CustomException("'D'3E E7DH( | Name is required", 400);
     }
 
     if (!safeData.category) {
-        throw CustomException(''D*5FJA E7DH( | Category is required', 400);
+        throw CustomException("'D*5FJA E7DH( | Category is required", 400);
     }
 
     const validCategories = ['legal', 'finance', 'hr', 'client_onboarding', 'case_management', 'custom'];
     if (!validCategories.includes(safeData.category)) {
-        throw CustomException(''D*5FJA :J1 5'D- | Invalid category', 400);
+        throw CustomException("'D*5FJA :J1 5'D- | Invalid category", 400);
     }
 
     // Sanitize strings
@@ -136,7 +136,7 @@ const createTemplate = asyncHandler(async (req, res) => {
 
     res.status(201).json({
         success: true,
-        message: '*E %F4'! B'D( 3J1 'D9ED (F,'- | Template created successfully',
+        message: "*E %F4'! B'D( 3J1 'D9ED (F,'- | Template created successfully",
         data: template
     });
 });
@@ -150,13 +150,13 @@ const getTemplate = asyncHandler(async (req, res) => {
     const firmId = getFirmId(req);
 
     if (!firmId) {
-        throw CustomException('E91A 'D41C) E7DH( | Firm ID is required', 400);
+        throw CustomException("E91A 'D41C) E7DH( | Firm ID is required", 400);
     }
 
     // SECURITY: Sanitize ObjectId
     const sanitizedId = sanitizeObjectId(id);
     if (!sanitizedId) {
-        throw CustomException('E91A :J1 5'D- | Invalid ID format', 400);
+        throw CustomException("E91A :J1 5'D- | Invalid ID format", 400);
     }
 
     // SECURITY: IDOR Protection - Verify ownership
@@ -172,7 +172,7 @@ const getTemplate = asyncHandler(async (req, res) => {
         .lean();
 
     if (!template) {
-        throw CustomException('B'D( 3J1 'D9ED :J1 EH,H/ | Template not found', 404);
+        throw CustomException("B'D( 3J1 'D9ED :J1 EH,H/ | Template not found", 404);
     }
 
     res.status(200).json({
@@ -191,13 +191,13 @@ const updateTemplate = asyncHandler(async (req, res) => {
     const userId = req.userID;
 
     if (!firmId) {
-        throw CustomException('E91A 'D41C) E7DH( | Firm ID is required', 400);
+        throw CustomException("E91A 'D41C) E7DH( | Firm ID is required", 400);
     }
 
     // SECURITY: Sanitize ObjectId
     const sanitizedId = sanitizeObjectId(id);
     if (!sanitizedId) {
-        throw CustomException('E91A :J1 5'D- | Invalid ID format', 400);
+        throw CustomException("E91A :J1 5'D- | Invalid ID format", 400);
     }
 
     // SECURITY: IDOR Protection - Verify ownership
@@ -207,7 +207,7 @@ const updateTemplate = asyncHandler(async (req, res) => {
     });
 
     if (!template) {
-        throw CustomException('B'D( 3J1 'D9ED :J1 EH,H/ | Template not found', 404);
+        throw CustomException("B'D( 3J1 'D9ED :J1 EH,H/ | Template not found", 404);
     }
 
     // SECURITY: Mass assignment protection
@@ -243,7 +243,7 @@ const updateTemplate = asyncHandler(async (req, res) => {
 
     res.status(200).json({
         success: true,
-        message: '*E *-/J+ B'D( 3J1 'D9ED (F,'- | Template updated successfully',
+        message: "*E *-/J+ B'D( 3J1 'D9ED (F,'- | Template updated successfully",
         data: updatedTemplate
     });
 });
@@ -258,13 +258,13 @@ const deleteTemplate = asyncHandler(async (req, res) => {
     const userId = req.userID;
 
     if (!firmId) {
-        throw CustomException('E91A 'D41C) E7DH( | Firm ID is required', 400);
+        throw CustomException("E91A 'D41C) E7DH( | Firm ID is required", 400);
     }
 
     // SECURITY: Sanitize ObjectId
     const sanitizedId = sanitizeObjectId(id);
     if (!sanitizedId) {
-        throw CustomException('E91A :J1 5'D- | Invalid ID format', 400);
+        throw CustomException("E91A :J1 5'D- | Invalid ID format", 400);
     }
 
     // Delete template
@@ -274,7 +274,7 @@ const deleteTemplate = asyncHandler(async (req, res) => {
 
     res.status(200).json({
         success: true,
-        message: '*E -0A B'D( 3J1 'D9ED (F,'- | Template deleted successfully'
+        message: "*E -0A B'D( 3J1 'D9ED (F,'- | Template deleted successfully"
     });
 });
 
@@ -291,7 +291,7 @@ const startWorkflow = asyncHandler(async (req, res) => {
     const userId = req.userID;
 
     if (!firmId) {
-        throw CustomException('E91A 'D41C) E7DH( | Firm ID is required', 400);
+        throw CustomException("E91A 'D41C) E7DH( | Firm ID is required", 400);
     }
 
     // SECURITY: Mass assignment protection
@@ -300,15 +300,15 @@ const startWorkflow = asyncHandler(async (req, res) => {
 
     // Validate required fields
     if (!safeData.templateId) {
-        throw CustomException('E91A 'DB'D( E7DH( | Template ID is required', 400);
+        throw CustomException("E91A 'DB'D( E7DH( | Template ID is required", 400);
     }
 
     if (!safeData.entityType) {
-        throw CustomException('FH9 'DCJ'F E7DH( | Entity type is required', 400);
+        throw CustomException("FH9 'DCJ'F E7DH( | Entity type is required", 400);
     }
 
     if (!safeData.entityId) {
-        throw CustomException('E91A 'DCJ'F E7DH( | Entity ID is required', 400);
+        throw CustomException("E91A 'DCJ'F E7DH( | Entity ID is required", 400);
     }
 
     // SECURITY: Sanitize ObjectIds
@@ -316,7 +316,7 @@ const startWorkflow = asyncHandler(async (req, res) => {
     const sanitizedEntityId = sanitizeObjectId(safeData.entityId);
 
     if (!sanitizedTemplateId || !sanitizedEntityId) {
-        throw CustomException('E91A :J1 5'D- | Invalid ID format', 400);
+        throw CustomException("E91A :J1 5'D- | Invalid ID format", 400);
     }
 
     // Start workflow
@@ -332,7 +332,7 @@ const startWorkflow = asyncHandler(async (req, res) => {
 
     res.status(201).json({
         success: true,
-        message: '*E (/! 3J1 'D9ED (F,'- | Workflow started successfully',
+        message: "*E (/! 3J1 'D9ED (F,'- | Workflow started successfully",
         data: instance
     });
 });
@@ -346,13 +346,13 @@ const getWorkflowStatus = asyncHandler(async (req, res) => {
     const firmId = getFirmId(req);
 
     if (!firmId) {
-        throw CustomException('E91A 'D41C) E7DH( | Firm ID is required', 400);
+        throw CustomException("E91A 'D41C) E7DH( | Firm ID is required", 400);
     }
 
     // SECURITY: Sanitize ObjectId
     const sanitizedId = sanitizeObjectId(id);
     if (!sanitizedId) {
-        throw CustomException('E91A :J1 5'D- | Invalid ID format', 400);
+        throw CustomException("E91A :J1 5'D- | Invalid ID format", 400);
     }
 
     // SECURITY: IDOR Protection - Verify ownership
@@ -362,7 +362,7 @@ const getWorkflowStatus = asyncHandler(async (req, res) => {
     }).lean();
 
     if (!instance) {
-        throw CustomException('E+JD 3J1 'D9ED :J1 EH,H/ | Workflow instance not found', 404);
+        throw CustomException("E+JD 3J1 'D9ED :J1 EH,H/ | Workflow instance not found", 404);
     }
 
     // Get status
@@ -384,13 +384,13 @@ const pauseWorkflow = asyncHandler(async (req, res) => {
     const userId = req.userID;
 
     if (!firmId) {
-        throw CustomException('E91A 'D41C) E7DH( | Firm ID is required', 400);
+        throw CustomException("E91A 'D41C) E7DH( | Firm ID is required", 400);
     }
 
     // SECURITY: Sanitize ObjectId
     const sanitizedId = sanitizeObjectId(id);
     if (!sanitizedId) {
-        throw CustomException('E91A :J1 5'D- | Invalid ID format', 400);
+        throw CustomException("E91A :J1 5'D- | Invalid ID format", 400);
     }
 
     // SECURITY: IDOR Protection - Verify ownership
@@ -400,7 +400,7 @@ const pauseWorkflow = asyncHandler(async (req, res) => {
     });
 
     if (!instance) {
-        throw CustomException('E+JD 3J1 'D9ED :J1 EH,H/ | Workflow instance not found', 404);
+        throw CustomException("E+JD 3J1 'D9ED :J1 EH,H/ | Workflow instance not found", 404);
     }
 
     // Pause workflow
@@ -410,7 +410,7 @@ const pauseWorkflow = asyncHandler(async (req, res) => {
 
     res.status(200).json({
         success: true,
-        message: '*E %JB'A 3J1 'D9ED E$B*'K (F,'- | Workflow paused successfully',
+        message: "*E %JB'A 3J1 'D9ED E$B*'K (F,'- | Workflow paused successfully",
         data: pausedInstance
     });
 });
@@ -425,13 +425,13 @@ const resumeWorkflow = asyncHandler(async (req, res) => {
     const userId = req.userID;
 
     if (!firmId) {
-        throw CustomException('E91A 'D41C) E7DH( | Firm ID is required', 400);
+        throw CustomException("E91A 'D41C) E7DH( | Firm ID is required", 400);
     }
 
     // SECURITY: Sanitize ObjectId
     const sanitizedId = sanitizeObjectId(id);
     if (!sanitizedId) {
-        throw CustomException('E91A :J1 5'D- | Invalid ID format', 400);
+        throw CustomException("E91A :J1 5'D- | Invalid ID format", 400);
     }
 
     // SECURITY: IDOR Protection - Verify ownership
@@ -441,7 +441,7 @@ const resumeWorkflow = asyncHandler(async (req, res) => {
     });
 
     if (!instance) {
-        throw CustomException('E+JD 3J1 'D9ED :J1 EH,H/ | Workflow instance not found', 404);
+        throw CustomException("E+JD 3J1 'D9ED :J1 EH,H/ | Workflow instance not found", 404);
     }
 
     // Resume workflow
@@ -451,7 +451,7 @@ const resumeWorkflow = asyncHandler(async (req, res) => {
 
     res.status(200).json({
         success: true,
-        message: '*E '3*&F'A 3J1 'D9ED (F,'- | Workflow resumed successfully',
+        message: "*E '3*&F'A 3J1 'D9ED (F,'- | Workflow resumed successfully",
         data: resumedInstance
     });
 });
@@ -466,13 +466,13 @@ const cancelWorkflow = asyncHandler(async (req, res) => {
     const userId = req.userID;
 
     if (!firmId) {
-        throw CustomException('E91A 'D41C) E7DH( | Firm ID is required', 400);
+        throw CustomException("E91A 'D41C) E7DH( | Firm ID is required", 400);
     }
 
     // SECURITY: Sanitize ObjectId
     const sanitizedId = sanitizeObjectId(id);
     if (!sanitizedId) {
-        throw CustomException('E91A :J1 5'D- | Invalid ID format', 400);
+        throw CustomException("E91A :J1 5'D- | Invalid ID format", 400);
     }
 
     // SECURITY: Mass assignment protection
@@ -486,7 +486,7 @@ const cancelWorkflow = asyncHandler(async (req, res) => {
     });
 
     if (!instance) {
-        throw CustomException('E+JD 3J1 'D9ED :J1 EH,H/ | Workflow instance not found', 404);
+        throw CustomException("E+JD 3J1 'D9ED :J1 EH,H/ | Workflow instance not found", 404);
     }
 
     // Cancel workflow
@@ -497,7 +497,7 @@ const cancelWorkflow = asyncHandler(async (req, res) => {
 
     res.status(200).json({
         success: true,
-        message: '*E %D:'! 3J1 'D9ED (F,'- | Workflow cancelled successfully',
+        message: "*E %D:'! 3J1 'D9ED (F,'- | Workflow cancelled successfully",
         data: cancelledInstance
     });
 });
@@ -512,13 +512,13 @@ const advanceStep = asyncHandler(async (req, res) => {
     const userId = req.userID;
 
     if (!firmId) {
-        throw CustomException('E91A 'D41C) E7DH( | Firm ID is required', 400);
+        throw CustomException("E91A 'D41C) E7DH( | Firm ID is required", 400);
     }
 
     // SECURITY: Sanitize ObjectId
     const sanitizedId = sanitizeObjectId(id);
     if (!sanitizedId) {
-        throw CustomException('E91A :J1 5'D- | Invalid ID format', 400);
+        throw CustomException("E91A :J1 5'D- | Invalid ID format", 400);
     }
 
     // SECURITY: IDOR Protection - Verify ownership
@@ -528,7 +528,7 @@ const advanceStep = asyncHandler(async (req, res) => {
     });
 
     if (!instance) {
-        throw CustomException('E+JD 3J1 'D9ED :J1 EH,H/ | Workflow instance not found', 404);
+        throw CustomException("E+JD 3J1 'D9ED :J1 EH,H/ | Workflow instance not found", 404);
     }
 
     // SECURITY: Mass assignment protection
@@ -543,7 +543,7 @@ const advanceStep = asyncHandler(async (req, res) => {
 
     res.status(200).json({
         success: true,
-        message: '*E 'D'F*B'D %DI 'D.7H) 'D*'DJ) (F,'- | Advanced to next step successfully',
+        message: "*E 'D'F*B'D %DI 'D.7H) 'D*'DJ) (F,'- | Advanced to next step successfully",
         data: updatedInstance
     });
 });
@@ -557,19 +557,19 @@ const getActiveWorkflows = asyncHandler(async (req, res) => {
     const firmId = getFirmId(req);
 
     if (!firmId) {
-        throw CustomException('E91A 'D41C) E7DH( | Firm ID is required', 400);
+        throw CustomException("E91A 'D41C) E7DH( | Firm ID is required", 400);
     }
 
     // Validate entity type
     const validEntityTypes = ['case', 'client', 'invoice', 'task', 'lead', 'deal', 'employee', 'custom'];
     if (!validEntityTypes.includes(entityType)) {
-        throw CustomException('FH9 'DCJ'F :J1 5'D- | Invalid entity type', 400);
+        throw CustomException("FH9 'DCJ'F :J1 5'D- | Invalid entity type", 400);
     }
 
     // SECURITY: Sanitize ObjectId
     const sanitizedEntityId = sanitizeObjectId(entityId);
     if (!sanitizedEntityId) {
-        throw CustomException('E91A :J1 5'D- | Invalid ID format', 400);
+        throw CustomException("E91A :J1 5'D- | Invalid ID format", 400);
     }
 
     // Get active workflows
@@ -589,7 +589,7 @@ const listInstances = asyncHandler(async (req, res) => {
     const firmId = getFirmId(req);
 
     if (!firmId) {
-        throw CustomException('E91A 'D41C) E7DH( | Firm ID is required', 400);
+        throw CustomException("E91A 'D41C) E7DH( | Firm ID is required", 400);
     }
 
     // SECURITY: Sanitize and validate pagination parameters

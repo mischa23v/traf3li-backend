@@ -555,7 +555,7 @@ class DropboxService {
             };
         } catch (error) {
             // Link might already exist
-            if (error.response?.data?.error?.error?.'.tag'] === 'shared_link_already_exists') {
+            if (error.response?.data?.error?.error?.['.tag'] === 'shared_link_already_exists') {
                 const links = await this.apiRequest(userId, '/sharing/list_shared_links', {
                     path: fileId
                 });
