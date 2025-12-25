@@ -1,12 +1,24 @@
 const jwt = require('jsonwebtoken');
 const { CustomException } = require("../utils");
+const logger = require('../utils/contextLogger');
 
 const authenticate = (request, response, next) => {
     const { accessToken } = request.cookies;
 
     try {
         if (!accessToken) {
-            throw CustomException('Access denied - no token', 401);
+            logger.warn('Authentication failed - no token provided', {
+                endpoint: request.originalUrl,
+                method: request.method,
+                ip: request.ip || request.headers['x-forwarded-for']?.split(',')[0]
+            });
+            return response.status(401).json({
+                error: true,
+                message: 'Authentication required',
+                messageEn: 'Authentication required',
+                messageAr: 'المصادقة مطلوبة',
+                code: 'NO_TOKEN'
+            });
         }
 
         const verification = jwt.verify(accessToken, process.env.JWT_SECRET);
@@ -15,38 +27,75 @@ const authenticate = (request, response, next) => {
             return next();
         }
 
-        throw CustomException('Access denied - invalid token', 401);
+        // This shouldn't be reached if verify succeeds, but keep for safety
+        logger.warn('Token verification succeeded but no user ID found');
+        return response.status(401).json({
+            error: true,
+            message: 'Invalid token',
+            messageEn: 'Invalid token',
+            messageAr: 'رمز غير صالح',
+            code: 'INVALID_TOKEN'
+        });
     }
     catch(error) {
+        // Handle JWT-specific errors with detailed logging
         if (error.name === 'TokenExpiredError') {
-            return response.status(401).send({
+            logger.info('Token expired', {
+                expiredAt: error.expiredAt,
+                endpoint: request.originalUrl
+            });
+            return response.status(401).json({
                 error: true,
                 message: 'Token expired',
+                messageEn: 'Token expired',
+                messageAr: 'انتهت صلاحية الرمز',
                 code: 'TOKEN_EXPIRED',
                 expiredAt: error.expiredAt
             });
         }
+
         if (error.name === 'JsonWebTokenError') {
-            return response.status(401).send({
+            logger.warn('Invalid JWT token', {
+                error: error.message,
+                endpoint: request.originalUrl
+            });
+            return response.status(401).json({
                 error: true,
                 message: 'Invalid token',
+                messageEn: 'Invalid token',
+                messageAr: 'رمز غير صالح',
                 code: 'INVALID_TOKEN'
             });
         }
+
         if (error.name === 'NotBeforeError') {
-            return response.status(401).send({
+            logger.warn('Token not yet valid', {
+                date: error.date,
+                endpoint: request.originalUrl
+            });
+            return response.status(401).json({
                 error: true,
                 message: 'Token not yet valid',
+                messageEn: 'Token not yet valid',
+                messageAr: 'الرمز ليس صالحاً بعد',
                 code: 'TOKEN_NOT_ACTIVE'
             });
         }
 
-        const status = error.status || 500;
-        const message = error.message || 'Authentication failed';
+        // Generic authentication error
+        const status = error.status || 401;
+        logger.error('Authentication failed', {
+            error: error.message,
+            status,
+            endpoint: request.originalUrl
+        });
 
-        return response.status(status).send({
+        return response.status(status).json({
             error: true,
-            message
+            message: 'Authentication failed',
+            messageEn: 'Authentication failed',
+            messageAr: 'فشلت المصادقة',
+            code: 'AUTH_FAILED'
         });
     }
 }

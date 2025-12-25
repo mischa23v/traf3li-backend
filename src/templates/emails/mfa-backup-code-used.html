@@ -1,0 +1,76 @@
+<div class="icon-container">
+    <div class="icon warning">🔐</div>
+</div>
+
+<h1>{{title}}</h1>
+
+<p>{{greeting}}</p>
+
+<p>{{messageText}}</p>
+
+<div class="warning-box" style="background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 20px; margin: 25px 0; border-radius: 4px;">
+    <p style="color: #92400e; margin: 0;"><strong>🔑 {{backupCodeUsedTitle}}</strong></p>
+    <p style="color: #92400e; margin: 10px 0 0 0;">{{backupCodeUsedText}}</p>
+</div>
+
+<div class="info-box" style="background-color: #dbeafe; border-left: 4px solid #3b82f6; padding: 20px; margin: 25px 0; border-radius: 4px;">
+    <p style="color: #1e40af; margin: 0;"><strong>📊 {{detailsTitle}}</strong></p>
+    <ul style="margin: 10px 0 0 0; padding-left: 20px; color: #1e40af;">
+        <li><strong>{{usedAtLabel}}:</strong> {{usedAt}}</li>
+        {{#ipAddress}}
+        <li><strong>{{ipAddressLabel}}:</strong> {{ipAddress}}</li>
+        {{/ipAddress}}
+        {{#deviceInfo}}
+        <li><strong>{{deviceLabel}}:</strong> {{deviceInfo}}</li>
+        {{/deviceInfo}}
+        {{#location}}
+        <li><strong>{{locationLabel}}:</strong> {{location}}</li>
+        {{/location}}
+    </ul>
+</div>
+
+<div class="info-box" style="background-color: #e0e7ff; border-left: 4px solid #6366f1; padding: 20px; margin: 25px 0; border-radius: 4px;">
+    <p style="color: #4338ca; margin: 0;"><strong>🔢 {{remainingCodesTitle}}</strong></p>
+    <p style="color: #4338ca; margin: 10px 0 0 0; font-size: 18px; font-weight: 600;">{{remainingCodes}} {{remainingCodesText}}</p>
+</div>
+
+{{#lowBackupCodes}}
+<div style="background-color: #fee2e2; border-left: 4px solid #dc2626; padding: 20px; margin: 25px 0; border-radius: 4px;">
+    <p style="color: #991b1b; margin: 0;"><strong>⚠️ {{lowCodesWarningTitle}}</strong></p>
+    <p style="color: #991b1b; margin: 10px 0 0 0;">{{lowCodesWarningText}}</p>
+</div>
+
+<div style="text-align: center; margin: 30px 0;">
+    <a href="{{regenerateUrl}}" class="button" style="display: inline-block; padding: 12px 28px; background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%); color: #ffffff !important; text-decoration: none; border-radius: 8px; font-size: 15px; font-weight: 600;">{{regenerateButtonText}}</a>
+</div>
+{{/lowBackupCodes}}
+
+{{^lowBackupCodes}}
+<div style="text-align: center; margin: 30px 0;">
+    <a href="{{regenerateUrl}}" class="button">{{manageBackupCodesText}}</a>
+</div>
+{{/lowBackupCodes}}
+
+<hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
+
+<div class="info-box" style="background-color: #f9fafb; border: 1px solid #e5e7eb; padding: 20px; margin: 25px 0; border-radius: 8px;">
+    <p style="margin: 0;"><strong>💡 {{securityTipsTitle}}</strong></p>
+    <ul style="margin: 10px 0 0 0; padding-left: 20px; color: #6b7280;">
+        <li>{{securityTip1}}</li>
+        <li>{{securityTip2}}</li>
+        <li>{{securityTip3}}</li>
+        <li>{{securityTip4}}</li>
+    </ul>
+</div>
+
+<hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
+
+<div style="background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 20px; margin: 25px 0; border-radius: 4px;">
+    <p style="color: #92400e; margin: 0;"><strong>❓ {{notYouTitle}}</strong></p>
+    <p style="color: #92400e; margin: 10px 0 0 0;">{{notYouText}}</p>
+</div>
+
+<p>{{supportText}}</p>
+
+<p>{{closingText}}<br>
+<strong>{{teamName}}</strong></p>

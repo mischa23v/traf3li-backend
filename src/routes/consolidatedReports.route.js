@@ -3,6 +3,7 @@ const router = express.Router();
 const consolidatedReportsController = require('../controllers/consolidatedReports.controller');
 const { verifyToken } = require('../middlewares/jwt');
 const { attachFirmContext } = require('../middlewares/firmContext.middleware');
+const { sensitiveRateLimiter } = require('../middlewares/rateLimiter.middleware');
 
 // ═══════════════════════════════════════════════════════════════
 // MIDDLEWARE
@@ -25,7 +26,7 @@ router.use(attachFirmContext);
  *   - includeEliminations: Boolean to include intercompany eliminations (optional)
  *   - currency: Target currency for reporting (optional, default: SAR)
  */
-router.get('/profit-loss', consolidatedReportsController.getConsolidatedProfitLoss);
+router.get('/profit-loss', sensitiveRateLimiter, consolidatedReportsController.getConsolidatedProfitLoss);
 
 /**
  * GET /api/reports/consolidated/balance-sheet
@@ -36,7 +37,7 @@ router.get('/profit-loss', consolidatedReportsController.getConsolidatedProfitLo
  *   - includeEliminations: Boolean to include intercompany eliminations (optional)
  *   - currency: Target currency for reporting (optional, default: SAR)
  */
-router.get('/balance-sheet', consolidatedReportsController.getConsolidatedBalanceSheet);
+router.get('/balance-sheet', sensitiveRateLimiter, consolidatedReportsController.getConsolidatedBalanceSheet);
 
 /**
  * GET /api/reports/consolidated/cash-flow
@@ -47,7 +48,7 @@ router.get('/balance-sheet', consolidatedReportsController.getConsolidatedBalanc
  *   - endDate: End date (required)
  *   - currency: Target currency for reporting (optional, default: SAR)
  */
-router.get('/cash-flow', consolidatedReportsController.getConsolidatedCashFlow);
+router.get('/cash-flow', sensitiveRateLimiter, consolidatedReportsController.getConsolidatedCashFlow);
 
 /**
  * GET /api/reports/consolidated/comparison
@@ -59,7 +60,7 @@ router.get('/cash-flow', consolidatedReportsController.getConsolidatedCashFlow);
  *   - metrics: Array of metrics to compare (optional)
  *     Available: revenue, expenses, profit, profitMargin, clientCount, invoiceCount
  */
-router.get('/comparison', consolidatedReportsController.getCompanyComparison);
+router.get('/comparison', sensitiveRateLimiter, consolidatedReportsController.getCompanyComparison);
 
 // ═══════════════════════════════════════════════════════════════
 // INTERCOMPANY ELIMINATIONS
@@ -73,7 +74,7 @@ router.get('/comparison', consolidatedReportsController.getCompanyComparison);
  *   - startDate: Start date (optional)
  *   - endDate: End date (optional)
  */
-router.get('/eliminations', consolidatedReportsController.getEliminationEntries);
+router.get('/eliminations', sensitiveRateLimiter, consolidatedReportsController.getEliminationEntries);
 
 /**
  * POST /api/reports/consolidated/eliminations
@@ -97,7 +98,7 @@ router.post('/eliminations', consolidatedReportsController.createManualEliminati
  *   - firmIds: Array of firm IDs (required, minimum 2)
  *   - asOfDate: As of date for calculations (optional, defaults to today)
  */
-router.get('/auto-eliminations', consolidatedReportsController.getAutoEliminations);
+router.get('/auto-eliminations', sensitiveRateLimiter, consolidatedReportsController.getAutoEliminations);
 
 /**
  * GET /api/reports/consolidated/full-statement
@@ -109,6 +110,6 @@ router.get('/auto-eliminations', consolidatedReportsController.getAutoEliminatio
  *   - endDate: End date (required)
  *   - currency: Target currency (optional, default: SAR)
  */
-router.get('/full-statement', consolidatedReportsController.getFullConsolidatedStatement);
+router.get('/full-statement', sensitiveRateLimiter, consolidatedReportsController.getFullConsolidatedStatement);
 
 module.exports = router;

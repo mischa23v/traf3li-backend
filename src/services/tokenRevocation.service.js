@@ -342,11 +342,12 @@ class TokenRevocationService {
     } catch (error) {
       logger.error('TokenRevocationService.isTokenRevoked error:', error.message);
 
-      // SECURITY: On error, fail open (don't block valid tokens)
-      // This prevents Redis/MongoDB outages from locking out all users
-      // However, log this as a critical error for monitoring
-      logger.error('⚠️ CRITICAL: Token revocation check failed, allowing token (fail-open)');
-      return false;
+      // SECURITY: On error, fail close (reject token to prevent revoked tokens from being accepted)
+      // This prevents revoked tokens from being accepted if Redis/MongoDB is down
+      // While this may temporarily block valid users during outages, it's safer than
+      // allowing potentially compromised tokens through
+      logger.warn('⚠️ WARNING: Token revocation check failed, treating token as revoked (fail-close) for security');
+      return true;
     }
   }
 

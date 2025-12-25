@@ -149,7 +149,7 @@ app.post('/login', authRateLimiter, validateLogin, authLogin);
  *       401:
  *         $ref: '#/components/responses/Unauthorized'
  */
-app.post('/logout', authLogout)
+app.post('/logout', authenticate, authLogout)
 
 /**
  * @openapi

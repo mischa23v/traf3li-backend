@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const reportController = require('../controllers/report.controller');
 const { userMiddleware, firmFilter } = require('../middlewares');
+const { sensitiveRateLimiter } = require('../middlewares/rateLimiter.middleware');
 
 // ═══════════════════════════════════════════════════════════════
 // MIDDLEWARE
@@ -44,7 +45,7 @@ router.delete('/:id', reportController.deleteReport);
 // ═══════════════════════════════════════════════════════════════
 
 // Execute report
-router.get('/:id/execute', reportController.executeReport);
+router.get('/:id/execute', sensitiveRateLimiter, reportController.executeReport);
 
 // Clone/Duplicate report
 router.post('/:id/clone', reportController.cloneReport);
@@ -53,6 +54,6 @@ router.post('/:id/clone', reportController.cloneReport);
 router.put('/:id/schedule', reportController.updateSchedule);
 
 // Export report
-router.get('/:id/export/:format', reportController.exportReport);
+router.get('/:id/export/:format', sensitiveRateLimiter, reportController.exportReport);
 
 module.exports = router;

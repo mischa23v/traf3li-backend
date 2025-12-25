@@ -3,6 +3,7 @@ const router = express.Router();
 const analyticsReportController = require('../controllers/analyticsReport.controller');
 const { verifyToken } = require('../middlewares/jwt');
 const { attachFirmContext } = require('../middlewares/firmContext.middleware');
+const { sensitiveRateLimiter } = require('../middlewares/rateLimiter.middleware');
 
 // ═══════════════════════════════════════════════════════════════
 // MIDDLEWARE
@@ -58,13 +59,13 @@ router.delete('/:id', analyticsReportController.deleteReport);
 // ═══════════════════════════════════════════════════════════════
 
 // Run/Execute report
-router.post('/:id/run', analyticsReportController.runReport);
+router.post('/:id/run', sensitiveRateLimiter, analyticsReportController.runReport);
 
 // Clone/Duplicate report
 router.post('/:id/clone', analyticsReportController.cloneReport);
 
 // Export report
-router.post('/:id/export', analyticsReportController.exportReport);
+router.post('/:id/export', sensitiveRateLimiter, analyticsReportController.exportReport);
 
 // ═══════════════════════════════════════════════════════════════
 // FAVORITES & PINNING

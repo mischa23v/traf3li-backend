@@ -18,6 +18,7 @@ const {
 } = require('../validators/crm.validator');
 const { verifyToken } = require('../middlewares/jwt');
 const { firmFilter } = require('../middlewares/firmFilter.middleware');
+const { sensitiveRateLimiter } = require('../middlewares/rateLimiter.middleware');
 
 // Apply authentication and firm filter middleware
 router.use(verifyToken, firmFilter);
@@ -31,48 +32,48 @@ router.use(verifyToken, firmFilter);
  * @desc    Get campaign efficiency report
  * @access  Private
  */
-router.get('/campaign-efficiency', validateCampaignEfficiency, crmReportsController.getCampaignEfficiency);
+router.get('/campaign-efficiency', sensitiveRateLimiter, validateCampaignEfficiency, crmReportsController.getCampaignEfficiency);
 
 /**
  * @route   GET /api/v1/reports/crm/lead-owner-efficiency
  * @desc    Get lead owner efficiency report
  * @access  Private
  */
-router.get('/lead-owner-efficiency', validateLeadOwnerEfficiency, crmReportsController.getLeadOwnerEfficiency);
+router.get('/lead-owner-efficiency', sensitiveRateLimiter, validateLeadOwnerEfficiency, crmReportsController.getLeadOwnerEfficiency);
 
 /**
  * @route   GET /api/v1/reports/crm/first-response-time
  * @desc    Get first response time report
  * @access  Private
  */
-router.get('/first-response-time', validateFirstResponseTime, crmReportsController.getFirstResponseTime);
+router.get('/first-response-time', sensitiveRateLimiter, validateFirstResponseTime, crmReportsController.getFirstResponseTime);
 
 /**
  * @route   GET /api/v1/reports/crm/lost-opportunity
  * @desc    Get lost opportunity analysis report
  * @access  Private
  */
-router.get('/lost-opportunity', validateLostOpportunity, crmReportsController.getLostOpportunity);
+router.get('/lost-opportunity', sensitiveRateLimiter, validateLostOpportunity, crmReportsController.getLostOpportunity);
 
 /**
  * @route   GET /api/v1/reports/crm/sales-pipeline
  * @desc    Get sales pipeline report
  * @access  Private
  */
-router.get('/sales-pipeline', validateSalesPipeline, crmReportsController.getSalesPipeline);
+router.get('/sales-pipeline', sensitiveRateLimiter, validateSalesPipeline, crmReportsController.getSalesPipeline);
 
 /**
  * @route   GET /api/v1/reports/crm/prospects-engaged
  * @desc    Get prospects engaged but not converted report
  * @access  Private
  */
-router.get('/prospects-engaged', validateProspectsEngaged, crmReportsController.getProspectsEngaged);
+router.get('/prospects-engaged', sensitiveRateLimiter, validateProspectsEngaged, crmReportsController.getProspectsEngaged);
 
 /**
  * @route   GET /api/v1/reports/crm/lead-conversion-time
  * @desc    Get lead conversion time report
  * @access  Private
  */
-router.get('/lead-conversion-time', validateLeadConversionTime, crmReportsController.getLeadConversionTime);
+router.get('/lead-conversion-time', sensitiveRateLimiter, validateLeadConversionTime, crmReportsController.getLeadConversionTime);
 
 module.exports = router;

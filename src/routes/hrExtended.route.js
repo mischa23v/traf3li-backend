@@ -16,6 +16,7 @@ const express = require('express');
 const router = express.Router();
 const { verifyToken } = require('../middlewares/jwt');
 const { attachFirmContext } = require('../middlewares/firmContext.middleware');
+const { sensitiveRateLimiter, authRateLimiter } = require('../middlewares/rateLimiter.middleware');
 
 // Models
 const LeaveEncashment = require('../models/leaveEncashment.model');
@@ -38,7 +39,7 @@ router.use(attachFirmContext);
 
 // ==================== LEAVE ENCASHMENT ====================
 
-router.get('/leave-encashment', async (req, res) => {
+router.get('/leave-encashment', authRateLimiter, async (req, res) => {
   try {
     const { employeeId, status, year } = req.query;
     const query = { firmId: req.firmId };
@@ -64,7 +65,7 @@ router.get('/leave-encashment', async (req, res) => {
   }
 });
 
-router.post('/leave-encashment', async (req, res) => {
+router.post('/leave-encashment', sensitiveRateLimiter, async (req, res) => {
   try {
     const encashment = await LeaveEncashment.create({
       ...req.body,
@@ -77,7 +78,7 @@ router.post('/leave-encashment', async (req, res) => {
   }
 });
 
-router.post('/leave-encashment/:id/approve', async (req, res) => {
+router.post('/leave-encashment/:id/approve', sensitiveRateLimiter, async (req, res) => {
   try {
     const encashment = await LeaveEncashment.findOne({
       _id: req.params.id,
@@ -93,7 +94,7 @@ router.post('/leave-encashment/:id/approve', async (req, res) => {
 
 // ==================== COMPENSATORY LEAVE ====================
 
-router.get('/compensatory-leave', async (req, res) => {
+router.get('/compensatory-leave', authRateLimiter, async (req, res) => {
   try {
     const { employeeId, status } = req.query;
     const query = { firmId: req.firmId };
@@ -112,7 +113,7 @@ router.get('/compensatory-leave', async (req, res) => {
   }
 });
 
-router.post('/compensatory-leave', async (req, res) => {
+router.post('/compensatory-leave', sensitiveRateLimiter, async (req, res) => {
   try {
     // Auto-calculate days earned
     const daysEarned = CompensatoryLeave.calculateDaysEarned(req.body.hoursWorked, req.body.workReason);
@@ -131,7 +132,7 @@ router.post('/compensatory-leave', async (req, res) => {
   }
 });
 
-router.get('/compensatory-leave/balance/:employeeId', async (req, res) => {
+router.get('/compensatory-leave/balance/:employeeId', authRateLimiter, async (req, res) => {
   try {
     const balance = await CompensatoryLeave.getEmployeeBalance(req.firmId, req.params.employeeId);
     res.json({ success: true, data: balance });
@@ -140,7 +141,7 @@ router.get('/compensatory-leave/balance/:employeeId', async (req, res) => {
   }
 });
 
-router.post('/compensatory-leave/:id/approve', async (req, res) => {
+router.post('/compensatory-leave/:id/approve', sensitiveRateLimiter, async (req, res) => {
   try {
     const compLeave = await CompensatoryLeave.findOne({
       _id: req.params.id,
@@ -156,7 +157,7 @@ router.post('/compensatory-leave/:id/approve', async (req, res) => {
 
 // ==================== SALARY COMPONENTS ====================
 
-router.get('/salary-components', async (req, res) => {
+router.get('/salary-components', authRateLimiter, async (req, res) => {
   try {
     const { type, category, isActive } = req.query;
     const query = { firmId: req.firmId };
@@ -172,7 +173,7 @@ router.get('/salary-components', async (req, res) => {
   }
 });
 
-router.post('/salary-components', async (req, res) => {
+router.post('/salary-components', sensitiveRateLimiter, async (req, res) => {
   try {
     const component = await SalaryComponent.create({
       ...req.body,
@@ -185,7 +186,7 @@ router.post('/salary-components', async (req, res) => {
   }
 });
 
-router.post('/salary-components/create-defaults', async (req, res) => {
+router.post('/salary-components/create-defaults', sensitiveRateLimiter, async (req, res) => {
   try {
     const components = await SalaryComponent.createDefaultComponents(req.firmId, req.userID);
     res.status(201).json({ success: true, count: components.length, data: components });
@@ -194,7 +195,7 @@ router.post('/salary-components/create-defaults', async (req, res) => {
   }
 });
 
-router.put('/salary-components/:id', async (req, res) => {
+router.put('/salary-components/:id', sensitiveRateLimiter, async (req, res) => {
   try {
     const component = await SalaryComponent.findOneAndUpdate(
       { _id: req.params.id, firmId: req.firmId },
@@ -210,7 +211,7 @@ router.put('/salary-components/:id', async (req, res) => {
 
 // ==================== EMPLOYEE PROMOTIONS ====================
 
-router.get('/promotions', async (req, res) => {
+router.get('/promotions', authRateLimiter, async (req, res) => {
   try {
     const { employeeId, status } = req.query;
     const query = { firmId: req.firmId };
@@ -231,7 +232,7 @@ router.get('/promotions', async (req, res) => {
   }
 });
 
-router.post('/promotions', async (req, res) => {
+router.post('/promotions', sensitiveRateLimiter, async (req, res) => {
   try {
     const promotion = await EmployeePromotion.create({
       ...req.body,
@@ -244,7 +245,7 @@ router.post('/promotions', async (req, res) => {
   }
 });
 
-router.post('/promotions/:id/approve', async (req, res) => {
+router.post('/promotions/:id/approve', sensitiveRateLimiter, async (req, res) => {
   try {
     const promotion = await EmployeePromotion.findOne({
       _id: req.params.id,
@@ -258,7 +259,7 @@ router.post('/promotions/:id/approve', async (req, res) => {
   }
 });
 
-router.post('/promotions/:id/apply', async (req, res) => {
+router.post('/promotions/:id/apply', sensitiveRateLimiter, async (req, res) => {
   try {
     const promotion = await EmployeePromotion.findOne({
       _id: req.params.id,
@@ -274,7 +275,7 @@ router.post('/promotions/:id/apply', async (req, res) => {
 
 // ==================== EMPLOYEE TRANSFERS ====================
 
-router.get('/transfers', async (req, res) => {
+router.get('/transfers', authRateLimiter, async (req, res) => {
   try {
     const { employeeId, status, transferType } = req.query;
     const query = { firmId: req.firmId };
@@ -296,7 +297,7 @@ router.get('/transfers', async (req, res) => {
   }
 });
 
-router.post('/transfers', async (req, res) => {
+router.post('/transfers', sensitiveRateLimiter, async (req, res) => {
   try {
     const transfer = await EmployeeTransfer.create({
       ...req.body,
@@ -309,7 +310,7 @@ router.post('/transfers', async (req, res) => {
   }
 });
 
-router.post('/transfers/:id/approve', async (req, res) => {
+router.post('/transfers/:id/approve', sensitiveRateLimiter, async (req, res) => {
   try {
     const transfer = await EmployeeTransfer.findOne({
       _id: req.params.id,
@@ -323,7 +324,7 @@ router.post('/transfers/:id/approve', async (req, res) => {
   }
 });
 
-router.post('/transfers/:id/apply', async (req, res) => {
+router.post('/transfers/:id/apply', sensitiveRateLimiter, async (req, res) => {
   try {
     const transfer = await EmployeeTransfer.findOne({
       _id: req.params.id,
@@ -339,7 +340,7 @@ router.post('/transfers/:id/apply', async (req, res) => {
 
 // ==================== STAFFING PLANS ====================
 
-router.get('/staffing-plans', async (req, res) => {
+router.get('/staffing-plans', authRateLimiter, async (req, res) => {
   try {
     const { fiscalYear, status, departmentId } = req.query;
     const query = { firmId: req.firmId };
@@ -359,7 +360,7 @@ router.get('/staffing-plans', async (req, res) => {
   }
 });
 
-router.post('/staffing-plans', async (req, res) => {
+router.post('/staffing-plans', sensitiveRateLimiter, async (req, res) => {
   try {
     const plan = await StaffingPlan.create({
       ...req.body,
@@ -372,7 +373,7 @@ router.post('/staffing-plans', async (req, res) => {
   }
 });
 
-router.get('/staffing-plans/vacancy-summary', async (req, res) => {
+router.get('/staffing-plans/vacancy-summary', authRateLimiter, async (req, res) => {
   try {
     const summary = await StaffingPlan.getVacancySummary(req.firmId, req.query.fiscalYear);
     res.json({ success: true, data: summary });
@@ -383,7 +384,7 @@ router.get('/staffing-plans/vacancy-summary', async (req, res) => {
 
 // ==================== RETENTION BONUSES ====================
 
-router.get('/retention-bonuses', async (req, res) => {
+router.get('/retention-bonuses', authRateLimiter, async (req, res) => {
   try {
     const { employeeId, status } = req.query;
     const query = { firmId: req.firmId };
@@ -402,7 +403,7 @@ router.get('/retention-bonuses', async (req, res) => {
   }
 });
 
-router.post('/retention-bonuses', async (req, res) => {
+router.post('/retention-bonuses', sensitiveRateLimiter, async (req, res) => {
   try {
     const bonus = await RetentionBonus.create({
       ...req.body,
@@ -415,7 +416,7 @@ router.post('/retention-bonuses', async (req, res) => {
   }
 });
 
-router.post('/retention-bonuses/:id/vest/:milestone', async (req, res) => {
+router.post('/retention-bonuses/:id/vest/:milestone', sensitiveRateLimiter, async (req, res) => {
   try {
     const bonus = await RetentionBonus.findOne({
       _id: req.params.id,
@@ -431,7 +432,7 @@ router.post('/retention-bonuses/:id/vest/:milestone', async (req, res) => {
 
 // ==================== EMPLOYEE INCENTIVES ====================
 
-router.get('/incentives', async (req, res) => {
+router.get('/incentives', authRateLimiter, async (req, res) => {
   try {
     const { employeeId, status, incentiveType } = req.query;
     const query = { firmId: req.firmId };
@@ -451,7 +452,7 @@ router.get('/incentives', async (req, res) => {
   }
 });
 
-router.post('/incentives', async (req, res) => {
+router.post('/incentives', sensitiveRateLimiter, async (req, res) => {
   try {
     const incentive = await EmployeeIncentive.create({
       ...req.body,
@@ -464,7 +465,7 @@ router.post('/incentives', async (req, res) => {
   }
 });
 
-router.get('/incentives/stats', async (req, res) => {
+router.get('/incentives/stats', authRateLimiter, async (req, res) => {
   try {
     const year = parseInt(req.query.year) || new Date().getFullYear();
     const stats = await EmployeeIncentive.getIncentiveStats(req.firmId, year);
@@ -476,7 +477,7 @@ router.get('/incentives/stats', async (req, res) => {
 
 // ==================== VEHICLES ====================
 
-router.get('/vehicles', async (req, res) => {
+router.get('/vehicles', authRateLimiter, async (req, res) => {
   try {
     const { status, assignedTo, vehicleType } = req.query;
     const query = { firmId: req.firmId };
@@ -496,7 +497,7 @@ router.get('/vehicles', async (req, res) => {
   }
 });
 
-router.post('/vehicles', async (req, res) => {
+router.post('/vehicles', sensitiveRateLimiter, async (req, res) => {
   try {
     const vehicle = await Vehicle.create({
       ...req.body,
@@ -509,7 +510,7 @@ router.post('/vehicles', async (req, res) => {
   }
 });
 
-router.post('/vehicles/:id/assign', async (req, res) => {
+router.post('/vehicles/:id/assign', sensitiveRateLimiter, async (req, res) => {
   try {
     const vehicle = await Vehicle.findOne({
       _id: req.params.id,
@@ -523,7 +524,7 @@ router.post('/vehicles/:id/assign', async (req, res) => {
   }
 });
 
-router.post('/vehicles/:id/maintenance', async (req, res) => {
+router.post('/vehicles/:id/maintenance', sensitiveRateLimiter, async (req, res) => {
   try {
     const vehicle = await Vehicle.findOne({
       _id: req.params.id,
@@ -537,7 +538,7 @@ router.post('/vehicles/:id/maintenance', async (req, res) => {
   }
 });
 
-router.get('/vehicles/fleet-summary', async (req, res) => {
+router.get('/vehicles/fleet-summary', authRateLimiter, async (req, res) => {
   try {
     const summary = await Vehicle.getFleetSummary(req.firmId);
     res.json({ success: true, data: summary });
@@ -548,7 +549,7 @@ router.get('/vehicles/fleet-summary', async (req, res) => {
 
 // ==================== SKILLS ====================
 
-router.get('/skills', async (req, res) => {
+router.get('/skills', authRateLimiter, async (req, res) => {
   try {
     const { category, isActive } = req.query;
     const query = { firmId: req.firmId };
@@ -563,7 +564,7 @@ router.get('/skills', async (req, res) => {
   }
 });
 
-router.post('/skills', async (req, res) => {
+router.post('/skills', sensitiveRateLimiter, async (req, res) => {
   try {
     const skill = await Skill.create({
       ...req.body,
@@ -576,7 +577,7 @@ router.post('/skills', async (req, res) => {
   }
 });
 
-router.get('/skills/by-category', async (req, res) => {
+router.get('/skills/by-category', authRateLimiter, async (req, res) => {
   try {
     const skills = await Skill.getByCategory(req.firmId);
     res.json({ success: true, data: skills });
@@ -587,7 +588,7 @@ router.get('/skills/by-category', async (req, res) => {
 
 // ==================== EMPLOYEE SKILLS ====================
 
-router.get('/employee-skills/:employeeId', async (req, res) => {
+router.get('/employee-skills/:employeeId', authRateLimiter, async (req, res) => {
   try {
     const skills = await EmployeeSkillMap.getEmployeeSkills(req.firmId, req.params.employeeId);
     res.json({ success: true, count: skills.length, data: skills });
@@ -596,7 +597,7 @@ router.get('/employee-skills/:employeeId', async (req, res) => {
   }
 });
 
-router.post('/employee-skills', async (req, res) => {
+router.post('/employee-skills', sensitiveRateLimiter, async (req, res) => {
   try {
     const skillMap = await EmployeeSkillMap.create({
       ...req.body,
@@ -609,7 +610,7 @@ router.post('/employee-skills', async (req, res) => {
   }
 });
 
-router.get('/employee-skills/matrix', async (req, res) => {
+router.get('/employee-skills/matrix', authRateLimiter, async (req, res) => {
   try {
     const matrix = await EmployeeSkillMap.getSkillMatrix(req.firmId, req.query.departmentId);
     res.json({ success: true, data: matrix });
@@ -618,7 +619,7 @@ router.get('/employee-skills/matrix', async (req, res) => {
   }
 });
 
-router.get('/employee-skills/expiring-certifications', async (req, res) => {
+router.get('/employee-skills/expiring-certifications', authRateLimiter, async (req, res) => {
   try {
     const days = parseInt(req.query.days) || 30;
     const certifications = await EmployeeSkillMap.getExpiringCertifications(req.firmId, days);
@@ -630,7 +631,7 @@ router.get('/employee-skills/expiring-certifications', async (req, res) => {
 
 // ==================== HR SETTINGS ====================
 
-router.get('/settings', async (req, res) => {
+router.get('/settings', authRateLimiter, async (req, res) => {
   try {
     const settings = await HRSettings.getSettings(req.firmId);
     res.json({ success: true, data: settings });
@@ -639,7 +640,7 @@ router.get('/settings', async (req, res) => {
   }
 });
 
-router.put('/settings', async (req, res) => {
+router.put('/settings', sensitiveRateLimiter, async (req, res) => {
   try {
     const settings = await HRSettings.updateSettings(req.firmId, req.body, req.userID);
     res.json({ success: true, data: settings });
@@ -648,7 +649,7 @@ router.put('/settings', async (req, res) => {
   }
 });
 
-router.get('/settings/leave', async (req, res) => {
+router.get('/settings/leave', authRateLimiter, async (req, res) => {
   try {
     const settings = await HRSettings.getLeaveSettings(req.firmId);
     res.json({ success: true, data: settings });
@@ -657,7 +658,7 @@ router.get('/settings/leave', async (req, res) => {
   }
 });
 
-router.get('/settings/payroll', async (req, res) => {
+router.get('/settings/payroll', authRateLimiter, async (req, res) => {
   try {
     const settings = await HRSettings.getPayrollSettings(req.firmId);
     res.json({ success: true, data: settings });
@@ -668,7 +669,7 @@ router.get('/settings/payroll', async (req, res) => {
 
 // ==================== HR SETUP WIZARD ====================
 
-router.get('/setup-wizard', async (req, res) => {
+router.get('/setup-wizard', authRateLimiter, async (req, res) => {
   try {
     const wizard = await HRSetupWizard.getWizard(req.firmId);
     res.json({ success: true, data: wizard });
@@ -677,7 +678,7 @@ router.get('/setup-wizard', async (req, res) => {
   }
 });
 
-router.get('/setup-wizard/progress', async (req, res) => {
+router.get('/setup-wizard/progress', authRateLimiter, async (req, res) => {
   try {
     const progress = await HRSetupWizard.getProgress(req.firmId);
     res.json({ success: true, data: progress });
@@ -686,7 +687,7 @@ router.get('/setup-wizard/progress', async (req, res) => {
   }
 });
 
-router.post('/setup-wizard/complete-step/:stepId', async (req, res) => {
+router.post('/setup-wizard/complete-step/:stepId', sensitiveRateLimiter, async (req, res) => {
   try {
     const wizard = await HRSetupWizard.getWizard(req.firmId);
     await wizard.completeStep(req.params.stepId, req.userID);
@@ -696,7 +697,7 @@ router.post('/setup-wizard/complete-step/:stepId', async (req, res) => {
   }
 });
 
-router.post('/setup-wizard/skip-step/:stepId', async (req, res) => {
+router.post('/setup-wizard/skip-step/:stepId', sensitiveRateLimiter, async (req, res) => {
   try {
     const wizard = await HRSetupWizard.getWizard(req.firmId);
     await wizard.skipStep(req.params.stepId, req.userID);
@@ -706,7 +707,7 @@ router.post('/setup-wizard/skip-step/:stepId', async (req, res) => {
   }
 });
 
-router.post('/setup-wizard/skip', async (req, res) => {
+router.post('/setup-wizard/skip', sensitiveRateLimiter, async (req, res) => {
   try {
     const wizard = await HRSetupWizard.getWizard(req.firmId);
     await wizard.skipWizard(req.userID, req.body.reason);

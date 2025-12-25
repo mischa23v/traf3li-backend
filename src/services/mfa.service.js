@@ -18,6 +18,7 @@ const { generateBackupCodes, hashBackupCode, verifyBackupCode } = require('../ut
 const { encrypt, decrypt } = require('../utils/encryption');
 const auditLogService = require('./auditLog.service');
 const logger = require('../utils/logger');
+const emailService = require('./email.service');
 
 const APP_NAME = process.env.APP_NAME || 'Traf3li';
 
@@ -44,8 +45,13 @@ const generateTOTPSecret = (userEmail) => {
       qrCodeUrl: secret.otpauth_url
     };
   } catch (error) {
-    logger.error('Error generating TOTP secret:', error.message);
-    throw new Error('Failed to generate MFA secret');
+    logger.error('Error generating TOTP secret', {
+      error: error.message,
+      email: userEmail ? '***' : undefined // Sanitize email in logs
+    });
+    const err = new Error('Failed to generate MFA secret');
+    err.code = 'MFA_SECRET_GENERATION_FAILED';
+    throw err;
   }
 };
 
@@ -70,8 +76,13 @@ const generateQRCode = async (secret, email) => {
 
     return qrCodeDataUrl;
   } catch (error) {
-    logger.error('Error generating QR code:', error.message);
-    throw new Error('Failed to generate QR code');
+    logger.error('Error generating QR code', {
+      error: error.message,
+      email: email ? '***' : undefined // Sanitize email in logs
+    });
+    const err = new Error('Failed to generate QR code');
+    err.code = 'QR_CODE_GENERATION_FAILED';
+    throw err;
   }
 };
 
@@ -85,6 +96,7 @@ const generateQRCode = async (secret, email) => {
 const verifyTOTP = (secret, token, window = 1) => {
   try {
     if (!secret || !token) {
+      logger.debug('TOTP verification failed: missing secret or token');
       return false;
     }
 
@@ -92,6 +104,9 @@ const verifyTOTP = (secret, token, window = 1) => {
     const cleanToken = token.toString().replace(/\s/g, '');
 
     if (!/^\d{6}$/.test(cleanToken)) {
+      logger.debug('TOTP verification failed: invalid token format', {
+        tokenLength: cleanToken.length
+      });
       return false;
     }
 
@@ -104,9 +119,16 @@ const verifyTOTP = (secret, token, window = 1) => {
       window: window, // Accept tokens from +/- window * 30 seconds
     });
 
+    if (!verified) {
+      logger.debug('TOTP verification failed: token mismatch');
+    }
+
     return verified;
   } catch (error) {
-    logger.error('Error verifying TOTP token:', error.message);
+    logger.error('Error verifying TOTP token', {
+      error: error.message,
+      tokenProvided: !!token
+    });
     return false;
   }
 };
@@ -120,8 +142,12 @@ const encryptMFASecret = (secret) => {
   try {
     return encrypt(secret);
   } catch (error) {
-    logger.error('Error encrypting MFA secret:', error.message);
-    throw new Error('Failed to encrypt MFA secret');
+    logger.error('Error encrypting MFA secret', {
+      error: error.message
+    });
+    const err = new Error('Failed to encrypt MFA secret');
+    err.code = 'MFA_ENCRYPTION_FAILED';
+    throw err;
   }
 };
 
@@ -134,8 +160,13 @@ const decryptMFASecret = (encryptedSecret) => {
   try {
     return decrypt(encryptedSecret);
   } catch (error) {
-    logger.error('Error decrypting MFA secret:', error.message);
-    throw new Error('Failed to decrypt MFA secret');
+    logger.error('Error decrypting MFA secret', {
+      error: error.message,
+      hasEncryptedSecret: !!encryptedSecret
+    });
+    const err = new Error('Failed to decrypt MFA secret');
+    err.code = 'MFA_DECRYPTION_FAILED';
+    throw err;
   }
 };
 
@@ -150,7 +181,7 @@ const validateMFASetup = (secret, token) => {
     // First verification during setup should be strict (no extra window)
     return verifyTOTP(secret, token, 1);
   } catch (error) {
-    logger.error('Error validating MFA setup:', error.message);
+    logger.error('Error validating MFA setup', { error: error.message });
     return false;
   }
 };
@@ -177,7 +208,9 @@ const generateBackupCodesForUser = async (userId, count = 10) => {
         // Find the user
         const user = await User.findById(userId);
         if (!user) {
-            throw new Error('User not found');
+            const err = new Error('User not found');
+            err.code = 'USER_NOT_FOUND';
+            throw err;
         }
 
         // Generate plain text backup codes
@@ -222,7 +255,15 @@ const generateBackupCodesForUser = async (userId, count = 10) => {
             user
         };
     } catch (error) {
-        logger.error('Generate backup codes error:', error.message);
+        logger.error('Generate backup codes error', {
+            error: error.message,
+            userId,
+            count
+        });
+        // Re-throw with code if not already set
+        if (!error.code) {
+            error.code = 'BACKUP_CODE_GENERATION_FAILED';
+        }
         throw error;
     }
 };
@@ -232,22 +273,25 @@ const generateBackupCodesForUser = async (userId, count = 10) => {
  *
  * @param {string} userId - User ID
  * @param {string} code - Backup code to verify
+ * @param {Object} context - Optional context with IP, user agent, location
  * @returns {Promise<Object>} - {valid: boolean, remainingCodes: number}
  *
  * @throws {Error} - If user not found or verification fails
  *
  * @example
- * const result = await useBackupCode('60d5ec49f1b2c8b1f8c8e4e1', 'ABCD-1234');
+ * const result = await useBackupCode('60d5ec49f1b2c8b1f8c8e4e1', 'ABCD-1234', { ipAddress, userAgent });
  * if (result.valid) {
  *   console.log('Backup code verified. Remaining codes:', result.remainingCodes);
  * }
  */
-const useBackupCode = async (userId, code) => {
+const useBackupCode = async (userId, code, context = {}) => {
     try {
         // Find the user
         const user = await User.findById(userId);
         if (!user) {
-            throw new Error('User not found');
+            const err = new Error('User not found');
+            err.code = 'USER_NOT_FOUND';
+            throw err;
         }
 
         // Check if user has any backup codes
@@ -328,13 +372,60 @@ const useBackupCode = async (userId, code) => {
             }
         );
 
+        // Send email notification (fire-and-forget, non-blocking)
+        (async () => {
+            try {
+                // Get last 4 characters of the backup code for security
+                const backupCodeLastDigits = code.replace('-', '').slice(-4);
+
+                const userName = `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email;
+
+                // Prepare usage info for email
+                const usageInfo = {
+                    backupCodeLastDigits,
+                    remainingCodes,
+                    ipAddress: context.ipAddress || null,
+                    deviceInfo: context.userAgent || null,
+                    location: context.location || null,
+                    usedAt: new Date()
+                };
+
+                // Send notification email
+                await emailService.sendMFABackupCodeUsed(
+                    { email: user.email, name: userName },
+                    usageInfo,
+                    'ar' // Default to Arabic, can be made configurable
+                );
+
+                logger.info('MFA backup code usage notification sent', {
+                    userId,
+                    email: user.email,
+                    remainingCodes
+                });
+            } catch (emailError) {
+                // Log error but don't fail the login process
+                logger.error('Failed to send MFA backup code notification email', {
+                    error: emailError.message,
+                    userId,
+                    email: user.email
+                });
+            }
+        })();
+
         return {
             valid: true,
             remainingCodes,
             user
         };
     } catch (error) {
-        logger.error('Use backup code error:', error.message);
+        logger.error('Use backup code error', {
+            error: error.message,
+            userId
+        });
+        // Re-throw with code if not already set
+        if (!error.code) {
+            error.code = 'BACKUP_CODE_USE_FAILED';
+        }
         throw error;
     }
 };
@@ -357,12 +448,16 @@ const regenerateBackupCodes = async (userId, count = 10) => {
         // Find the user
         const user = await User.findById(userId);
         if (!user) {
-            throw new Error('User not found');
+            const err = new Error('User not found');
+            err.code = 'USER_NOT_FOUND';
+            throw err;
         }
 
         // Check if MFA is enabled
         if (!user.mfaEnabled) {
-            throw new Error('MFA must be enabled to regenerate backup codes');
+            const err = new Error('MFA must be enabled to regenerate backup codes');
+            err.code = 'MFA_NOT_ENABLED';
+            throw err;
         }
 
         // Store old codes count for audit log
@@ -391,7 +486,15 @@ const regenerateBackupCodes = async (userId, count = 10) => {
 
         return result;
     } catch (error) {
-        logger.error('Regenerate backup codes error:', error.message);
+        logger.error('Regenerate backup codes error', {
+            error: error.message,
+            userId,
+            count
+        });
+        // Re-throw with code if not already set
+        if (!error.code) {
+            error.code = 'BACKUP_CODE_REGENERATION_FAILED';
+        }
         throw error;
     }
 };
@@ -411,12 +514,21 @@ const getBackupCodesCount = async (userId) => {
         // Find the user
         const user = await User.findById(userId).select('mfaBackupCodes');
         if (!user) {
-            throw new Error('User not found');
+            const err = new Error('User not found');
+            err.code = 'USER_NOT_FOUND';
+            throw err;
         }
 
         return getRemainingBackupCodesCount(user.mfaBackupCodes);
     } catch (error) {
-        logger.error('Get backup codes count error:', error.message);
+        logger.error('Get backup codes count error', {
+            error: error.message,
+            userId
+        });
+        // Re-throw with code if not already set
+        if (!error.code) {
+            error.code = 'BACKUP_CODE_COUNT_FAILED';
+        }
         throw error;
     }
 };
@@ -449,7 +561,9 @@ const getMFAStatus = async (userId) => {
     try {
         const user = await User.findById(userId).select('mfaEnabled mfaSecret mfaBackupCodes');
         if (!user) {
-            throw new Error('User not found');
+            const err = new Error('User not found');
+            err.code = 'USER_NOT_FOUND';
+            throw err;
         }
 
         const remainingCodes = getRemainingBackupCodesCount(user.mfaBackupCodes);
@@ -461,7 +575,14 @@ const getMFAStatus = async (userId) => {
             remainingCodes
         };
     } catch (error) {
-        logger.error('Get MFA status error:', error.message);
+        logger.error('Get MFA status error', {
+            error: error.message,
+            userId
+        });
+        // Re-throw with code if not already set
+        if (!error.code) {
+            error.code = 'MFA_STATUS_FAILED';
+        }
         throw error;
     }
 };
@@ -479,7 +600,9 @@ const disableMFA = async (userId) => {
     try {
         const user = await User.findById(userId);
         if (!user) {
-            throw new Error('User not found');
+            const err = new Error('User not found');
+            err.code = 'USER_NOT_FOUND';
+            throw err;
         }
 
         user.mfaEnabled = false;
@@ -505,7 +628,14 @@ const disableMFA = async (userId) => {
 
         return user;
     } catch (error) {
-        logger.error('Disable MFA error:', error.message);
+        logger.error('Disable MFA error', {
+            error: error.message,
+            userId
+        });
+        // Re-throw with code if not already set
+        if (!error.code) {
+            error.code = 'MFA_DISABLE_FAILED';
+        }
         throw error;
     }
 };

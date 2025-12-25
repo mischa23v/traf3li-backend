@@ -301,7 +301,7 @@ app.get('/users', publicRateLimiter, listUsers);
  *       200:
  *         description: Users exported successfully
  */
-app.get('/users/export', publicRateLimiter, exportUsers);
+app.get('/users/export', sensitiveRateLimiter, exportUsers);
 
 /**
  * @openapi
@@ -522,7 +522,7 @@ app.get('/audit/logs', publicRateLimiter, getAuditLogs);
  *       200:
  *         description: Security events retrieved successfully
  */
-app.get('/audit/security-events', publicRateLimiter, getSecurityEvents);
+app.get('/audit/security-events', sensitiveRateLimiter, getSecurityEvents);
 
 /**
  * @openapi
@@ -584,7 +584,7 @@ app.get('/audit/compliance-report', publicRateLimiter, getComplianceReport);
  *       200:
  *         description: Audit logs exported successfully
  */
-app.get('/audit/export', publicRateLimiter, exportAuditLogs);
+app.get('/audit/export', sensitiveRateLimiter, exportAuditLogs);
 
 /**
  * @openapi

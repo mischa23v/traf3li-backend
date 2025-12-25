@@ -1,5 +1,6 @@
 const express = require('express');
 const { userMiddleware } = require('../middlewares');
+const { sensitiveRateLimiter } = require('../middlewares/rateLimiter.middleware');
 const {
     // Trust Account
     createTrustAccount,
@@ -29,34 +30,34 @@ const app = express.Router();
 
 // Trust Account CRUD
 app.get('/', userMiddleware, getTrustAccounts);
-app.post('/', userMiddleware, createTrustAccount);
+app.post('/', sensitiveRateLimiter, userMiddleware, createTrustAccount);
 
 app.get('/:id', userMiddleware, getTrustAccount);
-app.patch('/:id', userMiddleware, updateTrustAccount);
-app.delete('/:id', userMiddleware, deleteTrustAccount);
+app.patch('/:id', sensitiveRateLimiter, userMiddleware, updateTrustAccount);
+app.delete('/:id', sensitiveRateLimiter, userMiddleware, deleteTrustAccount);
 
 // Account summary
 app.get('/:id/summary', userMiddleware, getAccountSummary);
 
 // Transactions
 app.get('/:id/transactions', userMiddleware, getTransactions);
-app.post('/:id/transactions', userMiddleware, createTransaction);
+app.post('/:id/transactions', sensitiveRateLimiter, userMiddleware, createTransaction);
 app.get('/:id/transactions/:transactionId', userMiddleware, getTransaction);
-app.post('/:id/transactions/:transactionId/void', userMiddleware, voidTransaction);
+app.post('/:id/transactions/:transactionId/void', sensitiveRateLimiter, userMiddleware, voidTransaction);
 
 // Client balances
 app.get('/:id/balances', userMiddleware, getClientBalances);
 app.get('/:id/balances/:clientId', userMiddleware, getClientBalance);
 
 // Inter-client transfer
-app.post('/:id/transfer', userMiddleware, transferBetweenClients);
+app.post('/:id/transfer', sensitiveRateLimiter, userMiddleware, transferBetweenClients);
 
 // Bank reconciliation
 app.get('/:id/reconciliations', userMiddleware, getReconciliations);
-app.post('/:id/reconciliations', userMiddleware, createReconciliation);
+app.post('/:id/reconciliations', sensitiveRateLimiter, userMiddleware, createReconciliation);
 
 // Three-way reconciliation
 app.get('/:id/three-way-reconciliations', userMiddleware, getThreeWayReconciliations);
-app.post('/:id/three-way-reconciliations', userMiddleware, createThreeWayReconciliation);
+app.post('/:id/three-way-reconciliations', sensitiveRateLimiter, userMiddleware, createThreeWayReconciliation);
 
 module.exports = app;

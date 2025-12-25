@@ -421,13 +421,19 @@ const authRegister = async (request, response) => {
                 };
                 responseData.message = 'تم إنشاء الحساب والمكتب بنجاح';
             } catch (firmError) {
-                logger.error('Firm creation error', { error: firmError.message });
+                logger.error('Firm creation error', {
+                    error: firmError.message,
+                    userId: user._id,
+                    firmName: firmData?.name
+                });
                 // User was created but firm creation failed
                 // Clean up by deleting the user
                 await User.findByIdAndDelete(user._id);
                 return response.status(400).send({
                     error: true,
-                    message: 'فشل في إنشاء المكتب: ' + firmError.message
+                    message: 'فشل في إنشاء المكتب. يرجى المحاولة مرة أخرى',
+                    messageEn: 'Failed to create firm. Please try again',
+                    code: 'FIRM_CREATION_FAILED'
                 });
             }
         }
@@ -681,7 +687,14 @@ const authLogin = async (request, response) => {
                 if (validateBackupCodeFormat(mfaCode)) {
                     // Try verifying as backup code
                     try {
-                        const backupResult = await mfaService.useBackupCode(user._id.toString(), mfaCode);
+                        // Prepare context for backup code usage notification
+                        const context = {
+                            ipAddress,
+                            userAgent,
+                            location: null // Can be enhanced with GeoIP lookup if needed
+                        };
+
+                        const backupResult = await mfaService.useBackupCode(user._id.toString(), mfaCode, context);
                         if (backupResult.valid) {
                             mfaVerified = true;
                             usedBackupCode = true;
@@ -930,11 +943,7 @@ const authLogin = async (request, response) => {
                 .status(202).send({
                     error: false,
                     message: 'Success!',
-                    user: userData,
-                    tokens: {
-                        accessToken,
-                        refreshToken
-                    }
+                    user: userData
                 });
         }
 
@@ -1031,10 +1040,10 @@ const authLogout = async (request, response) => {
         }
 
         // Terminate session record (fire-and-forget)
-        if (token) {
+        if (accessToken) {
             (async () => {
                 try {
-                    const session = await sessionManager.getSessionByToken(token);
+                    const session = await sessionManager.getSessionByToken(accessToken);
                     if (session) {
                         await sessionManager.terminateSession(session._id, 'logout', userId);
                     }
@@ -1462,11 +1471,16 @@ const sendMagicLink = async (request, response) => {
             expiresInMinutes: result.expiresInMinutes
         });
     } catch (error) {
-        logger.error('Failed to send magic link', { error: error.message, email });
+        logger.error('Failed to send magic link', {
+            error: error.message,
+            email: email ? '***' : undefined, // Sanitize email in logs
+            purpose
+        });
         return response.status(500).json({
             error: true,
             message: 'حدث خطأ أثناء إرسال رابط تسجيل الدخول',
-            messageEn: 'An error occurred while sending the login link'
+            messageEn: 'An error occurred while sending the login link',
+            code: 'MAGIC_LINK_SEND_FAILED'
         });
     }
 };
@@ -1640,11 +1654,15 @@ const verifyMagicLink = async (request, response) => {
                 redirectUrl: result.redirectUrl
             });
     } catch (error) {
-        logger.error('Failed to verify magic link', { error: error.message });
+        logger.error('Failed to verify magic link', {
+            error: error.message,
+            token: token ? token.substring(0, 8) + '...' : undefined // Log only token prefix
+        });
         return response.status(500).json({
             error: true,
             message: 'حدث خطأ أثناء التحقق من رابط تسجيل الدخول',
-            messageEn: 'An error occurred while verifying the login link'
+            messageEn: 'An error occurred while verifying the login link',
+            code: 'MAGIC_LINK_VERIFY_FAILED'
         });
     }
 };
@@ -1702,11 +1720,15 @@ const verifyEmail = async (request, response) => {
             user: result.user
         });
     } catch (error) {
-        logger.error('Email verification failed', { error: error.message });
+        logger.error('Email verification failed', {
+            error: error.message,
+            token: token ? token.substring(0, 8) + '...' : undefined // Log only token prefix
+        });
         return response.status(500).json({
             error: true,
             message: 'حدث خطأ أثناء تفعيل البريد الإلكتروني',
-            messageEn: 'An error occurred while verifying email'
+            messageEn: 'An error occurred while verifying email',
+            code: 'EMAIL_VERIFY_FAILED'
         });
     }
 };
@@ -1749,11 +1771,15 @@ const resendVerificationEmail = async (request, response) => {
             expiresAt: result.expiresAt
         });
     } catch (error) {
-        logger.error('Failed to resend verification email', { error: error.message });
+        logger.error('Failed to resend verification email', {
+            error: error.message,
+            userId: request.userID || request.userId
+        });
         return response.status(500).json({
             error: true,
             message: 'حدث خطأ أثناء إعادة إرسال رابط التفعيل',
-            messageEn: 'An error occurred while resending verification link'
+            messageEn: 'An error occurred while resending verification link',
+            code: 'RESEND_EMAIL_FAILED'
         });
     }
 };
@@ -1806,14 +1832,14 @@ const refreshAccessToken = async (request, response) => {
                 error: false,
                 message: 'Token refreshed successfully',
                 messageAr: 'تم تحديث الرمز بنجاح',
-                tokens: {
-                    accessToken: result.accessToken,
-                    refreshToken: result.refreshToken
-                },
                 user: result.user
             });
     } catch (error) {
-        logger.error('Token refresh failed', { error: error.message });
+        // Sanitize error logging - don't log sensitive token data
+        logger.error('Token refresh failed', {
+            error: error.message,
+            hasRefreshToken: !!refreshToken
+        });
 
         // Handle specific error codes
         const errorCode = error.message;
@@ -1822,36 +1848,53 @@ const refreshAccessToken = async (request, response) => {
         let messageEn = 'Token refresh failed';
         let code = 'REFRESH_FAILED';
 
-        switch (errorCode) {
-            case 'INVALID_REFRESH_TOKEN':
-                message = 'رمز التحديث غير صالح';
-                messageEn = 'Invalid refresh token';
-                code = 'INVALID_REFRESH_TOKEN';
-                break;
-            case 'REFRESH_TOKEN_EXPIRED':
-                message = 'انتهت صلاحية رمز التحديث';
-                messageEn = 'Refresh token expired';
-                code = 'REFRESH_TOKEN_EXPIRED';
-                break;
-            case 'REFRESH_TOKEN_REVOKED':
-                message = 'تم إلغاء رمز التحديث';
-                messageEn = 'Refresh token revoked';
-                code = 'REFRESH_TOKEN_REVOKED';
-                break;
-            case 'TOKEN_REUSE_DETECTED':
-                statusCode = 403;
-                message = 'تم اكتشاف إعادة استخدام رمز التحديث - تم إلغاء جميع الجلسات';
-                messageEn = 'Token reuse detected - all sessions revoked';
-                code = 'TOKEN_REUSE_DETECTED';
-                break;
-            case 'USER_NOT_FOUND':
-                message = 'المستخدم غير موجود';
-                messageEn = 'User not found';
-                code = 'USER_NOT_FOUND';
-                break;
-            default:
-                message = 'حدث خطأ أثناء تحديث الرمز';
-                messageEn = 'An error occurred while refreshing token';
+        // Map known error codes to user-friendly messages
+        const errorMap = {
+            'INVALID_REFRESH_TOKEN': {
+                statusCode: 401,
+                message: 'رمز التحديث غير صالح',
+                messageEn: 'Invalid refresh token',
+                code: 'INVALID_REFRESH_TOKEN'
+            },
+            'REFRESH_TOKEN_EXPIRED': {
+                statusCode: 401,
+                message: 'انتهت صلاحية رمز التحديث',
+                messageEn: 'Refresh token expired',
+                code: 'REFRESH_TOKEN_EXPIRED'
+            },
+            'REFRESH_TOKEN_REVOKED': {
+                statusCode: 401,
+                message: 'تم إلغاء رمز التحديث',
+                messageEn: 'Refresh token revoked',
+                code: 'REFRESH_TOKEN_REVOKED'
+            },
+            'REFRESH_TOKEN_NOT_FOUND': {
+                statusCode: 401,
+                message: 'رمز التحديث غير موجود',
+                messageEn: 'Refresh token not found',
+                code: 'REFRESH_TOKEN_NOT_FOUND'
+            },
+            'TOKEN_REUSE_DETECTED': {
+                statusCode: 403,
+                message: 'تم اكتشاف إعادة استخدام رمز التحديث - تم إلغاء جميع الجلسات',
+                messageEn: 'Token reuse detected - all sessions revoked',
+                code: 'TOKEN_REUSE_DETECTED'
+            },
+            'USER_NOT_FOUND': {
+                statusCode: 404,
+                message: 'المستخدم غير موجود',
+                messageEn: 'User not found',
+                code: 'USER_NOT_FOUND'
+            }
+        };
+
+        // Use mapped error or default
+        const mappedError = errorMap[errorCode];
+        if (mappedError) {
+            statusCode = mappedError.statusCode;
+            message = mappedError.message;
+            messageEn = mappedError.messageEn;
+            code = mappedError.code;
         }
 
         return response.status(statusCode).json({
@@ -1979,11 +2022,15 @@ const forgotPassword = async (request, response) => {
             expiresInMinutes: 30
         });
     } catch (error) {
-        logger.error('Forgot password failed', { error: error.message, email });
+        logger.error('Forgot password failed', {
+            error: error.message,
+            email: email ? '***' : undefined // Sanitize email in logs
+        });
         return response.status(500).json({
             error: true,
             message: 'حدث خطأ أثناء معالجة طلبك',
-            messageEn: 'An error occurred while processing your request'
+            messageEn: 'An error occurred while processing your request',
+            code: 'FORGOT_PASSWORD_FAILED'
         });
     }
 };
@@ -2085,11 +2132,15 @@ const resetPassword = async (request, response) => {
             messageEn: 'Password has been reset successfully'
         });
     } catch (error) {
-        logger.error('Reset password failed', { error: error.message });
+        logger.error('Reset password failed', {
+            error: error.message,
+            token: token ? token.substring(0, 8) + '...' : undefined // Log only token prefix
+        });
         return response.status(500).json({
             error: true,
             message: 'حدث خطأ أثناء إعادة تعيين كلمة المرور',
-            messageEn: 'An error occurred while resetting password'
+            messageEn: 'An error occurred while resetting password',
+            code: 'RESET_PASSWORD_FAILED'
         });
     }
 };
