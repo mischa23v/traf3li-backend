@@ -610,7 +610,7 @@ class TelegramService {
                `<b>Messages Received:</b> ${integration.stats.messagesReceived}\n` +
                `<b>Commands Processed:</b> ${integration.stats.commandsProcessed}\n` +
                `<b>Notifications Sent:</b> ${integration.stats.notificationsSent}\n` +
-               `<b>Errors:</b> ${integration.stats.errors}`;
+               `<b>Errors:</b> ${integration.stats.errorCount}`;
     }
 
     /**

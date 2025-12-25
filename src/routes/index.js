@@ -75,6 +75,17 @@ const vendorRoute = require('./vendor.route');
 const billRoute = require('./bill.route');
 const billPaymentRoute = require('./billPayment.route');
 
+// Subcontracting Routes
+const subcontractingRoute = require('./subcontracting.route');
+
+// ERPNext-style Module Routes
+const inventoryRoute = require('./inventory.route');
+const buyingRoute = require('./buying.route');
+const supportRoute = require('./support.route');
+const qualityRoute = require('./quality.route');
+const manufacturingRoute = require('./manufacturing.route');
+const assetsRoute = require('./assets.route');
+
 // CRM Routes
 const leadRoute = require('./lead.route');
 const crmPipelineRoute = require('./crmPipeline.route');
@@ -414,6 +425,17 @@ module.exports = {
     vendorRoute,
     billRoute,
     billPaymentRoute,
+
+    // Subcontracting
+    subcontractingRoute,
+
+    // ERPNext-style Modules
+    inventoryRoute,
+    buyingRoute,
+    supportRoute,
+    qualityRoute,
+    manufacturingRoute,
+    assetsRoute,
 
     // CRM
     leadRoute,

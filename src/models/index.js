@@ -100,6 +100,11 @@ const Vendor = require('./vendor.model');
 const Bill = require('./bill.model');
 const BillPayment = require('./billPayment.model');
 
+// Subcontracting Models
+const SubcontractingOrder = require('./subcontractingOrder.model');
+const SubcontractingReceipt = require('./subcontractingReceipt.model');
+const SubcontractingSettings = require('./subcontractingSettings.model');
+
 // Authentication Models
 const EmailOTP = require('./emailOtp.model');
 const EmailVerification = require('./emailVerification.model');
@@ -362,6 +367,61 @@ const GmailIntegration = require('./gmailIntegration.model');
 // E-Signature Integration Model
 const DocusignIntegration = require('./docusignIntegration.model');
 
+// Inventory Module Models
+const Item = require('./item.model');
+const Warehouse = require('./warehouse.model');
+const StockEntry = require('./stockEntry.model');
+const StockLedger = require('./stockLedger.model');
+const Batch = require('./batch.model');
+const SerialNumber = require('./serialNumber.model');
+const Bin = require('./bin.model');
+const StockReconciliation = require('./stockReconciliation.model');
+const ItemGroup = require('./itemGroup.model');
+const UOM = require('./uom.model');
+const PriceList = require('./priceList.model');
+const ItemPrice = require('./itemPrice.model');
+const InventorySettings = require('./inventorySettings.model');
+
+// Asset Management Module Models
+const Asset = require('./asset.model');
+const AssetCategory = require('./assetCategory.model');
+const MaintenanceSchedule = require('./maintenanceSchedule.model');
+const AssetMovement = require('./assetMovement.model');
+const AssetRepair = require('./assetRepair.model');
+const AssetSettings = require('./assetSettings.model');
+
+// Manufacturing Module Models
+const BOM = require('./bom.model');
+const Workstation = require('./workstation.model');
+const WorkOrder = require('./workOrder.model');
+const JobCard = require('./jobCard.model');
+const Routing = require('./routing.model');
+const ManufacturingSettings = require('./manufacturingSettings.model');
+
+// Quality Module Models
+const QualityInspection = require('./qualityInspection.model');
+const QualityTemplate = require('./qualityTemplate.model');
+const QualityParameter = require('./qualityParameter.model');
+const QualityAction = require('./qualityAction.model');
+const QualitySettings = require('./qualitySettings.model');
+
+// Buying Module Models
+const Supplier = require('./supplier.model');
+const SupplierGroup = require('./supplierGroup.model');
+const PurchaseOrder = require('./purchaseOrder.model');
+const PurchaseReceipt = require('./purchaseReceipt.model');
+const PurchaseInvoice = require('./purchaseInvoice.model');
+const MaterialRequest = require('./materialRequest.model');
+const RFQ = require('./rfq.model');
+const SupplierQuotation = require('./supplierQuotation.model');
+const BuyingSettings = require('./buyingSettings.model');
+
+// Support Module Models
+const Ticket = require('./ticket.model');
+const SupportSLA = require('./supportSLA.model');
+const TicketCommunication = require('./ticketCommunication.model');
+const SupportSettings = require('./supportSettings.model');
+
 module.exports = {
     // Marketplace
     User,
@@ -464,6 +524,11 @@ module.exports = {
     Vendor,
     Bill,
     BillPayment,
+
+    // Subcontracting
+    SubcontractingOrder,
+    SubcontractingReceipt,
+    SubcontractingSettings,
 
     // Authentication
     EmailOTP,
@@ -729,5 +794,60 @@ module.exports = {
     GmailIntegration,
 
     // E-Signature Integration
-    DocusignIntegration
+    DocusignIntegration,
+
+    // Inventory Module
+    Item,
+    Warehouse,
+    StockEntry,
+    StockLedger,
+    Batch,
+    SerialNumber,
+    Bin,
+    StockReconciliation,
+    ItemGroup,
+    UOM,
+    PriceList,
+    ItemPrice,
+    InventorySettings,
+
+    // Asset Management Module
+    Asset,
+    AssetCategory,
+    MaintenanceSchedule,
+    AssetMovement,
+    AssetRepair,
+    AssetSettings,
+
+    // Manufacturing Module
+    BOM,
+    Workstation,
+    WorkOrder,
+    JobCard,
+    Routing,
+    ManufacturingSettings,
+
+    // Quality Module
+    QualityInspection,
+    QualityTemplate,
+    QualityParameter,
+    QualityAction,
+    QualitySettings,
+
+    // Buying Module
+    Supplier,
+    SupplierGroup,
+    PurchaseOrder,
+    PurchaseReceipt,
+    PurchaseInvoice,
+    MaterialRequest,
+    RFQ,
+    SupplierQuotation,
+    BuyingSettings,
+
+    // Support Module
+    Ticket,
+    SupportSLA,
+    TicketCommunication,
+    SupportSettings
 };

@@ -183,6 +183,17 @@ const {
     billRoute,
     billPaymentRoute,
 
+    // Subcontracting
+    subcontractingRoute,
+
+    // ERPNext-style Modules
+    inventoryRoute,
+    buyingRoute,
+    supportRoute,
+    qualityRoute,
+    manufacturingRoute,
+    assetsRoute,
+
     // CRM
     leadRoute,
     crmPipelineRoute,
@@ -919,6 +930,21 @@ app.use('/api/currency', currencyRoute);
 app.use('/api/vendors', vendorRoute);
 app.use('/api/bills', noCache, billRoute);
 app.use('/api/bill-payments', noCache, billPaymentRoute);
+
+// ============================================
+// SUBCONTRACTING ROUTES
+// ============================================
+app.use('/api/subcontracting', noCache, subcontractingRoute);
+
+// ============================================
+// ERPNEXT-STYLE MODULE ROUTES
+// ============================================
+app.use('/api/inventory', noCache, inventoryRoute);
+app.use('/api/buying', noCache, buyingRoute);
+app.use('/api/support', noCache, supportRoute);
+app.use('/api/quality', noCache, qualityRoute);
+app.use('/api/manufacturing', noCache, manufacturingRoute);
+app.use('/api/assets', noCache, assetsRoute);
 
 // CRM Routes
 app.use('/api/leads', leadRoute);

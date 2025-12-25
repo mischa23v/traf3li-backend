@@ -177,6 +177,40 @@ class AnalyticsService {
         );
     }
 
+    /**
+     * Track API call
+     * @param {String} endpoint - API endpoint
+     * @param {String} method - HTTP method
+     * @param {Number} statusCode - Response status code
+     * @param {Number} duration - Request duration in ms
+     * @param {Object} req - Express request object (optional)
+     * @returns {Promise<Object>} - Created event
+     */
+    static async trackApiCall(endpoint, method, statusCode, duration, req = null) {
+        const userId = req?.userID || req?.userId || null;
+        const firmId = req?.firmId || null;
+
+        return this.trackEvent(
+            EventTypes.API_CALL,
+            `${method} ${endpoint}`,
+            userId,
+            firmId,
+            {
+                endpoint,
+                method,
+                statusCode,
+                duration
+            },
+            {
+                endpoint,
+                method,
+                statusCode,
+                userAgent: req?.headers?.['user-agent'],
+                ip: req?.ip || req?.connection?.remoteAddress
+            }
+        );
+    }
+
     // ═══════════════════════════════════════════════════════════════
     // ANALYTICS QUERY METHODS
     // ═══════════════════════════════════════════════════════════════

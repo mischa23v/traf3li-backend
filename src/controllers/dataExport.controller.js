@@ -421,7 +421,7 @@ const validateImportFile = asyncHandler(async (req, res) => {
         totalRows: 100,
         validRows: 95,
         invalidRows: 5,
-        errors: [
+        errorMessages: [
             { row: 10, field: 'email', message: 'تنسيق البريد الإلكتروني غير صالح' },
             { row: 25, field: 'phone', message: 'رقم الهاتف مكرر' }
         ]
