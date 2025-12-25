@@ -1,0 +1,48 @@
+{
+  "name": "@traf3li/auth-nextjs",
+  "version": "1.0.0",
+  "description": "Next.js SDK for Traf3li Auth - Provides middleware, server components, and API route helpers",
+  "main": "index.ts",
+  "types": "index.ts",
+  "exports": {
+    ".": "./index.ts",
+    "./middleware": "./middleware.ts",
+    "./server": "./server.ts",
+    "./client": "./client.ts",
+    "./edge": "./edge.ts",
+    "./cookies": "./cookies.ts",
+    "./hooks": "./hooks/useServerAuth.ts",
+    "./api/route-handlers": "./api/route-handlers.ts",
+    "./api/pages-handlers": "./api/pages-handlers.ts",
+    "./components/GoogleOneTap": "./components/GoogleOneTap.tsx"
+  },
+  "peerDependencies": {
+    "next": ">=13.0.0",
+    "react": ">=18.0.0",
+    "react-dom": ">=18.0.0",
+    "@traf3li/auth-core": "^1.0.0",
+    "@traf3li/auth-react": "^1.0.0"
+  },
+  "dependencies": {
+    "jose": "^5.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/react": "^18.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "traf3li",
+    "auth",
+    "authentication",
+    "nextjs",
+    "next",
+    "middleware",
+    "server-components",
+    "app-router",
+    "pages-router",
+    "edge-runtime"
+  ],
+  "author": "Traf3li",
+  "license": "MIT"
+}

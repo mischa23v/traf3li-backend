@@ -10,6 +10,7 @@ const Job = require('./job.model');
 const Proposal = require('./proposal.model');
 const LegalDocument = require('./legalDocument.model');
 const Firm = require('./firm.model');
+const OrganizationTemplate = require('./organizationTemplate.model');
 const Score = require('./score.model');
 const PeerReview = require('./peerReview.model');
 const Question = require('./question.model');
@@ -437,6 +438,7 @@ module.exports = {
     Proposal,
     LegalDocument,
     Firm,
+    OrganizationTemplate,
     Score,
     PeerReview,
     Question,

@@ -1,0 +1,60 @@
+{
+  "name": "@traf3li/auth-react",
+  "version": "1.0.0",
+  "description": "React SDK for Traf3li Authentication - Hooks, components, and providers for React applications",
+  "main": "./index.js",
+  "module": "./index.js",
+  "types": "./index.d.ts",
+  "files": [
+    "*.js",
+    "*.d.ts",
+    "hooks",
+    "components",
+    "hoc",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "lint": "eslint . --ext .ts,.tsx",
+    "type-check": "tsc --noEmit"
+  },
+  "keywords": [
+    "traf3li",
+    "auth",
+    "authentication",
+    "react",
+    "hooks",
+    "oauth",
+    "mfa",
+    "2fa",
+    "passwordless",
+    "magic-link",
+    "session-management"
+  ],
+  "author": "Traf3li",
+  "license": "MIT",
+  "peerDependencies": {
+    "react": ">=17.0.0",
+    "react-dom": ">=17.0.0"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@types/react": "^18.0.0",
+    "@types/react-dom": "^18.0.0",
+    "typescript": "^5.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/traf3li/traf3li-backend.git",
+    "directory": "src/sdk/react"
+  },
+  "bugs": {
+    "url": "https://github.com/traf3li/traf3li-backend/issues"
+  },
+  "homepage": "https://traf3li.com",
+  "sideEffects": false,
+  "publishConfig": {
+    "access": "public"
+  }
+}

@@ -74,6 +74,7 @@
     "@aws-sdk/s3-request-presigner": "^3.940.0",
     "@azure/service-bus": "^7.9.0",
     "@google-cloud/pubsub": "^4.0.0",
+    "google-auth-library": "^9.0.0",
     "@dinero.js/currencies": "^2.0.0-alpha.14",
     "@microsoft/microsoft-graph-client": "^3.0.7",
     "@node-saml/passport-saml": "5.1.0",
