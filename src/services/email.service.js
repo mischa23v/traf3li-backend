@@ -803,6 +803,116 @@ class EmailService {
       throw new Error(`Failed to send password reset email: ${error.message}`);
     }
   }
+
+  /**
+   * Send MFA backup code usage notification
+   * @param {Object} user - User object with email and name
+   * @param {Object} usageInfo - Backup code usage information
+   * @param {string} language - Language code ('ar' or 'en')
+   */
+  static async sendMFABackupCodeUsed(user, usageInfo, language = 'ar') {
+    try {
+      const {
+        backupCodeLastDigits, // Last 4 characters of the backup code
+        remainingCodes,
+        ipAddress,
+        deviceInfo,
+        location,
+        usedAt
+      } = usageInfo;
+
+      // Check if backup codes are running low
+      const lowBackupCodes = remainingCodes <= 2;
+
+      const translations = {
+        ar: {
+          subject: 'تنبيه أمني: تم استخدام رمز احتياطي للمصادقة الثنائية',
+          title: 'تم استخدام رمز احتياطي',
+          greeting: `مرحباً ${user.name}،`,
+          messageText: 'نود إعلامك بأنه تم استخدام أحد رموز النسخ الاحتياطي للمصادقة الثنائية للوصول إلى حسابك.',
+          backupCodeUsedTitle: 'الرمز المستخدم',
+          backupCodeUsedText: `تم استخدام رمز احتياطي ينتهي بـ: ****${backupCodeLastDigits}`,
+          detailsTitle: 'تفاصيل الاستخدام',
+          usedAtLabel: 'التاريخ والوقت',
+          ipAddressLabel: 'عنوان IP',
+          deviceLabel: 'الجهاز',
+          locationLabel: 'الموقع',
+          remainingCodesTitle: 'الرموز المتبقية',
+          remainingCodesText: 'رموز احتياطية متبقية',
+          lowCodesWarningTitle: 'تحذير: رموز احتياطية قليلة!',
+          lowCodesWarningText: `لديك ${remainingCodes} رموز احتياطية فقط متبقية. نوصي بشدة بإعادة إنشاء رموز احتياطية جديدة في أقرب وقت ممكن لتجنب فقدان الوصول إلى حسابك.`,
+          regenerateButtonText: 'إعادة إنشاء الرموز الاحتياطية الآن',
+          manageBackupCodesText: 'إدارة الرموز الاحتياطية',
+          securityTipsTitle: 'نصائح أمنية مهمة',
+          securityTip1: 'احتفظ برموزك الاحتياطية في مكان آمن ولا تشاركها مع أي شخص',
+          securityTip2: 'قم بإعادة إنشاء رموز جديدة فوراً عندما تنخفض الرموز المتبقية',
+          securityTip3: 'استخدم تطبيق مصادقة (مثل Google Authenticator) كطريقة أساسية',
+          securityTip4: 'إذا فقدت جميع رموزك الاحتياطية، اتصل بالدعم الفني',
+          notYouTitle: 'هل هذا أنت؟',
+          notYouText: 'إذا لم تكن أنت من قام بهذا الإجراء، فقد يكون حسابك في خطر. يرجى تغيير كلمة المرور الخاصة بك فوراً والاتصال بفريق الدعم لدينا.',
+          supportText: 'إذا كانت لديك أي أسئلة أو مخاوف، يرجى التواصل مع فريق الدعم.',
+          closingText: 'مع أطيب التحيات،',
+          teamName: 'فريق ترافعلي - الأمان والحماية'
+        },
+        en: {
+          subject: 'Security Alert: MFA Backup Code Used',
+          title: 'Backup Code Used',
+          greeting: `Hello ${user.name},`,
+          messageText: 'We want to inform you that one of your Multi-Factor Authentication backup codes was used to access your account.',
+          backupCodeUsedTitle: 'Code Used',
+          backupCodeUsedText: `A backup code ending with: ****${backupCodeLastDigits} was used`,
+          detailsTitle: 'Usage Details',
+          usedAtLabel: 'Date and Time',
+          ipAddressLabel: 'IP Address',
+          deviceLabel: 'Device',
+          locationLabel: 'Location',
+          remainingCodesTitle: 'Remaining Codes',
+          remainingCodesText: 'backup codes remaining',
+          lowCodesWarningTitle: 'Warning: Low on Backup Codes!',
+          lowCodesWarningText: `You only have ${remainingCodes} backup codes remaining. We strongly recommend regenerating new backup codes as soon as possible to avoid losing access to your account.`,
+          regenerateButtonText: 'Regenerate Backup Codes Now',
+          manageBackupCodesText: 'Manage Backup Codes',
+          securityTipsTitle: 'Important Security Tips',
+          securityTip1: 'Keep your backup codes in a safe place and never share them with anyone',
+          securityTip2: 'Regenerate new codes immediately when running low',
+          securityTip3: 'Use an authenticator app (like Google Authenticator) as your primary method',
+          securityTip4: 'If you lose all your backup codes, contact technical support',
+          notYouTitle: 'Was this you?',
+          notYouText: 'If you did not perform this action, your account may be at risk. Please change your password immediately and contact our support team.',
+          supportText: 'If you have any questions or concerns, please contact our support team.',
+          closingText: 'Best regards,',
+          teamName: 'Traf3li Team - Security & Protection'
+        }
+      };
+
+      const t = translations[language];
+      const dashboardUrl = process.env.DASHBOARD_URL || 'https://dashboard.traf3li.com';
+      const regenerateUrl = `${dashboardUrl}/settings/security/mfa`;
+
+      const { html } = await EmailTemplateService.render('mfa-backup-code-used', {
+        ...t,
+        backupCodeLastDigits,
+        remainingCodes,
+        ipAddress: ipAddress || null,
+        deviceInfo: deviceInfo || null,
+        location: location || null,
+        usedAt: usedAt ? EmailTemplateService.formatDate(usedAt, language) : EmailTemplateService.formatDate(new Date(), language),
+        lowBackupCodes,
+        regenerateUrl
+      }, {
+        layout: 'notification',
+        language
+      });
+
+      return await this.sendEmail({
+        to: user.email,
+        subject: t.subject,
+        html
+      });
+    } catch (error) {
+      throw new Error(`Failed to send MFA backup code usage notification: ${error.message}`);
+    }
+  }
 }
 
 module.exports = EmailService;

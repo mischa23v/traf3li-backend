@@ -1,7 +1,7 @@
 const express = require('express');
 const { userMiddleware } = require('../middlewares');
 const { requiredIdempotency } = require('../middlewares/idempotency');
-const { paymentRateLimiter } = require('../middlewares/rateLimiter.middleware');
+const { sensitiveRateLimiter } = require('../middlewares/rateLimiter.middleware');
 const {
     createTransfer,
     getTransfers,
@@ -12,7 +12,7 @@ const {
 const app = express.Router();
 
 // Apply rate limiting to all bank transfer routes
-app.use(paymentRateLimiter);
+app.use(sensitiveRateLimiter);
 
 // Collection routes
 app.post('/', userMiddleware, requiredIdempotency, createTransfer);

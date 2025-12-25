@@ -1,5 +1,6 @@
 const express = require('express');
 const { userMiddleware } = require('../middlewares');
+const { sensitiveRateLimiter } = require('../middlewares/rateLimiter.middleware');
 const {
     // Saved Reports
     createReport,
@@ -30,7 +31,7 @@ app.get('/reports/:id', userMiddleware, getReport);
 app.patch('/reports/:id', userMiddleware, updateReport);
 app.delete('/reports/:id', userMiddleware, deleteReport);
 
-app.post('/reports/:id/run', userMiddleware, runReport);
+app.post('/reports/:id/run', sensitiveRateLimiter, userMiddleware, runReport);
 app.post('/reports/:id/duplicate', userMiddleware, duplicateReport);
 
 // ==================== Dashboard Widgets ====================

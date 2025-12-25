@@ -5,9 +5,30 @@
  */
 
 const mongoose = require('mongoose');
+const crypto = require('crypto');
 
 // Set test environment
 process.env.NODE_ENV = 'test';
+
+// Set test encryption key (32 bytes = 64 hex characters)
+process.env.ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || crypto.randomBytes(32).toString('hex');
+
+// Set other required environment variables for tests
+process.env.JWT_SECRET = process.env.JWT_SECRET || 'test-jwt-secret-key-for-testing-only';
+process.env.FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
+process.env.BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:5000';
+
+// Mock nanoid to avoid ESM import issues in tests
+jest.mock('nanoid', () => ({
+    nanoid: (size = 21) => {
+        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+        let result = '';
+        for (let i = 0; i < size; i++) {
+            result += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        return result;
+    }
+}));
 
 // Increase timeout for database operations
 jest.setTimeout(30000);

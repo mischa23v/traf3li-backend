@@ -1,6 +1,7 @@
 const express = require('express');
 const { userMiddleware } = require('../middlewares');
 const { auditAction } = require('../middlewares/auditLog.middleware');
+const { sensitiveRateLimiter } = require('../middlewares/rateLimiter.middleware');
 const {
     createExportJob,
     getExportJobs,
@@ -25,18 +26,18 @@ const {
 const app = express.Router();
 
 // Export operations
-app.post('/export', userMiddleware, auditAction('export_data', 'export_job', { severity: 'critical' }), createExportJob);
+app.post('/export', sensitiveRateLimiter, userMiddleware, auditAction('export_data', 'export_job', { severity: 'critical' }), createExportJob);
 app.get('/jobs', userMiddleware, getExportJobs);
 app.get('/jobs/:id', userMiddleware, getExportJobStatus);
-app.get('/jobs/:id/download', userMiddleware, auditAction('download_export', 'export_job', { severity: 'high', skipGET: false }), downloadExportFile);
+app.get('/jobs/:id/download', sensitiveRateLimiter, userMiddleware, auditAction('download_export', 'export_job', { severity: 'high', skipGET: false }), downloadExportFile);
 app.post('/jobs/:id/cancel', userMiddleware, cancelExportJob);
 app.delete('/jobs/:id', userMiddleware, deleteExportJob);
 
 // Import operations
-app.post('/import', userMiddleware, auditAction('import_data', 'import_job', { severity: 'critical' }), createImportJob);
+app.post('/import', sensitiveRateLimiter, userMiddleware, auditAction('import_data', 'import_job', { severity: 'critical' }), createImportJob);
 app.get('/imports', userMiddleware, getImportJobs);
 app.get('/import/:id', userMiddleware, getImportJobStatus);
-app.post('/import/:id/start', userMiddleware, auditAction('start_import', 'import_job', { severity: 'critical' }), startImportJob);
+app.post('/import/:id/start', sensitiveRateLimiter, userMiddleware, auditAction('start_import', 'import_job', { severity: 'critical' }), startImportJob);
 app.post('/import/:id/validate', userMiddleware, validateImportFile);
 app.post('/import/:id/cancel', userMiddleware, cancelImportJob);
 
@@ -47,9 +48,9 @@ app.patch('/templates/:id', userMiddleware, updateExportTemplate);
 app.delete('/templates/:id', userMiddleware, deleteExportTemplate);
 
 // Direct exports (immediate download)
-app.get('/entity/:entityType', userMiddleware, auditAction('export_entity', 'export', { severity: 'high', skipGET: false }), exportEntity);
+app.get('/entity/:entityType', sensitiveRateLimiter, userMiddleware, auditAction('export_entity', 'export', { severity: 'high', skipGET: false }), exportEntity);
 
 // Report exports (immediate download)
-app.get('/report/:reportType', userMiddleware, auditAction('export_report', 'export', { severity: 'high', skipGET: false }), exportReport);
+app.get('/report/:reportType', sensitiveRateLimiter, userMiddleware, auditAction('export_report', 'export', { severity: 'high', skipGET: false }), exportReport);
 
 module.exports = app;

@@ -1,31 +1,37 @@
 const jwt = require('jsonwebtoken');
 const logger = require('./logger');
+const keyRotationService = require('../services/keyRotation.service');
 
 /**
- * Token generation utilities for dual-token authentication
- * 
+ * Token generation utilities for dual-token authentication with optional key rotation
+ *
  * Access Token: Short-lived (15 min), contains user info
  * Refresh Token: Long-lived (7 days), used to get new access token
- * 
+ *
  * CRITICAL: Set these in .env:
- * - JWT_SECRET (64+ characters)
+ * - JWT_SECRET (64+ characters) - Used when key rotation is disabled
  * - JWT_REFRESH_SECRET (different 64+ characters)
+ *
+ * OPTIONAL - JWT Key Rotation:
+ * - ENABLE_JWT_KEY_ROTATION (true/false)
+ * - JWT_SIGNING_KEYS (JSON array of key objects)
+ * - JWT_KEY_ROTATION_INTERVAL (days, default: 30)
+ * - JWT_KEY_ROTATION_GRACE_PERIOD (days, default: 7)
+ * - JWT_KEYS_STORAGE (env|redis, default: env)
  */
 
+// Initialize key rotation service (async, non-blocking)
+keyRotationService.initialize().catch(err => {
+  logger.error('Key rotation service initialization failed:', err.message);
+});
+
 /**
- * Get JWT secrets from environment
+ * Get JWT secrets from environment or key rotation service
+ * Supports both legacy single-key mode and new key rotation mode
  * Throws error if secrets are not set (security requirement)
  */
 const getSecrets = () => {
-  const jwtSecret = process.env.JWT_SECRET;
   const jwtRefreshSecret = process.env.JWT_REFRESH_SECRET;
-
-  if (!jwtSecret) {
-    throw new Error(
-      'JWT_SECRET is not set in environment variables. ' +
-      'Generate with: node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"'
-    );
-  }
 
   if (!jwtRefreshSecret) {
     throw new Error(
@@ -34,8 +40,34 @@ const getSecrets = () => {
     );
   }
 
+  // Check if key rotation is enabled
+  if (keyRotationService.isEnabled()) {
+    const currentKey = keyRotationService.getCurrentKey();
+
+    if (!currentKey || !currentKey.secret) {
+      throw new Error('Key rotation is enabled but no active signing key found');
+    }
+
+    return {
+      accessSecret: currentKey.secret,
+      accessKeyId: currentKey.kid, // Include key ID for token header
+      refreshSecret: jwtRefreshSecret,
+    };
+  }
+
+  // Legacy mode: use JWT_SECRET from environment
+  const jwtSecret = process.env.JWT_SECRET;
+
+  if (!jwtSecret) {
+    throw new Error(
+      'JWT_SECRET is not set in environment variables. ' +
+      'Generate with: node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"'
+    );
+  }
+
   return {
     accessSecret: jwtSecret,
+    accessKeyId: null, // No key ID in legacy mode
     refreshSecret: jwtRefreshSecret,
   };
 };
@@ -77,26 +109,32 @@ const validateSecrets = () => {
 
 /**
  * Generate access token (short-lived)
+ * Supports key rotation with 'kid' (Key ID) in JWT header
  * @param {object} user - User object from database
  * @returns {string} - JWT access token
  */
 const generateAccessToken = (user) => {
   try {
-    const { accessSecret } = getSecrets();
-    
+    const { accessSecret, accessKeyId } = getSecrets();
+
     const payload = {
       id: user._id.toString(),
       email: user.email,
       role: user.role,
       // Don't include sensitive data in token
     };
-    
+
     const options = {
       expiresIn: '15m', // 15 minutes
       issuer: 'traf3li',
       audience: 'traf3li-users',
       algorithm: 'HS256',
     };
+
+    // Add 'kid' (Key ID) to header if key rotation is enabled
+    if (accessKeyId) {
+      options.keyid = accessKeyId;
+    }
 
     return jwt.sign(payload, accessSecret, options);
   } catch (error) {
@@ -135,19 +173,60 @@ const generateRefreshToken = (user) => {
 
 /**
  * Verify access token
+ * Supports key rotation by trying multiple keys
  * @param {string} token - JWT access token
  * @returns {object} - Decoded token payload
  */
 const verifyAccessToken = (token) => {
   try {
-    const { accessSecret } = getSecrets();
-    
     const options = {
       issuer: 'traf3li',
       audience: 'traf3li-users',
       algorithms: ['HS256'],
     };
 
+    // If key rotation is enabled, try to verify with appropriate key
+    if (keyRotationService.isEnabled()) {
+      // Decode token header to get 'kid' (without verification)
+      const decoded = jwt.decode(token, { complete: true });
+      const kid = decoded?.header?.kid;
+
+      // Get all active keys (current + deprecated but not expired)
+      const activeKeys = keyRotationService.getAllActiveKeys();
+
+      // If token has kid, try that key first
+      if (kid) {
+        const key = keyRotationService.getKeyById(kid);
+        if (key && key.secret) {
+          try {
+            return jwt.verify(token, key.secret, options);
+          } catch (err) {
+            // If verification fails with specified key, try others
+            logger.warn(`Token verification failed with specified key ${kid}, trying other keys...`);
+          }
+        }
+      }
+
+      // Try all active keys (for tokens without kid or when specified key failed)
+      let lastError = null;
+      for (const key of activeKeys) {
+        try {
+          return jwt.verify(token, key.secret, options);
+        } catch (err) {
+          lastError = err;
+          // Continue to next key
+        }
+      }
+
+      // If we get here, none of the keys worked
+      if (lastError) {
+        throw lastError;
+      }
+      throw new Error('No valid signing key found');
+    }
+
+    // Legacy mode: use single JWT_SECRET
+    const { accessSecret } = getSecrets();
     return jwt.verify(token, accessSecret, options);
   } catch (error) {
     if (error.name === 'TokenExpiredError') {
@@ -250,4 +329,5 @@ module.exports = {
   getTokenExpiration,
   isTokenExpired,
   validateSecrets,
+  keyRotationService, // Export for manual key rotation operations
 };

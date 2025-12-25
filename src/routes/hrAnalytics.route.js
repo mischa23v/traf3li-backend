@@ -3,6 +3,7 @@ const router = express.Router();
 const HRAnalyticsController = require('../controllers/hrAnalytics.controller');
 const { userMiddleware, firmFilter } = require('../middlewares');
 const { authorize } = require('../middlewares/authorize.middleware');
+const { sensitiveRateLimiter, authRateLimiter } = require('../middlewares/rateLimiter.middleware');
 
 /**
  * HR Analytics & Predictions Routes
@@ -30,7 +31,7 @@ router.use(authorize('admin', 'lawyer'));
  * @query   startDate, endDate, department, status
  * @access  Private (HR, Admin)
  */
-router.get('/dashboard', HRAnalyticsController.getDashboard);
+router.get('/dashboard', authRateLimiter, HRAnalyticsController.getDashboard);
 
 /**
  * @route   GET /api/hr-analytics/demographics
@@ -38,7 +39,7 @@ router.get('/dashboard', HRAnalyticsController.getDashboard);
  * @query   department, status
  * @access  Private (HR, Admin)
  */
-router.get('/demographics', HRAnalyticsController.getDemographics);
+router.get('/demographics', authRateLimiter, HRAnalyticsController.getDemographics);
 
 /**
  * @route   GET /api/hr-analytics/turnover
@@ -46,7 +47,7 @@ router.get('/demographics', HRAnalyticsController.getDemographics);
  * @query   startDate, endDate, department
  * @access  Private (HR, Admin)
  */
-router.get('/turnover', HRAnalyticsController.getTurnover);
+router.get('/turnover', authRateLimiter, HRAnalyticsController.getTurnover);
 
 /**
  * @route   GET /api/hr-analytics/absenteeism
@@ -54,7 +55,7 @@ router.get('/turnover', HRAnalyticsController.getTurnover);
  * @query   startDate, endDate, department
  * @access  Private (HR, Admin)
  */
-router.get('/absenteeism', HRAnalyticsController.getAbsenteeism);
+router.get('/absenteeism', authRateLimiter, HRAnalyticsController.getAbsenteeism);
 
 /**
  * @route   GET /api/hr-analytics/attendance
@@ -62,7 +63,7 @@ router.get('/absenteeism', HRAnalyticsController.getAbsenteeism);
  * @query   startDate, endDate, department
  * @access  Private (HR, Admin)
  */
-router.get('/attendance', HRAnalyticsController.getAttendance);
+router.get('/attendance', authRateLimiter, HRAnalyticsController.getAttendance);
 
 /**
  * @route   GET /api/hr-analytics/performance
@@ -70,7 +71,7 @@ router.get('/attendance', HRAnalyticsController.getAttendance);
  * @query   startDate, endDate, department
  * @access  Private (HR, Admin)
  */
-router.get('/performance', HRAnalyticsController.getPerformance);
+router.get('/performance', authRateLimiter, HRAnalyticsController.getPerformance);
 
 /**
  * @route   GET /api/hr-analytics/recruitment
@@ -78,7 +79,7 @@ router.get('/performance', HRAnalyticsController.getPerformance);
  * @query   startDate, endDate, department
  * @access  Private (HR, Admin)
  */
-router.get('/recruitment', HRAnalyticsController.getRecruitment);
+router.get('/recruitment', authRateLimiter, HRAnalyticsController.getRecruitment);
 
 /**
  * @route   GET /api/hr-analytics/compensation
@@ -86,7 +87,7 @@ router.get('/recruitment', HRAnalyticsController.getRecruitment);
  * @query   department
  * @access  Private (HR, Admin)
  */
-router.get('/compensation', HRAnalyticsController.getCompensation);
+router.get('/compensation', authRateLimiter, HRAnalyticsController.getCompensation);
 
 /**
  * @route   GET /api/hr-analytics/training
@@ -94,7 +95,7 @@ router.get('/compensation', HRAnalyticsController.getCompensation);
  * @query   startDate, endDate, department
  * @access  Private (HR, Admin)
  */
-router.get('/training', HRAnalyticsController.getTraining);
+router.get('/training', authRateLimiter, HRAnalyticsController.getTraining);
 
 /**
  * @route   GET /api/hr-analytics/leave
@@ -102,14 +103,14 @@ router.get('/training', HRAnalyticsController.getTraining);
  * @query   startDate, endDate, department
  * @access  Private (HR, Admin)
  */
-router.get('/leave', HRAnalyticsController.getLeave);
+router.get('/leave', authRateLimiter, HRAnalyticsController.getLeave);
 
 /**
  * @route   GET /api/hr-analytics/saudization
  * @desc    Get Saudization compliance metrics (critical for Saudi Arabia)
  * @access  Private (HR, Admin)
  */
-router.get('/saudization', HRAnalyticsController.getSaudization);
+router.get('/saudization', authRateLimiter, HRAnalyticsController.getSaudization);
 
 /**
  * @route   POST /api/hr-analytics/snapshot
@@ -117,7 +118,7 @@ router.get('/saudization', HRAnalyticsController.getSaudization);
  * @body    snapshotType (daily, weekly, monthly, quarterly, yearly)
  * @access  Private (HR, Admin)
  */
-router.post('/snapshot', HRAnalyticsController.takeSnapshot);
+router.post('/snapshot', sensitiveRateLimiter, HRAnalyticsController.takeSnapshot);
 
 /**
  * @route   GET /api/hr-analytics/trends
@@ -125,7 +126,7 @@ router.post('/snapshot', HRAnalyticsController.takeSnapshot);
  * @query   snapshotType, limit
  * @access  Private (HR, Admin)
  */
-router.get('/trends', HRAnalyticsController.getTrends);
+router.get('/trends', authRateLimiter, HRAnalyticsController.getTrends);
 
 /**
  * @route   GET /api/hr-analytics/export
@@ -133,7 +134,7 @@ router.get('/trends', HRAnalyticsController.getTrends);
  * @query   startDate, endDate, department, format
  * @access  Private (HR, Admin)
  */
-router.get('/export', HRAnalyticsController.exportReport);
+router.get('/export', authRateLimiter, HRAnalyticsController.exportReport);
 
 // ═══════════════════════════════════════════════════════════════
 // PREDICTIONS ROUTES (AI-POWERED)
@@ -146,7 +147,7 @@ router.get('/export', HRAnalyticsController.exportReport);
  * @access  Private (HR, Admin)
  * @returns High/medium/low risk employees with risk factors and interventions
  */
-router.get('/predictions/attrition', HRAnalyticsController.getAttritionRisk);
+router.get('/predictions/attrition', authRateLimiter, HRAnalyticsController.getAttritionRisk);
 
 /**
  * @route   GET /api/hr-predictions/attrition/:employeeId
@@ -155,7 +156,7 @@ router.get('/predictions/attrition', HRAnalyticsController.getAttritionRisk);
  * @access  Private (HR, Admin, Manager)
  * @returns Risk score, factors, interventions, timeline, similar departures
  */
-router.get('/predictions/attrition/:employeeId', HRAnalyticsController.getEmployeeAttritionRisk);
+router.get('/predictions/attrition/:employeeId', authRateLimiter, HRAnalyticsController.getEmployeeAttritionRisk);
 
 /**
  * @route   GET /api/hr-predictions/workforce
@@ -164,7 +165,7 @@ router.get('/predictions/attrition/:employeeId', HRAnalyticsController.getEmploy
  * @access  Private (HR, Admin)
  * @returns Monthly forecast with headcount, attrition, and hiring predictions
  */
-router.get('/predictions/workforce', HRAnalyticsController.getWorkforceForecast);
+router.get('/predictions/workforce', authRateLimiter, HRAnalyticsController.getWorkforceForecast);
 
 /**
  * @route   GET /api/hr-predictions/high-potential
@@ -173,7 +174,7 @@ router.get('/predictions/workforce', HRAnalyticsController.getWorkforceForecast)
  * @access  Private (HR, Admin)
  * @returns High-potential employees with development recommendations
  */
-router.get('/predictions/high-potential', HRAnalyticsController.getHighPotential);
+router.get('/predictions/high-potential', authRateLimiter, HRAnalyticsController.getHighPotential);
 
 /**
  * @route   GET /api/hr-predictions/flight-risk
@@ -181,7 +182,7 @@ router.get('/predictions/high-potential', HRAnalyticsController.getHighPotential
  * @access  Private (HR, Admin)
  * @returns Flight risk employees with engagement scores
  */
-router.get('/predictions/flight-risk', HRAnalyticsController.getFlightRisk);
+router.get('/predictions/flight-risk', authRateLimiter, HRAnalyticsController.getFlightRisk);
 
 /**
  * @route   GET /api/hr-predictions/absence
@@ -189,7 +190,7 @@ router.get('/predictions/flight-risk', HRAnalyticsController.getFlightRisk);
  * @access  Private (HR, Admin)
  * @returns Absence predictions with patterns and recommendations
  */
-router.get('/predictions/absence', HRAnalyticsController.getAbsencePredictions);
+router.get('/predictions/absence', authRateLimiter, HRAnalyticsController.getAbsencePredictions);
 
 /**
  * @route   GET /api/hr-predictions/engagement
@@ -197,7 +198,7 @@ router.get('/predictions/absence', HRAnalyticsController.getAbsencePredictions);
  * @access  Private (HR, Admin)
  * @returns Engagement scores and distribution
  */
-router.get('/predictions/engagement', HRAnalyticsController.getEngagementPredictions);
+router.get('/predictions/engagement', authRateLimiter, HRAnalyticsController.getEngagementPredictions);
 
 // ═══════════════════════════════════════════════════════════════
 // ROUTE SUMMARY

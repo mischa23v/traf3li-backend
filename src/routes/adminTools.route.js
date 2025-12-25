@@ -645,4 +645,143 @@ router.post('/users/:id/unlock', ...adminOnly, sensitiveRateLimiter, unlockUser)
  */
 router.get('/users/:id/login-history', ...adminOnly, publicRateLimiter, getLoginHistory);
 
+// ═══════════════════════════════════════════════════════════════
+// JWT KEY ROTATION ROUTES
+// ═══════════════════════════════════════════════════════════════
+
+const {
+    getKeyRotationStatus,
+    rotateKeys,
+    generateNewKey,
+    cleanupExpiredKeys,
+    checkRotationNeeded,
+    initializeKeyRotation,
+    autoRotate
+} = require('../controllers/keyRotation.controller');
+
+/**
+ * @openapi
+ * /api/admin/tools/key-rotation/status:
+ *   get:
+ *     summary: Get current JWT key rotation status
+ *     tags: [Admin Tools - Security]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Key rotation status retrieved successfully
+ *       403:
+ *         description: Admin access required
+ */
+router.get('/key-rotation/status', ...adminOnly, publicRateLimiter, getKeyRotationStatus);
+
+/**
+ * @openapi
+ * /api/admin/tools/key-rotation/check:
+ *   get:
+ *     summary: Check if key rotation is needed
+ *     tags: [Admin Tools - Security]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Rotation check completed
+ *       403:
+ *         description: Admin access required
+ */
+router.get('/key-rotation/check', ...adminOnly, publicRateLimiter, checkRotationNeeded);
+
+/**
+ * @openapi
+ * /api/admin/tools/key-rotation/rotate:
+ *   post:
+ *     summary: Manually trigger JWT key rotation
+ *     description: Generates a new signing key and marks the current key as deprecated
+ *     tags: [Admin Tools - Security]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Key rotation completed successfully
+ *       400:
+ *         description: Key rotation is not enabled
+ *       403:
+ *         description: Admin access required
+ */
+router.post('/key-rotation/rotate', ...adminOnly, sensitiveRateLimiter, rotateKeys);
+
+/**
+ * @openapi
+ * /api/admin/tools/key-rotation/auto-rotate:
+ *   post:
+ *     summary: Perform automatic rotation if needed
+ *     description: Checks if rotation is needed based on key age and rotates if necessary
+ *     tags: [Admin Tools - Security]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Automatic rotation check completed
+ *       400:
+ *         description: Key rotation is not enabled
+ *       403:
+ *         description: Admin access required
+ */
+router.post('/key-rotation/auto-rotate', ...adminOnly, sensitiveRateLimiter, autoRotate);
+
+/**
+ * @openapi
+ * /api/admin/tools/key-rotation/generate:
+ *   post:
+ *     summary: Generate a new signing key
+ *     description: Creates a new key without rotating (for testing or backup)
+ *     tags: [Admin Tools - Security]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: New key generated successfully
+ *       400:
+ *         description: Key rotation is not enabled
+ *       403:
+ *         description: Admin access required
+ */
+router.post('/key-rotation/generate', ...adminOnly, sensitiveRateLimiter, generateNewKey);
+
+/**
+ * @openapi
+ * /api/admin/tools/key-rotation/cleanup:
+ *   post:
+ *     summary: Cleanup expired signing keys
+ *     description: Removes keys that have passed their expiration date
+ *     tags: [Admin Tools - Security]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Expired keys cleaned up successfully
+ *       400:
+ *         description: Key rotation is not enabled
+ *       403:
+ *         description: Admin access required
+ */
+router.post('/key-rotation/cleanup', ...adminOnly, sensitiveRateLimiter, cleanupExpiredKeys);
+
+/**
+ * @openapi
+ * /api/admin/tools/key-rotation/initialize:
+ *   post:
+ *     summary: Initialize key rotation service
+ *     description: Initializes the key rotation service and loads existing keys
+ *     tags: [Admin Tools - Security]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Key rotation service initialized successfully
+ *       403:
+ *         description: Admin access required
+ */
+router.post('/key-rotation/initialize', ...adminOnly, sensitiveRateLimiter, initializeKeyRotation);
+
 module.exports = router;
