@@ -490,6 +490,76 @@ const firmSchema = new mongoose.Schema({
     },
 
     // ═══════════════════════════════════════════════════════════════
+    // INTEGRATIONS (Third-party integrations)
+    // ═══════════════════════════════════════════════════════════════
+    integrations: {
+        // Xero Accounting Integration
+        xero: {
+            connected: { type: Boolean, default: false },
+            accessToken: String, // Encrypted
+            refreshToken: String, // Encrypted
+            expiresAt: Date,
+            tokenType: { type: String, default: 'Bearer' },
+            scope: String,
+            tenantId: String,
+            tenantName: String,
+            tenantType: String,
+            connectedAt: Date,
+            disconnectedAt: Date,
+            lastSyncedAt: Date,
+            lastRefreshedAt: Date,
+            syncSettings: {
+                autoSync: { type: Boolean, default: false },
+                syncInterval: {
+                    type: String,
+                    enum: ['manual', 'hourly', 'daily', 'weekly'],
+                    default: 'manual'
+                },
+                syncDirection: {
+                    type: String,
+                    enum: ['to_xero', 'from_xero', 'bidirectional'],
+                    default: 'bidirectional'
+                },
+                lastSync: {
+                    chartOfAccounts: Date,
+                    contacts: Date,
+                    invoices: Date,
+                    payments: Date,
+                    bills: Date,
+                    bankTransactions: Date,
+                    items: Date
+                },
+                mapping: {
+                    defaultAccountCode: String,
+                    defaultTaxType: { type: String, default: 'NONE' },
+                    currencyMapping: {
+                        type: Map,
+                        of: String,
+                        default: { SAR: 'SAR', USD: 'USD', EUR: 'EUR' }
+                    }
+                }
+            },
+            webhooks: {
+                enabled: { type: Boolean, default: false },
+                secret: String, // Webhook signing secret
+                events: [String] // Event types subscribed to
+            }
+        },
+
+        // QuickBooks Integration (placeholder for future)
+        quickbooks: {
+            connected: { type: Boolean, default: false },
+            // ... similar structure to Xero
+        },
+
+        // Zoho Books Integration (placeholder for future)
+        zohoBooks: {
+            connected: { type: Boolean, default: false },
+            // ... similar structure to Xero
+        }
+    },
+
+    // ═══════════════════════════════════════════════════════════════
     // STATUS
     // ═══════════════════════════════════════════════════════════════
     status: {

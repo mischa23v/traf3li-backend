@@ -48,6 +48,7 @@ const reportRoute = require('../report.route');
 const reminderRoute = require('../reminder.route');
 const clientRoute = require('../client.route');
 const calendarRoute = require('../calendar.route');
+const microsoftCalendarRoute = require('../microsoftCalendar.route');
 const lawyerRoute = require('../lawyer.route');
 
 // New API Routes
@@ -168,6 +169,9 @@ const saudiBankingRoute = require('../saudiBanking.route');
 const healthRoute = require('../health.route');
 const metricsRoute = require('../metrics.route');
 
+// SLO Monitoring Routes
+const sloMonitoringRoute = require('../sloMonitoring.routes');
+
 // Import security middleware
 const { noCache } = require('../../middlewares/security.middleware');
 
@@ -218,6 +222,7 @@ router.use('/reports', noCache, reportRoute);
 router.use('/reminders', reminderRoute);
 router.use('/clients', clientRoute);
 router.use('/calendar', calendarRoute);
+router.use('/microsoft-calendar', microsoftCalendarRoute);
 router.use('/lawyers', lawyerRoute);
 
 // ============================================
@@ -375,6 +380,11 @@ router.use('/saudi-banking', noCache, saudiBankingRoute);
 // ============================================
 router.use('/health', healthRoute);
 router.use('/metrics', metricsRoute);
+
+// ============================================
+// SLO MONITORING
+// ============================================
+router.use('/slo-monitoring', noCache, sloMonitoringRoute);
 
 // ============================================
 // ALIAS ROUTES (for frontend compatibility)

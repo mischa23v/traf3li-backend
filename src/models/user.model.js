@@ -667,6 +667,43 @@ const userSchema = new mongoose.Schema({
         type: String,
         required: false,
         default: null
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // INTEGRATIONS (Third-party integrations)
+    // ═══════════════════════════════════════════════════════════════
+    integrations: {
+        // Microsoft Calendar Integration
+        microsoftCalendar: {
+            connected: { type: Boolean, default: false },
+            firmId: { type: mongoose.Schema.Types.ObjectId, ref: 'Firm' },
+            accessToken: String, // Encrypted
+            refreshToken: String, // Encrypted
+            expiresAt: Date,
+            tokenType: { type: String, default: 'Bearer' },
+            scope: String,
+            connectedAt: Date,
+            disconnectedAt: Date,
+            lastSyncedAt: Date,
+            lastRefreshedAt: Date,
+            syncSettings: {
+                enabled: { type: Boolean, default: false },
+                syncInterval: {
+                    type: String,
+                    enum: ['manual', 'hourly', 'daily'],
+                    default: 'manual'
+                },
+                syncDirection: {
+                    type: String,
+                    enum: ['to_microsoft', 'from_microsoft', 'bidirectional'],
+                    default: 'bidirectional'
+                },
+                defaultCalendarId: String,
+                syncPastDays: { type: Number, default: 30 },
+                syncFutureDays: { type: Number, default: 90 },
+                lastSync: Date
+            }
+        }
     }
 }, {
     versionKey: false,

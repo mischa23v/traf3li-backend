@@ -1,299 +1,614 @@
 /**
- * Analytics Service
+ * Analytics Service - Event-based Analytics System
  *
- * Tracks events for consistency with frontend analytics.
- * Matches the frontend event taxonomy defined in src/lib/analytics.ts
+ * Comprehensive analytics service for tracking user interactions, feature usage,
+ * and system events. Provides both real-time event tracking and advanced analytics queries.
  *
- * Events tracked:
- * - page_view: Page navigation
- * - search: Search queries
- * - form_submit: Form submissions
- * - error: Client-side errors (from frontend)
- * - api_call: API endpoint calls (backend-specific)
- * - user_action: User actions
+ * Features:
+ * - Event tracking (page views, feature usage, actions, errors)
+ * - User engagement metrics (DAU, WAU, MAU)
+ * - Feature adoption analytics
+ * - Funnel analysis
+ * - Retention cohorts
+ * - User journey tracking
+ * - Performance metrics
  */
 
+const mongoose = require('mongoose');
+const AnalyticsEvent = require('../models/analyticsEvent.model');
 const logger = require('../utils/logger');
 
-// In-memory event buffer for batch processing
-let eventBuffer = [];
-const BUFFER_FLUSH_INTERVAL = 30000; // 30 seconds
-const MAX_BUFFER_SIZE = 100;
-
 /**
- * Event types matching frontend taxonomy
+ * Event types
  */
 const EventTypes = {
     PAGE_VIEW: 'page_view',
-    SEARCH: 'search',
-    FORM_SUBMIT: 'form_submit',
+    FEATURE_USED: 'feature_used',
+    ACTION_COMPLETED: 'action_completed',
     ERROR: 'error',
     API_CALL: 'api_call',
-    USER_ACTION: 'user_action',
+    SEARCH: 'search',
+    FORM_SUBMIT: 'form_submit',
     LOGIN: 'login',
     LOGOUT: 'logout',
-    SIGNUP: 'signup'
+    SIGNUP: 'signup',
+    USER_ACTION: 'user_action',
+    CUSTOM: 'custom'
 };
 
-/**
- * Analytics Service class
- */
 class AnalyticsService {
+    // ═══════════════════════════════════════════════════════════════
+    // EVENT TRACKING METHODS
+    // ═══════════════════════════════════════════════════════════════
+
     /**
      * Track a generic event
-     * @param {string} eventType - Type of event (from EventTypes)
-     * @param {Object} properties - Event properties
-     * @param {Object} context - Request context (req object)
+     * @param {String} eventType - Type of event
+     * @param {String} eventName - Specific event name
+     * @param {String} userId - User ID
+     * @param {String} firmId - Firm ID
+     * @param {Object} properties - Event-specific properties
+     * @param {Object} metadata - Context metadata
+     * @returns {Promise<Object>} - Created event
      */
-    static track(eventType, properties = {}, context = {}) {
-        const event = {
-            type: eventType,
+    static async trackEvent(eventType, eventName, userId = null, firmId = null, properties = {}, metadata = {}) {
+        try {
+            const event = await AnalyticsEvent.create({
+                eventType,
+                eventName,
+                userId: userId ? new mongoose.Types.ObjectId(userId) : null,
+                firmId: firmId ? new mongoose.Types.ObjectId(firmId) : null,
+                sessionId: metadata.sessionId || null,
+                properties,
+                metadata: {
+                    page: metadata.page,
+                    referrer: metadata.referrer,
+                    url: metadata.url,
+                    device: metadata.device,
+                    browser: metadata.browser,
+                    os: metadata.os,
+                    userAgent: metadata.userAgent,
+                    ip: metadata.ip,
+                    country: metadata.country,
+                    city: metadata.city,
+                    method: metadata.method,
+                    statusCode: metadata.statusCode,
+                    endpoint: metadata.endpoint,
+                    custom: metadata.custom
+                },
+                timestamp: new Date(),
+                duration: properties.duration || null
+            });
+
+            logger.debug('Analytics event tracked', {
+                eventType,
+                eventName,
+                userId,
+                firmId
+            });
+
+            return event;
+        } catch (error) {
+            logger.error('AnalyticsService.trackEvent failed:', error.message);
+            return null;
+        }
+    }
+
+    /**
+     * Track page view
+     * @param {String} page - Page path
+     * @param {String} userId - User ID
+     * @param {String} firmId - Firm ID
+     * @param {Object} metadata - Context metadata
+     * @returns {Promise<Object>} - Created event
+     */
+    static async trackPageView(page, userId = null, firmId = null, metadata = {}) {
+        return this.trackEvent(
+            EventTypes.PAGE_VIEW,
+            page,
+            userId,
+            firmId,
+            { page },
+            { ...metadata, page }
+        );
+    }
+
+    /**
+     * Track feature usage
+     * @param {String} featureName - Feature name
+     * @param {String} userId - User ID
+     * @param {String} firmId - Firm ID
+     * @param {Object} properties - Additional properties
+     * @returns {Promise<Object>} - Created event
+     */
+    static async trackFeatureUsage(featureName, userId = null, firmId = null, properties = {}) {
+        return this.trackEvent(
+            EventTypes.FEATURE_USED,
+            featureName,
+            userId,
+            firmId,
             properties,
-            context: {
-                userId: context.userID || context.userId || null,
-                firmId: context.firmId || null,
-                requestId: context.id || null,
-                userAgent: context.headers?.['user-agent'] || null,
-                ip: context.ip || context.headers?.['x-forwarded-for']?.split(',')[0] || null,
-                path: context.originalUrl || context.path || null,
-                method: context.method || null
+            {}
+        );
+    }
+
+    /**
+     * Track action completed
+     * @param {String} actionName - Action name
+     * @param {String} userId - User ID
+     * @param {String} firmId - Firm ID
+     * @param {Number} duration - Action duration in ms
+     * @param {Object} properties - Additional properties
+     * @returns {Promise<Object>} - Created event
+     */
+    static async trackActionCompleted(actionName, userId = null, firmId = null, duration = null, properties = {}) {
+        return this.trackEvent(
+            EventTypes.ACTION_COMPLETED,
+            actionName,
+            userId,
+            firmId,
+            { ...properties, duration },
+            {}
+        );
+    }
+
+    /**
+     * Track error
+     * @param {String} errorType - Error type
+     * @param {String} errorMessage - Error message
+     * @param {String} userId - User ID
+     * @param {String} firmId - Firm ID
+     * @param {Object} context - Error context
+     * @returns {Promise<Object>} - Created event
+     */
+    static async trackError(errorType, errorMessage, userId = null, firmId = null, context = {}) {
+        return this.trackEvent(
+            EventTypes.ERROR,
+            errorType,
+            userId,
+            firmId,
+            {
+                errorType,
+                errorMessage,
+                stack: context.stack,
+                ...context
             },
-            timestamp: new Date().toISOString()
-        };
+            {}
+        );
+    }
 
-        // Add to buffer
-        eventBuffer.push(event);
+    // ═══════════════════════════════════════════════════════════════
+    // ANALYTICS QUERY METHODS
+    // ═══════════════════════════════════════════════════════════════
 
-        // Log event for debugging (in development) or structured logging (in production)
-        if (process.env.NODE_ENV !== 'production') {
-            logger.debug('Analytics event tracked', { event });
+    /**
+     * Get event counts
+     * @param {String} firmId - Firm ID
+     * @param {String} eventType - Event type filter
+     * @param {Object} dateRange - Date range {start, end}
+     * @returns {Promise<Object>} - Event counts
+     */
+    static async getEventCounts(firmId, eventType = null, dateRange = {}) {
+        try {
+            const { start, end } = this._parseDateRange(dateRange);
+
+            const matchQuery = {
+                firmId: new mongoose.Types.ObjectId(firmId),
+                timestamp: { $gte: start, $lte: end }
+            };
+
+            if (eventType) {
+                matchQuery.eventType = eventType;
+            }
+
+            const counts = await AnalyticsEvent.aggregate([
+                { $match: matchQuery },
+                {
+                    $group: {
+                        _id: '$eventType',
+                        count: { $sum: 1 }
+                    }
+                },
+                { $sort: { count: -1 } }
+            ]);
+
+            const total = counts.reduce((sum, item) => sum + item.count, 0);
+
+            return {
+                total,
+                byType: counts.reduce((acc, item) => {
+                    acc[item._id] = item.count;
+                    return acc;
+                }, {})
+            };
+        } catch (error) {
+            logger.error('AnalyticsService.getEventCounts failed:', error.message);
+            return { total: 0, byType: {} };
         }
+    }
 
-        // Flush if buffer is full
-        if (eventBuffer.length >= MAX_BUFFER_SIZE) {
-            this.flush();
+    /**
+     * Get feature usage statistics
+     * @param {String} firmId - Firm ID
+     * @param {Object} dateRange - Date range {start, end}
+     * @returns {Promise<Array>} - Feature usage stats
+     */
+    static async getFeatureUsageStats(firmId, dateRange = {}) {
+        try {
+            const { start, end } = this._parseDateRange(dateRange);
+
+            const stats = await AnalyticsEvent.aggregate([
+                {
+                    $match: {
+                        firmId: new mongoose.Types.ObjectId(firmId),
+                        eventType: EventTypes.FEATURE_USED,
+                        timestamp: { $gte: start, $lte: end }
+                    }
+                },
+                {
+                    $group: {
+                        _id: '$eventName',
+                        usageCount: { $sum: 1 },
+                        uniqueUsers: { $addToSet: '$userId' },
+                        firstUsed: { $min: '$timestamp' },
+                        lastUsed: { $max: '$timestamp' }
+                    }
+                },
+                {
+                    $project: {
+                        featureName: '$_id',
+                        usageCount: 1,
+                        uniqueUserCount: { $size: '$uniqueUsers' },
+                        firstUsed: 1,
+                        lastUsed: 1
+                    }
+                },
+                { $sort: { usageCount: -1 } }
+            ]);
+
+            return stats;
+        } catch (error) {
+            logger.error('AnalyticsService.getFeatureUsageStats failed:', error.message);
+            return [];
         }
-
-        return event;
     }
 
     /**
-     * Track page view event (for SSR or API-tracked navigation)
-     * @param {string} page - Page path
-     * @param {Object} context - Request context
+     * Get user engagement metrics (DAU, WAU, MAU)
+     * @param {String} firmId - Firm ID
+     * @param {Object} dateRange - Date range {start, end}
+     * @returns {Promise<Object>} - Engagement metrics
      */
-    static trackPageView(page, context = {}) {
-        return this.track(EventTypes.PAGE_VIEW, { page }, context);
+    static async getUserEngagementMetrics(firmId, dateRange = {}) {
+        try {
+            const now = new Date();
+            const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            const weekAgo = new Date(today);
+            weekAgo.setDate(weekAgo.getDate() - 7);
+            const monthAgo = new Date(today);
+            monthAgo.setDate(monthAgo.getDate() - 30);
+
+            const [dau, wau, mau] = await Promise.all([
+                AnalyticsEvent.getUniqueUsersCount(firmId, today, now),
+                AnalyticsEvent.getUniqueUsersCount(firmId, weekAgo, now),
+                AnalyticsEvent.getUniqueUsersCount(firmId, monthAgo, now)
+            ]);
+
+            return {
+                dau,
+                wau,
+                mau,
+                dauWauRatio: wau > 0 ? (dau / wau * 100).toFixed(2) : 0,
+                wauMauRatio: mau > 0 ? (wau / mau * 100).toFixed(2) : 0
+            };
+        } catch (error) {
+            logger.error('AnalyticsService.getUserEngagementMetrics failed:', error.message);
+            return { dau: 0, wau: 0, mau: 0, dauWauRatio: 0, wauMauRatio: 0 };
+        }
     }
 
     /**
-     * Track search event
-     * @param {string} query - Search query
-     * @param {string} searchType - Type of search (clients, cases, tasks, etc.)
-     * @param {number} resultsCount - Number of results returned
-     * @param {Object} context - Request context
+     * Get funnel analysis
+     * @param {String} firmId - Firm ID
+     * @param {Array} funnelSteps - Array of step event names
+     * @param {Object} dateRange - Date range {start, end}
+     * @returns {Promise<Object>} - Funnel analysis
      */
-    static trackSearch(query, searchType, resultsCount = 0, context = {}) {
-        return this.track(EventTypes.SEARCH, {
-            query: query.substring(0, 100), // Truncate for privacy
-            searchType,
-            resultsCount,
-            hasResults: resultsCount > 0
-        }, context);
+    static async getFunnelAnalysis(firmId, funnelSteps = [], dateRange = {}) {
+        try {
+            const { start, end } = this._parseDateRange(dateRange);
+
+            const results = [];
+            let previousCount = 0;
+
+            for (let i = 0; i < funnelSteps.length; i++) {
+                const stepName = funnelSteps[i];
+
+                const count = await AnalyticsEvent.countDocuments({
+                    firmId: new mongoose.Types.ObjectId(firmId),
+                    eventName: stepName,
+                    timestamp: { $gte: start, $lte: end }
+                });
+
+                const conversionRate = i > 0 && previousCount > 0
+                    ? ((count / previousCount) * 100).toFixed(2)
+                    : 100;
+
+                results.push({
+                    step: i + 1,
+                    stepName,
+                    count,
+                    conversionRate: parseFloat(conversionRate),
+                    dropoff: i > 0 ? previousCount - count : 0
+                });
+
+                previousCount = count;
+            }
+
+            return {
+                steps: results,
+                overallConversion: results.length > 0 && results[0].count > 0
+                    ? ((results[results.length - 1].count / results[0].count) * 100).toFixed(2)
+                    : 0
+            };
+        } catch (error) {
+            logger.error('AnalyticsService.getFunnelAnalysis failed:', error.message);
+            return { steps: [], overallConversion: 0 };
+        }
     }
 
     /**
-     * Track form submission event
-     * @param {string} formName - Name of the form
-     * @param {boolean} success - Whether submission was successful
-     * @param {Object} context - Request context
+     * Get retention cohorts
+     * @param {String} firmId - Firm ID
+     * @param {Object} dateRange - Date range {start, end}
+     * @returns {Promise<Array>} - Retention cohorts
      */
-    static trackFormSubmit(formName, success = true, context = {}) {
-        return this.track(EventTypes.FORM_SUBMIT, {
-            formName,
-            success
-        }, context);
+    static async getRetentionCohorts(firmId, dateRange = {}) {
+        try {
+            const { start, end } = this._parseDateRange(dateRange);
+
+            // Get users grouped by signup week
+            const cohorts = await AnalyticsEvent.aggregate([
+                {
+                    $match: {
+                        firmId: new mongoose.Types.ObjectId(firmId),
+                        eventType: EventTypes.SIGNUP,
+                        timestamp: { $gte: start, $lte: end }
+                    }
+                },
+                {
+                    $group: {
+                        _id: {
+                            year: { $year: '$timestamp' },
+                            week: { $week: '$timestamp' }
+                        },
+                        users: { $addToSet: '$userId' },
+                        signupDate: { $min: '$timestamp' }
+                    }
+                },
+                { $sort: { signupDate: 1 } }
+            ]);
+
+            // Calculate retention for each cohort
+            const retentionData = [];
+            for (const cohort of cohorts) {
+                const cohortStart = cohort.signupDate;
+                const cohortUsers = cohort.users;
+
+                // Check activity in subsequent weeks
+                const weeks = [];
+                for (let week = 0; week < 12; week++) {
+                    const weekStart = new Date(cohortStart);
+                    weekStart.setDate(weekStart.getDate() + (week * 7));
+                    const weekEnd = new Date(weekStart);
+                    weekEnd.setDate(weekEnd.getDate() + 7);
+
+                    const activeUsers = await AnalyticsEvent.distinct('userId', {
+                        firmId: new mongoose.Types.ObjectId(firmId),
+                        userId: { $in: cohortUsers },
+                        timestamp: { $gte: weekStart, $lte: weekEnd }
+                    });
+
+                    const retention = cohortUsers.length > 0
+                        ? ((activeUsers.length / cohortUsers.length) * 100).toFixed(2)
+                        : 0;
+
+                    weeks.push({
+                        week,
+                        activeUsers: activeUsers.length,
+                        retention: parseFloat(retention)
+                    });
+                }
+
+                retentionData.push({
+                    cohortId: `${cohort._id.year}-W${cohort._id.week}`,
+                    signupDate: cohort.signupDate,
+                    totalUsers: cohortUsers.length,
+                    weeks
+                });
+            }
+
+            return retentionData;
+        } catch (error) {
+            logger.error('AnalyticsService.getRetentionCohorts failed:', error.message);
+            return [];
+        }
     }
 
     /**
-     * Track error event
-     * @param {Error|string} error - Error object or message
-     * @param {string} source - Error source (frontend, backend, api)
-     * @param {Object} context - Request context
+     * Get user journey (event timeline)
+     * @param {String} userId - User ID
+     * @param {Object} dateRange - Date range {start, end}
+     * @returns {Promise<Array>} - User's event timeline
      */
-    static trackError(error, source = 'backend', context = {}) {
-        const errorMessage = error instanceof Error ? error.message : error;
-        const errorStack = error instanceof Error ? error.stack : null;
+    static async getUserJourney(userId, dateRange = {}) {
+        try {
+            const { start, end } = this._parseDateRange(dateRange);
 
-        return this.track(EventTypes.ERROR, {
-            message: errorMessage,
-            source,
-            stack: process.env.NODE_ENV !== 'production' ? errorStack : null
-        }, context);
+            const events = await AnalyticsEvent.find({
+                userId: new mongoose.Types.ObjectId(userId),
+                timestamp: { $gte: start, $lte: end }
+            })
+                .select('eventType eventName timestamp properties metadata')
+                .sort({ timestamp: 1 })
+                .limit(1000)
+                .lean();
+
+            return events;
+        } catch (error) {
+            logger.error('AnalyticsService.getUserJourney failed:', error.message);
+            return [];
+        }
     }
 
     /**
-     * Track API call event
-     * @param {string} endpoint - API endpoint
-     * @param {string} method - HTTP method
-     * @param {number} statusCode - Response status code
-     * @param {number} duration - Request duration in ms
-     * @param {Object} context - Request context
+     * Get popular features
+     * @param {String} firmId - Firm ID
+     * @param {Object} dateRange - Date range {start, end}
+     * @param {Number} limit - Limit results
+     * @returns {Promise<Array>} - Most used features
      */
-    static trackApiCall(endpoint, method, statusCode, duration, context = {}) {
-        return this.track(EventTypes.API_CALL, {
-            endpoint,
-            method,
-            statusCode,
-            duration,
-            success: statusCode >= 200 && statusCode < 400
-        }, context);
+    static async getPopularFeatures(firmId, dateRange = {}, limit = 10) {
+        try {
+            const { start, end } = this._parseDateRange(dateRange);
+
+            const features = await AnalyticsEvent.aggregate([
+                {
+                    $match: {
+                        firmId: new mongoose.Types.ObjectId(firmId),
+                        eventType: EventTypes.FEATURE_USED,
+                        timestamp: { $gte: start, $lte: end }
+                    }
+                },
+                {
+                    $group: {
+                        _id: '$eventName',
+                        usageCount: { $sum: 1 },
+                        uniqueUsers: { $addToSet: '$userId' }
+                    }
+                },
+                {
+                    $project: {
+                        featureName: '$_id',
+                        usageCount: 1,
+                        uniqueUserCount: { $size: '$uniqueUsers' }
+                    }
+                },
+                { $sort: { usageCount: -1 } },
+                { $limit: limit }
+            ]);
+
+            return features;
+        } catch (error) {
+            logger.error('AnalyticsService.getPopularFeatures failed:', error.message);
+            return [];
+        }
     }
 
     /**
-     * Track user action event
-     * @param {string} action - Action name
-     * @param {string} category - Action category
-     * @param {Object} metadata - Additional metadata
-     * @param {Object} context - Request context
+     * Get dropoff points in a workflow
+     * @param {String} firmId - Firm ID
+     * @param {Array} workflow - Array of step event names
+     * @param {Object} dateRange - Date range {start, end}
+     * @returns {Promise<Array>} - Dropoff points
      */
-    static trackUserAction(action, category, metadata = {}, context = {}) {
-        return this.track(EventTypes.USER_ACTION, {
-            action,
-            category,
-            ...metadata
-        }, context);
+    static async getDropoffPoints(firmId, workflow = [], dateRange = {}) {
+        try {
+            const { start, end } = this._parseDateRange(dateRange);
+
+            const dropoffs = [];
+
+            for (let i = 0; i < workflow.length - 1; i++) {
+                const currentStep = workflow[i];
+                const nextStep = workflow[i + 1];
+
+                const [currentCount, nextCount] = await Promise.all([
+                    AnalyticsEvent.countDocuments({
+                        firmId: new mongoose.Types.ObjectId(firmId),
+                        eventName: currentStep,
+                        timestamp: { $gte: start, $lte: end }
+                    }),
+                    AnalyticsEvent.countDocuments({
+                        firmId: new mongoose.Types.ObjectId(firmId),
+                        eventName: nextStep,
+                        timestamp: { $gte: start, $lte: end }
+                    })
+                ]);
+
+                const dropoffCount = currentCount - nextCount;
+                const dropoffRate = currentCount > 0
+                    ? ((dropoffCount / currentCount) * 100).toFixed(2)
+                    : 0;
+
+                dropoffs.push({
+                    fromStep: currentStep,
+                    toStep: nextStep,
+                    startedCount: currentCount,
+                    completedCount: nextCount,
+                    dropoffCount,
+                    dropoffRate: parseFloat(dropoffRate)
+                });
+            }
+
+            return dropoffs;
+        } catch (error) {
+            logger.error('AnalyticsService.getDropoffPoints failed:', error.message);
+            return [];
+        }
     }
 
-    /**
-     * Track login event
-     * @param {string} method - Login method (email, oauth, etc.)
-     * @param {boolean} success - Whether login was successful
-     * @param {Object} context - Request context
-     */
-    static trackLogin(method, success, context = {}) {
-        return this.track(EventTypes.LOGIN, {
-            method,
-            success
-        }, context);
-    }
+    // ═══════════════════════════════════════════════════════════════
+    // HELPER METHODS
+    // ═══════════════════════════════════════════════════════════════
 
     /**
-     * Track logout event
-     * @param {Object} context - Request context
+     * Parse date range
+     * @private
+     * @param {Object} dateRange - Date range object
+     * @returns {Object} - Parsed start and end dates
      */
-    static trackLogout(context = {}) {
-        return this.track(EventTypes.LOGOUT, {}, context);
-    }
-
-    /**
-     * Track signup event
-     * @param {string} method - Signup method
-     * @param {boolean} success - Whether signup was successful
-     * @param {Object} context - Request context
-     */
-    static trackSignup(method, success, context = {}) {
-        return this.track(EventTypes.SIGNUP, {
-            method,
-            success
-        }, context);
-    }
-
-    /**
-     * Flush event buffer
-     * Processes buffered events (send to external service, save to DB, etc.)
-     */
-    static flush() {
-        if (eventBuffer.length === 0) return;
-
-        const events = [...eventBuffer];
-        eventBuffer = [];
-
-        // Log events summary
-        logger.info('Analytics events flushed', {
-            count: events.length,
-            types: events.reduce((acc, e) => {
-                acc[e.type] = (acc[e.type] || 0) + 1;
-                return acc;
-            }, {})
-        });
-
-        // TODO: Send to external analytics service (Google Analytics, Mixpanel, etc.)
-        // This is where you would integrate with external services:
-        // - Google Analytics Measurement Protocol
-        // - Mixpanel
-        // - Segment
-        // - Custom analytics endpoint
-
-        return events;
-    }
-
-    /**
-     * Get analytics summary for a time period
-     * @param {Date} startDate - Start date
-     * @param {Date} endDate - End date
-     * @returns {Object} Analytics summary
-     */
-    static getSummary(startDate, endDate) {
-        // This would typically query a database
-        // For now, return buffered events summary
-        const filteredEvents = eventBuffer.filter(e => {
-            const eventDate = new Date(e.timestamp);
-            return eventDate >= startDate && eventDate <= endDate;
-        });
+    static _parseDateRange(dateRange = {}) {
+        const now = new Date();
+        const defaultStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 30);
 
         return {
-            totalEvents: filteredEvents.length,
-            byType: filteredEvents.reduce((acc, e) => {
-                acc[e.type] = (acc[e.type] || 0) + 1;
-                return acc;
-            }, {}),
-            period: {
-                start: startDate.toISOString(),
-                end: endDate.toISOString()
-            }
+            start: dateRange.start ? new Date(dateRange.start) : defaultStart,
+            end: dateRange.end ? new Date(dateRange.end) : now
         };
+    }
+
+    /**
+     * Get analytics summary for dashboard
+     * @param {String} firmId - Firm ID
+     * @param {Object} dateRange - Date range {start, end}
+     * @returns {Promise<Object>} - Analytics summary
+     */
+    static async getAnalyticsSummary(firmId, dateRange = {}) {
+        try {
+            const [
+                eventCounts,
+                featureUsage,
+                engagement,
+                popularFeatures
+            ] = await Promise.all([
+                this.getEventCounts(firmId, null, dateRange),
+                this.getFeatureUsageStats(firmId, dateRange),
+                this.getUserEngagementMetrics(firmId, dateRange),
+                this.getPopularFeatures(firmId, dateRange, 5)
+            ]);
+
+            return {
+                eventCounts,
+                featureUsage: featureUsage.slice(0, 10),
+                engagement,
+                popularFeatures
+            };
+        } catch (error) {
+            logger.error('AnalyticsService.getAnalyticsSummary failed:', error.message);
+            return null;
+        }
     }
 }
 
-// Store interval ID for cleanup
-let flushIntervalId = null;
-
-// Start periodic flush
-const startPeriodicFlush = () => {
-    if (!flushIntervalId) {
-        flushIntervalId = setInterval(() => {
-            AnalyticsService.flush();
-        }, BUFFER_FLUSH_INTERVAL);
-    }
-};
-
-// Stop periodic flush (for graceful shutdown)
-const stopPeriodicFlush = () => {
-    if (flushIntervalId) {
-        clearInterval(flushIntervalId);
-        flushIntervalId = null;
-        AnalyticsService.flush(); // Final flush
-    }
-};
-
-// Start the periodic flush
-startPeriodicFlush();
-
-// Flush on process exit
-process.on('beforeExit', () => {
-    stopPeriodicFlush();
-});
-
-// Graceful shutdown handlers
-process.on('SIGTERM', () => {
-    stopPeriodicFlush();
-});
-
-process.on('SIGINT', () => {
-    stopPeriodicFlush();
-});
-
 module.exports = AnalyticsService;
 module.exports.EventTypes = EventTypes;
-module.exports.stopPeriodicFlush = stopPeriodicFlush;

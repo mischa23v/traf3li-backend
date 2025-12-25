@@ -1,15 +1,93 @@
+/**
+ * Enhanced Rate Limiter Middleware
+ *
+ * Provides comprehensive rate limiting with:
+ * - Global rate limiting
+ * - Per-endpoint rate limiting
+ * - Per-user rate limiting
+ * - Per-firm rate limiting
+ * - Burst protection
+ * - Tiered limits based on subscription
+ * - Adaptive rate limiting
+ * - Usage analytics
+ *
+ * Uses Redis for distributed rate limiting across multiple server instances.
+ */
+
 const logger = require('../utils/logger');
 const rateLimit = require('express-rate-limit');
 const { ipKeyGenerator } = require('express-rate-limit');
 const RedisStore = require('rate-limit-redis');
 const { getRedisClient, isRedisConnected } = require('../configs/redis');
+const rateLimitingService = require('../services/rateLimiting.service');
+const { getTierLimits, getEffectiveLimit } = require('../config/rateLimits');
+const { User, Firm } = require('../models');
+const jwt = require('jsonwebtoken');
+
+// ═══════════════════════════════════════════════════════════════
+// HELPER FUNCTIONS
+// ═══════════════════════════════════════════════════════════════
 
 /**
- * Rate limiting middleware to prevent brute force and API abuse
- *
- * Uses Redis to store rate limit data (shared across multiple server instances)
- * Falls back to memory store if Redis is not available
+ * Extract user ID from JWT token without full authentication
+ * This allows rate limiting to work correctly before auth middleware runs
  */
+const extractUserIdFromToken = (req) => {
+  try {
+    // Check for token in cookies first
+    let token = req.cookies?.accessToken;
+
+    // If no token in cookies, check Authorization header
+    if (!token && req.headers.authorization) {
+      const authHeader = req.headers.authorization;
+      if (authHeader.startsWith('Bearer ')) {
+        token = authHeader.substring(7);
+      }
+    }
+
+    if (!token) {
+      return null;
+    }
+
+    // Verify and decode the token
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    return decoded?._id || null;
+  } catch (error) {
+    // Token is invalid or expired - treat as unauthenticated for rate limiting
+    return null;
+  }
+};
+
+/**
+ * Get user tier from database
+ */
+const getUserTier = async (userId) => {
+  try {
+    const user = await User.findById(userId).select('firmId').lean();
+    if (!user || !user.firmId) return 'free';
+
+    const firm = await Firm.findById(user.firmId).select('subscription').lean();
+    return firm?.subscription?.plan || 'free';
+  } catch (error) {
+    return 'free';
+  }
+};
+
+/**
+ * Get firm tier from database
+ */
+const getFirmTier = async (firmId) => {
+  try {
+    const firm = await Firm.findById(firmId).select('subscription').lean();
+    return firm?.subscription?.plan || 'free';
+  } catch (error) {
+    return 'free';
+  }
+};
+
+// ═══════════════════════════════════════════════════════════════
+// LEGACY RATE LIMITERS (for backward compatibility)
+// ═══════════════════════════════════════════════════════════════
 
 /**
  * Create rate limiter with Redis store
@@ -29,6 +107,12 @@ const createRateLimiter = (options = {}) => {
     standardHeaders: true, // Return rate limit info in headers
     legacyHeaders: false, // Disable X-RateLimit-* headers
     handler: (req, res) => {
+      // Track throttled request
+      const userId = req.userID || req.user?._id || req._rateLimitUserId;
+      if (userId) {
+        rateLimitingService.trackRequest(userId.toString(), req.path, true).catch(() => {});
+      }
+
       res.status(429).json(options.message || defaultOptions.message);
     },
   };
@@ -54,19 +138,11 @@ const createRateLimiter = (options = {}) => {
   return rateLimit(config);
 };
 
-/**
- * Strict rate limiter for authentication endpoints
- * Prevents brute force attacks while allowing reasonable login attempts
- *
- * 15 attempts per 15 minutes rationale:
- * - Allows users who mistype passwords a few times
- * - Still provides brute force protection (max 60 attempts/hour)
- * - skipSuccessfulRequests ensures successful logins don't count against limit
- */
+// Legacy rate limiters
 const authRateLimiter = createRateLimiter({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 15, // 15 attempts per 15 minutes
-  skipSuccessfulRequests: true, // Don't count successful logins against limit
+  windowMs: 15 * 60 * 1000,
+  max: 15,
+  skipSuccessfulRequests: true,
   message: {
     success: false,
     error: 'محاولات كثيرة جداً - حاول مرة أخرى بعد 15 دقيقة',
@@ -75,12 +151,9 @@ const authRateLimiter = createRateLimiter({
   },
 });
 
-/**
- * Moderate rate limiter for general API endpoints
- */
 const apiRateLimiter = createRateLimiter({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // 100 requests per 15 minutes
+  windowMs: 15 * 60 * 1000,
+  max: 100,
   message: {
     success: false,
     error: 'طلبات كثيرة جداً - حاول مرة أخرى لاحقاً',
@@ -89,12 +162,9 @@ const apiRateLimiter = createRateLimiter({
   },
 });
 
-/**
- * Lenient rate limiter for public endpoints (browsing, search)
- */
 const publicRateLimiter = createRateLimiter({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 300, // 300 requests per 15 minutes
+  windowMs: 15 * 60 * 1000,
+  max: 300,
   message: {
     success: false,
     error: 'طلبات كثيرة جداً',
@@ -103,13 +173,9 @@ const publicRateLimiter = createRateLimiter({
   },
 });
 
-/**
- * Very strict rate limiter for sensitive operations
- * (e.g., password reset, account deletion)
- */
 const sensitiveRateLimiter = createRateLimiter({
-  windowMs: 60 * 60 * 1000, // 1 hour
-  max: 3, // 3 attempts per hour
+  windowMs: 60 * 60 * 1000,
+  max: 3,
   message: {
     success: false,
     error: 'محاولات كثيرة جداً لهذا الإجراء الحساس - حاول مرة أخرى بعد ساعة',
@@ -118,12 +184,9 @@ const sensitiveRateLimiter = createRateLimiter({
   },
 });
 
-/**
- * File upload rate limiter
- */
 const uploadRateLimiter = createRateLimiter({
-  windowMs: 60 * 60 * 1000, // 1 hour
-  max: 50, // 50 uploads per hour
+  windowMs: 60 * 60 * 1000,
+  max: 50,
   message: {
     success: false,
     error: 'عمليات رفع كثيرة جداً - حاول مرة أخرى لاحقاً',
@@ -132,12 +195,9 @@ const uploadRateLimiter = createRateLimiter({
   },
 });
 
-/**
- * Payment rate limiter (prevent payment spam)
- */
 const paymentRateLimiter = createRateLimiter({
-  windowMs: 60 * 60 * 1000, // 1 hour
-  max: 10, // 10 payment attempts per hour
+  windowMs: 60 * 60 * 1000,
+  max: 10,
   message: {
     success: false,
     error: 'محاولات دفع كثيرة جداً - حاول مرة أخرى لاحقاً',
@@ -146,12 +206,9 @@ const paymentRateLimiter = createRateLimiter({
   },
 });
 
-/**
- * Search rate limiter
- */
 const searchRateLimiter = createRateLimiter({
-  windowMs: 1 * 60 * 1000, // 1 minute
-  max: 30, // 30 searches per minute
+  windowMs: 1 * 60 * 1000,
+  max: 30,
   message: {
     success: false,
     error: 'بحث كثير جداً - أبطئ قليلاً',
@@ -160,32 +217,77 @@ const searchRateLimiter = createRateLimiter({
   },
 });
 
-/**
- * Custom rate limiter by user ID (for authenticated routes)
- * More accurate than IP-based limiting
- */
+const authenticatedRateLimiter = createRateLimiter({
+  windowMs: 1 * 60 * 1000,
+  max: 400,
+  keyGenerator: (req) => {
+    return req.userID || req._rateLimitUserId || req.user?._id?.toString() || ipKeyGenerator(req);
+  },
+  skip: (req) => {
+    return req.path === '/health' || req.path.startsWith('/health/');
+  },
+  message: {
+    success: false,
+    error: 'طلبات كثيرة جداً - حاول مرة أخرى بعد دقيقة',
+    error_en: 'Too many requests - Please try again after 1 minute',
+    code: 'RATE_LIMIT_EXCEEDED',
+  },
+});
+
+const unauthenticatedRateLimiter = createRateLimiter({
+  windowMs: 1 * 60 * 1000,
+  max: 30,
+  message: {
+    success: false,
+    error: 'طلبات كثيرة جداً - حاول مرة أخرى بعد دقيقة',
+    error_en: 'Too many requests - Please try again after 1 minute',
+    code: 'RATE_LIMIT_EXCEEDED',
+  },
+});
+
+const smartRateLimiter = (req, res, next) => {
+  // Skip rate limiting for auth routes
+  if (req.path.startsWith('/auth/') || req.path.startsWith('/api/auth/')) {
+    return next();
+  }
+
+  const userId = req.userID || req.user?._id || extractUserIdFromToken(req);
+
+  if (userId) {
+    req._rateLimitUserId = userId;
+    return authenticatedRateLimiter(req, res, next);
+  }
+  return unauthenticatedRateLimiter(req, res, next);
+};
+
+const slowDown = require('express-slow-down');
+
+const speedLimiter = slowDown({
+  windowMs: 1 * 60 * 1000,
+  delayAfter: 200,
+  delayMs: () => 200,
+  maxDelayMs: 5000,
+  skip: (req) => {
+    return req.path === '/health' || req.path.startsWith('/health/');
+  },
+});
+
 const userRateLimiter = (options = {}) => {
   return createRateLimiter({
     ...options,
     keyGenerator: (req) => {
-      // Use user ID if authenticated, otherwise fall back to IP
       return req.user ? req.user._id.toString() : ipKeyGenerator(req);
     },
   });
 };
 
-/**
- * Dynamic rate limiter based on user role
- * Premium users get higher limits
- */
 const roleBasedRateLimiter = () => {
   return (req, res, next) => {
-    // Define limits per role
     const limits = {
-      admin: 1000,      // Admins get highest limit
-      lawyer: 500,      // Lawyers get high limit
-      client: 200,      // Clients get moderate limit
-      guest: 50,        // Unauthenticated get lowest
+      admin: 1000,
+      lawyer: 500,
+      client: 200,
+      guest: 50,
     };
 
     const userRole = req.user?.role || 'guest';
@@ -203,165 +305,347 @@ const roleBasedRateLimiter = () => {
   };
 };
 
-/**
- * Slow down middleware (increases delay with each request)
- * Alternative to hard rate limiting
- */
-const slowDown = require('express-slow-down');
-
-/**
- * Speed limiter - Progressive delay after threshold
- * Tuned for SPA usage patterns:
- * - Higher threshold (200 requests) before delays kick in
- * - Lower initial delay (200ms) for better UX
- * - Lower max delay (5s) to avoid blocking legitimate users
- */
-const speedLimiter = slowDown({
-  windowMs: 1 * 60 * 1000, // 1 minute window (matches rate limiter)
-  delayAfter: 200, // Allow 200 requests per minute at full speed
-  delayMs: () => 200, // Add 200ms delay per request after limit
-  maxDelayMs: 5000, // Max delay of 5 seconds
-  skip: (req) => {
-    // Skip health checks
-    return req.path === '/health' || req.path.startsWith('/health/');
-  },
-});
-
-/**
- * Check if user has exceeded rate limit (for custom logic)
- */
 const checkRateLimit = async (userId, action, limit = 5, windowMs = 15 * 60 * 1000) => {
   try {
-    // This would query your rate limit store
-    // Implementation depends on your rate limit storage
-    // Return true if limit exceeded, false otherwise
-
-    // Placeholder implementation
     return false;
   } catch (error) {
-    logger.error('❌ Rate limit check error:', error.message);
+    logger.error('Rate limit check error:', error.message);
     return false;
   }
 };
 
-/**
- * Authenticated user rate limiter
- * Uses user ID for authenticated requests, IP for unauthenticated
- * More fair than IP-only limiting for shared networks
- *
- * 400 req/min rationale for SPA:
- * - Page load: ~10-15 requests
- * - Navigation (3 pages/min): ~30 requests
- * - Background refreshes: ~10 requests
- * - Filters/actions: ~50 requests
- * - Buffer for complex operations: ~100 requests
- */
-const authenticatedRateLimiter = createRateLimiter({
-  windowMs: 1 * 60 * 1000, // 1 minute
-  max: 400, // 400 requests per minute for authenticated users
-  keyGenerator: (req) => {
-    // Use user ID if authenticated, otherwise use IP
-    // _rateLimitUserId is set by smartRateLimiter from JWT extraction
-    return req.userID || req._rateLimitUserId || req.user?._id?.toString() || ipKeyGenerator(req);
-  },
-  skip: (req) => {
-    // Skip rate limiting for health checks
-    return req.path === '/health' || req.path.startsWith('/health/');
-  },
-  message: {
-    success: false,
-    error: 'طلبات كثيرة جداً - حاول مرة أخرى بعد دقيقة',
-    error_en: 'Too many requests - Please try again after 1 minute',
-    code: 'RATE_LIMIT_EXCEEDED',
-  },
-});
+// ═══════════════════════════════════════════════════════════════
+// ENHANCED RATE LIMITERS
+// ═══════════════════════════════════════════════════════════════
 
 /**
- * Unauthenticated rate limiter (stricter)
- * For public endpoints before authentication
+ * Global rate limiter middleware
+ * Applies rate limits based on IP address
  */
-const unauthenticatedRateLimiter = createRateLimiter({
-  windowMs: 1 * 60 * 1000, // 1 minute
-  max: 30, // 30 requests per minute for unauthenticated
-  message: {
-    success: false,
-    error: 'طلبات كثيرة جداً - حاول مرة أخرى بعد دقيقة',
-    error_en: 'Too many requests - Please try again after 1 minute',
-    code: 'RATE_LIMIT_EXCEEDED',
-  },
-});
-
-/**
- * Extract user ID from JWT token without full authentication
- * This allows rate limiting to work correctly before auth middleware runs
- */
-const jwt = require('jsonwebtoken');
-
-const extractUserIdFromToken = (req) => {
+const globalRateLimiter = async (req, res, next) => {
   try {
-    // Check for token in cookies first
-    let token = req.cookies?.accessToken;
+    // Skip health checks
+    if (req.path === '/health' || req.path.startsWith('/health/')) {
+      return next();
+    }
 
-    // If no token in cookies, check Authorization header
-    if (!token && req.headers.authorization) {
-      const authHeader = req.headers.authorization;
-      if (authHeader.startsWith('Bearer ')) {
-        token = authHeader.substring(7);
+    const ip = req.ip || req.headers['x-forwarded-for']?.split(',')[0] || 'unknown';
+    const key = `rate-limit:global:${ip}`;
+
+    // Global limit: 1000 requests per minute
+    const limit = 1000;
+    const window = 60; // 1 minute
+
+    const result = await rateLimitingService.checkLimit(key, limit, window);
+
+    if (!result.allowed) {
+      const headers = await rateLimitingService.getRateLimitHeaders(key, limit, window);
+      Object.keys(headers).forEach(headerKey => {
+        if (headers[headerKey]) {
+          res.setHeader(headerKey, headers[headerKey]);
+        }
+      });
+
+      return res.status(429).json({
+        success: false,
+        error: 'معدل الطلبات العالمي متجاوز - حاول مرة أخرى لاحقاً',
+        error_en: 'Global rate limit exceeded - Please try again later',
+        code: 'GLOBAL_RATE_LIMIT_EXCEEDED',
+        resetIn: result.resetIn
+      });
+    }
+
+    // Increment counter
+    await rateLimitingService.incrementCounter(key, window);
+
+    // Add headers
+    const headers = await rateLimitingService.getRateLimitHeaders(key, limit, window);
+    Object.keys(headers).forEach(headerKey => {
+      if (headers[headerKey]) {
+        res.setHeader(headerKey, headers[headerKey]);
       }
-    }
+    });
 
-    if (!token) {
-      return null;
-    }
-
-    // Verify and decode the token
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    return decoded?._id || null;
+    next();
   } catch (error) {
-    // Token is invalid or expired - treat as unauthenticated for rate limiting
-    // Don't log here to avoid noise - auth middleware will handle actual auth errors
-    return null;
+    logger.error('Global rate limiter error:', error.message);
+    // On error, allow the request
+    next();
   }
 };
 
 /**
- * Smart rate limiter middleware
- * Applies different limits based on authentication status
- *
- * IMPORTANT: This extracts user ID from JWT BEFORE auth middleware runs,
- * so authenticated users get the correct (higher) rate limit even on first request.
- *
- * NOTE: We do NOT set req.userID here - that would interfere with session timeout
- * middleware which checks req.userID to determine if auth checks should run.
- * The rate limiter only needs the ID for its own key generation.
- *
- * SKIP: Auth routes are skipped because they have their own dedicated rate limiters
- * (authRateLimiter, sensitiveRateLimiter) that are more appropriate for login/register flows.
+ * Per-endpoint rate limiter middleware
+ * Applies different limits based on endpoint category
  */
-const smartRateLimiter = (req, res, next) => {
-  // Skip rate limiting for auth routes - they have their own dedicated limiters
-  // This prevents double rate limiting on login/register/OTP endpoints
-  if (req.path.startsWith('/auth/') || req.path.startsWith('/api/auth/')) {
-    return next();
-  }
+const endpointRateLimiter = (category = 'api', type = null) => {
+  return async (req, res, next) => {
+    try {
+      const userId = req.userID || req.user?._id || extractUserIdFromToken(req);
+      const identifier = userId ? userId.toString() : (req.ip || 'unknown');
+      const key = `rate-limit:endpoint:${category}:${type || 'default'}:${identifier}`;
 
-  // Check if user is already authenticated (userID set by earlier middleware)
-  // OR extract user ID from JWT token to determine auth status
-  const userId = req.userID || req.user?._id || extractUserIdFromToken(req);
+      // Get user's tier
+      const tier = userId ? await getUserTier(userId) : 'free';
 
-  if (userId) {
-    // Store the extracted user ID for rate limiter key generation ONLY
-    // Do NOT set req.userID - that's the auth middleware's job
-    // Setting it here would cause sessionTimeout middleware to run auth checks
-    // on unauthenticated routes like /login
-    req._rateLimitUserId = userId;
-    return authenticatedRateLimiter(req, res, next);
-  }
-  return unauthenticatedRateLimiter(req, res, next);
+      // Get effective limit for this tier and endpoint
+      const limits = getEffectiveLimit(tier, category, type);
+      const limit = limits.requestsPerMinute;
+      const window = 60; // 1 minute
+
+      const result = await rateLimitingService.checkLimit(key, limit, window);
+
+      if (!result.allowed) {
+        // Track throttled request
+        if (userId) {
+          await rateLimitingService.trackRequest(identifier, req.path, true);
+        }
+
+        const headers = await rateLimitingService.getRateLimitHeaders(key, limit, window);
+        Object.keys(headers).forEach(headerKey => {
+          if (headers[headerKey]) {
+            res.setHeader(headerKey, headers[headerKey]);
+          }
+        });
+
+        return res.status(429).json({
+          success: false,
+          error: `حد معدل ${category} متجاوز - حاول مرة أخرى لاحقاً`,
+          error_en: `${category} rate limit exceeded - Please try again later`,
+          code: 'ENDPOINT_RATE_LIMIT_EXCEEDED',
+          resetIn: result.resetIn,
+          tier
+        });
+      }
+
+      // Increment counter
+      await rateLimitingService.incrementCounter(key, window);
+
+      // Track request
+      if (userId) {
+        await rateLimitingService.trackRequest(identifier, req.path, false);
+      }
+
+      // Add headers
+      const headers = await rateLimitingService.getRateLimitHeaders(key, limit, window);
+      Object.keys(headers).forEach(headerKey => {
+        if (headers[headerKey]) {
+          res.setHeader(headerKey, headers[headerKey]);
+        }
+      });
+
+      next();
+    } catch (error) {
+      logger.error('Endpoint rate limiter error:', error.message);
+      // On error, allow the request
+      next();
+    }
+  };
 };
+
+/**
+ * Per-user rate limiter middleware
+ * Applies tiered limits based on user's subscription
+ */
+const perUserRateLimiter = async (req, res, next) => {
+  try {
+    const userId = req.userID || req.user?._id || extractUserIdFromToken(req);
+
+    if (!userId) {
+      // If no user, skip (will be handled by global limiter)
+      return next();
+    }
+
+    const key = `rate-limit:user:${userId}`;
+
+    // Get user's tier and limits
+    const tier = await getUserTier(userId);
+    const tierLimits = getTierLimits(tier);
+
+    // Check adaptive limit
+    const adaptiveLimit = await rateLimitingService.getAdaptiveLimit(key, tierLimits.requestsPerMinute);
+    const limit = adaptiveLimit.adaptiveLimit;
+    const window = 60; // 1 minute
+
+    const result = await rateLimitingService.checkLimit(key, limit, window);
+
+    if (!result.allowed) {
+      // Track throttled request
+      await rateLimitingService.trackRequest(userId.toString(), req.path, true);
+
+      const headers = await rateLimitingService.getRateLimitHeaders(key, limit, window);
+      Object.keys(headers).forEach(headerKey => {
+        if (headers[headerKey]) {
+          res.setHeader(headerKey, headers[headerKey]);
+        }
+      });
+
+      return res.status(429).json({
+        success: false,
+        error: 'حد معدل المستخدم متجاوز - حاول مرة أخرى لاحقاً',
+        error_en: 'User rate limit exceeded - Please try again later',
+        code: 'USER_RATE_LIMIT_EXCEEDED',
+        resetIn: result.resetIn,
+        tier,
+        adaptive: adaptiveLimit.adjusted
+      });
+    }
+
+    // Increment counter
+    await rateLimitingService.incrementCounter(key, window);
+
+    // Track request
+    await rateLimitingService.trackRequest(userId.toString(), req.path, false);
+
+    // Add headers
+    const headers = await rateLimitingService.getRateLimitHeaders(key, limit, window);
+    Object.keys(headers).forEach(headerKey => {
+      if (headers[headerKey]) {
+        res.setHeader(headerKey, headers[headerKey]);
+      }
+    });
+
+    // Store tier info for later use
+    req.rateLimitTier = tier;
+
+    next();
+  } catch (error) {
+    logger.error('Per-user rate limiter error:', error.message);
+    // On error, allow the request
+    next();
+  }
+};
+
+/**
+ * Per-firm rate limiter middleware
+ * Applies limits to entire firm
+ */
+const perFirmRateLimiter = async (req, res, next) => {
+  try {
+    const userId = req.userID || req.user?._id || extractUserIdFromToken(req);
+
+    if (!userId) {
+      return next();
+    }
+
+    // Get firm ID
+    const user = await User.findById(userId).select('firmId').lean();
+    if (!user || !user.firmId) {
+      return next();
+    }
+
+    const firmId = user.firmId.toString();
+    const key = `rate-limit:firm:${firmId}`;
+
+    // Get firm's tier and limits
+    const tier = await getFirmTier(firmId);
+    const tierLimits = getTierLimits(tier);
+
+    // Firm limit is 10x user limit (shared across all users)
+    const limit = tierLimits.requestsPerMinute * 10;
+    const window = 60; // 1 minute
+
+    const result = await rateLimitingService.checkLimit(key, limit, window);
+
+    if (!result.allowed) {
+      const headers = await rateLimitingService.getRateLimitHeaders(key, limit, window);
+      Object.keys(headers).forEach(headerKey => {
+        if (headers[headerKey]) {
+          res.setHeader(headerKey, headers[headerKey]);
+        }
+      });
+
+      return res.status(429).json({
+        success: false,
+        error: 'حد معدل المكتب متجاوز - حاول مرة أخرى لاحقاً',
+        error_en: 'Firm rate limit exceeded - Please try again later',
+        code: 'FIRM_RATE_LIMIT_EXCEEDED',
+        resetIn: result.resetIn,
+        tier
+      });
+    }
+
+    // Increment counter
+    await rateLimitingService.incrementCounter(key, window);
+
+    next();
+  } catch (error) {
+    logger.error('Per-firm rate limiter error:', error.message);
+    // On error, allow the request
+    next();
+  }
+};
+
+/**
+ * Burst protection middleware
+ * Prevents rapid-fire requests
+ */
+const burstProtectionMiddleware = async (req, res, next) => {
+  try {
+    const userId = req.userID || req.user?._id || extractUserIdFromToken(req);
+    const identifier = userId ? userId.toString() : (req.ip || 'unknown');
+    const key = `rate-limit:burst:${identifier}`;
+
+    // Get user's tier
+    const tier = userId ? await getUserTier(userId) : 'free';
+    const tierLimits = getTierLimits(tier);
+
+    const burstLimit = tierLimits.burstLimit;
+    const burstWindow = tierLimits.burstWindow;
+
+    const result = await rateLimitingService.checkBurst(key, burstLimit, burstWindow);
+
+    if (!result.allowed) {
+      return res.status(429).json({
+        success: false,
+        error: 'كثرة الطلبات السريعة - أبطئ قليلاً',
+        error_en: 'Burst limit exceeded - Slow down',
+        code: 'BURST_LIMIT_EXCEEDED',
+        resetIn: result.resetIn
+      });
+    }
+
+    // Increment burst counter
+    await rateLimitingService.incrementBurst(key, burstWindow);
+
+    next();
+  } catch (error) {
+    logger.error('Burst protection middleware error:', error.message);
+    // On error, allow the request
+    next();
+  }
+};
+
+/**
+ * Adaptive rate limiting middleware
+ * Automatically adjusts limits based on user behavior
+ */
+const adaptiveRateLimiter = async (req, res, next) => {
+  try {
+    const userId = req.userID || req.user?._id || extractUserIdFromToken(req);
+
+    if (!userId) {
+      return next();
+    }
+
+    // Analyze and adapt limit (runs in background, doesn't block request)
+    rateLimitingService.analyzeAndAdaptLimit(userId.toString()).catch(error => {
+      logger.error('Adaptive rate limiter analysis error:', error.message);
+    });
+
+    next();
+  } catch (error) {
+    logger.error('Adaptive rate limiter error:', error.message);
+    next();
+  }
+};
+
+// ═══════════════════════════════════════════════════════════════
+// EXPORTS
+// ═══════════════════════════════════════════════════════════════
 
 module.exports = {
-  // Pre-configured limiters
+  // Legacy limiters (backward compatibility)
   authRateLimiter,
   apiRateLimiter,
   publicRateLimiter,
@@ -370,17 +654,19 @@ module.exports = {
   paymentRateLimiter,
   searchRateLimiter,
   speedLimiter,
-
-  // Smart limiters (recommended)
   smartRateLimiter,
   authenticatedRateLimiter,
   unauthenticatedRateLimiter,
-
-  // Custom limiters
   createRateLimiter,
   userRateLimiter,
   roleBasedRateLimiter,
-
-  // Utilities
   checkRateLimit,
+
+  // Enhanced limiters
+  globalRateLimiter,
+  endpointRateLimiter,
+  perUserRateLimiter,
+  perFirmRateLimiter,
+  burstProtectionMiddleware,
+  adaptiveRateLimiter
 };

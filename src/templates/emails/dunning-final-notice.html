@@ -1,0 +1,239 @@
+<div class="icon-container">
+    <div class="icon warning">🚨</div>
+</div>
+
+<h1 style="color: #991b1b;">{{title}}</h1>
+<p class="document-number" style="color: #dc2626;">{{invoiceNumberLabel}}: <strong>{{invoiceNumber}}</strong></p>
+
+<p><strong>{{greeting}}</strong></p>
+
+<p style="font-size: 16px; font-weight: 600; color: #991b1b;">{{messageText}}</p>
+
+<!-- Critical Final Notice -->
+<div style="background-color: #991b1b; color: #ffffff; padding: 25px; margin: 25px 0; border-radius: 8px; text-align: center;">
+    <h2 style="color: #ffffff; margin: 0 0 15px 0; font-size: 24px;">{{finalNoticeTitle}}</h2>
+    <p style="color: #ffffff; margin: 0; font-size: 16px; line-height: 1.6;">{{finalNoticeText}}</p>
+    {{#deadlineDate}}
+    <div style="background-color: #7f1d1d; padding: 15px; margin: 20px 0 0 0; border-radius: 6px;">
+        <p style="color: #fef2f2; margin: 0; font-size: 14px;">{{deadlineLabel}}</p>
+        <p style="color: #ffffff; margin: 5px 0 0 0; font-size: 22px; font-weight: 700;">{{deadlineDate}}</p>
+    </div>
+    {{/deadlineDate}}
+</div>
+
+<!-- Account Summary -->
+<div style="background-color: #fee2e2; border: 3px solid #dc2626; padding: 25px; margin: 25px 0; border-radius: 8px;">
+    <h3 style="color: #991b1b; margin: 0 0 20px 0; font-size: 18px;">{{accountSummaryTitle}}</h3>
+    <table width="100%" cellspacing="0" cellpadding="12" style="font-size: 15px;">
+        <tr>
+            <td style="color: #7f1d1d; width: 45%;"><strong>{{invoiceNumberLabel}}:</strong></td>
+            <td style="color: #7f1d1d;"><strong>{{invoiceNumber}}</strong></td>
+        </tr>
+        <tr>
+            <td style="color: #7f1d1d;"><strong>{{invoiceDateLabel}}:</strong></td>
+            <td style="color: #7f1d1d;">{{invoiceDate}}</td>
+        </tr>
+        <tr>
+            <td style="color: #7f1d1d;"><strong>{{originalDueDateLabel}}:</strong></td>
+            <td style="color: #7f1d1d;"><strong>{{originalDueDate}}</strong></td>
+        </tr>
+        <tr style="background-color: #fecaca;">
+            <td style="color: #991b1b;"><strong>{{daysOverdueLabel}}:</strong></td>
+            <td style="color: #991b1b;"><strong style="font-size: 24px;">{{daysOverdue}} {{daysText}}</strong></td>
+        </tr>
+    </table>
+</div>
+
+<!-- Amount Due Breakdown -->
+<div style="background-color: #ffffff; border: 2px solid #dc2626; padding: 25px; margin: 25px 0; border-radius: 8px;">
+    <h3 style="color: #991b1b; margin: 0 0 20px 0;">{{amountDueTitle}}</h3>
+    <table width="100%" cellspacing="0" cellpadding="12" style="font-size: 15px;">
+        <tr>
+            <td style="color: #4b5563; width: 50%;"><strong>{{originalInvoiceAmountLabel}}:</strong></td>
+            <td style="text-align: right; color: #4b5563;">{{originalAmount}} {{currency}}</td>
+        </tr>
+        {{#paymentsMade}}
+        <tr>
+            <td style="color: #059669;"><strong>{{paymentsMadeLabel}}:</strong></td>
+            <td style="text-align: right; color: #059669;">-{{paymentsMade}} {{currency}}</td>
+        </tr>
+        {{/paymentsMade}}
+        {{#credits}}
+        <tr>
+            <td style="color: #059669;"><strong>{{creditsLabel}}:</strong></td>
+            <td style="text-align: right; color: #059669;">-{{credits}} {{currency}}</td>
+        </tr>
+        {{/credits}}
+        <tr style="border-top: 1px solid #e5e7eb;">
+            <td style="color: #4b5563; padding-top: 12px;"><strong>{{subtotalLabel}}:</strong></td>
+            <td style="text-align: right; color: #4b5563; padding-top: 12px;">{{subtotal}} {{currency}}</td>
+        </tr>
+        <tr style="background-color: #fee2e2;">
+            <td style="color: #dc2626;"><strong>{{lateFeeLabel}}:</strong></td>
+            <td style="text-align: right; color: #dc2626;"><strong>+{{lateFee}} {{currency}}</strong></td>
+        </tr>
+        {{#interestCharges}}
+        <tr style="background-color: #fee2e2;">
+            <td style="color: #dc2626;"><strong>{{interestChargesLabel}}:</strong></td>
+            <td style="text-align: right; color: #dc2626;">+{{interestCharges}} {{currency}}</td>
+        </tr>
+        {{/interestCharges}}
+        {{#collectionFees}}
+        <tr style="background-color: #fee2e2;">
+            <td style="color: #dc2626;"><strong>{{collectionFeesLabel}}:</strong></td>
+            <td style="text-align: right; color: #dc2626;">+{{collectionFees}} {{currency}}</td>
+        </tr>
+        {{/collectionFees}}
+        <tr style="border-top: 4px solid #991b1b; background-color: #fef3c7;">
+            <td style="color: #92400e; padding-top: 20px;"><strong style="font-size: 18px;">{{totalAmountDueLabel}}:</strong></td>
+            <td style="text-align: right; color: #92400e; padding-top: 20px;"><strong style="font-size: 26px;">{{totalDue}} {{currency}}</strong></td>
+        </tr>
+    </table>
+</div>
+
+<!-- Legal Consequences -->
+<div style="background-color: #fee2e2; border-left: 6px solid #991b1b; padding: 25px; margin: 25px 0; border-radius: 4px;">
+    <h3 style="color: #991b1b; margin: 0 0 15px 0;">⚖️ {{legalConsequencesTitle}}</h3>
+    <p style="color: #7f1d1d; margin: 0 0 15px 0; font-weight: 600;">{{legalConsequencesIntro}}</p>
+    <ul style="margin: 10px 0; padding-left: 20px; color: #7f1d1d; font-size: 14px;">
+        {{#consequences}}
+        <li style="margin-bottom: 8px;">{{.}}</li>
+        {{/consequences}}
+    </ul>
+    {{#legalNote}}
+    <p style="color: #7f1d1d; margin: 15px 0 0 0; font-size: 13px; font-style: italic;">{{legalNote}}</p>
+    {{/legalNote}}
+</div>
+
+<!-- Immediate Action Required -->
+<div style="text-align: center; margin: 40px 0; padding: 30px; background: linear-gradient(135deg, #7f1d1d 0%, #991b1b 100%); border-radius: 8px;">
+    <h3 style="color: #ffffff; margin: 0 0 15px 0; font-size: 20px;">{{immediateActionTitle}}</h3>
+    <p style="color: #fef2f2; margin: 0 0 25px 0; font-size: 16px;">{{immediateActionText}}</p>
+    {{#payNowUrl}}
+    <a href="{{payNowUrl}}" class="button" style="background: #ffffff; color: #991b1b !important; font-size: 18px; padding: 18px 45px; font-weight: 700; border: 3px solid #ffffff;">{{payNowButtonText}}</a>
+    {{/payNowUrl}}
+    <br>
+    {{#viewInvoiceUrl}}
+    <a href="{{viewInvoiceUrl}}" class="button" style="background: transparent; color: #ffffff !important; border: 2px solid #ffffff; margin-top: 15px;">{{viewInvoiceButtonText}}</a>
+    {{/viewInvoiceUrl}}
+</div>
+
+<!-- Payment Methods -->
+{{#paymentMethods}}
+<div style="background-color: #eff6ff; border-left: 4px solid #3b82f6; padding: 25px; margin: 25px 0; border-radius: 4px;">
+    <h3 style="color: #1e40af; margin: 0 0 15px 0;">{{paymentMethodsTitle}}</h3>
+    <p style="color: #1e40af; font-weight: 600; margin: 0 0 15px 0;">{{paymentMethodsIntro}}</p>
+    <table width="100%" cellspacing="0" cellpadding="10" style="font-size: 14px;">
+        {{#methods}}
+        <tr>
+            <td style="color: #1e40af; width: 35%; vertical-align: top;"><strong>{{name}}:</strong></td>
+            <td style="color: #1e40af;">{{details}}</td>
+        </tr>
+        {{/methods}}
+    </table>
+    <p style="color: #dc2626; margin: 20px 0 0 0; font-weight: 600; font-size: 15px;">{{paymentUrgencyText}}</p>
+</div>
+{{/paymentMethods}}
+
+<!-- Last Chance Payment Plan -->
+{{#emergencyPaymentPlan}}
+<div style="background-color: #d1fae5; border: 2px solid #10b981; padding: 25px; margin: 25px 0; border-radius: 8px;">
+    <h3 style="color: #065f46; margin: 0 0 15px 0;">💡 {{emergencyPaymentPlanTitle}}</h3>
+    <p style="color: #065f46; font-weight: 600; margin: 0 0 10px 0;">{{emergencyPaymentPlanIntro}}</p>
+    <p style="color: #065f46; margin: 0 0 15px 0;">{{emergencyPaymentPlanDetails}}</p>
+    <p style="color: #dc2626; font-weight: 600; margin: 0 0 15px 0;">{{emergencyPaymentPlanDeadline}}</p>
+    {{#emergencyPaymentPlanUrl}}
+    <p style="margin: 0; text-align: center;">
+        <a href="{{emergencyPaymentPlanUrl}}" class="button" style="background: linear-gradient(135deg, #059669 0%, #10b981 100%); padding: 14px 32px;">{{emergencyPaymentPlanButtonText}}</a>
+    </p>
+    {{/emergencyPaymentPlanUrl}}
+</div>
+{{/emergencyPaymentPlan}}
+
+<!-- Dispute Process -->
+<div class="info-section">
+    <h3>{{disputeTitle}}</h3>
+    <p style="font-weight: 600;">{{disputeIntro}}</p>
+    <p>{{disputeInstructions}}</p>
+    <table width="100%" cellspacing="0" cellpadding="8" style="font-size: 14px; margin-top: 15px;">
+        {{#contactEmail}}
+        <tr>
+            <td style="color: #1e40af; width: 25%;"><strong>{{emailLabel}}:</strong></td>
+            <td style="color: #1e40af;"><a href="mailto:{{contactEmail}}" style="color: #1e40af;">{{contactEmail}}</a></td>
+        </tr>
+        {{/contactEmail}}
+        {{#contactPhone}}
+        <tr>
+            <td style="color: #1e40af;"><strong>{{phoneLabel}}:</strong></td>
+            <td style="color: #1e40af;">{{contactPhone}}</td>
+        </tr>
+        {{/contactPhone}}
+        {{#disputeDeadline}}
+        <tr style="background-color: #fee2e2;">
+            <td style="color: #dc2626;"><strong>{{disputeDeadlineLabel}}:</strong></td>
+            <td style="color: #dc2626;"><strong>{{disputeDeadline}}</strong></td>
+        </tr>
+        {{/disputeDeadline}}
+    </table>
+    <p style="color: #dc2626; margin: 15px 0 0 0; font-size: 13px; font-weight: 600;">{{disputeWarning}}</p>
+</div>
+
+<!-- Communication History -->
+{{#communicationHistory}}
+<div class="info-section" style="background-color: #f9fafb; border-left-color: #6b7280;">
+    <h3 style="color: #374151;">{{communicationHistoryTitle}}</h3>
+    <p style="color: #4b5563; font-size: 14px;">{{communicationHistoryIntro}}</p>
+    <table width="100%" cellspacing="0" cellpadding="8" style="font-size: 13px; margin-top: 10px;">
+        <thead>
+            <tr style="background-color: #e5e7eb;">
+                <th style="padding: 8px; text-align: left; color: #374151;">{{dateHeader}}</th>
+                <th style="padding: 8px; text-align: left; color: #374151;">{{typeHeader}}</th>
+                <th style="padding: 8px; text-align: left; color: #374151;">{{methodHeader}}</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{#communications}}
+            <tr>
+                <td style="padding: 8px; color: #4b5563; border-bottom: 1px solid #e5e7eb;">{{date}}</td>
+                <td style="padding: 8px; color: #4b5563; border-bottom: 1px solid #e5e7eb;">{{type}}</td>
+                <td style="padding: 8px; color: #4b5563; border-bottom: 1px solid #e5e7eb;">{{method}}</td>
+            </tr>
+            {{/communications}}
+        </tbody>
+    </table>
+</div>
+{{/communicationHistory}}
+
+<!-- Account Information -->
+{{#accountInfo}}
+<div style="background-color: #f3f4f6; padding: 20px; margin: 25px 0; border-radius: 8px; border: 1px solid #d1d5db;">
+    <h4 style="color: #374151; margin: 0 0 10px 0; font-size: 14px;">{{accountInfoTitle}}</h4>
+    <table width="100%" cellspacing="0" cellpadding="6" style="font-size: 13px;">
+        <tr>
+            <td style="color: #6b7280; width: 35%;"><strong>{{accountNumberLabel}}:</strong></td>
+            <td style="color: #374151;">{{accountNumber}}</td>
+        </tr>
+        <tr>
+            <td style="color: #6b7280;"><strong>{{customerIdLabel}}:</strong></td>
+            <td style="color: #374151;">{{customerId}}</td>
+        </tr>
+        {{#referenceNumber}}
+        <tr>
+            <td style="color: #6b7280;"><strong>{{referenceNumberLabel}}:</strong></td>
+            <td style="color: #374151;">{{referenceNumber}}</td>
+        </tr>
+        {{/referenceNumber}}
+    </table>
+</div>
+{{/accountInfo}}
+
+<hr class="divider">
+
+<p style="font-weight: 700; color: #991b1b; font-size: 15px;">{{finalWarning}}</p>
+
+<p style="font-weight: 600;">{{closingText}}<br>
+<strong>{{teamName}}</strong></p>
+
+{{#legalDisclaimer}}
+<p style="font-size: 12px; color: #6b7280; margin-top: 25px; padding: 15px; background-color: #f9fafb; border-radius: 4px;">{{legalDisclaimer}}</p>
+{{/legalDisclaimer}}

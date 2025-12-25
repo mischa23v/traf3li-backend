@@ -89,116 +89,16 @@ const createExportJob = asyncHandler(async (req, res) => {
  * Process export job (background)
  */
 async function processExportJob(jobId, lawyerId) {
-    const job = await ExportJob.findById(jobId);
-    if (!job) return;
+    const dataExportJob = require('../jobs/dataExport.job');
 
-    try {
-        job.status = 'processing';
-        job.startedAt = new Date();
-        await job.save();
-
-        // Get the model based on entity type
-        const modelMap = {
-            clients: Client,
-            cases: Case,
-            invoices: Invoice,
-            documents: Document,
-            contacts: Contact
-        };
-
-        const Model = modelMap[job.entityType];
-        if (!Model) {
-            throw new Error('نوع البيانات غير مدعوم');
+    // Queue the job for async processing
+    setImmediate(async () => {
+        try {
+            await dataExportJob.processExportJob(jobId);
+        } catch (error) {
+            console.error('Error processing export job:', error);
         }
-
-        // IDOR Protection: Build query with lawyerId ownership verification
-        const query = { lawyerId };
-
-        // Add firmId verification if available
-        if (job.firmId) {
-            query.firmId = sanitizeObjectId(job.firmId);
-        }
-
-        // Safely apply filters with validation
-        if (job.filters) {
-            const allowedFilterKeys = ['status', 'type', 'category', 'priority', 'assignedTo'];
-            Object.keys(job.filters).forEach(key => {
-                if (job.filters[key] && allowedFilterKeys.includes(key)) {
-                    // Sanitize ObjectId fields
-                    if (mongoose.Types.ObjectId.isValid(job.filters[key])) {
-                        query[key] = sanitizeObjectId(job.filters[key]);
-                    } else {
-                        query[key] = job.filters[key];
-                    }
-                }
-            });
-        }
-
-        // Date range filter with validation
-        if (job.dateRange) {
-            if (job.dateRange.start) {
-                query.createdAt = query.createdAt || {};
-                query.createdAt.$gte = new Date(job.dateRange.start);
-            }
-            if (job.dateRange.end) {
-                query.createdAt = query.createdAt || {};
-                query.createdAt.$lte = new Date(job.dateRange.end);
-            }
-        }
-
-        // DoS Prevention: Limit export size (max 10,000 records)
-        const MAX_EXPORT_RECORDS = 10000;
-        const recordCount = await Model.countDocuments(query);
-
-        if (recordCount > MAX_EXPORT_RECORDS) {
-            throw new Error(`عدد السجلات يتجاوز الحد الأقصى المسموح (${MAX_EXPORT_RECORDS})`);
-        }
-
-        // Get data with limit
-        const data = await Model.find(query).limit(MAX_EXPORT_RECORDS).lean();
-        job.totalRecords = data.length;
-
-        // CSV Injection Prevention: Sanitize data for CSV exports
-        let sanitizedData = data;
-        if (job.format === 'csv') {
-            sanitizedData = data.map(record => {
-                const sanitizedRecord = {};
-                Object.keys(record).forEach(key => {
-                    const value = record[key];
-                    // Sanitize string values to prevent CSV injection
-                    if (typeof value === 'string') {
-                        sanitizedRecord[key] = sanitizeForCSV(value);
-                    } else if (value !== null && typeof value === 'object' && !Array.isArray(value) && !(value instanceof Date)) {
-                        // Sanitize nested objects
-                        sanitizedRecord[key] = JSON.stringify(value);
-                    } else {
-                        sanitizedRecord[key] = value;
-                    }
-                });
-                return sanitizedRecord;
-            });
-        }
-
-        // In a real implementation, this would:
-        // 1. Format data according to columns
-        // 2. Generate file in specified format using sanitizedData
-        // 3. Upload to S3
-        // 4. Store file URL
-
-        // Simulate file generation
-        job.fileUrl = `/exports/${job._id}.${job.format}`;
-        job.fileSize = sanitizedData.length * 100; // Approximate
-        job.status = 'completed';
-        job.completedAt = new Date();
-        job.progress = 100;
-
-        await job.save();
-    } catch (error) {
-        job.status = 'failed';
-        job.error = error.message;
-        job.completedAt = new Date();
-        await job.save();
-    }
+    });
 }
 
 /**
@@ -785,6 +685,165 @@ const deleteExportTemplate = asyncHandler(async (req, res) => {
     });
 });
 
+/**
+ * Export specific entity type (direct download)
+ * GET /api/data-export/export/:entityType
+ */
+const exportEntity = asyncHandler(async (req, res) => {
+    const { entityType } = req.params;
+    const { format = 'xlsx', language = 'ar' } = req.query;
+    const firmId = req.firmId;
+    const filters = req.query;
+
+    const dataExportService = require('../services/dataExport.service');
+
+    // Validate entityType
+    const allowedEntityTypes = [
+        'invoices', 'clients', 'time_entries', 'expenses',
+        'payments', 'cases', 'audit_logs'
+    ];
+
+    if (!allowedEntityTypes.includes(entityType)) {
+        throw CustomException('نوع البيانات غير مدعوم', 400);
+    }
+
+    // Validate format
+    const allowedFormats = ['xlsx', 'csv', 'json', 'pdf'];
+    if (!allowedFormats.includes(format)) {
+        throw CustomException('صيغة التصدير غير مدعومة', 400);
+    }
+
+    let buffer;
+    let fileName;
+    let contentType;
+
+    try {
+        // Call the appropriate export method
+        switch (entityType) {
+            case 'invoices':
+                buffer = await dataExportService.exportInvoices(firmId, filters, format);
+                fileName = `invoices_${Date.now()}.${format}`;
+                break;
+            case 'clients':
+                buffer = await dataExportService.exportClients(firmId, filters, format);
+                fileName = `clients_${Date.now()}.${format}`;
+                break;
+            case 'time_entries':
+                buffer = await dataExportService.exportTimeEntries(firmId, filters, format);
+                fileName = `time_entries_${Date.now()}.${format}`;
+                break;
+            case 'expenses':
+                buffer = await dataExportService.exportExpenses(firmId, filters, format);
+                fileName = `expenses_${Date.now()}.${format}`;
+                break;
+            case 'payments':
+                buffer = await dataExportService.exportPayments(firmId, filters, format);
+                fileName = `payments_${Date.now()}.${format}`;
+                break;
+            case 'cases':
+                buffer = await dataExportService.exportCases(firmId, filters, format);
+                fileName = `cases_${Date.now()}.${format}`;
+                break;
+            case 'audit_logs':
+                buffer = await dataExportService.exportAuditLog(firmId, filters, format);
+                fileName = `audit_logs_${Date.now()}.${format}`;
+                break;
+        }
+
+        // Set content type
+        const contentTypes = {
+            'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'csv': 'text/csv',
+            'json': 'application/json',
+            'pdf': 'application/pdf'
+        };
+        contentType = contentTypes[format];
+
+        // Send file
+        res.setHeader('Content-Type', contentType);
+        res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+        res.setHeader('Content-Length', buffer.length);
+        res.status(200).send(buffer);
+    } catch (error) {
+        throw CustomException(`فشل التصدير: ${error.message}`, 500);
+    }
+});
+
+/**
+ * Export report (direct download)
+ * GET /api/data-export/reports/:reportType
+ */
+const exportReport = asyncHandler(async (req, res) => {
+    const { reportType } = req.params;
+    const { format = 'xlsx', language = 'ar' } = req.query;
+    const firmId = req.firmId;
+    const filters = req.query;
+
+    const dataExportService = require('../services/dataExport.service');
+
+    // Validate reportType
+    const allowedReports = [
+        'financial', 'ar_aging', 'trust_account', 'productivity'
+    ];
+
+    if (!allowedReports.includes(reportType)) {
+        throw CustomException('نوع التقرير غير مدعوم', 400);
+    }
+
+    // Validate format
+    const allowedFormats = ['xlsx', 'csv', 'pdf'];
+    if (!allowedFormats.includes(format)) {
+        throw CustomException('صيغة التصدير غير مدعومة', 400);
+    }
+
+    let buffer;
+    let fileName;
+    let contentType;
+
+    try {
+        // Parse date range if provided
+        const dateRange = {};
+        if (filters.startDate) dateRange.start = filters.startDate;
+        if (filters.endDate) dateRange.end = filters.endDate;
+
+        // Call the appropriate report method
+        switch (reportType) {
+            case 'financial':
+                buffer = await dataExportService.exportFinancialReport(firmId, dateRange, format);
+                fileName = `financial_report_${Date.now()}.${format}`;
+                break;
+            case 'ar_aging':
+                buffer = await dataExportService.exportARAgingReport(firmId, format);
+                fileName = `ar_aging_${Date.now()}.${format}`;
+                break;
+            case 'trust_account':
+                buffer = await dataExportService.exportTrustAccountReport(firmId, dateRange, format);
+                fileName = `trust_account_${Date.now()}.${format}`;
+                break;
+            case 'productivity':
+                buffer = await dataExportService.exportProductivityReport(firmId, dateRange, format);
+                fileName = `productivity_${Date.now()}.${format}`;
+                break;
+        }
+
+        // Set content type
+        const contentTypes = {
+            'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'csv': 'text/csv',
+            'pdf': 'application/pdf'
+        };
+        contentType = contentTypes[format];
+
+        // Send file
+        res.setHeader('Content-Type', contentType);
+        res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+        res.setHeader('Content-Length', buffer.length);
+        res.status(200).send(buffer);
+    } catch (error) {
+        throw CustomException(`فشل تصدير التقرير: ${error.message}`, 500);
+    }
+});
+
 module.exports = {
     createExportJob,
     getExportJobs,
@@ -801,5 +860,7 @@ module.exports = {
     createExportTemplate,
     getExportTemplates,
     updateExportTemplate,
-    deleteExportTemplate
+    deleteExportTemplate,
+    exportEntity,
+    exportReport
 };

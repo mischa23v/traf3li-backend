@@ -1,0 +1,133 @@
+<div class="icon-container">
+    <div class="icon warning">📋</div>
+</div>
+
+<h1>{{title}}</h1>
+<p class="document-number">{{invoiceNumberLabel}}: <strong>{{invoiceNumber}}</strong></p>
+
+<p>{{greeting}}</p>
+
+<p>{{messageText}}</p>
+
+<!-- Invoice Details -->
+<div class="warning-box">
+    <h3 style="color: #92400e; margin: 0 0 15px 0;">{{invoiceDetailsTitle}}</h3>
+    <table width="100%" cellspacing="0" cellpadding="8" style="font-size: 14px;">
+        <tr>
+            <td style="color: #92400e; width: 40%;"><strong>{{invoiceNumberLabel}}:</strong></td>
+            <td style="color: #92400e;">{{invoiceNumber}}</td>
+        </tr>
+        <tr>
+            <td style="color: #92400e;"><strong>{{originalDueDateLabel}}:</strong></td>
+            <td style="color: #92400e;"><strong>{{originalDueDate}}</strong></td>
+        </tr>
+        <tr>
+            <td style="color: #92400e;"><strong>{{amountDueLabel}}:</strong></td>
+            <td style="color: #92400e;"><strong style="font-size: 18px;">{{amountDue}} {{currency}}</strong></td>
+        </tr>
+        <tr>
+            <td style="color: #dc2626;"><strong>{{daysOverdueLabel}}:</strong></td>
+            <td style="color: #dc2626;"><strong>{{daysOverdue}} {{daysText}}</strong></td>
+        </tr>
+        {{#newDueDate}}
+        <tr>
+            <td style="color: #92400e;"><strong>{{newDueDateLabel}}:</strong></td>
+            <td style="color: #92400e;"><strong>{{newDueDate}}</strong></td>
+        </tr>
+        {{/newDueDate}}
+    </table>
+</div>
+
+<!-- Payment Breakdown -->
+{{#breakdown}}
+<div class="info-section">
+    <h3>{{breakdownTitle}}</h3>
+    <table width="100%" cellspacing="0" cellpadding="8" style="font-size: 14px;">
+        <tr>
+            <td style="color: #1e40af;"><strong>{{originalAmountLabel}}:</strong></td>
+            <td style="text-align: right; color: #1e40af;">{{originalAmount}} {{currency}}</td>
+        </tr>
+        {{#paymentsMade}}
+        <tr>
+            <td style="color: #059669;"><strong>{{paymentsMadeLabel}}:</strong></td>
+            <td style="text-align: right; color: #059669;">-{{paymentsMade}} {{currency}}</td>
+        </tr>
+        {{/paymentsMade}}
+        {{#lateFee}}
+        <tr>
+            <td style="color: #dc2626;"><strong>{{lateFeeLabel}}:</strong></td>
+            <td style="text-align: right; color: #dc2626;">+{{lateFee}} {{currency}}</td>
+        </tr>
+        {{/lateFee}}
+        <tr style="border-top: 2px solid #e5e7eb;">
+            <td style="color: #1e3a8a; padding-top: 12px;"><strong>{{totalDueLabel}}:</strong></td>
+            <td style="text-align: right; color: #1e3a8a; padding-top: 12px;"><strong style="font-size: 18px;">{{totalDue}} {{currency}}</strong></td>
+        </tr>
+    </table>
+</div>
+{{/breakdown}}
+
+<!-- Late Fee Information -->
+{{#lateFeeInfo}}
+<div class="info-section" style="background-color: #fef3c7; border-left-color: #f59e0b;">
+    <h3 style="color: #92400e;">💡 {{lateFeeInfoTitle}}</h3>
+    <p style="color: #92400e;">{{lateFeeInfoText}}</p>
+    {{#lateFeeAmount}}
+    <p style="color: #92400e; margin: 10px 0 0 0;"><strong>{{currentLateFeeLabel}}:</strong> {{lateFeeAmount}} {{currency}} ({{lateFeePercent}})</p>
+    {{/lateFeeAmount}}
+</div>
+{{/lateFeeInfo}}
+
+<!-- Easy Payment Options -->
+<div style="text-align: center; margin: 30px 0;">
+    <p style="font-size: 16px; font-weight: 600; color: #1e3a8a; margin-bottom: 20px;">{{paymentOptionsTitle}}</p>
+    {{#payNowUrl}}
+    <a href="{{payNowUrl}}" class="button" style="background: linear-gradient(135deg, #059669 0%, #10b981 100%);">{{payNowButtonText}}</a>
+    {{/payNowUrl}}
+    {{#viewInvoiceUrl}}
+    <a href="{{viewInvoiceUrl}}" class="button">{{viewInvoiceButtonText}}</a>
+    {{/viewInvoiceUrl}}
+</div>
+
+<!-- Payment Methods -->
+{{#paymentMethods}}
+<div class="info-section">
+    <h3>{{paymentMethodsTitle}}</h3>
+    <p>{{paymentMethodsIntro}}</p>
+    <ul style="margin: 10px 0; padding-left: 20px; color: #1e40af;">
+        {{#methods}}
+        <li>{{name}}: {{details}}</li>
+        {{/methods}}
+    </ul>
+</div>
+{{/paymentMethods}}
+
+<!-- Need Help Section -->
+<div class="info-section" style="background-color: #eff6ff;">
+    <h3 style="color: #1e40af;">{{needHelpTitle}}</h3>
+    <p style="color: #1e40af;">{{needHelpText}}</p>
+    <p style="color: #1e40af; margin: 10px 0 0 0;">
+        {{#contactEmail}}<strong>{{emailLabel}}:</strong> <a href="mailto:{{contactEmail}}" style="color: #1e40af;">{{contactEmail}}</a><br>{{/contactEmail}}
+        {{#contactPhone}}<strong>{{phoneLabel}}:</strong> {{contactPhone}}<br>{{/contactPhone}}
+        {{#businessHours}}<strong>{{businessHoursLabel}}:</strong> {{businessHours}}{{/businessHours}}
+    </p>
+</div>
+
+{{#paymentPlan}}
+<div class="info-section" style="background-color: #d1fae5; border-left-color: #10b981;">
+    <h3 style="color: #065f46;">{{paymentPlanTitle}}</h3>
+    <p style="color: #065f46;">{{paymentPlanText}}</p>
+    {{#paymentPlanUrl}}
+    <p style="margin: 15px 0 0 0;">
+        <a href="{{paymentPlanUrl}}" class="button" style="background: linear-gradient(135deg, #059669 0%, #10b981 100%); padding: 10px 24px; font-size: 14px;">{{paymentPlanButtonText}}</a>
+    </p>
+    {{/paymentPlanUrl}}
+</div>
+{{/paymentPlan}}
+
+<hr class="divider">
+
+<p>{{footerText}}</p>
+
+<p>{{closingText}}<br>
+<strong>{{teamName}}</strong></p>

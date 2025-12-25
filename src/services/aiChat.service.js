@@ -1,6 +1,7 @@
 const Anthropic = require('@anthropic-ai/sdk');
 const axios = require('axios');
 const AISettingsService = require('./aiSettings.service');
+const AISafetyService = require('./aiSafety.service');
 const logger = require('../utils/logger');
 
 /**
@@ -9,8 +10,19 @@ const logger = require('../utils/logger');
  * Handles API key management, usage tracking, and error handling
  */
 
-// Default system prompt for legal context
-const DEFAULT_SYSTEM_PROMPT = "You are an AI assistant for a law firm management system. Help users with legal tasks, case management, scheduling, and general productivity. Be professional, accurate, and helpful. If asked about specific legal advice, remind users to consult with a qualified attorney.";
+// Default system prompt for legal context with safety guidelines
+const DEFAULT_SYSTEM_PROMPT = `You are an AI assistant for a law firm management system. Help users with legal tasks, case management, scheduling, and general productivity.
+
+IMPORTANT SAFETY GUIDELINES:
+- Be professional, accurate, and helpful at all times
+- Never provide specific legal advice - always remind users to consult with a qualified attorney
+- Protect client confidentiality - never request or expose PII (personal identifiable information)
+- If you're uncertain about information, clearly state your uncertainty
+- For legal questions, provide general guidance only and add appropriate disclaimers
+- Never make up case law, statutes, or legal precedents - state when verification is needed
+- Refuse requests that violate professional ethics or legal standards
+
+Focus on helping with case management, document organization, scheduling, and general productivity tasks.`;
 
 // Default models for each provider
 const DEFAULT_MODELS = {
@@ -25,47 +37,211 @@ class AIChatService {
      * @param {Object} options - Chat options
      * @param {string} options.provider - 'anthropic' | 'openai' (default: 'anthropic')
      * @param {string} options.firmId - Required for API key lookup
+     * @param {string} options.userId - Required for rate limiting and audit logging
      * @param {string} options.model - Optional model override
      * @param {number} options.maxTokens - Max response tokens (default: 1024)
      * @param {number} options.temperature - Response temperature (default: 0.7)
      * @param {string} options.systemPrompt - Optional system prompt for context
-     * @returns {Promise<Object>} { content, tokens, model }
+     * @param {string} options.context - Context type: 'legal' | 'case_management' | 'scheduling' | 'general'
+     * @param {Object} options.metadata - Additional metadata for logging (ipAddress, userAgent, etc.)
+     * @returns {Promise<Object>} { content, tokens, model, safetyInfo }
      */
     static async chat(messages, options = {}) {
+        const startTime = Date.now();
         const {
             provider = 'anthropic',
             firmId,
+            userId,
             model,
             maxTokens = 1024,
             temperature = 0.7,
-            systemPrompt
+            systemPrompt,
+            context = 'general',
+            metadata = {}
         } = options;
 
         if (!firmId) {
             throw new Error('firmId is required for chat requests');
         }
 
+        if (!userId) {
+            throw new Error('userId is required for chat requests');
+        }
+
         if (!messages || !Array.isArray(messages) || messages.length === 0) {
             throw new Error('messages array is required and cannot be empty');
         }
 
-        // Route to appropriate provider
-        if (provider === 'anthropic') {
-            return this.chatWithClaude(messages, firmId, {
-                model,
-                maxTokens,
-                temperature,
-                systemPrompt
-            });
-        } else if (provider === 'openai') {
-            return this.chatWithGPT(messages, firmId, {
-                model,
-                maxTokens,
-                temperature,
-                systemPrompt
-            });
-        } else {
-            throw new Error(`Unsupported provider: ${provider}. Use 'anthropic' or 'openai'`);
+        // Get the last user message for safety validation
+        const lastUserMessage = messages.filter(m => m.role === 'user').pop();
+        if (!lastUserMessage) {
+            throw new Error('No user message found in messages array');
+        }
+
+        // ═══════════════════════════════════════════════════════════════
+        // SAFETY CHECKS - Input Validation & Rate Limiting
+        // ═══════════════════════════════════════════════════════════════
+        const validation = await AISafetyService.validateInteraction(
+            userId,
+            firmId,
+            lastUserMessage.content
+        );
+
+        if (!validation.allowed) {
+            // Log blocked interaction
+            await AISafetyService.logAIInteraction(
+                userId,
+                {
+                    original: lastUserMessage.content,
+                    sanitized: '',
+                    violations: validation.violations || [],
+                    tokenCount: 0
+                },
+                {
+                    original: '',
+                    filtered: '',
+                    tokenCount: 0
+                },
+                {
+                    firmId,
+                    provider,
+                    model: model || DEFAULT_MODELS[provider],
+                    status: 'blocked',
+                    blockedReason: validation.reason,
+                    context,
+                    rateLimiting: validation.rateLimitCheck,
+                    responseTimeMs: Date.now() - startTime,
+                    ...metadata
+                }
+            );
+
+            const error = new Error(validation.message || 'Request blocked by safety checks');
+            error.code = validation.reason;
+            error.details = validation;
+            throw error;
+        }
+
+        // Replace last user message with sanitized version
+        const sanitizedMessages = messages.map((msg, idx) => {
+            if (idx === messages.length - 1 && msg.role === 'user') {
+                return { ...msg, content: validation.sanitized };
+            }
+            return msg;
+        });
+
+        // Route to appropriate provider with sanitized messages
+        let response;
+        try {
+            if (provider === 'anthropic') {
+                response = await this.chatWithClaude(sanitizedMessages, firmId, {
+                    model,
+                    maxTokens,
+                    temperature,
+                    systemPrompt
+                });
+            } else if (provider === 'openai') {
+                response = await this.chatWithGPT(sanitizedMessages, firmId, {
+                    model,
+                    maxTokens,
+                    temperature,
+                    systemPrompt
+                });
+            } else {
+                throw new Error(`Unsupported provider: ${provider}. Use 'anthropic' or 'openai'`);
+            }
+
+            // ═══════════════════════════════════════════════════════════════
+            // SAFETY CHECKS - Output Filtering
+            // ═══════════════════════════════════════════════════════════════
+            const outputFilter = AISafetyService.filterOutput(response.content, context);
+            const responseValidation = AISafetyService.validateResponse(response.content, context);
+
+            // Log successful interaction
+            await AISafetyService.logAIInteraction(
+                userId,
+                {
+                    original: lastUserMessage.content,
+                    sanitized: validation.sanitized,
+                    violations: validation.violations || [],
+                    tokenCount: response.tokens.input,
+                    modified: validation.sanitization?.modified || false
+                },
+                {
+                    original: response.content,
+                    filtered: outputFilter.filtered,
+                    violations: outputFilter.violations || [],
+                    tokenCount: response.tokens.output,
+                    modified: outputFilter.modified,
+                    confidenceScore: responseValidation.confidenceScore,
+                    flaggedAsUncertain: responseValidation.flaggedAsUncertain,
+                    disclaimerAdded: outputFilter.disclaimerAdded
+                },
+                {
+                    firmId,
+                    provider,
+                    model: response.model,
+                    status: 'success',
+                    context,
+                    rateLimiting: validation.rateLimitCheck,
+                    responseTimeMs: Date.now() - startTime,
+                    flaggedForReview: responseValidation.requiresReview,
+                    flaggedReason: responseValidation.requiresReview ? 'Low confidence or hallucination detected' : null,
+                    ...metadata
+                }
+            );
+
+            // Return filtered response
+            return {
+                content: outputFilter.filtered,
+                tokens: response.tokens,
+                model: response.model,
+                safetyInfo: {
+                    inputSanitized: validation.sanitization?.modified || false,
+                    outputFiltered: outputFilter.modified,
+                    inputViolations: validation.violations || [],
+                    outputViolations: outputFilter.violations || [],
+                    confidenceScore: responseValidation.confidenceScore,
+                    flaggedAsUncertain: responseValidation.flaggedAsUncertain,
+                    legalDisclaimerAdded: outputFilter.disclaimerAdded,
+                    rateLimitInfo: {
+                        remainingToday: validation.rateLimitCheck?.remainingToday,
+                        remainingThisHour: validation.rateLimitCheck?.remainingThisHour
+                    }
+                }
+            };
+
+        } catch (error) {
+            // Log failed interaction
+            await AISafetyService.logAIInteraction(
+                userId,
+                {
+                    original: lastUserMessage.content,
+                    sanitized: validation.sanitized,
+                    violations: validation.violations || [],
+                    tokenCount: 0
+                },
+                {
+                    original: '',
+                    filtered: '',
+                    tokenCount: 0
+                },
+                {
+                    firmId,
+                    provider,
+                    model: model || DEFAULT_MODELS[provider],
+                    status: 'error',
+                    error: {
+                        message: error.message,
+                        code: error.code,
+                        stack: error.stack
+                    },
+                    context,
+                    responseTimeMs: Date.now() - startTime,
+                    ...metadata
+                }
+            );
+
+            throw error;
         }
     }
 
@@ -210,39 +386,209 @@ class AIChatService {
      * @returns {AsyncGenerator} Yields { content, done } chunks
      */
     static async *streamChat(messages, options = {}) {
+        const startTime = Date.now();
         const {
             provider = 'anthropic',
             firmId,
+            userId,
             model,
             maxTokens = 1024,
             temperature = 0.7,
-            systemPrompt = DEFAULT_SYSTEM_PROMPT
+            systemPrompt = DEFAULT_SYSTEM_PROMPT,
+            context = 'general',
+            metadata = {}
         } = options;
 
         if (!firmId) {
             throw new Error('firmId is required for chat requests');
         }
 
+        if (!userId) {
+            throw new Error('userId is required for chat requests');
+        }
+
         if (!messages || !Array.isArray(messages) || messages.length === 0) {
             throw new Error('messages array is required and cannot be empty');
         }
 
-        if (provider === 'anthropic') {
-            yield* this._streamClaude(messages, firmId, {
-                model,
-                maxTokens,
-                temperature,
-                systemPrompt
-            });
-        } else if (provider === 'openai') {
-            yield* this._streamGPT(messages, firmId, {
-                model,
-                maxTokens,
-                temperature,
-                systemPrompt
-            });
-        } else {
-            throw new Error(`Unsupported provider: ${provider}. Use 'anthropic' or 'openai'`);
+        // ═══════════════════════════════════════════════════════════════
+        // SAFETY CHECKS - Input Validation & Rate Limiting
+        // ═══════════════════════════════════════════════════════════════
+        const lastUserMessage = messages.filter(m => m.role === 'user').pop();
+        if (!lastUserMessage) {
+            throw new Error('No user message found in messages array');
+        }
+
+        const validation = await AISafetyService.validateInteraction(
+            userId,
+            firmId,
+            lastUserMessage.content
+        );
+
+        if (!validation.allowed) {
+            // Log blocked interaction
+            await AISafetyService.logAIInteraction(
+                userId,
+                {
+                    original: lastUserMessage.content,
+                    sanitized: '',
+                    violations: validation.violations || [],
+                    tokenCount: 0
+                },
+                {
+                    original: '',
+                    filtered: '',
+                    tokenCount: 0
+                },
+                {
+                    firmId,
+                    provider,
+                    model: model || DEFAULT_MODELS[provider],
+                    status: 'blocked',
+                    blockedReason: validation.reason,
+                    context,
+                    rateLimiting: validation.rateLimitCheck,
+                    responseTimeMs: Date.now() - startTime,
+                    ...metadata
+                }
+            );
+
+            throw new Error(validation.message || 'Request blocked by safety checks');
+        }
+
+        // Sanitize messages
+        const sanitizedMessages = messages.map((msg, idx) => {
+            if (idx === messages.length - 1 && msg.role === 'user') {
+                return { ...msg, content: validation.sanitized };
+            }
+            return msg;
+        });
+
+        // Stream and collect response for safety filtering
+        let fullResponse = '';
+        let totalTokens = 0;
+
+        try {
+            if (provider === 'anthropic') {
+                for await (const chunk of this._streamClaude(sanitizedMessages, firmId, {
+                    model,
+                    maxTokens,
+                    temperature,
+                    systemPrompt
+                })) {
+                    if (!chunk.done) {
+                        fullResponse += chunk.content;
+                        yield chunk;
+                    } else {
+                        totalTokens = chunk.tokens || 0;
+                    }
+                }
+            } else if (provider === 'openai') {
+                for await (const chunk of this._streamGPT(sanitizedMessages, firmId, {
+                    model,
+                    maxTokens,
+                    temperature,
+                    systemPrompt
+                })) {
+                    if (!chunk.done) {
+                        fullResponse += chunk.content;
+                        yield chunk;
+                    } else {
+                        totalTokens = chunk.tokens || 0;
+                    }
+                }
+            } else {
+                throw new Error(`Unsupported provider: ${provider}. Use 'anthropic' or 'openai'`);
+            }
+
+            // ═══════════════════════════════════════════════════════════════
+            // SAFETY CHECKS - Output Filtering (post-stream)
+            // ═══════════════════════════════════════════════════════════════
+            const outputFilter = AISafetyService.filterOutput(fullResponse, context);
+            const responseValidation = AISafetyService.validateResponse(fullResponse, context);
+
+            // Log successful interaction
+            await AISafetyService.logAIInteraction(
+                userId,
+                {
+                    original: lastUserMessage.content,
+                    sanitized: validation.sanitized,
+                    violations: validation.violations || [],
+                    tokenCount: Math.ceil(totalTokens / 2), // Approximate input tokens
+                    modified: validation.sanitization?.modified || false
+                },
+                {
+                    original: fullResponse,
+                    filtered: outputFilter.filtered,
+                    violations: outputFilter.violations || [],
+                    tokenCount: Math.floor(totalTokens / 2), // Approximate output tokens
+                    modified: outputFilter.modified,
+                    confidenceScore: responseValidation.confidenceScore,
+                    flaggedAsUncertain: responseValidation.flaggedAsUncertain,
+                    disclaimerAdded: outputFilter.disclaimerAdded
+                },
+                {
+                    firmId,
+                    provider,
+                    model: model || DEFAULT_MODELS[provider],
+                    status: 'success',
+                    context,
+                    rateLimiting: validation.rateLimitCheck,
+                    responseTimeMs: Date.now() - startTime,
+                    flaggedForReview: responseValidation.requiresReview,
+                    flaggedReason: responseValidation.requiresReview ? 'Low confidence or hallucination detected' : null,
+                    ...metadata
+                }
+            );
+
+            // Yield final chunk with safety info
+            yield {
+                content: '',
+                done: true,
+                tokens: totalTokens,
+                safetyInfo: {
+                    inputSanitized: validation.sanitization?.modified || false,
+                    outputFiltered: outputFilter.modified,
+                    inputViolations: validation.violations || [],
+                    outputViolations: outputFilter.violations || [],
+                    confidenceScore: responseValidation.confidenceScore,
+                    flaggedAsUncertain: responseValidation.flaggedAsUncertain,
+                    legalDisclaimerAdded: outputFilter.disclaimerAdded
+                }
+            };
+
+        } catch (error) {
+            // Log failed interaction
+            await AISafetyService.logAIInteraction(
+                userId,
+                {
+                    original: lastUserMessage.content,
+                    sanitized: validation.sanitized,
+                    violations: validation.violations || [],
+                    tokenCount: 0
+                },
+                {
+                    original: '',
+                    filtered: '',
+                    tokenCount: 0
+                },
+                {
+                    firmId,
+                    provider,
+                    model: model || DEFAULT_MODELS[provider],
+                    status: 'error',
+                    error: {
+                        message: error.message,
+                        code: error.code,
+                        stack: error.stack
+                    },
+                    context,
+                    responseTimeMs: Date.now() - startTime,
+                    ...metadata
+                }
+            );
+
+            throw error;
         }
     }
 
@@ -401,10 +747,11 @@ class AIChatService {
      * Generate a conversation title from the first few messages
      * @param {Array} messages - Array of {role, content} objects
      * @param {string} firmId - Firm ID for API key lookup
+     * @param {string} userId - User ID for rate limiting
      * @param {string} provider - Provider to use (default: 'anthropic')
      * @returns {Promise<string>} Generated title (5-10 words)
      */
-    static async generateTitle(messages, firmId, provider = 'anthropic') {
+    static async generateTitle(messages, firmId, userId, provider = 'anthropic') {
         if (!messages || messages.length === 0) {
             return 'New Conversation';
         }
@@ -425,8 +772,10 @@ class AIChatService {
             const response = await this.chat(titlePrompt, {
                 provider,
                 firmId,
+                userId,
                 maxTokens: 50,
-                temperature: 0.5
+                temperature: 0.5,
+                context: 'general'
             });
 
             // Clean up the title (remove quotes, periods, etc.)

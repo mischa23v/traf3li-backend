@@ -5,24 +5,12 @@ const logger = require('../utils/logger');
 
 // ============ WEBHOOK EVENTS ============
 const WEBHOOK_EVENTS = [
-    // Client events
-    'client.created',
-    'client.updated',
-    'client.deleted',
-
-    // Case events
-    'case.created',
-    'case.updated',
-    'case.status_changed',
-    'case.closed',
-    'case.deleted',
-
     // Invoice events
     'invoice.created',
-    'invoice.updated',
     'invoice.sent',
     'invoice.paid',
     'invoice.voided',
+    'invoice.updated',
     'invoice.overdue',
 
     // Payment events
@@ -30,7 +18,36 @@ const WEBHOOK_EVENTS = [
     'payment.failed',
     'payment.refunded',
 
-    // Lead events (if applicable)
+    // Client events
+    'client.created',
+    'client.updated',
+    'client.deleted',
+
+    // Case events
+    'case.created',
+    'case.closed',
+    'case.updated',
+    'case.status_changed',
+    'case.deleted',
+
+    // Expense events
+    'expense.submitted',
+    'expense.approved',
+    'expense.rejected',
+    'expense.paid',
+
+    // Time entry events
+    'time_entry.submitted',
+    'time_entry.approved',
+    'time_entry.rejected',
+
+    // Document events
+    'document.uploaded',
+    'document.signed',
+    'document.deleted',
+    'document.shared',
+
+    // Lead events (CRM)
     'lead.created',
     'lead.updated',
     'lead.converted',

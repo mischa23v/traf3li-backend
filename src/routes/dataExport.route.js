@@ -17,7 +17,9 @@ const {
     createExportTemplate,
     getExportTemplates,
     updateExportTemplate,
-    deleteExportTemplate
+    deleteExportTemplate,
+    exportEntity,
+    exportReport
 } = require('../controllers/dataExport.controller');
 
 const app = express.Router();
@@ -43,5 +45,11 @@ app.get('/templates', userMiddleware, getExportTemplates);
 app.post('/templates', userMiddleware, createExportTemplate);
 app.patch('/templates/:id', userMiddleware, updateExportTemplate);
 app.delete('/templates/:id', userMiddleware, deleteExportTemplate);
+
+// Direct exports (immediate download)
+app.get('/entity/:entityType', userMiddleware, auditAction('export_entity', 'export', { severity: 'high', skipGET: false }), exportEntity);
+
+// Report exports (immediate download)
+app.get('/report/:reportType', userMiddleware, auditAction('export_report', 'export', { severity: 'high', skipGET: false }), exportReport);
 
 module.exports = app;

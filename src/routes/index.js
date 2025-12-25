@@ -3,6 +3,7 @@ const gigRoute = require('./gig.route');
 const authRoute = require('./auth.route');
 const adminRoute = require('./admin.route');
 const adminApiRoute = require('./adminApi.route');
+const adminToolsRoute = require('./adminTools.route');
 const orderRoute = require('./order.route');
 const conversationRoute = require('./conversation.route');
 const messageRoute = require('./message.route');
@@ -23,6 +24,7 @@ const temporalCaseRoute = require('./temporalCase.route');
 const taskRoute = require('./task.route');
 const ganttRoute = require('./gantt.route');
 const notificationRoute = require('./notification.route');
+const notificationPreferenceRoute = require('./notificationPreference.route');
 const eventRoute = require('./event.route');
 
 // Dashboard Finance Routes
@@ -36,6 +38,7 @@ const billingRateRoute = require('./billingRate.route');
 const statementRoute = require('./statement.route');
 const transactionRoute = require('./transaction.route');
 const reportRoute = require('./report.route');
+const dunningRoute = require('./dunning.route');
 
 // Dashboard Organization Routes
 const reminderRoute = require('./reminder.route');
@@ -87,6 +90,7 @@ const slaRoutes = require('./sla.routes');
 const conversationRoutes = require('./conversation.routes');
 const macroRoutes = require('./macro.routes');
 const approvalRoutes = require('./approval.routes');
+const bulkActionsRoutes = require('./bulkActions.routes');
 const viewRoutes = require('./view.routes');
 const automationRoutes = require('./automation.routes');
 const timelineRoutes = require('./timeline.routes');
@@ -95,6 +99,7 @@ const dealRoomRoutes = require('./dealRoom.routes');
 const reportRoutes = require('./report.routes');
 const deduplicationRoutes = require('./deduplication.routes');
 const commandPaletteRoutes = require('./commandPalette.routes');
+const keyboardShortcutRoutes = require('./keyboardShortcut.routes');
 const lifecycleRoutes = require('./lifecycle.routes');
 const dealHealthRoutes = require('./dealHealth.routes');
 
@@ -270,6 +275,30 @@ const smartButtonRoute = require('./smartButton.route');
 // Churn Management Routes
 const churnRoute = require('./churn.route');
 
+// Saved Filters Routes
+const savedFilterRoutes = require('./savedFilter.routes');
+
+// Microsoft Calendar Integration Routes
+const microsoftCalendarRoute = require('./microsoftCalendar.route');
+
+// Google Calendar Integration Routes
+const googleCalendarRoute = require('./googleCalendar.route');
+
+// Analytics Routes (Event-based Analytics System)
+const analyticsRoutes = require('./analytics.routes');
+
+// Cloud Storage Routes (Google Drive, Dropbox, OneDrive Integration)
+const cloudStorageRoutes = require('./cloudStorage.routes');
+
+// Offline Sync Routes (PWA Offline Functionality)
+const offlineSyncRoutes = require('./offlineSync.routes');
+
+// Sandbox/Demo Environment Routes
+const sandboxRoute = require('./sandbox.routes');
+
+// Incident Playbook Routes
+const playbookRoute = require('./playbook.route');
+
 module.exports = {
     // Marketplace
     gigRoute,
@@ -278,6 +307,7 @@ module.exports = {
     captchaRoute,
     adminRoute,
     adminApiRoute,
+    adminToolsRoute,
     orderRoute,
     conversationRoute,
     messageRoute,
@@ -298,6 +328,7 @@ module.exports = {
     taskRoute,
     ganttRoute,
     notificationRoute,
+    notificationPreferenceRoute,
     eventRoute,
 
     // Dashboard Finance
@@ -311,6 +342,7 @@ module.exports = {
     statementRoute,
     transactionRoute,
     reportRoute,
+    dunningRoute,
 
     // Dashboard Organization
     reminderRoute,
@@ -362,6 +394,7 @@ module.exports = {
     conversationRoutes,
     macroRoutes,
     approvalRoutes,
+    bulkActionsRoutes,
     viewRoutes,
     automationRoutes,
     timelineRoutes,
@@ -370,6 +403,7 @@ module.exports = {
     reportRoutes,
     deduplicationRoutes,
     commandPaletteRoutes,
+    keyboardShortcutRoutes,
     lifecycleRoutes,
     dealHealthRoutes,
 
@@ -537,5 +571,29 @@ module.exports = {
     smartButtonRoute,
 
     // Churn Management
-    churnRoute
+    churnRoute,
+
+    // Saved Filters
+    savedFilterRoutes,
+
+    // Microsoft Calendar Integration
+    microsoftCalendarRoute,
+
+    // Google Calendar Integration
+    googleCalendarRoute,
+
+    // Analytics (Event-based Analytics System)
+    analyticsRoutes,
+
+    // Cloud Storage Integration (Google Drive, Dropbox, OneDrive)
+    cloudStorageRoutes,
+
+    // Offline Sync (PWA Offline Functionality)
+    offlineSyncRoutes,
+
+    // Sandbox/Demo Environment
+    sandboxRoute,
+
+    // Incident Playbook
+    playbookRoute
 };
