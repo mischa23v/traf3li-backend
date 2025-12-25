@@ -69,6 +69,10 @@ const { startSLOMonitoringJob } = require('./jobs/sloMonitoring.job');
 const { startStuckDealJob } = require('./jobs/stuckDealDetection.job');
 const { startDealHealthJob } = require('./jobs/dealHealthScoring.job');
 const { startCycleAutoCompleteJob } = require('./jobs/cycleAutoComplete.job');
+const { startDunningJob } = require('./jobs/dunning.job');
+const { startIntegrationSyncJob } = require('./jobs/integrationSync.job');
+const { startWebhookDeliveryJob } = require('./jobs/webhookDelivery.job');
+const { startWorkflowJob } = require('./jobs/workflow.job');
 const cron = require('node-cron');
 const { initSocket, shutdownSocket } = require('./configs/socket');
 const mongoose = require('mongoose');
@@ -385,7 +389,34 @@ const {
     offlineSyncRoutes,
 
     // Sandbox/Demo Environment
-    sandboxRoute
+    sandboxRoute,
+
+    // AR Aging
+    arAgingRoute,
+
+    // Integrations (QuickBooks, Xero)
+    integrationsRoute,
+
+    // Walkthrough
+    walkthroughRoute,
+
+    // Status Page
+    statusRoute,
+
+    // Field History
+    fieldHistoryRoutes,
+
+    // SLO Monitoring
+    sloMonitoringRoutes,
+
+    // Custom Fields
+    customFieldRoutes,
+
+    // Plugins
+    pluginRoutes,
+
+    // Rate Limiting
+    rateLimitRoute
 } = require('./routes');
 
 // Import versioned routes
@@ -1080,6 +1111,37 @@ app.use('/api/api-keys', apiKeyRoute);
 app.use('/api/sandbox', noCache, sandboxRoute); // No cache for sandbox operations
 
 // ============================================
+// NEW ERP/FINANCE ENHANCEMENT ROUTES
+// ============================================
+
+// AR Aging Reports
+app.use('/api/ar-aging', noCache, arAgingRoute); // No cache for financial reports
+
+// External Integrations (QuickBooks, Xero)
+app.use('/api/integrations', noCache, integrationsRoute); // No cache for integration data
+
+// In-App Walkthroughs
+app.use('/api/walkthroughs', walkthroughRoute);
+
+// Status Page (Public & Admin)
+app.use('/api/status', statusRoute);
+
+// Field History (Audit Trail)
+app.use('/api/field-history', noCache, fieldHistoryRoutes); // No cache for audit data
+
+// SLO Monitoring
+app.use('/api/slo', noCache, sloMonitoringRoutes); // No cache for SLO metrics
+
+// Custom Fields
+app.use('/api/custom-fields', customFieldRoutes);
+
+// Plugins
+app.use('/api/plugins', pluginRoutes);
+
+// Rate Limiting Configuration
+app.use('/api/rate-limits', noCache, rateLimitRoute); // No cache for rate limit config
+
+// ============================================
 // WEBHOOK ROUTES (Third-Party Integrations)
 // ============================================
 app.use('/api/webhooks', noCache, webhookRoute); // No cache for webhook management
@@ -1385,6 +1447,38 @@ const startServer = async () => {
                 logger.info('✅ Cycle auto-complete job started');
             } catch (error) {
                 logger.warn('⚠️ Cycle auto-complete job failed to start:', error.message);
+            }
+
+            // Dunning Automation Job
+            try {
+                startDunningJob();
+                logger.info('✅ Dunning automation job started');
+            } catch (error) {
+                logger.warn('⚠️ Dunning automation job failed to start:', error.message);
+            }
+
+            // Integration Sync Job (QuickBooks, Xero)
+            try {
+                startIntegrationSyncJob();
+                logger.info('✅ Integration sync job started');
+            } catch (error) {
+                logger.warn('⚠️ Integration sync job failed to start:', error.message);
+            }
+
+            // Webhook Delivery Job
+            try {
+                startWebhookDeliveryJob();
+                logger.info('✅ Webhook delivery job started');
+            } catch (error) {
+                logger.warn('⚠️ Webhook delivery job failed to start:', error.message);
+            }
+
+            // Workflow Automation Job
+            try {
+                startWorkflowJob();
+                logger.info('✅ Workflow automation job started');
+            } catch (error) {
+                logger.warn('⚠️ Workflow automation job failed to start:', error.message);
             }
 
             // Audit Log Archiving - Run daily at 2:30 AM

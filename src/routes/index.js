@@ -299,6 +299,33 @@ const sandboxRoute = require('./sandbox.routes');
 // Incident Playbook Routes
 const playbookRoute = require('./playbook.route');
 
+// AR Aging Routes
+const arAgingRoute = require('./arAging.route');
+
+// Integration Routes (QuickBooks, Xero)
+const integrationsRoute = require('./integrations.route');
+
+// Walkthrough Routes
+const walkthroughRoute = require('./walkthrough.route');
+
+// Status Page Routes
+const statusRoute = require('./status.route');
+
+// Field History Routes
+const fieldHistoryRoutes = require('./fieldHistory.routes');
+
+// SLO Monitoring Routes
+const sloMonitoringRoutes = require('./sloMonitoring.routes');
+
+// Custom Field Routes
+const customFieldRoutes = require('./customField.routes');
+
+// Plugin Routes
+const pluginRoutes = require('./plugin.routes');
+
+// Rate Limit Routes
+const rateLimitRoute = require('./rateLimit.route');
+
 module.exports = {
     // Marketplace
     gigRoute,
@@ -595,5 +622,32 @@ module.exports = {
     sandboxRoute,
 
     // Incident Playbook
-    playbookRoute
+    playbookRoute,
+
+    // AR Aging
+    arAgingRoute,
+
+    // Integrations (QuickBooks, Xero)
+    integrationsRoute,
+
+    // Walkthrough
+    walkthroughRoute,
+
+    // Status Page
+    statusRoute,
+
+    // Field History
+    fieldHistoryRoutes,
+
+    // SLO Monitoring
+    sloMonitoringRoutes,
+
+    // Custom Fields
+    customFieldRoutes,
+
+    // Plugins
+    pluginRoutes,
+
+    // Rate Limiting
+    rateLimitRoute
 };
