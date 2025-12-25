@@ -15,39 +15,26 @@ const { auditAction } = require('../middlewares/auditLog.middleware');
 const { checkPermission } = require('../middlewares/authorize.middleware');
 const Joi = require('joi');
 
-// Import dunning controller (to be created)
+// Import dunning controller
 const {
     // Policy CRUD
-    getDunningPolicies,
-    getDunningPolicy,
-    getDefaultPolicy,
-    createDunningPolicy,
-    updateDunningPolicy,
-    deleteDunningPolicy,
-    setAsDefault,
-    togglePolicyStatus,
-    duplicatePolicy,
-
-    // Policy Actions
-    testPolicy,
-    applyPolicyToInvoice,
+    listPolicies: getDunningPolicies,
+    getPolicy: getDunningPolicy,
+    createPolicy: createDunningPolicy,
+    updatePolicy: updateDunningPolicy,
+    deletePolicy: deleteDunningPolicy,
+    setDefaultPolicy: setAsDefault,
 
     // History Management
-    getDunningHistory,
-    getInvoiceDunningHistory,
-    createDunningAction,
+    listHistory: getDunningHistory,
+    getInvoiceHistory: getInvoiceDunningHistory,
     pauseDunning,
     resumeDunning,
-    escalateDunning,
+    advanceStage: escalateDunning,
 
     // Dashboard & Reports
-    getDunningDashboard,
-    getDunningStats,
-    getOverdueInvoicesList,
-    getUpcomingActions,
-    getPausedInvoices,
-    getDunningReport,
-    exportDunningReport
+    getDashboard: getDunningDashboard,
+    getReport: getDunningReport
 } = require('../controllers/dunning.controller');
 
 // ═══════════════════════════════════════════════════════════════
@@ -348,15 +335,16 @@ router.get('/dashboard',
     getDunningDashboard
 );
 
-/**
- * @route   GET /api/dunning/stats
- * @desc    Get dunning statistics
- * @access  Private - Finance access
- */
-router.get('/stats',
-    financeAccessOnly,
-    getDunningStats
-);
+// TODO: Implement getDunningStats in controller
+// /**
+//  * @route   GET /api/dunning/stats
+//  * @desc    Get dunning statistics
+//  * @access  Private - Finance access
+//  */
+// router.get('/stats',
+//     financeAccessOnly,
+//     getDunningStats
+// );
 
 /**
  * @route   GET /api/dunning/report
@@ -368,45 +356,49 @@ router.get('/report',
     getDunningReport
 );
 
-/**
- * @route   GET /api/dunning/report/export
- * @desc    Export dunning report (CSV/Excel)
- * @access  Private - Finance access
- */
-router.get('/report/export',
-    financeAccessOnly,
-    exportDunningReport
-);
+// TODO: Implement exportDunningReport in controller
+// /**
+//  * @route   GET /api/dunning/report/export
+//  * @desc    Export dunning report (CSV/Excel)
+//  * @access  Private - Finance access
+//  */
+// router.get('/report/export',
+//     financeAccessOnly,
+//     exportDunningReport
+// );
 
-/**
- * @route   GET /api/dunning/overdue-invoices
- * @desc    Get list of overdue invoices for dunning
- * @access  Private - Finance access
- */
-router.get('/overdue-invoices',
-    financeAccessOnly,
-    getOverdueInvoicesList
-);
+// TODO: Implement getOverdueInvoicesList in controller
+// /**
+//  * @route   GET /api/dunning/overdue-invoices
+//  * @desc    Get list of overdue invoices for dunning
+//  * @access  Private - Finance access
+//  */
+// router.get('/overdue-invoices',
+//     financeAccessOnly,
+//     getOverdueInvoicesList
+// );
 
-/**
- * @route   GET /api/dunning/upcoming-actions
- * @desc    Get upcoming scheduled dunning actions
- * @access  Private - Finance access
- */
-router.get('/upcoming-actions',
-    financeAccessOnly,
-    getUpcomingActions
-);
+// TODO: Implement getUpcomingActions in controller
+// /**
+//  * @route   GET /api/dunning/upcoming-actions
+//  * @desc    Get upcoming scheduled dunning actions
+//  * @access  Private - Finance access
+//  */
+// router.get('/upcoming-actions',
+//     financeAccessOnly,
+//     getUpcomingActions
+// );
 
-/**
- * @route   GET /api/dunning/paused-invoices
- * @desc    Get invoices with paused dunning
- * @access  Private - Finance access
- */
-router.get('/paused-invoices',
-    financeAccessOnly,
-    getPausedInvoices
-);
+// TODO: Implement getPausedInvoices in controller
+// /**
+//  * @route   GET /api/dunning/paused-invoices
+//  * @desc    Get invoices with paused dunning
+//  * @access  Private - Finance access
+//  */
+// router.get('/paused-invoices',
+//     financeAccessOnly,
+//     getPausedInvoices
+// );
 
 // ═══════════════════════════════════════════════════════════════
 // POLICY ROUTES
@@ -422,15 +414,16 @@ router.get('/policies',
     getDunningPolicies
 );
 
-/**
- * @route   GET /api/dunning/policies/default
- * @desc    Get default dunning policy
- * @access  Private - Finance access
- */
-router.get('/policies/default',
-    financeAccessOnly,
-    getDefaultPolicy
-);
+// TODO: Implement getDefaultPolicy in controller
+// /**
+//  * @route   GET /api/dunning/policies/default
+//  * @desc    Get default dunning policy
+//  * @access  Private - Finance access
+//  */
+// router.get('/policies/default',
+//     financeAccessOnly,
+//     getDefaultPolicy
+// );
 
 /**
  * @route   POST /api/dunning/policies
@@ -488,49 +481,53 @@ router.post('/policies/:id/set-default',
     setAsDefault
 );
 
-/**
- * @route   POST /api/dunning/policies/:id/toggle-status
- * @desc    Toggle policy active/inactive status
- * @access  Private - Admin only
- */
-router.post('/policies/:id/toggle-status',
-    firmAdminOnly,
-    auditAction('toggle_dunning_policy_status', 'dunning'),
-    togglePolicyStatus
-);
+// TODO: Implement togglePolicyStatus in controller
+// /**
+//  * @route   POST /api/dunning/policies/:id/toggle-status
+//  * @desc    Toggle policy active/inactive status
+//  * @access  Private - Admin only
+//  */
+// router.post('/policies/:id/toggle-status',
+//     firmAdminOnly,
+//     auditAction('toggle_dunning_policy_status', 'dunning'),
+//     togglePolicyStatus
+// );
 
-/**
- * @route   POST /api/dunning/policies/:id/duplicate
- * @desc    Duplicate an existing policy
- * @access  Private - Admin only
- */
-router.post('/policies/:id/duplicate',
-    firmAdminOnly,
-    auditAction('duplicate_dunning_policy', 'dunning'),
-    duplicatePolicy
-);
+// TODO: Implement duplicatePolicy in controller
+// /**
+//  * @route   POST /api/dunning/policies/:id/duplicate
+//  * @desc    Duplicate an existing policy
+//  * @access  Private - Admin only
+//  */
+// router.post('/policies/:id/duplicate',
+//     firmAdminOnly,
+//     auditAction('duplicate_dunning_policy', 'dunning'),
+//     duplicatePolicy
+// );
 
-/**
- * @route   POST /api/dunning/policies/:id/test
- * @desc    Test policy against sample data
- * @access  Private - Finance access
- */
-router.post('/policies/:id/test',
-    financeAccessOnly,
-    testPolicy
-);
+// TODO: Implement testPolicy in controller
+// /**
+//  * @route   POST /api/dunning/policies/:id/test
+//  * @desc    Test policy against sample data
+//  * @access  Private - Finance access
+//  */
+// router.post('/policies/:id/test',
+//     financeAccessOnly,
+//     testPolicy
+// );
 
-/**
- * @route   POST /api/dunning/policies/:id/apply
- * @desc    Manually apply policy to specific invoice
- * @access  Private - Finance access
- */
-router.post('/policies/:id/apply',
-    financeAccessOnly,
-    validateApplyPolicy,
-    auditAction('apply_dunning_policy', 'dunning', { severity: 'medium' }),
-    applyPolicyToInvoice
-);
+// TODO: Implement applyPolicyToInvoice in controller
+// /**
+//  * @route   POST /api/dunning/policies/:id/apply
+//  * @desc    Manually apply policy to specific invoice
+//  * @access  Private - Finance access
+//  */
+// router.post('/policies/:id/apply',
+//     financeAccessOnly,
+//     validateApplyPolicy,
+//     auditAction('apply_dunning_policy', 'dunning', { severity: 'medium' }),
+//     applyPolicyToInvoice
+// );
 
 // ═══════════════════════════════════════════════════════════════
 // HISTORY ROUTES
@@ -556,17 +553,18 @@ router.get('/history/invoice/:invoiceId',
     getInvoiceDunningHistory
 );
 
-/**
- * @route   POST /api/dunning/history
- * @desc    Create manual dunning action
- * @access  Private - Finance access
- */
-router.post('/history',
-    financeAccessOnly,
-    validateCreateAction,
-    auditAction('create_dunning_action', 'dunning', { severity: 'medium' }),
-    createDunningAction
-);
+// TODO: Implement createDunningAction in controller
+// /**
+//  * @route   POST /api/dunning/history
+//  * @desc    Create manual dunning action
+//  * @access  Private - Finance access
+//  */
+// router.post('/history',
+//     financeAccessOnly,
+//     validateCreateAction,
+//     auditAction('create_dunning_action', 'dunning', { severity: 'medium' }),
+//     createDunningAction
+// );
 
 /**
  * @route   POST /api/dunning/history/:invoiceId/pause
