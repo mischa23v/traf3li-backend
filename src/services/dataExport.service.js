@@ -5,7 +5,14 @@
 
 const ExcelJS = require('exceljs');
 const { parse } = require('json2csv');
-const puppeteer = require('puppeteer');
+// Lazy load puppeteer to reduce startup memory - it will be loaded on first PDF generation
+let puppeteer = null;
+const getPuppeteer = () => {
+  if (!puppeteer) {
+    puppeteer = require('puppeteer');
+  }
+  return puppeteer;
+};
 const fs = require('fs').promises;
 const path = require('path');
 const archiver = require('archiver');
@@ -137,8 +144,8 @@ async function exportToPDF(data, template, config = {}) {
     // Generate HTML from template
     let html = await generateHtmlFromTemplate(template, data, config);
 
-    // Launch Puppeteer
-    const browser = await puppeteer.launch({
+    // Launch Puppeteer (lazy loaded)
+    const browser = await getPuppeteer().launch({
       headless: 'new',
       args: ['--no-sandbox', '--disable-setuid-sandbox']
     });

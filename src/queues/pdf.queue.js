@@ -6,7 +6,14 @@
  */
 
 const { createQueue } = require('../configs/queue');
-const puppeteer = require('puppeteer');
+// Lazy load puppeteer to reduce startup memory - it will be loaded on first PDF generation
+let puppeteer = null;
+const getPuppeteer = () => {
+  if (!puppeteer) {
+    puppeteer = require('puppeteer');
+  }
+  return puppeteer;
+};
 const fs = require('fs').promises;
 const path = require('path');
 const logger = require('../utils/logger');
@@ -46,7 +53,7 @@ let browserInstance = null;
  */
 async function getBrowser() {
   if (!browserInstance || !browserInstance.isConnected()) {
-    browserInstance = await puppeteer.launch({
+    browserInstance = await getPuppeteer().launch({
       headless: 'new',
       args: [
         '--no-sandbox',
