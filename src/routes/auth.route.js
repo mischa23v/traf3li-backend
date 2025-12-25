@@ -3,6 +3,7 @@ const { authLogin, authLogout, authLogoutAll, authRegister, authStatus, checkAva
 const { anonymousLogin, convertAnonymousUser } = require('../controllers/anonymous.auth.controller');
 const { sendOTP, verifyOTP, resendOTP, checkOTPStatus } = require('../controllers/otp.controller');
 const { sendPhoneOTP, verifyPhoneOTP, resendPhoneOTP, checkPhoneOTPStatus } = require('../controllers/phoneOtp.controller');
+const { authenticateWithOneTap } = require('../controllers/googleOneTap.controller');
 const {
     generateBackupCodes,
     verifyBackupCode,
@@ -35,7 +36,8 @@ const {
     validateSendMagicLink,
     validateVerifyMagicLink,
     validateForgotPassword,
-    validateResetPassword
+    validateResetPassword,
+    validateGoogleOneTap
 } = require('../validators/auth.validator');
 
 const app = express.Router();
@@ -251,6 +253,114 @@ app.post('/anonymous/convert', authenticate, authRateLimiter, convertAnonymousUs
  *         $ref: '#/components/responses/TooManyRequests'
  */
 app.post('/login', authRateLimiter, captchaLogin, validateLogin, authLogin);
+
+// ========== GOOGLE ONE TAP AUTHENTICATION ==========
+/**
+ * @openapi
+ * /api/auth/google/one-tap:
+ *   post:
+ *     summary: Authenticate with Google One Tap
+ *     description: Verifies Google One Tap credential token and authenticates user. Creates new account if user doesn't exist. Links Google account if user exists without Google auth.
+ *     tags:
+ *       - Authentication
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - credential
+ *             properties:
+ *               credential:
+ *                 type: string
+ *                 description: Google One Tap JWT credential token from client
+ *                 example: "eyJhbGciOiJSUzI1NiIsImtpZCI6..."
+ *               firmId:
+ *                 type: string
+ *                 description: Optional firm ID for multi-tenancy (user will be added to firm)
+ *                 pattern: '^[0-9a-fA-F]{24}$'
+ *                 example: "507f1f77bcf86cd799439011"
+ *     responses:
+ *       200:
+ *         description: Authentication successful
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   description: Success message in Arabic
+ *                   example: "تم تسجيل الدخول بنجاح"
+ *                 messageEn:
+ *                   type: string
+ *                   description: Success message in English
+ *                   example: "Login successful"
+ *                 user:
+ *                   type: object
+ *                   description: User profile with firm and permission details
+ *                   properties:
+ *                     id:
+ *                       type: string
+ *                     email:
+ *                       type: string
+ *                     firstName:
+ *                       type: string
+ *                     lastName:
+ *                       type: string
+ *                     role:
+ *                       type: string
+ *                     ssoProvider:
+ *                       type: string
+ *                       example: "google"
+ *                     ssoExternalId:
+ *                       type: string
+ *                       description: "Google user ID (sub)"
+ *                     isEmailVerified:
+ *                       type: boolean
+ *                     firmId:
+ *                       type: string
+ *                     firmRole:
+ *                       type: string
+ *                     permissions:
+ *                       type: object
+ *                 isNewUser:
+ *                   type: boolean
+ *                   description: True if a new account was created
+ *                   example: false
+ *                 accountLinked:
+ *                   type: boolean
+ *                   description: True if existing account was linked to Google
+ *                   example: false
+ *       400:
+ *         description: Invalid request or credential
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                 messageEn:
+ *                   type: string
+ *                 code:
+ *                   type: string
+ *                   enum: [CREDENTIAL_REQUIRED, INVALID_FIRM_ID, FIRM_NOT_FOUND, INVALID_TOKEN, TOKEN_EXPIRED, GOOGLE_ACCOUNT_ALREADY_LINKED]
+ *       401:
+ *         description: Token verification failed
+ *       429:
+ *         $ref: '#/components/responses/TooManyRequests'
+ *       500:
+ *         description: Server error or Google One Tap not configured
+ */
+app.post('/google/one-tap', authRateLimiter, validateGoogleOneTap, authenticateWithOneTap);
 
 /**
  * @openapi

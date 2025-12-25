@@ -252,6 +252,26 @@ const resetPasswordSchema = Joi.object({
         })
 });
 
+/**
+ * Google One Tap authentication validation schema
+ */
+const googleOneTapSchema = Joi.object({
+    credential: Joi.string()
+        .required()
+        .min(100) // JWT tokens are typically longer than 100 characters
+        .messages({
+            'any.required': 'معرف Google مطلوب / Google credential is required',
+            'string.min': 'معرف Google غير صالح / Invalid Google credential',
+            'string.base': 'معرف Google يجب أن يكون نصاً / Google credential must be a string'
+        }),
+    firmId: Joi.string()
+        .pattern(/^[0-9a-fA-F]{24}$/)
+        .optional()
+        .messages({
+            'string.pattern.base': 'معرف المكتب غير صالح / Invalid firm ID'
+        })
+});
+
 // ============================================
 // VALIDATION MIDDLEWARE FACTORY
 // ============================================
@@ -304,7 +324,8 @@ module.exports = {
         sendMagicLink: sendMagicLinkSchema,
         verifyMagicLink: verifyMagicLinkSchema,
         forgotPassword: forgotPasswordSchema,
-        resetPassword: resetPasswordSchema
+        resetPassword: resetPasswordSchema,
+        googleOneTap: googleOneTapSchema
     },
 
     // Middleware (for route use)
@@ -319,6 +340,7 @@ module.exports = {
     validateVerifyMagicLink: validate(verifyMagicLinkSchema),
     validateForgotPassword: validate(forgotPasswordSchema),
     validateResetPassword: validate(resetPasswordSchema),
+    validateGoogleOneTap: validate(googleOneTapSchema),
 
     // Generic validate function
     validate

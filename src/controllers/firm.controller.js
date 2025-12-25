@@ -82,6 +82,7 @@ const getFirms = async (request, response) => {
  */
 const createFirm = asyncHandler(async (req, res) => {
     const userId = req.userID;
+    const { templateId } = req.body;
 
     // MASS ASSIGNMENT PROTECTION: Only allow specific fields
     const allowedFields = [
@@ -95,7 +96,8 @@ const createFirm = asyncHandler(async (req, res) => {
         'phone',
         'address',
         'practiceAreas',
-        'vatRegistration'
+        'vatRegistration',
+        'templateId' // Allow templateId parameter
     ];
     const safeInput = pickAllowedFields(req.body, allowedFields);
     const {
@@ -128,7 +130,29 @@ const createFirm = asyncHandler(async (req, res) => {
         throw CustomException('لديك مكتب محاماة بالفعل', 400);
     }
 
-    // Create the firm
+    // If templateId is provided, create firm from template
+    if (templateId) {
+        const OrganizationTemplateService = require('../services/organizationTemplate.service');
+
+        try {
+            const firm = await OrganizationTemplateService.createFirmFromTemplate(
+                templateId,
+                safeInput,
+                userId
+            );
+
+            return res.status(201).json({
+                success: true,
+                message: 'تم إنشاء المكتب من القالب بنجاح',
+                data: firm
+            });
+        } catch (error) {
+            // If template creation fails, fall back to standard creation
+            console.error('Template creation failed, using standard creation:', error.message);
+        }
+    }
+
+    // Standard firm creation (without template or as fallback)
     const firm = await Firm.create({
         name,
         nameArabic,

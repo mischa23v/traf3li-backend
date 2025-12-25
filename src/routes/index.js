@@ -15,6 +15,7 @@ const proposalRoute = require('./proposal.route');
 const questionRoute = require('./question.route');
 const answerRoute = require('./answer.route');
 const firmRoute = require('./firm.route');
+const organizationTemplateRoute = require('./organizationTemplate.route');
 
 // Dashboard Core Routes
 const dashboardRoute = require('./dashboard.route');
@@ -366,6 +367,7 @@ module.exports = {
     questionRoute,
     answerRoute,
     firmRoute,
+    organizationTemplateRoute,
 
     // Dashboard Core
     dashboardRoute,

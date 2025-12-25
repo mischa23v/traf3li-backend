@@ -845,6 +845,7 @@ app.use('/api/questions', questionRoute);
 app.use('/api/answers', answerRoute);
 app.use('/api/firms', firmRoute);
 app.use('/api/firms', noCache, ssoConfigRoute); // SSO configuration management (Enterprise)
+app.use('/api/templates', organizationTemplateRoute); // Organization template management
 
 // ============================================
 // DASHBOARD CORE ROUTES

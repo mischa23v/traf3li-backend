@@ -158,6 +158,60 @@ const ssoProviderSchema = new mongoose.Schema({
     },
 
     // ═══════════════════════════════════════════════════════════════
+    // DOMAIN-BASED SSO ROUTING
+    // ═══════════════════════════════════════════════════════════════
+    priority: {
+        type: Number,
+        default: 0
+        // Priority for domain routing when multiple providers match
+        // Higher number = higher priority (0 = lowest)
+        // Use case: Firm has both Google and Okta for different domains
+    },
+
+    autoRedirect: {
+        type: Boolean,
+        default: false
+        // Whether to auto-redirect users to this provider
+        // Only works if domain is verified
+        // false = show SSO button, true = auto-redirect
+    },
+
+    domainVerified: {
+        type: Boolean,
+        default: false
+        // Whether the domain ownership has been verified
+        // Required for auto-redirect to work (security measure)
+    },
+
+    verificationToken: {
+        type: String,
+        default: null
+        // DNS TXT record token for domain verification
+        // e.g., 'traf3li-verify=abc123def456'
+    },
+
+    verificationMethod: {
+        type: String,
+        enum: ['dns', 'email', 'manual', null],
+        default: null
+        // Method used for domain verification
+        // dns = DNS TXT record, email = email confirmation, manual = admin verified
+    },
+
+    verifiedAt: {
+        type: Date,
+        default: null
+        // When the domain was verified
+    },
+
+    verifiedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        default: null
+        // Admin user who verified the domain
+    },
+
+    // ═══════════════════════════════════════════════════════════════
     // STATUS & CONFIGURATION
     // ═══════════════════════════════════════════════════════════════
     isEnabled: {
@@ -196,6 +250,8 @@ const ssoProviderSchema = new mongoose.Schema({
 // ═══════════════════════════════════════════════════════════════
 ssoProviderSchema.index({ firmId: 1, providerType: 1 });
 ssoProviderSchema.index({ firmId: 1, isEnabled: 1 });
+ssoProviderSchema.index({ allowedDomains: 1, isEnabled: 1 }); // For domain-based routing
+ssoProviderSchema.index({ allowedDomains: 1, isEnabled: 1, priority: -1 }); // For prioritized domain routing
 
 // ═══════════════════════════════════════════════════════════════
 // ENCRYPTION PLUGIN
@@ -435,6 +491,55 @@ ssoProviderSchema.statics.listEnabledProviders = async function(firmId) {
     return this.find(query)
         .select('-clientSecret')  // Don't include secret in list
         .sort({ createdAt: -1 });
+};
+
+/**
+ * Find providers by email domain (for SSO routing)
+ * @param {String} domain - Email domain (e.g., 'biglaw.com')
+ * @param {ObjectId} firmId - Optional firm ID for firm-specific providers
+ * @returns {Promise<Array>} List of matching providers sorted by priority
+ */
+ssoProviderSchema.statics.findByDomain = async function(domain, firmId = null) {
+    if (!domain || typeof domain !== 'string') {
+        return [];
+    }
+
+    const normalizedDomain = domain.toLowerCase().trim();
+
+    const query = {
+        isEnabled: true,
+        allowedDomains: normalizedDomain
+    };
+
+    // Include both firm-specific and global providers
+    if (firmId) {
+        query.$or = [
+            { firmId: firmId },
+            { firmId: null }
+        ];
+    } else {
+        query.firmId = null;
+    }
+
+    try {
+        return await this.find(query)
+            .select('+clientSecret')  // Include secret for auth flow
+            .sort({ priority: -1, createdAt: -1 });  // Higher priority first
+    } catch (error) {
+        logger.error('Error finding providers by domain:', error);
+        return [];
+    }
+};
+
+/**
+ * Get highest priority provider for a domain
+ * @param {String} domain - Email domain
+ * @param {ObjectId} firmId - Optional firm ID
+ * @returns {Promise<SsoProvider|null>} Provider or null
+ */
+ssoProviderSchema.statics.getProviderForDomain = async function(domain, firmId = null) {
+    const providers = await this.findByDomain(domain, firmId);
+    return providers.length > 0 ? providers[0] : null;
 };
 
 module.exports = mongoose.model('SsoProvider', ssoProviderSchema);

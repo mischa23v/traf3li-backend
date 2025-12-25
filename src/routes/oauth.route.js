@@ -7,6 +7,14 @@ const {
     unlinkAccount,
     getLinkedAccounts
 } = require('../controllers/oauth.controller');
+const {
+    detectProvider,
+    getDomainConfig,
+    generateVerificationToken,
+    verifyDomain,
+    manualVerifyDomain,
+    invalidateDomainCache
+} = require('../controllers/ssoRouting.controller');
 const { authenticate } = require('../middlewares');
 const { authRateLimiter, publicRateLimiter } = require('../middlewares/rateLimiter.middleware');
 
@@ -300,5 +308,433 @@ app.delete('/unlink/:providerType', authenticate, authRateLimiter, unlinkAccount
  *         description: Authentication required
  */
 app.get('/linked', authenticate, publicRateLimiter, getLinkedAccounts);
+
+// ═══════════════════════════════════════════════════════════════
+// DOMAIN-BASED SSO ROUTING
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * @openapi
+ * /api/auth/sso/detect:
+ *   post:
+ *     summary: Detect SSO provider from email address
+ *     description: |
+ *       Auto-detects which Identity Provider (IdP) to use based on the user's email domain.
+ *       Returns provider information and authorization URL if a matching provider is found.
+ *     tags:
+ *       - SSO Routing
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 example: john.doe@biglaw.com
+ *                 description: User's email address
+ *               firmId:
+ *                 type: string
+ *                 example: 507f1f77bcf86cd799439011
+ *                 description: Optional firm ID for firm-specific providers
+ *               returnUrl:
+ *                 type: string
+ *                 example: /dashboard
+ *                 description: URL to return to after successful authentication
+ *     responses:
+ *       200:
+ *         description: Provider detection result (detected or not)
+ *         content:
+ *           application/json:
+ *             schema:
+ *               oneOf:
+ *                 - type: object
+ *                   properties:
+ *                     error:
+ *                       type: boolean
+ *                       example: false
+ *                     detected:
+ *                       type: boolean
+ *                       example: true
+ *                     provider:
+ *                       type: object
+ *                       properties:
+ *                         id:
+ *                           type: string
+ *                           example: 507f1f77bcf86cd799439011
+ *                         name:
+ *                           type: string
+ *                           example: BigLaw Okta
+ *                         type:
+ *                           type: string
+ *                           enum: [saml, oidc]
+ *                           example: saml
+ *                         providerType:
+ *                           type: string
+ *                           example: okta
+ *                         autoRedirect:
+ *                           type: boolean
+ *                           example: true
+ *                           description: Whether to auto-redirect user (only if domain verified)
+ *                         domainVerified:
+ *                           type: boolean
+ *                           example: true
+ *                         priority:
+ *                           type: number
+ *                           example: 10
+ *                     authUrl:
+ *                       type: string
+ *                       example: https://biglaw.okta.com/oauth2/v1/authorize?...
+ *                     message:
+ *                       type: string
+ *                       example: Sign in with your BigLaw account
+ *                     domain:
+ *                       type: string
+ *                       example: biglaw.com
+ *                 - type: object
+ *                   properties:
+ *                     error:
+ *                       type: boolean
+ *                       example: false
+ *                     detected:
+ *                       type: boolean
+ *                       example: false
+ *                     message:
+ *                       type: string
+ *                       example: No SSO provider configured for this email domain
+ *                     domain:
+ *                       type: string
+ *                       example: example.com
+ *       400:
+ *         description: Invalid email format or parameters
+ *       500:
+ *         description: Server error
+ */
+app.post('/detect', publicRateLimiter, detectProvider);
+
+/**
+ * @openapi
+ * /api/auth/sso/domain/{domain}:
+ *   get:
+ *     summary: Get SSO configuration for a domain (admin use)
+ *     description: |
+ *       Returns all SSO providers configured for a specific email domain.
+ *       Useful for admin dashboards to show domain configuration.
+ *     tags:
+ *       - SSO Routing
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: domain
+ *         required: true
+ *         schema:
+ *           type: string
+ *           example: biglaw.com
+ *         description: Email domain to lookup
+ *       - in: query
+ *         name: firmId
+ *         schema:
+ *           type: string
+ *           example: 507f1f77bcf86cd799439011
+ *         description: Optional firm ID for firm-specific providers
+ *     responses:
+ *       200:
+ *         description: Domain configuration retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                 domain:
+ *                   type: string
+ *                   example: biglaw.com
+ *                 providers:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: string
+ *                       name:
+ *                         type: string
+ *                       providerType:
+ *                         type: string
+ *                       priority:
+ *                         type: number
+ *                       autoRedirect:
+ *                         type: boolean
+ *                       domainVerified:
+ *                         type: boolean
+ *                       verificationMethod:
+ *                         type: string
+ *                         enum: [dns, email, manual, null]
+ *                       verifiedAt:
+ *                         type: string
+ *                         format: date-time
+ *                 primaryProvider:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: string
+ *                     name:
+ *                       type: string
+ *                     providerType:
+ *                       type: string
+ *       400:
+ *         description: Invalid domain format
+ *       401:
+ *         description: Authentication required
+ *       404:
+ *         description: No providers configured for domain
+ */
+app.get('/domain/:domain', authenticate, authRateLimiter, getDomainConfig);
+
+/**
+ * @openapi
+ * /api/auth/sso/domain/{domain}/verify/generate:
+ *   post:
+ *     summary: Generate domain verification token
+ *     description: |
+ *       Generates a DNS TXT record for domain ownership verification.
+ *       Returns instructions for adding the TXT record to the domain's DNS.
+ *     tags:
+ *       - SSO Routing
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: domain
+ *         required: true
+ *         schema:
+ *           type: string
+ *           example: biglaw.com
+ *         description: Domain to verify
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - providerId
+ *             properties:
+ *               providerId:
+ *                 type: string
+ *                 example: 507f1f77bcf86cd799439011
+ *                 description: SSO Provider ID
+ *     responses:
+ *       200:
+ *         description: Verification token generated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: boolean
+ *                   example: false
+ *                 domain:
+ *                   type: string
+ *                   example: biglaw.com
+ *                 verificationMethod:
+ *                   type: string
+ *                   example: dns
+ *                 txtRecord:
+ *                   type: object
+ *                   properties:
+ *                     host:
+ *                       type: string
+ *                       example: _traf3li.biglaw.com
+ *                     type:
+ *                       type: string
+ *                       example: TXT
+ *                     value:
+ *                       type: string
+ *                       example: traf3li-verify=abc123def456...
+ *                     ttl:
+ *                       type: number
+ *                       example: 3600
+ *                 instructions:
+ *                   type: array
+ *                   items:
+ *                     type: string
+ *                 token:
+ *                   type: string
+ *       400:
+ *         description: Invalid domain or provider ID
+ *       401:
+ *         description: Authentication required
+ */
+app.post('/domain/:domain/verify/generate', authenticate, authRateLimiter, generateVerificationToken);
+
+/**
+ * @openapi
+ * /api/auth/sso/domain/{domain}/verify:
+ *   post:
+ *     summary: Verify domain ownership via DNS
+ *     description: |
+ *       Checks for the presence of the verification TXT record in the domain's DNS.
+ *       If found, marks the domain as verified and enables auto-redirect.
+ *     tags:
+ *       - SSO Routing
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: domain
+ *         required: true
+ *         schema:
+ *           type: string
+ *           example: biglaw.com
+ *         description: Domain to verify
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - providerId
+ *             properties:
+ *               providerId:
+ *                 type: string
+ *                 example: 507f1f77bcf86cd799439011
+ *                 description: SSO Provider ID
+ *     responses:
+ *       200:
+ *         description: Domain verification successful
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: boolean
+ *                   example: false
+ *                 verified:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: Domain verified successfully
+ *                 verifiedAt:
+ *                   type: string
+ *                   format: date-time
+ *       400:
+ *         description: Verification failed or invalid parameters
+ *       401:
+ *         description: Authentication required
+ */
+app.post('/domain/:domain/verify', authenticate, authRateLimiter, verifyDomain);
+
+/**
+ * @openapi
+ * /api/auth/sso/domain/{domain}/verify/manual:
+ *   post:
+ *     summary: Manually verify domain (admin override)
+ *     description: |
+ *       Allows administrators to manually verify domain ownership without DNS verification.
+ *       Use this for domains that cannot use DNS TXT records or for testing.
+ *     tags:
+ *       - SSO Routing
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: domain
+ *         required: true
+ *         schema:
+ *           type: string
+ *           example: biglaw.com
+ *         description: Domain to verify
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - providerId
+ *             properties:
+ *               providerId:
+ *                 type: string
+ *                 example: 507f1f77bcf86cd799439011
+ *                 description: SSO Provider ID
+ *     responses:
+ *       200:
+ *         description: Domain verified manually
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: boolean
+ *                   example: false
+ *                 verified:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: Domain verified manually by administrator
+ *                 verificationMethod:
+ *                   type: string
+ *                   example: manual
+ *       400:
+ *         description: Invalid parameters
+ *       401:
+ *         description: Authentication required
+ */
+app.post('/domain/:domain/verify/manual', authenticate, authRateLimiter, manualVerifyDomain);
+
+/**
+ * @openapi
+ * /api/auth/sso/domain/{domain}/cache/invalidate:
+ *   post:
+ *     summary: Invalidate domain cache
+ *     description: |
+ *       Clears the cached SSO provider information for a domain.
+ *       Useful after updating provider configuration or domain settings.
+ *     tags:
+ *       - SSO Routing
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: domain
+ *         required: true
+ *         schema:
+ *           type: string
+ *           example: biglaw.com
+ *         description: Domain to invalidate cache for
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               firmId:
+ *                 type: string
+ *                 example: 507f1f77bcf86cd799439011
+ *                 description: Optional firm ID
+ *     responses:
+ *       200:
+ *         description: Cache invalidated successfully
+ *       400:
+ *         description: Invalid domain format
+ *       401:
+ *         description: Authentication required
+ */
+app.post('/domain/:domain/cache/invalidate', authenticate, authRateLimiter, invalidateDomainCache);
 
 module.exports = app;

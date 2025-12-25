@@ -1,0 +1,43 @@
+{
+  "name": "@traf3li/auth-react-ui",
+  "version": "1.0.0",
+  "description": "Pre-built React UI components for Traf3li Auth - ready-to-use, customizable authentication components",
+  "main": "index.tsx",
+  "types": "index.tsx",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "jest"
+  },
+  "keywords": [
+    "traf3li",
+    "auth",
+    "authentication",
+    "react",
+    "ui",
+    "components",
+    "login",
+    "signup",
+    "mfa",
+    "2fa"
+  ],
+  "author": "Traf3li",
+  "license": "MIT",
+  "peerDependencies": {
+    "react": ">=17.0.0",
+    "react-dom": ">=17.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.0.0",
+    "@types/react-dom": "^18.0.0",
+    "typescript": "^5.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/traf3li/traf3li-backend"
+  },
+  "bugs": {
+    "url": "https://github.com/traf3li/traf3li-backend/issues"
+  },
+  "homepage": "https://github.com/traf3li/traf3li-backend#readme"
+}

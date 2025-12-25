@@ -1,0 +1,30 @@
+# Source files (publish only dist)
+*.ts
+!*.d.ts
+tsconfig.json
+.gitignore
+
+# Testing
+*.test.ts
+*.spec.ts
+coverage/
+.nyc_output/
+
+# Build tools
+tsup.config.ts
+
+# Examples and docs (keep README.md)
+example.ts
+examples/
+
+# IDE
+.vscode/
+.idea/
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+
+# Misc
+*.log
+.DS_Store
