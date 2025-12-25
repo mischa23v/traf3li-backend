@@ -11,7 +11,9 @@ const {
     getMFAStatus
 } = require('../controllers/mfa.controller');
 const { authenticate } = require('../middlewares');
+const { requireRecentAuthHourly, requireVeryRecentAuth } = require('../middlewares/stepUpAuth.middleware');
 const { authRateLimiter, sensitiveRateLimiter } = require('../middlewares/rateLimiter.middleware');
+const { csrfProtection } = require('../middlewares/csrf.middleware');
 
 const router = express.Router();
 
@@ -49,7 +51,7 @@ const router = express.Router();
  *       401:
  *         $ref: '#/components/responses/Unauthorized'
  */
-router.post('/setup', authenticate, sensitiveRateLimiter, setupMFA);
+router.post('/setup', authenticate, requireRecentAuthHourly({ purpose: 'MFA setup' }), sensitiveRateLimiter, setupMFA);
 
 /**
  * @openapi
@@ -98,7 +100,7 @@ router.post('/setup', authenticate, sensitiveRateLimiter, setupMFA);
  *       401:
  *         $ref: '#/components/responses/Unauthorized'
  */
-router.post('/verify-setup', authenticate, authRateLimiter, verifySetup);
+router.post('/verify-setup', authenticate, csrfProtection, authRateLimiter, verifySetup);
 
 /**
  * @openapi
@@ -187,7 +189,7 @@ router.post('/verify', authRateLimiter, verifyMFA);
  *       401:
  *         $ref: '#/components/responses/Unauthorized'
  */
-router.post('/disable', authenticate, sensitiveRateLimiter, disableMFA);
+router.post('/disable', authenticate, requireRecentAuthHourly({ purpose: 'MFA disable' }), csrfProtection, sensitiveRateLimiter, disableMFA);
 
 /**
  * @openapi

@@ -20,17 +20,56 @@ const userSchema = new mongoose.Schema({
     // Basic user info
     username: {
         type: String,
-        required: true,
-        unique: true
+        required: function() {
+            return !this.isAnonymous; // Not required for anonymous users
+        },
+        unique: true,
+        sparse: true // Allow multiple null values for anonymous users
     },
     email: {
         type: String,
-        required: true,
-        unique: true
+        required: function() {
+            return !this.isAnonymous; // Not required for anonymous users
+        },
+        unique: true,
+        sparse: true // Allow multiple null values for anonymous users
     },
     password: {
         type: String,
-        required: true,
+        required: function() {
+            return !this.isAnonymous; // Not required for anonymous users
+        },
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // ANONYMOUS/GUEST AUTHENTICATION
+    // ═══════════════════════════════════════════════════════════════
+    // Flag indicating if this is an anonymous/guest user (Supabase-style)
+    isAnonymous: {
+        type: Boolean,
+        default: false,
+        required: false,
+        index: true
+    },
+    // Last activity timestamp for anonymous users (for cleanup)
+    lastActivityAt: {
+        type: Date,
+        default: Date.now,
+        required: false,
+        index: true
+    },
+    // Original anonymous user ID (if this user was converted from anonymous)
+    convertedFromAnonymousId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        required: false,
+        default: null
+    },
+    // When anonymous user was converted to full account
+    convertedAt: {
+        type: Date,
+        required: false,
+        default: null
     },
 
     // ═══════════════════════════════════════════════════════════════
@@ -57,11 +96,21 @@ const userSchema = new mongoose.Schema({
 
     firstName: {
         type: String,
-        required: true,
+        required: function() {
+            return !this.isAnonymous; // Not required for anonymous users
+        },
+        default: function() {
+            return this.isAnonymous ? 'Guest' : undefined;
+        }
     },
     lastName: {
         type: String,
-        required: true,
+        required: function() {
+            return !this.isAnonymous; // Not required for anonymous users
+        },
+        default: function() {
+            return this.isAnonymous ? 'User' : undefined;
+        }
     },
     image: {
         type: String,
@@ -69,7 +118,9 @@ const userSchema = new mongoose.Schema({
     },
     phone: {
         type: String,
-        required: true,
+        required: function() {
+            return !this.isAnonymous; // Not required for anonymous users
+        },
     },
     description: {
         type: String,
@@ -704,6 +755,31 @@ const userSchema = new mongoose.Schema({
                 lastSync: Date
             }
         }
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // CUSTOM JWT CLAIMS (Supabase-style)
+    // ═══════════════════════════════════════════════════════════════
+    // Custom claims to be included in JWT tokens
+    // Follows Supabase Auth pattern for extending user metadata in tokens
+    // Can store user-specific claims, permissions, metadata, etc.
+    customClaims: {
+        type: mongoose.Schema.Types.Mixed,
+        default: {},
+        required: false
+    },
+    // When custom claims were last updated
+    customClaimsUpdatedAt: {
+        type: Date,
+        required: false,
+        default: null
+    },
+    // Who updated the custom claims (admin tracking)
+    customClaimsUpdatedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        required: false,
+        default: null
     }
 }, {
     versionKey: false,

@@ -16,6 +16,7 @@ const Notification = require('../models/notification.model');
 const Firm = require('../models/firm.model');
 const UAParser = require('ua-parser-js');
 const logger = require('../utils/logger');
+const sessionConfig = require('../config/session.config');
 
 class SessionManagerService {
     /**
@@ -75,8 +76,14 @@ class SessionManagerService {
 
             await session.save();
 
+            // Enforce concurrent session limit
+            if (sessionConfig.maxConcurrentSessions > 0) {
+                const sessionLimit = await this.getSessionLimit(userId, deviceInfo.firmId);
+                await this.enforceSessionLimit(userId, sessionLimit);
+            }
+
             // Send notification if new device (async, non-blocking)
-            if (!isKnownDevice) {
+            if (!isKnownDevice && sessionConfig.notifyNewSession) {
                 this._notifyNewDevice(userId, parsedDeviceInfo, locationInfo, session._id)
                     .catch(err => logger.error('Failed to send new device notification:', err));
             }
@@ -325,6 +332,72 @@ class SessionManagerService {
     }
 
     /**
+     * Clean up inactive sessions based on inactivity timeout
+     * @returns {Promise<Number>} Count of cleaned up sessions
+     */
+    async cleanupInactiveSessions() {
+        try {
+            if (!sessionConfig.inactivityTimeout || sessionConfig.inactivityTimeout === 0) {
+                return 0;
+            }
+
+            const inactivityThreshold = new Date(Date.now() - sessionConfig.inactivityTimeout);
+
+            const result = await Session.updateMany(
+                {
+                    isActive: true,
+                    lastActivityAt: { $lte: inactivityThreshold }
+                },
+                {
+                    $set: {
+                        isActive: false,
+                        terminatedAt: new Date(),
+                        terminatedReason: 'expired'
+                    }
+                }
+            );
+
+            if (result.modifiedCount > 0) {
+                logger.info(`Cleaned up ${result.modifiedCount} inactive sessions`);
+            }
+
+            return result.modifiedCount;
+        } catch (error) {
+            logger.error('SessionManager.cleanupInactiveSessions failed:', error.message);
+            return 0;
+        }
+    }
+
+    /**
+     * Terminate all sessions for a user (used on password change)
+     * @param {String} userId - User ID
+     * @param {String} reason - Termination reason
+     * @returns {Promise<Object>} Result with count of terminated sessions
+     */
+    async terminateAllUserSessions(userId, reason = 'password_change') {
+        try {
+            const result = await Session.terminateAll(userId, reason, userId);
+
+            if (result.modifiedCount > 0) {
+                logger.info(`Terminated ${result.modifiedCount} sessions for user ${userId} due to ${reason}`);
+
+                // Send notification (async, non-blocking)
+                this._notifyAllSessionsTerminated(userId, result.modifiedCount, reason)
+                    .catch(err => logger.error('Failed to send all sessions terminated notification:', err));
+            }
+
+            return {
+                success: true,
+                terminatedCount: result.modifiedCount,
+                message: `${result.modifiedCount} session(s) terminated due to ${reason}`
+            };
+        } catch (error) {
+            logger.error('SessionManager.terminateAllUserSessions failed:', error.message);
+            throw error;
+        }
+    }
+
+    /**
      * Get sessions by IP address (for security monitoring)
      * @param {String} ipAddress - IP address
      * @param {Number} limit - Maximum results
@@ -452,6 +525,43 @@ class SessionManagerService {
             });
         } catch (error) {
             logger.error('Failed to create bulk termination notification:', error.message);
+        }
+    }
+
+    /**
+     * Send notification when all sessions are terminated (e.g., password change)
+     * @private
+     */
+    async _notifyAllSessionsTerminated(userId, count, reason) {
+        try {
+            const reasonText = reason === 'password_change'
+                ? 'password change'
+                : reason === 'security'
+                    ? 'security reasons'
+                    : reason;
+            const reasonTextAr = reason === 'password_change'
+                ? 'تغيير كلمة المرور'
+                : reason === 'security'
+                    ? 'أسباب أمنية'
+                    : reason;
+
+            await Notification.createNotification({
+                userId,
+                type: 'alert',
+                title: 'All Sessions Terminated',
+                titleAr: 'تم إنهاء جميع الجلسات',
+                message: `All ${count} active session(s) have been terminated due to ${reasonText}. Please log in again.`,
+                messageAr: `تم إنهاء جميع الجلسات النشطة (${count}) بسبب ${reasonTextAr}. يرجى تسجيل الدخول مرة أخرى.`,
+                priority: 'high',
+                channels: ['in_app', 'email'],
+                data: {
+                    count,
+                    reason,
+                    terminatedAt: new Date()
+                }
+            });
+        } catch (error) {
+            logger.error('Failed to create all sessions terminated notification:', error.message);
         }
     }
 }

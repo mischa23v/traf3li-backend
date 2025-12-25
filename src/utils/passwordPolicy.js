@@ -297,17 +297,18 @@ async function checkPasswordHistory(userId, newPassword, historyCount = 12) {
 }
 
 /**
- * Enforce complete password policy including validation, strength, history
+ * Enforce complete password policy including validation, strength, history, and breach check
  * @param {string} password - Password to check
  * @param {Object} user - User object with email, username, etc.
  * @param {Object} options - Policy options
- * @returns {Promise<{valid: boolean, errors: string[], errorsAr: string[], strength: Object}>}
+ * @returns {Promise<{valid: boolean, errors: string[], errorsAr: string[], strength: Object, breachCheck?: Object}>}
  */
 async function enforcePasswordPolicy(password, user, options = {}) {
     const {
         checkHistory = true,
         historyCount = 12,
-        minStrengthScore = 50
+        minStrengthScore = 50,
+        checkBreach = true
     } = options;
 
     const errors = [];
@@ -343,11 +344,40 @@ async function enforcePasswordPolicy(password, user, options = {}) {
         }
     }
 
+    // 4. Check if password has been breached (HaveIBeenPwned)
+    let breachCheck = null;
+    if (checkBreach) {
+        try {
+            const { checkPasswordBreach } = require('../services/passwordBreach.service');
+            breachCheck = await checkPasswordBreach(password);
+
+            // Only reject if password is breached AND the API check succeeded
+            // If API failed (error: true), we allow the password (graceful degradation)
+            if (breachCheck.breached && !breachCheck.error) {
+                errors.push(`This password has been found in ${breachCheck.count.toLocaleString()} data breaches. Please choose a different password for your security.`);
+                errorsAr.push(`تم العثور على كلمة المرور هذه في ${breachCheck.count.toLocaleString()} تسريب بيانات. الرجاء اختيار كلمة مرور مختلفة لحمايتك.`);
+            }
+        } catch (error) {
+            // Graceful degradation - if breach check service fails, log and continue
+            const logger = require('../utils/logger');
+            logger.warn('Password breach check failed in enforcePasswordPolicy', {
+                error: error.message
+            });
+            breachCheck = {
+                breached: false,
+                count: 0,
+                error: true,
+                errorMessage: error.message
+            };
+        }
+    }
+
     return {
         valid: errors.length === 0,
         errors,
         errorsAr,
-        strength
+        strength,
+        breachCheck
     };
 }
 
@@ -361,6 +391,28 @@ function getPasswordStrengthScore(password) {
     return strength.score;
 }
 
+/**
+ * Check if password has been breached (standalone function for registration/reset)
+ * @param {string} password - Password to check
+ * @returns {Promise<{breached: boolean, count: number, error: boolean}>}
+ */
+async function checkPasswordBreach(password) {
+    try {
+        const { checkPasswordBreach } = require('../services/passwordBreach.service');
+        return await checkPasswordBreach(password);
+    } catch (error) {
+        // Graceful degradation
+        const logger = require('../utils/logger');
+        logger.warn('Password breach check failed', { error: error.message });
+        return {
+            breached: false,
+            count: 0,
+            error: true,
+            errorMessage: error.message
+        };
+    }
+}
+
 module.exports = {
     validatePassword,
     getPasswordStrength,
@@ -368,6 +420,7 @@ module.exports = {
     generateSecurePassword,
     checkPasswordAge,
     checkPasswordHistory,
+    checkPasswordBreach,
     enforcePasswordPolicy,
     PASSWORD_POLICY,
 };

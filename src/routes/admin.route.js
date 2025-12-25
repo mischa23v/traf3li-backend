@@ -18,6 +18,13 @@ const {
     expireAllFirmPasswords,
     getFirmPasswordStats
 } = require('../controllers/adminPasswordManagement.controller');
+const {
+    getUserClaims,
+    setUserClaims,
+    deleteUserClaims,
+    previewTokenClaims,
+    validateClaims
+} = require('../controllers/adminCustomClaims.controller');
 const { authenticate } = require('../middlewares');
 const { sensitiveRateLimiter, publicRateLimiter } = require('../middlewares/rateLimiter.middleware');
 
@@ -491,5 +498,260 @@ app.post('/firm/expire-all-passwords', authenticate, sensitiveRateLimiter, expir
  *         description: Admin access required
  */
 app.get('/firm/password-stats', authenticate, publicRateLimiter, getFirmPasswordStats);
+
+// ========== Custom JWT Claims Management (Admin) ==========
+/**
+ * @openapi
+ * /api/admin/users/{id}/claims:
+ *   get:
+ *     summary: Get custom JWT claims for a user (Admin)
+ *     description: Retrieves custom claims and preview of all claims that will be in user's JWT token
+ *     tags:
+ *       - Admin - Custom Claims
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: User ID
+ *     responses:
+ *       200:
+ *         description: Claims retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: boolean
+ *                   example: false
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     userId:
+ *                       type: string
+ *                     userEmail:
+ *                       type: string
+ *                     customClaims:
+ *                       type: object
+ *                     tokenClaimsPreview:
+ *                       type: object
+ *                     metadata:
+ *                       type: object
+ *       403:
+ *         description: Admin access required
+ *       404:
+ *         description: User not found
+ */
+app.get('/users/:id/claims', authenticate, publicRateLimiter, getUserClaims);
+
+/**
+ * @openapi
+ * /api/admin/users/{id}/claims:
+ *   put:
+ *     summary: Set/Update custom JWT claims for a user (Admin)
+ *     description: Sets or updates custom claims that will be included in user's JWT tokens
+ *     tags:
+ *       - Admin - Custom Claims
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: User ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - claims
+ *             properties:
+ *               claims:
+ *                 type: object
+ *                 description: Custom claims to set
+ *                 example:
+ *                   department: "Legal"
+ *                   clearance_level: 3
+ *                   permissions: ["read", "write", "approve"]
+ *               merge:
+ *                 type: boolean
+ *                 default: true
+ *                 description: Merge with existing claims (true) or replace (false)
+ *     responses:
+ *       200:
+ *         description: Claims set successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: object
+ *       400:
+ *         description: Invalid claims or validation error
+ *       403:
+ *         description: Admin access required
+ *       404:
+ *         description: User not found
+ */
+app.put('/users/:id/claims', authenticate, sensitiveRateLimiter, setUserClaims);
+
+/**
+ * @openapi
+ * /api/admin/users/{id}/claims:
+ *   delete:
+ *     summary: Delete custom JWT claims for a user (Admin)
+ *     description: Deletes all or specific custom claims for a user
+ *     tags:
+ *       - Admin - Custom Claims
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: User ID
+ *     requestBody:
+ *       required: false
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               keys:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 description: Specific claim keys to delete (omit to delete all)
+ *                 example: ["department", "clearance_level"]
+ *     responses:
+ *       200:
+ *         description: Claims deleted successfully
+ *       403:
+ *         description: Admin access required
+ *       404:
+ *         description: User not found
+ */
+app.delete('/users/:id/claims', authenticate, sensitiveRateLimiter, deleteUserClaims);
+
+/**
+ * @openapi
+ * /api/admin/users/{id}/claims/preview:
+ *   get:
+ *     summary: Preview all JWT claims for a user (Admin)
+ *     description: Shows complete breakdown of all claims that will be in user's next JWT token
+ *     tags:
+ *       - Admin - Custom Claims
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: User ID
+ *     responses:
+ *       200:
+ *         description: Claims preview retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: boolean
+ *                   example: false
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     allClaims:
+ *                       type: object
+ *                     breakdown:
+ *                       type: object
+ *                       properties:
+ *                         standard:
+ *                           type: object
+ *                         userCustom:
+ *                           type: object
+ *                         dynamic:
+ *                           type: object
+ *                         conditional:
+ *                           type: object
+ *       403:
+ *         description: Admin access required
+ *       404:
+ *         description: User not found
+ */
+app.get('/users/:id/claims/preview', authenticate, publicRateLimiter, previewTokenClaims);
+
+/**
+ * @openapi
+ * /api/admin/users/{id}/claims/validate:
+ *   post:
+ *     summary: Validate custom claims without saving (Admin)
+ *     description: Validates custom claims object without actually saving it
+ *     tags:
+ *       - Admin - Custom Claims
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: User ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - claims
+ *             properties:
+ *               claims:
+ *                 type: object
+ *                 description: Claims to validate
+ *     responses:
+ *       200:
+ *         description: Validation result
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: boolean
+ *                   example: false
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     valid:
+ *                       type: boolean
+ *                     errors:
+ *                       type: array
+ *                       items:
+ *                         type: string
+ *       403:
+ *         description: Admin access required
+ */
+app.post('/users/:id/claims/validate', authenticate, publicRateLimiter, validateClaims);
 
 module.exports = app;

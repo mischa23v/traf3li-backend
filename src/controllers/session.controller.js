@@ -14,6 +14,7 @@ const auditLogService = require('../services/auditLog.service');
 const Session = require('../models/session.model');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 const logger = require('../utils/logger');
+const sessionConfig = require('../config/session.config');
 
 /**
  * Extract IP address from request
@@ -52,30 +53,49 @@ const validateSessionToken = (token) => {
 /**
  * Detect suspicious session activity
  */
-const detectSuspiciousActivity = (session, request) => {
+const detectSuspiciousActivity = async (session, request) => {
+    // Check if anomaly detection is enabled
+    if (!sessionConfig.enableAnomalyDetection) {
+        return [];
+    }
+
     const currentIP = getClientIP(request);
     const currentUserAgent = getClientUserAgent(request);
     const sessionIP = session.location?.ip || 'unknown';
     const sessionUserAgent = session.deviceInfo?.userAgent || 'unknown';
 
     const warnings = [];
+    const suspiciousReasons = [];
 
     // IP mismatch detection
-    if (currentIP !== 'unknown' && sessionIP !== 'unknown' && currentIP !== sessionIP) {
+    if (sessionConfig.anomalyDetection.detectIPChanges &&
+        currentIP !== 'unknown' && sessionIP !== 'unknown' && currentIP !== sessionIP) {
         warnings.push({
             type: 'ip_mismatch',
             message: 'IP address changed',
             details: { sessionIP, currentIP }
         });
+        suspiciousReasons.push('ip_mismatch');
     }
 
     // User agent mismatch detection
-    if (currentUserAgent !== 'unknown' && sessionUserAgent !== 'unknown' && currentUserAgent !== sessionUserAgent) {
+    if (sessionConfig.anomalyDetection.detectUserAgentChanges &&
+        currentUserAgent !== 'unknown' && sessionUserAgent !== 'unknown' && currentUserAgent !== sessionUserAgent) {
         warnings.push({
             type: 'user_agent_mismatch',
             message: 'User agent changed',
             details: { sessionUserAgent: sessionUserAgent.substring(0, 100), currentUserAgent: currentUserAgent.substring(0, 100) }
         });
+        suspiciousReasons.push('user_agent_mismatch');
+    }
+
+    // Mark session as suspicious if warnings detected
+    if (suspiciousReasons.length > 0 && !session.isSuspicious) {
+        try {
+            await session.markAsSuspicious(suspiciousReasons);
+        } catch (error) {
+            logger.error('Failed to mark session as suspicious:', error.message);
+        }
     }
 
     return warnings;
@@ -128,7 +148,10 @@ const getActiveSessions = async (request, response) => {
             lastActivityAt: session.lastActivityAt,
             expiresAt: session.expiresAt,
             isCurrent: session.tokenHash === currentTokenHash,
-            isNewDevice: session.isNewDevice
+            isNewDevice: session.isNewDevice,
+            isSuspicious: session.isSuspicious || false,
+            suspiciousReasons: session.suspiciousReasons || [],
+            suspiciousDetectedAt: session.suspiciousDetectedAt
         }));
 
         // Log access to sessions list (fire-and-forget)
@@ -234,7 +257,7 @@ const getCurrentSession = async (request, response) => {
         }
 
         // Detect suspicious activity (IP/user-agent changes)
-        const warnings = detectSuspiciousActivity(session, request);
+        const warnings = await detectSuspiciousActivity(session, request);
         if (warnings.length > 0) {
             // Log suspicious activity
             auditLogService.log(
@@ -270,7 +293,10 @@ const getCurrentSession = async (request, response) => {
                 createdAt: session.createdAt,
                 lastActivityAt: session.lastActivityAt,
                 expiresAt: session.expiresAt,
-                isCurrent: true
+                isCurrent: true,
+                isSuspicious: session.isSuspicious || false,
+                suspiciousReasons: session.suspiciousReasons || [],
+                suspiciousDetectedAt: session.suspiciousDetectedAt
             }
         };
 
@@ -532,12 +558,22 @@ const getSessionStats = async (request, response) => {
 
         const stats = await sessionManager.getUserSessionStats(sanitizedUserId);
 
+        // Count suspicious sessions
+        const suspiciousCount = await Session.countDocuments({
+            userId: sanitizedUserId,
+            isActive: true,
+            isSuspicious: true
+        });
+
         return response.status(200).json({
             error: false,
             message: 'Session statistics retrieved successfully',
             stats: {
                 activeCount: stats.activeCount,
                 totalCount: stats.totalCount,
+                suspiciousCount,
+                maxConcurrentSessions: sessionConfig.maxConcurrentSessions,
+                inactivityTimeoutSeconds: sessionConfig.inactivityTimeout / 1000,
                 recentSessions: stats.recentSessions.map(session => ({
                     id: session._id,
                     device: session.deviceInfo?.device,
@@ -546,7 +582,8 @@ const getSessionStats = async (request, response) => {
                     location: session.location,
                     createdAt: session.createdAt,
                     lastActivityAt: session.lastActivityAt,
-                    isActive: session.isActive
+                    isActive: session.isActive,
+                    isSuspicious: session.isSuspicious || false
                 }))
             }
         });

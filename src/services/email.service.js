@@ -913,6 +913,218 @@ class EmailService {
       throw new Error(`Failed to send MFA backup code usage notification: ${error.message}`);
     }
   }
+
+  /**
+   * Send reauthentication OTP email
+   * @param {string} email - Recipient email
+   * @param {string} otp - OTP code
+   * @param {string} purpose - Purpose of reauthentication
+   * @param {string} language - Language preference (ar/en)
+   */
+  static async sendReauthenticationOTP(email, otp, purpose = 'sensitive_operation', language = 'ar') {
+    try {
+      const purposeTranslations = {
+        password_change: {
+          ar: 'تغيير كلمة المرور',
+          en: 'Password Change'
+        },
+        mfa_enable: {
+          ar: 'تفعيل المصادقة الثنائية',
+          en: 'Enable Two-Factor Authentication'
+        },
+        mfa_disable: {
+          ar: 'تعطيل المصادقة الثنائية',
+          en: 'Disable Two-Factor Authentication'
+        },
+        account_deletion: {
+          ar: 'حذف الحساب',
+          en: 'Account Deletion'
+        },
+        payment_method: {
+          ar: 'تحديث طريقة الدفع',
+          en: 'Update Payment Method'
+        },
+        security_settings: {
+          ar: 'تعديل إعدادات الأمان',
+          en: 'Modify Security Settings'
+        },
+        sensitive_operation: {
+          ar: 'عملية حساسة',
+          en: 'Sensitive Operation'
+        }
+      };
+
+      const translations = {
+        ar: {
+          subject: 'رمز التحقق - إعادة المصادقة',
+          title: 'إعادة المصادقة مطلوبة',
+          greeting: 'مرحباً،',
+          messageText: `لقد طلبت القيام بـ: ${purposeTranslations[purpose]?.ar || 'عملية حساسة'}. لأسباب أمنية، نحتاج للتحقق من هويتك.`,
+          otpCodeTitle: 'رمز التحقق الخاص بك',
+          otpCodeText: 'استخدم رمز التحقق التالي لإكمال العملية:',
+          otpCode: otp,
+          validityTitle: 'مدة الصلاحية',
+          validityText: 'هذا الرمز صالح لمدة 10 دقائق فقط. لا تشاركه مع أي شخص.',
+          securityTitle: 'الأمان',
+          securityText: 'إذا لم تطلب هذا الرمز، يرجى تجاهل هذا البريد الإلكتروني والتأكد من أمان حسابك.',
+          tipsTitle: 'نصائح أمنية',
+          tip1: 'لا تشارك رمز التحقق مع أي شخص',
+          tip2: 'تأكد من أنك على موقع ترافعلي الرسمي',
+          tip3: 'فريق ترافعلي لن يطلب منك أبداً رمز التحقق عبر الهاتف أو البريد الإلكتروني',
+          supportText: 'إذا كنت بحاجة إلى مساعدة، يرجى التواصل مع فريق الدعم.',
+          closingText: 'مع أطيب التحيات،',
+          teamName: 'فريق ترافعلي - الأمان'
+        },
+        en: {
+          subject: 'Verification Code - Reauthentication',
+          title: 'Reauthentication Required',
+          greeting: 'Hello,',
+          messageText: `You have requested to: ${purposeTranslations[purpose]?.en || 'perform a sensitive operation'}. For security reasons, we need to verify your identity.`,
+          otpCodeTitle: 'Your Verification Code',
+          otpCodeText: 'Use the following verification code to complete the operation:',
+          otpCode: otp,
+          validityTitle: 'Validity Period',
+          validityText: 'This code is valid for 10 minutes only. Do not share it with anyone.',
+          securityTitle: 'Security',
+          securityText: 'If you did not request this code, please ignore this email and ensure your account is secure.',
+          tipsTitle: 'Security Tips',
+          tip1: 'Never share your verification code with anyone',
+          tip2: 'Make sure you are on the official Traf3li website',
+          tip3: 'Traf3li team will never ask for your verification code via phone or email',
+          supportText: 'If you need assistance, please contact our support team.',
+          closingText: 'Best regards,',
+          teamName: 'Traf3li Team - Security'
+        }
+      };
+
+      const t = translations[language];
+
+      // For now, send a simple email with the OTP
+      // You can create a proper template later using EmailTemplateService
+      const html = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>${t.title}</title>
+          <style>
+            body {
+              font-family: Arial, sans-serif;
+              line-height: 1.6;
+              color: #333;
+              max-width: 600px;
+              margin: 0 auto;
+              padding: 20px;
+            }
+            .container {
+              background-color: #f9f9f9;
+              border-radius: 8px;
+              padding: 30px;
+            }
+            .header {
+              text-align: center;
+              margin-bottom: 30px;
+            }
+            .header h1 {
+              color: #1a56db;
+              margin: 0;
+            }
+            .content {
+              background-color: white;
+              padding: 20px;
+              border-radius: 8px;
+              margin-bottom: 20px;
+            }
+            .otp-box {
+              background-color: #f0f4ff;
+              border: 2px solid #1a56db;
+              border-radius: 8px;
+              padding: 20px;
+              text-align: center;
+              margin: 20px 0;
+            }
+            .otp-code {
+              font-size: 32px;
+              font-weight: bold;
+              color: #1a56db;
+              letter-spacing: 5px;
+              margin: 10px 0;
+            }
+            .warning {
+              background-color: #fff3cd;
+              border-left: 4px solid #ffc107;
+              padding: 15px;
+              margin: 20px 0;
+            }
+            .tips {
+              background-color: #e7f3ff;
+              border-left: 4px solid #1a56db;
+              padding: 15px;
+              margin: 20px 0;
+            }
+            .tips ul {
+              margin: 10px 0;
+              padding-left: 20px;
+            }
+            .footer {
+              text-align: center;
+              color: #666;
+              font-size: 14px;
+              margin-top: 30px;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <h1>${t.title}</h1>
+            </div>
+
+            <div class="content">
+              <p>${t.greeting}</p>
+              <p>${t.messageText}</p>
+
+              <div class="otp-box">
+                <p style="margin: 0; font-size: 14px; color: #666;">${t.otpCodeText}</p>
+                <div class="otp-code">${otp}</div>
+              </div>
+
+              <div class="warning">
+                <strong>${t.validityTitle}:</strong> ${t.validityText}
+              </div>
+
+              <div class="tips">
+                <strong>${t.tipsTitle}:</strong>
+                <ul>
+                  <li>${t.tip1}</li>
+                  <li>${t.tip2}</li>
+                  <li>${t.tip3}</li>
+                </ul>
+              </div>
+
+              <p style="margin-top: 20px;"><strong>${t.securityTitle}:</strong> ${t.securityText}</p>
+              <p>${t.supportText}</p>
+            </div>
+
+            <div class="footer">
+              <p>${t.closingText}<br>${t.teamName}</p>
+            </div>
+          </div>
+        </body>
+        </html>
+      `;
+
+      return await this.sendEmail({
+        to: email,
+        subject: t.subject,
+        html
+      });
+    } catch (error) {
+      logger.error('Failed to send reauthentication OTP:', error);
+      throw new Error(`Failed to send reauthentication OTP: ${error.message}`);
+    }
+  }
 }
 
 module.exports = EmailService;
