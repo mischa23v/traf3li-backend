@@ -20,7 +20,7 @@ const {
 const {
     // Ticket CRUD
     getTickets,
-    getTicketById,
+    getTicket,
     createTicket,
     updateTicket,
     deleteTicket,
@@ -32,7 +32,7 @@ const {
 
     // SLA Management
     getSLAs,
-    getSLAById,
+    getSLA,
     createSLA,
     updateSLA,
     deleteSLA,
@@ -73,7 +73,7 @@ router.get('/tickets', getTickets);
 router.post('/tickets', validateCreateTicket, createTicket);
 
 // Get single ticket
-router.get('/tickets/:id', getTicketById);
+router.get('/tickets/:id', getTicket);
 
 // Update ticket
 router.put('/tickets/:id', validateUpdateTicket, updateTicket);
@@ -97,7 +97,7 @@ router.get('/slas', getSLAs);
 router.post('/slas', validateCreateSLA, createSLA);
 
 // Get single SLA
-router.get('/slas/:id', getSLAById);
+router.get('/slas/:id', getSLA);
 
 // Update SLA
 router.put('/slas/:id', validateUpdateSLA, updateSLA);
