@@ -21,7 +21,7 @@ const {
   getOverview
 } = require('../controllers/rateLimit.controller');
 const { authenticate } = require('../middlewares');
-const { adminAuth } = require('../middlewares/adminAuth.middleware');
+const { requireAdmin: adminAuth } = require('../middlewares/adminAuth.middleware');
 const { apiRateLimiter } = require('../middlewares/rateLimiter.middleware');
 
 const app = express.Router();
