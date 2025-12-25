@@ -192,6 +192,15 @@ const {
     leadScoringRoute,
     mlScoringRoute,
     whatsappRoute,
+    telegramRoute,
+    slackRoute,
+    discordRoute,
+    zoomRoute,
+    githubRoute,
+    trelloRoute,
+    gmailRoute,
+    docusignRoute,
+    appsRoute,
 
     // CRM Enhancement
     slaRoutes,
@@ -920,6 +929,14 @@ app.use('/api/staff', staffRoute);
 app.use('/api/lead-scoring', leadScoringRoute);
 app.use('/api/ml', mlScoringRoute);  // ML-enhanced lead scoring
 app.use('/api/whatsapp', whatsappRoute);
+app.use('/api/telegram', noCache, telegramRoute);
+app.use('/api/slack', noCache, slackRoute);
+app.use('/api/discord', noCache, discordRoute);
+app.use('/api/zoom', noCache, zoomRoute);
+app.use('/api/github', githubRoute);
+app.use('/api/trello', trelloRoute);
+app.use('/api/gmail', noCache, gmailRoute);
+app.use('/api/docusign', noCache, docusignRoute);
 
 // ============================================
 // CRM ENHANCEMENT ROUTES
@@ -1180,19 +1197,8 @@ app.use('/api/payroll-runs', noCache, payrollRunRoute); // No cache for payroll
 // Bank reconciliation alias (frontend expects singular form)
 app.use('/api/bank-reconciliation', noCache, bankReconciliationRoute);
 
-// Apps endpoint (placeholder for app integrations)
-app.get('/api/apps', (req, res) => {
-    // Return empty apps list for now - can be expanded later
-    res.json({
-        success: true,
-        data: {
-            apps: [],
-            installed: [],
-            available: []
-        },
-        message: 'Apps feature coming soon'
-    });
-});
+// Apps Integration Routes (Unified Apps API)
+app.use('/api/apps', noCache, appsRoute);
 
 // ============================================
 // API DOCUMENTATION (SWAGGER)

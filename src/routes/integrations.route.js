@@ -121,6 +121,21 @@ const webhookRateLimiter = createRateLimiter({
     },
 });
 
+// Discord Controllers
+const {
+    getAuthUrl: getDiscordAuthUrl,
+    handleCallback: handleDiscordCallback,
+    completeSetup: completeDiscordSetup,
+    getStatus: getDiscordStatus,
+    disconnect: disconnectDiscord,
+    testConnection: testDiscordConnection,
+    listGuilds: listDiscordGuilds,
+    listChannels: listDiscordChannels,
+    updateSettings: updateDiscordSettings,
+    sendMessage: sendDiscordMessage,
+    handleWebhook: handleDiscordWebhook
+} = require('../controllers/discord.controller');
+
 const router = express.Router();
 
 // ============================================================================
@@ -463,6 +478,100 @@ router.get('/xero/webhook/status',
     firmFilter,
     checkPermission('manage:integrations'),
     getXeroWebhookStatus
+);
+
+// ============================================================================
+// DISCORD ROUTES
+// ============================================================================
+
+/**
+ * Discord Integration Routes
+ * Handles Discord bot integration for case notifications and updates
+ */
+
+// Get Discord OAuth authorization URL
+router.get('/discord/auth-url',
+    userMiddleware,
+    firmFilter,
+    checkPermission('manage:integrations'),
+    oauthRateLimiter,
+    getDiscordAuthUrl
+);
+
+// Discord OAuth callback (no auth middleware - OAuth provider calls this)
+router.get('/discord/callback',
+    oauthRateLimiter,
+    handleDiscordCallback
+);
+
+// Complete Discord integration setup
+router.post('/discord/complete-setup',
+    userMiddleware,
+    firmFilter,
+    checkPermission('manage:integrations'),
+    completeDiscordSetup
+);
+
+// Get Discord connection status
+router.get('/discord/status',
+    userMiddleware,
+    firmFilter,
+    checkPermission('manage:integrations'),
+    getDiscordStatus
+);
+
+// Disconnect Discord integration
+router.post('/discord/disconnect',
+    userMiddleware,
+    firmFilter,
+    checkPermission('manage:integrations'),
+    disconnectDiscord
+);
+
+// Test Discord connection
+router.post('/discord/test',
+    userMiddleware,
+    firmFilter,
+    checkPermission('manage:integrations'),
+    testDiscordConnection
+);
+
+// List user's Discord servers
+router.get('/discord/guilds',
+    userMiddleware,
+    firmFilter,
+    checkPermission('manage:integrations'),
+    listDiscordGuilds
+);
+
+// List channels in a Discord server
+router.get('/discord/guilds/:guildId/channels',
+    userMiddleware,
+    firmFilter,
+    checkPermission('manage:integrations'),
+    listDiscordChannels
+);
+
+// Update Discord notification settings
+router.put('/discord/settings',
+    userMiddleware,
+    firmFilter,
+    checkPermission('manage:integrations'),
+    updateDiscordSettings
+);
+
+// Send custom message to Discord
+router.post('/discord/message',
+    userMiddleware,
+    firmFilter,
+    checkPermission('manage:integrations'),
+    sendDiscordMessage
+);
+
+// Incoming Discord webhook (unauthenticated - Discord calls this)
+router.post('/discord/webhook',
+    webhookRateLimiter,
+    handleDiscordWebhook
 );
 
 module.exports = router;

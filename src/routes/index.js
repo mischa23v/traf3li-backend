@@ -84,6 +84,15 @@ const staffRoute = require('./staff.route');
 const leadScoringRoute = require('./leadScoring.route');
 const mlScoringRoute = require('./mlScoring.route');
 const whatsappRoute = require('./whatsapp.route');
+const telegramRoute = require('./telegram.route');
+const slackRoute = require('./slack.route');
+const discordRoute = require('./discord.route');
+const zoomRoute = require('./zoom.route');
+const githubRoute = require('./github.route');
+const trelloRoute = require('./trello.route');
+const gmailRoute = require('./gmail.route');
+const docusignRoute = require('./docusign.route');
+const appsRoute = require('./apps.route');
 
 // CRM Enhancement Routes
 const slaRoutes = require('./sla.routes');
@@ -415,6 +424,15 @@ module.exports = {
     leadScoringRoute,
     mlScoringRoute,
     whatsappRoute,
+    telegramRoute,
+    slackRoute,
+    discordRoute,
+    zoomRoute,
+    githubRoute,
+    trelloRoute,
+    gmailRoute,
+    docusignRoute,
+    appsRoute,
 
     // CRM Enhancement
     slaRoutes,

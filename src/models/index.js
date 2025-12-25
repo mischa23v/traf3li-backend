@@ -345,6 +345,23 @@ const AIInteraction = require('./aiInteraction.model');
 // Google Calendar Integration Model
 const GoogleCalendarIntegration = require('./googleCalendarIntegration.model');
 
+// App Connection Model (Unified Apps API)
+const AppConnection = require('./appConnection.model');
+
+// Communication Integration Models
+const SlackIntegration = require('./slackIntegration.model');
+const DiscordIntegration = require('./discordIntegration.model');
+const TelegramIntegration = require('./telegramIntegration.model');
+const ZoomIntegration = require('./zoomIntegration.model');
+
+// Productivity Integration Models
+const GithubIntegration = require('./githubIntegration.model');
+const TrelloIntegration = require('./trelloIntegration.model');
+const GmailIntegration = require('./gmailIntegration.model');
+
+// E-Signature Integration Model
+const DocusignIntegration = require('./docusignIntegration.model');
+
 module.exports = {
     // Marketplace
     User,
@@ -695,5 +712,22 @@ module.exports = {
     AIInteraction,
 
     // Google Calendar Integration
-    GoogleCalendarIntegration
+    GoogleCalendarIntegration,
+
+    // App Connection (Unified Apps API)
+    AppConnection,
+
+    // Communication Integrations
+    SlackIntegration,
+    DiscordIntegration,
+    TelegramIntegration,
+    ZoomIntegration,
+
+    // Productivity Integrations
+    GithubIntegration,
+    TrelloIntegration,
+    GmailIntegration,
+
+    // E-Signature Integration
+    DocusignIntegration
 };
