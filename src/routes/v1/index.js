@@ -172,6 +172,9 @@ const metricsRoute = require('../metrics.route');
 // SLO Monitoring Routes
 const sloMonitoringRoute = require('../sloMonitoring.routes');
 
+// Apps Routes (Unified Apps API)
+const appsRoute = require('../apps.route');
+
 // Import security middleware
 const { noCache } = require('../../middlewares/security.middleware');
 
@@ -396,21 +399,7 @@ router.use('/payroll-runs', noCache, payrollRunRoute);
 router.use('/bank-reconciliation', noCache, bankReconciliationRoute);
 router.use('/succession-plans', successionPlanRoute);  // Alias for frontend (also available at /hr/succession-plans)
 
-// Apps endpoint (placeholder for app integrations)
-router.get('/apps', (req, res) => {
-    res.json({
-        success: true,
-        data: {
-            apps: [],
-            installed: [],
-            available: []
-        },
-        message: 'Apps feature coming soon',
-        meta: {
-            timestamp: new Date().toISOString(),
-            apiVersion: 'v1'
-        }
-    });
-});
+// Apps endpoint (Unified Apps API)
+router.use('/apps', appsRoute);
 
 module.exports = router;
