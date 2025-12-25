@@ -790,7 +790,7 @@ automatedActionSchema.methods.calculateExecutionDate = function(baseDate) {
  * Validate action configuration
  * @returns {Object} Validation result with isValid and errors
  */
-automatedActionSchema.methods.validate = function() {
+automatedActionSchema.methods.validateActionConfig = function() {
     const errors = [];
 
     // Validate trigger-specific fields

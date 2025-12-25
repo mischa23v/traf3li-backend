@@ -523,12 +523,12 @@ const validatePayroll = asyncHandler(async (req, res) => {
         throw CustomException('Access denied', 403);
     }
 
-    const errors = [];
+    const errorMessages = [];
 
     // Validation rules
     payrollRun.employeeList.forEach(emp => {
         if (emp.netPay < 0) {
-            errors.push({
+            errorMessages.push({
                 errorId: `ERR-${Date.now()}-${emp.employeeId}`,
                 errorCode: 'NEGATIVE_NET_PAY',
                 errorType: 'critical',
@@ -539,7 +539,7 @@ const validatePayroll = asyncHandler(async (req, res) => {
             });
         }
         if (!emp.iban && emp.paymentMethod === 'bank_transfer') {
-            errors.push({
+            errorMessages.push({
                 errorId: `ERR-${Date.now()}-${emp.employeeId}`,
                 errorCode: 'MISSING_IBAN',
                 errorType: 'error',
@@ -550,7 +550,7 @@ const validatePayroll = asyncHandler(async (req, res) => {
             });
         }
         if (emp.earnings.basicSalary <= 0) {
-            errors.push({
+            errorMessages.push({
                 errorId: `ERR-${Date.now()}-${emp.employeeId}`,
                 errorCode: 'ZERO_SALARY',
                 errorType: 'warning',
@@ -566,15 +566,15 @@ const validatePayroll = asyncHandler(async (req, res) => {
         validated: true,
         validationDate: new Date(),
         validatedBy: lawyerId,
-        errors,
-        criticalErrorCount: errors.filter(e => e.errorType === 'critical').length,
-        errorCount: errors.filter(e => e.errorType === 'error').length,
-        warningCount: errors.filter(e => e.errorType === 'warning').length,
-        hasBlockingErrors: errors.some(e => e.errorType === 'critical'),
-        canProceed: !errors.some(e => e.errorType === 'critical'),
+        errorMessages,
+        criticalErrorCount: errorMessages.filter(e => e.errorType === 'critical').length,
+        errorCount: errorMessages.filter(e => e.errorType === 'error').length,
+        warningCount: errorMessages.filter(e => e.errorType === 'warning').length,
+        hasBlockingErrors: errorMessages.some(e => e.errorType === 'critical'),
+        canProceed: !errorMessages.some(e => e.errorType === 'critical'),
         preRunValidation: {
-            allEmployeesHaveBank: !errors.some(e => e.errorCode === 'MISSING_IBAN'),
-            allSalariesPositive: !errors.some(e => e.errorCode === 'ZERO_SALARY'),
+            allEmployeesHaveBank: !errorMessages.some(e => e.errorCode === 'MISSING_IBAN'),
+            allSalariesPositive: !errorMessages.some(e => e.errorCode === 'ZERO_SALARY'),
             noNegativeDeductions: true,
             gosiCalculationCorrect: true,
             totalBalanced: true
@@ -586,15 +586,15 @@ const validatePayroll = asyncHandler(async (req, res) => {
         action: 'Payroll validated',
         actionType: 'validation',
         performedBy: lawyerId,
-        status: errors.some(e => e.errorType === 'critical') ? 'warning' : 'success',
-        details: `Found ${errors.length} issues`
+        status: errorMessages.some(e => e.errorType === 'critical') ? 'warning' : 'success',
+        details: `Found ${errorMessages.length} issues`
     });
 
     await payrollRun.save();
 
     return res.json({
         success: true,
-        message: `Validation completed with ${errors.length} issues`,
+        message: `Validation completed with ${errorMessages.length} issues`,
         validation: payrollRun.validation
     });
 });

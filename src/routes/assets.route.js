@@ -23,11 +23,10 @@ const {
     validateCreateMovement,
     validateUpdateSettings
 } = require('../validators/assets.validator');
-const { authenticate } = require('../middlewares');
-const { firmFilter } = require('../middlewares/firmFilter.middleware');
+const { userMiddleware, firmFilter } = require('../middlewares');
 
 // Apply authentication and firm filter middleware to all routes
-router.use(authenticate, firmFilter);
+router.use(userMiddleware, firmFilter);
 
 // ═══════════════════════════════════════════════════════════════
 // STATIC ROUTES (must come before parameterized routes)

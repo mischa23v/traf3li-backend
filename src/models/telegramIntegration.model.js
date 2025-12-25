@@ -234,7 +234,7 @@ const telegramIntegrationSchema = new mongoose.Schema({
         messagesReceived: { type: Number, default: 0 },
         commandsProcessed: { type: Number, default: 0 },
         notificationsSent: { type: Number, default: 0 },
-        errors: { type: Number, default: 0 },
+        errorCount: { type: Number, default: 0 },
         lastResetAt: { type: Date, default: Date.now }
     },
 
@@ -364,7 +364,7 @@ telegramIntegrationSchema.methods.incrementCommandProcessed = function() {
  * Record error
  */
 telegramIntegrationSchema.methods.recordError = function(error) {
-    this.stats.errors += 1;
+    this.stats.errorCount += 1;
     this.lastErrorAt = new Date();
     this.lastError = error.message || String(error);
     return this.save();

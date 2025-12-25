@@ -77,7 +77,7 @@ const employeeListItemSchema = new mongoose.Schema({
     proratedFactor: Number,
     onProbation: { type: Boolean, default: false },
     hasErrors: { type: Boolean, default: false },
-    errors: [employeeErrorSchema],
+    errorMessages: [employeeErrorSchema],
     hasWarnings: { type: Boolean, default: false },
     warnings: [employeeWarningSchema],
     onHold: { type: Boolean, default: false },
@@ -108,7 +108,7 @@ const employeeListItemSchema = new mongoose.Schema({
     calculationDuration: Number,
     approvedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     approvedOn: Date
-}, { _id: true, suppressReservedKeysWarning: true });
+}, { _id: true });
 
 const departmentBreakdownSchema = new mongoose.Schema({
     departmentId: String,
@@ -531,7 +531,7 @@ const payrollRunSchema = new mongoose.Schema({
         validated: { type: Boolean, default: false },
         validationDate: Date,
         validatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-        errors: [validationErrorSchema],
+        errorMessages: [validationErrorSchema],
         criticalErrorCount: { type: Number, default: 0 },
         errorCount: { type: Number, default: 0 },
         warningCount: { type: Number, default: 0 },
@@ -648,8 +648,7 @@ const payrollRunSchema = new mongoose.Schema({
 
 }, {
     timestamps: true,
-    versionKey: false,
-    suppressReservedKeysWarning: true  // Suppress warnings for 'errors' field which is intentionally used
+    versionKey: false
 });
 
 // ═══════════════════════════════════════════════════════════════

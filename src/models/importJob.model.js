@@ -148,7 +148,7 @@ const importJobSchema = new mongoose.Schema({
     // ═══════════════════════════════════════════════════════════════
     // ERRORS & WARNINGS
     // ═══════════════════════════════════════════════════════════════
-    errors: {
+    errorMessages: {
         type: [ErrorSchema],
         default: []
     },
@@ -295,7 +295,7 @@ importJobSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 // VIRTUALS
 // ═══════════════════════════════════════════════════════════════
 importJobSchema.virtual('hasErrors').get(function() {
-    return this.errorCount > 0 || (this.errors && this.errors.length > 0);
+    return this.errorCount > 0 || (this.errorMessages && this.errorMessages.length > 0);
 });
 
 importJobSchema.virtual('hasWarnings').get(function() {
@@ -440,7 +440,7 @@ importJobSchema.statics.addError = async function(jobId, error, field, message) 
             jobId,
             {
                 $push: {
-                    errors: {
+                    errorMessages: {
                         row: error,
                         column: field,
                         message: message,
@@ -458,7 +458,7 @@ importJobSchema.statics.addError = async function(jobId, error, field, message) 
             jobId,
             {
                 $push: {
-                    errors: {
+                    errorMessages: {
                         row: error.row,
                         column: error.column,
                         message: error.message,
@@ -610,7 +610,7 @@ importJobSchema.statics.getHistory = async function(userId, firmId, filters = {}
     return await this.find(query)
         .sort({ createdAt: -1 })
         .limit(filters.limit || 50)
-        .select('-errors -warnings -importErrors')
+        .select('-errorMessages -warnings -importErrors')
         .lean();
 };
 
