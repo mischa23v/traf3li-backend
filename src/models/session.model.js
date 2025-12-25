@@ -140,6 +140,27 @@ const sessionSchema = new mongoose.Schema({
         type: Boolean,
         default: false
     },
+    isSuspicious: {
+        type: Boolean,
+        default: false,
+        index: true
+    },
+    suspiciousReasons: {
+        type: [String],
+        default: [],
+        enum: [
+            'ip_mismatch',
+            'user_agent_mismatch',
+            'impossible_travel',
+            'location_change',
+            'multiple_locations',
+            'abnormal_activity_pattern',
+            null
+        ]
+    },
+    suspiciousDetectedAt: {
+        type: Date
+    },
 
     // Metadata
     metadata: {
@@ -387,6 +408,27 @@ sessionSchema.methods.getTimeUntilExpiration = function() {
  */
 sessionSchema.methods.getIdleTime = function() {
     return Date.now() - this.lastActivityAt.getTime();
+};
+
+/**
+ * Mark session as suspicious
+ * @param {Array<String>} reasons - Array of reason codes
+ */
+sessionSchema.methods.markAsSuspicious = function(reasons = []) {
+    this.isSuspicious = true;
+    this.suspiciousReasons = [...new Set([...this.suspiciousReasons, ...reasons])]; // Merge and deduplicate
+    this.suspiciousDetectedAt = new Date();
+    return this.save();
+};
+
+/**
+ * Clear suspicious flag
+ */
+sessionSchema.methods.clearSuspicious = function() {
+    this.isSuspicious = false;
+    this.suspiciousReasons = [];
+    this.suspiciousDetectedAt = undefined;
+    return this.save();
 };
 
 module.exports = mongoose.model('Session', sessionSchema);

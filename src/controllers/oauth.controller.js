@@ -3,11 +3,12 @@ const { CustomException } = require('../utils');
 const logger = require('../utils/contextLogger');
 const { getCookieConfig } = require('./auth.controller');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
+const authWebhookService = require('../services/authWebhook.service');
 
 /**
  * Allowed OAuth provider types
  */
-const ALLOWED_PROVIDER_TYPES = ['google', 'microsoft', 'okta', 'azure', 'auth0', 'custom'];
+const ALLOWED_PROVIDER_TYPES = ['google', 'microsoft', 'facebook', 'apple', 'okta', 'azure', 'auth0', 'custom', 'twitter', 'linkedin', 'github'];
 
 /**
  * Validate and sanitize redirect URI
@@ -170,7 +171,7 @@ const getEnabledProviders = async (request, response) => {
 const authorize = async (request, response) => {
     try {
         const { providerType } = request.params;
-        const { returnUrl, firmId } = request.query;
+        const { returnUrl, firmId, use_pkce } = request.query;
 
         // Validate provider type
         const validatedProviderType = validateProviderType(providerType);
@@ -203,17 +204,30 @@ const authorize = async (request, response) => {
             }
         }
 
-        // Generate authorization URL with CSRF protection (state parameter)
+        // Parse PKCE flag (for mobile apps)
+        // Can be: use_pkce=true, use_pkce=1, use_pkce=yes
+        const usePKCE = use_pkce === 'true' || use_pkce === '1' || use_pkce === 'yes';
+
+        if (usePKCE) {
+            logger.info('PKCE requested for OAuth flow', {
+                provider: validatedProviderType,
+                clientType: request.headers['user-agent']?.includes('Mobile') ? 'mobile' : 'web'
+            });
+        }
+
+        // Generate authorization URL with CSRF protection (state parameter) and optional PKCE
         const authUrl = await oauthService.getAuthorizationUrl(
             validatedProviderType,
             validatedReturnUrl,
-            validatedFirmId
+            validatedFirmId,
+            usePKCE
         );
 
         return response.status(200).json({
             error: false,
             message: 'Authorization URL generated successfully',
-            authUrl
+            authUrl,
+            pkceEnabled: usePKCE
         });
     } catch (error) {
         logger.error('Failed to generate authorization URL', { error: error.message });
@@ -404,6 +418,27 @@ const linkAccount = async (request, response) => {
             'linkedAt'
         ]);
 
+        // Trigger OAuth linked webhook (fire-and-forget)
+        (async () => {
+            try {
+                const { User } = require('../models');
+                const user = await User.findById(userId).select('_id email username firmId').lean();
+                if (user) {
+                    await authWebhookService.triggerOAuthLinkedWebhook(user, request, {
+                        provider: result.provider || validatedProviderType,
+                        providerUserId: result.providerUserId,
+                        firmId: user.firmId?.toString() || null
+                    });
+                }
+            } catch (error) {
+                logger.error('Failed to trigger OAuth linked webhook', {
+                    error: error.message,
+                    userId
+                });
+                // Don't fail linking if webhook fails
+            }
+        })();
+
         return response.status(200).json({
             error: false,
             message: 'OAuth account linked successfully',
@@ -436,6 +471,26 @@ const unlinkAccount = async (request, response) => {
         }
 
         const result = await oauthService.unlinkAccount(userId, validatedProviderType);
+
+        // Trigger OAuth unlinked webhook (fire-and-forget)
+        (async () => {
+            try {
+                const { User } = require('../models');
+                const user = await User.findById(userId).select('_id email username firmId').lean();
+                if (user) {
+                    await authWebhookService.triggerOAuthUnlinkedWebhook(user, request, {
+                        provider: validatedProviderType,
+                        firmId: user.firmId?.toString() || null
+                    });
+                }
+            } catch (error) {
+                logger.error('Failed to trigger OAuth unlinked webhook', {
+                    error: error.message,
+                    userId
+                });
+                // Don't fail unlinking if webhook fails
+            }
+        })();
 
         return response.status(200).json({
             error: false,

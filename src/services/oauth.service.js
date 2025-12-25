@@ -10,6 +10,7 @@ const cacheService = require('./cache.service');
 const logger = require('../utils/contextLogger');
 const { CustomException } = require('../utils');
 const auditLogService = require('./auditLog.service');
+const { generateAppleClientSecret, decodeAppleIdToken, mapAppleUserInfo } = require('./appleOAuth.helper');
 
 const { JWT_SECRET, FRONTEND_URL, DASHBOARD_URL } = process.env;
 
@@ -72,13 +73,50 @@ const PROVIDER_CONFIGS = {
         authorizationUrl: 'https://accounts.google.com/o/oauth2/v2/auth',
         tokenUrl: 'https://oauth2.googleapis.com/token',
         userinfoUrl: 'https://www.googleapis.com/oauth2/v3/userinfo',
-        scopes: ['openid', 'profile', 'email']
+        scopes: ['openid', 'profile', 'email'],
+        pkceSupport: 'optional' // Google supports but doesn't require PKCE
     },
     microsoft: {
         authorizationUrl: 'https://login.microsoftonline.com/common/oauth2/v2.0/authorize',
         tokenUrl: 'https://login.microsoftonline.com/common/oauth2/v2.0/token',
         userinfoUrl: 'https://graph.microsoft.com/v1.0/me',
-        scopes: ['openid', 'profile', 'email', 'User.Read']
+        scopes: ['openid', 'profile', 'email', 'User.Read'],
+        pkceSupport: 'optional' // Microsoft supports but doesn't require PKCE
+    },
+    facebook: {
+        authorizationUrl: 'https://www.facebook.com/v18.0/dialog/oauth',
+        tokenUrl: 'https://graph.facebook.com/v18.0/oauth/access_token',
+        userinfoUrl: 'https://graph.facebook.com/me?fields=id,name,email,picture',
+        scopes: ['email', 'public_profile'],
+        pkceSupport: 'optional' // Facebook supports PKCE for enhanced security
+    },
+    apple: {
+        authorizationUrl: 'https://appleid.apple.com/auth/authorize',
+        tokenUrl: 'https://appleid.apple.com/auth/token',
+        userinfoUrl: null, // Apple returns user info in id_token JWT, not a userinfo endpoint
+        scopes: ['name', 'email'],
+        responseMode: 'form_post', // Apple requires this
+        pkceSupport: 'none' // Apple doesn't support PKCE
+    },
+    twitter: {
+        authorizationUrl: 'https://twitter.com/i/oauth2/authorize',
+        tokenUrl: 'https://api.twitter.com/2/oauth2/token',
+        userinfoUrl: 'https://api.twitter.com/2/users/me?user.fields=id,name,username,profile_image_url',
+        scopes: ['tweet.read', 'users.read', 'offline.access'],
+        pkceSupport: 'required' // Twitter requires PKCE
+    },
+    linkedin: {
+        authorizationUrl: 'https://www.linkedin.com/oauth/v2/authorization',
+        tokenUrl: 'https://www.linkedin.com/oauth/v2/accessToken',
+        userinfoUrl: 'https://api.linkedin.com/v2/userinfo',
+        scopes: ['openid', 'profile', 'email']
+    },
+    github: {
+        authorizationUrl: 'https://github.com/login/oauth/authorize',
+        tokenUrl: 'https://github.com/login/oauth/access_token',
+        userinfoUrl: 'https://api.github.com/user',
+        scopes: ['read:user', 'user:email'],
+        pkceSupport: 'optional' // GitHub supports PKCE
     }
 };
 
@@ -89,6 +127,56 @@ class OAuthService {
      */
     generateState() {
         return crypto.randomBytes(32).toString('hex');
+    }
+
+    /**
+     * Generate PKCE code verifier
+     * Random URL-safe string between 43-128 characters
+     * @returns {string} Code verifier (base64url encoded)
+     */
+    generateCodeVerifier() {
+        // Generate 32 random bytes, which will result in a 43-character base64url string
+        // This meets the minimum length requirement of 43 characters
+        return crypto.randomBytes(32)
+            .toString('base64')
+            .replace(/\+/g, '-')
+            .replace(/\//g, '_')
+            .replace(/=/g, '');
+    }
+
+    /**
+     * Generate PKCE code challenge from verifier
+     * SHA256 hash of the verifier, base64url encoded
+     * @param {string} verifier - Code verifier
+     * @returns {string} Code challenge (base64url encoded)
+     */
+    generateCodeChallenge(verifier) {
+        return crypto.createHash('sha256')
+            .update(verifier)
+            .digest('base64')
+            .replace(/\+/g, '-')
+            .replace(/\//g, '_')
+            .replace(/=/g, '');
+    }
+
+    /**
+     * Check if PKCE is required for a provider
+     * @param {string} providerType - Provider type
+     * @returns {boolean} True if PKCE is required
+     */
+    isPKCERequired(providerType) {
+        const config = PROVIDER_CONFIGS[providerType];
+        return config?.pkceSupport === 'required';
+    }
+
+    /**
+     * Check if PKCE is supported for a provider
+     * @param {string} providerType - Provider type
+     * @returns {boolean} True if PKCE is supported (required or optional)
+     */
+    isPKCESupported(providerType) {
+        const config = PROVIDER_CONFIGS[providerType];
+        return config?.pkceSupport === 'required' || config?.pkceSupport === 'optional';
     }
 
     /**
@@ -127,8 +215,8 @@ class OAuthService {
     async getProviderConfig(providerId, firmId = null) {
         let provider;
 
-        // Check if providerId is actually a provider type (google, microsoft, etc.)
-        if (['google', 'microsoft', 'okta', 'auth0', 'custom'].includes(providerId)) {
+        // Check if providerId is actually a provider type (google, microsoft, facebook, etc.)
+        if (['google', 'microsoft', 'facebook', 'okta', 'auth0', 'custom', 'apple', 'twitter', 'linkedin', 'github'].includes(providerId)) {
             // Get provider by type and firm
             provider = await SsoProvider.getActiveProvider(firmId, providerId);
         } else {
@@ -163,9 +251,10 @@ class OAuthService {
      * @param {string} providerId - Provider ID or provider type
      * @param {string} returnUrl - URL to return to after authentication
      * @param {string} firmId - Optional firm ID
+     * @param {boolean} usePKCE - Whether to use PKCE (Proof Key for Code Exchange)
      * @returns {string} Authorization URL
      */
-    async getAuthorizationUrl(providerId, returnUrl = '/', firmId = null) {
+    async getAuthorizationUrl(providerId, returnUrl = '/', firmId = null, usePKCE = false) {
         const config = await this.getProviderConfig(providerId, firmId);
 
         // Generate state for CSRF protection
@@ -178,13 +267,38 @@ class OAuthService {
         // Validate return URL to prevent open redirect attacks
         const safeReturnUrl = validateReturnUrl(returnUrl);
 
-        // Store state with metadata
+        // Determine if PKCE should be used
+        const providerType = config.provider.providerType;
+        const pkceRequired = this.isPKCERequired(providerType);
+        const pkceSupported = this.isPKCESupported(providerType);
+        const shouldUsePKCE = pkceRequired || (usePKCE && pkceSupported);
+
+        // Generate PKCE parameters if enabled
+        let codeVerifier = null;
+        let codeChallenge = null;
+
+        if (shouldUsePKCE) {
+            codeVerifier = this.generateCodeVerifier();
+            codeChallenge = this.generateCodeChallenge(codeVerifier);
+
+            logger.info('PKCE enabled for OAuth flow', {
+                provider: config.provider.name,
+                providerType,
+                required: pkceRequired,
+                codeVerifierLength: codeVerifier.length,
+                codeChallengeLength: codeChallenge.length
+            });
+        }
+
+        // Store state with metadata (including code_verifier if PKCE is used)
         await this.storeState(state, {
             providerId: config.provider._id.toString(),
             providerType: config.provider.providerType,
             returnUrl: safeReturnUrl,
             firmId: config.provider.firmId,
             redirectUri,
+            codeVerifier, // Store for token exchange
+            usePKCE: shouldUsePKCE,
             timestamp: Date.now()
         });
 
@@ -199,6 +313,12 @@ class OAuthService {
             prompt: 'consent' // Force consent to get refresh token
         });
 
+        // Add PKCE parameters if enabled
+        if (shouldUsePKCE && codeChallenge) {
+            params.append('code_challenge', codeChallenge);
+            params.append('code_challenge_method', 'S256');
+        }
+
         return `${config.authorizationUrl}?${params.toString()}`;
     }
 
@@ -209,30 +329,64 @@ class OAuthService {
      * @param {string} redirectUri - Redirect URI used in authorization
      * @returns {object} Token response
      */
-    async exchangeCodeForTokens(providerId, code, redirectUri) {
+    async exchangeCodeForTokens(providerId, code, redirectUri, codeVerifier = null) {
         const config = await this.getProviderConfig(providerId);
 
         try {
+            // For Apple, generate client_secret as a JWT
+            let clientSecret = config.clientSecret;
+            if (config.provider.providerType === 'apple') {
+                // Apple requires client_secret as a JWT signed with private key
+                const teamId = process.env.APPLE_TEAM_ID;
+                const keyId = process.env.APPLE_KEY_ID;
+                const privateKey = process.env.APPLE_PRIVATE_KEY;
+
+                if (!teamId || !keyId || !privateKey) {
+                    throw CustomException('Apple Sign-In is not configured. Missing APPLE_TEAM_ID, APPLE_KEY_ID, or APPLE_PRIVATE_KEY', 500);
+                }
+
+                clientSecret = generateAppleClientSecret(teamId, config.clientId, keyId, privateKey);
+            }
+
             // Build request parameters
             const params = new URLSearchParams({
                 client_id: config.clientId,
-                client_secret: config.clientSecret,
+                client_secret: clientSecret,
                 code,
                 redirect_uri: redirectUri,
                 grant_type: 'authorization_code'
             });
 
+            // Add PKCE code_verifier if provided
+            if (codeVerifier) {
+                params.append('code_verifier', codeVerifier);
+
+                logger.info('Including PKCE code_verifier in token exchange', {
+                    provider: config.provider.name,
+                    codeVerifierLength: codeVerifier.length
+                });
+            }
+
+            // Build headers
+            const headers = {
+                'Content-Type': 'application/x-www-form-urlencoded'
+            };
+
+            // GitHub requires Accept: application/json header for token response
+            if (config.provider.providerType === 'github') {
+                headers['Accept'] = 'application/json';
+            }
+
             const response = await axios.post(config.tokenUrl, params.toString(), {
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded'
-                }
+                headers
             });
 
             return response.data;
         } catch (error) {
             logger.error('Token exchange failed', {
                 provider: config.provider.name,
-                error: error.response?.data || error.message
+                error: error.response?.data || error.message,
+                usedPKCE: !!codeVerifier
             });
             throw CustomException('Failed to exchange authorization code for tokens', 400);
         }
@@ -242,9 +396,16 @@ class OAuthService {
      * Get user info from provider
      * @param {object} provider - Provider configuration
      * @param {string} accessToken - Access token
+     * @param {string} idToken - ID token (optional, used by Apple)
      * @returns {object} User info
      */
-    async getUserInfo(provider, accessToken) {
+    async getUserInfo(provider, accessToken, idToken = null) {
+        // For Apple, user info is in the id_token JWT, not from userinfo endpoint
+        if (provider.providerType === 'apple' && idToken) {
+            const decoded = decodeAppleIdToken(idToken);
+            return mapAppleUserInfo(decoded);
+        }
+
         const config = PROVIDER_CONFIGS[provider.name] || {};
         const userinfoUrl = provider.userinfoUrl || config.userinfoUrl;
 
@@ -255,7 +416,36 @@ class OAuthService {
                 }
             });
 
-            return this.mapUserInfo(provider.name, response.data, provider.attributeMapping);
+            let userData = response.data;
+
+            // For GitHub, fetch email separately if not provided in user profile
+            if (provider.providerType === 'github' && !userData.email) {
+                try {
+                    const emailResponse = await axios.get('https://api.github.com/user/emails', {
+                        headers: {
+                            Authorization: `Bearer ${accessToken}`
+                        }
+                    });
+
+                    // Find primary verified email
+                    const primaryEmail = emailResponse.data.find(e => e.primary && e.verified);
+                    if (primaryEmail) {
+                        userData.email = primaryEmail.email;
+                    } else {
+                        // Fallback to first verified email
+                        const verifiedEmail = emailResponse.data.find(e => e.verified);
+                        if (verifiedEmail) {
+                            userData.email = verifiedEmail.email;
+                        }
+                    }
+                } catch (emailError) {
+                    logger.warn('Failed to fetch GitHub user emails', {
+                        error: emailError.message
+                    });
+                }
+            }
+
+            return this.mapUserInfo(provider.name, userData, provider.attributeMapping);
         } catch (error) {
             logger.error('Failed to get user info', {
                 provider: provider.name,
@@ -306,6 +496,37 @@ class OAuthService {
                 picture: null, // Microsoft Graph doesn't return picture in basic profile
                 emailVerified: true
             };
+        } else if (providerType === 'facebook') {
+            // Parse Facebook name into firstName and lastName
+            const nameParts = (data.name || '').split(' ');
+            const firstName = nameParts[0] || 'User';
+            const lastName = nameParts.slice(1).join(' ') || 'User';
+
+            userInfo = {
+                externalId: data.id,
+                email: data.email,
+                firstName: firstName,
+                lastName: lastName,
+                displayName: data.name,
+                picture: data.picture?.data?.url || null, // Facebook returns picture as nested object
+                emailVerified: true // Facebook verifies emails
+            };
+        } else if (providerType === 'github') {
+            // Parse GitHub name into firstName and lastName
+            const nameParts = (data.name || data.login || '').split(' ');
+            const firstName = nameParts[0] || data.login || 'User';
+            const lastName = nameParts.slice(1).join(' ') || 'User';
+
+            userInfo = {
+                externalId: data.id?.toString() || data.node_id,
+                email: data.email, // May be null if not public, requires separate /user/emails call
+                firstName: firstName,
+                lastName: lastName,
+                displayName: data.name || data.login,
+                picture: data.avatar_url,
+                username: data.login,
+                emailVerified: !!data.email // GitHub may not provide email if not public
+            };
         } else {
             // Generic OAuth/OIDC provider
             userInfo = {
@@ -340,11 +561,26 @@ class OAuthService {
         // Get provider config (use the stored provider ID from state)
         const config = await this.getProviderConfig(stateData.providerId);
 
-        // Exchange code for tokens using the redirect URI from state
-        const tokens = await this.exchangeCodeForTokens(stateData.providerId, code, stateData.redirectUri);
+        // Retrieve code_verifier if PKCE was used
+        const codeVerifier = stateData.codeVerifier || null;
+
+        if (stateData.usePKCE && !codeVerifier) {
+            logger.error('PKCE was used but code_verifier not found in state', {
+                provider: config.provider.name
+            });
+            throw CustomException('PKCE verification failed: code_verifier missing', 400);
+        }
+
+        // Exchange code for tokens using the redirect URI from state and code_verifier (if PKCE)
+        const tokens = await this.exchangeCodeForTokens(
+            stateData.providerId,
+            code,
+            stateData.redirectUri,
+            codeVerifier
+        );
 
         // Get user info
-        const userInfo = await this.getUserInfo(config.provider, tokens.access_token);
+        const userInfo = await this.getUserInfo(config.provider, tokens.access_token, tokens.id_token);
 
         // Find existing SSO link
         let ssoLink = await SsoUserLink.findByExternalId(userInfo.externalId, config.provider._id);
@@ -576,7 +812,7 @@ class OAuthService {
         const tokens = await this.exchangeCodeForTokens(config.provider._id.toString(), code, redirectUri);
 
         // Get user info
-        const userInfo = await this.getUserInfo(config.provider, tokens.access_token);
+        const userInfo = await this.getUserInfo(config.provider, tokens.access_token, tokens.id_token);
 
         // Verify email matches
         if (userInfo.email.toLowerCase() !== user.email.toLowerCase()) {
@@ -657,7 +893,7 @@ class OAuthService {
 
         // Find the link
         let link;
-        if (['google', 'microsoft', 'okta', 'auth0', 'custom'].includes(providerIdOrType)) {
+        if (['google', 'microsoft', 'facebook', 'okta', 'auth0', 'custom', 'apple', 'twitter', 'linkedin', 'github'].includes(providerIdOrType)) {
             // It's a provider type
             const links = await SsoUserLink.getUserLinks(userId);
             link = links.find(l => l.providerType === providerIdOrType);

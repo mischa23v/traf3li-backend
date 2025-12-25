@@ -19,6 +19,7 @@ const bcrypt = require('bcrypt');
 const auditLogService = require('../services/auditLog.service');
 const { pickAllowedFields, sanitizeObjectId, timingSafeEqual } = require('../utils/securityUtils');
 const logger = require('../utils/logger');
+const authWebhookService = require('../services/authWebhook.service');
 
 // ========================================================================
 // Helper Functions
@@ -250,6 +251,23 @@ const verifySetup = async (request, response) => {
                 }
             }
         );
+
+        // Trigger MFA enabled webhook (fire-and-forget)
+        (async () => {
+            try {
+                await authWebhookService.triggerMFAEnabledWebhook(user, request, {
+                    mfaMethod: 'totp',
+                    backupCodesGenerated: backupResult.codes.length,
+                    firmId: user.firmId?.toString() || null
+                });
+            } catch (error) {
+                logger.error('Failed to trigger MFA enabled webhook', {
+                    error: error.message,
+                    userId
+                });
+                // Don't fail MFA setup if webhook fails
+            }
+        })();
 
         return response.status(200).json({
             error: false,
@@ -485,6 +503,21 @@ const disableMFA = async (request, response) => {
         // Disable MFA
         await mfaService.disableMFA(userId);
 
+        // Trigger MFA disabled webhook (fire-and-forget)
+        (async () => {
+            try {
+                await authWebhookService.triggerMFADisabledWebhook(user, request, {
+                    firmId: user.firmId?.toString() || null
+                });
+            } catch (error) {
+                logger.error('Failed to trigger MFA disabled webhook', {
+                    error: error.message,
+                    userId
+                });
+                // Don't fail MFA disable if webhook fails
+            }
+        })();
+
         return response.status(200).json({
             error: false,
             message: 'تم تعطيل المصادقة الثنائية بنجاح',
@@ -617,6 +650,25 @@ const verifyBackupCode = async (request, response) => {
         }
 
         // Backup code verified successfully
+        // Trigger backup code used webhook (fire-and-forget)
+        (async () => {
+            try {
+                const user = await User.findById(sanitizedUserId).select('_id email username firmId').lean();
+                if (user) {
+                    await authWebhookService.triggerMFABackupCodeUsedWebhook(user, request, {
+                        remainingCodes: result.remainingCodes,
+                        firmId: user.firmId?.toString() || null
+                    });
+                }
+            } catch (error) {
+                logger.error('Failed to trigger MFA backup code used webhook', {
+                    error: error.message,
+                    userId: sanitizedUserId
+                });
+                // Don't fail verification if webhook fails
+            }
+        })();
+
         return response.status(200).json({
             error: false,
             message: 'تم التحقق من رمز الاحتياطي بنجاح',

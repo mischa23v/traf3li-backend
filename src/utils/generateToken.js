@@ -1,6 +1,7 @@
 const jwt = require('jsonwebtoken');
 const logger = require('./logger');
 const keyRotationService = require('../services/keyRotation.service');
+const customClaimsService = require('../services/customClaims.service');
 
 /**
  * Token generation utilities for dual-token authentication with optional key rotation
@@ -110,22 +111,46 @@ const validateSecrets = () => {
 /**
  * Generate access token (short-lived)
  * Supports key rotation with 'kid' (Key ID) in JWT header
+ * Now includes custom claims following Supabase pattern
  * @param {object} user - User object from database
- * @returns {string} - JWT access token
+ * @param {object} context - Additional context for claims (firm, permissions, etc.)
+ * @returns {Promise<string>} - JWT access token
  */
-const generateAccessToken = (user) => {
+const generateAccessToken = async (user, context = {}) => {
   try {
     const { accessSecret, accessKeyId } = getSecrets();
 
+    // Check if user is anonymous
+    const isAnonymous = user.isAnonymous === true;
+
+    // Base payload with legacy fields for backward compatibility
     const payload = {
       id: user._id.toString(),
       email: user.email,
       role: user.role,
+      is_anonymous: isAnonymous, // Supabase-style claim
       // Don't include sensitive data in token
     };
 
+    // Get custom claims (Supabase-style)
+    // This includes standard claims + user custom claims + firm claims + dynamic claims
+    try {
+      const customClaims = await customClaimsService.getCustomClaims(user, context);
+
+      // Merge custom claims into payload
+      // Custom claims take precedence but won't override JWT standard claims (iss, exp, etc.)
+      Object.assign(payload, customClaims);
+    } catch (claimsError) {
+      // Log error but don't fail token generation
+      logger.warn('Failed to get custom claims, using basic payload:', claimsError.message);
+    }
+
+    // Anonymous users get shorter token expiry (24 hours instead of 15 minutes)
+    // This reduces the need for frequent re-authentication for guest users
+    const expiresIn = isAnonymous ? '24h' : '15m';
+
     const options = {
-      expiresIn: '15m', // 15 minutes
+      expiresIn,
       issuer: 'traf3li',
       audience: 'traf3li-users',
       algorithm: 'HS256',
@@ -269,11 +294,12 @@ const verifyRefreshToken = (token) => {
 /**
  * Generate both tokens at once (for login)
  * @param {object} user - User object from database
- * @returns {object} - { accessToken, refreshToken }
+ * @param {object} context - Additional context for custom claims
+ * @returns {Promise<object>} - { accessToken, refreshToken }
  */
-const generateTokenPair = (user) => {
+const generateTokenPair = async (user, context = {}) => {
   return {
-    accessToken: generateAccessToken(user),
+    accessToken: await generateAccessToken(user, context),
     refreshToken: generateRefreshToken(user),
   };
 };

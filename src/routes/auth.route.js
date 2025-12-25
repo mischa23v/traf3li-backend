@@ -1,6 +1,8 @@
 const express = require('express');
-const { authLogin, authLogout, authLogoutAll, authRegister, authStatus, checkAvailability, getOnboardingStatus, refreshAccessToken, sendMagicLink, verifyMagicLink, verifyEmail, resendVerificationEmail, forgotPassword, resetPassword } = require('../controllers/auth.controller');
+const { authLogin, authLogout, authLogoutAll, authRegister, authStatus, checkAvailability, getOnboardingStatus, refreshAccessToken, sendMagicLink, verifyMagicLink, verifyEmail, resendVerificationEmail, forgotPassword, resetPassword, getCSRFToken } = require('../controllers/auth.controller');
+const { anonymousLogin, convertAnonymousUser } = require('../controllers/anonymous.auth.controller');
 const { sendOTP, verifyOTP, resendOTP, checkOTPStatus } = require('../controllers/otp.controller');
+const { sendPhoneOTP, verifyPhoneOTP, resendPhoneOTP, checkPhoneOTPStatus } = require('../controllers/phoneOtp.controller');
 const {
     generateBackupCodes,
     verifyBackupCode,
@@ -16,13 +18,19 @@ const {
     getSessionStats
 } = require('../controllers/session.controller');
 const { changePassword, getPasswordStatus } = require('../controllers/passwordChange.controller');
+const { reauthenticate, createReauthChallenge, verifyReauthChallenge, getReauthStatus } = require('../controllers/stepUpAuth.controller');
 const { authenticate } = require('../middlewares');
+const { requireRecentAuthHourly, requireVeryRecentAuth } = require('../middlewares/stepUpAuth.middleware');
 const { authRateLimiter, sensitiveRateLimiter, publicRateLimiter } = require('../middlewares/rateLimiter.middleware');
+const { captchaRegister, captchaLogin, captchaForgotPassword } = require('../middlewares/captcha.middleware');
+const { csrfProtection, attachCSRFToken } = require('../middlewares/csrf.middleware');
 const {
     validateLogin,
     validateRegister,
     validateSendOTP,
     validateVerifyOTP,
+    validateSendPhoneOTP,
+    validateVerifyPhoneOTP,
     validateCheckAvailability,
     validateSendMagicLink,
     validateVerifyMagicLink,
@@ -37,7 +45,7 @@ const app = express.Router();
  * /api/auth/check-availability:
  *   post:
  *     summary: Check availability of email, username, or phone
- *     description: Validates if an email, username, or phone number is available for registration
+ *     description: Validates if an email, username, or phone number is available for registration. SECURITY - Heavily rate limited to prevent user enumeration attacks.
  *     tags:
  *       - Authentication
  *     requestBody:
@@ -58,14 +66,15 @@ const app = express.Router();
  *       429:
  *         $ref: '#/components/responses/TooManyRequests'
  */
-app.post('/check-availability', publicRateLimiter, validateCheckAvailability, checkAvailability);
+// SECURITY: Using sensitiveRateLimiter (3 req/hour) instead of publicRateLimiter to prevent enumeration attacks
+app.post('/check-availability', sensitiveRateLimiter, validateCheckAvailability, checkAvailability);
 
 /**
  * @openapi
  * /api/auth/register:
  *   post:
  *     summary: Register a new user
- *     description: Creates a new user account with email and password
+ *     description: Creates a new user account with email and password. CAPTCHA verification required if enabled.
  *     tags:
  *       - Authentication
  *     requestBody:
@@ -90,14 +99,135 @@ app.post('/check-availability', publicRateLimiter, validateCheckAvailability, ch
  *       429:
  *         $ref: '#/components/responses/TooManyRequests'
  */
-app.post('/register', authRateLimiter, validateRegister, authRegister);
+app.post('/register', authRateLimiter, captchaRegister, validateRegister, authRegister);
+
+// ========== ANONYMOUS/GUEST AUTHENTICATION ==========
+/**
+ * @openapi
+ * /api/auth/anonymous:
+ *   post:
+ *     summary: Create anonymous/guest session
+ *     description: Creates a temporary anonymous user session (Supabase-style). No credentials required. Anonymous users can later convert to full accounts.
+ *     tags:
+ *       - Authentication
+ *     responses:
+ *       201:
+ *         description: Anonymous session created successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                 messageEn:
+ *                   type: string
+ *                 user:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: string
+ *                     username:
+ *                       type: string
+ *                     firstName:
+ *                       type: string
+ *                       example: Guest
+ *                     lastName:
+ *                       type: string
+ *                       example: User
+ *                     role:
+ *                       type: string
+ *                       example: client
+ *                     isAnonymous:
+ *                       type: boolean
+ *                       example: true
+ *                 isAnonymous:
+ *                   type: boolean
+ *                   example: true
+ *       403:
+ *         description: Anonymous authentication is not enabled
+ *       500:
+ *         $ref: '#/components/responses/InternalError'
+ */
+app.post('/anonymous', publicRateLimiter, anonymousLogin);
+
+/**
+ * @openapi
+ * /api/auth/anonymous/convert:
+ *   post:
+ *     summary: Convert anonymous user to full account
+ *     description: Converts the current anonymous user to a full account with email and password. All data is preserved.
+ *     tags:
+ *       - Authentication
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *               - password
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 description: Email address for the new account
+ *               password:
+ *                 type: string
+ *                 description: Password for the new account (must meet security requirements)
+ *               firstName:
+ *                 type: string
+ *                 description: User's first name (optional)
+ *               lastName:
+ *                 type: string
+ *                 description: User's last name (optional)
+ *               phone:
+ *                 type: string
+ *                 description: User's phone number (optional)
+ *     responses:
+ *       200:
+ *         description: Account converted successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                 messageEn:
+ *                   type: string
+ *                 user:
+ *                   $ref: '#/components/schemas/User'
+ *       400:
+ *         description: Invalid request or user is not anonymous
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ *       403:
+ *         description: Anonymous authentication is not enabled
+ *       404:
+ *         description: User not found
+ *       409:
+ *         description: Email already in use
+ *       500:
+ *         $ref: '#/components/responses/InternalError'
+ */
+app.post('/anonymous/convert', authenticate, authRateLimiter, convertAnonymousUser);
 
 /**
  * @openapi
  * /api/auth/login:
  *   post:
  *     summary: Login with email and password
- *     description: Authenticates a user and returns JWT tokens
+ *     description: Authenticates a user and returns JWT tokens. CAPTCHA verification may be required after failed login attempts or if always enabled.
  *     tags:
  *       - Authentication
  *     requestBody:
@@ -120,7 +250,7 @@ app.post('/register', authRateLimiter, validateRegister, authRegister);
  *       429:
  *         $ref: '#/components/responses/TooManyRequests'
  */
-app.post('/login', authRateLimiter, validateLogin, authLogin);
+app.post('/login', authRateLimiter, captchaLogin, validateLogin, authLogin);
 
 /**
  * @openapi
@@ -149,7 +279,7 @@ app.post('/login', authRateLimiter, validateLogin, authLogin);
  *       401:
  *         $ref: '#/components/responses/Unauthorized'
  */
-app.post('/logout', authenticate, authLogout)
+app.post('/logout', authenticate, csrfProtection, authLogout)
 
 /**
  * @openapi
@@ -438,6 +568,216 @@ app.post('/resend-otp', sensitiveRateLimiter, validateSendOTP, resendOTP);
  */
 app.get('/otp-status', publicRateLimiter, checkOTPStatus);
 
+// ========== Phone OTP Authentication ==========
+/**
+ * @openapi
+ * /api/auth/phone/send-otp:
+ *   post:
+ *     summary: Send OTP to phone via SMS
+ *     description: Sends a one-time password to the user's phone for passwordless authentication. Supports international phone numbers with automatic formatting.
+ *     tags:
+ *       - Authentication
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - phone
+ *             properties:
+ *               phone:
+ *                 type: string
+ *                 description: Phone number in international format (e.g., +966XXXXXXXXX or 05XXXXXXXX)
+ *                 example: "+966501234567"
+ *               purpose:
+ *                 type: string
+ *                 enum: [login, registration, verify_phone, password_reset, transaction]
+ *                 default: login
+ *                 description: Purpose of the OTP
+ *     responses:
+ *       200:
+ *         description: OTP sent successfully via SMS
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                 messageAr:
+ *                   type: string
+ *                 expiresIn:
+ *                   type: number
+ *                   description: Expiry time in seconds
+ *                   example: 300
+ *                 phone:
+ *                   type: string
+ *                 provider:
+ *                   type: string
+ *                   description: SMS provider used (twilio or msg91)
+ *       400:
+ *         $ref: '#/components/responses/BadRequest'
+ *       429:
+ *         $ref: '#/components/responses/TooManyRequests'
+ */
+app.post('/phone/send-otp', sensitiveRateLimiter, validateSendPhoneOTP, sendPhoneOTP);
+
+/**
+ * @openapi
+ * /api/auth/phone/verify-otp:
+ *   post:
+ *     summary: Verify phone OTP and login
+ *     description: Verifies the OTP code sent via SMS and returns JWT tokens if valid
+ *     tags:
+ *       - Authentication
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - phone
+ *               - otp
+ *             properties:
+ *               phone:
+ *                 type: string
+ *                 description: Phone number in international format
+ *                 example: "+966501234567"
+ *               otp:
+ *                 type: string
+ *                 description: 6-digit OTP code
+ *                 example: "123456"
+ *               purpose:
+ *                 type: string
+ *                 enum: [login, registration, verify_phone, password_reset, transaction]
+ *                 default: login
+ *     responses:
+ *       200:
+ *         description: OTP verified successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                 messageAr:
+ *                   type: string
+ *                 user:
+ *                   type: object
+ *                   description: User profile (for login purpose)
+ *       400:
+ *         $ref: '#/components/responses/BadRequest'
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ *       429:
+ *         $ref: '#/components/responses/TooManyRequests'
+ */
+app.post('/phone/verify-otp', authRateLimiter, validateVerifyPhoneOTP, verifyPhoneOTP);
+
+/**
+ * @openapi
+ * /api/auth/phone/resend-otp:
+ *   post:
+ *     summary: Resend phone OTP
+ *     description: Resends the OTP code to the user's phone via SMS
+ *     tags:
+ *       - Authentication
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - phone
+ *             properties:
+ *               phone:
+ *                 type: string
+ *                 description: Phone number in international format
+ *                 example: "+966501234567"
+ *               purpose:
+ *                 type: string
+ *                 enum: [login, registration, verify_phone, password_reset, transaction]
+ *                 default: login
+ *     responses:
+ *       200:
+ *         description: OTP resent successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                 messageAr:
+ *                   type: string
+ *       400:
+ *         $ref: '#/components/responses/BadRequest'
+ *       429:
+ *         $ref: '#/components/responses/TooManyRequests'
+ */
+app.post('/phone/resend-otp', sensitiveRateLimiter, validateSendPhoneOTP, resendPhoneOTP);
+
+/**
+ * @openapi
+ * /api/auth/phone/otp-status:
+ *   get:
+ *     summary: Check phone OTP rate limit status
+ *     description: Returns information about remaining OTP attempts and cooldown period for a phone number
+ *     tags:
+ *       - Authentication
+ *     parameters:
+ *       - in: query
+ *         name: phone
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Phone number to check
+ *         example: "+966501234567"
+ *       - in: query
+ *         name: purpose
+ *         schema:
+ *           type: string
+ *           enum: [login, registration, verify_phone, password_reset, transaction]
+ *           default: login
+ *         description: OTP purpose
+ *     responses:
+ *       200:
+ *         description: Phone OTP status retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 canRequest:
+ *                   type: boolean
+ *                 waitTime:
+ *                   type: number
+ *                   description: Seconds to wait before next request
+ *                 message:
+ *                   type: string
+ *                 messageAr:
+ *                   type: string
+ *       400:
+ *         $ref: '#/components/responses/BadRequest'
+ */
+app.get('/phone/otp-status', publicRateLimiter, checkPhoneOTPStatus);
+
 // ========== Magic Link (Passwordless) Authentication ==========
 /**
  * @openapi
@@ -576,7 +916,7 @@ app.post('/magic-link/verify', authRateLimiter, validateVerifyMagicLink, verifyM
  *       401:
  *         $ref: '#/components/responses/Unauthorized'
  */
-app.post('/mfa/backup-codes/generate', authenticate, sensitiveRateLimiter, generateBackupCodes);
+app.post('/mfa/backup-codes/generate', authenticate, requireRecentAuthHourly({ purpose: 'MFA backup code generation' }), sensitiveRateLimiter, generateBackupCodes);
 
 /**
  * @openapi
@@ -657,7 +997,7 @@ app.post('/mfa/backup-codes/verify', authRateLimiter, verifyBackupCode);
  *       401:
  *         $ref: '#/components/responses/Unauthorized'
  */
-app.post('/mfa/backup-codes/regenerate', authenticate, sensitiveRateLimiter, regenerateBackupCodes);
+app.post('/mfa/backup-codes/regenerate', authenticate, requireRecentAuthHourly({ purpose: 'MFA backup code regeneration' }), sensitiveRateLimiter, regenerateBackupCodes);
 
 /**
  * @openapi
@@ -732,7 +1072,7 @@ app.get('/mfa/status', authenticate, publicRateLimiter, getMFAStatus);
  * /api/auth/sessions:
  *   get:
  *     summary: List user's active sessions
- *     description: Returns all active sessions for the authenticated user with device and location information
+ *     description: Returns all active sessions for the authenticated user with device and location information, including security anomaly detection
  *     tags:
  *       - Sessions
  *     security:
@@ -757,26 +1097,71 @@ app.get('/mfa/status', authenticate, publicRateLimiter, getMFAStatus);
  *                     properties:
  *                       id:
  *                         type: string
+ *                         description: Session ID
  *                       device:
  *                         type: string
+ *                         description: Device type (desktop, mobile, tablet)
+ *                         example: desktop
  *                       browser:
  *                         type: string
+ *                         description: Browser name
+ *                         example: Chrome
  *                       os:
  *                         type: string
+ *                         description: Operating system
+ *                         example: Windows
  *                       ip:
  *                         type: string
+ *                         description: IP address
+ *                         example: 192.168.1.1
  *                       location:
  *                         type: object
+ *                         properties:
+ *                           country:
+ *                             type: string
+ *                             example: Saudi Arabia
+ *                           city:
+ *                             type: string
+ *                             example: Riyadh
+ *                           region:
+ *                             type: string
+ *                             example: Riyadh Region
  *                       createdAt:
  *                         type: string
  *                         format: date-time
+ *                         description: Session creation timestamp
  *                       lastActivityAt:
  *                         type: string
  *                         format: date-time
+ *                         description: Last activity timestamp
+ *                       expiresAt:
+ *                         type: string
+ *                         format: date-time
+ *                         description: Session expiration timestamp
  *                       isCurrent:
  *                         type: boolean
+ *                         description: Whether this is the current session
+ *                       isNewDevice:
+ *                         type: boolean
+ *                         description: Whether this was a new device login
+ *                       isSuspicious:
+ *                         type: boolean
+ *                         description: Whether suspicious activity was detected (anomaly detection)
+ *                         example: false
+ *                       suspiciousReasons:
+ *                         type: array
+ *                         items:
+ *                           type: string
+ *                           enum: [ip_mismatch, user_agent_mismatch, impossible_travel, location_change, multiple_locations, abnormal_activity_pattern]
+ *                         description: List of reasons why session is flagged as suspicious
+ *                         example: []
+ *                       suspiciousDetectedAt:
+ *                         type: string
+ *                         format: date-time
+ *                         description: When suspicious activity was first detected
  *                 count:
  *                   type: number
+ *                   description: Total number of active sessions
  *       401:
  *         $ref: '#/components/responses/Unauthorized'
  */
@@ -787,7 +1172,7 @@ app.get('/sessions', authenticate, publicRateLimiter, getActiveSessions);
  * /api/auth/sessions/current:
  *   get:
  *     summary: Get current session information
- *     description: Returns details about the current active session
+ *     description: Returns details about the current active session with real-time security warnings
  *     tags:
  *       - Sessions
  *     security:
@@ -807,6 +1192,62 @@ app.get('/sessions', authenticate, publicRateLimiter, getActiveSessions);
  *                   type: string
  *                 session:
  *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: string
+ *                     device:
+ *                       type: string
+ *                     browser:
+ *                       type: string
+ *                     os:
+ *                       type: string
+ *                     ip:
+ *                       type: string
+ *                     location:
+ *                       type: object
+ *                       properties:
+ *                         country:
+ *                           type: string
+ *                         city:
+ *                           type: string
+ *                         region:
+ *                           type: string
+ *                     createdAt:
+ *                       type: string
+ *                       format: date-time
+ *                     lastActivityAt:
+ *                       type: string
+ *                       format: date-time
+ *                     expiresAt:
+ *                       type: string
+ *                       format: date-time
+ *                     isCurrent:
+ *                       type: boolean
+ *                       example: true
+ *                     isSuspicious:
+ *                       type: boolean
+ *                       description: Whether suspicious activity was detected
+ *                     suspiciousReasons:
+ *                       type: array
+ *                       items:
+ *                         type: string
+ *                       description: Reasons for suspicious flag
+ *                     suspiciousDetectedAt:
+ *                       type: string
+ *                       format: date-time
+ *                 securityWarnings:
+ *                   type: array
+ *                   description: Real-time security warnings (if any detected)
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       type:
+ *                         type: string
+ *                         enum: [ip_mismatch, user_agent_mismatch]
+ *                       message:
+ *                         type: string
+ *                       details:
+ *                         type: object
  *       401:
  *         $ref: '#/components/responses/Unauthorized'
  *       404:
@@ -819,7 +1260,7 @@ app.get('/sessions/current', authenticate, publicRateLimiter, getCurrentSession)
  * /api/auth/sessions/stats:
  *   get:
  *     summary: Get session statistics
- *     description: Returns session statistics including active count and recent sessions
+ *     description: Returns comprehensive session statistics including active count, suspicious sessions, policy settings, and recent sessions
  *     tags:
  *       - Sessions
  *     security:
@@ -827,6 +1268,65 @@ app.get('/sessions/current', authenticate, publicRateLimiter, getCurrentSession)
  *     responses:
  *       200:
  *         description: Session statistics retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                 stats:
+ *                   type: object
+ *                   properties:
+ *                     activeCount:
+ *                       type: number
+ *                       description: Number of currently active sessions
+ *                       example: 3
+ *                     totalCount:
+ *                       type: number
+ *                       description: Total number of sessions (active + inactive)
+ *                       example: 15
+ *                     suspiciousCount:
+ *                       type: number
+ *                       description: Number of active sessions flagged as suspicious
+ *                       example: 0
+ *                     maxConcurrentSessions:
+ *                       type: number
+ *                       description: Maximum allowed concurrent sessions from policy
+ *                       example: 5
+ *                     inactivityTimeoutSeconds:
+ *                       type: number
+ *                       description: Session inactivity timeout in seconds from policy
+ *                       example: 604800
+ *                     recentSessions:
+ *                       type: array
+ *                       description: 10 most recent sessions (active and inactive)
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           id:
+ *                             type: string
+ *                           device:
+ *                             type: string
+ *                           browser:
+ *                             type: string
+ *                           os:
+ *                             type: string
+ *                           location:
+ *                             type: object
+ *                           createdAt:
+ *                             type: string
+ *                             format: date-time
+ *                           lastActivityAt:
+ *                             type: string
+ *                             format: date-time
+ *                           isActive:
+ *                             type: boolean
+ *                           isSuspicious:
+ *                             type: boolean
  *       401:
  *         $ref: '#/components/responses/Unauthorized'
  */
@@ -869,7 +1369,7 @@ app.get('/sessions/stats', authenticate, publicRateLimiter, getSessionStats);
  *       404:
  *         $ref: '#/components/responses/NotFound'
  */
-app.delete('/sessions/:id', authenticate, authRateLimiter, terminateSession);
+app.delete('/sessions/:id', authenticate, csrfProtection, authRateLimiter, terminateSession);
 
 /**
  * @openapi
@@ -899,7 +1399,7 @@ app.delete('/sessions/:id', authenticate, authRateLimiter, terminateSession);
  *       401:
  *         $ref: '#/components/responses/Unauthorized'
  */
-app.delete('/sessions', authenticate, authRateLimiter, terminateAllOtherSessions);
+app.delete('/sessions', authenticate, csrfProtection, authRateLimiter, terminateAllOtherSessions);
 
 // ========== Password Management ==========
 /**
@@ -961,7 +1461,7 @@ app.delete('/sessions', authenticate, authRateLimiter, terminateAllOtherSessions
  *       401:
  *         description: Current password incorrect
  */
-app.post('/change-password', authenticate, authRateLimiter, changePassword);
+app.post('/change-password', authenticate, requireRecentAuthHourly({ purpose: 'password change' }), csrfProtection, authRateLimiter, changePassword);
 
 /**
  * @openapi
@@ -1015,7 +1515,7 @@ app.get('/password-status', authenticate, publicRateLimiter, getPasswordStatus);
  * /api/auth/forgot-password:
  *   post:
  *     summary: Request password reset
- *     description: Sends a password reset link to the user's email. Rate limited to 3 requests per hour per email.
+ *     description: Sends a password reset link to the user's email. Rate limited to 3 requests per hour per email. CAPTCHA verification required if enabled.
  *     tags:
  *       - Password Management
  *     requestBody:
@@ -1069,7 +1569,7 @@ app.get('/password-status', authenticate, publicRateLimiter, getPasswordStatus);
  *       500:
  *         description: Server error
  */
-app.post('/forgot-password', sensitiveRateLimiter, validateForgotPassword, forgotPassword);
+app.post('/forgot-password', sensitiveRateLimiter, captchaForgotPassword, validateForgotPassword, forgotPassword);
 
 /**
  * @openapi
@@ -1233,6 +1733,193 @@ app.post('/verify-email', publicRateLimiter, verifyEmail);
  *         description: Server error
  */
 app.post('/resend-verification', authenticate, authRateLimiter, resendVerificationEmail);
+
+// ========== CSRF Token ==========
+/**
+ * @openapi
+ * /api/auth/csrf:
+ *   get:
+ *     summary: Get fresh CSRF token
+ *     description: Returns a new CSRF token for the authenticated user. Token is also set in a cookie for double-submit pattern.
+ *     tags:
+ *       - Authentication
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: CSRF token retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: boolean
+ *                   example: false
+ *                 csrfToken:
+ *                   type: string
+ *                   description: CSRF token to include in X-CSRF-Token header for state-changing requests
+ *                   example: "a1b2c3d4e5f6..."
+ *                 enabled:
+ *                   type: boolean
+ *                   description: Whether CSRF protection is enabled
+ *                   example: true
+ *                 expiresAt:
+ *                   type: string
+ *                   format: date-time
+ *                   description: Token expiration timestamp
+ *                 ttl:
+ *                   type: number
+ *                   description: Token time-to-live in seconds
+ *                   example: 3600
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ *       500:
+ *         description: Failed to generate CSRF token
+ */
+app.get('/csrf', authenticate, publicRateLimiter, getCSRFToken);
+
+// ========== Step-Up Authentication / Reauthentication ==========
+/**
+ * @openapi
+ * /api/auth/reauthenticate:
+ *   post:
+ *     summary: Verify password or MFA for reauthentication
+ *     description: Allows users to verify their identity using password or TOTP for sensitive operations. Updates reauthentication timestamp on success.
+ *     tags:
+ *       - Reauthentication
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - method
+ *             properties:
+ *               method:
+ *                 type: string
+ *                 enum: [password, totp]
+ *                 description: Verification method
+ *               password:
+ *                 type: string
+ *                 description: User's password (required if method is 'password')
+ *               totpCode:
+ *                 type: string
+ *                 description: TOTP code from authenticator app (required if method is 'totp')
+ *               ttlMinutes:
+ *                 type: number
+ *                 description: TTL in minutes for reauthentication timestamp (default 24 hours)
+ *                 example: 1440
+ *     responses:
+ *       200:
+ *         description: Reauthentication successful
+ *       400:
+ *         description: Invalid method or missing credentials
+ *       401:
+ *         description: Invalid password or TOTP code
+ */
+app.post('/reauthenticate', authenticate, csrfProtection, authRateLimiter, reauthenticate);
+
+/**
+ * @openapi
+ * /api/auth/reauthenticate/challenge:
+ *   post:
+ *     summary: Request OTP for reauthentication (email or SMS)
+ *     description: Generates and sends an OTP code via email or SMS for reauthentication purposes
+ *     tags:
+ *       - Reauthentication
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - method
+ *             properties:
+ *               method:
+ *                 type: string
+ *                 enum: [email, sms]
+ *                 description: OTP delivery method
+ *               purpose:
+ *                 type: string
+ *                 enum: [password_change, mfa_enable, mfa_disable, account_deletion, payment_method, security_settings, sensitive_operation]
+ *                 default: sensitive_operation
+ *     responses:
+ *       200:
+ *         description: OTP sent successfully
+ *       400:
+ *         description: Invalid method or purpose
+ *       429:
+ *         description: Rate limit exceeded
+ */
+app.post('/reauthenticate/challenge', authenticate, csrfProtection, authRateLimiter, createReauthChallenge);
+
+/**
+ * @openapi
+ * /api/auth/reauthenticate/verify:
+ *   post:
+ *     summary: Verify OTP for reauthentication
+ *     description: Verifies the OTP code sent via email or SMS. Updates reauthentication timestamp on success.
+ *     tags:
+ *       - Reauthentication
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - code
+ *             properties:
+ *               code:
+ *                 type: string
+ *                 description: 6-digit OTP code
+ *                 example: "123456"
+ *               purpose:
+ *                 type: string
+ *                 enum: [password_change, mfa_enable, mfa_disable, account_deletion, payment_method, security_settings, sensitive_operation]
+ *                 default: sensitive_operation
+ *     responses:
+ *       200:
+ *         description: OTP verified successfully
+ *       400:
+ *         description: Invalid code or purpose
+ *       401:
+ *         description: Invalid or expired OTP
+ */
+app.post('/reauthenticate/verify', authenticate, csrfProtection, authRateLimiter, verifyReauthChallenge);
+
+/**
+ * @openapi
+ * /api/auth/reauthenticate/status:
+ *   get:
+ *     summary: Check reauthentication status
+ *     description: Returns whether the user has recently authenticated and when the authentication expires
+ *     tags:
+ *       - Reauthentication
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: maxAgeMinutes
+ *         schema:
+ *           type: number
+ *         description: Maximum age of authentication in minutes (default 24 hours)
+ *     responses:
+ *       200:
+ *         description: Reauthentication status retrieved
+ *       401:
+ *         description: Not authenticated
+ */
+app.get('/reauthenticate/status', authenticate, publicRateLimiter, getReauthStatus);
 
 // ========== OAuth SSO Routes ==========
 const oauthRoutes = require('./oauth.route');

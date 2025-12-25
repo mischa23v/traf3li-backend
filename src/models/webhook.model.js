@@ -53,6 +53,51 @@ const WEBHOOK_EVENTS = [
     'lead.converted',
     'lead.deleted',
 
+    // Authentication events
+    'auth.login',
+    'auth.logout',
+    'auth.logout_all',
+    'auth.register',
+
+    // Password events
+    'auth.password_reset_requested',
+    'auth.password_reset_completed',
+    'auth.password_changed',
+
+    // MFA events
+    'auth.mfa_enabled',
+    'auth.mfa_disabled',
+    'auth.mfa_verified',
+    'auth.mfa_backup_code_used',
+    'auth.mfa_backup_codes_regenerated',
+
+    // Account security events
+    'auth.account_locked',
+    'auth.account_unlocked',
+
+    // Verification events
+    'auth.email_verified',
+    'auth.email_verification_sent',
+    'auth.phone_verified',
+
+    // OAuth/SSO events
+    'auth.oauth_linked',
+    'auth.oauth_unlinked',
+    'auth.oauth_login',
+
+    // Token events
+    'auth.token_refreshed',
+    'auth.token_revoked',
+
+    // Session events
+    'auth.session_created',
+    'auth.session_expired',
+    'auth.session_terminated',
+
+    // Magic link events
+    'auth.magic_link_sent',
+    'auth.magic_link_verified',
+
     // Synchronous webhook events (blocking, wait for response)
     'invoice.calculate_tax',
     'payment.validate',

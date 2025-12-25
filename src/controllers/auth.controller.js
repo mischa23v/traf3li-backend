@@ -16,6 +16,10 @@ const refreshTokenService = require('../services/refreshToken.service');
 const { generateAccessToken } = require('../utils/generateToken');
 const magicLinkService = require('../services/magicLink.service');
 const emailVerificationService = require('../services/emailVerification.service');
+const authWebhookService = require('../services/authWebhook.service');
+const csrfService = require('../services/csrf.service');
+const geoAnomalyDetectionService = require('../services/geoAnomalyDetection.service');
+const stepUpAuthService = require('../services/stepUpAuth.service');
 
 const { JWT_SECRET, NODE_ENV } = process.env;
 
@@ -98,9 +102,25 @@ const getCookieDomain = (request) => {
     }
 
     const origin = request.headers.origin || request.headers.referer || '';
-    if (origin.includes('.traf3li.com') || origin.includes('traf3li.com')) {
-        return '.traf3li.com';
+
+    // SECURITY FIX: Use proper URL parsing to prevent domain spoofing
+    // Previous code would match 'traf3li.com.attacker.com'
+    if (origin) {
+        try {
+            const url = new URL(origin);
+            const hostname = url.hostname;
+
+            // Check if hostname ends with traf3li.com (exact match or subdomain)
+            if (hostname === 'traf3li.com' || hostname.endsWith('.traf3li.com')) {
+                return '.traf3li.com';
+            }
+        } catch (error) {
+            // Invalid URL, return undefined for safety
+            logger.warn('Invalid origin URL in getCookieDomain', { origin });
+            return undefined;
+        }
     }
+
     return undefined;
 };
 
@@ -228,6 +248,21 @@ const authRegister = async (request, response) => {
                 messageEn: passwordValidation.errors.join('. '),
                 code: 'WEAK_PASSWORD',
                 errors: passwordValidation.errors
+            });
+        }
+
+        // Check if password has been breached (HaveIBeenPwned)
+        const { checkPasswordBreach } = require('../utils/passwordPolicy');
+        const breachCheck = await checkPasswordBreach(password);
+
+        // Reject breached passwords (only if API check succeeded)
+        if (breachCheck.breached && !breachCheck.error) {
+            return response.status(400).send({
+                error: true,
+                message: `تم العثور على كلمة المرور هذه في ${breachCheck.count.toLocaleString()} تسريب بيانات. الرجاء اختيار كلمة مرور مختلفة لحمايتك.`,
+                messageEn: `This password has been found in ${breachCheck.count.toLocaleString()} data breaches. Please choose a different password for your security.`,
+                code: 'PASSWORD_BREACHED',
+                breachCount: breachCheck.count
             });
         }
 
@@ -517,6 +552,23 @@ const authRegister = async (request, response) => {
             }
         })();
 
+        // Trigger registration webhook (fire-and-forget)
+        (async () => {
+            try {
+                await authWebhookService.triggerRegisterWebhook(user, request, {
+                    firmId: user.firmId?.toString() || null,
+                    firmRole: user.firmRole || null,
+                    lawyerWorkMode: user.lawyerWorkMode || null
+                });
+            } catch (error) {
+                logger.error('Failed to trigger registration webhook', {
+                    error: error.message,
+                    userId: user._id
+                });
+                // Don't fail registration if webhook fails
+            }
+        })();
+
         return response.status(201).send(responseData);
     }
     catch({message}) {
@@ -590,12 +642,13 @@ const authLogin = async (request, response) => {
                 }
             );
 
-            return response.status(423).json({
+            // SECURITY FIX: Return generic 401 instead of 423 to prevent account enumeration
+            // Don't reveal whether the account exists or is just locked
+            return response.status(401).json({
                 error: true,
-                message: lockStatus.message || 'الحساب مقفل مؤقتاً بسبب محاولات تسجيل دخول فاشلة متعددة',
-                messageEn: lockStatus.messageEn || 'Account temporarily locked due to multiple failed login attempts',
-                code: 'ACCOUNT_LOCKED',
-                remainingTime: lockStatus.remainingTime,
+                message: 'بيانات الدخول غير صحيحة',
+                messageEn: 'Invalid credentials',
+                code: 'INVALID_CREDENTIALS'
             });
         }
 
@@ -612,6 +665,10 @@ const authLogin = async (request, response) => {
         .lean();
 
         if(!user) {
+            // SECURITY FIX: Perform fake bcrypt.compare to prevent timing attacks
+            // Without this, attackers can distinguish between valid/invalid users by response time
+            await bcrypt.compare(password, '$2b$12$K1R8L6Q5MxN7P2V3W4Y5ZeAbCdEfGhIjKlMnOpQrStUvWxYz1234AB');
+
             // Record failed attempt
             const failResult = await accountLockoutService.recordFailedAttempt(loginIdentifier, ipAddress, userAgent);
 
@@ -638,18 +695,22 @@ const authLogin = async (request, response) => {
                 }
             );
 
-            // Return appropriate error based on lockout status
+            // SECURITY FIX: Return generic 401 instead of 423/404 to prevent account enumeration
             if (failResult.locked) {
-                return response.status(423).json({
+                return response.status(401).json({
                     error: true,
-                    message: failResult.message,
-                    messageEn: failResult.messageEn,
-                    code: 'ACCOUNT_LOCKED',
-                    remainingTime: failResult.remainingTime,
+                    message: 'بيانات الدخول غير صحيحة',
+                    messageEn: 'Invalid credentials',
+                    code: 'INVALID_CREDENTIALS'
                 });
             }
 
-            throw CustomException('Check username or password!', 404);
+            return response.status(401).json({
+                error: true,
+                message: 'بيانات الدخول غير صحيحة',
+                messageEn: 'Invalid credentials',
+                code: 'INVALID_CREDENTIALS'
+            });
         }
 
         // PERF: Use async bcrypt.compare instead of blocking compareSync
@@ -804,6 +865,60 @@ const authLogin = async (request, response) => {
             // Record session activity for timeout tracking
             recordActivity(user._id.toString());
 
+            // Update reauthentication timestamp on successful login (fire-and-forget for performance)
+            stepUpAuthService.updateReauthTimestamp(user._id.toString()).catch(err =>
+                logger.error('Failed to update reauth timestamp on login:', err)
+            );
+
+            // ═══════════════════════════════════════════════════════════════
+            // GEOGRAPHIC ANOMALY DETECTION
+            // ═══════════════════════════════════════════════════════════════
+            // Detect suspicious logins based on location changes (fire-and-forget for performance)
+            (async () => {
+                try {
+                    const deviceFingerprint = {
+                        userAgent,
+                        deviceType: request.headers['sec-ch-ua-mobile'] === '?1' ? 'mobile' : 'desktop',
+                        os: request.headers['sec-ch-ua-platform'] || 'unknown',
+                        browser: request.headers['sec-ch-ua'] || 'unknown',
+                        deviceId: request.headers['x-device-id'] || null,
+                        firmId: user.firmId,
+                    };
+
+                    const anomalyResult = await geoAnomalyDetectionService.detectAnomalies(
+                        user._id.toString(),
+                        ipAddress,
+                        new Date(),
+                        deviceFingerprint
+                    );
+
+                    if (anomalyResult.anomalous) {
+                        logger.warn('Geographic anomaly detected during login', {
+                            userId: user._id,
+                            userEmail: user.email,
+                            action: anomalyResult.action,
+                            riskScore: anomalyResult.riskScore,
+                            factors: anomalyResult.factors,
+                            travelSpeed: anomalyResult.travelSpeed,
+                            distance: anomalyResult.distance,
+                        });
+
+                        // Note: The action is handled asynchronously and doesn't block login
+                        // - If action is 'block', the security incident is logged for review
+                        // - If action is 'verify', additional verification would be required on next login
+                        // - If action is 'notify', user receives an email notification
+                        // - If action is 'log', it's just logged for monitoring
+                    }
+                } catch (geoError) {
+                    logger.error('Geographic anomaly detection failed', {
+                        error: geoError.message,
+                        userId: user._id,
+                        userEmail: user.email,
+                    });
+                    // Don't fail login if geo detection fails
+                }
+            })();
+
             // PERF: With .lean(), user is already a plain object (no _doc needed)
             const { password: pwd, ...data } = user;
 
@@ -937,14 +1052,59 @@ const authLogin = async (request, response) => {
             // Get refresh token cookie config with proper expiry
             const refreshCookieConfig = getCookieConfig(request, 'refresh');
 
+            // Generate CSRF token for the session (if enabled)
+            let csrfTokenData = null;
+            if (csrfService.isEnabled()) {
+                try {
+                    csrfTokenData = await csrfService.generateCSRFToken(user._id.toString());
+                    logger.debug('CSRF token generated for login', { userId: user._id });
+                } catch (csrfError) {
+                    logger.warn('Failed to generate CSRF token for login', { error: csrfError.message });
+                    // Don't fail login if CSRF token generation fails
+                }
+            }
+
+            // Trigger login webhook (fire-and-forget)
+            (async () => {
+                try {
+                    await authWebhookService.triggerLoginWebhook(user, request, {
+                        loginMethod: 'password',
+                        mfaUsed: userWithMFA?.mfaEnabled || false,
+                        firmId: user.firmId?.toString() || null
+                    });
+                } catch (error) {
+                    logger.error('Failed to trigger login webhook', {
+                        error: error.message,
+                        userId: user._id
+                    });
+                    // Don't fail login if webhook fails
+                }
+            })();
+
+            const loginResponse = {
+                error: false,
+                message: 'Success!',
+                user: userData
+            };
+
+            // Include CSRF token in response if generated
+            if (csrfTokenData && csrfTokenData.token) {
+                loginResponse.csrfToken = csrfTokenData.token;
+
+                // Also set CSRF token in cookie for double-submit pattern
+                response.cookie('csrfToken', csrfTokenData.token, {
+                    httpOnly: false, // Allow JavaScript access for sending in headers
+                    sameSite: 'strict',
+                    secure: isProductionEnv,
+                    maxAge: parseInt(process.env.CSRF_TOKEN_TTL || '3600', 10) * 1000,
+                    path: '/'
+                });
+            }
+
             return response
                 .cookie('accessToken', accessToken, getCookieConfig(request, 'access'))
                 .cookie('refreshToken', refreshToken, refreshCookieConfig)
-                .status(202).send({
-                    error: false,
-                    message: 'Success!',
-                    user: userData
-                });
+                .status(202).send(loginResponse);
         }
 
         // Password mismatch - record failed attempt
@@ -973,18 +1133,23 @@ const authLogin = async (request, response) => {
             }
         );
 
-        // Return appropriate error based on lockout status
+        // SECURITY FIX: Return generic 401 for both locked and wrong password
+        // This prevents attackers from distinguishing between locked accounts and wrong passwords
         if (failResult.locked) {
-            return response.status(423).json({
+            return response.status(401).json({
                 error: true,
-                message: failResult.message,
-                messageEn: failResult.messageEn,
-                code: 'ACCOUNT_LOCKED',
-                remainingTime: failResult.remainingTime,
+                message: 'بيانات الدخول غير صحيحة',
+                messageEn: 'Invalid credentials',
+                code: 'INVALID_CREDENTIALS'
             });
         }
 
-        throw CustomException('Check username or password!', 404);
+        return response.status(401).json({
+            error: true,
+            message: 'بيانات الدخول غير صحيحة',
+            messageEn: 'Invalid credentials',
+            code: 'INVALID_CREDENTIALS'
+        });
     }
     catch({ message, status = 500 }) {
         return response.status(status).send({
@@ -1073,6 +1238,23 @@ const authLogout = async (request, response) => {
                     severity: 'low',
                 }
             );
+
+            // Trigger logout webhook (fire-and-forget)
+            (async () => {
+                try {
+                    if (request.user) {
+                        await authWebhookService.triggerLogoutWebhook(request.user, request, {
+                            firmId: request.user.firmId?.toString() || null
+                        });
+                    }
+                } catch (error) {
+                    logger.error('Failed to trigger logout webhook', {
+                        error: error.message,
+                        userId
+                    });
+                    // Don't fail logout if webhook fails
+                }
+            })();
         }
 
         // Use same cookie config as login to ensure cookie is properly cleared
@@ -1101,8 +1283,14 @@ const authLogout = async (request, response) => {
     }
 }
 
+/**
+ * SECURITY WARNING: This endpoint can be used for user enumeration
+ * REQUIRED: Apply rate limiting middleware (e.g., 10 requests per hour per IP)
+ * RECOMMENDED: Consider requiring authentication for this endpoint
+ */
 const checkAvailability = async (request, response) => {
     const { email, username, phone } = request.body;
+    const ipAddress = request.ip || request.headers['x-forwarded-for']?.split(',')[0] || 'unknown';
 
     try {
         // ═══════════════════════════════════════════════════════════════
@@ -1122,6 +1310,10 @@ const checkAvailability = async (request, response) => {
             });
         }
 
+        // SECURITY FIX: Add delay to prevent rapid enumeration attacks
+        // Minimum 500ms delay for all requests to slow down bulk enumeration
+        const startTime = Date.now();
+
         // Build query based on provided field
         let query = {};
         let field = '';
@@ -1140,6 +1332,34 @@ const checkAvailability = async (request, response) => {
         // Check if user exists with the given field
         const existingUser = await User.findOne(query).select('_id');
 
+        // Log availability check for security monitoring
+        if (existingUser) {
+            auditLogService.log(
+                'availability_check',
+                'user',
+                null,
+                null,
+                {
+                    field,
+                    value: field === 'email' ? '***' : field === 'username' ? username : '***',
+                    found: true,
+                    ipAddress,
+                    userAgent: request.headers['user-agent'] || 'unknown',
+                    severity: 'low'
+                }
+            );
+        }
+
+        // SECURITY FIX: Ensure minimum delay of 500ms to slow down enumeration
+        const elapsedTime = Date.now() - startTime;
+        const minimumDelay = 500;
+        if (elapsedTime < minimumDelay) {
+            await new Promise(resolve => setTimeout(resolve, minimumDelay - elapsedTime));
+        }
+
+        // SECURITY NOTE: While we still return availability status, the delay and rate limiting
+        // make bulk enumeration much more difficult. Consider requiring authentication
+        // for this endpoint in the future for maximum security.
         return response.status(200).send({
             error: false,
             available: !existingUser,
@@ -2015,6 +2235,22 @@ const forgotPassword = async (request, response) => {
             }
         );
 
+        // Trigger password reset requested webhook (fire-and-forget)
+        (async () => {
+            try {
+                await authWebhookService.triggerPasswordResetRequestedWebhook(user, request, {
+                    firmId: user.firmId?.toString() || null,
+                    expiresInMinutes: 30
+                });
+            } catch (error) {
+                logger.error('Failed to trigger password reset requested webhook', {
+                    error: error.message,
+                    userId: user._id
+                });
+                // Don't fail password reset if webhook fails
+            }
+        })();
+
         return response.status(200).json({
             error: false,
             message: 'تم إرسال رابط إعادة تعيين كلمة المرور إلى بريدك الإلكتروني',
@@ -2096,6 +2332,21 @@ const resetPassword = async (request, response) => {
             });
         }
 
+        // Check if password has been breached (HaveIBeenPwned)
+        const { checkPasswordBreach } = require('../utils/passwordPolicy');
+        const breachCheck = await checkPasswordBreach(newPassword);
+
+        // Reject breached passwords (only if API check succeeded)
+        if (breachCheck.breached && !breachCheck.error) {
+            return response.status(400).json({
+                error: true,
+                message: `تم العثور على كلمة المرور هذه في ${breachCheck.count.toLocaleString()} تسريب بيانات. الرجاء اختيار كلمة مرور مختلفة لحمايتك.`,
+                messageEn: `This password has been found in ${breachCheck.count.toLocaleString()} data breaches. Please choose a different password for your security.`,
+                code: 'PASSWORD_BREACHED',
+                breachCount: breachCheck.count
+            });
+        }
+
         // Hash the new password
         const hashedPassword = await bcrypt.hash(newPassword, saltRounds);
 
@@ -2126,6 +2377,25 @@ const resetPassword = async (request, response) => {
 
         logger.info('Password reset successful', { userId: user._id, email: user.email });
 
+        // Trigger password reset completed webhook (fire-and-forget)
+        (async () => {
+            try {
+                // Fetch fresh user data with firmId
+                const freshUser = await User.findById(user._id).select('_id email username firmId').lean();
+                if (freshUser) {
+                    await authWebhookService.triggerPasswordResetCompletedWebhook(freshUser, request, {
+                        firmId: freshUser.firmId?.toString() || null
+                    });
+                }
+            } catch (error) {
+                logger.error('Failed to trigger password reset completed webhook', {
+                    error: error.message,
+                    userId: user._id
+                });
+                // Don't fail password reset if webhook fails
+            }
+        })();
+
         return response.status(200).json({
             error: false,
             message: 'تم إعادة تعيين كلمة المرور بنجاح',
@@ -2141,6 +2411,78 @@ const resetPassword = async (request, response) => {
             message: 'حدث خطأ أثناء إعادة تعيين كلمة المرور',
             messageEn: 'An error occurred while resetting password',
             code: 'RESET_PASSWORD_FAILED'
+        });
+    }
+};
+
+/**
+ * Get fresh CSRF token
+ * GET /api/auth/csrf
+ */
+const getCSRFToken = async (request, response) => {
+    try {
+        // Check if CSRF protection is enabled
+        if (!csrfService.isEnabled()) {
+            return response.status(200).json({
+                error: false,
+                csrfToken: null,
+                enabled: false,
+                message: 'CSRF protection is disabled'
+            });
+        }
+
+        // Get session identifier (user ID)
+        const sessionId = request.userID || request.userId || request.user?._id?.toString();
+
+        if (!sessionId) {
+            return response.status(401).json({
+                error: true,
+                message: 'Authentication required',
+                messageAr: 'المصادقة مطلوبة',
+                code: 'AUTH_REQUIRED'
+            });
+        }
+
+        // Generate new CSRF token
+        const tokenData = await csrfService.generateCSRFToken(sessionId);
+
+        if (!tokenData.token) {
+            return response.status(500).json({
+                error: true,
+                message: 'Failed to generate CSRF token',
+                messageAr: 'فشل في إنشاء رمز CSRF',
+                code: 'CSRF_GENERATION_FAILED'
+            });
+        }
+
+        // Set CSRF token in cookie for double-submit pattern
+        response.cookie('csrfToken', tokenData.token, {
+            httpOnly: false, // Allow JavaScript access for sending in headers
+            sameSite: 'strict',
+            secure: isProductionEnv,
+            maxAge: parseInt(process.env.CSRF_TOKEN_TTL || '3600', 10) * 1000,
+            path: '/'
+        });
+
+        logger.debug('Fresh CSRF token generated', { sessionId });
+
+        return response.status(200).json({
+            error: false,
+            csrfToken: tokenData.token,
+            enabled: true,
+            expiresAt: tokenData.expiresAt,
+            ttl: tokenData.ttl
+        });
+    } catch (error) {
+        logger.error('Failed to get CSRF token', {
+            error: error.message,
+            userId: request.userID
+        });
+        return response.status(500).json({
+            error: true,
+            message: 'Failed to get CSRF token',
+            messageAr: 'فشل في الحصول على رمز CSRF',
+            code: 'CSRF_GET_FAILED'
         });
     }
 };
@@ -2161,5 +2503,6 @@ module.exports = {
     verifyEmail,
     resendVerificationEmail,
     forgotPassword,
-    resetPassword
+    resetPassword,
+    getCSRFToken
 };

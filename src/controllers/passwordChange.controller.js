@@ -14,9 +14,11 @@ const { enforcePasswordPolicy, checkPasswordAge } = require('../utils/passwordPo
 const EmailService = require('../services/email.service');
 const auditLogService = require('../services/auditLog.service');
 const tokenRevocationService = require('../services/tokenRevocation.service');
+const sessionManager = require('../services/sessionManager.service');
 const RefreshToken = require('../models/refreshToken.model');
 const Session = require('../models/session.model');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
+const sessionConfig = require('../config/session.config');
 const logger = require('../utils/logger');
 
 const saltRounds = 12;
@@ -141,11 +143,12 @@ const changePassword = async (req, res) => {
             minStrengthScore = firm?.enterpriseSettings?.minPasswordStrengthScore || 50;
         }
 
-        // Enforce password policy
+        // Enforce password policy (includes breach check, history, strength)
         const policyCheck = await enforcePasswordPolicy(newPassword, user, {
             checkHistory: true,
             historyCount,
-            minStrengthScore
+            minStrengthScore,
+            checkBreach: true // Check HaveIBeenPwned for leaked passwords
         });
 
         if (!policyCheck.valid) {
@@ -155,7 +158,8 @@ const changePassword = async (req, res) => {
                 messageAr: 'كلمة المرور لا تلبي متطلبات السياسة',
                 errors: policyCheck.errors,
                 errorsAr: policyCheck.errorsAr,
-                strength: policyCheck.strength
+                strength: policyCheck.strength,
+                breachCheck: policyCheck.breachCheck
             });
         }
 
@@ -221,31 +225,28 @@ const changePassword = async (req, res) => {
             // 2. Delete all refresh tokens for this user
             await RefreshToken.deleteMany({ userId });
 
-            // 3. Terminate all sessions except current (if we have current session info)
-            const currentTokenHash = req.tokenHash; // Set by auth middleware if available
-            if (currentTokenHash) {
-                await Session.updateMany(
-                    { userId, tokenHash: { $ne: currentTokenHash } },
-                    {
-                        $set: {
-                            isTerminated: true,
-                            terminatedAt: new Date(),
-                            terminationReason: 'password_change'
-                        }
-                    }
-                );
+            // 3. Terminate all sessions based on policy configuration
+            if (sessionConfig.forceLogoutOnPasswordChange) {
+                // Get current session to preserve it (optional)
+                const currentToken = req.cookies?.accessToken || req.headers.authorization?.replace('Bearer ', '');
+                const currentSession = currentToken ? await sessionManager.getSessionByToken(currentToken) : null;
+
+                if (currentSession) {
+                    // Terminate all sessions except current
+                    await sessionManager.terminateAllSessions(
+                        userId,
+                        currentSession._id,
+                        'password_change',
+                        userId
+                    );
+                } else {
+                    // Terminate all sessions including current
+                    await sessionManager.terminateAllUserSessions(userId, 'password_change');
+                }
+
+                logger.info('All sessions terminated after password change', { userId, keepCurrent: !!currentSession });
             } else {
-                // Terminate all sessions if we don't know current session
-                await Session.updateMany(
-                    { userId },
-                    {
-                        $set: {
-                            isTerminated: true,
-                            terminatedAt: new Date(),
-                            terminationReason: 'password_change'
-                        }
-                    }
-                );
+                logger.info('Session termination skipped (policy disabled)', { userId });
             }
 
             logger.info('All tokens and sessions revoked after password change', { userId });

@@ -107,6 +107,7 @@ const SubcontractingSettings = require('./subcontractingSettings.model');
 
 // Authentication Models
 const EmailOTP = require('./emailOtp.model');
+const PhoneOTP = require('./phoneOtp.model');
 const EmailVerification = require('./emailVerification.model');
 const WebAuthnCredential = require('./webauthnCredential.model');
 const Session = require('./session.model');
@@ -121,6 +122,7 @@ const Subscription = require('./subscription.model');
 const SecurityIncident = require('./securityIncident.model');
 const ArchivedAuditLog = require('./archivedAuditLog.model');
 const PasswordHistory = require('./passwordHistory.model');
+const LoginHistory = require('./loginHistory.model');
 
 // CRM Models
 const Lead = require('./lead.model');
@@ -532,6 +534,7 @@ module.exports = {
 
     // Authentication
     EmailOTP,
+    PhoneOTP,
     EmailVerification,
     WebAuthnCredential,
     Session,
@@ -686,6 +689,7 @@ module.exports = {
     SecurityIncident,
     ArchivedAuditLog,
     PasswordHistory,
+    LoginHistory,
 
     // Odoo-Inspired
     Activity,

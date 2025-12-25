@@ -120,6 +120,53 @@ const verifyOTPSchema = Joi.object({
 });
 
 /**
+ * Phone OTP send validation schema
+ */
+const sendPhoneOTPSchema = Joi.object({
+    phone: Joi.string()
+        .pattern(/^\+?[0-9]{9,15}$/)
+        .required()
+        .messages({
+            'string.pattern.base': 'رقم الهاتف غير صالح / Invalid phone number format',
+            'any.required': 'رقم الهاتف مطلوب / Phone number is required'
+        }),
+    purpose: Joi.string()
+        .valid('login', 'registration', 'verify_phone', 'password_reset', 'transaction')
+        .default('login')
+        .messages({
+            'any.only': 'غرض غير صالح / Invalid purpose'
+        })
+});
+
+/**
+ * Phone OTP verify validation schema
+ */
+const verifyPhoneOTPSchema = Joi.object({
+    phone: Joi.string()
+        .pattern(/^\+?[0-9]{9,15}$/)
+        .required()
+        .messages({
+            'string.pattern.base': 'رقم الهاتف غير صالح / Invalid phone number format',
+            'any.required': 'رقم الهاتف مطلوب / Phone number is required'
+        }),
+    otp: Joi.string()
+        .length(6)
+        .pattern(/^[0-9]+$/)
+        .required()
+        .messages({
+            'string.length': 'رمز التحقق يجب أن يكون 6 أرقام / OTP must be 6 digits',
+            'string.pattern.base': 'رمز التحقق يجب أن يحتوي على أرقام فقط / OTP must contain only numbers',
+            'any.required': 'رمز التحقق مطلوب / OTP is required'
+        }),
+    purpose: Joi.string()
+        .valid('login', 'registration', 'verify_phone', 'password_reset', 'transaction')
+        .default('login')
+        .messages({
+            'any.only': 'غرض غير صالح / Invalid purpose'
+        })
+});
+
+/**
  * Check availability schema
  */
 const checkAvailabilitySchema = Joi.object({
@@ -251,6 +298,8 @@ module.exports = {
         register: registerSchema,
         sendOTP: sendOTPSchema,
         verifyOTP: verifyOTPSchema,
+        sendPhoneOTP: sendPhoneOTPSchema,
+        verifyPhoneOTP: verifyPhoneOTPSchema,
         checkAvailability: checkAvailabilitySchema,
         sendMagicLink: sendMagicLinkSchema,
         verifyMagicLink: verifyMagicLinkSchema,
@@ -263,6 +312,8 @@ module.exports = {
     validateRegister: validate(registerSchema),
     validateSendOTP: validate(sendOTPSchema),
     validateVerifyOTP: validate(verifyOTPSchema),
+    validateSendPhoneOTP: validate(sendPhoneOTPSchema),
+    validateVerifyPhoneOTP: validate(verifyPhoneOTPSchema),
     validateCheckAvailability: validate(checkAvailabilitySchema),
     validateSendMagicLink: validate(sendMagicLinkSchema),
     validateVerifyMagicLink: validate(verifyMagicLinkSchema),
