@@ -495,7 +495,9 @@ app.use((req, res, next) => {
                     "https://www.googletagmanager.com",
                     "https://www.google-analytics.com",
                     "https://ssl.google-analytics.com",
-                    "https://static.cloudflareinsights.com"
+                    "https://static.cloudflareinsights.com",
+                    // Cloudflare Turnstile CAPTCHA
+                    "https://challenges.cloudflare.com"
                 ],
                 // styleSrc: Allow inline styles with nonce (or use external stylesheets)
                 styleSrc: [
@@ -520,13 +522,19 @@ app.use((req, res, next) => {
                     "https://analytics.google.com",
                     "https://region1.google-analytics.com",
                     "https://cloudflareinsights.com",
+                    // Cloudflare Turnstile CAPTCHA
+                    "https://challenges.cloudflare.com",
                     // CSP report endpoint
                     `${process.env.API_URL || 'https://api.traf3li.com'}/api/security/csp-report`
                 ],
                 fontSrc: ["'self'", "data:"],
                 objectSrc: ["'none'"],
                 mediaSrc: ["'self'"],
-                frameSrc: ["'none'"],
+                frameSrc: [
+                    "'self'",
+                    // Cloudflare Turnstile CAPTCHA iframe
+                    "https://challenges.cloudflare.com"
+                ],
                 baseUri: ["'self'"],
                 formAction: ["'self'"],
                 frameAncestors: ["'none'"], // Equivalent to X-Frame-Options: DENY
