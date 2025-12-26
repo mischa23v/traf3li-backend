@@ -206,7 +206,8 @@ const validateMFASetup = (secret, token) => {
 const generateBackupCodesForUser = async (userId, count = 10) => {
     try {
         // Find the user
-        const user = await User.findById(userId);
+        // NOTE: Bypass firmIsolation filter - MFA operations need to work for solo lawyers without firmId
+        const user = await User.findById(userId).setOptions({ bypassFirmFilter: true });
         if (!user) {
             const err = new Error('User not found');
             err.code = 'USER_NOT_FOUND';
@@ -287,7 +288,8 @@ const generateBackupCodesForUser = async (userId, count = 10) => {
 const useBackupCode = async (userId, code, context = {}) => {
     try {
         // Find the user
-        const user = await User.findById(userId);
+        // NOTE: Bypass firmIsolation filter - MFA operations need to work for solo lawyers without firmId
+        const user = await User.findById(userId).setOptions({ bypassFirmFilter: true });
         if (!user) {
             const err = new Error('User not found');
             err.code = 'USER_NOT_FOUND';
@@ -446,7 +448,8 @@ const useBackupCode = async (userId, code, context = {}) => {
 const regenerateBackupCodes = async (userId, count = 10) => {
     try {
         // Find the user
-        const user = await User.findById(userId);
+        // NOTE: Bypass firmIsolation filter - MFA operations need to work for solo lawyers without firmId
+        const user = await User.findById(userId).setOptions({ bypassFirmFilter: true });
         if (!user) {
             const err = new Error('User not found');
             err.code = 'USER_NOT_FOUND';
@@ -512,7 +515,10 @@ const regenerateBackupCodes = async (userId, count = 10) => {
 const getBackupCodesCount = async (userId) => {
     try {
         // Find the user
-        const user = await User.findById(userId).select('mfaBackupCodes');
+        // NOTE: Bypass firmIsolation filter - MFA operations need to work for solo lawyers without firmId
+        const user = await User.findById(userId)
+            .select('mfaBackupCodes')
+            .setOptions({ bypassFirmFilter: true });
         if (!user) {
             const err = new Error('User not found');
             err.code = 'USER_NOT_FOUND';
@@ -559,7 +565,10 @@ const getRemainingBackupCodesCount = (backupCodes) => {
  */
 const getMFAStatus = async (userId) => {
     try {
-        const user = await User.findById(userId).select('mfaEnabled mfaSecret mfaBackupCodes');
+        // NOTE: Bypass firmIsolation filter - MFA operations need to work for solo lawyers without firmId
+        const user = await User.findById(userId)
+            .select('mfaEnabled mfaSecret mfaBackupCodes')
+            .setOptions({ bypassFirmFilter: true });
         if (!user) {
             const err = new Error('User not found');
             err.code = 'USER_NOT_FOUND';
@@ -598,7 +607,8 @@ const getMFAStatus = async (userId) => {
  */
 const disableMFA = async (userId) => {
     try {
-        const user = await User.findById(userId);
+        // NOTE: Bypass firmIsolation filter - MFA operations need to work for solo lawyers without firmId
+        const user = await User.findById(userId).setOptions({ bypassFirmFilter: true });
         if (!user) {
             const err = new Error('User not found');
             err.code = 'USER_NOT_FOUND';

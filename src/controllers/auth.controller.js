@@ -440,12 +440,13 @@ const authRegister = async (request, response) => {
                 });
 
                 // Update user with firm info
+                // NOTE: Bypass firmIsolation filter - user doesn't have firmId yet during registration
                 await User.findByIdAndUpdate(user._id, {
                     firmId: firm._id,
                     firmRole: 'owner',
                     firmStatus: 'active',
                     'lawyerProfile.firmID': firm._id
-                });
+                }, { bypassFirmFilter: true });
 
                 responseData.user.firmId = firm._id;
                 responseData.user.firmRole = 'owner';
@@ -463,7 +464,8 @@ const authRegister = async (request, response) => {
                 });
                 // User was created but firm creation failed
                 // Clean up by deleting the user
-                await User.findByIdAndDelete(user._id);
+                // NOTE: Bypass firmIsolation filter - user doesn't have firmId yet during registration
+                await User.findByIdAndDelete(user._id).setOptions({ bypassFirmFilter: true });
                 return response.status(400).send({
                     error: true,
                     message: 'فشل في إنشاء المكتب. يرجى المحاولة مرة أخرى',
@@ -500,12 +502,13 @@ const authRegister = async (request, response) => {
                         await firm.save();
 
                         // Update user with firm info
+                        // NOTE: Bypass firmIsolation filter - user doesn't have firmId yet during registration
                         await User.findByIdAndUpdate(user._id, {
                             firmId: firm._id,
                             firmRole: invitation.role,
                             firmStatus: 'active',
                             'lawyerProfile.firmID': firm._id
-                        });
+                        }, { bypassFirmFilter: true });
 
                         // Mark invitation as accepted
                         await invitation.accept(user._id);
@@ -797,9 +800,10 @@ const authLogin = async (request, response) => {
                             mfaVerified = true;
 
                             // Update mfaVerifiedAt timestamp
+                            // NOTE: Bypass firmIsolation filter - auth operations need to work for solo lawyers without firmId
                             await User.findByIdAndUpdate(user._id, {
                                 mfaVerifiedAt: new Date()
-                            });
+                            }, { bypassFirmFilter: true });
 
                             // Log TOTP verification
                             await auditLogService.log(
@@ -2192,11 +2196,12 @@ const forgotPassword = async (request, response) => {
         const expiresAt = new Date(Date.now() + 30 * 60 * 1000);
 
         // Update user with reset token and expiration
+        // NOTE: Bypass firmIsolation filter - password reset needs to work for solo lawyers without firmId
         await User.findByIdAndUpdate(user._id, {
             passwordResetToken: hashedToken,
             passwordResetExpires: expiresAt,
             passwordResetRequestedAt: new Date()
-        });
+        }, { bypassFirmFilter: true });
 
         // Send password reset email
         const emailService = require('../services/email.service');
@@ -2221,10 +2226,11 @@ const forgotPassword = async (request, response) => {
             });
 
             // Clear the reset token if email fails
+            // NOTE: Bypass firmIsolation filter - password reset needs to work for solo lawyers without firmId
             await User.findByIdAndUpdate(user._id, {
                 passwordResetToken: null,
                 passwordResetExpires: null
-            });
+            }, { bypassFirmFilter: true });
 
             return response.status(500).json({
                 error: true,
@@ -2366,6 +2372,7 @@ const resetPassword = async (request, response) => {
         const hashedPassword = await bcrypt.hash(newPassword, saltRounds);
 
         // Update user password and clear reset token
+        // NOTE: Bypass firmIsolation filter - password reset needs to work for solo lawyers without firmId
         await User.findByIdAndUpdate(user._id, {
             password: hashedPassword,
             passwordResetToken: null,
@@ -2373,7 +2380,7 @@ const resetPassword = async (request, response) => {
             passwordResetRequestedAt: null,
             passwordChangedAt: new Date(),
             mustChangePassword: false
-        });
+        }, { bypassFirmFilter: true });
 
         // Log successful password reset
         await auditLogService.log(
@@ -2396,7 +2403,11 @@ const resetPassword = async (request, response) => {
         (async () => {
             try {
                 // Fetch fresh user data with firmId
-                const freshUser = await User.findById(user._id).select('_id email username firmId').lean();
+                // NOTE: Bypass firmIsolation filter - password reset needs to work for solo lawyers without firmId
+                const freshUser = await User.findById(user._id)
+                    .select('_id email username firmId')
+                    .setOptions({ bypassFirmFilter: true })
+                    .lean();
                 if (freshUser) {
                     await authWebhookService.triggerPasswordResetCompletedWebhook(freshUser, request, {
                         firmId: freshUser.firmId?.toString() || null
