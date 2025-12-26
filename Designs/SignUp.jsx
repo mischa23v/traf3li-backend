@@ -90,6 +90,12 @@ const Icons = {
         d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
     </svg>
   ),
+  Globe: () => (
+    <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+        d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
+    </svg>
+  ),
   Layout: () => (
     <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
@@ -450,16 +456,16 @@ export default function RegistrationFlow() {
                           : 'border-slate-200 hover:border-slate-300 bg-white'
                       }`}
                     >
+                      <div className="flex-1">
+                        <h4 className="font-bold text-[#0f172a] text-sm">السوق + لوحة التحكم</h4>
+                        <p className="text-xs text-slate-500">استقبال عملاء جدد وإدارة القضايا</p>
+                      </div>
                       <div className={`w-10 h-10 rounded-lg flex items-center justify-center transition-all ${
                         formData.lawyerMode === 'marketplace'
                           ? 'bg-gradient-to-br from-emerald-500 to-emerald-600 text-white shadow-sm'
                           : 'bg-slate-100 text-slate-600'
                       }`}>
-                        <Icons.Store />
-                      </div>
-                      <div className="flex-1">
-                        <h4 className="font-bold text-[#0f172a] text-sm">السوق + لوحة التحكم</h4>
-                        <p className="text-xs text-slate-500">استقبال عملاء جدد وإدارة القضايا</p>
+                        <Icons.Globe />
                       </div>
                     </button>
 
@@ -471,16 +477,16 @@ export default function RegistrationFlow() {
                           : 'border-slate-200 hover:border-slate-300 bg-white'
                       }`}
                     >
+                      <div className="flex-1">
+                        <h4 className="font-bold text-[#0f172a] text-sm">لوحة التحكم فقط</h4>
+                        <p className="text-xs text-slate-500">إدارة القضايا الحالية</p>
+                      </div>
                       <div className={`w-10 h-10 rounded-lg flex items-center justify-center transition-all ${
                         formData.lawyerMode === 'dashboard'
                           ? 'bg-gradient-to-br from-emerald-500 to-emerald-600 text-white shadow-sm'
                           : 'bg-slate-100 text-slate-600'
                       }`}>
                         <Icons.Layout />
-                      </div>
-                      <div className="flex-1">
-                        <h4 className="font-bold text-[#0f172a] text-sm">لوحة التحكم فقط</h4>
-                        <p className="text-xs text-slate-500">إدارة القضايا الحالية</p>
                       </div>
                     </button>
                   </div>
