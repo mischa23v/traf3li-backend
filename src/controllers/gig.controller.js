@@ -243,20 +243,21 @@ const deleteGig = async (request, response) => {
             });
         }
 
-        // Find the gig
-        const gig = await Gig.findOne({ _id: gigId });
+        // SECURITY: TOCTOU Fix - Use atomic delete with ownership check in query
+        // This prevents race conditions where ownership could change between check and delete
+        const result = await Gig.deleteOne({
+            _id: gigId,
+            userID: request.userID  // Include ownership in delete query
+        });
 
-        if (!gig) {
+        if (result.deletedCount === 0) {
+            // Check if gig exists but user doesn't own it
+            const existingGig = await Gig.findById(gigId);
+            if (existingGig) {
+                throw CustomException('Invalid request! Cannot delete other user gigs!', 403);
+            }
             throw CustomException('Gig not found!', 404);
         }
-
-        // SECURITY: IDOR Protection - verify ownership before deletion
-        if (request.userID !== gig.userID.toString()) {
-            throw CustomException('Invalid request! Cannot delete other user gigs!', 403);
-        }
-
-        // User owns the gig, proceed with deletion
-        await Gig.deleteOne({ _id: gigId });
         return response.send({
             error: false,
             message: 'Gig had been successfully deleted!'
