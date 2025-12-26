@@ -245,23 +245,28 @@ exports.withdrawProposal = async (req, res, next) => {
             throw CustomException('Invalid proposal ID format', 400);
         }
 
-        const proposal = await Proposal.findById(proposalId);
+        // SECURITY: TOCTOU Fix - Use atomic update with ownership and status check in query
+        const proposal = await Proposal.findOneAndUpdate(
+            {
+                _id: proposalId,
+                lawyerId: req.userID,  // IDOR protection
+                status: 'pending'      // Status check in query
+            },
+            { $set: { status: 'withdrawn' } },
+            { new: true }
+        );
 
         if (!proposal) {
-            throw CustomException('Proposal not found', 404);
-        }
-
-        // SECURITY: IDOR protection - verify user is the lawyer who submitted the proposal
-        if (proposal.lawyerId.toString() !== req.userID) {
-            throw CustomException('Not authorized', 403);
-        }
-
-        if (proposal.status !== 'pending') {
+            // Determine specific error
+            const existingProposal = await Proposal.findById(proposalId);
+            if (!existingProposal) {
+                throw CustomException('Proposal not found', 404);
+            }
+            if (existingProposal.lawyerId.toString() !== req.userID) {
+                throw CustomException('Not authorized', 403);
+            }
             throw CustomException('Cannot withdraw this proposal', 400);
         }
-
-        proposal.status = 'withdrawn';
-        await proposal.save();
 
         // Decrement proposals count
         await Job.findByIdAndUpdate(proposal.jobId, {

@@ -738,24 +738,38 @@ const deleteInvoice = asyncHandler(async (req, res) => {
     const { id, _id } = req.params;
     const invoiceId = sanitizeObjectId(id || _id);
     const firmId = req.firmId;
+    const isSoloLawyer = req.isSoloLawyer;
 
-    const invoice = await Invoice.findById(invoiceId);
+    // SECURITY: TOCTOU Fix - Build atomic delete query with ownership AND status check
+    const deleteQuery = {
+        _id: invoiceId,
+        status: { $nin: ['paid', 'partial'] }  // Status check in query to prevent race condition
+    };
+
+    // Add ownership check to query
+    if (isSoloLawyer || !firmId) {
+        deleteQuery.lawyerId = req.userID;
+    } else {
+        deleteQuery.firmId = firmId;
+    }
+
+    // First, get invoice for retainer reversal (before deletion)
+    const invoice = await Invoice.findOne(deleteQuery);
 
     if (!invoice) {
-        throw CustomException('Invoice not found!', 404);
-    }
-
-    // IDOR Protection - verify ownership
-    const hasAccess = firmId
-        ? invoice.firmId && invoice.firmId.toString() === firmId.toString()
-        : invoice.lawyerId.toString() === req.userID;
-
-    if (!hasAccess) {
-        throw CustomException('You do not have permission to delete this invoice!', 403);
-    }
-
-    // Cannot delete paid or partially paid invoices
-    if (['paid', 'partial'].includes(invoice.status)) {
+        // Determine specific error
+        const existingInvoice = await Invoice.findById(invoiceId);
+        if (!existingInvoice) {
+            throw CustomException('Invoice not found!', 404);
+        }
+        // Check ownership
+        const hasAccess = firmId
+            ? existingInvoice.firmId && existingInvoice.firmId.toString() === firmId.toString()
+            : existingInvoice.lawyerId.toString() === req.userID;
+        if (!hasAccess) {
+            throw CustomException('You do not have permission to delete this invoice!', 403);
+        }
+        // Must be status issue
         throw CustomException('Cannot delete paid invoices! Use void instead.', 400);
     }
 
@@ -767,7 +781,13 @@ const deleteInvoice = asyncHandler(async (req, res) => {
         }
     }
 
-    await Invoice.findByIdAndDelete(invoiceId);
+    // SECURITY: Atomic delete with same query to prevent TOCTOU
+    const result = await Invoice.deleteOne(deleteQuery);
+
+    if (result.deletedCount === 0) {
+        // Race condition: status changed between find and delete
+        throw CustomException('Cannot delete paid invoices! Use void instead.', 400);
+    }
 
     // Log activity
     await BillingActivity.logActivity({
