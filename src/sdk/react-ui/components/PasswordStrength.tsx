@@ -18,6 +18,8 @@ export interface PasswordStrengthProps {
   showBar?: boolean;
   /** Minimum length requirement */
   minLength?: number;
+  /** Auto-hide component when all requirements are met */
+  autoHideWhenValid?: boolean;
   /** Custom class name */
   className?: string;
   /** Custom styles */
@@ -35,6 +37,7 @@ export const PasswordStrength: React.FC<PasswordStrengthProps> = ({
   showLabel = true,
   showBar = true,
   minLength = 8,
+  autoHideWhenValid = true,
   className = '',
   styles = {},
 }) => {
@@ -179,6 +182,12 @@ export const PasswordStrength: React.FC<PasswordStrengthProps> = ({
   });
 
   if (!password) return null;
+
+  // Check if all requirements are met
+  const allRequirementsMet = Object.values(strength.requirements).every(Boolean);
+
+  // Auto-hide when password is valid (all requirements met)
+  if (autoHideWhenValid && allRequirementsMet) return null;
 
   return (
     <div className={className} style={containerStyle}>
