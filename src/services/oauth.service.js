@@ -947,7 +947,8 @@ class OAuthService {
      * @returns {object} Link result
      */
     async linkAccount(userId, providerId, code, redirectUri) {
-        const user = await User.findById(userId);
+        // NOTE: Bypass firmIsolation filter - OAuth linking works for solo lawyers without firmId
+        const user = await User.findById(userId).setOptions({ bypassFirmFilter: true });
         if (!user) {
             throw CustomException('User not found', 404);
         }
@@ -1034,7 +1035,8 @@ class OAuthService {
      * @returns {object} Unlink result
      */
     async unlinkAccount(userId, providerIdOrType) {
-        const user = await User.findById(userId).select('password email firmId');
+        // NOTE: Bypass firmIsolation filter - OAuth unlinking works for solo lawyers without firmId
+        const user = await User.findById(userId).select('password email firmId').setOptions({ bypassFirmFilter: true });
         if (!user) {
             throw CustomException('User not found', 404);
         }

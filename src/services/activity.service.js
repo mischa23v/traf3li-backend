@@ -567,11 +567,13 @@ class ActivityService {
       threeDaysFromNow.setDate(threeDaysFromNow.getDate() + 3);
 
       // Find activities needing reminders
+      // NOTE: Bypass firmIsolation filter - system reminder job operates across all firms
       const activitiesNeedingReminders = await Activity.find({
         state: { $in: ['planned', 'today'] },
         date_deadline: { $lte: threeDaysFromNow },
         reminder_sent: { $ne: true }
       })
+        .setOptions({ bypassFirmFilter: true })
         .populate('activity_type_id', 'name summary reminder_days')
         .populate('user_id', 'firstName lastName email')
         .populate('firm_id', 'name settings');

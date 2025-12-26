@@ -52,13 +52,14 @@ class AdminToolsService {
             };
 
             // Include related data if requested
+            // NOTE: Bypass firmIsolation filter - admin GDPR data export works across all firms
             if (options.includeRelated !== false) {
                 const [cases, clients, invoices, documents, auditLogs] = await Promise.all([
-                    Case.find({ $or: [{ assignedTo: userId }, { createdBy: userId }] }).lean(),
-                    Client.find({ createdBy: userId }).lean(),
-                    Invoice.find({ createdBy: userId }).lean(),
-                    Document.find({ uploadedBy: userId }).lean(),
-                    AuditLog.find({ userId }).limit(1000).sort({ timestamp: -1 }).lean()
+                    Case.find({ $or: [{ assignedTo: userId }, { createdBy: userId }] }).setOptions({ bypassFirmFilter: true }).lean(),
+                    Client.find({ createdBy: userId }).setOptions({ bypassFirmFilter: true }).lean(),
+                    Invoice.find({ createdBy: userId }).setOptions({ bypassFirmFilter: true }).lean(),
+                    Document.find({ uploadedBy: userId }).setOptions({ bypassFirmFilter: true }).lean(),
+                    AuditLog.find({ userId }).setOptions({ bypassFirmFilter: true }).limit(1000).sort({ timestamp: -1 }).lean()
                 ]);
 
                 data.related = {
@@ -116,12 +117,13 @@ class AdminToolsService {
                 deletionReport.affectedRecords.user = { anonymized: true };
             } else {
                 // Hard delete (cascade if requested)
+                // NOTE: Bypass firmIsolation filter - admin GDPR deletion works across all firms
                 if (options.cascade) {
                     const [casesDeleted, clientsDeleted, invoicesDeleted, documentsDeleted] = await Promise.all([
-                        Case.deleteMany({ createdBy: userId }).session(session),
-                        Client.deleteMany({ createdBy: userId }).session(session),
-                        Invoice.deleteMany({ createdBy: userId }).session(session),
-                        Document.deleteMany({ uploadedBy: userId }).session(session)
+                        Case.deleteMany({ createdBy: userId }, { bypassFirmFilter: true }).session(session),
+                        Client.deleteMany({ createdBy: userId }, { bypassFirmFilter: true }).session(session),
+                        Invoice.deleteMany({ createdBy: userId }, { bypassFirmFilter: true }).session(session),
+                        Document.deleteMany({ uploadedBy: userId }, { bypassFirmFilter: true }).session(session)
                     ]);
 
                     deletionReport.affectedRecords = {

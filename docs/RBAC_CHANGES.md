@@ -1,22 +1,22 @@
 # RBAC System Refactoring - Global Firm Isolation
 
-This document describes the comprehensive refactoring of the Role-Based Access Control (RBAC) and multi-tenancy system.
+This document describes the refactoring of the Role-Based Access Control (RBAC) and multi-tenancy system.
 
 ## Overview
 
-The system was refactored from a per-model/per-route approach to a **global approach** that makes it impossible to forget security measures.
+The system was refactored to add **global firm isolation** that makes it impossible to forget security measures on new models.
 
-### Before (Old Approach)
-- Each model had to manually add `firmIsolation` plugin
-- Each route had to manually add `firmFilter` middleware
-- 188 models had `firmId` but no plugin (security gaps)
-- 66 routes missing `firmFilter` middleware
+### What Changed
+- Added global plugin applied ONCE to ALL models automatically
+- Added global middleware applied ONCE to ALL /api routes
+- Removed per-model `firmIsolation` plugin calls (70 models)
+- Removed per-route `firmFilter` middleware calls (111 routes)
 
-### After (New Approach)
-- Global plugin applied ONCE to ALL models automatically
-- Global middleware applied ONCE to ALL /api routes
-- Impossible to forget firm isolation
-- Centralized permission management
+### What Stayed the Same
+- `firm.members[]` embedded array for member data
+- `Staff` model for detailed employee profiles
+- `firmFilter.middleware.js` utility functions (firmAdminOnly, etc.)
+- Existing permission structure
 
 ## Key Changes
 
@@ -49,67 +49,35 @@ const cases = await Case.find(req.firmQuery);
 // req.firmQuery is automatically: { firmId: user.firmId } or { lawyerId: userId }
 ```
 
-### 3. Firm Query Helper
-**File:** `src/helpers/firmQuery.helper.js`
+## Models Still in Use
 
-Helper functions for controllers:
+### User Model
+- Stores login credentials, profile
+- Has `firmId`, `firmRole`, `isSoloLawyer` fields
 
-```javascript
-const { firmQuery, addFirmContext } = require('../helpers/firmQuery.helper');
+### Firm Model (with embedded members)
+- `firm.members[]` array stores membership info
+- Each member has: userId, role, permissions, status
 
-// Querying with firm isolation
-const cases = await Case.find(firmQuery(req, { status: 'active' }));
-
-// Creating records with firm context
-const newCase = await Case.create(addFirmContext(req, { title: 'New Case' }));
-```
-
-### 4. FirmMember Model
-**File:** `src/models/firmMember.model.js`
-
-Standalone model replacing embedded `firm.members[]` array:
-- Faster queries (indexed lookups vs array search)
-- Permission overrides (only store differences from role defaults)
-- Resource-level permissions (per-case/per-client access)
-
-### 5. Permission Resolver Service
-**File:** `src/services/permissionResolver.service.js`
-
-Centralized permission resolution:
-- Combines role defaults with member overrides
-- Resource-level permission checking
-- Role hierarchy management
+### Staff Model
+- Detailed employee profile (HR data, qualifications)
+- Used by team management endpoints
 
 ## Files Modified
 
 ### Models Cleaned (70 files)
-Removed `firmIsolationPlugin` import and `.plugin()` call from all models in:
-- `src/models/*.model.js`
+Removed `firmIsolationPlugin` import and `.plugin()` call:
+- The global plugin now handles this automatically
+- Per-model plugin calls are no longer needed
 
 ### Routes Cleaned (111 files)
-Removed `firmFilter` import and middleware usage from all routes in:
-- `src/routes/*.route.js`
-- `src/routes/*.routes.js`
+Removed `firmFilter` import and middleware from routes:
+- Global middleware now sets context automatically
+- Utility middlewares (firmAdminOnly, etc.) still available from `firmFilter.middleware.js`
 
 ### Core Files Modified
 - `src/configs/db.js` - Added global plugin initialization
 - `src/server.js` - Added global middleware
-
-## Migration
-
-### From firm.members[] to FirmMember Collection
-
-Run the migration script:
-```bash
-node src/scripts/migrate.js run migrate-firm-members.js
-```
-
-This migrates embedded member data to the standalone FirmMember collection.
-
-To revert:
-```bash
-node src/scripts/migrate.js down migrate-firm-members.js
-```
 
 ## Permission System
 
@@ -148,7 +116,8 @@ node src/scripts/migrate.js down migrate-firm-members.js
 Solo lawyers (users without firmId):
 - Filter by `lawyerId` instead of `firmId`
 - Get full permissions automatically
-- No firm membership required
+- Cannot access team management endpoints
+- Can create a firm to become firm owner
 
 ## Departed Employee Handling
 
@@ -171,9 +140,6 @@ Only specific system models skip filtering:
 - Session, RefreshToken, APIKey
 - Counter, Migration
 
-### Query Logging
-Slow queries (>100ms) logged for performance monitoring.
-
 ## Troubleshooting
 
 ### "Firm context not set" Error
@@ -193,16 +159,21 @@ if (!req.hasPermission('invoices', 'edit')) {
 }
 ```
 
-## Performance Improvements
+## Using Utility Middlewares
 
-1. **Faster Queries**: Global plugin adds filters at query time, not post-filter
-2. **Connection Pooling**: Optimized MongoDB connection settings
-3. **Index Optimization**: FirmMember has indexes on userId, firmId, status
-4. **Permission Caching**: Role defaults loaded once, overrides minimal
+The following middlewares are still available from `firmFilter.middleware.js`:
 
-## Breaking Changes
+```javascript
+const {
+    firmAdminOnly,      // Only owner/admin
+    firmOwnerOnly,      // Only owner
+    checkFirmPermission, // Check module permission
+    checkSpecialPermission, // Check special permission
+    blockDeparted,      // Block departed users
+    financeAccessOnly,  // Require canViewFinance
+    teamManagementOnly  // Require canManageTeam
+} = require('../middlewares/firmFilter.middleware');
 
-1. `firmIsolationPlugin` is deprecated - remove from models
-2. `firmFilter` middleware is deprecated - remove from routes
-3. `firm.members[]` array deprecated - use FirmMember collection
-4. Permission structure changed - use `permissionOverrides` for non-defaults
+// Usage in routes:
+router.post('/invite', userMiddleware, firmAdminOnly, inviteTeamMember);
+```

@@ -112,21 +112,23 @@ const cleanupOldEntries = async () => {
         ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
 
         // Delete rejected entries older than 90 days
+        // NOTE: Bypass firmIsolation filter - system job operates across all firms
         const rejectedResult = await TimeEntry.deleteMany({
             status: 'rejected',
             rejectedAt: { $lt: ninetyDaysAgo }
-        });
+        }).setOptions({ bypassFirmFilter: true });
 
         if (rejectedResult.deletedCount > 0) {
             logger.info(`[Time Entry Jobs] Deleted ${rejectedResult.deletedCount} old rejected entries`);
         }
 
         // Delete draft entries older than 90 days with no activity
+        // NOTE: Bypass firmIsolation filter - system job operates across all firms
         const draftResult = await TimeEntry.deleteMany({
             status: 'draft',
             updatedAt: { $lt: ninetyDaysAgo },
             isBilled: false
-        });
+        }).setOptions({ bypassFirmFilter: true });
 
         if (draftResult.deletedCount > 0) {
             logger.info(`[Time Entry Jobs] Deleted ${draftResult.deletedCount} old draft entries`);
@@ -153,6 +155,7 @@ const checkPendingApprovals = async () => {
         threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
 
         // Find entries submitted more than 3 days ago
+        // NOTE: Bypass firmIsolation filter - system job operates across all firms
         const staleEntries = await TimeEntry.aggregate([
             {
                 $match: {
@@ -167,7 +170,7 @@ const checkPendingApprovals = async () => {
                     firmId: { $first: '$firmId' }
                 }
             }
-        ]);
+        ]).option({ bypassFirmFilter: true });
 
         if (staleEntries.length > 0) {
             logger.info(`[Time Entry Jobs] Found ${staleEntries.length} managers with stale approvals`);

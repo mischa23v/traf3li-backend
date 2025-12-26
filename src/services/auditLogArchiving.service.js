@@ -108,8 +108,9 @@ class AuditLogArchivingService {
           totalArchived += archiveResult.archived;
 
           // Delete archived logs from main collection
+          // NOTE: Bypass firmIsolation filter - system archiving operates across all firms
           const logIds = logs.map(log => log._id);
-          const deleteResult = await AuditLog.deleteMany({ _id: { $in: logIds } });
+          const deleteResult = await AuditLog.deleteMany({ _id: { $in: logIds } }).setOptions({ bypassFirmFilter: true });
           totalDeleted += deleteResult.deletedCount;
 
           logger.info(`Batch ${batchNumber}: Archived ${archiveResult.archived}, Deleted ${deleteResult.deletedCount}`);

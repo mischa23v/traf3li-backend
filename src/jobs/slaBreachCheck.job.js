@@ -33,7 +33,8 @@ const checkSLABreaches = async () => {
         logger.info(`[SLA Breach Job] Starting SLA breach check at ${now.toISOString()}`);
 
         // Find all firms that have active SLA configurations
-        const activeSLAs = await SLA.find({ isActive: true }).distinct('firmId');
+        // NOTE: Bypass firmIsolation filter - system job operates across all firms
+        const activeSLAs = await SLA.find({ isActive: true }).setOptions({ bypassFirmFilter: true }).distinct('firmId');
 
         if (activeSLAs.length === 0) {
             logger.info('[SLA Breach Job] No firms with active SLAs found');

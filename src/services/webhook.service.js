@@ -613,7 +613,8 @@ class WebhookService {
         await webhook.deleteOne();
 
         // Also delete associated deliveries
-        await WebhookDelivery.deleteMany({ webhookId });
+        // NOTE: Bypass firmIsolation filter - cascade delete after webhook validation
+        await WebhookDelivery.deleteMany({ webhookId }).setOptions({ bypassFirmFilter: true });
     }
 
     /**

@@ -33,7 +33,8 @@ const collectSLOMeasurements = async () => {
     logger.debug(`[SLO Monitoring Job] Starting SLO measurement collection at ${now.toISOString()}`);
 
     // Get all active SLOs
-    const slos = await SLO.find({ isActive: true });
+    // NOTE: Bypass firmIsolation filter - system job operates across all firms
+    const slos = await SLO.find({ isActive: true }).setOptions({ bypassFirmFilter: true });
 
     if (slos.length === 0) {
       logger.debug('[SLO Monitoring Job] No active SLOs found');
@@ -111,7 +112,8 @@ const updateErrorBudgets = async () => {
     const now = new Date();
     logger.debug(`[SLO Monitoring Job] Starting error budget update at ${now.toISOString()}`);
 
-    const slos = await SLO.find({ isActive: true });
+    // NOTE: Bypass firmIsolation filter - system job operates across all firms
+    const slos = await SLO.find({ isActive: true }).setOptions({ bypassFirmFilter: true });
 
     let successCount = 0;
     let failCount = 0;

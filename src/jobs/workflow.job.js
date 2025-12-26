@@ -208,10 +208,11 @@ const processDelaySteps = async () => {
         let errors = 0;
 
         // Find workflow instances waiting for delay completion
+        // NOTE: Bypass firmIsolation filter - system job operates across all firms
         const delayedInstances = await WorkflowInstance.find({
             status: 'running',
             'stepHistory.status': 'delayed'
-        }).lean();
+        }).setOptions({ bypassFirmFilter: true }).lean();
 
         for (const instance of delayedInstances) {
             try {
@@ -336,10 +337,11 @@ const cleanupStaleInstances = async () => {
         cutoffDate.setDate(cutoffDate.getDate() - WORKFLOW_JOB_CONFIG.cleanup.retentionDays);
 
         // Delete old completed/failed/cancelled instances
+        // NOTE: Bypass firmIsolation filter - system job operates across all firms
         const result = await WorkflowInstance.deleteMany({
             status: { $in: ['completed', 'failed', 'cancelled'] },
             completedAt: { $lt: cutoffDate }
-        });
+        }).setOptions({ bypassFirmFilter: true });
 
         const duration = Date.now() - startTime;
 

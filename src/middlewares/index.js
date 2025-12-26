@@ -99,6 +99,18 @@ const {
     endpointRemovalWarning,
     getDeprecationStatus
 } = require('./deprecation.middleware');
+const {
+    globalFirmContext,
+    requireFirm: globalRequireFirm,
+    requirePermission: globalRequirePermission,
+    requireSpecialPermission: globalRequireSpecialPermission,
+    blockDeparted: globalBlockDeparted,
+    firmOwnerOnly: globalFirmOwnerOnly,
+    firmAdminOnly: globalFirmAdminOnly,
+    checkIsSoloLawyer,
+    PUBLIC_ROUTES,
+    USER_ONLY_ROUTES
+} = require('./globalFirmContext.middleware');
 
 module.exports = {
     userMiddleware,
@@ -191,5 +203,16 @@ module.exports = {
     deprecationWarning,
     softDeprecationWarning,
     endpointRemovalWarning,
-    getDeprecationStatus
+    getDeprecationStatus,
+    // Global firm context middleware (Row-Level Security)
+    globalFirmContext,
+    globalRequireFirm,
+    globalRequirePermission,
+    globalRequireSpecialPermission,
+    globalBlockDeparted,
+    globalFirmOwnerOnly,
+    globalFirmAdminOnly,
+    checkIsSoloLawyer,
+    PUBLIC_ROUTES,
+    USER_ONLY_ROUTES
 }

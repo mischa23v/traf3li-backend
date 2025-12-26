@@ -74,10 +74,11 @@ function isUSMarketOpen() {
  */
 async function updateMarketPrices(market) {
     try {
+        // NOTE: Bypass firmIsolation filter - system job operates across all firms
         const investments = await Investment.find({
             status: 'active',
             market: market
-        });
+        }).setOptions({ bypassFirmFilter: true });
 
         if (investments.length === 0) {
             logger.info(`[Price Update] No active investments in ${market}`);

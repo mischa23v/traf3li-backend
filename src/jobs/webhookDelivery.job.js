@@ -121,10 +121,12 @@ const processPendingDeliveries = async () => {
         jobStats.processDeliveries.totalRuns++;
 
         // Get pending deliveries (those that haven't been attempted yet)
+        // NOTE: Bypass firmIsolation filter - system job operates across all firms
         const pendingDeliveries = await WebhookDelivery.find({
             status: 'pending',
             currentAttempt: 0
         })
+        .setOptions({ bypassFirmFilter: true })
         .populate('webhookId')
         .limit(WEBHOOK_JOB_CONFIG.processDeliveries.batchSize)
         .sort({ createdAt: 1 }); // Process oldest first
@@ -337,10 +339,11 @@ const cleanupOldDeliveries = async () => {
         retentionDate.setDate(retentionDate.getDate() - WEBHOOK_JOB_CONFIG.cleanup.retentionDays);
 
         // Delete old completed deliveries (keep failed ones for debugging)
+        // NOTE: Bypass firmIsolation filter - system job operates across all firms
         const result = await WebhookDelivery.deleteMany({
             status: { $in: ['success', 'failed'] },
             completedAt: { $lt: retentionDate }
-        });
+        }).setOptions({ bypassFirmFilter: true });
 
         const duration = Date.now() - startTime;
 
@@ -409,7 +412,8 @@ const performHealthCheck = async () => {
         jobStats.healthCheck.totalRuns++;
 
         // Get all active webhooks
-        const webhooks = await Webhook.find({ isActive: true });
+        // NOTE: Bypass firmIsolation filter - system job operates across all firms
+        const webhooks = await Webhook.find({ isActive: true }).setOptions({ bypassFirmFilter: true });
 
         let checked = 0;
         let disabled = 0;

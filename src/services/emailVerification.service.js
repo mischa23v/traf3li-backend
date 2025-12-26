@@ -21,7 +21,8 @@ class EmailVerificationService {
     static async sendVerificationEmail(userId, email, userName = '', language = 'ar') {
         try {
             // Check if user exists
-            const user = await User.findById(userId);
+            // NOTE: Bypass firmIsolation filter - email verification works for solo lawyers without firmId
+            const user = await User.findById(userId).setOptions({ bypassFirmFilter: true });
             if (!user) {
                 throw new Error('User not found');
             }
@@ -195,13 +196,14 @@ class EmailVerificationService {
             }
 
             // Update user
+            // NOTE: Bypass firmIsolation filter - email verification works for solo lawyers without firmId
             const user = await User.findByIdAndUpdate(
                 result.userId,
                 {
                     isEmailVerified: true,
                     emailVerifiedAt: new Date()
                 },
-                { new: true }
+                { new: true, bypassFirmFilter: true }
             ).select('_id email username firstName lastName isEmailVerified emailVerifiedAt');
 
             if (!user) {
@@ -242,7 +244,8 @@ class EmailVerificationService {
     static async resendVerificationEmail(userId) {
         try {
             // Get user
-            const user = await User.findById(userId).select('email firstName lastName isEmailVerified');
+            // NOTE: Bypass firmIsolation filter - email verification works for solo lawyers without firmId
+            const user = await User.findById(userId).select('email firstName lastName isEmailVerified').setOptions({ bypassFirmFilter: true });
 
             if (!user) {
                 return {
@@ -295,7 +298,8 @@ class EmailVerificationService {
      */
     static async getVerificationStatus(userId) {
         try {
-            const user = await User.findById(userId).select('email isEmailVerified emailVerifiedAt');
+            // NOTE: Bypass firmIsolation filter - email verification works for solo lawyers without firmId
+            const user = await User.findById(userId).select('email isEmailVerified emailVerifiedAt').setOptions({ bypassFirmFilter: true });
 
             if (!user) {
                 return {
