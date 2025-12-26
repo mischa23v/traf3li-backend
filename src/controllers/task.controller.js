@@ -81,9 +81,12 @@ const createTask = asyncHandler(async (req, res) => {
     const sanitizedClientId = clientId ? sanitizeObjectId(clientId) : null;
     const sanitizedParentTaskId = parentTaskId ? sanitizeObjectId(parentTaskId) : null;
 
+    // Convert firmId to ObjectId for proper MongoDB matching
+    const firmObjectId = firmId ? new mongoose.Types.ObjectId(firmId) : null;
+
     // Validate assignedTo user if provided
     if (sanitizedAssignedTo) {
-        const assignedUser = await User.findOne({ _id: sanitizedAssignedTo, firmId });
+        const assignedUser = await User.findOne({ _id: sanitizedAssignedTo, firmId: firmObjectId });
         if (!assignedUser) {
             throw CustomException('Assigned user not found', 404);
         }
@@ -91,7 +94,7 @@ const createTask = asyncHandler(async (req, res) => {
 
     // If caseId provided, validate it exists and belongs to firm
     if (sanitizedCaseId) {
-        const caseDoc = await Case.findOne({ _id: sanitizedCaseId, firmId });
+        const caseDoc = await Case.findOne({ _id: sanitizedCaseId, firmId: firmObjectId });
         if (!caseDoc) {
             throw CustomException('Case not found', 404);
         }
@@ -217,10 +220,12 @@ const getTasks = asyncHandler(async (req, res) => {
     // Build query - if firmId exists, filter by firm; otherwise by user
     let query;
     if (firmId) {
+        // Convert firmId to ObjectId for proper MongoDB matching
+        const firmObjectId = new mongoose.Types.ObjectId(firmId);
         if (isDeparted) {
             // Departed users can only see their own tasks
             query = {
-                firmId,
+                firmId: firmObjectId,
                 $or: [
                     { assignedTo: userId },
                     { createdBy: userId }
@@ -228,7 +233,7 @@ const getTasks = asyncHandler(async (req, res) => {
             };
         } else {
             // Active firm members see all firm tasks
-            query = { firmId };
+            query = { firmId: firmObjectId };
         }
     } else {
         query = {
@@ -1125,9 +1130,12 @@ const bulkUpdateTasks = asyncHandler(async (req, res) => {
         updateData.assignedTo = sanitizeObjectId(updateData.assignedTo);
     }
 
+    // Convert firmId to ObjectId for proper MongoDB matching
+    const firmObjectId = firmId ? new mongoose.Types.ObjectId(firmId) : null;
+
     // Verify access to all tasks - firmId first, then user-based
-    const accessQuery = firmId
-        ? { _id: { $in: sanitizedTaskIds }, firmId }
+    const accessQuery = firmObjectId
+        ? { _id: { $in: sanitizedTaskIds }, firmId: firmObjectId }
         : { _id: { $in: sanitizedTaskIds }, $or: [{ assignedTo: userId }, { createdBy: userId }] };
 
     const tasks = await Task.find(accessQuery);
@@ -1170,9 +1178,12 @@ const bulkDeleteTasks = asyncHandler(async (req, res) => {
     // IDOR protection - sanitize all task IDs
     const sanitizedTaskIds = taskIds.map(id => sanitizeObjectId(id));
 
+    // Convert firmId to ObjectId for proper MongoDB matching
+    const firmObjectId = firmId ? new mongoose.Types.ObjectId(firmId) : null;
+
     // Verify ownership of all tasks - firmId first, then creator-only
-    const accessQuery = firmId
-        ? { _id: { $in: sanitizedTaskIds }, firmId }
+    const accessQuery = firmObjectId
+        ? { _id: { $in: sanitizedTaskIds }, firmId: firmObjectId }
         : { _id: { $in: sanitizedTaskIds }, createdBy: userId };
 
     const tasks = await Task.find(accessQuery).select('_id');
@@ -1284,13 +1295,16 @@ const getTasksByCase = asyncHandler(async (req, res) => {
     // IDOR protection
     const sanitizedCaseId = sanitizeObjectId(caseId);
 
+    // Convert firmId to ObjectId for proper MongoDB matching
+    const firmObjectId = firmId ? new mongoose.Types.ObjectId(firmId) : null;
+
     // Verify case exists and user has access
-    const caseDoc = await Case.findOne({ _id: sanitizedCaseId, firmId });
+    const caseDoc = await Case.findOne({ _id: sanitizedCaseId, firmId: firmObjectId });
     if (!caseDoc) {
         throw CustomException('Case not found', 404);
     }
 
-    const tasks = await Task.find({ caseId: sanitizedCaseId, firmId })
+    const tasks = await Task.find({ caseId: sanitizedCaseId, firmId: firmObjectId })
         .populate('assignedTo', 'firstName lastName image')
         .populate('createdBy', 'firstName lastName')
         .sort({ dueDate: 1, priority: -1 })
