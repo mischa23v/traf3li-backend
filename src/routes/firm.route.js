@@ -64,11 +64,12 @@ const {
 const app = express.Router();
 
 // ═══════════════════════════════════════════════════════════════
-// PUBLIC / MARKETPLACE
+// FIRM LISTING (Authenticated - SECURITY FIX)
 // ═══════════════════════════════════════════════════════════════
 
-// Get all firms (public marketplace)
-app.get('/', getFirms);
+// SECURITY: Get firms list requires authentication to prevent data enumeration
+// Previously public - now requires auth to comply with Saudi data protection requirements
+app.get('/', userMiddleware, getFirms);
 
 // Get available roles and their permissions (for UI)
 app.get('/roles', userMiddleware, getAvailableRoles);
@@ -91,7 +92,8 @@ app.get('/my/permissions', userMiddleware, getMyPermissions);
 
 // Get firm by ID
 app.get('/:id', userMiddleware, getFirm);
-app.get('/:_id', getFirm);  // Backwards compatible (public)
+// SECURITY: Backwards compatible route now requires auth - was PUBLIC vulnerability
+app.get('/:_id', userMiddleware, getFirm);
 
 // Update firm settings
 app.put('/:id', userMiddleware, auditAction('update_firm_settings', 'firm', { severity: 'high', captureChanges: true }), updateFirm);

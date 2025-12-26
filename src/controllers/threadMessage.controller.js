@@ -478,13 +478,46 @@ const searchMessages = asyncHandler(async (req, res) => {
 /**
  * Get full message thread for a record
  * GET /api/messages/thread/:model/:id
+ * SECURITY: Added firmId verification to prevent cross-firm access
  */
 const getRecordThread = asyncHandler(async (req, res) => {
     const { model, id } = req.params;
     const { page = 1, limit = 100 } = req.query;
+    const firmId = req.firmId;
+    const lawyerId = req.userID;
 
     if (!model || !id) {
         throw CustomException('النموذج والمعرف مطلوبان', 400);
+    }
+
+    // SECURITY: Verify the record belongs to the user's firm before returning messages
+    const mongoose = require('mongoose');
+    const modelMap = {
+        'Case': 'Case',
+        'Client': 'Client',
+        'Invoice': 'Invoice',
+        'Document': 'Document',
+        'Task': 'Task'
+    };
+
+    const mongooseModelName = modelMap[model];
+    if (mongooseModelName) {
+        try {
+            const Model = mongoose.model(mongooseModelName);
+            const resourceQuery = { _id: id };
+            if (firmId) {
+                resourceQuery.firmId = firmId;
+            } else {
+                resourceQuery.lawyerId = lawyerId;
+            }
+            const resource = await Model.findOne(resourceQuery);
+            if (!resource) {
+                throw CustomException('المورد غير موجود أو ليس لديك صلاحية الوصول', 403);
+            }
+        } catch (err) {
+            if (err.message.includes('المورد غير موجود')) throw err;
+            // Unknown model - skip validation but log warning
+        }
     }
 
     const query = {

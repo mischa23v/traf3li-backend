@@ -487,6 +487,35 @@ const grantRelation = asyncHandler(async (req, res) => {
         }
     }
 
+    // SECURITY: Validate resource ownership for non-firm namespaces
+    // Prevents cross-firm permission grants on cases, clients, documents, etc.
+    if (relationData.namespace !== 'firm' && relationData.namespace !== 'user') {
+        const mongoose = require('mongoose');
+        const modelMap = {
+            'case': 'Case',
+            'client': 'Client',
+            'document': 'Document',
+            'invoice': 'Invoice',
+            'task': 'Task'
+        };
+        const modelName = modelMap[relationData.namespace];
+        if (modelName) {
+            try {
+                const Model = mongoose.model(modelName);
+                const resource = await Model.findOne({
+                    _id: relationData.object,
+                    firmId: firmId
+                });
+                if (!resource) {
+                    throw CustomException('المورد غير موجود أو لا ينتمي لمكتبك', 403);
+                }
+            } catch (err) {
+                if (err.message.includes('المورد غير موجود')) throw err;
+                // Model not found in map - skip validation for unknown namespaces
+            }
+        }
+    }
+
     const tuple = await permissionEnforcer.grant(
         firmId,
         relationData,
@@ -536,6 +565,35 @@ const revokeRelation = asyncHandler(async (req, res) => {
     // Prevent revoking from other firms
     if (relationData.namespace === 'firm' && relationData.object !== firmId.toString()) {
         throw CustomException('لا يمكن سحب صلاحيات من مكتب آخر', 403);
+    }
+
+    // SECURITY: Validate resource ownership for non-firm namespaces
+    // Prevents cross-firm permission revocation on cases, clients, documents, etc.
+    if (relationData.namespace !== 'firm' && relationData.namespace !== 'user') {
+        const mongoose = require('mongoose');
+        const modelMap = {
+            'case': 'Case',
+            'client': 'Client',
+            'document': 'Document',
+            'invoice': 'Invoice',
+            'task': 'Task'
+        };
+        const modelName = modelMap[relationData.namespace];
+        if (modelName) {
+            try {
+                const Model = mongoose.model(modelName);
+                const resource = await Model.findOne({
+                    _id: relationData.object,
+                    firmId: firmId
+                });
+                if (!resource) {
+                    throw CustomException('المورد غير موجود أو لا ينتمي لمكتبك', 403);
+                }
+            } catch (err) {
+                if (err.message.includes('المورد غير موجود')) throw err;
+                // Model not found in map - skip validation for unknown namespaces
+            }
+        }
     }
 
     // Prevent users from revoking their own owner role

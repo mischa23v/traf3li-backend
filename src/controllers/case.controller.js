@@ -430,13 +430,32 @@ const getCases = async (request, response) => {
         if (region) filters.region = region;
 
         // Filter by specific lawyer or client
+        // SECURITY: Validate that lawyerId/clientId belongs to the user's firm before applying filter
         if (lawyerId) {
+            // SECURITY: Keep firmId filter - don't allow cross-firm lawyer queries
+            // Only allow filtering by lawyerId if they're in the same firm
+            if (firmId) {
+                const User = require('../models/user.model');
+                const targetLawyer = await User.findOne({ _id: lawyerId, firmId: firmId });
+                if (!targetLawyer) {
+                    throw CustomException('المحامي غير موجود في مكتبك', 403);
+                }
+            }
             filters.lawyerId = lawyerId;
-            delete filters.$or;
+            // Keep firmId filter - don't delete $or
         }
         if (clientId) {
+            // SECURITY: Keep firmId filter - don't allow cross-firm client queries
+            // Only allow filtering by clientId if they belong to the same firm
+            if (firmId) {
+                const Client = require('../models/client.model');
+                const targetClient = await Client.findOne({ _id: clientId, firmId: firmId });
+                if (!targetClient) {
+                    throw CustomException('العميل غير موجود في مكتبك', 403);
+                }
+            }
             filters.clientId = clientId;
-            delete filters.$or;
+            // Keep firmId filter - don't delete $or
         }
 
         // Date range filter

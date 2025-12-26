@@ -417,15 +417,31 @@ const verifyExternalAccess = asyncHandler(async (req, res) => {
 /**
  * Get activity feed
  * GET /api/deal-rooms/:id/activity
+ * SECURITY: Added firmId verification to prevent cross-firm access
  */
 const getActivityFeed = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { limit = 50 } = req.query;
+  const firmId = req.firmId;
+  const lawyerId = req.userID;
 
   // Validate deal room ID
   const sanitizedId = sanitizeObjectId(id);
   if (!sanitizedId) {
     throw CustomException('معرف غرفة الصفقة غير صالح', 400);
+  }
+
+  // SECURITY: Verify deal room belongs to user's firm before returning activity
+  const DealRoom = require('../models/dealRoom.model');
+  const dealRoomQuery = { _id: sanitizedId };
+  if (firmId) {
+    dealRoomQuery.firmId = firmId;
+  } else {
+    dealRoomQuery.createdBy = lawyerId;
+  }
+  const dealRoom = await DealRoom.findOne(dealRoomQuery);
+  if (!dealRoom) {
+    throw CustomException('غرفة الصفقة غير موجودة أو ليس لديك صلاحية الوصول', 403);
   }
 
   // Validate limit
