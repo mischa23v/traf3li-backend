@@ -119,20 +119,27 @@ const createRateLimiter = (options = {}) => {
 
   const config = { ...defaultOptions, ...options };
 
-  // Use Redis store if available
-  try {
-    const redisClient = getRedisClient();
-    if (redisClient) {
-      config.store = new RedisStore({
-        sendCommand: (...args) => redisClient.call(...args),
-        prefix: 'rate-limit:',
-      });
-      logger.info('Rate limiter: Using Redis store');
-    } else {
-      logger.warn('Rate limiter: Redis client not available, using memory store');
+  // Check if Redis cache is disabled (use memory store to save Redis requests)
+  const isRedisCacheDisabled = process.env.DISABLE_REDIS_CACHE === 'true';
+
+  // Use Redis store if available and not disabled
+  if (isRedisCacheDisabled) {
+    logger.info('Rate limiter: Using memory store (DISABLE_REDIS_CACHE=true)');
+  } else {
+    try {
+      const redisClient = getRedisClient();
+      if (redisClient) {
+        config.store = new RedisStore({
+          sendCommand: (...args) => redisClient.call(...args),
+          prefix: 'rate-limit:',
+        });
+        logger.info('Rate limiter: Using Redis store');
+      } else {
+        logger.warn('Rate limiter: Redis client not available, using memory store');
+      }
+    } catch (error) {
+      logger.warn('Rate limiter: Failed to initialize Redis store, using memory store:', error.message);
     }
-  } catch (error) {
-    logger.warn('Rate limiter: Failed to initialize Redis store, using memory store:', error.message);
   }
 
   return rateLimit(config);
