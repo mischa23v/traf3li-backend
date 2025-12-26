@@ -1202,7 +1202,9 @@ const bulkDeleteTasks = asyncHandler(async (req, res) => {
         });
     }
 
-    await Task.deleteMany({ _id: { $in: sanitizedTaskIds } });
+    // SECURITY: Use accessQuery to ensure firmId/createdBy filter is applied
+    // This prevents cross-firm task deletion even if IDs are known
+    await Task.deleteMany(accessQuery);
 
     res.status(200).json({
         success: true,

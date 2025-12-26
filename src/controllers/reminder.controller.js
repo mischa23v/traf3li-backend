@@ -915,7 +915,8 @@ const bulkDeleteReminders = asyncHandler(async (req, res) => {
         throw CustomException('Some reminders cannot be deleted (not found or unauthorized)', 403);
     }
 
-    await Reminder.deleteMany({ _id: { $in: sanitizedIds } });
+    // SECURITY: Include userId in deleteMany query to prevent cross-user deletion
+    await Reminder.deleteMany({ _id: { $in: sanitizedIds }, userId });
 
     res.status(200).json({
         success: true,
@@ -980,8 +981,9 @@ const bulkUpdateReminders = asyncHandler(async (req, res) => {
         }
     }
 
+    // SECURITY: Include userId in updateMany query to prevent cross-user modification
     await Reminder.updateMany(
-        { _id: { $in: sanitizedIds } },
+        { _id: { $in: sanitizedIds }, userId },
         { $set: updateData }
     );
 

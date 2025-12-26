@@ -693,7 +693,12 @@ const exportEntity = asyncHandler(async (req, res) => {
     const { entityType } = req.params;
     const { format = 'xlsx', language = 'ar' } = req.query;
     const firmId = req.firmId;
+    const lawyerId = req.userID;
+    const isSoloLawyer = req.isSoloLawyer;
     const filters = req.query;
+
+    // SECURITY: Ensure ownership filter is available
+    const ownershipFilter = (isSoloLawyer || !firmId) ? { lawyerId } : { firmId };
 
     const dataExportService = require('../services/dataExport.service');
 
@@ -718,34 +723,38 @@ const exportEntity = asyncHandler(async (req, res) => {
     let contentType;
 
     try {
+        // SECURITY: Use ownership filter for multi-tenant isolation
+        const exportFirmId = (isSoloLawyer || !firmId) ? null : firmId;
+        const exportFilters = { ...filters, ...ownershipFilter };
+
         // Call the appropriate export method
         switch (entityType) {
             case 'invoices':
-                buffer = await dataExportService.exportInvoices(firmId, filters, format);
+                buffer = await dataExportService.exportInvoices(exportFirmId, exportFilters, format);
                 fileName = `invoices_${Date.now()}.${format}`;
                 break;
             case 'clients':
-                buffer = await dataExportService.exportClients(firmId, filters, format);
+                buffer = await dataExportService.exportClients(exportFirmId, exportFilters, format);
                 fileName = `clients_${Date.now()}.${format}`;
                 break;
             case 'time_entries':
-                buffer = await dataExportService.exportTimeEntries(firmId, filters, format);
+                buffer = await dataExportService.exportTimeEntries(exportFirmId, exportFilters, format);
                 fileName = `time_entries_${Date.now()}.${format}`;
                 break;
             case 'expenses':
-                buffer = await dataExportService.exportExpenses(firmId, filters, format);
+                buffer = await dataExportService.exportExpenses(exportFirmId, exportFilters, format);
                 fileName = `expenses_${Date.now()}.${format}`;
                 break;
             case 'payments':
-                buffer = await dataExportService.exportPayments(firmId, filters, format);
+                buffer = await dataExportService.exportPayments(exportFirmId, exportFilters, format);
                 fileName = `payments_${Date.now()}.${format}`;
                 break;
             case 'cases':
-                buffer = await dataExportService.exportCases(firmId, filters, format);
+                buffer = await dataExportService.exportCases(exportFirmId, exportFilters, format);
                 fileName = `cases_${Date.now()}.${format}`;
                 break;
             case 'audit_logs':
-                buffer = await dataExportService.exportAuditLog(firmId, filters, format);
+                buffer = await dataExportService.exportAuditLog(exportFirmId, exportFilters, format);
                 fileName = `audit_logs_${Date.now()}.${format}`;
                 break;
         }
@@ -777,7 +786,13 @@ const exportReport = asyncHandler(async (req, res) => {
     const { reportType } = req.params;
     const { format = 'xlsx', language = 'ar' } = req.query;
     const firmId = req.firmId;
+    const lawyerId = req.userID;
+    const isSoloLawyer = req.isSoloLawyer;
     const filters = req.query;
+
+    // SECURITY: Ensure ownership filter is available
+    const ownershipFilter = (isSoloLawyer || !firmId) ? { lawyerId } : { firmId };
+    const exportFirmId = (isSoloLawyer || !firmId) ? null : firmId;
 
     const dataExportService = require('../services/dataExport.service');
 
@@ -806,22 +821,25 @@ const exportReport = asyncHandler(async (req, res) => {
         if (filters.startDate) dateRange.start = filters.startDate;
         if (filters.endDate) dateRange.end = filters.endDate;
 
+        // SECURITY: Pass ownership filter for multi-tenant isolation
+        const reportOptions = { ...ownershipFilter };
+
         // Call the appropriate report method
         switch (reportType) {
             case 'financial':
-                buffer = await dataExportService.exportFinancialReport(firmId, dateRange, format);
+                buffer = await dataExportService.exportFinancialReport(exportFirmId, dateRange, format, reportOptions);
                 fileName = `financial_report_${Date.now()}.${format}`;
                 break;
             case 'ar_aging':
-                buffer = await dataExportService.exportARAgingReport(firmId, format);
+                buffer = await dataExportService.exportARAgingReport(exportFirmId, format, reportOptions);
                 fileName = `ar_aging_${Date.now()}.${format}`;
                 break;
             case 'trust_account':
-                buffer = await dataExportService.exportTrustAccountReport(firmId, dateRange, format);
+                buffer = await dataExportService.exportTrustAccountReport(exportFirmId, dateRange, format, reportOptions);
                 fileName = `trust_account_${Date.now()}.${format}`;
                 break;
             case 'productivity':
-                buffer = await dataExportService.exportProductivityReport(firmId, dateRange, format);
+                buffer = await dataExportService.exportProductivityReport(exportFirmId, dateRange, format, reportOptions);
                 fileName = `productivity_${Date.now()}.${format}`;
                 break;
         }

@@ -549,7 +549,8 @@ const getStats = asyncHandler(async (req, res) => {
   const userId = req.userID;
   const firmId = req.firmId || null;
 
-  const stats = await DocumentAnalysis.getStats(firmId);
+  // SECURITY: Pass both firmId and userId for multi-tenant isolation
+  const stats = await DocumentAnalysis.getStats(firmId, userId);
 
   res.status(200).json({
     success: true,
