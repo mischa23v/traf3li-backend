@@ -655,6 +655,8 @@ const authLogin = async (request, response) => {
         // Accept both username AND email for login
         // PERF: Use .lean() for faster query (plain JS object, no Mongoose overhead)
         // Select only fields needed for authentication
+        // NOTE: Bypass firmIsolation filter - we don't know firmId during login
+        //       and solo lawyers don't have a firmId at all
         const user = await User.findOne({
             $or: [
                 { username: loginIdentifier },
@@ -662,6 +664,7 @@ const authLogin = async (request, response) => {
             ]
         })
         .select('_id username email password firstName lastName role isSeller isSoloLawyer lawyerWorkMode firmId firmRole firmStatus lawyerProfile image phone country region city timezone notificationPreferences')
+        .setOptions({ bypassFirmFilter: true })
         .lean();
 
         if(!user) {
@@ -724,6 +727,7 @@ const authLogin = async (request, response) => {
             // Check if user has MFA enabled - need to fetch MFA fields
             const userWithMFA = await User.findById(user._id)
                 .select('mfaEnabled mfaSecret mfaBackupCodes')
+                .setOptions({ bypassFirmFilter: true })
                 .lean();
 
             if (userWithMFA?.mfaEnabled) {
@@ -1329,8 +1333,10 @@ const checkAvailability = async (request, response) => {
             field = 'phone';
         }
 
-        // Check if user exists with the given field
-        const existingUser = await User.findOne(query).select('_id');
+        // Check if user exists with the given field (bypass firmFilter for auth)
+        const existingUser = await User.findOne(query)
+            .select('_id')
+            .setOptions({ bypassFirmFilter: true });
 
         // Log availability check for security monitoring
         if (existingUser) {
@@ -1378,9 +1384,11 @@ const authStatus = async (request, response) => {
         // ═══════════════════════════════════════════════════════════════
         // PERFORMANCE: Use lean() for faster query - returns plain JS object
         // findById is faster than findOne for _id lookups
+        // Bypass firmFilter - solo lawyers don't have firmId
         // ═══════════════════════════════════════════════════════════════
         const user = await User.findById(request.userID)
             .select('-password')
+            .setOptions({ bypassFirmFilter: true })
             .lean()
             .exec();
 
@@ -2137,8 +2145,11 @@ const forgotPassword = async (request, response) => {
     const ipAddress = request.ip || request.headers['x-forwarded-for']?.split(',')[0] || 'unknown';
 
     try {
-        // Find user by email
-        const user = await User.findOne({ email: email.toLowerCase() }).select('_id email firstName lastName passwordResetRequestedAt').lean();
+        // Find user by email (bypass firmFilter for auth operations)
+        const user = await User.findOne({ email: email.toLowerCase() })
+            .select('_id email firstName lastName passwordResetRequestedAt')
+            .setOptions({ bypassFirmFilter: true })
+            .lean();
 
         // SECURITY: Always return success even if user doesn't exist
         // This prevents email enumeration attacks
@@ -2286,11 +2297,13 @@ const resetPassword = async (request, response) => {
         const crypto = require('crypto');
         const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
 
-        // Find user with matching token and non-expired token
+        // Find user with matching token and non-expired token (bypass firmFilter for auth)
         const user = await User.findOne({
             passwordResetToken: hashedToken,
             passwordResetExpires: { $gt: Date.now() }
-        }).select('_id email firstName lastName password passwordResetToken passwordResetExpires');
+        })
+            .select('_id email firstName lastName password passwordResetToken passwordResetExpires')
+            .setOptions({ bypassFirmFilter: true });
 
         if (!user) {
             logger.warn('Invalid or expired password reset token', { ipAddress });

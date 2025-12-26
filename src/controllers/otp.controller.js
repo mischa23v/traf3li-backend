@@ -50,9 +50,10 @@ const sendOTP = async (req, res) => {
       });
     }
 
-    // For login, check if user exists
+    // For login, check if user exists (bypass firmFilter for auth)
     if (purpose === 'login') {
-      const existingUser = await User.findOne({ email: email.toLowerCase() });
+      const existingUser = await User.findOne({ email: email.toLowerCase() })
+        .setOptions({ bypassFirmFilter: true });
       if (!existingUser) {
         return res.status(404).json({
           success: false,
@@ -72,8 +73,9 @@ const sendOTP = async (req, res) => {
       userAgent: req.headers['user-agent']
     });
 
-    // Get user name if exists
-    const user = await User.findOne({ email: email.toLowerCase() });
+    // Get user name if exists (bypass firmFilter for auth)
+    const user = await User.findOne({ email: email.toLowerCase() })
+      .setOptions({ bypassFirmFilter: true });
     const userName = user ? `${user.firstName} ${user.lastName}` : 'User';
 
     // Send OTP email
@@ -211,8 +213,9 @@ const verifyOTP = async (req, res) => {
       });
     }
 
-    // For login, generate tokens
-    const user = await User.findOne({ email: email.toLowerCase() });
+    // For login, generate tokens (bypass firmFilter for auth)
+    const user = await User.findOne({ email: email.toLowerCase() })
+      .setOptions({ bypassFirmFilter: true });
 
     if (!user) {
       return res.status(404).json({

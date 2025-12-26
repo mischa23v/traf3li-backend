@@ -66,8 +66,9 @@ const setupMFA = async (request, response) => {
             });
         }
 
-        // Get user
-        const user = await User.findById(userId);
+        // Get user (bypass firmFilter for auth operations)
+        const user = await User.findById(userId)
+            .setOptions({ bypassFirmFilter: true });
         if (!user) {
             return response.status(404).json({
                 error: true,
@@ -176,8 +177,9 @@ const verifySetup = async (request, response) => {
             });
         }
 
-        // Get user
-        const user = await User.findById(userId);
+        // Get user (bypass firmFilter for auth)
+        const user = await User.findById(userId)
+            .setOptions({ bypassFirmFilter: true });
         if (!user) {
             return response.status(404).json({
                 error: true,
@@ -334,8 +336,9 @@ const verifyMFA = async (request, response) => {
             });
         }
 
-        // Get user
-        const user = await User.findById(sanitizedUserId);
+        // Get user (bypass firmFilter for auth)
+        const user = await User.findById(sanitizedUserId)
+            .setOptions({ bypassFirmFilter: true });
         if (!user) {
             return response.status(404).json({
                 error: true,
@@ -455,8 +458,10 @@ const disableMFA = async (request, response) => {
             });
         }
 
-        // Get user with password field
-        const user = await User.findById(userId).select('+password');
+        // Get user with password field (bypass firmFilter for auth)
+        const user = await User.findById(userId)
+            .select('+password')
+            .setOptions({ bypassFirmFilter: true });
         if (!user) {
             return response.status(404).json({
                 error: true,
@@ -653,7 +658,10 @@ const verifyBackupCode = async (request, response) => {
         // Trigger backup code used webhook (fire-and-forget)
         (async () => {
             try {
-                const user = await User.findById(sanitizedUserId).select('_id email username firmId').lean();
+                const user = await User.findById(sanitizedUserId)
+                    .select('_id email username firmId')
+                    .setOptions({ bypassFirmFilter: true })
+                    .lean();
                 if (user) {
                     await authWebhookService.triggerMFABackupCodeUsedWebhook(user, request, {
                         remainingCodes: result.remainingCodes,
