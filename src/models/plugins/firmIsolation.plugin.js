@@ -132,7 +132,7 @@ module.exports = function firmIsolationPlugin(schema, options = {}) {
 
   /**
    * Enforce firmId in aggregate pipelines
-   * Checks if the first $match stage includes firmId
+   * Checks if the first $match stage includes firmId or lawyerId (for solo users)
    */
   schema.pre('aggregate', function(next) {
     const options = this.options;
@@ -147,14 +147,18 @@ module.exports = function firmIsolationPlugin(schema, options = {}) {
     // If pipeline is empty or first stage is not $match, require bypass
     if (pipeline.length === 0 || !pipeline[0].$match) {
       return next(new Error(
-        `Aggregate pipeline must include ${fieldName} in first $match stage or use setOptions({ ${bypassOption}: true }) to bypass.`
+        `Aggregate pipeline must include ${fieldName} or lawyerId in first $match stage or use setOptions({ ${bypassOption}: true }) to bypass.`
       ));
     }
 
-    // Check if firmId is in the first $match stage
-    if (!pipeline[0].$match[fieldName]) {
+    // Check if firmId or lawyerId is in the first $match stage
+    // lawyerId is valid for solo users who don't have a firm
+    const hasFirmId = pipeline[0].$match[fieldName];
+    const hasLawyerId = pipeline[0].$match.lawyerId;
+
+    if (!hasFirmId && !hasLawyerId) {
       return next(new Error(
-        `Aggregate pipeline must include ${fieldName} in first $match stage or use setOptions({ ${bypassOption}: true }) to bypass.`
+        `Aggregate pipeline must include ${fieldName} or lawyerId in first $match stage or use setOptions({ ${bypassOption}: true }) to bypass.`
       ));
     }
 
@@ -291,9 +295,13 @@ function enforceFirmFilter(query, fieldName, bypassOption) {
   }
 
   // Check if firmId is in the filter
-  if (!filter[fieldName] && filter[fieldName] !== null) {
+  // Also accept lawyerId as valid filter for solo users (who don't have a firm)
+  const hasFirmId = filter[fieldName] || filter[fieldName] === null;
+  const hasLawyerId = filter.lawyerId;
+
+  if (!hasFirmId && !hasLawyerId) {
     throw new Error(
-      `Query must include ${fieldName} filter. Use .setOptions({ ${bypassOption}: true }) to bypass for system operations.`
+      `Query must include ${fieldName} or lawyerId filter. Use .setOptions({ ${bypassOption}: true }) to bypass for system operations.`
     );
   }
 }
