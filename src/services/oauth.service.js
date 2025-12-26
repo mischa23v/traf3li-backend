@@ -694,26 +694,33 @@ class OAuthService {
                     throw CustomException('Email domain not allowed for SSO authentication', 403);
                 }
 
-                // User exists - create SSO link
-                ssoLink = await SsoUserLink.createOrUpdate(
-                    user._id,
-                    config.provider._id,
-                    {
-                        externalId: userInfo.externalId,
-                        email: userInfo.email,
-                        providerType: config.provider.providerType,
-                        profile: {
-                            firstName: userInfo.firstName,
-                            lastName: userInfo.lastName,
-                            displayName: userInfo.displayName,
-                            avatar: userInfo.picture,
-                            locale: userInfo.locale
-                        },
-                        isProvisioned: false
-                    }
-                );
-
-                await ssoLink.recordLogin(ipAddress, userAgent);
+                // User exists - create SSO link (skip for env-based providers)
+                const isEnvProvider = typeof config.provider._id === 'string' && config.provider._id.startsWith('env-');
+                if (!isEnvProvider) {
+                    ssoLink = await SsoUserLink.createOrUpdate(
+                        user._id,
+                        config.provider._id,
+                        {
+                            externalId: userInfo.externalId,
+                            email: userInfo.email,
+                            providerType: config.provider.providerType,
+                            profile: {
+                                firstName: userInfo.firstName,
+                                lastName: userInfo.lastName,
+                                displayName: userInfo.displayName,
+                                avatar: userInfo.picture,
+                                locale: userInfo.locale
+                            },
+                            isProvisioned: false
+                        }
+                    );
+                    await ssoLink.recordLogin(ipAddress, userAgent);
+                } else {
+                    logger.info('Skipping SSO link creation for env-based provider', {
+                        provider: config.provider.name,
+                        userId: user._id
+                    });
+                }
             } else if (config.provider.autoCreateUsers) {
                 // Check if domain is allowed for auto-provisioning
                 if (!config.provider.isEmailDomainAllowed(userInfo.email)) {
@@ -724,26 +731,28 @@ class OAuthService {
                 isNewUser = true;
                 user = await this.createUserFromSSO(userInfo, config.provider);
 
-                // Create SSO link
-                ssoLink = await SsoUserLink.createOrUpdate(
-                    user._id,
-                    config.provider._id,
-                    {
-                        externalId: userInfo.externalId,
-                        email: userInfo.email,
-                        providerType: config.provider.providerType,
-                        profile: {
-                            firstName: userInfo.firstName,
-                            lastName: userInfo.lastName,
-                            displayName: userInfo.displayName,
-                            avatar: userInfo.picture,
-                            locale: userInfo.locale
-                        },
-                        isProvisioned: true
-                    }
-                );
-
-                await ssoLink.recordLogin(ipAddress, userAgent);
+                // Create SSO link (skip for env-based providers)
+                const isEnvProvider = typeof config.provider._id === 'string' && config.provider._id.startsWith('env-');
+                if (!isEnvProvider) {
+                    ssoLink = await SsoUserLink.createOrUpdate(
+                        user._id,
+                        config.provider._id,
+                        {
+                            externalId: userInfo.externalId,
+                            email: userInfo.email,
+                            providerType: config.provider.providerType,
+                            profile: {
+                                firstName: userInfo.firstName,
+                                lastName: userInfo.lastName,
+                                displayName: userInfo.displayName,
+                                avatar: userInfo.picture,
+                                locale: userInfo.locale
+                            },
+                            isProvisioned: true
+                        }
+                    );
+                    await ssoLink.recordLogin(ipAddress, userAgent);
+                }
             } else {
                 // User doesn't exist - return OAuth profile data for registration
                 // Frontend will redirect to sign-up with pre-filled data
