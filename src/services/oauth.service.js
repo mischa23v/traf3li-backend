@@ -329,8 +329,16 @@ class OAuthService {
         const state = this.generateState();
 
         // Build redirect URI
-        const baseUrl = process.env.BACKEND_URL || process.env.API_URL || 'http://localhost:5000';
-        const redirectUri = `${baseUrl}/api/auth/sso/${providerId}/callback`;
+        // Priority: 1. Provider-specific env var, 2. Provider config, 3. Backend default
+        let redirectUri;
+        if (config.provider.redirectUri) {
+            // Use redirect URI from provider config (includes env-based providers)
+            redirectUri = config.provider.redirectUri;
+        } else {
+            // Fallback to backend callback endpoint
+            const baseUrl = process.env.BACKEND_URL || process.env.API_URL || 'http://localhost:5000';
+            redirectUri = `${baseUrl}/api/auth/sso/${providerId}/callback`;
+        }
 
         // Validate return URL to prevent open redirect attacks
         const safeReturnUrl = validateReturnUrl(returnUrl);
