@@ -76,6 +76,21 @@ const teamMemberSchema = new mongoose.Schema({
 
 const firmSchema = new mongoose.Schema({
     // ═══════════════════════════════════════════════════════════════
+    // FIRM TYPE - Solo vs Regular Firm
+    // ═══════════════════════════════════════════════════════════════
+    firmType: {
+        type: String,
+        enum: ['solo', 'firm'],
+        default: 'firm',
+        index: true
+    },
+    isSoloFirm: {
+        type: Boolean,
+        default: false,
+        index: true
+    },
+
+    // ═══════════════════════════════════════════════════════════════
     // BASIC INFO
     // ═══════════════════════════════════════════════════════════════
     name: {
@@ -745,6 +760,62 @@ firmSchema.statics.getUserRole = async function(firmId, userId) {
 
     const member = firm.members.find(m => m.userId.toString() === userId.toString());
     return member?.role || null;
+};
+
+/**
+ * Create a personal/solo firm for a solo lawyer
+ * This is the recommended pattern for solo users - they get a personal firm
+ * so all queries can use firmId consistently across the codebase.
+ *
+ * @param {Object} user - The user document
+ * @param {String} user._id - User's ObjectId
+ * @param {String} user.firstName - User's first name
+ * @param {String} user.lastName - User's last name (optional)
+ * @returns {Document} The created solo firm
+ */
+firmSchema.statics.createSoloFirm = async function(user) {
+    const firmName = user.lastName
+        ? `${user.firstName} ${user.lastName}`
+        : `${user.firstName}'s Practice`;
+
+    const soloFirm = new this({
+        firmType: 'solo',
+        isSoloFirm: true,
+        name: firmName,
+        nameArabic: firmName,
+        ownerId: user._id,
+        createdBy: user._id,
+        members: [{
+            userId: user._id,
+            role: 'owner',
+            permissions: getDefaultPermissions('owner'),
+            status: 'active',
+            joinedAt: new Date()
+        }],
+        subscription: {
+            plan: 'free',
+            status: 'active',
+            maxUsers: 1,
+            maxCases: 50,
+            maxClients: 100,
+            maxStorageGB: 5
+        },
+        status: 'active'
+    });
+
+    await soloFirm.save();
+
+    // Update user with firmId
+    const User = mongoose.model('User');
+    await User.findByIdAndUpdate(user._id, {
+        firmId: soloFirm._id,
+        firmRole: 'owner',
+        firmStatus: 'active',
+        isSoloLawyer: true,
+        lawyerWorkMode: 'solo'
+    });
+
+    return soloFirm;
 };
 
 // Process member departure - converts active member to departed status

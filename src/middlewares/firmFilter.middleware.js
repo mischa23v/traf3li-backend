@@ -86,17 +86,70 @@ const firmFilter = async (req, res, next) => {
         // Set req.user for authorize middleware compatibility
         req.user = user;
 
-        // Handle solo lawyers - they have full permissions without needing a firm
-        // Uses Casbin-style domain check: solo lawyers have no tenant/domain
-        if (checkIsSoloLawyer(user)) {
+        // ═══════════════════════════════════════════════════════════════
+        // SOLO LAWYER WITH PERSONAL FIRM
+        // Solo lawyers now have a personal/solo firm for consistent data isolation.
+        // They still get full permissions but use firmId for queries.
+        // ═══════════════════════════════════════════════════════════════
+        if (checkIsSoloLawyer(user) && user.firmId) {
+            // Solo lawyer with personal firm - use firmId for isolation
+            req.firmId = user.firmId;
+            req.firmRole = user.firmRole || 'owner';
+            req.firmStatus = user.firmStatus || 'active';
+            req.isDeparted = false;
+            req.isSoloLawyer = true;
+            req.workMode = WORK_MODES.SOLO;
+            req.tenantId = user.firmId; // Solo firm is still a tenant
+            req.firmQuery = { firmId: user.firmId }; // Use firmId for consistent isolation
+            req.permissions = getSoloLawyerPermissions(); // Solo lawyers get full permissions
+
+            // Build subject for Casbin-style enforcement
+            req.subject = buildSubject(
+                { _id: userId, firmId: user.firmId, firmRole: 'owner', isSoloLawyer: true, role: 'lawyer' },
+                null
+            );
+
+            // Helper functions for solo lawyers
+            req.hasPermission = () => true; // Solo lawyers have all permissions
+            req.hasSpecialPermission = (permission) => {
+                const soloPerms = getSoloLawyerPermissions();
+                return soloPerms.special?.[permission] === true;
+            };
+            req.canAccessCase = () => true;
+            req.canCreateFirm = () => false; // Solo lawyers already have a firm
+            req.canJoinFirm = () => false; // Solo lawyers need to leave their firm first
+            req.addFirmId = (data) => {
+                if (typeof data === 'object') {
+                    data.firmId = user.firmId;
+                }
+                return data;
+            };
+            req.getFirm = async () => {
+                return Firm.findById(user.firmId).lean();
+            };
+
+            // Casbin-style enforce helper for solo lawyers
+            req.enforce = (resource, action) => {
+                return enforce(req.subject, resource, action, user.firmId);
+            };
+
+            return next();
+        }
+
+        // ═══════════════════════════════════════════════════════════════
+        // LEGACY: Solo lawyer WITHOUT personal firm (backwards compatibility)
+        // This handles old solo lawyers who haven't been migrated yet.
+        // After migration runs, this code path should rarely be used.
+        // ═══════════════════════════════════════════════════════════════
+        if (checkIsSoloLawyer(user) && !user.firmId) {
             req.firmId = null;
             req.firmRole = null;
             req.firmStatus = null;
             req.isDeparted = false;
             req.isSoloLawyer = true;
             req.workMode = WORK_MODES.SOLO;
-            req.tenantId = null; // No tenant for solo lawyers
-            req.firmQuery = { lawyerId: userId }; // Solo lawyers filter by their own ID
+            req.tenantId = null; // No tenant for legacy solo lawyers
+            req.firmQuery = { lawyerId: userId }; // Legacy: filter by lawyerId
             req.permissions = getSoloLawyerPermissions(); // Solo lawyers get full permissions
 
             // Build subject for Casbin-style enforcement
@@ -108,13 +161,12 @@ const firmFilter = async (req, res, next) => {
             // Helper functions for solo lawyers
             req.hasPermission = () => true; // Solo lawyers have all permissions
             req.hasSpecialPermission = (permission) => {
-                // Check special permissions specific to solo lawyers
                 const soloPerms = getSoloLawyerPermissions();
                 return soloPerms.special?.[permission] === true;
             };
             req.canAccessCase = () => true;
-            req.canCreateFirm = () => true; // Solo lawyers can create a firm
-            req.canJoinFirm = () => true; // Solo lawyers can join a firm
+            req.canCreateFirm = () => true; // Legacy solo lawyers can create a firm
+            req.canJoinFirm = () => true; // Legacy solo lawyers can join a firm
             req.addFirmId = (data) => {
                 if (typeof data === 'object') {
                     data.lawyerId = userId;

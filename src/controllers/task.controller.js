@@ -211,34 +211,40 @@ const getTasks = asyncHandler(async (req, res) => {
     const userId = req.userID;
     const firmId = req.firmId; // From firmFilter middleware
     const isDeparted = req.isDeparted; // From firmFilter middleware
+    const isSoloLawyer = req.isSoloLawyer; // From firmFilter middleware
+    const firmQuery = req.firmQuery; // From firmFilter middleware - handles both solo and regular firms
 
     // IDOR protection - sanitize ObjectIds in query parameters
     const sanitizedAssignedTo = assignedTo ? sanitizeObjectId(assignedTo) : null;
     const sanitizedCaseId = caseId ? sanitizeObjectId(caseId) : null;
     const sanitizedClientId = clientId ? sanitizeObjectId(clientId) : null;
 
-    // Build query - if firmId exists, filter by firm; otherwise by user
+    // Build query using firmQuery from middleware (handles solo firms and regular firms)
     let query;
-    if (firmId) {
-        // Convert firmId to ObjectId for proper MongoDB matching
-        const firmObjectId = new mongoose.Types.ObjectId(firmId);
-        if (isDeparted) {
-            // Departed users can only see their own tasks
-            query = {
-                firmId: firmObjectId,
-                $or: [
-                    { assignedTo: userId },
-                    { createdBy: userId }
-                ]
-            };
-        } else {
-            // Active firm members see all firm tasks
-            query = { firmId: firmObjectId };
-        }
-    } else {
-        // Solo user - use firmId: null to satisfy RLS plugin, filter by assignedTo/createdBy
+    if (isSoloLawyer) {
+        // Solo lawyers see only their own tasks (they are the only member of their solo firm)
         query = {
-            firmId: null,
+            ...firmQuery,
+            $or: [
+                { assignedTo: userId },
+                { createdBy: userId }
+            ]
+        };
+    } else if (isDeparted) {
+        // Departed users can only see their own tasks
+        query = {
+            ...firmQuery,
+            $or: [
+                { assignedTo: userId },
+                { createdBy: userId }
+            ]
+        };
+    } else if (firmId) {
+        // Active firm members see all firm tasks
+        query = { ...firmQuery };
+    } else {
+        // Fallback: Legacy users without firm - filter by their own tasks
+        query = {
             $or: [
                 { assignedTo: userId },
                 { createdBy: userId }

@@ -937,6 +937,24 @@ class OAuthService {
             } catch (error) {
                 logger.error('Failed to add SSO user to firm', { error: error.message });
             }
+        } else {
+            // No firm specified - create a personal/solo firm for this user
+            // This ensures all lawyers have a firmId for consistent data isolation
+            try {
+                const soloFirm = await Firm.createSoloFirm(user);
+                logger.info('Solo firm created for SSO user', {
+                    userId: user._id,
+                    firmId: soloFirm._id,
+                    firmName: soloFirm.name,
+                    provider: provider.name
+                });
+            } catch (soloFirmError) {
+                logger.error('Failed to create solo firm for SSO user', {
+                    error: soloFirmError.message,
+                    userId: user._id
+                });
+                // Don't fail registration - user can create firm later
+            }
         }
 
         return user;

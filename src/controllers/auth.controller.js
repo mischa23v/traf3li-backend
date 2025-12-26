@@ -447,6 +447,46 @@ const authRegister = async (request, response) => {
             }
         };
 
+        // ═══════════════════════════════════════════════════════════════
+        // SOLO LAWYER: Auto-create personal firm
+        // This ensures all users have a firmId for consistent data isolation
+        // ═══════════════════════════════════════════════════════════════
+        if (isLawyer && (lawyerWorkMode === 'solo' || (!lawyerWorkMode && !firmData && !invitationCode))) {
+            try {
+                const soloFirm = await Firm.createSoloFirm(user);
+
+                responseData.user.firmId = soloFirm._id;
+                responseData.user.firmRole = 'owner';
+                responseData.user.isSoloLawyer = true;
+                responseData.firm = {
+                    id: soloFirm._id,
+                    name: soloFirm.name,
+                    isSoloFirm: true
+                };
+                responseData.message = 'تم إنشاء الحساب بنجاح';
+
+                logger.info('Solo firm created for new user', {
+                    userId: user._id,
+                    firmId: soloFirm._id,
+                    firmName: soloFirm.name
+                });
+            } catch (soloFirmError) {
+                logger.error('Solo firm creation error', {
+                    error: soloFirmError.message,
+                    userId: user._id
+                });
+                // User was created but solo firm creation failed
+                // Clean up by deleting the user
+                await User.findByIdAndDelete(user._id).setOptions({ bypassFirmFilter: true });
+                return response.status(400).send({
+                    error: true,
+                    message: 'فشل في إعداد الحساب. يرجى المحاولة مرة أخرى',
+                    messageEn: 'Failed to setup account. Please try again',
+                    code: 'SOLO_FIRM_CREATION_FAILED'
+                });
+            }
+        }
+
         // Handle firm creation if lawyerWorkMode is 'create_firm'
         if (isLawyer && lawyerWorkMode === 'create_firm' && firmData) {
             try {
