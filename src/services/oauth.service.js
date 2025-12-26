@@ -664,8 +664,14 @@ class OAuthService {
         // Get user info
         const userInfo = await this.getUserInfo(config.provider, tokens.access_token, tokens.id_token);
 
-        // Find existing SSO link
-        let ssoLink = await SsoUserLink.findByExternalId(userInfo.externalId, config.provider._id);
+        // Check if this is an env-based provider (skip SSO link operations)
+        const isEnvProvider = typeof config.provider._id === 'string' && config.provider._id.startsWith('env-');
+
+        // Find existing SSO link (skip for env-based providers)
+        let ssoLink = null;
+        if (!isEnvProvider) {
+            ssoLink = await SsoUserLink.findByExternalId(userInfo.externalId, config.provider._id);
+        }
 
         let user;
         let isNewUser = false;
@@ -701,7 +707,6 @@ class OAuthService {
                 }
 
                 // User exists - create SSO link (skip for env-based providers)
-                const isEnvProvider = typeof config.provider._id === 'string' && config.provider._id.startsWith('env-');
                 if (!isEnvProvider) {
                     ssoLink = await SsoUserLink.createOrUpdate(
                         user._id,
@@ -738,7 +743,6 @@ class OAuthService {
                 user = await this.createUserFromSSO(userInfo, config.provider);
 
                 // Create SSO link (skip for env-based providers)
-                const isEnvProvider = typeof config.provider._id === 'string' && config.provider._id.startsWith('env-');
                 if (!isEnvProvider) {
                     ssoLink = await SsoUserLink.createOrUpdate(
                         user._id,
