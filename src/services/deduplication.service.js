@@ -565,8 +565,8 @@ class DeduplicationService {
                 }
             }
 
-            // Update all references across the system
-            await this._updateReferences(masterId, duplicateId, session);
+            // SECURITY: Update all references across the system with firmId for multi-tenant isolation
+            await this._updateReferences(masterId, duplicateId, firmId, session);
 
             // Mark duplicate as merged
             duplicate.duplicateOf = masterId;
@@ -620,64 +620,70 @@ class DeduplicationService {
 
     /**
      * Update all references from duplicate to master across all models
+     * SECURITY: Requires firmId for multi-tenant isolation
      * @private
      */
-    static async _updateReferences(masterId, duplicateId, session) {
+    static async _updateReferences(masterId, duplicateId, firmId, session) {
         try {
-            logger.info(`Updating references from ${duplicateId} to ${masterId}`);
+            logger.info(`Updating references from ${duplicateId} to ${masterId} for firm ${firmId}`);
+
+            // SECURITY: All updateMany operations MUST include firmId to prevent cross-firm data modification
+            if (!firmId) {
+                throw new Error('Firm ID required for multi-tenant isolation');
+            }
 
             // Update CRM Activities
             await CrmActivity.updateMany(
-                { entityType: 'contact', entityId: duplicateId },
+                { firmId: firmId, entityType: 'contact', entityId: duplicateId },
                 { $set: { entityId: masterId } },
                 { session }
             );
 
             // Update Cases (contact references)
             await Case.updateMany(
-                { 'contacts.contactId': duplicateId },
+                { firmId: firmId, 'contacts.contactId': duplicateId },
                 { $set: { 'contacts.$.contactId': masterId } },
                 { session }
             );
 
             // Update Leads (contact reference)
             await Lead.updateMany(
-                { contactId: duplicateId },
+                { firmId: firmId, contactId: duplicateId },
                 { $set: { contactId: masterId } },
                 { session }
             );
 
             // Update Clients (contact reference)
             await Client.updateMany(
-                { contactId: duplicateId },
+                { firmId: firmId, contactId: duplicateId },
                 { $set: { contactId: masterId } },
                 { session }
             );
 
             // Update Organizations (primary contact)
             await Organization.updateMany(
-                { primaryContactId: duplicateId },
+                { firmId: firmId, primaryContactId: duplicateId },
                 { $set: { primaryContactId: masterId } },
                 { session }
             );
 
             // Update Referrals
             await Referral.updateMany(
-                { $or: [{ referrerId: duplicateId }, { referredContactId: duplicateId }] },
+                { firmId: firmId, $or: [{ referrerId: duplicateId }, { referredContactId: duplicateId }] },
                 { $set: { referrerId: masterId, referredContactId: masterId } },
                 { session }
             );
 
             // Update Invoices (if they have contact reference)
             await Invoice.updateMany(
-                { contactId: duplicateId },
+                { firmId: firmId, contactId: duplicateId },
                 { $set: { contactId: masterId } },
                 { session }
             );
 
             // Update Conversations
             await Conversation.updateMany(
-                { contactId: duplicateId },
+                { firmId: firmId, contactId: duplicateId },
                 { $set: { contactId: masterId } },
                 { session }
             );

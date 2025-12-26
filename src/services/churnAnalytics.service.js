@@ -31,11 +31,23 @@ class ChurnAnalyticsService {
      */
     static async getDashboardSummary(firmId = null) {
         try {
+            // SECURITY: Require firmId for multi-tenant isolation
+            if (!firmId) {
+                logger.warn('ChurnAnalytics.getDashboardSummary called without firmId');
+                return {
+                    totalSubscriptions: 0,
+                    atRiskCount: 0,
+                    recentChurns: 0,
+                    churnRate: 0,
+                    netRevenueRetention: 0
+                };
+            }
+
             const now = new Date();
             const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
             const ninetyDaysAgo = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
 
-            const matchStage = firmId ? { firmId: new mongoose.Types.ObjectId(firmId) } : {};
+            const matchStage = { firmId: new mongoose.Types.ObjectId(firmId) };
 
             // Get current subscription stats
             const subscriptionStats = await Subscription.aggregate([
@@ -156,7 +168,13 @@ class ChurnAnalyticsService {
      */
     static async getHealthScoreDistribution(firmId = null) {
         try {
-            const matchStage = firmId ? { firmId: new mongoose.Types.ObjectId(firmId) } : {};
+            // SECURITY: Require firmId for multi-tenant isolation
+            if (!firmId) {
+                logger.warn('ChurnAnalytics.getHealthScoreDistribution called without firmId');
+                return { healthy: 0, moderate: 0, atRisk: 0, critical: 0, total: 0 };
+            }
+            // SECURITY: Require firmId - if missing, caller should return early
+            const matchStage = { firmId: new mongoose.Types.ObjectId(firmId) };
 
             // Calculate health scores dynamically
             const subscriptions = await Subscription.aggregate([
@@ -215,12 +233,19 @@ class ChurnAnalyticsService {
      */
     static async getHealthScoreTrend(days = 90, firmId = null) {
         try {
+            // SECURITY: Require firmId for multi-tenant isolation
+            if (!firmId) {
+                logger.warn('ChurnAnalytics.getHealthScoreTrend called without firmId');
+                return [];
+            }
+
             const endDate = new Date();
             const startDate = new Date(endDate.getTime() - days * 24 * 60 * 60 * 1000);
 
             // Since we don't have historical health scores stored,
             // we'll calculate trends based on subscription status changes
-            const matchStage = firmId ? { firmId: new mongoose.Types.ObjectId(firmId) } : {};
+            // SECURITY: Require firmId - if missing, caller should return early
+            const matchStage = { firmId: new mongoose.Types.ObjectId(firmId) };
 
             const trend = await Subscription.aggregate([
                 {
@@ -281,10 +306,17 @@ class ChurnAnalyticsService {
      */
     static async getAtRiskRevenue(firmId = null) {
         try {
+            // SECURITY: Require firmId for multi-tenant isolation
+            if (!firmId) {
+                logger.warn('ChurnAnalytics.getAtRiskRevenue called without firmId');
+                return 0;
+            }
+
             const now = new Date();
             const sevenDaysFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
 
-            const matchStage = firmId ? { firmId: new mongoose.Types.ObjectId(firmId) } : {};
+            // SECURITY: Require firmId - if missing, caller should return early
+            const matchStage = { firmId: new mongoose.Types.ObjectId(firmId) };
 
             const result = await Subscription.aggregate([
                 {
@@ -331,6 +363,12 @@ class ChurnAnalyticsService {
      */
     static async getChurnRate(period = 'monthly', firmId = null) {
         try {
+            // SECURITY: Require firmId for multi-tenant isolation
+            if (!firmId) {
+                logger.warn('ChurnAnalytics.getChurnRate called without firmId');
+                return { period: 'N/A', metrics: { churnRate: 0, retentionRate: 0 } };
+            }
+
             const now = new Date();
             let startDate;
             let periodLabel;
@@ -354,7 +392,8 @@ class ChurnAnalyticsService {
                     periodLabel = 'This Month';
             }
 
-            const matchStage = firmId ? { firmId: new mongoose.Types.ObjectId(firmId) } : {};
+            // SECURITY: Require firmId - if missing, caller should return early
+            const matchStage = { firmId: new mongoose.Types.ObjectId(firmId) };
 
             // Get subscriptions at start of period
             const startCount = await Subscription.countDocuments({
@@ -435,8 +474,15 @@ class ChurnAnalyticsService {
      */
     static async getChurnTrend(months = 12, firmId = null) {
         try {
+            // SECURITY: Require firmId for multi-tenant isolation
+            if (!firmId) {
+                logger.warn('ChurnAnalytics.getChurnTrend called without firmId');
+                return [];
+            }
+
             const now = new Date();
-            const matchStage = firmId ? { firmId: new mongoose.Types.ObjectId(firmId) } : {};
+            // SECURITY: Require firmId - if missing, caller should return early
+            const matchStage = { firmId: new mongoose.Types.ObjectId(firmId) };
 
             const trend = [];
 
@@ -486,8 +532,15 @@ class ChurnAnalyticsService {
      */
     static async getChurnReasonBreakdown(period = 'monthly', firmId = null) {
         try {
+            // SECURITY: Require firmId for multi-tenant isolation
+            if (!firmId) {
+                logger.warn('ChurnAnalytics.getChurnReasonBreakdown called without firmId');
+                return [];
+            }
+
             const { startDate } = this._getPeriodDates(period);
-            const matchStage = firmId ? { firmId: new mongoose.Types.ObjectId(firmId) } : {};
+            // SECURITY: Require firmId - if missing, caller should return early
+            const matchStage = { firmId: new mongoose.Types.ObjectId(firmId) };
 
             const breakdown = await Subscription.aggregate([
                 {
@@ -538,8 +591,15 @@ class ChurnAnalyticsService {
      */
     static async getChurnBySegment(segmentField = 'planId', period = 'monthly', firmId = null) {
         try {
+            // SECURITY: Require firmId for multi-tenant isolation
+            if (!firmId) {
+                logger.warn('ChurnAnalytics.getChurnBySegment called without firmId');
+                return [];
+            }
+
             const { startDate } = this._getPeriodDates(period);
-            const matchStage = firmId ? { firmId: new mongoose.Types.ObjectId(firmId) } : {};
+            // SECURITY: Require firmId - if missing, caller should return early
+            const matchStage = { firmId: new mongoose.Types.ObjectId(firmId) };
 
             // Get all subscriptions grouped by segment
             const segments = await Subscription.aggregate([
@@ -607,8 +667,15 @@ class ChurnAnalyticsService {
      */
     static async getNetRevenueRetention(period = 'monthly', firmId = null) {
         try {
+            // SECURITY: Require firmId for multi-tenant isolation
+            if (!firmId) {
+                logger.warn('ChurnAnalytics.getNetRevenueRetention called without firmId');
+                return { nrr: 100, startingMRR: 0, churnedMRR: 0 };
+            }
+
             const { startDate, endDate } = this._getPeriodDates(period);
-            const matchStage = firmId ? { firmId: new mongoose.Types.ObjectId(firmId) } : {};
+            // SECURITY: Require firmId - if missing, caller should return early
+            const matchStage = { firmId: new mongoose.Types.ObjectId(firmId) };
 
             // Get MRR at start of period
             const startMRR = await Subscription.aggregate([
@@ -692,9 +759,16 @@ class ChurnAnalyticsService {
      */
     static async getCohortRetention(cohortMonth, months = 12, firmId = null) {
         try {
+            // SECURITY: Require firmId for multi-tenant isolation
+            if (!firmId) {
+                logger.warn('ChurnAnalytics.getCohortRetention called without firmId');
+                return { cohort: cohortMonth, cohortSize: 0, retention: [] };
+            }
+
             const cohortDate = new Date(cohortMonth + '-01');
             const cohortEndDate = new Date(cohortDate.getFullYear(), cohortDate.getMonth() + 1, 0);
-            const matchStage = firmId ? { firmId: new mongoose.Types.ObjectId(firmId) } : {};
+            // SECURITY: Require firmId - if missing, caller should return early
+            const matchStage = { firmId: new mongoose.Types.ObjectId(firmId) };
 
             // Get all subscriptions from this cohort
             const cohortSubscriptions = await Subscription.find({
@@ -742,7 +816,13 @@ class ChurnAnalyticsService {
      */
     static async getCohortChurnCurve(firmId = null) {
         try {
-            const matchStage = firmId ? { firmId: new mongoose.Types.ObjectId(firmId) } : {};
+            // SECURITY: Require firmId for multi-tenant isolation
+            if (!firmId) {
+                logger.warn('ChurnAnalytics.getCohortChurnCurve called without firmId');
+                return [];
+            }
+            // SECURITY: Require firmId - if missing, caller should return early
+            const matchStage = { firmId: new mongoose.Types.ObjectId(firmId) };
 
             const churnedSubscriptions = await Subscription.aggregate([
                 {
@@ -792,7 +872,13 @@ class ChurnAnalyticsService {
      */
     static async getTimeToChurn(firmId = null) {
         try {
-            const matchStage = firmId ? { firmId: new mongoose.Types.ObjectId(firmId) } : {};
+            // SECURITY: Require firmId for multi-tenant isolation
+            if (!firmId) {
+                logger.warn('ChurnAnalytics.getTimeToChurn called without firmId');
+                return { averageDays: 0, averageMonths: 0, totalChurned: 0 };
+            }
+            // SECURITY: Require firmId - if missing, caller should return early
+            const matchStage = { firmId: new mongoose.Types.ObjectId(firmId) };
 
             const result = await Subscription.aggregate([
                 {
@@ -846,9 +932,16 @@ class ChurnAnalyticsService {
      */
     static async getChurnRiskList(firmId = null) {
         try {
+            // SECURITY: Require firmId for multi-tenant isolation
+            if (!firmId) {
+                logger.warn('ChurnAnalytics.getChurnRiskList called without firmId');
+                return [];
+            }
+
             const now = new Date();
             const sevenDaysFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
-            const matchStage = firmId ? { firmId: new mongoose.Types.ObjectId(firmId) } : {};
+            // SECURITY: Require firmId - if missing, caller should return early
+            const matchStage = { firmId: new mongoose.Types.ObjectId(firmId) };
 
             const atRiskSubscriptions = await Subscription.find({
                 ...matchStage,

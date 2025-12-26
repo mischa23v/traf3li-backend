@@ -204,22 +204,6 @@ const updatePaymentStatus = async (request, response) => {
 
         const { payment_intent } = value;
 
-        // First, find the order to verify ownership
-        const existingOrder = await Order.findOne({ payment_intent });
-
-        if (!existingOrder) {
-            throw CustomException('Order not found', 404);
-        }
-
-        // IDOR protection: Verify user is either buyer or seller
-        const isAuthorized =
-            existingOrder.buyerID.toString() === request.userID ||
-            existingOrder.sellerID.toString() === request.userID;
-
-        if (!isAuthorized) {
-            throw CustomException('Not authorized to update this order', 403);
-        }
-
         // Mass assignment protection: Only allow specific fields to be updated
         const allowedUpdates = {
             isCompleted: true,
@@ -227,11 +211,28 @@ const updatePaymentStatus = async (request, response) => {
             acceptedAt: new Date()
         };
 
+        // SECURITY: TOCTOU Fix - Include authorization check directly in update query
+        // This prevents race conditions where buyerID/sellerID could change between check and update
         const order = await Order.findOneAndUpdate(
-            { payment_intent },
+            {
+                payment_intent,
+                $or: [
+                    { buyerID: request.userID },
+                    { sellerID: request.userID }
+                ]
+            },
             { $set: allowedUpdates },
             { new: true }
         );
+
+        if (!order) {
+            // Check if order exists but user is not authorized
+            const existingOrder = await Order.findOne({ payment_intent });
+            if (existingOrder) {
+                throw CustomException('Not authorized to update this order', 403);
+            }
+            throw CustomException('Order not found', 404);
+        }
 
         if(order?.isCompleted) {
             // ✅ ADDED: Notify seller that payment is confirmed

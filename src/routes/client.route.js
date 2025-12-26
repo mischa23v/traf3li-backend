@@ -466,10 +466,21 @@ app.post('/:id/verify/absher',
             }
 
             const Client = require('../models/client.model');
-            const client = await Client.findById(sanitizedId);
+
+            // SECURITY: Build query with firmId for multi-tenant isolation
+            const firmId = req.firmId;
+            const lawyerId = req.userID;
+            const clientQuery = { _id: sanitizedId };
+            if (firmId) {
+                clientQuery.firmId = firmId;
+            } else {
+                clientQuery.lawyerId = lawyerId;
+            }
+
+            const client = await Client.findOne(clientQuery);
 
             if (!client) {
-                return res.status(404).json({ success: false, message: 'Client not found' });
+                return res.status(404).json({ success: false, message: 'Client not found or access denied' });
             }
 
             // TODO: Integrate with actual Absher API
@@ -513,10 +524,21 @@ app.post('/:id/verify/address',
             }
 
             const Client = require('../models/client.model');
-            const client = await Client.findById(sanitizedId);
+
+            // SECURITY: Build query with firmId for multi-tenant isolation
+            const firmId = req.firmId;
+            const lawyerId = req.userID;
+            const clientQuery = { _id: sanitizedId };
+            if (firmId) {
+                clientQuery.firmId = firmId;
+            } else {
+                clientQuery.lawyerId = lawyerId;
+            }
+
+            const client = await Client.findOne(clientQuery);
 
             if (!client) {
-                return res.status(404).json({ success: false, message: 'Client not found' });
+                return res.status(404).json({ success: false, message: 'Client not found or access denied' });
             }
 
             // TODO: Integrate with actual Saudi Post API

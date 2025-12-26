@@ -660,21 +660,25 @@ const deleteGrievance = asyncHandler(async (req, res) => {
         baseQuery.firmId = firmId;
     }
 
-    const grievance = await Grievance.findOne({
+    // SECURITY: TOCTOU Fix - Use atomic delete with status check in query
+    // This prevents race conditions where status could change between check and delete
+    const result = await Grievance.deleteOne({
         _id: req.params.id,
-        ...baseQuery
+        ...baseQuery,
+        status: 'submitted'  // Include status check in delete query
     });
 
-    if (!grievance) {
+    if (result.deletedCount === 0) {
+        // Check why deletion failed
+        const existingGrievance = await Grievance.findOne({
+            _id: req.params.id,
+            ...baseQuery
+        });
+        if (existingGrievance) {
+            throw CustomException('Only submitted grievances can be deleted. Use withdrawal for other statuses.', 400);
+        }
         throw CustomException('Grievance not found', 404);
     }
-
-    // Only allow deletion of submitted grievances
-    if (grievance.status !== 'submitted') {
-        throw CustomException('Only submitted grievances can be deleted. Use withdrawal for other statuses.', 400);
-    }
-
-    await Grievance.deleteOne({ _id: req.params.id });
 
     return res.json({
         success: true,

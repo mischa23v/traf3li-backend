@@ -744,10 +744,20 @@ const completeEvent = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const { minutesNotes } = req.body;
     const userId = req.userID;
+    const firmId = req.firmId; // SECURITY: Added firmId for multi-tenant isolation
 
     const event = await Event.findById(id);
 
     if (!event) {
+        throw CustomException('Event not found', 404);
+    }
+
+    // SECURITY: Check firmId first for multi-tenant isolation
+    const firmAccess = firmId
+        ? event.firmId && event.firmId.toString() === firmId.toString()
+        : true; // Solo lawyers don't have firmId requirement
+
+    if (!firmAccess) {
         throw CustomException('Event not found', 404);
     }
 
@@ -788,10 +798,20 @@ const addAttendee = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const { userId: attendeeUserId, email, name, role, isRequired } = req.body;
     const userId = req.userID;
+    const firmId = req.firmId; // SECURITY: Added firmId for multi-tenant isolation
 
     const event = await Event.findById(id);
 
     if (!event) {
+        throw CustomException('Event not found', 404);
+    }
+
+    // SECURITY: Check firmId first for multi-tenant isolation
+    const firmAccess = firmId
+        ? event.firmId && event.firmId.toString() === firmId.toString()
+        : true;
+
+    if (!firmAccess) {
         throw CustomException('Event not found', 404);
     }
 
@@ -834,10 +854,20 @@ const addAttendee = asyncHandler(async (req, res) => {
 const removeAttendee = asyncHandler(async (req, res) => {
     const { id, attendeeId } = req.params;
     const userId = req.userID;
+    const firmId = req.firmId; // SECURITY: Added firmId for multi-tenant isolation
 
     const event = await Event.findById(id);
 
     if (!event) {
+        throw CustomException('Event not found', 404);
+    }
+
+    // SECURITY: Check firmId first for multi-tenant isolation
+    const firmAccess = firmId
+        ? event.firmId && event.firmId.toString() === firmId.toString()
+        : true;
+
+    if (!firmAccess) {
         throw CustomException('Event not found', 404);
     }
 
@@ -862,6 +892,7 @@ const rsvpEvent = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const { status, responseNote } = req.body;
     const userId = req.userID;
+    const firmId = req.firmId; // SECURITY: Added firmId for multi-tenant isolation
 
     if (!status || !['confirmed', 'declined', 'tentative'].includes(status)) {
         throw CustomException('Valid RSVP status is required (confirmed, declined, tentative)', 400);
@@ -870,6 +901,15 @@ const rsvpEvent = asyncHandler(async (req, res) => {
     const event = await Event.findById(id);
 
     if (!event) {
+        throw CustomException('Event not found', 404);
+    }
+
+    // SECURITY: Check firmId first for multi-tenant isolation
+    const firmAccess = firmId
+        ? event.firmId && event.firmId.toString() === firmId.toString()
+        : true;
+
+    if (!firmAccess) {
         throw CustomException('Event not found', 404);
     }
 
@@ -903,10 +943,20 @@ const addAgendaItem = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const { title, description, duration, presenter, notes } = req.body;
     const userId = req.userID;
+    const firmId = req.firmId; // SECURITY: Added firmId for multi-tenant isolation
 
     const event = await Event.findById(id);
 
     if (!event) {
+        throw CustomException('Event not found', 404);
+    }
+
+    // SECURITY: Check firmId first for multi-tenant isolation
+    const firmAccess = firmId
+        ? event.firmId && event.firmId.toString() === firmId.toString()
+        : true;
+
+    if (!firmAccess) {
         throw CustomException('Event not found', 404);
     }
 
@@ -941,10 +991,20 @@ const addAgendaItem = asyncHandler(async (req, res) => {
 const updateAgendaItem = asyncHandler(async (req, res) => {
     const { id, agendaId } = req.params;
     const userId = req.userID;
+    const firmId = req.firmId; // SECURITY: Added firmId for multi-tenant isolation
 
     const event = await Event.findById(id);
 
     if (!event) {
+        throw CustomException('Event not found', 404);
+    }
+
+    // SECURITY: Check firmId first for multi-tenant isolation
+    const firmAccess = firmId
+        ? event.firmId && event.firmId.toString() === firmId.toString()
+        : true;
+
+    if (!firmAccess) {
         throw CustomException('Event not found', 404);
     }
 
@@ -980,10 +1040,20 @@ const updateAgendaItem = asyncHandler(async (req, res) => {
 const deleteAgendaItem = asyncHandler(async (req, res) => {
     const { id, agendaId } = req.params;
     const userId = req.userID;
+    const firmId = req.firmId; // SECURITY: Added firmId for multi-tenant isolation
 
     const event = await Event.findById(id);
 
     if (!event) {
+        throw CustomException('Event not found', 404);
+    }
+
+    // SECURITY: Check firmId first for multi-tenant isolation
+    const firmAccess = firmId
+        ? event.firmId && event.firmId.toString() === firmId.toString()
+        : true;
+
+    if (!firmAccess) {
         throw CustomException('Event not found', 404);
     }
 
@@ -1292,9 +1362,22 @@ const getEventStats = asyncHandler(async (req, res) => {
  */
 const checkAvailability = asyncHandler(async (req, res) => {
     const { userIds, startDateTime, endDateTime, excludeEventId } = req.body;
+    const firmId = req.firmId; // SECURITY: Added firmId for multi-tenant isolation
 
     if (!userIds || !startDateTime || !endDateTime) {
         throw CustomException('User IDs, start time, and end time are required', 400);
+    }
+
+    // SECURITY: Verify requested users belong to same firm
+    if (firmId && userIds && userIds.length > 0) {
+        const User = require('../models/user.model');
+        const validUsers = await User.countDocuments({
+            _id: { $in: userIds },
+            firmId: firmId
+        });
+        if (validUsers !== userIds.length) {
+            throw CustomException('Cannot check availability for users outside your firm', 403);
+        }
     }
 
     // Date/Time Validation
@@ -1306,7 +1389,8 @@ const checkAvailability = asyncHandler(async (req, res) => {
         userIds,
         parsedStartDateTime,
         parsedEndDateTime,
-        excludeEventId
+        excludeEventId,
+        firmId // Pass firmId to model method
     );
 
     res.status(200).json({
@@ -1318,12 +1402,17 @@ const checkAvailability = asyncHandler(async (req, res) => {
 /**
  * Sync task to calendar (helper)
  */
-const syncTaskToCalendar = async (taskId) => {
+const syncTaskToCalendar = async (taskId, firmId = null) => {
     try {
         const task = await Task.findById(taskId);
         if (!task || !task.dueDate) return;
 
-        const existingEvent = await Event.findOne({ taskId: task._id });
+        // SECURITY: Include firmId in query for multi-tenant isolation
+        const eventQuery = { taskId: task._id };
+        if (task.firmId) {
+            eventQuery.firmId = task.firmId;
+        }
+        const existingEvent = await Event.findOne(eventQuery);
 
         if (existingEvent) {
             existingEvent.title = task.title;
@@ -1360,6 +1449,7 @@ const syncTaskToCalendar = async (taskId) => {
 const exportEventToICS = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const userId = req.userID;
+    const firmId = req.firmId; // SECURITY: Added firmId for multi-tenant isolation
 
     const event = await Event.findById(id)
         .populate('organizer', 'firstName lastName email')
@@ -1367,6 +1457,15 @@ const exportEventToICS = asyncHandler(async (req, res) => {
         .populate('caseId', 'title caseNumber');
 
     if (!event) {
+        throw CustomException('Event not found', 404);
+    }
+
+    // SECURITY: Check firmId first for multi-tenant isolation
+    const firmAccess = firmId
+        ? event.firmId && event.firmId.toString() === firmId.toString()
+        : true;
+
+    if (!firmAccess) {
         throw CustomException('Event not found', 404);
     }
 

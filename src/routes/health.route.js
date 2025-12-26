@@ -381,8 +381,10 @@ router.get('/cache', authenticate, async (req, res) => {
  * GET /health/debug-auth
  * Debug endpoint to see what cookies the server receives
  * Helps diagnose cookie/auth issues
+ * SECURITY: Requires authentication to prevent information disclosure
  */
-router.get('/debug-auth', (req, res) => {
+const { userMiddleware } = require('../middlewares');
+router.get('/debug-auth', userMiddleware, (req, res) => {
     // Detect same-origin proxy (same logic as auth.controller.js)
     const origin = req.headers.origin || '';
     const referer = req.headers.referer || '';
