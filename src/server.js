@@ -124,6 +124,7 @@ const {
     questionRoute,
     answerRoute,
     firmRoute,
+    organizationTemplateRoute,
 
     // Dashboard Core
     dashboardRoute,
