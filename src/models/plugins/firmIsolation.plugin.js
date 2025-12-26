@@ -132,7 +132,7 @@ module.exports = function firmIsolationPlugin(schema, options = {}) {
 
   /**
    * Enforce firmId in aggregate pipelines
-   * Checks if the first $match stage includes firmId
+   * Checks if the first $match stage includes firmId or lawyerId (for solo users)
    */
   schema.pre('aggregate', function(next) {
     const options = this.options;
@@ -147,14 +147,18 @@ module.exports = function firmIsolationPlugin(schema, options = {}) {
     // If pipeline is empty or first stage is not $match, require bypass
     if (pipeline.length === 0 || !pipeline[0].$match) {
       return next(new Error(
-        `Aggregate pipeline must include ${fieldName} in first $match stage or use setOptions({ ${bypassOption}: true }) to bypass.`
+        `Aggregate pipeline must include ${fieldName} or lawyerId in first $match stage or use setOptions({ ${bypassOption}: true }) to bypass.`
       ));
     }
 
-    // Check if firmId is in the first $match stage
-    if (!pipeline[0].$match[fieldName]) {
+    // Check if firmId or lawyerId is in the first $match stage
+    const firstMatch = pipeline[0].$match;
+    const hasFirmId = firstMatch[fieldName] || firstMatch[fieldName] === null;
+    const hasLawyerId = firstMatch.lawyerId;
+
+    if (!hasFirmId && !hasLawyerId) {
       return next(new Error(
-        `Aggregate pipeline must include ${fieldName} in first $match stage or use setOptions({ ${bypassOption}: true }) to bypass.`
+        `Aggregate pipeline must include ${fieldName} or lawyerId in first $match stage or use setOptions({ ${bypassOption}: true }) to bypass.`
       ));
     }
 
@@ -276,6 +280,7 @@ module.exports = function firmIsolationPlugin(schema, options = {}) {
 
 /**
  * Core enforcement function that checks and validates firmId in queries
+ * Allows lawyerId as an alternative for solo users who don't have a firmId
  *
  * @param {Query} query - Mongoose query object
  * @param {String} fieldName - Name of the firm field
@@ -290,10 +295,14 @@ function enforceFirmFilter(query, fieldName, bypassOption) {
     return;
   }
 
-  // Check if firmId is in the filter
-  if (!filter[fieldName] && filter[fieldName] !== null) {
+  // Check if firmId or lawyerId is in the filter
+  // Solo users use lawyerId instead of firmId for data isolation
+  const hasFirmId = filter[fieldName] || filter[fieldName] === null;
+  const hasLawyerId = filter.lawyerId;
+
+  if (!hasFirmId && !hasLawyerId) {
     throw new Error(
-      `Query must include ${fieldName} filter. Use .setOptions({ ${bypassOption}: true }) to bypass for system operations.`
+      `Query must include ${fieldName} or lawyerId filter. Use .setOptions({ ${bypassOption}: true }) to bypass for system operations.`
     );
   }
 }

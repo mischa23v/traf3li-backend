@@ -236,7 +236,9 @@ const getTasks = asyncHandler(async (req, res) => {
             query = { firmId: firmObjectId };
         }
     } else {
+        // Solo user - use firmId: null to satisfy RLS plugin, filter by assignedTo/createdBy
         query = {
+            firmId: null,
             $or: [
                 { assignedTo: userId },
                 { createdBy: userId }

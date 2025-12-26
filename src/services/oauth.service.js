@@ -903,7 +903,11 @@ class OAuthService {
             // Firm association
             firmId: provider.firmId,
             firmRole: provider.defaultRole,
-            firmStatus: provider.firmId ? 'active' : null
+            firmStatus: provider.firmId ? 'active' : null,
+
+            // Solo lawyer flags - if no firmId, user is registering as solo lawyer
+            isSoloLawyer: !provider.firmId,
+            lawyerWorkMode: provider.firmId ? 'firm_member' : 'solo'
         };
 
         const user = new User(userData);
