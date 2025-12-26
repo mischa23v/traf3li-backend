@@ -921,13 +921,7 @@ automationSchema.methods.validateConfig = function() {
 // ═══════════════════════════════════════════════════════════════
 // FIRM ISOLATION PLUGIN (RLS-like enforcement)
 // ═══════════════════════════════════════════════════════════════
-const firmIsolationPlugin = require('./plugins/firmIsolation.plugin');
-
-/**
- * Apply Row-Level Security (RLS) plugin to enforce firm-level data isolation.
- * This ensures that all queries automatically filter by firmId unless explicitly bypassed.
- */
-automationSchema.plugin(firmIsolationPlugin);
+// Removed firmIsolationPlugin - using direct RLS queries instead
 
 // ═══════════════════════════════════════════════════════════════
 // EXPORT

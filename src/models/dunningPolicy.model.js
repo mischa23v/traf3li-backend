@@ -267,23 +267,4 @@ dunningPolicySchema.methods.calculateLateFee = function(stage, invoiceAmount) {
         : toHalalas(stage.lateFeeAmount);
 };
 
-// ═══════════════════════════════════════════════════════════════
-// FIRM ISOLATION PLUGIN (RLS-like enforcement)
-// ═══════════════════════════════════════════════════════════════
-const firmIsolationPlugin = require('./plugins/firmIsolation.plugin');
-
-/**
- * Apply Row-Level Security (RLS) plugin to enforce firm-level data isolation.
- * This ensures that all queries automatically filter by firmId unless explicitly bypassed.
- *
- * Usage:
- *   // Normal queries (firmId required):
- *   await DunningPolicy.find({ firmId: myFirmId, isActive: true });
- *
- *   // System-level queries (bypass):
- *   await DunningPolicy.findWithoutFirmFilter({ _id: policyId });
- *   await DunningPolicy.find({}).setOptions({ bypassFirmFilter: true });
- */
-dunningPolicySchema.plugin(firmIsolationPlugin);
-
 module.exports = mongoose.model('DunningPolicy', dunningPolicySchema);

@@ -186,10 +186,4 @@ itemPriceSchema.pre('save', function(next) {
     next();
 });
 
-// ═══════════════════════════════════════════════════════════════
-// FIRM ISOLATION PLUGIN (RLS-like enforcement)
-// ═══════════════════════════════════════════════════════════════
-const firmIsolationPlugin = require('./plugins/firmIsolation.plugin');
-itemPriceSchema.plugin(firmIsolationPlugin);
-
 module.exports = mongoose.model('ItemPrice', itemPriceSchema);

@@ -469,23 +469,4 @@ taskSchema.statics.getStats = async function (userId, firmId = null) {
     };
 };
 
-// ═══════════════════════════════════════════════════════════════
-// FIRM ISOLATION PLUGIN (RLS-like enforcement)
-// ═══════════════════════════════════════════════════════════════
-const firmIsolationPlugin = require('./plugins/firmIsolation.plugin');
-
-/**
- * Apply Row-Level Security (RLS) plugin to enforce firm-level data isolation.
- * This ensures that all queries automatically filter by firmId unless explicitly bypassed.
- *
- * Usage:
- *   // Normal queries (firmId required):
- *   await Task.find({ firmId: myFirmId, status: 'in_progress' });
- *
- *   // System-level queries (bypass):
- *   await Task.findWithoutFirmFilter({ _id: taskId });
- *   await Task.find({}).setOptions({ bypassFirmFilter: true });
- */
-taskSchema.plugin(firmIsolationPlugin);
-
 module.exports = mongoose.model('Task', taskSchema);

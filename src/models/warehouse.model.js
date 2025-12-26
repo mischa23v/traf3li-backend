@@ -338,10 +338,4 @@ warehouseSchema.methods.getItemCount = async function() {
     });
 };
 
-// ═══════════════════════════════════════════════════════════════
-// FIRM ISOLATION PLUGIN (RLS-like enforcement)
-// ═══════════════════════════════════════════════════════════════
-const firmIsolationPlugin = require('./plugins/firmIsolation.plugin');
-warehouseSchema.plugin(firmIsolationPlugin);
-
 module.exports = mongoose.model('Warehouse', warehouseSchema);

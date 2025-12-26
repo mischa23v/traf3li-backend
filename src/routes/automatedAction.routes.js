@@ -8,7 +8,7 @@
  */
 
 const express = require('express');
-const { userMiddleware, firmFilter, firmAdminOnly } = require('../middlewares');
+const { userMiddleware, firmAdminOnly } = require('../middlewares');
 const {
     getActions,
     createAction,
@@ -30,9 +30,8 @@ const {
 const router = express.Router();
 
 // ============ APPLY MIDDLEWARE ============
-// All automated action routes require authentication and firm filtering
+// All automated action routes require authentication
 router.use(userMiddleware);
-router.use(firmFilter);
 
 // ============ INFORMATIONAL ENDPOINTS ============
 // These should come before /:id routes to avoid conflicts

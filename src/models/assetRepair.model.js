@@ -387,7 +387,6 @@ assetRepairSchema.methods.cancelRepair = async function(userId, session = null) 
 // ═══════════════════════════════════════════════════════════════
 // FIRM ISOLATION PLUGIN (RLS-like enforcement)
 // ═══════════════════════════════════════════════════════════════
-const firmIsolationPlugin = require('./plugins/firmIsolation.plugin');
-assetRepairSchema.plugin(firmIsolationPlugin);
+// Removed firmIsolationPlugin - using direct RLS queries instead
 
 module.exports = mongoose.model('AssetRepair', assetRepairSchema);

@@ -235,23 +235,4 @@ reportDefinitionSchema.index({ type: 1 });
 reportDefinitionSchema.index({ name: 'text', description: 'text' });
 reportDefinitionSchema.index({ 'schedule.enabled': 1, 'schedule.frequency': 1 });
 
-// ═══════════════════════════════════════════════════════════════
-// FIRM ISOLATION PLUGIN (Multi-Tenancy)
-// ═══════════════════════════════════════════════════════════════
-const firmIsolationPlugin = require('./plugins/firmIsolation.plugin');
-
-/**
- * Apply Row-Level Security (RLS) plugin to enforce firm-level data isolation.
- * This ensures that all queries automatically filter by firmId unless explicitly bypassed.
- *
- * Usage:
- *   // Normal queries (firmId required):
- *   await ReportDefinition.find({ firmId: myFirmId, type: 'chart' });
- *
- *   // System-level queries (bypass):
- *   await ReportDefinition.findWithoutFirmFilter({ _id: reportId });
- *   await ReportDefinition.find({}).setOptions({ bypassFirmFilter: true });
- */
-reportDefinitionSchema.plugin(firmIsolationPlugin);
-
 module.exports = mongoose.model('ReportDefinition', reportDefinitionSchema);

@@ -133,10 +133,4 @@ priceListSchema.pre('save', async function(next) {
     }
 });
 
-// ═══════════════════════════════════════════════════════════════
-// FIRM ISOLATION PLUGIN (RLS-like enforcement)
-// ═══════════════════════════════════════════════════════════════
-const firmIsolationPlugin = require('./plugins/firmIsolation.plugin');
-priceListSchema.plugin(firmIsolationPlugin);
-
 module.exports = mongoose.model('PriceList', priceListSchema);

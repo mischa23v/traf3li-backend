@@ -1,5 +1,5 @@
 const express = require('express');
-const { userMiddleware, firmFilter } = require('../middlewares');
+const { userMiddleware } = require('../middlewares');
 const {
     getAuthUrl,
     handleCallback,
@@ -27,64 +27,64 @@ const router = express.Router();
 // ═══════════════════════════════════════════════════════════════
 
 // OAuth authorization URL (protected)
-router.get('/auth-url', userMiddleware, firmFilter, getAuthUrl);
+router.get('/auth-url', userMiddleware, getAuthUrl);
 
 // OAuth callback (public - DocuSign redirects here)
 router.get('/callback', handleCallback);
 
 // Disconnect (protected)
-router.post('/disconnect', userMiddleware, firmFilter, disconnect);
+router.post('/disconnect', userMiddleware, disconnect);
 
 // Get connection status (protected)
-router.get('/status', userMiddleware, firmFilter, getStatus);
+router.get('/status', userMiddleware, getStatus);
 
 // ═══════════════════════════════════════════════════════════════
 // ENVELOPE OPERATIONS
 // ═══════════════════════════════════════════════════════════════
 
 // Send document for signature (create envelope)
-router.post('/envelopes', userMiddleware, firmFilter, sendForSignature);
+router.post('/envelopes', userMiddleware, sendForSignature);
 
 // Create envelope from template
-router.post('/envelopes/from-template', userMiddleware, firmFilter, useTemplate);
+router.post('/envelopes/from-template', userMiddleware, useTemplate);
 
 // List envelopes
-router.get('/envelopes', userMiddleware, firmFilter, listEnvelopes);
+router.get('/envelopes', userMiddleware, listEnvelopes);
 
 // Get envelope details
-router.get('/envelopes/:envelopeId', userMiddleware, firmFilter, getEnvelope);
+router.get('/envelopes/:envelopeId', userMiddleware, getEnvelope);
 
 // Download signed documents
-router.get('/envelopes/:envelopeId/documents', userMiddleware, firmFilter, downloadDocument);
+router.get('/envelopes/:envelopeId/documents', userMiddleware, downloadDocument);
 
 // Void envelope
-router.post('/envelopes/:envelopeId/void', userMiddleware, firmFilter, voidEnvelope);
+router.post('/envelopes/:envelopeId/void', userMiddleware, voidEnvelope);
 
 // Resend envelope
-router.post('/envelopes/:envelopeId/resend', userMiddleware, firmFilter, resendEnvelope);
+router.post('/envelopes/:envelopeId/resend', userMiddleware, resendEnvelope);
 
 // Get signing URL (for embedded signing)
-router.post('/envelopes/:envelopeId/signing-url', userMiddleware, firmFilter, getSigningUrl);
+router.post('/envelopes/:envelopeId/signing-url', userMiddleware, getSigningUrl);
 
 // ═══════════════════════════════════════════════════════════════
 // TEMPLATE OPERATIONS
 // ═══════════════════════════════════════════════════════════════
 
 // List templates
-router.get('/templates', userMiddleware, firmFilter, listTemplates);
+router.get('/templates', userMiddleware, listTemplates);
 
 // Add template to defaults
-router.post('/templates/defaults', userMiddleware, firmFilter, addDefaultTemplate);
+router.post('/templates/defaults', userMiddleware, addDefaultTemplate);
 
 // Remove template from defaults
-router.delete('/templates/defaults/:templateId', userMiddleware, firmFilter, removeDefaultTemplate);
+router.delete('/templates/defaults/:templateId', userMiddleware, removeDefaultTemplate);
 
 // ═══════════════════════════════════════════════════════════════
 // SETTINGS
 // ═══════════════════════════════════════════════════════════════
 
 // Update notification settings
-router.put('/settings', userMiddleware, firmFilter, updateSettings);
+router.put('/settings', userMiddleware, updateSettings);
 
 // ═══════════════════════════════════════════════════════════════
 // WEBHOOK (Public - DocuSign posts here)

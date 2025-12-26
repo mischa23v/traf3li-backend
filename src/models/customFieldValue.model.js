@@ -519,10 +519,4 @@ customFieldValueSchema.statics.bulkSetValue = async function(entityType, entityI
     };
 };
 
-// ═══════════════════════════════════════════════════════════════
-// FIRM ISOLATION PLUGIN
-// ═══════════════════════════════════════════════════════════════
-const firmIsolationPlugin = require('./plugins/firmIsolation.plugin');
-customFieldValueSchema.plugin(firmIsolationPlugin);
-
 module.exports = mongoose.model('CustomFieldValue', customFieldValueSchema);

@@ -1,5 +1,5 @@
 const express = require('express');
-const { userMiddleware, firmFilter } = require('../middlewares');
+const { userMiddleware } = require('../middlewares');
 const { cacheResponse, invalidateCache } = require('../middlewares/cache.middleware');
 const { sanitizeObjectId } = require('../utils/securityUtils');
 const {
@@ -103,7 +103,6 @@ const specificCaseInvalidationPatterns = [
 // ═══════════════════════════════════════════════════════════════════════════════
 app.get('/overview',
     userMiddleware,
-    firmFilter,
     cacheResponse(CASE_CACHE_TTL, (req) => {
         // Use originalUrl but sanitize to prevent cache poisoning
         const sanitizedUrl = req.originalUrl.replace(/[^a-zA-Z0-9_\-\.\/\?\&\=]/g, '');
@@ -140,7 +139,6 @@ app.get('/overview',
  */
 app.get('/statistics',
     userMiddleware,
-    firmFilter,
     cacheResponse(CASE_CACHE_TTL, (req) => `case:firm:${req.firmId || 'none'}:statistics`),
     getStatistics
 );
@@ -177,7 +175,6 @@ app.get('/statistics',
  */
 app.post('/',
     userMiddleware,
-    firmFilter,
     validateCreateCase,
     invalidateCache(caseInvalidationPatterns),
     createCase
@@ -225,7 +222,6 @@ app.post('/',
  */
 app.get('/',
     userMiddleware,
-    firmFilter,
     cacheResponse(CASE_CACHE_TTL, (req) => {
         // Use originalUrl but sanitize to prevent cache poisoning
         const sanitizedUrl = req.originalUrl.replace(/[^a-zA-Z0-9_\-\.\/\?\&\=]/g, '');
@@ -270,7 +266,6 @@ app.get('/',
  */
 app.get('/pipeline',
     userMiddleware,
-    firmFilter,
     cacheResponse(CASE_CACHE_TTL, (req) => {
         // Use originalUrl but sanitize to prevent cache poisoning
         const sanitizedUrl = req.originalUrl.replace(/[^a-zA-Z0-9_\-\.\/\?\&\=]/g, '');
@@ -314,7 +309,6 @@ app.get('/pipeline',
  */
 app.get('/pipeline/statistics',
     userMiddleware,
-    firmFilter,
     cacheResponse(CASE_CACHE_TTL, (req) => {
         // Use originalUrl but sanitize to prevent cache poisoning
         const sanitizedUrl = req.originalUrl.replace(/[^a-zA-Z0-9_\-\.\/\?\&\=]/g, '');
@@ -379,7 +373,6 @@ app.get('/pipeline/stages/:category',
  */
 app.get('/pipeline/grouped',
     userMiddleware,
-    firmFilter,
     cacheResponse(CASE_CACHE_TTL, (req) => {
         // Use originalUrl but sanitize to prevent cache poisoning
         const sanitizedUrl = req.originalUrl.replace(/[^a-zA-Z0-9_\-\.\/\?\&\=]/g, '');
@@ -394,7 +387,6 @@ app.get('/pipeline/grouped',
 // ═══════════════════════════════════════════════════════════════════════════════
 app.get('/:_id/full',
     userMiddleware,
-    firmFilter,
     validateObjectIdParam,
     cacheResponse(CASE_CACHE_TTL, (req) => {
         const sanitizedId = sanitizeObjectId(req.params._id);
@@ -435,7 +427,6 @@ app.get('/:_id/full',
  */
 app.get('/:_id',
     userMiddleware,
-    firmFilter,
     validateObjectIdParam,
     cacheResponse(CASE_CACHE_TTL, (req) => {
         const sanitizedId = sanitizeObjectId(req.params._id);
@@ -484,7 +475,6 @@ app.get('/:_id',
  */
 app.patch('/:_id',
     userMiddleware,
-    firmFilter,
     validateObjectIdParam,
     validateUpdateCase,
     invalidateCache(specificCaseInvalidationPatterns),
@@ -529,7 +519,6 @@ app.patch('/:_id',
  */
 app.delete('/:_id',
     userMiddleware,
-    firmFilter,
     validateObjectIdParam,
     invalidateCache(specificCaseInvalidationPatterns),
     deleteCase
@@ -538,7 +527,6 @@ app.delete('/:_id',
 // Update progress
 app.patch('/:_id/progress',
     userMiddleware,
-    firmFilter,
     validateObjectIdParam,
     validateUpdateProgress,
     invalidateCache(specificCaseInvalidationPatterns),
@@ -588,7 +576,6 @@ app.patch('/:_id/progress',
  */
 app.get('/:_id/notes',
     userMiddleware,
-    firmFilter,
     validateObjectIdParam,
     cacheResponse(CASE_CACHE_TTL, (req) => {
         const sanitizedId = sanitizeObjectId(req.params._id);
@@ -641,7 +628,6 @@ app.get('/:_id/notes',
  */
 app.post('/:_id/notes',
     userMiddleware,
-    firmFilter,
     validateObjectIdParam,
     invalidateCache(['case:firm:{firmId}:{_id}:*']),
     casePipelineController.addNote
@@ -650,7 +636,6 @@ app.post('/:_id/notes',
 // Legacy add note endpoint
 app.post('/:_id/note',
     userMiddleware,
-    firmFilter,
     validateObjectIdParam,
     validateAddNote,
     invalidateCache(['case:firm:{firmId}:{_id}:*']),
@@ -698,7 +683,6 @@ app.post('/:_id/note',
  */
 app.put('/:_id/notes/:noteId',
     userMiddleware,
-    firmFilter,
     validateNestedIdParam,
     invalidateCache(['case:firm:{firmId}:{_id}:*']),
     casePipelineController.updateNote
@@ -707,7 +691,6 @@ app.put('/:_id/notes/:noteId',
 // Update note (PATCH)
 app.patch('/:_id/notes/:noteId',
     userMiddleware,
-    firmFilter,
     validateNestedIdParam,
     validateUpdateNote,
     invalidateCache(['case:firm:{firmId}:{_id}:*']),
@@ -742,7 +725,6 @@ app.patch('/:_id/notes/:noteId',
  */
 app.delete('/:_id/notes/:noteId',
     userMiddleware,
-    firmFilter,
     validateNestedIdParam,
     invalidateCache(['case:firm:{firmId}:{_id}:*']),
     deleteNote
@@ -752,7 +734,6 @@ app.delete('/:_id/notes/:noteId',
 // Get upload URL
 app.post('/:_id/documents/upload-url',
     userMiddleware,
-    firmFilter,
     validateObjectIdParam,
     validateDocumentUploadUrl,
     getDocumentUploadUrl
@@ -761,7 +742,6 @@ app.post('/:_id/documents/upload-url',
 // Confirm upload
 app.post('/:_id/documents/confirm',
     userMiddleware,
-    firmFilter,
     validateObjectIdParam,
     validateConfirmDocumentUpload,
     invalidateCache(['case:firm:{firmId}:{_id}:*']),
@@ -771,7 +751,6 @@ app.post('/:_id/documents/confirm',
 // Get download URL
 app.get('/:_id/documents/:docId/download',
     userMiddleware,
-    firmFilter,
     validateNestedIdParam,
     getDocumentDownloadUrl
 );
@@ -779,7 +758,6 @@ app.get('/:_id/documents/:docId/download',
 // Delete document (with S3)
 app.delete('/:_id/documents/:docId',
     userMiddleware,
-    firmFilter,
     validateNestedIdParam,
     invalidateCache(['case:firm:{firmId}:{_id}:*']),
     deleteDocumentWithS3
@@ -788,7 +766,6 @@ app.delete('/:_id/documents/:docId',
 // Legacy document endpoints
 app.post('/:_id/document',
     userMiddleware,
-    firmFilter,
     validateObjectIdParam,
     invalidateCache(['case:firm:{firmId}:{_id}:*']),
     addDocument
@@ -796,7 +773,6 @@ app.post('/:_id/document',
 
 app.delete('/:_id/document/:documentId',
     userMiddleware,
-    firmFilter,
     validateNestedIdParam,
     invalidateCache(['case:firm:{firmId}:{_id}:*']),
     deleteDocument
@@ -806,7 +782,6 @@ app.delete('/:_id/document/:documentId',
 // Add hearing
 app.post('/:_id/hearing',
     userMiddleware,
-    firmFilter,
     validateObjectIdParam,
     validateAddHearing,
     invalidateCache(['case:firm:{firmId}:{_id}:*', 'dashboard:firm:{firmId}:*']),
@@ -816,7 +791,6 @@ app.post('/:_id/hearing',
 // Update hearing
 app.patch('/:_id/hearings/:hearingId',
     userMiddleware,
-    firmFilter,
     validateNestedIdParam,
     validateUpdateHearing,
     invalidateCache(['case:firm:{firmId}:{_id}:*', 'dashboard:firm:{firmId}:*']),
@@ -826,7 +800,6 @@ app.patch('/:_id/hearings/:hearingId',
 // Delete hearing
 app.delete('/:_id/hearings/:hearingId',
     userMiddleware,
-    firmFilter,
     validateNestedIdParam,
     invalidateCache(['case:firm:{firmId}:{_id}:*', 'dashboard:firm:{firmId}:*']),
     deleteHearing
@@ -835,7 +808,6 @@ app.delete('/:_id/hearings/:hearingId',
 // Legacy hearing update/delete routes
 app.patch('/:_id/hearing/:hearingId',
     userMiddleware,
-    firmFilter,
     validateNestedIdParam,
     validateUpdateHearing,
     invalidateCache(['case:firm:{firmId}:{_id}:*', 'dashboard:firm:{firmId}:*']),
@@ -844,7 +816,6 @@ app.patch('/:_id/hearing/:hearingId',
 
 app.delete('/:_id/hearing/:hearingId',
     userMiddleware,
-    firmFilter,
     validateNestedIdParam,
     invalidateCache(['case:firm:{firmId}:{_id}:*', 'dashboard:firm:{firmId}:*']),
     deleteHearing
@@ -854,7 +825,6 @@ app.delete('/:_id/hearing/:hearingId',
 // Add timeline event
 app.post('/:_id/timeline',
     userMiddleware,
-    firmFilter,
     validateObjectIdParam,
     validateAddTimelineEvent,
     invalidateCache(['case:firm:{firmId}:{_id}:*']),
@@ -864,7 +834,6 @@ app.post('/:_id/timeline',
 // Update timeline event
 app.patch('/:_id/timeline/:eventId',
     userMiddleware,
-    firmFilter,
     validateNestedIdParam,
     validateUpdateTimelineEvent,
     invalidateCache(['case:firm:{firmId}:{_id}:*']),
@@ -874,7 +843,6 @@ app.patch('/:_id/timeline/:eventId',
 // Delete timeline event
 app.delete('/:_id/timeline/:eventId',
     userMiddleware,
-    firmFilter,
     validateNestedIdParam,
     invalidateCache(['case:firm:{firmId}:{_id}:*']),
     deleteTimelineEvent
@@ -884,7 +852,6 @@ app.delete('/:_id/timeline/:eventId',
 // Add claim
 app.post('/:_id/claim',
     userMiddleware,
-    firmFilter,
     validateObjectIdParam,
     validateAddClaim,
     invalidateCache(['case:firm:{firmId}:{_id}:*']),
@@ -894,7 +861,6 @@ app.post('/:_id/claim',
 // Update claim
 app.patch('/:_id/claims/:claimId',
     userMiddleware,
-    firmFilter,
     validateNestedIdParam,
     validateUpdateClaim,
     invalidateCache(['case:firm:{firmId}:{_id}:*']),
@@ -904,7 +870,6 @@ app.patch('/:_id/claims/:claimId',
 // Delete claim
 app.delete('/:_id/claims/:claimId',
     userMiddleware,
-    firmFilter,
     validateNestedIdParam,
     invalidateCache(['case:firm:{firmId}:{_id}:*']),
     deleteClaim
@@ -913,7 +878,6 @@ app.delete('/:_id/claims/:claimId',
 // Legacy claim delete route
 app.delete('/:_id/claim/:claimId',
     userMiddleware,
-    firmFilter,
     validateNestedIdParam,
     invalidateCache(['case:firm:{firmId}:{_id}:*']),
     deleteClaim
@@ -923,7 +887,6 @@ app.delete('/:_id/claim/:claimId',
 // Update status
 app.patch('/:_id/status',
     userMiddleware,
-    firmFilter,
     validateObjectIdParam,
     validateUpdateStatus,
     invalidateCache(specificCaseInvalidationPatterns),
@@ -933,7 +896,6 @@ app.patch('/:_id/status',
 // Update outcome
 app.patch('/:_id/outcome',
     userMiddleware,
-    firmFilter,
     validateObjectIdParam,
     validateUpdateOutcome,
     invalidateCache(specificCaseInvalidationPatterns),
@@ -943,7 +905,6 @@ app.patch('/:_id/outcome',
 // Close case (for KPI tracking)
 app.put('/:_id/close',
     userMiddleware,
-    firmFilter,
     validateObjectIdParam,
     invalidateCache(specificCaseInvalidationPatterns),
     closeCase
@@ -953,7 +914,6 @@ app.put('/:_id/close',
 // Get case audit history
 app.get('/:_id/audit',
     userMiddleware,
-    firmFilter,
     validateObjectIdParam,
     cacheResponse(CASE_CACHE_TTL, (req) => {
         const sanitizedId = sanitizeObjectId(req.params._id);
@@ -967,7 +927,6 @@ app.get('/:_id/audit',
 // Create rich document
 app.post('/:_id/rich-documents',
     userMiddleware,
-    firmFilter,
     validateObjectIdParam,
     validateCreateRichDocument,
     invalidateCache(['case:firm:{firmId}:{_id}:*']),
@@ -977,7 +936,6 @@ app.post('/:_id/rich-documents',
 // Get all rich documents for a case
 app.get('/:_id/rich-documents',
     userMiddleware,
-    firmFilter,
     validateObjectIdParam,
     cacheResponse(CASE_CACHE_TTL, (req) => {
         const sanitizedId = sanitizeObjectId(req.params._id);
@@ -990,7 +948,6 @@ app.get('/:_id/rich-documents',
 // Get single rich document
 app.get('/:_id/rich-documents/:docId',
     userMiddleware,
-    firmFilter,
     validateNestedIdParam,
     cacheResponse(CASE_CACHE_TTL, (req) => {
         const sanitizedId = sanitizeObjectId(req.params._id);
@@ -1004,7 +961,6 @@ app.get('/:_id/rich-documents/:docId',
 // Update rich document
 app.patch('/:_id/rich-documents/:docId',
     userMiddleware,
-    firmFilter,
     validateNestedIdParam,
     validateUpdateRichDocument,
     invalidateCache(['case:firm:{firmId}:{_id}:*']),
@@ -1014,7 +970,6 @@ app.patch('/:_id/rich-documents/:docId',
 // Delete rich document
 app.delete('/:_id/rich-documents/:docId',
     userMiddleware,
-    firmFilter,
     validateNestedIdParam,
     invalidateCache(['case:firm:{firmId}:{_id}:*']),
     deleteRichDocument
@@ -1023,7 +978,6 @@ app.delete('/:_id/rich-documents/:docId',
 // Get rich document version history
 app.get('/:_id/rich-documents/:docId/versions',
     userMiddleware,
-    firmFilter,
     validateNestedIdParam,
     cacheResponse(CASE_CACHE_TTL, (req) => {
         const sanitizedId = sanitizeObjectId(req.params._id);
@@ -1037,7 +991,6 @@ app.get('/:_id/rich-documents/:docId/versions',
 // Restore rich document to a previous version
 app.post('/:_id/rich-documents/:docId/versions/:versionNumber/restore',
     userMiddleware,
-    firmFilter,
     validateNestedIdParam,
     invalidateCache(['case:firm:{firmId}:{_id}:*']),
     restoreRichDocumentVersion
@@ -1047,7 +1000,6 @@ app.post('/:_id/rich-documents/:docId/versions/:versionNumber/restore',
 // Export to PDF
 app.get('/:_id/rich-documents/:docId/export/pdf',
     userMiddleware,
-    firmFilter,
     validateNestedIdParam,
     exportRichDocumentToPdf
 );
@@ -1055,7 +1007,6 @@ app.get('/:_id/rich-documents/:docId/export/pdf',
 // Export to LaTeX
 app.get('/:_id/rich-documents/:docId/export/latex',
     userMiddleware,
-    firmFilter,
     validateNestedIdParam,
     exportRichDocumentToLatex
 );
@@ -1063,7 +1014,6 @@ app.get('/:_id/rich-documents/:docId/export/latex',
 // Export to Markdown
 app.get('/:_id/rich-documents/:docId/export/markdown',
     userMiddleware,
-    firmFilter,
     validateNestedIdParam,
     exportRichDocumentToMarkdown
 );
@@ -1071,7 +1021,6 @@ app.get('/:_id/rich-documents/:docId/export/markdown',
 // Get HTML preview
 app.get('/:_id/rich-documents/:docId/preview',
     userMiddleware,
-    firmFilter,
     validateNestedIdParam,
     cacheResponse(CASE_CACHE_TTL, (req) => {
         const sanitizedId = sanitizeObjectId(req.params._id);
@@ -1126,7 +1075,6 @@ app.get('/:_id/rich-documents/:docId/preview',
  */
 app.patch('/:_id/stage',
     userMiddleware,
-    firmFilter,
     validateObjectIdParam,
     validateMoveCaseToStage,
     invalidateCache(specificCaseInvalidationPatterns),
@@ -1183,7 +1131,6 @@ app.patch('/:_id/stage',
  */
 app.patch('/:_id/end',
     userMiddleware,
-    firmFilter,
     validateObjectIdParam,
     validateEndCase,
     invalidateCache(specificCaseInvalidationPatterns),

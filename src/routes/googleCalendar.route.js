@@ -1,5 +1,5 @@
 const express = require('express');
-const { userMiddleware, firmFilter } = require('../middlewares');
+const { userMiddleware } = require('../middlewares');
 const {
     getAuthUrl,
     handleCallback,
@@ -28,67 +28,67 @@ const router = express.Router();
 // ═══════════════════════════════════════════════════════════════
 
 // OAuth authorization URL (protected)
-router.get('/auth', userMiddleware, firmFilter, getAuthUrl);
+router.get('/auth', userMiddleware, getAuthUrl);
 
 // OAuth callback (public - Google redirects here)
 router.get('/callback', handleCallback);
 
 // Disconnect (protected)
-router.post('/disconnect', userMiddleware, firmFilter, disconnect);
+router.post('/disconnect', userMiddleware, disconnect);
 
 // Get connection status (protected)
-router.get('/status', userMiddleware, firmFilter, getStatus);
+router.get('/status', userMiddleware, getStatus);
 
 // ═══════════════════════════════════════════════════════════════
 // CALENDAR OPERATIONS
 // ═══════════════════════════════════════════════════════════════
 
 // Get list of calendars
-router.get('/calendars', userMiddleware, firmFilter, getCalendars);
+router.get('/calendars', userMiddleware, getCalendars);
 
 // Get events from a specific calendar
-router.get('/calendars/:calendarId/events', userMiddleware, firmFilter, getEvents);
+router.get('/calendars/:calendarId/events', userMiddleware, getEvents);
 
 // Create event in Google Calendar
-router.post('/calendars/:calendarId/events', userMiddleware, firmFilter, createEvent);
+router.post('/calendars/:calendarId/events', userMiddleware, createEvent);
 
 // Update event in Google Calendar
-router.put('/calendars/:calendarId/events/:eventId', userMiddleware, firmFilter, updateEvent);
+router.put('/calendars/:calendarId/events/:eventId', userMiddleware, updateEvent);
 
 // Delete event from Google Calendar
-router.delete('/calendars/:calendarId/events/:eventId', userMiddleware, firmFilter, deleteEvent);
+router.delete('/calendars/:calendarId/events/:eventId', userMiddleware, deleteEvent);
 
 // ═══════════════════════════════════════════════════════════════
 // CALENDAR SELECTION & SETTINGS
 // ═══════════════════════════════════════════════════════════════
 
 // Update selected calendars
-router.put('/settings/calendars', userMiddleware, firmFilter, updateSelectedCalendars);
+router.put('/settings/calendars', userMiddleware, updateSelectedCalendars);
 
 // Set up push notifications for a calendar
-router.post('/watch/:calendarId', userMiddleware, firmFilter, watchCalendar);
+router.post('/watch/:calendarId', userMiddleware, watchCalendar);
 
 // Stop push notifications
-router.delete('/watch/:channelId', userMiddleware, firmFilter, stopWatch);
+router.delete('/watch/:channelId', userMiddleware, stopWatch);
 
 // ═══════════════════════════════════════════════════════════════
 // SYNC OPERATIONS
 // ═══════════════════════════════════════════════════════════════
 
 // Sync from Google to TRAF3LI (import)
-router.post('/sync/import', userMiddleware, firmFilter, syncFromGoogle);
+router.post('/sync/import', userMiddleware, syncFromGoogle);
 
 // Sync TRAF3LI event to Google (export)
-router.post('/sync/export/:eventId', userMiddleware, firmFilter, syncToGoogle);
+router.post('/sync/export/:eventId', userMiddleware, syncToGoogle);
 
 // Enable auto-sync
-router.post('/sync/auto/enable', userMiddleware, firmFilter, enableAutoSync);
+router.post('/sync/auto/enable', userMiddleware, enableAutoSync);
 
 // Disable auto-sync
-router.post('/sync/auto/disable', userMiddleware, firmFilter, disableAutoSync);
+router.post('/sync/auto/disable', userMiddleware, disableAutoSync);
 
 // Get sync settings and stats
-router.get('/sync/settings', userMiddleware, firmFilter, getSyncSettings);
+router.get('/sync/settings', userMiddleware, getSyncSettings);
 
 // ═══════════════════════════════════════════════════════════════
 // WEBHOOK (Public - Google posts here)

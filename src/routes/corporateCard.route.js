@@ -7,7 +7,7 @@
 const express = require('express');
 const router = express.Router();
 const { userMiddleware } = require('../middlewares');
-const { firmFilter, firmAdminOnly, financeAccessOnly } = require('../middlewares/firmFilter.middleware');
+const { firmAdminOnly, financeAccessOnly } = require('../middlewares/firmFilter.middleware');
 const {
     getCorporateCards,
     getCorporateCard,
@@ -26,9 +26,8 @@ const {
     categorizeTransaction
 } = require('../controllers/corporateCard.controller');
 
-// All routes require authentication and firm filter
+// All routes require authentication
 router.use(userMiddleware);
-router.use(firmFilter);
 
 /**
  * @route   GET /api/corporate-cards

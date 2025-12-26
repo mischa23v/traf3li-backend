@@ -1,5 +1,5 @@
 const express = require('express');
-const { userMiddleware, firmFilter } = require('../middlewares');
+const { userMiddleware } = require('../middlewares');
 const {
     createTrade,
     getTrades,
@@ -20,41 +20,41 @@ const router = express.Router();
 // ═══════════════════════════════════════════════════════════════
 
 // Statistics
-router.get('/stats', userMiddleware, firmFilter, getTradeStats);
+router.get('/stats', userMiddleware, getTradeStats);
 
 // Chart data
-router.get('/stats/chart', userMiddleware, firmFilter, getChartData);
+router.get('/stats/chart', userMiddleware, getChartData);
 
 // Bulk operations
-router.delete('/bulk', userMiddleware, firmFilter, bulkDeleteTrades);
+router.delete('/bulk', userMiddleware, bulkDeleteTrades);
 
 // Import
-router.post('/import/csv', userMiddleware, firmFilter, importFromCsv);
+router.post('/import/csv', userMiddleware, importFromCsv);
 
 // ═══════════════════════════════════════════════════════════════
 // CRUD ROUTES
 // ═══════════════════════════════════════════════════════════════
 
 // Create trade
-router.post('/', userMiddleware, firmFilter, createTrade);
+router.post('/', userMiddleware, createTrade);
 
 // Get all trades
-router.get('/', userMiddleware, firmFilter, getTrades);
+router.get('/', userMiddleware, getTrades);
 
 // Get single trade
-router.get('/:id', userMiddleware, firmFilter, getTrade);
+router.get('/:id', userMiddleware, getTrade);
 
 // Update trade
-router.patch('/:id', userMiddleware, firmFilter, updateTrade);
+router.patch('/:id', userMiddleware, updateTrade);
 
 // Delete trade
-router.delete('/:id', userMiddleware, firmFilter, deleteTrade);
+router.delete('/:id', userMiddleware, deleteTrade);
 
 // ═══════════════════════════════════════════════════════════════
 // ACTION ROUTES
 // ═══════════════════════════════════════════════════════════════
 
 // Close trade
-router.post('/:id/close', userMiddleware, firmFilter, closeTrade);
+router.post('/:id/close', userMiddleware, closeTrade);
 
 module.exports = router;

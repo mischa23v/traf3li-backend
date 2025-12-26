@@ -707,16 +707,6 @@ supportSettingsSchema.pre('save', function(next) {
 });
 
 // ═══════════════════════════════════════════════════════════════
-// FIRM ISOLATION PLUGIN (RLS-like enforcement)
-// ═══════════════════════════════════════════════════════════════
-const firmIsolationPlugin = require('./plugins/firmIsolation.plugin');
-
-/**
- * Apply Row-Level Security (RLS) plugin to enforce firm-level data isolation.
- */
-supportSettingsSchema.plugin(firmIsolationPlugin);
-
-// ═══════════════════════════════════════════════════════════════
 // EXPORTS
 // ═══════════════════════════════════════════════════════════════
 module.exports = mongoose.model('SupportSettings', supportSettingsSchema);

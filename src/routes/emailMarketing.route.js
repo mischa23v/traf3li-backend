@@ -1,18 +1,18 @@
 const express = require('express');
 const router = express.Router();
 const emailMarketingController = require('../controllers/emailMarketing.controller');
-const { userMiddleware, firmFilter } = require('../middlewares');
+const { userMiddleware } = require('../middlewares');
 
 // ============================================
 // EMAIL MARKETING ROUTES
 // ============================================
 
-// Apply authentication and firm filter to all protected routes
-router.use('/campaigns', userMiddleware, firmFilter);
-router.use('/templates', userMiddleware, firmFilter);
-router.use('/subscribers', userMiddleware, firmFilter);
-router.use('/segments', userMiddleware, firmFilter);
-router.use('/analytics', userMiddleware, firmFilter);
+// Apply authentication to all protected routes
+router.use('/campaigns', userMiddleware);
+router.use('/templates', userMiddleware);
+router.use('/subscribers', userMiddleware);
+router.use('/segments', userMiddleware);
+router.use('/analytics', userMiddleware);
 
 // ==================== CAMPAIGNS ====================
 

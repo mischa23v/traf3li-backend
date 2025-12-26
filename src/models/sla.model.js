@@ -420,26 +420,6 @@ slaSchema.pre('save', function(next) {
 });
 
 // ═══════════════════════════════════════════════════════════════
-// FIRM ISOLATION PLUGIN (RLS-like enforcement)
-// ═══════════════════════════════════════════════════════════════
-const firmIsolationPlugin = require('./plugins/firmIsolation.plugin');
-
-/**
- * Apply Row-Level Security (RLS) plugin to enforce firm-level data isolation.
- * This ensures that all queries automatically filter by firmId unless explicitly bypassed.
- *
- * Usage:
- *   // Normal queries (firmId required):
- *   await SLA.find({ firmId: myFirmId, priority: 'high' });
- *
- *   // System-level queries (bypass):
- *   await SLA.findWithoutFirmFilter({ _id: slaId });
- *   await SLA.find({}).setOptions({ bypassFirmFilter: true });
- */
-slaSchema.plugin(firmIsolationPlugin);
-slaInstanceSchema.plugin(firmIsolationPlugin);
-
-// ═══════════════════════════════════════════════════════════════
 // EXPORTS
 // ═══════════════════════════════════════════════════════════════
 const SLA = mongoose.model('SLA', slaSchema);

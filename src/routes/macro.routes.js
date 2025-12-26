@@ -8,7 +8,7 @@
  */
 
 const express = require('express');
-const { userMiddleware, firmFilter } = require('../middlewares');
+const { userMiddleware } = require('../middlewares');
 const {
     listMacros,
     createMacro,
@@ -24,9 +24,8 @@ const {
 const router = express.Router();
 
 // ============ APPLY MIDDLEWARE ============
-// All macro routes require authentication and firm filtering
+// All macro routes require authentication
 router.use(userMiddleware);
-router.use(firmFilter);
 
 // ============ STATIC ROUTES ============
 // These must come before parameterized routes to avoid conflicts

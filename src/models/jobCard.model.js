@@ -300,10 +300,4 @@ jobCardSchema.methods.resume = async function() {
     return this;
 };
 
-// ═══════════════════════════════════════════════════════════════
-// FIRM ISOLATION PLUGIN (RLS-like enforcement)
-// ═══════════════════════════════════════════════════════════════
-const firmIsolationPlugin = require('./plugins/firmIsolation.plugin');
-jobCardSchema.plugin(firmIsolationPlugin);
-
 module.exports = mongoose.model('JobCard', jobCardSchema);

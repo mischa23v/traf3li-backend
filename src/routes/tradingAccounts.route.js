@@ -1,5 +1,5 @@
 const express = require('express');
-const { userMiddleware, firmFilter } = require('../middlewares');
+const { userMiddleware } = require('../middlewares');
 const {
     createTradingAccount,
     getTradingAccounts,
@@ -18,31 +18,31 @@ const router = express.Router();
 // ═══════════════════════════════════════════════════════════════
 
 // Create trading account
-router.post('/', userMiddleware, firmFilter, createTradingAccount);
+router.post('/', userMiddleware, createTradingAccount);
 
 // Get all trading accounts
-router.get('/', userMiddleware, firmFilter, getTradingAccounts);
+router.get('/', userMiddleware, getTradingAccounts);
 
 // Get single trading account
-router.get('/:id', userMiddleware, firmFilter, getTradingAccount);
+router.get('/:id', userMiddleware, getTradingAccount);
 
 // Update trading account
-router.patch('/:id', userMiddleware, firmFilter, updateTradingAccount);
+router.patch('/:id', userMiddleware, updateTradingAccount);
 
 // Delete trading account
-router.delete('/:id', userMiddleware, firmFilter, deleteTradingAccount);
+router.delete('/:id', userMiddleware, deleteTradingAccount);
 
 // ═══════════════════════════════════════════════════════════════
 // BALANCE & ACTION ROUTES
 // ═══════════════════════════════════════════════════════════════
 
 // Get account balance
-router.get('/:id/balance', userMiddleware, firmFilter, getAccountBalance);
+router.get('/:id/balance', userMiddleware, getAccountBalance);
 
 // Set as default account
-router.post('/:id/set-default', userMiddleware, firmFilter, setDefaultAccount);
+router.post('/:id/set-default', userMiddleware, setDefaultAccount);
 
 // Add deposit or withdrawal
-router.post('/:id/transaction', userMiddleware, firmFilter, addTransaction);
+router.post('/:id/transaction', userMiddleware, addTransaction);
 
 module.exports = router;

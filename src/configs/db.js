@@ -53,6 +53,15 @@ mongoose.plugin((schema) => {
 });
 
 // ═══════════════════════════════════════════════════════════════
+// GLOBAL FIRM ISOLATION PLUGIN (Row-Level Security)
+// ═══════════════════════════════════════════════════════════════
+// This plugin is applied ONCE globally to ALL models.
+// NO NEED to add firmIsolation plugin to individual models anymore!
+const { applyGlobalFirmIsolation } = require('../plugins/globalFirmIsolation.plugin');
+applyGlobalFirmIsolation();
+logger.info('Global firm isolation plugin applied to all models');
+
+// ═══════════════════════════════════════════════════════════════
 // AGGRESSIVE CONNECTION WARMUP
 // ═══════════════════════════════════════════════════════════════
 // Pre-warm MongoDB connections to avoid cold start latency

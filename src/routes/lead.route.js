@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const leadController = require('../controllers/lead.controller');
-const { userMiddleware, firmFilter } = require('../middlewares');
+const { userMiddleware } = require('../middlewares');
 const {
     validateCreateLead,
     validateUpdateLead,
@@ -15,8 +15,8 @@ const {
     validateLeadIdParam
 } = require('../validators/lead.validator');
 
-// Apply authentication and firm filter to all routes
-router.use(userMiddleware, firmFilter);
+// Apply authentication to all routes
+router.use(userMiddleware);
 
 // ============================================
 // BATCH ENDPOINT: CRM OVERVIEW

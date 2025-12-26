@@ -510,10 +510,4 @@ stockEntrySchema.methods.reverseStockLedger = async function() {
     }
 };
 
-// ═══════════════════════════════════════════════════════════════
-// FIRM ISOLATION PLUGIN (RLS-like enforcement)
-// ═══════════════════════════════════════════════════════════════
-const firmIsolationPlugin = require('./plugins/firmIsolation.plugin');
-stockEntrySchema.plugin(firmIsolationPlugin);
-
 module.exports = mongoose.model('StockEntry', stockEntrySchema);

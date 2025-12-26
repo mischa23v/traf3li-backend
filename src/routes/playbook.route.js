@@ -5,7 +5,7 @@
  */
 
 const express = require('express');
-const { userMiddleware, firmFilter } = require('../middlewares');
+const { userMiddleware } = require('../middlewares');
 const {
   listPlaybooks,
   createPlaybook,
@@ -27,7 +27,7 @@ const {
 const router = express.Router();
 
 // Apply authentication and firm filter to all routes
-router.use(userMiddleware, firmFilter);
+router.use(userMiddleware);
 
 // ═══════════════════════════════════════════════════════════════
 // PLAYBOOK MANAGEMENT

@@ -368,10 +368,4 @@ maintenanceScheduleSchema.methods.reschedule = async function(newDate, userId) {
     return this;
 };
 
-// ═══════════════════════════════════════════════════════════════
-// FIRM ISOLATION PLUGIN (RLS-like enforcement)
-// ═══════════════════════════════════════════════════════════════
-const firmIsolationPlugin = require('./plugins/firmIsolation.plugin');
-maintenanceScheduleSchema.plugin(firmIsolationPlugin);
-
 module.exports = mongoose.model('MaintenanceSchedule', maintenanceScheduleSchema);

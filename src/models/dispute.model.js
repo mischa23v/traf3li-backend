@@ -482,23 +482,4 @@ disputeSchema.statics.DISPUTE_STATUSES = DISPUTE_STATUSES;
 disputeSchema.statics.DISPUTE_PRIORITIES = DISPUTE_PRIORITIES;
 disputeSchema.statics.RESOLUTION_OUTCOMES = RESOLUTION_OUTCOMES;
 
-// ═══════════════════════════════════════════════════════════════
-// FIRM ISOLATION PLUGIN (RLS-like enforcement)
-// ═══════════════════════════════════════════════════════════════
-const firmIsolationPlugin = require('./plugins/firmIsolation.plugin');
-
-/**
- * Apply Row-Level Security (RLS) plugin to enforce firm-level data isolation.
- * This ensures that all queries automatically filter by firmId unless explicitly bypassed.
- *
- * Usage:
- *   // Normal queries (firmId required):
- *   await Dispute.find({ firmId: myFirmId, status: 'open' });
- *
- *   // System-level queries (bypass):
- *   await Dispute.findWithoutFirmFilter({ _id: disputeId });
- *   await Dispute.find({}).setOptions({ bypassFirmFilter: true });
- */
-disputeSchema.plugin(firmIsolationPlugin);
-
 module.exports = mongoose.model('Dispute', disputeSchema);

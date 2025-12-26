@@ -1,5 +1,5 @@
 const express = require('express');
-const { userMiddleware, firmFilter } = require('../middlewares');
+const { userMiddleware } = require('../middlewares');
 const {
     getAuthUrl,
     handleCallback,
@@ -28,71 +28,71 @@ const router = express.Router();
 // ═══════════════════════════════════════════════════════════════
 
 // OAuth authorization URL (protected)
-router.get('/auth', userMiddleware, firmFilter, getAuthUrl);
+router.get('/auth', userMiddleware, getAuthUrl);
 
 // OAuth callback (public - Google redirects here)
 router.get('/callback', handleCallback);
 
 // Disconnect (protected)
-router.post('/disconnect', userMiddleware, firmFilter, disconnect);
+router.post('/disconnect', userMiddleware, disconnect);
 
 // Get connection status (protected)
-router.get('/status', userMiddleware, firmFilter, getStatus);
+router.get('/status', userMiddleware, getStatus);
 
 // ═══════════════════════════════════════════════════════════════
 // MESSAGE OPERATIONS
 // ═══════════════════════════════════════════════════════════════
 
 // List messages
-router.get('/messages', userMiddleware, firmFilter, listMessages);
+router.get('/messages', userMiddleware, listMessages);
 
 // Get specific message
-router.get('/messages/:messageId', userMiddleware, firmFilter, getMessage);
+router.get('/messages/:messageId', userMiddleware, getMessage);
 
 // Send email
-router.post('/messages/send', userMiddleware, firmFilter, sendEmail);
+router.post('/messages/send', userMiddleware, sendEmail);
 
 // Reply to email
-router.post('/messages/:messageId/reply', userMiddleware, firmFilter, replyToEmail);
+router.post('/messages/:messageId/reply', userMiddleware, replyToEmail);
 
 // Search messages
-router.get('/messages/search', userMiddleware, firmFilter, searchMessages);
+router.get('/messages/search', userMiddleware, searchMessages);
 
 // Get email thread
-router.get('/threads/:threadId', userMiddleware, firmFilter, getThread);
+router.get('/threads/:threadId', userMiddleware, getThread);
 
 // ═══════════════════════════════════════════════════════════════
 // DRAFT OPERATIONS
 // ═══════════════════════════════════════════════════════════════
 
 // List drafts
-router.get('/drafts', userMiddleware, firmFilter, listDrafts);
+router.get('/drafts', userMiddleware, listDrafts);
 
 // Create draft
-router.post('/drafts', userMiddleware, firmFilter, createDraft);
+router.post('/drafts', userMiddleware, createDraft);
 
 // ═══════════════════════════════════════════════════════════════
 // LABEL OPERATIONS
 // ═══════════════════════════════════════════════════════════════
 
 // Get labels
-router.get('/labels', userMiddleware, firmFilter, listLabels);
+router.get('/labels', userMiddleware, listLabels);
 
 // Create label
-router.post('/labels', userMiddleware, firmFilter, createLabel);
+router.post('/labels', userMiddleware, createLabel);
 
 // ═══════════════════════════════════════════════════════════════
 // SETTINGS & WATCH
 // ═══════════════════════════════════════════════════════════════
 
 // Update sync settings
-router.put('/settings', userMiddleware, firmFilter, updateSettings);
+router.put('/settings', userMiddleware, updateSettings);
 
 // Set up push notifications
-router.post('/watch', userMiddleware, firmFilter, setupWatch);
+router.post('/watch', userMiddleware, setupWatch);
 
 // Stop push notifications
-router.delete('/watch', userMiddleware, firmFilter, stopWatch);
+router.delete('/watch', userMiddleware, stopWatch);
 
 // ═══════════════════════════════════════════════════════════════
 // WEBHOOK (Public - Google Pub/Sub posts here)

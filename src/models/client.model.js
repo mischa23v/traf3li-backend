@@ -775,25 +775,6 @@ clientSchema.statics.runConflictCheck = async function(lawyerId, clientData) {
 };
 
 // ─────────────────────────────────────────────────────────
-// FIRM ISOLATION PLUGIN (RLS-like enforcement)
-// ─────────────────────────────────────────────────────────
-const firmIsolationPlugin = require('./plugins/firmIsolation.plugin');
-
-/**
- * Apply Row-Level Security (RLS) plugin to enforce firm-level data isolation.
- * This ensures that all queries automatically filter by firmId unless explicitly bypassed.
- *
- * Usage:
- *   // Normal queries (firmId required):
- *   await Client.find({ firmId: myFirmId, status: 'active' });
- *
- *   // System-level queries (bypass):
- *   await Client.findWithoutFirmFilter({ _id: clientId });
- *   await Client.find({}).setOptions({ bypassFirmFilter: true });
- */
-clientSchema.plugin(firmIsolationPlugin);
-
-// ─────────────────────────────────────────────────────────
 // ENCRYPTION PLUGIN
 // ─────────────────────────────────────────────────────────
 const encryptionPlugin = require('./plugins/encryption.plugin');

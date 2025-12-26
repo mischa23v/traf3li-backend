@@ -603,16 +603,6 @@ ticketCommunicationSchema.pre('save', function(next) {
 });
 
 // ═══════════════════════════════════════════════════════════════
-// FIRM ISOLATION PLUGIN (RLS-like enforcement)
-// ═══════════════════════════════════════════════════════════════
-const firmIsolationPlugin = require('./plugins/firmIsolation.plugin');
-
-/**
- * Apply Row-Level Security (RLS) plugin to enforce firm-level data isolation.
- */
-ticketCommunicationSchema.plugin(firmIsolationPlugin);
-
-// ═══════════════════════════════════════════════════════════════
 // EXPORTS
 // ═══════════════════════════════════════════════════════════════
 module.exports = mongoose.model('TicketCommunication', ticketCommunicationSchema);

@@ -214,23 +214,4 @@ documentSchema.statics.searchDocuments = async function(lawyerId, searchTerm, fi
         .populate('uploadedBy', 'firstName lastName');
 };
 
-// ═══════════════════════════════════════════════════════════════
-// FIRM ISOLATION PLUGIN (RLS-like enforcement)
-// ═══════════════════════════════════════════════════════════════
-const firmIsolationPlugin = require('./plugins/firmIsolation.plugin');
-
-/**
- * Apply Row-Level Security (RLS) plugin to enforce firm-level data isolation.
- * This ensures that all queries automatically filter by firmId unless explicitly bypassed.
- *
- * Usage:
- *   // Normal queries (firmId required):
- *   await Document.find({ firmId: myFirmId, category: 'contract' });
- *
- *   // System-level queries (bypass):
- *   await Document.findWithoutFirmFilter({ _id: documentId });
- *   await Document.find({}).setOptions({ bypassFirmFilter: true });
- */
-documentSchema.plugin(firmIsolationPlugin);
-
 module.exports = mongoose.model('Document', documentSchema);

@@ -10,13 +10,12 @@
 const express = require('express');
 const router = express.Router();
 const workflowController = require('../controllers/workflow.controller');
-const { userMiddleware, firmFilter } = require('../middlewares');
+const { userMiddleware } = require('../middlewares');
 const { authorize } = require('../middlewares/authorize.middleware');
 
 // ============ APPLY MIDDLEWARE ============
-// All workflow routes require authentication and firm filtering
+// All workflow routes require authentication
 router.use(userMiddleware);
-router.use(firmFilter);
 
 // ============================================
 // WORKFLOW TEMPLATES

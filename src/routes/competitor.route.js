@@ -13,10 +13,9 @@ const {
     validateUpdateCompetitor
 } = require('../validators/crm.validator');
 const { verifyToken } = require('../middlewares/jwt');
-const { firmFilter } = require('../middlewares/firmFilter.middleware');
 
-// Apply authentication and firm filter middleware
-router.use(verifyToken, firmFilter);
+// Apply authentication middleware
+router.use(verifyToken);
 
 // ═══════════════════════════════════════════════════════════════
 // COMPETITOR ROUTES

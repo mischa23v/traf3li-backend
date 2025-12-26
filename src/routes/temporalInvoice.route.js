@@ -3,12 +3,11 @@ const router = express.Router();
 const { Connection, Client } = require('@temporalio/client');
 const Invoice = require('../models/invoice.model');
 const InvoiceApproval = require('../models/invoiceApproval.model');
-const { authenticate, firmFilter, checkFirmPermission } = require('../middlewares');
+const { authenticate, checkFirmPermission } = require('../middlewares');
 const logger = require('../utils/logger');
 
 // Middleware
 router.use(authenticate);
-router.use(firmFilter);
 
 // Temporal client (will be initialized on first use)
 let temporalClient = null;

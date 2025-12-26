@@ -1,5 +1,5 @@
 const express = require('express');
-const { userMiddleware, firmFilter } = require('../middlewares');
+const { userMiddleware } = require('../middlewares');
 const { auditAction } = require('../middlewares/auditLog.middleware');
 const { cacheResponse, invalidateCache } = require('../middlewares/cache.middleware');
 const { sanitizeObjectId } = require('../utils/securityUtils');
@@ -69,7 +69,6 @@ const githubInvalidationPatterns = [
  */
 app.get('/auth',
     userMiddleware,
-    firmFilter,
     getAuthUrl
 );
 
@@ -155,7 +154,6 @@ app.get('/callback',
  */
 app.post('/disconnect',
     userMiddleware,
-    firmFilter,
     auditAction('disconnect', 'github_integration', { severity: 'medium' }),
     invalidateCache(githubInvalidationPatterns),
     disconnect
@@ -197,7 +195,6 @@ app.post('/disconnect',
  */
 app.get('/status',
     userMiddleware,
-    firmFilter,
     cacheResponse(GITHUB_CACHE_TTL, (req) => {
         const sanitizedFirmId = sanitizeObjectId(req.firmId) || 'none';
         return `github:firm:${sanitizedFirmId}:status`;
@@ -260,7 +257,6 @@ app.get('/status',
  */
 app.get('/repositories',
     userMiddleware,
-    firmFilter,
     cacheResponse(GITHUB_CACHE_TTL, (req) => {
         const sanitizedFirmId = sanitizeObjectId(req.firmId) || 'none';
         return `github:firm:${sanitizedFirmId}:repos:url:${req.originalUrl}`;
@@ -301,7 +297,6 @@ app.get('/repositories',
  */
 app.get('/repositories/:owner/:repo',
     userMiddleware,
-    firmFilter,
     cacheResponse(GITHUB_CACHE_TTL, (req) => {
         const sanitizedFirmId = sanitizeObjectId(req.firmId) || 'none';
         return `github:firm:${sanitizedFirmId}:repo:${req.params.owner}:${req.params.repo}`;
@@ -366,7 +361,6 @@ app.get('/repositories/:owner/:repo',
  */
 app.get('/repositories/:owner/:repo/issues',
     userMiddleware,
-    firmFilter,
     cacheResponse(GITHUB_CACHE_TTL, (req) => {
         const sanitizedFirmId = sanitizeObjectId(req.firmId) || 'none';
         return `github:firm:${sanitizedFirmId}:issues:${req.params.owner}:${req.params.repo}:url:${req.originalUrl}`;
@@ -430,7 +424,6 @@ app.get('/repositories/:owner/:repo/issues',
  */
 app.post('/repositories/:owner/:repo/issues',
     userMiddleware,
-    firmFilter,
     auditAction('create', 'github_issue'),
     invalidateCache([
         'github:firm:{firmId}:issues:*'
@@ -495,7 +488,6 @@ app.post('/repositories/:owner/:repo/issues',
  */
 app.get('/repositories/:owner/:repo/pulls',
     userMiddleware,
-    firmFilter,
     cacheResponse(GITHUB_CACHE_TTL, (req) => {
         const sanitizedFirmId = sanitizeObjectId(req.firmId) || 'none';
         return `github:firm:${sanitizedFirmId}:pulls:${req.params.owner}:${req.params.repo}:url:${req.originalUrl}`;
@@ -552,7 +544,6 @@ app.get('/repositories/:owner/:repo/pulls',
  */
 app.post('/repositories/:owner/:repo/pulls/:prNumber/comments',
     userMiddleware,
-    firmFilter,
     auditAction('create', 'github_pr_comment'),
     createPullRequestComment
 );
@@ -612,7 +603,6 @@ app.post('/repositories/:owner/:repo/pulls/:prNumber/comments',
  */
 app.put('/settings',
     userMiddleware,
-    firmFilter,
     auditAction('update', 'github_settings'),
     invalidateCache([
         'github:firm:{firmId}:status'

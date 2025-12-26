@@ -7,7 +7,7 @@
 const express = require('express');
 const router = express.Router();
 const { userMiddleware } = require('../middlewares');
-const { firmFilter, firmAdminOnly, financeAccessOnly } = require('../middlewares/firmFilter.middleware');
+const { firmAdminOnly, financeAccessOnly } = require('../middlewares/firmFilter.middleware');
 const {
     getExpensePolicies,
     getExpensePolicy,
@@ -23,9 +23,8 @@ const {
     createDefaultPolicy
 } = require('../controllers/expensePolicy.controller');
 
-// All routes require authentication and firm filter
+// All routes require authentication
 router.use(userMiddleware);
-router.use(firmFilter);
 
 /**
  * @route   GET /api/expense-policies

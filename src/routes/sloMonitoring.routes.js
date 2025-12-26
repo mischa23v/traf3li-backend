@@ -10,12 +10,11 @@
 const express = require('express');
 const router = express.Router();
 const sloMonitoringController = require('../controllers/sloMonitoring.controller');
-const { userMiddleware, firmFilter, firmAdminOnly } = require('../middlewares');
+const { userMiddleware, firmAdminOnly } = require('../middlewares');
 
 // ============ APPLY MIDDLEWARE ============
-// All SLO monitoring routes require authentication and firm filtering
+// All SLO monitoring routes require authentication
 router.use(userMiddleware);
-router.use(firmFilter);
 
 // ============ INFORMATIONAL ENDPOINTS ============
 // These should come before /:id routes to avoid conflicts

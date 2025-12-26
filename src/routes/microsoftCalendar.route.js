@@ -11,7 +11,7 @@
  */
 
 const express = require('express');
-const { userMiddleware, firmFilter } = require('../middlewares');
+const { userMiddleware } = require('../middlewares');
 const { checkPermission } = require('../middlewares/authorize.middleware');
 const { createRateLimiter } = require('../middlewares/rateLimiter.middleware');
 
@@ -94,7 +94,6 @@ const router = express.Router();
  */
 router.get('/auth',
     userMiddleware,
-    firmFilter,
     oauthRateLimiter,
     getAuthUrl
 );
@@ -116,7 +115,6 @@ router.get('/callback',
  */
 router.post('/refresh-token',
     userMiddleware,
-    firmFilter,
     refreshToken
 );
 
@@ -127,7 +125,6 @@ router.post('/refresh-token',
  */
 router.post('/disconnect',
     userMiddleware,
-    firmFilter,
     disconnect
 );
 
@@ -138,7 +135,6 @@ router.post('/disconnect',
  */
 router.get('/status',
     userMiddleware,
-    firmFilter,
     getStatus
 );
 
@@ -153,7 +149,6 @@ router.get('/status',
  */
 router.get('/calendars',
     userMiddleware,
-    firmFilter,
     calendarRateLimiter,
     getCalendars
 );
@@ -168,7 +163,6 @@ router.get('/calendars',
  */
 router.get('/events',
     userMiddleware,
-    firmFilter,
     calendarRateLimiter,
     getEvents
 );
@@ -182,7 +176,6 @@ router.get('/events',
  */
 router.post('/events',
     userMiddleware,
-    firmFilter,
     calendarRateLimiter,
     createEvent
 );
@@ -197,7 +190,6 @@ router.post('/events',
  */
 router.put('/events/:eventId',
     userMiddleware,
-    firmFilter,
     calendarRateLimiter,
     updateEvent
 );
@@ -211,7 +203,6 @@ router.put('/events/:eventId',
  */
 router.delete('/events/:eventId',
     userMiddleware,
-    firmFilter,
     calendarRateLimiter,
     deleteEvent
 );
@@ -230,7 +221,6 @@ router.delete('/events/:eventId',
  */
 router.post('/sync/from-microsoft',
     userMiddleware,
-    firmFilter,
     syncRateLimiter,
     syncFromMicrosoft
 );
@@ -243,7 +233,6 @@ router.post('/sync/from-microsoft',
  */
 router.post('/sync/to-microsoft/:eventId',
     userMiddleware,
-    firmFilter,
     syncRateLimiter,
     syncToMicrosoft
 );
@@ -260,7 +249,6 @@ router.post('/sync/to-microsoft/:eventId',
  */
 router.post('/sync/enable-auto-sync',
     userMiddleware,
-    firmFilter,
     enableAutoSync
 );
 
@@ -271,7 +259,6 @@ router.post('/sync/enable-auto-sync',
  */
 router.post('/sync/disable-auto-sync',
     userMiddleware,
-    firmFilter,
     disableAutoSync
 );
 

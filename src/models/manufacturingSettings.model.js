@@ -282,10 +282,4 @@ manufacturingSettingsSchema.methods.setCustomSetting = async function(key, value
     return this;
 };
 
-// ═══════════════════════════════════════════════════════════════
-// FIRM ISOLATION PLUGIN (RLS-like enforcement)
-// ═══════════════════════════════════════════════════════════════
-const firmIsolationPlugin = require('./plugins/firmIsolation.plugin');
-manufacturingSettingsSchema.plugin(firmIsolationPlugin);
-
 module.exports = mongoose.model('ManufacturingSettings', manufacturingSettingsSchema);

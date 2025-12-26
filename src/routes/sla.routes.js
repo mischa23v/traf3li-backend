@@ -10,12 +10,11 @@
 const express = require('express');
 const router = express.Router();
 const slaController = require('../controllers/sla.controller');
-const { userMiddleware, firmFilter, firmAdminOnly } = require('../middlewares');
+const { userMiddleware, firmAdminOnly } = require('../middlewares');
 
 // ============ APPLY MIDDLEWARE ============
 // All SLA routes require authentication and firm filtering
 router.use(userMiddleware);
-router.use(firmFilter);
 
 // ============ STATS & INFORMATIONAL ENDPOINTS ============
 // These should come before /:id routes to avoid conflicts

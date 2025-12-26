@@ -633,14 +633,4 @@ workflowInstanceSchema.post('save', async function(doc) {
     }
 });
 
-// PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP
-// FIRM ISOLATION PLUGIN (RLS-like enforcement)
-// PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP
-const firmIsolationPlugin = require('./plugins/firmIsolation.plugin');
-
-/**
- * Apply Row-Level Security (RLS) plugin to enforce firm-level data isolation.
- */
-workflowInstanceSchema.plugin(firmIsolationPlugin);
-
 module.exports = mongoose.model('WorkflowInstance', workflowInstanceSchema);

@@ -1,5 +1,5 @@
 const express = require('express');
-const { userMiddleware, firmFilter } = require('../middlewares');
+const { userMiddleware } = require('../middlewares');
 const {
     createOrganization,
     getOrganizations,
@@ -16,8 +16,8 @@ const {
 
 const router = express.Router();
 
-// Apply authentication and firm filter to all routes
-router.use(userMiddleware, firmFilter);
+// Apply authentication to all routes
+router.use(userMiddleware);
 
 // ============================================
 // SPECIAL ROUTES (before :id routes)

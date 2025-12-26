@@ -10,7 +10,7 @@
 const express = require('express');
 const router = express.Router();
 const churnController = require('../controllers/churn.controller');
-const { userMiddleware, firmFilter, requireRole, requireAnyPermission } = require('../middlewares');
+const { userMiddleware, requireRole, requireAnyPermission } = require('../middlewares');
 const { validateObjectIdParam, validateQueryPagination } = require('../validators/common.validator');
 const {
     validateHealthScoreRecalculate,
@@ -36,7 +36,6 @@ const {
 // ============================================
 // All routes require authentication and admin/manager role
 router.use(userMiddleware);
-router.use(firmFilter);
 
 // Churn management requires admin or manager role
 // Admins have full access, managers can view and perform interventions

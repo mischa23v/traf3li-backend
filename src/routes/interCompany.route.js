@@ -8,7 +8,7 @@
  */
 
 const express = require('express');
-const { userMiddleware, firmFilter, financeAccessOnly } = require('../middlewares');
+const { userMiddleware, financeAccessOnly } = require('../middlewares');
 const { auditAction } = require('../middlewares/auditLog.middleware');
 const {
     // Transactions
@@ -32,7 +32,6 @@ const router = express.Router();
 
 // All routes require authentication and firm context
 router.use(userMiddleware);
-router.use(firmFilter);
 
 // ============ TRANSACTION ROUTES ============
 

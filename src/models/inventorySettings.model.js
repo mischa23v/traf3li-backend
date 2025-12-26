@@ -233,10 +233,4 @@ inventorySettingsSchema.methods.getDefaultWarehouse = async function() {
     return null;
 };
 
-// ═══════════════════════════════════════════════════════════════
-// FIRM ISOLATION PLUGIN (RLS-like enforcement)
-// ═══════════════════════════════════════════════════════════════
-const firmIsolationPlugin = require('./plugins/firmIsolation.plugin');
-inventorySettingsSchema.plugin(firmIsolationPlugin);
-
 module.exports = mongoose.model('InventorySettings', inventorySettingsSchema);

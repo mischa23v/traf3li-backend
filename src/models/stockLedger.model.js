@@ -412,10 +412,4 @@ stockLedgerSchema.pre('updateMany', function(next) {
     next(error);
 });
 
-// ═══════════════════════════════════════════════════════════════
-// FIRM ISOLATION PLUGIN (RLS-like enforcement)
-// ═══════════════════════════════════════════════════════════════
-const firmIsolationPlugin = require('./plugins/firmIsolation.plugin');
-stockLedgerSchema.plugin(firmIsolationPlugin);
-
 module.exports = mongoose.model('StockLedger', stockLedgerSchema);

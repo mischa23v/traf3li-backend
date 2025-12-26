@@ -591,7 +591,6 @@ assetSchema.methods.transfer = async function(transferData, session = null) {
 // ═══════════════════════════════════════════════════════════════
 // FIRM ISOLATION PLUGIN (RLS-like enforcement)
 // ═══════════════════════════════════════════════════════════════
-const firmIsolationPlugin = require('./plugins/firmIsolation.plugin');
-assetSchema.plugin(firmIsolationPlugin);
+// Removed firmIsolationPlugin - using direct RLS queries instead
 
 module.exports = mongoose.model('Asset', assetSchema);

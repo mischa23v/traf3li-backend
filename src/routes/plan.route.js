@@ -8,7 +8,7 @@ const express = require('express');
 const router = express.Router();
 const planController = require('../controllers/plan.controller');
 const { userMiddleware } = require('../middlewares');
-const { firmFilter, firmAdminOnly } = require('../middlewares/firmFilter.middleware');
+const { firmAdminOnly } = require('../middlewares/firmFilter.middleware');
 
 // Public route - get all plans
 router.get('/', planController.getPlans);
@@ -18,7 +18,6 @@ router.get('/features', planController.getFeaturesComparison);
 
 // Protected routes
 router.use(userMiddleware);
-router.use(firmFilter);
 
 // Get current plan
 router.get('/current', planController.getCurrentPlan);

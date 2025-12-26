@@ -481,10 +481,4 @@ itemSchema.methods.needsReorder = async function() {
     return currentStock <= this.reorderLevel;
 };
 
-// ═══════════════════════════════════════════════════════════════
-// FIRM ISOLATION PLUGIN (RLS-like enforcement)
-// ═══════════════════════════════════════════════════════════════
-const firmIsolationPlugin = require('./plugins/firmIsolation.plugin');
-itemSchema.plugin(firmIsolationPlugin);
-
 module.exports = mongoose.model('Item', itemSchema);

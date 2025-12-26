@@ -10,7 +10,7 @@
 const express = require('express');
 const router = express.Router();
 const { userMiddleware } = require('../middlewares');
-const { firmFilter, firmAdminOnly, financeAccessOnly } = require('../middlewares/firmFilter.middleware');
+const { firmAdminOnly, financeAccessOnly } = require('../middlewares/firmFilter.middleware');
 const { auditAction } = require('../middlewares/auditLog.middleware');
 const { checkPermission } = require('../middlewares/authorize.middleware');
 const Joi = require('joi');
@@ -316,10 +316,9 @@ const validateCreateAction = (req, res, next) => {
 };
 
 // ═══════════════════════════════════════════════════════════════
-// ALL ROUTES REQUIRE AUTHENTICATION AND FIRM FILTER
+// ALL ROUTES REQUIRE AUTHENTICATION
 // ═══════════════════════════════════════════════════════════════
 router.use(userMiddleware);
-router.use(firmFilter);
 
 // ═══════════════════════════════════════════════════════════════
 // DASHBOARD & REPORTS (must be before parameterized routes)

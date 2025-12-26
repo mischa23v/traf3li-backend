@@ -8,7 +8,7 @@
  */
 
 const express = require('express');
-const { userMiddleware, firmFilter } = require('../middlewares');
+const { userMiddleware } = require('../middlewares');
 const { checkPermission } = require('../middlewares/authorize.middleware');
 const { createRateLimiter } = require('../middlewares/rateLimiter.middleware');
 
@@ -150,7 +150,6 @@ const router = express.Router();
 // Initiate QuickBooks OAuth flow
 router.get('/quickbooks/auth',
     userMiddleware,
-    firmFilter,
     checkPermission('manage:integrations'),
     oauthRateLimiter,
     initiateQuickBooksAuth
@@ -165,7 +164,6 @@ router.get('/quickbooks/callback',
 // Disconnect QuickBooks integration
 router.post('/quickbooks/disconnect',
     userMiddleware,
-    firmFilter,
     checkPermission('manage:integrations'),
     disconnectQuickBooks
 );
@@ -173,7 +171,6 @@ router.post('/quickbooks/disconnect',
 // Get QuickBooks connection status
 router.get('/quickbooks/status',
     userMiddleware,
-    firmFilter,
     checkPermission('manage:integrations'),
     getQuickBooksStatus
 );
@@ -181,7 +178,6 @@ router.get('/quickbooks/status',
 // Manually refresh QuickBooks access token
 router.post('/quickbooks/refresh-token',
     userMiddleware,
-    firmFilter,
     checkPermission('manage:integrations'),
     refreshQuickBooksToken
 );
@@ -194,7 +190,6 @@ router.post('/quickbooks/refresh-token',
 // Sync all data from QuickBooks
 router.post('/quickbooks/sync/all',
     userMiddleware,
-    firmFilter,
     checkPermission('manage:integrations'),
     syncRateLimiter,
     validateSyncParams,
@@ -204,7 +199,6 @@ router.post('/quickbooks/sync/all',
 // Sync invoices from QuickBooks
 router.post('/quickbooks/sync/invoices',
     userMiddleware,
-    firmFilter,
     checkPermission('manage:integrations'),
     syncRateLimiter,
     validateSyncParams,
@@ -214,7 +208,6 @@ router.post('/quickbooks/sync/invoices',
 // Sync customers from QuickBooks
 router.post('/quickbooks/sync/customers',
     userMiddleware,
-    firmFilter,
     checkPermission('manage:integrations'),
     syncRateLimiter,
     validateSyncParams,
@@ -224,7 +217,6 @@ router.post('/quickbooks/sync/customers',
 // Sync vendors from QuickBooks
 router.post('/quickbooks/sync/vendors',
     userMiddleware,
-    firmFilter,
     checkPermission('manage:integrations'),
     syncRateLimiter,
     validateSyncParams,
@@ -234,7 +226,6 @@ router.post('/quickbooks/sync/vendors',
 // Sync chart of accounts from QuickBooks
 router.post('/quickbooks/sync/accounts',
     userMiddleware,
-    firmFilter,
     checkPermission('manage:integrations'),
     syncRateLimiter,
     validateSyncParams,
@@ -244,7 +235,6 @@ router.post('/quickbooks/sync/accounts',
 // Sync payments from QuickBooks
 router.post('/quickbooks/sync/payments',
     userMiddleware,
-    firmFilter,
     checkPermission('manage:integrations'),
     syncRateLimiter,
     validateSyncParams,
@@ -254,7 +244,6 @@ router.post('/quickbooks/sync/payments',
 // Sync expenses from QuickBooks
 router.post('/quickbooks/sync/expenses',
     userMiddleware,
-    firmFilter,
     checkPermission('manage:integrations'),
     syncRateLimiter,
     validateSyncParams,
@@ -264,7 +253,6 @@ router.post('/quickbooks/sync/expenses',
 // Get QuickBooks sync history
 router.get('/quickbooks/sync/history',
     userMiddleware,
-    firmFilter,
     checkPermission('manage:integrations'),
     getQuickBooksSyncHistory
 );
@@ -277,7 +265,6 @@ router.get('/quickbooks/sync/history',
 // Get field mappings configuration
 router.get('/quickbooks/mappings/fields',
     userMiddleware,
-    firmFilter,
     checkPermission('manage:integrations'),
     getQuickBooksFieldMappings
 );
@@ -285,7 +272,6 @@ router.get('/quickbooks/mappings/fields',
 // Update field mappings configuration
 router.put('/quickbooks/mappings/fields',
     userMiddleware,
-    firmFilter,
     checkPermission('manage:integrations'),
     validateFieldMapping,
     updateQuickBooksFieldMappings
@@ -294,7 +280,6 @@ router.put('/quickbooks/mappings/fields',
 // Get account mappings (chart of accounts mapping)
 router.get('/quickbooks/mappings/accounts',
     userMiddleware,
-    firmFilter,
     checkPermission('manage:integrations'),
     getQuickBooksAccountMappings
 );
@@ -302,7 +287,6 @@ router.get('/quickbooks/mappings/accounts',
 // Update account mappings
 router.put('/quickbooks/mappings/accounts',
     userMiddleware,
-    firmFilter,
     checkPermission('manage:integrations'),
     validateAccountMapping,
     updateQuickBooksAccountMappings
@@ -316,7 +300,6 @@ router.put('/quickbooks/mappings/accounts',
 // Get all unresolved conflicts
 router.get('/quickbooks/conflicts',
     userMiddleware,
-    firmFilter,
     checkPermission('manage:integrations'),
     getQuickBooksConflicts
 );
@@ -324,7 +307,6 @@ router.get('/quickbooks/conflicts',
 // Resolve a single conflict
 router.post('/quickbooks/conflicts/:conflictId/resolve',
     userMiddleware,
-    firmFilter,
     checkPermission('manage:integrations'),
     validateConflictResolution,
     resolveQuickBooksConflict
@@ -333,7 +315,6 @@ router.post('/quickbooks/conflicts/:conflictId/resolve',
 // Bulk resolve conflicts
 router.post('/quickbooks/conflicts/bulk-resolve',
     userMiddleware,
-    firmFilter,
     checkPermission('manage:integrations'),
     validateConflictResolution,
     bulkResolveQuickBooksConflicts
@@ -351,7 +332,6 @@ router.post('/quickbooks/conflicts/bulk-resolve',
 // Initiate Xero OAuth flow
 router.get('/xero/auth',
     userMiddleware,
-    firmFilter,
     checkPermission('manage:integrations'),
     oauthRateLimiter,
     initiateXeroAuth
@@ -366,7 +346,6 @@ router.get('/xero/callback',
 // Disconnect Xero integration
 router.post('/xero/disconnect',
     userMiddleware,
-    firmFilter,
     checkPermission('manage:integrations'),
     disconnectXero
 );
@@ -374,7 +353,6 @@ router.post('/xero/disconnect',
 // Get Xero connection status
 router.get('/xero/status',
     userMiddleware,
-    firmFilter,
     checkPermission('manage:integrations'),
     getXeroStatus
 );
@@ -382,7 +360,6 @@ router.get('/xero/status',
 // Manually refresh Xero access token
 router.post('/xero/refresh-token',
     userMiddleware,
-    firmFilter,
     checkPermission('manage:integrations'),
     refreshXeroToken
 );
@@ -395,7 +372,6 @@ router.post('/xero/refresh-token',
 // Sync all data from Xero
 router.post('/xero/sync/all',
     userMiddleware,
-    firmFilter,
     checkPermission('manage:integrations'),
     syncRateLimiter,
     validateSyncParams,
@@ -405,7 +381,6 @@ router.post('/xero/sync/all',
 // Sync invoices from Xero
 router.post('/xero/sync/invoices',
     userMiddleware,
-    firmFilter,
     checkPermission('manage:integrations'),
     syncRateLimiter,
     validateSyncParams,
@@ -415,7 +390,6 @@ router.post('/xero/sync/invoices',
 // Sync contacts from Xero
 router.post('/xero/sync/contacts',
     userMiddleware,
-    firmFilter,
     checkPermission('manage:integrations'),
     syncRateLimiter,
     validateSyncParams,
@@ -425,7 +399,6 @@ router.post('/xero/sync/contacts',
 // Sync chart of accounts from Xero
 router.post('/xero/sync/accounts',
     userMiddleware,
-    firmFilter,
     checkPermission('manage:integrations'),
     syncRateLimiter,
     validateSyncParams,
@@ -435,7 +408,6 @@ router.post('/xero/sync/accounts',
 // Sync payments from Xero
 router.post('/xero/sync/payments',
     userMiddleware,
-    firmFilter,
     checkPermission('manage:integrations'),
     syncRateLimiter,
     validateSyncParams,
@@ -445,7 +417,6 @@ router.post('/xero/sync/payments',
 // Sync expenses from Xero
 router.post('/xero/sync/expenses',
     userMiddleware,
-    firmFilter,
     checkPermission('manage:integrations'),
     syncRateLimiter,
     validateSyncParams,
@@ -455,7 +426,6 @@ router.post('/xero/sync/expenses',
 // Get Xero sync history
 router.get('/xero/sync/history',
     userMiddleware,
-    firmFilter,
     checkPermission('manage:integrations'),
     getXeroSyncHistory
 );
@@ -475,7 +445,6 @@ router.post('/xero/webhook',
 // Get webhook status and configuration (authenticated)
 router.get('/xero/webhook/status',
     userMiddleware,
-    firmFilter,
     checkPermission('manage:integrations'),
     getXeroWebhookStatus
 );
@@ -492,7 +461,6 @@ router.get('/xero/webhook/status',
 // Get Discord OAuth authorization URL
 router.get('/discord/auth-url',
     userMiddleware,
-    firmFilter,
     checkPermission('manage:integrations'),
     oauthRateLimiter,
     getDiscordAuthUrl
@@ -507,7 +475,6 @@ router.get('/discord/callback',
 // Complete Discord integration setup
 router.post('/discord/complete-setup',
     userMiddleware,
-    firmFilter,
     checkPermission('manage:integrations'),
     completeDiscordSetup
 );
@@ -515,7 +482,6 @@ router.post('/discord/complete-setup',
 // Get Discord connection status
 router.get('/discord/status',
     userMiddleware,
-    firmFilter,
     checkPermission('manage:integrations'),
     getDiscordStatus
 );
@@ -523,7 +489,6 @@ router.get('/discord/status',
 // Disconnect Discord integration
 router.post('/discord/disconnect',
     userMiddleware,
-    firmFilter,
     checkPermission('manage:integrations'),
     disconnectDiscord
 );
@@ -531,7 +496,6 @@ router.post('/discord/disconnect',
 // Test Discord connection
 router.post('/discord/test',
     userMiddleware,
-    firmFilter,
     checkPermission('manage:integrations'),
     testDiscordConnection
 );
@@ -539,7 +503,6 @@ router.post('/discord/test',
 // List user's Discord servers
 router.get('/discord/guilds',
     userMiddleware,
-    firmFilter,
     checkPermission('manage:integrations'),
     listDiscordGuilds
 );
@@ -547,7 +510,6 @@ router.get('/discord/guilds',
 // List channels in a Discord server
 router.get('/discord/guilds/:guildId/channels',
     userMiddleware,
-    firmFilter,
     checkPermission('manage:integrations'),
     listDiscordChannels
 );
@@ -555,7 +517,6 @@ router.get('/discord/guilds/:guildId/channels',
 // Update Discord notification settings
 router.put('/discord/settings',
     userMiddleware,
-    firmFilter,
     checkPermission('manage:integrations'),
     updateDiscordSettings
 );
@@ -563,7 +524,6 @@ router.put('/discord/settings',
 // Send custom message to Discord
 router.post('/discord/message',
     userMiddleware,
-    firmFilter,
     checkPermission('manage:integrations'),
     sendDiscordMessage
 );

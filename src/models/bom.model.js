@@ -297,10 +297,4 @@ bomSchema.statics.explodeBOM = async function(bomId, quantity = 1) {
     };
 };
 
-// ═══════════════════════════════════════════════════════════════
-// FIRM ISOLATION PLUGIN (RLS-like enforcement)
-// ═══════════════════════════════════════════════════════════════
-const firmIsolationPlugin = require('./plugins/firmIsolation.plugin');
-bomSchema.plugin(firmIsolationPlugin);
-
 module.exports = mongoose.model('BOM', bomSchema);

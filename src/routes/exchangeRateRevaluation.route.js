@@ -7,7 +7,6 @@
 const express = require('express');
 const router = express.Router();
 const { userMiddleware } = require('../middlewares/user-middleware');
-const { firmFilter } = require('../middlewares/firmContext');
 const {
     getRevaluations,
     getRevaluation,
@@ -22,7 +21,6 @@ const {
 
 // Apply authentication middleware to all routes
 router.use(userMiddleware);
-router.use(firmFilter);
 
 // Report and accounts (specific routes before :id)
 router.get('/report', getRevaluationReport);

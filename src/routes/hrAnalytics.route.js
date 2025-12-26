@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const HRAnalyticsController = require('../controllers/hrAnalytics.controller');
-const { userMiddleware, firmFilter } = require('../middlewares');
+const { userMiddleware } = require('../middlewares');
 const { authorize } = require('../middlewares/authorize.middleware');
 const { sensitiveRateLimiter, authRateLimiter } = require('../middlewares/rateLimiter.middleware');
 
@@ -13,12 +13,8 @@ const { sensitiveRateLimiter, authRateLimiter } = require('../middlewares/rateLi
 // Apply authentication middleware to all routes (checks both cookies AND Authorization header)
 router.use(userMiddleware);
 
-// Apply firm filter middleware to set req.firmId (same as finance/invoice routes)
-router.use(firmFilter);
-
 // Apply HR/Admin authorization to all routes
 // Note: User.role enum is ['client', 'lawyer', 'admin']
-// Firm-level permissions (partner, owner) are handled by firmFilter middleware
 router.use(authorize('admin', 'lawyer'));
 
 // ═══════════════════════════════════════════════════════════════

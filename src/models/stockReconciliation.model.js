@@ -356,10 +356,4 @@ stockReconciliationSchema.methods.reverseStockAdjustments = async function() {
     }
 };
 
-// ═══════════════════════════════════════════════════════════════
-// FIRM ISOLATION PLUGIN (RLS-like enforcement)
-// ═══════════════════════════════════════════════════════════════
-const firmIsolationPlugin = require('./plugins/firmIsolation.plugin');
-stockReconciliationSchema.plugin(firmIsolationPlugin);
-
 module.exports = mongoose.model('StockReconciliation', stockReconciliationSchema);

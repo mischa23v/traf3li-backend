@@ -189,10 +189,4 @@ itemGroupSchema.pre('deleteOne', { document: true, query: false }, async functio
     }
 });
 
-// ═══════════════════════════════════════════════════════════════
-// FIRM ISOLATION PLUGIN (RLS-like enforcement)
-// ═══════════════════════════════════════════════════════════════
-const firmIsolationPlugin = require('./plugins/firmIsolation.plugin');
-itemGroupSchema.plugin(firmIsolationPlugin);
-
 module.exports = mongoose.model('ItemGroup', itemGroupSchema);

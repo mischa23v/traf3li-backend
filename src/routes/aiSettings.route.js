@@ -1,5 +1,5 @@
 const express = require('express');
-const { userMiddleware, firmFilter } = require('../middlewares');
+const { userMiddleware } = require('../middlewares');
 const {
     getAISettings,
     saveApiKey,
@@ -18,24 +18,24 @@ const router = express.Router();
  */
 
 // Get AI settings (masked keys)
-router.get('/', userMiddleware, firmFilter, getAISettings);
+router.get('/', userMiddleware, getAISettings);
 
 // Get feature status (available to all users)
-router.get('/features', userMiddleware, firmFilter, getFeatureStatus);
+router.get('/features', userMiddleware, getFeatureStatus);
 
 // Get usage statistics
-router.get('/usage', userMiddleware, firmFilter, getUsageStats);
+router.get('/usage', userMiddleware, getUsageStats);
 
 // Save an API key (validates before saving)
-router.post('/keys', userMiddleware, firmFilter, saveApiKey);
+router.post('/keys', userMiddleware, saveApiKey);
 
 // Validate an API key without saving
-router.post('/validate', userMiddleware, firmFilter, validateApiKey);
+router.post('/validate', userMiddleware, validateApiKey);
 
 // Remove an API key
-router.delete('/keys/:provider', userMiddleware, firmFilter, removeApiKey);
+router.delete('/keys/:provider', userMiddleware, removeApiKey);
 
 // Update preferences
-router.patch('/preferences', userMiddleware, firmFilter, updatePreferences);
+router.patch('/preferences', userMiddleware, updatePreferences);
 
 module.exports = router;

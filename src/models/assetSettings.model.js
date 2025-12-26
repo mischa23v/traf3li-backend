@@ -177,7 +177,6 @@ assetSettingsSchema.methods.updateAlertSettings = async function(alertSettings, 
 // ═══════════════════════════════════════════════════════════════
 // FIRM ISOLATION PLUGIN (RLS-like enforcement)
 // ═══════════════════════════════════════════════════════════════
-const firmIsolationPlugin = require('./plugins/firmIsolation.plugin');
-assetSettingsSchema.plugin(firmIsolationPlugin);
+// Removed firmIsolationPlugin - using direct RLS queries instead
 
 module.exports = mongoose.model('AssetSettings', assetSettingsSchema);

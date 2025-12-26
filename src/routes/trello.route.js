@@ -1,5 +1,5 @@
 const express = require('express');
-const { userMiddleware, firmFilter } = require('../middlewares');
+const { userMiddleware } = require('../middlewares');
 const {
     getAuthUrl,
     handleCallback,
@@ -32,7 +32,7 @@ const router = express.Router();
  * Returns the Trello OAuth URL that users should visit to authorize
  * the integration.
  */
-router.get('/auth-url', userMiddleware, firmFilter, getAuthUrl);
+router.get('/auth-url', userMiddleware, getAuthUrl);
 
 /**
  * OAuth callback handler
@@ -59,7 +59,7 @@ router.get('/callback', handleCallback);
  * - Settings
  * - Boards
  */
-router.get('/status', userMiddleware, firmFilter, getStatus);
+router.get('/status', userMiddleware, getStatus);
 
 /**
  * Disconnect Trello integration
@@ -67,7 +67,7 @@ router.get('/status', userMiddleware, firmFilter, getStatus);
  *
  * Revokes access tokens and disconnects the Trello integration.
  */
-router.post('/disconnect', userMiddleware, firmFilter, disconnect);
+router.post('/disconnect', userMiddleware, disconnect);
 
 // ═══════════════════════════════════════════════════════════════
 // BOARD OPERATIONS
@@ -79,7 +79,7 @@ router.post('/disconnect', userMiddleware, firmFilter, disconnect);
  *
  * Returns list of user's Trello boards.
  */
-router.get('/boards', userMiddleware, firmFilter, listBoards);
+router.get('/boards', userMiddleware, listBoards);
 
 /**
  * Get board details
@@ -87,7 +87,7 @@ router.get('/boards', userMiddleware, firmFilter, listBoards);
  *
  * Returns detailed information about a specific board.
  */
-router.get('/boards/:boardId', userMiddleware, firmFilter, getBoard);
+router.get('/boards/:boardId', userMiddleware, getBoard);
 
 /**
  * List lists in a board
@@ -95,7 +95,7 @@ router.get('/boards/:boardId', userMiddleware, firmFilter, getBoard);
  *
  * Returns all lists in a specific board.
  */
-router.get('/boards/:boardId/lists', userMiddleware, firmFilter, listLists);
+router.get('/boards/:boardId/lists', userMiddleware, listLists);
 
 // ═══════════════════════════════════════════════════════════════
 // LIST OPERATIONS
@@ -107,7 +107,7 @@ router.get('/boards/:boardId/lists', userMiddleware, firmFilter, listLists);
  *
  * Returns all cards in a specific list.
  */
-router.get('/lists/:listId/cards', userMiddleware, firmFilter, listCards);
+router.get('/lists/:listId/cards', userMiddleware, listCards);
 
 // ═══════════════════════════════════════════════════════════════
 // CARD OPERATIONS
@@ -126,7 +126,7 @@ router.get('/lists/:listId/cards', userMiddleware, firmFilter, listCards);
  *   "pos": "top"                // Optional: Position (top, bottom, or number)
  * }
  */
-router.post('/cards', userMiddleware, firmFilter, createCard);
+router.post('/cards', userMiddleware, createCard);
 
 /**
  * Update card
@@ -141,7 +141,7 @@ router.post('/cards', userMiddleware, firmFilter, createCard);
  *   "idList": "5e8b9f..."       // Optional: Move to list
  * }
  */
-router.put('/cards/:cardId', userMiddleware, firmFilter, updateCard);
+router.put('/cards/:cardId', userMiddleware, updateCard);
 
 /**
  * Move card to another list
@@ -152,7 +152,7 @@ router.put('/cards/:cardId', userMiddleware, firmFilter, updateCard);
  *   "listId": "5e8b9f..."       // Required: Target list ID
  * }
  */
-router.post('/cards/:cardId/move', userMiddleware, firmFilter, moveCard);
+router.post('/cards/:cardId/move', userMiddleware, moveCard);
 
 /**
  * Add comment to card
@@ -163,7 +163,7 @@ router.post('/cards/:cardId/move', userMiddleware, firmFilter, moveCard);
  *   "text": "Comment text"      // Required: Comment content
  * }
  */
-router.post('/cards/:cardId/comments', userMiddleware, firmFilter, addComment);
+router.post('/cards/:cardId/comments', userMiddleware, addComment);
 
 // ═══════════════════════════════════════════════════════════════
 // SETTINGS
@@ -175,7 +175,7 @@ router.post('/cards/:cardId/comments', userMiddleware, firmFilter, addComment);
  *
  * Returns current notification preferences and sync settings.
  */
-router.get('/settings', userMiddleware, firmFilter, getSettings);
+router.get('/settings', userMiddleware, getSettings);
 
 /**
  * Update integration settings
@@ -200,7 +200,7 @@ router.get('/settings', userMiddleware, firmFilter, getSettings);
  *   "syncInterval": "manual"     // manual, hourly, daily, realtime
  * }
  */
-router.put('/settings', userMiddleware, firmFilter, updateSettings);
+router.put('/settings', userMiddleware, updateSettings);
 
 // ═══════════════════════════════════════════════════════════════
 // SYNC WITH TASKS/CASES
@@ -218,7 +218,7 @@ router.put('/settings', userMiddleware, firmFilter, updateSettings);
  *
  * Creates a Trello card from the task/case or updates existing card.
  */
-router.post('/sync', userMiddleware, firmFilter, syncWithTasks);
+router.post('/sync', userMiddleware, syncWithTasks);
 
 // ═══════════════════════════════════════════════════════════════
 // WEBHOOK ENDPOINT

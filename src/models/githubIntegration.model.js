@@ -235,12 +235,6 @@ githubIntegrationSchema.plugin(encryptionPlugin, {
 });
 
 // ═══════════════════════════════════════════════════════════════
-// FIRM ISOLATION PLUGIN (RLS-like enforcement)
-// ═══════════════════════════════════════════════════════════════
-const firmIsolationPlugin = require('./plugins/firmIsolation.plugin');
-githubIntegrationSchema.plugin(firmIsolationPlugin);
-
-// ═══════════════════════════════════════════════════════════════
 // INSTANCE METHODS
 // ═══════════════════════════════════════════════════════════════
 

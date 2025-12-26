@@ -250,10 +250,4 @@ routingSchema.methods.reorderOperations = async function(operationSequences) {
     return this;
 };
 
-// ═══════════════════════════════════════════════════════════════
-// FIRM ISOLATION PLUGIN (RLS-like enforcement)
-// ═══════════════════════════════════════════════════════════════
-const firmIsolationPlugin = require('./plugins/firmIsolation.plugin');
-routingSchema.plugin(firmIsolationPlugin);
-
 module.exports = mongoose.model('Routing', routingSchema);

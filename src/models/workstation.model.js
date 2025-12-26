@@ -220,10 +220,4 @@ workstationSchema.statics.getWorkstationCapacity = async function(workstationId,
     };
 };
 
-// ═══════════════════════════════════════════════════════════════
-// FIRM ISOLATION PLUGIN (RLS-like enforcement)
-// ═══════════════════════════════════════════════════════════════
-const firmIsolationPlugin = require('./plugins/firmIsolation.plugin');
-workstationSchema.plugin(firmIsolationPlugin);
-
 module.exports = mongoose.model('Workstation', workstationSchema);

@@ -214,10 +214,4 @@ batchSchema.methods.isUsable = function() {
     return this.status === 'active' && this.qty > 0 && !this.isExpired;
 };
 
-// ═══════════════════════════════════════════════════════════════
-// FIRM ISOLATION PLUGIN (RLS-like enforcement)
-// ═══════════════════════════════════════════════════════════════
-const firmIsolationPlugin = require('./plugins/firmIsolation.plugin');
-batchSchema.plugin(firmIsolationPlugin);
-
 module.exports = mongoose.model('Batch', batchSchema);
