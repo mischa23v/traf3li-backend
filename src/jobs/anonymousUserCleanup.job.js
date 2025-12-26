@@ -46,10 +46,13 @@ async function cleanupInactiveAnonymousUsers() {
         thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
         // Find inactive anonymous users
+        // SYSTEM JOB: bypassFirmFilter - cleans up inactive anonymous users across all firms
         const inactiveUsers = await User.find({
             isAnonymous: true,
             lastActivityAt: { $lt: thirtyDaysAgo }
-        }).select('_id username lastActivityAt createdAt');
+        })
+            .select('_id username lastActivityAt createdAt')
+            .setOptions({ bypassFirmFilter: true });
 
         if (inactiveUsers.length === 0) {
             logger.info('[AnonymousCleanup] No inactive anonymous users found');

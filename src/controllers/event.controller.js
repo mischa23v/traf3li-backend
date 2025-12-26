@@ -1742,9 +1742,15 @@ const createEventFromNaturalLanguage = asyncHandler(async (req, res) => {
     if (eventData.attendees && Array.isArray(eventData.attendees)) {
         for (const attendee of eventData.attendees) {
             // Try to find user by name or email
+            // SECURITY: Only match users within the same firm to prevent cross-firm data exposure
             let attendeeUserId = null;
             if (attendee.email) {
-                const user = await User.findOne({ email: attendee.email });
+                const userFilter = { email: attendee.email };
+                // Scope to same firm for multi-tenancy security
+                if (firmId) {
+                    userFilter.firmId = firmId;
+                }
+                const user = await User.findOne(userFilter);
                 if (user) attendeeUserId = user._id;
             }
 
@@ -1910,9 +1916,15 @@ const createEventFromVoice = asyncHandler(async (req, res) => {
     const attendeesArray = [];
     if (formalizedData.attendees && Array.isArray(formalizedData.attendees)) {
         for (const attendee of formalizedData.attendees) {
+            // SECURITY: Only match users within the same firm to prevent cross-firm data exposure
             let attendeeUserId = null;
             if (attendee.email) {
-                const user = await User.findOne({ email: attendee.email });
+                const userFilter = { email: attendee.email };
+                // Scope to same firm for multi-tenancy security
+                if (firmId) {
+                    userFilter.firmId = firmId;
+                }
+                const user = await User.findOne(userFilter);
                 if (user) attendeeUserId = user._id;
             }
 

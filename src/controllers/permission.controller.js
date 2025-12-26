@@ -1147,6 +1147,18 @@ const addUserOverride = asyncHandler(async (req, res) => {
         throw CustomException('لا يمكنك إضافة استثناءات لنفسك', 403);
     }
 
+    // SECURITY: Verify target user belongs to the same firm
+    // Prevents cross-firm permission manipulation attacks
+    const User = require('../models').User;
+    const targetUser = await User.findOne({
+        _id: sanitizedUserId,
+        firmId: firmId
+    }).select('_id').lean();
+
+    if (!targetUser) {
+        throw CustomException('المستخدم غير موجود في هذا المكتب | User does not belong to this firm', 403);
+    }
+
     await UIAccessConfig.addUserOverride(
         firmId,
         {
@@ -1186,6 +1198,18 @@ const removeUserOverride = asyncHandler(async (req, res) => {
 
     // Sanitize userId
     const sanitizedUserId = sanitizeObjectId(userId);
+
+    // SECURITY: Verify target user belongs to the same firm
+    // Prevents cross-firm permission manipulation attacks
+    const User = require('../models').User;
+    const targetUser = await User.findOne({
+        _id: sanitizedUserId,
+        firmId: firmId
+    }).select('_id').lean();
+
+    if (!targetUser) {
+        throw CustomException('المستخدم غير موجود في هذا المكتب | User does not belong to this firm', 403);
+    }
 
     await UIAccessConfig.removeUserOverride(firmId, sanitizedUserId, req.userID);
 

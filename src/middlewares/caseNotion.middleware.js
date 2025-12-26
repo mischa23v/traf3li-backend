@@ -26,8 +26,16 @@ exports.canAccessCase = async (req, res, next) => {
         logger.info('req.user?.role:', req.user?.role);
         logger.info('req.isSoloLawyer:', req.isSoloLawyer);
 
-        // First, find the case
-        const caseDoc = await Case.findById(caseId);
+        // Get firm context for filtering
+        const firmId = req.firmId || req.user?.firmId;
+
+        // SECURITY: Build query with firm context to prevent cross-firm access
+        // First, find the case with firm filtering
+        const caseQuery = { _id: caseId };
+        if (firmId) {
+            caseQuery.firmId = firmId;
+        }
+        const caseDoc = await Case.findOne(caseQuery);
 
         if (!caseDoc) {
             logger.info('Case NOT FOUND for id:', caseId);
@@ -102,8 +110,14 @@ exports.canAccessCase = async (req, res, next) => {
 exports.canEditPage = async (req, res, next) => {
     try {
         const { pageId } = req.params;
+        const firmId = req.firmId || req.user?.firmId;
 
-        const page = await CaseNotionPage.findById(pageId);
+        // SECURITY: Include firm context in query to prevent cross-firm access
+        const pageQuery = { _id: pageId };
+        if (firmId) {
+            pageQuery.firmId = firmId;
+        }
+        const page = await CaseNotionPage.findOne(pageQuery);
         if (!page) {
             return res.status(404).json({ error: true, message: 'Page not found' });
         }
@@ -137,8 +151,14 @@ exports.canEditPage = async (req, res, next) => {
 exports.canViewPage = async (req, res, next) => {
     try {
         const { pageId } = req.params;
+        const firmId = req.firmId || req.user?.firmId;
 
-        const page = await CaseNotionPage.findById(pageId);
+        // SECURITY: Include firm context in query to prevent cross-firm access
+        const pageQuery = { _id: pageId };
+        if (firmId) {
+            pageQuery.firmId = firmId;
+        }
+        const page = await CaseNotionPage.findOne(pageQuery);
         if (!page) {
             return res.status(404).json({ error: true, message: 'Page not found' });
         }

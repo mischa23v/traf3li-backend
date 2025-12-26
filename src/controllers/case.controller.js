@@ -1812,11 +1812,16 @@ const getDocumentDownloadUrl = async (request, response) => {
             throw CustomException('Case not found!', 404);
         }
 
-        // Check access (lawyer or client)
-        const isLawyer = caseDoc.lawyerId.toString() === request.userID;
-        const isClient = caseDoc.clientId && caseDoc.clientId.toString() === request.userID;
+        // SECURITY: Use helper function for proper multi-tenant access check
+        const hasAccess = checkCaseAccess(
+            caseDoc,
+            request.userID,
+            request.firmId,
+            false, // requireLawyer = false (both lawyer and client can download)
+            request.isSoloLawyer
+        );
 
-        if (!isLawyer && !isClient) {
+        if (!hasAccess) {
             throw CustomException('You do not have access to this case!', 403);
         }
 
@@ -1864,7 +1869,17 @@ const deleteDocumentWithS3 = async (request, response) => {
             throw CustomException('Case not found!', 404);
         }
 
-        if (caseDoc.lawyerId.toString() !== request.userID) {
+        // SECURITY: Use helper function for proper multi-tenant access check
+        // Only the lawyer of this case can delete documents
+        const hasAccess = checkCaseAccess(
+            caseDoc,
+            request.userID,
+            request.firmId,
+            true, // requireLawyer = true (only lawyer can delete)
+            request.isSoloLawyer
+        );
+
+        if (!hasAccess) {
             throw CustomException('Only the lawyer can delete documents!', 403);
         }
 

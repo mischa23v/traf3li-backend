@@ -22,8 +22,9 @@ const {
 
 const app = express.Router();
 
-// Get all lawyers with filters (public - no auth required)
-app.get('/lawyers', getLawyers);
+// SECURITY: Removed public access - lawyers listing requires authentication and firm scope
+// Get all lawyers with filters (protected - firm members only)
+app.get('/lawyers', userMiddleware, getLawyers);
 
 // Get team members (protected - must be before /:_id to avoid conflict)
 app.get('/team', userMiddleware, getTeamMembers);
@@ -45,11 +46,13 @@ app.put('/notification-preferences', userMiddleware, auditAction('update_notific
 // Convert solo lawyer to firm owner
 app.post('/convert-to-firm', userMiddleware, auditAction('convert_to_firm', 'user', { severity: 'high', captureChanges: true }), convertSoloToFirm);
 
-// Get user profile (public - no auth required)
-app.get('/:_id', getUserProfile);
+// SECURITY: Removed public access - user profiles require authentication
+// Get user profile (protected - authenticated users only)
+app.get('/:_id', userMiddleware, getUserProfile);
 
-// Get comprehensive lawyer profile with stats (public - no auth required)
-app.get('/lawyer/:username', getLawyerProfile);
+// SECURITY: Removed public access - lawyer profiles require authentication
+// Get comprehensive lawyer profile with stats (protected - authenticated users only)
+app.get('/lawyer/:username', userMiddleware, getLawyerProfile);
 
 // Update user profile (protected - must be own profile)
 app.patch('/:_id', userMiddleware, auditAction('update_profile', 'user', { severity: 'medium', captureChanges: true }), updateUserProfile);

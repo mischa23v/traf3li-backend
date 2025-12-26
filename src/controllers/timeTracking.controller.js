@@ -1377,7 +1377,8 @@ const bulkDeleteTimeEntries = asyncHandler(async (req, res) => {
         throw new CustomException('Some entries are invalid or cannot be deleted', 400);
     }
 
-    await TimeEntry.deleteMany({ _id: { $in: sanitizedIds } });
+    // SECURITY: Include firmFilter in deleteMany to prevent race condition attacks
+    await TimeEntry.deleteMany({ _id: { $in: sanitizedIds }, ...firmFilter });
 
     res.status(200).json({
         success: true,

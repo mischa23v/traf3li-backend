@@ -471,15 +471,24 @@ class AnalyticsService {
 
     /**
      * Get user journey (event timeline)
+     * SECURITY: Requires firmId for multi-tenant isolation
+     * @param {String} firmId - Firm ID (required for isolation)
      * @param {String} userId - User ID
      * @param {Object} dateRange - Date range {start, end}
      * @returns {Promise<Array>} - User's event timeline
      */
-    static async getUserJourney(userId, dateRange = {}) {
+    static async getUserJourney(firmId, userId, dateRange = {}) {
         try {
+            // SECURITY: firmId is required to prevent cross-firm data exposure
+            if (!firmId) {
+                logger.warn('AnalyticsService.getUserJourney called without firmId');
+                return [];
+            }
+
             const { start, end } = this._parseDateRange(dateRange);
 
             const events = await AnalyticsEvent.find({
+                firmId: new mongoose.Types.ObjectId(firmId),
                 userId: new mongoose.Types.ObjectId(userId),
                 timestamp: { $gte: start, $lte: end }
             })

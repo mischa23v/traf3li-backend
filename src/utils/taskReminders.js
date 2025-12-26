@@ -202,6 +202,7 @@ const scheduleTaskReminders = () => {
       tomorrow.setHours(23, 59, 59, 999);
 
       // Find tasks due within 24 hours
+      // NOTE: Bypass firmIsolation filter - system job operates across all firms
       const tasks = await Task.find({
         dueDate: {
           $gte: now,
@@ -210,7 +211,8 @@ const scheduleTaskReminders = () => {
         status: { $ne: 'done' }
       })
       .populate('assignedTo', 'username firstName lastName email')
-      .populate('caseId', 'title');
+      .populate('caseId', 'title')
+      .setOptions({ bypassFirmFilter: true });
 
       // Create notifications
       for (const task of tasks) {
@@ -250,13 +252,16 @@ const scheduleTaskReminders = () => {
       tomorrow.setHours(23, 59, 59, 999);
 
       // Find cases with upcoming hearings within 24 hours
+      // NOTE: Bypass firmIsolation filter - system job operates across all firms
       const casesWithHearings = await Case.find({
         'hearings.date': {
           $gte: now,
           $lte: tomorrow
         },
         'hearings.status': 'scheduled'
-      }).populate('lawyerId', '_id firstName lastName email');
+      })
+      .populate('lawyerId', '_id firstName lastName email')
+      .setOptions({ bypassFirmFilter: true });
 
       let hearingCount = 0;
       for (const caseDoc of casesWithHearings) {
@@ -304,6 +309,7 @@ const scheduleTaskReminders = () => {
       const oneMinuteFromNow = new Date(now.getTime() + 60000);
 
       // Find reminders that are due in the next minute and haven't been sent
+      // NOTE: Bypass firmIsolation filter - system job operates across all firms
       const dueReminders = await Reminder.find({
         status: 'pending',
         reminderDateTime: { $lte: oneMinuteFromNow },
@@ -312,7 +318,8 @@ const scheduleTaskReminders = () => {
       .populate('userId', 'firstName lastName email phone')
       .populate('relatedCase', 'title caseNumber')
       .populate('relatedTask', 'title')
-      .limit(100); // Process in batches
+      .limit(100) // Process in batches
+      .setOptions({ bypassFirmFilter: true });
 
       if (dueReminders.length === 0) return;
 
@@ -357,6 +364,7 @@ const scheduleTaskReminders = () => {
       const now = new Date();
 
       // Find reminders with pending advance notifications
+      // NOTE: Bypass firmIsolation filter - system job operates across all firms
       const reminders = await Reminder.find({
         status: 'pending',
         'notification.advanceNotifications': {
@@ -366,7 +374,8 @@ const scheduleTaskReminders = () => {
         }
       })
       .populate('userId', 'firstName lastName email phone')
-      .limit(50);
+      .limit(50)
+      .setOptions({ bypassFirmFilter: true });
 
       if (reminders.length === 0) return;
 
@@ -423,11 +432,12 @@ const scheduleTaskReminders = () => {
 
     try {
       // Find recurring reminders that need new instances
+      // NOTE: Bypass firmIsolation filter - system job operates across all firms
       const recurringReminders = await Reminder.find({
         'recurring.enabled': true,
         status: { $in: ['completed', 'dismissed'] }, // Parent reminder was handled
         'recurring.nextOccurrence': { $lte: new Date() }
-      });
+      }).setOptions({ bypassFirmFilter: true });
 
       let generatedCount = 0;
       for (const parent of recurringReminders) {
@@ -506,6 +516,7 @@ const scheduleTaskReminders = () => {
       // - Have escalation enabled
       // - Haven't been escalated yet
       // - Are past their escalation time
+      // NOTE: Bypass firmIsolation filter - system job operates across all firms
       const remindersToEscalate = await Reminder.find({
         status: 'pending',
         'notification.sent': true,
@@ -514,7 +525,8 @@ const scheduleTaskReminders = () => {
         'notification.escalation.escalateTo': { $exists: true }
       })
       .populate('notification.escalation.escalateTo', 'firstName lastName email')
-      .populate('userId', 'firstName lastName');
+      .populate('userId', 'firstName lastName')
+      .setOptions({ bypassFirmFilter: true });
 
       let escalatedCount = 0;
       for (const reminder of remindersToEscalate) {
@@ -567,12 +579,14 @@ const scheduleTaskReminders = () => {
       const now = new Date();
 
       // Find snoozed reminders where snooze time has passed
+      // NOTE: Bypass firmIsolation filter - system job operates across all firms
       const expiredSnoozes = await Reminder.find({
         status: 'snoozed',
         'snooze.snoozeUntil': { $lte: now }
       })
       .populate('userId', 'firstName lastName email')
-      .limit(50);
+      .limit(50)
+      .setOptions({ bypassFirmFilter: true });
 
       if (expiredSnoozes.length === 0) return;
 
@@ -637,6 +651,7 @@ const scheduleTaskReminders = () => {
       const twentyFourHours = new Date(now.getTime() + 24 * 60 * 60 * 1000);
 
       // Find events in next 24 hours with pending reminders
+      // NOTE: Bypass firmIsolation filter - system job operates across all firms
       const upcomingEvents = await Event.find({
         startDateTime: { $gte: now, $lte: twentyFourHours },
         status: { $in: ['scheduled', 'confirmed'] },
@@ -647,7 +662,8 @@ const scheduleTaskReminders = () => {
         }
       })
       .populate('organizer', 'firstName lastName email')
-      .populate('caseId', 'title caseNumber');
+      .populate('caseId', 'title caseNumber')
+      .setOptions({ bypassFirmFilter: true });
 
       let reminderCount = 0;
       for (const event of upcomingEvents) {
@@ -728,12 +744,14 @@ const scheduleTaskReminders = () => {
       const now = new Date();
 
       // Find overdue tasks
+      // NOTE: Bypass firmIsolation filter - system job operates across all firms
       const overdueTasks = await Task.find({
         dueDate: { $lt: now },
         status: { $nin: ['done', 'cancelled'] }
       })
       .populate('assignedTo', '_id firstName lastName')
-      .populate('caseId', 'title');
+      .populate('caseId', 'title')
+      .setOptions({ bypassFirmFilter: true });
 
       for (const task of overdueTasks) {
         if (!task.assignedTo?._id) continue;

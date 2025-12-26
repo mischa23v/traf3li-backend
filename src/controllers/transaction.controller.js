@@ -464,8 +464,14 @@ const getSummary = asyncHandler(async (req, res) => {
 const getTransactionsByCategory = asyncHandler(async (req, res) => {
     const { startDate, endDate, type } = req.query;
     const userId = req.userID;
+    const firmId = req.firmId || req.user?.firmId;
 
     const query = { userId, status: 'completed' };
+
+    // SECURITY: Add firmId filter to prevent cross-firm data exposure
+    if (firmId) {
+        query.firmId = new mongoose.Types.ObjectId(firmId);
+    }
 
     if (type) query.type = type;
 

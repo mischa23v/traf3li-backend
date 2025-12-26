@@ -194,9 +194,23 @@ documentAnalysisSchema.statics.getDocumentHistory = async function(documentId, f
 
 /**
  * Get analysis statistics
+ * SECURITY: Requires firmId or userId for multi-tenant isolation
+ * @param {ObjectId} firmId - Firm ID for firm users
+ * @param {ObjectId} userId - User ID for solo lawyers (used when firmId is null)
  */
-documentAnalysisSchema.statics.getStats = async function(firmId) {
-  const query = firmId ? { firmId } : {};
+documentAnalysisSchema.statics.getStats = async function(firmId, userId = null) {
+  // SECURITY: Never return data without ownership filter
+  if (!firmId && !userId) {
+    return {
+      total: 0,
+      byStatus: [],
+      byType: [],
+      avgProcessingTime: 0
+    };
+  }
+
+  // Build query with multi-tenant isolation
+  const query = firmId ? { firmId } : { createdBy: userId };
 
   const [total, byStatus, byType, avgProcessingTime] = await Promise.all([
     this.countDocuments(query),

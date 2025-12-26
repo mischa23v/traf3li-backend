@@ -303,7 +303,10 @@ async function processDailyDigest(data, job) {
   await job.progress(20);
 
   // Get user details
-  const user = await User.findById(userId).lean();
+  // SYSTEM JOB: bypassFirmFilter - queue processes users for daily digest emails
+  const user = await User.findById(userId)
+    .setOptions({ bypassFirmFilter: true })
+    .lean();
 
   if (!user) {
     logger.warn(`User ${userId} not found for daily digest`);

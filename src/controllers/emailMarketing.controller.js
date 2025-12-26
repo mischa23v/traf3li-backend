@@ -105,8 +105,18 @@ exports.getCampaign = async (req, res) => {
   try {
     const { id } = req.params;
     const firmId = req.firmId;
+    const lawyerId = req.userID;
+    const isSoloLawyer = req.isSoloLawyer;
 
-    const campaign = await EmailCampaign.findOne({ _id: id, firmId })
+    // SECURITY: Build query with multi-tenant isolation
+    const query = { _id: id };
+    if (isSoloLawyer || !firmId) {
+      query.lawyerId = lawyerId;
+    } else {
+      query.firmId = firmId;
+    }
+
+    const campaign = await EmailCampaign.findOne(query)
       .populate('templateId')
       .populate('segmentId')
       .populate('createdBy', 'firstName lastName')
@@ -1057,8 +1067,20 @@ exports.unsubscribe = async (req, res) => {
   try {
     const { id } = req.params;
     const { reason } = req.body;
+    const firmId = req.firmId;
+    const lawyerId = req.userID;
+    const isSoloLawyer = req.isSoloLawyer;
 
-    const subscriber = await EmailSubscriber.findById(id);
+    // SECURITY: Build query with multi-tenant isolation
+    const ownershipQuery = { _id: id };
+    if (isSoloLawyer || !firmId) {
+      ownershipQuery.lawyerId = lawyerId;
+    } else {
+      ownershipQuery.firmId = firmId;
+    }
+
+    // SECURITY: IDOR protection - verify subscriber belongs to user's firm
+    const subscriber = await EmailSubscriber.findOne(ownershipQuery);
     if (!subscriber) {
       return res.status(404).json({
         success: false,
@@ -1153,8 +1175,18 @@ exports.getSegment = async (req, res) => {
   try {
     const { id } = req.params;
     const firmId = req.firmId;
+    const lawyerId = req.userID;
+    const isSoloLawyer = req.isSoloLawyer;
 
-    const segment = await EmailSegment.findOne({ _id: id, firmId })
+    // SECURITY: Build query with multi-tenant isolation
+    const query = { _id: id };
+    if (isSoloLawyer || !firmId) {
+      query.lawyerId = lawyerId;
+    } else {
+      query.firmId = firmId;
+    }
+
+    const segment = await EmailSegment.findOne(query)
       .populate('createdBy', 'firstName lastName');
 
     if (!segment) {
@@ -1258,8 +1290,20 @@ exports.getSegmentSubscribers = async (req, res) => {
   try {
     const { id } = req.params;
     const { page = 1, limit = 50 } = req.query;
+    const firmId = req.firmId;
+    const lawyerId = req.userID;
+    const isSoloLawyer = req.isSoloLawyer;
 
-    const segment = await EmailSegment.findById(id);
+    // SECURITY: Build query with multi-tenant isolation
+    const ownershipQuery = { _id: id };
+    if (isSoloLawyer || !firmId) {
+      ownershipQuery.lawyerId = lawyerId;
+    } else {
+      ownershipQuery.firmId = firmId;
+    }
+
+    // SECURITY: IDOR protection - verify segment belongs to user's firm
+    const segment = await EmailSegment.findOne(ownershipQuery);
     if (!segment) {
       return res.status(404).json({
         success: false,
@@ -1293,6 +1337,26 @@ exports.getSegmentSubscribers = async (req, res) => {
 exports.refreshSegment = async (req, res) => {
   try {
     const { id } = req.params;
+    const firmId = req.firmId;
+    const lawyerId = req.userID;
+    const isSoloLawyer = req.isSoloLawyer;
+
+    // SECURITY: Build query with multi-tenant isolation
+    const ownershipQuery = { _id: id };
+    if (isSoloLawyer || !firmId) {
+      ownershipQuery.lawyerId = lawyerId;
+    } else {
+      ownershipQuery.firmId = firmId;
+    }
+
+    // SECURITY: IDOR protection - verify segment belongs to user's firm
+    const segment = await EmailSegment.findOne(ownershipQuery);
+    if (!segment) {
+      return res.status(404).json({
+        success: false,
+        message: 'Segment not found'
+      });
+    }
 
     const count = await EmailMarketingService.calculateSegmentSubscribers(id);
 

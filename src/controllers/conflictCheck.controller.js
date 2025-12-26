@@ -85,9 +85,20 @@ const runConflictCheck = asyncHandler(async (req, res) => {
         throw CustomException('معرف العميل غير صالح', 400);
     }
 
+    // SECURITY: Build query with multi-tenant isolation
+    const buildOwnershipQuery = (additionalQuery = {}) => {
+        const query = { ...additionalQuery };
+        if (firmId) {
+            query.firmId = firmId;
+        } else {
+            query.lawyerId = lawyerId;
+        }
+        return query;
+    };
+
     // IDOR protection - verify case ownership if caseId provided
     if (caseId) {
-        const caseExists = await Case.findOne({ _id: caseId, lawyerId });
+        const caseExists = await Case.findOne(buildOwnershipQuery({ _id: caseId }));
         if (!caseExists) {
             throw CustomException('القضية غير موجودة أو غير مصرح لك بالوصول إليها', 403);
         }
@@ -95,7 +106,7 @@ const runConflictCheck = asyncHandler(async (req, res) => {
 
     // IDOR protection - verify client ownership if clientId provided
     if (clientId) {
-        const clientExists = await Client.findOne({ _id: clientId, lawyerId });
+        const clientExists = await Client.findOne(buildOwnershipQuery({ _id: clientId }));
         if (!clientExists) {
             throw CustomException('العميل غير موجود أو غير مصرح لك بالوصول إليه', 403);
         }
@@ -117,8 +128,8 @@ const runConflictCheck = asyncHandler(async (req, res) => {
         const matches = [];
         const searchThreshold = threshold;
 
-        // Build base query with IDOR protection
-        const baseQuery = { lawyerId };
+        // SECURITY: Build base query with multi-tenant isolation
+        const baseQuery = firmId ? { firmId } : { lawyerId };
         if (!safeData.includeArchived) {
             baseQuery.isArchived = { $ne: true };
         }
@@ -305,8 +316,8 @@ const getConflictChecks = asyncHandler(async (req, res) => {
     // Sanitize pagination parameters
     const { page, limit, skip } = sanitizePagination(req.query, { maxLimit: 100, defaultLimit: 20 });
 
-    // Build query with IDOR protection
-    const query = { lawyerId };
+    // SECURITY: Build query with multi-tenant isolation
+    const query = firmId ? { firmId } : { lawyerId };
 
     // Input validation for status
     const validStatuses = ['pending', 'cleared', 'flagged', 'waived', 'running', 'conflicts_found', 'clear', 'error', 'resolved'];
@@ -363,8 +374,11 @@ const getConflictCheck = asyncHandler(async (req, res) => {
         throw CustomException('معرف فحص التعارض غير صالح', 400);
     }
 
+    // SECURITY: Build query with multi-tenant isolation
+    const ownershipQuery = firmId ? { firmId } : { lawyerId };
+
     // IDOR protection - verify ownership
-    const check = await ConflictCheck.findOne({ _id: checkId, lawyerId })
+    const check = await ConflictCheck.findOne({ _id: checkId, ...ownershipQuery })
         .populate('caseId', 'title caseNumber')
         .populate('clientId', 'firstName lastName companyName')
         .populate('matches.entityId')
@@ -418,8 +432,11 @@ const updateConflictCheck = asyncHandler(async (req, res) => {
         safeData.clearanceNotes = sanitizeString(safeData.clearanceNotes);
     }
 
+    // SECURITY: Build query with multi-tenant isolation
+    const ownershipQuery = firmId ? { firmId } : { lawyerId };
+
     // IDOR protection - verify ownership
-    const check = await ConflictCheck.findOne({ _id: checkId, lawyerId });
+    const check = await ConflictCheck.findOne({ _id: checkId, ...ownershipQuery });
 
     if (!check) {
         throw CustomException('فحص التعارض غير موجود أو غير مصرح لك بالوصول إليه', 404);
@@ -480,8 +497,11 @@ const resolveMatch = asyncHandler(async (req, res) => {
         safeData.notes = sanitizeString(safeData.notes);
     }
 
+    // SECURITY: Build query with multi-tenant isolation
+    const ownershipQuery = firmId ? { firmId } : { lawyerId };
+
     // IDOR protection - verify ownership
-    const check = await ConflictCheck.findOne({ _id: checkId, lawyerId });
+    const check = await ConflictCheck.findOne({ _id: checkId, ...ownershipQuery });
 
     if (!check) {
         throw CustomException('فحص التعارض غير موجود أو غير مصرح لك بالوصول إليه', 404);
@@ -530,8 +550,11 @@ const deleteConflictCheck = asyncHandler(async (req, res) => {
         throw CustomException('معرف فحص التعارض غير صالح', 400);
     }
 
+    // SECURITY: Build query with multi-tenant isolation
+    const ownershipQuery = firmId ? { firmId } : { lawyerId };
+
     // IDOR protection - verify ownership before deletion
-    const check = await ConflictCheck.findOneAndDelete({ _id: checkId, lawyerId });
+    const check = await ConflictCheck.findOneAndDelete({ _id: checkId, ...ownershipQuery });
 
     if (!check) {
         throw CustomException('فحص التعارض غير موجود أو غير مصرح لك بحذفه', 404);
@@ -573,8 +596,9 @@ const quickConflictCheck = asyncHandler(async (req, res) => {
     const results = [];
     const threshold = 85;
 
-    // IDOR protection - only search within user's data
-    const clients = await Client.find({ lawyerId }).lean();
+    // SECURITY: Multi-tenant isolation - only search within user's/firm's data
+    const ownershipQuery = firmId ? { firmId } : { lawyerId };
+    const clients = await Client.find(ownershipQuery).lean();
     for (const client of clients) {
         for (const term of validSearchTerms) {
             const fullName = `${client.firstName || ''} ${client.lastName || ''}`.trim();
@@ -614,10 +638,16 @@ const quickConflictCheck = asyncHandler(async (req, res) => {
 const getConflictStats = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
+    const mongoose = require('mongoose');
 
-    // IDOR protection - aggregate only user's data
+    // SECURITY: Build query with multi-tenant isolation
+    const ownershipQuery = firmId
+        ? { firmId: new mongoose.Types.ObjectId(firmId) }
+        : { lawyerId: new mongoose.Types.ObjectId(lawyerId) };
+
+    // SECURITY: Multi-tenant isolation - aggregate only user's/firm's data
     const stats = await ConflictCheck.aggregate([
-        { $match: { lawyerId: lawyerId } },
+        { $match: ownershipQuery },
         {
             $group: {
                 _id: '$status',
@@ -626,9 +656,10 @@ const getConflictStats = asyncHandler(async (req, res) => {
         }
     ]);
 
-    const totalChecks = await ConflictCheck.countDocuments({ lawyerId });
+    const countQuery = firmId ? { firmId } : { lawyerId };
+    const totalChecks = await ConflictCheck.countDocuments(countQuery);
     const recentChecks = await ConflictCheck.countDocuments({
-        lawyerId,
+        ...countQuery,
         createdAt: { $gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) }
     });
 

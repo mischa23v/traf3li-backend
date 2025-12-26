@@ -250,11 +250,13 @@ class AdminToolsService {
 
     /**
      * Merge duplicate users
+     * SECURITY: Requires firmId context to prevent cross-firm merges
      * @param {String} sourceUserId - User to merge from (will be deleted)
      * @param {String} targetUserId - User to merge into (will be kept)
+     * @param {Object} context - Admin context { adminFirmId, isSystemAdmin }
      * @returns {Promise<Object>} Merge report
      */
-    async mergeUsers(sourceUserId, targetUserId) {
+    async mergeUsers(sourceUserId, targetUserId, context = {}) {
         const session = await mongoose.startSession();
         session.startTransaction();
 
@@ -270,6 +272,14 @@ class AdminToolsService {
 
             if (sourceUserId === targetUserId) {
                 throw new Error('Cannot merge user with itself');
+            }
+
+            // SECURITY: Firm admin can only merge users within their own firm
+            if (context.adminFirmId && !context.isSystemAdmin) {
+                const firmIdStr = context.adminFirmId.toString();
+                if (sourceUser.firmId?.toString() !== firmIdStr || targetUser.firmId?.toString() !== firmIdStr) {
+                    throw new Error('Cannot merge users from different firms');
+                }
             }
 
             // Update all references to point to target user
@@ -320,11 +330,13 @@ class AdminToolsService {
 
     /**
      * Merge duplicate clients
+     * SECURITY: Requires firmId context to prevent cross-firm merges
      * @param {String} sourceClientId - Client to merge from
      * @param {String} targetClientId - Client to merge into
+     * @param {Object} context - Admin context { adminFirmId, isSystemAdmin }
      * @returns {Promise<Object>} Merge report
      */
-    async mergeClients(sourceClientId, targetClientId) {
+    async mergeClients(sourceClientId, targetClientId, context = {}) {
         const session = await mongoose.startSession();
         session.startTransaction();
 
@@ -340,6 +352,14 @@ class AdminToolsService {
 
             if (sourceClientId === targetClientId) {
                 throw new Error('Cannot merge client with itself');
+            }
+
+            // SECURITY: Firm admin can only merge clients within their own firm
+            if (context.adminFirmId && !context.isSystemAdmin) {
+                const firmIdStr = context.adminFirmId.toString();
+                if (sourceClient.firmId?.toString() !== firmIdStr || targetClient.firmId?.toString() !== firmIdStr) {
+                    throw new Error('Cannot merge clients from different firms');
+                }
             }
 
             // Update all references
@@ -841,14 +861,23 @@ class AdminToolsService {
 
     /**
      * Reset user password and send email
+     * SECURITY: Requires adminFirmId context to prevent cross-firm password resets
      * @param {String} userId - User ID
+     * @param {Object} context - Admin context { adminFirmId, isSystemAdmin }
      * @returns {Promise<Object>} Reset result
      */
-    async resetUserPassword(userId) {
+    async resetUserPassword(userId, context = {}) {
         try {
             const user = await User.findById(userId);
             if (!user) {
                 throw new Error('User not found');
+            }
+
+            // SECURITY: Firm admin can only reset passwords within their own firm
+            if (context.adminFirmId && !context.isSystemAdmin) {
+                if (user.firmId?.toString() !== context.adminFirmId.toString()) {
+                    throw new Error('Cannot reset passwords for users from other firms');
+                }
             }
 
             // Generate temporary password
@@ -889,6 +918,7 @@ class AdminToolsService {
 
     /**
      * Create impersonation session
+     * SECURITY: Firm admins can only impersonate users within their own firm
      * @param {String} adminId - Admin user ID
      * @param {String} userId - User to impersonate
      * @returns {Promise<Object>} Impersonation session
@@ -906,6 +936,12 @@ class AdminToolsService {
 
             if (!targetUser) {
                 throw new Error('Target user not found');
+            }
+
+            // SECURITY: Firm admins can only impersonate users within their own firm
+            // System admins (no firmId) can impersonate anyone
+            if (admin.firmId && targetUser.firmId?.toString() !== admin.firmId.toString()) {
+                throw new Error('Cannot impersonate users from other firms');
             }
 
             // Create impersonation session token
@@ -954,15 +990,24 @@ class AdminToolsService {
 
     /**
      * Lock user account
+     * SECURITY: Requires adminFirmId context to prevent cross-firm locks
      * @param {String} userId - User ID
      * @param {String} reason - Lock reason
+     * @param {Object} context - Admin context { adminFirmId, isSystemAdmin }
      * @returns {Promise<Object>} Lock result
      */
-    async lockUser(userId, reason = 'administrative_action') {
+    async lockUser(userId, reason = 'administrative_action', context = {}) {
         try {
             const user = await User.findById(userId);
             if (!user) {
                 throw new Error('User not found');
+            }
+
+            // SECURITY: Firm admin can only lock users within their own firm
+            if (context.adminFirmId && !context.isSystemAdmin) {
+                if (user.firmId?.toString() !== context.adminFirmId.toString()) {
+                    throw new Error('Cannot lock users from other firms');
+                }
             }
 
             user.firmStatus = 'suspended';
@@ -990,14 +1035,23 @@ class AdminToolsService {
 
     /**
      * Unlock user account
+     * SECURITY: Requires adminFirmId context to prevent cross-firm unlocks
      * @param {String} userId - User ID
+     * @param {Object} context - Admin context { adminFirmId, isSystemAdmin }
      * @returns {Promise<Object>} Unlock result
      */
-    async unlockUser(userId) {
+    async unlockUser(userId, context = {}) {
         try {
             const user = await User.findById(userId);
             if (!user) {
                 throw new Error('User not found');
+            }
+
+            // SECURITY: Firm admin can only unlock users within their own firm
+            if (context.adminFirmId && !context.isSystemAdmin) {
+                if (user.firmId?.toString() !== context.adminFirmId.toString()) {
+                    throw new Error('Cannot unlock users from other firms');
+                }
             }
 
             user.firmStatus = 'active';
@@ -1016,12 +1070,22 @@ class AdminToolsService {
 
     /**
      * Get login history for user
+     * SECURITY: Requires adminFirmId context to prevent cross-firm access
      * @param {String} userId - User ID
      * @param {Number} limit - Maximum records to return
+     * @param {Object} context - Admin context { adminFirmId, isSystemAdmin }
      * @returns {Promise<Array>} Login history
      */
-    async getLoginHistory(userId, limit = 50) {
+    async getLoginHistory(userId, limit = 50, context = {}) {
         try {
+            // SECURITY: Verify target user belongs to admin's firm
+            if (context.adminFirmId && !context.isSystemAdmin) {
+                const targetUser = await User.findById(userId).select('firmId').lean();
+                if (!targetUser || targetUser.firmId?.toString() !== context.adminFirmId.toString()) {
+                    throw new Error('Cannot access login history for users from other firms');
+                }
+            }
+
             const loginHistory = await AuditLog.find({
                 userId,
                 action: { $in: ['login', 'login_success', 'login_failed'] }

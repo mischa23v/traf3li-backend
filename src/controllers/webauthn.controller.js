@@ -229,12 +229,13 @@ const startAuthentication = asyncHandler(async (req, res) => {
     }
 
     // Find user by email or username
+    // SECURITY: bypassFirmFilter needed - authentication must find user without knowing firmId
     const user = await User.findOne({
         $or: [
             { email: email?.toLowerCase() },
             { username: username?.toLowerCase() }
         ]
-    });
+    }).setOptions({ bypassFirmFilter: true });
 
     if (!user) {
         // Return generic error to prevent user enumeration

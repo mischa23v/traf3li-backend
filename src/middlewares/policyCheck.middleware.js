@@ -347,6 +347,7 @@ const checkPaymentPolicy = async (req, res, next) => {
         // Check for duplicate payments (fraud prevention)
         if (paymentData.invoiceId && paymentData.amount) {
             const duplicateCheck = await checkDuplicatePayment(
+                context.firmId,
                 paymentData.invoiceId,
                 paymentData.amount,
                 context.userId
@@ -583,12 +584,14 @@ async function checkAccountBudget(firmId, accountId, amount, departmentId, costC
 
         // Get actual spending from GL (simplified - you may need to enhance this)
         const GeneralLedger = require('../models/generalLedger.model');
+        const mongoose = require('mongoose');
         const startOfMonth = new Date(currentYear, currentMonth - 1, 1);
         const endOfMonth = new Date(currentYear, currentMonth, 0);
 
         const actual = await GeneralLedger.aggregate([
             {
                 $match: {
+                    firmId: new mongoose.Types.ObjectId(firmId),
                     status: 'posted',
                     transactionDate: { $gte: startOfMonth, $lte: endOfMonth },
                     $or: [
@@ -666,18 +669,20 @@ async function checkPaymentLimits(firmId, userId, amount, paymentMethod) {
 
 /**
  * Check for duplicate payments
+ * @param {string} firmId - Firm ID
  * @param {string} invoiceId - Invoice ID
  * @param {number} amount - Payment amount
  * @param {string} userId - User ID
  * @returns {Promise<object>} Duplicate check result
  */
-async function checkDuplicatePayment(invoiceId, amount, userId) {
+async function checkDuplicatePayment(firmId, invoiceId, amount, userId) {
     try {
         // Check for payments in the last 5 minutes with same invoice and amount
         const Payment = require('../models/payment.model');
         const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
 
         const recentPayment = await Payment.findOne({
+            firmId,
             invoiceId,
             amount,
             createdBy: userId,

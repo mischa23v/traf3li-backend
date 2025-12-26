@@ -263,13 +263,24 @@ const getBroker = asyncHandler(async (req, res) => {
         throw CustomException('Broker not found', 404);
     }
 
-    // Get related accounts
-    const accounts = await TradingAccount.find({ brokerId: broker._id })
+    // Get related accounts with firm context
+    const accountsQuery = { brokerId: broker._id };
+    if (firmId) {
+        accountsQuery.firmId = firmId;
+    }
+    const accounts = await TradingAccount.find(accountsQuery)
         .select('name type status currency currentBalance');
 
     // Get trade stats for this broker
+    // SECURITY: Add firmId to $match for defense in depth
+    const tradeMatch = { brokerId: broker._id, status: 'closed' };
+    if (firmId) {
+        const mongoose = require('mongoose');
+        tradeMatch.firmId = new mongoose.Types.ObjectId(firmId);
+    }
+
     const tradeStats = await Trade.aggregate([
-        { $match: { brokerId: broker._id, status: 'closed' } },
+        { $match: tradeMatch },
         {
             $group: {
                 _id: null,

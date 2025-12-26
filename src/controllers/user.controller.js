@@ -439,12 +439,34 @@ const deleteUser = async (request, response) => {
 };
 
 // Get team members for case/task assignment
+// SECURITY: Must be scoped to user's firm to prevent cross-firm data exposure
 const getTeamMembers = async (request, response) => {
     try {
-        const users = await User.find({
-            isSeller: true,
+        // Get firm context from request
+        const firmId = request.firmId || request.user?.firmId;
+        const userId = request.userID || request.user?._id;
+
+        if (!firmId && !userId) {
+            return response.status(403).send({
+                error: true,
+                message: 'Firm context required'
+            });
+        }
+
+        // Build filter - must include firm membership
+        const filter = {
             role: { $in: ['lawyer', 'admin', 'paralegal', 'assistant'] }
-        })
+        };
+
+        // Filter by firmId if available, otherwise by lawyerId for solo users
+        if (firmId) {
+            filter.firmId = firmId;
+        } else {
+            // Solo lawyer - only return themselves
+            filter._id = userId;
+        }
+
+        const users = await User.find(filter)
             .select('_id firstName lastName email role image lawyerProfile.specialization')
             .sort({ firstName: 1 })
             .lean();

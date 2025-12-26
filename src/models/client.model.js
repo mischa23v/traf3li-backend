@@ -674,12 +674,19 @@ clientSchema.pre('deleteMany', async function() {
 
 /**
  * Search clients by term
+ * SECURITY: firmId is required for multi-tenant isolation
  */
 clientSchema.statics.searchClients = async function(lawyerId, searchTerm, filters = {}) {
     const query = {
-        lawyerId: new mongoose.Types.ObjectId(lawyerId),
         status: { $ne: 'archived' }
     };
+
+    // SECURITY: Multi-tenant isolation - use firmId if provided, otherwise fall back to lawyerId
+    if (filters.firmId) {
+        query.firmId = new mongoose.Types.ObjectId(filters.firmId);
+    } else {
+        query.lawyerId = new mongoose.Types.ObjectId(lawyerId);
+    }
 
     if (searchTerm) {
         query.$or = [
@@ -703,17 +710,28 @@ clientSchema.statics.searchClients = async function(lawyerId, searchTerm, filter
 
 /**
  * Run conflict check against existing clients
+ * SECURITY: firmId is required for multi-tenant isolation
  */
-clientSchema.statics.runConflictCheck = async function(lawyerId, clientData) {
+clientSchema.statics.runConflictCheck = async function(lawyerId, clientData, firmId = null) {
     const conflicts = [];
+
+    // SECURITY: Build base query with multi-tenant isolation
+    const buildBaseQuery = (additionalQuery) => {
+        const query = { ...additionalQuery };
+        if (firmId) {
+            query.firmId = firmId;
+        } else {
+            query.lawyerId = lawyerId;
+        }
+        return query;
+    };
 
     // Check by national ID
     if (clientData.nationalId) {
-        const existing = await this.findOne({
-            lawyerId,
+        const existing = await this.findOne(buildBaseQuery({
             nationalId: clientData.nationalId,
             _id: { $ne: clientData._id }
-        });
+        }));
         if (existing) {
             conflicts.push({
                 type: 'nationalId',
@@ -725,11 +743,10 @@ clientSchema.statics.runConflictCheck = async function(lawyerId, clientData) {
 
     // Check by CR number
     if (clientData.crNumber) {
-        const existing = await this.findOne({
-            lawyerId,
+        const existing = await this.findOne(buildBaseQuery({
             crNumber: clientData.crNumber,
             _id: { $ne: clientData._id }
-        });
+        }));
         if (existing) {
             conflicts.push({
                 type: 'crNumber',
@@ -741,11 +758,10 @@ clientSchema.statics.runConflictCheck = async function(lawyerId, clientData) {
 
     // Check by email
     if (clientData.email) {
-        const existing = await this.findOne({
-            lawyerId,
+        const existing = await this.findOne(buildBaseQuery({
             email: clientData.email,
             _id: { $ne: clientData._id }
-        });
+        }));
         if (existing) {
             conflicts.push({
                 type: 'email',
@@ -757,11 +773,10 @@ clientSchema.statics.runConflictCheck = async function(lawyerId, clientData) {
 
     // Check by phone
     if (clientData.phone) {
-        const existing = await this.findOne({
-            lawyerId,
+        const existing = await this.findOne(buildBaseQuery({
             phone: clientData.phone,
             _id: { $ne: clientData._id }
-        });
+        }));
         if (existing) {
             conflicts.push({
                 type: 'phone',

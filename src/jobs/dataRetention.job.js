@@ -97,11 +97,14 @@ async function cleanupDepartedUsers() {
 
   // Find departed users past retention period
   // CRITICAL: Require both firmStatus AND departedAt to exist to prevent false matches
+  // SYSTEM JOB: bypassFirmFilter - processes all firms for data retention compliance
   const departedUsers = await User.find({
     firmStatus: 'departed',                    // Must be explicitly marked as departed
     departedAt: { $exists: true, $lt: cutoffDate }, // Must have departedAt date set
     dataAnonymized: { $ne: true },
-  }).select('_id email departedAt');
+  })
+    .select('_id email departedAt')
+    .setOptions({ bypassFirmFilter: true });
 
   if (departedUsers.length === 0) {
     logger.info('[DataRetention] No departed users to process');

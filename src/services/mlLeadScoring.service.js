@@ -93,16 +93,19 @@ class MLLeadScoringService {
      */
     async extractFeatures(leadId, firmId) {
         try {
-            const lead = await Lead.findById(leadId);
-            const leadScore = await LeadScore.findOne({ leadId });
+            // SECURITY: Validate lead belongs to the requesting firm
+            // Prevents cross-firm lead data extraction
+            const lead = await Lead.findOne({ _id: leadId, firmId });
+            if (!lead) {
+                throw new Error('Lead not found or access denied');
+            }
+
+            const leadScore = await LeadScore.findOne({ leadId, firmId });
             const activities = await CrmActivity.find({
                 entityType: 'lead',
-                entityId: leadId
+                entityId: leadId,
+                firmId
             }).sort({ createdAt: -1 });
-
-            if (!lead) {
-                throw new Error('Lead not found');
-            }
 
             const now = Date.now();
             const daysSinceCreated = Math.floor((now - lead.createdAt.getTime()) / (1000 * 60 * 60 * 24));

@@ -14,11 +14,13 @@ const app = express.Router();
 // Create document
 app.post('/', userMiddleware, createDocument);
 
-// Get all documents (public + auth-based filtering)
-app.get('/', getDocuments);
+// SECURITY: Removed public access - legal documents require authentication
+// Get all documents (protected - authenticated users only)
+app.get('/', userMiddleware, getDocuments);
 
-// Get single document
-app.get('/:_id', getDocument);
+// SECURITY: Removed public access - legal documents require authentication
+// Get single document (protected - authenticated users only)
+app.get('/:_id', userMiddleware, getDocument);
 
 // Update document
 app.patch('/:_id', userMiddleware, updateDocument);
@@ -26,7 +28,8 @@ app.patch('/:_id', userMiddleware, updateDocument);
 // Delete document
 app.delete('/:_id', userMiddleware, deleteDocument);
 
-// Increment download count
-app.post('/:_id/download', incrementDownload);
+// SECURITY: Removed public access - document downloads require authentication
+// Increment download count (protected - authenticated users only)
+app.post('/:_id/download', userMiddleware, incrementDownload);
 
 module.exports = app;

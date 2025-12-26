@@ -51,21 +51,27 @@ const hasFirmField = (schema) => {
 
 /**
  * Check if query has required isolation filter
+ * SECURITY: _id alone is NOT sufficient for firm isolation!
+ * Queries MUST include firmId or lawyerId to ensure proper multi-tenant isolation.
+ * Using _id alone would allow cross-firm data access by guessing or enumerating IDs.
  */
 const hasIsolationFilter = (query) => {
     const filter = query.getQuery ? query.getQuery() : query;
-    return !!(filter.firmId || filter.lawyerId || filter._id);
+    // SECURITY FIX: Removed _id as acceptable filter - only firmId or lawyerId provides true isolation
+    return !!(filter.firmId || filter.lawyerId);
 };
 
 /**
  * Check if aggregation pipeline has required isolation filter
+ * SECURITY: _id alone is NOT sufficient for firm isolation in aggregations!
  */
 const hasAggregationFilter = (pipeline) => {
     if (!pipeline || !pipeline.length) return false;
     const firstStage = pipeline[0];
     if (!firstStage || !firstStage.$match) return false;
     const match = firstStage.$match;
-    return !!(match.firmId || match.lawyerId || match._id);
+    // SECURITY FIX: Removed _id as acceptable filter - only firmId or lawyerId provides true isolation
+    return !!(match.firmId || match.lawyerId);
 };
 
 /**

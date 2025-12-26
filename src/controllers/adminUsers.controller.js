@@ -210,25 +210,29 @@ const getUserDetails = async (req, res) => {
             });
         }
 
+        // Super admin bypasses firm isolation for cross-firm stats
+        const isSuperAdmin = !adminUser.firmId;
+
         // Get user activity statistics
         const [casesCount, invoicesCount, paymentsTotal, recentActivity] = await Promise.all([
             // Cases
-            Case.countDocuments({ userId: targetUserId }),
+            Case.countDocuments({ userId: targetUserId }).setOptions({ bypassFirmFilter: isSuperAdmin }),
 
             // Invoices
-            Invoice.countDocuments({ userId: targetUserId }),
+            Invoice.countDocuments({ userId: targetUserId }).setOptions({ bypassFirmFilter: isSuperAdmin }),
 
             // Total payments
             Payment.aggregate([
                 { $match: { userId: targetUserId } },
                 { $group: { _id: null, total: { $sum: '$amount' } } }
-            ]).then(result => result[0]?.total || 0),
+            ]).option({ bypassFirmFilter: isSuperAdmin }).then(result => result[0]?.total || 0),
 
             // Recent activity from audit logs
             AuditLog.find({ userId: targetUserId })
                 .sort({ createdAt: -1 })
                 .limit(10)
                 .select('action resourceType status createdAt')
+                .setOptions({ bypassFirmFilter: isSuperAdmin })
                 .lean()
         ]);
 

@@ -346,13 +346,24 @@ exports.reviewKYC = async (req, res) => {
 /**
  * GET /api/kyc/admin/pending
  * Admin endpoint to get all pending KYC verifications
+ * SECURITY: Scoped to admin's firm unless super admin
  */
 exports.getPendingVerifications = async (req, res) => {
   try {
     const User = require('../models/user.model');
 
-    const pendingUsers = await User.find({ kycStatus: 'pending' })
-      .select('_id firstName lastName email kycStatus kycInitiatedAt kycDocuments')
+    // Get firm context for multi-tenancy
+    const firmId = req.firmId || req.user?.firmId;
+    const isSuperAdmin = req.user?.role === 'admin' && !firmId;
+
+    // Build filter with firm scope (unless super admin)
+    const filter = { kycStatus: 'pending' };
+    if (!isSuperAdmin && firmId) {
+      filter.firmId = firmId;
+    }
+
+    const pendingUsers = await User.find(filter)
+      .select('_id firstName lastName email kycStatus kycInitiatedAt kycDocuments firmId')
       .sort({ kycInitiatedAt: -1 })
       .limit(100);
 
@@ -376,10 +387,21 @@ exports.getPendingVerifications = async (req, res) => {
 /**
  * GET /api/kyc/admin/stats
  * Admin endpoint to get KYC statistics
+ * SECURITY: Scoped to admin's firm unless super admin
  */
 exports.getKYCStats = async (req, res) => {
   try {
     const User = require('../models/user.model');
+
+    // Get firm context for multi-tenancy
+    const firmId = req.firmId || req.user?.firmId;
+    const isSuperAdmin = req.user?.role === 'admin' && !firmId;
+
+    // Build base filter with firm scope (unless super admin)
+    const baseFilter = {};
+    if (!isSuperAdmin && firmId) {
+      baseFilter.firmId = firmId;
+    }
 
     const [
       totalUsers,
@@ -388,11 +410,11 @@ exports.getKYCStats = async (req, res) => {
       rejectedUsers,
       expiredUsers
     ] = await Promise.all([
-      User.countDocuments({}),
-      User.countDocuments({ kycStatus: 'verified' }),
-      User.countDocuments({ kycStatus: 'pending' }),
-      User.countDocuments({ kycStatus: 'rejected' }),
-      User.countDocuments({ kycStatus: 'expired' })
+      User.countDocuments(baseFilter),
+      User.countDocuments({ ...baseFilter, kycStatus: 'verified' }),
+      User.countDocuments({ ...baseFilter, kycStatus: 'pending' }),
+      User.countDocuments({ ...baseFilter, kycStatus: 'rejected' }),
+      User.countDocuments({ ...baseFilter, kycStatus: 'expired' })
     ]);
 
     const verificationRate = totalUsers > 0 ? (verifiedUsers / totalUsers * 100).toFixed(2) : 0;
