@@ -678,7 +678,7 @@ class OAuthService {
 
         if (ssoLink) {
             // Existing SSO link - get user
-            user = await User.findById(ssoLink.userId);
+            user = await User.findById(ssoLink.userId).setOptions({ bypassFirmFilter: true });
 
             if (!user) {
                 throw CustomException('User account not found', 404);
@@ -698,7 +698,7 @@ class OAuthService {
             });
         } else {
             // Check if user exists with this email
-            user = await User.findOne({ email: userInfo.email.toLowerCase() });
+            user = await User.findOne({ email: userInfo.email.toLowerCase() }).setOptions({ bypassFirmFilter: true });
 
             if (user) {
                 // Check if domain is allowed for auto-linking
