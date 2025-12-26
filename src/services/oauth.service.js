@@ -488,7 +488,7 @@ class OAuthService {
             return mapAppleUserInfo(decoded);
         }
 
-        const config = PROVIDER_CONFIGS[provider.name] || {};
+        const config = PROVIDER_CONFIGS[provider.providerType] || {};
         const userinfoUrl = provider.userinfoUrl || config.userinfoUrl;
 
         try {
