@@ -239,12 +239,19 @@ class GanttService {
 
   /**
    * Get task hierarchy recursively
+   * SECURITY: Requires firmId for multi-tenant isolation
    * @param {ObjectId} taskId - Task ID
+   * @param {ObjectId} firmId - Firm ID for multi-tenant isolation
    * @returns {Object} - Task with all subtasks
    */
-  async getTaskHierarchy(taskId) {
+  async getTaskHierarchy(taskId, firmId = null) {
     try {
-      const task = await Task.findById(taskId)
+      // SECURITY: Build query with firmId for multi-tenant isolation
+      const query = { _id: taskId };
+      if (firmId) {
+        query.firmId = firmId;
+      }
+      const task = await Task.findOne(query)
         .populate('assignedTo', 'name email avatar')
         .populate('caseId', 'title caseNumber')
         .lean();
@@ -253,14 +260,18 @@ class GanttService {
         throw new Error('Task not found');
       }
 
-      // Find child tasks
-      const children = await Task.find({ parentTaskId: taskId })
+      // SECURITY: Find child tasks with firmId filter
+      const childQuery = { parentTaskId: taskId };
+      if (firmId) {
+        childQuery.firmId = firmId;
+      }
+      const children = await Task.find(childQuery)
         .populate('assignedTo', 'name email avatar')
         .lean();
 
       // Recursively get children's hierarchies
       const childrenWithHierarchy = await Promise.all(
-        children.map(child => this.getTaskHierarchy(child._id))
+        children.map(child => this.getTaskHierarchy(child._id, firmId))
       );
 
       task.children = childrenWithHierarchy;
@@ -1030,12 +1041,14 @@ class GanttService {
 
   /**
    * Create dependency between tasks
+   * SECURITY: Requires firmId for multi-tenant isolation
    * @param {ObjectId} sourceId - Source task ID
    * @param {ObjectId} targetId - Target task ID
    * @param {Number} type - 0=FS, 1=SS, 2=FF, 3=SF
+   * @param {ObjectId} firmId - Firm ID for multi-tenant isolation
    * @returns {Object} - Updated tasks
    */
-  async createDependency(sourceId, targetId, type = 0) {
+  async createDependency(sourceId, targetId, type = 0, firmId = null) {
     try {
       // Validate dependency
       const isValid = await this.validateDependency(sourceId, targetId);
@@ -1043,9 +1056,17 @@ class GanttService {
         throw new Error('Invalid dependency: would create circular reference');
       }
 
+      // SECURITY: Build query with firmId for multi-tenant isolation
+      const sourceQuery = { _id: sourceId };
+      const targetQuery = { _id: targetId };
+      if (firmId) {
+        sourceQuery.firmId = firmId;
+        targetQuery.firmId = firmId;
+      }
+
       // Get both tasks
-      const sourceTask = await Task.findById(sourceId);
-      const targetTask = await Task.findById(targetId);
+      const sourceTask = await Task.findOne(sourceQuery);
+      const targetTask = await Task.findOne(targetQuery);
 
       if (!sourceTask || !targetTask) {
         throw new Error('One or both tasks not found');
@@ -1093,14 +1114,24 @@ class GanttService {
 
   /**
    * Remove dependency between tasks
+   * SECURITY: Requires firmId for multi-tenant isolation
    * @param {ObjectId} sourceId - Source task ID
    * @param {ObjectId} targetId - Target task ID
+   * @param {ObjectId} firmId - Firm ID for multi-tenant isolation
    * @returns {Object} - Updated tasks
    */
-  async removeDependency(sourceId, targetId) {
+  async removeDependency(sourceId, targetId, firmId = null) {
     try {
-      const sourceTask = await Task.findById(sourceId);
-      const targetTask = await Task.findById(targetId);
+      // SECURITY: Build query with firmId for multi-tenant isolation
+      const sourceQuery = { _id: sourceId };
+      const targetQuery = { _id: targetId };
+      if (firmId) {
+        sourceQuery.firmId = firmId;
+        targetQuery.firmId = firmId;
+      }
+
+      const sourceTask = await Task.findOne(sourceQuery);
+      const targetTask = await Task.findOne(targetQuery);
 
       if (!sourceTask || !targetTask) {
         throw new Error('One or both tasks not found');
@@ -1295,14 +1326,21 @@ class GanttService {
 
   /**
    * Update task dates (from drag-drop)
+   * SECURITY: Requires firmId for multi-tenant isolation
    * @param {ObjectId} taskId - Task ID
    * @param {Date} startDate - New start date
    * @param {Date} endDate - New end date
+   * @param {ObjectId} firmId - Firm ID for multi-tenant isolation
    * @returns {Object} - Updated task
    */
-  async updateTaskDates(taskId, startDate, endDate) {
+  async updateTaskDates(taskId, startDate, endDate, firmId = null) {
     try {
-      const task = await Task.findById(taskId);
+      // SECURITY: Build query with firmId for multi-tenant isolation
+      const query = { _id: taskId };
+      if (firmId) {
+        query.firmId = firmId;
+      }
+      const task = await Task.findOne(query);
       if (!task) {
         throw new Error('Task not found');
       }
@@ -1313,7 +1351,7 @@ class GanttService {
       await task.save();
 
       // Propagate changes to dependent tasks
-      await this.propagateDateChanges(taskId, 'date');
+      await this.propagateDateChanges(taskId, 'date', firmId);
 
       return task;
     } catch (error) {
@@ -1324,13 +1362,20 @@ class GanttService {
 
   /**
    * Update task duration
+   * SECURITY: Requires firmId for multi-tenant isolation
    * @param {ObjectId} taskId - Task ID
    * @param {Number} duration - New duration in days
+   * @param {ObjectId} firmId - Firm ID for multi-tenant isolation
    * @returns {Object} - Updated task
    */
-  async updateTaskDuration(taskId, duration) {
+  async updateTaskDuration(taskId, duration, firmId = null) {
     try {
-      const task = await Task.findById(taskId);
+      // SECURITY: Build query with firmId for multi-tenant isolation
+      const query = { _id: taskId };
+      if (firmId) {
+        query.firmId = firmId;
+      }
+      const task = await Task.findOne(query);
       if (!task) {
         throw new Error('Task not found');
       }
@@ -1343,7 +1388,7 @@ class GanttService {
       await task.save();
 
       // Propagate changes
-      await this.propagateDateChanges(taskId, 'duration');
+      await this.propagateDateChanges(taskId, 'duration', firmId);
 
       return task;
     } catch (error) {
@@ -1354,13 +1399,20 @@ class GanttService {
 
   /**
    * Update task progress
+   * SECURITY: Requires firmId for multi-tenant isolation
    * @param {ObjectId} taskId - Task ID
    * @param {Number} progress - Progress (0-100)
+   * @param {ObjectId} firmId - Firm ID for multi-tenant isolation
    * @returns {Object} - Updated task
    */
-  async updateTaskProgress(taskId, progress) {
+  async updateTaskProgress(taskId, progress, firmId = null) {
     try {
-      const task = await Task.findById(taskId);
+      // SECURITY: Build query with firmId for multi-tenant isolation
+      const query = { _id: taskId };
+      if (firmId) {
+        query.firmId = firmId;
+      }
+      const task = await Task.findOne(query);
       if (!task) {
         throw new Error('Task not found');
       }
@@ -1379,20 +1431,32 @@ class GanttService {
 
   /**
    * Update task parent (move in hierarchy)
+   * SECURITY: Requires firmId for multi-tenant isolation
    * @param {ObjectId} taskId - Task ID
    * @param {ObjectId} newParentId - New parent task ID (null for root)
+   * @param {ObjectId} firmId - Firm ID for multi-tenant isolation
    * @returns {Object} - Updated task
    */
-  async updateTaskParent(taskId, newParentId) {
+  async updateTaskParent(taskId, newParentId, firmId = null) {
     try {
-      const task = await Task.findById(taskId);
+      // SECURITY: Build query with firmId for multi-tenant isolation
+      const query = { _id: taskId };
+      if (firmId) {
+        query.firmId = firmId;
+      }
+      const task = await Task.findOne(query);
       if (!task) {
         throw new Error('Task not found');
       }
 
       // Validate new parent exists
       if (newParentId && newParentId !== 'null' && newParentId !== null) {
-        const newParent = await Task.findById(newParentId);
+        // SECURITY: Parent must be in same firm
+        const parentQuery = { _id: newParentId };
+        if (firmId) {
+          parentQuery.firmId = firmId;
+        }
+        const newParent = await Task.findOne(parentQuery);
         if (!newParent) {
           throw new Error('New parent task not found');
         }

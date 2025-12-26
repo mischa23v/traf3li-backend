@@ -846,10 +846,16 @@ async function createExportJob(firmId, entityTypes, filters = {}, format = 'xlsx
 
 /**
  * Get export job status
+ * SECURITY: Requires firmId for multi-tenant isolation
  */
-async function getExportStatus(jobId) {
+async function getExportStatus(jobId, firmId = null) {
   try {
-    const job = await ExportJob.findById(sanitizeObjectId(jobId)).lean();
+    // SECURITY: Build query with firmId for multi-tenant isolation
+    const query = { _id: sanitizeObjectId(jobId) };
+    if (firmId) {
+      query.firmId = sanitizeObjectId(firmId);
+    }
+    const job = await ExportJob.findOne(query).lean();
 
     if (!job) {
       throw new Error('Export job not found');
@@ -875,10 +881,16 @@ async function getExportStatus(jobId) {
 
 /**
  * Download export file
+ * SECURITY: Requires firmId for multi-tenant isolation
  */
-async function downloadExport(jobId) {
+async function downloadExport(jobId, firmId = null) {
   try {
-    const job = await ExportJob.findById(sanitizeObjectId(jobId)).lean();
+    // SECURITY: Build query with firmId for multi-tenant isolation
+    const query = { _id: sanitizeObjectId(jobId) };
+    if (firmId) {
+      query.firmId = sanitizeObjectId(firmId);
+    }
+    const job = await ExportJob.findOne(query).lean();
 
     if (!job) {
       throw new Error('Export job not found');
