@@ -32,12 +32,19 @@ class ChurnReportsService {
      */
     static async generateWeeklyChurnReport(firmId = null) {
         try {
+            // SECURITY: Require firmId for multi-tenant isolation
+            if (!firmId) {
+                logger.warn('ChurnReports.generateWeeklyChurnReport called without firmId');
+                return { period: 'weekly', churned: 0, mrrLost: 0, reasons: [] };
+            }
+
             const now = new Date();
             const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
 
             logger.info('Generating weekly churn report', { firmId, weekStart: weekAgo, weekEnd: now });
 
-            const matchStage = firmId ? { firmId: new mongoose.Types.ObjectId(firmId) } : {};
+            // SECURITY: Always require firmId in matchStage
+            const matchStage = { firmId: new mongoose.Types.ObjectId(firmId) };
 
             // Get week's churn statistics
             const weeklyStats = await Subscription.aggregate([
@@ -174,13 +181,20 @@ class ChurnReportsService {
      */
     static async generateMonthlyRetentionReport(month = null, firmId = null) {
         try {
+            // SECURITY: Require firmId for multi-tenant isolation
+            if (!firmId) {
+                logger.warn('ChurnReports.generateMonthlyRetentionReport called without firmId');
+                return { period: 'monthly', retentionRate: 0, startingMRR: 0, endingMRR: 0 };
+            }
+
             const now = new Date();
             const reportMonth = month ? new Date(month + '-01') : new Date(now.getFullYear(), now.getMonth(), 1);
             const monthEnd = new Date(reportMonth.getFullYear(), reportMonth.getMonth() + 1, 0);
 
             logger.info('Generating monthly retention report', { month: reportMonth.toISOString().slice(0, 7), firmId });
 
-            const matchStage = firmId ? { firmId: new mongoose.Types.ObjectId(firmId) } : {};
+            // SECURITY: Always require firmId in matchStage
+            const matchStage = { firmId: new mongoose.Types.ObjectId(firmId) };
 
             // Get comprehensive monthly metrics
             const monthlyMetrics = await Subscription.aggregate([
