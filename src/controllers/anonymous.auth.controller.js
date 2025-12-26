@@ -57,7 +57,7 @@ const anonymousLogin = async (request, response) => {
         recordActivity(anonymousUser._id.toString());
 
         // Generate JWT token with is_anonymous claim
-        const accessToken = generateAccessToken(anonymousUser);
+        const accessToken = await generateAccessToken(anonymousUser);
 
         // Create device info for refresh token (anonymous users also get refresh tokens)
         const deviceInfo = {
@@ -266,7 +266,7 @@ const convertAnonymousUser = async (request, response) => {
             .lean();
 
         // Generate new tokens (non-anonymous)
-        const accessToken = generateAccessToken(updatedUser);
+        const accessToken = await generateAccessToken(updatedUser);
 
         const ipAddress = request.ip || request.headers['x-forwarded-for']?.split(',')[0] || 'unknown';
         const userAgent = request.headers['user-agent'] || 'unknown';

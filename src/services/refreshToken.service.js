@@ -161,7 +161,7 @@ const refreshAccessToken = async (refreshTokenJWT) => {
         }
 
         // 6. Generate new token pair (rotation)
-        const newAccessToken = generateAccessToken(user);
+        const newAccessToken = await generateAccessToken(user);
         const newRefreshTokenJWT = generateRefreshToken(user);
         const newTokenHash = RefreshToken.hashToken(newRefreshTokenJWT);
 
