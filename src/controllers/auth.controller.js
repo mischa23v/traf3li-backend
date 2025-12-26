@@ -931,7 +931,7 @@ const authLogin = async (request, response) => {
             const { password: pwd, ...data } = user;
 
             // Generate access token (short-lived, 15 minutes)
-            const accessToken = generateAccessToken(user);
+            const accessToken = await generateAccessToken(user);
 
             // Create device info for refresh token
             const deviceInfo = {
