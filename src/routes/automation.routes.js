@@ -10,13 +10,12 @@
 const express = require('express');
 const router = express.Router();
 const automationController = require('../controllers/automation.controller');
-const { userMiddleware, firmFilter } = require('../middlewares');
+const { userMiddleware } = require('../middlewares');
 const { authorize } = require('../middlewares/authorize.middleware');
 
 // ============ APPLY MIDDLEWARE ============
-// All automation routes require authentication and firm filtering
+// All automation routes require authentication
 router.use(userMiddleware);
-router.use(firmFilter);
 
 // ============ CRUD OPERATIONS ============
 

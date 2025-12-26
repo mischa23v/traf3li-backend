@@ -588,10 +588,4 @@ customFieldSchema.methods.validateValue = function(value) {
     return { valid: true };
 };
 
-// ═══════════════════════════════════════════════════════════════
-// FIRM ISOLATION PLUGIN
-// ═══════════════════════════════════════════════════════════════
-const firmIsolationPlugin = require('./plugins/firmIsolation.plugin');
-customFieldSchema.plugin(firmIsolationPlugin);
-
 module.exports = mongoose.model('CustomField', customFieldSchema);

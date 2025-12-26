@@ -8,7 +8,7 @@
  */
 
 const express = require('express');
-const { userMiddleware, firmFilter } = require('../middlewares');
+const { userMiddleware } = require('../middlewares');
 const {
     registerWebhook,
     getWebhooks,
@@ -30,9 +30,8 @@ const {
 const router = express.Router();
 
 // ============ APPLY MIDDLEWARE ============
-// All webhook routes require authentication and firm filtering
+// All webhook routes require authentication
 router.use(userMiddleware);
-router.use(firmFilter);
 
 // ============ INFORMATIONAL ENDPOINTS ============
 // These should come before /:id routes to avoid conflicts

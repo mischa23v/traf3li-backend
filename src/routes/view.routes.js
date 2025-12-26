@@ -10,12 +10,11 @@
 const express = require('express');
 const router = express.Router();
 const viewController = require('../controllers/view.controller');
-const { userMiddleware, firmFilter } = require('../middlewares');
+const { userMiddleware } = require('../middlewares');
 
 // ============ APPLY MIDDLEWARE ============
-// All view routes require authentication and firm filtering
+// All view routes require authentication
 router.use(userMiddleware);
-router.use(firmFilter);
 
 // ============================================
 // VIEW MANAGEMENT ROUTES

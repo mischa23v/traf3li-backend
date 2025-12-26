@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { userMiddleware, firmFilter } = require('../middlewares');
+const { userMiddleware } = require('../middlewares');
 const { cacheResponse } = require('../middlewares/cache.middleware');
 const kpiAnalyticsController = require('../controllers/kpiAnalytics.controller');
 const { sanitizeString, sanitizeObjectId } = require('../utils/securityUtils');
@@ -83,7 +83,6 @@ const ANALYTICS_CACHE_TTL = 300;
  */
 router.get('/kpi-dashboard',
     userMiddleware,
-    firmFilter,
     cacheResponse(ANALYTICS_CACHE_TTL, (req) => {
         const safeFirmId = sanitizeObjectId(req.firmId) || 'none';
         const safePeriod = parseInt(req.query.period, 10) || 30;
@@ -138,7 +137,6 @@ router.get('/kpi-dashboard',
  */
 router.get('/revenue-by-case',
     userMiddleware,
-    firmFilter,
     cacheResponse(ANALYTICS_CACHE_TTL, (req) => {
         const safeFirmId = sanitizeObjectId(req.firmId) || 'none';
         const safeStartDate = sanitizeString(req.query.startDate || '');
@@ -186,7 +184,6 @@ router.get('/revenue-by-case',
  */
 router.get('/case-throughput',
     userMiddleware,
-    firmFilter,
     cacheResponse(ANALYTICS_CACHE_TTL, (req) => {
         const safeFirmId = sanitizeObjectId(req.firmId) || 'none';
         const safePeriod = parseInt(req.query.period, 10) || 30;
@@ -227,7 +224,6 @@ router.get('/case-throughput',
  */
 router.get('/user-activation',
     userMiddleware,
-    firmFilter,
     cacheResponse(ANALYTICS_CACHE_TTL, (req) => {
         const safeFirmId = sanitizeObjectId(req.firmId) || 'none';
         const safePeriod = parseInt(req.query.period, 10) || 30;

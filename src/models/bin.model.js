@@ -337,10 +337,4 @@ binSchema.methods.hasAvailableStock = function(qty) {
     return this.availableQty >= qty;
 };
 
-// ═══════════════════════════════════════════════════════════════
-// FIRM ISOLATION PLUGIN (RLS-like enforcement)
-// ═══════════════════════════════════════════════════════════════
-const firmIsolationPlugin = require('./plugins/firmIsolation.plugin');
-binSchema.plugin(firmIsolationPlugin);
-
 module.exports = mongoose.model('Bin', binSchema);

@@ -9,7 +9,7 @@
  */
 
 const express = require('express');
-const { userMiddleware, firmFilter } = require('../middlewares');
+const { userMiddleware } = require('../middlewares');
 const {
     validateCreateItem,
     validateUpdateItem,
@@ -89,28 +89,24 @@ const router = express.Router();
 // Get dashboard statistics
 router.get('/stats',
     userMiddleware,
-    firmFilter,
     getStats
 );
 
 // Get stock balance report
 router.get('/reports/stock-balance',
     userMiddleware,
-    firmFilter,
     getStockBalanceReport
 );
 
 // Get low stock report
 router.get('/reports/low-stock',
     userMiddleware,
-    firmFilter,
     getLowStockReport
 );
 
 // Get stock movement report
 router.get('/reports/stock-movement',
     userMiddleware,
-    firmFilter,
     getStockMovementReport
 );
 
@@ -119,13 +115,11 @@ router.get('/reports/stock-movement',
 // Item Groups
 router.get('/item-groups',
     userMiddleware,
-    firmFilter,
     getItemGroups
 );
 
 router.post('/item-groups',
     userMiddleware,
-    firmFilter,
     validateCreateItemGroup,
     createItemGroup
 );
@@ -133,13 +127,11 @@ router.post('/item-groups',
 // Units of Measure (UOM)
 router.get('/uom',
     userMiddleware,
-    firmFilter,
     getUoms
 );
 
 router.post('/uom',
     userMiddleware,
-    firmFilter,
     validateCreateUom,
     createUom
 );
@@ -147,14 +139,12 @@ router.post('/uom',
 // Price Lists
 router.get('/price-lists',
     userMiddleware,
-    firmFilter,
     getPriceLists
 );
 
 // Item Prices
 router.get('/item-prices',
     userMiddleware,
-    firmFilter,
     getItemPrices
 );
 
@@ -163,14 +153,12 @@ router.get('/item-prices',
 // Get inventory settings
 router.get('/settings',
     userMiddleware,
-    firmFilter,
     getSettings
 );
 
 // Update inventory settings
 router.put('/settings',
     userMiddleware,
-    firmFilter,
     validateUpdateSettings,
     updateSettings
 );
@@ -180,14 +168,12 @@ router.put('/settings',
 // Get all items (with query filters)
 router.get('/items',
     userMiddleware,
-    firmFilter,
     getItems
 );
 
 // Create item
 router.post('/items',
     userMiddleware,
-    firmFilter,
     validateCreateItem,
     createItem
 );
@@ -195,14 +181,12 @@ router.post('/items',
 // Get item by ID
 router.get('/items/:id',
     userMiddleware,
-    firmFilter,
     getItemById
 );
 
 // Update item
 router.put('/items/:id',
     userMiddleware,
-    firmFilter,
     validateUpdateItem,
     updateItem
 );
@@ -210,14 +194,12 @@ router.put('/items/:id',
 // Delete item
 router.delete('/items/:id',
     userMiddleware,
-    firmFilter,
     deleteItem
 );
 
 // Get item stock (by warehouse)
 router.get('/items/:id/stock',
     userMiddleware,
-    firmFilter,
     getItemStock
 );
 
@@ -226,14 +208,12 @@ router.get('/items/:id/stock',
 // Get all warehouses
 router.get('/warehouses',
     userMiddleware,
-    firmFilter,
     getWarehouses
 );
 
 // Create warehouse
 router.post('/warehouses',
     userMiddleware,
-    firmFilter,
     validateCreateWarehouse,
     createWarehouse
 );
@@ -241,14 +221,12 @@ router.post('/warehouses',
 // Get warehouse by ID
 router.get('/warehouses/:id',
     userMiddleware,
-    firmFilter,
     getWarehouseById
 );
 
 // Update warehouse
 router.put('/warehouses/:id',
     userMiddleware,
-    firmFilter,
     validateUpdateWarehouse,
     updateWarehouse
 );
@@ -256,14 +234,12 @@ router.put('/warehouses/:id',
 // Delete warehouse
 router.delete('/warehouses/:id',
     userMiddleware,
-    firmFilter,
     deleteWarehouse
 );
 
 // Get warehouse stock
 router.get('/warehouses/:id/stock',
     userMiddleware,
-    firmFilter,
     getWarehouseStock
 );
 
@@ -272,14 +248,12 @@ router.get('/warehouses/:id/stock',
 // Get all stock entries
 router.get('/stock-entries',
     userMiddleware,
-    firmFilter,
     getStockEntries
 );
 
 // Create stock entry
 router.post('/stock-entries',
     userMiddleware,
-    firmFilter,
     validateCreateStockEntry,
     createStockEntry
 );
@@ -287,28 +261,24 @@ router.post('/stock-entries',
 // Get stock entry by ID
 router.get('/stock-entries/:id',
     userMiddleware,
-    firmFilter,
     getStockEntryById
 );
 
 // Submit stock entry
 router.post('/stock-entries/:id/submit',
     userMiddleware,
-    firmFilter,
     submitStockEntry
 );
 
 // Cancel stock entry
 router.post('/stock-entries/:id/cancel',
     userMiddleware,
-    firmFilter,
     cancelStockEntry
 );
 
 // Delete stock entry (draft only)
 router.delete('/stock-entries/:id',
     userMiddleware,
-    firmFilter,
     deleteStockEntry
 );
 
@@ -317,7 +287,6 @@ router.delete('/stock-entries/:id',
 // Get stock ledger entries (read-only)
 router.get('/stock-ledger',
     userMiddleware,
-    firmFilter,
     getStockLedger
 );
 
@@ -326,14 +295,12 @@ router.get('/stock-ledger',
 // Get batches
 router.get('/batches',
     userMiddleware,
-    firmFilter,
     getBatches
 );
 
 // Create batch
 router.post('/batches',
     userMiddleware,
-    firmFilter,
     validateCreateBatch,
     createBatch
 );
@@ -343,14 +310,12 @@ router.post('/batches',
 // Get serial numbers
 router.get('/serial-numbers',
     userMiddleware,
-    firmFilter,
     getSerialNumbers
 );
 
 // Create serial number
 router.post('/serial-numbers',
     userMiddleware,
-    firmFilter,
     validateCreateSerialNumber,
     createSerialNumber
 );
@@ -360,14 +325,12 @@ router.post('/serial-numbers',
 // Get reconciliations
 router.get('/reconciliations',
     userMiddleware,
-    firmFilter,
     getReconciliations
 );
 
 // Create reconciliation
 router.post('/reconciliations',
     userMiddleware,
-    firmFilter,
     validateCreateReconciliation,
     createReconciliation
 );
@@ -375,7 +338,6 @@ router.post('/reconciliations',
 // Submit reconciliation
 router.post('/reconciliations/:id/submit',
     userMiddleware,
-    firmFilter,
     submitReconciliation
 );
 

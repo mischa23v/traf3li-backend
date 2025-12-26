@@ -1,5 +1,5 @@
 const express = require('express');
-const { userMiddleware, firmFilter } = require('../middlewares');
+const { userMiddleware } = require('../middlewares');
 const temporalClient = require('../temporal/client');
 const Case = require('../models/case.model');
 const CaseStageProgress = require('../models/caseStageProgress.model');
@@ -74,7 +74,6 @@ const router = express.Router();
 router.post(
   '/:id/start-workflow',
   userMiddleware,
-  firmFilter,
   asyncHandler(async (req, res) => {
     const { id: caseId } = req.params;
     const { workflowTemplateId } = req.body;
@@ -201,7 +200,6 @@ router.post(
 router.post(
   '/:id/workflow/complete-requirement',
   userMiddleware,
-  firmFilter,
   asyncHandler(async (req, res) => {
     const { id: caseId } = req.params;
     const { requirementId, metadata = {} } = req.body;
@@ -284,7 +282,6 @@ router.post(
 router.post(
   '/:id/workflow/transition-stage',
   userMiddleware,
-  firmFilter,
   asyncHandler(async (req, res) => {
     const { id: caseId } = req.params;
     const { stageId, notes } = req.body;
@@ -353,7 +350,6 @@ router.post(
 router.get(
   '/:id/workflow/status',
   userMiddleware,
-  firmFilter,
   asyncHandler(async (req, res) => {
     const { id: caseId } = req.params;
 
@@ -456,7 +452,6 @@ router.get(
 router.post(
   '/:id/workflow/add-deadline',
   userMiddleware,
-  firmFilter,
   asyncHandler(async (req, res) => {
     const { id: caseId } = req.params;
     const { title, date, description } = req.body;
@@ -536,7 +531,6 @@ router.post(
 router.post(
   '/:id/workflow/add-court-date',
   userMiddleware,
-  firmFilter,
   asyncHandler(async (req, res) => {
     const { id: caseId } = req.params;
     const { title, date, location, notes } = req.body;
@@ -596,7 +590,6 @@ router.post(
 router.post(
   '/:id/workflow/pause',
   userMiddleware,
-  firmFilter,
   asyncHandler(async (req, res) => {
     const { id: caseId } = req.params;
 
@@ -648,7 +641,6 @@ router.post(
 router.post(
   '/:id/workflow/resume',
   userMiddleware,
-  firmFilter,
   asyncHandler(async (req, res) => {
     const { id: caseId } = req.params;
 
@@ -700,7 +692,6 @@ router.post(
 router.post(
   '/:id/workflow/cancel',
   userMiddleware,
-  firmFilter,
   asyncHandler(async (req, res) => {
     const { id: caseId } = req.params;
 

@@ -10,7 +10,7 @@
 const express = require('express');
 const router = express.Router();
 const dealRoomController = require('../controllers/dealRoom.controller');
-const { userMiddleware, firmFilter } = require('../middlewares');
+const { userMiddleware } = require('../middlewares');
 
 // ============================================
 // PUBLIC ROUTES (NO AUTHENTICATION)
@@ -20,10 +20,9 @@ const { userMiddleware, firmFilter } = require('../middlewares');
 router.get('/external/:token', dealRoomController.verifyExternalAccess);
 
 // ============================================
-// APPLY AUTHENTICATION AND FIRM FILTERING TO ALL OTHER ROUTES
+// APPLY AUTHENTICATION TO ALL OTHER ROUTES
 // ============================================
 router.use(userMiddleware);
-router.use(firmFilter);
 
 // ============================================
 // NESTED DEAL ROUTES

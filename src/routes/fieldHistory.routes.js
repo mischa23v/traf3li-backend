@@ -8,12 +8,11 @@
 const express = require('express');
 const router = express.Router();
 const fieldHistoryController = require('../controllers/fieldHistory.controller');
-const { userMiddleware, firmFilter } = require('../middlewares');
+const { userMiddleware } = require('../middlewares');
 const { authorize } = require('../middlewares/authorize.middleware');
 
-// Apply authentication and firm filtering to all routes
+// Apply authentication to all routes
 router.use(userMiddleware);
-router.use(firmFilter);
 
 // ═══════════════════════════════════════════════════════════════
 // FIELD HISTORY QUERY ROUTES

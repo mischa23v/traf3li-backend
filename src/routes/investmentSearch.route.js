@@ -1,5 +1,5 @@
 const express = require('express');
-const { userMiddleware, firmFilter } = require('../middlewares');
+const { userMiddleware } = require('../middlewares');
 const {
     searchInvestmentSymbols,
     getQuote,
@@ -19,34 +19,34 @@ const router = express.Router();
 // ═══════════════════════════════════════════════════════════════
 
 // Search symbols
-router.get('/symbols', userMiddleware, firmFilter, searchInvestmentSymbols);
+router.get('/symbols', userMiddleware, searchInvestmentSymbols);
 
 // Get quote for a symbol
-router.get('/quote', userMiddleware, firmFilter, getQuote);
+router.get('/quote', userMiddleware, getQuote);
 
 // Get batch quotes
-router.post('/quotes', userMiddleware, firmFilter, getBatchQuotes);
+router.post('/quotes', userMiddleware, getBatchQuotes);
 
 // ═══════════════════════════════════════════════════════════════
 // REFERENCE DATA ROUTES
 // ═══════════════════════════════════════════════════════════════
 
 // Get all markets
-router.get('/markets', userMiddleware, firmFilter, getMarkets);
+router.get('/markets', userMiddleware, getMarkets);
 
 // Get all investment types
-router.get('/types', userMiddleware, firmFilter, getTypes);
+router.get('/types', userMiddleware, getTypes);
 
 // Get sectors (optionally filtered by market)
-router.get('/sectors', userMiddleware, firmFilter, getSectors);
+router.get('/sectors', userMiddleware, getSectors);
 
 // Get symbols by market
-router.get('/market/:market', userMiddleware, firmFilter, getSymbolsByMarketEndpoint);
+router.get('/market/:market', userMiddleware, getSymbolsByMarketEndpoint);
 
 // Get symbols by type
-router.get('/type/:type', userMiddleware, firmFilter, getSymbolsByTypeEndpoint);
+router.get('/type/:type', userMiddleware, getSymbolsByTypeEndpoint);
 
 // Get symbol details
-router.get('/symbol/:symbol', userMiddleware, firmFilter, getSymbolDetails);
+router.get('/symbol/:symbol', userMiddleware, getSymbolDetails);
 
 module.exports = router;

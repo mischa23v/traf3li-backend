@@ -7,7 +7,7 @@
 const express = require('express');
 const router = express.Router();
 const { userMiddleware } = require('../middlewares');
-const { firmFilter, checkFirmPermission, firmAdminOnly, financeAccessOnly } = require('../middlewares/firmFilter.middleware');
+const { checkFirmPermission, firmAdminOnly, financeAccessOnly } = require('../middlewares/firmFilter.middleware');
 const {
     getPaymentTerms,
     getPaymentTerm,
@@ -21,9 +21,8 @@ const {
     calculateInstallments
 } = require('../controllers/paymentTerms.controller');
 
-// All routes require authentication and firm filter
+// All routes require authentication
 router.use(userMiddleware);
-router.use(firmFilter);
 
 /**
  * @route   GET /api/payment-terms

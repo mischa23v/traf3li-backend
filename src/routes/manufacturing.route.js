@@ -13,7 +13,7 @@
 
 const express = require('express');
 const router = express.Router();
-const { userMiddleware, firmFilter } = require('../middlewares');
+const { userMiddleware } = require('../middlewares');
 const {
     validateCreateBOM,
     validateUpdateBOM,
@@ -65,8 +65,8 @@ const {
     updateSettings
 } = require('../controllers/manufacturing.controller');
 
-// Apply authentication and firm filter to all routes
-router.use(userMiddleware, firmFilter);
+// Apply authentication to all routes
+router.use(userMiddleware);
 
 // ============================================
 // STATISTICS & SETTINGS (before parameterized routes)

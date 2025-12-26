@@ -1,5 +1,5 @@
 const express = require('express');
-const { userMiddleware, firmFilter } = require('../middlewares');
+const { userMiddleware } = require('../middlewares');
 const {
     getEntries,
     getEntry,
@@ -20,48 +20,48 @@ const router = express.Router();
 // ═══════════════════════════════════════════════════════════════
 
 // Get GL statistics
-router.get('/stats', userMiddleware, firmFilter, getStats);
+router.get('/stats', userMiddleware, getStats);
 
 // Get GL summary by account type
-router.get('/summary', userMiddleware, firmFilter, getSummary);
+router.get('/summary', userMiddleware, getSummary);
 
 // Get trial balance
-router.get('/trial-balance', userMiddleware, firmFilter, getTrialBalance);
+router.get('/trial-balance', userMiddleware, getTrialBalance);
 
 // Get profit & loss statement
-router.get('/profit-loss', userMiddleware, firmFilter, getProfitLoss);
+router.get('/profit-loss', userMiddleware, getProfitLoss);
 
 // Get balance sheet
-router.get('/balance-sheet', userMiddleware, firmFilter, getBalanceSheet);
+router.get('/balance-sheet', userMiddleware, getBalanceSheet);
 
 // Get account balance
-router.get('/account-balance/:accountId', userMiddleware, firmFilter, getAccountBalance);
+router.get('/account-balance/:accountId', userMiddleware, getAccountBalance);
 
 // Get entries by reference (invoice, payment, etc.)
-router.get('/reference/:model/:id', userMiddleware, firmFilter, getEntriesByReference);
+router.get('/reference/:model/:id', userMiddleware, getEntriesByReference);
 
 // Get all GL entries with filters
 // Query: accountId, startDate, endDate, caseId, clientId, lawyerId, status, referenceModel, page, limit, sort
-router.get('/entries', userMiddleware, firmFilter, getEntries);
+router.get('/entries', userMiddleware, getEntries);
 
 // ═══════════════════════════════════════════════════════════════
 // PARAMETERIZED ROUTES
 // ═══════════════════════════════════════════════════════════════
 
 // Get single GL entry
-router.get('/:id', userMiddleware, firmFilter, getEntry);
+router.get('/:id', userMiddleware, getEntry);
 
 // Void a GL entry (creates reversing entry)
-router.post('/:id/void', userMiddleware, firmFilter, voidEntry);
+router.post('/:id/void', userMiddleware, voidEntry);
 
 // ═══════════════════════════════════════════════════════════════
 // LEGACY ROUTES (for backwards compatibility)
 // ═══════════════════════════════════════════════════════════════
 
 // Legacy: Get all entries (redirect to /entries)
-router.get('/', userMiddleware, firmFilter, getEntries);
+router.get('/', userMiddleware, getEntries);
 
 // Legacy: Void entry with different URL pattern
-router.post('/void/:id', userMiddleware, firmFilter, voidEntry);
+router.post('/void/:id', userMiddleware, voidEntry);
 
 module.exports = router;

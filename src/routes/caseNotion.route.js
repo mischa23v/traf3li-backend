@@ -1,5 +1,5 @@
 const express = require('express');
-const { userMiddleware, firmFilter } = require('../middlewares');
+const { userMiddleware } = require('../middlewares');
 const { cacheResponse, invalidateCache } = require('../middlewares/cache.middleware');
 const {
     validateCreatePage,
@@ -30,7 +30,7 @@ const NOTION_CACHE_TTL = 300;
 
 // List all cases with notion pages count
 router.get('/notion/cases',
-    userMiddleware, firmFilter,
+    userMiddleware,
     cacheResponse(NOTION_CACHE_TTL),
     caseNotionController.listCasesWithNotion
 );
@@ -41,21 +41,21 @@ router.get('/notion/cases',
 
 // List pages for a case
 router.get('/cases/:caseId/notion/pages',
-    userMiddleware, firmFilter, canAccessCase,
+    userMiddleware, canAccessCase,
     cacheResponse(NOTION_CACHE_TTL),
     caseNotionController.listPages
 );
 
 // Get single page with blocks
 router.get('/cases/:caseId/notion/pages/:pageId',
-    userMiddleware, firmFilter, canAccessCase, validatePageIdParam,
+    userMiddleware, canAccessCase, validatePageIdParam,
     cacheResponse(NOTION_CACHE_TTL),
     caseNotionController.getPage
 );
 
 // Create page
 router.post('/cases/:caseId/notion/pages',
-    userMiddleware, firmFilter, canAccessCase,
+    userMiddleware, canAccessCase,
     validateCreatePage,
     invalidateCache(['notion:case:{caseId}:*']),
     caseNotionController.createPage
@@ -63,7 +63,7 @@ router.post('/cases/:caseId/notion/pages',
 
 // Update page
 router.patch('/cases/:caseId/notion/pages/:pageId',
-    userMiddleware, firmFilter, canAccessCase, canEditPage, validatePageIdParam,
+    userMiddleware, canAccessCase, canEditPage, validatePageIdParam,
     validateUpdatePage,
     invalidateCache(['notion:case:{caseId}:*', 'notion:page:{pageId}:*']),
     caseNotionController.updatePage
@@ -71,49 +71,49 @@ router.patch('/cases/:caseId/notion/pages/:pageId',
 
 // Delete page (soft delete)
 router.delete('/cases/:caseId/notion/pages/:pageId',
-    userMiddleware, firmFilter, canAccessCase, canEditPage, validatePageIdParam,
+    userMiddleware, canAccessCase, canEditPage, validatePageIdParam,
     invalidateCache(['notion:case:{caseId}:*', 'notion:page:{pageId}:*']),
     caseNotionController.deletePage
 );
 
 // Archive page
 router.post('/cases/:caseId/notion/pages/:pageId/archive',
-    userMiddleware, firmFilter, canAccessCase, canEditPage, validatePageIdParam,
+    userMiddleware, canAccessCase, canEditPage, validatePageIdParam,
     invalidateCache(['notion:case:{caseId}:*', 'notion:page:{pageId}:*']),
     caseNotionController.archivePage
 );
 
 // Restore page
 router.post('/cases/:caseId/notion/pages/:pageId/restore',
-    userMiddleware, firmFilter, canAccessCase, canEditPage, validatePageIdParam,
+    userMiddleware, canAccessCase, canEditPage, validatePageIdParam,
     invalidateCache(['notion:case:{caseId}:*', 'notion:page:{pageId}:*']),
     caseNotionController.restorePage
 );
 
 // Duplicate page
 router.post('/cases/:caseId/notion/pages/:pageId/duplicate',
-    userMiddleware, firmFilter, canAccessCase, validatePageIdParam,
+    userMiddleware, canAccessCase, validatePageIdParam,
     invalidateCache(['notion:case:{caseId}:*']),
     caseNotionController.duplicatePage
 );
 
 // Toggle favorite
 router.post('/cases/:caseId/notion/pages/:pageId/favorite',
-    userMiddleware, firmFilter, canAccessCase, validatePageIdParam,
+    userMiddleware, canAccessCase, validatePageIdParam,
     invalidateCache(['notion:case:{caseId}:*', 'notion:page:{pageId}:*']),
     caseNotionController.toggleFavorite
 );
 
 // Toggle pin
 router.post('/cases/:caseId/notion/pages/:pageId/pin',
-    userMiddleware, firmFilter, canAccessCase, validatePageIdParam,
+    userMiddleware, canAccessCase, validatePageIdParam,
     invalidateCache(['notion:case:{caseId}:*', 'notion:page:{pageId}:*']),
     caseNotionController.togglePin
 );
 
 // Merge pages
 router.post('/cases/:caseId/notion/pages/merge',
-    userMiddleware, firmFilter, canAccessCase,
+    userMiddleware, canAccessCase,
     validateMergePages,
     invalidateCache(['notion:case:{caseId}:*']),
     caseNotionController.mergePages
@@ -125,14 +125,14 @@ router.post('/cases/:caseId/notion/pages/merge',
 
 // Get blocks for a page
 router.get('/cases/:caseId/notion/pages/:pageId/blocks',
-    userMiddleware, firmFilter, canAccessCase, validatePageIdParam,
+    userMiddleware, canAccessCase, validatePageIdParam,
     cacheResponse(NOTION_CACHE_TTL),
     caseNotionController.getBlocks
 );
 
 // Create block
 router.post('/cases/:caseId/notion/pages/:pageId/blocks',
-    userMiddleware, firmFilter, canAccessCase, canEditPage, validatePageIdParam,
+    userMiddleware, canAccessCase, canEditPage, validatePageIdParam,
     validateCreateBlock,
     invalidateCache(['notion:page:{pageId}:*']),
     caseNotionController.createBlock
@@ -140,7 +140,7 @@ router.post('/cases/:caseId/notion/pages/:pageId/blocks',
 
 // Update block
 router.patch('/cases/:caseId/notion/blocks/:blockId',
-    userMiddleware, firmFilter, canAccessCase, validateBlockIdParam,
+    userMiddleware, canAccessCase, validateBlockIdParam,
     validateUpdateBlock,
     invalidateCache(['notion:block:{blockId}:*']),
     caseNotionController.updateBlock
@@ -148,14 +148,14 @@ router.patch('/cases/:caseId/notion/blocks/:blockId',
 
 // Delete block
 router.delete('/cases/:caseId/notion/blocks/:blockId',
-    userMiddleware, firmFilter, canAccessCase, validateBlockIdParam,
+    userMiddleware, canAccessCase, validateBlockIdParam,
     invalidateCache(['notion:block:{blockId}:*']),
     caseNotionController.deleteBlock
 );
 
 // Move block
 router.post('/cases/:caseId/notion/blocks/:blockId/move',
-    userMiddleware, firmFilter, canAccessCase, validateBlockIdParam,
+    userMiddleware, canAccessCase, validateBlockIdParam,
     validateMoveBlock,
     invalidateCache(['notion:block:{blockId}:*']),
     caseNotionController.moveBlock
@@ -163,13 +163,13 @@ router.post('/cases/:caseId/notion/blocks/:blockId/move',
 
 // Lock block for editing
 router.post('/cases/:caseId/notion/blocks/:blockId/lock',
-    userMiddleware, firmFilter, canAccessCase, validateBlockIdParam,
+    userMiddleware, canAccessCase, validateBlockIdParam,
     caseNotionController.lockBlock
 );
 
 // Unlock block
 router.post('/cases/:caseId/notion/blocks/:blockId/unlock',
-    userMiddleware, firmFilter, canAccessCase, validateBlockIdParam,
+    userMiddleware, canAccessCase, validateBlockIdParam,
     caseNotionController.unlockBlock
 );
 
@@ -179,19 +179,19 @@ router.post('/cases/:caseId/notion/blocks/:blockId/unlock',
 
 // Create synced block
 router.post('/cases/:caseId/notion/synced-blocks',
-    userMiddleware, firmFilter, canAccessCase,
+    userMiddleware, canAccessCase,
     caseNotionController.createSyncedBlock
 );
 
 // Get synced block
 router.get('/cases/:caseId/notion/synced-blocks/:blockId',
-    userMiddleware, firmFilter, canAccessCase, validateBlockIdParam,
+    userMiddleware, canAccessCase, validateBlockIdParam,
     caseNotionController.getSyncedBlock
 );
 
 // Unsync block
 router.post('/cases/:caseId/notion/synced-blocks/:blockId/unsync',
-    userMiddleware, firmFilter, canAccessCase, validateBlockIdParam,
+    userMiddleware, canAccessCase, validateBlockIdParam,
     caseNotionController.unsyncBlock
 );
 
@@ -201,26 +201,26 @@ router.post('/cases/:caseId/notion/synced-blocks/:blockId/unsync',
 
 // Get comments for block
 router.get('/cases/:caseId/notion/blocks/:blockId/comments',
-    userMiddleware, firmFilter, canAccessCase, validateBlockIdParam,
+    userMiddleware, canAccessCase, validateBlockIdParam,
     caseNotionController.getComments
 );
 
 // Add comment
 router.post('/cases/:caseId/notion/blocks/:blockId/comments',
-    userMiddleware, firmFilter, canAccessCase, validateBlockIdParam,
+    userMiddleware, canAccessCase, validateBlockIdParam,
     validateCreateComment,
     caseNotionController.addComment
 );
 
 // Resolve comment
 router.post('/cases/:caseId/notion/comments/:commentId/resolve',
-    userMiddleware, firmFilter, canAccessCase,
+    userMiddleware, canAccessCase,
     caseNotionController.resolveComment
 );
 
 // Delete comment
 router.delete('/cases/:caseId/notion/comments/:commentId',
-    userMiddleware, firmFilter, canAccessCase,
+    userMiddleware, canAccessCase,
     caseNotionController.deleteComment
 );
 
@@ -230,7 +230,7 @@ router.delete('/cases/:caseId/notion/comments/:commentId',
 
 // Get page activity
 router.get('/cases/:caseId/notion/pages/:pageId/activity',
-    userMiddleware, firmFilter, canAccessCase, validatePageIdParam,
+    userMiddleware, canAccessCase, validatePageIdParam,
     caseNotionController.getPageActivity
 );
 
@@ -240,7 +240,7 @@ router.get('/cases/:caseId/notion/pages/:pageId/activity',
 
 // Search within case
 router.get('/cases/:caseId/notion/search',
-    userMiddleware, firmFilter, canAccessCase,
+    userMiddleware, canAccessCase,
     validateSearch,
     caseNotionController.search
 );
@@ -251,19 +251,19 @@ router.get('/cases/:caseId/notion/search',
 
 // Export to PDF
 router.get('/cases/:caseId/notion/pages/:pageId/export/pdf',
-    userMiddleware, firmFilter, canAccessCase, validatePageIdParam,
+    userMiddleware, canAccessCase, validatePageIdParam,
     caseNotionController.exportPdf
 );
 
 // Export to Markdown
 router.get('/cases/:caseId/notion/pages/:pageId/export/markdown',
-    userMiddleware, firmFilter, canAccessCase, validatePageIdParam,
+    userMiddleware, canAccessCase, validatePageIdParam,
     caseNotionController.exportMarkdown
 );
 
 // Export to HTML
 router.get('/cases/:caseId/notion/pages/:pageId/export/html',
-    userMiddleware, firmFilter, canAccessCase, validatePageIdParam,
+    userMiddleware, canAccessCase, validatePageIdParam,
     caseNotionController.exportHtml
 );
 
@@ -273,13 +273,13 @@ router.get('/cases/:caseId/notion/pages/:pageId/export/html',
 
 // Get templates
 router.get('/notion/templates',
-    userMiddleware, firmFilter,
+    userMiddleware,
     caseNotionController.getTemplates
 );
 
 // Apply template
 router.post('/cases/:caseId/notion/pages/:pageId/apply-template',
-    userMiddleware, firmFilter, canAccessCase, canEditPage, validatePageIdParam,
+    userMiddleware, canAccessCase, canEditPage, validatePageIdParam,
     validateApplyTemplate,
     invalidateCache(['notion:page:{pageId}:*']),
     caseNotionController.applyTemplate
@@ -287,7 +287,7 @@ router.post('/cases/:caseId/notion/pages/:pageId/apply-template',
 
 // Save as template
 router.post('/cases/:caseId/notion/pages/:pageId/save-as-template',
-    userMiddleware, firmFilter, canAccessCase, validatePageIdParam,
+    userMiddleware, canAccessCase, validatePageIdParam,
     caseNotionController.saveAsTemplate
 );
 
@@ -297,21 +297,21 @@ router.post('/cases/:caseId/notion/pages/:pageId/save-as-template',
 
 // Link task to block
 router.post('/cases/:caseId/notion/blocks/:blockId/link-task',
-    userMiddleware, firmFilter, canAccessCase, validateBlockIdParam,
+    userMiddleware, canAccessCase, validateBlockIdParam,
     validateLinkTask,
     caseNotionController.linkTask
 );
 
 // Unlink task from block
 router.post('/cases/:caseId/notion/blocks/:blockId/unlink-task',
-    userMiddleware, firmFilter, canAccessCase, validateBlockIdParam,
+    userMiddleware, canAccessCase, validateBlockIdParam,
     validateLinkTask,
     caseNotionController.unlinkTask
 );
 
 // Create task from block
 router.post('/cases/:caseId/notion/blocks/:blockId/create-task',
-    userMiddleware, firmFilter, canAccessCase, validateBlockIdParam,
+    userMiddleware, canAccessCase, validateBlockIdParam,
     caseNotionController.createTaskFromBlock
 );
 
@@ -321,28 +321,28 @@ router.post('/cases/:caseId/notion/blocks/:blockId/create-task',
 
 // Update block position
 router.patch('/cases/:caseId/notion/blocks/:blockId/position',
-    userMiddleware, firmFilter, canAccessCase, validateBlockIdParam,
+    userMiddleware, canAccessCase, validateBlockIdParam,
     invalidateCache(['notion:block:{blockId}:*']),
     caseNotionController.updateBlockPosition
 );
 
 // Update block size
 router.patch('/cases/:caseId/notion/blocks/:blockId/size',
-    userMiddleware, firmFilter, canAccessCase, validateBlockIdParam,
+    userMiddleware, canAccessCase, validateBlockIdParam,
     invalidateCache(['notion:block:{blockId}:*']),
     caseNotionController.updateBlockSize
 );
 
 // Update block color
 router.patch('/cases/:caseId/notion/blocks/:blockId/color',
-    userMiddleware, firmFilter, canAccessCase, validateBlockIdParam,
+    userMiddleware, canAccessCase, validateBlockIdParam,
     invalidateCache(['notion:block:{blockId}:*']),
     caseNotionController.updateBlockColor
 );
 
 // Update block priority
 router.patch('/cases/:caseId/notion/blocks/:blockId/priority',
-    userMiddleware, firmFilter, canAccessCase, validateBlockIdParam,
+    userMiddleware, canAccessCase, validateBlockIdParam,
     invalidateCache(['notion:block:{blockId}:*']),
     caseNotionController.updateBlockPriority
 );
@@ -353,28 +353,28 @@ router.patch('/cases/:caseId/notion/blocks/:blockId/priority',
 
 // Link block to event
 router.post('/cases/:caseId/notion/blocks/:blockId/link-event',
-    userMiddleware, firmFilter, canAccessCase, validateBlockIdParam,
+    userMiddleware, canAccessCase, validateBlockIdParam,
     invalidateCache(['notion:block:{blockId}:*']),
     caseNotionController.linkBlockToEvent
 );
 
 // Link block to hearing
 router.post('/cases/:caseId/notion/blocks/:blockId/link-hearing',
-    userMiddleware, firmFilter, canAccessCase, validateBlockIdParam,
+    userMiddleware, canAccessCase, validateBlockIdParam,
     invalidateCache(['notion:block:{blockId}:*']),
     caseNotionController.linkBlockToHearing
 );
 
 // Link block to document
 router.post('/cases/:caseId/notion/blocks/:blockId/link-document',
-    userMiddleware, firmFilter, canAccessCase, validateBlockIdParam,
+    userMiddleware, canAccessCase, validateBlockIdParam,
     invalidateCache(['notion:block:{blockId}:*']),
     caseNotionController.linkBlockToDocument
 );
 
 // Unlink all entities from block
 router.delete('/cases/:caseId/notion/blocks/:blockId/unlink',
-    userMiddleware, firmFilter, canAccessCase, validateBlockIdParam,
+    userMiddleware, canAccessCase, validateBlockIdParam,
     invalidateCache(['notion:block:{blockId}:*']),
     caseNotionController.unlinkBlock
 );
@@ -385,27 +385,27 @@ router.delete('/cases/:caseId/notion/blocks/:blockId/unlink',
 
 // Get connections for page
 router.get('/cases/:caseId/notion/pages/:pageId/connections',
-    userMiddleware, firmFilter, canAccessCase, validatePageIdParam,
+    userMiddleware, canAccessCase, validatePageIdParam,
     cacheResponse(NOTION_CACHE_TTL),
     caseNotionController.getConnections
 );
 
 // Create connection
 router.post('/cases/:caseId/notion/pages/:pageId/connections',
-    userMiddleware, firmFilter, canAccessCase, canEditPage, validatePageIdParam,
+    userMiddleware, canAccessCase, canEditPage, validatePageIdParam,
     invalidateCache(['notion:page:{pageId}:*']),
     caseNotionController.createConnection
 );
 
 // Update connection
 router.patch('/cases/:caseId/notion/connections/:connectionId',
-    userMiddleware, firmFilter, canAccessCase,
+    userMiddleware, canAccessCase,
     caseNotionController.updateConnection
 );
 
 // Delete connection
 router.delete('/cases/:caseId/notion/connections/:connectionId',
-    userMiddleware, firmFilter, canAccessCase,
+    userMiddleware, canAccessCase,
     caseNotionController.deleteConnection
 );
 
@@ -415,14 +415,14 @@ router.delete('/cases/:caseId/notion/connections/:connectionId',
 
 // Update page view mode
 router.patch('/cases/:caseId/notion/pages/:pageId/view-mode',
-    userMiddleware, firmFilter, canAccessCase, canEditPage, validatePageIdParam,
+    userMiddleware, canAccessCase, canEditPage, validatePageIdParam,
     invalidateCache(['notion:page:{pageId}:*']),
     caseNotionController.updateViewMode
 );
 
 // Update whiteboard config
 router.patch('/cases/:caseId/notion/pages/:pageId/whiteboard-config',
-    userMiddleware, firmFilter, canAccessCase, canEditPage, validatePageIdParam,
+    userMiddleware, canAccessCase, canEditPage, validatePageIdParam,
     invalidateCache(['notion:page:{pageId}:*']),
     caseNotionController.updateWhiteboardConfig
 );
@@ -435,7 +435,7 @@ router.patch('/cases/:caseId/notion/pages/:pageId/whiteboard-config',
  * Create a canvas shape
  */
 router.post('/cases/:caseId/notion/pages/:pageId/shapes',
-    userMiddleware, firmFilter, canAccessCase,
+    userMiddleware, canAccessCase,
     caseNotionController.createShape
 );
 
@@ -443,7 +443,7 @@ router.post('/cases/:caseId/notion/pages/:pageId/shapes',
  * Create an arrow/connector shape
  */
 router.post('/cases/:caseId/notion/pages/:pageId/arrows',
-    userMiddleware, firmFilter, canAccessCase,
+    userMiddleware, canAccessCase,
     caseNotionController.createArrow
 );
 
@@ -451,7 +451,7 @@ router.post('/cases/:caseId/notion/pages/:pageId/arrows',
  * Create a frame (container)
  */
 router.post('/cases/:caseId/notion/pages/:pageId/frames',
-    userMiddleware, firmFilter, canAccessCase,
+    userMiddleware, canAccessCase,
     caseNotionController.createFrame
 );
 
@@ -459,7 +459,7 @@ router.post('/cases/:caseId/notion/pages/:pageId/frames',
  * Update element z-index
  */
 router.patch('/cases/:caseId/notion/blocks/:blockId/z-index',
-    userMiddleware, firmFilter, canAccessCase, validateBlockIdParam,
+    userMiddleware, canAccessCase, validateBlockIdParam,
     caseNotionController.updateZIndex
 );
 
@@ -467,7 +467,7 @@ router.patch('/cases/:caseId/notion/blocks/:blockId/z-index',
  * Batch update multiple elements
  */
 router.patch('/cases/:caseId/notion/pages/:pageId/batch-update',
-    userMiddleware, firmFilter, canAccessCase,
+    userMiddleware, canAccessCase,
     caseNotionController.batchUpdateElements
 );
 
@@ -475,7 +475,7 @@ router.patch('/cases/:caseId/notion/pages/:pageId/batch-update',
  * Get connections affected by element move
  */
 router.get('/cases/:caseId/notion/blocks/:blockId/connections',
-    userMiddleware, firmFilter, canAccessCase, validateBlockIdParam,
+    userMiddleware, canAccessCase, validateBlockIdParam,
     caseNotionController.updateConnectionPaths
 );
 
@@ -483,7 +483,7 @@ router.get('/cases/:caseId/notion/blocks/:blockId/connections',
  * Update element rotation
  */
 router.patch('/cases/:caseId/notion/blocks/:blockId/rotation',
-    userMiddleware, firmFilter, canAccessCase, validateBlockIdParam,
+    userMiddleware, canAccessCase, validateBlockIdParam,
     async (req, res) => {
         try {
             const { blockId } = req.params;
@@ -522,7 +522,7 @@ router.patch('/cases/:caseId/notion/blocks/:blockId/rotation',
  * Update element opacity
  */
 router.patch('/cases/:caseId/notion/blocks/:blockId/opacity',
-    userMiddleware, firmFilter, canAccessCase, validateBlockIdParam,
+    userMiddleware, canAccessCase, validateBlockIdParam,
     async (req, res) => {
         try {
             const { blockId } = req.params;
@@ -561,7 +561,7 @@ router.patch('/cases/:caseId/notion/blocks/:blockId/opacity',
  * Update element stroke/fill styling
  */
 router.patch('/cases/:caseId/notion/blocks/:blockId/style',
-    userMiddleware, firmFilter, canAccessCase, validateBlockIdParam,
+    userMiddleware, canAccessCase, validateBlockIdParam,
     async (req, res) => {
         try {
             const { blockId } = req.params;
@@ -602,7 +602,7 @@ router.patch('/cases/:caseId/notion/blocks/:blockId/style',
  * Add element to frame
  */
 router.post('/cases/:caseId/notion/frames/:frameId/children',
-    userMiddleware, firmFilter, canAccessCase,
+    userMiddleware, canAccessCase,
     caseNotionController.addToFrame
 );
 
@@ -610,7 +610,7 @@ router.post('/cases/:caseId/notion/frames/:frameId/children',
  * Remove element from frame
  */
 router.delete('/cases/:caseId/notion/frames/:frameId/children/:elementId',
-    userMiddleware, firmFilter, canAccessCase,
+    userMiddleware, canAccessCase,
     caseNotionController.removeFromFrame
 );
 
@@ -618,7 +618,7 @@ router.delete('/cases/:caseId/notion/frames/:frameId/children/:elementId',
  * Get all elements in a frame
  */
 router.get('/cases/:caseId/notion/frames/:frameId/children',
-    userMiddleware, firmFilter, canAccessCase,
+    userMiddleware, canAccessCase,
     caseNotionController.getFrameChildren
 );
 
@@ -626,7 +626,7 @@ router.get('/cases/:caseId/notion/frames/:frameId/children',
  * Auto-detect elements inside frame bounds
  */
 router.post('/cases/:caseId/notion/frames/:frameId/auto-detect',
-    userMiddleware, firmFilter, canAccessCase,
+    userMiddleware, canAccessCase,
     caseNotionController.autoDetectFrameChildren
 );
 
@@ -634,7 +634,7 @@ router.post('/cases/:caseId/notion/frames/:frameId/auto-detect',
  * Move frame with all children
  */
 router.patch('/cases/:caseId/notion/frames/:frameId/move',
-    userMiddleware, firmFilter, canAccessCase,
+    userMiddleware, canAccessCase,
     caseNotionController.moveFrameWithChildren
 );
 
@@ -646,7 +646,7 @@ router.patch('/cases/:caseId/notion/frames/:frameId/move',
  * Undo last action
  */
 router.post('/cases/:caseId/notion/pages/:pageId/undo',
-    userMiddleware, firmFilter, canAccessCase,
+    userMiddleware, canAccessCase,
     caseNotionController.undo
 );
 
@@ -654,7 +654,7 @@ router.post('/cases/:caseId/notion/pages/:pageId/undo',
  * Redo last undone action
  */
 router.post('/cases/:caseId/notion/pages/:pageId/redo',
-    userMiddleware, firmFilter, canAccessCase,
+    userMiddleware, canAccessCase,
     caseNotionController.redo
 );
 
@@ -662,7 +662,7 @@ router.post('/cases/:caseId/notion/pages/:pageId/redo',
  * Get undo/redo status
  */
 router.get('/cases/:caseId/notion/pages/:pageId/history-status',
-    userMiddleware, firmFilter, canAccessCase,
+    userMiddleware, canAccessCase,
     caseNotionController.getHistoryStatus
 );
 
@@ -674,7 +674,7 @@ router.get('/cases/:caseId/notion/pages/:pageId/history-status',
  * Duplicate selected elements
  */
 router.post('/cases/:caseId/notion/pages/:pageId/duplicate',
-    userMiddleware, firmFilter, canAccessCase,
+    userMiddleware, canAccessCase,
     caseNotionController.duplicateElements
 );
 
@@ -682,7 +682,7 @@ router.post('/cases/:caseId/notion/pages/:pageId/duplicate',
  * Delete selected elements
  */
 router.delete('/cases/:caseId/notion/pages/:pageId/bulk-delete',
-    userMiddleware, firmFilter, canAccessCase,
+    userMiddleware, canAccessCase,
     caseNotionController.bulkDeleteElements
 );
 
@@ -690,7 +690,7 @@ router.delete('/cases/:caseId/notion/pages/:pageId/bulk-delete',
  * Group selected elements
  */
 router.post('/cases/:caseId/notion/pages/:pageId/group',
-    userMiddleware, firmFilter, canAccessCase,
+    userMiddleware, canAccessCase,
     caseNotionController.groupElements
 );
 
@@ -698,7 +698,7 @@ router.post('/cases/:caseId/notion/pages/:pageId/group',
  * Ungroup elements
  */
 router.post('/cases/:caseId/notion/pages/:pageId/ungroup',
-    userMiddleware, firmFilter, canAccessCase,
+    userMiddleware, canAccessCase,
     caseNotionController.ungroupElements
 );
 
@@ -706,7 +706,7 @@ router.post('/cases/:caseId/notion/pages/:pageId/ungroup',
  * Align selected elements
  */
 router.post('/cases/:caseId/notion/pages/:pageId/align',
-    userMiddleware, firmFilter, canAccessCase,
+    userMiddleware, canAccessCase,
     caseNotionController.alignElements
 );
 
@@ -714,7 +714,7 @@ router.post('/cases/:caseId/notion/pages/:pageId/align',
  * Distribute elements evenly
  */
 router.post('/cases/:caseId/notion/pages/:pageId/distribute',
-    userMiddleware, firmFilter, canAccessCase,
+    userMiddleware, canAccessCase,
     caseNotionController.distributeElements
 );
 

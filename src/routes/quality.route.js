@@ -8,7 +8,7 @@
  */
 
 const express = require('express');
-const { userMiddleware, firmFilter } = require('../middlewares');
+const { userMiddleware } = require('../middlewares');
 const {
     validateCreateInspection,
     validateUpdateInspection,
@@ -55,21 +55,18 @@ const router = express.Router();
 // Get quality statistics
 router.get('/stats',
     userMiddleware,
-    firmFilter,
     getStats
 );
 
 // Get quality settings
 router.get('/settings',
     userMiddleware,
-    firmFilter,
     getSettings
 );
 
 // Update quality settings
 router.put('/settings',
     userMiddleware,
-    firmFilter,
     validateUpdateSettings,
     updateSettings
 );
@@ -79,14 +76,12 @@ router.put('/settings',
 // Get all inspections (with filters)
 router.get('/inspections',
     userMiddleware,
-    firmFilter,
     getInspections
 );
 
 // Create inspection
 router.post('/inspections',
     userMiddleware,
-    firmFilter,
     validateCreateInspection,
     createInspection
 );
@@ -94,14 +89,12 @@ router.post('/inspections',
 // Get single inspection
 router.get('/inspections/:id',
     userMiddleware,
-    firmFilter,
     getInspectionById
 );
 
 // Update inspection
 router.put('/inspections/:id',
     userMiddleware,
-    firmFilter,
     validateUpdateInspection,
     updateInspection
 );
@@ -109,14 +102,12 @@ router.put('/inspections/:id',
 // Submit inspection
 router.post('/inspections/:id/submit',
     userMiddleware,
-    firmFilter,
     submitInspection
 );
 
 // Delete inspection
 router.delete('/inspections/:id',
     userMiddleware,
-    firmFilter,
     deleteInspection
 );
 
@@ -125,14 +116,12 @@ router.delete('/inspections/:id',
 // Get all templates
 router.get('/templates',
     userMiddleware,
-    firmFilter,
     getTemplates
 );
 
 // Create template
 router.post('/templates',
     userMiddleware,
-    firmFilter,
     validateCreateTemplate,
     createTemplate
 );
@@ -140,14 +129,12 @@ router.post('/templates',
 // Get single template
 router.get('/templates/:id',
     userMiddleware,
-    firmFilter,
     getTemplateById
 );
 
 // Update template
 router.put('/templates/:id',
     userMiddleware,
-    firmFilter,
     validateUpdateTemplate,
     updateTemplate
 );
@@ -155,7 +142,6 @@ router.put('/templates/:id',
 // Delete template
 router.delete('/templates/:id',
     userMiddleware,
-    firmFilter,
     deleteTemplate
 );
 
@@ -164,14 +150,12 @@ router.delete('/templates/:id',
 // Get all actions
 router.get('/actions',
     userMiddleware,
-    firmFilter,
     getActions
 );
 
 // Create action
 router.post('/actions',
     userMiddleware,
-    firmFilter,
     validateCreateAction,
     createAction
 );
@@ -179,14 +163,12 @@ router.post('/actions',
 // Get single action
 router.get('/actions/:id',
     userMiddleware,
-    firmFilter,
     getActionById
 );
 
 // Update action
 router.put('/actions/:id',
     userMiddleware,
-    firmFilter,
     validateUpdateAction,
     updateAction
 );
@@ -194,7 +176,6 @@ router.put('/actions/:id',
 // Delete action
 router.delete('/actions/:id',
     userMiddleware,
-    firmFilter,
     deleteAction
 );
 

@@ -122,10 +122,4 @@ uomSchema.pre('deleteOne', { document: true, query: false }, async function(next
     }
 });
 
-// ═══════════════════════════════════════════════════════════════
-// FIRM ISOLATION PLUGIN (RLS-like enforcement)
-// ═══════════════════════════════════════════════════════════════
-const firmIsolationPlugin = require('./plugins/firmIsolation.plugin');
-uomSchema.plugin(firmIsolationPlugin);
-
 module.exports = mongoose.model('UOM', uomSchema);

@@ -10,15 +10,14 @@
 const express = require('express');
 const router = express.Router();
 const deduplicationController = require('../controllers/deduplication.controller');
-const { userMiddleware, firmFilter } = require('../middlewares');
+const { userMiddleware } = require('../middlewares');
 const { authorize } = require('../middlewares/authorize.middleware');
 
 // ============================================
 // APPLY MIDDLEWARE
 // ============================================
-// All deduplication routes require authentication and firm filtering
+// All deduplication routes require authentication
 router.use(userMiddleware);
-router.use(firmFilter);
 
 // ============================================
 // DUPLICATE DETECTION

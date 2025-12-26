@@ -1,5 +1,5 @@
 const express = require('express');
-const { userMiddleware, firmFilter } = require('../middlewares');
+const { userMiddleware } = require('../middlewares');
 const {
   // Gantt Data
   getGanttData,
@@ -68,147 +68,147 @@ const router = express.Router();
 
 // Get unified productivity data (tasks, reminders, events)
 // This endpoint aggregates all data sources for the productivity Gantt view
-router.get('/productivity', userMiddleware, firmFilter, getProductivityData);
+router.get('/productivity', userMiddleware, getProductivityData);
 
 // Filter with complex criteria (must be before parameterized routes)
-router.post('/data/filter', userMiddleware, firmFilter, filterGanttData);
+router.post('/data/filter', userMiddleware, filterGanttData);
 
 // Get all gantt data for firm
-router.get('/data', userMiddleware, firmFilter, getGanttData);
+router.get('/data', userMiddleware, getGanttData);
 
 // Get gantt data for specific case/project
-router.get('/data/case/:caseId', userMiddleware, firmFilter, getGanttDataForCase);
+router.get('/data/case/:caseId', userMiddleware, getGanttDataForCase);
 
 // Get gantt data by assignee
-router.get('/data/assigned/:userId', userMiddleware, firmFilter, getGanttDataByAssignee);
+router.get('/data/assigned/:userId', userMiddleware, getGanttDataByAssignee);
 
 // Get task hierarchy
-router.get('/hierarchy/:taskId', userMiddleware, firmFilter, getTaskHierarchy);
+router.get('/hierarchy/:taskId', userMiddleware, getTaskHierarchy);
 
 // ═══════════════════════════════════════════════════════════════
 // TASK OPERATIONS (from Gantt UI)
 // ═══════════════════════════════════════════════════════════════
 
 // Update task dates (drag-drop)
-router.put('/task/:id/dates', userMiddleware, firmFilter, updateTaskDates);
+router.put('/task/:id/dates', userMiddleware, updateTaskDates);
 
 // Update task duration
-router.put('/task/:id/duration', userMiddleware, firmFilter, updateTaskDuration);
+router.put('/task/:id/duration', userMiddleware, updateTaskDuration);
 
 // Update task progress
-router.put('/task/:id/progress', userMiddleware, firmFilter, updateTaskProgress);
+router.put('/task/:id/progress', userMiddleware, updateTaskProgress);
 
 // Change task parent (hierarchy)
-router.put('/task/:id/parent', userMiddleware, firmFilter, updateTaskParent);
+router.put('/task/:id/parent', userMiddleware, updateTaskParent);
 
 // Reorder tasks
-router.post('/task/reorder', userMiddleware, firmFilter, reorderTasks);
+router.post('/task/reorder', userMiddleware, reorderTasks);
 
 // ═══════════════════════════════════════════════════════════════
 // DEPENDENCIES/LINKS
 // ═══════════════════════════════════════════════════════════════
 
 // Get dependency chain for task
-router.get('/dependencies/:taskId', userMiddleware, firmFilter, getDependencyChain);
+router.get('/dependencies/:taskId', userMiddleware, getDependencyChain);
 
 // Create dependency link
-router.post('/link', userMiddleware, firmFilter, createLink);
+router.post('/link', userMiddleware, createLink);
 
 // Delete dependency link
-router.delete('/link/:source/:target', userMiddleware, firmFilter, deleteLink);
+router.delete('/link/:source/:target', userMiddleware, deleteLink);
 
 // ═══════════════════════════════════════════════════════════════
 // CRITICAL PATH ANALYSIS
 // ═══════════════════════════════════════════════════════════════
 
 // Get critical path for project
-router.get('/critical-path/:projectId', userMiddleware, firmFilter, getCriticalPath);
+router.get('/critical-path/:projectId', userMiddleware, getCriticalPath);
 
 // Get slack time for task
-router.get('/slack/:taskId', userMiddleware, firmFilter, getSlackTime);
+router.get('/slack/:taskId', userMiddleware, getSlackTime);
 
 // Get bottleneck tasks
-router.get('/bottlenecks/:projectId', userMiddleware, firmFilter, getBottlenecks);
+router.get('/bottlenecks/:projectId', userMiddleware, getBottlenecks);
 
 // Get project timeline summary
-router.get('/timeline/:projectId', userMiddleware, firmFilter, getProjectTimeline);
+router.get('/timeline/:projectId', userMiddleware, getProjectTimeline);
 
 // ═══════════════════════════════════════════════════════════════
 // RESOURCE MANAGEMENT
 // ═══════════════════════════════════════════════════════════════
 
 // Get resource allocation overview
-router.get('/resources', userMiddleware, firmFilter, getResourceAllocation);
+router.get('/resources', userMiddleware, getResourceAllocation);
 
 // Check for resource conflicts
-router.get('/resources/conflicts', userMiddleware, firmFilter, getResourceConflicts);
+router.get('/resources/conflicts', userMiddleware, getResourceConflicts);
 
 // Suggest optimal assignee for task
-router.post('/resources/suggest', userMiddleware, firmFilter, suggestAssignee);
+router.post('/resources/suggest', userMiddleware, suggestAssignee);
 
 // Get specific user workload
-router.get('/resources/:userId/workload', userMiddleware, firmFilter, getUserWorkload);
+router.get('/resources/:userId/workload', userMiddleware, getUserWorkload);
 
 // ═══════════════════════════════════════════════════════════════
 // BASELINES
 // ═══════════════════════════════════════════════════════════════
 
 // Create baseline for project
-router.post('/baseline/:projectId', userMiddleware, firmFilter, createBaseline);
+router.post('/baseline/:projectId', userMiddleware, createBaseline);
 
 // Get baseline for project
-router.get('/baseline/:projectId', userMiddleware, firmFilter, getBaseline);
+router.get('/baseline/:projectId', userMiddleware, getBaseline);
 
 // Compare current to baseline
-router.get('/baseline/:projectId/compare', userMiddleware, firmFilter, compareToBaseline);
+router.get('/baseline/:projectId/compare', userMiddleware, compareToBaseline);
 
 // ═══════════════════════════════════════════════════════════════
 // AUTO-SCHEDULING
 // ═══════════════════════════════════════════════════════════════
 
 // Auto-schedule project
-router.post('/auto-schedule/:projectId', userMiddleware, firmFilter, autoSchedule);
+router.post('/auto-schedule/:projectId', userMiddleware, autoSchedule);
 
 // Level resources
-router.post('/level-resources/:projectId', userMiddleware, firmFilter, levelResources);
+router.post('/level-resources/:projectId', userMiddleware, levelResources);
 
 // ═══════════════════════════════════════════════════════════════
 // MILESTONES
 // ═══════════════════════════════════════════════════════════════
 
 // Create milestone
-router.post('/milestone', userMiddleware, firmFilter, createMilestone);
+router.post('/milestone', userMiddleware, createMilestone);
 
 // Get milestones for project
-router.get('/milestones/:projectId', userMiddleware, firmFilter, getMilestones);
+router.get('/milestones/:projectId', userMiddleware, getMilestones);
 
 // ═══════════════════════════════════════════════════════════════
 // EXPORT
 // ═══════════════════════════════════════════════════════════════
 
 // Export to MS Project XML
-router.get('/export/:projectId/msproject', userMiddleware, firmFilter, exportToMSProject);
+router.get('/export/:projectId/msproject', userMiddleware, exportToMSProject);
 
 // Export to PDF
-router.get('/export/:projectId/pdf', userMiddleware, firmFilter, exportToPDF);
+router.get('/export/:projectId/pdf', userMiddleware, exportToPDF);
 
 // Export to Excel
-router.get('/export/:projectId/excel', userMiddleware, firmFilter, exportToExcel);
+router.get('/export/:projectId/excel', userMiddleware, exportToExcel);
 
 // ═══════════════════════════════════════════════════════════════
 // COLLABORATION
 // ═══════════════════════════════════════════════════════════════
 
 // Get active users for resource
-router.get('/collaboration/presence/:resourceId', userMiddleware, firmFilter, getActiveUsers);
+router.get('/collaboration/presence/:resourceId', userMiddleware, getActiveUsers);
 
 // Update user presence
-router.post('/collaboration/presence', userMiddleware, firmFilter, updatePresence);
+router.post('/collaboration/presence', userMiddleware, updatePresence);
 
 // Get recent activities
-router.get('/collaboration/activities/:firmId', userMiddleware, firmFilter, getRecentActivities);
+router.get('/collaboration/activities/:firmId', userMiddleware, getRecentActivities);
 
 // Get collaboration stats
-router.get('/collaboration/stats', userMiddleware, firmFilter, getCollaborationStats);
+router.get('/collaboration/stats', userMiddleware, getCollaborationStats);
 
 module.exports = router;

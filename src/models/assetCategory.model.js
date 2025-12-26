@@ -266,7 +266,6 @@ assetCategorySchema.methods.hasSubcategories = async function() {
 // ═══════════════════════════════════════════════════════════════
 // FIRM ISOLATION PLUGIN (RLS-like enforcement)
 // ═══════════════════════════════════════════════════════════════
-const firmIsolationPlugin = require('./plugins/firmIsolation.plugin');
-assetCategorySchema.plugin(firmIsolationPlugin);
+// Removed firmIsolationPlugin - using direct RLS queries instead
 
 module.exports = mongoose.model('AssetCategory', assetCategorySchema);

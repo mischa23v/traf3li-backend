@@ -7,7 +7,7 @@
 const express = require('express');
 const router = express.Router();
 const { userMiddleware } = require('../middlewares');
-const { firmFilter, checkFirmPermission, financeAccessOnly } = require('../middlewares/firmFilter.middleware');
+const { checkFirmPermission, financeAccessOnly } = require('../middlewares/firmFilter.middleware');
 const {
     getDebitNotes,
     getDebitNote,
@@ -23,9 +23,8 @@ const {
     getPendingApprovals
 } = require('../controllers/debitNote.controller');
 
-// All routes require authentication and firm filter
+// All routes require authentication
 router.use(userMiddleware);
-router.use(firmFilter);
 
 /**
  * @route   GET /api/debit-notes

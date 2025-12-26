@@ -1,5 +1,5 @@
 const express = require('express');
-const { userMiddleware, firmFilter } = require('../middlewares');
+const { userMiddleware } = require('../middlewares');
 const {
     createInvestment,
     getInvestments,
@@ -21,48 +21,48 @@ const router = express.Router();
 // ═══════════════════════════════════════════════════════════════
 
 // Portfolio summary
-router.get('/summary', userMiddleware, firmFilter, getPortfolioSummary);
+router.get('/summary', userMiddleware, getPortfolioSummary);
 
 // Refresh all prices
-router.post('/refresh-all', userMiddleware, firmFilter, refreshAllPrices);
+router.post('/refresh-all', userMiddleware, refreshAllPrices);
 
 // ═══════════════════════════════════════════════════════════════
 // CRUD ROUTES
 // ═══════════════════════════════════════════════════════════════
 
 // Create investment
-router.post('/', userMiddleware, firmFilter, createInvestment);
+router.post('/', userMiddleware, createInvestment);
 
 // Get all investments
-router.get('/', userMiddleware, firmFilter, getInvestments);
+router.get('/', userMiddleware, getInvestments);
 
 // Get single investment
-router.get('/:id', userMiddleware, firmFilter, getInvestment);
+router.get('/:id', userMiddleware, getInvestment);
 
 // Update investment
-router.put('/:id', userMiddleware, firmFilter, updateInvestment);
+router.put('/:id', userMiddleware, updateInvestment);
 
 // Delete investment
-router.delete('/:id', userMiddleware, firmFilter, deleteInvestment);
+router.delete('/:id', userMiddleware, deleteInvestment);
 
 // ═══════════════════════════════════════════════════════════════
 // PRICE ROUTES
 // ═══════════════════════════════════════════════════════════════
 
 // Refresh price for single investment
-router.post('/:id/refresh-price', userMiddleware, firmFilter, refreshPrice);
+router.post('/:id/refresh-price', userMiddleware, refreshPrice);
 
 // ═══════════════════════════════════════════════════════════════
 // TRANSACTION ROUTES
 // ═══════════════════════════════════════════════════════════════
 
 // Add transaction to investment
-router.post('/:id/transactions', userMiddleware, firmFilter, addTransaction);
+router.post('/:id/transactions', userMiddleware, addTransaction);
 
 // Get transactions for investment
-router.get('/:id/transactions', userMiddleware, firmFilter, getTransactions);
+router.get('/:id/transactions', userMiddleware, getTransactions);
 
 // Delete transaction
-router.delete('/:id/transactions/:transactionId', userMiddleware, firmFilter, deleteTransaction);
+router.delete('/:id/transactions/:transactionId', userMiddleware, deleteTransaction);
 
 module.exports = router;

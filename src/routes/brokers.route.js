@@ -1,5 +1,5 @@
 const express = require('express');
-const { userMiddleware, firmFilter } = require('../middlewares');
+const { userMiddleware } = require('../middlewares');
 const {
     createBroker,
     getBrokers,
@@ -16,25 +16,25 @@ const router = express.Router();
 // ═══════════════════════════════════════════════════════════════
 
 // Create broker
-router.post('/', userMiddleware, firmFilter, createBroker);
+router.post('/', userMiddleware, createBroker);
 
 // Get all brokers
-router.get('/', userMiddleware, firmFilter, getBrokers);
+router.get('/', userMiddleware, getBrokers);
 
 // Get single broker
-router.get('/:id', userMiddleware, firmFilter, getBroker);
+router.get('/:id', userMiddleware, getBroker);
 
 // Update broker
-router.patch('/:id', userMiddleware, firmFilter, updateBroker);
+router.patch('/:id', userMiddleware, updateBroker);
 
 // Delete broker
-router.delete('/:id', userMiddleware, firmFilter, deleteBroker);
+router.delete('/:id', userMiddleware, deleteBroker);
 
 // ═══════════════════════════════════════════════════════════════
 // ACTION ROUTES
 // ═══════════════════════════════════════════════════════════════
 
 // Set as default broker
-router.post('/:id/set-default', userMiddleware, firmFilter, setDefaultBroker);
+router.post('/:id/set-default', userMiddleware, setDefaultBroker);
 
 module.exports = router;

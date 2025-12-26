@@ -12,7 +12,6 @@ const {
     addMediatorNote
 } = require('../controllers/dispute.controller');
 const { authenticate } = require('../middlewares');
-const { requireFirm } = require('../middlewares/firmFilter.middleware');
 
 const app = express.Router();
 

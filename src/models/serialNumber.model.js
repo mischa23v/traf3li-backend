@@ -218,10 +218,4 @@ serialNumberSchema.methods.makeAvailable = async function() {
     return this;
 };
 
-// ═══════════════════════════════════════════════════════════════
-// FIRM ISOLATION PLUGIN (RLS-like enforcement)
-// ═══════════════════════════════════════════════════════════════
-const firmIsolationPlugin = require('./plugins/firmIsolation.plugin');
-serialNumberSchema.plugin(firmIsolationPlugin);
-
 module.exports = mongoose.model('SerialNumber', serialNumberSchema);

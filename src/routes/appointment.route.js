@@ -15,7 +15,6 @@ const {
     validateGetAvailableSlots
 } = require('../validators/crm.validator');
 const { verifyToken } = require('../middlewares/jwt');
-const { firmFilter } = require('../middlewares/firmFilter.middleware');
 
 // ═══════════════════════════════════════════════════════════════
 // PUBLIC ROUTES (no auth required)
@@ -28,8 +27,8 @@ const { firmFilter } = require('../middlewares/firmFilter.middleware');
  */
 router.post('/book/:firmId', validatePublicBooking, appointmentController.publicBook);
 
-// Apply authentication and firm filter middleware to remaining routes
-router.use(verifyToken, firmFilter);
+// Apply authentication middleware to remaining routes
+router.use(verifyToken);
 
 // ═══════════════════════════════════════════════════════════════
 // PRIVATE ROUTES

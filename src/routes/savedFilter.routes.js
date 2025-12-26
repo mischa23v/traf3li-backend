@@ -10,12 +10,11 @@
 const express = require('express');
 const router = express.Router();
 const savedFilterController = require('../controllers/savedFilter.controller');
-const { userMiddleware, firmFilter } = require('../middlewares');
+const { userMiddleware } = require('../middlewares');
 
 // ============ APPLY MIDDLEWARE ============
 // All saved filter routes require authentication and firm filtering
 router.use(userMiddleware);
-router.use(firmFilter);
 
 // ============================================
 // FILTER MANAGEMENT ROUTES

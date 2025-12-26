@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const NotificationSettings = require('../models/notificationSettings.model');
 const asyncHandler = require('../utils/asyncHandler');
-const { authenticate, firmFilter } = require('../middlewares');
+const { authenticate } = require('../middlewares');
 
 // Apply authentication to all routes
 router.use(authenticate);

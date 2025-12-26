@@ -8,7 +8,7 @@
  */
 
 const express = require('express');
-const { userMiddleware, firmFilter } = require('../middlewares');
+const { userMiddleware } = require('../middlewares');
 const { checkPermission } = require('../middlewares/authorize.middleware');
 const { createRateLimiter } = require('../middlewares/rateLimiter.middleware');
 
@@ -117,9 +117,8 @@ router.get('/categories', readRateLimiter, getCategories);
 // AUTHENTICATED ROUTES
 // ============================================================================
 
-// Apply authentication and firm filter to all routes below
+// Apply authentication to all routes below
 router.use(userMiddleware);
-router.use(firmFilter);
 
 /**
  * @openapi

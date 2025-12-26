@@ -1,5 +1,5 @@
 const express = require('express');
-const { userMiddleware, requireAdmin, firmFilter } = require('../middlewares');
+const { userMiddleware, requireAdmin } = require('../middlewares');
 const {
     getNotifications,
     getNotification,
@@ -57,7 +57,7 @@ app.get('/by-type/:type', userMiddleware, getNotificationsByType);
 // Create notification (admin only)
 // POST /api/notifications
 // Body: { userId, type, title, message, ... }
-app.post('/', userMiddleware, firmFilter, requireAdmin, createNotificationEndpoint);
+app.post('/', userMiddleware, requireAdmin, createNotificationEndpoint);
 
 // Get single notification
 // GET /api/notifications/:id

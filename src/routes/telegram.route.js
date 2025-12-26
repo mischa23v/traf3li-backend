@@ -8,7 +8,7 @@
  */
 
 const express = require('express');
-const { userMiddleware, firmFilter } = require('../middlewares');
+const { userMiddleware } = require('../middlewares');
 const {
     connect,
     disconnect,
@@ -30,9 +30,8 @@ const router = express.Router();
 router.post('/webhook/:firmId', handleWebhook);
 
 // ============ APPLY MIDDLEWARE ============
-// All other routes require authentication and firm filtering
+// All other routes require authentication
 router.use(userMiddleware);
-router.use(firmFilter);
 
 // ============ BOT MANAGEMENT ============
 

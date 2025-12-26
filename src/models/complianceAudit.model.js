@@ -637,19 +637,6 @@ complianceAuditSchema.statics.exportLogs = async function(filters = {}) {
     .lean();
 };
 
-// ═══════════════════════════════════════════════════════════════
-// FIRM ISOLATION PLUGIN (RLS-like enforcement)
-// ═══════════════════════════════════════════════════════════════
-const firmIsolationPlugin = require('./plugins/firmIsolation.plugin');
-
-/**
- * Apply Row-Level Security (RLS) plugin to enforce firm-level data isolation.
- * This ensures all queries automatically filter by firmId from the request context.
- * Note: ComplianceAudit logs may need cross-firm visibility for system admins.
- * Use bypassFirmFilter option when needed for administrative queries.
- */
-complianceAuditSchema.plugin(firmIsolationPlugin);
-
 const ComplianceAudit = mongoose.model('ComplianceAudit', complianceAuditSchema);
 
 module.exports = ComplianceAudit;

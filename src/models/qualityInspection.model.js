@@ -272,10 +272,4 @@ qualityInspectionSchema.statics.getInspectionsByItem = async function(firmId, it
         .populate('templateId', 'name');
 };
 
-// ═══════════════════════════════════════════════════════════════
-// FIRM ISOLATION PLUGIN (RLS-like enforcement)
-// ═══════════════════════════════════════════════════════════════
-const firmIsolationPlugin = require('./plugins/firmIsolation.plugin');
-qualityInspectionSchema.plugin(firmIsolationPlugin);
-
 module.exports = mongoose.model('QualityInspection', qualityInspectionSchema);

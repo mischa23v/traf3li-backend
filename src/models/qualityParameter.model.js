@@ -196,10 +196,4 @@ qualityParameterSchema.methods.validateValue = function(value) {
     }
 };
 
-// ═══════════════════════════════════════════════════════════════
-// FIRM ISOLATION PLUGIN (RLS-like enforcement)
-// ═══════════════════════════════════════════════════════════════
-const firmIsolationPlugin = require('./plugins/firmIsolation.plugin');
-qualityParameterSchema.plugin(firmIsolationPlugin);
-
 module.exports = mongoose.model('QualityParameter', qualityParameterSchema);

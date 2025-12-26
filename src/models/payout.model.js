@@ -480,10 +480,4 @@ payoutSchema.methods.retry = async function() {
 payoutSchema.statics.PAYOUT_STATUSES = PAYOUT_STATUSES;
 payoutSchema.statics.PAYOUT_TYPES = PAYOUT_TYPES;
 
-// ═══════════════════════════════════════════════════════════════
-// FIRM ISOLATION PLUGIN (RLS-like enforcement)
-// ═══════════════════════════════════════════════════════════════
-const firmIsolationPlugin = require('./plugins/firmIsolation.plugin');
-payoutSchema.plugin(firmIsolationPlugin);
-
 module.exports = mongoose.model('Payout', payoutSchema);

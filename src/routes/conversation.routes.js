@@ -10,12 +10,12 @@
 const express = require('express');
 const router = express.Router();
 const conversationController = require('../controllers/conversation.controller');
-const { userMiddleware, firmFilter } = require('../middlewares');
+const { userMiddleware } = require('../middlewares');
 
 // ============================================
 // APPLY MIDDLEWARE TO ALL ROUTES
 // ============================================
-router.use(userMiddleware, firmFilter);
+router.use(userMiddleware);
 
 // ============================================
 // STATIC ROUTES (MUST BE BEFORE /:id ROUTES)

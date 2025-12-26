@@ -489,15 +489,4 @@ workflowTemplateSchema.pre('save', function(next) {
     next();
 });
 
-// ═══════════════════════════════════════════════════════════════
-// FIRM ISOLATION PLUGIN (RLS-like enforcement)
-// ═══════════════════════════════════════════════════════════════
-const firmIsolationPlugin = require('./plugins/firmIsolation.plugin');
-
-/**
- * Apply Row-Level Security (RLS) plugin to enforce firm-level data isolation.
- * Note: System templates (isSystem: true) are accessible across all firms
- */
-workflowTemplateSchema.plugin(firmIsolationPlugin);
-
 module.exports = mongoose.model('WorkflowTemplate', workflowTemplateSchema);

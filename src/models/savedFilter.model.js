@@ -245,10 +245,4 @@ savedFilterSchema.statics.getPopularFilters = async function(firmId, entityType,
     .lean();
 };
 
-// ═══════════════════════════════════════════════════════════════
-// FIRM ISOLATION PLUGIN (RLS-like enforcement)
-// ═══════════════════════════════════════════════════════════════
-const firmIsolationPlugin = require('./plugins/firmIsolation.plugin');
-savedFilterSchema.plugin(firmIsolationPlugin);
-
 module.exports = mongoose.model('SavedFilter', savedFilterSchema);

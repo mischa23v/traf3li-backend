@@ -1,5 +1,5 @@
 const express = require('express');
-const { userMiddleware, firmFilter } = require('../middlewares');
+const { userMiddleware } = require('../middlewares');
 const { auditAction } = require('../middlewares/auditLog.middleware');
 const { cacheResponse, invalidateCache } = require('../middlewares/cache.middleware');
 const { sanitizeObjectId } = require('../utils/securityUtils');
@@ -94,7 +94,6 @@ const specificClientInvalidationPatterns = [
  */
 app.post('/',
     userMiddleware,
-    firmFilter,
     validateCreateClient,
     auditAction('create', 'client'),
     invalidateCache(clientInvalidationPatterns),
@@ -139,7 +138,6 @@ app.post('/',
  */
 app.get('/',
     userMiddleware,
-    firmFilter,
     cacheResponse(CLIENT_CACHE_TTL, (req) => {
         const sanitizedFirmId = sanitizeObjectId(req.firmId) || 'none';
         return `client:firm:${sanitizedFirmId}:list:url:${req.originalUrl}`;
@@ -176,7 +174,6 @@ app.get('/',
  */
 app.get('/search',
     userMiddleware,
-    firmFilter,
     validateSearchClients,
     cacheResponse(CLIENT_CACHE_TTL, (req) => {
         const sanitizedFirmId = sanitizeObjectId(req.firmId) || 'none';
@@ -207,7 +204,6 @@ app.get('/search',
  */
 app.get('/stats',
     userMiddleware,
-    firmFilter,
     cacheResponse(CLIENT_CACHE_TTL, (req) => {
         const sanitizedFirmId = sanitizeObjectId(req.firmId) || 'none';
         return `client:firm:${sanitizedFirmId}:stats`;
@@ -244,7 +240,6 @@ app.get('/stats',
  */
 app.get('/top-revenue',
     userMiddleware,
-    firmFilter,
     cacheResponse(CLIENT_CACHE_TTL, (req) => {
         const sanitizedFirmId = sanitizeObjectId(req.firmId) || 'none';
         return `client:firm:${sanitizedFirmId}:top-revenue`;
@@ -262,7 +257,6 @@ app.get('/top-revenue',
 // ═══════════════════════════════════════════════════════════════════════════════
 app.get('/:id/full',
     userMiddleware,
-    firmFilter,
     validateIdParam,
     cacheResponse(CLIENT_CACHE_TTL, (req) => {
         const sanitizedFirmId = sanitizeObjectId(req.firmId) || 'none';
@@ -298,7 +292,6 @@ app.get('/:id/full',
  */
 app.get('/:id',
     userMiddleware,
-    firmFilter,
     validateIdParam,
     cacheResponse(CLIENT_CACHE_TTL, (req) => {
         const sanitizedFirmId = sanitizeObjectId(req.firmId) || 'none';
@@ -342,7 +335,6 @@ app.get('/:id',
  */
 app.put('/:id',
     userMiddleware,
-    firmFilter,
     validateIdParam,
     validateUpdateClient,
     auditAction('update', 'client', { captureChanges: true }),
@@ -383,7 +375,6 @@ app.put('/:id',
  */
 app.delete('/:id',
     userMiddleware,
-    firmFilter,
     validateIdParam,
     auditAction('delete', 'client', { severity: 'high' }),
     invalidateCache(specificClientInvalidationPatterns),
@@ -395,7 +386,6 @@ app.delete('/:id',
 // ─────────────────────────────────────────────────────────
 app.get('/:id/billing-info',
     userMiddleware,
-    firmFilter,
     validateIdParam,
     cacheResponse(CLIENT_CACHE_TTL, (req) => {
         const sanitizedFirmId = sanitizeObjectId(req.firmId) || 'none';
@@ -407,7 +397,6 @@ app.get('/:id/billing-info',
 
 app.get('/:id/cases',
     userMiddleware,
-    firmFilter,
     validateIdParam,
     cacheResponse(CLIENT_CACHE_TTL, (req) => {
         const sanitizedFirmId = sanitizeObjectId(req.firmId) || 'none';
@@ -419,7 +408,6 @@ app.get('/:id/cases',
 
 app.get('/:id/invoices',
     userMiddleware,
-    firmFilter,
     validateIdParam,
     cacheResponse(CLIENT_CACHE_TTL, (req) => {
         const sanitizedFirmId = sanitizeObjectId(req.firmId) || 'none';
@@ -431,7 +419,6 @@ app.get('/:id/invoices',
 
 app.get('/:id/payments',
     userMiddleware,
-    firmFilter,
     validateIdParam,
     cacheResponse(CLIENT_CACHE_TTL, (req) => {
         const sanitizedFirmId = sanitizeObjectId(req.firmId) || 'none';
@@ -448,7 +435,6 @@ app.get('/:id/payments',
 // Wathq - Commercial Registration Verification
 app.post('/:id/verify/wathq',
     userMiddleware,
-    firmFilter,
     validateIdParam,
     validateVerifyWathq,
     invalidateCache(['client:firm:{firmId}:{id}:*']),
@@ -457,7 +443,6 @@ app.post('/:id/verify/wathq',
 
 app.get('/:id/wathq/:dataType',
     userMiddleware,
-    firmFilter,
     validateIdParam,
     cacheResponse(CLIENT_CACHE_TTL, (req) => {
         const sanitizedFirmId = sanitizeObjectId(req.firmId) || 'none';
@@ -471,7 +456,6 @@ app.get('/:id/wathq/:dataType',
 // Absher - National ID / Iqama Verification (Najiz)
 app.post('/:id/verify/absher',
     userMiddleware,
-    firmFilter,
     validateIdParam,
     invalidateCache(['client:firm:{firmId}:{id}:*']),
     async (req, res) => {
@@ -519,7 +503,6 @@ app.post('/:id/verify/absher',
 // Saudi Post - National Address Verification (Najiz)
 app.post('/:id/verify/address',
     userMiddleware,
-    firmFilter,
     validateIdParam,
     invalidateCache(['client:firm:{firmId}:{id}:*']),
     async (req, res) => {
@@ -569,7 +552,6 @@ app.post('/:id/verify/address',
 // ─────────────────────────────────────────────────────────
 app.post('/:id/attachments',
     userMiddleware,
-    firmFilter,
     validateIdParam,
     upload.array('files', 10),
     invalidateCache(['client:firm:{firmId}:{id}:*']),
@@ -578,7 +560,6 @@ app.post('/:id/attachments',
 
 app.delete('/:id/attachments/:attachmentId',
     userMiddleware,
-    firmFilter,
     validateIdParam,
     invalidateCache(['client:firm:{firmId}:{id}:*']),
     deleteAttachment
@@ -589,7 +570,6 @@ app.delete('/:id/attachments/:attachmentId',
 // ─────────────────────────────────────────────────────────
 app.post('/:id/conflict-check',
     userMiddleware,
-    firmFilter,
     validateIdParam,
     validateConflictCheck,
     runConflictCheck
@@ -600,7 +580,6 @@ app.post('/:id/conflict-check',
 // ─────────────────────────────────────────────────────────
 app.patch('/:id/status',
     userMiddleware,
-    firmFilter,
     validateIdParam,
     validateUpdateStatus,
     invalidateCache(specificClientInvalidationPatterns),
@@ -609,7 +588,6 @@ app.patch('/:id/status',
 
 app.patch('/:id/flags',
     userMiddleware,
-    firmFilter,
     validateIdParam,
     validateUpdateFlags,
     invalidateCache(['client:firm:{firmId}:{id}:*']),
@@ -621,7 +599,6 @@ app.patch('/:id/flags',
 // ─────────────────────────────────────────────────────────
 app.delete('/bulk',
     userMiddleware,
-    firmFilter,
     validateBulkDelete,
     invalidateCache(clientInvalidationPatterns),
     bulkDeleteClients

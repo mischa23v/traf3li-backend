@@ -1,5 +1,5 @@
 const express = require('express');
-const { userMiddleware, firmFilter } = require('../middlewares');
+const { userMiddleware } = require('../middlewares');
 const { cacheResponse } = require('../middlewares/cache.middleware');
 const {
     getCounts,
@@ -42,7 +42,6 @@ const SMART_BUTTON_CACHE_TTL = 60;
 app.get(
     '/:model/:recordId/counts',
     userMiddleware,
-    firmFilter,
     cacheResponse(`smartbutton:{firmId}:${'{model}'}:${'{recordId}'}`, SMART_BUTTON_CACHE_TTL),
     getCounts
 );
@@ -82,7 +81,6 @@ app.get(
 app.post(
     '/:model/batch-counts',
     userMiddleware,
-    firmFilter,
     getBatchCounts
 );
 

@@ -10,11 +10,10 @@
 const express = require('express');
 const router = express.Router();
 const bulkActionsController = require('../controllers/bulkActions.controller');
-const { userMiddleware, firmFilter } = require('../middlewares');
+const { userMiddleware } = require('../middlewares');
 
-// Apply authentication and firm filtering to all routes
+// Apply authentication to all routes
 router.use(userMiddleware);
-router.use(firmFilter);
 
 // ═══════════════════════════════════════════════════════════════
 // BULK ACTION EXECUTION ROUTES

@@ -17,11 +17,10 @@ const {
     validateLeadConversionTime
 } = require('../validators/crm.validator');
 const { verifyToken } = require('../middlewares/jwt');
-const { firmFilter } = require('../middlewares/firmFilter.middleware');
 const { sensitiveRateLimiter } = require('../middlewares/rateLimiter.middleware');
 
-// Apply authentication and firm filter middleware
-router.use(verifyToken, firmFilter);
+// Apply authentication middleware
+router.use(verifyToken);
 
 // ═══════════════════════════════════════════════════════════════
 // CRM REPORTS ROUTES

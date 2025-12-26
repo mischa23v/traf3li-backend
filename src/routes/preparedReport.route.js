@@ -7,7 +7,6 @@
 const express = require('express');
 const router = express.Router();
 const { userMiddleware } = require('../middlewares/user-middleware');
-const { firmFilter } = require('../middlewares/firmContext');
 const {
     getPreparedReports,
     getPreparedReport,
@@ -20,7 +19,6 @@ const {
 
 // Apply authentication middleware
 router.use(userMiddleware);
-router.use(firmFilter);
 
 // Special routes (before :id)
 router.get('/stats', getCacheStats);

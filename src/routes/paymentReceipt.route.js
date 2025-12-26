@@ -9,11 +9,10 @@ const {
     emailReceipt,
     getReceiptStats
 } = require('../controllers/paymentReceipt.controller');
-const { authenticate, firmFilter, checkFirmPermission } = require('../middlewares');
+const { authenticate, checkFirmPermission } = require('../middlewares');
 
-// Apply authentication and firm filter to all routes
+// Apply authentication to all routes
 router.use(authenticate);
-router.use(firmFilter);
 
 /**
  * @swagger

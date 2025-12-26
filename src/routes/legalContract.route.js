@@ -16,7 +16,7 @@
  */
 
 const express = require('express');
-const { userMiddleware, firmFilter } = require('../middlewares');
+const { userMiddleware } = require('../middlewares');
 const {
     // CRUD
     createContract,
@@ -79,7 +79,7 @@ const router = express.Router();
  * @query   {number} [limit=20] - Number of results per page
  * @returns {Array<Contract>} Filtered list of contracts matching search criteria
  */
-router.get('/search', userMiddleware, firmFilter, searchContracts);
+router.get('/search', userMiddleware, searchContracts);
 
 /**
  * @route   GET /api/contracts/expiring
@@ -90,7 +90,7 @@ router.get('/search', userMiddleware, firmFilter, searchContracts);
  * @query   {number} [limit=20] - Number of results per page
  * @returns {Array<Contract>} List of contracts expiring soon
  */
-router.get('/expiring', userMiddleware, firmFilter, getExpiringContracts);
+router.get('/expiring', userMiddleware, getExpiringContracts);
 
 /**
  * @route   GET /api/contracts/statistics
@@ -98,7 +98,7 @@ router.get('/expiring', userMiddleware, firmFilter, getExpiringContracts);
  * @access  Private (requires authentication + firm filter)
  * @returns {Object} Statistics including total contracts, by status, by type, expiring soon, etc.
  */
-router.get('/statistics', userMiddleware, firmFilter, getContractStatistics);
+router.get('/statistics', userMiddleware, getContractStatistics);
 
 /**
  * @route   GET /api/contracts/client/:clientId
@@ -109,7 +109,7 @@ router.get('/statistics', userMiddleware, firmFilter, getContractStatistics);
  * @query   {number} [limit=20] - Number of results per page
  * @returns {Array<Contract>} List of contracts for the specified client
  */
-router.get('/client/:clientId', userMiddleware, firmFilter, getContractsByClient);
+router.get('/client/:clientId', userMiddleware, getContractsByClient);
 
 // ============================================
 // TEMPLATE ROUTES
@@ -123,7 +123,7 @@ router.get('/client/:clientId', userMiddleware, firmFilter, getContractsByClient
  * @query   {string} [contractType] - Filter by contract type
  * @returns {Array<Template>} List of contract templates
  */
-router.get('/templates', userMiddleware, firmFilter, getTemplates);
+router.get('/templates', userMiddleware, getTemplates);
 
 /**
  * @route   POST /api/contracts/templates/:templateId/use
@@ -133,7 +133,7 @@ router.get('/templates', userMiddleware, firmFilter, getTemplates);
  * @body    {Object} data - Contract-specific data to populate template
  * @returns {Contract} Newly created contract from template
  */
-router.post('/templates/:templateId/use', userMiddleware, firmFilter, createFromTemplate);
+router.post('/templates/:templateId/use', userMiddleware, createFromTemplate);
 
 // ============================================
 // MAIN CRUD ROUTES
@@ -154,7 +154,7 @@ router.post('/templates/:templateId/use', userMiddleware, firmFilter, createFrom
  * @query   {string} [order] - Sort order (asc, desc)
  * @returns {Object} Paginated list of contracts with metadata
  */
-router.get('/', userMiddleware, firmFilter, listContracts);
+router.get('/', userMiddleware, listContracts);
 
 /**
  * @route   POST /api/contracts
@@ -171,7 +171,7 @@ router.get('/', userMiddleware, firmFilter, listContracts);
  * @body    {Array<Object>} [contract.clauses] - Contract clauses
  * @returns {Contract} Newly created contract
  */
-router.post('/', userMiddleware, firmFilter, createContract);
+router.post('/', userMiddleware, createContract);
 
 /**
  * @route   GET /api/contracts/:contractId
@@ -180,7 +180,7 @@ router.post('/', userMiddleware, firmFilter, createContract);
  * @param   {string} contractId - Contract ID
  * @returns {Contract} Contract details including parties, signatures, amendments, etc.
  */
-router.get('/:contractId', userMiddleware, firmFilter, getContract);
+router.get('/:contractId', userMiddleware, getContract);
 
 /**
  * @route   PATCH /api/contracts/:contractId
@@ -190,7 +190,7 @@ router.get('/:contractId', userMiddleware, firmFilter, getContract);
  * @body    {Object} updates - Fields to update
  * @returns {Contract} Updated contract
  */
-router.patch('/:contractId', userMiddleware, firmFilter, updateContract);
+router.patch('/:contractId', userMiddleware, updateContract);
 
 /**
  * @route   DELETE /api/contracts/:contractId
@@ -199,7 +199,7 @@ router.patch('/:contractId', userMiddleware, firmFilter, updateContract);
  * @param   {string} contractId - Contract ID
  * @returns {Object} Success message
  */
-router.delete('/:contractId', userMiddleware, firmFilter, deleteContract);
+router.delete('/:contractId', userMiddleware, deleteContract);
 
 // ============================================
 // PARTY ROUTES
@@ -219,7 +219,7 @@ router.delete('/:contractId', userMiddleware, firmFilter, deleteContract);
  * @body    {Object} [party.address] - Party address
  * @returns {Contract} Updated contract with new party
  */
-router.post('/:contractId/parties', userMiddleware, firmFilter, addParty);
+router.post('/:contractId/parties', userMiddleware, addParty);
 
 /**
  * @route   PATCH /api/contracts/:contractId/parties/:partyIndex
@@ -230,7 +230,7 @@ router.post('/:contractId/parties', userMiddleware, firmFilter, addParty);
  * @body    {Object} updates - Party fields to update
  * @returns {Contract} Updated contract
  */
-router.patch('/:contractId/parties/:partyIndex', userMiddleware, firmFilter, updateParty);
+router.patch('/:contractId/parties/:partyIndex', userMiddleware, updateParty);
 
 /**
  * @route   DELETE /api/contracts/:contractId/parties/:partyIndex
@@ -240,7 +240,7 @@ router.patch('/:contractId/parties/:partyIndex', userMiddleware, firmFilter, upd
  * @param   {number} partyIndex - Index of party in parties array
  * @returns {Contract} Updated contract without removed party
  */
-router.delete('/:contractId/parties/:partyIndex', userMiddleware, firmFilter, removeParty);
+router.delete('/:contractId/parties/:partyIndex', userMiddleware, removeParty);
 
 // ============================================
 // SIGNATURE ROUTES
@@ -256,7 +256,7 @@ router.delete('/:contractId/parties/:partyIndex', userMiddleware, firmFilter, re
  * @body    {string} [method] - Signature method (digital, wet, najiz, etc.)
  * @returns {Object} Signature workflow details
  */
-router.post('/:contractId/signatures/initiate', userMiddleware, firmFilter, initiateSignature);
+router.post('/:contractId/signatures/initiate', userMiddleware, initiateSignature);
 
 /**
  * @route   POST /api/contracts/:contractId/signatures/:partyIndex
@@ -271,7 +271,7 @@ router.post('/:contractId/signatures/initiate', userMiddleware, firmFilter, init
  * @body    {Object} [metadata] - Additional signature metadata
  * @returns {Contract} Updated contract with signature recorded
  */
-router.post('/:contractId/signatures/:partyIndex', userMiddleware, firmFilter, recordSignature);
+router.post('/:contractId/signatures/:partyIndex', userMiddleware, recordSignature);
 
 /**
  * @route   GET /api/contracts/:contractId/signatures
@@ -280,7 +280,7 @@ router.post('/:contractId/signatures/:partyIndex', userMiddleware, firmFilter, r
  * @param   {string} contractId - Contract ID
  * @returns {Object} Signature status including signed/pending parties, completion percentage
  */
-router.get('/:contractId/signatures', userMiddleware, firmFilter, getSignatureStatus);
+router.get('/:contractId/signatures', userMiddleware, getSignatureStatus);
 
 // ============================================
 // AMENDMENT ROUTES
@@ -299,7 +299,7 @@ router.get('/:contractId/signatures', userMiddleware, firmFilter, getSignatureSt
  * @body    {Array<string>} [attachments] - Amendment document attachments
  * @returns {Contract} Updated contract with new amendment
  */
-router.post('/:contractId/amendments', userMiddleware, firmFilter, addAmendment);
+router.post('/:contractId/amendments', userMiddleware, addAmendment);
 
 /**
  * @route   GET /api/contracts/:contractId/amendments
@@ -308,7 +308,7 @@ router.post('/:contractId/amendments', userMiddleware, firmFilter, addAmendment)
  * @param   {string} contractId - Contract ID
  * @returns {Array<Amendment>} List of all amendments in chronological order
  */
-router.get('/:contractId/amendments', userMiddleware, firmFilter, getAmendments);
+router.get('/:contractId/amendments', userMiddleware, getAmendments);
 
 // ============================================
 // VERSION ROUTES
@@ -322,7 +322,7 @@ router.get('/:contractId/amendments', userMiddleware, firmFilter, getAmendments)
  * @body    {string} [versionNote] - Note describing this version
  * @returns {Object} Version details including version number
  */
-router.post('/:contractId/versions', userMiddleware, firmFilter, createVersion);
+router.post('/:contractId/versions', userMiddleware, createVersion);
 
 /**
  * @route   GET /api/contracts/:contractId/versions
@@ -331,7 +331,7 @@ router.post('/:contractId/versions', userMiddleware, firmFilter, createVersion);
  * @param   {string} contractId - Contract ID
  * @returns {Array<Version>} List of all versions with timestamps and changes
  */
-router.get('/:contractId/versions', userMiddleware, firmFilter, getVersionHistory);
+router.get('/:contractId/versions', userMiddleware, getVersionHistory);
 
 /**
  * @route   POST /api/contracts/:contractId/versions/:versionNumber/revert
@@ -342,7 +342,7 @@ router.get('/:contractId/versions', userMiddleware, firmFilter, getVersionHistor
  * @body    {string} [reason] - Reason for reversion
  * @returns {Contract} Contract reverted to specified version
  */
-router.post('/:contractId/versions/:versionNumber/revert', userMiddleware, firmFilter, revertToVersion);
+router.post('/:contractId/versions/:versionNumber/revert', userMiddleware, revertToVersion);
 
 // ============================================
 // NAJIZ INTEGRATION ROUTES
@@ -361,7 +361,7 @@ router.post('/:contractId/versions/:versionNumber/revert', userMiddleware, firmF
  * @body    {Object} [metadata] - Additional Najiz metadata
  * @returns {Contract} Updated contract with notarization details
  */
-router.post('/:contractId/notarization', userMiddleware, firmFilter, recordNotarization);
+router.post('/:contractId/notarization', userMiddleware, recordNotarization);
 
 /**
  * @route   GET /api/contracts/:contractId/notarization/verify
@@ -370,7 +370,7 @@ router.post('/:contractId/notarization', userMiddleware, firmFilter, recordNotar
  * @param   {string} contractId - Contract ID
  * @returns {Object} Verification status from Najiz including validity, expiry, etc.
  */
-router.get('/:contractId/notarization/verify', userMiddleware, firmFilter, verifyNotarization);
+router.get('/:contractId/notarization/verify', userMiddleware, verifyNotarization);
 
 // ============================================
 // ENFORCEMENT ROUTES
@@ -390,7 +390,7 @@ router.get('/:contractId/notarization/verify', userMiddleware, firmFilter, verif
  * @body    {Array<string>} [evidence] - Evidence documents/attachments
  * @returns {Contract} Updated contract with breach record
  */
-router.post('/:contractId/breach', userMiddleware, firmFilter, recordBreach);
+router.post('/:contractId/breach', userMiddleware, recordBreach);
 
 /**
  * @route   POST /api/contracts/:contractId/enforcement
@@ -404,7 +404,7 @@ router.post('/:contractId/breach', userMiddleware, firmFilter, recordBreach);
  * @body    {Object} [details] - Additional enforcement details
  * @returns {Contract} Updated contract with enforcement record
  */
-router.post('/:contractId/enforcement', userMiddleware, firmFilter, initiateEnforcement);
+router.post('/:contractId/enforcement', userMiddleware, initiateEnforcement);
 
 /**
  * @route   PATCH /api/contracts/:contractId/enforcement
@@ -417,7 +417,7 @@ router.post('/:contractId/enforcement', userMiddleware, firmFilter, initiateEnfo
  * @body    {Object} [updates] - Other fields to update
  * @returns {Contract} Updated contract with new enforcement status
  */
-router.patch('/:contractId/enforcement', userMiddleware, firmFilter, updateEnforcementStatus);
+router.patch('/:contractId/enforcement', userMiddleware, updateEnforcementStatus);
 
 /**
  * @route   POST /api/contracts/:contractId/link-case
@@ -428,7 +428,7 @@ router.patch('/:contractId/enforcement', userMiddleware, firmFilter, updateEnfor
  * @body    {string} [relationship] - Nature of relationship (enforcement, dispute, reference, etc.)
  * @returns {Contract} Updated contract with case link
  */
-router.post('/:contractId/link-case', userMiddleware, firmFilter, linkToCase);
+router.post('/:contractId/link-case', userMiddleware, linkToCase);
 
 // ============================================
 // REMINDER ROUTES
@@ -446,7 +446,7 @@ router.post('/:contractId/link-case', userMiddleware, firmFilter, linkToCase);
  * @body    {string} [priority] - Priority level
  * @returns {Object} Created reminder details
  */
-router.post('/:contractId/reminders', userMiddleware, firmFilter, setReminder);
+router.post('/:contractId/reminders', userMiddleware, setReminder);
 
 /**
  * @route   GET /api/contracts/:contractId/reminders
@@ -456,7 +456,7 @@ router.post('/:contractId/reminders', userMiddleware, firmFilter, setReminder);
  * @query   {boolean} [activeOnly=true] - Only return active/pending reminders
  * @returns {Array<Reminder>} List of contract reminders
  */
-router.get('/:contractId/reminders', userMiddleware, firmFilter, getReminders);
+router.get('/:contractId/reminders', userMiddleware, getReminders);
 
 // ============================================
 // EXPORT ROUTES
@@ -472,7 +472,7 @@ router.get('/:contractId/reminders', userMiddleware, firmFilter, getReminders);
  * @query   {string} [template] - PDF template to use
  * @returns {File} PDF file download
  */
-router.get('/:contractId/export/pdf', userMiddleware, firmFilter, exportToPdf);
+router.get('/:contractId/export/pdf', userMiddleware, exportToPdf);
 
 /**
  * @route   GET /api/contracts/:contractId/export/word
@@ -483,7 +483,7 @@ router.get('/:contractId/export/pdf', userMiddleware, firmFilter, exportToPdf);
  * @query   {string} [template] - Word template to use
  * @returns {File} Word document download
  */
-router.get('/:contractId/export/word', userMiddleware, firmFilter, exportToWord);
+router.get('/:contractId/export/word', userMiddleware, exportToWord);
 
 // ============================================
 // TEMPLATE SAVE ROUTE
@@ -501,6 +501,6 @@ router.get('/:contractId/export/word', userMiddleware, firmFilter, exportToWord)
  * @body    {boolean} [isFirmWide=true] - Make template available to entire firm
  * @returns {Template} Created template details
  */
-router.post('/:contractId/save-as-template', userMiddleware, firmFilter, saveAsTemplate);
+router.post('/:contractId/save-as-template', userMiddleware, saveAsTemplate);
 
 module.exports = router;

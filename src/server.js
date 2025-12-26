@@ -780,6 +780,13 @@ app.use('/api', checkSessionTimeout);
 // ✅ API VERSIONING: Extract and validate API version from URL or headers
 app.use('/api', apiVersionMiddleware);
 
+// ============================================
+// GLOBAL FIRM CONTEXT (Row-Level Security)
+// ============================================
+// Automatically sets firm context on all /api routes
+// No need to add firmFilter to individual routes anymore!
+const { globalFirmContext } = require('./middlewares/globalFirmContext.middleware');
+app.use('/api', globalFirmContext);
 
 // ✅ PERFORMANCE: Static files with caching (optimized for frontend service worker)
 app.use('/uploads', express.static('uploads', {

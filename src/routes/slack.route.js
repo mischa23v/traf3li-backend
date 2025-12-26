@@ -1,5 +1,5 @@
 const express = require('express');
-const { userMiddleware, firmFilter } = require('../middlewares');
+const { userMiddleware } = require('../middlewares');
 const {
     getAuthUrl,
     handleCallback,
@@ -28,7 +28,7 @@ const router = express.Router();
  * Returns the Slack OAuth URL that users should visit to authorize
  * the integration.
  */
-router.get('/auth-url', userMiddleware, firmFilter, getAuthUrl);
+router.get('/auth-url', userMiddleware, getAuthUrl);
 
 /**
  * OAuth callback handler
@@ -54,7 +54,7 @@ router.get('/callback', handleCallback);
  * - Statistics
  * - Settings
  */
-router.get('/status', userMiddleware, firmFilter, getStatus);
+router.get('/status', userMiddleware, getStatus);
 
 /**
  * Disconnect Slack integration
@@ -62,7 +62,7 @@ router.get('/status', userMiddleware, firmFilter, getStatus);
  *
  * Revokes access tokens and disconnects the Slack integration.
  */
-router.post('/disconnect', userMiddleware, firmFilter, disconnect);
+router.post('/disconnect', userMiddleware, disconnect);
 
 /**
  * Test Slack connection
@@ -71,7 +71,7 @@ router.post('/disconnect', userMiddleware, firmFilter, disconnect);
  * Sends a test message to verify the integration is working.
  * Useful for troubleshooting connection issues.
  */
-router.post('/test', userMiddleware, firmFilter, testConnection);
+router.post('/test', userMiddleware, testConnection);
 
 // ═══════════════════════════════════════════════════════════════
 // MESSAGING
@@ -90,7 +90,7 @@ router.post('/test', userMiddleware, firmFilter, testConnection);
  *   "threadTs": "1234.5678" // Optional: Reply in thread
  * }
  */
-router.post('/message', userMiddleware, firmFilter, sendMessage);
+router.post('/message', userMiddleware, sendMessage);
 
 // ═══════════════════════════════════════════════════════════════
 // CHANNEL OPERATIONS
@@ -102,7 +102,7 @@ router.post('/message', userMiddleware, firmFilter, sendMessage);
  *
  * Returns list of public and private channels that the bot has access to.
  */
-router.get('/channels', userMiddleware, firmFilter, listChannels);
+router.get('/channels', userMiddleware, listChannels);
 
 /**
  * Create new Slack channel
@@ -114,7 +114,7 @@ router.get('/channels', userMiddleware, firmFilter, listChannels);
  *   "isPrivate": false          // Optional: default false
  * }
  */
-router.post('/channels', userMiddleware, firmFilter, createChannel);
+router.post('/channels', userMiddleware, createChannel);
 
 // ═══════════════════════════════════════════════════════════════
 // SETTINGS
@@ -126,7 +126,7 @@ router.post('/channels', userMiddleware, firmFilter, createChannel);
  *
  * Returns current notification preferences and sync settings.
  */
-router.get('/settings', userMiddleware, firmFilter, getSettings);
+router.get('/settings', userMiddleware, getSettings);
 
 /**
  * Update integration settings
@@ -149,7 +149,7 @@ router.get('/settings', userMiddleware, firmFilter, getSettings);
  *   "useThreads": false
  * }
  */
-router.put('/settings', userMiddleware, firmFilter, updateSettings);
+router.put('/settings', userMiddleware, updateSettings);
 
 // ═══════════════════════════════════════════════════════════════
 // WEBHOOK ENDPOINT
@@ -177,6 +177,6 @@ router.post('/webhook', handleWebhook);
  *
  * Retrieves user profile from Slack workspace.
  */
-router.get('/users/:slackUserId', userMiddleware, firmFilter, getUserInfo);
+router.get('/users/:slackUserId', userMiddleware, getUserInfo);
 
 module.exports = router;

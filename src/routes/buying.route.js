@@ -8,7 +8,7 @@
  */
 
 const express = require('express');
-const { userMiddleware, firmFilter } = require('../middlewares');
+const { userMiddleware } = require('../middlewares');
 const { auditAction } = require('../middlewares/auditLog.middleware');
 const {
     validateCreateSupplier,
@@ -78,21 +78,18 @@ const router = express.Router();
 // Get buying statistics
 router.get('/stats',
     userMiddleware,
-    firmFilter,
     getStats
 );
 
 // Get buying settings
 router.get('/settings',
     userMiddleware,
-    firmFilter,
     getSettings
 );
 
 // Update buying settings
 router.put('/settings',
     userMiddleware,
-    firmFilter,
     validateUpdateSettings,
     auditAction('update_buying_settings', 'buying', { captureChanges: true }),
     updateSettings
@@ -103,14 +100,12 @@ router.put('/settings',
 // Get supplier groups
 router.get('/supplier-groups',
     userMiddleware,
-    firmFilter,
     getSupplierGroups
 );
 
 // Create supplier
 router.post('/suppliers',
     userMiddleware,
-    firmFilter,
     validateCreateSupplier,
     auditAction('create_supplier', 'supplier', { severity: 'medium' }),
     createSupplier
@@ -119,21 +114,18 @@ router.post('/suppliers',
 // Get all suppliers (with pagination and filters)
 router.get('/suppliers',
     userMiddleware,
-    firmFilter,
     getSuppliers
 );
 
 // Get single supplier
 router.get('/suppliers/:id',
     userMiddleware,
-    firmFilter,
     getSupplierById
 );
 
 // Update supplier
 router.put('/suppliers/:id',
     userMiddleware,
-    firmFilter,
     validateUpdateSupplier,
     auditAction('update_supplier', 'supplier', { captureChanges: true }),
     updateSupplier
@@ -142,7 +134,6 @@ router.put('/suppliers/:id',
 // Delete supplier
 router.delete('/suppliers/:id',
     userMiddleware,
-    firmFilter,
     auditAction('delete_supplier', 'supplier', { severity: 'high' }),
     deleteSupplier
 );
@@ -152,7 +143,6 @@ router.delete('/suppliers/:id',
 // Create purchase order
 router.post('/purchase-orders',
     userMiddleware,
-    firmFilter,
     validateCreatePurchaseOrder,
     auditAction('create_purchase_order', 'purchase_order', { severity: 'medium' }),
     createPurchaseOrder
@@ -161,21 +151,18 @@ router.post('/purchase-orders',
 // Get all purchase orders (with pagination and filters)
 router.get('/purchase-orders',
     userMiddleware,
-    firmFilter,
     getPurchaseOrders
 );
 
 // Get single purchase order
 router.get('/purchase-orders/:id',
     userMiddleware,
-    firmFilter,
     getPurchaseOrderById
 );
 
 // Submit purchase order
 router.post('/purchase-orders/:id/submit',
     userMiddleware,
-    firmFilter,
     auditAction('submit_purchase_order', 'purchase_order'),
     submitPurchaseOrder
 );
@@ -183,7 +170,6 @@ router.post('/purchase-orders/:id/submit',
 // Approve purchase order
 router.post('/purchase-orders/:id/approve',
     userMiddleware,
-    firmFilter,
     auditAction('approve_purchase_order', 'purchase_order'),
     approvePurchaseOrder
 );
@@ -191,7 +177,6 @@ router.post('/purchase-orders/:id/approve',
 // Cancel purchase order
 router.post('/purchase-orders/:id/cancel',
     userMiddleware,
-    firmFilter,
     auditAction('cancel_purchase_order', 'purchase_order'),
     cancelPurchaseOrder
 );
@@ -199,7 +184,6 @@ router.post('/purchase-orders/:id/cancel',
 // Delete purchase order
 router.delete('/purchase-orders/:id',
     userMiddleware,
-    firmFilter,
     auditAction('delete_purchase_order', 'purchase_order', { severity: 'high' }),
     deletePurchaseOrder
 );
@@ -209,7 +193,6 @@ router.delete('/purchase-orders/:id',
 // Create purchase receipt
 router.post('/purchase-receipts',
     userMiddleware,
-    firmFilter,
     validateCreatePurchaseReceipt,
     auditAction('create_purchase_receipt', 'purchase_receipt', { severity: 'medium' }),
     createPurchaseReceipt
@@ -218,21 +201,18 @@ router.post('/purchase-receipts',
 // Get all purchase receipts (with pagination and filters)
 router.get('/purchase-receipts',
     userMiddleware,
-    firmFilter,
     getPurchaseReceipts
 );
 
 // Get single purchase receipt
 router.get('/purchase-receipts/:id',
     userMiddleware,
-    firmFilter,
     getPurchaseReceiptById
 );
 
 // Submit purchase receipt
 router.post('/purchase-receipts/:id/submit',
     userMiddleware,
-    firmFilter,
     auditAction('submit_purchase_receipt', 'purchase_receipt'),
     submitPurchaseReceipt
 );
@@ -242,7 +222,6 @@ router.post('/purchase-receipts/:id/submit',
 // Create purchase invoice
 router.post('/purchase-invoices',
     userMiddleware,
-    firmFilter,
     validateCreatePurchaseInvoice,
     auditAction('create_purchase_invoice', 'purchase_invoice', { severity: 'medium' }),
     createPurchaseInvoice
@@ -251,21 +230,18 @@ router.post('/purchase-invoices',
 // Get all purchase invoices (with pagination and filters)
 router.get('/purchase-invoices',
     userMiddleware,
-    firmFilter,
     getPurchaseInvoices
 );
 
 // Get single purchase invoice
 router.get('/purchase-invoices/:id',
     userMiddleware,
-    firmFilter,
     getPurchaseInvoiceById
 );
 
 // Submit purchase invoice
 router.post('/purchase-invoices/:id/submit',
     userMiddleware,
-    firmFilter,
     auditAction('submit_purchase_invoice', 'purchase_invoice'),
     submitPurchaseInvoice
 );
@@ -275,7 +251,6 @@ router.post('/purchase-invoices/:id/submit',
 // Create material request
 router.post('/material-requests',
     userMiddleware,
-    firmFilter,
     validateCreateMaterialRequest,
     auditAction('create_material_request', 'material_request', { severity: 'medium' }),
     createMaterialRequest
@@ -284,14 +259,12 @@ router.post('/material-requests',
 // Get all material requests (with pagination and filters)
 router.get('/material-requests',
     userMiddleware,
-    firmFilter,
     getMaterialRequests
 );
 
 // Get single material request
 router.get('/material-requests/:id',
     userMiddleware,
-    firmFilter,
     getMaterialRequestById
 );
 
@@ -300,7 +273,6 @@ router.get('/material-requests/:id',
 // Create RFQ
 router.post('/rfqs',
     userMiddleware,
-    firmFilter,
     validateCreateRFQ,
     auditAction('create_rfq', 'rfq', { severity: 'medium' }),
     createRFQ
@@ -309,21 +281,18 @@ router.post('/rfqs',
 // Get all RFQs (with pagination and filters)
 router.get('/rfqs',
     userMiddleware,
-    firmFilter,
     getRFQs
 );
 
 // Get single RFQ
 router.get('/rfqs/:id',
     userMiddleware,
-    firmFilter,
     getRFQById
 );
 
 // Update RFQ
 router.put('/rfqs/:id',
     userMiddleware,
-    firmFilter,
     validateUpdateRFQ,
     auditAction('update_rfq', 'rfq', { captureChanges: true }),
     updateRFQ
@@ -332,7 +301,6 @@ router.put('/rfqs/:id',
 // Submit RFQ
 router.post('/rfqs/:id/submit',
     userMiddleware,
-    firmFilter,
     auditAction('submit_rfq', 'rfq'),
     submitRFQ
 );
@@ -340,7 +308,6 @@ router.post('/rfqs/:id/submit',
 // Delete RFQ
 router.delete('/rfqs/:id',
     userMiddleware,
-    firmFilter,
     auditAction('delete_rfq', 'rfq', { severity: 'high' }),
     deleteRFQ
 );

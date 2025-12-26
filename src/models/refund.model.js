@@ -561,10 +561,4 @@ refundSchema.statics.REFUND_REASONS = REFUND_REASONS;
 refundSchema.statics.REFUND_TYPES = REFUND_TYPES;
 refundSchema.statics.REFUND_METHODS = REFUND_METHODS;
 
-// ═══════════════════════════════════════════════════════════════
-// FIRM ISOLATION PLUGIN (RLS-like enforcement)
-// ═══════════════════════════════════════════════════════════════
-const firmIsolationPlugin = require('./plugins/firmIsolation.plugin');
-refundSchema.plugin(firmIsolationPlugin);
-
 module.exports = mongoose.model('Refund', refundSchema);

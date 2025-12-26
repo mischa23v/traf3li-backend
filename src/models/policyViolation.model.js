@@ -772,23 +772,4 @@ policyViolationSchema.statics.VIOLATION_TYPES = VIOLATION_TYPES;
 policyViolationSchema.statics.SEVERITY_LEVELS = SEVERITY_LEVELS;
 policyViolationSchema.statics.VIOLATION_STATUSES = VIOLATION_STATUSES;
 
-// ═══════════════════════════════════════════════════════════════
-// FIRM ISOLATION PLUGIN (RLS-like enforcement)
-// ═══════════════════════════════════════════════════════════════
-const firmIsolationPlugin = require('./plugins/firmIsolation.plugin');
-
-/**
- * Apply Row-Level Security (RLS) plugin to enforce firm-level data isolation.
- * This ensures that all queries automatically filter by firmId unless explicitly bypassed.
- *
- * Usage:
- *   // Normal queries (firmId required):
- *   await PolicyViolation.find({ firmId: myFirmId, status: 'open' });
- *
- *   // System-level queries (bypass):
- *   await PolicyViolation.findWithoutFirmFilter({ _id: violationId });
- *   await PolicyViolation.find({}).setOptions({ bypassFirmFilter: true });
- */
-policyViolationSchema.plugin(firmIsolationPlugin);
-
 module.exports = mongoose.model('PolicyViolation', policyViolationSchema);

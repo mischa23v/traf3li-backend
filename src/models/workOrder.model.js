@@ -410,10 +410,4 @@ workOrderSchema.methods.completeProduction = async function(completedQty) {
     return this;
 };
 
-// ═══════════════════════════════════════════════════════════════
-// FIRM ISOLATION PLUGIN (RLS-like enforcement)
-// ═══════════════════════════════════════════════════════════════
-const firmIsolationPlugin = require('./plugins/firmIsolation.plugin');
-workOrderSchema.plugin(firmIsolationPlugin);
-
 module.exports = mongoose.model('WorkOrder', workOrderSchema);

@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const mlScoringController = require('../controllers/mlScoring.controller');
-const { userMiddleware, firmFilter, firmAdminOnly } = require('../middlewares');
+const { userMiddleware, firmAdminOnly } = require('../middlewares');
 const {
     validateGetScoresQuery,
     validateLeadIdParam,
@@ -19,8 +19,8 @@ const {
 // Machine Learning-enhanced lead scoring with priority queuing
 // ═══════════════════════════════════════════════════════════════
 
-// All routes require authentication and firm context
-router.use(userMiddleware, firmFilter);
+// All routes require authentication
+router.use(userMiddleware);
 
 // ───────────────────────────────────────────────────────────────
 // SCORE ENDPOINTS

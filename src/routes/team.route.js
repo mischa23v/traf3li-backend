@@ -6,7 +6,7 @@
  */
 
 const express = require('express');
-const { userMiddleware, firmFilter, teamManagementOnly } = require('../middlewares');
+const { userMiddleware, teamManagementOnly } = require('../middlewares');
 const {
     getTeam,
     getTeamMember,
@@ -27,8 +27,8 @@ const {
 
 const router = express.Router();
 
-// Apply authentication and firm filter to all routes
-router.use(userMiddleware, firmFilter);
+// Apply authentication to all routes
+router.use(userMiddleware);
 
 // ═══════════════════════════════════════════════════════════════
 // UTILITY ROUTES (must come before :id routes)

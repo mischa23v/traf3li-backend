@@ -9,13 +9,12 @@ const express = require('express');
 const router = express.Router();
 const apiKeyController = require('../controllers/apiKey.controller');
 const { userMiddleware } = require('../middlewares');
-const { firmFilter, firmAdminOnly } = require('../middlewares/firmFilter.middleware');
+const { firmAdminOnly } = require('../middlewares/firmFilter.middleware');
 const { requireFeature } = require('../middlewares/planCheck.middleware');
 const { sensitiveRateLimiter } = require('../middlewares/rateLimiter.middleware');
 
-// All routes require authentication and firm membership
+// All routes require authentication
 router.use(userMiddleware);
-router.use(firmFilter);
 
 // All routes require api_access feature (Professional+)
 router.use(requireFeature('api_access'));

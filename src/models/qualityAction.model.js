@@ -292,10 +292,4 @@ qualityActionSchema.methods.extendDeadline = async function(newTargetDate, userI
     return this.save();
 };
 
-// ═══════════════════════════════════════════════════════════════
-// FIRM ISOLATION PLUGIN (RLS-like enforcement)
-// ═══════════════════════════════════════════════════════════════
-const firmIsolationPlugin = require('./plugins/firmIsolation.plugin');
-qualityActionSchema.plugin(firmIsolationPlugin);
-
 module.exports = mongoose.model('QualityAction', qualityActionSchema);

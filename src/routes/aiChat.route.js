@@ -13,7 +13,7 @@
  */
 
 const express = require('express');
-const { userMiddleware, firmFilter } = require('../middlewares');
+const { userMiddleware } = require('../middlewares');
 const {
     sendMessage,
     streamMessage,
@@ -40,7 +40,7 @@ const router = express.Router();
  * @filter firmFilter - Filters by authenticated user's firm
  * @returns {Object[]} Array of available AI providers
  */
-router.get('/providers', userMiddleware, firmFilter, getProviders);
+router.get('/providers', userMiddleware, getProviders);
 
 // =============================================================================
 // Message Routes
@@ -59,7 +59,7 @@ router.get('/providers', userMiddleware, firmFilter, getProviders);
  * @body {string} [provider] - Optional provider selection (defaults to firm's primary provider)
  * @returns {Object} Response containing AI message and conversation metadata
  */
-router.post('/', userMiddleware, firmFilter, sendMessage);
+router.post('/', userMiddleware, sendMessage);
 
 /**
  * POST /ai-chat/stream
@@ -74,7 +74,7 @@ router.post('/', userMiddleware, firmFilter, sendMessage);
  * @body {string} [provider] - Optional provider selection (defaults to firm's primary provider)
  * @returns {EventStream} Server-Sent Events stream with AI response tokens
  */
-router.post('/stream', userMiddleware, firmFilter, streamMessage);
+router.post('/stream', userMiddleware, streamMessage);
 
 // =============================================================================
 // Conversation Management Routes
@@ -92,7 +92,7 @@ router.post('/stream', userMiddleware, firmFilter, streamMessage);
  * @query {number} [limit=20] - Number of conversations per page
  * @returns {Object} Paginated list of conversations with metadata
  */
-router.get('/conversations', userMiddleware, firmFilter, getConversations);
+router.get('/conversations', userMiddleware, getConversations);
 
 /**
  * GET /ai-chat/conversations/:conversationId
@@ -105,7 +105,7 @@ router.get('/conversations', userMiddleware, firmFilter, getConversations);
  * @param {string} conversationId - The conversation ID
  * @returns {Object} Conversation object with complete message history
  */
-router.get('/conversations/:conversationId', userMiddleware, firmFilter, getConversation);
+router.get('/conversations/:conversationId', userMiddleware, getConversation);
 
 /**
  * PATCH /ai-chat/conversations/:conversationId
@@ -119,7 +119,7 @@ router.get('/conversations/:conversationId', userMiddleware, firmFilter, getConv
  * @body {string} title - The new conversation title
  * @returns {Object} Updated conversation object
  */
-router.patch('/conversations/:conversationId', userMiddleware, firmFilter, updateConversationTitle);
+router.patch('/conversations/:conversationId', userMiddleware, updateConversationTitle);
 
 /**
  * DELETE /ai-chat/conversations/:conversationId
@@ -133,7 +133,7 @@ router.patch('/conversations/:conversationId', userMiddleware, firmFilter, updat
  * @param {string} conversationId - The conversation ID
  * @returns {Object} Success confirmation message
  */
-router.delete('/conversations/:conversationId', userMiddleware, firmFilter, deleteConversation);
+router.delete('/conversations/:conversationId', userMiddleware, deleteConversation);
 
 // =============================================================================
 // Export Router
