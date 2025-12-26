@@ -1,7 +1,14 @@
+const mongoose = require('mongoose');
 const { User, Firm, FirmInvitation } = require('../models');
 const { CustomException } = require('../utils');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
+
+/**
+ * Check if MongoDB is connected
+ * @returns {boolean} - True if connected
+ */
+const isMongoConnected = () => mongoose.connection.readyState === 1;
 const { schemas: authSchemas } = require('../validators/auth.validator');
 const { getDefaultPermissions, getSoloLawyerPermissions, isSoloLawyer: checkIsSoloLawyer } = require('../config/permissions.config');
 const auditLogService = require('../services/auditLog.service');
@@ -214,6 +221,17 @@ const authRegister = async (request, response) => {
     } = request.body;
 
     try {
+        // Check MongoDB connection before attempting registration
+        if (!isMongoConnected()) {
+            logger.warn('Registration request while MongoDB disconnected');
+            return response.status(503).json({
+                error: true,
+                message: 'Service temporarily unavailable - database connection issue',
+                messageAr: 'الخدمة غير متاحة مؤقتًا - مشكلة في الاتصال بقاعدة البيانات',
+                code: 'SERVICE_UNAVAILABLE'
+            });
+        }
+
         // ═══════════════════════════════════════════════════════════════
         // JOI VALIDATION - Validate all input fields
         // ═══════════════════════════════════════════════════════════════
@@ -605,6 +623,17 @@ const authLogin = async (request, response) => {
     const userAgent = request.headers['user-agent'] || 'unknown';
 
     try {
+        // Check MongoDB connection before attempting login
+        if (!isMongoConnected()) {
+            logger.warn('Login request while MongoDB disconnected');
+            return response.status(503).json({
+                error: true,
+                message: 'Service temporarily unavailable - database connection issue',
+                messageAr: 'الخدمة غير متاحة مؤقتًا - مشكلة في الاتصال بقاعدة البيانات',
+                code: 'SERVICE_UNAVAILABLE'
+            });
+        }
+
         // ═══════════════════════════════════════════════════════════════
         // JOI VALIDATION - Validate login inputs
         // ═══════════════════════════════════════════════════════════════
@@ -1301,6 +1330,16 @@ const checkAvailability = async (request, response) => {
     const ipAddress = request.ip || request.headers['x-forwarded-for']?.split(',')[0] || 'unknown';
 
     try {
+        // Check MongoDB connection before attempting query
+        if (!isMongoConnected()) {
+            logger.warn('Check availability request while MongoDB disconnected');
+            return response.status(503).json({
+                error: true,
+                message: 'Service temporarily unavailable - database connection issue',
+                code: 'SERVICE_UNAVAILABLE'
+            });
+        }
+
         // ═══════════════════════════════════════════════════════════════
         // JOI VALIDATION - Validate availability check inputs
         // ═══════════════════════════════════════════════════════════════

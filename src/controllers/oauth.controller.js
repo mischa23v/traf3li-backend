@@ -1,9 +1,16 @@
+const mongoose = require('mongoose');
 const oauthService = require('../services/oauth.service');
 const { CustomException } = require('../utils');
 const logger = require('../utils/contextLogger');
 const { getCookieConfig } = require('./auth.controller');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 const authWebhookService = require('../services/authWebhook.service');
+
+/**
+ * Check if MongoDB is connected
+ * @returns {boolean} - True if connected
+ */
+const isMongoConnected = () => mongoose.connection.readyState === 1;
 
 /**
  * Allowed OAuth provider types
@@ -132,6 +139,16 @@ const validateAuthCode = (code) => {
  */
 const getEnabledProviders = async (request, response) => {
     try {
+        // Check MongoDB connection before attempting query
+        if (!isMongoConnected()) {
+            logger.warn('SSO providers request while MongoDB disconnected');
+            return response.status(503).json({
+                error: true,
+                message: 'Service temporarily unavailable - database connection issue',
+                providers: []
+            });
+        }
+
         // Get firmId from authenticated user if available
         let firmId = request.user?.firmId || request.query.firmId || null;
 
