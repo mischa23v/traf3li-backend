@@ -453,7 +453,8 @@ const server = http.createServer(app);
 // Required when running behind a reverse proxy (Render, Cloudflare, etc.)
 // This allows express-rate-limit to correctly identify client IPs from X-Forwarded-For header
 // See: https://expressjs.com/en/guide/behind-proxies.html
-app.set('trust proxy', true);
+// Using 1 instead of true to trust only the first proxy hop (fixes express-rate-limit ERR_ERL_PERMISSIVE_TRUST_PROXY)
+app.set('trust proxy', 1);
 
 // ============================================
 // SENTRY REQUEST HANDLERS - Must be first middleware
