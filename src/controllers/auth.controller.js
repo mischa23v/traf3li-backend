@@ -1407,8 +1407,8 @@ const authStatus = async (request, response) => {
                         .exec();
 
                     if (firm) {
-                        const member = firm.members.find(
-                            m => m.userId.toString() === user._id.toString()
+                        const member = firm.members?.find(
+                            m => m.userId?.toString() === user._id.toString()
                         );
 
                         // Tenant context (Casbin-style domain info)
@@ -1458,7 +1458,9 @@ const authStatus = async (request, response) => {
             user: userData
         });
     }
-    catch({message, status = 500}) {
+    catch(error) {
+        const message = error?.message || 'An error occurred';
+        const status = error?.status || 500;
         return response.status(status).send({
             error: true,
             message
@@ -1784,8 +1786,8 @@ const verifyMagicLink = async (request, response) => {
                         .select('name nameEnglish licenseNumber status members subscription');
 
                     if (firm) {
-                        const member = firm.members.find(
-                            m => m.userId.toString() === user._id.toString()
+                        const member = firm.members?.find(
+                            m => m.userId?.toString() === user._id.toString()
                         );
 
                         userData.firm = {

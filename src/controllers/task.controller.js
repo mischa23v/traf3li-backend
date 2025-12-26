@@ -1228,7 +1228,7 @@ const getUpcomingTasks = asyncHandler(async (req, res) => {
 
     // Build query - firmId first, then user-based
     const baseQuery = firmId
-        ? { firmId }
+        ? { firmId: new mongoose.Types.ObjectId(firmId) }
         : { $or: [{ assignedTo: userId }, { createdBy: userId }] };
 
     const tasks = await Task.find({
@@ -1255,7 +1255,7 @@ const getOverdueTasks = asyncHandler(async (req, res) => {
 
     // Build query - firmId first, then user-based
     const baseQuery = firmId
-        ? { firmId }
+        ? { firmId: new mongoose.Types.ObjectId(firmId) }
         : { $or: [{ assignedTo: userId }, { createdBy: userId }] };
 
     const tasks = await Task.find({
@@ -1316,7 +1316,7 @@ const getTasksDueToday = asyncHandler(async (req, res) => {
 
     // Build query - firmId first, then user-based
     const baseQuery = firmId
-        ? { firmId }
+        ? { firmId: new mongoose.Types.ObjectId(firmId) }
         : { $or: [{ assignedTo: userId }, { createdBy: userId }] };
 
     const tasks = await Task.find({

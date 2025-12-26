@@ -337,8 +337,8 @@ const getTodayEvents = async (request, response) => {
 
         // Build query based on firmId or userId
         const queryFilter = firmId
-            ? { firmId }
-            : { lawyerId: userId };
+            ? { firmId: new mongoose.Types.ObjectId(firmId) }
+            : { lawyerId: new mongoose.Types.ObjectId(userId) };
 
         const events = await Event.find({
             ...queryFilter,
@@ -868,7 +868,7 @@ const getDashboardSummary = async (request, response) => {
 
             // 4. Today's events
             Event.find({
-                ...(firmId ? { firmId } : { lawyerId: userId }),
+                ...(firmId ? { firmId: new mongoose.Types.ObjectId(firmId) } : { lawyerId: new mongoose.Types.ObjectId(userId) }),
                 startTime: { $gte: today, $lt: tomorrow }
             })
             .sort({ startTime: 1 })
