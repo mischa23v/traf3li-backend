@@ -44,7 +44,8 @@ const getTeamMembersQuerySchema = Joi.object({
 // CONTROLLER FUNCTIONS
 // ============================================
 
-// Get all lawyers
+// Get all lawyers in user's firm
+// SECURITY: Must be scoped to user's firm to prevent cross-firm data exposure
 const getLawyers = async (request, response) => {
     try {
         // ====================================
@@ -61,13 +62,29 @@ const getLawyers = async (request, response) => {
         }
 
         // ====================================
+        // SECURITY: Firm Context Required
+        // ====================================
+        const firmId = request.firmId || request.user?.firmId;
+        const userId = request.userID || request.user?._id;
+
+        // Build filter with firm scope
+        const filter = {
+            role: 'lawyer'
+        };
+
+        // Filter by firmId if available, otherwise by lawyerId for solo users
+        if (firmId) {
+            filter.firmId = firmId;
+        } else if (userId) {
+            // Solo lawyer - only return themselves
+            filter._id = userId;
+        }
+
+        // ====================================
         // SECURITY: Query with Safe Parameters
         // ====================================
         // Only query lawyers with verified roles - prevents role escalation
-        const lawyers = await User.find({
-            isSeller: true,
-            role: 'lawyer'
-        })
+        const lawyers = await User.find(filter)
             .select('firstName lastName email phone image lawyerProfile role city createdAt')
             .sort({ firstName: 1 });
 
@@ -148,6 +165,7 @@ const getLawyer = async (request, response) => {
 };
 
 // Get active team members for task assignment
+// SECURITY: Must be scoped to user's firm to prevent cross-firm data exposure
 const getTeamMembers = async (request, response) => {
     try {
         // ====================================
@@ -164,11 +182,14 @@ const getTeamMembers = async (request, response) => {
         }
 
         // ====================================
-        // SECURITY: Role-Based Access Control
+        // SECURITY: Firm Context Required
         // ====================================
-        // Verify requester has permission to view team members
-        // Note: This endpoint should ideally have authentication middleware
-        // that verifies the user is logged in and has appropriate permissions
+        const firmId = request.firmId || request.user?.firmId;
+        const userId = request.userID || request.user?._id;
+
+        if (!firmId && !userId) {
+            throw CustomException('Firm context required for team member access', 403);
+        }
 
         // ====================================
         // SECURITY: Prevent Role Escalation
@@ -177,10 +198,20 @@ const getTeamMembers = async (request, response) => {
         // Prevents attackers from accessing users with other roles
         const allowedRoles = ['lawyer', 'admin'];
 
-        const lawyers = await User.find({
-            isSeller: true,
+        // Build filter with firm scope
+        const filter = {
             role: { $in: allowedRoles }
-        })
+        };
+
+        // Filter by firmId if available, otherwise by lawyerId for solo users
+        if (firmId) {
+            filter.firmId = firmId;
+        } else {
+            // Solo lawyer - only return themselves
+            filter._id = userId;
+        }
+
+        const lawyers = await User.find(filter)
             .select('firstName lastName email role image lawyerProfile.specialization')
             .sort({ firstName: 1 });
 

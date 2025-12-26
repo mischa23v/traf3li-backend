@@ -218,6 +218,24 @@ const createAutomation = asyncHandler(async (req, res) => {
     validateTrigger(safeData.trigger);
     validateActions(safeData.actions);
 
+    // SECURITY: Validate assign_to actions have users from the same firm
+    const User = require('../models').User;
+    for (const action of safeData.actions) {
+        if (action.type === 'assign_to' && action.config?.userId) {
+            const targetUser = await User.findOne({
+                _id: sanitizeObjectId(action.config.userId),
+                firmId: firmId
+            }).select('_id').lean();
+
+            if (!targetUser) {
+                throw CustomException(
+                    'المستخدم المعين غير موجود في هذا المكتب | Assigned user does not belong to this firm',
+                    400
+                );
+            }
+        }
+    }
+
     // SECURITY: Input sanitization
     const automationData = {
         firmId: sanitizeObjectId(firmId),
@@ -352,6 +370,25 @@ const updateAutomation = asyncHandler(async (req, res) => {
 
     if (safeData.actions) {
         validateActions(safeData.actions);
+
+        // SECURITY: Validate assign_to actions have users from the same firm
+        const User = require('../models').User;
+        for (const action of safeData.actions) {
+            if (action.type === 'assign_to' && action.config?.userId) {
+                const targetUser = await User.findOne({
+                    _id: sanitizeObjectId(action.config.userId),
+                    firmId: firmId
+                }).select('_id').lean();
+
+                if (!targetUser) {
+                    throw CustomException(
+                        'المستخدم المعين غير موجود في هذا المكتب | Assigned user does not belong to this firm',
+                        400
+                    );
+                }
+            }
+        }
+
         automation.actions = safeData.actions;
     }
 

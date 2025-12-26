@@ -459,10 +459,17 @@ const getCalendarByDate = asyncHandler(async (req, res) => {
         .lean();
 
     // Fetch case rich documents
-    const cases = await Case.find({
+    // SECURITY: Include firmId check to prevent cross-firm data access
+    const firmId = req.firmId || req.user?.firmId;
+    const caseFilter = {
         lawyerId: userId,
         'richDocuments.showOnCalendar': true
-    }).select('_id title caseNumber richDocuments').lean();
+    };
+    // Add firm scope if user has firmId
+    if (firmId) {
+        caseFilter.firmId = firmId;
+    }
+    const cases = await Case.find(caseFilter).select('_id title caseNumber richDocuments').lean();
 
     const caseDocuments = [];
     cases.forEach(caseDoc => {
@@ -562,10 +569,16 @@ const getCalendarByMonth = asyncHandler(async (req, res) => {
         .lean();
 
     // Fetch case rich documents
-    const casesWithDocs = await Case.find({
+    // SECURITY: Include firmId check to prevent cross-firm data access
+    const firmId = req.firmId || req.user?.firmId;
+    const caseFilter = {
         lawyerId: userId,
         'richDocuments.showOnCalendar': true
-    }).select('_id title caseNumber richDocuments').lean();
+    };
+    if (firmId) {
+        caseFilter.firmId = firmId;
+    }
+    const casesWithDocs = await Case.find(caseFilter).select('_id title caseNumber richDocuments').lean();
 
     const caseDocuments = [];
     casesWithDocs.forEach(caseDoc => {
@@ -707,10 +720,16 @@ const getUpcomingItems = asyncHandler(async (req, res) => {
         .lean();
 
     // Fetch upcoming case rich documents
-    const casesWithUpcomingDocs = await Case.find({
+    // SECURITY: Include firmId check to prevent cross-firm data access
+    const firmId = req.firmId || req.user?.firmId;
+    const caseFilter = {
         lawyerId: userId,
         'richDocuments.showOnCalendar': true
-    }).select('_id title caseNumber richDocuments').lean();
+    };
+    if (firmId) {
+        caseFilter.firmId = firmId;
+    }
+    const casesWithUpcomingDocs = await Case.find(caseFilter).select('_id title caseNumber richDocuments').lean();
 
     const caseDocuments = [];
     casesWithUpcomingDocs.forEach(caseDoc => {
