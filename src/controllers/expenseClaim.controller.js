@@ -573,19 +573,38 @@ const deleteClaim = asyncHandler(async (req, res) => {
         throw CustomException('Invalid claim ID format', 400);
     }
 
-    const query = firmId ? { firmId, _id: sanitizedId } : { lawyerId, _id: sanitizedId };
-    const claim = await ExpenseClaim.findOne(query);
+    // SECURITY: TOCTOU Fix - Build atomic delete query with ownership AND status check
+    const deleteQuery = {
+        _id: sanitizedId,
+        status: 'draft'  // Status check in query to prevent race condition
+    };
 
-    if (!claim) {
-        throw CustomException('Expense claim not found', 404);
+    // Add ownership check to query
+    if (firmId) {
+        deleteQuery.firmId = firmId;
+    } else {
+        deleteQuery.lawyerId = lawyerId;
     }
 
-    // Only allow deletion of draft claims
-    if (claim.status !== 'draft') {
+    // SECURITY: Atomic delete with ownership and status check in query
+    const result = await ExpenseClaim.deleteOne(deleteQuery);
+
+    if (result.deletedCount === 0) {
+        // Determine specific error
+        const existingClaim = await ExpenseClaim.findById(sanitizedId);
+        if (!existingClaim) {
+            throw CustomException('Expense claim not found', 404);
+        }
+        // Check ownership
+        const hasAccess = firmId
+            ? existingClaim.firmId && existingClaim.firmId.toString() === firmId.toString()
+            : existingClaim.lawyerId?.toString() === lawyerId;
+        if (!hasAccess) {
+            throw CustomException('Expense claim not found', 404);  // Don't reveal existence
+        }
+        // Must be status issue
         throw CustomException('Can only delete draft claims', 400);
     }
-
-    await ExpenseClaim.deleteOne(query);
 
     return res.json({
         success: true,
