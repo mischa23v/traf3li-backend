@@ -35,9 +35,12 @@ const getAttendanceRecords = async (req, res) => {
 
         const query = {};
 
-        // Multi-tenancy
-        if (firmId) query.firmId = firmId;
-        if (req.user?.firmId) query.firmId = req.user.firmId;
+        // SECURITY: Multi-tenancy - User's firmId takes precedence, query param only for super admins
+        if (req.user?.firmId) {
+            query.firmId = req.user.firmId; // User can only see their own firm
+        } else if (firmId) {
+            query.firmId = firmId; // Super admin can filter by firm
+        }
 
         // Filters
         if (employeeId) query.employeeId = employeeId;
@@ -137,10 +140,17 @@ const getAttendanceByEmployeeAndDate = async (req, res) => {
         const targetDate = new Date(date);
         targetDate.setHours(0, 0, 0, 0);
 
-        const record = await AttendanceRecord.findOne({
+        // SECURITY: Build query with firmId for multi-tenant isolation
+        const query = {
             employeeId,
             date: targetDate
-        }).populate('employeeId', 'employeeId personalInfo employmentDetails');
+        };
+        if (req.user?.firmId) {
+            query.firmId = req.user.firmId;
+        }
+
+        const record = await AttendanceRecord.findOne(query)
+            .populate('employeeId', 'employeeId personalInfo employmentDetails');
 
         if (!record) {
             return res.status(404).json({
@@ -690,10 +700,16 @@ const getCheckInStatus = async (req, res) => {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
 
-        const record = await AttendanceRecord.findOne({
+        // SECURITY: Build query with firmId for multi-tenant isolation
+        const query = {
             employeeId,
             date: today
-        });
+        };
+        if (req.user?.firmId) {
+            query.firmId = req.user.firmId;
+        }
+
+        const record = await AttendanceRecord.findOne(query);
 
         if (!record) {
             return res.status(200).json({
@@ -878,6 +894,14 @@ const getBreaks = async (req, res) => {
             return res.status(404).json({
                 success: false,
                 message: 'Attendance record not found'
+            });
+        }
+
+        // SECURITY: Verify firmId ownership
+        if (req.user?.firmId && record.firmId?.toString() !== req.user.firmId.toString()) {
+            return res.status(403).json({
+                success: false,
+                message: 'Access denied: You do not have permission to view this attendance record'
             });
         }
 
@@ -1384,6 +1408,14 @@ const resolveViolation = async (req, res) => {
             });
         }
 
+        // SECURITY: Verify firmId ownership
+        if (req.user?.firmId && record.firmId?.toString() !== req.user.firmId.toString()) {
+            return res.status(403).json({
+                success: false,
+                message: 'Access denied: You do not have permission to resolve violations for this attendance record'
+            });
+        }
+
         const index = parseInt(violationIndex);
         if (!record.violations || !record.violations[index]) {
             return res.status(404).json({
@@ -1428,6 +1460,14 @@ const appealViolation = async (req, res) => {
             return res.status(404).json({
                 success: false,
                 message: 'Attendance record not found'
+            });
+        }
+
+        // SECURITY: Verify firmId ownership
+        if (req.user?.firmId && record.firmId?.toString() !== req.user.firmId.toString()) {
+            return res.status(403).json({
+                success: false,
+                message: 'Access denied: You do not have permission to appeal violations for this attendance record'
             });
         }
 
