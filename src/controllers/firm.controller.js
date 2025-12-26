@@ -559,13 +559,22 @@ const inviteMember = asyncHandler(async (req, res) => {
 /**
  * Add lawyer to firm (backwards compatible)
  * POST /api/firms/add-lawyer
+ * IDOR PROTECTION: User must be owner or admin of the firm
  */
 const addLawyer = async (request, response) => {
     const { firmId, lawyerId } = request.body;
+    const userId = request.userID;
+
     try {
         const firm = await Firm.findById(firmId);
         if (!firm) {
             throw CustomException('Firm not found!', 404);
+        }
+
+        // IDOR PROTECTION: Check if requesting user is owner or admin
+        const requestingMember = firm.members.find(m => m.userId.toString() === userId);
+        if (!requestingMember || !['owner', 'admin'].includes(requestingMember.role)) {
+            throw CustomException('You do not have permission to add lawyers to this firm', 403);
         }
 
         // Add to lawyers array
@@ -706,13 +715,22 @@ const removeMember = asyncHandler(async (req, res) => {
 /**
  * Remove lawyer from firm (backwards compatible)
  * POST /api/firms/remove-lawyer
+ * IDOR PROTECTION: User must be owner or admin of the firm
  */
 const removeLawyer = async (request, response) => {
     const { firmId, lawyerId } = request.body;
+    const userId = request.userID;
+
     try {
         const firm = await Firm.findById(firmId);
         if (!firm) {
             throw CustomException('Firm not found!', 404);
+        }
+
+        // IDOR PROTECTION: Check if requesting user is owner or admin
+        const requestingMember = firm.members.find(m => m.userId.toString() === userId);
+        if (!requestingMember || !['owner', 'admin'].includes(requestingMember.role)) {
+            throw CustomException('You do not have permission to remove lawyers from this firm', 403);
         }
 
         // Remove from lawyers array

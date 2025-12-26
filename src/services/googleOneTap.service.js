@@ -204,7 +204,8 @@ class GoogleOneTapService {
         const userInfo = await this.verifyToken(credential);
 
         // Check if user exists with this email
-        let user = await User.findOne({ email: userInfo.email.toLowerCase() });
+        // NOTE: Bypass firmIsolation filter - Google One Tap works for solo lawyers without firmId
+        let user = await User.findOne({ email: userInfo.email.toLowerCase() }).setOptions({ bypassFirmFilter: true });
 
         let isNewUser = false;
         let accountLinked = false;
@@ -272,11 +273,12 @@ class GoogleOneTapService {
      */
     async linkGoogleAccount(user, userInfo) {
         // Check if this Google ID is already linked to another account
+        // NOTE: Bypass firmIsolation filter - Google linking works for solo lawyers without firmId
         const existingLink = await User.findOne({
             ssoProvider: 'google',
             ssoExternalId: userInfo.sub,
             _id: { $ne: user._id }
-        });
+        }).setOptions({ bypassFirmFilter: true });
 
         if (existingLink) {
             throw CustomException(
@@ -355,7 +357,8 @@ class GoogleOneTapService {
         let counter = 1;
 
         // Ensure username is unique
-        while (await User.findOne({ username })) {
+        // NOTE: Bypass firmIsolation filter - username check needs to be global
+        while (await User.findOne({ username }).setOptions({ bypassFirmFilter: true })) {
             username = `${baseUsername}${counter}`;
             counter++;
         }

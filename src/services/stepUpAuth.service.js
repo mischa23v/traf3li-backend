@@ -144,7 +144,8 @@ const createReauthChallenge = async (userId, method, purpose, metadata = {}) => 
     }
 
     // Get user
-    const user = await User.findById(userId).select('email phone mfaEnabled mfaSecret');
+    // NOTE: Bypass firmIsolation filter - step-up auth works for solo lawyers without firmId
+    const user = await User.findById(userId).select('email phone mfaEnabled mfaSecret').setOptions({ bypassFirmFilter: true });
     if (!user) {
       return {
         success: false,
@@ -315,7 +316,8 @@ const verifyReauthChallenge = async (userId, code, purpose, metadata = {}) => {
  */
 const verifyPasswordReauth = async (userId, password, ttlMinutes = DEFAULT_REAUTH_WINDOW_MINUTES) => {
   try {
-    const user = await User.findById(userId).select('password');
+    // NOTE: Bypass firmIsolation filter - password reauthentication works for solo lawyers without firmId
+    const user = await User.findById(userId).select('password').setOptions({ bypassFirmFilter: true });
     if (!user) {
       return {
         success: false,
@@ -368,7 +370,8 @@ const verifyPasswordReauth = async (userId, password, ttlMinutes = DEFAULT_REAUT
  */
 const verifyTOTPReauth = async (userId, totpCode, ttlMinutes = DEFAULT_REAUTH_WINDOW_MINUTES) => {
   try {
-    const user = await User.findById(userId).select('mfaEnabled mfaSecret');
+    // NOTE: Bypass firmIsolation filter - TOTP reauthentication works for solo lawyers without firmId
+    const user = await User.findById(userId).select('mfaEnabled mfaSecret').setOptions({ bypassFirmFilter: true });
     if (!user) {
       return {
         success: false,

@@ -377,6 +377,7 @@ const getCustomClaims = async (userId, context = {}) => {
             user = userId;
         } else {
             // Otherwise, fetch the user
+            // NOTE: Bypass firmIsolation filter - custom claims work for solo lawyers without firmId
             const User = require('../models/user.model');
             user = await User.findById(userId).select(
                 'email isEmailVerified phone role firmId firmRole firmStatus ' +
@@ -384,7 +385,7 @@ const getCustomClaims = async (userId, context = {}) => {
                 'kycStatus lawyerProfile lawyerMode isSoloLawyer lawyerWorkMode ' +
                 'stripeConnectAccountId stripePayoutEnabled stripeAccountStatus ' +
                 'passwordExpiresAt mustChangePassword isSSOUser createdViaSSO departedAt'
-            ).lean();
+            ).setOptions({ bypassFirmFilter: true }).lean();
 
             if (!user) {
                 logger.warn(`User not found for custom claims: ${userId}`);
@@ -516,8 +517,9 @@ const setCustomClaims = async (userId, claims, options = {}) => {
             }
         }
 
+        // NOTE: Bypass firmIsolation filter - custom claims work for solo lawyers without firmId
         const User = require('../models/user.model');
-        const user = await User.findById(userId);
+        const user = await User.findById(userId).setOptions({ bypassFirmFilter: true });
 
         if (!user) {
             throw new Error('User not found');
@@ -554,8 +556,9 @@ const setCustomClaims = async (userId, claims, options = {}) => {
  */
 const deleteCustomClaims = async (userId, claimKeys = null) => {
     try {
+        // NOTE: Bypass firmIsolation filter - custom claims work for solo lawyers without firmId
         const User = require('../models/user.model');
-        const user = await User.findById(userId);
+        const user = await User.findById(userId).setOptions({ bypassFirmFilter: true });
 
         if (!user) {
             throw new Error('User not found');

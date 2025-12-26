@@ -35,7 +35,8 @@ class MagicLinkService {
             const normalizedEmail = email.toLowerCase().trim();
 
             // Check if user exists (for login/verify_email) or doesn't exist (for register)
-            const existingUser = await User.findOne({ email: normalizedEmail }).select('_id firstName lastName email').lean();
+            // NOTE: Bypass firmIsolation filter - magic link works for solo lawyers without firmId
+            const existingUser = await User.findOne({ email: normalizedEmail }).select('_id firstName lastName email').setOptions({ bypassFirmFilter: true }).lean();
 
             if (purpose === 'login' || purpose === 'verify_email') {
                 if (!existingUser) {
@@ -144,8 +145,10 @@ class MagicLinkService {
             // Get or create user
             let user;
             if (magicLink.userId) {
+                // NOTE: Bypass firmIsolation filter - magic link verification works for solo lawyers without firmId
                 user = await User.findById(magicLink.userId)
                     .select('-password')
+                    .setOptions({ bypassFirmFilter: true })
                     .lean();
             } else {
                 // For register purpose, return email for registration flow

@@ -422,7 +422,8 @@ const linkAccount = async (request, response) => {
         (async () => {
             try {
                 const { User } = require('../models');
-                const user = await User.findById(userId).select('_id email username firmId').lean();
+                // NOTE: Bypass firmIsolation filter - webhook needs to work for solo lawyers without firmId
+                const user = await User.findById(userId).select('_id email username firmId').setOptions({ bypassFirmFilter: true }).lean();
                 if (user) {
                     await authWebhookService.triggerOAuthLinkedWebhook(user, request, {
                         provider: result.provider || validatedProviderType,
@@ -476,7 +477,8 @@ const unlinkAccount = async (request, response) => {
         (async () => {
             try {
                 const { User } = require('../models');
-                const user = await User.findById(userId).select('_id email username firmId').lean();
+                // NOTE: Bypass firmIsolation filter - webhook needs to work for solo lawyers without firmId
+                const user = await User.findById(userId).select('_id email username firmId').setOptions({ bypassFirmFilter: true }).lean();
                 if (user) {
                     await authWebhookService.triggerOAuthUnlinkedWebhook(user, request, {
                         provider: validatedProviderType,

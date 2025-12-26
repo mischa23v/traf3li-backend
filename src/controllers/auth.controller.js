@@ -1240,7 +1240,8 @@ const authLogout = async (request, response) => {
             const { User } = require('../models');
 
             // Get user details for audit trail
-            const user = await User.findById(userId).select('email firmId').lean();
+            // NOTE: Bypass firmIsolation filter - logout needs to work for solo lawyers without firmId
+            const user = await User.findById(userId).select('email firmId').setOptions({ bypassFirmFilter: true }).lean();
 
             // Revoke the access token
             await tokenRevocationService.revokeToken(accessToken, 'logout', {
@@ -1554,7 +1555,8 @@ const authLogoutAll = async (request, response) => {
         }
 
         // Get user details for audit trail
-        const user = await User.findById(userId).select('email firmId').lean();
+        // NOTE: Bypass firmIsolation filter - logout needs to work for solo lawyers without firmId
+        const user = await User.findById(userId).select('email firmId').setOptions({ bypassFirmFilter: true }).lean();
 
         if (!user) {
             return response.status(404).json({
