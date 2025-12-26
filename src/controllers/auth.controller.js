@@ -960,8 +960,8 @@ const authLogin = async (request, response) => {
                             .select('name nameEnglish licenseNumber status members subscription');
 
                         if (firm) {
-                            const member = firm.members.find(
-                                m => m.userId.toString() === user._id.toString()
+                            const member = firm.members?.find(
+                                m => m.userId?.toString() === user._id.toString()
                             );
 
                             userData.firm = {
