@@ -219,21 +219,33 @@ class OAuthService {
         if (['google', 'microsoft', 'facebook', 'okta', 'auth0', 'custom', 'apple', 'twitter', 'linkedin', 'github'].includes(providerId)) {
             // Get provider by type and firm
             provider = await SsoProvider.getActiveProvider(firmId, providerId);
+
+            // Fallback to environment variables if no database provider found
+            if (!provider) {
+                const envProvider = this.getProviderFromEnv(providerId);
+                if (envProvider) {
+                    provider = envProvider;
+                }
+            }
         } else {
             // Get provider by ID
             provider = await SsoProvider.findById(providerId).select('+clientSecret');
         }
 
         if (!provider) {
-            throw CustomException('SSO provider not found', 404);
+            throw CustomException('SSO provider not found. Please configure the provider in the database or environment variables.', 404);
         }
 
         if (!provider.isEnabled) {
             throw CustomException('SSO provider is disabled', 400);
         }
 
-        // Get provider-specific URLs using the model method
-        const urls = provider.getOAuthUrls();
+        // Get provider-specific URLs using the model method or from config
+        const urls = provider.getOAuthUrls ? provider.getOAuthUrls() : {
+            authorizationUrl: PROVIDER_CONFIGS[provider.providerType]?.authorizationUrl,
+            tokenUrl: PROVIDER_CONFIGS[provider.providerType]?.tokenUrl,
+            userinfoUrl: PROVIDER_CONFIGS[provider.providerType]?.userinfoUrl
+        };
 
         return {
             provider,
@@ -243,6 +255,62 @@ class OAuthService {
             tokenUrl: urls.tokenUrl,
             userinfoUrl: urls.userinfoUrl,
             scopes: provider.scopes || PROVIDER_CONFIGS[provider.providerType]?.scopes || ['openid', 'profile', 'email']
+        };
+    }
+
+    /**
+     * Get provider configuration from environment variables
+     * @param {string} providerType - Provider type (google, microsoft, github, etc.)
+     * @returns {object|null} Provider-like configuration object or null
+     */
+    getProviderFromEnv(providerType) {
+        const envPrefix = {
+            google: 'GOOGLE_SSO',
+            microsoft: 'MICROSOFT_SSO',
+            github: 'GITHUB_SSO',
+            facebook: 'FACEBOOK_SSO',
+            twitter: 'TWITTER_SSO',
+            linkedin: 'LINKEDIN_SSO',
+            apple: 'APPLE_SSO'
+        }[providerType];
+
+        if (!envPrefix) {
+            return null;
+        }
+
+        const clientId = process.env[`${envPrefix}_CLIENT_ID`];
+        const clientSecret = process.env[`${envPrefix}_CLIENT_SECRET`];
+        const redirectUri = process.env[`${envPrefix}_REDIRECT_URI`];
+
+        if (!clientId || !clientSecret) {
+            logger.debug(`No environment variables found for ${providerType} OAuth`, {
+                hasClientId: !!clientId,
+                hasClientSecret: !!clientSecret
+            });
+            return null;
+        }
+
+        logger.info(`Using environment variables for ${providerType} OAuth provider`);
+
+        // Return a provider-like object (without Mongoose methods)
+        return {
+            _id: `env-${providerType}`,
+            name: `${providerType.charAt(0).toUpperCase() + providerType.slice(1)} (Environment)`,
+            providerType,
+            clientId,
+            clientSecret,
+            isEnabled: true,
+            firmId: null,
+            redirectUri,
+            scopes: PROVIDER_CONFIGS[providerType]?.scopes || ['openid', 'email', 'profile'],
+            autoCreateUsers: false,
+            allowedDomains: [],
+            defaultRole: 'client',
+            // Mock the isEmailDomainAllowed method
+            isEmailDomainAllowed: function(email) {
+                // Allow all domains for env-based providers
+                return true;
+            }
         };
     }
 
@@ -669,7 +737,24 @@ class OAuthService {
 
                 await ssoLink.recordLogin(ipAddress, userAgent);
             } else {
-                throw CustomException('No account found with this email. Auto-provisioning is disabled.', 404);
+                // User doesn't exist - return OAuth profile data for registration
+                // Frontend will redirect to sign-up with pre-filled data
+                logger.info('New user detected via OAuth, returning profile for registration', {
+                    email: userInfo.email,
+                    provider: config.provider.name
+                });
+
+                return {
+                    token: null,
+                    user: {
+                        email: userInfo.email,
+                        firstName: userInfo.firstName || 'User',
+                        lastName: userInfo.lastName || 'User',
+                        avatar: userInfo.picture
+                    },
+                    isNewUser: true,
+                    returnUrl: stateData.returnUrl || '/'
+                };
             }
         }
 
