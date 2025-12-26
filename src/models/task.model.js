@@ -408,9 +408,14 @@ taskSchema.pre('save', function (next) {
 });
 
 // Static method: Get task stats
-taskSchema.statics.getStats = async function (userId) {
+taskSchema.statics.getStats = async function (userId, firmId = null) {
+    // Build base match filter - firmId takes precedence for firm isolation
+    const baseMatch = firmId
+        ? { firmId: new mongoose.Types.ObjectId(firmId) }
+        : { $or: [{ assignedTo: new mongoose.Types.ObjectId(userId) }, { createdBy: new mongoose.Types.ObjectId(userId) }] };
+
     const stats = await this.aggregate([
-        { $match: { $or: [{ assignedTo: new mongoose.Types.ObjectId(userId) }, { createdBy: new mongoose.Types.ObjectId(userId) }] } },
+        { $match: baseMatch },
         {
             $group: {
                 _id: null,
@@ -429,13 +434,13 @@ taskSchema.statics.getStats = async function (userId) {
     weekStart.setDate(now.getDate() - now.getDay());
 
     const overdue = await this.countDocuments({
-        $or: [{ assignedTo: new mongoose.Types.ObjectId(userId) }, { createdBy: new mongoose.Types.ObjectId(userId) }],
+        ...baseMatch,
         status: { $nin: ['done', 'canceled'] },
         dueDate: { $lt: now }
     });
 
     const dueToday = await this.countDocuments({
-        $or: [{ assignedTo: new mongoose.Types.ObjectId(userId) }, { createdBy: new mongoose.Types.ObjectId(userId) }],
+        ...baseMatch,
         status: { $nin: ['done', 'canceled'] },
         dueDate: {
             $gte: new Date(now.setHours(0, 0, 0, 0)),
@@ -444,7 +449,7 @@ taskSchema.statics.getStats = async function (userId) {
     });
 
     const completedThisWeek = await this.countDocuments({
-        $or: [{ assignedTo: new mongoose.Types.ObjectId(userId) }, { createdBy: new mongoose.Types.ObjectId(userId) }],
+        ...baseMatch,
         status: 'done',
         completedAt: { $gte: weekStart }
     });
