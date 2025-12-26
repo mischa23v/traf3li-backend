@@ -226,6 +226,7 @@ const checkInvoiceAccess = () => {
 /**
  * Check if user can modify resource
  * More restrictive than view - only creator can modify
+ * SECURITY: Includes firmId check for multi-tenant isolation
  */
 const checkModifyPermission = (modelName, paramName = 'id') => {
   return async (req, res, next) => {
@@ -248,7 +249,17 @@ const checkModifyPermission = (modelName, paramName = 'id') => {
       }
 
       const Model = mongoose.model(modelName);
-      const resource = await Model.findById(resourceId);
+
+      // SECURITY: Build query with firm context for multi-tenant isolation
+      const firmId = req.firmId || req.user?.firmId;
+      const resourceQuery = { _id: resourceId };
+
+      // Add firmId filter for models that support it (multi-tenant models)
+      if (firmId && Model.schema.paths.firmId) {
+        resourceQuery.firmId = firmId;
+      }
+
+      const resource = await Model.findOne(resourceQuery);
 
       if (!resource) {
         return res.status(404).json({
@@ -258,7 +269,8 @@ const checkModifyPermission = (modelName, paramName = 'id') => {
         });
       }
 
-      // Admin can modify everything
+      // SECURITY: Admin can modify within their firm only
+      // System admins without firmId are handled by firmId filter above
       if (req.user.role === 'admin') {
         req.resource = resource;
         return next();

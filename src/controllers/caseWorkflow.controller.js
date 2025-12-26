@@ -698,7 +698,9 @@ const getWorkflowStatistics = asyncHandler(async (req, res) => {
 
     const totalWorkflows = await WorkflowTemplate.countDocuments({ lawyerId });
     const activeWorkflows = await WorkflowTemplate.countDocuments({ lawyerId, isActive: true });
-    const casesWithWorkflow = await CaseStageProgress.countDocuments({});
+    // SECURITY: Filter by user's cases only to prevent cross-firm data exposure
+    const userCaseIds = await Case.find({ lawyerId }).distinct('_id');
+    const casesWithWorkflow = await CaseStageProgress.countDocuments({ caseId: { $in: userCaseIds } });
 
     const byCategory = await WorkflowTemplate.aggregate([
         { $match: { lawyerId } },

@@ -1774,7 +1774,8 @@ const bulkDeletePayments = asyncHandler(async (req, res) => {
         throw CustomException('Some payments are invalid or cannot be deleted', 400);
     }
 
-    await Payment.deleteMany({ _id: { $in: paymentIds } });
+    // SECURITY: Include accessQuery in deleteMany to prevent race condition attacks
+    await Payment.deleteMany({ _id: { $in: paymentIds }, ...accessQuery });
 
     res.status(200).json({
         success: true,

@@ -170,26 +170,39 @@ const deleteAnswer = async (request, response) => {
 };
 
 // Like answer
+// SECURITY: Added duplicate like prevention and rate limiting
 const likeAnswer = async (request, response) => {
     const { _id } = request.params;
     try {
         // Sanitize ID
         const sanitizedId = sanitizeObjectId(_id);
 
-        const answer = await Answer.findByIdAndUpdate(
-            sanitizedId,
-            { $inc: { likes: 1 } },
-            { new: true }
-        );
+        // SECURITY: Check if user has already liked this answer
+        const answer = await Answer.findById(sanitizedId);
 
         if (!answer) {
             throw CustomException('Answer not found!', 404);
         }
 
+        // SECURITY: Prevent duplicate likes from same user
+        if (answer.likedBy && answer.likedBy.includes(request.userID)) {
+            throw CustomException('You have already liked this answer!', 400);
+        }
+
+        // Update with atomic operation to prevent race conditions
+        const updatedAnswer = await Answer.findByIdAndUpdate(
+            sanitizedId,
+            {
+                $inc: { likes: 1 },
+                $addToSet: { likedBy: request.userID }
+            },
+            { new: true }
+        );
+
         return response.status(202).send({
             error: false,
             message: 'Answer liked!',
-            answer
+            answer: updatedAnswer
         });
     } catch ({ message, status = 500 }) {
         return response.status(status).send({

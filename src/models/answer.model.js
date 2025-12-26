@@ -19,6 +19,11 @@ const answerSchema = new mongoose.Schema({
         type: Number,
         default: 0
     },
+    // SECURITY: Track who liked to prevent duplicate likes
+    likedBy: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
+    }],
     verified: {
         type: Boolean,
         default: false

@@ -156,14 +156,23 @@ class AutomatedActionService {
 
   /**
    * Update an automated action
+   * SECURITY: Requires firmId verification to prevent cross-firm updates
    * @param {String} actionId - Action ID
    * @param {Object} data - Update data
-   * @param {Object} context - Request context
+   * @param {Object} context - Request context (must contain firmId)
    * @returns {Promise<Object>} - Updated action
    */
   async updateAction(actionId, data, context = {}) {
     try {
-      const action = await AutomatedAction.findById(actionId);
+      // SECURITY: Require firmId in context for multi-tenant isolation
+      if (!context.firmId) {
+        throw new Error('Firm ID is required for update operation');
+      }
+
+      const action = await AutomatedAction.findOne({
+        _id: actionId,
+        firmId: new mongoose.Types.ObjectId(context.firmId)
+      });
 
       if (!action) {
         throw new Error('Automated action not found');
@@ -234,13 +243,22 @@ class AutomatedActionService {
 
   /**
    * Delete an automated action
+   * SECURITY: Requires firmId verification to prevent cross-firm deletes
    * @param {String} actionId - Action ID
-   * @param {Object} context - Request context
+   * @param {Object} context - Request context (must contain firmId)
    * @returns {Promise<Object>} - Deleted action
    */
   async deleteAction(actionId, context = {}) {
     try {
-      const action = await AutomatedAction.findById(actionId);
+      // SECURITY: Require firmId in context for multi-tenant isolation
+      if (!context.firmId) {
+        throw new Error('Firm ID is required for delete operation');
+      }
+
+      const action = await AutomatedAction.findOne({
+        _id: actionId,
+        firmId: new mongoose.Types.ObjectId(context.firmId)
+      });
 
       if (!action) {
         throw new Error('Automated action not found');
@@ -270,13 +288,22 @@ class AutomatedActionService {
 
   /**
    * Toggle active status of an automated action
+   * SECURITY: Requires firmId verification to prevent cross-firm updates
    * @param {String} actionId - Action ID
-   * @param {Object} context - Request context
+   * @param {Object} context - Request context (must contain firmId)
    * @returns {Promise<Object>} - Updated action
    */
   async toggleActive(actionId, context = {}) {
     try {
-      const action = await AutomatedAction.findById(actionId);
+      // SECURITY: Require firmId in context for multi-tenant isolation
+      if (!context.firmId) {
+        throw new Error('Firm ID is required for toggle operation');
+      }
+
+      const action = await AutomatedAction.findOne({
+        _id: actionId,
+        firmId: new mongoose.Types.ObjectId(context.firmId)
+      });
 
       if (!action) {
         throw new Error('Automated action not found');
