@@ -1653,6 +1653,7 @@ const submitToZATCAHandler = asyncHandler(async (req, res) => {
 /**
  * Get ZATCA status
  * GET /api/invoices/:id/zatca/status
+ * SECURITY: Added firmId/lawyerId verification to prevent cross-firm access
  */
 const getZATCAStatus = asyncHandler(async (req, res) => {
     // Block departed users from financial operations
@@ -1662,8 +1663,19 @@ const getZATCAStatus = asyncHandler(async (req, res) => {
 
     const { id, _id } = req.params;
     const invoiceId = id || _id;
+    const lawyerId = req.userID;
+    const firmId = req.firmId;
 
-    const invoice = await Invoice.findById(invoiceId);
+    // SECURITY: Build query with firm/lawyer isolation
+    const isSoloLawyer = req.isSoloLawyer;
+    const query = { _id: invoiceId };
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
+
+    const invoice = await Invoice.findOne(query);
 
     if (!invoice) {
         throw CustomException('الفاتورة غير موجودة', 404);
@@ -2025,12 +2037,24 @@ const applyRetainer = asyncHandler(async (req, res) => {
 /**
  * Generate XML (for download or ZATCA)
  * GET /api/invoices/:id/xml
+ * SECURITY: Added firmId/lawyerId verification to prevent cross-firm access
  */
 const generateXML = asyncHandler(async (req, res) => {
     const { id, _id } = req.params;
     const invoiceId = id || _id;
+    const lawyerId = req.userID;
+    const firmId = req.firmId;
 
-    const invoice = await Invoice.findById(invoiceId)
+    // SECURITY: Build query with firm/lawyer isolation
+    const isSoloLawyer = req.isSoloLawyer;
+    const query = { _id: invoiceId };
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
+
+    const invoice = await Invoice.findOne(query)
         .populate('clientId');
 
     if (!invoice) {
@@ -2049,13 +2073,25 @@ const generateXML = asyncHandler(async (req, res) => {
 /**
  * Generate PDF (placeholder - requires PDF library)
  * GET /api/invoices/:id/pdf
+ * SECURITY: Added firmId/lawyerId verification to prevent cross-firm access
  */
 const generatePDF = asyncHandler(async (req, res) => {
     const { id, _id } = req.params;
     const invoiceId = id || _id;
     const { download = false } = req.query;
+    const lawyerId = req.userID;
+    const firmId = req.firmId;
 
-    const invoice = await Invoice.findById(invoiceId)
+    // SECURITY: Build query with firm/lawyer isolation
+    const isSoloLawyer = req.isSoloLawyer;
+    const query = { _id: invoiceId };
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
+
+    const invoice = await Invoice.findOne(query)
         .populate('clientId', 'name email phone address')
         .populate('lawyerId', 'name')
         .populate('caseId', 'caseNumber title');
