@@ -27,7 +27,11 @@ const createRefreshToken = async (userId, deviceInfo = {}, firmId = null) => {
         const family = RefreshToken.generateFamily();
 
         // Get user for token generation
-        const user = await User.findById(userId).select('_id email role').lean();
+        // NOTE: Bypass firmIsolation filter - auth operations need to work for solo lawyers without firmId
+        const user = await User.findById(userId)
+            .select('_id email role')
+            .setOptions({ bypassFirmFilter: true })
+            .lean();
         if (!user) {
             throw new Error('User not found');
         }
@@ -145,8 +149,10 @@ const refreshAccessToken = async (refreshTokenJWT) => {
         }
 
         // 5. Get user details for new tokens
+        // NOTE: Bypass firmIsolation filter - auth operations need to work for solo lawyers without firmId
         const user = await User.findById(userId)
             .select('_id email role firstName lastName isSeller isSoloLawyer firmId firmRole')
+            .setOptions({ bypassFirmFilter: true })
             .lean();
 
         if (!user) {
