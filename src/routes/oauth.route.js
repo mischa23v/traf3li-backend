@@ -227,6 +227,13 @@ app.post('/initiate', publicRateLimiter, initiateSSO);
  */
 app.post('/callback', authRateLimiter, callbackPost);
 
+// Also support POST /api/auth/sso/:provider/callback for frontend compatibility
+app.post('/:provider/callback', authRateLimiter, (req, res) => {
+    // Add provider from URL params to body for the handler
+    req.body.provider = req.params.provider;
+    return callbackPost(req, res);
+});
+
 /**
  * @openapi
  * /api/auth/sso/{providerType}/authorize:
