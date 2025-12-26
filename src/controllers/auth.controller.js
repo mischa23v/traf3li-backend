@@ -210,8 +210,16 @@ const authRegister = async (request, response) => {
         pricingModel,
         hourlyRateMin,
         hourlyRateMax,
-        acceptsRemote
+        acceptsRemote,
+
+        // OAuth/SSO fields
+        oauthProvider,
+        oauthVerified
     } = request.body;
+
+    // Check if this is an OAuth registration
+    const isOAuthRegistration = oauthVerified === true &&
+        ['google', 'microsoft', 'facebook', 'apple', 'github', 'linkedin', 'twitter'].includes(oauthProvider);
 
     try {
         // ═══════════════════════════════════════════════════════════════
@@ -223,46 +231,78 @@ const authRegister = async (request, response) => {
         });
 
         if (error) {
-            const messages = error.details.map(detail => detail.message);
-            return response.status(400).send({
-                error: true,
-                message: messages.join('. '),
-                code: 'VALIDATION_ERROR',
-                details: error.details
-            });
+            // For OAuth registration, filter out password-related errors if password not provided
+            if (isOAuthRegistration && !password) {
+                const filteredDetails = error.details.filter(detail =>
+                    !detail.path.includes('password')
+                );
+                if (filteredDetails.length > 0) {
+                    const messages = filteredDetails.map(detail => detail.message);
+                    return response.status(400).send({
+                        error: true,
+                        message: messages.join('. '),
+                        code: 'VALIDATION_ERROR',
+                        details: filteredDetails
+                    });
+                }
+                // If all errors were password-related, continue with OAuth registration
+            } else {
+                const messages = error.details.map(detail => detail.message);
+                return response.status(400).send({
+                    error: true,
+                    message: messages.join('. '),
+                    code: 'VALIDATION_ERROR',
+                    details: error.details
+                });
+            }
         }
 
-        // Password policy validation
-        const passwordValidation = validatePassword(password, {
-            email,
-            username,
-            firstName,
-            lastName,
-            phone
-        });
-
-        if (!passwordValidation.valid) {
-            return response.status(400).send({
-                error: true,
-                message: passwordValidation.errorsAr.join('. '),
-                messageEn: passwordValidation.errors.join('. '),
-                code: 'WEAK_PASSWORD',
-                errors: passwordValidation.errors
+        // Password validation (skip for OAuth users without password)
+        let hash = null;
+        if (password) {
+            // Password policy validation
+            const passwordValidation = validatePassword(password, {
+                email,
+                username,
+                firstName,
+                lastName,
+                phone
             });
-        }
 
-        // Check if password has been breached (HaveIBeenPwned)
-        const { checkPasswordBreach } = require('../utils/passwordPolicy');
-        const breachCheck = await checkPasswordBreach(password);
+            if (!passwordValidation.valid) {
+                return response.status(400).send({
+                    error: true,
+                    message: passwordValidation.errorsAr.join('. '),
+                    messageEn: passwordValidation.errors.join('. '),
+                    code: 'WEAK_PASSWORD',
+                    errors: passwordValidation.errors
+                });
+            }
 
-        // Reject breached passwords (only if API check succeeded)
-        if (breachCheck.breached && !breachCheck.error) {
+            // Check if password has been breached (HaveIBeenPwned)
+            const { checkPasswordBreach } = require('../utils/passwordPolicy');
+            const breachCheck = await checkPasswordBreach(password);
+
+            // Reject breached passwords (only if API check succeeded)
+            if (breachCheck.breached && !breachCheck.error) {
+                return response.status(400).send({
+                    error: true,
+                    message: `تم العثور على كلمة المرور هذه في ${breachCheck.count.toLocaleString()} تسريب بيانات. الرجاء اختيار كلمة مرور مختلفة لحمايتك.`,
+                    messageEn: `This password has been found in ${breachCheck.count.toLocaleString()} data breaches. Please choose a different password for your security.`,
+                    code: 'PASSWORD_BREACHED',
+                    breachCount: breachCheck.count
+                });
+            }
+
+            // SECURITY: Use async bcrypt.hash to prevent event loop blocking DoS
+            hash = await bcrypt.hash(password, saltRounds);
+        } else if (!isOAuthRegistration) {
+            // Password is required for non-OAuth registration
             return response.status(400).send({
                 error: true,
-                message: `تم العثور على كلمة المرور هذه في ${breachCheck.count.toLocaleString()} تسريب بيانات. الرجاء اختيار كلمة مرور مختلفة لحمايتك.`,
-                messageEn: `This password has been found in ${breachCheck.count.toLocaleString()} data breaches. Please choose a different password for your security.`,
-                code: 'PASSWORD_BREACHED',
-                breachCount: breachCheck.count
+                message: 'كلمة المرور مطلوبة',
+                messageEn: 'Password is required',
+                code: 'VALIDATION_ERROR'
             });
         }
 
@@ -309,14 +349,11 @@ const authRegister = async (request, response) => {
             }
         }
 
-        // SECURITY: Use async bcrypt.hash to prevent event loop blocking DoS
-        const hash = await bcrypt.hash(password, saltRounds);
-
         // Build user object
         const userData = {
             username,
             email,
-            password: hash,
+            password: hash, // Will be null for OAuth users without password
             firstName,
             lastName,
             phone,
@@ -330,7 +367,16 @@ const authRegister = async (request, response) => {
             // SECURITY: Only allow 'lawyer' or 'client' roles during registration
             // Admin roles must be assigned through secure admin panel, not registration
             role: isSeller ? 'lawyer' : 'client',
-            lawyerMode: isLawyer ? (lawyerMode || 'dashboard') : null
+            lawyerMode: isLawyer ? (lawyerMode || 'dashboard') : null,
+
+            // OAuth/SSO fields - set when registering via OAuth
+            isSSOUser: isOAuthRegistration,
+            ssoProvider: isOAuthRegistration ? oauthProvider : null,
+            createdViaSSO: isOAuthRegistration,
+
+            // Email verification - OAuth users are pre-verified
+            isEmailVerified: isOAuthRegistration,
+            emailVerifiedAt: isOAuthRegistration ? new Date() : null
         };
 
         // Set solo lawyer fields
@@ -536,24 +582,27 @@ const authRegister = async (request, response) => {
         }
 
         // Send email verification (fire-and-forget, non-blocking)
-        (async () => {
-            try {
-                const userName = `${firstName} ${lastName}`;
-                await emailVerificationService.sendVerificationEmail(
-                    user._id.toString(),
-                    email,
-                    userName,
-                    'ar' // Default to Arabic
-                );
-            } catch (error) {
-                logger.error('Failed to send verification email during registration', {
-                    error: error.message,
-                    userId: user._id,
-                    email
-                });
-                // Don't fail registration if email sending fails
-            }
-        })();
+        // Skip for OAuth users since their email is already verified by the provider
+        if (!isOAuthRegistration) {
+            (async () => {
+                try {
+                    const userName = `${firstName} ${lastName}`;
+                    await emailVerificationService.sendVerificationEmail(
+                        user._id.toString(),
+                        email,
+                        userName,
+                        'ar' // Default to Arabic
+                    );
+                } catch (error) {
+                    logger.error('Failed to send verification email during registration', {
+                        error: error.message,
+                        userId: user._id,
+                        email
+                    });
+                    // Don't fail registration if email sending fails
+                }
+            })();
+        }
 
         // Trigger registration webhook (fire-and-forget)
         (async () => {
@@ -571,6 +620,15 @@ const authRegister = async (request, response) => {
                 // Don't fail registration if webhook fails
             }
         })();
+
+        // For OAuth registration, generate token and set cookie so user is logged in
+        if (isOAuthRegistration) {
+            const token = await generateAccessToken(user);
+            const cookieConfig = getCookieConfig(request);
+            response.cookie('accessToken', token, cookieConfig);
+            responseData.token = token;
+            responseData.message = 'تم إنشاء الحساب بنجاح عبر ' + oauthProvider;
+        }
 
         return response.status(201).send(responseData);
     }

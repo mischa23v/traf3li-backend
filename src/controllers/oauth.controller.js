@@ -532,11 +532,151 @@ const getLinkedAccounts = async (request, response) => {
     }
 };
 
+/**
+ * Initiate SSO login flow (POST endpoint for frontend)
+ * @route POST /api/auth/sso/initiate
+ * @description Frontend-friendly endpoint that accepts provider in request body
+ *              and returns authorization URL for redirect
+ */
+const initiateSSO = async (request, response) => {
+    try {
+        const { provider, returnUrl, firmId, use_pkce } = request.body;
+
+        // Validate provider
+        const validatedProviderType = validateProviderType(provider);
+        if (!validatedProviderType) {
+            throw CustomException('Invalid OAuth provider type', 400);
+        }
+
+        // Validate and sanitize returnUrl (internal redirect only)
+        let validatedReturnUrl = '/';
+        if (returnUrl) {
+            const sanitized = validateRedirectUri(returnUrl, false);
+            if (sanitized) {
+                validatedReturnUrl = sanitized;
+            }
+        }
+
+        // Validate and sanitize firmId
+        let validatedFirmId = null;
+        if (firmId) {
+            validatedFirmId = sanitizeObjectId(firmId);
+            if (!validatedFirmId) {
+                throw CustomException('Invalid firm ID format', 400);
+            }
+        }
+
+        // Parse PKCE flag
+        const usePKCE = use_pkce === true || use_pkce === 'true';
+
+        // Generate authorization URL with CSRF protection
+        const authorizationUrl = await oauthService.getAuthorizationUrl(
+            validatedProviderType,
+            validatedReturnUrl,
+            validatedFirmId,
+            usePKCE
+        );
+
+        logger.info('SSO initiate request processed', {
+            provider: validatedProviderType,
+            pkceEnabled: usePKCE
+        });
+
+        return response.status(200).json({
+            error: false,
+            message: 'Authorization URL generated successfully',
+            authorizationUrl,
+            pkceEnabled: usePKCE
+        });
+    } catch (error) {
+        logger.error('Failed to initiate SSO', { error: error.message });
+        return response.status(error.status || 500).json({
+            error: true,
+            message: error.message || 'Failed to initiate SSO flow'
+        });
+    }
+};
+
+/**
+ * Handle OAuth callback (POST endpoint for frontend)
+ * @route POST /api/auth/sso/callback
+ * @description Frontend-friendly endpoint that accepts code/state in request body
+ *              and returns user data + token instead of redirecting
+ */
+const callbackPost = async (request, response) => {
+    try {
+        const { provider, code, state } = request.body;
+
+        // Validate provider type
+        const validatedProviderType = validateProviderType(provider);
+        if (!validatedProviderType) {
+            throw CustomException('Invalid OAuth provider type', 400);
+        }
+
+        // Validate required parameters
+        if (!code || !state) {
+            throw CustomException('Missing authorization code or state parameter', 400);
+        }
+
+        // Validate authorization code format
+        if (!validateAuthCode(code)) {
+            throw CustomException('Invalid authorization code format', 400);
+        }
+
+        // Validate state parameter for CSRF protection
+        if (!validateStateParameter(state)) {
+            throw CustomException('Invalid state parameter - CSRF validation failed', 400);
+        }
+
+        // Get client IP and user agent
+        const ipAddress = request.ip || request.headers['x-forwarded-for']?.split(',')[0] || 'unknown';
+        const userAgent = request.headers['user-agent'] || 'unknown';
+
+        // Handle the OAuth callback
+        const result = await oauthService.handleCallback(
+            validatedProviderType,
+            code,
+            state,
+            ipAddress,
+            userAgent
+        );
+
+        logger.info('SSO callback processed successfully', {
+            provider: validatedProviderType,
+            isNewUser: result.isNewUser,
+            userId: result.user?.id
+        });
+
+        // For existing users, set the token cookie
+        if (!result.isNewUser && result.token) {
+            const cookieConfig = getCookieConfig(request);
+            response.cookie('accessToken', result.token, cookieConfig);
+        }
+
+        // Return response matching frontend expectations
+        return response.status(200).json({
+            error: false,
+            message: result.isNewUser ? 'New user detected, please complete registration' : 'Authentication successful',
+            user: result.user,
+            isNewUser: result.isNewUser,
+            token: result.isNewUser ? null : result.token // Only provide token for existing users
+        });
+    } catch (error) {
+        logger.error('SSO callback failed', { error: error.message });
+        return response.status(error.status || 500).json({
+            error: true,
+            message: error.message || 'SSO callback failed'
+        });
+    }
+};
+
 module.exports = {
     getEnabledProviders,
     authorize,
     callback,
     linkAccount,
     unlinkAccount,
-    getLinkedAccounts
+    getLinkedAccounts,
+    initiateSSO,
+    callbackPost
 };

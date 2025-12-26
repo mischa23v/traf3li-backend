@@ -5,7 +5,9 @@ const {
     callback,
     linkAccount,
     unlinkAccount,
-    getLinkedAccounts
+    getLinkedAccounts,
+    initiateSSO,
+    callbackPost
 } = require('../controllers/oauth.controller');
 const {
     detectProvider,
@@ -64,6 +66,166 @@ const app = express.Router();
  *                         type: boolean
  */
 app.get('/providers', publicRateLimiter, getEnabledProviders);
+
+/**
+ * @openapi
+ * /api/auth/sso/initiate:
+ *   post:
+ *     summary: Start OAuth authorization flow (Frontend-friendly)
+ *     description: |
+ *       Generates an authorization URL for the specified OAuth provider.
+ *       This is the frontend-friendly POST endpoint that accepts provider in request body.
+ *     tags:
+ *       - OAuth SSO
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - provider
+ *             properties:
+ *               provider:
+ *                 type: string
+ *                 enum: [google, microsoft, facebook, apple, github, linkedin, twitter]
+ *                 example: google
+ *                 description: OAuth provider type
+ *               returnUrl:
+ *                 type: string
+ *                 default: /
+ *                 description: URL to return to after successful authentication
+ *               firmId:
+ *                 type: string
+ *                 description: Optional firm ID for firm-specific providers
+ *               use_pkce:
+ *                 type: boolean
+ *                 default: false
+ *                 description: Enable PKCE for enhanced security (recommended for mobile apps)
+ *     responses:
+ *       200:
+ *         description: Authorization URL generated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                 authorizationUrl:
+ *                   type: string
+ *                   example: https://accounts.google.com/o/oauth2/v2/auth?client_id=...&redirect_uri=...
+ *                 pkceEnabled:
+ *                   type: boolean
+ *       400:
+ *         description: Invalid provider or configuration
+ *       404:
+ *         description: Provider not found or not enabled
+ */
+app.post('/initiate', publicRateLimiter, initiateSSO);
+
+/**
+ * @openapi
+ * /api/auth/sso/callback:
+ *   post:
+ *     summary: Handle OAuth callback (Frontend-friendly)
+ *     description: |
+ *       Exchanges the authorization code for user data and authentication token.
+ *       This is the frontend-friendly POST endpoint that accepts code/state in request body
+ *       and returns JSON instead of redirecting.
+ *     tags:
+ *       - OAuth SSO
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - provider
+ *               - code
+ *               - state
+ *             properties:
+ *               provider:
+ *                 type: string
+ *                 enum: [google, microsoft, facebook, apple, github, linkedin, twitter]
+ *                 example: google
+ *                 description: OAuth provider type
+ *               code:
+ *                 type: string
+ *                 description: Authorization code from OAuth provider
+ *               state:
+ *                 type: string
+ *                 description: State token for CSRF protection
+ *     responses:
+ *       200:
+ *         description: OAuth callback processed successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               oneOf:
+ *                 - type: object
+ *                   description: Existing user authenticated
+ *                   properties:
+ *                     error:
+ *                       type: boolean
+ *                       example: false
+ *                     message:
+ *                       type: string
+ *                       example: Authentication successful
+ *                     user:
+ *                       type: object
+ *                       properties:
+ *                         _id:
+ *                           type: string
+ *                         email:
+ *                           type: string
+ *                         firstName:
+ *                           type: string
+ *                         lastName:
+ *                           type: string
+ *                         role:
+ *                           type: string
+ *                         avatar:
+ *                           type: string
+ *                     isNewUser:
+ *                       type: boolean
+ *                       example: false
+ *                     token:
+ *                       type: string
+ *                       description: JWT authentication token
+ *                 - type: object
+ *                   description: New user needs to complete registration
+ *                   properties:
+ *                     error:
+ *                       type: boolean
+ *                       example: false
+ *                     message:
+ *                       type: string
+ *                       example: New user detected, please complete registration
+ *                     user:
+ *                       type: object
+ *                       properties:
+ *                         email:
+ *                           type: string
+ *                         firstName:
+ *                           type: string
+ *                         lastName:
+ *                           type: string
+ *                         avatar:
+ *                           type: string
+ *                     isNewUser:
+ *                       type: boolean
+ *                       example: true
+ *                     token:
+ *                       type: null
+ *       400:
+ *         description: Invalid callback parameters or CSRF validation failed
+ */
+app.post('/callback', authRateLimiter, callbackPost);
 
 /**
  * @openapi
