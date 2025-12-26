@@ -146,7 +146,7 @@ const firmFilter = async (req, res, next) => {
             // Get member details from firm for permissions
             const firm = await Firm.findById(user.firmId).select('members ownerId').lean();
             if (firm) {
-                const member = firm.members.find(m => m.userId.toString() === userId);
+                const member = firm.members?.find(m => m.userId?.toString() === userId);
                 if (member) {
                     req.memberData = member;
                     req.permissions = member.permissions || getDefaultPermissions(user.firmRole);
@@ -364,7 +364,7 @@ const checkFirmPermission = (module, requiredLevel = 'view') => {
                 });
             }
 
-            const member = firm.members.find(m => m.userId.toString() === req.userID.toString());
+            const member = firm.members?.find(m => m.userId?.toString() === req.userID?.toString());
             if (!member) {
                 return res.status(403).json({
                     success: false,
