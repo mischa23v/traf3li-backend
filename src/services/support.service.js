@@ -327,7 +327,8 @@ class SupportService {
             await Ticket.findByIdAndDelete(id);
 
             // Also delete related communications if using separate collection
-            await TicketCommunication.deleteMany({ ticketId: id });
+            // NOTE: Bypass firmIsolation filter - cascade delete after ticket validation
+            await TicketCommunication.deleteMany({ ticketId: id }).setOptions({ bypassFirmFilter: true });
 
             logger.info(`Deleted ticket ${id} for firm ${firmId}`);
         } catch (error) {

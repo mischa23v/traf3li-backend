@@ -1007,7 +1007,8 @@ const bulkDeleteClients = asyncHandler(async (req, res) => {
         }
     }
 
-    await Client.deleteMany({ _id: { $in: clientIds } });
+    // Delete clients - IDs already validated above with ownerFilter
+    await Client.deleteMany({ _id: { $in: clientIds }, ...ownerFilter });
 
     res.status(200).json({
         success: true,
