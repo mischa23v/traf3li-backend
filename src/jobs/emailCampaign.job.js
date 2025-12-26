@@ -42,10 +42,11 @@ const processScheduledCampaigns = async () => {
     logger.info(` Checking scheduled campaigns at ${now.toISOString()}`);
 
     // Find campaigns scheduled to send now or earlier
+    // NOTE: Bypass firmIsolation filter - system job operates across all firms
     const campaigns = await EmailCampaign.find({
       status: 'scheduled',
       scheduledAt: { $lte: now }
-    }).populate('segmentId');
+    }).setOptions({ bypassFirmFilter: true }).populate('segmentId');
 
     if (campaigns.length === 0) {
       logger.info(' No scheduled campaigns to send');
@@ -92,9 +93,10 @@ const processDripCampaigns = async () => {
     logger.info(' Processing drip campaigns...');
 
     // Find all subscribers with active drip campaigns
+    // NOTE: Bypass firmIsolation filter - system job operates across all firms
     const subscribers = await EmailSubscriber.find({
       'dripCampaigns.status': 'active'
-    });
+    }).setOptions({ bypassFirmFilter: true });
 
     if (subscribers.length === 0) {
       logger.info(' No active drip campaigns');
@@ -174,10 +176,11 @@ const calculateSegments = async () => {
     logger.info(' Calculating segment counts...');
 
     // Get all dynamic segments
+    // NOTE: Bypass firmIsolation filter - system job operates across all firms
     const segments = await EmailSegment.find({
       isDynamic: true,
       isActive: true
-    });
+    }).setOptions({ bypassFirmFilter: true });
 
     if (segments.length === 0) {
       logger.info(' No dynamic segments to refresh');
@@ -250,7 +253,8 @@ const dailyCleanup = async () => {
     logger.info(' Running daily cleanup...');
 
     // Update engagement scores for all subscribers
-    const subscribers = await EmailSubscriber.find({ status: 'subscribed' });
+    // NOTE: Bypass firmIsolation filter - system job operates across all firms
+    const subscribers = await EmailSubscriber.find({ status: 'subscribed' }).setOptions({ bypassFirmFilter: true });
 
     let updated = 0;
     for (const subscriber of subscribers) {
@@ -267,6 +271,7 @@ const dailyCleanup = async () => {
     logger.info(` Updated engagement scores for ${updated} subscribers`);
 
     // Clean hard bounced emails (mark as unsubscribed)
+    // NOTE: Bypass firmIsolation filter - system job operates across all firms
     const result = await EmailSubscriber.updateMany(
       {
         status: 'bounced',
@@ -278,7 +283,8 @@ const dailyCleanup = async () => {
           status: 'unsubscribed',
           unsubscribeReason: 'Hard bounce - email invalid'
         }
-      }
+      },
+      { bypassFirmFilter: true }
     );
 
     if (result.modifiedCount > 0) {
@@ -289,9 +295,10 @@ const dailyCleanup = async () => {
     const oneYearAgo = new Date();
     oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
 
+    // NOTE: Bypass firmIsolation filter - system job operates across all firms
     const deleteResult = await EmailEvent.deleteMany({
       timestamp: { $lt: oneYearAgo }
-    });
+    }).setOptions({ bypassFirmFilter: true });
 
     if (deleteResult.deletedCount > 0) {
       logger.info(` Deleted ${deleteResult.deletedCount} old events`);
@@ -314,11 +321,12 @@ const updateABTestWinners = async () => {
     const now = new Date();
 
     // Find campaigns with active A/B tests
+    // NOTE: Bypass firmIsolation filter - system job operates across all firms
     const campaigns = await EmailCampaign.find({
       'abTest.enabled': true,
       'abTest.winnerSelected': false,
       status: { $in: ['sending', 'sent'] }
-    });
+    }).setOptions({ bypassFirmFilter: true });
 
     for (const campaign of campaigns) {
       // Check if test duration has passed

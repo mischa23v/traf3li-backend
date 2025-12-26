@@ -279,10 +279,11 @@ const processDailyDigest = async () => {
     logger.info(`🔔 Processing daily digests for hour ${currentHour}...`);
 
     // Get all users with daily digest enabled
+    // NOTE: Bypass firmIsolation filter - system job operates across all firms
     const preferences = await NotificationPreference.find({
       'channels.email.enabled': true,
       'channels.email.digest': 'daily'
-    }).populate('userId', 'email firstName lastName timezone');
+    }).setOptions({ bypassFirmFilter: true }).populate('userId', 'email firstName lastName timezone');
 
     if (!preferences.length) {
       logger.info('📭 No users with daily digest enabled');
@@ -373,10 +374,11 @@ const processWeeklyDigest = async () => {
     logger.info('📅 Processing weekly digests...');
 
     // Get all users with weekly digest enabled
+    // NOTE: Bypass firmIsolation filter - system job operates across all firms
     const preferences = await NotificationPreference.find({
       'channels.email.enabled': true,
       'channels.email.digest': 'weekly'
-    }).populate('userId', 'email firstName lastName timezone');
+    }).setOptions({ bypassFirmFilter: true }).populate('userId', 'email firstName lastName timezone');
 
     if (!preferences.length) {
       logger.info('📭 No users with weekly digest enabled');

@@ -50,10 +50,11 @@ class MLScoringJobs {
 
     try {
       // Get all active leads (not converted to clients)
+      // NOTE: Bypass firmIsolation filter - system job operates across all firms
       const leads = await Lead.find({
         convertedToClient: false,
         status: { $nin: ['lost', 'inactive'] }
-      }).select('_id firmId');
+      }).setOptions({ bypassFirmFilter: true }).select('_id firmId');
 
       logger.info(`[MLScoring] Found ${leads.length} leads to score`);
 
@@ -145,12 +146,13 @@ class MLScoringJobs {
 
     try {
       // Find leads with high scores that need refreshing
+      // NOTE: Bypass firmIsolation filter - system job operates across all firms
       const hotLeads = await LeadScore.find({
         totalScore: { $gte: 70 },
         'calculation.lastCalculatedAt': {
           $lt: new Date(Date.now() - 60 * 60 * 1000) // Older than 1 hour
         }
-      }).populate('leadId', '_id firmId status convertedToClient');
+      }).setOptions({ bypassFirmFilter: true }).populate('leadId', '_id firmId status convertedToClient');
 
       // Filter out converted or lost leads
       const activeHotLeads = hotLeads.filter(
@@ -235,17 +237,19 @@ class MLScoringJobs {
       // Get conversion data from the past week
       const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 
+      // NOTE: Bypass firmIsolation filter - system job operates across all firms
       const convertedLeads = await Lead.find({
         convertedToClient: true,
         convertedAt: { $gte: weekAgo }
-      }).select('_id');
+      }).setOptions({ bypassFirmFilter: true }).select('_id');
 
       const convertedLeadIds = convertedLeads.map(l => l._id);
 
       // Get their scores before conversion
+      // NOTE: Bypass firmIsolation filter - system job operates across all firms
       const preConversionScores = await LeadScore.find({
         leadId: { $in: convertedLeadIds }
-      }).select('leadId totalScore conversionProbability');
+      }).setOptions({ bypassFirmFilter: true }).select('leadId totalScore conversionProbability');
 
       // Calculate accuracy metrics
       let highScoreConversions = 0;
@@ -368,10 +372,11 @@ class MLScoringJobs {
         const slaBreachTime = new Date(Date.now() - config.hours * 60 * 60 * 1000);
 
         // Find leads that breach SLA
+        // NOTE: Bypass firmIsolation filter - system job operates across all firms
         const breachedLeads = await LeadScore.find({
           totalScore: { $gte: config.score },
           'calculation.lastCalculatedAt': { $lt: slaBreachTime }
-        }).populate({
+        }).setOptions({ bypassFirmFilter: true }).populate({
           path: 'leadId',
           match: {
             convertedToClient: false,

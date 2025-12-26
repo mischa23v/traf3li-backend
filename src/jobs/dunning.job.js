@@ -164,8 +164,10 @@ const processDailyDunning = async () => {
 async function getFirmsWithActivePolicies() {
   try {
     // Find all active dunning policies
+    // NOTE: Bypass firmIsolation filter - system job operates across all firms
     const activePolicies = await DunningPolicy.find({ isActive: true })
       .select('firmId name stages pauseConditions')
+      .setOptions({ bypassFirmFilter: true })
       .lean();
 
     if (activePolicies.length === 0) {

@@ -39,6 +39,7 @@ async function archiveOldFinancialData() {
   logger.info(`[DataRetention] Checking for financial data older than ${cutoffDate.toISOString()}`);
 
   // Mark old invoices as archived (don't delete)
+  // NOTE: Bypass firmIsolation filter - system job operates across all firms
   const invoiceResult = await Invoice.updateMany(
     {
       createdAt: { $lt: cutoffDate },
@@ -50,10 +51,12 @@ async function archiveOldFinancialData() {
         archivedAt: new Date(),
         archivedReason: 'retention_policy',
       },
-    }
+    },
+    { bypassFirmFilter: true }
   );
 
   // Mark old payments as archived
+  // NOTE: Bypass firmIsolation filter - system job operates across all firms
   const paymentResult = await Payment.updateMany(
     {
       createdAt: { $lt: cutoffDate },
@@ -65,7 +68,8 @@ async function archiveOldFinancialData() {
         archivedAt: new Date(),
         archivedReason: 'retention_policy',
       },
-    }
+    },
+    { bypassFirmFilter: true }
   );
 
   logger.info(`[DataRetention] Archived ${invoiceResult.modifiedCount} invoices, ${paymentResult.modifiedCount} payments`);
@@ -169,12 +173,13 @@ async function cleanupDepartedUsers() {
 async function processDeletionRequests() {
   logger.info('[DataRetention] Processing pending deletion requests');
 
+  // NOTE: Bypass firmIsolation filter - system job operates across all firms
   const pendingRequests = await Consent.find({
     'deletionRequest.status': 'pending',
     'deletionRequest.requestedAt': {
       $lt: new Date(Date.now() - 24 * 60 * 60 * 1000), // At least 24 hours old
     },
-  }).populate('userId', '_id email');
+  }).setOptions({ bypassFirmFilter: true }).populate('userId', '_id email');
 
   if (pendingRequests.length === 0) {
     logger.info('[DataRetention] No pending deletion requests');
@@ -250,6 +255,7 @@ async function processDeletionRequests() {
 async function generateRetentionReport() {
   const now = new Date();
 
+  // NOTE: Bypass firmIsolation filter - system report operates across all firms
   const [
     totalUsers,
     departedUsers,
@@ -261,9 +267,9 @@ async function generateRetentionReport() {
     User.countDocuments({}),
     User.countDocuments({ firmStatus: 'departed' }),  // Use correct field name
     User.countDocuments({ dataAnonymized: true }),
-    Consent.countDocuments({ 'deletionRequest.status': 'pending' }),
-    Invoice.countDocuments({ archived: true }),
-    Payment.countDocuments({ archived: true }),
+    Consent.countDocuments({ 'deletionRequest.status': 'pending' }).setOptions({ bypassFirmFilter: true }),
+    Invoice.countDocuments({ archived: true }).setOptions({ bypassFirmFilter: true }),
+    Payment.countDocuments({ archived: true }).setOptions({ bypassFirmFilter: true }),
   ]);
 
   const report = {
