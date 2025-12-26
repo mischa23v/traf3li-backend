@@ -38,7 +38,9 @@ const getAuditLogs = async (req, res) => {
         }
 
         // Build filter for multi-tenancy
+        // NOTE: Super admins (no firmId) can query across all firms with bypass
         const firmFilter = adminUser.firmId ? { firmId: adminUser.firmId } : {};
+        const isSuperAdmin = !adminUser.firmId;
 
         // Pagination
         const paginationParams = sanitizePagination(req.query, {
@@ -118,8 +120,9 @@ const getAuditLogs = async (req, res) => {
                 .sort(sortOption)
                 .limit(paginationParams.limit)
                 .skip(paginationParams.skip)
+                .setOptions({ bypassFirmFilter: isSuperAdmin })
                 .lean(),
-            AuditLog.countDocuments(filters)
+            AuditLog.countDocuments(filters).setOptions({ bypassFirmFilter: isSuperAdmin })
         ]);
 
         // Log this admin action (meta!)
@@ -183,7 +186,9 @@ const getSecurityEvents = async (req, res) => {
         }
 
         // Build filter for multi-tenancy
+        // NOTE: Super admins (no firmId) can query across all firms with bypass
         const firmFilter = adminUser.firmId ? { firmId: adminUser.firmId } : {};
+        const isSuperAdmin = !adminUser.firmId;
 
         // Pagination
         const paginationParams = sanitizePagination(req.query, {
@@ -239,14 +244,16 @@ const getSecurityEvents = async (req, res) => {
                 .sort({ createdAt: -1 })
                 .limit(paginationParams.limit)
                 .skip(paginationParams.skip)
+                .setOptions({ bypassFirmFilter: isSuperAdmin })
                 .lean(),
-            AuditLog.countDocuments(filters)
+            AuditLog.countDocuments(filters).setOptions({ bypassFirmFilter: isSuperAdmin })
         ]);
 
         // Get security incidents
         const incidents = await SecurityIncident.find(firmFilter)
             .sort({ createdAt: -1 })
             .limit(10)
+            .setOptions({ bypassFirmFilter: isSuperAdmin })
             .lean();
 
         // Log admin action
@@ -313,7 +320,9 @@ const getComplianceReport = async (req, res) => {
         }
 
         // Build filter for multi-tenancy
+        // NOTE: Super admins (no firmId) can query across all firms with bypass
         const firmFilter = adminUser.firmId ? { firmId: adminUser.firmId } : {};
+        const isSuperAdmin = !adminUser.firmId;
 
         // Date range (default to last 30 days)
         const endDate = new Date();
@@ -350,48 +359,48 @@ const getComplianceReport = async (req, res) => {
             actionsBySeverity
         ] = await Promise.all([
             // Total audit log entries
-            AuditLog.countDocuments({ ...firmFilter, ...dateFilter }),
+            AuditLog.countDocuments({ ...firmFilter, ...dateFilter }).setOptions({ bypassFirmFilter: isSuperAdmin }),
 
             // Failed actions
-            AuditLog.countDocuments({ ...firmFilter, ...dateFilter, status: 'FAILED' }),
+            AuditLog.countDocuments({ ...firmFilter, ...dateFilter, status: 'FAILED' }).setOptions({ bypassFirmFilter: isSuperAdmin }),
 
             // Security incidents
-            SecurityIncident.countDocuments({ ...firmFilter, ...dateFilter }),
+            SecurityIncident.countDocuments({ ...firmFilter, ...dateFilter }).setOptions({ bypassFirmFilter: isSuperAdmin }),
 
             // Admin actions
             AuditLog.countDocuments({
                 ...firmFilter,
                 ...dateFilter,
                 userRole: 'admin'
-            }),
+            }).setOptions({ bypassFirmFilter: isSuperAdmin }),
 
             // Data exports
             AuditLog.countDocuments({
                 ...firmFilter,
                 ...dateFilter,
                 action: { $regex: /export/i }
-            }),
+            }).setOptions({ bypassFirmFilter: isSuperAdmin }),
 
             // User modifications
             AuditLog.countDocuments({
                 ...firmFilter,
                 ...dateFilter,
                 action: { $in: ['admin_update_user_status', 'admin_reset_user_password'] }
-            }),
+            }).setOptions({ bypassFirmFilter: isSuperAdmin }),
 
             // Password resets
             AuditLog.countDocuments({
                 ...firmFilter,
                 ...dateFilter,
                 action: { $regex: /password.*reset/i }
-            }),
+            }).setOptions({ bypassFirmFilter: isSuperAdmin }),
 
             // Login attempts
             AuditLog.countDocuments({
                 ...firmFilter,
                 ...dateFilter,
                 action: { $regex: /login/i }
-            }),
+            }).setOptions({ bypassFirmFilter: isSuperAdmin }),
 
             // Actions by type
             AuditLog.aggregate([
@@ -404,7 +413,7 @@ const getComplianceReport = async (req, res) => {
                 },
                 { $sort: { count: -1 } },
                 { $limit: 20 }
-            ]),
+            ]).option({ bypassFirmFilter: isSuperAdmin }),
 
             // Actions by severity
             AuditLog.aggregate([
@@ -415,7 +424,7 @@ const getComplianceReport = async (req, res) => {
                         count: { $sum: 1 }
                     }
                 }
-            ])
+            ]).option({ bypassFirmFilter: isSuperAdmin })
         ]);
 
         // Top users by activity
@@ -430,7 +439,7 @@ const getComplianceReport = async (req, res) => {
             },
             { $sort: { actionCount: -1 } },
             { $limit: 10 }
-        ]);
+        ]).option({ bypassFirmFilter: isSuperAdmin });
 
         const report = {
             period: {
@@ -517,7 +526,9 @@ const exportAuditLogs = async (req, res) => {
         }
 
         // Build filter for multi-tenancy
+        // NOTE: Super admins (no firmId) can query across all firms with bypass
         const firmFilter = adminUser.firmId ? { firmId: adminUser.firmId } : {};
+        const isSuperAdmin = !adminUser.firmId;
 
         // Date range (required for exports)
         if (!req.query.startDate || !req.query.endDate) {
@@ -561,6 +572,7 @@ const exportAuditLogs = async (req, res) => {
         const logs = await AuditLog.find(filters)
             .sort({ createdAt: -1 })
             .limit(50000) // Safety limit
+            .setOptions({ bypassFirmFilter: isSuperAdmin })
             .lean();
 
         // Log export action
@@ -656,7 +668,9 @@ const getLoginHistory = async (req, res) => {
         }
 
         // Build filter for multi-tenancy
+        // NOTE: Super admins (no firmId) can query across all firms with bypass
         const firmFilter = adminUser.firmId ? { firmId: adminUser.firmId } : {};
+        const isSuperAdmin = !adminUser.firmId;
 
         // Pagination
         const paginationParams = sanitizePagination(req.query, {
@@ -703,8 +717,9 @@ const getLoginHistory = async (req, res) => {
                 .limit(paginationParams.limit)
                 .skip(paginationParams.skip)
                 .select('action userId userEmail status createdAt details.ipAddress details.userAgent details.location')
+                .setOptions({ bypassFirmFilter: isSuperAdmin })
                 .lean(),
-            AuditLog.countDocuments(filters)
+            AuditLog.countDocuments(filters).setOptions({ bypassFirmFilter: isSuperAdmin })
         ]);
 
         // Get login statistics
@@ -716,7 +731,7 @@ const getLoginHistory = async (req, res) => {
                     count: { $sum: 1 }
                 }
             }
-        ]);
+        ]).option({ bypassFirmFilter: isSuperAdmin });
 
         return res.json({
             error: false,
