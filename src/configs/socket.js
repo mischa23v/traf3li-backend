@@ -132,21 +132,31 @@ const initSocket = (server) => {
     // USER CONNECTION & PRESENCE
     // ═══════════════════════════════════════════════════════════════
 
-    // User joins with their ID
-    socket.on('user:join', (userId) => {
+    // User joins with their ID and firmId
+    // SECURITY: Fixed - now requires firmId for scoped broadcasting
+    socket.on('user:join', (data) => {
+      // Support both old format (userId string) and new format (object with userId and firmId)
+      const userId = typeof data === 'string' ? data : data.userId;
+      const firmId = typeof data === 'object' ? data.firmId : null;
+
       onlineUsers.set(userId, socket.id);
       socket.userId = userId;
+      socket.firmId = firmId; // Store firmId on socket for later use
 
       // Join user's personal notification room
       socket.join(`user:${userId}`);
 
-      // Broadcast online status
-      io.emit('user:online', {
-        userId,
-        socketId: socket.id
-      });
+      // SECURITY: Join firm room if firmId provided
+      if (firmId) {
+        socket.join(`firm:${firmId}`);
+        // SECURITY: Only broadcast online status within the firm
+        io.to(`firm:${firmId}`).emit('user:online', {
+          userId,
+          socketId: socket.id
+        });
+      }
 
-      logger.info(`👤 User ${userId} is online`);
+      logger.info(`👤 User ${userId} is online${firmId ? ` (firm: ${firmId})` : ''}`);
     });
 
     // Update user presence (what they're viewing)
@@ -399,16 +409,28 @@ const initSocket = (server) => {
     // ═══════════════════════════════════════════════════════════════
 
     // Join firm room
+    // SECURITY: Validate that user is joining their own firm's room
     socket.on('firm:join', (firmId) => {
-      const roomId = `firm:${firmId}`;
-      socket.join(roomId);
-      logger.info(`🏢 User joined firm room: ${firmId}`);
+      // SECURITY: Only allow joining if socket has firmId set and it matches
+      if (socket.firmId && socket.firmId.toString() === firmId.toString()) {
+        const roomId = `firm:${firmId}`;
+        socket.join(roomId);
+        logger.info(`🏢 User joined firm room: ${firmId}`);
+      } else {
+        logger.warn(`🚫 Unauthorized firm:join attempt - socket firmId: ${socket.firmId}, requested: ${firmId}`);
+      }
     });
 
     // Activity notification (firm-wide)
+    // SECURITY: Validate that user can only broadcast to their own firm
     socket.on('activity:new', (data) => {
-      const roomId = `firm:${data.firmId}`;
-      io.to(roomId).emit('activity:notification', data);
+      // SECURITY: Verify socket has firmId and it matches the broadcast target
+      if (socket.firmId && data.firmId && socket.firmId.toString() === data.firmId.toString()) {
+        const roomId = `firm:${data.firmId}`;
+        io.to(roomId).emit('activity:notification', data);
+      } else {
+        logger.warn(`🚫 Unauthorized activity:new attempt - socket firmId: ${socket.firmId}, target: ${data.firmId}`);
+      }
     });
 
     // ═══════════════════════════════════════════════════════════════
@@ -439,7 +461,10 @@ const initSocket = (server) => {
         // Clean up empty rooms to prevent memory leak
         emptyRooms.forEach(roomId => activeRooms.delete(roomId));
 
-        io.emit('user:offline', { userId: socket.userId });
+        // SECURITY: Only broadcast offline status within the user's firm
+        if (socket.firmId) {
+          io.to(`firm:${socket.firmId}`).emit('user:offline', { userId: socket.userId });
+        }
         logger.info(`👋 User ${socket.userId} is offline`);
       }
     });
