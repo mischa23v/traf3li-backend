@@ -520,7 +520,9 @@ const inviteMember = asyncHandler(async (req, res) => {
     }
 
     // Find user by email
-    const invitedUser = await User.findOne({ email: email.toLowerCase() });
+    // SECURITY: bypassFirmFilter needed - need to find users without firm to invite them
+    const invitedUser = await User.findOne({ email: email.toLowerCase() })
+        .setOptions({ bypassFirmFilter: true });
     if (!invitedUser) {
         throw CustomException('المستخدم غير موجود. يجب أن يكون لديه حساب أولاً', 404);
     }

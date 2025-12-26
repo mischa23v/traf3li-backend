@@ -52,8 +52,18 @@ const checkOwnership = (modelName, paramName = 'id', options = {}) => {
       // Get model
       const Model = mongoose.model(modelName);
 
-      // Find resource
-      const resource = await Model.findById(resourceId);
+      // SECURITY: Build query with firm context for multi-tenant models
+      const firmId = req.firmId || req.user?.firmId;
+      const resourceQuery = { _id: resourceId };
+
+      // Add firmId filter for models that support it (multi-tenant models)
+      // This prevents cross-firm data access
+      if (firmId && Model.schema.paths.firmId) {
+        resourceQuery.firmId = firmId;
+      }
+
+      // Find resource with firm context
+      const resource = await Model.findOne(resourceQuery);
 
       if (!resource) {
         return res.status(404).json({

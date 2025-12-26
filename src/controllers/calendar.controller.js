@@ -942,18 +942,26 @@ const getCalendarStats = asyncHandler(async (req, res) => {
 
     const completedThisMonth = completedTasksThisMonth + completedEventsThisMonth;
 
+    // Get firm context for aggregate queries
+    const firmId = req.firmId || req.user?.firmId;
+    const firmObjectId = firmId ? new mongoose.Types.ObjectId(firmId) : null;
+
     // Events by type
+    // SECURITY: Add firmId to $match to prevent cross-firm data exposure
+    const eventMatch = {
+        $or: [
+            { createdBy: userId },
+            { organizer: userId },
+            { 'attendees.userId': userId }
+        ],
+        startDateTime: { $gte: start, $lte: end }
+    };
+    if (firmObjectId) {
+        eventMatch.firmId = firmObjectId;
+    }
+
     const eventsByType = await Event.aggregate([
-        {
-            $match: {
-                $or: [
-                    { createdBy: userId },
-                    { organizer: userId },
-                    { 'attendees.userId': userId }
-                ],
-                startDateTime: { $gte: start, $lte: end }
-            }
-        },
+        { $match: eventMatch },
         {
             $group: {
                 _id: '$type',
@@ -968,17 +976,21 @@ const getCalendarStats = asyncHandler(async (req, res) => {
     });
 
     // Tasks by priority
+    // SECURITY: Add firmId to $match to prevent cross-firm data exposure
+    const taskMatch = {
+        $or: [
+            { assignedTo: userId },
+            { createdBy: userId }
+        ],
+        dueDate: { $gte: start, $lte: end },
+        status: { $nin: ['done', 'canceled'] }
+    };
+    if (firmObjectId) {
+        taskMatch.firmId = firmObjectId;
+    }
+
     const tasksByPriority = await Task.aggregate([
-        {
-            $match: {
-                $or: [
-                    { assignedTo: userId },
-                    { createdBy: userId }
-                ],
-                dueDate: { $gte: start, $lte: end },
-                status: { $nin: ['done', 'canceled'] }
-            }
-        },
+        { $match: taskMatch },
         {
             $group: {
                 _id: '$priority',

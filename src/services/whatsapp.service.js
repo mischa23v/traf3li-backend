@@ -1378,10 +1378,31 @@ class WhatsAppService {
     }
 
     async findFirmByPhoneNumber(phoneNumber) {
-        // Implementation depends on your firm-phone mapping
-        // For now, return a default firm or look up from config
+        // SECURITY: Look up firm by their WhatsApp business phone number
+        // This prevents cross-firm message routing
         const Firm = require('../models/firm.model');
-        const firm = await Firm.findOne(); // Get first firm (you should improve this)
+
+        if (!phoneNumber) {
+            logger.warn('[WhatsApp] findFirmByPhoneNumber called without phoneNumber');
+            return null;
+        }
+
+        // Normalize phone number for matching (last 9 digits)
+        const normalizedPhone = phoneNumber.replace(/\D/g, '').slice(-9);
+
+        // Find firm that has this phone number configured for WhatsApp
+        const firm = await Firm.findOne({
+            $or: [
+                { 'integrations.whatsapp.phoneNumber': { $regex: normalizedPhone } },
+                { 'settings.whatsappBusinessPhone': { $regex: normalizedPhone } },
+                { 'whatsappPhoneNumbers': { $regex: normalizedPhone } }
+            ]
+        }).setOptions({ bypassFirmFilter: true });
+
+        if (!firm) {
+            logger.warn(`[WhatsApp] No firm found for phone number: ${phoneNumber}`);
+        }
+
         return firm?._id;
     }
 

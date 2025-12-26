@@ -196,10 +196,11 @@ const convertAnonymousUser = async (request, response) => {
         }
 
         // Check if email already exists
+        // SECURITY: bypassFirmFilter needed - email uniqueness must be checked system-wide
         const existingUser = await User.findOne({
             email: email.toLowerCase(),
             _id: { $ne: userId } // Exclude current user
-        });
+        }).setOptions({ bypassFirmFilter: true });
 
         if (existingUser) {
             return response.status(409).json({
@@ -250,7 +251,8 @@ const convertAnonymousUser = async (request, response) => {
             let counter = 1;
 
             // Ensure username is unique
-            while (await User.findOne({ username })) {
+            // SECURITY: bypassFirmFilter needed - username uniqueness must be checked system-wide
+            while (await User.findOne({ username }).setOptions({ bypassFirmFilter: true })) {
                 username = `${baseUsername}${counter}`;
                 counter++;
             }

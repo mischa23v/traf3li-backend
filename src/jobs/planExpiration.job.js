@@ -37,7 +37,9 @@ const processExpiredTrials = async () => {
                 await firm.save();
 
                 // Notify firm owner
-                const owner = await User.findById(firm.ownerId);
+                // SYSTEM JOB: bypassFirmFilter - processes all firms for plan expiration
+                const owner = await User.findById(firm.ownerId)
+                    .setOptions({ bypassFirmFilter: true });
                 if (owner) {
                     await Notification.create({
                         userId: owner._id,
@@ -86,7 +88,9 @@ const processExpiredPlans = async () => {
                 await firm.save();
 
                 // Notify firm owner
-                const owner = await User.findById(firm.ownerId);
+                // SYSTEM JOB: bypassFirmFilter - processes all firms for plan expiration
+                const owner = await User.findById(firm.ownerId)
+                    .setOptions({ bypassFirmFilter: true });
                 if (owner) {
                     await Notification.create({
                         userId: owner._id,

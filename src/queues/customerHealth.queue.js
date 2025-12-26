@@ -257,8 +257,10 @@ async function sendInterventionEmail(data, job) {
     throw new Error(`Firm ${firmId} not found`);
   }
 
+  // SYSTEM JOB: bypassFirmFilter - processes all firms for customer health emails
   const owner = await User.findById(firm.ownerId)
-    .select('_id email firstName lastName');
+    .select('_id email firstName lastName')
+    .setOptions({ bypassFirmFilter: true });
 
   if (!owner || !owner.email) {
     logger.warn(`[CustomerHealth] No owner email for firm ${firmId}`);

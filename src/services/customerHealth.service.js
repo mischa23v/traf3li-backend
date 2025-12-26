@@ -1181,9 +1181,11 @@ class CustomerHealthService {
      */
     static async getFirmsByRiskTier(riskTier) {
         try {
+            // ADMIN: bypassFirmFilter - super admin function to view all firms' health scores
             return await CustomerHealthScore.find({ riskTier })
                 .populate('firmId', 'name email website')
                 .sort({ totalScore: 1 }) // Lowest scores first
+                .setOptions({ bypassFirmFilter: true })
                 .lean();
         } catch (error) {
             logger.error(`Error getting firms by risk tier ${riskTier}:`, error);
@@ -1197,6 +1199,7 @@ class CustomerHealthService {
      */
     static async getAtRiskSummary() {
         try {
+            // ADMIN: bypassFirmFilter - super admin function to view all firms' health metrics
             const atRisk = await CustomerHealthScore.countDocuments({ riskTier: 'atRisk' });
             const critical = await CustomerHealthScore.countDocuments({ riskTier: 'critical' });
             const warning = await CustomerHealthScore.countDocuments({ riskTier: 'warning' });
@@ -1206,6 +1209,7 @@ class CustomerHealthService {
                 .populate('firmId', 'name email')
                 .sort({ totalScore: 1 })
                 .limit(10)
+                .setOptions({ bypassFirmFilter: true })
                 .lean();
 
             return {
@@ -1232,12 +1236,14 @@ class CustomerHealthService {
      */
     static async getDecliningCustomers(limit = 20) {
         try {
+            // ADMIN: bypassFirmFilter - super admin function to view declining customers across all firms
             return await CustomerHealthScore.find({
                 'trend.direction': 'declining'
             })
                 .populate('firmId', 'name email')
                 .sort({ 'trend.changePercent': 1 }) // Most declining first
                 .limit(limit)
+                .setOptions({ bypassFirmFilter: true })
                 .lean();
         } catch (error) {
             logger.error('Error getting declining customers:', error);
@@ -1253,6 +1259,7 @@ class CustomerHealthService {
      */
     static async getExpansionOpportunities(limit = 20) {
         try {
+            // ADMIN: bypassFirmFilter - super admin function to view expansion opportunities across all firms
             return await CustomerHealthScore.find({
                 riskTier: { $in: ['healthy', 'warning'] },
                 totalScore: { $gte: 70 },
@@ -1261,6 +1268,7 @@ class CustomerHealthService {
                 .populate('firmId', 'name email')
                 .sort({ totalScore: -1 })
                 .limit(limit)
+                .setOptions({ bypassFirmFilter: true })
                 .lean();
         } catch (error) {
             logger.error('Error getting expansion opportunities:', error);
