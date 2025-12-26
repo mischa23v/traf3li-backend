@@ -810,18 +810,59 @@ class OAuthService {
             }
         );
 
+        // Build user data matching normal login response
+        const userData = {
+            id: user._id,
+            username: user.username,
+            email: user.email,
+            firstName: user.firstName,
+            lastName: user.lastName,
+            role: user.role,
+            isSeller: user.isSeller || false,
+            isSoloLawyer: user.isSoloLawyer || false,
+            lawyerWorkMode: user.lawyerWorkMode,
+            lawyerMode: user.lawyerMode,
+            firmId: user.firmId || null,
+            firmRole: user.firmRole || null,
+            firmStatus: user.firmStatus || null,
+            image: user.image,
+            phone: user.phone,
+            country: user.country,
+            timezone: user.timezone
+        };
+
+        // If user has a firm, get firm details (like normal login does)
+        if (user.firmId) {
+            try {
+                const firm = await Firm.findById(user.firmId)
+                    .select('name nameEnglish licenseNumber status members subscription');
+
+                if (firm) {
+                    userData.firm = {
+                        id: firm._id,
+                        name: firm.name,
+                        nameEnglish: firm.nameEnglish,
+                        status: firm.status
+                    };
+
+                    // Get user's permissions from firm members
+                    const member = firm.members?.find(m => m.userId?.toString() === user._id.toString());
+                    if (member) {
+                        userData.firmPermissions = member.permissions || {};
+                    }
+                }
+            } catch (firmError) {
+                logger.warn('Failed to fetch firm details for OAuth login', {
+                    userId: user._id,
+                    firmId: user.firmId,
+                    error: firmError.message
+                });
+            }
+        }
+
         return {
             token,
-            user: {
-                id: user._id,
-                email: user.email,
-                firstName: user.firstName,
-                lastName: user.lastName,
-                role: user.role,
-                firmId: user.firmId,
-                firmRole: user.firmRole,
-                image: user.image
-            },
+            user: userData,
             isNewUser,
             returnUrl: stateData.returnUrl || '/'
         };
