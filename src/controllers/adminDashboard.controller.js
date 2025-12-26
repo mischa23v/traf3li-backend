@@ -34,7 +34,9 @@ const getDashboardSummary = async (req, res) => {
         }
 
         // Build filter for multi-tenancy
+        // NOTE: Super admins (no firmId) can query across all firms with bypass
         const firmFilter = adminUser.firmId ? { firmId: adminUser.firmId } : {};
+        const isSuperAdmin = !adminUser.firmId;
 
         // Calculate date ranges
         const now = new Date();
@@ -80,34 +82,35 @@ const getDashboardSummary = async (req, res) => {
             adminUser.firmId ? 1 : Firm.countDocuments({ status: 'active' }),
 
             // Case metrics
-            Case.countDocuments(firmFilter),
-            Case.countDocuments({ ...firmFilter, status: { $in: ['open', 'in_progress'] } }),
+            // NOTE: Bypass firmIsolation for super admin cross-firm queries
+            Case.countDocuments(firmFilter).setOptions({ bypassFirmFilter: isSuperAdmin }),
+            Case.countDocuments({ ...firmFilter, status: { $in: ['open', 'in_progress'] } }).setOptions({ bypassFirmFilter: isSuperAdmin }),
 
             // Invoice metrics
-            Invoice.countDocuments(firmFilter),
-            Invoice.countDocuments({ ...firmFilter, status: 'paid' }),
+            Invoice.countDocuments(firmFilter).setOptions({ bypassFirmFilter: isSuperAdmin }),
+            Invoice.countDocuments({ ...firmFilter, status: 'paid' }).setOptions({ bypassFirmFilter: isSuperAdmin }),
 
             // Revenue metrics
             Payment.aggregate([
                 { $match: firmFilter },
                 { $group: { _id: null, total: { $sum: '$amount' } } }
-            ]).then(result => result[0]?.total || 0),
+            ]).option({ bypassFirmFilter: isSuperAdmin }).then(result => result[0]?.total || 0),
             Payment.aggregate([
                 { $match: { ...firmFilter, createdAt: { $gte: startOfMonth } } },
                 { $group: { _id: null, total: { $sum: '$amount' } } }
-            ]).then(result => result[0]?.total || 0),
+            ]).option({ bypassFirmFilter: isSuperAdmin }).then(result => result[0]?.total || 0),
 
             // Pending approvals
             ApprovalRequest.countDocuments({
                 ...firmFilter,
                 status: 'pending'
-            }),
+            }).setOptions({ bypassFirmFilter: isSuperAdmin }),
 
             // Subscription metrics
             Subscription.countDocuments({
                 ...firmFilter,
                 status: 'active'
-            })
+            }).setOptions({ bypassFirmFilter: isSuperAdmin })
         ]);
 
         // Calculate growth rates
@@ -129,7 +132,7 @@ const getDashboardSummary = async (req, res) => {
                 }
             },
             { $group: { _id: null, total: { $sum: '$amount' } } }
-        ]).then(result => result[0]?.total || 0);
+        ]).option({ bypassFirmFilter: isSuperAdmin }).then(result => result[0]?.total || 0);
 
         const revenueGrowthRate = revenueLastMonth > 0
             ? ((revenueThisMonth - revenueLastMonth) / revenueLastMonth * 100).toFixed(2)
@@ -207,7 +210,9 @@ const getRevenueMetrics = async (req, res) => {
         }
 
         // Build filter for multi-tenancy
+        // NOTE: Super admins (no firmId) can query across all firms with bypass
         const firmFilter = adminUser.firmId ? { firmId: adminUser.firmId } : {};
+        const isSuperAdmin = !adminUser.firmId;
 
         // Date range from query params or default to last 12 months
         const months = parseInt(req.query.months) || 12;
@@ -234,7 +239,7 @@ const getRevenueMetrics = async (req, res) => {
                 }
             },
             { $sort: { '_id.year': 1, '_id.month': 1 } }
-        ]);
+        ]).option({ bypassFirmFilter: isSuperAdmin });
 
         // Revenue by payment method
         const revenueByMethod = await Payment.aggregate([
@@ -252,7 +257,7 @@ const getRevenueMetrics = async (req, res) => {
                     count: { $sum: 1 }
                 }
             }
-        ]);
+        ]).option({ bypassFirmFilter: isSuperAdmin });
 
         // Top paying clients
         const topClients = await Payment.aggregate([
@@ -290,7 +295,7 @@ const getRevenueMetrics = async (req, res) => {
                     paymentCount: 1
                 }
             }
-        ]);
+        ]).option({ bypassFirmFilter: isSuperAdmin });
 
         // Revenue statistics
         const totalRevenue = revenueByMonth.reduce((sum, item) => sum + item.revenue, 0);
@@ -464,18 +469,20 @@ const getSystemHealth = async (req, res) => {
         const dbStats = await mongoose.connection.db.stats();
 
         // Recent errors from audit logs (last 24 hours)
+        // NOTE: Bypass firmIsolation - system health check queries across all firms
         const last24Hours = new Date(Date.now() - 24 * 60 * 60 * 1000);
         const recentErrors = await AuditLog.countDocuments({
             status: 'FAILED',
             createdAt: { $gte: last24Hours }
-        });
+        }).setOptions({ bypassFirmFilter: true });
 
         // Security incidents (last 7 days)
+        // NOTE: Bypass firmIsolation - system health check queries across all firms
         const SecurityIncident = require('../models/securityIncident.model');
         const last7Days = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
         const recentIncidents = await SecurityIncident.countDocuments({
             createdAt: { $gte: last7Days }
-        });
+        }).setOptions({ bypassFirmFilter: true });
 
         // System uptime
         const uptime = process.uptime();
@@ -545,7 +552,9 @@ const getPendingApprovals = async (req, res) => {
         }
 
         // Build filter for multi-tenancy
+        // NOTE: Super admins (no firmId) can query across all firms with bypass
         const firmFilter = adminUser.firmId ? { firmId: adminUser.firmId } : {};
+        const isSuperAdmin = !adminUser.firmId;
 
         // Pagination
         const paginationParams = sanitizePagination(req.query, {
@@ -564,12 +573,13 @@ const getPendingApprovals = async (req, res) => {
         .sort({ createdAt: -1 })
         .limit(paginationParams.limit)
         .skip(paginationParams.skip)
+        .setOptions({ bypassFirmFilter: isSuperAdmin })
         .lean();
 
         const totalPending = await ApprovalRequest.countDocuments({
             ...firmFilter,
             status: 'pending'
-        });
+        }).setOptions({ bypassFirmFilter: isSuperAdmin });
 
         // Get pending invoices (unpaid, overdue)
         const now = new Date();
@@ -577,7 +587,7 @@ const getPendingApprovals = async (req, res) => {
             ...firmFilter,
             status: { $in: ['sent', 'overdue'] },
             dueDate: { $lt: now }
-        });
+        }).setOptions({ bypassFirmFilter: isSuperAdmin });
 
         // Get unverified users (if applicable)
         const unverifiedUsers = await User.countDocuments({
@@ -634,7 +644,9 @@ const getRecentActivity = async (req, res) => {
         }
 
         // Build filter for multi-tenancy
+        // NOTE: Super admins (no firmId) can query across all firms with bypass
         const firmFilter = adminUser.firmId ? { firmId: adminUser.firmId } : {};
+        const isSuperAdmin = !adminUser.firmId;
 
         // Pagination
         const paginationParams = sanitizePagination(req.query, {
@@ -649,9 +661,10 @@ const getRecentActivity = async (req, res) => {
             .limit(paginationParams.limit)
             .skip(paginationParams.skip)
             .select('action resourceType resourceId status userId userEmail createdAt details severity')
+            .setOptions({ bypassFirmFilter: isSuperAdmin })
             .lean();
 
-        const totalActivity = await AuditLog.countDocuments(firmFilter);
+        const totalActivity = await AuditLog.countDocuments(firmFilter).setOptions({ bypassFirmFilter: isSuperAdmin });
 
         // Activity statistics
         const activityStats = await AuditLog.aggregate([
@@ -664,7 +677,7 @@ const getRecentActivity = async (req, res) => {
             },
             { $sort: { count: -1 } },
             { $limit: 10 }
-        ]);
+        ]).option({ bypassFirmFilter: isSuperAdmin });
 
         return res.json({
             error: false,
