@@ -215,14 +215,20 @@ class OAuthService {
     async getProviderConfig(providerId, firmId = null) {
         let provider;
 
+        // Handle env-based provider IDs (e.g., "env-google" -> "google")
+        let actualProviderId = providerId;
+        if (typeof providerId === 'string' && providerId.startsWith('env-')) {
+            actualProviderId = providerId.replace('env-', '');
+        }
+
         // Check if providerId is actually a provider type (google, microsoft, facebook, etc.)
-        if (['google', 'microsoft', 'facebook', 'okta', 'auth0', 'custom', 'apple', 'twitter', 'linkedin', 'github'].includes(providerId)) {
+        if (['google', 'microsoft', 'facebook', 'okta', 'auth0', 'custom', 'apple', 'twitter', 'linkedin', 'github'].includes(actualProviderId)) {
             // Get provider by type and firm
-            provider = await SsoProvider.getActiveProvider(firmId, providerId);
+            provider = await SsoProvider.getActiveProvider(firmId, actualProviderId);
 
             // Fallback to environment variables if no database provider found
             if (!provider) {
-                const envProvider = this.getProviderFromEnv(providerId);
+                const envProvider = this.getProviderFromEnv(actualProviderId);
                 if (envProvider) {
                     provider = envProvider;
                 }
