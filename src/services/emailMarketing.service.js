@@ -68,9 +68,9 @@ class EmailMarketingService {
   /**
    * Update campaign
    */
-  static async updateCampaign(campaignId, data, userId) {
+  static async updateCampaign(campaignId, data, userId, firmId) {
     try {
-      const campaign = await EmailCampaign.findById(campaignId);
+      const campaign = await EmailCampaign.findOne({ _id: campaignId, firmId });
       if (!campaign) {
         throw new Error('Campaign not found');
       }
@@ -98,9 +98,9 @@ class EmailMarketingService {
   /**
    * Delete campaign
    */
-  static async deleteCampaign(campaignId) {
+  static async deleteCampaign(campaignId, firmId) {
     try {
-      const campaign = await EmailCampaign.findById(campaignId);
+      const campaign = await EmailCampaign.findOne({ _id: campaignId, firmId });
       if (!campaign) {
         throw new Error('Campaign not found');
       }
@@ -120,9 +120,9 @@ class EmailMarketingService {
   /**
    * Duplicate campaign
    */
-  static async duplicateCampaign(campaignId, userId) {
+  static async duplicateCampaign(campaignId, userId, firmId) {
     try {
-      const original = await EmailCampaign.findById(campaignId).lean();
+      const original = await EmailCampaign.findOne({ _id: campaignId, firmId }).lean();
       if (!original) {
         throw new Error('Campaign not found');
       }
@@ -164,9 +164,9 @@ class EmailMarketingService {
   /**
    * Schedule campaign
    */
-  static async scheduleCampaign(campaignId, scheduledAt, timezone = 'Asia/Riyadh') {
+  static async scheduleCampaign(campaignId, scheduledAt, timezone = 'Asia/Riyadh', firmId) {
     try {
-      const campaign = await EmailCampaign.findById(campaignId);
+      const campaign = await EmailCampaign.findOne({ _id: campaignId, firmId });
       if (!campaign) {
         throw new Error('Campaign not found');
       }
@@ -189,9 +189,9 @@ class EmailMarketingService {
   /**
    * Send campaign immediately
    */
-  static async sendCampaign(campaignId) {
+  static async sendCampaign(campaignId, firmId) {
     try {
-      const campaign = await EmailCampaign.findById(campaignId)
+      const campaign = await EmailCampaign.findOne({ _id: campaignId, firmId })
         .populate('templateId')
         .populate('segmentId');
 
@@ -229,8 +229,8 @@ class EmailMarketingService {
   /**
    * Pause campaign
    */
-  static async pauseCampaign(campaignId) {
-    const campaign = await EmailCampaign.findById(campaignId);
+  static async pauseCampaign(campaignId, firmId) {
+    const campaign = await EmailCampaign.findOne({ _id: campaignId, firmId });
     if (!campaign) {
       throw new Error('Campaign not found');
     }
@@ -243,8 +243,8 @@ class EmailMarketingService {
   /**
    * Resume campaign
    */
-  static async resumeCampaign(campaignId) {
-    const campaign = await EmailCampaign.findById(campaignId);
+  static async resumeCampaign(campaignId, firmId) {
+    const campaign = await EmailCampaign.findOne({ _id: campaignId, firmId });
     if (!campaign) {
       throw new Error('Campaign not found');
     }
@@ -261,8 +261,8 @@ class EmailMarketingService {
   /**
    * Cancel campaign
    */
-  static async cancelCampaign(campaignId) {
-    const campaign = await EmailCampaign.findById(campaignId);
+  static async cancelCampaign(campaignId, firmId) {
+    const campaign = await EmailCampaign.findOne({ _id: campaignId, firmId });
     if (!campaign) {
       throw new Error('Campaign not found');
     }
@@ -292,7 +292,7 @@ class EmailMarketingService {
     for (const subscriber of subscribers) {
       try {
         // Check if campaign is paused/cancelled
-        const currentCampaign = await EmailCampaign.findById(campaign._id);
+        const currentCampaign = await EmailCampaign.findOne({ _id: campaign._id, firmId: campaign.firmId });
         if (currentCampaign.status === 'paused' || currentCampaign.status === 'cancelled') {
           break;
         }
@@ -380,13 +380,13 @@ class EmailMarketingService {
   /**
    * Send single email (for testing)
    */
-  static async sendSingleEmail(subscriberId, templateId, variables) {
+  static async sendSingleEmail(subscriberId, templateId, variables, firmId) {
     if (!resend) {
       throw new Error('Email service not configured');
     }
 
-    const subscriber = await EmailSubscriber.findById(subscriberId);
-    const template = await EmailTemplate.findById(templateId);
+    const subscriber = await EmailSubscriber.findOne({ _id: subscriberId, firmId });
+    const template = await EmailTemplate.findOne({ _id: templateId, firmId });
 
     if (!subscriber || !template) {
       throw new Error('Subscriber or template not found');
@@ -465,9 +465,9 @@ class EmailMarketingService {
   /**
    * Start drip campaign for a subscriber
    */
-  static async startDripCampaign(campaignId, subscriberId) {
-    const campaign = await EmailCampaign.findById(campaignId);
-    const subscriber = await EmailSubscriber.findById(subscriberId);
+  static async startDripCampaign(campaignId, subscriberId, firmId) {
+    const campaign = await EmailCampaign.findOne({ _id: campaignId, firmId });
+    const subscriber = await EmailSubscriber.findOne({ _id: subscriberId, firmId });
 
     if (!campaign || !subscriber) {
       throw new Error('Campaign or subscriber not found');
@@ -497,9 +497,9 @@ class EmailMarketingService {
   /**
    * Process next drip step for subscriber
    */
-  static async processNextDripStep(campaignId, subscriberId) {
-    const campaign = await EmailCampaign.findById(campaignId);
-    const subscriber = await EmailSubscriber.findById(subscriberId);
+  static async processNextDripStep(campaignId, subscriberId, firmId) {
+    const campaign = await EmailCampaign.findOne({ _id: campaignId, firmId });
+    const subscriber = await EmailSubscriber.findOne({ _id: subscriberId, firmId });
 
     if (!campaign || !subscriber) return;
 
@@ -579,8 +579,8 @@ class EmailMarketingService {
   /**
    * Pause drip campaign for subscriber
    */
-  static async pauseDripForSubscriber(campaignId, subscriberId) {
-    const subscriber = await EmailSubscriber.findById(subscriberId);
+  static async pauseDripForSubscriber(campaignId, subscriberId, firmId) {
+    const subscriber = await EmailSubscriber.findOne({ _id: subscriberId, firmId });
     if (!subscriber) throw new Error('Subscriber not found');
 
     const dripProgress = subscriber.dripCampaigns.find(
@@ -598,8 +598,8 @@ class EmailMarketingService {
   /**
    * Get drip progress for subscriber
    */
-  static async getDripProgress(campaignId, subscriberId) {
-    const subscriber = await EmailSubscriber.findById(subscriberId);
+  static async getDripProgress(campaignId, subscriberId, firmId) {
+    const subscriber = await EmailSubscriber.findOne({ _id: subscriberId, firmId });
     if (!subscriber) throw new Error('Subscriber not found');
 
     const dripProgress = subscriber.dripCampaigns.find(
@@ -642,7 +642,7 @@ class EmailMarketingService {
         // Check if conditions match
         if (this._evaluateTriggerConditions(campaign.triggerSettings.triggerConditions, data)) {
           // Send triggered email
-          const subscriber = await EmailSubscriber.findById(data.subscriberId);
+          const subscriber = await EmailSubscriber.findOne({ _id: data.subscriberId, firmId });
           if (subscriber && subscriber.status === 'subscribed') {
             await this.sendBulkEmails(campaign, [subscriber]);
           }
@@ -653,8 +653,8 @@ class EmailMarketingService {
     }
   }
 
-  static async handleLeadCreated(leadId) {
-    const lead = await Lead.findById(leadId);
+  static async handleLeadCreated(leadId, firmId) {
+    const lead = await Lead.findOne({ _id: leadId, firmId });
     if (!lead || !lead.email) return;
 
     // Find or create subscriber
@@ -680,8 +680,8 @@ class EmailMarketingService {
     });
   }
 
-  static async handleStageChanged(leadId, newStage) {
-    const lead = await Lead.findById(leadId);
+  static async handleStageChanged(leadId, newStage, firmId) {
+    const lead = await Lead.findOne({ _id: leadId, firmId });
     if (!lead) return;
 
     const subscriber = await EmailSubscriber.findOne({
@@ -698,8 +698,8 @@ class EmailMarketingService {
     });
   }
 
-  static async handleTagAdded(leadId, tag) {
-    const lead = await Lead.findById(leadId);
+  static async handleTagAdded(leadId, tag, firmId) {
+    const lead = await Lead.findOne({ _id: leadId, firmId });
     if (!lead) return;
 
     const subscriber = await EmailSubscriber.findOne({
@@ -764,8 +764,8 @@ class EmailMarketingService {
   /**
    * Evaluate A/B test and select winner
    */
-  static async evaluateABTest(campaignId) {
-    const campaign = await EmailCampaign.findById(campaignId);
+  static async evaluateABTest(campaignId, firmId) {
+    const campaign = await EmailCampaign.findOne({ _id: campaignId, firmId });
     if (!campaign || !campaign.abTest?.enabled) {
       throw new Error('No A/B test found');
     }
@@ -796,9 +796,9 @@ class EmailMarketingService {
   /**
    * Select winner and apply to remaining sends
    */
-  static async selectWinner(campaignId) {
-    const campaign = await EmailCampaign.findById(campaignId);
-    const winner = await this.evaluateABTest(campaignId);
+  static async selectWinner(campaignId, firmId) {
+    const campaign = await EmailCampaign.findOne({ _id: campaignId, firmId });
+    const winner = await this.evaluateABTest(campaignId, firmId);
 
     campaign.abTest.winnerSelected = true;
     campaign.abTest.winnerId = winner._id.toString();
@@ -839,14 +839,14 @@ class EmailMarketingService {
       });
 
       // Update campaign stats
-      const campaign = await EmailCampaign.findById(campaignId);
+      const campaign = await EmailCampaign.findOne({ _id: campaignId, firmId: metadata.firmId });
       if (campaign) {
         campaign.updateStats(eventType);
         await campaign.save();
       }
 
       // Update subscriber engagement
-      const subscriber = await EmailSubscriber.findById(subscriberId);
+      const subscriber = await EmailSubscriber.findOne({ _id: subscriberId, firmId: metadata.firmId });
       if (subscriber) {
         if (eventType === 'opened') {
           await subscriber.recordOpen();
@@ -913,8 +913,8 @@ class EmailMarketingService {
   /**
    * Get campaign analytics
    */
-  static async getCampaignAnalytics(campaignId) {
-    const campaign = await EmailCampaign.findById(campaignId);
+  static async getCampaignAnalytics(campaignId, firmId) {
+    const campaign = await EmailCampaign.findOne({ _id: campaignId, firmId });
     if (!campaign) throw new Error('Campaign not found');
 
     const uniqueOpens = await EmailEvent.getUniqueEvents(campaignId, 'opened');
@@ -1016,8 +1016,8 @@ class EmailMarketingService {
   /**
    * Calculate segment subscribers
    */
-  static async calculateSegmentSubscribers(segmentId) {
-    const segment = await EmailSegment.findById(segmentId);
+  static async calculateSegmentSubscribers(segmentId, firmId) {
+    const segment = await EmailSegment.findOne({ _id: segmentId, firmId });
     if (!segment) throw new Error('Segment not found');
 
     return await segment.calculateSubscribers();
@@ -1057,8 +1057,8 @@ class EmailMarketingService {
   /**
    * Update subscriber
    */
-  static async updateSubscriber(subscriberId, data, userId) {
-    const subscriber = await EmailSubscriber.findById(subscriberId);
+  static async updateSubscriber(subscriberId, data, userId, firmId) {
+    const subscriber = await EmailSubscriber.findOne({ _id: subscriberId, firmId });
     if (!subscriber) throw new Error('Subscriber not found');
 
     Object.assign(subscriber, data);
@@ -1183,8 +1183,8 @@ class EmailMarketingService {
   /**
    * Preview template
    */
-  static async previewTemplate(templateId, sampleData = {}) {
-    const template = await EmailTemplate.findById(templateId);
+  static async previewTemplate(templateId, sampleData = {}, firmId) {
+    const template = await EmailTemplate.findOne({ _id: templateId, firmId });
     if (!template) throw new Error('Template not found');
 
     return await this.renderTemplate(template, sampleData);
@@ -1256,7 +1256,7 @@ class EmailMarketingService {
 
       case 'segment':
         if (campaign.segmentId) {
-          const segment = await EmailSegment.findById(campaign.segmentId);
+          const segment = await EmailSegment.findOne({ _id: campaign.segmentId, firmId: campaign.firmId });
           count = segment?.subscriberCount || 0;
         }
         break;
@@ -1315,7 +1315,7 @@ class EmailMarketingService {
 
       case 'segment':
         if (campaign.segmentId) {
-          const segment = await EmailSegment.findById(campaign.segmentId);
+          const segment = await EmailSegment.findOne({ _id: campaign.segmentId, firmId: campaign.firmId });
           subscribers = await segment.getSubscribers();
         }
         break;

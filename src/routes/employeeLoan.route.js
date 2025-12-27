@@ -3,6 +3,7 @@ const router = express.Router();
 const employeeLoanController = require('../controllers/employeeLoan.controller');
 const { verifyToken } = require('../middlewares/jwt');
 const { attachFirmContext } = require('../middlewares/firmContext.middleware');
+const upload = require('../configs/multer');
 const {
     validateCreateLoan,
     validateUpdateLoan,
@@ -120,7 +121,7 @@ router.post('/:loanId/issue-clearance', employeeLoanController.issueClearanceLet
 // ═══════════════════════════════════════════════════════════════
 
 // POST /api/hr/employee-loans/:loanId/documents - Upload document
-router.post('/:loanId/documents', employeeLoanController.uploadDocument);
+router.post('/:loanId/documents', upload.single('file'), upload.malwareScan, employeeLoanController.uploadDocument);
 
 // ═══════════════════════════════════════════════════════════════
 // COMMUNICATION ROUTES

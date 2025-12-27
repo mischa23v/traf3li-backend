@@ -108,8 +108,17 @@ const getAuditLogs = async (req, res) => {
         }
 
         // Sort options
+        const ALLOWED_SORT_FIELDS = ['createdAt', 'updatedAt', 'action', 'resourceType', 'status', 'userEmail'];
         let sortOption = { createdAt: -1 }; // Default: newest first
         if (req.query.sortBy) {
+            // Validate sort field against allowed list to prevent NoSQL injection
+            if (!ALLOWED_SORT_FIELDS.includes(req.query.sortBy)) {
+                return res.status(400).json({
+                    error: true,
+                    message: 'Invalid sort field',
+                    messageEn: 'Invalid sort field'
+                });
+            }
             const sortOrder = req.query.sortOrder === 'asc' ? 1 : -1;
             sortOption = { [req.query.sortBy]: sortOrder };
         }

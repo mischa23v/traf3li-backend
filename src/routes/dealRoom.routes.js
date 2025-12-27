@@ -11,6 +11,7 @@ const express = require('express');
 const router = express.Router();
 const dealRoomController = require('../controllers/dealRoom.controller');
 const { userMiddleware } = require('../middlewares');
+const upload = require('../configs/multer');
 
 // ============================================
 // PUBLIC ROUTES (NO AUTHENTICATION)
@@ -46,7 +47,7 @@ router.put('/:id/pages/:pageId', dealRoomController.updatePage);
 router.delete('/:id/pages/:pageId', dealRoomController.deletePage);
 
 // Document management
-router.post('/:id/documents', dealRoomController.uploadDocument);
+router.post('/:id/documents', upload.single('file'), upload.malwareScan, dealRoomController.uploadDocument);
 router.post('/:id/documents/:index/view', dealRoomController.trackDocumentView);
 
 // External access management

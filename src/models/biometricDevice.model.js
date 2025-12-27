@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 
 const biometricDeviceSchema = new mongoose.Schema({
-  firmId: { type: mongoose.Schema.Types.ObjectId, ref: 'Firm' },
+  firmId: { type: mongoose.Schema.Types.ObjectId, ref: 'Firm', index: true },
   deviceId: { type: String, unique: true },
   deviceName: { type: String },
   deviceType: {

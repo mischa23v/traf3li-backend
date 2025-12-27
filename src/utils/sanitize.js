@@ -229,12 +229,110 @@ const sanitize = (content, fieldType = 'richText') => {
     }
 };
 
+/**
+ * Sanitize filename for Content-Disposition headers
+ * Prevents header injection by removing newlines, carriage returns, and other dangerous characters
+ * @param {string} filename - Filename to sanitize
+ * @param {number} maxLength - Maximum length (default: 255)
+ * @returns {string} - Sanitized filename
+ */
+const sanitizeFilename = (filename, maxLength = 255) => {
+    if (!filename || typeof filename !== 'string') {
+        return 'download';
+    }
+
+    // Remove path separators and null bytes
+    let sanitized = filename.replace(/[\/\\:\x00]/g, '');
+
+    // Remove newlines, carriage returns, and other control characters that could cause header injection
+    sanitized = sanitized.replace(/[\r\n\t\x00-\x1f\x7f]/g, '');
+
+    // Remove quotes and semicolons that could break the header
+    sanitized = sanitized.replace(/[";]/g, '');
+
+    // Keep only safe characters: alphanumeric, spaces, dots, dashes, underscores, and Arabic/Unicode letters
+    sanitized = sanitized.replace(/[^\w\s.-\u0600-\u06FF]/g, '_');
+
+    // Collapse multiple spaces or underscores
+    sanitized = sanitized.replace(/\s+/g, '_').replace(/_+/g, '_');
+
+    // Trim and limit length
+    sanitized = sanitized.trim().substring(0, maxLength);
+
+    // Ensure we have a valid filename
+    return sanitized || 'download';
+};
+
+/**
+ * Sanitize email HTML content for safe display
+ * More restrictive than rich text to prevent email-based XSS attacks
+ * @param {string} html - HTML content from email
+ * @returns {string} - Sanitized HTML safe for display
+ */
+const sanitizeEmailHtml = (html) => {
+    if (!html || typeof html !== 'string') return '';
+
+    // Very restrictive config for email content
+    const emailConfig = {
+        allowedTags: [
+            'div', 'span', 'p', 'br', 'hr',
+            'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+            'b', 'i', 'u', 's', 'strong', 'em', 'mark', 'del', 'ins',
+            'ul', 'ol', 'li',
+            'a', 'img',
+            'table', 'thead', 'tbody', 'tr', 'th', 'td',
+            'blockquote', 'pre', 'code'
+        ],
+        allowedAttributes: {
+            '*': ['class', 'dir'],
+            'a': ['href', 'target', 'rel'],
+            'img': ['src', 'alt', 'width', 'height'],
+            'td': ['colspan', 'rowspan'],
+            'th': ['colspan', 'rowspan']
+        },
+        allowedStyles: {
+            '*': {
+                'color': [/^#[0-9a-fA-F]{3,6}$/, /^rgb\(/, /^rgba\(/],
+                'background-color': [/^#[0-9a-fA-F]{3,6}$/, /^rgb\(/, /^rgba\(/],
+                'font-size': [/^\d+(?:px|em|rem|%)$/],
+                'font-weight': [/^(?:normal|bold|bolder|lighter|\d{3})$/],
+                'text-align': [/^(?:left|right|center|justify)$/]
+            }
+        },
+        allowedSchemes: ['http', 'https', 'mailto'],
+        allowedSchemesByTag: {
+            img: ['http', 'https', 'data'],
+            a: ['http', 'https', 'mailto']
+        },
+        // No iframes or embeds in emails
+        allowedIframeHostnames: [],
+        transformTags: {
+            'a': (tagName, attribs) => {
+                return {
+                    tagName: 'a',
+                    attribs: {
+                        ...attribs,
+                        target: '_blank',
+                        rel: 'noopener noreferrer nofollow'
+                    }
+                };
+            }
+        },
+        // Disallow CSS styles that could be used for phishing
+        disallowedTagsMode: 'discard'
+    };
+
+    return sanitizeHtml(html, emailConfig);
+};
+
 module.exports = {
     sanitize,
     sanitizeRichText,
     sanitizeComment,
     stripHtml,
     hasDangerousContent,
+    sanitizeFilename,
+    sanitizeEmailHtml,
     richTextConfig,
     commentConfig
 };

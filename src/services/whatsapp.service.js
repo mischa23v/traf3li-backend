@@ -480,8 +480,12 @@ class WhatsAppService {
         return await WhatsAppMessage.getConversationMessages(conversationId, pagination);
     }
 
-    async markAsRead(conversationId) {
-        const conversation = await WhatsAppConversation.findById(conversationId);
+    async markAsRead(conversationId, firmId) {
+        if (!firmId) {
+            throw new Error('Firm ID is required');
+        }
+
+        const conversation = await WhatsAppConversation.findOne({ _id: conversationId, firmId });
         if (!conversation) {
             throw new Error('Conversation not found');
         }
@@ -490,8 +494,12 @@ class WhatsAppService {
         return conversation;
     }
 
-    async assignConversation(conversationId, userId) {
-        const conversation = await WhatsAppConversation.findById(conversationId);
+    async assignConversation(conversationId, userId, firmId) {
+        if (!firmId) {
+            throw new Error('Firm ID is required');
+        }
+
+        const conversation = await WhatsAppConversation.findOne({ _id: conversationId, firmId });
         if (!conversation) {
             throw new Error('Conversation not found');
         }
@@ -536,8 +544,12 @@ class WhatsAppService {
         return await WhatsAppTemplate.find(query).sort({ name: 1 });
     }
 
-    async submitTemplateForApproval(templateId, provider = 'meta') {
-        const template = await WhatsAppTemplate.findById(templateId);
+    async submitTemplateForApproval(templateId, firmId, provider = 'meta') {
+        if (!firmId) {
+            throw new Error('Firm ID is required');
+        }
+
+        const template = await WhatsAppTemplate.findOne({ _id: templateId, firmId });
         if (!template) {
             throw new Error('Template not found');
         }
@@ -610,10 +622,10 @@ class WhatsAppService {
             // If no assignedTo, try to get from lead/client
             if (!userId) {
                 if (conversation.leadId) {
-                    const lead = await Lead.findById(conversation.leadId).select('lawyerId');
+                    const lead = await Lead.findOne({ _id: conversation.leadId, firmId: conversation.firmId }).select('lawyerId');
                     userId = lead?.lawyerId;
                 } else if (conversation.clientId) {
-                    const client = await Client.findById(conversation.clientId).select('lawyerId');
+                    const client = await Client.findOne({ _id: conversation.clientId, firmId: conversation.firmId }).select('lawyerId');
                     userId = client?.lawyerId;
                 }
             }
@@ -688,7 +700,10 @@ class WhatsAppService {
      * Verify webhook (for Meta)
      */
     verifyWebhook(mode, token, challenge) {
-        const VERIFY_TOKEN = process.env.META_WEBHOOK_VERIFY_TOKEN || 'traf3li_whatsapp_2024';
+        const VERIFY_TOKEN = process.env.META_WEBHOOK_VERIFY_TOKEN;
+        if (!VERIFY_TOKEN) {
+            throw new Error('META_WEBHOOK_VERIFY_TOKEN environment variable must be set');
+        }
 
         if (mode === 'subscribe' && token === VERIFY_TOKEN) {
             return challenge;
@@ -749,13 +764,17 @@ class WhatsAppService {
     // LEAD/CLIENT INTEGRATION
     // ═══════════════════════════════════════════════════════════
 
-    async linkToLead(conversationId, leadId) {
-        const conversation = await WhatsAppConversation.findById(conversationId);
+    async linkToLead(conversationId, leadId, firmId) {
+        if (!firmId) {
+            throw new Error('Firm ID is required');
+        }
+
+        const conversation = await WhatsAppConversation.findOne({ _id: conversationId, firmId });
         if (!conversation) {
             throw new Error('Conversation not found');
         }
 
-        const lead = await Lead.findById(leadId);
+        const lead = await Lead.findOne({ _id: leadId, firmId });
         if (!lead) {
             throw new Error('Lead not found');
         }
@@ -768,8 +787,12 @@ class WhatsAppService {
         return conversation;
     }
 
-    async getLeadConversation(leadId) {
-        const lead = await Lead.findById(leadId);
+    async getLeadConversation(leadId, firmId) {
+        if (!firmId) {
+            throw new Error('Firm ID is required');
+        }
+
+        const lead = await Lead.findOne({ _id: leadId, firmId });
         if (!lead) {
             throw new Error('Lead not found');
         }
@@ -783,8 +806,12 @@ class WhatsAppService {
         }).populate('leadId');
     }
 
-    async createLeadFromConversation(conversationId, leadData, userId) {
-        const conversation = await WhatsAppConversation.findById(conversationId);
+    async createLeadFromConversation(conversationId, leadData, userId, firmId) {
+        if (!firmId) {
+            throw new Error('Firm ID is required');
+        }
+
+        const conversation = await WhatsAppConversation.findOne({ _id: conversationId, firmId });
         if (!conversation) {
             throw new Error('Conversation not found');
         }
@@ -862,8 +889,12 @@ class WhatsAppService {
     /**
      * Process broadcast - send messages to all recipients
      */
-    async processBroadcast(broadcastId) {
-        const broadcast = await WhatsAppBroadcast.findById(broadcastId)
+    async processBroadcast(broadcastId, firmId) {
+        if (!firmId) {
+            throw new Error('Firm ID is required');
+        }
+
+        const broadcast = await WhatsAppBroadcast.findOne({ _id: broadcastId, firmId })
             .populate('template.templateId');
 
         if (!broadcast) {
@@ -880,7 +911,7 @@ class WhatsAppService {
         try {
             while (true) {
                 // Check if paused or cancelled
-                const currentBroadcast = await WhatsAppBroadcast.findById(broadcastId);
+                const currentBroadcast = await WhatsAppBroadcast.findOne({ _id: broadcastId, firmId });
                 if (currentBroadcast.status === 'paused' || currentBroadcast.status === 'cancelled') {
                     logger.info(`Broadcast ${broadcastId} is ${currentBroadcast.status}, stopping`);
                     break;
@@ -1033,8 +1064,12 @@ class WhatsAppService {
     /**
      * Load recipients from audience settings
      */
-    async loadBroadcastRecipients(broadcastId) {
-        const broadcast = await WhatsAppBroadcast.findById(broadcastId);
+    async loadBroadcastRecipients(broadcastId, firmId) {
+        if (!firmId) {
+            throw new Error('Firm ID is required');
+        }
+
+        const broadcast = await WhatsAppBroadcast.findOne({ _id: broadcastId, firmId });
         if (!broadcast) {
             throw new Error('Broadcast not found');
         }
@@ -1136,7 +1171,7 @@ class WhatsAppService {
             case 'segment':
                 if (broadcast.segmentId) {
                     const EmailSegment = require('../models/emailSegment.model');
-                    const segment = await EmailSegment.findById(broadcast.segmentId);
+                    const segment = await EmailSegment.findOne({ _id: broadcast.segmentId, firmId: broadcast.firmId });
                     if (segment) {
                         const subscribers = await segment.getSubscribers();
                         for (const subscriber of subscribers) {
@@ -1179,23 +1214,29 @@ class WhatsAppService {
      */
     async logWhatsAppActivity(activityData) {
         try {
-            const { leadId, clientId, userId, subType, phoneNumber, templateName, messageType } = activityData;
+            const { leadId, clientId, userId, subType, phoneNumber, templateName, messageType, firmId } = activityData;
 
             // Only log if message is linked to a lead or client
             if (!leadId && !clientId) {
                 return;
             }
 
+            // firmId is required for IDOR protection
+            if (!firmId) {
+                logger.warn('firmId is required for logWhatsAppActivity');
+                return;
+            }
+
             const entityType = leadId ? 'lead' : 'client';
             const entityId = leadId || clientId;
 
-            // Get entity name
+            // Get entity name with firmId validation
             let entityName = '';
             if (leadId) {
-                const lead = await Lead.findById(leadId).select('displayName');
+                const lead = await Lead.findOne({ _id: leadId, firmId }).select('displayName');
                 entityName = lead?.displayName || 'Unknown Lead';
             } else if (clientId) {
-                const client = await Client.findById(clientId).select('firstName lastName');
+                const client = await Client.findOne({ _id: clientId, firmId }).select('firstName lastName');
                 entityName = client ? `${client.firstName} ${client.lastName}` : 'Unknown Client';
             }
 

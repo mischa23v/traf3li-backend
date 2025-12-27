@@ -41,10 +41,21 @@ const createAnswer = async (request, response) => {
         await answer.save();
 
         // Add answer to question
-        await Question.findByIdAndUpdate(sanitizedQuestionId, {
-            $push: { answers: answer._id },
-            status: 'answered'
-        });
+        // IDOR PROTECTION: Verify question was updated successfully
+        const updatedQuestion = await Question.findByIdAndUpdate(
+            sanitizedQuestionId,
+            {
+                $push: { answers: answer._id },
+                status: 'answered'
+            },
+            { new: true }
+        );
+
+        if (!updatedQuestion) {
+            // Rollback: delete the answer if question update failed
+            await Answer.deleteOne({ _id: answer._id });
+            throw CustomException('Question not found!', 404);
+        }
 
         return response.status(201).send({
             error: false,

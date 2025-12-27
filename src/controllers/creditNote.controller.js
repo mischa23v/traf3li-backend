@@ -459,8 +459,8 @@ const applyCreditNote = asyncHandler(async (req, res) => {
         }
 
         // Update client credit balance within transaction
-        await Client.findByIdAndUpdate(
-            creditNote.clientId,
+        await Client.findOneAndUpdate(
+            { _id: creditNote.clientId, ...req.firmQuery },
             {
                 $inc: { 'billing.creditBalance': creditNote.total }
             },

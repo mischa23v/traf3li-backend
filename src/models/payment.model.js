@@ -684,52 +684,62 @@ paymentSchema.statics.getPendingChecks = async function(filters = {}) {
  */
 paymentSchema.methods.applyToInvoices = async function(applications) {
     const Invoice = mongoose.model('Invoice');
+    const session = await mongoose.startSession();
+    session.startTransaction();
 
-    for (const app of applications) {
-        const invoice = await Invoice.findById(app.invoiceId);
-        if (!invoice) {
-            throw new Error(`Invoice ${app.invoiceId} not found`);
+    try {
+        for (const app of applications) {
+            const invoice = await Invoice.findById(app.invoiceId).session(session);
+            if (!invoice) {
+                throw new Error(`Invoice ${app.invoiceId} not found`);
+            }
+
+            // Update invoice
+            invoice.amountPaid = (invoice.amountPaid || 0) + app.amount;
+            invoice.balanceDue = invoice.totalAmount - invoice.amountPaid;
+
+            if (invoice.balanceDue <= 0) {
+                invoice.status = 'paid';
+                invoice.paidDate = new Date();
+            } else if (invoice.amountPaid > 0) {
+                invoice.status = 'partial';
+            }
+
+            // Add to payment history
+            if (!invoice.paymentHistory) {
+                invoice.paymentHistory = [];
+            }
+            invoice.paymentHistory.push({
+                paymentId: this._id,
+                amount: app.amount,
+                date: this.paymentDate,
+                method: this.paymentMethod
+            });
+
+            await invoice.save({ session });
+
+            // Add to invoiceApplications
+            this.invoiceApplications.push({
+                invoiceId: app.invoiceId,
+                amount: app.amount,
+                appliedAt: new Date()
+            });
         }
 
-        // Update invoice
-        invoice.amountPaid = (invoice.amountPaid || 0) + app.amount;
-        invoice.balanceDue = invoice.totalAmount - invoice.amountPaid;
+        // Recalculate totals
+        this.totalApplied = this.invoiceApplications.reduce((sum, app) => sum + app.amount, 0);
+        this.unappliedAmount = this.amount - this.totalApplied;
 
-        if (invoice.balanceDue <= 0) {
-            invoice.status = 'paid';
-            invoice.paidDate = new Date();
-        } else if (invoice.amountPaid > 0) {
-            invoice.status = 'partial';
-        }
+        await this.save({ session });
 
-        // Add to payment history
-        if (!invoice.paymentHistory) {
-            invoice.paymentHistory = [];
-        }
-        invoice.paymentHistory.push({
-            paymentId: this._id,
-            amount: app.amount,
-            date: this.paymentDate,
-            method: this.paymentMethod
-        });
-
-        await invoice.save();
-
-        // Add to invoiceApplications
-        this.invoiceApplications.push({
-            invoiceId: app.invoiceId,
-            amount: app.amount,
-            appliedAt: new Date()
-        });
+        await session.commitTransaction();
+        return this;
+    } catch (error) {
+        await session.abortTransaction();
+        throw error;
+    } finally {
+        session.endSession();
     }
-
-    // Recalculate totals
-    this.totalApplied = this.invoiceApplications.reduce((sum, app) => sum + app.amount, 0);
-    this.unappliedAmount = this.amount - this.totalApplied;
-
-    await this.save();
-
-    return this;
 };
 
 /**
@@ -738,49 +748,59 @@ paymentSchema.methods.applyToInvoices = async function(applications) {
  */
 paymentSchema.methods.unapplyFromInvoice = async function(invoiceId) {
     const Invoice = mongoose.model('Invoice');
+    const session = await mongoose.startSession();
+    session.startTransaction();
 
-    const appIndex = this.invoiceApplications.findIndex(
-        app => app.invoiceId.toString() === invoiceId.toString()
-    );
+    try {
+        const appIndex = this.invoiceApplications.findIndex(
+            app => app.invoiceId.toString() === invoiceId.toString()
+        );
 
-    if (appIndex === -1) {
-        throw new Error('Payment not applied to this invoice');
-    }
-
-    const application = this.invoiceApplications[appIndex];
-    const invoice = await Invoice.findById(invoiceId);
-
-    if (invoice) {
-        // Reverse the application
-        invoice.amountPaid = Math.max(0, (invoice.amountPaid || 0) - application.amount);
-        invoice.balanceDue = invoice.totalAmount - invoice.amountPaid;
-
-        if (invoice.balanceDue >= invoice.totalAmount) {
-            invoice.status = 'sent';
-        } else if (invoice.balanceDue > 0) {
-            invoice.status = 'partial';
+        if (appIndex === -1) {
+            throw new Error('Payment not applied to this invoice');
         }
 
-        // Remove from payment history
-        if (invoice.paymentHistory) {
-            invoice.paymentHistory = invoice.paymentHistory.filter(
-                ph => ph.paymentId.toString() !== this._id.toString()
-            );
+        const application = this.invoiceApplications[appIndex];
+        const invoice = await Invoice.findById(invoiceId).session(session);
+
+        if (invoice) {
+            // Reverse the application
+            invoice.amountPaid = Math.max(0, (invoice.amountPaid || 0) - application.amount);
+            invoice.balanceDue = invoice.totalAmount - invoice.amountPaid;
+
+            if (invoice.balanceDue >= invoice.totalAmount) {
+                invoice.status = 'sent';
+            } else if (invoice.balanceDue > 0) {
+                invoice.status = 'partial';
+            }
+
+            // Remove from payment history
+            if (invoice.paymentHistory) {
+                invoice.paymentHistory = invoice.paymentHistory.filter(
+                    ph => ph.paymentId.toString() !== this._id.toString()
+                );
+            }
+
+            await invoice.save({ session });
         }
 
-        await invoice.save();
+        // Remove from invoiceApplications
+        this.invoiceApplications.splice(appIndex, 1);
+
+        // Recalculate totals
+        this.totalApplied = this.invoiceApplications.reduce((sum, app) => sum + app.amount, 0);
+        this.unappliedAmount = this.amount - this.totalApplied;
+
+        await this.save({ session });
+
+        await session.commitTransaction();
+        return this;
+    } catch (error) {
+        await session.abortTransaction();
+        throw error;
+    } finally {
+        session.endSession();
     }
-
-    // Remove from invoiceApplications
-    this.invoiceApplications.splice(appIndex, 1);
-
-    // Recalculate totals
-    this.totalApplied = this.invoiceApplications.reduce((sum, app) => sum + app.amount, 0);
-    this.unappliedAmount = this.amount - this.totalApplied;
-
-    await this.save();
-
-    return this;
 };
 
 /**
@@ -861,63 +881,82 @@ paymentSchema.methods.postToGL = async function(session = null) {
     const GeneralLedger = mongoose.model('GeneralLedger');
     const Account = mongoose.model('Account');
 
-    // Check if already posted
-    if (this.glEntryId) {
-        throw new Error('Payment already posted to GL');
+    const externalSession = session !== null;
+    if (!session) {
+        session = await mongoose.startSession();
+        session.startTransaction();
     }
 
-    // Get bank account (use default if not set)
-    let bankAcctId = this.bankAccountId;
-    if (!bankAcctId) {
-        const bankAccount = await Account.findOne({ code: '1102' }); // Bank Account - Main
-        if (!bankAccount) throw new Error('Default Bank account not found');
-        bankAcctId = bankAccount._id;
-        this.bankAccountId = bankAcctId;
+    try {
+        // Check if already posted
+        if (this.glEntryId) {
+            throw new Error('Payment already posted to GL');
+        }
+
+        // Get bank account (use default if not set)
+        let bankAcctId = this.bankAccountId;
+        if (!bankAcctId) {
+            const bankAccount = await Account.findOne({ code: '1102' }).session(session); // Bank Account - Main
+            if (!bankAccount) throw new Error('Default Bank account not found');
+            bankAcctId = bankAccount._id;
+            this.bankAccountId = bankAcctId;
+        }
+
+        // Get receivable account (use default if not set)
+        let receivableAcctId = this.receivableAccountId;
+        if (!receivableAcctId) {
+            const arAccount = await Account.findOne({ code: '1110' }).session(session); // Accounts Receivable
+            if (!arAccount) throw new Error('Accounts Receivable account not found');
+            receivableAcctId = arAccount._id;
+            this.receivableAccountId = receivableAcctId;
+        }
+
+        // Convert amount to halalas if needed
+        const { toHalalas } = require('../utils/currency');
+        const amount = Number.isInteger(this.amount) ? this.amount : toHalalas(this.amount);
+
+        // Create GL entry: DR Bank, CR A/R
+        const glEntry = await GeneralLedger.postTransaction({
+            firmId: this.firmId,  // Multi-tenancy: pass firmId to GL
+            transactionDate: this.paymentDate || new Date(),
+            description: `Payment ${this.paymentNumber}`,
+            descriptionAr: `دفعة ${this.paymentNumber}`,
+            debitAccountId: bankAcctId,
+            creditAccountId: receivableAcctId,
+            amount,
+            referenceId: this._id,
+            referenceModel: 'Payment',
+            referenceNumber: this.paymentNumber,
+            caseId: this.caseId,
+            clientId: this.customerId || this.clientId,
+            lawyerId: this.lawyerId,
+            meta: {
+                invoiceId: this.invoiceId,
+                paymentMethod: this.paymentMethod,
+                paymentType: this.paymentType,
+                transactionId: this.transactionId
+            },
+            createdBy: this.createdBy
+        }, session);
+
+        this.glEntryId = glEntry._id;
+
+        await this.save({ session });
+
+        if (!externalSession) {
+            await session.commitTransaction();
+        }
+        return glEntry;
+    } catch (error) {
+        if (!externalSession) {
+            await session.abortTransaction();
+        }
+        throw error;
+    } finally {
+        if (!externalSession) {
+            session.endSession();
+        }
     }
-
-    // Get receivable account (use default if not set)
-    let receivableAcctId = this.receivableAccountId;
-    if (!receivableAcctId) {
-        const arAccount = await Account.findOne({ code: '1110' }); // Accounts Receivable
-        if (!arAccount) throw new Error('Accounts Receivable account not found');
-        receivableAcctId = arAccount._id;
-        this.receivableAccountId = receivableAcctId;
-    }
-
-    // Convert amount to halalas if needed
-    const { toHalalas } = require('../utils/currency');
-    const amount = Number.isInteger(this.amount) ? this.amount : toHalalas(this.amount);
-
-    // Create GL entry: DR Bank, CR A/R
-    const glEntry = await GeneralLedger.postTransaction({
-        firmId: this.firmId,  // Multi-tenancy: pass firmId to GL
-        transactionDate: this.paymentDate || new Date(),
-        description: `Payment ${this.paymentNumber}`,
-        descriptionAr: `دفعة ${this.paymentNumber}`,
-        debitAccountId: bankAcctId,
-        creditAccountId: receivableAcctId,
-        amount,
-        referenceId: this._id,
-        referenceModel: 'Payment',
-        referenceNumber: this.paymentNumber,
-        caseId: this.caseId,
-        clientId: this.customerId || this.clientId,
-        lawyerId: this.lawyerId,
-        meta: {
-            invoiceId: this.invoiceId,
-            paymentMethod: this.paymentMethod,
-            paymentType: this.paymentType,
-            transactionId: this.transactionId
-        },
-        createdBy: this.createdBy
-    }, session);
-
-    this.glEntryId = glEntry._id;
-
-    const options = session ? { session } : {};
-    await this.save(options);
-
-    return glEntry;
 };
 
 /**
@@ -929,36 +968,55 @@ paymentSchema.methods.postToGL = async function(session = null) {
 paymentSchema.methods.processRefund = async function(reason, userId, session = null) {
     const GeneralLedger = mongoose.model('GeneralLedger');
 
-    if (!this.glEntryId) {
-        throw new Error('Payment has no GL entry to refund');
+    const externalSession = session !== null;
+    if (!session) {
+        session = await mongoose.startSession();
+        session.startTransaction();
     }
 
-    if (this.status === 'refunded') {
-        throw new Error('Payment already refunded');
+    try {
+        if (!this.glEntryId) {
+            throw new Error('Payment has no GL entry to refund');
+        }
+
+        if (this.status === 'refunded') {
+            throw new Error('Payment already refunded');
+        }
+
+        // Void the original GL entry
+        const { voidedEntry, reversingEntry } = await GeneralLedger.voidTransaction(
+            this.glEntryId,
+            reason || 'Payment refund',
+            userId,
+            session
+        );
+
+        // Update payment status
+        this.status = 'refunded';
+        this.refundReason = reason;
+        this.refundDate = new Date();
+        this.isRefund = true;
+        this.refundDetails = {
+            originalPaymentId: this._id,
+            reason: reason
+        };
+
+        await this.save({ session });
+
+        if (!externalSession) {
+            await session.commitTransaction();
+        }
+        return { voidedEntry, reversingEntry };
+    } catch (error) {
+        if (!externalSession) {
+            await session.abortTransaction();
+        }
+        throw error;
+    } finally {
+        if (!externalSession) {
+            session.endSession();
+        }
     }
-
-    // Void the original GL entry
-    const { voidedEntry, reversingEntry } = await GeneralLedger.voidTransaction(
-        this.glEntryId,
-        reason || 'Payment refund',
-        userId,
-        session
-    );
-
-    // Update payment status
-    this.status = 'refunded';
-    this.refundReason = reason;
-    this.refundDate = new Date();
-    this.isRefund = true;
-    this.refundDetails = {
-        originalPaymentId: this._id,
-        reason: reason
-    };
-
-    const options = session ? { session } : {};
-    await this.save(options);
-
-    return { voidedEntry, reversingEntry };
 };
 
 /**

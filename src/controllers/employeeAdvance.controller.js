@@ -758,7 +758,7 @@ const deleteAdvance = asyncHandler(async (req, res) => {
         throw CustomException('Only pending or rejected advances can be deleted', 400);
     }
 
-    await EmployeeAdvance.findByIdAndDelete(advanceId);
+    await EmployeeAdvance.findOneAndDelete({ _id: advanceId, ...accessQuery });
 
     return res.json({
         success: true,

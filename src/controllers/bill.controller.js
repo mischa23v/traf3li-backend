@@ -245,8 +245,9 @@ const updateBill = asyncHandler(async (req, res) => {
         }
     };
 
-    const updatedBill = await Bill.findByIdAndUpdate(
-        id,
+    // IDOR protection: Include lawyerId in update query
+    const updatedBill = await Bill.findOneAndUpdate(
+        { _id: id, lawyerId: lawyerId },
         updateData,
         { new: true, runValidators: true }
     )
@@ -279,7 +280,8 @@ const deleteBill = asyncHandler(async (req, res) => {
         throw CustomException('Cannot delete a bill with payments. Cancel it instead.', 400);
     }
 
-    await Bill.findByIdAndDelete(id);
+    // IDOR protection: Include lawyerId in delete query
+    await Bill.findOneAndDelete({ _id: id, lawyerId: lawyerId });
 
     return res.json({
         success: true,

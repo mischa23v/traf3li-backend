@@ -62,8 +62,12 @@ class LdapService {
 
         // Configure TLS/SSL
         if (config.useSsl || config.serverUrl.startsWith('ldaps://')) {
+            // SECURITY: In production, certificate verification MUST be enabled
+            const isProduction = process.env.NODE_ENV === 'production';
+            const shouldVerifyCert = isProduction ? true : (config.verifyCertificate !== false);
+
             clientOptions.tlsOptions = {
-                rejectUnauthorized: config.verifyCertificate !== false
+                rejectUnauthorized: shouldVerifyCert
             };
 
             // Add custom CA certificate if provided
@@ -181,9 +185,13 @@ class LdapService {
 
             // Handle STARTTLS
             if (config.useStarttls && !config.useSsl) {
+                // SECURITY: In production, certificate verification MUST be enabled
+                const isProduction = process.env.NODE_ENV === 'production';
+                const shouldVerifyCert = isProduction ? true : (config.verifyCertificate !== false);
+
                 await new Promise((resolve, reject) => {
                     client.starttls({
-                        rejectUnauthorized: config.verifyCertificate !== false
+                        rejectUnauthorized: shouldVerifyCert
                     }, null, (err) => {
                         if (err) reject(new Error(`STARTTLS failed: ${err.message}`));
                         else resolve();
@@ -426,9 +434,13 @@ class LdapService {
 
             // STARTTLS
             if (config.useStarttls && !config.useSsl) {
+                // SECURITY: In production, certificate verification MUST be enabled
+                const isProduction = process.env.NODE_ENV === 'production';
+                const shouldVerifyCert = isProduction ? true : (config.verifyCertificate !== false);
+
                 await new Promise((resolve, reject) => {
                     client.starttls({
-                        rejectUnauthorized: config.verifyCertificate !== false
+                        rejectUnauthorized: shouldVerifyCert
                     }, null, (err) => {
                         if (err) reject(err);
                         else resolve();
@@ -552,9 +564,13 @@ class LdapService {
 
             // STARTTLS
             if (config.useStarttls && !config.useSsl) {
+                // SECURITY: In production, certificate verification MUST be enabled
+                const isProduction = process.env.NODE_ENV === 'production';
+                const shouldVerifyCert = isProduction ? true : (config.verifyCertificate !== false);
+
                 await new Promise((resolve, reject) => {
                     client.starttls({
-                        rejectUnauthorized: config.verifyCertificate !== false
+                        rejectUnauthorized: shouldVerifyCert
                     }, null, (err) => {
                         if (err) reject(err);
                         else resolve();

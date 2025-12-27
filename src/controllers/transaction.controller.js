@@ -368,7 +368,7 @@ const deleteTransaction = asyncHandler(async (req, res) => {
     session.startTransaction();
 
     try {
-        await Transaction.findByIdAndDelete(transactionId, { session });
+        await Transaction.findOneAndDelete({ _id: transactionId, userId: req.userID }, { session });
         await session.commitTransaction();
 
         res.status(200).json({

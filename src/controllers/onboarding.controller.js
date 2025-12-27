@@ -403,7 +403,14 @@ const deleteOnboarding = asyncHandler(async (req, res) => {
         throw CustomException('Only pending onboardings can be deleted', 400);
     }
 
-    await Onboarding.findByIdAndDelete(sanitizedOnboardingId);
+    // IDOR protection: Use firm-scoped query for delete
+    const deleteQuery = { _id: sanitizedOnboardingId };
+    if (firmId) {
+        deleteQuery.firmId = firmId;
+    } else {
+        deleteQuery.lawyerId = lawyerId;
+    }
+    await Onboarding.findOneAndDelete(deleteQuery);
 
     return res.json({
         success: true,

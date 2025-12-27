@@ -105,7 +105,10 @@ reauthChallengeSchema.index({ userId: 1, createdAt: 1 });
  * Hash OTP for secure storage
  */
 const hashOTP = (otp) => {
-  const salt = process.env.OTP_SECRET_SALT || 'traf3li-default-salt';
+  const salt = process.env.OTP_SECRET_SALT;
+  if (!salt) {
+    throw new Error('OTP_SECRET_SALT environment variable must be set');
+  }
   return crypto
     .createHash('sha256')
     .update(otp + salt)

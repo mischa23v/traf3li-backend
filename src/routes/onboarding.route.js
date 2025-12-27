@@ -3,6 +3,7 @@ const router = express.Router();
 const onboardingController = require('../controllers/onboarding.controller');
 const { verifyToken } = require('../middlewares/jwt');
 const { attachFirmContext } = require('../middlewares/firmContext.middleware');
+const upload = require('../configs/multer');
 
 // Apply authentication middleware
 router.use(verifyToken);
@@ -84,7 +85,7 @@ router.post('/:onboardingId/complete-probation', onboardingController.completePr
 // ═══════════════════════════════════════════════════════════════
 
 // POST /api/hr/onboarding/:onboardingId/documents - Upload document
-router.post('/:onboardingId/documents', onboardingController.uploadDocument);
+router.post('/:onboardingId/documents', upload.single('file'), upload.malwareScan, onboardingController.uploadDocument);
 
 // POST /api/hr/onboarding/:onboardingId/documents/:type/verify - Verify document
 router.post('/:onboardingId/documents/:type/verify', onboardingController.verifyDocument);

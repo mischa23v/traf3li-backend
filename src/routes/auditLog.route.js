@@ -14,6 +14,7 @@ const auditLogArchivingService = require('../services/auditLogArchiving.service'
 const { userMiddleware } = require('../middlewares');
 const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
+const { sanitizeFilename } = require('../utils/sanitize');
 
 // Apply authentication to all routes
 router.use(userMiddleware);
@@ -280,7 +281,7 @@ router.get(
 
     if (format === 'csv') {
       res.setHeader('Content-Type', 'text/csv');
-      res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
+      res.setHeader('Content-Disposition', `attachment; filename="${sanitizeFilename(result.filename)}"`);
       return res.send(result.data);
     }
 

@@ -3,6 +3,7 @@ const router = express.Router();
 const expenseClaimController = require('../controllers/expenseClaim.controller');
 const { verifyToken } = require('../middlewares/jwt');
 const { attachFirmContext } = require('../middlewares/firmContext.middleware');
+const upload = require('../configs/multer');
 
 /**
  * Expense Claim Routes - HR Management
@@ -108,7 +109,7 @@ router.delete('/:id/line-items/:lineItemId', expenseClaimController.deleteLineIt
 // ═══════════════════════════════════════════════════════════════
 
 // POST /api/hr/expense-claims/:id/receipts - Upload receipt
-router.post('/:id/receipts', expenseClaimController.uploadReceipt);
+router.post('/:id/receipts', upload.single('file'), upload.malwareScan, expenseClaimController.uploadReceipt);
 
 // DELETE /api/hr/expense-claims/:id/receipts/:receiptId - Delete receipt
 router.delete('/:id/receipts/:receiptId', expenseClaimController.deleteReceipt);

@@ -161,75 +161,94 @@ retainerSchema.methods.consume = async function(amount, invoiceId, description, 
     const Account = mongoose.model('Account');
     const { toHalalas, subtractAmounts } = require('../utils/currency');
 
-    // Convert amount if needed
-    const amountHalalas = Number.isInteger(amount) ? amount : toHalalas(amount);
-
-    if (this.currentBalance < amountHalalas) {
-        throw new Error('مبلغ العربون غير كافٍ - Insufficient retainer balance');
+    const externalSession = session !== null;
+    if (!session) {
+        session = await mongoose.startSession();
+        session.startTransaction();
     }
 
-    // Get retainer liability account (use default if not set)
-    let liabilityAccountId = this.retainerLiabilityAccountId;
-    if (!liabilityAccountId) {
-        const liabilityAccount = await Account.findOne({ code: '2130' }); // Unearned Revenue
-        if (!liabilityAccount) throw new Error('Retainer liability account not found');
-        liabilityAccountId = liabilityAccount._id;
-        this.retainerLiabilityAccountId = liabilityAccountId;
-    }
+    try {
+        // Convert amount if needed
+        const amountHalalas = Number.isInteger(amount) ? amount : toHalalas(amount);
 
-    // Get service revenue account
-    const revenueAccount = await Account.findOne({ code: '4100' }); // Legal Service Fees
-    if (!revenueAccount) throw new Error('Service revenue account not found');
+        if (this.currentBalance < amountHalalas) {
+            throw new Error('مبلغ العربون غير كافٍ - Insufficient retainer balance');
+        }
 
-    // Create GL entry: DR Unearned Revenue, CR Service Revenue
-    const glEntry = await GeneralLedger.postTransaction({
-        transactionDate: new Date(),
-        description: `Retainer ${this.retainerNumber} consumed - ${description || 'Applied to invoice'}`,
-        descriptionAr: `استهلاك العربون ${this.retainerNumber}`,
-        debitAccountId: liabilityAccountId,
-        creditAccountId: revenueAccount._id,
-        amount: amountHalalas,
-        referenceId: this._id,
-        referenceModel: 'Retainer',
-        referenceNumber: this.retainerNumber,
-        caseId: this.caseId,
-        clientId: this.clientId,
-        lawyerId: this.lawyerId,
-        meta: {
+        // Get retainer liability account (use default if not set)
+        let liabilityAccountId = this.retainerLiabilityAccountId;
+        if (!liabilityAccountId) {
+            const liabilityAccount = await Account.findOne({ code: '2130' }).session(session); // Unearned Revenue
+            if (!liabilityAccount) throw new Error('Retainer liability account not found');
+            liabilityAccountId = liabilityAccount._id;
+            this.retainerLiabilityAccountId = liabilityAccountId;
+        }
+
+        // Get service revenue account
+        const revenueAccount = await Account.findOne({ code: '4100' }).session(session); // Legal Service Fees
+        if (!revenueAccount) throw new Error('Service revenue account not found');
+
+        // Create GL entry: DR Unearned Revenue, CR Service Revenue
+        const glEntry = await GeneralLedger.postTransaction({
+            transactionDate: new Date(),
+            description: `Retainer ${this.retainerNumber} consumed - ${description || 'Applied to invoice'}`,
+            descriptionAr: `استهلاك العربون ${this.retainerNumber}`,
+            debitAccountId: liabilityAccountId,
+            creditAccountId: revenueAccount._id,
+            amount: amountHalalas,
+            referenceId: this._id,
+            referenceModel: 'Retainer',
+            referenceNumber: this.retainerNumber,
+            caseId: this.caseId,
+            clientId: this.clientId,
+            lawyerId: this.lawyerId,
+            meta: {
+                invoiceId,
+                action: 'consume',
+                previousBalance: this.currentBalance
+            },
+            createdBy: this.lawyerId
+        }, session);
+
+        // Update retainer
+        this.consumptions.push({
+            date: new Date(),
+            amount: amountHalalas,
             invoiceId,
-            action: 'consume',
-            previousBalance: this.currentBalance
-        },
-        createdBy: this.lawyerId
-    }, session);
+            description
+        });
 
-    // Update retainer
-    this.consumptions.push({
-        date: new Date(),
-        amount: amountHalalas,
-        invoiceId,
-        description
-    });
+        this.currentBalance = subtractAmounts(this.currentBalance, amountHalalas);
+        this.glEntries = this.glEntries || [];
+        this.glEntries.push(glEntry._id);
 
-    this.currentBalance = subtractAmounts(this.currentBalance, amountHalalas);
-    this.glEntries = this.glEntries || [];
-    this.glEntries.push(glEntry._id);
+        // Check if depleted
+        if (this.currentBalance <= 0) {
+            this.status = 'depleted';
+        }
 
-    // Check if depleted
-    if (this.currentBalance <= 0) {
-        this.status = 'depleted';
+        // Check for low balance alert
+        if (this.minimumBalance > 0 && this.currentBalance <= this.minimumBalance && !this.lowBalanceAlertSent) {
+            this.lowBalanceAlertSent = true;
+            this.lowBalanceAlertDate = new Date();
+        }
+
+        await this.save({ session });
+
+        if (!externalSession) {
+            await session.commitTransaction();
+        }
+        return { retainer: this, glEntry };
+    } catch (error) {
+        if (!externalSession) {
+            await session.abortTransaction();
+        }
+        throw error;
+    } finally {
+        if (!externalSession) {
+            session.endSession();
+        }
     }
-
-    // Check for low balance alert
-    if (this.minimumBalance > 0 && this.currentBalance <= this.minimumBalance && !this.lowBalanceAlertSent) {
-        this.lowBalanceAlertSent = true;
-        this.lowBalanceAlertDate = new Date();
-    }
-
-    const options = session ? { session } : {};
-    await this.save(options);
-
-    return { retainer: this, glEntry };
 };
 
 /**
@@ -245,70 +264,89 @@ retainerSchema.methods.deposit = async function(amount, paymentId = null, sessio
     const Account = mongoose.model('Account');
     const { toHalalas, addAmounts } = require('../utils/currency');
 
-    // Convert amount if needed
-    const amountHalalas = Number.isInteger(amount) ? amount : toHalalas(amount);
-
-    // Get bank account (use default if not set)
-    let bankAcctId = this.bankAccountId;
-    if (!bankAcctId) {
-        const bankAccount = await Account.findOne({ code: '1102' }); // Bank Account - Main
-        if (!bankAccount) throw new Error('Bank account not found');
-        bankAcctId = bankAccount._id;
-        this.bankAccountId = bankAcctId;
+    const externalSession = session !== null;
+    if (!session) {
+        session = await mongoose.startSession();
+        session.startTransaction();
     }
 
-    // Get retainer liability account (use default if not set)
-    let liabilityAccountId = this.retainerLiabilityAccountId;
-    if (!liabilityAccountId) {
-        const liabilityAccount = await Account.findOne({ code: '2130' }); // Unearned Revenue
-        if (!liabilityAccount) throw new Error('Retainer liability account not found');
-        liabilityAccountId = liabilityAccount._id;
-        this.retainerLiabilityAccountId = liabilityAccountId;
+    try {
+        // Convert amount if needed
+        const amountHalalas = Number.isInteger(amount) ? amount : toHalalas(amount);
+
+        // Get bank account (use default if not set)
+        let bankAcctId = this.bankAccountId;
+        if (!bankAcctId) {
+            const bankAccount = await Account.findOne({ code: '1102' }).session(session); // Bank Account - Main
+            if (!bankAccount) throw new Error('Bank account not found');
+            bankAcctId = bankAccount._id;
+            this.bankAccountId = bankAcctId;
+        }
+
+        // Get retainer liability account (use default if not set)
+        let liabilityAccountId = this.retainerLiabilityAccountId;
+        if (!liabilityAccountId) {
+            const liabilityAccount = await Account.findOne({ code: '2130' }).session(session); // Unearned Revenue
+            if (!liabilityAccount) throw new Error('Retainer liability account not found');
+            liabilityAccountId = liabilityAccount._id;
+            this.retainerLiabilityAccountId = liabilityAccountId;
+        }
+
+        // Create GL entry: DR Bank, CR Unearned Revenue
+        const glEntry = await GeneralLedger.postTransaction({
+            transactionDate: new Date(),
+            description: `Retainer ${this.retainerNumber} deposit`,
+            descriptionAr: `إيداع العربون ${this.retainerNumber}`,
+            debitAccountId: bankAcctId,
+            creditAccountId: liabilityAccountId,
+            amount: amountHalalas,
+            referenceId: this._id,
+            referenceModel: 'Retainer',
+            referenceNumber: this.retainerNumber,
+            caseId: this.caseId,
+            clientId: this.clientId,
+            lawyerId: this.lawyerId,
+            meta: {
+                paymentId,
+                action: 'deposit',
+                previousBalance: this.currentBalance
+            },
+            createdBy: this.lawyerId
+        }, session);
+
+        // Update retainer
+        this.deposits.push({
+            date: new Date(),
+            amount: amountHalalas,
+            paymentId
+        });
+
+        this.currentBalance = addAmounts(this.currentBalance, amountHalalas);
+        this.glEntries = this.glEntries || [];
+        this.glEntries.push(glEntry._id);
+
+        if (this.status === 'depleted') {
+            this.status = 'active';
+        }
+
+        this.lowBalanceAlertSent = false;
+
+        await this.save({ session });
+
+        if (!externalSession) {
+            await session.commitTransaction();
+        }
+        return { retainer: this, glEntry };
+    } catch (error) {
+        if (!externalSession) {
+            await session.abortTransaction();
+        }
+        throw error;
+    } finally {
+        if (!externalSession) {
+            session.endSession();
+        }
     }
-
-    // Create GL entry: DR Bank, CR Unearned Revenue
-    const glEntry = await GeneralLedger.postTransaction({
-        transactionDate: new Date(),
-        description: `Retainer ${this.retainerNumber} deposit`,
-        descriptionAr: `إيداع العربون ${this.retainerNumber}`,
-        debitAccountId: bankAcctId,
-        creditAccountId: liabilityAccountId,
-        amount: amountHalalas,
-        referenceId: this._id,
-        referenceModel: 'Retainer',
-        referenceNumber: this.retainerNumber,
-        caseId: this.caseId,
-        clientId: this.clientId,
-        lawyerId: this.lawyerId,
-        meta: {
-            paymentId,
-            action: 'deposit',
-            previousBalance: this.currentBalance
-        },
-        createdBy: this.lawyerId
-    }, session);
-
-    // Update retainer
-    this.deposits.push({
-        date: new Date(),
-        amount: amountHalalas,
-        paymentId
-    });
-
-    this.currentBalance = addAmounts(this.currentBalance, amountHalalas);
-    this.glEntries = this.glEntries || [];
-    this.glEntries.push(glEntry._id);
-
-    if (this.status === 'depleted') {
-        this.status = 'active';
-    }
-
-    this.lowBalanceAlertSent = false;
-
-    const options = session ? { session } : {};
-    await this.save(options);
-
-    return { retainer: this, glEntry };
 };
 
 // Legacy method alias for backward compatibility

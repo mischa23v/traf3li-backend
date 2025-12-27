@@ -192,9 +192,20 @@ const ldapConfigSchema = new mongoose.Schema({
     },
     verifyCertificate: {
         type: Boolean,
-        default: true
+        default: true,
+        validate: {
+            validator: function(v) {
+                // In production, certificate verification CANNOT be disabled
+                const isProduction = process.env.NODE_ENV === 'production';
+                if (isProduction && v === false) {
+                    return false;
+                }
+                return true;
+            },
+            message: 'Certificate verification cannot be disabled in production environment for security reasons'
+        }
         // Verify LDAP server's TLS certificate
-        // Set to false only for self-signed certs in dev
+        // Can only be set to false in non-production environments for self-signed certs
     },
     tlsCaCert: {
         type: String,
@@ -526,13 +537,17 @@ ldapConfigSchema.statics.testConnection = async function(config, options = {}) {
     let client = null;
 
     try {
+        // SECURITY: In production, certificate verification MUST be enabled
+        const isProduction = process.env.NODE_ENV === 'production';
+        const shouldVerifyCert = isProduction ? true : (config.verifyCertificate !== false);
+
         // Create LDAP client
         const clientOptions = {
             url: config.serverUrl,
             timeout: config.timeout || 5000,
             connectTimeout: config.timeout || 5000,
             tlsOptions: {
-                rejectUnauthorized: config.verifyCertificate !== false
+                rejectUnauthorized: shouldVerifyCert
             }
         };
 
@@ -570,7 +585,7 @@ ldapConfigSchema.statics.testConnection = async function(config, options = {}) {
         if (config.useStarttls && !config.useSsl) {
             await new Promise((resolve, reject) => {
                 client.starttls({
-                    rejectUnauthorized: config.verifyCertificate !== false
+                    rejectUnauthorized: shouldVerifyCert
                 }, null, (err) => {
                     if (err) reject(err);
                     else resolve();
@@ -765,13 +780,17 @@ ldapConfigSchema.statics.authenticateUser = async function(firmId, username, pas
     let client = null;
 
     try {
+        // SECURITY: In production, certificate verification MUST be enabled
+        const isProduction = process.env.NODE_ENV === 'production';
+        const shouldVerifyCert = isProduction ? true : (config.verifyCertificate !== false);
+
         // Create LDAP client
         const clientOptions = {
             url: config.serverUrl,
             timeout: config.timeout || 5000,
             connectTimeout: config.timeout || 5000,
             tlsOptions: {
-                rejectUnauthorized: config.verifyCertificate !== false
+                rejectUnauthorized: shouldVerifyCert
             }
         };
 
@@ -808,7 +827,7 @@ ldapConfigSchema.statics.authenticateUser = async function(firmId, username, pas
         if (config.useStarttls && !config.useSsl) {
             await new Promise((resolve, reject) => {
                 client.starttls({
-                    rejectUnauthorized: config.verifyCertificate !== false
+                    rejectUnauthorized: shouldVerifyCert
                 }, null, (err) => {
                     if (err) reject(err);
                     else resolve();

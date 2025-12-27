@@ -8,6 +8,7 @@
  */
 
 const logger = require('../utils/logger');
+const { sanitizeFilename } = require('../utils/sanitize');
 const {
     S3Client,
     PutObjectCommand,
@@ -203,7 +204,9 @@ const getDownloadPresignedUrl = async (fileKey, bucket = 'general', filename = n
     }
 
     if (filename) {
-        commandOptions.ResponseContentDisposition = `attachment; filename="${encodeURIComponent(filename)}"`;
+        // Sanitize filename to prevent header injection before encoding
+        const safeFilename = sanitizeFilename(filename);
+        commandOptions.ResponseContentDisposition = `attachment; filename="${encodeURIComponent(safeFilename)}"`;
     }
 
     const command = new GetObjectCommand(commandOptions);
@@ -403,7 +406,8 @@ const deleteFile = async (fileKey, bucket = 'general') => {
 const generateFileKey = (caseId, category, filename) => {
     const timestamp = Date.now();
     const randomString = Math.random().toString(36).substring(2, 8);
-    const sanitizedFilename = filename.replace(/[^a-zA-Z0-9.-]/g, '_');
+    // Use sanitizeFilename for consistent and secure filename handling
+    const sanitizedFilename = sanitizeFilename(filename);
 
     return `cases/${caseId}/${category}/${timestamp}-${randomString}-${sanitizedFilename}`;
 };

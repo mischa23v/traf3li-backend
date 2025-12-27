@@ -3,6 +3,7 @@ const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
 const mongoose = require('mongoose');
 const { pickAllowedFields, sanitizeObjectId, sanitizeForCSV } = require('../utils/securityUtils');
+const { sanitizeFilename } = require('../utils/sanitize');
 
 /**
  * Create export job
@@ -770,7 +771,7 @@ const exportEntity = asyncHandler(async (req, res) => {
 
         // Send file
         res.setHeader('Content-Type', contentType);
-        res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+        res.setHeader('Content-Disposition', `attachment; filename="${sanitizeFilename(fileName)}"`);
         res.setHeader('Content-Length', buffer.length);
         res.status(200).send(buffer);
     } catch (error) {
@@ -854,7 +855,7 @@ const exportReport = asyncHandler(async (req, res) => {
 
         // Send file
         res.setHeader('Content-Type', contentType);
-        res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+        res.setHeader('Content-Disposition', `attachment; filename="${sanitizeFilename(fileName)}"`);
         res.setHeader('Content-Length', buffer.length);
         res.status(200).send(buffer);
     } catch (error) {

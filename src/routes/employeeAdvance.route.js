@@ -3,6 +3,7 @@ const router = express.Router();
 const employeeAdvanceController = require('../controllers/employeeAdvance.controller');
 const { verifyToken } = require('../middlewares/jwt');
 const { attachFirmContext } = require('../middlewares/firmContext.middleware');
+const upload = require('../configs/multer');
 const {
     validateCreateAdvance,
     validateUpdateAdvance,
@@ -113,7 +114,7 @@ router.post('/:advanceId/issue-clearance', employeeAdvanceController.issueCleara
 // ═══════════════════════════════════════════════════════════════
 
 // POST /api/hr/advances/:advanceId/documents - Upload document
-router.post('/:advanceId/documents', employeeAdvanceController.uploadDocument);
+router.post('/:advanceId/documents', upload.single('file'), upload.malwareScan, employeeAdvanceController.uploadDocument);
 
 // ═══════════════════════════════════════════════════════════════
 // COMMUNICATION ROUTES

@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 const sanitizeHtml = require('sanitize-html');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
+const { sanitizeFilename } = require('../utils/sanitize');
 const CaseNotionPage = require('../models/caseNotionPage.model');
 const CaseNotionBlock = require('../models/caseNotionBlock.model');
 const BlockConnection = require('../models/blockConnection.model');
@@ -1519,7 +1520,7 @@ exports.exportPdf = async (req, res) => {
         const pdfBuffer = await exportPageToPdf(pageWithBlocks);
 
         res.setHeader('Content-Type', 'application/pdf');
-        res.setHeader('Content-Disposition', `attachment; filename="${page.title}.pdf"`);
+        res.setHeader('Content-Disposition', `attachment; filename="${sanitizeFilename(page.title)}.pdf"`);
         res.send(pdfBuffer);
     } catch (error) {
         res.status(500).json({ error: true, message: error.message });
@@ -1542,7 +1543,7 @@ exports.exportMarkdown = async (req, res) => {
         const markdown = exportPageToMarkdown(pageWithBlocks);
 
         res.setHeader('Content-Type', 'text/markdown');
-        res.setHeader('Content-Disposition', `attachment; filename="${page.title}.md"`);
+        res.setHeader('Content-Disposition', `attachment; filename="${sanitizeFilename(page.title)}.md"`);
         res.send(markdown);
     } catch (error) {
         res.status(500).json({ error: true, message: error.message });
@@ -1565,7 +1566,7 @@ exports.exportHtml = async (req, res) => {
         const html = generateHtmlFromBlocks(pageWithBlocks);
 
         res.setHeader('Content-Type', 'text/html');
-        res.setHeader('Content-Disposition', `attachment; filename="${page.title}.html"`);
+        res.setHeader('Content-Disposition', `attachment; filename="${sanitizeFilename(page.title)}.html"`);
         res.send(html);
     } catch (error) {
         res.status(500).json({ error: true, message: error.message });

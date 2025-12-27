@@ -22,7 +22,8 @@ const relationTupleSchema = new mongoose.Schema({
     firmId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Firm',
-        required: true
+        required: true,
+        index: true
     },
 
     // Object (the resource)

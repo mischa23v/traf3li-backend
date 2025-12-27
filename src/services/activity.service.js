@@ -130,8 +130,8 @@ class ActivityService {
       }
 
       // Update activity state
-      const updatedActivity = await Activity.findByIdAndUpdate(
-        activityId,
+      const updatedActivity = await Activity.findOneAndUpdate(
+        { _id: activityId, firm_id: activity.firm_id },
         {
           state: 'done',
           done_date: new Date(),
@@ -185,8 +185,8 @@ class ActivityService {
         return null;
       }
 
-      const updatedActivity = await Activity.findByIdAndUpdate(
-        activityId,
+      const updatedActivity = await Activity.findOneAndUpdate(
+        { _id: activityId, firm_id: activity.firm_id },
         {
           state: 'cancelled',
           cancelled_by: new mongoose.Types.ObjectId(context.userId),
@@ -236,8 +236,8 @@ class ActivityService {
       const deadline = new Date(newDeadline);
       const newState = this._determineState(deadline);
 
-      const updatedActivity = await Activity.findByIdAndUpdate(
-        activityId,
+      const updatedActivity = await Activity.findOneAndUpdate(
+        { _id: activityId, firm_id: activity.firm_id },
         {
           date_deadline: deadline,
           state: newState,
@@ -288,8 +288,8 @@ class ActivityService {
         return null;
       }
 
-      const updatedActivity = await Activity.findByIdAndUpdate(
-        activityId,
+      const updatedActivity = await Activity.findOneAndUpdate(
+        { _id: activityId, firm_id: activity.firm_id },
         {
           user_id: new mongoose.Types.ObjectId(newUserId),
           reassigned_by: new mongoose.Types.ObjectId(context.userId),

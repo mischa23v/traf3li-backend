@@ -39,15 +39,16 @@ class SLOMonitoringService {
   /**
    * Update SLO
    * @param {String} sloId - SLO ID
+   * @param {String} firmId - Firm ID
    * @param {Object} data - Update data
    * @returns {Promise<Object>} Updated SLO
    */
-  static async updateSLO(sloId, data) {
+  static async updateSLO(sloId, firmId, data) {
     try {
       logger.info(`Updating SLO: ${sloId}`);
 
-      const slo = await SLO.findByIdAndUpdate(
-        sloId,
+      const slo = await SLO.findOneAndUpdate(
+        { _id: sloId, firmId },
         { $set: data },
         { new: true, runValidators: true }
       );
@@ -67,13 +68,14 @@ class SLOMonitoringService {
   /**
    * Delete SLO
    * @param {String} sloId - SLO ID
+   * @param {String} firmId - Firm ID
    * @returns {Promise<Object>} Deleted SLO
    */
-  static async deleteSLO(sloId) {
+  static async deleteSLO(sloId, firmId) {
     try {
       logger.info(`Deleting SLO: ${sloId}`);
 
-      const slo = await SLO.findByIdAndDelete(sloId);
+      const slo = await SLO.findOneAndDelete({ _id: sloId, firmId });
 
       if (!slo) {
         throw new Error('SLO not found');
@@ -97,14 +99,15 @@ class SLOMonitoringService {
   /**
    * Take a measurement for an SLO
    * @param {String} sloId - SLO ID
+   * @param {String} firmId - Firm ID
    * @param {Object} options - Measurement options
    * @returns {Promise<Object>} Created measurement
    */
-  static async measureSLO(sloId, options = {}) {
+  static async measureSLO(sloId, firmId, options = {}) {
     try {
       logger.debug(`Taking measurement for SLO: ${sloId}`);
 
-      const slo = await SLO.findById(sloId);
+      const slo = await SLO.findOne({ _id: sloId, firmId });
       if (!slo) {
         throw new Error('SLO not found');
       }
@@ -186,11 +189,12 @@ class SLOMonitoringService {
   /**
    * Get current status of an SLO
    * @param {String} sloId - SLO ID
+   * @param {String} firmId - Firm ID
    * @returns {Promise<Object>} SLO status
    */
-  static async getSLOStatus(sloId) {
+  static async getSLOStatus(sloId, firmId) {
     try {
-      const slo = await SLO.findById(sloId).lean();
+      const slo = await SLO.findOne({ _id: sloId, firmId }).lean();
       if (!slo) {
         throw new Error('SLO not found');
       }
@@ -231,11 +235,12 @@ class SLOMonitoringService {
   /**
    * Calculate error budget for an SLO
    * @param {String} sloId - SLO ID
+   * @param {String} firmId - Firm ID
    * @returns {Promise<Object>} Error budget details
    */
-  static async getErrorBudget(sloId) {
+  static async getErrorBudget(sloId, firmId) {
     try {
-      const slo = await SLO.findById(sloId);
+      const slo = await SLO.findOne({ _id: sloId, firmId });
       if (!slo) {
         throw new Error('SLO not found');
       }

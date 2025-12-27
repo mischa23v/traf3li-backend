@@ -23,6 +23,14 @@ const logger = require('../utils/logger');
 const AuditLogService = require('./auditLog.service');
 const View = require('../models/view.model');
 
+/**
+ * Escape special regex characters to prevent regex injection
+ */
+const escapeRegex = (str) => {
+  if (typeof str !== 'string') return str;
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
+
 class ViewService {
   // ═══════════════════════════════════════════════════════════════
   // MAIN RENDERING METHODS
@@ -38,8 +46,16 @@ class ViewService {
    */
   async renderView(viewId, params = {}, userId, context = {}) {
     try {
-      // Get view configuration
-      const view = await View.findById(viewId)
+      // SECURITY: Require firmId for IDOR protection
+      if (!context.firmId) {
+        throw new Error('Firm ID is required to render view');
+      }
+
+      // Get view configuration with firm verification
+      const view = await View.findOne({
+        _id: viewId,
+        firmId: new mongoose.Types.ObjectId(context.firmId)
+      })
         .populate('ownerId', 'firstName lastName email')
         .populate('teamId', 'name')
         .lean();
@@ -1173,13 +1189,13 @@ class ViewService {
       case 'not_equals':
         return { [field]: { $ne: value } };
       case 'contains':
-        return { [field]: { $regex: value, $options: 'i' } };
+        return { [field]: { $regex: escapeRegex(value), $options: 'i' } };
       case 'not_contains':
-        return { [field]: { $not: { $regex: value, $options: 'i' } } };
+        return { [field]: { $not: { $regex: escapeRegex(value), $options: 'i' } } };
       case 'starts_with':
-        return { [field]: { $regex: `^${value}`, $options: 'i' } };
+        return { [field]: { $regex: `^${escapeRegex(value)}`, $options: 'i' } };
       case 'ends_with':
-        return { [field]: { $regex: `${value}$`, $options: 'i' } };
+        return { [field]: { $regex: `${escapeRegex(value)}$`, $options: 'i' } };
       case 'greater_than':
         return { [field]: { $gt: value } };
       case 'less_than':

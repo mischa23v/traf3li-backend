@@ -513,7 +513,8 @@ const deleteLeaveRequest = asyncHandler(async (req, res) => {
         throw CustomException('Only draft leave requests can be deleted', 400);
     }
 
-    await LeaveRequest.findByIdAndDelete(id);
+    // IDOR protection: Use firm-scoped query for delete
+    await LeaveRequest.findOneAndDelete(query);
 
     return res.json({
         success: true,

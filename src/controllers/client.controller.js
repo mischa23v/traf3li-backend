@@ -188,9 +188,10 @@ const createClient = asyncHandler(async (req, res) => {
 
     // Increment usage counter for firm
     if (firmId) {
-        await Firm.findByIdAndUpdate(firmId, {
-            $inc: { 'usage.clients': 1 }
-        }).catch(err => logger.error('Error updating client usage:', err.message));
+        await Firm.findOneAndUpdate(
+            { _id: firmId },
+            { $inc: { 'usage.clients': 1 } }
+        ).catch(err => logger.error('Error updating client usage:', err.message));
     }
 
     // Log activity
@@ -682,8 +683,9 @@ const updateClient = asyncHandler(async (req, res) => {
         updatedBy: lawyerId
     };
 
-    const updatedClient = await Client.findByIdAndUpdate(
-        id,
+    // SECURITY: Use secure query to ensure firmId ownership is enforced
+    const updatedClient = await Client.findOneAndUpdate(
+        query,
         updateData,
         { new: true, runValidators: true }
     );
@@ -793,13 +795,14 @@ const deleteClient = asyncHandler(async (req, res) => {
     // Store client data for webhook before deletion
     const clientData = client.toObject();
 
-    await Client.findByIdAndDelete(id);
+    await Client.findOneAndDelete({ _id: id, ...query });
 
     // Decrement usage counter for firm
     if (firmId) {
-        await Firm.findByIdAndUpdate(firmId, {
-            $inc: { 'usage.clients': -1 }
-        }).catch(err => logger.error('Error updating client usage:', err.message));
+        await Firm.findOneAndUpdate(
+            { _id: firmId },
+            { $inc: { 'usage.clients': -1 } }
+        ).catch(err => logger.error('Error updating client usage:', err.message));
     }
 
     // Trigger webhook - fire and forget (async, don't await)

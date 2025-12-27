@@ -535,14 +535,17 @@ class QuickBooksService {
                             }
 
                             // Update existing account
-                            await Account.findByIdAndUpdate(existingAccount._id, {
-                                ...mappedAccount,
-                                'integrations.quickbooks': {
-                                    id: qbAccount.Id,
-                                    syncToken: qbAccount.SyncToken,
-                                    lastSyncedAt: new Date()
+                            await Account.findOneAndUpdate(
+                                { _id: existingAccount._id, firmId },
+                                {
+                                    ...mappedAccount,
+                                    'integrations.quickbooks': {
+                                        id: qbAccount.Id,
+                                        syncToken: qbAccount.SyncToken,
+                                        lastSyncedAt: new Date()
+                                    }
                                 }
-                            });
+                            );
                             results.updated++;
                         } else {
                             // Create new account
@@ -594,13 +597,16 @@ class QuickBooksService {
                         });
 
                         // Update local account with QB ID
-                        await Account.findByIdAndUpdate(account._id, {
-                            'integrations.quickbooks': {
-                                id: createdAccount.Id,
-                                syncToken: createdAccount.SyncToken,
-                                lastSyncedAt: new Date()
+                        await Account.findOneAndUpdate(
+                            { _id: account._id, firmId },
+                            {
+                                'integrations.quickbooks': {
+                                    id: createdAccount.Id,
+                                    syncToken: createdAccount.SyncToken,
+                                    lastSyncedAt: new Date()
+                                }
                             }
-                        });
+                        );
 
                         results.created++;
                     } catch (error) {
@@ -697,14 +703,17 @@ class QuickBooksService {
                                 continue;
                             }
 
-                            await Client.findByIdAndUpdate(existingClient._id, {
-                                ...mappedClient,
-                                'integrations.quickbooks': {
-                                    id: qbCustomer.Id,
-                                    syncToken: qbCustomer.SyncToken,
-                                    lastSyncedAt: new Date()
+                            await Client.findOneAndUpdate(
+                                { _id: existingClient._id, firmId },
+                                {
+                                    ...mappedClient,
+                                    'integrations.quickbooks': {
+                                        id: qbCustomer.Id,
+                                        syncToken: qbCustomer.SyncToken,
+                                        lastSyncedAt: new Date()
+                                    }
                                 }
-                            });
+                            );
                             results.updated++;
                         } else {
                             await Client.create({
@@ -754,13 +763,16 @@ class QuickBooksService {
                             });
                         });
 
-                        await Client.findByIdAndUpdate(client._id, {
-                            'integrations.quickbooks': {
-                                id: createdCustomer.Id,
-                                syncToken: createdCustomer.SyncToken,
-                                lastSyncedAt: new Date()
+                        await Client.findOneAndUpdate(
+                            { _id: client._id, firmId },
+                            {
+                                'integrations.quickbooks': {
+                                    id: createdCustomer.Id,
+                                    syncToken: createdCustomer.SyncToken,
+                                    lastSyncedAt: new Date()
+                                }
                             }
-                        });
+                        );
 
                         results.created++;
                     } catch (error) {
@@ -855,14 +867,17 @@ class QuickBooksService {
                                 continue;
                             }
 
-                            await Vendor.findByIdAndUpdate(existingVendor._id, {
-                                ...mappedVendor,
-                                'integrations.quickbooks': {
-                                    id: qbVendor.Id,
-                                    syncToken: qbVendor.SyncToken,
-                                    lastSyncedAt: new Date()
+                            await Vendor.findOneAndUpdate(
+                                { _id: existingVendor._id, firmId },
+                                {
+                                    ...mappedVendor,
+                                    'integrations.quickbooks': {
+                                        id: qbVendor.Id,
+                                        syncToken: qbVendor.SyncToken,
+                                        lastSyncedAt: new Date()
+                                    }
                                 }
-                            });
+                            );
                             results.updated++;
                         } else {
                             await Vendor.create({
@@ -911,13 +926,16 @@ class QuickBooksService {
                             });
                         });
 
-                        await Vendor.findByIdAndUpdate(vendor._id, {
-                            'integrations.quickbooks': {
-                                id: createdVendor.Id,
-                                syncToken: createdVendor.SyncToken,
-                                lastSyncedAt: new Date()
+                        await Vendor.findOneAndUpdate(
+                            { _id: vendor._id, firmId },
+                            {
+                                'integrations.quickbooks': {
+                                    id: createdVendor.Id,
+                                    syncToken: createdVendor.SyncToken,
+                                    lastSyncedAt: new Date()
+                                }
                             }
-                        });
+                        );
 
                         results.created++;
                     } catch (error) {
@@ -1020,14 +1038,17 @@ class QuickBooksService {
                             continue;
                         }
 
-                        await Invoice.findByIdAndUpdate(existingInvoice._id, {
-                            ...mappedInvoice,
-                            'integrations.quickbooks': {
-                                id: qbInvoice.Id,
-                                syncToken: qbInvoice.SyncToken,
-                                lastSyncedAt: new Date()
+                        await Invoice.findOneAndUpdate(
+                            { _id: existingInvoice._id, firmId },
+                            {
+                                ...mappedInvoice,
+                                'integrations.quickbooks': {
+                                    id: qbInvoice.Id,
+                                    syncToken: qbInvoice.SyncToken,
+                                    lastSyncedAt: new Date()
+                                }
                             }
-                        });
+                        );
                         results.updated++;
                     } else {
                         await Invoice.create({
@@ -1137,14 +1158,17 @@ class QuickBooksService {
                             continue;
                         }
 
-                        await Payment.findByIdAndUpdate(existingPayment._id, {
-                            ...mappedPayment,
-                            'integrations.quickbooks': {
-                                id: qbPayment.Id,
-                                syncToken: qbPayment.SyncToken,
-                                lastSyncedAt: new Date()
+                        await Payment.findOneAndUpdate(
+                            { _id: existingPayment._id, firmId },
+                            {
+                                ...mappedPayment,
+                                'integrations.quickbooks': {
+                                    id: qbPayment.Id,
+                                    syncToken: qbPayment.SyncToken,
+                                    lastSyncedAt: new Date()
+                                }
                             }
-                        });
+                        );
                         results.updated++;
                     } else {
                         await Payment.create({
@@ -1254,14 +1278,17 @@ class QuickBooksService {
                             continue;
                         }
 
-                        await Bill.findByIdAndUpdate(existingBill._id, {
-                            ...mappedBill,
-                            'integrations.quickbooks': {
-                                id: qbBill.Id,
-                                syncToken: qbBill.SyncToken,
-                                lastSyncedAt: new Date()
+                        await Bill.findOneAndUpdate(
+                            { _id: existingBill._id, firmId },
+                            {
+                                ...mappedBill,
+                                'integrations.quickbooks': {
+                                    id: qbBill.Id,
+                                    syncToken: qbBill.SyncToken,
+                                    lastSyncedAt: new Date()
+                                }
                             }
-                        });
+                        );
                         results.updated++;
                     } else {
                         await Bill.create({
@@ -1679,7 +1706,7 @@ class QuickBooksService {
      */
     async mapInvoiceToQB(invoice) {
         // Get client's QB ID
-        const client = await Client.findById(invoice.clientId);
+        const client = await Client.findOne({ _id: invoice.clientId, firmId: invoice.firmId });
         if (!client?.integrations?.quickbooks?.id) {
             throw CustomException('Client must be synced to QuickBooks first', 400);
         }
@@ -1808,27 +1835,27 @@ class QuickBooksService {
         switch (entityType) {
             case 'account':
                 const mappedAccount = this.mapQBToAccount(qbData, firmId);
-                return await Account.findByIdAndUpdate(entityId, mappedAccount, { new: true });
+                return await Account.findOneAndUpdate({ _id: entityId, firmId }, mappedAccount, { new: true });
 
             case 'customer':
                 const mappedCustomer = this.mapQBToCustomer(qbData, firmId);
-                return await Client.findByIdAndUpdate(entityId, mappedCustomer, { new: true });
+                return await Client.findOneAndUpdate({ _id: entityId, firmId }, mappedCustomer, { new: true });
 
             case 'vendor':
                 const mappedVendor = this.mapQBToVendor(qbData, firmId);
-                return await Vendor.findByIdAndUpdate(entityId, mappedVendor, { new: true });
+                return await Vendor.findOneAndUpdate({ _id: entityId, firmId }, mappedVendor, { new: true });
 
             case 'invoice':
                 const mappedInvoice = await this.mapQBToInvoice(qbData, firmId);
-                return await Invoice.findByIdAndUpdate(entityId, mappedInvoice, { new: true });
+                return await Invoice.findOneAndUpdate({ _id: entityId, firmId }, mappedInvoice, { new: true });
 
             case 'payment':
                 const mappedPayment = await this.mapQBToPayment(qbData, firmId);
-                return await Payment.findByIdAndUpdate(entityId, mappedPayment, { new: true });
+                return await Payment.findOneAndUpdate({ _id: entityId, firmId }, mappedPayment, { new: true });
 
             case 'bill':
                 const mappedBill = await this.mapQBToBill(qbData, firmId);
-                return await Bill.findByIdAndUpdate(entityId, mappedBill, { new: true });
+                return await Bill.findOneAndUpdate({ _id: entityId, firmId }, mappedBill, { new: true });
 
             default:
                 throw CustomException('Unsupported entity type', 400);

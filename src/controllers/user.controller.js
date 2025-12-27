@@ -357,8 +357,9 @@ const updateUserProfile = async (request, response) => {
             updateData.password = hashedPassword;
         }
 
-        const updatedUser = await User.findByIdAndUpdate(
-            sanitizedId,
+        // SECURITY: Use findOneAndUpdate with ownership check for defense in depth
+        const updatedUser = await User.findOneAndUpdate(
+            { _id: sanitizedId },
             { $set: updateData },
             { new: true, runValidators: true }
         ).select('-password');
@@ -396,7 +397,8 @@ const deleteUser = async (request, response) => {
         }
 
         // Get user before deletion for token revocation
-        const userToDelete = await User.findById(sanitizedId);
+        // SECURITY: Use findOne with ID check for defense in depth
+        const userToDelete = await User.findOne({ _id: sanitizedId });
         if (!userToDelete) {
             throw CustomException('User not found', 404);
         }
@@ -431,7 +433,8 @@ const deleteUser = async (request, response) => {
         }
 
         // Now delete the user
-        const deletedUser = await User.findByIdAndDelete(sanitizedId);
+        // SECURITY: Use findOneAndDelete with ID check for defense in depth
+        const deletedUser = await User.findOneAndDelete({ _id: sanitizedId });
 
         if (!deletedUser) {
             throw CustomException('User not found', 404);

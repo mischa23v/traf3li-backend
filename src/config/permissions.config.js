@@ -34,6 +34,7 @@ const ROLES = {
     PARALEGAL: 'paralegal',
     SECRETARY: 'secretary',
     ACCOUNTANT: 'accountant',
+    CLIENT: 'client',      // Client/Customer role with minimal access
     DEPARTED: 'departed',  // Special role for employees who left
     SOLO_LAWYER: 'solo_lawyer' // Independent lawyer without a firm
 };
@@ -316,6 +317,51 @@ const ROLE_PERMISSIONS = {
     },
 
     // ─────────────────────────────────────────────────────────────
+    // CLIENT - Customer/Anonymous user with very limited access
+    // This role is used for anonymous users and clients
+    // SECURITY: Minimal permissions - can only view their own data
+    // ─────────────────────────────────────────────────────────────
+    client: {
+        modules: {
+            clients: 'none',        // No access to other clients
+            cases: 'none',          // No access to cases (unless explicitly shared)
+            leads: 'none',          // No lead access
+            invoices: 'none',       // No invoice access (unless explicitly shared)
+            payments: 'none',       // No payment access
+            expenses: 'none',       // No expense access
+            documents: 'none',      // No document access (unless explicitly shared)
+            tasks: 'none',          // No task access
+            events: 'none',         // No event access
+            timeTracking: 'none',   // No time tracking access
+            reports: 'none',        // No reports access
+            settings: 'none',       // No settings access
+            team: 'none',           // No team access
+            hr: 'none'              // No HR access
+        },
+        special: {
+            canApproveInvoices: false,
+            canManageRetainers: false,
+            canExportData: false,
+            canDeleteRecords: false,
+            canViewFinance: false,
+            canManageTeam: false
+        },
+        // Restrictions for client/anonymous users
+        restrictions: {
+            // Only see items explicitly shared with them
+            onlySharedItems: true,
+            // Read-only access
+            readOnly: true,
+            // Cannot create anything
+            cannotCreate: true,
+            // Cannot modify anything
+            cannotUpdate: true,
+            // Cannot delete anything
+            cannotDelete: true
+        }
+    },
+
+    // ─────────────────────────────────────────────────────────────
     // DEPARTED - Ex-employees with read-only access to their work
     // They can ONLY see cases/tasks/events they were assigned to
     // NO access to financial data whatsoever
@@ -420,7 +466,8 @@ const EMPLOYMENT_STATUS = {
  * @returns {object} Permissions object
  */
 function getDefaultPermissions(role) {
-    return ROLE_PERMISSIONS[role] || ROLE_PERMISSIONS.secretary;
+    // SECURITY: Default to 'client' (minimal permissions) instead of 'secretary' for unknown roles
+    return ROLE_PERMISSIONS[role] || ROLE_PERMISSIONS.client;
 }
 
 /**

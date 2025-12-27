@@ -377,15 +377,19 @@ class ThreadMessageService {
    * Toggle star on a message
    * @param {String} messageId - Message ID
    * @param {String} userId - User ID
+   * @param {String} firmId - Firm ID
    * @returns {Promise<Object|null>} - Updated message or null
    */
-  async starMessage(messageId, userId) {
+  async starMessage(messageId, userId, firmId) {
     try {
       if (!ThreadMessage) {
         throw new Error('ThreadMessage model not loaded');
       }
 
-      const message = await ThreadMessage.findById(messageId);
+      const message = await ThreadMessage.findOne({
+        _id: messageId,
+        firmId: new mongoose.Types.ObjectId(firmId)
+      });
       if (!message) {
         throw new Error('Message not found');
       }
@@ -585,9 +589,10 @@ class ThreadMessageService {
 
       // Update message with notified partners
       if (ThreadMessage) {
-        await ThreadMessage.findByIdAndUpdate(message._id, {
-          $addToSet: { notified_partner_ids: { $each: message.partner_ids } }
-        });
+        await ThreadMessage.findOneAndUpdate(
+          { _id: message._id, firmId: message.firmId },
+          { $addToSet: { notified_partner_ids: { $each: message.partner_ids } } }
+        );
       }
     } catch (error) {
       logger.error('ThreadMessageService._notifyPartners failed:', error.message);

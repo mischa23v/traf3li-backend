@@ -12,6 +12,7 @@ const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 const logger = require('../utils/logger');
+const { sanitizeFilename } = require('../utils/sanitize');
 
 // ═══════════════════════════════════════════════════════════════
 // REPORT DEFINITION CRUD
@@ -500,7 +501,7 @@ const exportReport = asyncHandler(async (req, res) => {
         firmId
     });
     const filename = report
-        ? `${report.name.replace(/[^a-z0-9]/gi, '_')}_${Date.now()}.${extension}`
+        ? sanitizeFilename(`${report.name}_${Date.now()}.${extension}`)
         : `report_${Date.now()}.${extension}`;
 
     res.setHeader('Content-Type', contentType);

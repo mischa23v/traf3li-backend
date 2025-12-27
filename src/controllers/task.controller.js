@@ -569,14 +569,21 @@ const deleteTask = asyncHandler(async (req, res) => {
     // Delete linked calendar event if exists
     if (task.linkedEventId) {
         try {
-            await Event.findByIdAndDelete(task.linkedEventId);
+            // IDOR protection: Include firmId/userId in delete query
+            const eventQuery = { _id: task.linkedEventId };
+            if (firmId) {
+                eventQuery.firmId = firmId;
+            } else {
+                eventQuery.createdBy = userId;
+            }
+            await Event.findOneAndDelete(eventQuery);
         } catch (error) {
             logger.error('Error deleting linked calendar event', { error: error.message });
             // Continue with task deletion even if event deletion fails
         }
     }
 
-    await Task.findByIdAndDelete(id);
+    await Task.findOneAndDelete(query);
 
     res.status(200).json({
         success: true,
