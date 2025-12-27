@@ -21,6 +21,10 @@
       "modelName": "AnalyticsReport"
     },
     {
+      "file": "answer.model.js",
+      "modelName": "Answer"
+    },
+    {
       "file": "apiKey.model.js",
       "modelName": "ApiKey"
     },
@@ -93,6 +97,10 @@
       "modelName": "Automation"
     },
     {
+      "file": "bankAccount.model.js",
+      "modelName": "BankAccount"
+    },
+    {
       "file": "bankFeed.model.js",
       "modelName": "BankFeed"
     },
@@ -101,8 +109,20 @@
       "modelName": "BankMatchRule"
     },
     {
+      "file": "bankReconciliation.model.js",
+      "modelName": "BankReconciliation"
+    },
+    {
+      "file": "bankTransaction.model.js",
+      "modelName": "BankTransaction"
+    },
+    {
       "file": "bankTransactionMatch.model.js",
       "modelName": "BankTransactionMatch"
+    },
+    {
+      "file": "bankTransfer.model.js",
+      "modelName": "BankTransfer"
     },
     {
       "file": "batch.model.js",
@@ -117,8 +137,16 @@
       "modelName": "BillPayment"
     },
     {
+      "file": "billingActivity.model.js",
+      "modelName": "BillingActivity"
+    },
+    {
       "file": "billingInvoice.model.js",
       "modelName": "BillingInvoice"
+    },
+    {
+      "file": "billingRate.model.js",
+      "modelName": "BillingRate"
     },
     {
       "file": "bin.model.js",
@@ -137,6 +165,14 @@
       "modelName": "BiometricLog"
     },
     {
+      "file": "blockComment.model.js",
+      "modelName": "BlockComment"
+    },
+    {
+      "file": "blockConnection.model.js",
+      "modelName": "BlockConnection"
+    },
+    {
       "file": "bom.model.js",
       "modelName": "Bom"
     },
@@ -147,6 +183,14 @@
     {
       "file": "budget.model.js",
       "modelName": "Budget"
+    },
+    {
+      "file": "budgetEntry.model.js",
+      "modelName": "BudgetEntry"
+    },
+    {
+      "file": "budgetTemplate.model.js",
+      "modelName": "BudgetTemplate"
     },
     {
       "file": "buyingSettings.model.js",
@@ -161,12 +205,24 @@
       "modelName": "Case"
     },
     {
+      "file": "caseAuditLog.model.js",
+      "modelName": "CaseAuditLog"
+    },
+    {
+      "file": "caseNotionBlock.model.js",
+      "modelName": "CaseNotionBlock"
+    },
+    {
       "file": "caseNotionDatabaseView.model.js",
       "modelName": "CaseNotionDatabaseView"
     },
     {
       "file": "caseNotionPage.model.js",
       "modelName": "CaseNotionPage"
+    },
+    {
+      "file": "caseStageProgress.model.js",
+      "modelName": "CaseStageProgress"
     },
     {
       "file": "chatHistory.model.js",
@@ -205,12 +261,20 @@
       "modelName": "ComplianceAudit"
     },
     {
+      "file": "conflictCheck.model.js",
+      "modelName": "ConflictCheck"
+    },
+    {
       "file": "consent.model.js",
       "modelName": "Consent"
     },
     {
       "file": "contact.model.js",
       "modelName": "Contact"
+    },
+    {
+      "file": "conversation.model.js",
+      "modelName": "Conversation"
     },
     {
       "file": "corporateCard.model.js",
@@ -223,6 +287,10 @@
     {
       "file": "creditNote.model.js",
       "modelName": "CreditNote"
+    },
+    {
+      "file": "crmActivity.model.js",
+      "modelName": "CrmActivity"
     },
     {
       "file": "crmSettings.model.js",
@@ -243,6 +311,10 @@
     {
       "file": "cycle.model.js",
       "modelName": "Cycle"
+    },
+    {
+      "file": "dashboardWidget.model.js",
+      "modelName": "DashboardWidget"
     },
     {
       "file": "dealRoom.model.js",
@@ -267,6 +339,10 @@
     {
       "file": "documentAnalysis.model.js",
       "modelName": "DocumentAnalysis"
+    },
+    {
+      "file": "documentVersion.model.js",
+      "modelName": "DocumentVersion"
     },
     {
       "file": "docusignIntegration.model.js",
@@ -357,12 +433,28 @@
       "modelName": "ExpensePolicy"
     },
     {
+      "file": "exportJob.model.js",
+      "modelName": "ExportJob"
+    },
+    {
+      "file": "exportTemplate.model.js",
+      "modelName": "ExportTemplate"
+    },
+    {
       "file": "fieldHistory.model.js",
       "modelName": "FieldHistory"
     },
     {
       "file": "financeSetup.model.js",
       "modelName": "FinanceSetup"
+    },
+    {
+      "file": "fiscalPeriod.model.js",
+      "modelName": "FiscalPeriod"
+    },
+    {
+      "file": "followup.model.js",
+      "modelName": "Followup"
     },
     {
       "file": "formulaField.model.js",
@@ -375,6 +467,10 @@
     {
       "file": "geofenceZone.model.js",
       "modelName": "GeofenceZone"
+    },
+    {
+      "file": "gig.model.js",
+      "modelName": "Gig"
     },
     {
       "file": "githubIntegration.model.js",
@@ -449,6 +545,10 @@
       "modelName": "InvoiceApproval"
     },
     {
+      "file": "invoiceTemplate.model.js",
+      "modelName": "InvoiceTemplate"
+    },
+    {
       "file": "item.model.js",
       "modelName": "Item"
     },
@@ -459,6 +559,10 @@
     {
       "file": "itemPrice.model.js",
       "modelName": "ItemPrice"
+    },
+    {
+      "file": "job.model.js",
+      "modelName": "Job"
     },
     {
       "file": "jobCard.model.js",
@@ -479,6 +583,10 @@
     {
       "file": "keyboardShortcut.model.js",
       "modelName": "KeyboardShortcut"
+    },
+    {
+      "file": "kycVerification.model.js",
+      "modelName": "KycVerification"
     },
     {
       "file": "ldapConfig.model.js",
@@ -533,6 +641,10 @@
       "modelName": "LegalContract"
     },
     {
+      "file": "legalDocument.model.js",
+      "modelName": "LegalDocument"
+    },
+    {
       "file": "lifecycleWorkflow.model.js",
       "modelName": "LifecycleWorkflow"
     },
@@ -569,6 +681,14 @@
       "modelName": "MaterialRequest"
     },
     {
+      "file": "matterBudget.model.js",
+      "modelName": "MatterBudget"
+    },
+    {
+      "file": "message.model.js",
+      "modelName": "Message"
+    },
+    {
       "file": "notification.model.js",
       "modelName": "Notification"
     },
@@ -593,12 +713,28 @@
       "modelName": "Onboarding"
     },
     {
+      "file": "order.model.js",
+      "modelName": "Order"
+    },
+    {
       "file": "organization.model.js",
       "modelName": "Organization"
     },
     {
+      "file": "organizationTemplate.model.js",
+      "modelName": "OrganizationTemplate"
+    },
+    {
       "file": "organizationalUnit.model.js",
       "modelName": "OrganizationalUnit"
+    },
+    {
+      "file": "pageActivity.model.js",
+      "modelName": "PageActivity"
+    },
+    {
+      "file": "pageHistory.model.js",
+      "modelName": "PageHistory"
     },
     {
       "file": "pageTemplate.model.js",
@@ -633,12 +769,20 @@
       "modelName": "PdfmeTemplate"
     },
     {
+      "file": "peerReview.model.js",
+      "modelName": "PeerReview"
+    },
+    {
       "file": "performanceReview.model.js",
       "modelName": "PerformanceReview"
     },
     {
       "file": "permission.model.js",
       "modelName": "Permission"
+    },
+    {
+      "file": "pipeline.model.js",
+      "modelName": "Pipeline"
     },
     {
       "file": "playbook.model.js",
@@ -661,8 +805,16 @@
       "modelName": "PreparedReport"
     },
     {
+      "file": "priceLevel.model.js",
+      "modelName": "PriceLevel"
+    },
+    {
       "file": "priceList.model.js",
       "modelName": "PriceList"
+    },
+    {
+      "file": "proposal.model.js",
+      "modelName": "Proposal"
     },
     {
       "file": "purchaseInvoice.model.js",
@@ -697,8 +849,24 @@
       "modelName": "QualityTemplate"
     },
     {
+      "file": "question.model.js",
+      "modelName": "Question"
+    },
+    {
+      "file": "rateCard.model.js",
+      "modelName": "RateCard"
+    },
+    {
+      "file": "rateGroup.model.js",
+      "modelName": "RateGroup"
+    },
+    {
       "file": "recurringInvoice.model.js",
       "modelName": "RecurringInvoice"
+    },
+    {
+      "file": "recurringTransaction.model.js",
+      "modelName": "RecurringTransaction"
     },
     {
       "file": "referral.model.js",
@@ -713,12 +881,28 @@
       "modelName": "RelationTuple"
     },
     {
+      "file": "reminder.model.js",
+      "modelName": "Reminder"
+    },
+    {
+      "file": "report.model.js",
+      "modelName": "Report"
+    },
+    {
       "file": "reportDefinition.model.js",
       "modelName": "ReportDefinition"
     },
     {
+      "file": "retainer.model.js",
+      "modelName": "Retainer"
+    },
+    {
       "file": "retentionBonus.model.js",
       "modelName": "RetentionBonus"
+    },
+    {
+      "file": "review.model.js",
+      "modelName": "Review"
     },
     {
       "file": "reviewTemplate.model.js",
@@ -757,12 +941,28 @@
       "modelName": "SavedFilter"
     },
     {
+      "file": "savedReport.model.js",
+      "modelName": "SavedReport"
+    },
+    {
+      "file": "score.model.js",
+      "modelName": "Score"
+    },
+    {
       "file": "securityIncident.model.js",
       "modelName": "SecurityIncident"
     },
     {
       "file": "serialNumber.model.js",
       "modelName": "SerialNumber"
+    },
+    {
+      "file": "setupSection.model.js",
+      "modelName": "SetupSection"
+    },
+    {
+      "file": "setupTask.model.js",
+      "modelName": "SetupTask"
     },
     {
       "file": "shiftAssignment.model.js",
@@ -789,6 +989,10 @@
       "modelName": "Slo"
     },
     {
+      "file": "sloMeasurement.model.js",
+      "modelName": "SloMeasurement"
+    },
+    {
       "file": "smtpConfig.model.js",
       "modelName": "SmtpConfig"
     },
@@ -799,6 +1003,10 @@
     {
       "file": "staffingPlan.model.js",
       "modelName": "StaffingPlan"
+    },
+    {
+      "file": "statement.model.js",
+      "modelName": "Statement"
     },
     {
       "file": "statusSubscriber.model.js",
@@ -857,12 +1065,24 @@
       "modelName": "SupportSettings"
     },
     {
+      "file": "syncedBlock.model.js",
+      "modelName": "SyncedBlock"
+    },
+    {
       "file": "systemComponent.model.js",
       "modelName": "SystemComponent"
     },
     {
+      "file": "tag.model.js",
+      "modelName": "Tag"
+    },
+    {
       "file": "task.model.js",
       "modelName": "Task"
+    },
+    {
+      "file": "taskDocumentVersion.model.js",
+      "modelName": "TaskDocumentVersion"
     },
     {
       "file": "teamActivityLog.model.js",
@@ -883,6 +1103,10 @@
     {
       "file": "threadMessage.model.js",
       "modelName": "ThreadMessage"
+    },
+    {
+      "file": "threeWayReconciliation.model.js",
+      "modelName": "ThreeWayReconciliation"
     },
     {
       "file": "ticket.model.js",
@@ -911,6 +1135,10 @@
     {
       "file": "training.model.js",
       "modelName": "Training"
+    },
+    {
+      "file": "transaction.model.js",
+      "modelName": "Transaction"
     },
     {
       "file": "trelloIntegration.model.js",
@@ -1013,246 +1241,17 @@
       "modelName": "ZoomIntegration"
     }
   ],
-  "withLawyerIdOnly": [
-    {
-      "file": "answer.model.js",
-      "modelName": "Answer"
-    },
-    {
-      "file": "bankAccount.model.js",
-      "modelName": "BankAccount"
-    },
-    {
-      "file": "bankReconciliation.model.js",
-      "modelName": "BankReconciliation"
-    },
-    {
-      "file": "bankTransaction.model.js",
-      "modelName": "BankTransaction"
-    },
-    {
-      "file": "bankTransfer.model.js",
-      "modelName": "BankTransfer"
-    },
-    {
-      "file": "billingRate.model.js",
-      "modelName": "BillingRate"
-    },
-    {
-      "file": "budgetEntry.model.js",
-      "modelName": "BudgetEntry"
-    },
-    {
-      "file": "budgetTemplate.model.js",
-      "modelName": "BudgetTemplate"
-    },
-    {
-      "file": "conflictCheck.model.js",
-      "modelName": "ConflictCheck"
-    },
-    {
-      "file": "crmActivity.model.js",
-      "modelName": "CrmActivity"
-    },
-    {
-      "file": "dashboardWidget.model.js",
-      "modelName": "DashboardWidget"
-    },
-    {
-      "file": "exportJob.model.js",
-      "modelName": "ExportJob"
-    },
-    {
-      "file": "exportTemplate.model.js",
-      "modelName": "ExportTemplate"
-    },
-    {
-      "file": "fiscalPeriod.model.js",
-      "modelName": "FiscalPeriod"
-    },
-    {
-      "file": "followup.model.js",
-      "modelName": "Followup"
-    },
-    {
-      "file": "invoiceTemplate.model.js",
-      "modelName": "InvoiceTemplate"
-    },
-    {
-      "file": "matterBudget.model.js",
-      "modelName": "MatterBudget"
-    },
-    {
-      "file": "pipeline.model.js",
-      "modelName": "Pipeline"
-    },
-    {
-      "file": "priceLevel.model.js",
-      "modelName": "PriceLevel"
-    },
-    {
-      "file": "proposal.model.js",
-      "modelName": "Proposal"
-    },
-    {
-      "file": "rateCard.model.js",
-      "modelName": "RateCard"
-    },
-    {
-      "file": "rateGroup.model.js",
-      "modelName": "RateGroup"
-    },
-    {
-      "file": "recurringTransaction.model.js",
-      "modelName": "RecurringTransaction"
-    },
-    {
-      "file": "retainer.model.js",
-      "modelName": "Retainer"
-    },
-    {
-      "file": "savedReport.model.js",
-      "modelName": "SavedReport"
-    },
-    {
-      "file": "score.model.js",
-      "modelName": "Score"
-    },
-    {
-      "file": "statement.model.js",
-      "modelName": "Statement"
-    },
-    {
-      "file": "tag.model.js",
-      "modelName": "Tag"
-    },
-    {
-      "file": "threeWayReconciliation.model.js",
-      "modelName": "ThreeWayReconciliation"
-    }
-  ],
-  "missingFirmId": [
-    {
-      "file": "auditLogArchive.model.js",
-      "modelName": "AuditLogArchive"
-    },
-    {
-      "file": "billingActivity.model.js",
-      "modelName": "BillingActivity"
-    },
-    {
-      "file": "blockComment.model.js",
-      "modelName": "BlockComment"
-    },
-    {
-      "file": "blockConnection.model.js",
-      "modelName": "BlockConnection"
-    },
-    {
-      "file": "caseAuditLog.model.js",
-      "modelName": "CaseAuditLog"
-    },
-    {
-      "file": "caseNotionBlock.model.js",
-      "modelName": "CaseNotionBlock"
-    },
-    {
-      "file": "caseStageProgress.model.js",
-      "modelName": "CaseStageProgress"
-    },
-    {
-      "file": "conversation.model.js",
-      "modelName": "Conversation"
-    },
-    {
-      "file": "documentVersion.model.js",
-      "modelName": "DocumentVersion"
-    },
-    {
-      "file": "gig.model.js",
-      "modelName": "Gig"
-    },
-    {
-      "file": "job.model.js",
-      "modelName": "Job"
-    },
-    {
-      "file": "kycVerification.model.js",
-      "modelName": "KycVerification"
-    },
-    {
-      "file": "legalDocument.model.js",
-      "modelName": "LegalDocument"
-    },
-    {
-      "file": "message.model.js",
-      "modelName": "Message"
-    },
-    {
-      "file": "order.model.js",
-      "modelName": "Order"
-    },
-    {
-      "file": "organizationTemplate.model.js",
-      "modelName": "OrganizationTemplate"
-    },
-    {
-      "file": "pageActivity.model.js",
-      "modelName": "PageActivity"
-    },
-    {
-      "file": "pageHistory.model.js",
-      "modelName": "PageHistory"
-    },
-    {
-      "file": "peerReview.model.js",
-      "modelName": "PeerReview"
-    },
-    {
-      "file": "question.model.js",
-      "modelName": "Question"
-    },
-    {
-      "file": "reminder.model.js",
-      "modelName": "Reminder"
-    },
-    {
-      "file": "report.model.js",
-      "modelName": "Report"
-    },
-    {
-      "file": "review.model.js",
-      "modelName": "Review"
-    },
-    {
-      "file": "setupSection.model.js",
-      "modelName": "SetupSection"
-    },
-    {
-      "file": "setupTask.model.js",
-      "modelName": "SetupTask"
-    },
-    {
-      "file": "sloMeasurement.model.js",
-      "modelName": "SloMeasurement"
-    },
-    {
-      "file": "syncedBlock.model.js",
-      "modelName": "SyncedBlock"
-    },
-    {
-      "file": "taskDocumentVersion.model.js",
-      "modelName": "TaskDocumentVersion"
-    },
-    {
-      "file": "transaction.model.js",
-      "modelName": "Transaction"
-    }
-  ],
+  "withLawyerIdOnly": [],
+  "missingFirmId": [],
   "skippedGlobal": [
     {
       "file": "account.model.js",
       "modelName": "Account",
+      "reason": "In SKIP_MODELS list"
+    },
+    {
+      "file": "auditLogArchive.model.js",
+      "modelName": "AuditLogArchive",
       "reason": "In SKIP_MODELS list"
     },
     {

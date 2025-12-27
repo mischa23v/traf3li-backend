@@ -36,6 +36,7 @@ const SKIP_MODELS = new Set([
     'Account',           // Chart of accounts (shared)
     'SubscriptionPlan',  // Global subscription plans
     'Plugin',            // Global plugins
+    'AuditLogArchive',   // Alias for ArchivedAuditLog (has firmId)
 ]);
 
 // Additional models that might be legitimately global
