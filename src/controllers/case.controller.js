@@ -1369,7 +1369,11 @@ const updateHearing = async (request, response) => {
                 }
 
                 if (Object.keys(eventUpdates).length > 0) {
-                    await Event.findByIdAndUpdate(hearing.eventId, eventUpdates);
+                    // SECURITY: Include firmId to prevent IDOR when updating linked event
+                    await Event.findOneAndUpdate(
+                        { _id: hearing.eventId, firmId: firmId },
+                        eventUpdates
+                    );
                 }
             } catch (eventError) {
                 logger.error('Failed to update linked event', { error: eventError.message });
@@ -1389,7 +1393,11 @@ const updateHearing = async (request, response) => {
                     description: `موعد الجلسة غداً في ${location || hearing.location || 'المحكمة'}`
                 };
 
-                await Reminder.findByIdAndUpdate(hearing.reminderId, reminderUpdates);
+                // SECURITY: Include firmId to prevent IDOR when updating linked reminder
+                await Reminder.findOneAndUpdate(
+                    { _id: hearing.reminderId, firmId: firmId },
+                    reminderUpdates
+                );
             } catch (reminderError) {
                 logger.error('Failed to update linked reminder', { error: reminderError.message });
             }
@@ -1616,7 +1624,8 @@ const deleteHearing = async (request, response) => {
         // Delete linked Event if it exists
         if (eventId) {
             try {
-                await Event.findByIdAndDelete(eventId);
+                // SECURITY: Include firmId to prevent IDOR when deleting linked event
+                await Event.findOneAndDelete({ _id: eventId, firmId: firmId });
             } catch (eventError) {
                 logger.error('Failed to delete linked event', { error: eventError.message });
             }
@@ -1625,7 +1634,8 @@ const deleteHearing = async (request, response) => {
         // Delete linked Reminder if it exists
         if (reminderId) {
             try {
-                await Reminder.findByIdAndDelete(reminderId);
+                // SECURITY: Include firmId to prevent IDOR when deleting linked reminder
+                await Reminder.findOneAndDelete({ _id: reminderId, firmId: firmId });
             } catch (reminderError) {
                 logger.error('Failed to delete linked reminder', { error: reminderError.message });
             }

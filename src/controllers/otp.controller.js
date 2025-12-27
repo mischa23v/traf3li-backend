@@ -7,7 +7,7 @@ const { EmailOTP, User } = require('../models');
 const { generateOTP, hashOTP } = require('../utils/otp.utils');
 const NotificationDeliveryService = require('../services/notificationDelivery.service');
 const jwt = require('jsonwebtoken');
-const { getCookieConfig } = require('./auth.controller');
+const { getCookieConfig } = require('../utils/cookieConfig');
 const { sanitizeObjectId, timingSafeEqual } = require('../utils/securityUtils');
 const logger = require('../utils/logger');
 

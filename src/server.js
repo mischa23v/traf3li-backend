@@ -86,6 +86,7 @@ const {
     searchRateLimiter
 } = require('./middlewares/rateLimiter.middleware');
 const { sanitizeAll } = require('./middlewares/sanitize.middleware');
+const { inputSanitizer } = require('./middlewares/inputSanitizer.middleware');
 const {
     originCheck,
     noCache,
@@ -545,9 +546,8 @@ app.use((req, res, next) => {
                 // Upgrade insecure requests in production
                 upgradeInsecureRequests: process.env.NODE_ENV === 'production' ? [] : null
             },
-            // Report violations but don't enforce (for testing)
-            // Set to false in production after testing
-            reportOnly: process.env.CSP_REPORT_ONLY === 'true'
+            // Enforce CSP policy (not report-only mode)
+            reportOnly: false
         },
         // Prevent clickjacking attacks
         frameguard: {
@@ -710,6 +710,9 @@ app.use(sanitizeRequest);
 
 // ✅ SECURITY: Input sanitization (XSS and injection attack prevention)
 app.use(sanitizeAll);
+
+// ✅ SECURITY: NoSQL injection prevention and input sanitization
+app.use(inputSanitizer);
 
 // ✅ SECURITY: Content-Type validation for POST/PUT/PATCH
 app.use(validateContentType);

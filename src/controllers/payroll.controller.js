@@ -204,7 +204,16 @@ const getSalarySlip = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
-    const salarySlip = await SalarySlip.findById(id)
+    // SECURITY: IDOR Protection - Include ownership in query from the start
+    const isSoloLawyer = req.isSoloLawyer;
+    const query = { _id: id };
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
+
+    const salarySlip = await SalarySlip.findOne(query)
         .populate('employeeId', 'employeeId personalInfo employment compensation')
         .populate('generatedBy', 'firstName lastName')
         .populate('approvedBy', 'firstName lastName')
@@ -212,15 +221,6 @@ const getSalarySlip = asyncHandler(async (req, res) => {
 
     if (!salarySlip) {
         throw CustomException('Salary slip not found', 404);
-    }
-
-    // SECURITY: IDOR Protection - Verify user has access to this salary slip
-    const hasAccess = firmId
-        ? salarySlip.firmId?.toString() === firmId.toString()
-        : salarySlip.lawyerId?.toString() === lawyerId;
-
-    if (!hasAccess) {
-        throw CustomException('Access denied', 403);
     }
 
     return res.json({
@@ -386,19 +386,19 @@ const updateSalarySlip = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
-    const salarySlip = await SalarySlip.findById(id);
+    // SECURITY: IDOR Protection - Include ownership in query from the start
+    const isSoloLawyer = req.isSoloLawyer;
+    const query = { _id: id };
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
+
+    const salarySlip = await SalarySlip.findOne(query);
 
     if (!salarySlip) {
         throw CustomException('Salary slip not found', 404);
-    }
-
-    // SECURITY: IDOR Protection - Verify user has access to this salary slip
-    const hasAccess = firmId
-        ? salarySlip.firmId?.toString() === firmId.toString()
-        : salarySlip.lawyerId?.toString() === lawyerId;
-
-    if (!hasAccess) {
-        throw CustomException('Access denied', 403);
     }
 
     // Only allow updates if status is draft
@@ -492,19 +492,19 @@ const deleteSalarySlip = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
-    const salarySlip = await SalarySlip.findById(id);
+    // SECURITY: IDOR Protection - Include ownership in query from the start
+    const isSoloLawyer = req.isSoloLawyer;
+    const query = { _id: id };
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
+
+    const salarySlip = await SalarySlip.findOne(query);
 
     if (!salarySlip) {
         throw CustomException('Salary slip not found', 404);
-    }
-
-    // SECURITY: IDOR Protection - Verify user has access to this salary slip
-    const hasAccess = firmId
-        ? salarySlip.firmId?.toString() === firmId.toString()
-        : salarySlip.lawyerId?.toString() === lawyerId;
-
-    if (!hasAccess) {
-        throw CustomException('Access denied', 403);
     }
 
     // Only allow deletion if status is draft
@@ -530,19 +530,19 @@ const approveSalarySlip = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
     const { comments } = req.body;
 
-    const salarySlip = await SalarySlip.findById(id);
+    // SECURITY: IDOR Protection - Include ownership in query from the start
+    const isSoloLawyer = req.isSoloLawyer;
+    const query = { _id: id };
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
+
+    const salarySlip = await SalarySlip.findOne(query);
 
     if (!salarySlip) {
         throw CustomException('Salary slip not found', 404);
-    }
-
-    // SECURITY: IDOR Protection - Verify user has access to this salary slip
-    const hasAccess = firmId
-        ? salarySlip.firmId?.toString() === firmId.toString()
-        : salarySlip.lawyerId?.toString() === lawyerId;
-
-    if (!hasAccess) {
-        throw CustomException('Access denied', 403);
     }
 
     // Only allow approval if status is draft
@@ -581,19 +581,19 @@ const paySalarySlip = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
     const { transactionReference, paidOn } = req.body;
 
-    const salarySlip = await SalarySlip.findById(id);
+    // SECURITY: IDOR Protection - Include ownership in query from the start
+    const isSoloLawyer = req.isSoloLawyer;
+    const query = { _id: id };
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
+
+    const salarySlip = await SalarySlip.findOne(query);
 
     if (!salarySlip) {
         throw CustomException('Salary slip not found', 404);
-    }
-
-    // SECURITY: IDOR Protection - Verify user has access to this salary slip
-    const hasAccess = firmId
-        ? salarySlip.firmId?.toString() === firmId.toString()
-        : salarySlip.lawyerId?.toString() === lawyerId;
-
-    if (!hasAccess) {
-        throw CustomException('Access denied', 403);
     }
 
     // Only allow payment if status is approved or processing

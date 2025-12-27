@@ -7,7 +7,7 @@ const { PhoneOTP, User } = require('../models');
 const { generateOTP } = require('../utils/otp.utils');
 const smsService = require('../services/sms.service');
 const jwt = require('jsonwebtoken');
-const { getCookieConfig } = require('./auth.controller');
+const { getCookieConfig } = require('../utils/cookieConfig');
 const logger = require('../utils/logger');
 
 /**

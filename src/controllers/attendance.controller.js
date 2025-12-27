@@ -94,7 +94,13 @@ const getAttendanceRecords = async (req, res) => {
  */
 const getAttendanceById = async (req, res) => {
     try {
-        const record = await AttendanceRecord.findById(req.params.id)
+        // IDOR Protection: Build query with firmId for multi-tenant isolation
+        const query = { _id: req.params.id };
+        if (req.user?.firmId) {
+            query.firmId = req.user.firmId;
+        }
+
+        const record = await AttendanceRecord.findOne(query)
             .populate('employeeId', 'employeeId personalInfo employmentDetails')
             .populate('checkIn.approvedBy', 'firstName lastName')
             .populate('checkOut.approvedBy', 'firstName lastName')
@@ -105,14 +111,6 @@ const getAttendanceById = async (req, res) => {
             return res.status(404).json({
                 success: false,
                 message: 'Attendance record not found'
-            });
-        }
-
-        // IDOR Protection: Verify firmId ownership
-        if (req.user?.firmId && record.firmId?.toString() !== req.user.firmId.toString()) {
-            return res.status(403).json({
-                success: false,
-                message: 'Access denied: You do not have permission to view this attendance record'
             });
         }
 
@@ -363,19 +361,17 @@ const updateAttendanceRecord = async (req, res) => {
         ];
         const updates = pickAllowedFields(req.body, allowedFields);
 
-        const record = await AttendanceRecord.findById(id);
+        // IDOR Protection: Build query with firmId for multi-tenant isolation
+        const query = { _id: id };
+        if (req.user?.firmId) {
+            query.firmId = req.user.firmId;
+        }
+
+        const record = await AttendanceRecord.findOne(query);
         if (!record) {
             return res.status(404).json({
                 success: false,
                 message: 'Attendance record not found'
-            });
-        }
-
-        // IDOR Protection: Verify firmId ownership
-        if (req.user?.firmId && record.firmId?.toString() !== req.user.firmId.toString()) {
-            return res.status(403).json({
-                success: false,
-                message: 'Access denied: You do not have permission to update this attendance record'
             });
         }
 
@@ -466,7 +462,13 @@ const updateAttendanceRecord = async (req, res) => {
  */
 const deleteAttendanceRecord = async (req, res) => {
     try {
-        const record = await AttendanceRecord.findById(req.params.id);
+        // IDOR Protection: Build query with firmId for multi-tenant isolation
+        const query = { _id: req.params.id };
+        if (req.user?.firmId) {
+            query.firmId = req.user.firmId;
+        }
+
+        const record = await AttendanceRecord.findOne(query);
 
         if (!record) {
             return res.status(404).json({
@@ -475,15 +477,7 @@ const deleteAttendanceRecord = async (req, res) => {
             });
         }
 
-        // IDOR Protection: Verify firmId ownership
-        if (req.user?.firmId && record.firmId?.toString() !== req.user.firmId.toString()) {
-            return res.status(403).json({
-                success: false,
-                message: 'Access denied: You do not have permission to delete this attendance record'
-            });
-        }
-
-        await AttendanceRecord.findByIdAndDelete(req.params.id);
+        await AttendanceRecord.deleteOne(query);
 
         res.status(200).json({
             success: true,
@@ -764,19 +758,17 @@ const startBreak = async (req, res) => {
         const safeData = pickAllowedFields(req.body, allowedFields);
         const { type = 'personal', isPaid = true, notes } = safeData;
 
-        const record = await AttendanceRecord.findById(id);
+        // IDOR Protection: Build query with firmId for multi-tenant isolation
+        const query = { _id: id };
+        if (req.user?.firmId) {
+            query.firmId = req.user.firmId;
+        }
+
+        const record = await AttendanceRecord.findOne(query);
         if (!record) {
             return res.status(404).json({
                 success: false,
                 message: 'Attendance record not found'
-            });
-        }
-
-        // IDOR Protection: Verify firmId ownership
-        if (req.user?.firmId && record.firmId?.toString() !== req.user.firmId.toString()) {
-            return res.status(403).json({
-                success: false,
-                message: 'Access denied: You do not have permission to modify this attendance record'
             });
         }
 
@@ -837,19 +829,17 @@ const endBreak = async (req, res) => {
         const safeData = pickAllowedFields(req.body, allowedFields);
         const { maxDuration = 30 } = safeData;
 
-        const record = await AttendanceRecord.findById(id);
+        // IDOR Protection: Build query with firmId for multi-tenant isolation
+        const query = { _id: id };
+        if (req.user?.firmId) {
+            query.firmId = req.user.firmId;
+        }
+
+        const record = await AttendanceRecord.findOne(query);
         if (!record) {
             return res.status(404).json({
                 success: false,
                 message: 'Attendance record not found'
-            });
-        }
-
-        // IDOR Protection: Verify firmId ownership
-        if (req.user?.firmId && record.firmId?.toString() !== req.user.firmId.toString()) {
-            return res.status(403).json({
-                success: false,
-                message: 'Access denied: You do not have permission to modify this attendance record'
             });
         }
 
@@ -889,19 +879,17 @@ const endBreak = async (req, res) => {
  */
 const getBreaks = async (req, res) => {
     try {
-        const record = await AttendanceRecord.findById(req.params.id);
+        // IDOR Protection: Build query with firmId for multi-tenant isolation
+        const query = { _id: req.params.id };
+        if (req.user?.firmId) {
+            query.firmId = req.user.firmId;
+        }
+
+        const record = await AttendanceRecord.findOne(query);
         if (!record) {
             return res.status(404).json({
                 success: false,
                 message: 'Attendance record not found'
-            });
-        }
-
-        // SECURITY: Verify firmId ownership
-        if (req.user?.firmId && record.firmId?.toString() !== req.user.firmId.toString()) {
-            return res.status(403).json({
-                success: false,
-                message: 'Access denied: You do not have permission to view this attendance record'
             });
         }
 
@@ -952,19 +940,17 @@ const submitCorrection = async (req, res) => {
             supportingDocument
         } = safeData;
 
-        const record = await AttendanceRecord.findById(id);
+        // IDOR Protection: Build query with firmId for multi-tenant isolation
+        const query = { _id: id };
+        if (req.user?.firmId) {
+            query.firmId = req.user.firmId;
+        }
+
+        const record = await AttendanceRecord.findOne(query);
         if (!record) {
             return res.status(404).json({
                 success: false,
                 message: 'Attendance record not found'
-            });
-        }
-
-        // IDOR Protection: Verify firmId ownership
-        if (req.user?.firmId && record.firmId?.toString() !== req.user.firmId.toString()) {
-            return res.status(403).json({
-                success: false,
-                message: 'Access denied: You do not have permission to submit corrections for this attendance record'
             });
         }
 
@@ -1047,19 +1033,17 @@ const reviewCorrection = async (req, res) => {
         const safeData = pickAllowedFields(req.body, allowedFields);
         const { status, reviewNotes } = safeData;
 
-        const record = await AttendanceRecord.findById(id);
+        // IDOR Protection: Build query with firmId for multi-tenant isolation
+        const query = { _id: id };
+        if (req.user?.firmId) {
+            query.firmId = req.user.firmId;
+        }
+
+        const record = await AttendanceRecord.findOne(query);
         if (!record) {
             return res.status(404).json({
                 success: false,
                 message: 'Attendance record not found'
-            });
-        }
-
-        // IDOR Protection: Verify firmId ownership
-        if (req.user?.firmId && record.firmId?.toString() !== req.user.firmId.toString()) {
-            return res.status(403).json({
-                success: false,
-                message: 'Access denied: You do not have permission to review corrections for this attendance record'
             });
         }
 
@@ -1197,19 +1181,17 @@ const approveAttendance = async (req, res) => {
         const safeData = pickAllowedFields(req.body, allowedFields);
         const { notes } = safeData;
 
-        const record = await AttendanceRecord.findById(id);
+        // IDOR Protection: Build query with firmId for multi-tenant isolation
+        const query = { _id: id };
+        if (req.user?.firmId) {
+            query.firmId = req.user.firmId;
+        }
+
+        const record = await AttendanceRecord.findOne(query);
         if (!record) {
             return res.status(404).json({
                 success: false,
                 message: 'Attendance record not found'
-            });
-        }
-
-        // IDOR Protection: Verify firmId ownership
-        if (req.user?.firmId && record.firmId?.toString() !== req.user.firmId.toString()) {
-            return res.status(403).json({
-                success: false,
-                message: 'Access denied: You do not have permission to approve this attendance record'
             });
         }
 
@@ -1254,19 +1236,17 @@ const rejectAttendance = async (req, res) => {
         const safeData = pickAllowedFields(req.body, allowedFields);
         const { reason } = safeData;
 
-        const record = await AttendanceRecord.findById(id);
+        // IDOR Protection: Build query with firmId for multi-tenant isolation
+        const query = { _id: id };
+        if (req.user?.firmId) {
+            query.firmId = req.user.firmId;
+        }
+
+        const record = await AttendanceRecord.findOne(query);
         if (!record) {
             return res.status(404).json({
                 success: false,
                 message: 'Attendance record not found'
-            });
-        }
-
-        // IDOR Protection: Verify firmId ownership
-        if (req.user?.firmId && record.firmId?.toString() !== req.user.firmId.toString()) {
-            return res.status(403).json({
-                success: false,
-                message: 'Access denied: You do not have permission to reject this attendance record'
             });
         }
 
@@ -1338,19 +1318,17 @@ const addViolation = async (req, res) => {
             'other': 'أخرى'
         };
 
-        const record = await AttendanceRecord.findById(id);
+        // IDOR Protection: Build query with firmId for multi-tenant isolation
+        const query = { _id: id };
+        if (req.user?.firmId) {
+            query.firmId = req.user.firmId;
+        }
+
+        const record = await AttendanceRecord.findOne(query);
         if (!record) {
             return res.status(404).json({
                 success: false,
                 message: 'Attendance record not found'
-            });
-        }
-
-        // IDOR Protection: Verify firmId ownership
-        if (req.user?.firmId && record.firmId?.toString() !== req.user.firmId.toString()) {
-            return res.status(403).json({
-                success: false,
-                message: 'Access denied: You do not have permission to add violations to this attendance record'
             });
         }
 
@@ -1400,19 +1378,17 @@ const resolveViolation = async (req, res) => {
         const { id, violationIndex } = req.params;
         const { resolution } = req.body;
 
-        const record = await AttendanceRecord.findById(id);
+        // IDOR Protection: Build query with firmId for multi-tenant isolation
+        const query = { _id: id };
+        if (req.user?.firmId) {
+            query.firmId = req.user.firmId;
+        }
+
+        const record = await AttendanceRecord.findOne(query);
         if (!record) {
             return res.status(404).json({
                 success: false,
                 message: 'Attendance record not found'
-            });
-        }
-
-        // SECURITY: Verify firmId ownership
-        if (req.user?.firmId && record.firmId?.toString() !== req.user.firmId.toString()) {
-            return res.status(403).json({
-                success: false,
-                message: 'Access denied: You do not have permission to resolve violations for this attendance record'
             });
         }
 
@@ -1455,19 +1431,17 @@ const appealViolation = async (req, res) => {
         const { id, violationIndex } = req.params;
         const { reason } = req.body;
 
-        const record = await AttendanceRecord.findById(id);
+        // IDOR Protection: Build query with firmId for multi-tenant isolation
+        const query = { _id: id };
+        if (req.user?.firmId) {
+            query.firmId = req.user.firmId;
+        }
+
+        const record = await AttendanceRecord.findOne(query);
         if (!record) {
             return res.status(404).json({
                 success: false,
                 message: 'Attendance record not found'
-            });
-        }
-
-        // SECURITY: Verify firmId ownership
-        if (req.user?.firmId && record.firmId?.toString() !== req.user.firmId.toString()) {
-            return res.status(403).json({
-                success: false,
-                message: 'Access denied: You do not have permission to appeal violations for this attendance record'
             });
         }
 
@@ -1587,19 +1561,17 @@ const approveOvertime = async (req, res) => {
         const safeData = pickAllowedFields(req.body, allowedFields);
         const { notes, compensationType = 'payment' } = safeData;
 
-        const record = await AttendanceRecord.findById(id);
+        // IDOR Protection: Build query with firmId for multi-tenant isolation
+        const query = { _id: id };
+        if (req.user?.firmId) {
+            query.firmId = req.user.firmId;
+        }
+
+        const record = await AttendanceRecord.findOne(query);
         if (!record) {
             return res.status(404).json({
                 success: false,
                 message: 'Attendance record not found'
-            });
-        }
-
-        // IDOR Protection: Verify firmId ownership
-        if (req.user?.firmId && record.firmId?.toString() !== req.user.firmId.toString()) {
-            return res.status(403).json({
-                success: false,
-                message: 'Access denied: You do not have permission to approve overtime for this attendance record'
             });
         }
 
