@@ -441,117 +441,203 @@ refundSchema.statics.getRefundsByPolicy = async function(filters = {}) {
 
 /**
  * Approve refund
+ * SECURITY: Uses atomic findOneAndUpdate to prevent TOCTOU race conditions
  */
 refundSchema.methods.approve = async function(userId, approvedAmount = null, notes = '') {
-    if (this.status !== 'pending') {
-        throw new Error('Only pending refunds can be approved');
+    const now = new Date();
+    const finalAmount = approvedAmount || this.requestedAmount;
+
+    // SECURITY: Atomic update with status condition to prevent race conditions
+    const result = await this.constructor.findOneAndUpdate(
+        {
+            _id: this._id,
+            status: 'pending' // Only update if still pending
+        },
+        {
+            $set: {
+                status: 'approved',
+                approvedBy: userId,
+                approvedAt: now,
+                approvedAmount: finalAmount
+            },
+            $push: {
+                approvalHistory: {
+                    approverId: userId,
+                    action: 'approved',
+                    amount: finalAmount,
+                    notes,
+                    date: now
+                }
+            }
+        },
+        { new: true }
+    );
+
+    if (!result) {
+        throw new Error('Only pending refunds can be approved (refund may have been modified by another request)');
     }
 
-    this.status = 'approved';
-    this.approvedBy = userId;
-    this.approvedAt = new Date();
-    this.approvedAmount = approvedAmount || this.requestedAmount;
-
-    this.approvalHistory.push({
-        approverId: userId,
-        action: 'approved',
-        amount: this.approvedAmount,
-        notes,
-        date: new Date()
-    });
-
-    await this.save();
+    // Update this instance with the new values
+    Object.assign(this, result.toObject());
     return this;
 };
 
 /**
  * Reject refund
+ * SECURITY: Uses atomic findOneAndUpdate to prevent TOCTOU race conditions
  */
 refundSchema.methods.reject = async function(userId, reason) {
-    if (this.status !== 'pending') {
-        throw new Error('Only pending refunds can be rejected');
+    const now = new Date();
+
+    // SECURITY: Atomic update with status condition to prevent race conditions
+    const result = await this.constructor.findOneAndUpdate(
+        {
+            _id: this._id,
+            status: 'pending' // Only update if still pending
+        },
+        {
+            $set: {
+                status: 'rejected',
+                rejectedBy: userId,
+                rejectedAt: now,
+                rejectionReason: reason
+            },
+            $push: {
+                approvalHistory: {
+                    approverId: userId,
+                    action: 'rejected',
+                    notes: reason,
+                    date: now
+                }
+            }
+        },
+        { new: true }
+    );
+
+    if (!result) {
+        throw new Error('Only pending refunds can be rejected (refund may have been modified by another request)');
     }
 
-    this.status = 'rejected';
-    this.rejectedBy = userId;
-    this.rejectedAt = new Date();
-    this.rejectionReason = reason;
-
-    this.approvalHistory.push({
-        approverId: userId,
-        action: 'rejected',
-        notes: reason,
-        date: new Date()
-    });
-
-    await this.save();
+    // Update this instance with the new values
+    Object.assign(this, result.toObject());
     return this;
 };
 
 /**
  * Mark as processing
+ * SECURITY: Uses atomic findOneAndUpdate to prevent TOCTOU race conditions
  */
 refundSchema.methods.startProcessing = async function(userId) {
-    if (this.status !== 'approved') {
-        throw new Error('Only approved refunds can be processed');
+    const now = new Date();
+
+    // SECURITY: Atomic update with status condition to prevent race conditions
+    const result = await this.constructor.findOneAndUpdate(
+        {
+            _id: this._id,
+            status: 'approved' // Only update if still approved
+        },
+        {
+            $set: {
+                status: 'processing',
+                'processingDetails.processedBy': userId,
+                'processingDetails.processedAt': now
+            }
+        },
+        { new: true }
+    );
+
+    if (!result) {
+        throw new Error('Only approved refunds can be processed (refund may have been modified by another request)');
     }
 
-    this.status = 'processing';
-    if (!this.processingDetails) {
-        this.processingDetails = {};
-    }
-    this.processingDetails.processedBy = userId;
-    this.processingDetails.processedAt = new Date();
-
-    await this.save();
+    // Update this instance with the new values
+    Object.assign(this, result.toObject());
     return this;
 };
 
 /**
  * Mark as completed
+ * SECURITY: Uses atomic findOneAndUpdate to prevent TOCTOU race conditions
  */
 refundSchema.methods.complete = async function(gatewayRefundId = null, gatewayResponse = null) {
-    if (this.status !== 'processing') {
-        throw new Error('Only processing refunds can be completed');
-    }
-
-    this.status = 'completed';
-    this.processedAmount = this.approvedAmount;
-
-    if (!this.processingDetails) {
-        this.processingDetails = {};
-    }
-    this.processingDetails.completedAt = new Date();
+    const now = new Date();
+    const updateFields = {
+        status: 'completed',
+        processedAmount: this.approvedAmount,
+        'processingDetails.completedAt': now
+    };
 
     if (gatewayRefundId) {
-        this.processingDetails.gatewayRefundId = gatewayRefundId;
+        updateFields['processingDetails.gatewayRefundId'] = gatewayRefundId;
     }
     if (gatewayResponse) {
-        this.processingDetails.gatewayResponse = gatewayResponse;
+        updateFields['processingDetails.gatewayResponse'] = gatewayResponse;
     }
 
-    await this.save();
+    // SECURITY: Atomic update with status condition to prevent race conditions
+    const result = await this.constructor.findOneAndUpdate(
+        {
+            _id: this._id,
+            status: 'processing' // Only update if still processing
+        },
+        { $set: updateFields },
+        { new: true }
+    );
+
+    if (!result) {
+        throw new Error('Only processing refunds can be completed (refund may have been modified by another request)');
+    }
+
+    // Update this instance with the new values
+    Object.assign(this, result.toObject());
     return this;
 };
 
 /**
  * Mark as failed
+ * SECURITY: Uses atomic findOneAndUpdate to prevent race conditions
  */
 refundSchema.methods.fail = async function(reason) {
-    this.status = 'failed';
+    const now = new Date();
+    const currentRetryCount = this.failureDetails?.retryCount || 0;
+    const newRetryCount = currentRetryCount + 1;
 
-    if (!this.failureDetails) {
-        this.failureDetails = {};
+    // SECURITY: Atomic update to prevent race conditions
+    const result = await this.constructor.findOneAndUpdate(
+        {
+            _id: this._id,
+            status: { $in: ['approved', 'processing'] } // Only update if in valid state
+        },
+        {
+            $set: {
+                status: 'failed',
+                'failureDetails.failureReason': reason,
+                'failureDetails.failureDate': now,
+                'failureDetails.retryCount': newRetryCount,
+                'failureDetails.lastRetryAt': now,
+                'failureDetails.canRetry': newRetryCount < 3
+            }
+        },
+        { new: true }
+    );
+
+    if (!result) {
+        // If atomic update failed, try direct save (for already failed refunds being retried)
+        this.status = 'failed';
+        if (!this.failureDetails) {
+            this.failureDetails = {};
+        }
+        this.failureDetails.failureReason = reason;
+        this.failureDetails.failureDate = now;
+        this.failureDetails.retryCount = newRetryCount;
+        this.failureDetails.lastRetryAt = now;
+        this.failureDetails.canRetry = newRetryCount < 3;
+        await this.save();
+        return this;
     }
-    this.failureDetails.failureReason = reason;
-    this.failureDetails.failureDate = new Date();
-    this.failureDetails.retryCount = (this.failureDetails.retryCount || 0) + 1;
-    this.failureDetails.lastRetryAt = new Date();
 
-    // Allow retry if less than 3 attempts
-    this.failureDetails.canRetry = this.failureDetails.retryCount < 3;
-
-    await this.save();
+    // Update this instance with the new values
+    Object.assign(this, result.toObject());
     return this;
 };
 

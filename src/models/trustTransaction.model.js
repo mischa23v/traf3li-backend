@@ -1,6 +1,12 @@
 const mongoose = require('mongoose');
 
 const trustTransactionSchema = new mongoose.Schema({
+    firmId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Firm',
+        required: true,
+        index: true
+    },
     lawyerId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
@@ -81,11 +87,11 @@ const trustTransactionSchema = new mongoose.Schema({
 });
 
 // Indexes
-trustTransactionSchema.index({ lawyerId: 1, accountId: 1 });
-trustTransactionSchema.index({ lawyerId: 1, clientId: 1 });
-trustTransactionSchema.index({ accountId: 1, transactionDate: -1 });
+trustTransactionSchema.index({ firmId: 1, lawyerId: 1, accountId: 1 });
+trustTransactionSchema.index({ firmId: 1, clientId: 1 });
+trustTransactionSchema.index({ firmId: 1, accountId: 1, transactionDate: -1 });
 trustTransactionSchema.index({ transactionNumber: 1 }, { unique: true });
-trustTransactionSchema.index({ status: 1 });
+trustTransactionSchema.index({ firmId: 1, status: 1 });
 
 // Pre-save hook to generate transaction number
 trustTransactionSchema.pre('save', async function(next) {
@@ -97,46 +103,64 @@ trustTransactionSchema.pre('save', async function(next) {
     next();
 });
 
-// Static method: Create deposit
+// Static method: Create deposit (requires firmId for security)
 trustTransactionSchema.statics.createDeposit = async function(data) {
     const TrustAccount = mongoose.model('TrustAccount');
     const ClientTrustBalance = mongoose.model('ClientTrustBalance');
 
-    // Get current account balance
-    const account = await TrustAccount.findById(data.accountId);
+    // SECURITY: firmId is required
+    if (!data.firmId) {
+        throw new Error('firmId is required for trust transactions');
+    }
+
+    // SECURITY: Get account with firm isolation
+    const account = await TrustAccount.findOne({
+        _id: data.accountId,
+        firmId: data.firmId
+    });
     if (!account) throw new Error('Trust account not found');
 
     const runningBalance = account.balance + data.amount;
 
-    // Create transaction
+    // Create transaction with firmId
     const transaction = await this.create({
         ...data,
         type: 'deposit',
         runningBalance
     });
 
-    // Update account balance
-    await TrustAccount.updateBalance(data.accountId, data.amount, 'add');
+    // Update account balance with firmId
+    await TrustAccount.updateBalance(data.accountId, data.amount, 'add', data.firmId);
 
-    // Update client balance
-    await ClientTrustBalance.getOrCreate(data.lawyerId, data.accountId, data.clientId, data.caseId);
-    await ClientTrustBalance.updateBalance(data.accountId, data.clientId, data.amount, 'add', 'deposit');
+    // Update client balance with firmId
+    await ClientTrustBalance.getOrCreate(data.firmId, data.lawyerId, data.accountId, data.clientId, data.caseId);
+    await ClientTrustBalance.updateBalance(data.firmId, data.accountId, data.clientId, data.amount, 'add', 'deposit');
 
     return transaction;
 };
 
-// Static method: Create withdrawal
+// Static method: Create withdrawal (requires firmId for security)
 trustTransactionSchema.statics.createWithdrawal = async function(data) {
     const TrustAccount = mongoose.model('TrustAccount');
     const ClientTrustBalance = mongoose.model('ClientTrustBalance');
 
-    // Get current balances
-    const account = await TrustAccount.findById(data.accountId);
+    // SECURITY: firmId is required
+    if (!data.firmId) {
+        throw new Error('firmId is required for trust transactions');
+    }
+
+    // SECURITY: Get account with firm isolation
+    const account = await TrustAccount.findOne({
+        _id: data.accountId,
+        firmId: data.firmId
+    });
     if (!account) throw new Error('Trust account not found');
 
+    // SECURITY: Check client balance with firm isolation
     const clientBalance = await ClientTrustBalance.findOne({
         accountId: data.accountId,
-        clientId: data.clientId
+        clientId: data.clientId,
+        firmId: data.firmId
     });
 
     if (!clientBalance || clientBalance.availableBalance < data.amount) {
@@ -145,25 +169,30 @@ trustTransactionSchema.statics.createWithdrawal = async function(data) {
 
     const runningBalance = account.balance - data.amount;
 
-    // Create transaction
+    // Create transaction with firmId
     const transaction = await this.create({
         ...data,
         type: 'withdrawal',
         runningBalance
     });
 
-    // Update account balance
-    await TrustAccount.updateBalance(data.accountId, data.amount, 'subtract');
+    // Update account balance with firmId
+    await TrustAccount.updateBalance(data.accountId, data.amount, 'subtract', data.firmId);
 
-    // Update client balance
-    await ClientTrustBalance.updateBalance(data.accountId, data.clientId, data.amount, 'subtract', 'withdrawal');
+    // Update client balance with firmId
+    await ClientTrustBalance.updateBalance(data.firmId, data.accountId, data.clientId, data.amount, 'subtract', 'withdrawal');
 
     return transaction;
 };
 
-// Static method: Get client ledger
-trustTransactionSchema.statics.getClientLedger = async function(accountId, clientId, dateRange = {}) {
-    const query = { accountId, clientId };
+// Static method: Get client ledger (requires firmId for security)
+trustTransactionSchema.statics.getClientLedger = async function(firmId, accountId, clientId, dateRange = {}) {
+    // SECURITY: firmId is required
+    if (!firmId) {
+        throw new Error('firmId is required for trust transaction queries');
+    }
+
+    const query = { firmId, accountId, clientId };
 
     if (dateRange.startDate) {
         query.transactionDate = { $gte: new Date(dateRange.startDate) };

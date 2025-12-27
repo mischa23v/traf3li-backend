@@ -272,6 +272,9 @@ const generateBackupCodesForUser = async (userId, count = 10) => {
 /**
  * Use a backup code for MFA verification
  *
+ * SECURITY: Uses atomic findOneAndUpdate to prevent TOCTOU race conditions.
+ * Two concurrent requests with the same backup code cannot both succeed.
+ *
  * @param {string} userId - User ID
  * @param {string} code - Backup code to verify
  * @param {Object} context - Optional context with IP, user agent, location
@@ -286,11 +289,21 @@ const generateBackupCodesForUser = async (userId, count = 10) => {
  * }
  */
 const useBackupCode = async (userId, code, context = {}) => {
+    const mongoose = require('mongoose');
+    const session = await mongoose.startSession();
+
     try {
-        // Find the user
+        session.startTransaction();
+
+        // Find the user with session for transaction
         // NOTE: Bypass firmIsolation filter - MFA operations need to work for solo lawyers without firmId
-        const user = await User.findById(userId).setOptions({ bypassFirmFilter: true });
+        const user = await User.findById(userId)
+            .setOptions({ bypassFirmFilter: true })
+            .session(session);
+
         if (!user) {
+            await session.abortTransaction();
+            session.endSession();
             const err = new Error('User not found');
             err.code = 'USER_NOT_FOUND';
             throw err;
@@ -298,6 +311,9 @@ const useBackupCode = async (userId, code, context = {}) => {
 
         // Check if user has any backup codes
         if (!user.mfaBackupCodes || user.mfaBackupCodes.length === 0) {
+            await session.abortTransaction();
+            session.endSession();
+
             await auditLogService.log(
                 'mfa_backup_code_failed',
                 'user',
@@ -319,10 +335,18 @@ const useBackupCode = async (userId, code, context = {}) => {
             };
         }
 
-        // Verify the code
-        const verificationResult = await verifyBackupCode(code, user.mfaBackupCodes);
+        // Verify the code against UNUSED codes only
+        // SECURITY: Filter to only check unused codes to prevent race conditions
+        const unusedCodes = user.mfaBackupCodes
+            .map((bc, index) => ({ ...bc.toObject(), index }))
+            .filter(bc => !bc.used);
+
+        const verificationResult = await verifyBackupCode(code, unusedCodes);
 
         if (!verificationResult.valid) {
+            await session.abortTransaction();
+            session.endSession();
+
             await auditLogService.log(
                 'mfa_backup_code_failed',
                 'user',
@@ -344,17 +368,67 @@ const useBackupCode = async (userId, code, context = {}) => {
             };
         }
 
-        // Mark the code as used
-        user.mfaBackupCodes[verificationResult.codeIndex].used = true;
-        user.mfaBackupCodes[verificationResult.codeIndex].usedAt = new Date();
+        // Get the original index from the mapped unused codes
+        const originalIndex = unusedCodes[verificationResult.codeIndex].index;
 
-        // Update MFA verified timestamp
-        user.mfaVerifiedAt = new Date();
+        // SECURITY: Atomic update - mark the specific code as used
+        // Use findOneAndUpdate with array filter to atomically mark the code
+        const updateResult = await User.findOneAndUpdate(
+            {
+                _id: userId,
+                [`mfaBackupCodes.${originalIndex}.used`]: false // Only update if still unused
+            },
+            {
+                $set: {
+                    [`mfaBackupCodes.${originalIndex}.used`]: true,
+                    [`mfaBackupCodes.${originalIndex}.usedAt`]: new Date(),
+                    mfaVerifiedAt: new Date()
+                }
+            },
+            {
+                new: true,
+                session,
+                // IMPORTANT: bypassFirmFilter for MFA operations
+                bypassFirmFilter: true
+            }
+        ).setOptions({ bypassFirmFilter: true });
 
-        await user.save();
+        // If update failed (code was used by concurrent request), reject
+        if (!updateResult) {
+            await session.abortTransaction();
+            session.endSession();
 
-        // Get remaining codes count
-        const remainingCodes = getRemainingBackupCodesCount(user.mfaBackupCodes);
+            logger.warn('Backup code race condition detected - code already used', {
+                userId,
+                codeIndex: originalIndex
+            });
+
+            await auditLogService.log(
+                'mfa_backup_code_failed',
+                'user',
+                userId,
+                null,
+                {
+                    userId,
+                    userEmail: user.email,
+                    userRole: user.role,
+                    reason: 'Backup code already used (concurrent request)',
+                    severity: 'high'
+                }
+            );
+
+            return {
+                valid: false,
+                remainingCodes: getRemainingBackupCodesCount(user.mfaBackupCodes),
+                error: 'Backup code already used'
+            };
+        }
+
+        await session.commitTransaction();
+        session.endSession();
+
+        // Get remaining codes count from updated user
+        const remainingCodes = getRemainingBackupCodesCount(updateResult.mfaBackupCodes);
 
         // Log successful backup code usage
         await auditLogService.log(
@@ -417,9 +491,19 @@ const useBackupCode = async (userId, code, context = {}) => {
         return {
             valid: true,
             remainingCodes,
-            user
+            user: updateResult
         };
     } catch (error) {
+        // Ensure session is cleaned up on error
+        try {
+            if (session.inTransaction()) {
+                await session.abortTransaction();
+            }
+            session.endSession();
+        } catch {
+            // Session cleanup failed, but we still want to throw the original error
+        }
+
         logger.error('Use backup code error', {
             error: error.message,
             userId

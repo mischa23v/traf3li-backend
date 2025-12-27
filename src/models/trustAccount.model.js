@@ -1,6 +1,12 @@
 const mongoose = require('mongoose');
 
 const trustAccountSchema = new mongoose.Schema({
+    firmId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Firm',
+        required: true,
+        index: true
+    },
     lawyerId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
@@ -68,7 +74,8 @@ const trustAccountSchema = new mongoose.Schema({
 });
 
 // Indexes
-trustAccountSchema.index({ lawyerId: 1, status: 1 });
+trustAccountSchema.index({ firmId: 1, lawyerId: 1, status: 1 });
+trustAccountSchema.index({ firmId: 1, status: 1 });
 trustAccountSchema.index({ accountNumber: 1 }, { unique: true });
 
 // Pre-save hook to generate account number
@@ -80,22 +87,41 @@ trustAccountSchema.pre('save', async function(next) {
     next();
 });
 
-// Static method: Update balance
-trustAccountSchema.statics.updateBalance = async function(accountId, amount, type = 'add') {
+// Static method: Update balance (requires firmId for security)
+trustAccountSchema.statics.updateBalance = async function(accountId, amount, type = 'add', firmId = null) {
     const update = type === 'add'
         ? { $inc: { balance: amount, availableBalance: amount } }
         : { $inc: { balance: -amount, availableBalance: -amount } };
 
-    return await this.findByIdAndUpdate(accountId, update, { new: true });
+    // SECURITY: Always filter by firmId when provided
+    const filter = { _id: accountId };
+    if (firmId) {
+        filter.firmId = firmId;
+    }
+
+    return await this.findOneAndUpdate(filter, update, { new: true });
 };
 
-// Static method: Get account with client balances
-trustAccountSchema.statics.getWithClientBalances = async function(accountId) {
+// Static method: Get account with client balances (requires firmId for security)
+trustAccountSchema.statics.getWithClientBalances = async function(accountId, firmId = null) {
     const ClientTrustBalance = mongoose.model('ClientTrustBalance');
-    const account = await this.findById(accountId);
+
+    // SECURITY: Always filter by firmId when provided
+    const filter = { _id: accountId };
+    if (firmId) {
+        filter.firmId = firmId;
+    }
+
+    const account = await this.findOne(filter);
     if (!account) return null;
 
-    const clientBalances = await ClientTrustBalance.find({ accountId })
+    // Also filter client balances by firmId
+    const clientFilter = { accountId };
+    if (firmId) {
+        clientFilter.firmId = firmId;
+    }
+
+    const clientBalances = await ClientTrustBalance.find(clientFilter)
         .populate('clientId', 'name fullName email')
         .populate('caseId', 'title caseNumber');
 
