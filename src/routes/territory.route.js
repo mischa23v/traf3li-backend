@@ -26,7 +26,7 @@ router.use(verifyToken);
  * @desc    Get all territories with filters
  * @access  Private
  */
-router.get('/', territoryController.getAll);
+router.get('/', territoryController.getTerritories);
 
 /**
  * @route   GET /api/v1/territories/tree
@@ -40,27 +40,27 @@ router.get('/tree', territoryController.getTree);
  * @desc    Get territory by ID
  * @access  Private
  */
-router.get('/:id', validateIdParam, territoryController.getById);
+router.get('/:id', validateIdParam, territoryController.getTerritoryById);
 
 /**
  * @route   POST /api/v1/territories
  * @desc    Create a new territory
  * @access  Private
  */
-router.post('/', validateCreateTerritory, territoryController.create);
+router.post('/', validateCreateTerritory, territoryController.createTerritory);
 
 /**
  * @route   PUT /api/v1/territories/:id
  * @desc    Update a territory
  * @access  Private
  */
-router.put('/:id', validateIdParam, validateUpdateTerritory, territoryController.update);
+router.put('/:id', validateIdParam, validateUpdateTerritory, territoryController.updateTerritory);
 
 /**
  * @route   DELETE /api/v1/territories/:id
  * @desc    Delete a territory
  * @access  Private
  */
-router.delete('/:id', validateIdParam, territoryController.delete);
+router.delete('/:id', validateIdParam, territoryController.deleteTerritory);
 
 module.exports = router;
