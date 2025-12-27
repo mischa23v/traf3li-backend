@@ -146,10 +146,6 @@ exports.saveSmtpConfig = asyncHandler(async (req, res) => {
   let config = await SmtpConfig.findOne({ firmId });
 
   if (config) {
-    // IDOR protection - verify firmId ownership
-    if (config.firmId.toString() !== firmId.toString()) {
-      throw CustomException('Access denied', 403);
-    }
     // Update existing
     Object.assign(config, configData);
     await config.save();
@@ -434,11 +430,6 @@ exports.updateTemplate = asyncHandler(async (req, res) => {
     throw CustomException('Template not found or you do not have permission to update it', 404);
   }
 
-  // IDOR protection - verify firmId ownership
-  if (template.firmId.toString() !== firmId.toString()) {
-    throw CustomException('Access denied', 403);
-  }
-
   // Mass assignment protection
   const allowedFields = [
     'name', 'category', 'subject', 'previewText', 'htmlContent',
@@ -518,11 +509,6 @@ exports.deleteTemplate = asyncHandler(async (req, res) => {
 
   if (!template) {
     throw CustomException('Template not found or you do not have permission to delete it', 404);
-  }
-
-  // IDOR protection - verify firmId ownership
-  if (template.firmId.toString() !== firmId.toString()) {
-    throw CustomException('Access denied', 403);
   }
 
   res.json({
@@ -695,6 +681,7 @@ exports.createSignature = asyncHandler(async (req, res) => {
  */
 exports.updateSignature = asyncHandler(async (req, res) => {
   const userId = req.userID;
+  const firmId = req.firmId;
   const { id } = req.params;
 
   if (!userId) {
@@ -707,16 +694,12 @@ exports.updateSignature = asyncHandler(async (req, res) => {
   // Find signature (only user's own signatures)
   const signature = await EmailSignature.findOne({
     _id: signatureId,
-    userId
+    userId,
+    firmId
   });
 
   if (!signature) {
     throw CustomException('Signature not found or you do not have permission to update it', 404);
-  }
-
-  // IDOR protection - verify userId ownership
-  if (signature.userId.toString() !== userId.toString()) {
-    throw CustomException('Access denied', 403);
   }
 
   // Mass assignment protection
@@ -771,6 +754,7 @@ exports.updateSignature = asyncHandler(async (req, res) => {
  */
 exports.deleteSignature = asyncHandler(async (req, res) => {
   const userId = req.userID;
+  const firmId = req.firmId;
   const { id } = req.params;
 
   if (!userId) {
@@ -783,16 +767,12 @@ exports.deleteSignature = asyncHandler(async (req, res) => {
   // Find and delete signature (only user's own signatures)
   const signature = await EmailSignature.findOneAndDelete({
     _id: signatureId,
-    userId
+    userId,
+    firmId
   });
 
   if (!signature) {
     throw CustomException('Signature not found or you do not have permission to delete it', 404);
-  }
-
-  // IDOR protection - verify userId ownership
-  if (signature.userId.toString() !== userId.toString()) {
-    throw CustomException('Access denied', 403);
   }
 
   // If deleted signature was default, set another as default
@@ -821,6 +801,7 @@ exports.deleteSignature = asyncHandler(async (req, res) => {
  */
 exports.setDefaultSignature = asyncHandler(async (req, res) => {
   const userId = req.userID;
+  const firmId = req.firmId;
   const { id } = req.params;
 
   if (!userId) {
@@ -833,16 +814,12 @@ exports.setDefaultSignature = asyncHandler(async (req, res) => {
   // Verify signature belongs to user
   const signature = await EmailSignature.findOne({
     _id: signatureId,
-    userId
+    userId,
+    firmId
   });
 
   if (!signature) {
     throw CustomException('Signature not found or you do not have permission to modify it', 404);
-  }
-
-  // IDOR protection - verify userId ownership
-  if (signature.userId.toString() !== userId.toString()) {
-    throw CustomException('Access denied', 403);
   }
 
   // Set as default using static method

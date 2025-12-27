@@ -25,17 +25,10 @@ exports.getAll = async (req, res) => {
             });
         }
 
-        const firmId = req.firmId;
-        const lawyerId = req.userID;
         const { enabled, type } = req.query;
 
-        const isSoloLawyer = req.isSoloLawyer;
-        const query = {};
-        if (isSoloLawyer || !firmId) {
-            query.lawyerId = lawyerId;
-        } else {
-            query.firmId = firmId;
-        }
+        // Firm-level isolation
+        const query = { ...req.firmQuery };
 
         if (enabled !== undefined) {
             query.enabled = enabled === 'true';
@@ -84,9 +77,8 @@ exports.getById = async (req, res) => {
             });
         }
 
-        const firmId = req.firmId;
-
-        const stage = await SalesStage.findOne({ _id: id, firmId });
+        // IDOR protection - verify ownership with firm isolation
+        const stage = await SalesStage.findOne({ _id: id, ...req.firmQuery });
 
         if (!stage) {
             return res.status(404).json({
@@ -294,8 +286,9 @@ exports.update = async (req, res) => {
         // Use pickAllowedFields for mass assignment protection
         const sanitizedData = pickAllowedFields(req.body, allowedFields);
 
+        // IDOR protection - verify ownership with firm isolation
         const stage = await SalesStage.findOneAndUpdate(
-            { _id: id, firmId },
+            { _id: id, ...req.firmQuery },
             { $set: sanitizedData },
             { new: true, runValidators: true }
         );
@@ -357,10 +350,10 @@ exports.delete = async (req, res) => {
             });
         }
 
-        const firmId = req.firmId;
         const userId = req.userID;
 
-        const stage = await SalesStage.findOneAndDelete({ _id: id, firmId });
+        // IDOR protection - verify ownership with firm isolation
+        const stage = await SalesStage.findOneAndDelete({ _id: id, ...req.firmQuery });
 
         if (!stage) {
             return res.status(404).json({
@@ -454,8 +447,8 @@ exports.reorder = async (req, res) => {
 
         await SalesStage.reorder(firmId, sanitizedStages);
 
-        // Get updated stages
-        const updatedStages = await SalesStage.find({ firmId }).sort({ order: 1 });
+        // Get updated stages with firm isolation
+        const updatedStages = await SalesStage.find({ ...req.firmQuery }).sort({ order: 1 });
 
         // Log activity
         await CrmActivity.logActivity({
@@ -499,8 +492,8 @@ exports.createDefaults = async (req, res) => {
 
         const firmId = req.firmId;
 
-        // Check if stages already exist
-        const existingCount = await SalesStage.countDocuments({ firmId });
+        // Check if stages already exist - with firm isolation
+        const existingCount = await SalesStage.countDocuments({ ...req.firmQuery });
         if (existingCount > 0) {
             return res.status(400).json({
                 success: false,
@@ -510,7 +503,8 @@ exports.createDefaults = async (req, res) => {
 
         await SalesStage.createDefaults(firmId);
 
-        const stages = await SalesStage.find({ firmId }).sort({ order: 1 });
+        // Get created stages with firm isolation
+        const stages = await SalesStage.find({ ...req.firmQuery }).sort({ order: 1 });
 
         res.json({
             success: true,

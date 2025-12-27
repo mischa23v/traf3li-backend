@@ -93,22 +93,21 @@ const getPayrollRun = asyncHandler(async (req, res) => {
         throw CustomException('Invalid payroll run ID', 400);
     }
 
-    const payrollRun = await PayrollRun.findById(sanitizedId)
+    // IDOR protection - build query with firmId isolation
+    const query = { _id: sanitizedId };
+    if (firmId) {
+        query.firmId = firmId;
+    } else {
+        query.lawyerId = lawyerId;
+    }
+
+    const payrollRun = await PayrollRun.findOne(query)
         .populate('createdBy', 'firstName lastName')
         .populate('approvalWorkflow.finalApprover', 'firstName lastName')
         .populate('employeeList.employeeId', 'employeeId personalInfo.fullNameArabic personalInfo.fullNameEnglish');
 
     if (!payrollRun) {
         throw CustomException('Payroll run not found', 404);
-    }
-
-    // IDOR protection - verify firmId ownership
-    const hasAccess = firmId
-        ? payrollRun.firmId?.toString() === firmId.toString()
-        : payrollRun.lawyerId?.toString() === lawyerId;
-
-    if (!hasAccess) {
-        throw CustomException('Access denied', 403);
     }
 
     return res.json({
@@ -176,19 +175,18 @@ const updatePayrollRun = asyncHandler(async (req, res) => {
         throw CustomException('Invalid payroll run ID', 400);
     }
 
-    const payrollRun = await PayrollRun.findById(sanitizedId);
+    // IDOR protection - build query with firmId isolation
+    const query = { _id: sanitizedId };
+    if (firmId) {
+        query.firmId = firmId;
+    } else {
+        query.lawyerId = lawyerId;
+    }
+
+    const payrollRun = await PayrollRun.findOne(query);
 
     if (!payrollRun) {
         throw CustomException('Payroll run not found', 404);
-    }
-
-    // IDOR protection - verify firmId ownership
-    const hasAccess = firmId
-        ? payrollRun.firmId?.toString() === firmId.toString()
-        : payrollRun.lawyerId?.toString() === lawyerId;
-
-    if (!hasAccess) {
-        throw CustomException('Access denied', 403);
     }
 
     if (!['draft', 'calculated'].includes(payrollRun.status)) {
@@ -248,26 +246,25 @@ const deletePayrollRun = asyncHandler(async (req, res) => {
         throw CustomException('Invalid payroll run ID', 400);
     }
 
-    const payrollRun = await PayrollRun.findById(sanitizedId);
+    // IDOR protection - build query with firmId isolation
+    const query = { _id: sanitizedId };
+    if (firmId) {
+        query.firmId = firmId;
+    } else {
+        query.lawyerId = lawyerId;
+    }
+
+    const payrollRun = await PayrollRun.findOne(query);
 
     if (!payrollRun) {
         throw CustomException('Payroll run not found', 404);
-    }
-
-    // IDOR protection - verify firmId ownership
-    const hasAccess = firmId
-        ? payrollRun.firmId?.toString() === firmId.toString()
-        : payrollRun.lawyerId?.toString() === lawyerId;
-
-    if (!hasAccess) {
-        throw CustomException('Access denied', 403);
     }
 
     if (payrollRun.status !== 'draft') {
         throw CustomException('Only draft runs can be deleted', 400);
     }
 
-    await PayrollRun.findByIdAndDelete(id);
+    await PayrollRun.findOneAndDelete(query);
 
     return res.json({
         success: true,
@@ -290,19 +287,18 @@ const calculatePayroll = asyncHandler(async (req, res) => {
         throw CustomException('Invalid payroll run ID', 400);
     }
 
-    const payrollRun = await PayrollRun.findById(sanitizedId);
+    // IDOR protection - build query with firmId isolation
+    const query = { _id: sanitizedId };
+    if (firmId) {
+        query.firmId = firmId;
+    } else {
+        query.lawyerId = lawyerId;
+    }
+
+    const payrollRun = await PayrollRun.findOne(query);
 
     if (!payrollRun) {
         throw CustomException('Payroll run not found', 404);
-    }
-
-    // IDOR protection - verify firmId ownership
-    const hasAccess = firmId
-        ? payrollRun.firmId?.toString() === firmId.toString()
-        : payrollRun.lawyerId?.toString() === lawyerId;
-
-    if (!hasAccess) {
-        throw CustomException('Access denied', 403);
     }
 
     if (!['draft', 'calculated'].includes(payrollRun.status)) {
@@ -508,19 +504,18 @@ const validatePayroll = asyncHandler(async (req, res) => {
         throw CustomException('Invalid payroll run ID', 400);
     }
 
-    const payrollRun = await PayrollRun.findById(sanitizedId);
+    // IDOR protection - build query with firmId isolation
+    const query = { _id: sanitizedId };
+    if (firmId) {
+        query.firmId = firmId;
+    } else {
+        query.lawyerId = lawyerId;
+    }
+
+    const payrollRun = await PayrollRun.findOne(query);
 
     if (!payrollRun) {
         throw CustomException('Payroll run not found', 404);
-    }
-
-    // IDOR protection - verify firmId ownership
-    const hasAccess = firmId
-        ? payrollRun.firmId?.toString() === firmId.toString()
-        : payrollRun.lawyerId?.toString() === lawyerId;
-
-    if (!hasAccess) {
-        throw CustomException('Access denied', 403);
     }
 
     const errorMessages = [];
@@ -617,19 +612,18 @@ const approvePayroll = asyncHandler(async (req, res) => {
     // Mass assignment protection - only allow comments field
     const safeData = pickAllowedFields(req.body, ['comments']);
 
-    const payrollRun = await PayrollRun.findById(sanitizedId);
+    // IDOR protection - build query with firmId isolation
+    const query = { _id: sanitizedId };
+    if (firmId) {
+        query.firmId = firmId;
+    } else {
+        query.lawyerId = lawyerId;
+    }
+
+    const payrollRun = await PayrollRun.findOne(query);
 
     if (!payrollRun) {
         throw CustomException('Payroll run not found', 404);
-    }
-
-    // IDOR protection - verify firmId ownership
-    const hasAccess = firmId
-        ? payrollRun.firmId?.toString() === firmId.toString()
-        : payrollRun.lawyerId?.toString() === lawyerId;
-
-    if (!hasAccess) {
-        throw CustomException('Access denied', 403);
     }
 
     if (payrollRun.status !== 'calculated') {
@@ -682,19 +676,18 @@ const processPayments = asyncHandler(async (req, res) => {
         throw CustomException('Invalid payroll run ID', 400);
     }
 
-    const payrollRun = await PayrollRun.findById(sanitizedId);
+    // IDOR protection - build query with firmId isolation
+    const query = { _id: sanitizedId };
+    if (firmId) {
+        query.firmId = firmId;
+    } else {
+        query.lawyerId = lawyerId;
+    }
+
+    const payrollRun = await PayrollRun.findOne(query);
 
     if (!payrollRun) {
         throw CustomException('Payroll run not found', 404);
-    }
-
-    // IDOR protection - verify firmId ownership
-    const hasAccess = firmId
-        ? payrollRun.firmId?.toString() === firmId.toString()
-        : payrollRun.lawyerId?.toString() === lawyerId;
-
-    if (!hasAccess) {
-        throw CustomException('Access denied', 403);
     }
 
     if (payrollRun.status !== 'approved') {
@@ -860,19 +853,18 @@ const cancelPayroll = asyncHandler(async (req, res) => {
     // Mass assignment protection - only allow reason field
     const safeData = pickAllowedFields(req.body, ['reason']);
 
-    const payrollRun = await PayrollRun.findById(sanitizedId);
+    // IDOR protection - build query with firmId isolation
+    const query = { _id: sanitizedId };
+    if (firmId) {
+        query.firmId = firmId;
+    } else {
+        query.lawyerId = lawyerId;
+    }
+
+    const payrollRun = await PayrollRun.findOne(query);
 
     if (!payrollRun) {
         throw CustomException('Payroll run not found', 404);
-    }
-
-    // IDOR protection - verify firmId ownership
-    const hasAccess = firmId
-        ? payrollRun.firmId?.toString() === firmId.toString()
-        : payrollRun.lawyerId?.toString() === lawyerId;
-
-    if (!hasAccess) {
-        throw CustomException('Access denied', 403);
     }
 
     if (['paid', 'cancelled'].includes(payrollRun.status)) {
@@ -913,19 +905,18 @@ const generateWPS = asyncHandler(async (req, res) => {
         throw CustomException('Invalid payroll run ID', 400);
     }
 
-    const payrollRun = await PayrollRun.findById(sanitizedId);
+    // IDOR protection - build query with firmId isolation
+    const query = { _id: sanitizedId };
+    if (firmId) {
+        query.firmId = firmId;
+    } else {
+        query.lawyerId = lawyerId;
+    }
+
+    const payrollRun = await PayrollRun.findOne(query);
 
     if (!payrollRun) {
         throw CustomException('Payroll run not found', 404);
-    }
-
-    // IDOR protection - verify firmId ownership
-    const hasAccess = firmId
-        ? payrollRun.firmId?.toString() === firmId.toString()
-        : payrollRun.lawyerId?.toString() === lawyerId;
-
-    if (!hasAccess) {
-        throw CustomException('Access denied', 403);
     }
 
     // Generate WPS SIF file name
@@ -979,19 +970,18 @@ const holdEmployee = asyncHandler(async (req, res) => {
     // Mass assignment protection - only allow reason field
     const safeData = pickAllowedFields(req.body, ['reason']);
 
-    const payrollRun = await PayrollRun.findById(sanitizedId);
+    // IDOR protection - build query with firmId isolation
+    const query = { _id: sanitizedId };
+    if (firmId) {
+        query.firmId = firmId;
+    } else {
+        query.lawyerId = lawyerId;
+    }
+
+    const payrollRun = await PayrollRun.findOne(query);
 
     if (!payrollRun) {
         throw CustomException('Payroll run not found', 404);
-    }
-
-    // IDOR protection - verify firmId ownership
-    const hasAccess = firmId
-        ? payrollRun.firmId?.toString() === firmId.toString()
-        : payrollRun.lawyerId?.toString() === lawyerId;
-
-    if (!hasAccess) {
-        throw CustomException('Access denied', 403);
     }
 
     const empIndex = payrollRun.employeeList.findIndex(
@@ -1035,19 +1025,18 @@ const unholdEmployee = asyncHandler(async (req, res) => {
         throw CustomException('Invalid ID provided', 400);
     }
 
-    const payrollRun = await PayrollRun.findById(sanitizedId);
+    // IDOR protection - build query with firmId isolation
+    const query = { _id: sanitizedId };
+    if (firmId) {
+        query.firmId = firmId;
+    } else {
+        query.lawyerId = lawyerId;
+    }
+
+    const payrollRun = await PayrollRun.findOne(query);
 
     if (!payrollRun) {
         throw CustomException('Payroll run not found', 404);
-    }
-
-    // IDOR protection - verify firmId ownership
-    const hasAccess = firmId
-        ? payrollRun.firmId?.toString() === firmId.toString()
-        : payrollRun.lawyerId?.toString() === lawyerId;
-
-    if (!hasAccess) {
-        throw CustomException('Access denied', 403);
     }
 
     const empIndex = payrollRun.employeeList.findIndex(
@@ -1088,19 +1077,18 @@ const sendNotifications = asyncHandler(async (req, res) => {
         throw CustomException('Invalid payroll run ID', 400);
     }
 
-    const payrollRun = await PayrollRun.findById(sanitizedId);
+    // IDOR protection - build query with firmId isolation
+    const query = { _id: sanitizedId };
+    if (firmId) {
+        query.firmId = firmId;
+    } else {
+        query.lawyerId = lawyerId;
+    }
+
+    const payrollRun = await PayrollRun.findOne(query);
 
     if (!payrollRun) {
         throw CustomException('Payroll run not found', 404);
-    }
-
-    // IDOR protection - verify firmId ownership
-    const hasAccess = firmId
-        ? payrollRun.firmId?.toString() === firmId.toString()
-        : payrollRun.lawyerId?.toString() === lawyerId;
-
-    if (!hasAccess) {
-        throw CustomException('Access denied', 403);
     }
 
     // In production, this would send emails/SMS
@@ -1142,18 +1130,18 @@ const excludeEmployee = asyncHandler(async (req, res) => {
 
     const safeData = pickAllowedFields(req.body, ['reason']);
 
-    const payrollRun = await PayrollRun.findById(sanitizedId);
+    // IDOR protection - build query with firmId isolation
+    const query = { _id: sanitizedId };
+    if (firmId) {
+        query.firmId = firmId;
+    } else {
+        query.lawyerId = lawyerId;
+    }
+
+    const payrollRun = await PayrollRun.findOne(query);
 
     if (!payrollRun) {
         throw CustomException('Payroll run not found | دورة الرواتب غير موجودة', 404);
-    }
-
-    const hasAccess = firmId
-        ? payrollRun.firmId?.toString() === firmId.toString()
-        : payrollRun.lawyerId?.toString() === lawyerId;
-
-    if (!hasAccess) {
-        throw CustomException('Access denied | تم رفض الوصول', 403);
     }
 
     if (!['draft', 'calculated'].includes(payrollRun.status)) {
@@ -1236,18 +1224,18 @@ const includeEmployee = asyncHandler(async (req, res) => {
         throw CustomException('Invalid ID provided | معرف غير صالح', 400);
     }
 
-    const payrollRun = await PayrollRun.findById(sanitizedId);
+    // IDOR protection - build query with firmId isolation
+    const query = { _id: sanitizedId };
+    if (firmId) {
+        query.firmId = firmId;
+    } else {
+        query.lawyerId = lawyerId;
+    }
+
+    const payrollRun = await PayrollRun.findOne(query);
 
     if (!payrollRun) {
         throw CustomException('Payroll run not found | دورة الرواتب غير موجودة', 404);
-    }
-
-    const hasAccess = firmId
-        ? payrollRun.firmId?.toString() === firmId.toString()
-        : payrollRun.lawyerId?.toString() === lawyerId;
-
-    if (!hasAccess) {
-        throw CustomException('Access denied | تم رفض الوصول', 403);
     }
 
     if (!['draft', 'calculated'].includes(payrollRun.status)) {
@@ -1263,8 +1251,15 @@ const includeEmployee = asyncHandler(async (req, res) => {
         throw CustomException('Employee is not in excluded list | الموظف ليس في قائمة المستبعدين', 404);
     }
 
-    // Get employee data
-    const employee = await Employee.findById(sanitizedEmpId);
+    // IDOR protection - build employee query with firmId isolation
+    const employeeQuery = { _id: sanitizedEmpId };
+    if (firmId) {
+        employeeQuery.firmId = firmId;
+    } else {
+        employeeQuery.lawyerId = lawyerId;
+    }
+
+    const employee = await Employee.findOne(employeeQuery);
     if (!employee) {
         throw CustomException('Employee not found | الموظف غير موجود', 404);
     }
@@ -1365,18 +1360,18 @@ const recalculateSingleEmployee = asyncHandler(async (req, res) => {
         throw CustomException('Invalid ID provided | معرف غير صالح', 400);
     }
 
-    const payrollRun = await PayrollRun.findById(sanitizedId);
+    // IDOR protection - build query with firmId isolation
+    const query = { _id: sanitizedId };
+    if (firmId) {
+        query.firmId = firmId;
+    } else {
+        query.lawyerId = lawyerId;
+    }
+
+    const payrollRun = await PayrollRun.findOne(query);
 
     if (!payrollRun) {
         throw CustomException('Payroll run not found | دورة الرواتب غير موجودة', 404);
-    }
-
-    const hasAccess = firmId
-        ? payrollRun.firmId?.toString() === firmId.toString()
-        : payrollRun.lawyerId?.toString() === lawyerId;
-
-    if (!hasAccess) {
-        throw CustomException('Access denied | تم رفض الوصول', 403);
     }
 
     if (!['draft', 'calculated'].includes(payrollRun.status)) {
@@ -1391,8 +1386,15 @@ const recalculateSingleEmployee = asyncHandler(async (req, res) => {
         throw CustomException('Employee not found in run | الموظف غير موجود في الدورة', 404);
     }
 
-    // Get fresh employee data
-    const employee = await Employee.findById(sanitizedEmpId);
+    // IDOR protection - build employee query with firmId isolation
+    const employeeQuery = { _id: sanitizedEmpId };
+    if (firmId) {
+        employeeQuery.firmId = firmId;
+    } else {
+        employeeQuery.lawyerId = lawyerId;
+    }
+
+    const employee = await Employee.findOne(employeeQuery);
     if (!employee) {
         throw CustomException('Employee not found | الموظف غير موجود', 404);
     }
@@ -1494,19 +1496,19 @@ const exportPayrollReport = asyncHandler(async (req, res) => {
         throw CustomException(`Invalid format. Supported: ${validFormats.join(', ')} | تنسيق غير صالح`, 400);
     }
 
-    const payrollRun = await PayrollRun.findById(sanitizedId)
+    // IDOR protection - build query with firmId isolation
+    const query = { _id: sanitizedId };
+    if (firmId) {
+        query.firmId = firmId;
+    } else {
+        query.lawyerId = lawyerId;
+    }
+
+    const payrollRun = await PayrollRun.findOne(query)
         .populate('employeeList.employeeId', 'employeeId personalInfo.fullNameArabic personalInfo.fullNameEnglish');
 
     if (!payrollRun) {
         throw CustomException('Payroll run not found | دورة الرواتب غير موجودة', 404);
-    }
-
-    const hasAccess = firmId
-        ? payrollRun.firmId?.toString() === firmId.toString()
-        : payrollRun.lawyerId?.toString() === lawyerId;
-
-    if (!hasAccess) {
-        throw CustomException('Access denied | تم رفض الوصول', 403);
     }
 
     // Prepare export data

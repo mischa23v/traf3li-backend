@@ -40,6 +40,7 @@ const createQuestion = async (request, response) => {
 
         const question = new Question({
             userId: request.userID,
+            firmId: request.firmId,
             ...sanitizedData
         });
 
@@ -63,6 +64,7 @@ const getQuestions = async (request, response) => {
     const { search, category, status } = request.query;
     try {
         const filters = {
+            ...request.firmQuery,
             ...(search && { $text: { $search: search } }),
             ...(category && { category }),
             ...(status && { status })
@@ -90,7 +92,7 @@ const getQuestion = async (request, response) => {
         // IDOR protection
         const questionId = sanitizeObjectId(request.params._id);
 
-        const question = await Question.findById(questionId)
+        const question = await Question.findOne({ _id: questionId, ...request.firmQuery })
             .populate('userId', 'username image')
             .populate({
                 path: 'answers',
@@ -175,18 +177,18 @@ const updateQuestion = async (request, response) => {
             }
         }
 
-        const question = await Question.findById(questionId);
+        const question = await Question.findOne({ _id: questionId, ...request.firmQuery });
 
         if (!question) {
             throw CustomException('Question not found!', 404);
         }
 
         if (question.userId.toString() !== request.userID) {
-            throw CustomException('You can only update your own questions!', 403);
+            throw CustomException('Question not found!', 404);
         }
 
-        const updatedQuestion = await Question.findByIdAndUpdate(
-            questionId,
+        const updatedQuestion = await Question.findOneAndUpdate(
+            { _id: questionId, ...request.firmQuery },
             { $set: sanitizedData },
             { new: true, runValidators: true }
         );
@@ -210,18 +212,18 @@ const deleteQuestion = async (request, response) => {
         // IDOR protection
         const questionId = sanitizeObjectId(request.params._id);
 
-        const question = await Question.findById(questionId);
+        const question = await Question.findOne({ _id: questionId, ...request.firmQuery });
 
         if (!question) {
             throw CustomException('Question not found!', 404);
         }
 
         if (question.userId.toString() !== request.userID) {
-            throw CustomException('You can only delete your own questions!', 403);
+            throw CustomException('Question not found!', 404);
         }
 
-        await Question.deleteOne({ _id: questionId });
-        await Answer.deleteMany({ questionId: questionId });
+        await Question.deleteOne({ _id: questionId, ...request.firmQuery });
+        await Answer.deleteMany({ questionId: questionId, ...request.firmQuery });
 
         return response.send({
             error: false,

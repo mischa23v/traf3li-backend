@@ -97,7 +97,7 @@ exports.createCaseFromLead = async (req, res) => {
         // Get stage probability
         let probability = 10;
         if (stageId) {
-            const stage = await SalesStage.findById(stageId);
+            const stage = await SalesStage.findOne({ _id: stageId, firmId });
             if (stage) {
                 probability = stage.defaultProbability;
             }
@@ -348,7 +348,7 @@ exports.updateCrmStage = async (req, res) => {
 
         // Get old stage for logging
         const oldStage = caseDoc.crmPipelineStageId
-            ? await SalesStage.findById(caseDoc.crmPipelineStageId)
+            ? await SalesStage.findOne({ _id: caseDoc.crmPipelineStageId, firmId })
             : null;
 
         // Check for validation requirements
@@ -504,9 +504,9 @@ exports.markCaseAsWon = async (req, res) => {
 
             // IDOR Protection - Verify lead belongs to the firm
             if (lead.firmId.toString() !== firmId.toString()) {
-                return res.status(403).json({
+                return res.status(404).json({
                     success: false,
-                    message: 'غير مصرح بتحويل هذا العميل المحتمل / Unauthorized to convert this lead'
+                    message: 'العميل المحتمل غير موجود / Lead not found'
                 });
             }
 
@@ -577,13 +577,16 @@ exports.markCaseAsWon = async (req, res) => {
 
             // Update lead
             if (lead._id) {
-                await Lead.findByIdAndUpdate(lead._id, {
-                    convertedToClient: true,
-                    clientId: client._id,
-                    convertedAt: new Date(),
-                    convertedBy: userId,
-                    status: 'won'
-                });
+                await Lead.findOneAndUpdate(
+                    { _id: lead._id, firmId },
+                    {
+                        convertedToClient: true,
+                        clientId: client._id,
+                        convertedAt: new Date(),
+                        convertedBy: userId,
+                        status: 'won'
+                    }
+                );
             }
         }
 
@@ -700,7 +703,7 @@ exports.markCaseAsLost = async (req, res) => {
 
         // Get current stage for tracking
         const currentStage = caseDoc.crmPipelineStageId
-            ? await SalesStage.findById(caseDoc.crmPipelineStageId)
+            ? await SalesStage.findOne({ _id: caseDoc.crmPipelineStageId, firmId })
             : null;
 
         // Update case
@@ -723,11 +726,14 @@ exports.markCaseAsLost = async (req, res) => {
 
         // Update lead status
         if (caseDoc.leadId) {
-            await Lead.findByIdAndUpdate(caseDoc.leadId, {
-                status: 'lost',
-                lostReason: 'other',
-                lostNotes: lostData.lostReasonDetails
-            });
+            await Lead.findOneAndUpdate(
+                { _id: caseDoc.leadId, firmId },
+                {
+                    status: 'lost',
+                    lostReason: 'other',
+                    lostNotes: lostData.lostReasonDetails
+                }
+            );
         }
 
         // Log activity

@@ -62,6 +62,7 @@ const validateCustomRates = (customRates) => {
  */
 const createRateCard = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
+    const firmId = req.firmId;
 
     // Mass assignment protection
     const allowedData = pickAllowedFields(req.body, [
@@ -78,25 +79,25 @@ const createRateCard = asyncHandler(async (req, res) => {
     const caseId = allowedData.caseId ? sanitizeObjectId(allowedData.caseId) : null;
     const rateGroupId = allowedData.rateGroupId ? sanitizeObjectId(allowedData.rateGroupId) : null;
 
-    // IDOR Protection: Verify client exists and belongs to lawyer
+    // IDOR Protection: Verify client exists and belongs to firm/lawyer
     if (clientId) {
-        const client = await Client.findOne({ _id: clientId, lawyerId });
+        const client = await Client.findOne({ _id: clientId, ...req.firmQuery });
         if (!client) {
             throw CustomException('العميل غير موجود', 404);
         }
     }
 
-    // IDOR Protection: Verify case exists and belongs to lawyer
+    // IDOR Protection: Verify case exists and belongs to firm/lawyer
     if (caseId) {
-        const caseDoc = await Case.findOne({ _id: caseId, lawyerId });
+        const caseDoc = await Case.findOne({ _id: caseId, ...req.firmQuery });
         if (!caseDoc) {
             throw CustomException('القضية غير موجودة', 404);
         }
     }
 
-    // IDOR Protection: Verify rate group exists and belongs to lawyer
+    // IDOR Protection: Verify rate group exists and belongs to firm/lawyer
     if (rateGroupId) {
-        const rateGroup = await RateGroup.findOne({ _id: rateGroupId, lawyerId });
+        const rateGroup = await RateGroup.findOne({ _id: rateGroupId, ...req.firmQuery });
         if (!rateGroup) {
             throw CustomException('مجموعة الأسعار غير موجودة', 404);
         }
@@ -107,6 +108,7 @@ const createRateCard = asyncHandler(async (req, res) => {
 
     const rateCard = await RateCard.create({
         lawyerId,
+        firmId,
         name: allowedData.name.trim(),
         nameAr: allowedData.nameAr?.trim(),
         clientId,
@@ -130,14 +132,13 @@ const createRateCard = asyncHandler(async (req, res) => {
  * GET /api/rate-cards
  */
 const getRateCards = asyncHandler(async (req, res) => {
-    const lawyerId = req.userID;
-
     // Mass assignment protection for query parameters
     const allowedQuery = pickAllowedFields(req.query, [
         'clientId', 'caseId', 'isActive', 'page', 'limit'
     ]);
 
-    const query = { lawyerId };
+    // Firm/lawyer-level isolation
+    const query = { ...req.firmQuery };
 
     // Sanitize IDs if provided
     if (allowedQuery.clientId) {
@@ -182,13 +183,12 @@ const getRateCards = asyncHandler(async (req, res) => {
  */
 const getRateCard = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const lawyerId = req.userID;
 
     // Sanitize ID parameter
     const rateCardId = sanitizeObjectId(id);
 
-    // IDOR Protection: Verify rate card exists and belongs to lawyer
-    const rateCard = await RateCard.findOne({ _id: rateCardId, lawyerId })
+    // IDOR Protection: Verify rate card exists and belongs to firm/lawyer
+    const rateCard = await RateCard.findOne({ _id: rateCardId, ...req.firmQuery })
         .populate('clientId', 'firstName lastName companyName email')
         .populate('caseId', 'title caseNumber')
         .populate('rateGroupId');
@@ -209,13 +209,12 @@ const getRateCard = asyncHandler(async (req, res) => {
  */
 const updateRateCard = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const lawyerId = req.userID;
 
     // Sanitize ID parameter
     const rateCardId = sanitizeObjectId(id);
 
-    // IDOR Protection: Verify rate card exists and belongs to lawyer
-    const rateCard = await RateCard.findOne({ _id: rateCardId, lawyerId });
+    // IDOR Protection: Verify rate card exists and belongs to firm/lawyer
+    const rateCard = await RateCard.findOne({ _id: rateCardId, ...req.firmQuery });
 
     if (!rateCard) {
         throw CustomException('بطاقة الأسعار غير موجودة', 404);
@@ -231,7 +230,7 @@ const updateRateCard = asyncHandler(async (req, res) => {
     if (allowedData.clientId !== undefined) {
         const clientId = sanitizeObjectId(allowedData.clientId);
         if (clientId) {
-            const client = await Client.findOne({ _id: clientId, lawyerId });
+            const client = await Client.findOne({ _id: clientId, ...req.firmQuery });
             if (!client) {
                 throw CustomException('العميل غير موجود', 404);
             }
@@ -243,7 +242,7 @@ const updateRateCard = asyncHandler(async (req, res) => {
     if (allowedData.caseId !== undefined) {
         const caseId = sanitizeObjectId(allowedData.caseId);
         if (caseId) {
-            const caseDoc = await Case.findOne({ _id: caseId, lawyerId });
+            const caseDoc = await Case.findOne({ _id: caseId, ...req.firmQuery });
             if (!caseDoc) {
                 throw CustomException('القضية غير موجودة', 404);
             }
@@ -255,7 +254,7 @@ const updateRateCard = asyncHandler(async (req, res) => {
     if (allowedData.rateGroupId !== undefined) {
         const rateGroupId = sanitizeObjectId(allowedData.rateGroupId);
         if (rateGroupId) {
-            const rateGroup = await RateGroup.findOne({ _id: rateGroupId, lawyerId });
+            const rateGroup = await RateGroup.findOne({ _id: rateGroupId, ...req.firmQuery });
             if (!rateGroup) {
                 throw CustomException('مجموعة الأسعار غير موجودة', 404);
             }
@@ -292,13 +291,12 @@ const updateRateCard = asyncHandler(async (req, res) => {
  */
 const deleteRateCard = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const lawyerId = req.userID;
 
     // Sanitize ID parameter
     const rateCardId = sanitizeObjectId(id);
 
-    // IDOR Protection: Verify rate card exists and belongs to lawyer before deletion
-    const rateCard = await RateCard.findOneAndDelete({ _id: rateCardId, lawyerId });
+    // IDOR Protection: Verify rate card exists and belongs to firm/lawyer before deletion
+    const rateCard = await RateCard.findOneAndDelete({ _id: rateCardId, ...req.firmQuery });
 
     if (!rateCard) {
         throw CustomException('بطاقة الأسعار غير موجودة', 404);
@@ -316,19 +314,18 @@ const deleteRateCard = asyncHandler(async (req, res) => {
  */
 const getRateCardForClient = asyncHandler(async (req, res) => {
     const { clientId } = req.params;
-    const lawyerId = req.userID;
 
     // Sanitize ID parameter
     const sanitizedClientId = sanitizeObjectId(clientId);
 
-    // IDOR Protection: Verify client exists and belongs to lawyer
-    const client = await Client.findOne({ _id: sanitizedClientId, lawyerId });
+    // IDOR Protection: Verify client exists and belongs to firm/lawyer
+    const client = await Client.findOne({ _id: sanitizedClientId, ...req.firmQuery });
     if (!client) {
         throw CustomException('العميل غير موجود', 404);
     }
 
     const rateCard = await RateCard.findOne({
-        lawyerId,
+        ...req.firmQuery,
         clientId: sanitizedClientId,
         isActive: true,
         $or: [
@@ -352,20 +349,19 @@ const getRateCardForClient = asyncHandler(async (req, res) => {
  */
 const getRateCardForCase = asyncHandler(async (req, res) => {
     const { caseId } = req.params;
-    const lawyerId = req.userID;
 
     // Sanitize ID parameter
     const sanitizedCaseId = sanitizeObjectId(caseId);
 
-    // IDOR Protection: Verify case exists and belongs to lawyer
-    const caseDoc = await Case.findOne({ _id: sanitizedCaseId, lawyerId });
+    // IDOR Protection: Verify case exists and belongs to firm/lawyer
+    const caseDoc = await Case.findOne({ _id: sanitizedCaseId, ...req.firmQuery });
     if (!caseDoc) {
         throw CustomException('القضية غير موجودة', 404);
     }
 
     // First try to find case-specific rate card
     let rateCard = await RateCard.findOne({
-        lawyerId,
+        ...req.firmQuery,
         caseId: sanitizedCaseId,
         isActive: true,
         $or: [
@@ -380,7 +376,7 @@ const getRateCardForCase = asyncHandler(async (req, res) => {
     // If no case-specific card, try to find client-specific card
     if (!rateCard && caseDoc.clientId) {
         rateCard = await RateCard.findOne({
-            lawyerId,
+            ...req.firmQuery,
             clientId: caseDoc.clientId,
             caseId: { $exists: false },
             isActive: true,
@@ -406,7 +402,6 @@ const getRateCardForCase = asyncHandler(async (req, res) => {
  */
 const addCustomRate = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const lawyerId = req.userID;
 
     // Sanitize ID parameter
     const rateCardId = sanitizeObjectId(id);
@@ -429,8 +424,8 @@ const addCustomRate = asyncHandler(async (req, res) => {
         ? validateRateAmount(allowedData.roundingIncrement, 'خطوة التقريب')
         : undefined;
 
-    // IDOR Protection: Verify rate card exists and belongs to lawyer
-    const rateCard = await RateCard.findOne({ _id: rateCardId, lawyerId });
+    // IDOR Protection: Verify rate card exists and belongs to firm/lawyer
+    const rateCard = await RateCard.findOne({ _id: rateCardId, ...req.firmQuery });
 
     if (!rateCard) {
         throw CustomException('بطاقة الأسعار غير موجودة', 404);
@@ -469,14 +464,13 @@ const addCustomRate = asyncHandler(async (req, res) => {
  */
 const updateCustomRate = asyncHandler(async (req, res) => {
     const { id, rateId } = req.params;
-    const lawyerId = req.userID;
 
     // Sanitize ID parameters
     const rateCardId = sanitizeObjectId(id);
     const customRateId = sanitizeObjectId(rateId);
 
-    // IDOR Protection: Verify rate card exists and belongs to lawyer
-    const rateCard = await RateCard.findOne({ _id: rateCardId, lawyerId });
+    // IDOR Protection: Verify rate card exists and belongs to firm/lawyer
+    const rateCard = await RateCard.findOne({ _id: rateCardId, ...req.firmQuery });
 
     if (!rateCard) {
         throw CustomException('بطاقة الأسعار غير موجودة', 404);
@@ -533,14 +527,13 @@ const updateCustomRate = asyncHandler(async (req, res) => {
  */
 const removeCustomRate = asyncHandler(async (req, res) => {
     const { id, rateId } = req.params;
-    const lawyerId = req.userID;
 
     // Sanitize ID parameters
     const rateCardId = sanitizeObjectId(id);
     const customRateId = sanitizeObjectId(rateId);
 
-    // IDOR Protection: Verify rate card exists and belongs to lawyer
-    const rateCard = await RateCard.findOne({ _id: rateCardId, lawyerId });
+    // IDOR Protection: Verify rate card exists and belongs to firm/lawyer
+    const rateCard = await RateCard.findOne({ _id: rateCardId, ...req.firmQuery });
 
     if (!rateCard) {
         throw CustomException('بطاقة الأسعار غير موجودة', 404);
@@ -564,8 +557,6 @@ const removeCustomRate = asyncHandler(async (req, res) => {
  * POST /api/rate-cards/calculate
  */
 const calculateRate = asyncHandler(async (req, res) => {
-    const lawyerId = req.userID;
-
     // Mass assignment protection
     const allowedData = pickAllowedFields(req.body, [
         'clientId', 'caseId', 'activityCode', 'hours'
@@ -590,7 +581,7 @@ const calculateRate = asyncHandler(async (req, res) => {
 
     // IDOR Protection: Verify client ownership if provided
     if (clientId) {
-        const client = await Client.findOne({ _id: clientId, lawyerId });
+        const client = await Client.findOne({ _id: clientId, ...req.firmQuery });
         if (!client) {
             throw CustomException('العميل غير موجود', 404);
         }
@@ -598,7 +589,7 @@ const calculateRate = asyncHandler(async (req, res) => {
 
     // IDOR Protection: Verify case ownership if provided
     if (caseId) {
-        const caseDoc = await Case.findOne({ _id: caseId, lawyerId });
+        const caseDoc = await Case.findOne({ _id: caseId, ...req.firmQuery });
         if (!caseDoc) {
             throw CustomException('القضية غير موجودة', 404);
         }
@@ -610,7 +601,7 @@ const calculateRate = asyncHandler(async (req, res) => {
     // First try case-specific
     if (caseId) {
         rateCard = await RateCard.findOne({
-            lawyerId,
+            ...req.firmQuery,
             caseId,
             isActive: true
         }).populate('rateGroupId');
@@ -619,7 +610,7 @@ const calculateRate = asyncHandler(async (req, res) => {
     // Then try client-specific
     if (!rateCard && clientId) {
         rateCard = await RateCard.findOne({
-            lawyerId,
+            ...req.firmQuery,
             clientId,
             caseId: { $exists: false },
             isActive: true

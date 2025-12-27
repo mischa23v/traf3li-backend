@@ -637,13 +637,14 @@ const getPortfolioSummary = asyncHandler(async (req, res) => {
 
     const summary = await Investment.getPortfolioSummary(userId);
 
-    // Get breakdown by type
+    // Get breakdown by type (with firmId isolation)
+    const typeMatchQuery = firmId
+        ? { firmId, status: 'active' }
+        : { userId, status: 'active' };
+
     const byType = await Investment.aggregate([
         {
-            $match: {
-                userId: userId,
-                status: 'active'
-            }
+            $match: typeMatchQuery
         },
         {
             $group: {
@@ -656,13 +657,14 @@ const getPortfolioSummary = asyncHandler(async (req, res) => {
         }
     ]);
 
-    // Get breakdown by market
+    // Get breakdown by market (with firmId isolation)
+    const marketMatchQuery = firmId
+        ? { firmId, status: 'active' }
+        : { userId, status: 'active' };
+
     const byMarket = await Investment.aggregate([
         {
-            $match: {
-                userId: userId,
-                status: 'active'
-            }
+            $match: marketMatchQuery
         },
         {
             $group: {
@@ -826,8 +828,8 @@ const addTransaction = asyncHandler(async (req, res) => {
 
         transaction = createdTransaction;
 
-        // Reload investment after transaction creation
-        updatedInvestment = await Investment.findById(sanitizedId).session(session);
+        // Reload investment after transaction creation (with IDOR protection)
+        updatedInvestment = await Investment.findOne(query).session(session);
 
         await session.commitTransaction();
     } catch (error) {
@@ -837,8 +839,8 @@ const addTransaction = asyncHandler(async (req, res) => {
         session.endSession();
     }
 
-    // Reload investment one more time to get post-save hook updates
-    updatedInvestment = await Investment.findById(sanitizedId);
+    // Reload investment one more time to get post-save hook updates (with IDOR protection)
+    updatedInvestment = await Investment.findOne(query);
 
     return res.status(201).json({
         success: true,
@@ -971,7 +973,8 @@ const deleteTransaction = asyncHandler(async (req, res) => {
         throw CustomException('Cannot delete the initial purchase transaction', 400);
     }
 
-    await InvestmentTransaction.findByIdAndDelete(sanitizedTransactionId);
+    // IDOR Protection: Delete with ownership verification
+    await InvestmentTransaction.findOneAndDelete(transactionQuery);
 
     return res.json({
         success: true,

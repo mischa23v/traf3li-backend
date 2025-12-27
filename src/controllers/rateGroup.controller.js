@@ -287,12 +287,12 @@ const deleteRateGroup = asyncHandler(async (req, res) => {
     }
 
     // Check if used in any rate cards
-    const usedInCards = await RateCard.countDocuments({ rateGroupId: id });
+    const usedInCards = await RateCard.countDocuments({ rateGroupId: id, lawyerId });
     if (usedInCards > 0) {
         throw CustomException('لا يمكن حذف مجموعة أسعار مستخدمة في بطاقات أسعار', 400);
     }
 
-    await RateGroup.findByIdAndDelete(id);
+    await RateGroup.findOneAndDelete({ _id: id, lawyerId });
 
     res.status(200).json({
         success: true,

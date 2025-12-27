@@ -24,13 +24,13 @@ const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils'
  */
 const listPlaybooks = asyncHandler(async (req, res) => {
   if (req.isDeparted) {
-    throw CustomException('ليس لديك صلاحية للوصول', 403);
+    throw CustomException('المورد غير موجود', 404);
   }
 
   const firmId = req.firmId;
 
   if (!firmId) {
-    throw CustomException('يجب أن تكون عضواً في مكتب للوصول', 403);
+    throw CustomException('المورد غير موجود', 404);
   }
 
   // Mass assignment protection
@@ -70,19 +70,19 @@ const listPlaybooks = asyncHandler(async (req, res) => {
  */
 const createPlaybook = asyncHandler(async (req, res) => {
   if (req.isDeparted) {
-    throw CustomException('ليس لديك صلاحية للوصول', 403);
+    throw CustomException('المورد غير موجود', 404);
   }
 
   const firmId = req.firmId;
   const userId = req.userID;
 
   if (!firmId) {
-    throw CustomException('يجب أن تكون عضواً في مكتب للوصول', 403);
+    throw CustomException('المورد غير موجود', 404);
   }
 
   // Only owner/admin can create playbooks
   if (!['owner', 'admin'].includes(req.firmRole)) {
-    throw CustomException('فقط مالك أو مدير المكتب يمكنه إنشاء الأدلة الإرشادية', 403);
+    throw CustomException('المورد غير موجود', 404);
   }
 
   // Mass assignment protection
@@ -137,14 +137,14 @@ const createPlaybook = asyncHandler(async (req, res) => {
  */
 const getPlaybook = asyncHandler(async (req, res) => {
   if (req.isDeparted) {
-    throw CustomException('ليس لديك صلاحية للوصول', 403);
+    throw CustomException('المورد غير موجود', 404);
   }
 
   const firmId = req.firmId;
   const { id } = req.params;
 
   if (!firmId) {
-    throw CustomException('يجب أن تكون عضواً في مكتب للوصول', 403);
+    throw CustomException('المورد غير موجود', 404);
   }
 
   // Sanitize and verify playbook ID
@@ -173,7 +173,7 @@ const getPlaybook = asyncHandler(async (req, res) => {
  */
 const updatePlaybook = asyncHandler(async (req, res) => {
   if (req.isDeparted) {
-    throw CustomException('ليس لديك صلاحية للوصول', 403);
+    throw CustomException('المورد غير موجود', 404);
   }
 
   const firmId = req.firmId;
@@ -181,12 +181,12 @@ const updatePlaybook = asyncHandler(async (req, res) => {
   const { id } = req.params;
 
   if (!firmId) {
-    throw CustomException('يجب أن تكون عضواً في مكتب للوصول', 403);
+    throw CustomException('المورد غير موجود', 404);
   }
 
   // Only owner/admin can update playbooks
   if (!['owner', 'admin'].includes(req.firmRole)) {
-    throw CustomException('فقط مالك أو مدير المكتب يمكنه تعديل الأدلة الإرشادية', 403);
+    throw CustomException('المورد غير موجود', 404);
   }
 
   // Sanitize and verify playbook ID
@@ -247,7 +247,7 @@ const updatePlaybook = asyncHandler(async (req, res) => {
  */
 const deletePlaybook = asyncHandler(async (req, res) => {
   if (req.isDeparted) {
-    throw CustomException('ليس لديك صلاحية للوصول', 403);
+    throw CustomException('المورد غير موجود', 404);
   }
 
   const firmId = req.firmId;
@@ -255,12 +255,12 @@ const deletePlaybook = asyncHandler(async (req, res) => {
   const { id } = req.params;
 
   if (!firmId) {
-    throw CustomException('يجب أن تكون عضواً في مكتب للوصول', 403);
+    throw CustomException('المورد غير موجود', 404);
   }
 
   // Only owner can delete playbooks
   if (req.firmRole !== 'owner') {
-    throw CustomException('فقط مالك المكتب يمكنه حذف الأدلة الإرشادية', 403);
+    throw CustomException('المورد غير موجود', 404);
   }
 
   // Sanitize and verify playbook ID
@@ -312,14 +312,14 @@ const deletePlaybook = asyncHandler(async (req, res) => {
  */
 const startExecution = asyncHandler(async (req, res) => {
   if (req.isDeparted) {
-    throw CustomException('ليس لديك صلاحية للوصول', 403);
+    throw CustomException('المورد غير موجود', 404);
   }
 
   const firmId = req.firmId;
   const userId = req.userID;
 
   if (!firmId) {
-    throw CustomException('يجب أن تكون عضواً في مكتب للوصول', 403);
+    throw CustomException('المورد غير موجود', 404);
   }
 
   // Mass assignment protection
@@ -377,7 +377,7 @@ const startExecution = asyncHandler(async (req, res) => {
  */
 const advanceStep = asyncHandler(async (req, res) => {
   if (req.isDeparted) {
-    throw CustomException('ليس لديك صلاحية للوصول', 403);
+    throw CustomException('المورد غير موجود', 404);
   }
 
   const firmId = req.firmId;
@@ -385,7 +385,7 @@ const advanceStep = asyncHandler(async (req, res) => {
   const { id } = req.params;
 
   if (!firmId) {
-    throw CustomException('يجب أن تكون عضواً في مكتب للوصول', 403);
+    throw CustomException('المورد غير موجود', 404);
   }
 
   // Sanitize execution ID
@@ -428,14 +428,14 @@ const advanceStep = asyncHandler(async (req, res) => {
  */
 const skipStep = asyncHandler(async (req, res) => {
   if (req.isDeparted) {
-    throw CustomException('ليس لديك صلاحية للوصول', 403);
+    throw CustomException('المورد غير موجود', 404);
   }
 
   const firmId = req.firmId;
   const { id } = req.params;
 
   if (!firmId) {
-    throw CustomException('يجب أن تكون عضواً في مكتب للوصول', 403);
+    throw CustomException('المورد غير موجود', 404);
   }
 
   // Sanitize execution ID
@@ -471,7 +471,7 @@ const skipStep = asyncHandler(async (req, res) => {
  */
 const abortExecution = asyncHandler(async (req, res) => {
   if (req.isDeparted) {
-    throw CustomException('ليس لديك صلاحية للوصول', 403);
+    throw CustomException('المورد غير موجود', 404);
   }
 
   const firmId = req.firmId;
@@ -479,7 +479,7 @@ const abortExecution = asyncHandler(async (req, res) => {
   const { id } = req.params;
 
   if (!firmId) {
-    throw CustomException('يجب أن تكون عضواً في مكتب للوصول', 403);
+    throw CustomException('المورد غير موجود', 404);
   }
 
   // Sanitize execution ID
@@ -526,14 +526,14 @@ const abortExecution = asyncHandler(async (req, res) => {
  */
 const retryStep = asyncHandler(async (req, res) => {
   if (req.isDeparted) {
-    throw CustomException('ليس لديك صلاحية للوصول', 403);
+    throw CustomException('المورد غير موجود', 404);
   }
 
   const firmId = req.firmId;
   const { id, stepIndex } = req.params;
 
   if (!firmId) {
-    throw CustomException('يجب أن تكون عضواً في مكتب للوصول', 403);
+    throw CustomException('المورد غير موجود', 404);
   }
 
   // Sanitize execution ID
@@ -568,14 +568,14 @@ const retryStep = asyncHandler(async (req, res) => {
  */
 const getExecutionStatus = asyncHandler(async (req, res) => {
   if (req.isDeparted) {
-    throw CustomException('ليس لديك صلاحية للوصول', 403);
+    throw CustomException('المورد غير موجود', 404);
   }
 
   const firmId = req.firmId;
   const { id } = req.params;
 
   if (!firmId) {
-    throw CustomException('يجب أن تكون عضواً في مكتب للوصول', 403);
+    throw CustomException('المورد غير موجود', 404);
   }
 
   // Sanitize execution ID
@@ -608,14 +608,14 @@ const getExecutionStatus = asyncHandler(async (req, res) => {
  */
 const getExecutionHistory = asyncHandler(async (req, res) => {
   if (req.isDeparted) {
-    throw CustomException('ليس لديك صلاحية للوصول', 403);
+    throw CustomException('المورد غير موجود', 404);
   }
 
   const firmId = req.firmId;
   const { incidentId } = req.params;
 
   if (!firmId) {
-    throw CustomException('يجب أن تكون عضواً في مكتب للوصول', 403);
+    throw CustomException('المورد غير موجود', 404);
   }
 
   // Sanitize incident ID
@@ -639,13 +639,13 @@ const getExecutionHistory = asyncHandler(async (req, res) => {
  */
 const matchPlaybook = asyncHandler(async (req, res) => {
   if (req.isDeparted) {
-    throw CustomException('ليس لديك صلاحية للوصول', 403);
+    throw CustomException('المورد غير موجود', 404);
   }
 
   const firmId = req.firmId;
 
   if (!firmId) {
-    throw CustomException('يجب أن تكون عضواً في مكتب للوصول', 403);
+    throw CustomException('المورد غير موجود', 404);
   }
 
   // Mass assignment protection
@@ -687,13 +687,13 @@ const matchPlaybook = asyncHandler(async (req, res) => {
  */
 const getPlaybookStats = asyncHandler(async (req, res) => {
   if (req.isDeparted) {
-    throw CustomException('ليس لديك صلاحية للوصول', 403);
+    throw CustomException('المورد غير موجود', 404);
   }
 
   const firmId = req.firmId;
 
   if (!firmId) {
-    throw CustomException('يجب أن تكون عضواً في مكتب للوصول', 403);
+    throw CustomException('المورد غير موجود', 404);
   }
 
   const stats = await PlaybookService.getPlaybookStats(firmId);
@@ -710,13 +710,13 @@ const getPlaybookStats = asyncHandler(async (req, res) => {
  */
 const getExecutionStats = asyncHandler(async (req, res) => {
   if (req.isDeparted) {
-    throw CustomException('ليس لديك صلاحية للوصول', 403);
+    throw CustomException('المورد غير موجود', 404);
   }
 
   const firmId = req.firmId;
 
   if (!firmId) {
-    throw CustomException('يجب أن تكون عضواً في مكتب للوصول', 403);
+    throw CustomException('المورد غير موجود', 404);
   }
 
   // Mass assignment protection

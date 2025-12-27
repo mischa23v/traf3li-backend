@@ -13,9 +13,9 @@ const logger = require('../utils/logger');
 const getPriceLevels = async (req, res) => {
     try {
         const { active } = req.query;
-        const lawyerId = req.user._id;
 
-        const query = { lawyerId };
+        // IDOR Protection: Use firmQuery for multi-tenant isolation
+        const query = { ...req.firmQuery };
         if (active !== undefined) {
             query.isActive = active === 'true';
         }
@@ -41,9 +41,10 @@ const getPriceLevel = async (req, res) => {
             return res.status(400).json({ success: false, message: 'Invalid price level ID' });
         }
 
+        // IDOR Protection: Use firmQuery for multi-tenant isolation
         const priceLevel = await PriceLevel.findOne({
             _id: priceLevelId,
-            lawyerId: req.user._id
+            ...req.firmQuery
         });
 
         if (!priceLevel) {
@@ -131,9 +132,9 @@ const createPriceLevel = async (req, res) => {
             sanitizedData.incomeAccountId = sanitizedAccountId;
         }
 
-        // Check for duplicate code
+        // Check for duplicate code with IDOR protection
         const existing = await PriceLevel.findOne({
-            lawyerId: req.user._id,
+            ...req.firmQuery,
             code: sanitizedData.code.toUpperCase()
         });
 
@@ -152,7 +153,8 @@ const createPriceLevel = async (req, res) => {
             minimumFee: rate.minimumFee ? toHalalas(rate.minimumFee) : undefined
         }));
 
-        const priceLevel = new PriceLevel({
+        // IDOR Protection: Use addFirmId helper for multi-tenant isolation
+        const priceLevelData = req.addFirmId({
             code: sanitizedData.code.toUpperCase(),
             name: sanitizedData.name,
             nameAr: sanitizedData.nameAr,
@@ -169,9 +171,10 @@ const createPriceLevel = async (req, res) => {
             expiryDate: sanitizedData.expiryDate ? new Date(sanitizedData.expiryDate) : undefined,
             isDefault: sanitizedData.isDefault || false,
             incomeAccountId: sanitizedData.incomeAccountId,
-            lawyerId: req.user._id,
             createdBy: req.user._id
         });
+
+        const priceLevel = new PriceLevel(priceLevelData);
 
         await priceLevel.save();
 
@@ -193,9 +196,10 @@ const updatePriceLevel = async (req, res) => {
             return res.status(400).json({ success: false, message: 'Invalid price level ID' });
         }
 
+        // IDOR Protection: Use firmQuery for multi-tenant isolation
         const priceLevel = await PriceLevel.findOne({
             _id: priceLevelId,
-            lawyerId: req.user._id
+            ...req.firmQuery
         });
 
         if (!priceLevel) {
@@ -289,9 +293,10 @@ const deletePriceLevel = async (req, res) => {
             return res.status(400).json({ success: false, message: 'Invalid price level ID' });
         }
 
+        // IDOR Protection: Use firmQuery for multi-tenant isolation
         const priceLevel = await PriceLevel.findOne({
             _id: priceLevelId,
-            lawyerId: req.user._id
+            ...req.firmQuery
         });
 
         if (!priceLevel) {
@@ -320,7 +325,11 @@ const deletePriceLevel = async (req, res) => {
 const getClientRate = async (req, res) => {
     try {
         const { clientId, baseRate, serviceType } = req.query;
-        const lawyerId = req.user._id;
+
+        // IDOR Protection: Use firmId for firm members, lawyerId for solo lawyers
+        // Note: PriceLevel static methods currently use lawyerId only and need updating
+        // to support firmQuery for proper multi-tenant isolation
+        const tenantId = req.firmId || req.user._id;
 
         // Input Validation: Required fields
         if (!clientId || !baseRate) {
@@ -344,13 +353,13 @@ const getClientRate = async (req, res) => {
 
         const baseRateHalalas = toHalalas(parsedBaseRate);
         const effectiveRate = await PriceLevel.getEffectiveRate(
-            lawyerId,
+            tenantId,
             sanitizedClientId,
             baseRateHalalas,
             serviceType
         );
 
-        const priceLevel = await PriceLevel.getBestPriceLevel(lawyerId, sanitizedClientId);
+        const priceLevel = await PriceLevel.getBestPriceLevel(tenantId, sanitizedClientId);
 
         res.json({
             success: true,
@@ -383,9 +392,10 @@ const setDefault = async (req, res) => {
             return res.status(400).json({ success: false, message: 'Invalid price level ID' });
         }
 
+        // IDOR Protection: Use firmQuery for multi-tenant isolation
         const priceLevel = await PriceLevel.findOne({
             _id: priceLevelId,
-            lawyerId: req.user._id
+            ...req.firmQuery
         });
 
         if (!priceLevel) {

@@ -126,7 +126,7 @@ const handleStripeCallback = async (req, res) => {
     try {
         const lawyerId = req.user._id;
 
-        const lawyer = await User.findById(lawyerId);
+        const lawyer = await User.findOne({ _id: lawyerId, ...req.firmQuery });
         if (!lawyer || !lawyer.stripeConnectAccountId) {
             throw CustomException('Stripe Connect account not found', 404);
         }
@@ -184,7 +184,7 @@ const getStripeDashboard = async (req, res) => {
 
         const lawyerId = req.user._id;
 
-        const lawyer = await User.findById(lawyerId);
+        const lawyer = await User.findOne({ _id: lawyerId, ...req.firmQuery });
         if (!lawyer || !lawyer.stripeConnectAccountId) {
             throw CustomException('Stripe Connect account not found. Please complete onboarding first.', 404);
         }
@@ -223,7 +223,7 @@ const getConnectAccountStatus = async (req, res) => {
     try {
         const lawyerId = req.user._id;
 
-        const lawyer = await User.findById(lawyerId)
+        const lawyer = await User.findOne({ _id: lawyerId, ...req.firmQuery })
             .select('stripeConnectAccountId stripePayoutEnabled stripeOnboardingComplete stripeAccountStatus stripeOnboardingCompletedAt platformCommissionRate');
 
         if (!lawyer) {
@@ -391,7 +391,7 @@ const getPayoutDetails = async (req, res) => {
 
         // Verify ownership
         if (payout.lawyerId._id.toString() !== lawyerId.toString()) {
-            throw CustomException('You do not have permission to view this payout', 403);
+            throw CustomException('Resource not found', 404);
         }
 
         return res.status(200).json({
@@ -429,13 +429,13 @@ const cancelPayout = async (req, res) => {
         const lawyerId = req.user._id;
 
         // Get payout and verify ownership
-        const payout = await Payout.findById(payoutId);
+        const payout = await Payout.findOne({ _id: payoutId, ...req.firmQuery });
         if (!payout) {
-            throw CustomException('Payout not found', 404);
+            throw CustomException('Resource not found', 404);
         }
 
         if (payout.lawyerId.toString() !== lawyerId.toString()) {
-            throw CustomException('You do not have permission to cancel this payout', 403);
+            throw CustomException('Resource not found', 404);
         }
 
         const cancelledPayout = await payoutService.cancelPayout(
@@ -479,13 +479,13 @@ const retryPayout = async (req, res) => {
         const lawyerId = req.user._id;
 
         // Get payout and verify ownership
-        const payout = await Payout.findById(payoutId);
+        const payout = await Payout.findOne({ _id: payoutId, ...req.firmQuery });
         if (!payout) {
-            throw CustomException('Payout not found', 404);
+            throw CustomException('Resource not found', 404);
         }
 
         if (payout.lawyerId.toString() !== lawyerId.toString()) {
-            throw CustomException('You do not have permission to retry this payout', 403);
+            throw CustomException('Resource not found', 404);
         }
 
         const retriedPayout = await payoutService.retryPayout(payoutId);
