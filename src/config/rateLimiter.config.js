@@ -37,6 +37,9 @@ const createLimiter = (options) => {
         standardHeaders: true,
         legacyHeaders: false,
         store: store,
+        // Disable strict validation for custom keyGenerators
+        // The app runs behind proxies that normalize IP addresses
+        validate: false,
         keyGenerator: options.keyGenerator || ((req) => {
             // Use user ID if authenticated, IP otherwise
             return req.userId || req.ip;

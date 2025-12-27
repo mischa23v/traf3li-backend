@@ -24,8 +24,8 @@ const { authenticate } = require('../middlewares');
 const { requireRecentAuthHourly, requireVeryRecentAuth } = require('../middlewares/stepUpAuth.middleware');
 const { authRateLimiter, sensitiveRateLimiter, publicRateLimiter } = require('../middlewares/rateLimiter.middleware');
 const {
-    loginLimiter,
-    authLimiter,
+    login: loginLimiter,
+    auth: authLimiter,
     passwordReset: passwordResetLimiter,
     otp: otpLimiter
 } = require('../config/rateLimiter.config').rateLimiters;
@@ -395,7 +395,7 @@ app.post('/google/one-tap', authRateLimiter, validateGoogleOneTap, authenticateW
  *       401:
  *         $ref: '#/components/responses/Unauthorized'
  */
-app.post('/logout', authenticate, csrfProtection, authLogout)
+app.post('/logout', authenticate, csrfProtection, authLogout);
 
 /**
  * @openapi
@@ -424,7 +424,7 @@ app.post('/logout', authenticate, csrfProtection, authLogout)
  *       401:
  *         $ref: "#/components/responses/Unauthorized"
  */
-app.post("/logout-all", authenticate, authLogoutAll)
+app.post('/logout-all', authenticate, authLogoutAll);
 
 /**
  * @openapi
