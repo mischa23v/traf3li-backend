@@ -617,14 +617,4 @@ exports.moveTerritory = async (req, res) => {
     }
 };
 
-module.exports = {
-    createTerritory,
-    getTerritories,
-    getTerritoryById,
-    updateTerritory,
-    deleteTerritory,
-    getTree,
-    getChildren,
-    getTerritoryStats,
-    moveTerritory
-};
+// Functions are already exported via exports.functionName above
