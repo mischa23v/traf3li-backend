@@ -1,6 +1,6 @@
 const { verifyAccessToken } = require('../utils/generateToken');
 const logger = require('../utils/logger');
-const User = require('../models/User');
+const User = require('../models/user.model');
 
 /**
  * Socket.io Authentication Middleware
