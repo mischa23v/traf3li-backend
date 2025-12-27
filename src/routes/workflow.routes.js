@@ -32,12 +32,12 @@ const approvalWorkflowController = require('../controllers/approvalWorkflow.cont
  */
 router.post('/leads/:id/convert-to-opportunity', leadWorkflowController.convertToOpportunity);
 router.post('/leads/:id/convert-to-client', leadWorkflowController.convertToClient);
-router.post('/leads/:id/create-quote', leadWorkflowController.createQuoteFromLead);
+router.post('/leads/:id/create-quote', leadWorkflowController.createQuote);
 
 /**
  * Lead Assignment Workflows
  */
-router.post('/leads/:id/assign', leadWorkflowController.assignToLawyer);
+router.post('/leads/:id/assign', leadWorkflowController.assignLead);
 router.post('/leads/:id/reassign', leadWorkflowController.reassignLead);
 router.post('/leads/bulk-assign', leadWorkflowController.bulkAssign);
 
@@ -46,12 +46,12 @@ router.post('/leads/bulk-assign', leadWorkflowController.bulkAssign);
  */
 router.post('/leads/:id/qualify', leadWorkflowController.qualifyLead);
 router.post('/leads/:id/disqualify', leadWorkflowController.disqualifyLead);
-router.get('/leads/:id/qualification-score', leadWorkflowController.calculateQualificationScore);
+router.get('/leads/:id/qualification-score', leadWorkflowController.getQualificationScore);
 
 /**
  * Lead Nurturing Workflows
  */
-router.post('/leads/:id/start-nurturing', leadWorkflowController.startNurturingCampaign);
+router.post('/leads/:id/start-nurturing', leadWorkflowController.startNurturing);
 router.post('/leads/:id/pause-nurturing', leadWorkflowController.pauseNurturing);
 router.post('/leads/:id/resume-nurturing', leadWorkflowController.resumeNurturing);
 router.get('/leads/:id/next-nurturing-step', leadWorkflowController.getNextNurturingStep);
@@ -60,7 +60,7 @@ router.get('/leads/:id/next-nurturing-step', leadWorkflowController.getNextNurtu
  * Lead Stage Management Workflows
  */
 router.post('/leads/:id/move-stage', leadWorkflowController.moveToStage);
-router.post('/leads/:id/progress-stage', leadWorkflowController.progressToNextStage);
+router.post('/leads/:id/progress-stage', leadWorkflowController.progressStage);
 router.post('/leads/:id/mark-won', leadWorkflowController.markAsWon);
 router.post('/leads/:id/mark-lost', leadWorkflowController.markAsLost);
 
