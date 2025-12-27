@@ -1,0 +1,1362 @@
+{
+  "withFirmId": [
+    {
+      "file": "activity.model.js",
+      "modelName": "Activity"
+    },
+    {
+      "file": "activityType.model.js",
+      "modelName": "ActivityType"
+    },
+    {
+      "file": "aiInteraction.model.js",
+      "modelName": "AiInteraction"
+    },
+    {
+      "file": "analyticsEvent.model.js",
+      "modelName": "AnalyticsEvent"
+    },
+    {
+      "file": "analyticsReport.model.js",
+      "modelName": "AnalyticsReport"
+    },
+    {
+      "file": "apiKey.model.js",
+      "modelName": "ApiKey"
+    },
+    {
+      "file": "appConnection.model.js",
+      "modelName": "AppConnection"
+    },
+    {
+      "file": "applicant.model.js",
+      "modelName": "Applicant"
+    },
+    {
+      "file": "appointment.model.js",
+      "modelName": "Appointment"
+    },
+    {
+      "file": "approvalRequest.model.js",
+      "modelName": "ApprovalRequest"
+    },
+    {
+      "file": "approvalRule.model.js",
+      "modelName": "ApprovalRule"
+    },
+    {
+      "file": "approvalWorkflow.model.js",
+      "modelName": "ApprovalWorkflow"
+    },
+    {
+      "file": "archivedAuditLog.model.js",
+      "modelName": "ArchivedAuditLog"
+    },
+    {
+      "file": "asset.model.js",
+      "modelName": "Asset"
+    },
+    {
+      "file": "assetAssignment.model.js",
+      "modelName": "AssetAssignment"
+    },
+    {
+      "file": "assetCategory.model.js",
+      "modelName": "AssetCategory"
+    },
+    {
+      "file": "assetMovement.model.js",
+      "modelName": "AssetMovement"
+    },
+    {
+      "file": "assetRepair.model.js",
+      "modelName": "AssetRepair"
+    },
+    {
+      "file": "assetSettings.model.js",
+      "modelName": "AssetSettings"
+    },
+    {
+      "file": "attendanceRecord.model.js",
+      "modelName": "AttendanceRecord"
+    },
+    {
+      "file": "auditLog.model.js",
+      "modelName": "AuditLog"
+    },
+    {
+      "file": "automatedAction.model.js",
+      "modelName": "AutomatedAction"
+    },
+    {
+      "file": "automation.model.js",
+      "modelName": "Automation"
+    },
+    {
+      "file": "bankFeed.model.js",
+      "modelName": "BankFeed"
+    },
+    {
+      "file": "bankMatchRule.model.js",
+      "modelName": "BankMatchRule"
+    },
+    {
+      "file": "bankTransactionMatch.model.js",
+      "modelName": "BankTransactionMatch"
+    },
+    {
+      "file": "batch.model.js",
+      "modelName": "Batch"
+    },
+    {
+      "file": "bill.model.js",
+      "modelName": "Bill"
+    },
+    {
+      "file": "billPayment.model.js",
+      "modelName": "BillPayment"
+    },
+    {
+      "file": "billingInvoice.model.js",
+      "modelName": "BillingInvoice"
+    },
+    {
+      "file": "bin.model.js",
+      "modelName": "Bin"
+    },
+    {
+      "file": "biometricDevice.model.js",
+      "modelName": "BiometricDevice"
+    },
+    {
+      "file": "biometricEnrollment.model.js",
+      "modelName": "BiometricEnrollment"
+    },
+    {
+      "file": "biometricLog.model.js",
+      "modelName": "BiometricLog"
+    },
+    {
+      "file": "bom.model.js",
+      "modelName": "Bom"
+    },
+    {
+      "file": "broker.model.js",
+      "modelName": "Broker"
+    },
+    {
+      "file": "budget.model.js",
+      "modelName": "Budget"
+    },
+    {
+      "file": "buyingSettings.model.js",
+      "modelName": "BuyingSettings"
+    },
+    {
+      "file": "calibrationSession.model.js",
+      "modelName": "CalibrationSession"
+    },
+    {
+      "file": "case.model.js",
+      "modelName": "Case"
+    },
+    {
+      "file": "caseNotionDatabaseView.model.js",
+      "modelName": "CaseNotionDatabaseView"
+    },
+    {
+      "file": "caseNotionPage.model.js",
+      "modelName": "CaseNotionPage"
+    },
+    {
+      "file": "chatHistory.model.js",
+      "modelName": "ChatHistory"
+    },
+    {
+      "file": "chatterFollower.model.js",
+      "modelName": "ChatterFollower"
+    },
+    {
+      "file": "churnEvent.model.js",
+      "modelName": "ChurnEvent"
+    },
+    {
+      "file": "client.model.js",
+      "modelName": "Client"
+    },
+    {
+      "file": "clientTrustBalance.model.js",
+      "modelName": "ClientTrustBalance"
+    },
+    {
+      "file": "compensationReward.model.js",
+      "modelName": "CompensationReward"
+    },
+    {
+      "file": "compensatoryLeave.model.js",
+      "modelName": "CompensatoryLeave"
+    },
+    {
+      "file": "competitor.model.js",
+      "modelName": "Competitor"
+    },
+    {
+      "file": "complianceAudit.model.js",
+      "modelName": "ComplianceAudit"
+    },
+    {
+      "file": "consent.model.js",
+      "modelName": "Consent"
+    },
+    {
+      "file": "contact.model.js",
+      "modelName": "Contact"
+    },
+    {
+      "file": "corporateCard.model.js",
+      "modelName": "CorporateCard"
+    },
+    {
+      "file": "costCenter.model.js",
+      "modelName": "CostCenter"
+    },
+    {
+      "file": "creditNote.model.js",
+      "modelName": "CreditNote"
+    },
+    {
+      "file": "crmSettings.model.js",
+      "modelName": "CrmSettings"
+    },
+    {
+      "file": "customField.model.js",
+      "modelName": "CustomField"
+    },
+    {
+      "file": "customFieldValue.model.js",
+      "modelName": "CustomFieldValue"
+    },
+    {
+      "file": "customerHealthScore.model.js",
+      "modelName": "CustomerHealthScore"
+    },
+    {
+      "file": "cycle.model.js",
+      "modelName": "Cycle"
+    },
+    {
+      "file": "dealRoom.model.js",
+      "modelName": "DealRoom"
+    },
+    {
+      "file": "debitNote.model.js",
+      "modelName": "DebitNote"
+    },
+    {
+      "file": "discordIntegration.model.js",
+      "modelName": "DiscordIntegration"
+    },
+    {
+      "file": "dispute.model.js",
+      "modelName": "Dispute"
+    },
+    {
+      "file": "document.model.js",
+      "modelName": "Document"
+    },
+    {
+      "file": "documentAnalysis.model.js",
+      "modelName": "DocumentAnalysis"
+    },
+    {
+      "file": "docusignIntegration.model.js",
+      "modelName": "DocusignIntegration"
+    },
+    {
+      "file": "dunningHistory.model.js",
+      "modelName": "DunningHistory"
+    },
+    {
+      "file": "dunningPolicy.model.js",
+      "modelName": "DunningPolicy"
+    },
+    {
+      "file": "emailCampaign.model.js",
+      "modelName": "EmailCampaign"
+    },
+    {
+      "file": "emailEvent.model.js",
+      "modelName": "EmailEvent"
+    },
+    {
+      "file": "emailSegment.model.js",
+      "modelName": "EmailSegment"
+    },
+    {
+      "file": "emailSignature.model.js",
+      "modelName": "EmailSignature"
+    },
+    {
+      "file": "emailSubscriber.model.js",
+      "modelName": "EmailSubscriber"
+    },
+    {
+      "file": "emailTemplate.model.js",
+      "modelName": "EmailTemplate"
+    },
+    {
+      "file": "employee.model.js",
+      "modelName": "Employee"
+    },
+    {
+      "file": "employeeAdvance.model.js",
+      "modelName": "EmployeeAdvance"
+    },
+    {
+      "file": "employeeBenefit.model.js",
+      "modelName": "EmployeeBenefit"
+    },
+    {
+      "file": "employeeIncentive.model.js",
+      "modelName": "EmployeeIncentive"
+    },
+    {
+      "file": "employeeLoan.model.js",
+      "modelName": "EmployeeLoan"
+    },
+    {
+      "file": "employeePromotion.model.js",
+      "modelName": "EmployeePromotion"
+    },
+    {
+      "file": "employeeSkillMap.model.js",
+      "modelName": "EmployeeSkillMap"
+    },
+    {
+      "file": "employeeTransfer.model.js",
+      "modelName": "EmployeeTransfer"
+    },
+    {
+      "file": "event.model.js",
+      "modelName": "Event"
+    },
+    {
+      "file": "exchangeRateRevaluation.model.js",
+      "modelName": "ExchangeRateRevaluation"
+    },
+    {
+      "file": "expense.model.js",
+      "modelName": "Expense"
+    },
+    {
+      "file": "expenseClaim.model.js",
+      "modelName": "ExpenseClaim"
+    },
+    {
+      "file": "expensePolicy.model.js",
+      "modelName": "ExpensePolicy"
+    },
+    {
+      "file": "fieldHistory.model.js",
+      "modelName": "FieldHistory"
+    },
+    {
+      "file": "financeSetup.model.js",
+      "modelName": "FinanceSetup"
+    },
+    {
+      "file": "formulaField.model.js",
+      "modelName": "FormulaField"
+    },
+    {
+      "file": "generalLedger.model.js",
+      "modelName": "GeneralLedger"
+    },
+    {
+      "file": "geofenceZone.model.js",
+      "modelName": "GeofenceZone"
+    },
+    {
+      "file": "githubIntegration.model.js",
+      "modelName": "GithubIntegration"
+    },
+    {
+      "file": "gmailIntegration.model.js",
+      "modelName": "GmailIntegration"
+    },
+    {
+      "file": "googleCalendarIntegration.model.js",
+      "modelName": "GoogleCalendarIntegration"
+    },
+    {
+      "file": "grievance.model.js",
+      "modelName": "Grievance"
+    },
+    {
+      "file": "hrAnalyticsSnapshot.model.js",
+      "modelName": "HrAnalyticsSnapshot"
+    },
+    {
+      "file": "hrSettings.model.js",
+      "modelName": "HrSettings"
+    },
+    {
+      "file": "hrSetupWizard.model.js",
+      "modelName": "HrSetupWizard"
+    },
+    {
+      "file": "importJob.model.js",
+      "modelName": "ImportJob"
+    },
+    {
+      "file": "incident.model.js",
+      "modelName": "Incident"
+    },
+    {
+      "file": "incidentExecution.model.js",
+      "modelName": "IncidentExecution"
+    },
+    {
+      "file": "incomeTaxSlab.model.js",
+      "modelName": "IncomeTaxSlab"
+    },
+    {
+      "file": "interCompanyBalance.model.js",
+      "modelName": "InterCompanyBalance"
+    },
+    {
+      "file": "interCompanyTransaction.model.js",
+      "modelName": "InterCompanyTransaction"
+    },
+    {
+      "file": "inventorySettings.model.js",
+      "modelName": "InventorySettings"
+    },
+    {
+      "file": "investment.model.js",
+      "modelName": "Investment"
+    },
+    {
+      "file": "investmentTransaction.model.js",
+      "modelName": "InvestmentTransaction"
+    },
+    {
+      "file": "invoice.model.js",
+      "modelName": "Invoice"
+    },
+    {
+      "file": "invoiceApproval.model.js",
+      "modelName": "InvoiceApproval"
+    },
+    {
+      "file": "item.model.js",
+      "modelName": "Item"
+    },
+    {
+      "file": "itemGroup.model.js",
+      "modelName": "ItemGroup"
+    },
+    {
+      "file": "itemPrice.model.js",
+      "modelName": "ItemPrice"
+    },
+    {
+      "file": "jobCard.model.js",
+      "modelName": "JobCard"
+    },
+    {
+      "file": "jobPosition.model.js",
+      "modelName": "JobPosition"
+    },
+    {
+      "file": "jobPosting.model.js",
+      "modelName": "JobPosting"
+    },
+    {
+      "file": "journalEntry.model.js",
+      "modelName": "JournalEntry"
+    },
+    {
+      "file": "keyboardShortcut.model.js",
+      "modelName": "KeyboardShortcut"
+    },
+    {
+      "file": "ldapConfig.model.js",
+      "modelName": "LdapConfig"
+    },
+    {
+      "file": "lead.model.js",
+      "modelName": "Lead"
+    },
+    {
+      "file": "leadScore.model.js",
+      "modelName": "LeadScore"
+    },
+    {
+      "file": "leadScoringConfig.model.js",
+      "modelName": "LeadScoringConfig"
+    },
+    {
+      "file": "leadSource.model.js",
+      "modelName": "LeadSource"
+    },
+    {
+      "file": "leaveAllocation.model.js",
+      "modelName": "LeaveAllocation"
+    },
+    {
+      "file": "leaveBalance.model.js",
+      "modelName": "LeaveBalance"
+    },
+    {
+      "file": "leaveEncashment.model.js",
+      "modelName": "LeaveEncashment"
+    },
+    {
+      "file": "leavePeriod.model.js",
+      "modelName": "LeavePeriod"
+    },
+    {
+      "file": "leavePolicy.model.js",
+      "modelName": "LeavePolicy"
+    },
+    {
+      "file": "leaveRequest.model.js",
+      "modelName": "LeaveRequest"
+    },
+    {
+      "file": "leaveType.model.js",
+      "modelName": "LeaveType"
+    },
+    {
+      "file": "legalContract.model.js",
+      "modelName": "LegalContract"
+    },
+    {
+      "file": "lifecycleWorkflow.model.js",
+      "modelName": "LifecycleWorkflow"
+    },
+    {
+      "file": "lockDate.model.js",
+      "modelName": "LockDate"
+    },
+    {
+      "file": "loginHistory.model.js",
+      "modelName": "LoginHistory"
+    },
+    {
+      "file": "lostReason.model.js",
+      "modelName": "LostReason"
+    },
+    {
+      "file": "macro.model.js",
+      "modelName": "Macro"
+    },
+    {
+      "file": "maintenanceSchedule.model.js",
+      "modelName": "MaintenanceSchedule"
+    },
+    {
+      "file": "maintenanceWindow.model.js",
+      "modelName": "MaintenanceWindow"
+    },
+    {
+      "file": "manufacturingSettings.model.js",
+      "modelName": "ManufacturingSettings"
+    },
+    {
+      "file": "materialRequest.model.js",
+      "modelName": "MaterialRequest"
+    },
+    {
+      "file": "notification.model.js",
+      "modelName": "Notification"
+    },
+    {
+      "file": "notificationPreference.model.js",
+      "modelName": "NotificationPreference"
+    },
+    {
+      "file": "notificationSettings.model.js",
+      "modelName": "NotificationSettings"
+    },
+    {
+      "file": "offboarding.model.js",
+      "modelName": "Offboarding"
+    },
+    {
+      "file": "omnichannelConversation.model.js",
+      "modelName": "OmnichannelConversation"
+    },
+    {
+      "file": "onboarding.model.js",
+      "modelName": "Onboarding"
+    },
+    {
+      "file": "organization.model.js",
+      "modelName": "Organization"
+    },
+    {
+      "file": "organizationalUnit.model.js",
+      "modelName": "OrganizationalUnit"
+    },
+    {
+      "file": "pageTemplate.model.js",
+      "modelName": "PageTemplate"
+    },
+    {
+      "file": "payment.model.js",
+      "modelName": "Payment"
+    },
+    {
+      "file": "paymentMethod.model.js",
+      "modelName": "PaymentMethod"
+    },
+    {
+      "file": "paymentReceipt.model.js",
+      "modelName": "PaymentReceipt"
+    },
+    {
+      "file": "paymentTerms.model.js",
+      "modelName": "PaymentTerms"
+    },
+    {
+      "file": "payout.model.js",
+      "modelName": "Payout"
+    },
+    {
+      "file": "payrollRun.model.js",
+      "modelName": "PayrollRun"
+    },
+    {
+      "file": "pdfmeTemplate.model.js",
+      "modelName": "PdfmeTemplate"
+    },
+    {
+      "file": "performanceReview.model.js",
+      "modelName": "PerformanceReview"
+    },
+    {
+      "file": "permission.model.js",
+      "modelName": "Permission"
+    },
+    {
+      "file": "playbook.model.js",
+      "modelName": "Playbook"
+    },
+    {
+      "file": "pluginInstallation.model.js",
+      "modelName": "PluginInstallation"
+    },
+    {
+      "file": "policyDecision.model.js",
+      "modelName": "PolicyDecision"
+    },
+    {
+      "file": "policyViolation.model.js",
+      "modelName": "PolicyViolation"
+    },
+    {
+      "file": "preparedReport.model.js",
+      "modelName": "PreparedReport"
+    },
+    {
+      "file": "priceList.model.js",
+      "modelName": "PriceList"
+    },
+    {
+      "file": "purchaseInvoice.model.js",
+      "modelName": "PurchaseInvoice"
+    },
+    {
+      "file": "purchaseOrder.model.js",
+      "modelName": "PurchaseOrder"
+    },
+    {
+      "file": "purchaseReceipt.model.js",
+      "modelName": "PurchaseReceipt"
+    },
+    {
+      "file": "qualityAction.model.js",
+      "modelName": "QualityAction"
+    },
+    {
+      "file": "qualityInspection.model.js",
+      "modelName": "QualityInspection"
+    },
+    {
+      "file": "qualityParameter.model.js",
+      "modelName": "QualityParameter"
+    },
+    {
+      "file": "qualitySettings.model.js",
+      "modelName": "QualitySettings"
+    },
+    {
+      "file": "qualityTemplate.model.js",
+      "modelName": "QualityTemplate"
+    },
+    {
+      "file": "recurringInvoice.model.js",
+      "modelName": "RecurringInvoice"
+    },
+    {
+      "file": "referral.model.js",
+      "modelName": "Referral"
+    },
+    {
+      "file": "refund.model.js",
+      "modelName": "Refund"
+    },
+    {
+      "file": "relationTuple.model.js",
+      "modelName": "RelationTuple"
+    },
+    {
+      "file": "reportDefinition.model.js",
+      "modelName": "ReportDefinition"
+    },
+    {
+      "file": "retentionBonus.model.js",
+      "modelName": "RetentionBonus"
+    },
+    {
+      "file": "reviewTemplate.model.js",
+      "modelName": "ReviewTemplate"
+    },
+    {
+      "file": "rfq.model.js",
+      "modelName": "Rfq"
+    },
+    {
+      "file": "routing.model.js",
+      "modelName": "Routing"
+    },
+    {
+      "file": "salaryComponent.model.js",
+      "modelName": "SalaryComponent"
+    },
+    {
+      "file": "salarySlip.model.js",
+      "modelName": "SalarySlip"
+    },
+    {
+      "file": "salesPerson.model.js",
+      "modelName": "SalesPerson"
+    },
+    {
+      "file": "salesStage.model.js",
+      "modelName": "SalesStage"
+    },
+    {
+      "file": "sandbox.model.js",
+      "modelName": "Sandbox"
+    },
+    {
+      "file": "savedFilter.model.js",
+      "modelName": "SavedFilter"
+    },
+    {
+      "file": "securityIncident.model.js",
+      "modelName": "SecurityIncident"
+    },
+    {
+      "file": "serialNumber.model.js",
+      "modelName": "SerialNumber"
+    },
+    {
+      "file": "shiftAssignment.model.js",
+      "modelName": "ShiftAssignment"
+    },
+    {
+      "file": "shiftType.model.js",
+      "modelName": "ShiftType"
+    },
+    {
+      "file": "skill.model.js",
+      "modelName": "Skill"
+    },
+    {
+      "file": "sla.model.js",
+      "modelName": "Sla"
+    },
+    {
+      "file": "slackIntegration.model.js",
+      "modelName": "SlackIntegration"
+    },
+    {
+      "file": "slo.model.js",
+      "modelName": "Slo"
+    },
+    {
+      "file": "smtpConfig.model.js",
+      "modelName": "SmtpConfig"
+    },
+    {
+      "file": "staff.model.js",
+      "modelName": "Staff"
+    },
+    {
+      "file": "staffingPlan.model.js",
+      "modelName": "StaffingPlan"
+    },
+    {
+      "file": "statusSubscriber.model.js",
+      "modelName": "StatusSubscriber"
+    },
+    {
+      "file": "stockEntry.model.js",
+      "modelName": "StockEntry"
+    },
+    {
+      "file": "stockLedger.model.js",
+      "modelName": "StockLedger"
+    },
+    {
+      "file": "stockReconciliation.model.js",
+      "modelName": "StockReconciliation"
+    },
+    {
+      "file": "subcontractingOrder.model.js",
+      "modelName": "SubcontractingOrder"
+    },
+    {
+      "file": "subcontractingReceipt.model.js",
+      "modelName": "SubcontractingReceipt"
+    },
+    {
+      "file": "subcontractingSettings.model.js",
+      "modelName": "SubcontractingSettings"
+    },
+    {
+      "file": "subscription.model.js",
+      "modelName": "Subscription"
+    },
+    {
+      "file": "successionPlan.model.js",
+      "modelName": "SuccessionPlan"
+    },
+    {
+      "file": "supplier.model.js",
+      "modelName": "Supplier"
+    },
+    {
+      "file": "supplierGroup.model.js",
+      "modelName": "SupplierGroup"
+    },
+    {
+      "file": "supplierQuotation.model.js",
+      "modelName": "SupplierQuotation"
+    },
+    {
+      "file": "supportSLA.model.js",
+      "modelName": "SupportSLA"
+    },
+    {
+      "file": "supportSettings.model.js",
+      "modelName": "SupportSettings"
+    },
+    {
+      "file": "systemComponent.model.js",
+      "modelName": "SystemComponent"
+    },
+    {
+      "file": "task.model.js",
+      "modelName": "Task"
+    },
+    {
+      "file": "teamActivityLog.model.js",
+      "modelName": "TeamActivityLog"
+    },
+    {
+      "file": "telegramIntegration.model.js",
+      "modelName": "TelegramIntegration"
+    },
+    {
+      "file": "temporaryIPAllowance.model.js",
+      "modelName": "TemporaryIPAllowance"
+    },
+    {
+      "file": "territory.model.js",
+      "modelName": "Territory"
+    },
+    {
+      "file": "threadMessage.model.js",
+      "modelName": "ThreadMessage"
+    },
+    {
+      "file": "ticket.model.js",
+      "modelName": "Ticket"
+    },
+    {
+      "file": "ticketCommunication.model.js",
+      "modelName": "TicketCommunication"
+    },
+    {
+      "file": "timeEntry.model.js",
+      "modelName": "TimeEntry"
+    },
+    {
+      "file": "trade.model.js",
+      "modelName": "Trade"
+    },
+    {
+      "file": "tradeStats.model.js",
+      "modelName": "TradeStats"
+    },
+    {
+      "file": "tradingAccount.model.js",
+      "modelName": "TradingAccount"
+    },
+    {
+      "file": "training.model.js",
+      "modelName": "Training"
+    },
+    {
+      "file": "trelloIntegration.model.js",
+      "modelName": "TrelloIntegration"
+    },
+    {
+      "file": "trustAccount.model.js",
+      "modelName": "TrustAccount"
+    },
+    {
+      "file": "trustReconciliation.model.js",
+      "modelName": "TrustReconciliation"
+    },
+    {
+      "file": "trustTransaction.model.js",
+      "modelName": "TrustTransaction"
+    },
+    {
+      "file": "uiAccessConfig.model.js",
+      "modelName": "UiAccessConfig"
+    },
+    {
+      "file": "uom.model.js",
+      "modelName": "Uom"
+    },
+    {
+      "file": "userActivity.model.js",
+      "modelName": "UserActivity"
+    },
+    {
+      "file": "userLocation.model.js",
+      "modelName": "UserLocation"
+    },
+    {
+      "file": "userSetupProgress.model.js",
+      "modelName": "UserSetupProgress"
+    },
+    {
+      "file": "vehicle.model.js",
+      "modelName": "Vehicle"
+    },
+    {
+      "file": "vendor.model.js",
+      "modelName": "Vendor"
+    },
+    {
+      "file": "view.model.js",
+      "modelName": "View"
+    },
+    {
+      "file": "walkthrough.model.js",
+      "modelName": "Walkthrough"
+    },
+    {
+      "file": "warehouse.model.js",
+      "modelName": "Warehouse"
+    },
+    {
+      "file": "webhook.model.js",
+      "modelName": "Webhook"
+    },
+    {
+      "file": "webhookDelivery.model.js",
+      "modelName": "WebhookDelivery"
+    },
+    {
+      "file": "whatsappBroadcast.model.js",
+      "modelName": "WhatsappBroadcast"
+    },
+    {
+      "file": "whatsappConversation.model.js",
+      "modelName": "WhatsappConversation"
+    },
+    {
+      "file": "whatsappMessage.model.js",
+      "modelName": "WhatsappMessage"
+    },
+    {
+      "file": "whatsappTemplate.model.js",
+      "modelName": "WhatsappTemplate"
+    },
+    {
+      "file": "workOrder.model.js",
+      "modelName": "WorkOrder"
+    },
+    {
+      "file": "workflowInstance.model.js",
+      "modelName": "WorkflowInstance"
+    },
+    {
+      "file": "workflowTemplate.model.js",
+      "modelName": "WorkflowTemplate"
+    },
+    {
+      "file": "workstation.model.js",
+      "modelName": "Workstation"
+    },
+    {
+      "file": "zoomIntegration.model.js",
+      "modelName": "ZoomIntegration"
+    }
+  ],
+  "withLawyerIdOnly": [
+    {
+      "file": "answer.model.js",
+      "modelName": "Answer"
+    },
+    {
+      "file": "bankAccount.model.js",
+      "modelName": "BankAccount"
+    },
+    {
+      "file": "bankReconciliation.model.js",
+      "modelName": "BankReconciliation"
+    },
+    {
+      "file": "bankTransaction.model.js",
+      "modelName": "BankTransaction"
+    },
+    {
+      "file": "bankTransfer.model.js",
+      "modelName": "BankTransfer"
+    },
+    {
+      "file": "billingRate.model.js",
+      "modelName": "BillingRate"
+    },
+    {
+      "file": "budgetEntry.model.js",
+      "modelName": "BudgetEntry"
+    },
+    {
+      "file": "budgetTemplate.model.js",
+      "modelName": "BudgetTemplate"
+    },
+    {
+      "file": "conflictCheck.model.js",
+      "modelName": "ConflictCheck"
+    },
+    {
+      "file": "crmActivity.model.js",
+      "modelName": "CrmActivity"
+    },
+    {
+      "file": "dashboardWidget.model.js",
+      "modelName": "DashboardWidget"
+    },
+    {
+      "file": "exportJob.model.js",
+      "modelName": "ExportJob"
+    },
+    {
+      "file": "exportTemplate.model.js",
+      "modelName": "ExportTemplate"
+    },
+    {
+      "file": "fiscalPeriod.model.js",
+      "modelName": "FiscalPeriod"
+    },
+    {
+      "file": "followup.model.js",
+      "modelName": "Followup"
+    },
+    {
+      "file": "invoiceTemplate.model.js",
+      "modelName": "InvoiceTemplate"
+    },
+    {
+      "file": "matterBudget.model.js",
+      "modelName": "MatterBudget"
+    },
+    {
+      "file": "pipeline.model.js",
+      "modelName": "Pipeline"
+    },
+    {
+      "file": "priceLevel.model.js",
+      "modelName": "PriceLevel"
+    },
+    {
+      "file": "proposal.model.js",
+      "modelName": "Proposal"
+    },
+    {
+      "file": "rateCard.model.js",
+      "modelName": "RateCard"
+    },
+    {
+      "file": "rateGroup.model.js",
+      "modelName": "RateGroup"
+    },
+    {
+      "file": "recurringTransaction.model.js",
+      "modelName": "RecurringTransaction"
+    },
+    {
+      "file": "retainer.model.js",
+      "modelName": "Retainer"
+    },
+    {
+      "file": "savedReport.model.js",
+      "modelName": "SavedReport"
+    },
+    {
+      "file": "score.model.js",
+      "modelName": "Score"
+    },
+    {
+      "file": "statement.model.js",
+      "modelName": "Statement"
+    },
+    {
+      "file": "tag.model.js",
+      "modelName": "Tag"
+    },
+    {
+      "file": "threeWayReconciliation.model.js",
+      "modelName": "ThreeWayReconciliation"
+    }
+  ],
+  "missingFirmId": [
+    {
+      "file": "auditLogArchive.model.js",
+      "modelName": "AuditLogArchive"
+    },
+    {
+      "file": "billingActivity.model.js",
+      "modelName": "BillingActivity"
+    },
+    {
+      "file": "blockComment.model.js",
+      "modelName": "BlockComment"
+    },
+    {
+      "file": "blockConnection.model.js",
+      "modelName": "BlockConnection"
+    },
+    {
+      "file": "caseAuditLog.model.js",
+      "modelName": "CaseAuditLog"
+    },
+    {
+      "file": "caseNotionBlock.model.js",
+      "modelName": "CaseNotionBlock"
+    },
+    {
+      "file": "caseStageProgress.model.js",
+      "modelName": "CaseStageProgress"
+    },
+    {
+      "file": "conversation.model.js",
+      "modelName": "Conversation"
+    },
+    {
+      "file": "documentVersion.model.js",
+      "modelName": "DocumentVersion"
+    },
+    {
+      "file": "gig.model.js",
+      "modelName": "Gig"
+    },
+    {
+      "file": "job.model.js",
+      "modelName": "Job"
+    },
+    {
+      "file": "kycVerification.model.js",
+      "modelName": "KycVerification"
+    },
+    {
+      "file": "legalDocument.model.js",
+      "modelName": "LegalDocument"
+    },
+    {
+      "file": "message.model.js",
+      "modelName": "Message"
+    },
+    {
+      "file": "order.model.js",
+      "modelName": "Order"
+    },
+    {
+      "file": "organizationTemplate.model.js",
+      "modelName": "OrganizationTemplate"
+    },
+    {
+      "file": "pageActivity.model.js",
+      "modelName": "PageActivity"
+    },
+    {
+      "file": "pageHistory.model.js",
+      "modelName": "PageHistory"
+    },
+    {
+      "file": "peerReview.model.js",
+      "modelName": "PeerReview"
+    },
+    {
+      "file": "question.model.js",
+      "modelName": "Question"
+    },
+    {
+      "file": "reminder.model.js",
+      "modelName": "Reminder"
+    },
+    {
+      "file": "report.model.js",
+      "modelName": "Report"
+    },
+    {
+      "file": "review.model.js",
+      "modelName": "Review"
+    },
+    {
+      "file": "setupSection.model.js",
+      "modelName": "SetupSection"
+    },
+    {
+      "file": "setupTask.model.js",
+      "modelName": "SetupTask"
+    },
+    {
+      "file": "sloMeasurement.model.js",
+      "modelName": "SloMeasurement"
+    },
+    {
+      "file": "syncedBlock.model.js",
+      "modelName": "SyncedBlock"
+    },
+    {
+      "file": "taskDocumentVersion.model.js",
+      "modelName": "TaskDocumentVersion"
+    },
+    {
+      "file": "transaction.model.js",
+      "modelName": "Transaction"
+    }
+  ],
+  "skippedGlobal": [
+    {
+      "file": "account.model.js",
+      "modelName": "Account",
+      "reason": "In SKIP_MODELS list"
+    },
+    {
+      "file": "counter.model.js",
+      "modelName": "Counter",
+      "reason": "In SKIP_MODELS list"
+    },
+    {
+      "file": "emailOtp.model.js",
+      "modelName": "EmailOtp",
+      "reason": "In SKIP_MODELS list"
+    },
+    {
+      "file": "emailVerification.model.js",
+      "modelName": "EmailVerification",
+      "reason": "In SKIP_MODELS list"
+    },
+    {
+      "file": "firm.model.js",
+      "modelName": "Firm",
+      "reason": "In SKIP_MODELS list"
+    },
+    {
+      "file": "firmInvitation.model.js",
+      "modelName": "FirmInvitation",
+      "reason": "In SKIP_MODELS list"
+    },
+    {
+      "file": "magicLink.model.js",
+      "modelName": "MagicLink",
+      "reason": "In SKIP_MODELS list"
+    },
+    {
+      "file": "migrationLog.model.js",
+      "modelName": "MigrationLog",
+      "reason": "In SKIP_MODELS list"
+    },
+    {
+      "file": "passwordHistory.model.js",
+      "modelName": "PasswordHistory",
+      "reason": "In SKIP_MODELS list"
+    },
+    {
+      "file": "phoneOtp.model.js",
+      "modelName": "PhoneOtp",
+      "reason": "In SKIP_MODELS list"
+    },
+    {
+      "file": "plugin.model.js",
+      "modelName": "Plugin",
+      "reason": "In SKIP_MODELS list"
+    },
+    {
+      "file": "reauthChallenge.model.js",
+      "modelName": "ReauthChallenge",
+      "reason": "In SKIP_MODELS list"
+    },
+    {
+      "file": "refreshToken.model.js",
+      "modelName": "RefreshToken",
+      "reason": "In SKIP_MODELS list"
+    },
+    {
+      "file": "revokedToken.model.js",
+      "modelName": "RevokedToken",
+      "reason": "In SKIP_MODELS list"
+    },
+    {
+      "file": "session.model.js",
+      "modelName": "Session",
+      "reason": "In SKIP_MODELS list"
+    },
+    {
+      "file": "ssoProvider.model.js",
+      "modelName": "SsoProvider",
+      "reason": "In SKIP_MODELS list"
+    },
+    {
+      "file": "ssoUserLink.model.js",
+      "modelName": "SsoUserLink",
+      "reason": "In SKIP_MODELS list"
+    },
+    {
+      "file": "subscriptionPlan.model.js",
+      "modelName": "SubscriptionPlan",
+      "reason": "In SKIP_MODELS list"
+    },
+    {
+      "file": "user.model.js",
+      "modelName": "User",
+      "reason": "In SKIP_MODELS list"
+    },
+    {
+      "file": "webauthnCredential.model.js",
+      "modelName": "WebauthnCredential",
+      "reason": "In SKIP_MODELS list"
+    }
+  ],
+  "likelyGlobal": [
+    {
+      "file": "exchangeRate.model.js",
+      "modelName": "ExchangeRate",
+      "reason": "Likely global/lookup table"
+    }
+  ],
+  "errors": []
+}
