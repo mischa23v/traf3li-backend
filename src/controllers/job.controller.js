@@ -159,7 +159,7 @@ exports.getJobs = async (req, res, next) => {
             if (maxBudget) filter['budget.max'] = { $lte: max };
         }
 
-        const jobs = await Job.find(filter)
+        const jobs = await Job.find({ ...filter, ...req.firmQuery })
             .populate('userID', 'username image country')  // ✅ CHANGED from clientId to userID
             .sort({ createdAt: -1 });
 
@@ -178,8 +178,8 @@ exports.getJob = async (req, res, next) => {
             throw CustomException('Invalid job ID', 400);
         }
 
-        const job = await Job.findByIdAndUpdate(
-            jobId,
+        const job = await Job.findOneAndUpdate(
+            { _id: jobId, ...req.firmQuery },
             { $inc: { views: 1 } },
             { new: true }
         ).populate('userID', 'username image email phone country createdAt');  // ✅ CHANGED from clientId to userID
@@ -210,7 +210,7 @@ exports.updateJob = async (req, res, next) => {
             throw CustomException(errorMessage, 400);
         }
 
-        const job = await Job.findById(jobId);
+        const job = await Job.findOne({ _id: jobId, ...req.firmQuery });
 
         if (!job) {
             throw CustomException('Job not found', 404);
@@ -218,7 +218,7 @@ exports.updateJob = async (req, res, next) => {
 
         // IDOR protection - verify ownership
         if (job.userID.toString() !== req.userID) {  // ✅ CHANGED from clientId to userID
-            throw CustomException('Not authorized to update this job', 403);
+            throw CustomException('Resource not found', 404);
         }
 
         // Mass assignment protection - only allow specific fields
@@ -258,7 +258,7 @@ exports.deleteJob = async (req, res, next) => {
             throw CustomException('Invalid job ID', 400);
         }
 
-        const job = await Job.findById(jobId);
+        const job = await Job.findOne({ _id: jobId, ...req.firmQuery });
 
         if (!job) {
             throw CustomException('Job not found', 404);
@@ -266,11 +266,11 @@ exports.deleteJob = async (req, res, next) => {
 
         // IDOR protection - verify ownership
         if (job.userID.toString() !== req.userID) {  // ✅ CHANGED from clientId to userID
-            throw CustomException('Not authorized to delete this job', 403);
+            throw CustomException('Resource not found', 404);
         }
 
-        await Job.findByIdAndDelete(jobId);
-        await Proposal.deleteMany({ jobId: jobId });
+        await Job.findOneAndDelete({ _id: jobId, ...req.firmQuery });
+        await Proposal.deleteMany({ jobId: jobId, ...req.firmQuery });
 
         res.status(200).json({ message: 'Job deleted successfully' });
     } catch (error) {
@@ -281,7 +281,7 @@ exports.deleteJob = async (req, res, next) => {
 // Get my jobs (as client)
 exports.getMyJobs = async (req, res, next) => {
     try {
-        const jobs = await Job.find({ userID: req.userID })  // ✅ CHANGED from clientId to userID
+        const jobs = await Job.find({ userID: req.userID, ...req.firmQuery })  // ✅ CHANGED from clientId to userID
             .sort({ createdAt: -1 });
 
         res.status(200).json(jobs);

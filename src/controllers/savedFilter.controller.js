@@ -72,6 +72,7 @@ exports.getFilter = async (req, res) => {
 
         const { id } = req.params;
         const userId = req.userID;
+        const firmId = req.firmId;
 
         // IDOR Protection: Sanitize and validate ObjectId
         const sanitizedId = sanitizeObjectId(id);
@@ -82,7 +83,7 @@ exports.getFilter = async (req, res) => {
             });
         }
 
-        const filter = await SavedFilterService.getSavedFilterById(sanitizedId, userId);
+        const filter = await SavedFilterService.getSavedFilterById(sanitizedId, userId, firmId);
 
         res.json({
             success: true,
@@ -95,13 +96,6 @@ exports.getFilter = async (req, res) => {
             return res.status(404).json({
                 success: false,
                 message: 'الفلتر غير موجود / Filter not found'
-            });
-        }
-
-        if (error.message === 'Access denied') {
-            return res.status(403).json({
-                success: false,
-                message: 'ليس لديك صلاحية للوصول / Access denied'
             });
         }
 
@@ -206,6 +200,7 @@ exports.updateFilter = async (req, res) => {
 
         const { id } = req.params;
         const userId = req.userID;
+        const firmId = req.firmId;
 
         // IDOR Protection: Sanitize and validate ObjectId
         const sanitizedId = sanitizeObjectId(id);
@@ -226,7 +221,7 @@ exports.updateFilter = async (req, res) => {
         ];
         const sanitizedData = pickAllowedFields(req.body, allowedFields);
 
-        const filter = await SavedFilterService.updateSavedFilter(sanitizedId, sanitizedData, userId);
+        const filter = await SavedFilterService.updateSavedFilter(sanitizedId, sanitizedData, userId, firmId);
 
         res.json({
             success: true,
@@ -240,13 +235,6 @@ exports.updateFilter = async (req, res) => {
             return res.status(404).json({
                 success: false,
                 message: 'الفلتر غير موجود / Filter not found'
-            });
-        }
-
-        if (error.message === 'Only the owner can update the filter') {
-            return res.status(403).json({
-                success: false,
-                message: 'يمكن للمالك فقط تعديل الفلتر / Only the owner can update the filter'
             });
         }
 
@@ -285,6 +273,7 @@ exports.deleteFilter = async (req, res) => {
 
         const { id } = req.params;
         const userId = req.userID;
+        const firmId = req.firmId;
 
         // IDOR Protection: Sanitize and validate ObjectId
         const sanitizedId = sanitizeObjectId(id);
@@ -295,7 +284,7 @@ exports.deleteFilter = async (req, res) => {
             });
         }
 
-        await SavedFilterService.deleteSavedFilter(sanitizedId, userId);
+        await SavedFilterService.deleteSavedFilter(sanitizedId, userId, firmId);
 
         res.json({
             success: true,
@@ -308,13 +297,6 @@ exports.deleteFilter = async (req, res) => {
             return res.status(404).json({
                 success: false,
                 message: 'الفلتر غير موجود / Filter not found'
-            });
-        }
-
-        if (error.message === 'Only the owner can delete the filter') {
-            return res.status(403).json({
-                success: false,
-                message: 'يمكن للمالك فقط حذف الفلتر / Only the owner can delete the filter'
             });
         }
 
@@ -345,6 +327,7 @@ exports.setAsDefault = async (req, res) => {
 
         const { id } = req.params;
         const userId = req.userID;
+        const firmId = req.firmId;
 
         // IDOR Protection: Sanitize and validate ObjectId
         const sanitizedId = sanitizeObjectId(id);
@@ -355,7 +338,7 @@ exports.setAsDefault = async (req, res) => {
             });
         }
 
-        const filter = await SavedFilterService.setAsDefault(sanitizedId, userId);
+        const filter = await SavedFilterService.setAsDefault(sanitizedId, userId, firmId);
 
         res.json({
             success: true,
@@ -369,13 +352,6 @@ exports.setAsDefault = async (req, res) => {
             return res.status(404).json({
                 success: false,
                 message: 'الفلتر غير موجود / Filter not found'
-            });
-        }
-
-        if (error.message === 'Only the owner can set default filter') {
-            return res.status(403).json({
-                success: false,
-                message: 'يمكن للمالك فقط تعيين الفلتر الافتراضي / Only the owner can set default filter'
             });
         }
 
@@ -406,6 +382,7 @@ exports.shareFilter = async (req, res) => {
 
         const { id } = req.params;
         const userId = req.userID;
+        const firmId = req.firmId;
         const { userIds } = req.body;
 
         // IDOR Protection: Sanitize and validate ObjectId
@@ -437,7 +414,7 @@ exports.shareFilter = async (req, res) => {
             });
         }
 
-        const filter = await SavedFilterService.shareFilter(sanitizedId, sanitizedUserIds, userId);
+        const filter = await SavedFilterService.shareFilter(sanitizedId, sanitizedUserIds, userId, firmId);
 
         res.json({
             success: true,
@@ -451,13 +428,6 @@ exports.shareFilter = async (req, res) => {
             return res.status(404).json({
                 success: false,
                 message: 'الفلتر غير موجود / Filter not found'
-            });
-        }
-
-        if (error.message === 'Only the owner can share the filter') {
-            return res.status(403).json({
-                success: false,
-                message: 'يمكن للمالك فقط مشاركة الفلتر / Only the owner can share the filter'
             });
         }
 
@@ -488,6 +458,7 @@ exports.unshareFilter = async (req, res) => {
 
         const { id, userId: targetUserId } = req.params;
         const userId = req.userID;
+        const firmId = req.firmId;
 
         // IDOR Protection: Sanitize and validate ObjectIds
         const sanitizedId = sanitizeObjectId(id);
@@ -500,7 +471,7 @@ exports.unshareFilter = async (req, res) => {
             });
         }
 
-        const filter = await SavedFilterService.unshareFilter(sanitizedId, sanitizedTargetUserId, userId);
+        const filter = await SavedFilterService.unshareFilter(sanitizedId, sanitizedTargetUserId, userId, firmId);
 
         res.json({
             success: true,
@@ -514,13 +485,6 @@ exports.unshareFilter = async (req, res) => {
             return res.status(404).json({
                 success: false,
                 message: 'الفلتر غير موجود / Filter not found'
-            });
-        }
-
-        if (error.message === 'Only the owner can unshare the filter') {
-            return res.status(403).json({
-                success: false,
-                message: 'يمكن للمالك فقط إزالة المشاركة / Only the owner can unshare the filter'
             });
         }
 
@@ -551,6 +515,7 @@ exports.duplicateFilter = async (req, res) => {
 
         const { id } = req.params;
         const userId = req.userID;
+        const firmId = req.firmId;
 
         // IDOR Protection: Sanitize and validate ObjectId
         const sanitizedId = sanitizeObjectId(id);
@@ -561,7 +526,7 @@ exports.duplicateFilter = async (req, res) => {
             });
         }
 
-        const filter = await SavedFilterService.duplicateFilter(sanitizedId, userId);
+        const filter = await SavedFilterService.duplicateFilter(sanitizedId, userId, firmId);
 
         res.status(201).json({
             success: true,
@@ -575,13 +540,6 @@ exports.duplicateFilter = async (req, res) => {
             return res.status(404).json({
                 success: false,
                 message: 'الفلتر غير موجود / Filter not found'
-            });
-        }
-
-        if (error.message === 'Access denied') {
-            return res.status(403).json({
-                success: false,
-                message: 'ليس لديك صلاحية للوصول / Access denied'
             });
         }
 

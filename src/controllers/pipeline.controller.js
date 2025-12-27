@@ -70,16 +70,17 @@ exports.getPipeline = async (req, res) => {
         const { id } = req.params;
         const lawyerId = req.userID;
 
-        // IDOR protection - verify ownership by lawyerId
+        // IDOR protection - verify ownership by lawyerId and firmId
         const pipeline = await Pipeline.findOne({
             $or: [{ _id: sanitizeObjectId(id) }, { pipelineId: id }],
-            lawyerId
+            lawyerId,
+            ...req.firmQuery
         });
 
         if (!pipeline) {
             return res.status(404).json({
                 success: false,
-                message: 'Pipeline not found or access denied'
+                message: 'Resource not found'
             });
         }
 
@@ -90,7 +91,8 @@ exports.getPipeline = async (req, res) => {
                 lawyerId,
                 pipelineId: pipeline._id,
                 pipelineStageId: stage.stageId,
-                convertedToClient: false
+                convertedToClient: false,
+                ...req.firmQuery
             });
         }
 
@@ -121,16 +123,17 @@ exports.updatePipeline = async (req, res) => {
         const allowedUpdates = ['name', 'nameAr', 'description', 'descriptionAr', 'icon', 'color', 'settings', 'isActive'];
         const updates = pickAllowedFields(req.body, allowedUpdates);
 
-        // IDOR protection - verify ownership by lawyerId
+        // IDOR protection - verify ownership by lawyerId and firmId
         const pipeline = await Pipeline.findOne({
             $or: [{ _id: sanitizeObjectId(id) }, { pipelineId: id }],
-            lawyerId
+            lawyerId,
+            ...req.firmQuery
         });
 
         if (!pipeline) {
             return res.status(404).json({
                 success: false,
-                message: 'Pipeline not found or access denied'
+                message: 'Resource not found'
             });
         }
 
@@ -165,22 +168,26 @@ exports.deletePipeline = async (req, res) => {
         const { id } = req.params;
         const lawyerId = req.userID;
 
-        // IDOR protection - verify ownership by lawyerId
+        // IDOR protection - verify ownership by lawyerId and firmId
         const pipeline = await Pipeline.findOne({
             $or: [{ _id: sanitizeObjectId(id) }, { pipelineId: id }],
             lawyerId,
-            isDefault: false
+            isDefault: false,
+            ...req.firmQuery
         });
 
         if (!pipeline) {
             return res.status(404).json({
                 success: false,
-                message: 'Pipeline not found, access denied, or cannot delete default pipeline'
+                message: 'Resource not found'
             });
         }
 
         // Check if there are leads in this pipeline
-        const leadCount = await Lead.countDocuments({ pipelineId: pipeline._id });
+        const leadCount = await Lead.countDocuments({
+            pipelineId: pipeline._id,
+            ...req.firmQuery
+        });
         if (leadCount > 0) {
             return res.status(400).json({
                 success: false,
@@ -226,16 +233,17 @@ exports.addStage = async (req, res) => {
             });
         }
 
-        // IDOR protection - verify ownership by lawyerId
+        // IDOR protection - verify ownership by lawyerId and firmId
         const pipeline = await Pipeline.findOne({
             $or: [{ _id: sanitizeObjectId(id) }, { pipelineId: id }],
-            lawyerId
+            lawyerId,
+            ...req.firmQuery
         });
 
         if (!pipeline) {
             return res.status(404).json({
                 success: false,
-                message: 'Pipeline not found or access denied'
+                message: 'Resource not found'
             });
         }
 
@@ -274,16 +282,17 @@ exports.updateStage = async (req, res) => {
             });
         }
 
-        // IDOR protection - verify ownership by lawyerId
+        // IDOR protection - verify ownership by lawyerId and firmId
         const pipeline = await Pipeline.findOne({
             $or: [{ _id: sanitizeObjectId(id) }, { pipelineId: id }],
-            lawyerId
+            lawyerId,
+            ...req.firmQuery
         });
 
         if (!pipeline) {
             return res.status(404).json({
                 success: false,
-                message: 'Pipeline not found or access denied'
+                message: 'Resource not found'
             });
         }
 
@@ -291,7 +300,7 @@ exports.updateStage = async (req, res) => {
         if (!stage) {
             return res.status(404).json({
                 success: false,
-                message: 'Stage not found'
+                message: 'Resource not found'
             });
         }
 
@@ -323,23 +332,25 @@ exports.removeStage = async (req, res) => {
         const { id, stageId } = req.params;
         const lawyerId = req.userID;
 
-        // IDOR protection - verify ownership by lawyerId
+        // IDOR protection - verify ownership by lawyerId and firmId
         const pipeline = await Pipeline.findOne({
             $or: [{ _id: sanitizeObjectId(id) }, { pipelineId: id }],
-            lawyerId
+            lawyerId,
+            ...req.firmQuery
         });
 
         if (!pipeline) {
             return res.status(404).json({
                 success: false,
-                message: 'Pipeline not found or access denied'
+                message: 'Resource not found'
             });
         }
 
         // Check if leads are in this stage
         const leadCount = await Lead.countDocuments({
             pipelineId: pipeline._id,
-            pipelineStageId: stageId
+            pipelineStageId: stageId,
+            ...req.firmQuery
         });
 
         if (leadCount > 0) {
@@ -391,16 +402,17 @@ exports.reorderStages = async (req, res) => {
             }
         }
 
-        // IDOR protection - verify ownership by lawyerId
+        // IDOR protection - verify ownership by lawyerId and firmId
         const pipeline = await Pipeline.findOne({
             $or: [{ _id: sanitizeObjectId(id) }, { pipelineId: id }],
-            lawyerId
+            lawyerId,
+            ...req.firmQuery
         });
 
         if (!pipeline) {
             return res.status(404).json({
                 success: false,
-                message: 'Pipeline not found or access denied'
+                message: 'Resource not found'
             });
         }
 
@@ -442,24 +454,28 @@ exports.getStats = async (req, res) => {
         const { id } = req.params;
         const lawyerId = req.userID;
 
-        // IDOR protection - verify ownership by lawyerId
+        // IDOR protection - verify ownership by lawyerId and firmId
         const pipeline = await Pipeline.findOne({
             $or: [{ _id: sanitizeObjectId(id) }, { pipelineId: id }],
-            lawyerId
+            lawyerId,
+            ...req.firmQuery
         });
 
         if (!pipeline) {
             return res.status(404).json({
                 success: false,
-                message: 'Pipeline not found or access denied'
+                message: 'Resource not found'
             });
         }
 
         // Update stats
         await Pipeline.updateStats(pipeline._id);
 
-        // Refresh pipeline
-        const updatedPipeline = await Pipeline.findById(pipeline._id);
+        // Refresh pipeline with firmId isolation
+        const updatedPipeline = await Pipeline.findOne({
+            _id: pipeline._id,
+            ...req.firmQuery
+        });
 
         // Get stage-level stats
         const stageStats = [];
@@ -469,7 +485,8 @@ exports.getStats = async (req, res) => {
                     $match: {
                         pipelineId: pipeline._id,
                         pipelineStageId: stage.stageId,
-                        convertedToClient: false
+                        convertedToClient: false,
+                        ...req.firmQuery
                     }
                 },
                 {
@@ -514,22 +531,23 @@ exports.setDefault = async (req, res) => {
         const { id } = req.params;
         const lawyerId = req.userID;
 
-        // IDOR protection - verify ownership by lawyerId
+        // IDOR protection - verify ownership by lawyerId and firmId
         const pipeline = await Pipeline.findOne({
             $or: [{ _id: sanitizeObjectId(id) }, { pipelineId: id }],
-            lawyerId
+            lawyerId,
+            ...req.firmQuery
         });
 
         if (!pipeline) {
             return res.status(404).json({
                 success: false,
-                message: 'Pipeline not found or access denied'
+                message: 'Resource not found'
             });
         }
 
-        // Unset current default
+        // Unset current default with firmId isolation
         await Pipeline.updateMany(
-            { lawyerId, type: pipeline.type, isDefault: true },
+            { lawyerId, type: pipeline.type, isDefault: true, ...req.firmQuery },
             { isDefault: false }
         );
 
@@ -562,16 +580,17 @@ exports.duplicatePipeline = async (req, res) => {
         const allowedFields = ['name', 'nameAr'];
         const { name, nameAr } = pickAllowedFields(req.body, allowedFields);
 
-        // IDOR protection - verify ownership by lawyerId
+        // IDOR protection - verify ownership by lawyerId and firmId
         const original = await Pipeline.findOne({
             $or: [{ _id: sanitizeObjectId(id) }, { pipelineId: id }],
-            lawyerId
+            lawyerId,
+            ...req.firmQuery
         });
 
         if (!original) {
             return res.status(404).json({
                 success: false,
-                message: 'Pipeline not found or access denied'
+                message: 'Resource not found'
             });
         }
 

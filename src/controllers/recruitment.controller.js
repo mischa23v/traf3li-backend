@@ -658,7 +658,7 @@ exports.createApplicant = async (req, res) => {
         if (existingApplicant) {
             // If applying to a new job, add the application
             if (req.body.jobPostingId) {
-                const jobPosting = await JobPosting.findById(req.body.jobPostingId);
+                const jobPosting = await JobPosting.findOne({ _id: sanitizeObjectId(req.body.jobPostingId), ...baseQuery });
                 if (!jobPosting) {
                     return res.status(404).json({ success: false, message: 'Job posting not found' });
                 }
@@ -755,7 +755,7 @@ exports.createApplicant = async (req, res) => {
 
         // If applying to a job
         if (sanitizedData.jobPostingId) {
-            const jobPosting = await JobPosting.findById(sanitizeObjectId(sanitizedData.jobPostingId));
+            const jobPosting = await JobPosting.findOne({ _id: sanitizeObjectId(sanitizedData.jobPostingId), firmId, lawyerId });
             if (!jobPosting) {
                 return res.status(404).json({ success: false, message: 'Job posting not found' });
             }
@@ -954,8 +954,8 @@ exports.updateApplicantStage = async (req, res) => {
             { previousStage, newStage: stage, jobPostingId }
         );
 
-        // Update job posting statistics
-        const jobPosting = await JobPosting.findById(jobPostingId);
+        // Update job posting statistics - IDOR protection
+        const jobPosting = await JobPosting.findOne({ _id: sanitizeObjectId(jobPostingId), ...baseQuery });
         if (jobPosting) {
             if (stage === 'hired') {
                 await jobPosting.updateStatistics('hires');
@@ -1029,8 +1029,8 @@ exports.rejectApplicant = async (req, res) => {
             { jobPostingId, reason }
         );
 
-        // Update job statistics
-        const jobPosting = await JobPosting.findById(jobPostingId);
+        // Update job statistics - IDOR protection
+        const jobPosting = await JobPosting.findOne({ _id: sanitizeObjectId(jobPostingId), ...baseQuery });
         if (jobPosting) {
             await jobPosting.updateStatistics('rejectedApplications');
         }
@@ -1612,9 +1612,9 @@ exports.updateOffer = async (req, res) => {
 
         await applicant.save();
 
-        // Update job statistics
+        // Update job statistics - IDOR protection
         if (offer.jobPostingId) {
-            const jobPosting = await JobPosting.findById(offer.jobPostingId);
+            const jobPosting = await JobPosting.findOne({ _id: sanitizeObjectId(offer.jobPostingId), ...baseQuery });
             if (jobPosting) {
                 if (sanitizedData.status === 'sent' && previousStatus !== 'sent') {
                     await jobPosting.updateStatistics('offersExtended');
@@ -2154,8 +2154,8 @@ exports.bulkReject = async (req, res) => {
             }
         }
 
-        // Update job statistics
-        const jobPosting = await JobPosting.findById(jobPostingId);
+        // Update job statistics - IDOR protection
+        const jobPosting = await JobPosting.findOne({ _id: sanitizeObjectId(jobPostingId), firmId, lawyerId });
         if (jobPosting) {
             await jobPosting.updateStatistics('rejectedApplications', results.success.length);
         }
@@ -2363,8 +2363,8 @@ exports.hireApplicant = async (req, res) => {
 
         await applicant.save();
 
-        // Update job statistics
-        const jobPosting = await JobPosting.findById(jobPostingId);
+        // Update job statistics - IDOR protection
+        const jobPosting = await JobPosting.findOne({ _id: sanitizeObjectId(jobPostingId), ...baseQuery });
         if (jobPosting) {
             await jobPosting.updateStatistics('hires');
         }

@@ -144,9 +144,6 @@ exports.getAll = async (req, res) => {
             });
         }
 
-        const firmId = req.firmId;
-        const lawyerId = req.userID;
-        const isSoloLawyer = req.isSoloLawyer;
         const {
             startDate,
             endDate,
@@ -158,13 +155,8 @@ exports.getAll = async (req, res) => {
             limit = 50
         } = req.query;
 
-        // Multi-tenancy: Solo lawyers filter by lawyerId, firm users filter by firmId
-        const query = {};
-        if (isSoloLawyer || !firmId) {
-            query.createdBy = lawyerId;
-        } else {
-            query.firmId = firmId;
-        }
+        // IDOR Protection: Use firmQuery for firm isolation
+        const query = { ...req.firmQuery };
 
         if (startDate || endDate) {
             query.scheduledTime = {};
@@ -226,19 +218,9 @@ exports.getById = async (req, res) => {
         }
 
         const { id } = req.params;
-        const firmId = req.firmId;
-        const lawyerId = req.userID;
-        const isSoloLawyer = req.isSoloLawyer;
 
-        // Multi-tenancy: Build query based on user type
-        const query = { _id: id };
-        if (isSoloLawyer || !firmId) {
-            query.createdBy = lawyerId;
-        } else {
-            query.firmId = firmId;
-        }
-
-        const appointment = await Appointment.findOne(query)
+        // IDOR Protection: Use firmQuery for firm isolation
+        const appointment = await Appointment.findOne({ _id: id, ...req.firmQuery })
             .populate('assignedTo', 'firstName lastName avatar email phone')
             .populate('partyId')
             .populate('caseId', 'title caseNumber description')
@@ -535,26 +517,7 @@ exports.update = async (req, res) => {
         }
 
         const { id } = req.params;
-        const firmId = req.firmId;
         const userId = req.userID;
-        const isSoloLawyer = req.isSoloLawyer;
-
-        // Multi-tenancy: Build query based on user type
-        const ownerQuery = { _id: id };
-        if (isSoloLawyer || !firmId) {
-            ownerQuery.createdBy = userId;
-        } else {
-            ownerQuery.firmId = firmId;
-        }
-
-        // IDOR Protection: Verify appointment belongs to user's firm/lawyer first
-        const appointmentExists = await Appointment.findOne(ownerQuery);
-        if (!appointmentExists) {
-            return res.status(404).json({
-                success: false,
-                message: 'الموعد غير موجود / Appointment not found'
-            });
-        }
 
         // Mass assignment protection: only allow specific fields
         const safeData = pickAllowedFields(req.body, ALLOWED_UPDATE_FIELDS);
@@ -568,8 +531,9 @@ exports.update = async (req, res) => {
             });
         }
 
+        // IDOR Protection: Update with firmQuery to prevent race condition
         const appointment = await Appointment.findOneAndUpdate(
-            ownerQuery,
+            { _id: id, ...req.firmQuery },
             { $set: safeData },
             { new: true, runValidators: true }
         ).populate([
@@ -628,24 +592,14 @@ exports.cancel = async (req, res) => {
         }
 
         const { id } = req.params;
-        const firmId = req.firmId;
         const userId = req.userID;
-        const isSoloLawyer = req.isSoloLawyer;
 
         // Mass assignment protection: only allow reason field
         const safeData = pickAllowedFields(req.body, ALLOWED_CANCEL_FIELDS);
         const reason = safeData.reason;
 
-        // Multi-tenancy: Build query based on user type
-        const ownerQuery = { _id: id };
-        if (isSoloLawyer || !firmId) {
-            ownerQuery.createdBy = userId;
-        } else {
-            ownerQuery.firmId = firmId;
-        }
-
         // IDOR Protection: Verify appointment belongs to user's firm/lawyer
-        const appointment = await Appointment.findOne(ownerQuery);
+        const appointment = await Appointment.findOne({ _id: id, ...req.firmQuery });
 
         if (!appointment) {
             return res.status(404).json({
@@ -707,9 +661,7 @@ exports.complete = async (req, res) => {
         }
 
         const { id } = req.params;
-        const firmId = req.firmId;
         const userId = req.userID;
-        const isSoloLawyer = req.isSoloLawyer;
 
         // Mass assignment protection: only allow specific fields
         const safeData = pickAllowedFields(req.body, ALLOWED_COMPLETE_FIELDS);
@@ -723,16 +675,8 @@ exports.complete = async (req, res) => {
             });
         }
 
-        // Multi-tenancy: Build query based on user type
-        const ownerQuery = { _id: id };
-        if (isSoloLawyer || !firmId) {
-            ownerQuery.createdBy = userId;
-        } else {
-            ownerQuery.firmId = firmId;
-        }
-
         // IDOR Protection: Verify appointment belongs to user's firm/lawyer
-        const appointment = await Appointment.findOne(ownerQuery);
+        const appointment = await Appointment.findOne({ _id: id, ...req.firmQuery });
 
         if (!appointment) {
             return res.status(404).json({
@@ -751,7 +695,7 @@ exports.complete = async (req, res) => {
             entityId: appointment._id,
             entityName: appointment.appointmentNumber,
             title: `Appointment completed: ${appointment.appointmentNumber}`,
-            description: outcome,
+            description: safeData.outcome,
             performedBy: userId
         });
 
@@ -787,20 +731,10 @@ exports.markNoShow = async (req, res) => {
         }
 
         const { id } = req.params;
-        const firmId = req.firmId;
         const userId = req.userID;
-        const isSoloLawyer = req.isSoloLawyer;
-
-        // Multi-tenancy: Build query based on user type
-        const ownerQuery = { _id: id };
-        if (isSoloLawyer || !firmId) {
-            ownerQuery.createdBy = userId;
-        } else {
-            ownerQuery.firmId = firmId;
-        }
 
         // IDOR Protection: Verify appointment belongs to user's firm/lawyer
-        const appointment = await Appointment.findOne(ownerQuery);
+        const appointment = await Appointment.findOne({ _id: id, ...req.firmQuery });
 
         if (!appointment) {
             return res.status(404).json({
@@ -854,20 +788,10 @@ exports.confirm = async (req, res) => {
         }
 
         const { id } = req.params;
-        const firmId = req.firmId;
         const userId = req.userID;
-        const isSoloLawyer = req.isSoloLawyer;
-
-        // Multi-tenancy: Build query based on user type
-        const ownerQuery = { _id: id };
-        if (isSoloLawyer || !firmId) {
-            ownerQuery.createdBy = userId;
-        } else {
-            ownerQuery.firmId = firmId;
-        }
 
         // IDOR Protection: Verify appointment belongs to user's firm/lawyer
-        const appointment = await Appointment.findOne(ownerQuery);
+        const appointment = await Appointment.findOne({ _id: id, ...req.firmQuery });
 
         if (!appointment) {
             return res.status(404).json({

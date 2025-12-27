@@ -170,22 +170,18 @@ const getRate = asyncHandler(async (req, res) => {
     // Sanitize ObjectId
     const sanitizedId = sanitizeObjectId(id);
 
-    const billingRate = await BillingRate.findById(sanitizedId)
+    // IDOR protection - build query with ownership verification
+    const query = { _id: sanitizedId, lawyerId };
+    if (firmId) {
+        query.firmId = firmId;
+    }
+
+    const billingRate = await BillingRate.findOne(query)
         .populate('clientId', 'username email phone')
         .populate('createdBy', 'username');
 
     if (!billingRate) {
         throw CustomException('السعر غير موجود', 404);
-    }
-
-    // IDOR protection - verify ownership
-    if (billingRate.lawyerId.toString() !== lawyerId) {
-        throw CustomException('لا يمكنك الوصول إلى هذا السعر', 403);
-    }
-
-    // Additional firmId verification if available
-    if (firmId && billingRate.firmId && billingRate.firmId.toString() !== firmId.toString()) {
-        throw CustomException('لا يمكنك الوصول إلى هذا السعر', 403);
     }
 
     res.status(200).json({
@@ -206,20 +202,16 @@ const updateRate = asyncHandler(async (req, res) => {
     // Sanitize ObjectId
     const sanitizedId = sanitizeObjectId(id);
 
-    const billingRate = await BillingRate.findById(sanitizedId);
+    // IDOR protection - build query with ownership verification
+    const query = { _id: sanitizedId, lawyerId };
+    if (firmId) {
+        query.firmId = firmId;
+    }
+
+    const billingRate = await BillingRate.findOne(query);
 
     if (!billingRate) {
         throw CustomException('السعر غير موجود', 404);
-    }
-
-    // IDOR protection - verify ownership
-    if (billingRate.lawyerId.toString() !== lawyerId) {
-        throw CustomException('لا يمكنك الوصول إلى هذا السعر', 403);
-    }
-
-    // Additional firmId verification if available
-    if (firmId && billingRate.firmId && billingRate.firmId.toString() !== firmId.toString()) {
-        throw CustomException('لا يمكنك الوصول إلى هذا السعر', 403);
     }
 
     // Mass assignment protection
@@ -297,23 +289,17 @@ const deleteRate = asyncHandler(async (req, res) => {
     // Sanitize ObjectId
     const sanitizedId = sanitizeObjectId(id);
 
-    const billingRate = await BillingRate.findById(sanitizedId);
+    // IDOR protection - build query with ownership verification
+    const query = { _id: sanitizedId, lawyerId };
+    if (firmId) {
+        query.firmId = firmId;
+    }
+
+    const billingRate = await BillingRate.findOneAndDelete(query);
 
     if (!billingRate) {
         throw CustomException('السعر غير موجود', 404);
     }
-
-    // IDOR protection - verify ownership
-    if (billingRate.lawyerId.toString() !== lawyerId) {
-        throw CustomException('لا يمكنك الوصول إلى هذا السعر', 403);
-    }
-
-    // Additional firmId verification if available
-    if (firmId && billingRate.firmId && billingRate.firmId.toString() !== firmId.toString()) {
-        throw CustomException('لا يمكنك الوصول إلى هذا السعر', 403);
-    }
-
-    await BillingRate.findByIdAndDelete(sanitizedId);
 
     res.status(200).json({
         success: true,

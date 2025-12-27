@@ -9,7 +9,7 @@ const { pickAllowedFields, sanitizeObjectId, SENSITIVE_FIELDS } = require('../ut
  */
 const createOrganization = asyncHandler(async (req, res) => {
     if (req.isDeparted) {
-        throw CustomException('ليس لديك صلاحية للوصول', 403);
+        throw CustomException('المورد غير موجود', 404);
     }
 
     const lawyerId = req.userID;
@@ -76,7 +76,7 @@ const createOrganization = asyncHandler(async (req, res) => {
  */
 const getOrganizations = asyncHandler(async (req, res) => {
     if (req.isDeparted) {
-        throw CustomException('ليس لديك صلاحية للوصول', 403);
+        throw CustomException('المورد غير موجود', 404);
     }
 
     const lawyerId = req.userID;
@@ -137,12 +137,10 @@ const getOrganizations = asyncHandler(async (req, res) => {
  */
 const getOrganization = asyncHandler(async (req, res) => {
     if (req.isDeparted) {
-        throw CustomException('ليس لديك صلاحية للوصول', 403);
+        throw CustomException('المورد غير موجود', 404);
     }
 
     const { id } = req.params;
-    const lawyerId = req.userID;
-    const firmId = req.firmId;
 
     // SECURITY: Validate ID format (IDOR protection)
     const sanitizedId = sanitizeObjectId(id);
@@ -150,15 +148,8 @@ const getOrganization = asyncHandler(async (req, res) => {
         throw CustomException('معرف المنظمة غير صحيح', 400);
     }
 
-    const isSoloLawyer = req.isSoloLawyer;
-    const accessQuery = { _id: sanitizedId };
-    if (isSoloLawyer || !firmId) {
-        accessQuery.lawyerId = lawyerId;
-    } else {
-        accessQuery.firmId = firmId;
-    }
-
-    const organization = await Organization.findOne(accessQuery)
+    // SECURITY: Use req.firmQuery for firm isolation (IDOR protection)
+    const organization = await Organization.findOne({ _id: sanitizedId, ...req.firmQuery })
         .populate('keyContacts.contactId', 'firstName lastName email phone')
         .populate('billingContact', 'firstName lastName email phone')
         .populate('linkedClients', 'name fullName email phone')
@@ -181,12 +172,11 @@ const getOrganization = asyncHandler(async (req, res) => {
  */
 const updateOrganization = asyncHandler(async (req, res) => {
     if (req.isDeparted) {
-        throw CustomException('ليس لديك صلاحية للوصول', 403);
+        throw CustomException('المورد غير موجود', 404);
     }
 
     const { id } = req.params;
     const lawyerId = req.userID;
-    const firmId = req.firmId;
 
     // SECURITY: Validate ID format (IDOR protection)
     const sanitizedId = sanitizeObjectId(id);
@@ -194,15 +184,8 @@ const updateOrganization = asyncHandler(async (req, res) => {
         throw CustomException('معرف المنظمة غير صحيح', 400);
     }
 
-    const isSoloLawyer = req.isSoloLawyer;
-    const accessQuery = { _id: sanitizedId };
-    if (isSoloLawyer || !firmId) {
-        accessQuery.lawyerId = lawyerId;
-    } else {
-        accessQuery.firmId = firmId;
-    }
-
-    const organization = await Organization.findOne(accessQuery);
+    // SECURITY: Use req.firmQuery for firm isolation (IDOR protection)
+    const organization = await Organization.findOne({ _id: sanitizedId, ...req.firmQuery });
 
     if (!organization) {
         throw CustomException('المنظمة غير موجودة', 404);
@@ -247,12 +230,10 @@ const updateOrganization = asyncHandler(async (req, res) => {
  */
 const deleteOrganization = asyncHandler(async (req, res) => {
     if (req.isDeparted) {
-        throw CustomException('ليس لديك صلاحية للوصول', 403);
+        throw CustomException('المورد غير موجود', 404);
     }
 
     const { id } = req.params;
-    const lawyerId = req.userID;
-    const firmId = req.firmId;
 
     // SECURITY: Validate ID format (IDOR protection)
     const sanitizedId = sanitizeObjectId(id);
@@ -260,15 +241,8 @@ const deleteOrganization = asyncHandler(async (req, res) => {
         throw CustomException('معرف المنظمة غير صحيح', 400);
     }
 
-    const isSoloLawyer = req.isSoloLawyer;
-    const accessQuery = { _id: sanitizedId };
-    if (isSoloLawyer || !firmId) {
-        accessQuery.lawyerId = lawyerId;
-    } else {
-        accessQuery.firmId = firmId;
-    }
-
-    const organization = await Organization.findOneAndDelete(accessQuery);
+    // SECURITY: Use req.firmQuery for firm isolation (IDOR protection)
+    const organization = await Organization.findOneAndDelete({ _id: sanitizedId, ...req.firmQuery });
 
     if (!organization) {
         throw CustomException('المنظمة غير موجودة', 404);
@@ -286,13 +260,11 @@ const deleteOrganization = asyncHandler(async (req, res) => {
  */
 const bulkDeleteOrganizations = asyncHandler(async (req, res) => {
     if (req.isDeparted) {
-        throw CustomException('ليس لديك صلاحية للوصول', 403);
+        throw CustomException('المورد غير موجود', 404);
     }
 
     const { ids, organizationIds } = req.body;
     const deleteIds = ids || organizationIds; // Support both formats
-    const lawyerId = req.userID;
-    const firmId = req.firmId;
 
     if (!deleteIds || !Array.isArray(deleteIds) || deleteIds.length === 0) {
         throw CustomException('معرفات المنظمات مطلوبة', 400);
@@ -312,15 +284,8 @@ const bulkDeleteOrganizations = asyncHandler(async (req, res) => {
         throw CustomException('بعض معرفات المنظمات غير صحيحة', 400);
     }
 
-    const isSoloLawyer = req.isSoloLawyer;
-    const accessQuery = { _id: { $in: sanitizedIds } };
-    if (isSoloLawyer || !firmId) {
-        accessQuery.lawyerId = lawyerId;
-    } else {
-        accessQuery.firmId = firmId;
-    }
-
-    const result = await Organization.deleteMany(accessQuery);
+    // SECURITY: Use req.firmQuery for firm isolation (IDOR protection)
+    const result = await Organization.deleteMany({ _id: { $in: sanitizedIds }, ...req.firmQuery });
 
     res.json({
         success: true,
@@ -335,7 +300,7 @@ const bulkDeleteOrganizations = asyncHandler(async (req, res) => {
  */
 const searchOrganizations = asyncHandler(async (req, res) => {
     if (req.isDeparted) {
-        throw CustomException('ليس لديك صلاحية للوصول', 403);
+        throw CustomException('المورد غير موجود', 404);
     }
 
     const { q, limit = 10 } = req.query;
@@ -372,27 +337,13 @@ const getOrganizationsByClient = asyncHandler(async (req, res) => {
     }
 
     // SECURITY: Verify client belongs to the user/firm (IDOR protection)
-    const isSoloLawyer = req.isSoloLawyer;
-    const clientQuery = { _id: sanitizedClientId };
-    if (isSoloLawyer || !firmId) {
-        clientQuery.lawyerId = lawyerId;
-    } else {
-        clientQuery.firmId = firmId;
-    }
-
-    const clientExists = await Client.findOne(clientQuery);
+    const clientExists = await Client.findOne({ _id: sanitizedClientId, ...req.firmQuery });
     if (!clientExists) {
-        throw CustomException('العميل غير موجود أو ليس لديك صلاحية للوصول إليه', 404);
+        throw CustomException('العميل غير موجود', 404);
     }
 
-    const query = { linkedClients: sanitizedClientId };
-    if (isSoloLawyer || !firmId) {
-        query.lawyerId = lawyerId;
-    } else {
-        query.firmId = firmId;
-    }
-
-    const organizations = await Organization.find(query).sort({ createdAt: -1 });
+    // SECURITY: Use req.firmQuery for firm isolation (IDOR protection)
+    const organizations = await Organization.find({ linkedClients: sanitizedClientId, ...req.firmQuery }).sort({ createdAt: -1 });
 
     res.json({
         success: true,
@@ -406,13 +357,12 @@ const getOrganizationsByClient = asyncHandler(async (req, res) => {
  */
 const linkToClient = asyncHandler(async (req, res) => {
     if (req.isDeparted) {
-        throw CustomException('ليس لديك صلاحية للوصول', 403);
+        throw CustomException('المورد غير موجود', 404);
     }
 
     const { id } = req.params;
     const { clientId } = req.body;
     const lawyerId = req.userID;
-    const firmId = req.firmId;
 
     // Input validation - required fields
     if (!clientId) {
@@ -430,27 +380,14 @@ const linkToClient = asyncHandler(async (req, res) => {
         throw CustomException('معرف العميل غير صحيح', 400);
     }
 
-    const isSoloLawyer = req.isSoloLawyer;
-    const accessQuery = { _id: sanitizedId };
-    if (isSoloLawyer || !firmId) {
-        accessQuery.lawyerId = lawyerId;
-    } else {
-        accessQuery.firmId = firmId;
-    }
-
-    const organization = await Organization.findOne(accessQuery);
+    // SECURITY: Use req.firmQuery for firm isolation (IDOR protection)
+    const organization = await Organization.findOne({ _id: sanitizedId, ...req.firmQuery });
     if (!organization) {
         throw CustomException('المنظمة غير موجودة', 404);
     }
 
-    const isSoloLawyer2 = req.isSoloLawyer;
-    const clientQuery = { _id: sanitizedClientId };
-    if (isSoloLawyer2 || !firmId) {
-        clientQuery.lawyerId = lawyerId;
-    } else {
-        clientQuery.firmId = firmId;
-    }
-    const clientExists = await Client.findOne(clientQuery);
+    // SECURITY: Use req.firmQuery for firm isolation (IDOR protection)
+    const clientExists = await Client.findOne({ _id: sanitizedClientId, ...req.firmQuery });
     if (!clientExists) {
         throw CustomException('العميل غير موجود', 404);
     }
@@ -473,13 +410,12 @@ const linkToClient = asyncHandler(async (req, res) => {
  */
 const linkToContact = asyncHandler(async (req, res) => {
     if (req.isDeparted) {
-        throw CustomException('ليس لديك صلاحية للوصول', 403);
+        throw CustomException('المورد غير موجود', 404);
     }
 
     const { id } = req.params;
     const { contactId } = req.body;
     const lawyerId = req.userID;
-    const firmId = req.firmId;
 
     // Input validation - required fields
     if (!contactId) {
@@ -497,27 +433,14 @@ const linkToContact = asyncHandler(async (req, res) => {
         throw CustomException('معرف جهة الاتصال غير صحيح', 400);
     }
 
-    const isSoloLawyer = req.isSoloLawyer;
-    const accessQuery = { _id: sanitizedId };
-    if (isSoloLawyer || !firmId) {
-        accessQuery.lawyerId = lawyerId;
-    } else {
-        accessQuery.firmId = firmId;
-    }
-
-    const organization = await Organization.findOne(accessQuery);
+    // SECURITY: Use req.firmQuery for firm isolation (IDOR protection)
+    const organization = await Organization.findOne({ _id: sanitizedId, ...req.firmQuery });
     if (!organization) {
         throw CustomException('المنظمة غير موجودة', 404);
     }
 
-    const isSoloLawyer2 = req.isSoloLawyer;
-    const contactQuery = { _id: sanitizedContactId };
-    if (isSoloLawyer2 || !firmId) {
-        contactQuery.lawyerId = lawyerId;
-    } else {
-        contactQuery.firmId = firmId;
-    }
-    const contactExists = await Contact.findOne(contactQuery);
+    // SECURITY: Use req.firmQuery for firm isolation (IDOR protection)
+    const contactExists = await Contact.findOne({ _id: sanitizedContactId, ...req.firmQuery });
     if (!contactExists) {
         throw CustomException('جهة الاتصال غير موجودة', 404);
     }
@@ -540,13 +463,12 @@ const linkToContact = asyncHandler(async (req, res) => {
  */
 const linkToCase = asyncHandler(async (req, res) => {
     if (req.isDeparted) {
-        throw CustomException('ليس لديك صلاحية للوصول', 403);
+        throw CustomException('المورد غير موجود', 404);
     }
 
     const { id } = req.params;
     const { caseId } = req.body;
     const lawyerId = req.userID;
-    const firmId = req.firmId;
 
     // Input validation - required fields
     if (!caseId) {
@@ -564,27 +486,14 @@ const linkToCase = asyncHandler(async (req, res) => {
         throw CustomException('معرف القضية غير صحيح', 400);
     }
 
-    const isSoloLawyer = req.isSoloLawyer;
-    const accessQuery = { _id: sanitizedId };
-    if (isSoloLawyer || !firmId) {
-        accessQuery.lawyerId = lawyerId;
-    } else {
-        accessQuery.firmId = firmId;
-    }
-
-    const organization = await Organization.findOne(accessQuery);
+    // SECURITY: Use req.firmQuery for firm isolation (IDOR protection)
+    const organization = await Organization.findOne({ _id: sanitizedId, ...req.firmQuery });
     if (!organization) {
         throw CustomException('المنظمة غير موجودة', 404);
     }
 
-    const isSoloLawyer2 = req.isSoloLawyer;
-    const caseQuery = { _id: sanitizedCaseId };
-    if (isSoloLawyer2 || !firmId) {
-        caseQuery.lawyerId = lawyerId;
-    } else {
-        caseQuery.firmId = firmId;
-    }
-    const caseExists = await Case.findOne(caseQuery);
+    // SECURITY: Use req.firmQuery for firm isolation (IDOR protection)
+    const caseExists = await Case.findOne({ _id: sanitizedCaseId, ...req.firmQuery });
     if (!caseExists) {
         throw CustomException('القضية غير موجودة', 404);
     }

@@ -36,11 +36,13 @@ class SavedFilterService {
      * Get saved filter by ID
      * @param {String|ObjectId} filterId - Filter ID
      * @param {String|ObjectId} userId - User ID (for access control)
+     * @param {String|ObjectId} firmId - Firm ID (for IDOR protection)
      * @returns {Promise<Object>} - Saved filter
      */
-    async getSavedFilterById(filterId, userId) {
+    async getSavedFilterById(filterId, userId, firmId) {
         try {
-            const filter = await SavedFilter.findById(filterId)
+            // IDOR Protection: Query with firmId isolation
+            const filter = await SavedFilter.findOne({ _id: filterId, firmId })
                 .populate('userId', 'firstName lastName email')
                 .populate('sharedWith', 'firstName lastName email')
                 .lean();
@@ -55,7 +57,7 @@ class SavedFilterService {
                 filter.sharedWith.some(user => user._id.toString() === userId.toString());
 
             if (!hasAccess) {
-                throw new Error('Access denied');
+                throw new Error('Filter not found');
             }
 
             return filter;
@@ -133,11 +135,13 @@ class SavedFilterService {
      * @param {String|ObjectId} filterId - Filter ID
      * @param {Object} data - Update data
      * @param {String|ObjectId} userId - User ID (for access control)
+     * @param {String|ObjectId} firmId - Firm ID (for IDOR protection)
      * @returns {Promise<Object>} - Updated filter
      */
-    async updateSavedFilter(filterId, data, userId) {
+    async updateSavedFilter(filterId, data, userId, firmId) {
         try {
-            const filter = await SavedFilter.findById(filterId);
+            // IDOR Protection: Query with firmId isolation
+            const filter = await SavedFilter.findOne({ _id: filterId, firmId });
 
             if (!filter) {
                 throw new Error('Filter not found');
@@ -145,7 +149,7 @@ class SavedFilterService {
 
             // Check ownership
             if (filter.userId.toString() !== userId.toString()) {
-                throw new Error('Only the owner can update the filter');
+                throw new Error('Filter not found');
             }
 
             // If setting as default, unset other defaults
@@ -166,8 +170,8 @@ class SavedFilterService {
             Object.assign(filter, data);
             await filter.save();
 
-            // Populate references
-            const populatedFilter = await SavedFilter.findById(filterId)
+            // Populate references - use firmId for consistency
+            const populatedFilter = await SavedFilter.findOne({ _id: filterId, firmId })
                 .populate('userId', 'firstName lastName email')
                 .populate('sharedWith', 'firstName lastName email');
 
@@ -198,11 +202,13 @@ class SavedFilterService {
      * Delete saved filter
      * @param {String|ObjectId} filterId - Filter ID
      * @param {String|ObjectId} userId - User ID (for access control)
+     * @param {String|ObjectId} firmId - Firm ID (for IDOR protection)
      * @returns {Promise<void>}
      */
-    async deleteSavedFilter(filterId, userId) {
+    async deleteSavedFilter(filterId, userId, firmId) {
         try {
-            const filter = await SavedFilter.findById(filterId);
+            // IDOR Protection: Query with firmId isolation
+            const filter = await SavedFilter.findOne({ _id: filterId, firmId });
 
             if (!filter) {
                 throw new Error('Filter not found');
@@ -210,10 +216,11 @@ class SavedFilterService {
 
             // Check ownership
             if (filter.userId.toString() !== userId.toString()) {
-                throw new Error('Only the owner can delete the filter');
+                throw new Error('Filter not found');
             }
 
-            await SavedFilter.findByIdAndDelete(filterId);
+            // IDOR Protection: Delete with firmId isolation
+            await SavedFilter.findOneAndDelete({ _id: filterId, firmId });
 
             // Log to audit
             await AuditLogService.log(
@@ -244,12 +251,14 @@ class SavedFilterService {
      * Set filter as default for entity type
      * @param {String|ObjectId} filterId - Filter ID
      * @param {String|ObjectId} userId - User ID
+     * @param {String|ObjectId} firmId - Firm ID (for IDOR protection)
      * @param {String} entityType - Entity type (optional, for validation)
      * @returns {Promise<Object>} - Updated filter
      */
-    async setAsDefault(filterId, userId, entityType = null) {
+    async setAsDefault(filterId, userId, firmId, entityType = null) {
         try {
-            const filter = await SavedFilter.findById(filterId);
+            // IDOR Protection: Query with firmId isolation
+            const filter = await SavedFilter.findOne({ _id: filterId, firmId });
 
             if (!filter) {
                 throw new Error('Filter not found');
@@ -257,7 +266,7 @@ class SavedFilterService {
 
             // Check ownership
             if (filter.userId.toString() !== userId.toString()) {
-                throw new Error('Only the owner can set default filter');
+                throw new Error('Filter not found');
             }
 
             // Validate entity type if provided
@@ -313,11 +322,13 @@ class SavedFilterService {
      * @param {String|ObjectId} filterId - Filter ID
      * @param {Array<String|ObjectId>} userIds - User IDs to share with
      * @param {String|ObjectId} ownerId - Owner user ID (for access control)
+     * @param {String|ObjectId} firmId - Firm ID (for IDOR protection)
      * @returns {Promise<Object>} - Updated filter
      */
-    async shareFilter(filterId, userIds, ownerId) {
+    async shareFilter(filterId, userIds, ownerId, firmId) {
         try {
-            const filter = await SavedFilter.findById(filterId);
+            // IDOR Protection: Query with firmId isolation
+            const filter = await SavedFilter.findOne({ _id: filterId, firmId });
 
             if (!filter) {
                 throw new Error('Filter not found');
@@ -325,13 +336,13 @@ class SavedFilterService {
 
             // Check ownership
             if (filter.userId.toString() !== ownerId.toString()) {
-                throw new Error('Only the owner can share the filter');
+                throw new Error('Filter not found');
             }
 
             await filter.shareWith(userIds);
 
-            // Populate references
-            const populatedFilter = await SavedFilter.findById(filterId)
+            // Populate references - use firmId for consistency
+            const populatedFilter = await SavedFilter.findOne({ _id: filterId, firmId })
                 .populate('userId', 'firstName lastName email')
                 .populate('sharedWith', 'firstName lastName email');
 
@@ -363,11 +374,13 @@ class SavedFilterService {
      * @param {String|ObjectId} filterId - Filter ID
      * @param {String|ObjectId} userId - User ID to unshare from
      * @param {String|ObjectId} ownerId - Owner user ID (for access control)
+     * @param {String|ObjectId} firmId - Firm ID (for IDOR protection)
      * @returns {Promise<Object>} - Updated filter
      */
-    async unshareFilter(filterId, userId, ownerId) {
+    async unshareFilter(filterId, userId, ownerId, firmId) {
         try {
-            const filter = await SavedFilter.findById(filterId);
+            // IDOR Protection: Query with firmId isolation
+            const filter = await SavedFilter.findOne({ _id: filterId, firmId });
 
             if (!filter) {
                 throw new Error('Filter not found');
@@ -375,13 +388,13 @@ class SavedFilterService {
 
             // Check ownership
             if (filter.userId.toString() !== ownerId.toString()) {
-                throw new Error('Only the owner can unshare the filter');
+                throw new Error('Filter not found');
             }
 
             await filter.unshareFrom(userId);
 
-            // Populate references
-            const populatedFilter = await SavedFilter.findById(filterId)
+            // Populate references - use firmId for consistency
+            const populatedFilter = await SavedFilter.findOne({ _id: filterId, firmId })
                 .populate('userId', 'firstName lastName email')
                 .populate('sharedWith', 'firstName lastName email');
 
@@ -415,11 +428,13 @@ class SavedFilterService {
     /**
      * Record filter usage
      * @param {String|ObjectId} filterId - Filter ID
+     * @param {String|ObjectId} firmId - Firm ID (for IDOR protection)
      * @returns {Promise<void>}
      */
-    async recordUsage(filterId) {
+    async recordUsage(filterId, firmId) {
         try {
-            const filter = await SavedFilter.findById(filterId);
+            // IDOR Protection: Query with firmId isolation
+            const filter = await SavedFilter.findOne({ _id: filterId, firmId });
 
             if (!filter) {
                 // Silently fail - don't throw error for usage tracking
@@ -459,11 +474,13 @@ class SavedFilterService {
      * Duplicate a filter
      * @param {String|ObjectId} filterId - Filter ID to duplicate
      * @param {String|ObjectId} userId - User ID (will own the duplicate)
+     * @param {String|ObjectId} firmId - Firm ID (for IDOR protection)
      * @returns {Promise<Object>} - Duplicated filter
      */
-    async duplicateFilter(filterId, userId) {
+    async duplicateFilter(filterId, userId, firmId) {
         try {
-            const originalFilter = await SavedFilter.findById(filterId);
+            // IDOR Protection: Query with firmId isolation
+            const originalFilter = await SavedFilter.findOne({ _id: filterId, firmId });
 
             if (!originalFilter) {
                 throw new Error('Filter not found');
@@ -475,7 +492,7 @@ class SavedFilterService {
                 originalFilter.sharedWith.some(id => id.toString() === userId.toString());
 
             if (!hasAccess) {
-                throw new Error('Access denied');
+                throw new Error('Filter not found');
             }
 
             // Create duplicate

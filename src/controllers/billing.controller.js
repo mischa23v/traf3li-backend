@@ -141,8 +141,8 @@ exports.createSubscription = asyncHandler(async (req, res) => {
         throw CustomException('Firm already has an active subscription. Use the change subscription endpoint instead.', 400);
     }
 
-    // Get firm details
-    const firm = await Firm.findById(firmId);
+    // Get firm details with IDOR protection
+    const firm = await Firm.findOne({ _id: firmId });
     if (!firm) {
         throw CustomException('Firm not found', 404);
     }
@@ -167,8 +167,8 @@ exports.createSubscription = asyncHandler(async (req, res) => {
             });
             stripeCustomerId = stripeCustomer.id;
 
-            // Update firm with Stripe customer ID
-            await Firm.findByIdAndUpdate(firmId, { stripeCustomerId });
+            // Update firm with Stripe customer ID (IDOR protection)
+            await Firm.findOneAndUpdate({ _id: firmId }, { stripeCustomerId });
         } catch (error) {
             logger.error('Failed to create Stripe customer', { error: error.message, firmId });
             throw CustomException('Failed to create billing account. Please try again.', 500);
@@ -579,8 +579,8 @@ exports.addPaymentMethod = asyncHandler(async (req, res) => {
         throw CustomException('setAsDefault must be a boolean value', 400);
     }
 
-    // Get firm and subscription
-    const firm = await Firm.findById(firmId);
+    // Get firm and subscription with IDOR protection
+    const firm = await Firm.findOne({ _id: firmId });
     const subscription = await Subscription.findOne({ firmId });
 
     if (!firm) {
@@ -598,7 +598,7 @@ exports.addPaymentMethod = asyncHandler(async (req, res) => {
                 metadata: { firmId: firmId.toString() }
             });
             stripeCustomerId = stripeCustomer.id;
-            await Firm.findByIdAndUpdate(firmId, { stripeCustomerId });
+            await Firm.findOneAndUpdate({ _id: firmId }, { stripeCustomerId });
         } catch (error) {
             logger.error('Failed to create Stripe customer', { error: error.message, firmId });
             throw CustomException('Failed to create billing account. Please try again.', 500);
@@ -760,8 +760,8 @@ exports.setDefaultPaymentMethod = asyncHandler(async (req, res) => {
         throw CustomException('Payment method not found', 404);
     }
 
-    // Update in Stripe
-    const firm = await Firm.findById(firmId);
+    // Update in Stripe with IDOR protection
+    const firm = await Firm.findOne({ _id: firmId });
     if (firm.stripeCustomerId && paymentMethod.stripePaymentMethodId) {
         try {
             await stripe.customers.update(firm.stripeCustomerId, {
@@ -794,7 +794,7 @@ exports.createSetupIntent = asyncHandler(async (req, res) => {
         throw CustomException('Firm not found', 404);
     }
 
-    const firm = await Firm.findById(firmId);
+    const firm = await Firm.findOne({ _id: firmId });
     if (!firm) {
         throw CustomException('Firm not found', 404);
     }
@@ -810,7 +810,7 @@ exports.createSetupIntent = asyncHandler(async (req, res) => {
                 metadata: { firmId: firmId.toString() }
             });
             stripeCustomerId = stripeCustomer.id;
-            await Firm.findByIdAndUpdate(firmId, { stripeCustomerId });
+            await Firm.findOneAndUpdate({ _id: firmId }, { stripeCustomerId });
         } catch (error) {
             logger.error('Failed to create Stripe customer', { error: error.message, firmId });
             throw CustomException('Failed to create billing account. Please try again.', 500);
@@ -1500,7 +1500,7 @@ async function handlePayoutPaid(stripePayout) {
 
         // If not found by payout ID, try by metadata
         if (!payout && metadata?.payoutId) {
-            payout = await Payout.findById(metadata.payoutId);
+            payout = await Payout.findOne({ _id: metadata.payoutId });
         }
 
         if (!payout) {
@@ -1551,7 +1551,7 @@ async function handlePayoutFailed(stripePayout) {
         let payout = await Payout.findOne({ stripePayoutId: id });
 
         if (!payout && metadata?.payoutId) {
-            payout = await Payout.findById(metadata.payoutId);
+            payout = await Payout.findOne({ _id: metadata.payoutId });
         }
 
         if (!payout) {

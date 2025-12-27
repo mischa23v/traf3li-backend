@@ -36,8 +36,8 @@ const createMessage = async (request, response) => {
             });
         }
 
-        // SECURITY: IDOR Protection - Verify user is a participant in this conversation
-        const conversation = await Conversation.findOne({ conversationID })
+        // SECURITY: IDOR Protection - Verify user is a participant in this conversation with firmId isolation
+        const conversation = await Conversation.findOne({ conversationID, ...request.firmQuery })
             .populate('sellerID buyerID', '_id username');
 
         if (!conversation) {
@@ -55,9 +55,9 @@ const createMessage = async (request, response) => {
 
         if (!isParticipant) {
             logger.error(`IDOR attempt: User ${sanitizeForLog(userIdString)} tried to access conversation ${sanitizeForLog(conversationID)}`);
-            return response.status(403).send({
+            return response.status(404).send({
                 error: true,
-                message: 'Unauthorized access to this conversation'
+                message: 'Conversation not found'
             });
         }
 
@@ -94,7 +94,7 @@ const createMessage = async (request, response) => {
         await message.save();
 
         const updatedConversation = await Conversation.findOneAndUpdate(
-            { conversationID },
+            { conversationID, ...request.firmQuery },
             {
                 $set: {
                     readBySeller: request.isSeller,
@@ -153,8 +153,8 @@ const getMessages = async (request, response) => {
     const { conversationID } = request.params;
 
     try {
-        // SECURITY: IDOR Protection - Verify user is a participant in this conversation
-        const conversation = await Conversation.findOne({ conversationID });
+        // SECURITY: IDOR Protection - Verify user is a participant in this conversation with firmId isolation
+        const conversation = await Conversation.findOne({ conversationID, ...request.firmQuery });
 
         if (!conversation) {
             return response.status(404).send({
@@ -171,13 +171,13 @@ const getMessages = async (request, response) => {
 
         if (!isParticipant) {
             logger.error(`IDOR attempt: User ${sanitizeForLog(userIdString)} tried to access messages from conversation ${sanitizeForLog(conversationID)}`);
-            return response.status(403).send({
+            return response.status(404).send({
                 error: true,
-                message: 'Unauthorized access to this conversation'
+                message: 'Conversation not found'
             });
         }
 
-        const messages = await Message.find({ conversationID })
+        const messages = await Message.find({ conversationID, ...request.firmQuery })
             .populate('userID', 'username image email')
             .populate('readBy.userId', 'username')
             .sort({ createdAt: 1 });
@@ -198,8 +198,8 @@ const markAsRead = async (request, response) => {
     const { conversationID } = request.params;
 
     try {
-        // SECURITY: IDOR Protection - Verify user is a participant in this conversation
-        const conversation = await Conversation.findOne({ conversationID });
+        // SECURITY: IDOR Protection - Verify user is a participant in this conversation with firmId isolation
+        const conversation = await Conversation.findOne({ conversationID, ...request.firmQuery });
 
         if (!conversation) {
             return response.status(404).send({
@@ -216,15 +216,16 @@ const markAsRead = async (request, response) => {
 
         if (!isParticipant) {
             logger.error(`IDOR attempt: User ${sanitizeForLog(userIdString)} tried to mark messages as read in conversation ${sanitizeForLog(conversationID)}`);
-            return response.status(403).send({
+            return response.status(404).send({
                 error: true,
-                message: 'Unauthorized access to this conversation'
+                message: 'Conversation not found'
             });
         }
 
         await Message.updateMany(
             {
                 conversationID,
+                ...request.firmQuery,
                 userID: { $ne: request.userID },
                 'readBy.userId': { $ne: request.userID }
             },
@@ -261,8 +262,9 @@ const getMessageStats = async (request, response) => {
     const userId = request.userID;
 
     try {
-        // Get all conversations where user is a participant
+        // Get all conversations where user is a participant with firmId isolation
         const conversations = await Conversation.find({
+            ...request.firmQuery,
             $or: [
                 { sellerID: userId },
                 { buyerID: userId }
@@ -278,15 +280,17 @@ const getMessageStats = async (request, response) => {
             return isSeller ? !conv.readBySeller : !conv.readByBuyer;
         }).length;
 
-        // Count total unread messages (messages not sent by user and not in readBy)
+        // Count total unread messages (messages not sent by user and not in readBy) with firmId isolation
         const unreadMessages = await Message.countDocuments({
+            ...request.firmQuery,
             conversationID: { $in: conversationIds },
             userID: { $ne: userId },
             'readBy.userId': { $ne: userId }
         });
 
-        // Count total messages in user's conversations
+        // Count total messages in user's conversations with firmId isolation
         const totalMessages = await Message.countDocuments({
+            ...request.firmQuery,
             conversationID: { $in: conversationIds }
         });
 

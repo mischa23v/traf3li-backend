@@ -127,7 +127,7 @@ exports.getReferrals = async (req, res) => {
             skip: (pageNum - 1) * limitNum
         });
 
-        const total = await Referral.countDocuments({ lawyerId, ...(status ? { status } : {}) });
+        const total = await Referral.countDocuments({ ...req.firmQuery, ...(status ? { status } : {}) });
 
         res.json({
             success: true,
@@ -167,7 +167,7 @@ exports.getReferral = async (req, res) => {
 
         const referral = await Referral.findOne({
             $or: [{ _id: sanitizedId }, { referralId: id }],
-            lawyerId
+            ...req.firmQuery
         })
         .populate('referredLeads.leadId', 'leadId displayName status estimatedValue')
         .populate('referredClients.clientId', 'clientId name');
@@ -176,14 +176,6 @@ exports.getReferral = async (req, res) => {
             return res.status(404).json({
                 success: false,
                 message: 'Referral not found'
-            });
-        }
-
-        // IDOR protection - verify firmId ownership
-        if (referral.firmId && referral.firmId.toString() !== firmId) {
-            return res.status(403).json({
-                success: false,
-                message: 'Access denied'
             });
         }
 
@@ -219,21 +211,13 @@ exports.updateReferral = async (req, res) => {
 
         const referral = await Referral.findOne({
             $or: [{ _id: sanitizedId }, { referralId: id }],
-            lawyerId
+            ...req.firmQuery
         });
 
         if (!referral) {
             return res.status(404).json({
                 success: false,
                 message: 'Referral not found'
-            });
-        }
-
-        // IDOR protection - verify firmId ownership
-        if (referral.firmId && referral.firmId.toString() !== firmId) {
-            return res.status(403).json({
-                success: false,
-                message: 'Access denied'
             });
         }
 
@@ -334,21 +318,13 @@ exports.deleteReferral = async (req, res) => {
 
         const referral = await Referral.findOne({
             $or: [{ _id: sanitizedId }, { referralId: id }],
-            lawyerId
+            ...req.firmQuery
         });
 
         if (!referral) {
             return res.status(404).json({
                 success: false,
                 message: 'Referral not found'
-            });
-        }
-
-        // IDOR protection - verify firmId ownership
-        if (referral.firmId && referral.firmId.toString() !== firmId) {
-            return res.status(403).json({
-                success: false,
-                message: 'Access denied'
             });
         }
 
@@ -426,7 +402,7 @@ exports.addLeadReferral = async (req, res) => {
 
         const referral = await Referral.findOne({
             $or: [{ _id: sanitizedId }, { referralId: id }],
-            lawyerId
+            ...req.firmQuery
         });
 
         if (!referral) {
@@ -436,28 +412,12 @@ exports.addLeadReferral = async (req, res) => {
             });
         }
 
-        // IDOR protection - verify firmId ownership for referral
-        if (referral.firmId && referral.firmId.toString() !== firmId) {
-            return res.status(403).json({
-                success: false,
-                message: 'Access denied'
-            });
-        }
-
-        // Verify lead exists and belongs to same lawyer/firm
-        const lead = await Lead.findOne({ _id: sanitizedLeadId, lawyerId });
+        // Verify lead exists and belongs to same firm
+        const lead = await Lead.findOne({ _id: sanitizedLeadId, ...req.firmQuery });
         if (!lead) {
             return res.status(404).json({
                 success: false,
                 message: 'Lead not found'
-            });
-        }
-
-        // IDOR protection - verify firmId ownership for lead
-        if (lead.firmId && lead.firmId.toString() !== firmId) {
-            return res.status(403).json({
-                success: false,
-                message: 'Access denied to lead'
             });
         }
 
@@ -526,21 +486,13 @@ exports.markConverted = async (req, res) => {
 
         const referral = await Referral.findOne({
             $or: [{ _id: sanitizedId }, { referralId: id }],
-            lawyerId
+            ...req.firmQuery
         });
 
         if (!referral) {
             return res.status(404).json({
                 success: false,
                 message: 'Referral not found'
-            });
-        }
-
-        // IDOR protection - verify firmId ownership
-        if (referral.firmId && referral.firmId.toString() !== firmId) {
-            return res.status(403).json({
-                success: false,
-                message: 'Access denied'
             });
         }
 
@@ -627,21 +579,13 @@ exports.recordPayment = async (req, res) => {
 
         const referral = await Referral.findOne({
             $or: [{ _id: sanitizedId }, { referralId: id }],
-            lawyerId
+            ...req.firmQuery
         });
 
         if (!referral) {
             return res.status(404).json({
                 success: false,
                 message: 'Referral not found'
-            });
-        }
-
-        // IDOR protection - verify firmId ownership
-        if (referral.firmId && referral.firmId.toString() !== firmId) {
-            return res.status(403).json({
-                success: false,
-                message: 'Access denied'
             });
         }
 
@@ -756,21 +700,13 @@ exports.calculateFee = async (req, res) => {
 
         const referral = await Referral.findOne({
             $or: [{ _id: sanitizedId }, { referralId: id }],
-            lawyerId
+            ...req.firmQuery
         });
 
         if (!referral) {
             return res.status(404).json({
                 success: false,
                 message: 'Referral not found'
-            });
-        }
-
-        // IDOR protection - verify firmId ownership
-        if (referral.firmId && referral.firmId.toString() !== firmId) {
-            return res.status(403).json({
-                success: false,
-                message: 'Access denied'
             });
         }
 

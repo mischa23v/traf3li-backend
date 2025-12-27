@@ -181,7 +181,7 @@ const getWorkflow = asyncHandler(async (req, res) => {
     }
 
     // IDOR protection - verify firmId
-    const workflow = await ApprovalWorkflow.findOne({ _id: sanitizedId, firmId })
+    const workflow = await ApprovalWorkflow.findOne({ _id: sanitizedId, ...req.firmQuery })
         .populate('createdBy', 'firstName lastName email')
         .populate('updatedBy', 'firstName lastName email')
         .lean();
@@ -240,7 +240,7 @@ const updateWorkflow = asyncHandler(async (req, res) => {
     ]);
 
     // IDOR protection - verify firmId
-    const workflow = await ApprovalWorkflow.findOne({ _id: sanitizedId, firmId });
+    const workflow = await ApprovalWorkflow.findOne({ _id: sanitizedId, ...req.firmQuery });
 
     if (!workflow) {
         throw CustomException('قاعدة الموافقة غير موجودة', 404);
@@ -299,7 +299,7 @@ const deleteWorkflow = asyncHandler(async (req, res) => {
     }
 
     // IDOR protection - verify firmId
-    const workflow = await ApprovalWorkflow.findOne({ _id: sanitizedId, firmId });
+    const workflow = await ApprovalWorkflow.findOne({ _id: sanitizedId, ...req.firmQuery });
 
     if (!workflow) {
         throw CustomException('قاعدة الموافقة غير موجودة', 404);
@@ -474,7 +474,7 @@ const recordDecision = asyncHandler(async (req, res) => {
     }
 
     // Verify instance belongs to firm (IDOR protection)
-    const instance = await ApprovalInstance.findOne({ _id: sanitizedId, firmId });
+    const instance = await ApprovalInstance.findOne({ _id: sanitizedId, ...req.firmQuery });
 
     if (!instance) {
         throw CustomException('طلب الموافقة غير موجود', 404);
@@ -529,7 +529,7 @@ const cancelApproval = asyncHandler(async (req, res) => {
     const { reason } = pickAllowedFields(req.body, ['reason']);
 
     // Verify instance belongs to firm (IDOR protection)
-    const instance = await ApprovalInstance.findOne({ _id: sanitizedId, firmId });
+    const instance = await ApprovalInstance.findOne({ _id: sanitizedId, ...req.firmQuery });
 
     if (!instance) {
         throw CustomException('طلب الموافقة غير موجود', 404);
@@ -593,7 +593,7 @@ const delegateApproval = asyncHandler(async (req, res) => {
     }
 
     // Verify instance belongs to firm (IDOR protection)
-    const instance = await ApprovalInstance.findOne({ _id: sanitizedId, firmId });
+    const instance = await ApprovalInstance.findOne({ _id: sanitizedId, ...req.firmQuery });
 
     if (!instance) {
         throw CustomException('طلب الموافقة غير موجود', 404);
@@ -776,7 +776,7 @@ const getApprovalRequest = asyncHandler(async (req, res) => {
         throw CustomException('معرف الطلب غير صالح', 400);
     }
 
-    const request = await ApprovalRequest.findOne({ _id: sanitizedId, firmId })
+    const request = await ApprovalRequest.findOne({ _id: sanitizedId, ...req.firmQuery })
         .populate('requestedBy', 'firstName lastName email avatar')
         .populate('finalizedBy', 'firstName lastName email')
         .populate('decisions.userId', 'firstName lastName email')
@@ -821,7 +821,7 @@ const approveRequest = asyncHandler(async (req, res) => {
     // Verify request belongs to this firm and is in pending status
     const request = await ApprovalRequest.findOne({
         _id: sanitizedId,
-        firmId,
+        ...req.firmQuery,
         status: 'pending' // Prevent approval status manipulation
     });
 
@@ -840,12 +840,12 @@ const approveRequest = asyncHandler(async (req, res) => {
     const canApprove = isRequiredApprover || hasRequiredRole || isOwnerOrAdmin;
 
     if (!canApprove) {
-        throw CustomException('ليس لديك صلاحية للموافقة على هذا الطلب', 403);
+        throw CustomException('طلب الموافقة غير موجود أو تمت معالجته بالفعل', 404);
     }
 
     // Prevent users from approving their own requests
     if (request.requestedBy.toString() === userId.toString()) {
-        throw CustomException('لا يمكنك الموافقة على طلبك الخاص', 403);
+        throw CustomException('طلب الموافقة غير موجود أو تمت معالجته بالفعل', 404);
     }
 
     // Check if user already approved this request
@@ -915,7 +915,7 @@ const rejectRequest = asyncHandler(async (req, res) => {
     // Verify request belongs to this firm and is in pending status
     const request = await ApprovalRequest.findOne({
         _id: sanitizedId,
-        firmId,
+        ...req.firmQuery,
         status: 'pending' // Prevent approval status manipulation
     });
 
@@ -934,12 +934,12 @@ const rejectRequest = asyncHandler(async (req, res) => {
     const canReject = isRequiredApprover || hasRequiredRole || isOwnerOrAdmin;
 
     if (!canReject) {
-        throw CustomException('ليس لديك صلاحية لرفض هذا الطلب', 403);
+        throw CustomException('طلب الموافقة غير موجود أو تمت معالجته بالفعل', 404);
     }
 
     // Prevent users from rejecting their own requests
     if (request.requestedBy.toString() === userId.toString()) {
-        throw CustomException('لا يمكنك رفض طلبك الخاص', 403);
+        throw CustomException('طلب الموافقة غير موجود أو تمت معالجته بالفعل', 404);
     }
 
     const rejected = await ApprovalRequest.reject(sanitizedId, userId, reason);

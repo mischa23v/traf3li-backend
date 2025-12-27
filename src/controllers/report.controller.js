@@ -198,7 +198,7 @@ const getReport = asyncHandler(async (req, res) => {
         (report.scope === 'personal' && report.ownerId._id.toString() === userId);
 
     if (!hasAccess) {
-        throw CustomException('لا يمكنك الوصول إلى هذا التقرير / Access denied to this report', 403);
+        throw CustomException('التقرير غير موجود / Report not found', 404);
     }
 
     logger.info('Report retrieved successfully', {
@@ -258,7 +258,7 @@ const updateReport = asyncHandler(async (req, res) => {
 
     // IDOR Protection: Only owner can update personal reports
     if (report.scope === 'personal' && report.ownerId.toString() !== userId) {
-        throw CustomException('لا يمكنك تحديث هذا التقرير / Cannot update this report', 403);
+        throw CustomException('التقرير غير موجود / Report not found', 404);
     }
 
     // TODO: Add role-based permission check for team/global reports
@@ -345,10 +345,13 @@ const deleteReport = asyncHandler(async (req, res) => {
 
     // IDOR Protection: Only owner can delete
     if (report.ownerId.toString() !== userId) {
-        throw CustomException('لا يمكنك حذف هذا التقرير / Cannot delete this report', 403);
+        throw CustomException('التقرير غير موجود / Report not found', 404);
     }
 
-    await ReportDefinition.findByIdAndDelete(sanitizedId);
+    await ReportDefinition.findOneAndDelete({
+        _id: sanitizedId,
+        firmId
+    });
 
     logger.info('Report deleted successfully', {
         reportId: sanitizedId,
@@ -492,7 +495,10 @@ const exportReport = asyncHandler(async (req, res) => {
     }
 
     // Get report name for filename
-    const report = await ReportDefinition.findById(sanitizedId);
+    const report = await ReportDefinition.findOne({
+        _id: sanitizedId,
+        firmId
+    });
     const filename = report
         ? `${report.name.replace(/[^a-z0-9]/gi, '_')}_${Date.now()}.${extension}`
         : `report_${Date.now()}.${extension}`;
