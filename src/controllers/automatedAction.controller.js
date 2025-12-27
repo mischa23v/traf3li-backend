@@ -160,15 +160,6 @@ const validateTriggerFieldIds = (triggerFieldIds) => {
     return { valid: true };
 };
 
-/**
- * Get firmId from user context
- * This should be implemented based on your authentication middleware
- */
-const getFirmId = (req) => {
-    // Check if firmId is set in request (from auth middleware)
-    return req.firmId || req.user?.firmId || null;
-};
-
 // ============================================
 // CONTROLLER FUNCTIONS
 // ============================================
@@ -181,7 +172,8 @@ const getActions = asyncHandler(async (req, res) => {
     const { model_name, trigger, isActive, page = 1, limit = 50 } = req.query;
     const lawyerId = req.userID;
 
-    const query = { lawyerId };
+    // SECURITY: IDOR Protection - Include firmId isolation
+    const query = { lawyerId, ...req.firmQuery };
 
     if (model_name) query.model_name = model_name;
     if (trigger) query.trigger = trigger;
@@ -219,7 +211,6 @@ const getActions = asyncHandler(async (req, res) => {
 const getAction = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const lawyerId = req.userID;
-    const firmId = getFirmId(req);
 
     // SECURITY: Sanitize ObjectId to prevent NoSQL injection
     const sanitizedId = sanitizeObjectId(id);
@@ -229,11 +220,7 @@ const getAction = asyncHandler(async (req, res) => {
 
     // Placeholder for AutomatedAction model
     // SECURITY: IDOR Protection - Verify ownership via lawyerId and firmId
-    // const query = { _id: sanitizedId, lawyerId };
-    // if (firmId) {
-    //     query.firmId = firmId;
-    // }
-    // const action = await AutomatedAction.findOne(query)
+    // const action = await AutomatedAction.findOne({ _id: sanitizedId, lawyerId, ...req.firmQuery })
     //     .populate('createdBy', 'firstName lastName')
     //     .populate('trigger_field_ids');
 
@@ -256,7 +243,6 @@ const getAction = asyncHandler(async (req, res) => {
  */
 const createAction = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
-    const firmId = getFirmId(req);
 
     // SECURITY: Mass assignment protection - only allow specific fields
     const allowedFields = [
@@ -381,6 +367,7 @@ const createAction = asyncHandler(async (req, res) => {
     // Placeholder for AutomatedAction model
     // const actionData = {
     //     lawyerId,
+    //     ...req.firmQuery, // SECURITY: IDOR Protection - Include firmId isolation
     //     name,
     //     nameAr,
     //     model_name,
@@ -403,11 +390,6 @@ const createAction = asyncHandler(async (req, res) => {
     //     isActive: isActive !== undefined ? isActive : true,
     //     createdBy: lawyerId
     // };
-    //
-    // // SECURITY: IDOR Protection - Associate with firmId
-    // if (firmId) {
-    //     actionData.firmId = firmId;
-    // }
     //
     // const action = await AutomatedAction.create(actionData);
 
@@ -438,7 +420,6 @@ const createAction = asyncHandler(async (req, res) => {
 const updateAction = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const lawyerId = req.userID;
-    const firmId = getFirmId(req);
 
     // SECURITY: Sanitize ObjectId to prevent NoSQL injection
     const sanitizedId = sanitizeObjectId(id);
@@ -525,11 +506,7 @@ const updateAction = asyncHandler(async (req, res) => {
 
     // Placeholder for AutomatedAction model
     // SECURITY: IDOR Protection - Verify ownership via lawyerId and firmId
-    // const query = { _id: sanitizedId, lawyerId };
-    // if (firmId) {
-    //     query.firmId = firmId;
-    // }
-    // const action = await AutomatedAction.findOne(query);
+    // const action = await AutomatedAction.findOne({ _id: sanitizedId, lawyerId, ...req.firmQuery });
 
     // if (!action) {
     //     throw CustomException('الإجراء الآلي غير موجود', 404);
@@ -559,7 +536,6 @@ const updateAction = asyncHandler(async (req, res) => {
 const deleteAction = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const lawyerId = req.userID;
-    const firmId = getFirmId(req);
 
     // SECURITY: Sanitize ObjectId to prevent NoSQL injection
     const sanitizedId = sanitizeObjectId(id);
@@ -569,11 +545,7 @@ const deleteAction = asyncHandler(async (req, res) => {
 
     // Placeholder for AutomatedAction model
     // SECURITY: IDOR Protection - Verify ownership via lawyerId and firmId
-    // const query = { _id: sanitizedId, lawyerId };
-    // if (firmId) {
-    //     query.firmId = firmId;
-    // }
-    // const action = await AutomatedAction.findOneAndDelete(query);
+    // const action = await AutomatedAction.findOneAndDelete({ _id: sanitizedId, lawyerId, ...req.firmQuery });
 
     // if (!action) {
     //     throw CustomException('الإجراء الآلي غير موجود', 404);
@@ -595,7 +567,6 @@ const deleteAction = asyncHandler(async (req, res) => {
 const toggleActive = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const lawyerId = req.userID;
-    const firmId = getFirmId(req);
 
     // SECURITY: Sanitize ObjectId to prevent NoSQL injection
     const sanitizedId = sanitizeObjectId(id);
@@ -605,11 +576,7 @@ const toggleActive = asyncHandler(async (req, res) => {
 
     // Placeholder for AutomatedAction model
     // SECURITY: IDOR Protection - Verify ownership via lawyerId and firmId
-    // const query = { _id: sanitizedId, lawyerId };
-    // if (firmId) {
-    //     query.firmId = firmId;
-    // }
-    // const action = await AutomatedAction.findOne(query);
+    // const action = await AutomatedAction.findOne({ _id: sanitizedId, lawyerId, ...req.firmQuery });
 
     // if (!action) {
     //     throw CustomException('الإجراء الآلي غير موجود', 404);
@@ -636,7 +603,6 @@ const testAction = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const { record_id } = req.body;
     const lawyerId = req.userID;
-    const firmId = getFirmId(req);
 
     // SECURITY: Sanitize ObjectId to prevent NoSQL injection
     const sanitizedId = sanitizeObjectId(id);
@@ -656,35 +622,27 @@ const testAction = asyncHandler(async (req, res) => {
 
     // Placeholder for AutomatedAction model
     // SECURITY: IDOR Protection - Verify ownership via lawyerId and firmId
-    // const query = { _id: sanitizedId, lawyerId };
-    // if (firmId) {
-    //     query.firmId = firmId;
-    // }
-    // const action = await AutomatedAction.findOne(query);
+    // const action = await AutomatedAction.findOne({ _id: sanitizedId, lawyerId, ...req.firmQuery });
 
     // if (!action) {
     //     throw CustomException('الإجراء الآلي غير موجود', 404);
     // }
 
-    // // SECURITY: Fetch the record with ownership verification
+    // // SECURITY: Fetch the record with ownership verification - Include firmId isolation
     // let record;
-    // const recordQuery = { _id: sanitizedRecordId };
-    // if (firmId) {
-    //     recordQuery.firmId = firmId;
-    // }
     //
     // switch (action.model_name) {
     //     case 'Case':
-    //         record = await Case.findOne({ ...recordQuery, lawyerId });
+    //         record = await Case.findOne({ _id: sanitizedRecordId, lawyerId, ...req.firmQuery });
     //         break;
     //     case 'Task':
-    //         record = await Task.findOne(recordQuery);
+    //         record = await Task.findOne({ _id: sanitizedRecordId, ...req.firmQuery });
     //         break;
     //     case 'Client':
-    //         record = await Client.findOne({ ...recordQuery, lawyerId });
+    //         record = await Client.findOne({ _id: sanitizedRecordId, lawyerId, ...req.firmQuery });
     //         break;
     //     case 'Invoice':
-    //         record = await Invoice.findOne({ ...recordQuery, lawyerId });
+    //         record = await Invoice.findOne({ _id: sanitizedRecordId, lawyerId, ...req.firmQuery });
     //         break;
     //     default:
     //         throw CustomException('نوع النموذج غير مدعوم', 400);
@@ -722,7 +680,6 @@ const getActionLogs = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const { page = 1, limit = 50, status } = req.query;
     const lawyerId = req.userID;
-    const firmId = getFirmId(req);
 
     // SECURITY: Sanitize ObjectId to prevent NoSQL injection
     const sanitizedId = sanitizeObjectId(id);
@@ -732,11 +689,7 @@ const getActionLogs = asyncHandler(async (req, res) => {
 
     // Placeholder for AutomatedAction model and logs
     // SECURITY: IDOR Protection - Verify ownership via lawyerId and firmId
-    // const query = { _id: sanitizedId, lawyerId };
-    // if (firmId) {
-    //     query.firmId = firmId;
-    // }
-    // const action = await AutomatedAction.findOne(query);
+    // const action = await AutomatedAction.findOne({ _id: sanitizedId, lawyerId, ...req.firmQuery });
 
     // if (!action) {
     //     throw CustomException('الإجراء الآلي غير موجود', 404);
@@ -941,7 +894,6 @@ const getModelFields = asyncHandler(async (req, res) => {
 const duplicateAction = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const lawyerId = req.userID;
-    const firmId = getFirmId(req);
 
     // SECURITY: Sanitize ObjectId to prevent NoSQL injection
     const sanitizedId = sanitizeObjectId(id);
@@ -951,11 +903,7 @@ const duplicateAction = asyncHandler(async (req, res) => {
 
     // Placeholder for AutomatedAction model
     // SECURITY: IDOR Protection - Verify ownership via lawyerId and firmId
-    // const query = { _id: sanitizedId, lawyerId };
-    // if (firmId) {
-    //     query.firmId = firmId;
-    // }
-    // const originalAction = await AutomatedAction.findOne(query);
+    // const originalAction = await AutomatedAction.findOne({ _id: sanitizedId, lawyerId, ...req.firmQuery });
 
     // if (!originalAction) {
     //     throw CustomException('الإجراء الآلي غير موجود', 404);
@@ -996,13 +944,9 @@ const duplicateAction = asyncHandler(async (req, res) => {
 const getAllLogs = asyncHandler(async (req, res) => {
     const { page = 1, limit = 50, status, actionId, model_name, startDate, endDate } = req.query;
     const lawyerId = req.userID;
-    const firmId = getFirmId(req);
 
-    // Build query for logs
-    const logsQuery = { lawyerId };
-    if (firmId) {
-        logsQuery.firmId = firmId;
-    }
+    // Build query for logs - SECURITY: IDOR Protection - Include firmId isolation
+    const logsQuery = { lawyerId, ...req.firmQuery };
     if (status) logsQuery.status = status;
     if (actionId) {
         const sanitizedActionId = sanitizeObjectId(actionId);
@@ -1048,7 +992,6 @@ const getAllLogs = asyncHandler(async (req, res) => {
 const bulkEnable = asyncHandler(async (req, res) => {
     const { ids } = req.body;
     const lawyerId = req.userID;
-    const firmId = getFirmId(req);
 
     if (!ids || !Array.isArray(ids) || ids.length === 0) {
         throw CustomException('قائمة المعرفات مطلوبة | IDs list is required', 400);
@@ -1062,11 +1005,11 @@ const bulkEnable = asyncHandler(async (req, res) => {
     const sanitizedIds = ids.map(id => sanitizeObjectId(id)).filter(Boolean);
 
     // Placeholder for AutomatedAction model
-    // const query = { _id: { $in: sanitizedIds }, lawyerId };
-    // if (firmId) {
-    //     query.firmId = firmId;
-    // }
-    // const result = await AutomatedAction.updateMany(query, { $set: { isActive: true } });
+    // SECURITY: IDOR Protection - Include firmId isolation
+    // const result = await AutomatedAction.updateMany(
+    //     { _id: { $in: sanitizedIds }, lawyerId, ...req.firmQuery },
+    //     { $set: { isActive: true } }
+    // );
 
     // Temporary response
     const result = { modifiedCount: sanitizedIds.length };
@@ -1085,7 +1028,6 @@ const bulkEnable = asyncHandler(async (req, res) => {
 const bulkDisable = asyncHandler(async (req, res) => {
     const { ids } = req.body;
     const lawyerId = req.userID;
-    const firmId = getFirmId(req);
 
     if (!ids || !Array.isArray(ids) || ids.length === 0) {
         throw CustomException('قائمة المعرفات مطلوبة | IDs list is required', 400);
@@ -1099,11 +1041,11 @@ const bulkDisable = asyncHandler(async (req, res) => {
     const sanitizedIds = ids.map(id => sanitizeObjectId(id)).filter(Boolean);
 
     // Placeholder for AutomatedAction model
-    // const query = { _id: { $in: sanitizedIds }, lawyerId };
-    // if (firmId) {
-    //     query.firmId = firmId;
-    // }
-    // const result = await AutomatedAction.updateMany(query, { $set: { isActive: false } });
+    // SECURITY: IDOR Protection - Include firmId isolation
+    // const result = await AutomatedAction.updateMany(
+    //     { _id: { $in: sanitizedIds }, lawyerId, ...req.firmQuery },
+    //     { $set: { isActive: false } }
+    // );
 
     // Temporary response
     const result = { modifiedCount: sanitizedIds.length };
@@ -1122,7 +1064,6 @@ const bulkDisable = asyncHandler(async (req, res) => {
 const bulkDelete = asyncHandler(async (req, res) => {
     const { ids } = req.body;
     const lawyerId = req.userID;
-    const firmId = getFirmId(req);
 
     if (!ids || !Array.isArray(ids) || ids.length === 0) {
         throw CustomException('قائمة المعرفات مطلوبة | IDs list is required', 400);
@@ -1136,11 +1077,8 @@ const bulkDelete = asyncHandler(async (req, res) => {
     const sanitizedIds = ids.map(id => sanitizeObjectId(id)).filter(Boolean);
 
     // Placeholder for AutomatedAction model
-    // const query = { _id: { $in: sanitizedIds }, lawyerId };
-    // if (firmId) {
-    //     query.firmId = firmId;
-    // }
-    // const result = await AutomatedAction.deleteMany(query);
+    // SECURITY: IDOR Protection - Include firmId isolation
+    // const result = await AutomatedAction.deleteMany({ _id: { $in: sanitizedIds }, lawyerId, ...req.firmQuery });
 
     // Temporary response
     const result = { deletedCount: sanitizedIds.length };

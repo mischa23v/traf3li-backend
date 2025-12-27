@@ -103,7 +103,7 @@ const logBulkAction = asyncHandler(async (req, res) => {
  */
 const logSecurityEvent = asyncHandler(async (req, res) => {
   if (req.user.role !== 'admin') {
-    throw CustomException('Insufficient permissions to log security events', 403);
+    throw CustomException('Resource not found', 404);
   }
 
   const { eventType, details } = req.body;
@@ -147,7 +147,7 @@ const logSecurityEvent = asyncHandler(async (req, res) => {
  */
 const searchLogs = asyncHandler(async (req, res) => {
   if (req.user.role !== 'admin' && !req.hasPermission?.('reports', 'view')) {
-    throw CustomException('Insufficient permissions to search audit logs', 403);
+    throw CustomException('Resource not found', 404);
   }
 
   const { q, page = 1, limit = 50, ...filters } = req.query;
@@ -181,7 +181,7 @@ const searchLogs = asyncHandler(async (req, res) => {
  */
 const getLogsByAction = asyncHandler(async (req, res) => {
   if (req.user.role !== 'admin' && !req.hasPermission?.('reports', 'view')) {
-    throw CustomException('Insufficient permissions to view audit logs', 403);
+    throw CustomException('Resource not found', 404);
   }
 
   const { action } = req.params;
@@ -214,7 +214,7 @@ const getLogsByAction = asyncHandler(async (req, res) => {
  */
 const getLogsByDateRange = asyncHandler(async (req, res) => {
   if (req.user.role !== 'admin' && !req.hasPermission?.('reports', 'view')) {
-    throw CustomException('Insufficient permissions to view audit logs', 403);
+    throw CustomException('Resource not found', 404);
   }
 
   const { startDate, endDate, limit = 100, skip = 0, action, entityType, severity } = req.query;
@@ -254,7 +254,7 @@ const getLogsByDateRange = asyncHandler(async (req, res) => {
  */
 const getActivitySummary = asyncHandler(async (req, res) => {
   if (req.user.role !== 'admin' && !req.hasPermission?.('reports', 'view')) {
-    throw CustomException('Insufficient permissions to view activity summary', 403);
+    throw CustomException('Resource not found', 404);
   }
 
   const { period = 'weekly' } = req.query;
@@ -279,7 +279,7 @@ const getActivitySummary = asyncHandler(async (req, res) => {
  */
 const getTopUsers = asyncHandler(async (req, res) => {
   if (req.user.role !== 'admin' && !req.hasPermission?.('reports', 'view')) {
-    throw CustomException('Insufficient permissions to view top users', 403);
+    throw CustomException('Resource not found', 404);
   }
 
   const { period = 'weekly', limit = 10 } = req.query;
@@ -308,7 +308,7 @@ const getTopUsers = asyncHandler(async (req, res) => {
  */
 const getTopActions = asyncHandler(async (req, res) => {
   if (req.user.role !== 'admin' && !req.hasPermission?.('reports', 'view')) {
-    throw CustomException('Insufficient permissions to view top actions', 403);
+    throw CustomException('Resource not found', 404);
   }
 
   const { period = 'weekly', limit = 10 } = req.query;
@@ -337,7 +337,7 @@ const getTopActions = asyncHandler(async (req, res) => {
  */
 const getAnomalies = asyncHandler(async (req, res) => {
   if (req.user.role !== 'admin') {
-    throw CustomException('Insufficient permissions to view anomalies', 403);
+    throw CustomException('Resource not found', 404);
   }
 
   const firmId = req.user.firmId || req.firmId;
@@ -365,7 +365,7 @@ const getAnomalies = asyncHandler(async (req, res) => {
  */
 const generateComplianceReport = asyncHandler(async (req, res) => {
   if (req.user.role !== 'admin') {
-    throw CustomException('Insufficient permissions to generate compliance reports', 403);
+    throw CustomException('Resource not found', 404);
   }
 
   const { startDate, endDate, standard = 'ALL' } = req.body;
@@ -422,7 +422,7 @@ const generateComplianceReport = asyncHandler(async (req, res) => {
  */
 const verifyLogIntegrity = asyncHandler(async (req, res) => {
   if (req.user.role !== 'admin') {
-    throw CustomException('Insufficient permissions to verify log integrity', 403);
+    throw CustomException('Resource not found', 404);
   }
 
   const { dateRange = {} } = req.body;
@@ -471,7 +471,7 @@ const verifyLogIntegrity = asyncHandler(async (req, res) => {
  */
 const exportForAudit = asyncHandler(async (req, res) => {
   if (req.user.role !== 'admin' && !req.hasSpecialPermission?.('canExportData')) {
-    throw CustomException('Insufficient permissions to export for audit', 403);
+    throw CustomException('Resource not found', 404);
   }
 
   const { dateRange, format = 'json' } = req.body;
@@ -530,7 +530,7 @@ const exportForAudit = asyncHandler(async (req, res) => {
  */
 const getRetentionStatus = asyncHandler(async (req, res) => {
   if (req.user.role !== 'admin') {
-    throw CustomException('Insufficient permissions to view retention status', 403);
+    throw CustomException('Resource not found', 404);
   }
 
   const firmId = req.query.firmId || req.user.firmId || req.firmId;
@@ -558,7 +558,7 @@ const getRetentionStatus = asyncHandler(async (req, res) => {
  */
 const getArchiveStats = asyncHandler(async (req, res) => {
   if (req.user.role !== 'admin') {
-    throw CustomException('Insufficient permissions to view archive statistics', 403);
+    throw CustomException('Resource not found', 404);
   }
 
   const stats = await auditLogArchivingService.getArchivingStats();
@@ -576,7 +576,7 @@ const getArchiveStats = asyncHandler(async (req, res) => {
  */
 const runArchiving = asyncHandler(async (req, res) => {
   if (req.user.role !== 'admin') {
-    throw CustomException('Insufficient permissions to trigger archiving', 403);
+    throw CustomException('Resource not found', 404);
   }
 
   const { thresholdDays = 90, batchSize = 1000, dryRun = false, firmId } = req.body;
@@ -629,7 +629,7 @@ const runArchiving = asyncHandler(async (req, res) => {
  */
 const verifyArchiveIntegrity = asyncHandler(async (req, res) => {
   if (req.user.role !== 'admin') {
-    throw CustomException('Insufficient permissions to verify archive integrity', 403);
+    throw CustomException('Resource not found', 404);
   }
 
   const { sampleSize = 100 } = req.body;

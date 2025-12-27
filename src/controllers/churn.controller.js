@@ -50,8 +50,14 @@ exports.getHealthScore = asyncHandler(async (req, res) => {
     const { firmId } = req.params;
     const sanitizedFirmId = sanitizeObjectId(firmId);
 
+    // Validate firmId matches authenticated user's firm
+    if (sanitizedFirmId !== req.firmId) {
+        throw new CustomException('Resource not found', 404, 'المورد غير موجود');
+    }
+
     // TODO: Replace with actual health score calculation logic
     // This should pull from actual models: HealthScore, Firm, Usage metrics, etc.
+    // Use: HealthScore.findOne({ firmId: req.firmId, ...req.firmQuery })
     const healthScore = {
         firmId: sanitizedFirmId,
         score: 75,
@@ -113,11 +119,17 @@ exports.getHealthScoreHistory = asyncHandler(async (req, res) => {
     const { days = 90 } = req.query;
     const sanitizedFirmId = sanitizeObjectId(firmId);
 
+    // Validate firmId matches authenticated user's firm
+    if (sanitizedFirmId !== req.firmId) {
+        throw new CustomException('Resource not found', 404, 'المورد غير موجود');
+    }
+
     // Validate days parameter
     const daysNum = Math.max(7, Math.min(365, parseInt(days) || 90));
 
     // TODO: Replace with actual database query
     // Query HealthScoreHistory model for historical data
+    // Use: HealthScoreHistory.find({ firmId: req.firmId, ...req.firmQuery })
     const history = [];
     const startDate = new Date(Date.now() - daysNum * 24 * 60 * 60 * 1000);
 
@@ -172,6 +184,11 @@ exports.recalculateHealthScore = asyncHandler(async (req, res) => {
     const sanitizedFirmId = sanitizeObjectId(firmId);
     const userId = req.userID;
 
+    // Validate firmId matches authenticated user's firm
+    if (sanitizedFirmId !== req.firmId) {
+        throw new CustomException('Resource not found', 404, 'المورد غير موجود');
+    }
+
     logger.info('Health score recalculation triggered', {
         firmId: sanitizedFirmId,
         triggeredBy: userId
@@ -179,12 +196,12 @@ exports.recalculateHealthScore = asyncHandler(async (req, res) => {
 
     // TODO: Implement actual health score calculation
     // This should:
-    // 1. Fetch firm data
+    // 1. Fetch firm data using: Firm.findOne({ _id: req.firmId, ...req.firmQuery })
     // 2. Calculate all factor scores
     // 3. Apply weights and compute overall score
     // 4. Determine risk tier
-    // 5. Save to HealthScore model
-    // 6. Create HealthScoreHistory entry
+    // 5. Save to HealthScore model with firmId isolation
+    // 6. Create HealthScoreHistory entry with firmId isolation
 
     const recalculatedScore = {
         firmId: sanitizedFirmId,
@@ -264,7 +281,8 @@ exports.getAtRiskFirms = asyncHandler(async (req, res) => {
     const limitNum = Math.min(100, Math.max(1, parseInt(limit)));
 
     // TODO: Replace with actual database query
-    // Query HealthScore model with filters
+    // Query HealthScore model with filters and firmId isolation
+    // Use: HealthScore.find({ ...req.firmQuery, ...filters })
     const atRiskFirms = [
         {
             firmId: '507f1f77bcf86cd799439011',
@@ -344,6 +362,11 @@ exports.recordChurnEvent = asyncHandler(async (req, res) => {
     const recordedBy = req.userID;
     const sanitizedFirmId = sanitizeObjectId(firmId);
 
+    // Validate firmId matches authenticated user's firm
+    if (sanitizedFirmId !== req.firmId) {
+        throw new CustomException('Resource not found', 404, 'المورد غير موجود');
+    }
+
     // Validation
     const validEventTypes = ['churn', 'downgrade', 'pause', 'reactivation'];
     const validReasonCategories = [
@@ -364,7 +387,8 @@ exports.recordChurnEvent = asyncHandler(async (req, res) => {
         throw new CustomException('Invalid reason category', 400, 'فئة السبب غير صالحة');
     }
 
-    // TODO: Create ChurnEvent model entry
+    // TODO: Create ChurnEvent model entry with firmId isolation
+    // Use: new ChurnEvent({ firmId: req.firmId, ... }).save()
     const churnEvent = {
         _id: '507f1f77bcf86cd799439999',
         firmId: sanitizedFirmId,
@@ -424,6 +448,7 @@ exports.getChurnEvents = asyncHandler(async (req, res) => {
     const limitNum = Math.min(100, Math.max(1, parseInt(limit)));
 
     // TODO: Query ChurnEvent model with filters
+    // Use: ChurnEvent.find({ ...req.firmQuery, ...otherFilters })
     const events = [
         {
             _id: '507f1f77bcf86cd799439999',
@@ -467,7 +492,9 @@ exports.updateChurnReason = asyncHandler(async (req, res) => {
     const { reason, reasonCategory, notes } = req.body;
     const sanitizedId = sanitizeObjectId(id);
 
-    // TODO: Update ChurnEvent in database
+    // TODO: Update ChurnEvent in database with firmId isolation
+    // Use: ChurnEvent.findOneAndUpdate({ _id: sanitizedId, ...req.firmQuery }, { reason, reasonCategory, notes, updatedAt: new Date(), updatedBy: req.userID }, { new: true })
+    // If not found, throw: new CustomException('Resource not found', 404, 'المورد غير موجود')
     const updatedEvent = {
         _id: sanitizedId,
         reason,
@@ -504,7 +531,10 @@ exports.recordExitSurvey = asyncHandler(async (req, res) => {
         throw new CustomException('Invalid survey responses', 400, 'استجابات الاستبيان غير صالحة');
     }
 
-    // TODO: Save exit survey responses
+    // TODO: Validate ChurnEvent exists and belongs to user's firm
+    // Use: const event = await ChurnEvent.findOne({ _id: sanitizedId, ...req.firmQuery })
+    // If not found, throw: new CustomException('Resource not found', 404, 'المورد غير موجود')
+    // Then save exit survey responses
     const exitSurvey = {
         eventId: sanitizedId,
         responses,
@@ -538,7 +568,8 @@ exports.getDashboardMetrics = asyncHandler(async (req, res) => {
     const { period = '30' } = req.query;
     const days = parseInt(period) || 30;
 
-    // TODO: Calculate actual metrics from database
+    // TODO: Calculate actual metrics from database with firmId isolation
+    // All queries should include: ...req.firmQuery
     const metrics = {
         period: { days, from: new Date(Date.now() - days * 24 * 60 * 60 * 1000), to: new Date() },
         churnRate: {
@@ -612,7 +643,9 @@ exports.getChurnRate = asyncHandler(async (req, res) => {
         throw new CustomException('Invalid groupBy value', 400, 'قيمة التجميع غير صالحة');
     }
 
-    // TODO: Calculate from ChurnEvent and Firm models
+    // TODO: Calculate from ChurnEvent and Firm models with firmId isolation
+    // Use: ChurnEvent.find({ ...req.firmQuery, ...filters })
+    // Use: Firm.find({ ...req.firmQuery, ...filters })
     const data = {
         period: { groupBy, from: startDate, to: endDate },
         timeline: [
@@ -647,7 +680,8 @@ exports.getChurnRate = asyncHandler(async (req, res) => {
 exports.getChurnReasons = asyncHandler(async (req, res) => {
     const { startDate, endDate, eventType = 'churn' } = req.query;
 
-    // TODO: Aggregate from ChurnEvent model
+    // TODO: Aggregate from ChurnEvent model with firmId isolation
+    // Use: ChurnEvent.aggregate([{ $match: { ...req.firmQuery, ...filters } }, ...])
     const reasons = [
         {
             category: 'competitor',
@@ -752,7 +786,8 @@ exports.getCohortAnalysis = asyncHandler(async (req, res) => {
         throw new CustomException('Invalid cohortBy value', 400, 'قيمة التجميع غير صالحة');
     }
 
-    // TODO: Calculate from Firm model based on createdAt
+    // TODO: Calculate from Firm model based on createdAt with firmId isolation
+    // Use: Firm.find({ ...req.firmQuery, ...filters })
     const cohorts = [
         {
             cohort: '2024-01',
@@ -813,7 +848,9 @@ exports.getCohortAnalysis = asyncHandler(async (req, res) => {
 exports.getRevenueAtRisk = asyncHandler(async (req, res) => {
     const { includeProjections = 'true' } = req.query;
 
-    // TODO: Calculate from HealthScore and Firm billing data
+    // TODO: Calculate from HealthScore and Firm billing data with firmId isolation
+    // Use: HealthScore.find({ ...req.firmQuery, ...filters })
+    // Use: Firm.find({ ...req.firmQuery, ...filters })
     const revenueAtRisk = {
         current: {
             critical: { customers: 5, mrr: 25000, arr: 300000 },
@@ -862,7 +899,13 @@ exports.getInterventionHistory = asyncHandler(async (req, res) => {
     const { firmId } = req.params;
     const sanitizedFirmId = sanitizeObjectId(firmId);
 
-    // TODO: Query Intervention model
+    // Validate firmId matches authenticated user's firm
+    if (sanitizedFirmId !== req.firmId) {
+        throw new CustomException('Resource not found', 404, 'المورد غير موجود');
+    }
+
+    // TODO: Query Intervention model with firmId isolation
+    // Use: Intervention.find({ firmId: req.firmId, ...req.firmQuery })
     const interventions = [
         {
             _id: '507f1f77bcf86cd799439100',
@@ -922,6 +965,11 @@ exports.triggerIntervention = asyncHandler(async (req, res) => {
     const sanitizedFirmId = sanitizeObjectId(firmId);
     const triggeredBy = req.userID;
 
+    // Validate firmId matches authenticated user's firm
+    if (sanitizedFirmId !== req.firmId) {
+        throw new CustomException('Resource not found', 404, 'المورد غير موجود');
+    }
+
     const validTypes = [
         'outreach_call',
         'check_in_email',
@@ -936,7 +984,8 @@ exports.triggerIntervention = asyncHandler(async (req, res) => {
         throw new CustomException('Invalid intervention type', 400, 'نوع التدخل غير صالح');
     }
 
-    // TODO: Create Intervention model entry
+    // TODO: Create Intervention model entry with firmId isolation
+    // Use: new Intervention({ firmId: req.firmId, type, ... }).save()
     const intervention = {
         _id: '507f1f77bcf86cd799439102',
         firmId: sanitizedFirmId,
@@ -978,7 +1027,8 @@ exports.triggerIntervention = asyncHandler(async (req, res) => {
 exports.getInterventionStats = asyncHandler(async (req, res) => {
     const { startDate, endDate, groupBy = 'type' } = req.query;
 
-    // TODO: Aggregate from Intervention model
+    // TODO: Aggregate from Intervention model with firmId isolation
+    // Use: Intervention.aggregate([{ $match: { ...req.firmQuery, ...filters } }, ...])
     const stats = {
         period: { from: startDate, to: endDate },
         overall: {
@@ -1074,7 +1124,8 @@ exports.generateReport = asyncHandler(async (req, res) => {
         throw new CustomException('Invalid format', 400, 'تنسيق غير صالح');
     }
 
-    // TODO: Generate actual report based on type
+    // TODO: Generate actual report based on type with firmId isolation
+    // All data queries should include: ...req.firmQuery
     const report = {
         type: reportType,
         generatedAt: new Date(),
@@ -1134,7 +1185,8 @@ exports.exportAtRiskList = asyncHandler(async (req, res) => {
         throw new CustomException('Invalid format', 400, 'تنسيق غير صالح');
     }
 
-    // TODO: Query and format data for export
+    // TODO: Query and format data for export with firmId isolation
+    // Use: HealthScore.find({ ...req.firmQuery, ...filters })
     const exportData = {
         generatedAt: new Date(),
         filters: { tier, minScore },
@@ -1165,7 +1217,8 @@ exports.getExecutiveSummary = asyncHandler(async (req, res) => {
     const { period = '30' } = req.query;
     const days = parseInt(period) || 30;
 
-    // TODO: Calculate from all churn-related models
+    // TODO: Calculate from all churn-related models with firmId isolation
+    // All queries should include: ...req.firmQuery
     const summary = {
         period: { days, from: new Date(Date.now() - days * 24 * 60 * 60 * 1000), to: new Date() },
         keyMetrics: {

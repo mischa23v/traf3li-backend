@@ -259,7 +259,7 @@ const getCounts = asyncHandler(async (req, res) => {
             };
 
             // Get task to count embedded arrays
-            const task = await Task.findById(recordObjectId).select('subtasks comments attachments');
+            const task = await Task.findOne({ _id: recordObjectId, ...baseQuery }).select('subtasks comments attachments');
             if (task) {
                 counts.subtasks = task.subtasks?.length || 0;
                 counts.comments = task.comments?.length || 0;
@@ -274,7 +274,7 @@ const getCounts = asyncHandler(async (req, res) => {
             };
 
             // Get expense to count embedded arrays
-            const expense = await Expense.findById(recordObjectId).select('attachments receipts receipt');
+            const expense = await Expense.findOne({ _id: recordObjectId, ...baseQuery }).select('attachments receipts receipt');
             if (expense) {
                 counts.attachments = expense.attachments?.length || 0;
                 counts.receipts = expense.receipts?.length || 0;
@@ -289,7 +289,7 @@ const getCounts = asyncHandler(async (req, res) => {
             };
 
             // Get payment to count embedded arrays
-            const payment = await Payment.findById(recordObjectId).select('invoiceApplications allocations attachments');
+            const payment = await Payment.findOne({ _id: recordObjectId, ...baseQuery }).select('invoiceApplications allocations attachments');
             if (payment) {
                 counts.invoices = (payment.invoiceApplications?.length || 0) + (payment.allocations?.length || 0);
                 counts.attachments = payment.attachments?.length || 0;
@@ -302,7 +302,7 @@ const getCounts = asyncHandler(async (req, res) => {
             };
 
             // Get document to count versions
-            const document = await Document.findById(recordObjectId).select('versions version');
+            const document = await Document.findOne({ _id: recordObjectId, ...baseQuery }).select('versions version');
             if (document) {
                 counts.versions = document.versions?.length || document.version || 1;
             }
@@ -315,7 +315,7 @@ const getCounts = asyncHandler(async (req, res) => {
             };
 
             // Get timeEntry to count embedded arrays
-            const timeEntry = await TimeEntry.findById(recordObjectId).select('attachments history editHistory');
+            const timeEntry = await TimeEntry.findOne({ _id: recordObjectId, ...baseQuery }).select('attachments history editHistory');
             if (timeEntry) {
                 counts.attachments = timeEntry.attachments?.length || 0;
                 counts.history = (timeEntry.history?.length || 0) + (timeEntry.editHistory?.length || 0);
@@ -330,7 +330,7 @@ const getCounts = asyncHandler(async (req, res) => {
             };
 
             // Get event to count embedded arrays
-            const event = await Event.findById(recordObjectId).select('participants attachments reminders');
+            const event = await Event.findOne({ _id: recordObjectId, ...baseQuery }).select('participants attachments reminders');
             if (event) {
                 counts.participants = event.participants?.length || 0;
                 counts.attachments = event.attachments?.length || 0;

@@ -12,7 +12,7 @@ const createTradingAccount = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
 
     if (req.isDeparted) {
-        throw CustomException('You do not have permission to create trading accounts', 403);
+        throw CustomException('Resource not found', 404);
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -122,11 +122,10 @@ const createTradingAccount = asyncHandler(async (req, res) => {
     }
 
     // Check for duplicate account name for this broker
-    const existingAccount = await TradingAccount.findOne({
-        userId,
-        brokerId: sanitizedBrokerId,
-        name: { $regex: new RegExp(`^${name.trim()}$`, 'i') }
-    });
+    const duplicateQuery = firmId
+        ? { firmId, brokerId: sanitizedBrokerId, name: { $regex: new RegExp(`^${name.trim()}$`, 'i') } }
+        : { userId, brokerId: sanitizedBrokerId, name: { $regex: new RegExp(`^${name.trim()}$`, 'i') } };
+    const existingAccount = await TradingAccount.findOne(duplicateQuery);
 
     if (existingAccount) {
         throw CustomException('An account with this name already exists for this broker', 400);
@@ -158,7 +157,8 @@ const createTradingAccount = asyncHandler(async (req, res) => {
         createdBy: userId
     });
 
-    const populatedAccount = await TradingAccount.findById(account._id)
+    const query = firmId ? { _id: account._id, firmId } : { _id: account._id, userId };
+    const populatedAccount = await TradingAccount.findOne(query)
         .populate('brokerId', 'name type displayName');
 
     return res.status(201).json({
@@ -176,7 +176,7 @@ const getTradingAccounts = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
 
     if (req.isDeparted) {
-        throw CustomException('You do not have permission to access trading accounts', 403);
+        throw CustomException('Resource not found', 404);
     }
 
     const {
@@ -273,7 +273,7 @@ const getTradingAccount = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
 
     if (req.isDeparted) {
-        throw CustomException('You do not have permission to access trading accounts', 403);
+        throw CustomException('Resource not found', 404);
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -331,7 +331,7 @@ const getAccountBalance = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
 
     if (req.isDeparted) {
-        throw CustomException('You do not have permission to access trading accounts', 403);
+        throw CustomException('Resource not found', 404);
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -385,7 +385,7 @@ const updateTradingAccount = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
 
     if (req.isDeparted) {
-        throw CustomException('You do not have permission to update trading accounts', 403);
+        throw CustomException('Resource not found', 404);
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -457,12 +457,10 @@ const updateTradingAccount = asyncHandler(async (req, res) => {
 
     // Check for duplicate name if name is being changed
     if (updateData.name && updateData.name !== existingAccount.name) {
-        const duplicateAccount = await TradingAccount.findOne({
-            userId,
-            brokerId: existingAccount.brokerId,
-            _id: { $ne: sanitizedId },
-            name: { $regex: new RegExp(`^${updateData.name.trim()}$`, 'i') }
-        });
+        const duplicateCheckQuery = firmId
+            ? { firmId, brokerId: existingAccount.brokerId, _id: { $ne: sanitizedId }, name: { $regex: new RegExp(`^${updateData.name.trim()}$`, 'i') } }
+            : { userId, brokerId: existingAccount.brokerId, _id: { $ne: sanitizedId }, name: { $regex: new RegExp(`^${updateData.name.trim()}$`, 'i') } };
+        const duplicateAccount = await TradingAccount.findOne(duplicateCheckQuery);
 
         if (duplicateAccount) {
             throw CustomException('An account with this name already exists for this broker', 400);
@@ -515,7 +513,7 @@ const deleteTradingAccount = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
 
     if (req.isDeparted) {
-        throw CustomException('You do not have permission to delete trading accounts', 403);
+        throw CustomException('Resource not found', 404);
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -558,7 +556,7 @@ const setDefaultAccount = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
 
     if (req.isDeparted) {
-        throw CustomException('You do not have permission to update trading accounts', 403);
+        throw CustomException('Resource not found', 404);
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -583,8 +581,11 @@ const setDefaultAccount = asyncHandler(async (req, res) => {
     try {
         await session.withTransaction(async () => {
             // Unset all other defaults
+            const updateManyQuery = firmId
+                ? { firmId, _id: { $ne: sanitizedId } }
+                : { userId, _id: { $ne: sanitizedId } };
             await TradingAccount.updateMany(
-                { userId, _id: { $ne: sanitizedId } },
+                updateManyQuery,
                 { isDefault: false },
                 { session }
             );
@@ -598,7 +599,8 @@ const setDefaultAccount = asyncHandler(async (req, res) => {
         await session.endSession();
     }
 
-    const populatedAccount = await TradingAccount.findById(account._id)
+    const repopulateQuery = firmId ? { _id: account._id, firmId } : { _id: account._id, userId };
+    const populatedAccount = await TradingAccount.findOne(repopulateQuery)
         .populate('brokerId', 'name type displayName');
 
     return res.json({
@@ -617,7 +619,7 @@ const addTransaction = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
 
     if (req.isDeparted) {
-        throw CustomException('You do not have permission to update trading accounts', 403);
+        throw CustomException('Resource not found', 404);
     }
 
     // ─────────────────────────────────────────────────────────────

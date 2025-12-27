@@ -254,8 +254,8 @@ const createRecurringInvoice = asyncHandler(async (req, res) => {
     });
 
     if (!client) {
-        throw CustomException('Client not found or access denied', 404, {
-            messageAr: 'لم يتم العثور على العميل أو الوصول مرفوض'
+        throw CustomException('Resource not found', 404, {
+            messageAr: 'لم يتم العثور على المورد'
         });
     }
 
@@ -370,8 +370,8 @@ const updateRecurringInvoice = asyncHandler(async (req, res) => {
     });
 
     if (!recurring) {
-        throw CustomException('Recurring invoice not found or access denied', 404, {
-            messageAr: 'لم يتم العثور على الفاتورة المتكررة أو الوصول مرفوض'
+        throw CustomException('Recurring invoice not found', 404, {
+            messageAr: 'لم يتم العثور على الفاتورة المتكررة'
         });
     }
 

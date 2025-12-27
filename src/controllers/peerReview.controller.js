@@ -30,7 +30,7 @@ const createPeerReview = async (request, response) => {
         }
 
         // Check if reviewer is a lawyer
-        const reviewer = await User.findById(request.userID);
+        const reviewer = await User.findOne({ _id: request.userID, ...request.firmQuery });
         if (!reviewer) {
             throw CustomException('Reviewer not found!', 404);
         }
@@ -39,7 +39,7 @@ const createPeerReview = async (request, response) => {
         }
 
         // Check if target is a lawyer
-        const targetLawyer = await User.findById(sanitizedToLawyer);
+        const targetLawyer = await User.findOne({ _id: sanitizedToLawyer, ...request.firmQuery });
         if (!targetLawyer || targetLawyer.role !== 'lawyer') {
             throw CustomException('Target user is not a lawyer!', 404);
         }
@@ -56,7 +56,7 @@ const createPeerReview = async (request, response) => {
         }
 
         // Check if already reviewed
-        const existing = await PeerReview.findOne({ fromLawyer: request.userID, toLawyer: sanitizedToLawyer });
+        const existing = await PeerReview.findOne({ fromLawyer: request.userID, toLawyer: sanitizedToLawyer, firmId: request.firmId });
         if (existing) {
             throw CustomException('You have already reviewed this lawyer!', 400);
         }
@@ -64,6 +64,7 @@ const createPeerReview = async (request, response) => {
         const peerReview = new PeerReview({
             fromLawyer: request.userID,
             toLawyer: sanitizedToLawyer,
+            firmId: request.firmId,
             competence: Number(competence),
             integrity: Number(integrity),
             communication: Number(communication),
@@ -99,12 +100,12 @@ const getPeerReviews = async (request, response) => {
         }
 
         // IDOR protection - verify lawyer exists
-        const lawyer = await User.findById(sanitizedLawyerId);
+        const lawyer = await User.findOne({ _id: sanitizedLawyerId, ...request.firmQuery });
         if (!lawyer || lawyer.role !== 'lawyer') {
             throw CustomException('Lawyer not found!', 404);
         }
 
-        const reviews = await PeerReview.find({ toLawyer: sanitizedLawyerId, verified: true })
+        const reviews = await PeerReview.find({ toLawyer: sanitizedLawyerId, verified: true, firmId: request.firmId })
             .populate('fromLawyer', 'username image lawyerProfile.specialization')
             .sort({ createdAt: -1 });
 
@@ -136,14 +137,14 @@ const verifyPeerReview = async (request, response) => {
         }
 
         // IDOR protection - verify review exists before update
-        const existingReview = await PeerReview.findById(sanitizedId);
+        const existingReview = await PeerReview.findOne({ _id: sanitizedId, ...request.firmQuery });
         if (!existingReview) {
             throw CustomException('Peer review not found!', 404);
         }
 
         // Mass assignment protection - only allow verified field to be updated
-        const review = await PeerReview.findByIdAndUpdate(
-            sanitizedId,
+        const review = await PeerReview.findOneAndUpdate(
+            { _id: sanitizedId, ...request.firmQuery },
             { verified: true },
             { new: true }
         );

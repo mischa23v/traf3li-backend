@@ -11,15 +11,10 @@ const logger = require('../utils/logger');
  * GET /api/cycles
  */
 const listCycles = asyncHandler(async (req, res) => {
-    const firmId = req.firmId;
     const { teamId, status } = req.query;
 
-    // Build query
-    const query = {};
-
-    if (firmId) {
-        query.firmId = new mongoose.Types.ObjectId(firmId);
-    }
+    // Build query with firmId isolation
+    const query = { ...req.firmQuery };
 
     if (teamId) {
         query.teamId = new mongoose.Types.ObjectId(sanitizeObjectId(teamId));
@@ -97,21 +92,15 @@ const createCycle = asyncHandler(async (req, res) => {
  */
 const getCycle = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const firmId = req.firmId;
 
     // Sanitize ID
     const sanitizedId = sanitizeObjectId(id);
 
     // IDOR protection - verify firmId ownership
-    const query = { _id: sanitizedId };
-    if (firmId) {
-        query.firmId = new mongoose.Types.ObjectId(firmId);
-    }
-
-    const cycle = await Cycle.findOne(query).populate('teamId', 'name');
+    const cycle = await Cycle.findOne({ _id: sanitizedId, ...req.firmQuery }).populate('teamId', 'name');
 
     if (!cycle) {
-        throw CustomException('Cycle not found or access denied', 404);
+        throw CustomException('Resource not found', 404);
     }
 
     res.status(200).json({
@@ -127,20 +116,14 @@ const getCycle = asyncHandler(async (req, res) => {
 const startCycle = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const userId = req.userID;
-    const firmId = req.firmId;
 
     // Sanitize ID
     const sanitizedId = sanitizeObjectId(id);
 
     // IDOR protection - verify cycle belongs to firm
-    const query = { _id: sanitizedId };
-    if (firmId) {
-        query.firmId = new mongoose.Types.ObjectId(firmId);
-    }
-
-    const existingCycle = await Cycle.findOne(query);
+    const existingCycle = await Cycle.findOne({ _id: sanitizedId, ...req.firmQuery });
     if (!existingCycle) {
-        throw CustomException('Cycle not found or access denied', 404);
+        throw CustomException('Resource not found', 404);
     }
 
     // Start cycle using service
@@ -164,20 +147,14 @@ const startCycle = asyncHandler(async (req, res) => {
 const completeCycle = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const userId = req.userID;
-    const firmId = req.firmId;
 
     // Sanitize ID
     const sanitizedId = sanitizeObjectId(id);
 
     // IDOR protection - verify cycle belongs to firm
-    const query = { _id: sanitizedId };
-    if (firmId) {
-        query.firmId = new mongoose.Types.ObjectId(firmId);
-    }
-
-    const existingCycle = await Cycle.findOne(query);
+    const existingCycle = await Cycle.findOne({ _id: sanitizedId, ...req.firmQuery });
     if (!existingCycle) {
-        throw CustomException('Cycle not found or access denied', 404);
+        throw CustomException('Resource not found', 404);
     }
 
     // Complete cycle using service
@@ -200,20 +177,14 @@ const completeCycle = asyncHandler(async (req, res) => {
  */
 const getCycleProgress = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const firmId = req.firmId;
 
     // Sanitize ID
     const sanitizedId = sanitizeObjectId(id);
 
     // IDOR protection - verify cycle belongs to firm
-    const query = { _id: sanitizedId };
-    if (firmId) {
-        query.firmId = new mongoose.Types.ObjectId(firmId);
-    }
-
-    const existingCycle = await Cycle.findOne(query);
+    const existingCycle = await Cycle.findOne({ _id: sanitizedId, ...req.firmQuery });
     if (!existingCycle) {
-        throw CustomException('Cycle not found or access denied', 404);
+        throw CustomException('Resource not found', 404);
     }
 
     // Get progress using service
@@ -235,20 +206,14 @@ const getCycleProgress = asyncHandler(async (req, res) => {
  */
 const getBurndown = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const firmId = req.firmId;
 
     // Sanitize ID
     const sanitizedId = sanitizeObjectId(id);
 
     // IDOR protection - verify cycle belongs to firm
-    const query = { _id: sanitizedId };
-    if (firmId) {
-        query.firmId = new mongoose.Types.ObjectId(firmId);
-    }
-
-    const existingCycle = await Cycle.findOne(query);
+    const existingCycle = await Cycle.findOne({ _id: sanitizedId, ...req.firmQuery });
     if (!existingCycle) {
-        throw CustomException('Cycle not found or access denied', 404);
+        throw CustomException('Resource not found', 404);
     }
 
     // Get burndown data using service
@@ -327,21 +292,15 @@ const getCycleStats = asyncHandler(async (req, res) => {
 const addTaskToCycle = asyncHandler(async (req, res) => {
     const { id, taskId } = req.params;
     const userId = req.userID;
-    const firmId = req.firmId;
 
     // Sanitize IDs
     const sanitizedCycleId = sanitizeObjectId(id);
     const sanitizedTaskId = sanitizeObjectId(taskId);
 
     // IDOR protection - verify cycle belongs to firm
-    const query = { _id: sanitizedCycleId };
-    if (firmId) {
-        query.firmId = new mongoose.Types.ObjectId(firmId);
-    }
-
-    const existingCycle = await Cycle.findOne(query);
+    const existingCycle = await Cycle.findOne({ _id: sanitizedCycleId, ...req.firmQuery });
     if (!existingCycle) {
-        throw CustomException('Cycle not found or access denied', 404);
+        throw CustomException('Resource not found', 404);
     }
 
     // Add task to cycle using service
@@ -369,21 +328,15 @@ const addTaskToCycle = asyncHandler(async (req, res) => {
 const removeTaskFromCycle = asyncHandler(async (req, res) => {
     const { id, taskId } = req.params;
     const userId = req.userID;
-    const firmId = req.firmId;
 
     // Sanitize IDs
     const sanitizedCycleId = sanitizeObjectId(id);
     const sanitizedTaskId = sanitizeObjectId(taskId);
 
     // IDOR protection - verify cycle belongs to firm
-    const query = { _id: sanitizedCycleId };
-    if (firmId) {
-        query.firmId = new mongoose.Types.ObjectId(firmId);
-    }
-
-    const existingCycle = await Cycle.findOne(query);
+    const existingCycle = await Cycle.findOne({ _id: sanitizedCycleId, ...req.firmQuery });
     if (!existingCycle) {
-        throw CustomException('Cycle not found or access denied', 404);
+        throw CustomException('Resource not found', 404);
     }
 
     // Remove task from cycle using service
