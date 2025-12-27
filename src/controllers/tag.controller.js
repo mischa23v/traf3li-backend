@@ -1,391 +1,402 @@
+/**
+ * Tag Controller
+ * Universal tagging system for leads, clients, contacts, cases, quotes, campaigns
+ * Security: All operations enforce multi-tenant isolation via firmQuery
+ */
+
 const { Tag } = require('../models');
 const asyncHandler = require('../utils/asyncHandler');
-const CustomException = require('../utils/CustomException');
+const { CustomException } = require('../utils');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
-const sanitizeHtml = require('sanitize-html');
 
-// Helper function to escape regex special characters (ReDoS protection)
-const escapeRegex = (str) => {
-    if (!str || typeof str !== 'string') return '';
-    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-};
+// Helper for regex safety - ReDoS protection
+const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 /**
- * Sanitize tag input to prevent XSS
- */
-const sanitizeTagInput = (input) => {
-    if (!input || typeof input !== 'string') {
-        return input;
-    }
-    // Allow only plain text, no HTML tags
-    return sanitizeHtml(input, {
-        allowedTags: [],
-        allowedAttributes: {}
-    });
-};
-
-/**
- * Validate tag name
- */
-const validateTagName = (name) => {
-    if (!name || typeof name !== 'string') {
-        throw CustomException('اسم الوسم مطلوب', 400);
-    }
-
-    const trimmedName = name.trim();
-
-    if (trimmedName.length < 1) {
-        throw CustomException('اسم الوسم يجب أن يحتوي على حرف واحد على الأقل', 400);
-    }
-
-    if (trimmedName.length > 100) {
-        throw CustomException('اسم الوسم يجب ألا يتجاوز 100 حرف', 400);
-    }
-
-    return trimmedName;
-};
-
-/**
- * Create tag
- * POST /api/tags
+ * Create a new tag
+ * @route POST /api/tags
  */
 const createTag = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
+    const userId = req.userID;
 
-    // Mass assignment protection - only allow specific fields
-    const allowedData = pickAllowedFields(req.body, ['name', 'nameAr', 'color', 'description', 'entityType']);
+    // MASS ASSIGNMENT PROTECTION: Only allow specific fields
+    const allowedFields = pickAllowedFields(req.body, [
+        'name',
+        'nameAr',
+        'color',
+        'entityTypes',
+        'isActive'
+    ]);
 
-    // Validate required fields
-    if (!allowedData.name || !allowedData.color) {
-        throw CustomException('الاسم واللون مطلوبان', 400);
+    // VALIDATION: Required fields
+    if (!allowedFields.name || typeof allowedFields.name !== 'string') {
+        throw CustomException('Tag name is required', 400);
     }
 
-    // Validate and sanitize tag name
-    const validatedName = validateTagName(allowedData.name);
-
-    // Sanitize all text inputs to prevent XSS
-    const sanitizedData = {
-        name: sanitizeTagInput(validatedName),
-        nameAr: allowedData.nameAr ? sanitizeTagInput(allowedData.nameAr.trim()) : undefined,
-        color: allowedData.color,
-        description: allowedData.description ? sanitizeTagInput(allowedData.description) : undefined,
-        entityType: allowedData.entityType || 'all'
-    };
-
-    // Check for duplicate name - with firm isolation
-    const existing = await Tag.findOne({ firmId, name: sanitizedData.name });
-    if (existing) {
-        throw CustomException('الوسم موجود بالفعل', 400);
+    // Validate color format if provided
+    if (allowedFields.color) {
+        const colorRegex = /^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/;
+        if (!colorRegex.test(allowedFields.color)) {
+            throw CustomException('Invalid color format. Use hex format (#RRGGBB or #RGB)', 400);
+        }
     }
 
-    const tag = await Tag.create({
+    // Validate entityTypes if provided
+    if (allowedFields.entityTypes) {
+        const validEntityTypes = ['lead', 'client', 'contact', 'case', 'quote', 'campaign'];
+        const invalidTypes = allowedFields.entityTypes.filter(type => !validEntityTypes.includes(type));
+        if (invalidTypes.length > 0) {
+            throw CustomException(`Invalid entity types: ${invalidTypes.join(', ')}`, 400);
+        }
+    }
+
+    // Create tag with firm context
+    const tag = new Tag({
+        ...allowedFields,
         firmId,
-        ...sanitizedData
+        createdBy: userId
     });
 
-    res.status(201).json({
-        success: true,
-        message: 'تم إنشاء الوسم بنجاح',
+    await tag.save();
+
+    return res.status(201).json({
+        error: false,
+        message: 'Tag created successfully',
         data: tag
     });
 });
 
 /**
- * Get all tags
- * GET /api/tags
+ * Get all tags with filters
+ * @route GET /api/tags
  */
 const getTags = asyncHandler(async (req, res) => {
-    const { entityType, search, page = 1, limit = 50 } = req.query;
+    const firmId = req.firmId;
+    const {
+        entityType,
+        isActive,
+        search,
+        page = 1,
+        limit = 100,
+        sortBy = 'name'
+    } = req.query;
 
-    // Firm-level isolation
+    // Build query with firm isolation
     const query = { ...req.firmQuery };
 
-    if (entityType && entityType !== 'all') {
-        query.$or = [
-            { entityType: entityType },
-            { entityType: 'all' }
-        ];
+    // Filter by entity type
+    if (entityType) {
+        const validEntityTypes = ['lead', 'client', 'contact', 'case', 'quote', 'campaign'];
+        if (validEntityTypes.includes(entityType)) {
+            query.entityTypes = entityType;
+        }
     }
 
+    // Filter by active status
+    if (isActive !== undefined) {
+        query.isActive = isActive === 'true' || isActive === true;
+    }
+
+    // Safe search with escaped regex
     if (search) {
+        const searchRegex = { $regex: escapeRegex(search), $options: 'i' };
         query.$or = [
-            { name: { $regex: escapeRegex(search), $options: 'i' } },
-            { nameAr: { $regex: escapeRegex(search), $options: 'i' } }
+            { name: searchRegex },
+            { nameAr: searchRegex },
+            { slug: searchRegex }
         ];
     }
 
+    // Parse pagination
+    const parsedLimit = Math.min(parseInt(limit) || 100, 500);
+    const parsedPage = parseInt(page) || 1;
+    const skip = (parsedPage - 1) * parsedLimit;
+
+    // Execute query
     const tags = await Tag.find(query)
-        .sort({ usageCount: -1, name: 1 })
-        .limit(parseInt(limit))
-        .skip((parseInt(page) - 1) * parseInt(limit));
+        .populate('createdBy', 'firstName lastName email')
+        .populate('updatedBy', 'firstName lastName email')
+        .sort(sortBy)
+        .limit(parsedLimit)
+        .skip(skip);
 
     const total = await Tag.countDocuments(query);
 
-    res.status(200).json({
-        success: true,
+    return res.json({
+        error: false,
         data: tags,
         pagination: {
-            page: parseInt(page),
-            limit: parseInt(limit),
+            page: parsedPage,
+            limit: parsedLimit,
             total,
-            pages: Math.ceil(total / parseInt(limit))
+            pages: Math.ceil(total / parsedLimit)
         }
     });
 });
 
 /**
- * Get single tag
- * GET /api/tags/:id
+ * Get single tag by ID
+ * @route GET /api/tags/:id
  */
-const getTag = asyncHandler(async (req, res) => {
-    const { id } = req.params;
-
-    // Sanitize ObjectId to prevent NoSQL injection
-    const sanitizedId = sanitizeObjectId(id);
+const getTagById = asyncHandler(async (req, res) => {
+    const sanitizedId = sanitizeObjectId(req.params.id);
     if (!sanitizedId) {
-        throw CustomException('معرف الوسم غير صالح', 400);
+        throw CustomException('Invalid tag ID', 400);
     }
 
-    // IDOR protection - verify ownership with firm isolation
-    const tag = await Tag.findOne({ _id: sanitizedId, ...req.firmQuery });
+    // IDOR Protection: Query includes firmQuery
+    const tag = await Tag.findOne({
+        _id: sanitizedId,
+        ...req.firmQuery
+    })
+        .populate('createdBy', 'firstName lastName email')
+        .populate('updatedBy', 'firstName lastName email');
 
     if (!tag) {
-        throw CustomException('الوسم غير موجود', 404);
+        throw CustomException('Tag not found', 404);
     }
 
-    res.status(200).json({
-        success: true,
-        data: tag
-    });
+    return res.json({ error: false, data: tag });
 });
 
 /**
  * Update tag
- * PATCH /api/tags/:id
+ * @route PUT /api/tags/:id
  */
 const updateTag = asyncHandler(async (req, res) => {
-    const { id } = req.params;
-
-    // Sanitize ObjectId to prevent NoSQL injection
-    const sanitizedId = sanitizeObjectId(id);
+    const sanitizedId = sanitizeObjectId(req.params.id);
     if (!sanitizedId) {
-        throw CustomException('معرف الوسم غير صالح', 400);
+        throw CustomException('Invalid tag ID', 400);
     }
 
-    // IDOR protection - verify ownership with firm isolation
-    const tag = await Tag.findOne({ _id: sanitizedId, ...req.firmQuery });
+    // MASS ASSIGNMENT PROTECTION: Only allow specific fields
+    const allowedFields = pickAllowedFields(req.body, [
+        'name',
+        'nameAr',
+        'color',
+        'entityTypes',
+        'isActive'
+    ]);
+
+    // Validate color format if provided
+    if (allowedFields.color) {
+        const colorRegex = /^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/;
+        if (!colorRegex.test(allowedFields.color)) {
+            throw CustomException('Invalid color format. Use hex format (#RRGGBB or #RGB)', 400);
+        }
+    }
+
+    // Validate entityTypes if provided
+    if (allowedFields.entityTypes) {
+        const validEntityTypes = ['lead', 'client', 'contact', 'case', 'quote', 'campaign'];
+        const invalidTypes = allowedFields.entityTypes.filter(type => !validEntityTypes.includes(type));
+        if (invalidTypes.length > 0) {
+            throw CustomException(`Invalid entity types: ${invalidTypes.join(', ')}`, 400);
+        }
+    }
+
+    // IDOR Protection: Query-level ownership check
+    const tag = await Tag.findOneAndUpdate(
+        { _id: sanitizedId, ...req.firmQuery },
+        {
+            $set: {
+                ...allowedFields,
+                updatedBy: req.userID,
+                updatedAt: new Date()
+            }
+        },
+        { new: true }
+    )
+        .populate('createdBy', 'firstName lastName email')
+        .populate('updatedBy', 'firstName lastName email');
 
     if (!tag) {
-        throw CustomException('الوسم غير موجود', 404);
+        throw CustomException('Tag not found', 404);
     }
 
-    // Mass assignment protection - only allow specific fields
-    const allowedData = pickAllowedFields(req.body, ['name', 'nameAr', 'color', 'description', 'entityType']);
-
-    // Validate and sanitize name if provided
-    if (allowedData.name !== undefined) {
-        const validatedName = validateTagName(allowedData.name);
-        const sanitizedName = sanitizeTagInput(validatedName);
-
-        // Check for duplicate name if name is being changed - with firm isolation
-        if (sanitizedName !== tag.name) {
-            const existing = await Tag.findOne({
-                ...req.firmQuery,
-                name: sanitizedName,
-                _id: { $ne: sanitizedId }
-            });
-            if (existing) {
-                throw CustomException('الوسم موجود بالفعل', 400);
-            }
-        }
-
-        tag.name = sanitizedName;
-    }
-
-    // Sanitize other text fields to prevent XSS
-    if (allowedData.nameAr !== undefined) {
-        tag.nameAr = sanitizeTagInput(allowedData.nameAr.trim());
-    }
-
-    if (allowedData.description !== undefined) {
-        tag.description = sanitizeTagInput(allowedData.description);
-    }
-
-    if (allowedData.color !== undefined) {
-        tag.color = allowedData.color;
-    }
-
-    if (allowedData.entityType !== undefined) {
-        tag.entityType = allowedData.entityType;
-    }
-
-    await tag.save();
-
-    res.status(200).json({
-        success: true,
-        message: 'تم تحديث الوسم بنجاح',
+    return res.json({
+        error: false,
+        message: 'Tag updated successfully',
         data: tag
     });
 });
 
 /**
  * Delete tag
- * DELETE /api/tags/:id
+ * @route DELETE /api/tags/:id
  */
 const deleteTag = asyncHandler(async (req, res) => {
-    const { id } = req.params;
-
-    // Sanitize ObjectId to prevent NoSQL injection
-    const sanitizedId = sanitizeObjectId(id);
+    const sanitizedId = sanitizeObjectId(req.params.id);
     if (!sanitizedId) {
-        throw CustomException('معرف الوسم غير صالح', 400);
+        throw CustomException('Invalid tag ID', 400);
     }
 
-    // IDOR protection - verify ownership with firm isolation
-    const tag = await Tag.findOneAndDelete({ _id: sanitizedId, ...req.firmQuery });
+    // IDOR Protection: Query-level ownership check
+    const tag = await Tag.findOneAndDelete({
+        _id: sanitizedId,
+        ...req.firmQuery
+    });
 
     if (!tag) {
-        throw CustomException('الوسم غير موجود', 404);
+        throw CustomException('Tag not found', 404);
     }
 
-    res.status(200).json({
-        success: true,
-        message: 'تم حذف الوسم بنجاح'
+    return res.json({
+        error: false,
+        message: 'Tag deleted successfully'
     });
 });
 
 /**
- * Search tags
- * GET /api/tags/search
+ * Merge multiple tags into one
+ * @route POST /api/tags/merge
  */
-const searchTags = asyncHandler(async (req, res) => {
-    const { q, entityType } = req.query;
+const mergeTags = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
 
-    if (!q || q.length < 1) {
-        throw CustomException('يجب أن يكون مصطلح البحث حرفًا واحدًا على الأقل', 400);
+    // MASS ASSIGNMENT PROTECTION
+    const allowedFields = pickAllowedFields(req.body, ['sourceTagIds', 'targetTagId']);
+
+    if (!allowedFields.sourceTagIds || !Array.isArray(allowedFields.sourceTagIds)) {
+        throw CustomException('sourceTagIds must be an array', 400);
     }
 
-    const tags = await Tag.searchTags(firmId, q, entityType);
+    if (!allowedFields.targetTagId) {
+        throw CustomException('targetTagId is required', 400);
+    }
 
-    res.status(200).json({
-        success: true,
-        data: tags,
-        count: tags.length
+    // SANITIZE IDs
+    const sanitizedTargetId = sanitizeObjectId(allowedFields.targetTagId);
+    if (!sanitizedTargetId) {
+        throw CustomException('Invalid targetTagId', 400);
+    }
+
+    const sanitizedSourceIds = allowedFields.sourceTagIds
+        .map(id => sanitizeObjectId(id))
+        .filter(id => id !== null);
+
+    if (sanitizedSourceIds.length === 0) {
+        throw CustomException('No valid source tag IDs provided', 400);
+    }
+
+    if (sanitizedSourceIds.length !== allowedFields.sourceTagIds.length) {
+        throw CustomException('One or more source tag IDs are invalid', 400);
+    }
+
+    // Use static method with firm isolation
+    const mergedTag = await Tag.mergeTags(sanitizedSourceIds, sanitizedTargetId, firmId);
+
+    return res.json({
+        error: false,
+        message: `Successfully merged ${sanitizedSourceIds.length} tags`,
+        data: mergedTag
     });
 });
 
 /**
- * Get popular tags
- * GET /api/tags/popular
+ * Bulk create tags
+ * @route POST /api/tags/bulk
+ */
+const bulkCreate = asyncHandler(async (req, res) => {
+    const firmId = req.firmId;
+    const userId = req.userID;
+
+    const { tags } = req.body;
+
+    if (!Array.isArray(tags) || tags.length === 0) {
+        throw CustomException('tags must be a non-empty array', 400);
+    }
+
+    if (tags.length > 100) {
+        throw CustomException('Cannot create more than 100 tags at once', 400);
+    }
+
+    const validEntityTypes = ['lead', 'client', 'contact', 'case', 'quote', 'campaign'];
+    const colorRegex = /^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/;
+
+    // Validate and sanitize each tag
+    const tagDocs = tags.map(tagData => {
+        // MASS ASSIGNMENT PROTECTION
+        const allowedFields = pickAllowedFields(tagData, [
+            'name',
+            'nameAr',
+            'color',
+            'entityTypes',
+            'isActive'
+        ]);
+
+        if (!allowedFields.name || typeof allowedFields.name !== 'string') {
+            throw CustomException('Each tag must have a name', 400);
+        }
+
+        // Validate color if provided
+        if (allowedFields.color && !colorRegex.test(allowedFields.color)) {
+            throw CustomException(`Invalid color format for tag "${allowedFields.name}"`, 400);
+        }
+
+        // Validate entityTypes if provided
+        if (allowedFields.entityTypes) {
+            const invalidTypes = allowedFields.entityTypes.filter(type => !validEntityTypes.includes(type));
+            if (invalidTypes.length > 0) {
+                throw CustomException(`Invalid entity types in tag "${allowedFields.name}": ${invalidTypes.join(', ')}`, 400);
+            }
+        }
+
+        return {
+            ...allowedFields,
+            firmId,
+            createdBy: userId
+        };
+    });
+
+    // Insert all tags
+    const createdTags = await Tag.insertMany(tagDocs, { ordered: false });
+
+    return res.status(201).json({
+        error: false,
+        message: `Successfully created ${createdTags.length} tags`,
+        data: createdTags
+    });
+});
+
+/**
+ * Get popular tags (most used)
+ * @route GET /api/tags/popular
  */
 const getPopularTags = asyncHandler(async (req, res) => {
-    const { limit = 10, entityType } = req.query;
     const firmId = req.firmId;
+    const { limit = 10 } = req.query;
 
-    const tags = await Tag.getPopularTags(firmId, parseInt(limit), entityType);
+    const parsedLimit = Math.min(parseInt(limit) || 10, 50);
 
-    res.status(200).json({
-        success: true,
+    // Use static method with firm isolation
+    const tags = await Tag.getPopularTags(firmId, parsedLimit);
+
+    return res.json({
+        error: false,
         data: tags
     });
 });
 
 /**
- * Attach tag to entity
- * POST /api/tags/:id/attach
+ * Get tags by entity type
+ * @route GET /api/tags/entity/:entityType
  */
-const attachTag = asyncHandler(async (req, res) => {
-    const { id } = req.params;
+const getTagsByEntity = asyncHandler(async (req, res) => {
+    const firmId = req.firmId;
+    const { entityType } = req.params;
 
-    // Sanitize ObjectId to prevent NoSQL injection
-    const sanitizedId = sanitizeObjectId(id);
-    if (!sanitizedId) {
-        throw CustomException('معرف الوسم غير صالح', 400);
+    const validEntityTypes = ['lead', 'client', 'contact', 'case', 'quote', 'campaign'];
+    if (!validEntityTypes.includes(entityType)) {
+        throw CustomException('Invalid entity type', 400);
     }
 
-    // Mass assignment protection - only allow specific fields
-    const allowedData = pickAllowedFields(req.body, ['entityType', 'entityId']);
+    // Use static method with firm isolation
+    const tags = await Tag.getTagsByEntity(firmId, entityType);
 
-    if (!allowedData.entityType || !allowedData.entityId) {
-        throw CustomException('نوع الكيان ومعرف الكيان مطلوبان', 400);
-    }
-
-    // Sanitize entityId
-    const sanitizedEntityId = sanitizeObjectId(allowedData.entityId);
-    if (!sanitizedEntityId) {
-        throw CustomException('معرف الكيان غير صالح', 400);
-    }
-
-    // IDOR protection - verify ownership with firm isolation
-    const tag = await Tag.findOne({ _id: sanitizedId, ...req.firmQuery });
-    if (!tag) {
-        throw CustomException('الوسم غير موجود', 404);
-    }
-
-    // Increment usage count
-    await Tag.incrementUsage(sanitizedId);
-
-    res.status(200).json({
-        success: true,
-        message: 'تم إرفاق الوسم بنجاح'
-    });
-});
-
-/**
- * Detach tag from entity
- * POST /api/tags/:id/detach
- */
-const detachTag = asyncHandler(async (req, res) => {
-    const { id } = req.params;
-
-    // Sanitize ObjectId to prevent NoSQL injection
-    const sanitizedId = sanitizeObjectId(id);
-    if (!sanitizedId) {
-        throw CustomException('معرف الوسم غير صالح', 400);
-    }
-
-    // IDOR protection - verify ownership with firm isolation
-    const tag = await Tag.findOne({ _id: sanitizedId, ...req.firmQuery });
-    if (!tag) {
-        throw CustomException('الوسم غير موجود', 404);
-    }
-
-    // Decrement usage count
-    await Tag.decrementUsage(sanitizedId);
-
-    res.status(200).json({
-        success: true,
-        message: 'تم فك إرفاق الوسم بنجاح'
-    });
-});
-
-/**
- * Get tags for entity
- * GET /api/tags/entity/:entityType/:entityId
- */
-const getTagsForEntity = asyncHandler(async (req, res) => {
-    const { entityType, entityId } = req.params;
-
-    // Sanitize entityId to prevent NoSQL injection
-    const sanitizedEntityId = sanitizeObjectId(entityId);
-    if (!sanitizedEntityId) {
-        throw CustomException('معرف الكيان غير صالح', 400);
-    }
-
-    // This would need integration with specific entity models
-    // For now, return tags that match the entity type
-    // IDOR protection - firm-level isolation
-    const tags = await Tag.find({
-        ...req.firmQuery,
-        $or: [
-            { entityType: entityType },
-            { entityType: 'all' }
-        ]
-    }).sort({ usageCount: -1 });
-
-    res.status(200).json({
-        success: true,
+    return res.json({
+        error: false,
         data: tags
     });
 });
@@ -393,12 +404,11 @@ const getTagsForEntity = asyncHandler(async (req, res) => {
 module.exports = {
     createTag,
     getTags,
-    getTag,
+    getTagById,
     updateTag,
     deleteTag,
-    searchTags,
+    mergeTags,
+    bulkCreate,
     getPopularTags,
-    attachTag,
-    detachTag,
-    getTagsForEntity
+    getTagsByEntity
 };

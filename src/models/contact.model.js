@@ -423,6 +423,14 @@ const contactSchema = new mongoose.Schema({
     },
     emails: [emailSchema],
     phones: [phoneSchema],
+    mobile: {
+        type: String,
+        trim: true
+    },
+    fax: {
+        type: String,
+        trim: true
+    },
 
     // ═══════════════════════════════════════════════════════════════
     // EMPLOYMENT/AFFILIATION
@@ -445,6 +453,71 @@ const contactSchema = new mongoose.Schema({
         type: String,
         trim: true,
         maxlength: 100
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // ORGANIZATIONAL
+    // ═══════════════════════════════════════════════════════════════
+    reportsTo: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Contact'
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // ASSISTANT INFO
+    // ═══════════════════════════════════════════════════════════════
+    assistantName: {
+        type: String,
+        trim: true,
+        maxlength: 100
+    },
+    assistantPhone: {
+        type: String,
+        trim: true
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // SOCIAL PROFILES
+    // ═══════════════════════════════════════════════════════════════
+    socialProfiles: {
+        linkedin: { type: String, trim: true },
+        twitter: { type: String, trim: true },
+        facebook: { type: String, trim: true }
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // INTEREST AREAS
+    // ═══════════════════════════════════════════════════════════════
+    interestAreaIds: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'InterestArea'
+    }],
+
+    // ═══════════════════════════════════════════════════════════════
+    // TAG REFERENCES
+    // ═══════════════════════════════════════════════════════════════
+    tagIds: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Tag'
+    }],
+
+    // ═══════════════════════════════════════════════════════════════
+    // ACTIVITY TRACKING
+    // ═══════════════════════════════════════════════════════════════
+    lastActivityDate: {
+        type: Date
+    },
+    leadSource: {
+        type: String,
+        trim: true
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // EMAIL PREFERENCES
+    // ═══════════════════════════════════════════════════════════════
+    emailOptOut: {
+        type: Boolean,
+        default: false
     },
 
     // ═══════════════════════════════════════════════════════════════
@@ -997,6 +1070,13 @@ contactSchema.index({ 'arabicName.fullName': 'text', firstName: 'text', lastName
 contactSchema.index({ duplicateOf: 1 }, { sparse: true });
 contactSchema.index({ isMaster: 1, status: 1 });
 contactSchema.index({ firmId: 1, isMaster: 1 }, { sparse: true });
+
+// New field indexes
+contactSchema.index({ reportsTo: 1 }, { sparse: true });
+contactSchema.index({ tagIds: 1 });
+contactSchema.index({ interestAreaIds: 1 });
+contactSchema.index({ lastActivityDate: 1 });
+contactSchema.index({ firmId: 1, lastActivityDate: -1 });
 
 // ═══════════════════════════════════════════════════════════════
 // VIRTUALS

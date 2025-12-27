@@ -1,32 +1,98 @@
 /**
- * Approval Request Model - Tracks Individual Approval Requests
+ * Approval Request Model - Generic Approval Request Tracking
  *
- * Each pending approval action creates a request that needs to be approved/rejected.
+ * Tracks individual approval requests for any entity type.
+ * Each request follows an approval chain with multiple approvers.
+ *
+ * Security: Multi-tenant isolation via firmId
  */
 
 const mongoose = require('mongoose');
 
-// Approval decision sub-schema
-const approvalDecisionSchema = new mongoose.Schema({
-    userId: {
+// ═══════════════════════════════════════════════════════════════
+// SUB-SCHEMAS
+// ═══════════════════════════════════════════════════════════════
+
+// Approver in chain sub-schema
+const approverInChainSchema = new mongoose.Schema({
+    approverId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
         required: true
     },
-    decision: {
-        type: String,
-        enum: ['approved', 'rejected'],
+    order: {
+        type: Number,
         required: true
     },
-    comment: {
+    status: {
+        type: String,
+        enum: ['pending', 'approved', 'rejected', 'delegated', 'skipped'],
+        default: 'pending'
+    },
+    actionDate: {
+        type: Date
+    },
+    notes: {
+        type: String,
+        maxlength: 1000
+    },
+    delegatedTo: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
+    },
+    delegatedReason: {
         type: String,
         maxlength: 500
+    }
+}, { _id: false });
+
+// History entry sub-schema
+const historyEntrySchema = new mongoose.Schema({
+    action: {
+        type: String,
+        required: true,
+        enum: ['created', 'submitted', 'approved', 'rejected', 'cancelled', 'info_requested', 'delegated', 'escalated', 'reminded', 'auto_approved']
+    },
+    performedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
     },
     timestamp: {
         type: Date,
-        default: Date.now
+        default: Date.now,
+        required: true
+    },
+    notes: {
+        type: String,
+        maxlength: 1000
+    },
+    previousStatus: {
+        type: String
+    },
+    newStatus: {
+        type: String
+    },
+    metadata: {
+        type: mongoose.Schema.Types.Mixed
     }
 }, { _id: false });
+
+// Reminder sent sub-schema
+const reminderSchema = new mongoose.Schema({
+    sentAt: {
+        type: Date,
+        required: true
+    },
+    to: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        required: true
+    }
+}, { _id: false });
+
+// ═══════════════════════════════════════════════════════════════
+// APPROVAL REQUEST SCHEMA
+// ═══════════════════════════════════════════════════════════════
 
 const approvalRequestSchema = new mongoose.Schema({
     // ═══════════════════════════════════════════════════════════════
@@ -40,172 +106,173 @@ const approvalRequestSchema = new mongoose.Schema({
     },
 
     // ═══════════════════════════════════════════════════════════════
-    // REQUEST DETAILS
+    // REQUEST IDENTIFICATION
     // ═══════════════════════════════════════════════════════════════
-    // Reference to the approval rule that triggered this
-    ruleId: {
-        type: mongoose.Schema.Types.ObjectId
+    requestNumber: {
+        type: String,
+        required: true,
+        index: true,
+        unique: true
+        // Format: APR-YYYY-#####
     },
 
-    // What module and action
-    module: {
+    // ═══════════════════════════════════════════════════════════════
+    // ENTITY REFERENCE
+    // ═══════════════════════════════════════════════════════════════
+    entityType: {
         type: String,
         required: true,
         index: true
+        // e.g., 'quote', 'discount', 'expense', 'invoice', etc.
     },
-    action: {
-        type: String,
-        required: true,
-        index: true
-    },
-
-    // Target of the action
-    targetType: {
-        type: String,
-        required: true
-    },
-    targetId: {
+    entityId: {
         type: mongoose.Schema.Types.ObjectId,
+        required: true,
         index: true
-    },
-    targetName: {
-        type: String
     },
 
     // ═══════════════════════════════════════════════════════════════
     // REQUESTER
     // ═══════════════════════════════════════════════════════════════
-    requestedBy: {
+    requesterId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
         required: true,
         index: true
     },
-    requestedAt: {
-        type: Date,
-        default: Date.now,
-        required: true
-    },
-    requestComment: {
-        type: String,
-        maxlength: 500
-    },
 
     // ═══════════════════════════════════════════════════════════════
-    // PAYLOAD (The data/changes being requested)
-    // ═══════════════════════════════════════════════════════════════
-    payload: {
-        type: mongoose.Schema.Types.Mixed,
-        required: true
-    },
-
-    // ═══════════════════════════════════════════════════════════════
-    // APPROVAL REQUIREMENTS
-    // ═══════════════════════════════════════════════════════════════
-    requiredApprovers: [{
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'User'
-    }],
-    requiredRoles: [{
-        type: String
-    }],
-    minApprovals: {
-        type: Number,
-        default: 1
-    },
-    autoApproveAt: {
-        type: Date  // When auto-approval will trigger (if enabled)
-    },
-
-    // ═══════════════════════════════════════════════════════════════
-    // DECISIONS
-    // ═══════════════════════════════════════════════════════════════
-    decisions: [approvalDecisionSchema],
-
-    // ═══════════════════════════════════════════════════════════════
-    // STATUS
+    // STATUS & PRIORITY
     // ═══════════════════════════════════════════════════════════════
     status: {
         type: String,
-        enum: ['pending', 'approved', 'rejected', 'cancelled', 'expired', 'auto_approved'],
+        enum: ['pending', 'approved', 'rejected', 'cancelled', 'info_requested'],
         default: 'pending',
         index: true
     },
-    finalizedAt: {
-        type: Date
+    priority: {
+        type: String,
+        enum: ['low', 'normal', 'high', 'urgent'],
+        default: 'normal',
+        index: true
     },
-    finalizedBy: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'User'
+    dueDate: {
+        type: Date,
+        index: true
     },
 
     // ═══════════════════════════════════════════════════════════════
-    // NOTIFICATIONS
+    // APPROVAL CHAIN
+    // ═══════════════════════════════════════════════════════════════
+    approvalChain: {
+        type: [approverInChainSchema],
+        required: true,
+        validate: {
+            validator: function(chain) {
+                return chain && chain.length > 0;
+            },
+            message: 'At least one approver is required'
+        }
+    },
+    currentLevel: {
+        type: Number,
+        default: 0,
+        min: 0
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // REQUEST DATA
+    // ═══════════════════════════════════════════════════════════════
+    data: {
+        type: mongoose.Schema.Types.Mixed,
+        required: true
+        // Entity-specific data snapshot at time of request
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // HISTORY & AUDIT
+    // ═══════════════════════════════════════════════════════════════
+    history: {
+        type: [historyEntrySchema],
+        default: []
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // REMINDERS & NOTIFICATIONS
     // ═══════════════════════════════════════════════════════════════
     remindersSent: {
-        type: Number,
-        default: 0
+        type: [reminderSchema],
+        default: []
     },
-    lastReminderAt: {
+
+    // ═══════════════════════════════════════════════════════════════
+    // AUTO-APPROVAL
+    // ═══════════════════════════════════════════════════════════════
+    autoApproved: {
+        type: Boolean,
+        default: false
+    },
+    autoApprovalReason: {
+        type: String,
+        maxlength: 500
+    },
+    autoApprovalAt: {
         type: Date
     },
 
     // ═══════════════════════════════════════════════════════════════
-    // ESCALATION
+    // METADATA
     // ═══════════════════════════════════════════════════════════════
-    escalated: {
-        type: Boolean,
-        default: false
-    },
-    escalatedAt: {
-        type: Date
-    },
-    escalatedTo: [{
+    createdBy: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User'
-    }],
-
-    // ═══════════════════════════════════════════════════════════════
-    // EXECUTION (After approval)
-    // ═══════════════════════════════════════════════════════════════
-    executed: {
-        type: Boolean,
-        default: false
     },
-    executedAt: {
+    updatedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
+    },
+    completedAt: {
         type: Date
     },
-    executionResult: {
-        success: Boolean,
-        error: String
+    completedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
     }
 }, {
     timestamps: true,
-    versionKey: false
+    toJSON: {
+        transform: (doc, ret) => {
+            delete ret.__v;
+            return ret;
+        }
+    }
 });
 
 // ═══════════════════════════════════════════════════════════════
 // INDEXES
 // ═══════════════════════════════════════════════════════════════
 approvalRequestSchema.index({ firmId: 1, status: 1, createdAt: -1 });
-approvalRequestSchema.index({ firmId: 1, requestedBy: 1, status: 1 });
-approvalRequestSchema.index({ firmId: 1, 'requiredApprovers': 1, status: 1 });
-approvalRequestSchema.index({ status: 1, autoApproveAt: 1 }); // For auto-approval job
-approvalRequestSchema.index({ status: 1, createdAt: 1 }); // For expiry job
+approvalRequestSchema.index({ firmId: 1, requesterId: 1, status: 1 });
+approvalRequestSchema.index({ firmId: 1, entityType: 1, entityId: 1 });
+approvalRequestSchema.index({ firmId: 1, 'approvalChain.approverId': 1, status: 1 });
+approvalRequestSchema.index({ status: 1, dueDate: 1 }); // For overdue monitoring
+approvalRequestSchema.index({ status: 1, autoApprovalAt: 1 }); // For auto-approval job
 
 // ═══════════════════════════════════════════════════════════════
 // VIRTUALS
 // ═══════════════════════════════════════════════════════════════
-approvalRequestSchema.virtual('approvalCount').get(function() {
-    return this.decisions.filter(d => d.decision === 'approved').length;
+approvalRequestSchema.virtual('isOverdue').get(function() {
+    if (!this.dueDate || this.status !== 'pending') {
+        return false;
+    }
+    return new Date() > this.dueDate;
 });
 
-approvalRequestSchema.virtual('rejectionCount').get(function() {
-    return this.decisions.filter(d => d.decision === 'rejected').length;
-});
-
-approvalRequestSchema.virtual('isFullyApproved').get(function() {
-    return this.approvalCount >= this.minApprovals;
+approvalRequestSchema.virtual('currentApprover').get(function() {
+    if (this.approvalChain && this.currentLevel > 0) {
+        return this.approvalChain.find(a => a.order === this.currentLevel);
+    }
+    return null;
 });
 
 approvalRequestSchema.set('toJSON', { virtuals: true });
@@ -216,162 +283,125 @@ approvalRequestSchema.set('toObject', { virtuals: true });
 // ═══════════════════════════════════════════════════════════════
 
 /**
- * Create a new approval request
+ * Generate next request number
  */
-approvalRequestSchema.statics.createRequest = async function(data) {
-    const request = new this(data);
-    await request.save();
-    return request;
+approvalRequestSchema.statics.generateRequestNumber = async function(firmId) {
+    const year = new Date().getFullYear();
+    const prefix = `APR-${year}-`;
+
+    // Find the latest request number for this year
+    const latestRequest = await this.findOne({
+        firmId,
+        requestNumber: { $regex: `^${prefix}` }
+    })
+    .sort({ requestNumber: -1 })
+    .select('requestNumber')
+    .lean();
+
+    let nextNumber = 1;
+    if (latestRequest) {
+        const currentNumber = parseInt(latestRequest.requestNumber.split('-')[2], 10);
+        nextNumber = currentNumber + 1;
+    }
+
+    return `${prefix}${String(nextNumber).padStart(5, '0')}`;
 };
 
 /**
- * Get pending approvals for a user (as an approver)
+ * Get pending approvals for a user (as approver)
  */
-approvalRequestSchema.statics.getPendingForApprover = async function(firmId, userId, userRole, options = {}) {
+approvalRequestSchema.statics.getPendingForApprover = async function(firmId, approverId, options = {}) {
     const { limit = 50, skip = 0 } = options;
 
-    const query = {
+    return this.find({
         firmId,
         status: 'pending',
-        $or: [
-            { requiredApprovers: userId },
-            { requiredRoles: userRole },
-            { requiredApprovers: { $size: 0 }, requiredRoles: { $size: 0 } } // No specific approvers = anyone with permission
-        ],
-        // Exclude already decided by this user
-        'decisions.userId': { $ne: userId }
-    };
-
-    return this.find(query)
-        .sort({ createdAt: -1 })
-        .limit(limit)
-        .skip(skip)
-        .populate('requestedBy', 'firstName lastName email avatar')
-        .lean();
+        'approvalChain': {
+            $elemMatch: {
+                approverId: new mongoose.Types.ObjectId(approverId),
+                status: 'pending'
+            }
+        }
+    })
+    .sort({ priority: -1, dueDate: 1, createdAt: -1 })
+    .limit(limit)
+    .skip(skip)
+    .populate('requesterId', 'firstName lastName email avatar')
+    .populate('approvalChain.approverId', 'firstName lastName email')
+    .lean();
 };
 
 /**
- * Get pending approvals requested by a user
+ * Get requests submitted by user
  */
-approvalRequestSchema.statics.getMyRequests = async function(firmId, userId, options = {}) {
+approvalRequestSchema.statics.getMyRequests = async function(firmId, requesterId, options = {}) {
     const { limit = 50, skip = 0, status } = options;
 
-    const query = { firmId, requestedBy: userId };
+    const query = { firmId, requesterId };
     if (status) query.status = status;
 
     return this.find(query)
         .sort({ createdAt: -1 })
         .limit(limit)
         .skip(skip)
-        .populate('finalizedBy', 'firstName lastName email')
+        .populate('completedBy', 'firstName lastName email')
         .lean();
 };
 
 /**
- * Approve a request
+ * Get approval history for entity
  */
-approvalRequestSchema.statics.approve = async function(requestId, userId, comment = '') {
-    const request = await this.findById(requestId);
+approvalRequestSchema.statics.getHistoryForEntity = async function(firmId, entityType, entityId, options = {}) {
+    const { limit = 50, skip = 0 } = options;
 
-    if (!request) {
-        throw new Error('Approval request not found');
-    }
-
-    if (request.status !== 'pending') {
-        throw new Error('Request is no longer pending');
-    }
-
-    // Check if user already decided
-    const existingDecision = request.decisions.find(
-        d => d.userId.toString() === userId.toString()
-    );
-    if (existingDecision) {
-        throw new Error('You have already made a decision on this request');
-    }
-
-    // Add approval decision
-    request.decisions.push({
-        userId,
-        decision: 'approved',
-        comment,
-        timestamp: new Date()
-    });
-
-    // Check if fully approved
-    const approvalCount = request.decisions.filter(d => d.decision === 'approved').length;
-    if (approvalCount >= request.minApprovals) {
-        request.status = 'approved';
-        request.finalizedAt = new Date();
-        request.finalizedBy = userId;
-    }
-
-    await request.save();
-    return request;
+    return this.find({
+        firmId,
+        entityType,
+        entityId
+    })
+    .sort({ createdAt: -1 })
+    .limit(limit)
+    .skip(skip)
+    .populate('requesterId', 'firstName lastName email')
+    .populate('completedBy', 'firstName lastName email')
+    .lean();
 };
 
 /**
- * Reject a request
+ * Get overdue approvals
  */
-approvalRequestSchema.statics.reject = async function(requestId, userId, reason = '') {
-    const request = await this.findById(requestId);
+approvalRequestSchema.statics.getOverdue = async function(firmId, overdueHours = 24) {
+    const overdueDate = new Date(Date.now() - (overdueHours * 60 * 60 * 1000));
 
-    if (!request) {
-        throw new Error('Approval request not found');
-    }
-
-    if (request.status !== 'pending') {
-        throw new Error('Request is no longer pending');
-    }
-
-    // Add rejection decision
-    request.decisions.push({
-        userId,
-        decision: 'rejected',
-        comment: reason,
-        timestamp: new Date()
-    });
-
-    // Any rejection = rejected (can be configured per firm)
-    request.status = 'rejected';
-    request.finalizedAt = new Date();
-    request.finalizedBy = userId;
-
-    await request.save();
-    return request;
+    return this.find({
+        firmId,
+        status: 'pending',
+        $or: [
+            { dueDate: { $lt: new Date(), $exists: true } },
+            { createdAt: { $lt: overdueDate } }
+        ]
+    })
+    .sort({ dueDate: 1, createdAt: 1 })
+    .populate('requesterId', 'firstName lastName email')
+    .populate('approvalChain.approverId', 'firstName lastName email')
+    .lean();
 };
 
 /**
- * Cancel a request (by requester)
+ * Get approval statistics
  */
-approvalRequestSchema.statics.cancel = async function(requestId, userId) {
-    const request = await this.findById(requestId);
+approvalRequestSchema.statics.getStats = async function(firmId, dateRange = {}) {
+    const { startDate, endDate } = dateRange;
+    const matchQuery = { firmId };
 
-    if (!request) {
-        throw new Error('Approval request not found');
+    if (startDate || endDate) {
+        matchQuery.createdAt = {};
+        if (startDate) matchQuery.createdAt.$gte = new Date(startDate);
+        if (endDate) matchQuery.createdAt.$lte = new Date(endDate);
     }
 
-    if (request.status !== 'pending') {
-        throw new Error('Request is no longer pending');
-    }
-
-    if (request.requestedBy.toString() !== userId.toString()) {
-        throw new Error('Only the requester can cancel this request');
-    }
-
-    request.status = 'cancelled';
-    request.finalizedAt = new Date();
-    request.finalizedBy = userId;
-
-    await request.save();
-    return request;
-};
-
-/**
- * Get statistics for a firm
- */
-approvalRequestSchema.statics.getStats = async function(firmId) {
     const stats = await this.aggregate([
-        { $match: { firmId: new mongoose.Types.ObjectId(firmId) } },
+        { $match: matchQuery },
         {
             $group: {
                 _id: '$status',
@@ -385,37 +415,33 @@ approvalRequestSchema.statics.getStats = async function(firmId) {
         approved: 0,
         rejected: 0,
         cancelled: 0,
-        expired: 0,
-        auto_approved: 0
+        info_requested: 0,
+        total: 0
     };
 
     stats.forEach(s => {
         result[s._id] = s.count;
+        result.total += s.count;
     });
 
-    return result;
-};
+    // Calculate average approval time for completed requests
+    const completedRequests = await this.find({
+        ...matchQuery,
+        status: { $in: ['approved', 'rejected'] },
+        completedAt: { $exists: true }
+    }).select('createdAt completedAt').lean();
 
-/**
- * Process auto-approvals (called by scheduler)
- */
-approvalRequestSchema.statics.processAutoApprovals = async function() {
-    const now = new Date();
-
-    const requests = await this.find({
-        status: 'pending',
-        autoApproveAt: { $lte: now }
-    });
-
-    const results = [];
-    for (const request of requests) {
-        request.status = 'auto_approved';
-        request.finalizedAt = now;
-        await request.save();
-        results.push(request._id);
+    if (completedRequests.length > 0) {
+        const totalTime = completedRequests.reduce((sum, req) => {
+            const duration = req.completedAt - req.createdAt;
+            return sum + duration;
+        }, 0);
+        result.avgApprovalTimeHours = Math.round(totalTime / completedRequests.length / (1000 * 60 * 60));
+    } else {
+        result.avgApprovalTimeHours = 0;
     }
 
-    return results;
+    return result;
 };
 
 module.exports = mongoose.model('ApprovalRequest', approvalRequestSchema);

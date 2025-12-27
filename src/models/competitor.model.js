@@ -1,177 +1,70 @@
-/**
- * Competitor Model
- *
- * Tracks competitors in the CRM system.
- * Helps analyze win/loss rates against specific competitors.
- */
-
 const mongoose = require('mongoose');
 
-// ═══════════════════════════════════════════════════════════════
-// MAIN SCHEMA
-// ═══════════════════════════════════════════════════════════════
-
 const competitorSchema = new mongoose.Schema({
-    firmId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Firm',
-        required: true,
-        index: true
-    },
+    firmId: { type: mongoose.Schema.Types.ObjectId, ref: 'Firm', required: true, index: true },
+    lawyerId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', index: true },
 
-    name: {
+    name: { type: String, required: true, trim: true },
+    nameAr: { type: String, trim: true },
+    website: { type: String, trim: true },
+    description: String,
+    descriptionAr: String,
+
+    // Classification
+    competitorType: {
         type: String,
-        required: true,
-        trim: true,
-        maxlength: 200
+        enum: ['direct', 'indirect', 'potential'],
+        default: 'direct'
     },
-    nameAr: {
+    threatLevel: {
         type: String,
-        trim: true,
-        maxlength: 200
-    },
-    website: {
-        type: String,
-        trim: true,
-        maxlength: 255
-    },
-    description: {
-        type: String,
-        trim: true,
-        maxlength: 1000
+        enum: ['low', 'medium', 'high'],
+        default: 'medium'
     },
 
-    // Stats (calculated)
-    casesLostTo: {
-        type: Number,
-        default: 0,
-        min: 0
+    // Strengths and weaknesses
+    strengths: [{ type: String, trim: true }],
+    weaknesses: [{ type: String, trim: true }],
+    ourAdvantages: [{ type: String, trim: true }],
+    theirAdvantages: [{ type: String, trim: true }],
+
+    // Pricing info
+    pricing: {
+        model: { type: String, enum: ['hourly', 'fixed', 'retainer', 'hybrid', 'unknown'] },
+        priceRange: String,
+        notes: String
     },
-    casesWonAgainst: {
-        type: Number,
-        default: 0,
-        min: 0
+
+    // Market presence
+    marketShare: { type: Number, min: 0, max: 100 },
+    targetMarket: [{ type: String, trim: true }],
+    geographicPresence: [{ type: String, trim: true }],
+
+    // Win/Loss tracking
+    stats: {
+        dealsWonAgainst: { type: Number, default: 0 },
+        dealsLostTo: { type: Number, default: 0 },
+        winRate: { type: Number, default: 0 },
+        lastEncounter: Date
     },
 
-    enabled: {
-        type: Boolean,
-        default: true,
-        index: true
-    }
-}, {
-    timestamps: true,
-    versionKey: false
-});
+    // Contact info (if known)
+    contacts: [{
+        name: String,
+        title: String,
+        email: String,
+        phone: String
+    }],
 
-// ═══════════════════════════════════════════════════════════════
-// INDEXES
-// ═══════════════════════════════════════════════════════════════
+    status: { type: String, enum: ['active', 'inactive', 'archived'], default: 'active' },
+    tags: [{ type: String, trim: true }],
+    notes: String,
+    createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
+}, { timestamps: true, versionKey: false });
 
-competitorSchema.index({ firmId: 1, enabled: 1 });
-competitorSchema.index({ firmId: 1, name: 1 }, { unique: true });
-
-// ═══════════════════════════════════════════════════════════════
-// STATIC METHODS
-// ═══════════════════════════════════════════════════════════════
-
-/**
- * Get all enabled competitors for a firm
- * @param {ObjectId} firmId - Firm ID
- * @returns {Promise<Array>} Array of competitors
- */
-competitorSchema.statics.getEnabled = async function(firmId) {
-    return this.find({ firmId, enabled: true }).sort({ name: 1 });
-};
-
-/**
- * Get competitors with stats
- * @param {ObjectId} firmId - Firm ID
- * @returns {Promise<Array>} Array of competitors with win/loss stats
- */
-competitorSchema.statics.getWithStats = async function(firmId) {
-    const competitors = await this.find({ firmId, enabled: true })
-        .sort({ name: 1 })
-        .lean();
-
-    return competitors.map(c => ({
-        ...c,
-        totalCases: c.casesLostTo + c.casesWonAgainst,
-        winRate: c.casesLostTo + c.casesWonAgainst > 0
-            ? Math.round((c.casesWonAgainst / (c.casesLostTo + c.casesWonAgainst)) * 100)
-            : 0
-    }));
-};
-
-/**
- * Record a loss to a competitor
- * @param {ObjectId} competitorId - Competitor ID
- * @returns {Promise<Object>} Updated competitor
- */
-competitorSchema.statics.recordLoss = async function(competitorId) {
-    return this.findByIdAndUpdate(
-        competitorId,
-        { $inc: { casesLostTo: 1 } },
-        { new: true }
-    );
-};
-
-/**
- * Record a win against a competitor
- * @param {ObjectId} competitorId - Competitor ID
- * @returns {Promise<Object>} Updated competitor
- */
-competitorSchema.statics.recordWin = async function(competitorId) {
-    return this.findByIdAndUpdate(
-        competitorId,
-        { $inc: { casesWonAgainst: 1 } },
-        { new: true }
-    );
-};
-
-/**
- * Get top competitors by losses
- * @param {ObjectId} firmId - Firm ID
- * @param {Number} limit - Max results
- * @returns {Promise<Array>} Top competitors
- */
-competitorSchema.statics.getTopByLosses = async function(firmId, limit = 5) {
-    return this.find({ firmId, enabled: true, casesLostTo: { $gt: 0 } })
-        .sort({ casesLostTo: -1 })
-        .limit(limit)
-        .lean();
-};
-
-// ═══════════════════════════════════════════════════════════════
-// VIRTUALS
-// ═══════════════════════════════════════════════════════════════
-
-/**
- * Get win rate percentage
- */
-competitorSchema.virtual('winRate').get(function() {
-    const total = this.casesLostTo + this.casesWonAgainst;
-    if (total === 0) return 0;
-    return Math.round((this.casesWonAgainst / total) * 100);
-});
-
-/**
- * Get total cases
- */
-competitorSchema.virtual('totalCases').get(function() {
-    return this.casesLostTo + this.casesWonAgainst;
-});
-
-/**
- * Get display name (bilingual)
- */
-competitorSchema.virtual('displayName').get(function() {
-    if (this.nameAr) {
-        return `${this.name} / ${this.nameAr}`;
-    }
-    return this.name;
-});
-
-competitorSchema.set('toJSON', { virtuals: true });
-competitorSchema.set('toObject', { virtuals: true });
+competitorSchema.index({ firmId: 1, status: 1 });
+competitorSchema.index({ firmId: 1, threatLevel: 1 });
+competitorSchema.index({ name: 'text', nameAr: 'text' });
 
 module.exports = mongoose.model('Competitor', competitorSchema);

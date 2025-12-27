@@ -122,6 +122,12 @@ const clientSchema = new mongoose.Schema({
     }],
     wathqVerified: { type: Boolean, default: false },
     wathqVerifiedAt: Date,
+    industry: String,
+    industryCode: String,
+    numberOfEmployees: {
+        type: String,
+        enum: ['1-10', '11-50', '51-200', '201-500', '501-1000', '1000+']
+    },
 
     // Legal Representative (for companies)
     legalRepresentative: {
@@ -155,6 +161,8 @@ const clientSchema = new mongoose.Schema({
     },
     alternatePhone: String,
     whatsapp: String,
+    mobile: String,
+    fax: String,
     email: {
         type: String,
         trim: true,
@@ -279,6 +287,21 @@ const clientSchema = new mongoose.Schema({
     },
     referredBy: String,
     referralCommission: Number,
+    territoryId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Territory',
+        index: true
+    },
+    salesTeamId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'SalesTeam',
+        index: true
+    },
+    accountManagerId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        index: true
+    },
 
     // Platform user link
     platformUserId: {
@@ -305,6 +328,11 @@ const clientSchema = new mongoose.Schema({
         creditLimit: Number,
         creditBalance: { type: Number, default: 0 },
         creditHold: { type: Boolean, default: false },
+        creditStatus: {
+            type: String,
+            enum: ['good', 'warning', 'hold', 'blacklisted'],
+            default: 'good'
+        },
         discount: {
             hasDiscount: { type: Boolean, default: false },
             percent: Number,
@@ -392,6 +420,10 @@ const clientSchema = new mongoose.Schema({
     generalNotes: String,
     internalNotes: String,
     tags: [{ type: String, trim: true }],
+    tagIds: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Tag'
+    }],
 
     // ─────────────────────────────────────────────────────────
     // CRM FIELDS
@@ -431,6 +463,8 @@ const clientSchema = new mongoose.Schema({
     callCount: { type: Number, default: 0 },
     emailCount: { type: Number, default: 0 },
     meetingCount: { type: Number, default: 0 },
+    acquisitionCost: Number,
+    firstPurchaseDate: Date,
 
     // User's preferred timezone for date/time display
     timezone: { type: String, default: 'Asia/Riyadh' },
@@ -504,6 +538,13 @@ clientSchema.index({ riskLevel: 1 });
 clientSchema.index({ firmId: 1, status: 1, createdAt: -1 });
 clientSchema.index({ firmId: 1, lawyerId: 1, status: 1 });
 clientSchema.index({ firmId: 1, clientTier: 1, status: 1 });
+clientSchema.index({ territoryId: 1 });
+clientSchema.index({ salesTeamId: 1 });
+clientSchema.index({ accountManagerId: 1 });
+clientSchema.index({ tagIds: 1 });
+clientSchema.index({ 'billing.creditStatus': 1 });
+clientSchema.index({ firmId: 1, territoryId: 1, status: 1 });
+clientSchema.index({ firmId: 1, salesTeamId: 1, status: 1 });
 
 // ─────────────────────────────────────────────────────────
 // GENERATE CLIENT NUMBER (Atomic Counter)

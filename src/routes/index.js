@@ -55,6 +55,7 @@ const organizationRoute = require('./organization.route');
 const documentRoute = require('./document.route');
 const followupRoute = require('./followup.route');
 const workflowRoute = require('./workflow.route');
+const workflowRoutes = require('./workflow.routes');
 const rateGroupRoute = require('./rateGroup.route');
 const rateCardRoute = require('./rateCard.route');
 const invoiceTemplateRoute = require('./invoiceTemplate.route');
@@ -95,6 +96,13 @@ const crmActivityRoute = require('./crmActivity.route');
 const staffRoute = require('./staff.route');
 const leadScoringRoute = require('./leadScoring.route');
 const mlScoringRoute = require('./mlScoring.route');
+const contactListRoutes = require('./contactList.routes');
+const activityPlanRoutes = require('./activityPlan.routes');
+const competitorRoutes = require('./competitor.routes');
+const interestAreaRoutes = require('./interestArea.routes');
+
+// Sales Forecasting Routes
+const salesForecastRoutes = require('./salesForecast.routes');
 const whatsappRoute = require('./whatsapp.route');
 const telegramRoute = require('./telegram.route');
 const slackRoute = require('./slack.route');
@@ -407,6 +415,7 @@ module.exports = {
     documentRoute,
     followupRoute,
     workflowRoute,
+    workflowRoutes,
     rateGroupRoute,
     rateCardRoute,
     invoiceTemplateRoute,
@@ -447,6 +456,14 @@ module.exports = {
     staffRoute,
     leadScoringRoute,
     mlScoringRoute,
+    contactListRoutes,
+    activityPlanRoutes,
+    competitorRoutes,
+    interestAreaRoutes,
+
+    // Sales Forecasting
+    salesForecastRoutes,
+
     whatsappRoute,
     telegramRoute,
     slackRoute,

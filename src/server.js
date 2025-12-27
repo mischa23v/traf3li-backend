@@ -164,6 +164,7 @@ const {
     documentRoute,
     followupRoute,
     workflowRoute,
+    workflowRoutes,
     rateGroupRoute,
     rateCardRoute,
     invoiceTemplateRoute,
@@ -204,6 +205,14 @@ const {
     staffRoute,
     leadScoringRoute,
     mlScoringRoute,
+    contactListRoutes,
+    activityPlanRoutes,
+    competitorRoutes,
+    interestAreaRoutes,
+
+    // Sales Forecasting
+    salesForecastRoutes,
+
     whatsappRoute,
     telegramRoute,
     slackRoute,
@@ -935,6 +944,7 @@ app.use('/api/organizations', organizationRoute);
 app.use('/api/documents', documentRoute);
 app.use('/api/followups', followupRoute);
 app.use('/api/workflows', workflowRoute);
+app.use('/api/workflows', workflowRoutes);
 app.use('/api/rate-groups', rateGroupRoute);
 app.use('/api/rate-cards', rateCardRoute);
 app.use('/api/invoice-templates', invoiceTemplateRoute);
@@ -983,6 +993,11 @@ app.use('/api/crm-activities', crmActivityRoute);
 app.use('/api/staff', staffRoute);
 app.use('/api/lead-scoring', leadScoringRoute);
 app.use('/api/ml', mlScoringRoute);  // ML-enhanced lead scoring
+app.use('/api/contact-lists', contactListRoutes);  // Email list management
+app.use('/api/activity-plans', activityPlanRoutes);  // Activity sequences/cadences
+app.use('/api/competitors', competitorRoutes);  // Competitor tracking
+app.use('/api/interest-areas', interestAreaRoutes);  // Interest areas/topics
+app.use('/api/sales-forecasts', salesForecastRoutes);  // Sales forecasting & quota management
 app.use('/api/whatsapp', whatsappRoute);
 app.use('/api/telegram', noCache, telegramRoute);
 app.use('/api/slack', noCache, slackRoute);

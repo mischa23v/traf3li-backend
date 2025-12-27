@@ -1,478 +1,346 @@
-/**
- * Competitor Controller
- *
- * Handles competitor CRUD operations and stats.
- */
+const { Competitor } = require('../models');
+const asyncHandler = require('../utils/asyncHandler');
+const CustomException = require('../utils/CustomException');
+const { pickAllowedFields, sanitizeString, sanitizeObjectId } = require('../utils/securityUtils');
 
-const Competitor = require('../models/competitor.model');
-const CrmActivity = require('../models/crmActivity.model');
-const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
-const logger = require('../utils/logger');
-
-// Helper function to escape regex special characters (ReDoS protection)
-const escapeRegex = (str) => {
-    if (!str || typeof str !== 'string') return '';
-    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-};
-
-// ═══════════════════════════════════════════════════════════════
-// VALIDATION HELPERS
-// ═══════════════════════════════════════════════════════════════
+// Helper for regex safety
+const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 /**
- * Validate competitor data
+ * Create competitor
+ * POST /api/competitors
  */
-const validateCompetitorData = (data) => {
-    const errors = [];
-
-    // Validate name
-    if (data.name !== undefined) {
-        if (typeof data.name !== 'string' || data.name.trim().length === 0) {
-            errors.push('Name is required and must be a non-empty string');
-        } else if (data.name.length > 200) {
-            errors.push('Name must not exceed 200 characters');
-        }
+const createCompetitor = asyncHandler(async (req, res) => {
+    // Block departed users
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية للوصول', 403);
     }
 
-    // Validate nameAr
-    if (data.nameAr !== undefined && data.nameAr !== null && data.nameAr !== '') {
-        if (typeof data.nameAr !== 'string') {
-            errors.push('Arabic name must be a string');
-        } else if (data.nameAr.length > 200) {
-            errors.push('Arabic name must not exceed 200 characters');
-        }
+    const lawyerId = req.userID;
+    const firmId = req.firmId;
+
+    // MASS ASSIGNMENT PROTECTION: Only allow specific fields
+    const allowedFields = [
+        'name', 'nameAr', 'website', 'description', 'descriptionAr',
+        'competitorType', 'threatLevel', 'strengths', 'weaknesses',
+        'ourAdvantages', 'theirAdvantages', 'pricing', 'marketShare',
+        'targetMarket', 'geographicPresence', 'contacts', 'status', 'tags', 'notes'
+    ];
+
+    const safeData = pickAllowedFields(req.body, allowedFields);
+
+    // INPUT VALIDATION: Sanitize string inputs
+    if (safeData.name) {
+        safeData.name = sanitizeString(safeData.name);
+    }
+    if (safeData.nameAr) {
+        safeData.nameAr = sanitizeString(safeData.nameAr);
     }
 
-    // Validate website URL
-    if (data.website !== undefined && data.website !== null && data.website !== '') {
-        if (typeof data.website !== 'string') {
-            errors.push('Website must be a string');
-        } else if (data.website.length > 255) {
-            errors.push('Website must not exceed 255 characters');
-        } else {
-            // Validate URL format
-            const urlPattern = /^https?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*)$/;
-            if (!urlPattern.test(data.website)) {
-                errors.push('Website must be a valid URL (http:// or https://)');
-            }
-        }
-    }
+    // Ensure these system fields are not overridable (IDOR protection)
+    const competitorData = {
+        ...safeData,
+        lawyerId,
+        firmId,
+        createdBy: lawyerId
+    };
 
-    // Validate description
-    if (data.description !== undefined && data.description !== null && data.description !== '') {
-        if (typeof data.description !== 'string') {
-            errors.push('Description must be a string');
-        } else if (data.description.length > 1000) {
-            errors.push('Description must not exceed 1000 characters');
-        }
-    }
+    const competitor = await Competitor.create(competitorData);
 
-    // Validate enabled
-    if (data.enabled !== undefined && typeof data.enabled !== 'boolean') {
-        errors.push('Enabled must be a boolean');
-    }
-
-    return errors;
-};
-
-// Allowed fields for mass assignment protection
-const ALLOWED_COMPETITOR_FIELDS = [
-    'name',
-    'nameAr',
-    'website',
-    'description',
-    'enabled'
-];
-
-// ═══════════════════════════════════════════════════════════════
-// LIST COMPETITORS
-// ═══════════════════════════════════════════════════════════════
+    res.status(201).json({
+        success: true,
+        message: 'تم إنشاء المنافس بنجاح',
+        data: competitor
+    });
+});
 
 /**
- * Get all competitors with optional stats
+ * Get all competitors with filters
+ * GET /api/competitors
  */
-exports.getAll = async (req, res) => {
-    try {
-        if (req.isDeparted) {
-            return res.status(403).json({
-                success: false,
-                message: 'ليس لديك صلاحية للوصول / Access denied'
-            });
-        }
-
-        const firmId = req.firmId;
-        const lawyerId = req.userID;
-        const { enabled, withStats, search } = req.query;
-
-        if (withStats === 'true') {
-            const competitors = await Competitor.getWithStats(firmId);
-            return res.json({
-                success: true,
-                data: competitors
-            });
-        }
-
-        const isSoloLawyer = req.isSoloLawyer;
-        const query = {};
-        if (isSoloLawyer || !firmId) {
-            query.lawyerId = lawyerId;
-        } else {
-            query.firmId = firmId;
-        }
-
-        if (enabled !== undefined) {
-            query.enabled = enabled === 'true';
-        }
-        if (search) {
-            const escapedSearch = escapeRegex(search);
-            query.$or = [
-                { name: { $regex: escapedSearch, $options: 'i' } },
-                { nameAr: { $regex: escapedSearch, $options: 'i' } }
-            ];
-        }
-
-        const competitors = await Competitor.find(query).sort({ name: 1 });
-
-        res.json({
-            success: true,
-            data: competitors
-        });
-    } catch (error) {
-        logger.error('Error getting competitors', { error: error.message });
-        res.status(500).json({
-            success: false,
-            message: 'خطأ في جلب المنافسين / Error fetching competitors',
-            error: error.message
-        });
+const getCompetitors = asyncHandler(async (req, res) => {
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية للوصول', 403);
     }
-};
 
-// ═══════════════════════════════════════════════════════════════
-// GET SINGLE COMPETITOR
-// ═══════════════════════════════════════════════════════════════
+    const lawyerId = req.userID;
+    const firmId = req.firmId;
+    const isSoloLawyer = req.isSoloLawyer;
+    const {
+        search, status, competitorType, threatLevel,
+        page = 1, limit = 20, sortBy = 'createdAt', sortOrder = 'desc'
+    } = req.query;
+
+    const parsedLimit = Math.min(parseInt(limit) || 20, 100);
+    const parsedPage = parseInt(page) || 1;
+
+    // Build query based on user type
+    const query = {};
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
+
+    // Apply filters
+    if (status) query.status = status;
+    if (competitorType) query.competitorType = competitorType;
+    if (threatLevel) query.threatLevel = threatLevel;
+
+    // Safe search with escaped regex
+    if (search) {
+        query.$or = [
+            { name: { $regex: escapeRegex(search), $options: 'i' } },
+            { nameAr: { $regex: escapeRegex(search), $options: 'i' } }
+        ];
+    }
+
+    const competitors = await Competitor.find(query)
+        .sort({ [sortBy]: sortOrder === 'asc' ? 1 : -1 })
+        .skip((parsedPage - 1) * parsedLimit)
+        .limit(parsedLimit);
+
+    const total = await Competitor.countDocuments(query);
+
+    res.json({
+        success: true,
+        data: competitors,
+        pagination: {
+            page: parsedPage,
+            limit: parsedLimit,
+            total,
+            totalPages: Math.ceil(total / parsedLimit)
+        }
+    });
+});
 
 /**
- * Get competitor by ID
+ * Get single competitor
+ * GET /api/competitors/:id
  */
-exports.getById = async (req, res) => {
-    try {
-        if (req.isDeparted) {
-            return res.status(403).json({
-                success: false,
-                message: 'ليس لديك صلاحية للوصول / Access denied'
-            });
-        }
-
-        const { id } = req.params;
-        const firmId = req.firmId;
-
-        // Sanitize and validate ID
-        const sanitizedId = sanitizeObjectId(id);
-        if (!sanitizedId) {
-            return res.status(400).json({
-                success: false,
-                message: 'Invalid competitor ID format'
-            });
-        }
-
-        // IDOR protection: verify firmId ownership
-        const competitor = await Competitor.findOne({ _id: sanitizedId, firmId });
-
-        if (!competitor) {
-            return res.status(404).json({
-                success: false,
-                message: 'المنافس غير موجود / Competitor not found'
-            });
-        }
-
-        res.json({
-            success: true,
-            data: competitor
-        });
-    } catch (error) {
-        logger.error('Error getting competitor', { error: error.message });
-        res.status(500).json({
-            success: false,
-            message: 'خطأ في جلب المنافس / Error fetching competitor',
-            error: error.message
-        });
+const getCompetitor = asyncHandler(async (req, res) => {
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية للوصول', 403);
     }
-};
 
-// ═══════════════════════════════════════════════════════════════
-// CREATE COMPETITOR
-// ═══════════════════════════════════════════════════════════════
+    const { id } = req.params;
+    const lawyerId = req.userID;
+    const firmId = req.firmId;
+    const isSoloLawyer = req.isSoloLawyer;
+
+    // IDOR PROTECTION: Build query based on user type
+    const accessQuery = { _id: id };
+    if (isSoloLawyer || !firmId) {
+        accessQuery.lawyerId = lawyerId;
+    } else {
+        accessQuery.firmId = firmId;
+    }
+
+    const competitor = await Competitor.findOne(accessQuery);
+
+    if (!competitor) {
+        throw CustomException('المنافس غير موجود', 404);
+    }
+
+    res.json({
+        success: true,
+        data: competitor
+    });
+});
 
 /**
- * Create a new competitor
+ * Update competitor
+ * PUT /api/competitors/:id
  */
-exports.create = async (req, res) => {
-    try {
-        if (req.isDeparted) {
-            return res.status(403).json({
-                success: false,
-                message: 'ليس لديك صلاحية للوصول / Access denied'
-            });
-        }
-
-        const firmId = req.firmId;
-        const userId = req.userID;
-
-        // Mass assignment protection: only allow specific fields
-        const allowedData = pickAllowedFields(req.body, ALLOWED_COMPETITOR_FIELDS);
-
-        // Input validation
-        const validationErrors = validateCompetitorData(allowedData);
-        if (validationErrors.length > 0) {
-            return res.status(400).json({
-                success: false,
-                message: 'خطأ في التحقق من البيانات / Validation error',
-                errors: validationErrors
-            });
-        }
-
-        // Validate required fields
-        if (!allowedData.name || allowedData.name.trim().length === 0) {
-            return res.status(400).json({
-                success: false,
-                message: 'الاسم مطلوب / Name is required'
-            });
-        }
-
-        const competitorData = {
-            ...allowedData,
-            firmId
-        };
-
-        const competitor = await Competitor.create(competitorData);
-
-        // Log activity
-        await CrmActivity.logActivity({
-            lawyerId: userId,
-            type: 'competitor_created',
-            entityType: 'competitor',
-            entityId: competitor._id,
-            entityName: competitor.name,
-            title: `Competitor created: ${competitor.name}`,
-            performedBy: userId
-        });
-
-        res.status(201).json({
-            success: true,
-            message: 'تم إنشاء المنافس بنجاح / Competitor created successfully',
-            data: competitor
-        });
-    } catch (error) {
-        logger.error('Error creating competitor', { error: error.message });
-
-        if (error.code === 11000) {
-            return res.status(400).json({
-                success: false,
-                message: 'المنافس موجود بالفعل / Competitor already exists'
-            });
-        }
-
-        res.status(500).json({
-            success: false,
-            message: 'خطأ في إنشاء المنافس / Error creating competitor',
-            error: error.message
-        });
+const updateCompetitor = asyncHandler(async (req, res) => {
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية للوصول', 403);
     }
-};
 
-// ═══════════════════════════════════════════════════════════════
-// UPDATE COMPETITOR
-// ═══════════════════════════════════════════════════════════════
+    const { id } = req.params;
+    const lawyerId = req.userID;
+    const firmId = req.firmId;
+    const isSoloLawyer = req.isSoloLawyer;
+
+    // IDOR PROTECTION: Verify competitor belongs to user's firm
+    const accessQuery = { _id: id };
+    if (isSoloLawyer || !firmId) {
+        accessQuery.lawyerId = lawyerId;
+    } else {
+        accessQuery.firmId = firmId;
+    }
+
+    const competitor = await Competitor.findOne(accessQuery);
+
+    if (!competitor) {
+        throw CustomException('المنافس غير موجود', 404);
+    }
+
+    // MASS ASSIGNMENT PROTECTION: Only allow specific fields
+    const allowedFields = [
+        'name', 'nameAr', 'website', 'description', 'descriptionAr',
+        'competitorType', 'threatLevel', 'strengths', 'weaknesses',
+        'ourAdvantages', 'theirAdvantages', 'pricing', 'marketShare',
+        'targetMarket', 'geographicPresence', 'contacts', 'status', 'tags', 'notes'
+    ];
+
+    const safeUpdateData = pickAllowedFields(req.body, allowedFields);
+
+    // INPUT VALIDATION: Sanitize string inputs
+    if (safeUpdateData.name) {
+        safeUpdateData.name = sanitizeString(safeUpdateData.name);
+    }
+    if (safeUpdateData.nameAr) {
+        safeUpdateData.nameAr = sanitizeString(safeUpdateData.nameAr);
+    }
+
+    // Apply safe updates
+    Object.keys(safeUpdateData).forEach(field => {
+        competitor[field] = safeUpdateData[field];
+    });
+
+    competitor.updatedBy = lawyerId;
+    await competitor.save();
+
+    res.json({
+        success: true,
+        message: 'تم تحديث المنافس بنجاح',
+        data: competitor
+    });
+});
 
 /**
- * Update a competitor
+ * Delete competitor
+ * DELETE /api/competitors/:id
  */
-exports.update = async (req, res) => {
-    try {
-        if (req.isDeparted) {
-            return res.status(403).json({
-                success: false,
-                message: 'ليس لديك صلاحية للوصول / Access denied'
-            });
-        }
-
-        const { id } = req.params;
-        const firmId = req.firmId;
-        const userId = req.userID;
-
-        // Sanitize and validate ID
-        const sanitizedId = sanitizeObjectId(id);
-        if (!sanitizedId) {
-            return res.status(400).json({
-                success: false,
-                message: 'Invalid competitor ID format'
-            });
-        }
-
-        // Mass assignment protection: only allow specific fields
-        const allowedData = pickAllowedFields(req.body, ALLOWED_COMPETITOR_FIELDS);
-
-        // Input validation
-        const validationErrors = validateCompetitorData(allowedData);
-        if (validationErrors.length > 0) {
-            return res.status(400).json({
-                success: false,
-                message: 'خطأ في التحقق من البيانات / Validation error',
-                errors: validationErrors
-            });
-        }
-
-        // Check if there's any data to update
-        if (Object.keys(allowedData).length === 0) {
-            return res.status(400).json({
-                success: false,
-                message: 'لا توجد بيانات للتحديث / No data to update'
-            });
-        }
-
-        // IDOR protection: verify firmId ownership
-        const competitor = await Competitor.findOneAndUpdate(
-            { _id: sanitizedId, firmId },
-            { $set: allowedData },
-            { new: true, runValidators: true }
-        );
-
-        if (!competitor) {
-            return res.status(404).json({
-                success: false,
-                message: 'المنافس غير موجود / Competitor not found'
-            });
-        }
-
-        // Log activity
-        await CrmActivity.logActivity({
-            lawyerId: userId,
-            type: 'competitor_updated',
-            entityType: 'competitor',
-            entityId: competitor._id,
-            entityName: competitor.name,
-            title: `Competitor updated: ${competitor.name}`,
-            performedBy: userId
-        });
-
-        res.json({
-            success: true,
-            message: 'تم تحديث المنافس بنجاح / Competitor updated successfully',
-            data: competitor
-        });
-    } catch (error) {
-        logger.error('Error updating competitor', { error: error.message });
-
-        if (error.code === 11000) {
-            return res.status(400).json({
-                success: false,
-                message: 'المنافس موجود بالفعل / Competitor already exists'
-            });
-        }
-
-        res.status(500).json({
-            success: false,
-            message: 'خطأ في تحديث المنافس / Error updating competitor',
-            error: error.message
-        });
+const deleteCompetitor = asyncHandler(async (req, res) => {
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية للوصول', 403);
     }
-};
 
-// ═══════════════════════════════════════════════════════════════
-// DELETE COMPETITOR
-// ═══════════════════════════════════════════════════════════════
+    const { id } = req.params;
+    const lawyerId = req.userID;
+    const firmId = req.firmId;
+    const isSoloLawyer = req.isSoloLawyer;
+
+    // IDOR PROTECTION: Build query based on user type
+    const accessQuery = { _id: id };
+    if (isSoloLawyer || !firmId) {
+        accessQuery.lawyerId = lawyerId;
+    } else {
+        accessQuery.firmId = firmId;
+    }
+
+    const competitor = await Competitor.findOneAndDelete(accessQuery);
+
+    if (!competitor) {
+        throw CustomException('المنافس غير موجود', 404);
+    }
+
+    res.json({
+        success: true,
+        message: 'تم حذف المنافس بنجاح'
+    });
+});
 
 /**
- * Delete a competitor
+ * Record win against competitor
+ * POST /api/competitors/:id/record-win
  */
-exports.delete = async (req, res) => {
-    try {
-        if (req.isDeparted) {
-            return res.status(403).json({
-                success: false,
-                message: 'ليس لديك صلاحية للوصول / Access denied'
-            });
-        }
-
-        const { id } = req.params;
-        const firmId = req.firmId;
-        const userId = req.userID;
-
-        // Sanitize and validate ID
-        const sanitizedId = sanitizeObjectId(id);
-        if (!sanitizedId) {
-            return res.status(400).json({
-                success: false,
-                message: 'Invalid competitor ID format'
-            });
-        }
-
-        // IDOR protection: verify firmId ownership
-        const competitor = await Competitor.findOneAndDelete({ _id: sanitizedId, firmId });
-
-        if (!competitor) {
-            return res.status(404).json({
-                success: false,
-                message: 'المنافس غير موجود / Competitor not found'
-            });
-        }
-
-        // Log activity
-        await CrmActivity.logActivity({
-            lawyerId: userId,
-            type: 'competitor_deleted',
-            entityType: 'competitor',
-            entityId: sanitizedId,
-            entityName: competitor.name,
-            title: `Competitor deleted: ${competitor.name}`,
-            performedBy: userId
-        });
-
-        res.json({
-            success: true,
-            message: 'تم حذف المنافس بنجاح / Competitor deleted successfully'
-        });
-    } catch (error) {
-        logger.error('Error deleting competitor', { error: error.message });
-        res.status(500).json({
-            success: false,
-            message: 'خطأ في حذف المنافس / Error deleting competitor',
-            error: error.message
-        });
+const recordWin = asyncHandler(async (req, res) => {
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية للوصول', 403);
     }
-};
 
-// ═══════════════════════════════════════════════════════════════
-// GET TOP COMPETITORS BY LOSSES
-// ═══════════════════════════════════════════════════════════════
+    const { id } = req.params;
+    const lawyerId = req.userID;
+    const firmId = req.firmId;
+    const isSoloLawyer = req.isSoloLawyer;
+
+    // IDOR PROTECTION: Build query based on user type
+    const accessQuery = { _id: id };
+    if (isSoloLawyer || !firmId) {
+        accessQuery.lawyerId = lawyerId;
+    } else {
+        accessQuery.firmId = firmId;
+    }
+
+    const competitor = await Competitor.findOne(accessQuery);
+
+    if (!competitor) {
+        throw CustomException('المنافس غير موجود', 404);
+    }
+
+    competitor.stats.dealsWonAgainst += 1;
+    competitor.stats.lastEncounter = new Date();
+
+    // Calculate win rate
+    const total = competitor.stats.dealsWonAgainst + competitor.stats.dealsLostTo;
+    if (total > 0) {
+        competitor.stats.winRate = Math.round((competitor.stats.dealsWonAgainst / total) * 100);
+    }
+
+    await competitor.save();
+
+    res.json({
+        success: true,
+        message: 'تم تسجيل الفوز بنجاح',
+        data: competitor
+    });
+});
 
 /**
- * Get top competitors by cases lost to them
+ * Record loss to competitor
+ * POST /api/competitors/:id/record-loss
  */
-exports.getTopByLosses = async (req, res) => {
-    try {
-        if (req.isDeparted) {
-            return res.status(403).json({
-                success: false,
-                message: 'ليس لديك صلاحية للوصول / Access denied'
-            });
-        }
-
-        const firmId = req.firmId;
-        const { limit = 5 } = req.query;
-
-        const competitors = await Competitor.getTopByLosses(firmId, parseInt(limit));
-
-        res.json({
-            success: true,
-            data: competitors
-        });
-    } catch (error) {
-        logger.error('Error getting top competitors', { error: error.message });
-        res.status(500).json({
-            success: false,
-            message: 'خطأ في جلب أهم المنافسين / Error fetching top competitors',
-            error: error.message
-        });
+const recordLoss = asyncHandler(async (req, res) => {
+    if (req.isDeparted) {
+        throw CustomException('ليس لديك صلاحية للوصول', 403);
     }
+
+    const { id } = req.params;
+    const lawyerId = req.userID;
+    const firmId = req.firmId;
+    const isSoloLawyer = req.isSoloLawyer;
+
+    // IDOR PROTECTION: Build query based on user type
+    const accessQuery = { _id: id };
+    if (isSoloLawyer || !firmId) {
+        accessQuery.lawyerId = lawyerId;
+    } else {
+        accessQuery.firmId = firmId;
+    }
+
+    const competitor = await Competitor.findOne(accessQuery);
+
+    if (!competitor) {
+        throw CustomException('المنافس غير موجود', 404);
+    }
+
+    competitor.stats.dealsLostTo += 1;
+    competitor.stats.lastEncounter = new Date();
+
+    // Calculate win rate
+    const total = competitor.stats.dealsWonAgainst + competitor.stats.dealsLostTo;
+    if (total > 0) {
+        competitor.stats.winRate = Math.round((competitor.stats.dealsWonAgainst / total) * 100);
+    }
+
+    await competitor.save();
+
+    res.json({
+        success: true,
+        message: 'تم تسجيل الخسارة بنجاح',
+        data: competitor
+    });
+});
+
+module.exports = {
+    createCompetitor,
+    getCompetitors,
+    getCompetitor,
+    updateCompetitor,
+    deleteCompetitor,
+    recordWin,
+    recordLoss
 };

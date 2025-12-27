@@ -132,6 +132,13 @@ const Referral = require('./referral.model');
 const Staff = require('./staff.model');
 const Pipeline = require('./pipeline.model');
 const DealRoom = require('./dealRoom.model');
+const ContactList = require('./contactList.model');
+const ActivityPlan = require('./activityPlan.model');
+const Competitor = require('./competitor.model');
+const InterestArea = require('./interestArea.model');
+
+// Sales Forecasting Models
+const SalesForecast = require('./salesForecast.model');
 
 // HR Models
 const Employee = require('./employee.model');
@@ -193,6 +200,7 @@ const TeamActivityLog = require('./teamActivityLog.model');
 // Approval Workflow Models
 const ApprovalRule = require('./approvalRule.model');
 const ApprovalRequest = require('./approvalRequest.model');
+const ApprovalChain = require('./approvalChain.model');
 const { ApprovalWorkflow, ApprovalInstance } = require('./approvalWorkflow.model');
 
 // Permission & Authorization Models
@@ -552,6 +560,13 @@ module.exports = {
     Staff,
     Pipeline,
     DealRoom,
+    ContactList,
+    ActivityPlan,
+    Competitor,
+    InterestArea,
+
+    // Sales Forecasting
+    SalesForecast,
 
     // HR
     Employee,
@@ -613,6 +628,7 @@ module.exports = {
 
     // Approval Workflow
     ApprovalRule,
+    ApprovalChain,
     ApprovalWorkflow,
     ApprovalInstance,
     ApprovalRequest,
