@@ -20,6 +20,14 @@ const { FormulaField } = require('../models/formulaField.model');
 const CACHE_TTL = parseInt(process.env.FORMULA_CACHE_TTL) || 300;
 
 /**
+ * Escape special regex characters to prevent ReDoS attacks
+ */
+const escapeRegex = (str) => {
+  if (typeof str !== 'string') return str;
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
+
+/**
  * Formula Service Class
  */
 class FormulaService {
@@ -695,7 +703,7 @@ class FormulaService {
       // Replace {fieldName} with variable names in formula
       let processedFormula = formula;
       for (const fieldName of fieldRefs) {
-        const regex = new RegExp(`\\{${fieldName}\\}`, 'g');
+        const regex = new RegExp(`\\{${escapeRegex(fieldName)}\\}`, 'g');
         processedFormula = processedFormula.replace(regex, fieldName);
       }
 
@@ -782,7 +790,7 @@ class FormulaService {
       const fieldRefs = this.parseFieldReferences(formula);
       let testFormula = formula;
       for (const fieldName of fieldRefs) {
-        const regex = new RegExp(`\\{${fieldName}\\}`, 'g');
+        const regex = new RegExp(`\\{${escapeRegex(fieldName)}\\}`, 'g');
         testFormula = testFormula.replace(regex, '0');
       }
 

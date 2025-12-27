@@ -18,6 +18,14 @@
  */
 
 const mongoose = require('mongoose');
+
+/**
+ * Escape special regex characters to prevent ReDoS attacks
+ */
+const escapeRegex = (str) => {
+    if (typeof str !== 'string') return str;
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
 const Ticket = require('../models/ticket.model');
 const TicketCommunication = require('../models/ticketCommunication.model');
 const SupportSLA = require('../models/supportSLA.model');
@@ -70,9 +78,9 @@ class SupportService {
             // Text search
             if (search) {
                 filter.$or = [
-                    { subject: { $regex: search, $options: 'i' } },
-                    { description: { $regex: search, $options: 'i' } },
-                    { ticketId: { $regex: search, $options: 'i' } }
+                    { subject: { $regex: escapeRegex(search), $options: 'i' } },
+                    { description: { $regex: escapeRegex(search), $options: 'i' } },
+                    { ticketId: { $regex: escapeRegex(search), $options: 'i' } }
                 ];
             }
 
@@ -814,16 +822,17 @@ class SupportService {
      * Calculate SLA due dates for a ticket
      * @param {String} ticketId - Ticket ID
      * @param {String} slaId - SLA ID
+     * @param {String} firmId - Firm ID
      * @returns {Promise<Object>} Due dates
      */
-    static async calculateSLADueDates(ticketId, slaId) {
+    static async calculateSLADueDates(ticketId, slaId, firmId) {
         try {
-            const ticket = await Ticket.findById(ticketId);
+            const ticket = await Ticket.findOne({ _id: ticketId, firmId });
             if (!ticket) {
                 throw CustomException('Ticket not found', 404);
             }
 
-            const sla = await SupportSLA.findById(slaId);
+            const sla = await SupportSLA.findOne({ _id: slaId, firmId });
             if (!sla) {
                 throw CustomException('SLA not found', 404);
             }

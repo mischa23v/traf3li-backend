@@ -4,6 +4,12 @@ const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 
+// Helper function to escape regex special characters (ReDoS protection)
+const escapeRegex = (str) => {
+    if (!str || typeof str !== 'string') return '';
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
+
 /**
  * Get firmId from user context
  */
@@ -41,7 +47,8 @@ const listSLAs = asyncHandler(async (req, res) => {
 
     // Search by name
     if (search) {
-        query.name = { $regex: search, $options: 'i' };
+        const escapedSearch = escapeRegex(search);
+        query.name = { $regex: escapedSearch, $options: 'i' };
     }
 
     const slas = await SLA.find(query)
@@ -190,7 +197,7 @@ const getSLA = asyncHandler(async (req, res) => {
         throw CustomException('معرف غير صالح', 400);
     }
 
-    const sla = await SLA.findById(sanitizedId)
+    const sla = await SLA.findOne({ _id: sanitizedId, firmId })
         .populate('createdBy', 'username email')
         .populate('updatedBy', 'username email');
 
@@ -198,7 +205,7 @@ const getSLA = asyncHandler(async (req, res) => {
         throw CustomException('SLA غير موجود', 404);
     }
 
-    // IDOR protection - verify firm ownership
+    // IDOR protection - firm ownership already verified in query above
     if (sla.firmId.toString() !== firmId.toString()) {
         throw CustomException('لا يمكنك الوصول إلى هذا SLA', 403);
     }
@@ -228,13 +235,13 @@ const updateSLA = asyncHandler(async (req, res) => {
         throw CustomException('معرف غير صالح', 400);
     }
 
-    const sla = await SLA.findById(sanitizedId);
+    const sla = await SLA.findOne({ _id: sanitizedId, firmId });
 
     if (!sla) {
         throw CustomException('SLA غير موجود', 404);
     }
 
-    // IDOR protection - verify firm ownership
+    // IDOR protection - firm ownership already verified in query above
     if (sla.firmId.toString() !== firmId.toString()) {
         throw CustomException('لا يمكنك الوصول إلى هذا SLA', 403);
     }
@@ -330,13 +337,13 @@ const deleteSLA = asyncHandler(async (req, res) => {
         throw CustomException('معرف غير صالح', 400);
     }
 
-    const sla = await SLA.findById(sanitizedId);
+    const sla = await SLA.findOne({ _id: sanitizedId, firmId });
 
     if (!sla) {
         throw CustomException('SLA غير موجود', 404);
     }
 
-    // IDOR protection - verify firm ownership
+    // IDOR protection - firm ownership already verified in query above
     if (sla.firmId.toString() !== firmId.toString()) {
         throw CustomException('لا يمكنك الوصول إلى هذا SLA', 403);
     }
@@ -358,7 +365,7 @@ const deleteSLA = asyncHandler(async (req, res) => {
         );
     }
 
-    await SLA.findByIdAndDelete(sanitizedId);
+    await SLA.findOneAndDelete({ _id: sanitizedId, firmId });
 
     res.status(200).json({
         success: true,
@@ -391,12 +398,12 @@ const applySLAToTicket = asyncHandler(async (req, res) => {
     }
 
     // Verify SLA exists and belongs to firm
-    const sla = await SLA.findById(sanitizedSlaId);
+    const sla = await SLA.findOne({ _id: sanitizedSlaId, firmId });
     if (!sla) {
         throw CustomException('SLA غير موجود', 404);
     }
 
-    // IDOR protection
+    // IDOR protection - firm ownership already verified in query above
     if (sla.firmId.toString() !== firmId.toString()) {
         throw CustomException('لا يمكنك الوصول إلى هذا SLA', 403);
     }
@@ -436,12 +443,12 @@ const pauseSLA = asyncHandler(async (req, res) => {
     }
 
     // Verify instance exists and belongs to firm
-    const instance = await SLAInstance.findById(sanitizedId);
+    const instance = await SLAInstance.findOne({ _id: sanitizedId, firmId });
     if (!instance) {
         throw CustomException('مثيل SLA غير موجود', 404);
     }
 
-    // IDOR protection
+    // IDOR protection - firm ownership already verified in query above
     if (instance.firmId.toString() !== firmId.toString()) {
         throw CustomException('لا يمكنك الوصول إلى هذا المثيل', 403);
     }
@@ -480,12 +487,12 @@ const resumeSLA = asyncHandler(async (req, res) => {
     }
 
     // Verify instance exists and belongs to firm
-    const instance = await SLAInstance.findById(sanitizedId);
+    const instance = await SLAInstance.findOne({ _id: sanitizedId, firmId });
     if (!instance) {
         throw CustomException('مثيل SLA غير موجود', 404);
     }
 
-    // IDOR protection
+    // IDOR protection - firm ownership already verified in query above
     if (instance.firmId.toString() !== firmId.toString()) {
         throw CustomException('لا يمكنك الوصول إلى هذا المثيل', 403);
     }

@@ -207,21 +207,18 @@ const createAttendanceRecord = async (req, res) => {
             });
         }
 
-        // Check if employee exists
-        const employee = await Employee.findById(sanitizedEmployeeId);
+        // IDOR Protection: Verify employee belongs to user's firm with atomic query
+        const targetFirmId = firmId || req.user?.firmId;
+        const employeeQuery = { _id: sanitizedEmployeeId };
+        if (targetFirmId) {
+            employeeQuery.firmId = targetFirmId;
+        }
+
+        const employee = await Employee.findOne(employeeQuery);
         if (!employee) {
             return res.status(404).json({
                 success: false,
-                message: 'Employee not found'
-            });
-        }
-
-        // IDOR Protection: Verify employee belongs to user's firm
-        const targetFirmId = firmId || req.user?.firmId;
-        if (employee.firmId?.toString() !== targetFirmId?.toString()) {
-            return res.status(403).json({
-                success: false,
-                message: 'Access denied: Employee does not belong to your organization'
+                message: 'Employee not found or access denied'
             });
         }
 
@@ -531,20 +528,18 @@ const checkIn = async (req, res) => {
             });
         }
 
-        // IDOR Protection: Verify employee belongs to user's firm
+        // IDOR Protection: Verify employee belongs to user's firm with atomic query
         const targetFirmId = firmId || req.user?.firmId;
-        const employee = await Employee.findById(sanitizedEmployeeId);
+        const employeeQuery = { _id: sanitizedEmployeeId };
+        if (targetFirmId) {
+            employeeQuery.firmId = targetFirmId;
+        }
+
+        const employee = await Employee.findOne(employeeQuery);
         if (!employee) {
             return res.status(404).json({
                 success: false,
-                message: 'Employee not found'
-            });
-        }
-
-        if (employee.firmId?.toString() !== targetFirmId?.toString()) {
-            return res.status(403).json({
-                success: false,
-                message: 'Access denied: Employee does not belong to your organization'
+                message: 'Employee not found or access denied'
             });
         }
 
@@ -623,20 +618,18 @@ const checkOut = async (req, res) => {
             });
         }
 
-        // IDOR Protection: Verify employee belongs to user's firm
+        // IDOR Protection: Verify employee belongs to user's firm with atomic query
         const targetFirmId = firmId || req.user?.firmId;
-        const employee = await Employee.findById(sanitizedEmployeeId);
+        const employeeQuery = { _id: sanitizedEmployeeId };
+        if (targetFirmId) {
+            employeeQuery.firmId = targetFirmId;
+        }
+
+        const employee = await Employee.findOne(employeeQuery);
         if (!employee) {
             return res.status(404).json({
                 success: false,
-                message: 'Employee not found'
-            });
-        }
-
-        if (employee.firmId?.toString() !== targetFirmId?.toString()) {
-            return res.status(403).json({
-                success: false,
-                message: 'Access denied: Employee does not belong to your organization'
+                message: 'Employee not found or access denied'
             });
         }
 

@@ -175,7 +175,7 @@ const createTask = asyncHandler(async (req, res) => {
         }
     }
 
-    const populatedTask = await Task.findById(task._id)
+    const populatedTask = await Task.findOne({ _id: task._id, firmId: task.firmId })
         .populate('assignedTo', 'firstName lastName username email image')
         .populate('createdBy', 'firstName lastName username email image')
         .populate('caseId', 'title caseNumber')
@@ -471,13 +471,13 @@ const updateTask = asyncHandler(async (req, res) => {
 
         } else if (!hasDueDate && task.linkedEventId) {
             // Task no longer has due date → delete linked event
-            await Event.findByIdAndDelete(task.linkedEventId);
+            await Event.findOneAndDelete({ _id: task.linkedEventId, firmId });
             task.linkedEventId = null;
             await task.save();
 
         } else if (hasDueDate && task.linkedEventId) {
             // Task still has due date and linked event → update event
-            const linkedEvent = await Event.findById(task.linkedEventId);
+            const linkedEvent = await Event.findOne({ _id: task.linkedEventId, firmId });
 
             if (linkedEvent) {
                 // Update event fields
@@ -529,7 +529,7 @@ const updateTask = asyncHandler(async (req, res) => {
         // Don't fail task update if event sync fails
     }
 
-    const populatedTask = await Task.findById(task._id)
+    const populatedTask = await Task.findOne({ _id: task._id, firmId: task.firmId })
         .populate('assignedTo', 'firstName lastName username email image')
         .populate('createdBy', 'firstName lastName username email image')
         .populate('caseId', 'title caseNumber')
@@ -689,7 +689,7 @@ const completeTask = asyncHandler(async (req, res) => {
         }
     }
 
-    const populatedTask = await Task.findById(task._id)
+    const populatedTask = await Task.findOne({ _id: task._id, firmId: task.firmId })
         .populate('assignedTo', 'firstName lastName username email image')
         .populate('createdBy', 'firstName lastName username email image')
         .populate('completedBy', 'firstName lastName');
@@ -1100,7 +1100,7 @@ const addComment = asyncHandler(async (req, res) => {
 
     await task.save();
 
-    const populatedTask = await Task.findById(id)
+    const populatedTask = await Task.findOne({ _id: taskId, firmId: task.firmId })
         .populate('comments.userId', 'firstName lastName image')
         .lean();
 
@@ -1962,7 +1962,7 @@ const addAttachment = asyncHandler(async (req, res) => {
         throw CustomException('No file uploaded', 400);
     }
 
-    const user = await User.findById(userId).select('firstName lastName');
+    const user = await User.findOne({ _id: userId, firmId }).select('firstName lastName');
 
     let attachment;
 
@@ -2079,7 +2079,7 @@ const deleteAttachment = asyncHandler(async (req, res) => {
 
     task.attachments.pull(sanitizedAttachmentId);
 
-    const user = await User.findById(userId).select('firstName lastName');
+    const user = await User.findOne({ _id: userId, firmId }).select('firstName lastName');
 
     // Add history entry
     task.history.push({
@@ -2105,7 +2105,7 @@ const deleteAttachment = asyncHandler(async (req, res) => {
 /**
  * Check for circular dependencies
  */
-async function hasCircularDependency(taskId, dependsOnId, visited = new Set()) {
+async function hasCircularDependency(taskId, dependsOnId, firmId, visited = new Set()) {
     if (taskId.toString() === dependsOnId.toString()) {
         return true;
     }
@@ -2116,13 +2116,13 @@ async function hasCircularDependency(taskId, dependsOnId, visited = new Set()) {
 
     visited.add(dependsOnId.toString());
 
-    const dependentTask = await Task.findById(dependsOnId).select('blockedBy');
+    const dependentTask = await Task.findOne({ _id: dependsOnId, firmId }).select('blockedBy');
     if (!dependentTask || !dependentTask.blockedBy) {
         return false;
     }
 
     for (const blockedById of dependentTask.blockedBy) {
-        if (await hasCircularDependency(taskId, blockedById, visited)) {
+        if (await hasCircularDependency(taskId, blockedById, firmId, visited)) {
             return true;
         }
     }
@@ -2176,11 +2176,11 @@ const addDependency = asyncHandler(async (req, res) => {
     }
 
     // Check for circular dependency
-    if (await hasCircularDependency(taskId, sanitizedDependsOn)) {
+    if (await hasCircularDependency(taskId, sanitizedDependsOn, firmId)) {
         throw CustomException('لا يمكن إنشاء تبعية دائرية', 400);
     }
 
-    const user = await User.findById(userId).select('firstName lastName');
+    const user = await User.findOne({ _id: userId, firmId }).select('firstName lastName');
 
     // Add to blockedBy array
     task.blockedBy.push(sanitizedDependsOn);
@@ -2241,7 +2241,7 @@ const removeDependency = asyncHandler(async (req, res) => {
         await dependentTask.save();
     }
 
-    const user = await User.findById(userId).select('firstName lastName');
+    const user = await User.findOne({ _id: userId, firmId }).select('firstName lastName');
 
     task.history.push({
         action: 'dependency_removed',
@@ -2313,7 +2313,7 @@ const updateTaskStatus = asyncHandler(async (req, res) => {
     const oldStatus = task.status;
     task.status = status;
 
-    const user = await User.findById(userId).select('firstName lastName');
+    const user = await User.findOne({ _id: userId, firmId }).select('firstName lastName');
 
     // Add history entry
     task.history.push({
@@ -2338,7 +2338,7 @@ const updateTaskStatus = asyncHandler(async (req, res) => {
 
     await task.save();
 
-    const populatedTask = await Task.findById(taskId)
+    const populatedTask = await Task.findOne({ _id: taskId, firmId: task.firmId })
         .populate('assignedTo', 'firstName lastName email image')
         .populate('blockedBy', 'title status');
 
@@ -2413,7 +2413,7 @@ const updateProgress = asyncHandler(async (req, res) => {
 
     await task.save();
 
-    const populatedTask = await Task.findById(taskId)
+    const populatedTask = await Task.findOne({ _id: taskId, firmId: task.firmId })
         .populate('assignedTo', 'firstName lastName email image')
         .populate('createdBy', 'firstName lastName email image');
 
@@ -2598,7 +2598,7 @@ const updateOutcome = asyncHandler(async (req, res) => {
     task.outcomeNotes = outcomeNotes;
     task.outcomeDate = new Date();
 
-    const user = await User.findById(userId).select('firstName lastName');
+    const user = await User.findOne({ _id: userId, firmId }).select('firstName lastName');
 
     task.history.push({
         action: 'updated',
@@ -2985,7 +2985,7 @@ const createDocument = asyncHandler(async (req, res) => {
         throw CustomException('Task not found', 404);
     }
 
-    const user = await User.findById(userId).select('firstName lastName');
+    const user = await User.findOne({ _id: userId, firmId }).select('firstName lastName');
 
     // Handle different content formats (TipTap JSON or HTML)
     let sanitizedContent = '';
@@ -3141,7 +3141,7 @@ const updateDocument = asyncHandler(async (req, res) => {
         throw CustomException('This document cannot be edited', 400);
     }
 
-    const user = await User.findById(userId).select('firstName lastName');
+    const user = await User.findOne({ _id: userId, firmId }).select('firstName lastName');
 
     // Save current version to history before updating
     // Only save if there's actual content to preserve
@@ -3406,12 +3406,12 @@ const restoreDocumentVersion = asyncHandler(async (req, res) => {
     }
 
     // Find the version to restore
-    const versionToRestore = await TaskDocumentVersion.findById(versionId);
+    const versionToRestore = await TaskDocumentVersion.findOne({ _id: versionId, firmId });
     if (!versionToRestore || versionToRestore.documentId.toString() !== documentId) {
         throw CustomException('Version not found', 404);
     }
 
-    const user = await User.findById(userId).select('firstName lastName');
+    const user = await User.findOne({ _id: userId, firmId }).select('firstName lastName');
 
     // Save current version to history before restoring
     if (document.documentContent || document.documentJson) {
@@ -3516,7 +3516,7 @@ const getDocumentVersion = asyncHandler(async (req, res) => {
     }
 
     // Get specific version
-    const version = await TaskDocumentVersion.findById(versionId)
+    const version = await TaskDocumentVersion.findOne({ _id: versionId, firmId })
         .populate('editedBy', 'firstName lastName fullName');
 
     if (!version || version.documentId.toString() !== documentId) {
@@ -3562,7 +3562,7 @@ const addVoiceMemo = asyncHandler(async (req, res) => {
         throw CustomException('No audio file uploaded', 400);
     }
 
-    const user = await User.findById(userId).select('firstName lastName');
+    const user = await User.findOne({ _id: userId, firmId }).select('firstName lastName');
 
     let voiceMemo;
 

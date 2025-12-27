@@ -128,10 +128,15 @@ const loadPlugin = async (pluginPath, pluginMeta) => {
 /**
  * Unload a plugin
  * @param {String} pluginId - Plugin ID
+ * @param {String} firmId - Firm ID
  * @returns {Promise<Boolean>} Success status
  */
-const unloadPlugin = async (pluginId) => {
-    const plugin = await Plugin.findById(pluginId);
+const unloadPlugin = async (pluginId, firmId = null) => {
+    const query = { _id: pluginId };
+    if (firmId) {
+        query.$or = [{ firmId }, { firmId: null }];
+    }
+    const plugin = await Plugin.findOne(query);
     if (!plugin) {
         throw CustomException('Plugin not found', 404);
     }
@@ -357,10 +362,15 @@ const executeEventHooks = async (eventName, data, firmId) => {
 /**
  * Reload a plugin
  * @param {String} pluginId - Plugin ID
+ * @param {String} firmId - Firm ID
  * @returns {Promise<Object>} Reload result
  */
-const reloadPlugin = async (pluginId) => {
-    const plugin = await Plugin.findById(pluginId);
+const reloadPlugin = async (pluginId, firmId = null) => {
+    const query = { _id: pluginId };
+    if (firmId) {
+        query.$or = [{ firmId }, { firmId: null }];
+    }
+    const plugin = await Plugin.findOne(query);
     if (!plugin) {
         throw CustomException('Plugin not found', 404);
     }

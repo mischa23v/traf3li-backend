@@ -26,6 +26,14 @@ const logger = require('../utils/logger');
 const cache = new Map();
 const CACHE_TTL = 300000; // 5 minutes
 
+/**
+ * Escape special regex characters to prevent ReDoS attacks
+ */
+const escapeRegex = (str) => {
+    if (typeof str !== 'string') return str;
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
+
 // ═══════════════════════════════════════════════════════════════
 // CORE CHECK FUNCTION
 // ═══════════════════════════════════════════════════════════════
@@ -506,7 +514,7 @@ function evaluateCondition(actual, operator, expected) {
         case 'in': return Array.isArray(expected) && expected.includes(actual);
         case 'nin': return Array.isArray(expected) && !expected.includes(actual);
         case 'contains': return Array.isArray(actual) && actual.includes(expected);
-        case 'regex': return new RegExp(expected).test(actual);
+        case 'regex': return new RegExp(escapeRegex(expected)).test(actual);
         case 'exists': return actual !== undefined && actual !== null;
         default: return false;
     }

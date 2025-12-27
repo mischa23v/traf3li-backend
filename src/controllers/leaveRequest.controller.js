@@ -4,6 +4,12 @@ const asyncHandler = require('../utils/asyncHandler');
 const mongoose = require('mongoose');
 const { pickAllowedFields } = require('../utils/securityUtils');
 
+// Helper function to escape regex special characters (ReDoS protection)
+const escapeRegex = (str) => {
+    if (!str || typeof str !== 'string') return '';
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
+
 // ═══════════════════════════════════════════════════════════════
 // SECURITY UTILITIES
 // ═══════════════════════════════════════════════════════════════
@@ -175,11 +181,11 @@ const getLeaveRequests = asyncHandler(async (req, res) => {
 
     if (search) {
         query.$or = [
-            { employeeName: { $regex: search, $options: 'i' } },
-            { employeeNameAr: { $regex: search, $options: 'i' } },
-            { requestId: { $regex: search, $options: 'i' } },
-            { requestNumber: { $regex: search, $options: 'i' } },
-            { employeeNumber: { $regex: search, $options: 'i' } }
+            { employeeName: { $regex: escapeRegex(search), $options: 'i' } },
+            { employeeNameAr: { $regex: escapeRegex(search), $options: 'i' } },
+            { requestId: { $regex: escapeRegex(search), $options: 'i' } },
+            { requestNumber: { $regex: escapeRegex(search), $options: 'i' } },
+            { employeeNumber: { $regex: escapeRegex(search), $options: 'i' } }
         ];
     }
 
@@ -285,19 +291,18 @@ const createLeaveRequest = asyncHandler(async (req, res) => {
     // DATE VALIDATION: Ensure dates are valid and in correct order
     validateDateRange(dates.startDate, dates.endDate);
 
-    // IDOR PROTECTION: Fetch employee and verify access
-    const employee = await Employee.findById(employeeId);
-    if (!employee) {
-        throw CustomException('Employee not found', 404);
+    // IDOR PROTECTION: Fetch employee with firmId/lawyerId filter
+    const isSoloLawyer = req.isSoloLawyer;
+    const employeeQuery = { _id: employeeId };
+    if (isSoloLawyer || !firmId) {
+        employeeQuery.lawyerId = lawyerId;
+    } else {
+        employeeQuery.firmId = firmId;
     }
 
-    // Check access to employee
-    const hasEmployeeAccess = firmId
-        ? employee.firmId?.toString() === firmId.toString()
-        : employee.lawyerId?.toString() === lawyerId;
-
-    if (!hasEmployeeAccess) {
-        throw CustomException('Access denied to this employee', 403);
+    const employee = await Employee.findOne(employeeQuery);
+    if (!employee) {
+        throw CustomException('Employee not found or access denied', 404);
     }
 
     // Check for conflicts
@@ -1252,18 +1257,18 @@ const checkConflicts = asyncHandler(async (req, res) => {
     // DATE VALIDATION: Ensure dates are valid and in correct order
     validateDateRange(startDate, endDate);
 
-    // IDOR PROTECTION: Verify access to employee
-    const employee = await Employee.findById(employeeId);
-    if (!employee) {
-        throw CustomException('Employee not found', 404);
+    // IDOR PROTECTION: Verify access to employee with firmId/lawyerId filter
+    const isSoloLawyer = req.isSoloLawyer;
+    const employeeQuery = { _id: employeeId };
+    if (isSoloLawyer || !firmId) {
+        employeeQuery.lawyerId = lawyerId;
+    } else {
+        employeeQuery.firmId = firmId;
     }
 
-    const hasAccess = firmId
-        ? employee.firmId?.toString() === firmId.toString()
-        : employee.lawyerId?.toString() === lawyerId;
-
-    if (!hasAccess) {
-        throw CustomException('Access denied to this employee', 403);
+    const employee = await Employee.findOne(employeeQuery);
+    if (!employee) {
+        throw CustomException('Employee not found or access denied', 404);
     }
 
     const conflicts = await LeaveRequest.checkConflicts(

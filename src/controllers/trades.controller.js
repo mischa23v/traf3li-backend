@@ -4,6 +4,12 @@ const asyncHandler = require('../utils/asyncHandler');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 const mongoose = require('mongoose');
 
+// Helper function to escape regex special characters (ReDoS protection)
+const escapeRegex = (str) => {
+    if (!str || typeof str !== 'string') return '';
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
+
 // ═══════════════════════════════════════════════════════════════
 // CREATE TRADE
 // ═══════════════════════════════════════════════════════════════
@@ -363,10 +369,10 @@ const getTrades = asyncHandler(async (req, res) => {
     // General search
     if (search) {
         filters.$or = [
-            { symbol: { $regex: search, $options: 'i' } },
-            { symbolName: { $regex: search, $options: 'i' } },
-            { tradeId: { $regex: search, $options: 'i' } },
-            { strategy: { $regex: search, $options: 'i' } }
+            { symbol: { $regex: escapeRegex(search), $options: 'i' } },
+            { symbolName: { $regex: escapeRegex(search), $options: 'i' } },
+            { tradeId: { $regex: escapeRegex(search), $options: 'i' } },
+            { strategy: { $regex: escapeRegex(search), $options: 'i' } }
         ];
     }
 

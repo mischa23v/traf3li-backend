@@ -3,6 +3,12 @@ const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 
+// Helper function to escape regex special characters (ReDoS protection)
+const escapeRegex = (str) => {
+    if (!str || typeof str !== 'string') return '';
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
+
 // ═══════════════════════════════════════════════════════════════
 // GET ALL SUCCESSION PLANS
 // ═══════════════════════════════════════════════════════════════
@@ -48,10 +54,10 @@ const getSuccessionPlans = asyncHandler(async (req, res) => {
     // Search
     if (search) {
         query.$or = [
-            { successionPlanId: { $regex: search, $options: 'i' } },
-            { planNumber: { $regex: search, $options: 'i' } },
-            { 'criticalPosition.positionTitle': { $regex: search, $options: 'i' } },
-            { 'incumbent.employeeName': { $regex: search, $options: 'i' } }
+            { successionPlanId: { $regex: escapeRegex(search), $options: 'i' } },
+            { planNumber: { $regex: escapeRegex(search), $options: 'i' } },
+            { 'criticalPosition.positionTitle': { $regex: escapeRegex(search), $options: 'i' } },
+            { 'incumbent.employeeName': { $regex: escapeRegex(search), $options: 'i' } }
         ];
     }
 

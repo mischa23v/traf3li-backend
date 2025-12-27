@@ -64,7 +64,13 @@ const getEntries = asyncHandler(async (req, res) => {
  * GET /api/journal-entries/:id
  */
 const getEntry = asyncHandler(async (req, res) => {
-    const entry = await JournalEntry.findById(req.params.id)
+    // IDOR Protection: Filter by firmId in query
+    const query = { _id: req.params.id };
+    if (req.user?.firmId) {
+        query.firmId = req.user.firmId;
+    }
+
+    const entry = await JournalEntry.findOne(query)
         .populate('lines.accountId', 'code name type')
         .populate('lines.caseId', 'caseNumber title')
         .populate('glEntries')
@@ -74,14 +80,6 @@ const getEntry = asyncHandler(async (req, res) => {
         .populate('voidedBy', 'name email');
 
     if (!entry) {
-        return res.status(404).json({
-            success: false,
-            error: 'Journal entry not found'
-        });
-    }
-
-    // IDOR Protection: Verify firmId ownership
-    if (req.user?.firmId && entry.firmId && entry.firmId.toString() !== req.user.firmId.toString()) {
         return res.status(404).json({
             success: false,
             error: 'Journal entry not found'
@@ -230,7 +228,7 @@ const createEntry = asyncHandler(async (req, res) => {
             createdBy: req.user?._id
         }], { session });
 
-        const populatedEntry = await JournalEntry.findById(entry[0]._id)
+        const populatedEntry = await JournalEntry.findOne({ _id: entry[0]._id, ...req.firmQuery })
             .populate('lines.accountId', 'code name')
             .session(session);
 
@@ -258,17 +256,15 @@ const createEntry = asyncHandler(async (req, res) => {
  * PATCH /api/journal-entries/:id
  */
 const updateEntry = asyncHandler(async (req, res) => {
-    const entry = await JournalEntry.findById(req.params.id);
-
-    if (!entry) {
-        return res.status(404).json({
-            success: false,
-            error: 'Journal entry not found'
-        });
+    // IDOR Protection: Filter by firmId in query
+    const query = { _id: req.params.id };
+    if (req.user?.firmId) {
+        query.firmId = req.user.firmId;
     }
 
-    // IDOR Protection: Verify firmId ownership
-    if (req.user?.firmId && entry.firmId && entry.firmId.toString() !== req.user.firmId.toString()) {
+    const entry = await JournalEntry.findOne(query);
+
+    if (!entry) {
         return res.status(404).json({
             success: false,
             error: 'Journal entry not found'
@@ -393,7 +389,7 @@ const updateEntry = asyncHandler(async (req, res) => {
         entry.updatedBy = req.user?._id;
         await entry.save({ session });
 
-        const populatedEntry = await JournalEntry.findById(entry._id)
+        const populatedEntry = await JournalEntry.findOne({ _id: entry._id, ...req.firmQuery })
             .populate('lines.accountId', 'code name')
             .session(session);
 
@@ -421,17 +417,15 @@ const updateEntry = asyncHandler(async (req, res) => {
  * POST /api/journal-entries/:id/post
  */
 const postEntry = asyncHandler(async (req, res) => {
-    const entry = await JournalEntry.findById(req.params.id);
-
-    if (!entry) {
-        return res.status(404).json({
-            success: false,
-            error: 'Journal entry not found'
-        });
+    // IDOR Protection: Filter by firmId in query
+    const query = { _id: req.params.id };
+    if (req.user?.firmId) {
+        query.firmId = req.user.firmId;
     }
 
-    // IDOR Protection: Verify firmId ownership
-    if (req.user?.firmId && entry.firmId && entry.firmId.toString() !== req.user.firmId.toString()) {
+    const entry = await JournalEntry.findOne(query);
+
+    if (!entry) {
         return res.status(404).json({
             success: false,
             error: 'Journal entry not found'
@@ -463,7 +457,7 @@ const postEntry = asyncHandler(async (req, res) => {
         await entry.post(req.user?._id, session);
         await session.commitTransaction();
 
-        const populatedEntry = await JournalEntry.findById(entry._id)
+        const populatedEntry = await JournalEntry.findOne({ _id: entry._id, ...req.firmQuery })
             .populate('lines.accountId', 'code name')
             .populate('glEntries');
 
@@ -485,17 +479,15 @@ const postEntry = asyncHandler(async (req, res) => {
  * DELETE /api/journal-entries/:id
  */
 const deleteEntry = asyncHandler(async (req, res) => {
-    const entry = await JournalEntry.findById(req.params.id);
-
-    if (!entry) {
-        return res.status(404).json({
-            success: false,
-            error: 'Journal entry not found'
-        });
+    // IDOR Protection: Filter by firmId in query
+    const query = { _id: req.params.id };
+    if (req.user?.firmId) {
+        query.firmId = req.user.firmId;
     }
 
-    // IDOR Protection: Verify firmId ownership
-    if (req.user?.firmId && entry.firmId && entry.firmId.toString() !== req.user.firmId.toString()) {
+    const entry = await JournalEntry.findOne(query);
+
+    if (!entry) {
         return res.status(404).json({
             success: false,
             error: 'Journal entry not found'
@@ -534,17 +526,15 @@ const voidEntry = asyncHandler(async (req, res) => {
         });
     }
 
-    const entry = await JournalEntry.findById(req.params.id);
-
-    if (!entry) {
-        return res.status(404).json({
-            success: false,
-            error: 'Journal entry not found'
-        });
+    // IDOR Protection: Filter by firmId in query
+    const query = { _id: req.params.id };
+    if (req.user?.firmId) {
+        query.firmId = req.user.firmId;
     }
 
-    // IDOR Protection: Verify firmId ownership
-    if (req.user?.firmId && entry.firmId && entry.firmId.toString() !== req.user.firmId.toString()) {
+    const entry = await JournalEntry.findOne(query);
+
+    if (!entry) {
         return res.status(404).json({
             success: false,
             error: 'Journal entry not found'

@@ -49,8 +49,9 @@ const paymentIntent = async (request, response) => {
 
         const { _id } = value;
         const sanitizedGigId = sanitizeObjectId(_id);
+        const firmId = request.firmId;
 
-        const gig = await Gig.findOne({ _id: sanitizedGigId }).populate('userID', 'username');
+        const gig = await Gig.findOne({ _id: sanitizedGigId, firmId }).populate('userID', 'username');
 
         if (!gig) {
             throw CustomException('Service not found!', 404);
@@ -123,8 +124,9 @@ const proposalPaymentIntent = async (request, response) => {
 
         const { _id } = value;
         const sanitizedProposalId = sanitizeObjectId(_id);
+        const firmId = request.firmId;
 
-        const proposal = await Proposal.findById(sanitizedProposalId).populate('jobId');
+        const proposal = await Proposal.findOne({ _id: sanitizedProposalId, firmId }).populate('jobId');
 
         if (!proposal) {
             throw CustomException('Proposal not found', 404);
@@ -203,6 +205,7 @@ const updatePaymentStatus = async (request, response) => {
         }
 
         const { payment_intent } = value;
+        const firmId = request.firmId;
 
         // Mass assignment protection: Only allow specific fields to be updated
         const allowedUpdates = {
@@ -216,6 +219,7 @@ const updatePaymentStatus = async (request, response) => {
         const order = await Order.findOneAndUpdate(
             {
                 payment_intent,
+                firmId,
                 $or: [
                     { buyerID: request.userID },
                     { sellerID: request.userID }
@@ -227,7 +231,7 @@ const updatePaymentStatus = async (request, response) => {
 
         if (!order) {
             // Check if order exists but user is not authorized
-            const existingOrder = await Order.findOne({ payment_intent });
+            const existingOrder = await Order.findOne({ payment_intent, firmId });
             if (existingOrder) {
                 throw CustomException('Not authorized to update this order', 403);
             }
@@ -278,9 +282,10 @@ const createTestContract = async (request, response) => {
 
         const { _id } = value;
         const sanitizedGigId = sanitizeObjectId(_id);
+        const firmId = request.firmId;
 
         // Get gig details
-        const gig = await Gig.findOne({ _id: sanitizedGigId }).populate('userID', 'username email');
+        const gig = await Gig.findOne({ _id: sanitizedGigId, firmId }).populate('userID', 'username email');
         if (!gig) {
             throw CustomException('Service not found!', 404);
         }
@@ -350,8 +355,9 @@ const createTestProposalContract = async (request, response) => {
 
         const { _id } = value;
         const sanitizedProposalId = sanitizeObjectId(_id);
+        const firmId = request.firmId;
 
-        const proposal = await Proposal.findById(sanitizedProposalId).populate('jobId lawyerId', 'title username');
+        const proposal = await Proposal.findOne({ _id: sanitizedProposalId, firmId }).populate('jobId lawyerId', 'title username');
 
         if (!proposal) {
             throw CustomException('Proposal not found', 404);

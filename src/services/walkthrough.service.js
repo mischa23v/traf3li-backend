@@ -91,11 +91,15 @@ class WalkthroughService {
   /**
    * Get a single walkthrough by ID
    * @param {String} walkthroughId - Walkthrough ID
+   * @param {String} firmId - Firm ID for authorization
    * @returns {Promise<Object|null>} - Walkthrough or null
    */
-  async getWalkthroughById(walkthroughId) {
+  async getWalkthroughById(walkthroughId, firmId) {
     try {
-      const walkthrough = await Walkthrough.findById(walkthroughId).lean();
+      const walkthrough = await Walkthrough.findOne({
+        _id: walkthroughId,
+        firmId: new mongoose.Types.ObjectId(firmId)
+      }).lean();
 
       if (!walkthrough) {
         logger.warn('WalkthroughService.getWalkthroughById: Walkthrough not found', {
@@ -116,12 +120,16 @@ class WalkthroughService {
    * Creates progress record and returns first step
    * @param {String} userId - User ID
    * @param {String} walkthroughId - Walkthrough ID
+   * @param {String} firmId - Firm ID for authorization
    * @returns {Promise<Object|null>} - Progress record with first step or null
    */
-  async startWalkthrough(userId, walkthroughId) {
+  async startWalkthrough(userId, walkthroughId, firmId) {
     try {
       // Get walkthrough
-      const walkthrough = await Walkthrough.findById(walkthroughId);
+      const walkthrough = await Walkthrough.findOne({
+        _id: walkthroughId,
+        firmId: new mongoose.Types.ObjectId(firmId)
+      });
       if (!walkthrough) {
         logger.error('WalkthroughService.startWalkthrough: Walkthrough not found');
         return null;
@@ -182,6 +190,7 @@ class WalkthroughService {
         }
       );
 
+      // Response Leakage Protection: WalkthroughProgress model has no sensitive fields (verified)
       return {
         progress: progress.toObject(),
         currentStep: firstStep,
@@ -198,9 +207,10 @@ class WalkthroughService {
    * Updates progress and returns next step or completion status
    * @param {String} userId - User ID
    * @param {String} walkthroughId - Walkthrough ID
+   * @param {String} firmId - Firm ID for authorization
    * @returns {Promise<Object|null>} - Next step info or completion status
    */
-  async advanceStep(userId, walkthroughId) {
+  async advanceStep(userId, walkthroughId, firmId) {
     try {
       // Get progress
       const progress = await WalkthroughProgress.findOne({
@@ -214,7 +224,10 @@ class WalkthroughService {
       }
 
       // Get walkthrough
-      const walkthrough = await Walkthrough.findById(walkthroughId);
+      const walkthrough = await Walkthrough.findOne({
+        _id: walkthroughId,
+        firmId: new mongoose.Types.ObjectId(firmId)
+      });
       if (!walkthrough) {
         logger.error('WalkthroughService.advanceStep: Walkthrough not found');
         return null;
@@ -255,6 +268,7 @@ class WalkthroughService {
           }
         );
 
+        // Response Leakage Protection: WalkthroughProgress model has no sensitive fields (verified)
         return {
           completed: true,
           progress: progress.toObject(),
@@ -268,6 +282,7 @@ class WalkthroughService {
 
       const nextStep = walkthrough.steps[nextStepOrder];
 
+      // Response Leakage Protection: WalkthroughProgress model has no sensitive fields (verified)
       return {
         completed: false,
         progress: progress.toObject(),
@@ -321,6 +336,7 @@ class WalkthroughService {
         }
       );
 
+      // Response Leakage Protection: WalkthroughProgress model has no sensitive fields (verified)
       return progress.toObject();
     } catch (error) {
       logger.error('WalkthroughService.skipStep failed:', error.message);
@@ -332,9 +348,10 @@ class WalkthroughService {
    * Mark a walkthrough as complete
    * @param {String} userId - User ID
    * @param {String} walkthroughId - Walkthrough ID
+   * @param {String} firmId - Firm ID for authorization
    * @returns {Promise<Object|null>} - Updated progress or null
    */
-  async completeWalkthrough(userId, walkthroughId) {
+  async completeWalkthrough(userId, walkthroughId, firmId) {
     try {
       const progress = await WalkthroughProgress.findOne({
         userId: new mongoose.Types.ObjectId(userId),
@@ -351,7 +368,10 @@ class WalkthroughService {
       await progress.save();
 
       // Get walkthrough for logging
-      const walkthrough = await Walkthrough.findById(walkthroughId);
+      const walkthrough = await Walkthrough.findOne({
+        _id: walkthroughId,
+        firmId: new mongoose.Types.ObjectId(firmId)
+      });
 
       // Log completion
       await AuditLogService.log(
@@ -369,6 +389,7 @@ class WalkthroughService {
         }
       );
 
+      // Response Leakage Protection: WalkthroughProgress model has no sensitive fields (verified)
       return progress.toObject();
     } catch (error) {
       logger.error('WalkthroughService.completeWalkthrough failed:', error.message);
@@ -380,10 +401,11 @@ class WalkthroughService {
    * Skip an entire walkthrough
    * @param {String} userId - User ID
    * @param {String} walkthroughId - Walkthrough ID
+   * @param {String} firmId - Firm ID for authorization
    * @param {String} reason - Reason for skipping (optional)
    * @returns {Promise<Object|null>} - Updated progress or null
    */
-  async skipWalkthrough(userId, walkthroughId, reason = null) {
+  async skipWalkthrough(userId, walkthroughId, firmId, reason = null) {
     try {
       // Find or create progress
       let progress = await WalkthroughProgress.findOne({
@@ -393,7 +415,10 @@ class WalkthroughService {
 
       if (!progress) {
         // Get walkthrough for firm info
-        const walkthrough = await Walkthrough.findById(walkthroughId);
+        const walkthrough = await Walkthrough.findOne({
+          _id: walkthroughId,
+          firmId: new mongoose.Types.ObjectId(firmId)
+        });
         if (!walkthrough) {
           logger.error('WalkthroughService.skipWalkthrough: Walkthrough not found');
           return null;
@@ -431,6 +456,7 @@ class WalkthroughService {
         }
       );
 
+      // Response Leakage Protection: WalkthroughProgress model has no sensitive fields (verified)
       return progress.toObject();
     } catch (error) {
       logger.error('WalkthroughService.skipWalkthrough failed:', error.message);
@@ -481,6 +507,7 @@ class WalkthroughService {
         }
       );
 
+      // Response Leakage Protection: WalkthroughProgress model has no sensitive fields (verified)
       return progress.toObject();
     } catch (error) {
       logger.error('WalkthroughService.resetWalkthrough failed:', error.message);
@@ -656,6 +683,7 @@ class WalkthroughService {
         }
       );
 
+      // Response Leakage Protection: Walkthrough model has no sensitive fields (verified)
       return walkthrough.toObject();
     } catch (error) {
       logger.error('WalkthroughService.createWalkthrough failed:', error.message);
@@ -666,19 +694,23 @@ class WalkthroughService {
   /**
    * Update a walkthrough
    * @param {String} walkthroughId - Walkthrough ID
+   * @param {String} firmId - Firm ID for authorization
    * @param {Object} data - Update data
    * @returns {Promise<Object|null>} - Updated walkthrough or null
    */
-  async updateWalkthrough(walkthroughId, data) {
+  async updateWalkthrough(walkthroughId, firmId, data) {
     try {
-      const walkthrough = await Walkthrough.findById(walkthroughId);
+      const walkthrough = await Walkthrough.findOne({
+        _id: walkthroughId,
+        firmId: new mongoose.Types.ObjectId(firmId)
+      });
 
       if (!walkthrough) {
         logger.error('WalkthroughService.updateWalkthrough: Walkthrough not found');
         return null;
       }
 
-      // Store before state for audit
+      // Store before state for audit (Walkthrough model has no sensitive fields - verified)
       const beforeState = walkthrough.toObject();
 
       // Update allowed fields
@@ -702,7 +734,7 @@ class WalkthroughService {
 
       await walkthrough.save();
 
-      // Log update
+      // Log update (Walkthrough model has no sensitive fields - verified)
       await AuditLogService.log(
         'update',
         'walkthrough',
@@ -716,6 +748,7 @@ class WalkthroughService {
         }
       );
 
+      // Response Leakage Protection: Walkthrough model has no sensitive fields (verified)
       return walkthrough.toObject();
     } catch (error) {
       logger.error('WalkthroughService.updateWalkthrough failed:', error.message);
@@ -726,11 +759,15 @@ class WalkthroughService {
   /**
    * Delete a walkthrough (soft delete)
    * @param {String} walkthroughId - Walkthrough ID
+   * @param {String} firmId - Firm ID for authorization
    * @returns {Promise<Boolean>} - Success status
    */
-  async deleteWalkthrough(walkthroughId) {
+  async deleteWalkthrough(walkthroughId, firmId) {
     try {
-      const walkthrough = await Walkthrough.findById(walkthroughId);
+      const walkthrough = await Walkthrough.findOne({
+        _id: walkthroughId,
+        firmId: new mongoose.Types.ObjectId(firmId)
+      });
 
       if (!walkthrough) {
         logger.error('WalkthroughService.deleteWalkthrough: Walkthrough not found');

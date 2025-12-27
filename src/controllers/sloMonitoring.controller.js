@@ -84,8 +84,9 @@ const listSLOs = asyncHandler(async (req, res) => {
  */
 const getSLO = asyncHandler(async (req, res) => {
   const { id } = req.params;
+  const { firmId } = req;
 
-  const slo = await SLO.findById(id);
+  const slo = await SLO.findOne({ _id: id, ...req.firmQuery });
 
   if (!slo) {
     throw CustomException('SLO غير موجود', 404);

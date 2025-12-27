@@ -144,8 +144,14 @@ exports.listMacros = async (req, res) => {
       ]
     };
 
+    // Helper to escape regex special characters
+    const escapeRegex = (str) => {
+      if (!str || typeof str !== 'string') return '';
+      return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    };
+
     if (category) {
-      query.category = new RegExp(`^${category.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`);
+      query.category = new RegExp(`^${escapeRegex(category)}`);
     }
 
     if (search) {

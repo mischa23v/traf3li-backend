@@ -106,13 +106,14 @@ class StatusPageService {
   /**
    * Get single component status
    * @param {ObjectId} componentId - Component ID
+   * @param {ObjectId} firmId - Firm ID
    * @returns {Promise<Object>} Component with status history
    */
-  static async getComponentStatus(componentId) {
+  static async getComponentStatus(componentId, firmId) {
     try {
       const StatusPageComponent = require('../models/statusPageComponent.model');
 
-      const component = await StatusPageComponent.findById(componentId).lean();
+      const component = await StatusPageComponent.findOne({ _id: componentId, firmId }).lean();
       if (!component) {
         throw new Error('Component not found');
       }
@@ -144,14 +145,15 @@ class StatusPageService {
    * @param {ObjectId} componentId - Component ID
    * @param {String} status - New status
    * @param {ObjectId} userId - User making the change
+   * @param {ObjectId} firmId - Firm ID
    * @returns {Promise<Object>} Updated component
    */
-  static async updateComponentStatus(componentId, status, userId) {
+  static async updateComponentStatus(componentId, status, userId, firmId) {
     try {
       const StatusPageComponent = require('../models/statusPageComponent.model');
       const StatusPageStatusHistory = require('../models/statusPageStatusHistory.model');
 
-      const component = await StatusPageComponent.findById(componentId);
+      const component = await StatusPageComponent.findOne({ _id: componentId, firmId });
       if (!component) {
         throw new Error('Component not found');
       }
@@ -282,13 +284,14 @@ class StatusPageService {
    * @param {ObjectId} incidentId - Incident ID
    * @param {Object} data - Update data
    * @param {ObjectId} userId - User making the update
+   * @param {ObjectId} firmId - Firm ID
    * @returns {Promise<Object>} Updated incident
    */
-  static async updateIncident(incidentId, data, userId) {
+  static async updateIncident(incidentId, data, userId, firmId) {
     try {
       const StatusPageIncident = require('../models/statusPageIncident.model');
 
-      const incident = await StatusPageIncident.findById(incidentId);
+      const incident = await StatusPageIncident.findOne({ _id: incidentId, firmId });
       if (!incident) {
         throw new Error('Incident not found');
       }
@@ -325,14 +328,15 @@ class StatusPageService {
    * @param {ObjectId} incidentId - Incident ID
    * @param {String} message - Resolution message
    * @param {ObjectId} userId - User resolving the incident
+   * @param {ObjectId} firmId - Firm ID
    * @returns {Promise<Object>} Resolved incident
    */
-  static async resolveIncident(incidentId, message, userId) {
+  static async resolveIncident(incidentId, message, userId, firmId) {
     try {
       const StatusPageIncident = require('../models/statusPageIncident.model');
       const StatusPageComponent = require('../models/statusPageComponent.model');
 
-      const incident = await StatusPageIncident.findById(incidentId);
+      const incident = await StatusPageIncident.findOne({ _id: incidentId, firmId });
       if (!incident) {
         throw new Error('Incident not found');
       }
@@ -452,14 +456,15 @@ class StatusPageService {
   /**
    * Start maintenance window
    * @param {ObjectId} maintenanceId - Maintenance ID
+   * @param {ObjectId} firmId - Firm ID
    * @returns {Promise<Object>} Started maintenance
    */
-  static async startMaintenance(maintenanceId) {
+  static async startMaintenance(maintenanceId, firmId) {
     try {
       const StatusPageMaintenance = require('../models/statusPageMaintenance.model');
       const StatusPageComponent = require('../models/statusPageComponent.model');
 
-      const maintenance = await StatusPageMaintenance.findById(maintenanceId);
+      const maintenance = await StatusPageMaintenance.findOne({ _id: maintenanceId, firmId });
       if (!maintenance) {
         throw new Error('Maintenance not found');
       }
@@ -495,14 +500,15 @@ class StatusPageService {
   /**
    * Complete maintenance window
    * @param {ObjectId} maintenanceId - Maintenance ID
+   * @param {ObjectId} firmId - Firm ID
    * @returns {Promise<Object>} Completed maintenance
    */
-  static async completeMaintenance(maintenanceId) {
+  static async completeMaintenance(maintenanceId, firmId) {
     try {
       const StatusPageMaintenance = require('../models/statusPageMaintenance.model');
       const StatusPageComponent = require('../models/statusPageComponent.model');
 
-      const maintenance = await StatusPageMaintenance.findById(maintenanceId);
+      const maintenance = await StatusPageMaintenance.findOne({ _id: maintenanceId, firmId });
       if (!maintenance) {
         throw new Error('Maintenance not found');
       }
@@ -539,13 +545,14 @@ class StatusPageService {
    * Cancel scheduled maintenance
    * @param {ObjectId} maintenanceId - Maintenance ID
    * @param {String} reason - Cancellation reason
+   * @param {ObjectId} firmId - Firm ID
    * @returns {Promise<Object>} Cancelled maintenance
    */
-  static async cancelMaintenance(maintenanceId, reason) {
+  static async cancelMaintenance(maintenanceId, reason, firmId) {
     try {
       const StatusPageMaintenance = require('../models/statusPageMaintenance.model');
 
-      const maintenance = await StatusPageMaintenance.findById(maintenanceId);
+      const maintenance = await StatusPageMaintenance.findOne({ _id: maintenanceId, firmId });
       if (!maintenance) {
         throw new Error('Maintenance not found');
       }

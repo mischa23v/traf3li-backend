@@ -18,6 +18,14 @@ const mongoose = require('mongoose');
 const NotificationDeliveryService = require('./notificationDelivery.service');
 const logger = require('../utils/logger');
 
+/**
+ * Escape special regex characters to prevent ReDoS attacks
+ */
+const escapeRegex = (str) => {
+    if (typeof str !== 'string') return str;
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
+
 class PipelineAutomationService {
     /**
      * Execute stage automation triggers
@@ -128,7 +136,7 @@ class PipelineAutomationService {
             recipientId = config.recipientId;
         }
 
-        const recipient = await User.findById(recipientId).lean();
+        const recipient = await User.findOne({ _id: recipientId, firmId: entity.firmId }).lean();
         if (!recipient || !recipient.email) {
             return {
                 action: 'send_email',
@@ -365,7 +373,7 @@ class PipelineAutomationService {
 
         let result = template;
         for (const [key, value] of Object.entries(variables)) {
-            const regex = new RegExp(`{{${key}}}`, 'gi');
+            const regex = new RegExp(`{{${escapeRegex(key)}}}`, 'gi');
             result = result.replace(regex, value);
         }
 
@@ -412,13 +420,13 @@ class PipelineAutomationService {
      * This should be called by a scheduled job (cron)
      * @param {string} pipelineId - Pipeline ID to check
      */
-    static async executeTimeBasedAutomations(pipelineId) {
+    static async executeTimeBasedAutomations(pipelineId, firmId) {
         const Pipeline = require('../models/pipeline.model');
         const Lead = require('../models/lead.model');
 
-        const pipeline = await Pipeline.findById(pipelineId);
+        const pipeline = await Pipeline.findOne({ _id: pipelineId, firmId });
         if (!pipeline) {
-            throw new Error('Pipeline not found');
+            throw new Error('Pipeline not found or access denied');
         }
 
         const results = [];

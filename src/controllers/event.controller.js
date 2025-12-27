@@ -105,16 +105,16 @@ const createEvent = asyncHandler(async (req, res) => {
 
     // IDOR Protection: Validate case access if provided
     if (caseId) {
-        const caseDoc = await Case.findById(caseId);
-        if (!caseDoc || (caseDoc.firmId && caseDoc.firmId.toString() !== firmId.toString())) {
+        const caseDoc = await Case.findOne({ _id: caseId, firmId });
+        if (!caseDoc) {
             throw CustomException('Case not found or you do not have access', 404);
         }
     }
 
     // IDOR Protection: Validate client access if provided
     if (clientId) {
-        const clientDoc = await User.findById(clientId);
-        if (!clientDoc || (clientDoc.firmId && clientDoc.firmId.toString() !== firmId.toString())) {
+        const clientDoc = await User.findOne({ _id: clientId, firmId });
+        if (!clientDoc) {
             throw CustomException('Client not found or you do not have access', 404);
         }
     }
@@ -426,7 +426,7 @@ const getEvent = asyncHandler(async (req, res) => {
         throw CustomException('Invalid event ID format', 400);
     }
 
-    const event = await Event.findById(id)
+    const event = await Event.findOne({ _id: id, firmId })
         .populate('organizer', 'firstName lastName image email')
         .populate('attendees.userId', 'firstName lastName image email')
         .populate('caseId', 'title caseNumber category')
@@ -440,17 +440,6 @@ const getEvent = asyncHandler(async (req, res) => {
 
     if (!event) {
         throw CustomException('Event not found', 404);
-    }
-
-    // IDOR Protection: Check access - firmId first, then user-based
-    const hasAccess = firmId
-        ? event.firmId && event.firmId.toString() === firmId.toString()
-        : (event.createdBy._id.toString() === userId ||
-           event.organizer._id.toString() === userId ||
-           event.isUserAttendee(userId));
-
-    if (!hasAccess) {
-        throw CustomException('You do not have access to this event', 403);
     }
 
     res.status(200).json({
@@ -473,16 +462,14 @@ const updateEvent = asyncHandler(async (req, res) => {
         throw CustomException('لم يعد لديك صلاحية تعديل المواعيد', 403);
     }
 
-    const event = await Event.findById(id);
+    const event = await Event.findOne({ _id: id, firmId });
 
     if (!event) {
         throw CustomException('Event not found', 404);
     }
 
-    // IDOR Protection: Check access - firmId first, then organizer/creator
-    const canUpdate = firmId
-        ? event.firmId && event.firmId.toString() === firmId.toString()
-        : (event.organizer.toString() === userId || event.createdBy.toString() === userId);
+    // IDOR Protection: Check access - organizer/creator
+    const canUpdate = event.organizer.toString() === userId || event.createdBy.toString() === userId;
 
     if (!canUpdate) {
         throw CustomException('Only the organizer can update this event', 403);
@@ -513,16 +500,16 @@ const updateEvent = asyncHandler(async (req, res) => {
 
     // IDOR Protection: Validate case access if provided
     if (sanitizedData.caseId && sanitizedData.caseId !== event.caseId.toString()) {
-        const caseDoc = await Case.findById(sanitizedData.caseId);
-        if (!caseDoc || (caseDoc.firmId && caseDoc.firmId.toString() !== firmId.toString())) {
+        const caseDoc = await Case.findOne({ _id: sanitizedData.caseId, firmId });
+        if (!caseDoc) {
             throw CustomException('Case not found or you do not have access', 404);
         }
     }
 
     // IDOR Protection: Validate client access if provided
     if (sanitizedData.clientId && sanitizedData.clientId !== event.clientId.toString()) {
-        const clientDoc = await User.findById(sanitizedData.clientId);
-        if (!clientDoc || (clientDoc.firmId && clientDoc.firmId.toString() !== firmId.toString())) {
+        const clientDoc = await User.findOne({ _id: sanitizedData.clientId, firmId });
+        if (!clientDoc) {
             throw CustomException('Client not found or you do not have access', 404);
         }
     }
@@ -535,7 +522,7 @@ const updateEvent = asyncHandler(async (req, res) => {
     // Sync with linked task if exists
     if (event.taskId) {
         try {
-            const linkedTask = await Task.findById(event.taskId);
+            const linkedTask = await Task.findOne({ _id: event.taskId, firmId });
 
             if (linkedTask) {
                 // Update task fields
@@ -612,16 +599,14 @@ const deleteEvent = asyncHandler(async (req, res) => {
     const userId = req.userID;
     const firmId = req.firmId; // From firmFilter middleware
 
-    const event = await Event.findById(id);
+    const event = await Event.findOne({ _id: id, firmId });
 
     if (!event) {
         throw CustomException('Event not found', 404);
     }
 
-    // Check access - firmId first, then organizer/creator
-    const canDelete = firmId
-        ? event.firmId && event.firmId.toString() === firmId.toString()
-        : (event.organizer.toString() === userId || event.createdBy.toString() === userId);
+    // Check access - organizer/creator
+    const canDelete = event.organizer.toString() === userId || event.createdBy.toString() === userId;
 
     if (!canDelete) {
         throw CustomException('Only the organizer can delete this event', 403);
@@ -630,7 +615,7 @@ const deleteEvent = asyncHandler(async (req, res) => {
     // Handle linked task - unlink it instead of deleting to preserve task data
     if (event.taskId) {
         try {
-            const linkedTask = await Task.findById(event.taskId);
+            const linkedTask = await Task.findOne({ _id: event.taskId, firmId });
             if (linkedTask) {
                 linkedTask.linkedEventId = null;
                 await linkedTask.save();
@@ -642,13 +627,7 @@ const deleteEvent = asyncHandler(async (req, res) => {
     }
 
     // IDOR protection: Include firmId in delete query
-    const deleteQuery = { _id: id };
-    if (firmId) {
-        deleteQuery.firmId = firmId;
-    } else {
-        deleteQuery.$or = [{ organizer: userId }, { createdBy: userId }];
-    }
-    await Event.findOneAndDelete(deleteQuery);
+    await Event.findOneAndDelete({ _id: id, firmId });
 
     res.status(200).json({
         success: true,
@@ -666,16 +645,14 @@ const cancelEvent = asyncHandler(async (req, res) => {
     const userId = req.userID;
     const firmId = req.firmId;
 
-    const event = await Event.findById(id);
+    const event = await Event.findOne({ _id: id, firmId });
 
     if (!event) {
         throw CustomException('Event not found', 404);
     }
 
     // IDOR Protection: Check access
-    const canUpdate = firmId
-        ? event.firmId && event.firmId.toString() === firmId.toString()
-        : (event.organizer.toString() === userId || event.createdBy.toString() === userId);
+    const canUpdate = event.organizer.toString() === userId || event.createdBy.toString() === userId;
 
     if (!canUpdate) {
         throw CustomException('Only the organizer can cancel this event', 403);
@@ -709,16 +686,14 @@ const postponeEvent = asyncHandler(async (req, res) => {
         throw CustomException('New date/time is required', 400);
     }
 
-    const event = await Event.findById(id);
+    const event = await Event.findOne({ _id: id, firmId });
 
     if (!event) {
         throw CustomException('Event not found', 404);
     }
 
     // IDOR Protection: Check access
-    const canUpdate = firmId
-        ? event.firmId && event.firmId.toString() === firmId.toString()
-        : (event.organizer.toString() === userId || event.createdBy.toString() === userId);
+    const canUpdate = event.organizer.toString() === userId || event.createdBy.toString() === userId;
 
     if (!canUpdate) {
         throw CustomException('Only the organizer can postpone this event', 403);
@@ -753,18 +728,9 @@ const completeEvent = asyncHandler(async (req, res) => {
     const userId = req.userID;
     const firmId = req.firmId; // SECURITY: Added firmId for multi-tenant isolation
 
-    const event = await Event.findById(id);
+    const event = await Event.findOne({ _id: id, firmId });
 
     if (!event) {
-        throw CustomException('Event not found', 404);
-    }
-
-    // SECURITY: Check firmId first for multi-tenant isolation
-    const firmAccess = firmId
-        ? event.firmId && event.firmId.toString() === firmId.toString()
-        : true; // Solo lawyers don't have firmId requirement
-
-    if (!firmAccess) {
         throw CustomException('Event not found', 404);
     }
 
@@ -807,18 +773,9 @@ const addAttendee = asyncHandler(async (req, res) => {
     const userId = req.userID;
     const firmId = req.firmId; // SECURITY: Added firmId for multi-tenant isolation
 
-    const event = await Event.findById(id);
+    const event = await Event.findOne({ _id: id, firmId });
 
     if (!event) {
-        throw CustomException('Event not found', 404);
-    }
-
-    // SECURITY: Check firmId first for multi-tenant isolation
-    const firmAccess = firmId
-        ? event.firmId && event.firmId.toString() === firmId.toString()
-        : true;
-
-    if (!firmAccess) {
         throw CustomException('Event not found', 404);
     }
 
@@ -863,18 +820,9 @@ const removeAttendee = asyncHandler(async (req, res) => {
     const userId = req.userID;
     const firmId = req.firmId; // SECURITY: Added firmId for multi-tenant isolation
 
-    const event = await Event.findById(id);
+    const event = await Event.findOne({ _id: id, firmId });
 
     if (!event) {
-        throw CustomException('Event not found', 404);
-    }
-
-    // SECURITY: Check firmId first for multi-tenant isolation
-    const firmAccess = firmId
-        ? event.firmId && event.firmId.toString() === firmId.toString()
-        : true;
-
-    if (!firmAccess) {
         throw CustomException('Event not found', 404);
     }
 
@@ -905,18 +853,9 @@ const rsvpEvent = asyncHandler(async (req, res) => {
         throw CustomException('Valid RSVP status is required (confirmed, declined, tentative)', 400);
     }
 
-    const event = await Event.findById(id);
+    const event = await Event.findOne({ _id: id, firmId });
 
     if (!event) {
-        throw CustomException('Event not found', 404);
-    }
-
-    // SECURITY: Check firmId first for multi-tenant isolation
-    const firmAccess = firmId
-        ? event.firmId && event.firmId.toString() === firmId.toString()
-        : true;
-
-    if (!firmAccess) {
         throw CustomException('Event not found', 404);
     }
 
@@ -952,18 +891,9 @@ const addAgendaItem = asyncHandler(async (req, res) => {
     const userId = req.userID;
     const firmId = req.firmId; // SECURITY: Added firmId for multi-tenant isolation
 
-    const event = await Event.findById(id);
+    const event = await Event.findOne({ _id: id, firmId });
 
     if (!event) {
-        throw CustomException('Event not found', 404);
-    }
-
-    // SECURITY: Check firmId first for multi-tenant isolation
-    const firmAccess = firmId
-        ? event.firmId && event.firmId.toString() === firmId.toString()
-        : true;
-
-    if (!firmAccess) {
         throw CustomException('Event not found', 404);
     }
 
@@ -1000,18 +930,9 @@ const updateAgendaItem = asyncHandler(async (req, res) => {
     const userId = req.userID;
     const firmId = req.firmId; // SECURITY: Added firmId for multi-tenant isolation
 
-    const event = await Event.findById(id);
+    const event = await Event.findOne({ _id: id, firmId });
 
     if (!event) {
-        throw CustomException('Event not found', 404);
-    }
-
-    // SECURITY: Check firmId first for multi-tenant isolation
-    const firmAccess = firmId
-        ? event.firmId && event.firmId.toString() === firmId.toString()
-        : true;
-
-    if (!firmAccess) {
         throw CustomException('Event not found', 404);
     }
 
@@ -1049,18 +970,9 @@ const deleteAgendaItem = asyncHandler(async (req, res) => {
     const userId = req.userID;
     const firmId = req.firmId; // SECURITY: Added firmId for multi-tenant isolation
 
-    const event = await Event.findById(id);
+    const event = await Event.findOne({ _id: id, firmId });
 
     if (!event) {
-        throw CustomException('Event not found', 404);
-    }
-
-    // SECURITY: Check firmId first for multi-tenant isolation
-    const firmAccess = firmId
-        ? event.firmId && event.firmId.toString() === firmId.toString()
-        : true;
-
-    if (!firmAccess) {
         throw CustomException('Event not found', 404);
     }
 
@@ -1089,18 +1001,16 @@ const addActionItem = asyncHandler(async (req, res) => {
     const userId = req.userID;
     const firmId = req.firmId;
 
-    const event = await Event.findById(id);
+    const event = await Event.findOne({ _id: id, firmId });
 
     if (!event) {
         throw CustomException('Event not found', 404);
     }
 
     // IDOR Protection: Check access
-    const hasAccess = firmId
-        ? event.firmId && event.firmId.toString() === firmId.toString()
-        : (event.organizer.toString() === userId ||
-           event.createdBy.toString() === userId ||
-           event.isUserAttendee(userId));
+    const hasAccess = event.organizer.toString() === userId ||
+                      event.createdBy.toString() === userId ||
+                      event.isUserAttendee(userId);
 
     if (!hasAccess) {
         throw CustomException('You cannot add action items to this event', 403);
@@ -1143,18 +1053,16 @@ const updateActionItem = asyncHandler(async (req, res) => {
     const userId = req.userID;
     const firmId = req.firmId;
 
-    const event = await Event.findById(id);
+    const event = await Event.findOne({ _id: id, firmId });
 
     if (!event) {
         throw CustomException('Event not found', 404);
     }
 
     // IDOR Protection: Check access
-    const hasAccess = firmId
-        ? event.firmId && event.firmId.toString() === firmId.toString()
-        : (event.organizer.toString() === userId ||
-           event.createdBy.toString() === userId ||
-           event.isUserAttendee(userId));
+    const hasAccess = event.organizer.toString() === userId ||
+                      event.createdBy.toString() === userId ||
+                      event.isUserAttendee(userId);
 
     if (!hasAccess) {
         throw CustomException('You cannot update action items in this event', 403);
@@ -1411,7 +1319,11 @@ const checkAvailability = asyncHandler(async (req, res) => {
  */
 const syncTaskToCalendar = async (taskId, firmId = null) => {
     try {
-        const task = await Task.findById(taskId);
+        const taskQuery = { _id: taskId };
+        if (firmId) {
+            taskQuery.firmId = firmId;
+        }
+        const task = await Task.findOne(taskQuery);
         if (!task || !task.dueDate) return;
 
         // SECURITY: Include firmId in query for multi-tenant isolation
@@ -1458,21 +1370,12 @@ const exportEventToICS = asyncHandler(async (req, res) => {
     const userId = req.userID;
     const firmId = req.firmId; // SECURITY: Added firmId for multi-tenant isolation
 
-    const event = await Event.findById(id)
+    const event = await Event.findOne({ _id: id, firmId })
         .populate('organizer', 'firstName lastName email')
         .populate('attendees.userId', 'firstName lastName email')
         .populate('caseId', 'title caseNumber');
 
     if (!event) {
-        throw CustomException('Event not found', 404);
-    }
-
-    // SECURITY: Check firmId first for multi-tenant isolation
-    const firmAccess = firmId
-        ? event.firmId && event.firmId.toString() === firmId.toString()
-        : true;
-
-    if (!firmAccess) {
         throw CustomException('Event not found', 404);
     }
 
@@ -1823,16 +1726,16 @@ const createEventFromNaturalLanguage = asyncHandler(async (req, res) => {
 
     // IDOR Protection: Validate case access if provided
     if (eventData.caseId) {
-        const caseDoc = await Case.findById(eventData.caseId);
-        if (!caseDoc || (caseDoc.firmId && caseDoc.firmId.toString() !== firmId.toString())) {
+        const caseDoc = await Case.findOne({ _id: eventData.caseId, firmId });
+        if (!caseDoc) {
             throw CustomException('Case not found or you do not have access', 404);
         }
     }
 
     // IDOR Protection: Validate client access if provided
     if (eventData.clientId) {
-        const clientDoc = await User.findById(eventData.clientId);
-        if (!clientDoc || (clientDoc.firmId && clientDoc.firmId.toString() !== firmId.toString())) {
+        const clientDoc = await User.findOne({ _id: eventData.clientId, firmId });
+        if (!clientDoc) {
             throw CustomException('Client not found or you do not have access', 404);
         }
     }
@@ -1998,16 +1901,16 @@ const createEventFromVoice = asyncHandler(async (req, res) => {
 
     // IDOR Protection: Validate case access if provided
     if (formalizedData.caseId) {
-        const caseDoc = await Case.findById(formalizedData.caseId);
-        if (!caseDoc || (caseDoc.firmId && caseDoc.firmId.toString() !== firmId.toString())) {
+        const caseDoc = await Case.findOne({ _id: formalizedData.caseId, firmId });
+        if (!caseDoc) {
             throw CustomException('Case not found or you do not have access', 404);
         }
     }
 
     // IDOR Protection: Validate client access if provided
     if (formalizedData.clientId) {
-        const clientDoc = await User.findById(formalizedData.clientId);
-        if (!clientDoc || (clientDoc.firmId && clientDoc.firmId.toString() !== firmId.toString())) {
+        const clientDoc = await User.findOne({ _id: formalizedData.clientId, firmId });
+        if (!clientDoc) {
             throw CustomException('Client not found or you do not have access', 404);
         }
     }

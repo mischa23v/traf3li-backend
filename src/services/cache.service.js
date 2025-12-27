@@ -26,6 +26,14 @@ const cacheMetrics = {
   lastReset: Date.now()
 };
 
+/**
+ * Escape special regex characters to prevent ReDoS attacks
+ */
+const escapeRegex = (str) => {
+  if (typeof str !== 'string') return str;
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
+
 if (isRedisCacheDisabled) {
   logger.warn('⚠️  DISABLE_REDIS_CACHE=true - using in-memory cache to save Redis requests');
 }
@@ -160,7 +168,7 @@ const delPattern = async (pattern) => {
   // Use in-memory cache if Redis is disabled
   if (isRedisCacheDisabled) {
     let deletedCount = 0;
-    const regexPattern = new RegExp('^' + pattern.replace(/\*/g, '.*') + '$');
+    const regexPattern = new RegExp('^' + escapeRegex(pattern).replace(/\\\*/g, '.*') + '$');
     for (const key of memoryCache.keys()) {
       if (regexPattern.test(key)) {
         memoryCache.delete(key);

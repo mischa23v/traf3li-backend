@@ -22,6 +22,7 @@ exports.createLead = async (req, res) => {
 
         const lawyerId = req.userID;
         const firmId = req.firmId; // From firmFilter middleware
+        const isSoloLawyer = req.isSoloLawyer;
 
         // ═══════════════════════════════════════════════════════════════
         // MASS ASSIGNMENT PROTECTION - Only allow specific fields
@@ -70,8 +71,23 @@ exports.createLead = async (req, res) => {
             leadData.pipelineId = pipeline._id;
             leadData.pipelineStageId = pipeline.stages[0]?.stageId;
         } else {
-            // Fetch the specified pipeline
-            pipeline = await Pipeline.findById(leadData.pipelineId);
+            // ═══════════════════════════════════════════════════════════════
+            // IDOR PROTECTION - Verify pipeline belongs to user's firm
+            // ═══════════════════════════════════════════════════════════════
+            const pipelineQuery = { _id: leadData.pipelineId };
+            if (isSoloLawyer || !firmId) {
+                pipelineQuery.lawyerId = lawyerId;
+            } else {
+                pipelineQuery.firmId = firmId;
+            }
+            pipeline = await Pipeline.findOne(pipelineQuery);
+
+            if (!pipeline) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'Pipeline not found'
+                });
+            }
         }
 
         const lead = await Lead.create(leadData);
@@ -557,7 +573,17 @@ exports.moveToStage = async (req, res) => {
             });
         }
 
-        const pipeline = await Pipeline.findById(lead.pipelineId);
+        // ═══════════════════════════════════════════════════════════════
+        // IDOR PROTECTION - Verify pipeline belongs to user's firm
+        // ═══════════════════════════════════════════════════════════════
+        const pipelineQuery = { _id: lead.pipelineId };
+        if (isSoloLawyer || !firmId) {
+            pipelineQuery.lawyerId = lawyerId;
+        } else {
+            pipelineQuery.firmId = firmId;
+        }
+        const pipeline = await Pipeline.findOne(pipelineQuery);
+
         if (!pipeline) {
             return res.status(404).json({
                 success: false,

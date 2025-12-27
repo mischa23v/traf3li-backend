@@ -567,18 +567,14 @@ class WhatsAppController {
         }
 
         // IDOR protection: Verify conversation belongs to this firm before assigning
-        const existingConversation = await WhatsAppConversation.findById(sanitizedConversationId);
+        const existingConversation = await WhatsAppConversation.findOne({
+            _id: sanitizedConversationId,
+            firmId: firmId
+        });
         if (!existingConversation) {
             return res.status(404).json({
                 success: false,
                 message: 'Conversation not found'
-            });
-        }
-
-        if (existingConversation.firmId && existingConversation.firmId.toString() !== firmId?.toString()) {
-            return res.status(403).json({
-                success: false,
-                message: 'Access denied to this conversation'
             });
         }
 
@@ -620,18 +616,14 @@ class WhatsAppController {
         }
 
         // IDOR protection: Verify conversation belongs to this firm before linking
-        const existingConversation = await WhatsAppConversation.findById(sanitizedConversationId);
+        const existingConversation = await WhatsAppConversation.findOne({
+            _id: sanitizedConversationId,
+            firmId: firmId
+        });
         if (!existingConversation) {
             return res.status(404).json({
                 success: false,
                 message: 'Conversation not found'
-            });
-        }
-
-        if (existingConversation.firmId && existingConversation.firmId.toString() !== firmId?.toString()) {
-            return res.status(403).json({
-                success: false,
-                message: 'Access denied to this conversation'
             });
         }
 
@@ -663,18 +655,14 @@ class WhatsAppController {
         }
 
         // IDOR protection: Verify conversation belongs to this firm before creating lead
-        const existingConversation = await WhatsAppConversation.findById(sanitizedConversationId);
+        const existingConversation = await WhatsAppConversation.findOne({
+            _id: sanitizedConversationId,
+            firmId: firmId
+        });
         if (!existingConversation) {
             return res.status(404).json({
                 success: false,
                 message: 'Conversation not found'
-            });
-        }
-
-        if (existingConversation.firmId && existingConversation.firmId.toString() !== firmId?.toString()) {
-            return res.status(403).json({
-                success: false,
-                message: 'Access denied to this conversation'
             });
         }
 
@@ -1633,8 +1621,13 @@ class WhatsAppController {
         } else if (broadcast.type === 'text') {
             let text = broadcast.textContent.text;
             if (broadcast.textContent.usePersonalization) {
+                // Helper to escape regex special characters
+                const escapeRegex = (str) => {
+                    if (!str || typeof str !== 'string') return '';
+                    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                };
                 broadcast.textContent.personalizedFields.forEach(field => {
-                    text = text.replace(new RegExp(`{{${field}}}`, 'g'), testData[field] || '');
+                    text = text.replace(new RegExp(`{{${escapeRegex(field)}}}`, 'g'), testData[field] || '');
                 });
             }
             result = await WhatsAppService.sendTextMessage(firmId, sanitizedPhone, text, { sentBy: req.userID });

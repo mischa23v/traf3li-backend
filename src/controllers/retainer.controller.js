@@ -146,13 +146,9 @@ const createRetainer = asyncHandler(async (req, res) => {
 
     // Validate case if provided (IDOR Protection)
     if (caseId) {
-        const caseDoc = await Case.findById(caseId);
+        const caseDoc = await Case.findOne({ _id: caseId, lawyerId });
         if (!caseDoc) {
             throw CustomException('القضية غير موجودة', 404);
-        }
-        // IDOR: Verify case belongs to current lawyer
-        if (caseDoc.lawyerId.toString() !== lawyerId) {
-            throw CustomException('لا يمكنك الوصول إلى هذه القضية', 403);
         }
     }
 
@@ -296,7 +292,7 @@ const getRetainer = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const lawyerId = req.userID;
 
-    const retainer = await Retainer.findById(id)
+    const retainer = await Retainer.findOne({ _id: id, lawyerId })
         .populate('clientId', 'username email phone')
         .populate('lawyerId', 'username email')
         .populate('caseId', 'title caseNumber category')
@@ -321,7 +317,7 @@ const updateRetainer = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const lawyerId = req.userID;
 
-    const retainer = await Retainer.findById(id);
+    const retainer = await Retainer.findOne({ _id: id, lawyerId });
 
     // IDOR Protection: Verify ownership
     verifyRetainerOwnership(retainer, lawyerId);
@@ -405,7 +401,7 @@ const consumeRetainer = asyncHandler(async (req, res) => {
     try {
         await session.withTransaction(async () => {
             // Fetch retainer within transaction with lock
-            const retainer = await Retainer.findById(id).session(session);
+            const retainer = await Retainer.findOne({ _id: id, lawyerId }).session(session);
 
             // IDOR Protection: Verify ownership
             verifyRetainerOwnership(retainer, lawyerId);
@@ -416,7 +412,7 @@ const consumeRetainer = asyncHandler(async (req, res) => {
 
             // Validate invoice if provided (IDOR Protection)
             if (invoiceId) {
-                const invoice = await Invoice.findById(invoiceId).session(session);
+                const invoice = await Invoice.findOne({ _id: invoiceId, lawyerId }).session(session);
                 if (!invoice) {
                     throw CustomException('الفاتورة غير موجودة', 404);
                 }
@@ -499,14 +495,14 @@ const replenishRetainer = asyncHandler(async (req, res) => {
     try {
         await session.withTransaction(async () => {
             // Fetch retainer within transaction with lock
-            const retainer = await Retainer.findById(id).session(session);
+            const retainer = await Retainer.findOne({ _id: id, lawyerId }).session(session);
 
             // IDOR Protection: Verify ownership
             verifyRetainerOwnership(retainer, lawyerId);
 
             // Validate payment if provided (IDOR Protection)
             if (paymentId) {
-                const payment = await Payment.findById(paymentId).session(session);
+                const payment = await Payment.findOne({ _id: paymentId, lawyerId }).session(session);
                 if (!payment) {
                     throw CustomException('الدفعة غير موجودة', 404);
                 }
@@ -569,7 +565,7 @@ const refundRetainer = asyncHandler(async (req, res) => {
     try {
         await session.withTransaction(async () => {
             // Fetch retainer within transaction with lock
-            const retainer = await Retainer.findById(id).session(session);
+            const retainer = await Retainer.findOne({ _id: id, lawyerId }).session(session);
 
             // IDOR Protection: Verify ownership
             verifyRetainerOwnership(retainer, lawyerId);
@@ -629,7 +625,7 @@ const getRetainerHistory = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const lawyerId = req.userID;
 
-    const retainer = await Retainer.findById(id)
+    const retainer = await Retainer.findOne({ _id: id, lawyerId })
         .populate('consumptions.invoiceId', 'invoiceNumber totalAmount')
         .populate('deposits.paymentId', 'paymentNumber amount paymentDate');
 

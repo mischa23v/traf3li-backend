@@ -258,7 +258,10 @@ purchaseInvoiceSchema.pre('save', async function(next) {
 purchaseInvoiceSchema.post('save', async function(doc) {
     if (doc.purchaseOrderId && doc.status === 'submitted') {
         const PurchaseOrder = mongoose.model('PurchaseOrder');
-        const po = await PurchaseOrder.findById(doc.purchaseOrderId);
+        const po = await PurchaseOrder.findOne({
+            _id: doc.purchaseOrderId,
+            firmId: doc.firmId
+        });
 
         if (po) {
             // Update billed quantities in PO items

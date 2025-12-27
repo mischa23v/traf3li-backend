@@ -9,6 +9,14 @@ const BankAccount = require('../models/bankAccount.model');
 const mongoose = require('mongoose');
 const logger = require('../utils/logger');
 
+/**
+ * Escape special regex characters to prevent ReDoS attacks
+ */
+const escapeRegex = (str) => {
+    if (typeof str !== 'string') return str;
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
+
 class BankReconciliationService {
     /**
      * Import transactions from CSV file
@@ -734,7 +742,7 @@ class BankReconciliationService {
                 return desc.endsWith(pat);
             case 'regex':
                 try {
-                    const regex = new RegExp(pattern, matchConfig.caseSensitive ? '' : 'i');
+                    const regex = new RegExp(escapeRegex(pattern), matchConfig.caseSensitive ? '' : 'i');
                     return regex.test(description);
                 } catch (error) {
                     return false;

@@ -612,7 +612,15 @@ const moveCaseToStage = asyncHandler(async (req, res) => {
         throw CustomException('لم يتم تهيئة سير العمل لهذه القضية', 404);
     }
 
-    const workflow = await WorkflowTemplate.findById(progress.workflowId);
+    const workflow = await WorkflowTemplate.findOne({
+        _id: progress.workflowId,
+        lawyerId: lawyerId
+    });
+
+    if (!workflow) {
+        throw CustomException('نموذج سير العمل غير موجود', 404);
+    }
+
     const newStage = workflow.stages.id(stageId);
 
     if (!newStage) {

@@ -29,23 +29,21 @@ const verifyFirmAccess = async (userId, firmId) => {
         throw new CustomException('Invalid firm ID', 400);
     }
 
-    // Verify user belongs to the firm
+    // IDOR Protection: Verify user belongs to the firm with single query
     const { Firm } = require('../models');
-    const firm = await Firm.findById(sanitizedFirmId).lean();
+    const userIdStr = userId.toString();
+
+    const firm = await Firm.findOne({
+        _id: sanitizedFirmId,
+        $or: [
+            { ownerId: userId },
+            { 'members.userId': userId },
+            { members: userId }
+        ]
+    }).lean();
 
     if (!firm) {
-        throw new CustomException('Firm not found', 404);
-    }
-
-    // Check if user is owner or member of the firm
-    const userIdStr = userId.toString();
-    const isOwner = firm.ownerId && firm.ownerId.toString() === userIdStr;
-    const isMember = firm.members && firm.members.some(m =>
-        (m.userId || m).toString() === userIdStr
-    );
-
-    if (!isOwner && !isMember) {
-        throw new CustomException('Access denied: You do not have permission to access this firm data', 403);
+        throw new CustomException('Firm not found or access denied', 404);
     }
 
     return sanitizedFirmId;

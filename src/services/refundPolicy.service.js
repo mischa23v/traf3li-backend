@@ -101,12 +101,13 @@ class RefundPolicyService {
     /**
      * Get refund eligibility for a payment
      * @param {ObjectId|string} paymentId - Payment ID
+     * @param {ObjectId|string} firmId - Firm ID
      * @returns {Promise<Object>} - Eligibility details
      */
-    async getRefundEligibility(paymentId) {
+    async getRefundEligibility(paymentId, firmId) {
         try {
             // Get payment details
-            const payment = await Payment.findById(paymentId)
+            const payment = await Payment.findOne({ _id: paymentId, firmId })
                 .populate('customerId', 'firstName lastName email')
                 .populate('invoiceId')
                 .populate('caseId');
@@ -175,12 +176,13 @@ class RefundPolicyService {
     /**
      * Calculate refund amount based on policy
      * @param {ObjectId|string} paymentId - Payment ID
+     * @param {ObjectId|string} firmId - Firm ID
      * @param {string} reason - Refund reason
      * @returns {Promise<Object>} - Calculated refund details
      */
-    async calculateRefundAmount(paymentId, reason = 'policy_based') {
+    async calculateRefundAmount(paymentId, firmId, reason = 'policy_based') {
         try {
-            const eligibility = await this.getRefundEligibility(paymentId);
+            const eligibility = await this.getRefundEligibility(paymentId, firmId);
 
             if (!eligibility.eligible) {
                 return {
@@ -214,25 +216,26 @@ class RefundPolicyService {
     /**
      * Process a refund
      * @param {ObjectId|string} paymentId - Payment ID
+     * @param {ObjectId|string} firmId - Firm ID
      * @param {number} amount - Refund amount (optional, uses policy if not provided)
      * @param {string} reason - Refund reason
      * @param {ObjectId|string} requestedBy - User requesting refund
      * @param {Object} options - Additional options
      * @returns {Promise<Object>} - Created refund object
      */
-    async processRefund(paymentId, amount = null, reason = 'policy_based', requestedBy, options = {}) {
+    async processRefund(paymentId, firmId, amount = null, reason = 'policy_based', requestedBy, options = {}) {
         const session = await mongoose.startSession();
         session.startTransaction();
 
         try {
             // Get payment
-            const payment = await Payment.findById(paymentId).session(session);
+            const payment = await Payment.findOne({ _id: paymentId, firmId }).session(session);
             if (!payment) {
                 throw new Error('Payment not found');
             }
 
             // Get eligibility
-            const eligibility = await this.getRefundEligibility(paymentId);
+            const eligibility = await this.getRefundEligibility(paymentId, firmId);
 
             if (!eligibility.eligible && !options.forceProcess) {
                 throw new Error(`Refund not eligible: ${eligibility.reason}`);
@@ -312,7 +315,7 @@ class RefundPolicyService {
 
             return {
                 success: true,
-                refund: await Refund.findById(refund._id)
+                refund: await Refund.findOne({ _id: refund._id, firmId })
                     .populate('customerId', 'firstName lastName email')
                     .populate('paymentId', 'paymentNumber amount')
             };
@@ -394,14 +397,15 @@ class RefundPolicyService {
     /**
      * Approve a refund request
      * @param {ObjectId|string} refundId - Refund ID
+     * @param {ObjectId|string} firmId - Firm ID
      * @param {ObjectId|string} approverId - User approving
      * @param {number} approvedAmount - Approved amount (optional)
      * @param {string} notes - Approval notes
      * @returns {Promise<Object>} - Updated refund
      */
-    async approveRefund(refundId, approverId, approvedAmount = null, notes = '') {
+    async approveRefund(refundId, firmId, approverId, approvedAmount = null, notes = '') {
         try {
-            const refund = await Refund.findById(refundId);
+            const refund = await Refund.findOne({ _id: refundId, firmId });
             if (!refund) {
                 throw new Error('Refund not found');
             }
@@ -428,13 +432,14 @@ class RefundPolicyService {
     /**
      * Reject a refund request
      * @param {ObjectId|string} refundId - Refund ID
+     * @param {ObjectId|string} firmId - Firm ID
      * @param {ObjectId|string} rejectorId - User rejecting
      * @param {string} reason - Rejection reason
      * @returns {Promise<Object>} - Updated refund
      */
-    async rejectRefund(refundId, rejectorId, reason) {
+    async rejectRefund(refundId, firmId, rejectorId, reason) {
         try {
-            const refund = await Refund.findById(refundId);
+            const refund = await Refund.findOne({ _id: refundId, firmId });
             if (!refund) {
                 throw new Error('Refund not found');
             }
@@ -461,15 +466,16 @@ class RefundPolicyService {
     /**
      * Execute an approved refund
      * @param {ObjectId|string} refundId - Refund ID
+     * @param {ObjectId|string} firmId - Firm ID
      * @param {ObjectId|string} processedBy - User processing
      * @returns {Promise<Object>} - Processed refund
      */
-    async executeRefund(refundId, processedBy) {
+    async executeRefund(refundId, firmId, processedBy) {
         const session = await mongoose.startSession();
         session.startTransaction();
 
         try {
-            const refund = await Refund.findById(refundId)
+            const refund = await Refund.findOne({ _id: refundId, firmId })
                 .populate('paymentId')
                 .session(session);
 
@@ -500,7 +506,7 @@ class RefundPolicyService {
                 amount: refund.processedAmount
             });
 
-            return await Refund.findById(refundId)
+            return await Refund.findOne({ _id: refundId, firmId })
                 .populate('paymentId')
                 .populate('customerId', 'firstName lastName email');
         } catch (error) {
@@ -511,7 +517,7 @@ class RefundPolicyService {
             });
 
             // Mark refund as failed
-            const refund = await Refund.findById(refundId);
+            const refund = await Refund.findOne({ _id: refundId, firmId });
             if (refund) {
                 await refund.fail(error.message);
             }
@@ -606,7 +612,7 @@ class RefundPolicyService {
 
         // Check if service has started based on case status
         if (payment.caseId) {
-            const caseData = await Case.findById(payment.caseId);
+            const caseData = await Case.findOne({ _id: payment.caseId, firmId: payment.firmId });
             if (caseData) {
                 // Service is considered started if case has any progress
                 serviceStarted = caseData.status !== 'new' && caseData.status !== 'pending';
@@ -637,7 +643,7 @@ class RefundPolicyService {
 
         // Check invoice status as fallback
         if (!serviceStarted && payment.invoiceId) {
-            const invoice = await Invoice.findById(payment.invoiceId);
+            const invoice = await Invoice.findOne({ _id: payment.invoiceId, firmId: payment.firmId });
             if (invoice) {
                 // Service started if invoice has any time entries or expenses
                 if (invoice.lineItems && invoice.lineItems.length > 0) {

@@ -46,7 +46,10 @@ class ActivityService {
       }
 
       // Fetch activity type to get configuration
-      const activityType = await ActivityType.findById(data.activity_type_id).lean();
+      const activityType = await ActivityType.findOne({
+        _id: data.activity_type_id,
+        firm_id: context.firmId
+      }).lean();
       if (!activityType) {
         logger.error('ActivityService.scheduleActivity: Activity type not found');
         return null;
@@ -123,7 +126,10 @@ class ActivityService {
   async markAsDone(activityId, feedback = '', context = {}) {
     try {
       // Find activity
-      const activity = await Activity.findById(activityId).lean();
+      const activity = await Activity.findOne({
+        _id: activityId,
+        firm_id: context.firmId
+      }).lean();
       if (!activity) {
         logger.error('ActivityService.markAsDone: Activity not found');
         return null;
@@ -159,7 +165,10 @@ class ActivityService {
       );
 
       // Check if activity type has chained activity
-      const activityType = await ActivityType.findById(activity.activity_type_id).lean();
+      const activityType = await ActivityType.findOne({
+        _id: activity.activity_type_id,
+        firm_id: activity.firm_id
+      }).lean();
       if (activityType?.triggered_next_type_id) {
         await this._triggerChainedActivity(activity, activityType, context);
       }
@@ -179,7 +188,10 @@ class ActivityService {
    */
   async cancel(activityId, context = {}) {
     try {
-      const activity = await Activity.findById(activityId).lean();
+      const activity = await Activity.findOne({
+        _id: activityId,
+        firm_id: context.firmId
+      }).lean();
       if (!activity) {
         logger.error('ActivityService.cancel: Activity not found');
         return null;
@@ -227,7 +239,10 @@ class ActivityService {
    */
   async reschedule(activityId, newDeadline, context = {}) {
     try {
-      const activity = await Activity.findById(activityId).lean();
+      const activity = await Activity.findOne({
+        _id: activityId,
+        firm_id: context.firmId
+      }).lean();
       if (!activity) {
         logger.error('ActivityService.reschedule: Activity not found');
         return null;
@@ -282,7 +297,10 @@ class ActivityService {
    */
   async reassign(activityId, newUserId, context = {}) {
     try {
-      const activity = await Activity.findById(activityId).lean();
+      const activity = await Activity.findOne({
+        _id: activityId,
+        firm_id: context.firmId
+      }).lean();
       if (!activity) {
         logger.error('ActivityService.reassign: Activity not found');
         return null;
@@ -606,10 +624,13 @@ class ActivityService {
         }
 
         // Mark reminder as sent
-        await Activity.findByIdAndUpdate(activity._id, {
-          reminder_sent: true,
-          reminder_sent_at: new Date()
-        });
+        await Activity.findOneAndUpdate(
+          { _id: activity._id, firm_id: activity.firm_id },
+          {
+            reminder_sent: true,
+            reminder_sent_at: new Date()
+          }
+        );
       }
 
       // TODO: Send actual notifications/emails
@@ -715,7 +736,10 @@ class ActivityService {
    */
   async _triggerChainedActivity(completedActivity, activityType, context) {
     try {
-      const nextActivityType = await ActivityType.findById(activityType.triggered_next_type_id).lean();
+      const nextActivityType = await ActivityType.findOne({
+        _id: activityType.triggered_next_type_id,
+        firm_id: completedActivity.firm_id
+      }).lean();
       if (!nextActivityType) {
         logger.error('ActivityService._triggerChainedActivity: Next activity type not found');
         return null;

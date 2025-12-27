@@ -382,15 +382,10 @@ const getUserCredentials = async (userId) => {
  */
 const deleteCredential = async (credentialId, userId) => {
     try {
-        const credential = await WebAuthnCredential.findById(credentialId);
+        const credential = await WebAuthnCredential.findOne({ _id: credentialId, userId });
 
         if (!credential) {
             throw new CustomException('Credential not found', 404);
-        }
-
-        // Verify the credential belongs to the user
-        if (credential.userId.toString() !== userId.toString()) {
-            throw new CustomException('Unauthorized to delete this credential', 403);
         }
 
         // Check if this is the user's last credential

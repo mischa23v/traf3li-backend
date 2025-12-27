@@ -594,12 +594,15 @@ class MicrosoftCalendarService {
 
                     if (existingEvent) {
                         // Update existing event
-                        await Event.findByIdAndUpdate(existingEvent._id, {
-                            ...mappedEvent,
-                            'calendarSync.outlookEventId': msEvent.id,
-                            'calendarSync.lastSyncedAt': new Date(),
-                            'calendarSync.syncStatus': 'synced'
-                        });
+                        await Event.findOneAndUpdate(
+                            { _id: existingEvent._id, firmId: user.firmId },
+                            {
+                                ...mappedEvent,
+                                'calendarSync.outlookEventId': msEvent.id,
+                                'calendarSync.lastSyncedAt': new Date(),
+                                'calendarSync.syncStatus': 'synced'
+                            }
+                        );
                         results.updated++;
                     } else {
                         // Create new event
@@ -627,10 +630,13 @@ class MicrosoftCalendarService {
             }
 
             // Update last sync timestamp
-            await User.findByIdAndUpdate(userId, {
-                'integrations.microsoftCalendar.syncSettings.lastSync': new Date(),
-                'integrations.microsoftCalendar.lastSyncedAt': new Date()
-            });
+            await User.findOneAndUpdate(
+                { _id: userId, firmId: user.firmId },
+                {
+                    'integrations.microsoftCalendar.syncSettings.lastSync': new Date(),
+                    'integrations.microsoftCalendar.lastSyncedAt': new Date()
+                }
+            );
 
             logger.info('Microsoft Calendar sync completed', { userId, results });
 
@@ -651,12 +657,16 @@ class MicrosoftCalendarService {
      * @returns {Promise<Object>} Sync result
      */
     async syncToMicrosoft(userId, eventId) {
-        const event = await Event.findById(eventId);
+        const user = await User.findById(userId).select('integrations firmId');
+        if (!user) {
+            throw CustomException('User not found', 404);
+        }
+
+        const event = await Event.findOne({ _id: eventId, firmId: user.firmId });
         if (!event) {
             throw CustomException('Event not found', 404);
         }
 
-        const user = await User.findById(userId).select('integrations');
         const msConfig = user.integrations?.microsoftCalendar;
 
         if (!msConfig?.connected) {
@@ -675,10 +685,13 @@ class MicrosoftCalendarService {
                     event
                 );
 
-                await Event.findByIdAndUpdate(eventId, {
-                    'calendarSync.lastSyncedAt': new Date(),
-                    'calendarSync.syncStatus': 'synced'
-                });
+                await Event.findOneAndUpdate(
+                    { _id: eventId, firmId: user.firmId },
+                    {
+                        'calendarSync.lastSyncedAt': new Date(),
+                        'calendarSync.syncStatus': 'synced'
+                    }
+                );
 
                 return {
                     success: true,
@@ -689,11 +702,14 @@ class MicrosoftCalendarService {
                 // Create new event
                 const msEvent = await this.createEvent(userId, calendarId, event);
 
-                await Event.findByIdAndUpdate(eventId, {
-                    'calendarSync.outlookEventId': msEvent.id,
-                    'calendarSync.lastSyncedAt': new Date(),
-                    'calendarSync.syncStatus': 'synced'
-                });
+                await Event.findOneAndUpdate(
+                    { _id: eventId, firmId: user.firmId },
+                    {
+                        'calendarSync.outlookEventId': msEvent.id,
+                        'calendarSync.lastSyncedAt': new Date(),
+                        'calendarSync.syncStatus': 'synced'
+                    }
+                );
 
                 return {
                     success: true,
@@ -707,9 +723,12 @@ class MicrosoftCalendarService {
                 error: error.message
             });
 
-            await Event.findByIdAndUpdate(eventId, {
-                'calendarSync.syncStatus': 'failed'
-            });
+            await Event.findOneAndUpdate(
+                { _id: eventId, firmId: user.firmId },
+                {
+                    'calendarSync.syncStatus': 'failed'
+                }
+            );
 
             throw CustomException('Failed to sync to Microsoft Calendar: ' + error.message, 500);
         }
@@ -722,7 +741,7 @@ class MicrosoftCalendarService {
      * @returns {Promise<Object>} Updated settings
      */
     async enableAutoSync(userId, settings) {
-        const user = await User.findById(userId);
+        const user = await User.findById(userId).select('integrations firmId');
         if (!user?.integrations?.microsoftCalendar?.connected) {
             throw CustomException('Microsoft Calendar not connected', 400);
         }
@@ -737,9 +756,12 @@ class MicrosoftCalendarService {
             lastSync: user.integrations.microsoftCalendar.syncSettings?.lastSync || null
         };
 
-        await User.findByIdAndUpdate(userId, {
-            'integrations.microsoftCalendar.syncSettings': syncSettings
-        });
+        await User.findOneAndUpdate(
+            { _id: userId, firmId: user.firmId },
+            {
+                'integrations.microsoftCalendar.syncSettings': syncSettings
+            }
+        );
 
         logger.info('Microsoft Calendar auto-sync enabled', { userId, settings: syncSettings });
 
@@ -752,9 +774,17 @@ class MicrosoftCalendarService {
      * @returns {Promise<Object>} Result
      */
     async disableAutoSync(userId) {
-        await User.findByIdAndUpdate(userId, {
-            'integrations.microsoftCalendar.syncSettings.enabled': false
-        });
+        const user = await User.findById(userId).select('firmId');
+        if (!user) {
+            throw CustomException('User not found', 404);
+        }
+
+        await User.findOneAndUpdate(
+            { _id: userId, firmId: user.firmId },
+            {
+                'integrations.microsoftCalendar.syncSettings.enabled': false
+            }
+        );
 
         logger.info('Microsoft Calendar auto-sync disabled', { userId });
 

@@ -1,5 +1,11 @@
 const mongoose = require('mongoose');
 
+// Helper function to escape regex special characters
+const escapeRegex = (str) => {
+    if (typeof str !== 'string') return '';
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
+
 // Referral fee payment schema
 const feePaymentSchema = new mongoose.Schema({
     amount: { type: Number },
@@ -377,9 +383,9 @@ referralSchema.statics.getReferrals = async function(lawyerId, filters = {}) {
 
     if (filters.search) {
         query.$or = [
-            { name: { $regex: filters.search, $options: 'i' } },
-            { nameAr: { $regex: filters.search, $options: 'i' } },
-            { 'externalSource.name': { $regex: filters.search, $options: 'i' } }
+            { name: { $regex: escapeRegex(filters.search), $options: 'i' } },
+            { nameAr: { $regex: escapeRegex(filters.search), $options: 'i' } },
+            { 'externalSource.name': { $regex: escapeRegex(filters.search), $options: 'i' } }
         ];
     }
 

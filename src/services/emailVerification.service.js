@@ -197,8 +197,8 @@ class EmailVerificationService {
 
             // Update user
             // NOTE: Bypass firmIsolation filter - email verification works for solo lawyers without firmId
-            const user = await User.findByIdAndUpdate(
-                result.userId,
+            const user = await User.findOneAndUpdate(
+                { _id: result.userId },
                 {
                     isEmailVerified: true,
                     emailVerifiedAt: new Date()

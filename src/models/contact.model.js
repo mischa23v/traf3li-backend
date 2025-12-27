@@ -1,5 +1,11 @@
 const mongoose = require('mongoose');
 
+// Helper function to escape regex special characters
+const escapeRegex = (str) => {
+    if (typeof str !== 'string') return '';
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // SAUDI ARABIA ADMINISTRATIVE DATA - NAJIZ INTEGRATION
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -1097,13 +1103,13 @@ contactSchema.statics.searchContacts = async function(lawyerId, searchTerm, filt
 
     if (searchTerm) {
         query.$or = [
-            { firstName: { $regex: searchTerm, $options: 'i' } },
-            { lastName: { $regex: searchTerm, $options: 'i' } },
-            { fullNameArabic: { $regex: searchTerm, $options: 'i' } },
-            { email: { $regex: searchTerm, $options: 'i' } },
-            { phone: { $regex: searchTerm, $options: 'i' } },
-            { company: { $regex: searchTerm, $options: 'i' } },
-            { nationalId: { $regex: searchTerm, $options: 'i' } }
+            { firstName: { $regex: escapeRegex(searchTerm), $options: 'i' } },
+            { lastName: { $regex: escapeRegex(searchTerm), $options: 'i' } },
+            { fullNameArabic: { $regex: escapeRegex(searchTerm), $options: 'i' } },
+            { email: { $regex: escapeRegex(searchTerm), $options: 'i' } },
+            { phone: { $regex: escapeRegex(searchTerm), $options: 'i' } },
+            { company: { $regex: escapeRegex(searchTerm), $options: 'i' } },
+            { nationalId: { $regex: escapeRegex(searchTerm), $options: 'i' } }
         ];
     }
 
@@ -1146,12 +1152,12 @@ contactSchema.statics.getContacts = async function(lawyerId, filters = {}) {
 
     if (filters.search) {
         query.$or = [
-            { firstName: { $regex: filters.search, $options: 'i' } },
-            { lastName: { $regex: filters.search, $options: 'i' } },
-            { fullNameArabic: { $regex: filters.search, $options: 'i' } },
-            { email: { $regex: filters.search, $options: 'i' } },
-            { phone: { $regex: filters.search, $options: 'i' } },
-            { company: { $regex: filters.search, $options: 'i' } }
+            { firstName: { $regex: escapeRegex(filters.search), $options: 'i' } },
+            { lastName: { $regex: escapeRegex(filters.search), $options: 'i' } },
+            { fullNameArabic: { $regex: escapeRegex(filters.search), $options: 'i' } },
+            { email: { $regex: escapeRegex(filters.search), $options: 'i' } },
+            { phone: { $regex: escapeRegex(filters.search), $options: 'i' } },
+            { company: { $regex: escapeRegex(filters.search), $options: 'i' } }
         ];
     }
 
@@ -1183,11 +1189,11 @@ contactSchema.statics.checkConflicts = async function(lawyerId, checkData) {
         const results = await this.find({
             lawyerId: new mongoose.Types.ObjectId(lawyerId),
             $or: [
-                { firstName: { $regex: term, $options: 'i' } },
-                { lastName: { $regex: term, $options: 'i' } },
-                { fullNameArabic: { $regex: term, $options: 'i' } },
-                { email: { $regex: term, $options: 'i' } },
-                { phone: { $regex: term, $options: 'i' } },
+                { firstName: { $regex: escapeRegex(term), $options: 'i' } },
+                { lastName: { $regex: escapeRegex(term), $options: 'i' } },
+                { fullNameArabic: { $regex: escapeRegex(term), $options: 'i' } },
+                { email: { $regex: escapeRegex(term), $options: 'i' } },
+                { phone: { $regex: escapeRegex(term), $options: 'i' } },
                 { nationalId: term }
             ]
         }).populate('linkedCases', 'caseNumber title');

@@ -111,18 +111,21 @@ const savePushSubscription = async (req, res) => {
       });
     }
 
-    // Update user's push subscription (IDOR protected - only user's own subscription)
-    await User.findByIdAndUpdate(userId, {
-      pushSubscription: {
-        endpoint: allowedSubscription.endpoint,
-        keys: {
-          p256dh: allowedKeys.p256dh,
-          auth: allowedKeys.auth
+    // Update user's push subscription (IDOR protected - only user's own subscription with firm scope)
+    await User.findOneAndUpdate(
+      { _id: userId, ...req.firmQuery },
+      {
+        pushSubscription: {
+          endpoint: allowedSubscription.endpoint,
+          keys: {
+            p256dh: allowedKeys.p256dh,
+            auth: allowedKeys.auth
+          },
+          expirationTime: allowedSubscription.expirationTime || null
         },
-        expirationTime: allowedSubscription.expirationTime || null
-      },
-      'notificationPreferences.channels.push': true
-    });
+        'notificationPreferences.channels.push': true
+      }
+    );
 
     res.status(200).json({
       success: true,
@@ -149,11 +152,14 @@ const deletePushSubscription = async (req, res) => {
     // IDOR Protection: Sanitize and use authenticated user's ID only
     const userId = sanitizeObjectId(req.user.userId || req.user._id);
 
-    // Remove user's push subscription (IDOR protected - only user's own subscription)
-    await User.findByIdAndUpdate(userId, {
-      $unset: { pushSubscription: 1 },
-      'notificationPreferences.channels.push': false
-    });
+    // Remove user's push subscription (IDOR protected - only user's own subscription with firm scope)
+    await User.findOneAndUpdate(
+      { _id: userId, ...req.firmQuery },
+      {
+        $unset: { pushSubscription: 1 },
+        'notificationPreferences.channels.push': false
+      }
+    );
 
     res.status(200).json({
       success: true,
@@ -180,8 +186,8 @@ const getPushSubscriptionStatus = async (req, res) => {
     // IDOR Protection: Sanitize and use authenticated user's ID only
     const userId = sanitizeObjectId(req.user.userId || req.user._id);
 
-    // Fetch only the authenticated user's subscription (IDOR protected)
-    const user = await User.findById(userId).select('pushSubscription notificationPreferences');
+    // Fetch only the authenticated user's subscription (IDOR protected with firm scope)
+    const user = await User.findOne({ _id: userId, ...req.firmQuery }).select('pushSubscription notificationPreferences');
 
     if (!user) {
       return res.status(404).json({
@@ -278,9 +284,9 @@ const updateNotificationPreferences = async (req, res) => {
       });
     }
 
-    // Update only the authenticated user's preferences (IDOR protected)
-    const user = await User.findByIdAndUpdate(
-      userId,
+    // Update only the authenticated user's preferences (IDOR protected with firm scope)
+    const user = await User.findOneAndUpdate(
+      { _id: userId, ...req.firmQuery },
       updateData,
       { new: true }
     ).select('notificationPreferences');

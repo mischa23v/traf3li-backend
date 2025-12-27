@@ -437,7 +437,8 @@ const updateEntry = asyncHandler(async (req, res) => {
 
     // Update budget totals if amount changed
     if (req.body.amount !== undefined && req.body.amount !== oldAmount) {
-        const budget = await MatterBudget.findById(id);
+        // IDOR Protection: Use findOne with lawyerId
+        const budget = await MatterBudget.findOne({ _id: id, lawyerId });
         const difference = entry.amount - oldAmount;
         budget.actualSpent += difference;
         budget.percentUsed = (budget.actualSpent / budget.totalBudget) * 100;
@@ -481,7 +482,11 @@ const deleteEntry = asyncHandler(async (req, res) => {
     }
 
     // Update budget totals
-    const budget = await MatterBudget.findById(id);
+    // IDOR Protection: Use findOne with lawyerId
+    const budget = await MatterBudget.findOne({ _id: id, lawyerId });
+    if (!budget) {
+        throw CustomException('الميزانية غير موجودة', 404);
+    }
     budget.actualSpent -= entry.amount;
     budget.percentUsed = (budget.actualSpent / budget.totalBudget) * 100;
 

@@ -350,7 +350,7 @@ const terminateSession = async (request, response) => {
         }
 
         // IDOR Protection: Verify session belongs to user
-        const session = await Session.findById(sessionId);
+        const session = await Session.findOne({ _id: sessionId, userId: sanitizedUserId });
 
         if (!session) {
             return response.status(404).json({
@@ -359,7 +359,7 @@ const terminateSession = async (request, response) => {
             });
         }
 
-        // IDOR Protection: Verify session ownership
+        // Session ownership already verified in query above
         if (session.userId.toString() !== sanitizedUserId) {
             // Log unauthorized access attempt
             auditLogService.log(

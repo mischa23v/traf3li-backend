@@ -3,30 +3,30 @@ const { CustomException } = require('../utils');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 
 // Calculate lawyer score based on algorithm
-const calculateLawyerScore = async (lawyerId) => {
+const calculateLawyerScore = async (lawyerId, firmId) => {
     try {
         // IDOR Protection: Sanitize lawyer ID
         const sanitizedLawyerId = sanitizeObjectId(lawyerId, 'Lawyer ID');
 
-        const user = await User.findById(sanitizedLawyerId);
+        const user = await User.findOne({ _id: sanitizedLawyerId, firmId });
         if (!user || user.role !== 'lawyer') {
             throw CustomException('Lawyer not found!', 404);
         }
 
         // 1. Client Rating (25%) - from reviews
-        const reviews = await Review.find({ gigID: { $in: await getGigsByLawyer(sanitizedLawyerId) } });
+        const reviews = await Review.find({ gigID: { $in: await getGigsByLawyer(sanitizedLawyerId, firmId) }, firmId });
         const avgClientRating = reviews.length > 0
             ? (reviews.reduce((sum, r) => sum + r.star, 0) / reviews.length) * 2
             : 0;
 
         // 2. Peer Rating (20%) - from peer reviews
-        const peerReviews = await PeerReview.find({ toLawyer: sanitizedLawyerId, verified: true });
+        const peerReviews = await PeerReview.find({ toLawyer: sanitizedLawyerId, verified: true, firmId });
         const avgPeerRating = peerReviews.length > 0
             ? (peerReviews.reduce((sum, r) => sum + ((r.competence + r.integrity + r.communication + r.ethics) / 4), 0) / peerReviews.length) * 2
             : 0;
 
         // 3. Win Rate (20%) - from cases
-        const cases = await Case.find({ lawyerId: sanitizedLawyerId });
+        const cases = await Case.find({ lawyerId: sanitizedLawyerId, firmId });
         const completedCases = cases.filter(c => c.outcome !== 'ongoing');
         const wonCases = cases.filter(c => c.outcome === 'won');
         const winRate = completedCases.length > 0 
@@ -62,9 +62,10 @@ const calculateLawyerScore = async (lawyerId) => {
 
         // Update or create score
         const score = await Score.findOneAndUpdate(
-            { lawyerId: sanitizedLawyerId },
+            { lawyerId: sanitizedLawyerId, firmId },
             {
                 lawyerId: sanitizedLawyerId,
+                firmId,
                 clientRating: avgClientRating,
                 peerRating: avgPeerRating,
                 winRate,
@@ -85,10 +86,10 @@ const calculateLawyerScore = async (lawyerId) => {
 };
 
 // Helper function
-const getGigsByLawyer = async (lawyerId) => {
+const getGigsByLawyer = async (lawyerId, firmId) => {
     const { Gig } = require('../models');
     // Note: lawyerId is already sanitized before this function is called
-    const gigs = await Gig.find({ userID: lawyerId });
+    const gigs = await Gig.find({ userID: lawyerId, firmId });
     return gigs.map(g => g._id);
 };
 
@@ -96,14 +97,15 @@ const getGigsByLawyer = async (lawyerId) => {
 const getLawyerScore = async (request, response) => {
     const { lawyerId } = request.params;
     try {
-        // IDOR Protection: Sanitize lawyer ID
+        // IDOR Protection: Sanitize lawyer ID and get firmId
         const sanitizedLawyerId = sanitizeObjectId(lawyerId, 'Lawyer ID');
+        const firmId = request.user.firmId;
 
-        let score = await Score.findOne({ lawyerId: sanitizedLawyerId });
+        let score = await Score.findOne({ lawyerId: sanitizedLawyerId, firmId });
 
         if (!score) {
             // Calculate if doesn't exist
-            score = await calculateLawyerScore(sanitizedLawyerId);
+            score = await calculateLawyerScore(sanitizedLawyerId, firmId);
         }
 
         return response.send({
@@ -122,10 +124,11 @@ const getLawyerScore = async (request, response) => {
 const recalculateScore = async (request, response) => {
     const { lawyerId } = request.params;
     try {
-        // IDOR Protection: Sanitize lawyer ID
+        // IDOR Protection: Sanitize lawyer ID and get firmId
         const sanitizedLawyerId = sanitizeObjectId(lawyerId, 'Lawyer ID');
+        const firmId = request.user.firmId;
 
-        const score = await calculateLawyerScore(sanitizedLawyerId);
+        const score = await calculateLawyerScore(sanitizedLawyerId, firmId);
 
         return response.status(202).send({
             error: false,
@@ -153,7 +156,10 @@ const getTopLawyers = async (request, response) => {
             });
         }
 
-        const topScores = await Score.find()
+        // IDOR Protection: Filter by firmId
+        const firmId = request.user.firmId;
+
+        const topScores = await Score.find({ firmId })
             .sort({ overallScore: -1 })
             .limit(parsedLimit)
             .populate('lawyerId', 'username image email country lawyerProfile');

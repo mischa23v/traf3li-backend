@@ -702,7 +702,7 @@ class TrelloService {
     async syncCardToTask(integration, card, mapping) {
         try {
             if (mapping.taskType === 'case') {
-                const caseDoc = await Case.findById(mapping.taskId);
+                const caseDoc = await Case.findOne({ _id: mapping.taskId, firmId: integration.firmId });
                 if (caseDoc) {
                     // Update case fields based on card
                     // Implementation depends on your case model
@@ -712,7 +712,7 @@ class TrelloService {
                     });
                 }
             } else if (mapping.taskType === 'task') {
-                const task = await Task.findById(mapping.taskId);
+                const task = await Task.findOne({ _id: mapping.taskId, firmId: integration.firmId });
                 if (task) {
                     // Update task fields based on card
                     // Implementation depends on your task model
@@ -766,9 +766,9 @@ class TrelloService {
             // Get task/case data
             let taskData;
             if (taskType === 'case') {
-                taskData = await Case.findById(taskId);
+                taskData = await Case.findOne({ _id: taskId, firmId });
             } else {
-                taskData = await Task.findById(taskId);
+                taskData = await Task.findOne({ _id: taskId, firmId });
             }
 
             if (!taskData) {

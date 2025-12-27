@@ -3,6 +3,12 @@ const { Gig } = require('../models');
 const { CustomException } = require('../utils');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 
+// Helper function to escape regex special characters (ReDoS protection)
+const escapeRegex = (str) => {
+    if (!str || typeof str !== 'string') return '';
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
+
 // ============================================
 // VALIDATION SCHEMAS
 // ============================================
@@ -206,9 +212,10 @@ const createGig = async (request, response) => {
         // SECURITY: Mass assignment protection - only allow specific fields
         const allowedData = pickAllowedFields(value, ALLOWED_GIG_FIELDS);
 
-        // Create gig with validated data and authenticated user ID
+        // SECURITY: Create gig with validated data, authenticated user ID, and firmId for multi-tenant isolation
         const gig = new Gig({
             userID: request.userID,
+            firmId: request.firmId,
             ...allowedData
         });
 
@@ -243,16 +250,20 @@ const deleteGig = async (request, response) => {
             });
         }
 
-        // SECURITY: TOCTOU Fix - Use atomic delete with ownership check in query
+        // SECURITY: IDOR Fix - Use atomic delete with ownership and firmId check in query
         // This prevents race conditions where ownership could change between check and delete
         const result = await Gig.deleteOne({
             _id: gigId,
-            userID: request.userID  // Include ownership in delete query
+            userID: request.userID,  // Include ownership in delete query
+            firmId: request.firmId   // Include firmId for multi-tenant isolation
         });
 
         if (result.deletedCount === 0) {
-            // Check if gig exists but user doesn't own it
-            const existingGig = await Gig.findById(gigId);
+            // Check if gig exists but user doesn't own it or it's in a different firm
+            const existingGig = await Gig.findOne({
+                _id: gigId,
+                firmId: request.firmId
+            });
             if (existingGig) {
                 throw CustomException('Invalid request! Cannot delete other user gigs!', 403);
             }
@@ -291,7 +302,11 @@ const getGig = async (request, response) => {
             });
         }
 
-        const gig = await Gig.findOne({ _id: gigId }).populate('userID', 'username country image createdAt email description');
+        // SECURITY: IDOR Fix - Include firmId filter for multi-tenant isolation
+        const gig = await Gig.findOne({
+            _id: gigId,
+            firmId: request.firmId
+        }).populate('userID', 'username country image createdAt email description');
 
         if (!gig) {
             throw CustomException('Gig not found!', 404);
@@ -341,10 +356,12 @@ const getGigs = async (request, response) => {
             }
         }
 
+        // SECURITY: IDOR Fix - Include firmId filter for multi-tenant isolation
         const filters = {
+            firmId: request.firmId,  // Multi-tenant isolation
             ...(sanitizedUserID && { userID: sanitizedUserID }),
-            ...(category && { category: { $regex: category, $options: 'i' } }),
-            ...(search && { title: { $regex: search, $options: 'i' } }),
+            ...(category && { category: { $regex: escapeRegex(category), $options: 'i' } }),
+            ...(search && { title: { $regex: escapeRegex(search), $options: 'i' } }),
             ...((min || max) && {
                 price: {
                     ...(max && { $lte: max }),

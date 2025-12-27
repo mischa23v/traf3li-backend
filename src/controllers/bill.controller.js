@@ -3,6 +3,12 @@ const { CustomException } = require('../utils');
 const asyncHandler = require('../utils/asyncHandler');
 const { pickAllowedFields } = require('../utils/securityUtils');
 
+// Helper function to escape regex special characters (ReDoS protection)
+const escapeRegex = (str) => {
+    if (!str || typeof str !== 'string') return '';
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
+
 // Create bill
 const createBill = asyncHandler(async (req, res) => {
     const {
@@ -41,15 +47,15 @@ const createBill = asyncHandler(async (req, res) => {
     }
 
     // Validate vendor exists and belongs to user
-    const vendor = await Vendor.findById(vendorId);
-    if (!vendor || vendor.lawyerId.toString() !== lawyerId) {
+    const vendor = await Vendor.findOne({ _id: vendorId, ...req.firmQuery });
+    if (!vendor) {
         throw CustomException('Vendor not found or access denied', 404);
     }
 
     // Validate case if provided
     if (caseId) {
-        const caseDoc = await Case.findById(caseId);
-        if (!caseDoc || caseDoc.lawyerId.toString() !== lawyerId) {
+        const caseDoc = await Case.findOne({ _id: caseId, ...req.firmQuery });
+        if (!caseDoc) {
             throw CustomException('Case not found or access denied', 404);
         }
     }
@@ -74,7 +80,7 @@ const createBill = asyncHandler(async (req, res) => {
         history: [{ action: 'created', performedBy: lawyerId, performedAt: new Date() }]
     });
 
-    const populatedBill = await Bill.findById(bill._id)
+    const populatedBill = await Bill.findOne({ _id: bill._id, ...req.firmQuery })
         .populate('vendorId', 'name vendorId email')
         .populate('caseId', 'title caseNumber');
 
@@ -131,8 +137,8 @@ const getBills = asyncHandler(async (req, res) => {
 
     if (search) {
         filters.$or = [
-            { billNumber: { $regex: search, $options: 'i' } },
-            { reference: { $regex: search, $options: 'i' } }
+            { billNumber: { $regex: escapeRegex(search), $options: 'i' } },
+            { reference: { $regex: escapeRegex(search), $options: 'i' } }
         ];
     }
 
@@ -156,19 +162,14 @@ const getBills = asyncHandler(async (req, res) => {
 // Get single bill
 const getBill = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const lawyerId = req.userID;
 
-    const bill = await Bill.findById(id)
+    const bill = await Bill.findOne({ _id: id, ...req.firmQuery })
         .populate('vendorId', 'name vendorId email phone address')
         .populate('caseId', 'title caseNumber')
         .populate('history.performedBy', 'firstName lastName');
 
     if (!bill) {
         throw CustomException('Bill not found', 404);
-    }
-
-    if (bill.lawyerId.toString() !== lawyerId) {
-        throw CustomException('You do not have access to this bill', 403);
     }
 
     return res.json({
@@ -182,15 +183,10 @@ const updateBill = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const lawyerId = req.userID;
 
-    const bill = await Bill.findById(id);
+    const bill = await Bill.findOne({ _id: id, ...req.firmQuery });
 
     if (!bill) {
         throw CustomException('Bill not found', 404);
-    }
-
-    // IDOR Protection: Verify bill belongs to user's firm
-    if (bill.lawyerId.toString() !== lawyerId) {
-        throw CustomException('You do not have access to this bill', 403);
     }
 
     if (bill.status === 'paid') {
@@ -245,9 +241,9 @@ const updateBill = asyncHandler(async (req, res) => {
         }
     };
 
-    // IDOR protection: Include lawyerId in update query
+    // IDOR protection: Include firm filter in update query
     const updatedBill = await Bill.findOneAndUpdate(
-        { _id: id, lawyerId: lawyerId },
+        { _id: id, ...req.firmQuery },
         updateData,
         { new: true, runValidators: true }
     )
@@ -264,24 +260,19 @@ const updateBill = asyncHandler(async (req, res) => {
 // Delete bill
 const deleteBill = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const lawyerId = req.userID;
 
-    const bill = await Bill.findById(id);
+    const bill = await Bill.findOne({ _id: id, ...req.firmQuery });
 
     if (!bill) {
         throw CustomException('Bill not found', 404);
-    }
-
-    if (bill.lawyerId.toString() !== lawyerId) {
-        throw CustomException('You do not have access to this bill', 403);
     }
 
     if (bill.amountPaid > 0) {
         throw CustomException('Cannot delete a bill with payments. Cancel it instead.', 400);
     }
 
-    // IDOR protection: Include lawyerId in delete query
-    await Bill.findOneAndDelete({ _id: id, lawyerId: lawyerId });
+    // IDOR protection: Include firm filter in delete query
+    await Bill.findOneAndDelete({ _id: id, ...req.firmQuery });
 
     return res.json({
         success: true,
@@ -294,14 +285,10 @@ const receiveBill = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const lawyerId = req.userID;
 
-    const bill = await Bill.findById(id);
+    const bill = await Bill.findOne({ _id: id, ...req.firmQuery });
 
     if (!bill) {
         throw CustomException('Bill not found', 404);
-    }
-
-    if (bill.lawyerId.toString() !== lawyerId) {
-        throw CustomException('You do not have access to this bill', 403);
     }
 
     if (bill.status !== 'draft') {
@@ -325,14 +312,10 @@ const cancelBill = asyncHandler(async (req, res) => {
     const { reason } = req.body;
     const lawyerId = req.userID;
 
-    const bill = await Bill.findById(id);
+    const bill = await Bill.findOne({ _id: id, ...req.firmQuery });
 
     if (!bill) {
         throw CustomException('Bill not found', 404);
-    }
-
-    if (bill.lawyerId.toString() !== lawyerId) {
-        throw CustomException('You do not have access to this bill', 403);
     }
 
     if (bill.status === 'cancelled') {
@@ -365,14 +348,10 @@ const uploadAttachment = asyncHandler(async (req, res) => {
     const { fileName, fileUrl, fileType, fileSize } = req.body;
     const lawyerId = req.userID;
 
-    const bill = await Bill.findById(id);
+    const bill = await Bill.findOne({ _id: id, ...req.firmQuery });
 
     if (!bill) {
         throw CustomException('Bill not found', 404);
-    }
-
-    if (bill.lawyerId.toString() !== lawyerId) {
-        throw CustomException('You do not have access to this bill', 403);
     }
 
     if (!fileUrl) {
@@ -408,14 +387,10 @@ const deleteAttachment = asyncHandler(async (req, res) => {
     const { id, attachmentId } = req.params;
     const lawyerId = req.userID;
 
-    const bill = await Bill.findById(id);
+    const bill = await Bill.findOne({ _id: id, ...req.firmQuery });
 
     if (!bill) {
         throw CustomException('Bill not found', 404);
-    }
-
-    if (bill.lawyerId.toString() !== lawyerId) {
-        throw CustomException('You do not have access to this bill', 403);
     }
 
     const attachmentIndex = bill.attachments.findIndex(
@@ -447,14 +422,10 @@ const duplicateBill = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const lawyerId = req.userID;
 
-    const originalBill = await Bill.findById(id);
+    const originalBill = await Bill.findOne({ _id: id, ...req.firmQuery });
 
     if (!originalBill) {
         throw CustomException('Bill not found', 404);
-    }
-
-    if (originalBill.lawyerId.toString() !== lawyerId) {
-        throw CustomException('You do not have access to this bill', 403);
     }
 
     const newBill = new Bill({
@@ -481,7 +452,7 @@ const duplicateBill = asyncHandler(async (req, res) => {
 
     await newBill.save();
 
-    const populatedBill = await Bill.findById(newBill._id)
+    const populatedBill = await Bill.findOne({ _id: newBill._id, ...req.firmQuery })
         .populate('vendorId', 'name vendorId email')
         .populate('caseId', 'title caseNumber');
 
@@ -538,16 +509,11 @@ const getRecurringBills = asyncHandler(async (req, res) => {
 // Stop recurring bill
 const stopRecurring = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const lawyerId = req.userID;
 
-    const bill = await Bill.findById(id);
+    const bill = await Bill.findOne({ _id: id, ...req.firmQuery });
 
     if (!bill) {
         throw CustomException('Bill not found', 404);
-    }
-
-    if (bill.lawyerId.toString() !== lawyerId) {
-        throw CustomException('You do not have access to this bill', 403);
     }
 
     if (!bill.isRecurring) {
@@ -567,22 +533,17 @@ const stopRecurring = asyncHandler(async (req, res) => {
 // Generate next recurring bill
 const generateNextBill = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const lawyerId = req.userID;
 
-    const bill = await Bill.findById(id);
+    const bill = await Bill.findOne({ _id: id, ...req.firmQuery });
 
     if (!bill) {
         throw CustomException('Bill not found', 404);
     }
 
-    if (bill.lawyerId.toString() !== lawyerId) {
-        throw CustomException('You do not have access to this bill', 403);
-    }
-
     try {
         const newBill = await Bill.generateRecurringBill(id);
 
-        const populatedBill = await Bill.findById(newBill._id)
+        const populatedBill = await Bill.findOne({ _id: newBill._id, ...req.firmQuery })
             .populate('vendorId', 'name vendorId email');
 
         return res.status(201).json({
@@ -663,13 +624,9 @@ const approveBill = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const { notes } = req.body;
 
-    const bill = await Bill.findById(id);
+    const bill = await Bill.findOne({ _id: id, ...req.firmQuery });
     if (!bill) {
         throw CustomException('Bill not found', 404);
-    }
-
-    if (bill.lawyerId.toString() !== lawyerId) {
-        throw CustomException('Access denied', 403);
     }
 
     if (bill.status !== 'pending_approval' && bill.status !== 'draft') {
@@ -688,7 +645,7 @@ const approveBill = asyncHandler(async (req, res) => {
 
     await bill.save();
 
-    const populatedBill = await Bill.findById(bill._id)
+    const populatedBill = await Bill.findOne({ _id: bill._id, ...req.firmQuery })
         .populate('vendorId', 'name vendorId email')
         .populate('caseId', 'title caseNumber');
 
@@ -723,14 +680,9 @@ const payBill = asyncHandler(async (req, res) => {
         bankAccountId
     } = req.body;
 
-    const bill = await Bill.findById(id);
+    const bill = await Bill.findOne({ _id: id, ...req.firmQuery });
     if (!bill) {
         throw CustomException('Bill not found', 404);
-    }
-
-    // IDOR Protection: Verify bill belongs to current user
-    if (bill.lawyerId.toString() !== lawyerId) {
-        throw CustomException('Access denied', 403);
     }
 
     if (bill.status === 'paid' || bill.status === 'cancelled' || bill.status === 'void') {
@@ -760,15 +712,10 @@ const payBill = asyncHandler(async (req, res) => {
 
     try {
         // Re-fetch bill with lock to prevent race conditions
-        const lockedBill = await Bill.findById(id).session(session);
+        const lockedBill = await Bill.findOne({ _id: id, ...req.firmQuery }).session(session);
 
         if (!lockedBill) {
             throw CustomException('Bill not found', 404);
-        }
-
-        // Verify bill still belongs to user (double-check within transaction)
-        if (lockedBill.lawyerId.toString() !== lawyerId) {
-            throw CustomException('Access denied', 403);
         }
 
         // Verify bill status hasn't changed
@@ -837,7 +784,7 @@ const payBill = asyncHandler(async (req, res) => {
 
         await session.commitTransaction();
 
-        const populatedBill = await Bill.findById(lockedBill._id)
+        const populatedBill = await Bill.findOne({ _id: lockedBill._id, ...req.firmQuery })
             .populate('vendorId', 'name vendorId email')
             .populate('caseId', 'title caseNumber');
 
@@ -861,13 +808,9 @@ const postToGL = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const { journalDate, notes } = req.body;
 
-    const bill = await Bill.findById(id);
+    const bill = await Bill.findOne({ _id: id, ...req.firmQuery });
     if (!bill) {
         throw CustomException('Bill not found', 404);
-    }
-
-    if (bill.lawyerId.toString() !== lawyerId) {
-        throw CustomException('Access denied', 403);
     }
 
     if (bill.postedToGL) {
@@ -892,7 +835,7 @@ const postToGL = asyncHandler(async (req, res) => {
 
     await bill.save();
 
-    const populatedBill = await Bill.findById(bill._id)
+    const populatedBill = await Bill.findOne({ _id: bill._id, ...req.firmQuery })
         .populate('vendorId', 'name vendorId email')
         .populate('caseId', 'title caseNumber');
 

@@ -196,9 +196,10 @@ const getBrokers = asyncHandler(async (req, res) => {
     if (type) filters.type = type;
 
     if (search) {
+        const escapedSearch = escapeRegex(search);
         filters.$or = [
-            { name: { $regex: search, $options: 'i' } },
-            { displayName: { $regex: search, $options: 'i' } }
+            { name: { $regex: escapedSearch, $options: 'i' } },
+            { displayName: { $regex: escapedSearch, $options: 'i' } }
         ];
     }
 

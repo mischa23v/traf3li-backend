@@ -270,12 +270,7 @@ const getConversation = asyncHandler(async (req, res) => {
         throw CustomException('Invalid conversation ID format', 400);
     }
 
-    const conversation = await OmnichannelInboxService.getConversation(sanitizedId, userId);
-
-    // IDOR protection - verify conversation belongs to user's firm
-    if (conversation.firmId.toString() !== firmId.toString()) {
-        throw CustomException('Resource not found', 404);
-    }
+    const conversation = await OmnichannelInboxService.getOmnichannelConversation(sanitizedId, firmId, userId);
 
     res.json({
         success: true,
@@ -318,12 +313,7 @@ const addMessage = asyncHandler(async (req, res) => {
     // Set direction to outbound for user-sent messages
     messageData.direction = 'outbound';
 
-    const conversation = await OmnichannelInboxService.addMessage(sanitizedId, messageData, userId);
-
-    // IDOR protection - verify conversation belongs to user's firm
-    if (conversation.firmId.toString() !== firmId.toString()) {
-        throw CustomException('Resource not found', 404);
-    }
+    const conversation = await OmnichannelInboxService.addMessage(sanitizedId, firmId, messageData, userId);
 
     res.status(201).json({
         success: true,
@@ -362,16 +352,12 @@ const assignConversation = asyncHandler(async (req, res) => {
         }
     }
 
-    const conversation = await OmnichannelInboxService.assignConversation(
+    const conversation = await OmnichannelInboxService.assignOmnichannelConversation(
         sanitizedId,
+        firmId,
         sanitizedAssigneeId,
         userId
     );
-
-    // IDOR protection - verify conversation belongs to user's firm
-    if (conversation.firmId.toString() !== firmId.toString()) {
-        throw CustomException('Resource not found', 404);
-    }
 
     res.json({
         success: true,
@@ -415,12 +401,7 @@ const snoozeConversation = asyncHandler(async (req, res) => {
         throw CustomException('Snooze date must be in the future', 400);
     }
 
-    const conversation = await OmnichannelInboxService.snoozeConversation(sanitizedId, snoozeDate, userId);
-
-    // IDOR protection - verify conversation belongs to user's firm
-    if (conversation.firmId.toString() !== firmId.toString()) {
-        throw CustomException('Resource not found', 404);
-    }
+    const conversation = await OmnichannelInboxService.snoozeOmnichannelConversation(sanitizedId, firmId, snoozeDate, userId);
 
     res.json({
         success: true,
@@ -458,12 +439,7 @@ const closeConversation = asyncHandler(async (req, res) => {
         resolution.notes = sanitizeString(resolution.notes);
     }
 
-    const conversation = await OmnichannelInboxService.closeConversation(sanitizedId, userId, resolution);
-
-    // IDOR protection - verify conversation belongs to user's firm
-    if (conversation.firmId.toString() !== firmId.toString()) {
-        throw CustomException('Resource not found', 404);
-    }
+    const conversation = await OmnichannelInboxService.closeOmnichannelConversation(sanitizedId, firmId, userId, resolution);
 
     res.json({
         success: true,
@@ -492,12 +468,7 @@ const reopenConversation = asyncHandler(async (req, res) => {
         throw CustomException('Invalid conversation ID format', 400);
     }
 
-    const conversation = await OmnichannelInboxService.reopenConversation(sanitizedId, userId);
-
-    // IDOR protection - verify conversation belongs to user's firm
-    if (conversation.firmId.toString() !== firmId.toString()) {
-        throw CustomException('Resource not found', 404);
-    }
+    const conversation = await OmnichannelInboxService.reopenOmnichannelConversation(sanitizedId, firmId, userId);
 
     res.json({
         success: true,
@@ -563,12 +534,7 @@ const updateTags = asyncHandler(async (req, res) => {
     // Sanitize tags
     const sanitizedTags = tags.map(tag => sanitizeString(tag)).filter(Boolean);
 
-    const conversation = await OmnichannelInboxService.updateTags(sanitizedId, sanitizedTags, userId);
-
-    // IDOR protection - verify conversation belongs to user's firm
-    if (conversation.firmId.toString() !== firmId.toString()) {
-        throw CustomException('Resource not found', 404);
-    }
+    const conversation = await OmnichannelInboxService.updateTags(sanitizedId, firmId, sanitizedTags, userId);
 
     res.json({
         success: true,
@@ -604,12 +570,7 @@ const updatePriority = asyncHandler(async (req, res) => {
         throw CustomException(`Invalid priority. Must be one of: ${validPriorities.join(', ')}`, 400);
     }
 
-    const conversation = await OmnichannelInboxService.updatePriority(sanitizedId, priority, userId);
-
-    // IDOR protection - verify conversation belongs to user's firm
-    if (conversation.firmId.toString() !== firmId.toString()) {
-        throw CustomException('Resource not found', 404);
-    }
+    const conversation = await OmnichannelInboxService.updatePriority(sanitizedId, firmId, priority, userId);
 
     res.json({
         success: true,

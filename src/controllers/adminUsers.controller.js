@@ -29,6 +29,13 @@ const bcrypt = require('bcrypt');
 const crypto = require('crypto');
 
 /**
+ * Escape special regex characters to prevent ReDoS attacks
+ * @param {string} str - The string to escape
+ * @returns {string} - Escaped string safe for use in RegExp
+ */
+const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/**
  * List users with filtering and pagination
  * GET /api/admin/users
  */
@@ -75,10 +82,11 @@ const listUsers = async (req, res) => {
         // Search by name or email
         if (req.query.search) {
             const searchTerm = sanitizeString(req.query.search);
+            const escapedSearchTerm = escapeRegex(searchTerm);
             filters.$or = [
-                { firstName: new RegExp(searchTerm, 'i') },
-                { lastName: new RegExp(searchTerm, 'i') },
-                { email: new RegExp(searchTerm, 'i') }
+                { firstName: new RegExp(escapedSearchTerm, 'i') },
+                { lastName: new RegExp(escapedSearchTerm, 'i') },
+                { email: new RegExp(escapedSearchTerm, 'i') }
             ];
         }
 

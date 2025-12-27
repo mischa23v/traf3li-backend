@@ -22,6 +22,11 @@ const {
 const auditLogService = require('../services/auditLog.service');
 
 /**
+ * Escape special regex characters to prevent ReDoS attacks
+ */
+const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/**
  * List all firms with statistics
  * GET /api/admin/firms
  */
@@ -65,8 +70,8 @@ const listFirms = async (req, res) => {
         if (req.query.search) {
             const searchTerm = sanitizeString(req.query.search);
             filters.$or = [
-                { name: new RegExp(searchTerm, 'i') },
-                { email: new RegExp(searchTerm, 'i') }
+                { name: new RegExp(escapeRegex(searchTerm), 'i') },
+                { email: new RegExp(escapeRegex(searchTerm), 'i') }
             ];
         }
 

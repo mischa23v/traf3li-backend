@@ -4,6 +4,12 @@ const asyncHandler = require('../utils/asyncHandler');
 const mongoose = require('mongoose');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 
+// Helper function to escape regex special characters (ReDoS protection)
+const escapeRegex = (str) => {
+    if (!str || typeof str !== 'string') return '';
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
+
 // ═══════════════════════════════════════════════════════════════
 // LOAN POLICIES (Configurable)
 // ═══════════════════════════════════════════════════════════════
@@ -67,17 +73,13 @@ function validateLoanAmountAndInterest(loanType, loanAmount, interestRate) {
 
 // Verify employee ownership
 async function verifyEmployeeOwnership(employeeId, firmId, lawyerId) {
-    const employee = await Employee.findById(sanitizeObjectId(employeeId));
+    // IDOR PROTECTION - Query includes firmId/lawyerId to ensure employee belongs to user
+    const accessQuery = firmId
+        ? { _id: sanitizeObjectId(employeeId), firmId }
+        : { _id: sanitizeObjectId(employeeId), lawyerId };
+    const employee = await Employee.findOne(accessQuery);
     if (!employee) {
-        throw CustomException('Employee not found', 404);
-    }
-
-    const hasAccess = firmId
-        ? employee.firmId?.toString() === firmId.toString()
-        : employee.lawyerId?.toString() === lawyerId;
-
-    if (!hasAccess) {
-        throw CustomException('Access denied to this employee', 403);
+        throw CustomException('Employee not found or access denied', 404);
     }
 
     return employee;
@@ -136,9 +138,13 @@ function generateInstallmentSchedule(loanAmount, numInstallments, firstDate) {
 
 // Check loan eligibility
 async function checkLoanEligibility(employeeId, requestedAmount, firmId, lawyerId) {
-    const employee = await Employee.findById(employeeId);
+    // IDOR PROTECTION - Query includes firmId/lawyerId to ensure employee belongs to user
+    const accessQuery = firmId
+        ? { _id: employeeId, firmId }
+        : { _id: employeeId, lawyerId };
+    const employee = await Employee.findOne(accessQuery);
     if (!employee) {
-        throw CustomException('Employee not found', 404);
+        throw CustomException('Employee not found or access denied', 404);
     }
 
     const query = firmId ? { firmId, employeeId } : { lawyerId, employeeId };
@@ -299,11 +305,12 @@ const getLoans = asyncHandler(async (req, res) => {
     if (employeeId) query.employeeId = employeeId;
 
     if (search) {
+        const escapedSearch = escapeRegex(search);
         query.$or = [
-            { employeeName: { $regex: search, $options: 'i' } },
-            { employeeNameAr: { $regex: search, $options: 'i' } },
-            { loanId: { $regex: search, $options: 'i' } },
-            { loanNumber: { $regex: search, $options: 'i' } }
+            { employeeName: { $regex: escapedSearch, $options: 'i' } },
+            { employeeNameAr: { $regex: escapedSearch, $options: 'i' } },
+            { loanId: { $regex: escapedSearch, $options: 'i' } },
+            { loanNumber: { $regex: escapedSearch, $options: 'i' } }
         ];
     }
 
@@ -362,16 +369,22 @@ const getLoan = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
-    // IDOR Protection: Verify loan ownership
-    await verifyLoanOwnership(loanId, firmId, lawyerId);
+    // IDOR Protection - Query includes firmId/lawyerId to ensure loan belongs to user
+    const accessQuery = firmId
+        ? { _id: loanId, firmId }
+        : { _id: loanId, lawyerId };
 
-    const loan = await EmployeeLoan.findById(loanId)
+    const loan = await EmployeeLoan.findOne(accessQuery)
         .populate('employeeId', 'employeeId personalInfo employment compensation gosi')
         .populate('createdBy', 'firstName lastName')
         .populate('lastModifiedBy', 'firstName lastName')
         .populate('approvalWorkflow.workflowSteps.approverId', 'firstName lastName')
         .populate('disbursement.cash.disbursedBy', 'firstName lastName')
         .populate('disbursement.confirmedBy', 'firstName lastName');
+
+    if (!loan) {
+        throw CustomException('Loan not found or access denied', 404);
+    }
 
     return res.json({
         success: true,

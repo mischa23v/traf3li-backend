@@ -114,20 +114,15 @@ const createPayment = asyncHandler(async (req, res) => {
             throw CustomException('Invalid bank account ID', 400);
         }
 
-        const bankAccount = await BankAccount.findById(safeBankAccountId);
+        const bankAccountQuery = { _id: safeBankAccountId, lawyerId };
+        if (firmId) {
+            bankAccountQuery.firmId = firmId;
+        }
+        const bankAccount = await BankAccount.findOne(bankAccountQuery);
 
         // IDOR Protection: Verify bank account ownership
         if (!bankAccount) {
             throw CustomException('Bank account not found', 404);
-        }
-
-        if (bankAccount.lawyerId.toString() !== lawyerId) {
-            throw CustomException('You do not have access to this bank account', 403);
-        }
-
-        // IDOR Protection: Verify firmId ownership for bank account
-        if (firmId && bankAccount.firmId && bankAccount.firmId.toString() !== firmId.toString()) {
-            throw CustomException('You do not have access to this bank account', 403);
         }
 
         // Insufficient Funds Check
@@ -199,8 +194,12 @@ const createPayment = asyncHandler(async (req, res) => {
 
         // Deduct from bank account if specified
         if (validatedBankAccountId) {
-            await BankAccount.findByIdAndUpdate(
-                validatedBankAccountId,
+            const bankAccountUpdateQuery = { _id: validatedBankAccountId, lawyerId };
+            if (firmId) {
+                bankAccountUpdateQuery.firmId = firmId;
+            }
+            await BankAccount.findOneAndUpdate(
+                bankAccountUpdateQuery,
                 {
                     $inc: {
                         balance: -validatedAmount,
@@ -223,7 +222,11 @@ const createPayment = asyncHandler(async (req, res) => {
     }
 
     // Fetch populated payment after successful transaction
-    const populatedPayment = await BillPayment.findById(payment._id)
+    const paymentQuery = { _id: payment._id, lawyerId };
+    if (firmId) {
+        paymentQuery.firmId = firmId;
+    }
+    const populatedPayment = await BillPayment.findOne(paymentQuery)
         .populate('billId', 'billNumber totalAmount')
         .populate('vendorId', 'name vendorId')
         .populate('bankAccountId', 'name bankName');
@@ -334,7 +337,11 @@ const getPayment = asyncHandler(async (req, res) => {
         throw CustomException('Invalid payment ID', 400);
     }
 
-    const payment = await BillPayment.findById(safePaymentId)
+    const paymentQuery = { _id: safePaymentId, lawyerId };
+    if (firmId) {
+        paymentQuery.firmId = firmId;
+    }
+    const payment = await BillPayment.findOne(paymentQuery)
         .populate('billId', 'billNumber totalAmount balanceDue status')
         .populate('vendorId', 'name vendorId email')
         .populate('bankAccountId', 'name bankName accountNumber')
@@ -342,16 +349,6 @@ const getPayment = asyncHandler(async (req, res) => {
 
     if (!payment) {
         throw CustomException('Payment not found', 404);
-    }
-
-    // IDOR Protection: Verify payment ownership
-    if (payment.lawyerId.toString() !== lawyerId) {
-        throw CustomException('You do not have access to this payment', 403);
-    }
-
-    // IDOR Protection: Verify firmId ownership (multi-tenancy)
-    if (firmId && payment.firmId && payment.firmId.toString() !== firmId.toString()) {
-        throw CustomException('You do not have access to this payment', 403);
     }
 
     return res.json({
@@ -376,26 +373,24 @@ const cancelPayment = asyncHandler(async (req, res) => {
         throw CustomException('Invalid payment ID', 400);
     }
 
-    const payment = await BillPayment.findById(safePaymentId);
+    const paymentQuery = { _id: safePaymentId, lawyerId };
+    if (firmId) {
+        paymentQuery.firmId = firmId;
+    }
+    const payment = await BillPayment.findOne(paymentQuery);
 
     if (!payment) {
         throw CustomException('Payment not found', 404);
     }
 
-    // IDOR Protection: Verify payment ownership
-    if (payment.lawyerId.toString() !== lawyerId) {
-        throw CustomException('You do not have access to this payment', 403);
-    }
-
-    // IDOR Protection: Verify firmId ownership (multi-tenancy)
-    if (firmId && payment.firmId && payment.firmId.toString() !== firmId.toString()) {
-        throw CustomException('You do not have access to this payment', 403);
-    }
-
     try {
         const cancelledPayment = await BillPayment.cancelPayment(safePaymentId, reason, lawyerId);
 
-        const populatedPayment = await BillPayment.findById(cancelledPayment._id)
+        const cancelledPaymentQuery = { _id: cancelledPayment._id, lawyerId };
+        if (firmId) {
+            cancelledPaymentQuery.firmId = firmId;
+        }
+        const populatedPayment = await BillPayment.findOne(cancelledPaymentQuery)
             .populate('billId', 'billNumber totalAmount balanceDue status')
             .populate('vendorId', 'name vendorId');
 

@@ -4,6 +4,12 @@ const CustomException = require('../utils/CustomException');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 const sanitizeHtml = require('sanitize-html');
 
+// Helper function to escape regex special characters (ReDoS protection)
+const escapeRegex = (str) => {
+    if (!str || typeof str !== 'string') return '';
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
+
 /**
  * Sanitize tag input to prevent XSS
  */
@@ -103,8 +109,8 @@ const getTags = asyncHandler(async (req, res) => {
 
     if (search) {
         query.$or = [
-            { name: { $regex: search, $options: 'i' } },
-            { nameAr: { $regex: search, $options: 'i' } }
+            { name: { $regex: escapeRegex(search), $options: 'i' } },
+            { nameAr: { $regex: escapeRegex(search), $options: 'i' } }
         ];
     }
 

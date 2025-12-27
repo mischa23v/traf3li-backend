@@ -235,7 +235,7 @@ class OAuthService {
             }
         } else {
             // Get provider by ID
-            provider = await SsoProvider.findById(providerId).select('+clientSecret');
+            provider = await SsoProvider.findOne({ _id: providerId, $or: [{ firmId }, { firmId: null }] }).select('+clientSecret');
         }
 
         if (!provider) {
@@ -1002,10 +1002,13 @@ class OAuthService {
 
         // Update user SSO flag if not already set
         if (!user.isSSOUser) {
-            await User.findByIdAndUpdate(userId, {
-                isSSOUser: true,
-                ssoProvider: config.provider.providerType
-            });
+            await User.findOneAndUpdate(
+                { _id: userId, firmId: user.firmId },
+                {
+                    isSSOUser: true,
+                    ssoProvider: config.provider.providerType
+                }
+            );
         }
 
         await auditLogService.log(
@@ -1068,10 +1071,13 @@ class OAuthService {
         const remainingLinks = await SsoUserLink.getUserLinks(userId, true);
         if (remainingLinks.length === 0) {
             // No more SSO links - update user
-            await User.findByIdAndUpdate(userId, {
-                isSSOUser: false,
-                ssoProvider: null
-            });
+            await User.findOneAndUpdate(
+                { _id: userId, firmId: user.firmId },
+                {
+                    isSSOUser: false,
+                    ssoProvider: null
+                }
+            );
         }
 
         await auditLogService.log(

@@ -5,6 +5,12 @@ const asyncHandler = require('../utils/asyncHandler');
 const { pickAllowedFields, sanitizeObjectId, sanitizeForLog } = require('../utils/securityUtils');
 const { sanitizeRichText, stripHtml } = require('../utils/sanitize');
 
+// Helper function to escape regex special characters (ReDoS protection)
+const escapeRegex = (str) => {
+    if (!str || typeof str !== 'string') return '';
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
+
 // ═══════════════════════════════════════════════════════════════
 // CONFIGURABLE POLICIES
 // ═══════════════════════════════════════════════════════════════
@@ -168,12 +174,12 @@ const getGrievances = asyncHandler(async (req, res) => {
     // Search filter
     if (search) {
         query.$or = [
-            { grievanceSubject: { $regex: search, $options: 'i' } },
-            { grievanceSubjectAr: { $regex: search, $options: 'i' } },
-            { grievanceNumber: { $regex: search, $options: 'i' } },
-            { grievanceId: { $regex: search, $options: 'i' } },
-            { employeeName: { $regex: search, $options: 'i' } },
-            { employeeNameAr: { $regex: search, $options: 'i' } }
+            { grievanceSubject: { $regex: escapeRegex(search), $options: 'i' } },
+            { grievanceSubjectAr: { $regex: escapeRegex(search), $options: 'i' } },
+            { grievanceNumber: { $regex: escapeRegex(search), $options: 'i' } },
+            { grievanceId: { $regex: escapeRegex(search), $options: 'i' } },
+            { employeeName: { $regex: escapeRegex(search), $options: 'i' } },
+            { employeeNameAr: { $regex: escapeRegex(search), $options: 'i' } }
         ];
     }
 

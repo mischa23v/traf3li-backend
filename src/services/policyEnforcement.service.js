@@ -399,7 +399,10 @@ class PolicyEnforcementService {
 
       // Get standard rate for the user/role
       const User = mongoose.model('User');
-      const user = await User.findById(timeEntry.assigneeId || timeEntry.userId).lean();
+      const user = await User.findOne({
+        _id: timeEntry.assigneeId || timeEntry.userId,
+        firmId: new mongoose.Types.ObjectId(firmId)
+      }).lean();
 
       if (!user) {
         return { compliant: true, violations };
@@ -505,15 +508,16 @@ class PolicyEnforcementService {
    * Acknowledge a violation
    * @param {String} violationId - Violation ID
    * @param {String} userId - User acknowledging
+   * @param {String} firmId - Firm ID
    * @param {String} notes - Acknowledgment notes
    * @returns {Promise<Object>} - Updated violation
    */
-  async acknowledgeViolation(violationId, userId, notes = '') {
+  async acknowledgeViolation(violationId, userId, firmId, notes = '') {
     try {
       const Violation = await this._getViolationModel();
 
-      const violation = await Violation.findByIdAndUpdate(
-        violationId,
+      const violation = await Violation.findOneAndUpdate(
+        { _id: violationId, firmId: new mongoose.Types.ObjectId(firmId) },
         {
           status: VIOLATION_STATUSES.ACKNOWLEDGED,
           acknowledgedBy: new mongoose.Types.ObjectId(userId),
@@ -557,14 +561,15 @@ class PolicyEnforcementService {
    * @param {String} violationId - Violation ID
    * @param {String} reason - Override reason
    * @param {String} userId - User requesting override
+   * @param {String} firmId - Firm ID
    * @returns {Promise<Object>} - Updated violation
    */
-  async requestOverride(violationId, reason, userId) {
+  async requestOverride(violationId, reason, userId, firmId) {
     try {
       const Violation = await this._getViolationModel();
 
-      const violation = await Violation.findByIdAndUpdate(
-        violationId,
+      const violation = await Violation.findOneAndUpdate(
+        { _id: violationId, firmId: new mongoose.Types.ObjectId(firmId) },
         {
           status: VIOLATION_STATUSES.OVERRIDE_REQUESTED,
           overrideRequestedBy: new mongoose.Types.ObjectId(userId),
@@ -610,15 +615,16 @@ class PolicyEnforcementService {
    * Approve an override request
    * @param {String} violationId - Violation ID
    * @param {String} approverId - Approver user ID
+   * @param {String} firmId - Firm ID
    * @param {String} reason - Approval reason
    * @returns {Promise<Object>} - Updated violation
    */
-  async approveOverride(violationId, approverId, reason = '') {
+  async approveOverride(violationId, approverId, firmId, reason = '') {
     try {
       const Violation = await this._getViolationModel();
 
-      const violation = await Violation.findByIdAndUpdate(
-        violationId,
+      const violation = await Violation.findOneAndUpdate(
+        { _id: violationId, firmId: new mongoose.Types.ObjectId(firmId) },
         {
           status: VIOLATION_STATUSES.OVERRIDE_APPROVED,
           overrideApprovedBy: new mongoose.Types.ObjectId(approverId),
@@ -666,15 +672,16 @@ class PolicyEnforcementService {
    * Resolve a violation
    * @param {String} violationId - Violation ID
    * @param {String} userId - User resolving
+   * @param {String} firmId - Firm ID
    * @param {String} notes - Resolution notes
    * @returns {Promise<Object>} - Updated violation
    */
-  async resolveViolation(violationId, userId, notes = '') {
+  async resolveViolation(violationId, userId, firmId, notes = '') {
     try {
       const Violation = await this._getViolationModel();
 
-      const violation = await Violation.findByIdAndUpdate(
-        violationId,
+      const violation = await Violation.findOneAndUpdate(
+        { _id: violationId, firmId: new mongoose.Types.ObjectId(firmId) },
         {
           status: VIOLATION_STATUSES.RESOLVED,
           resolvedBy: new mongoose.Types.ObjectId(userId),
@@ -717,14 +724,15 @@ class PolicyEnforcementService {
    * Escalate a violation to manager
    * @param {String} violationId - Violation ID
    * @param {String} escalateTo - User ID to escalate to
+   * @param {String} firmId - Firm ID
    * @returns {Promise<Object>} - Updated violation
    */
-  async escalateViolation(violationId, escalateTo) {
+  async escalateViolation(violationId, escalateTo, firmId) {
     try {
       const Violation = await this._getViolationModel();
 
-      const violation = await Violation.findByIdAndUpdate(
-        violationId,
+      const violation = await Violation.findOneAndUpdate(
+        { _id: violationId, firmId: new mongoose.Types.ObjectId(firmId) },
         {
           status: VIOLATION_STATUSES.ESCALATED,
           escalatedTo: new mongoose.Types.ObjectId(escalateTo),
@@ -1154,7 +1162,10 @@ class PolicyEnforcementService {
   async _notifyOverrideDecision(violation, decision) {
     try {
       const User = mongoose.model('User');
-      const requester = await User.findById(violation.overrideRequestedBy).lean();
+      const requester = await User.findOne({
+        _id: violation.overrideRequestedBy,
+        firmId: violation.firmId
+      }).lean();
 
       if (requester && requester.email) {
         await NotificationDeliveryService.sendEmail({
@@ -1181,7 +1192,10 @@ class PolicyEnforcementService {
   async _notifyEscalation(violation, escalateTo) {
     try {
       const User = mongoose.model('User');
-      const manager = await User.findById(escalateTo).lean();
+      const manager = await User.findOne({
+        _id: escalateTo,
+        firmId: violation.firmId
+      }).lean();
 
       if (manager && manager.email) {
         await NotificationDeliveryService.sendEmail({

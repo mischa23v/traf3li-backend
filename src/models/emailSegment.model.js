@@ -1,5 +1,11 @@
 const mongoose = require('mongoose');
 
+// Helper function to escape regex special characters
+const escapeRegex = (str) => {
+    if (typeof str !== 'string') return '';
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
+
 const emailSegmentSchema = new mongoose.Schema({
   firmId: { type: mongoose.Schema.Types.ObjectId, ref: 'Firm', required: false, index: true },
   name: { type: String, required: false, trim: true },
@@ -128,14 +134,14 @@ emailSegmentSchema.methods._buildConditionQuery = function(condition) {
       if (Array.isArray(value)) {
         query[field] = { $in: value };
       } else {
-        query[field] = { $regex: value, $options: 'i' };
+        query[field] = { $regex: escapeRegex(value), $options: 'i' };
       }
       break;
     case 'not_contains':
       if (Array.isArray(value)) {
         query[field] = { $nin: value };
       } else {
-        query[field] = { $not: { $regex: value, $options: 'i' } };
+        query[field] = { $not: { $regex: escapeRegex(value), $options: 'i' } };
       }
       break;
     case 'greater_than':

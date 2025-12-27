@@ -401,11 +401,12 @@ const semanticSearch = asyncHandler(async (req, res) => {
 
   // Text search across summary and entities
   if (q) {
+    const escapedQ = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     query.$or = [
-      { 'summary.brief': { $regex: q, $options: 'i' } },
-      { 'summary.detailed': { $regex: q, $options: 'i' } },
-      { 'summary.keyPoints': { $regex: q, $options: 'i' } },
-      { 'entities.value': { $regex: q, $options: 'i' } }
+      { 'summary.brief': { $regex: escapedQ, $options: 'i' } },
+      { 'summary.detailed': { $regex: escapedQ, $options: 'i' } },
+      { 'summary.keyPoints': { $regex: escapedQ, $options: 'i' } },
+      { 'entities.value': { $regex: escapedQ, $options: 'i' } }
     ];
   }
 

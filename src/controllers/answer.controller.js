@@ -42,8 +42,11 @@ const createAnswer = async (request, response) => {
 
         // Add answer to question
         // IDOR PROTECTION: Verify question was updated successfully
-        const updatedQuestion = await Question.findByIdAndUpdate(
-            sanitizedQuestionId,
+        const updatedQuestion = await Question.findOneAndUpdate(
+            {
+                _id: sanitizedQuestionId,
+                ...request.firmQuery
+            },
             {
                 $push: { answers: answer._id },
                 status: 'answered'
@@ -110,7 +113,10 @@ const updateAnswer = async (request, response) => {
             }
         }
 
-        const answer = await Answer.findById(sanitizedId);
+        const answer = await Answer.findOne({
+            _id: sanitizedId,
+            ...request.firmQuery
+        });
 
         if (!answer) {
             throw CustomException('Answer not found!', 404);
@@ -124,8 +130,11 @@ const updateAnswer = async (request, response) => {
         // Mass assignment protection - only allow specific fields
         const allowedFields = pickAllowedFields(request.body, ['content']);
 
-        const updatedAnswer = await Answer.findByIdAndUpdate(
-            sanitizedId,
+        const updatedAnswer = await Answer.findOneAndUpdate(
+            {
+                _id: sanitizedId,
+                ...request.firmQuery
+            },
             { $set: allowedFields },
             { new: true }
         );
@@ -150,7 +159,10 @@ const deleteAnswer = async (request, response) => {
         // Sanitize ID
         const sanitizedId = sanitizeObjectId(_id);
 
-        const answer = await Answer.findById(sanitizedId);
+        const answer = await Answer.findOne({
+            _id: sanitizedId,
+            ...request.firmQuery
+        });
 
         if (!answer) {
             throw CustomException('Answer not found!', 404);
@@ -162,11 +174,17 @@ const deleteAnswer = async (request, response) => {
         }
 
         // Remove from question
-        await Question.findByIdAndUpdate(answer.questionId, {
-            $pull: { answers: sanitizedId }
-        });
+        await Question.findOneAndUpdate(
+            {
+                _id: answer.questionId,
+                ...request.firmQuery
+            },
+            {
+                $pull: { answers: sanitizedId }
+            }
+        );
 
-        await Answer.deleteOne({ _id: sanitizedId });
+        await Answer.findOneAndDelete({ _id: sanitizedId, ...request.firmQuery });
 
         return response.send({
             error: false,
@@ -189,7 +207,10 @@ const likeAnswer = async (request, response) => {
         const sanitizedId = sanitizeObjectId(_id);
 
         // SECURITY: Check if user has already liked this answer
-        const answer = await Answer.findById(sanitizedId);
+        const answer = await Answer.findOne({
+            _id: sanitizedId,
+            ...request.firmQuery
+        });
 
         if (!answer) {
             throw CustomException('Answer not found!', 404);
@@ -201,8 +222,11 @@ const likeAnswer = async (request, response) => {
         }
 
         // Update with atomic operation to prevent race conditions
-        const updatedAnswer = await Answer.findByIdAndUpdate(
-            sanitizedId,
+        const updatedAnswer = await Answer.findOneAndUpdate(
+            {
+                _id: sanitizedId,
+                ...request.firmQuery
+            },
             {
                 $inc: { likes: 1 },
                 $addToSet: { likedBy: request.userID }
@@ -230,8 +254,11 @@ const verifyAnswer = async (request, response) => {
         // Sanitize ID
         const sanitizedId = sanitizeObjectId(_id);
 
-        const answer = await Answer.findByIdAndUpdate(
-            sanitizedId,
+        const answer = await Answer.findOneAndUpdate(
+            {
+                _id: sanitizedId,
+                ...request.firmQuery
+            },
             { verified: true },
             { new: true }
         );

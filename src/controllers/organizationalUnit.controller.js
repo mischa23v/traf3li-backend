@@ -3,6 +3,12 @@ const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 
+// Helper function to escape regex special characters (ReDoS protection)
+const escapeRegex = (str) => {
+    if (!str || typeof str !== 'string') return '';
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
+
 // ═══════════════════════════════════════════════════════════════
 // GET ALL ORGANIZATIONAL UNITS
 // ═══════════════════════════════════════════════════════════════
@@ -38,12 +44,13 @@ const getOrganizationalUnits = asyncHandler(async (req, res) => {
 
     // Search
     if (search) {
+        const escapedSearch = escapeRegex(search);
         query.$or = [
-            { unitId: { $regex: search, $options: 'i' } },
-            { unitCode: { $regex: search, $options: 'i' } },
-            { unitName: { $regex: search, $options: 'i' } },
-            { unitNameAr: { $regex: search, $options: 'i' } },
-            { 'costCenter.costCenterCode': { $regex: search, $options: 'i' } }
+            { unitId: { $regex: escapedSearch, $options: 'i' } },
+            { unitCode: { $regex: escapedSearch, $options: 'i' } },
+            { unitName: { $regex: escapedSearch, $options: 'i' } },
+            { unitNameAr: { $regex: escapedSearch, $options: 'i' } },
+            { 'costCenter.costCenterCode': { $regex: escapedSearch, $options: 'i' } }
         ];
     }
 
@@ -472,10 +479,13 @@ const deleteOrganizationalUnit = asyncHandler(async (req, res) => {
             ...baseQuery,
             parentUnitId: unit.parentUnitId
         });
-        await OrganizationalUnit.findByIdAndUpdate(unit.parentUnitId, {
-            hasChildren: remainingChildren > 0,
-            childUnitsCount: remainingChildren
-        });
+        await OrganizationalUnit.findOneAndUpdate(
+            { _id: unit.parentUnitId, ...req.firmQuery },
+            {
+                hasChildren: remainingChildren > 0,
+                childUnitsCount: remainingChildren
+            }
+        );
     }
 
     res.status(200).json({
@@ -628,10 +638,13 @@ const moveOrganizationalUnit = asyncHandler(async (req, res) => {
             ...baseQuery,
             parentUnitId: oldParentId
         });
-        await OrganizationalUnit.findByIdAndUpdate(oldParentId, {
-            hasChildren: oldParentChildren > 0,
-            childUnitsCount: oldParentChildren
-        });
+        await OrganizationalUnit.findOneAndUpdate(
+            { _id: oldParentId, ...req.firmQuery },
+            {
+                hasChildren: oldParentChildren > 0,
+                childUnitsCount: oldParentChildren
+            }
+        );
     }
 
     // Update new parent's childUnitsCount
@@ -640,10 +653,13 @@ const moveOrganizationalUnit = asyncHandler(async (req, res) => {
             ...baseQuery,
             parentUnitId: sanitizedNewParentId
         });
-        await OrganizationalUnit.findByIdAndUpdate(sanitizedNewParentId, {
-            hasChildren: true,
-            childUnitsCount: newParentChildren
-        });
+        await OrganizationalUnit.findOneAndUpdate(
+            { _id: sanitizedNewParentId, ...req.firmQuery },
+            {
+                hasChildren: true,
+                childUnitsCount: newParentChildren
+            }
+        );
     }
 
     // Recalculate paths for all descendants

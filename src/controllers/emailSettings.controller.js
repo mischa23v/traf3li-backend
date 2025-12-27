@@ -561,11 +561,17 @@ exports.previewTemplate = asyncHandler(async (req, res) => {
     throw CustomException('Sample data must be an object', 400);
   }
 
+  // Helper to escape regex special characters
+  const escapeRegex = (str) => {
+    if (!str || typeof str !== 'string') return '';
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  };
+
   // Replace variables in HTML, text, and subject
   if (template.variables && template.variables.length > 0) {
     template.variables.forEach(variable => {
       const value = sampleData[variable.name] || variable.defaultValue || `{{${variable.name}}}`;
-      const regex = new RegExp(`{{\\s*${variable.name}\\s*}}`, 'g');
+      const regex = new RegExp(`{{\\s*${escapeRegex(variable.name)}\\s*}}`, 'g');
 
       previewHtml = previewHtml.replace(regex, value);
       previewText = previewText.replace(regex, value);

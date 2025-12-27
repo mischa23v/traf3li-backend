@@ -109,10 +109,8 @@ const connect = asyncHandler(async (req, res) => {
             });
         }
 
-        // Return response without sensitive data
-        const response = integration.toObject();
-        delete response.botToken;
-        delete response.webhookSecret;
+        // Response Leakage Protection: Exclude sensitive fields using destructuring
+        const { botToken, botToken_encrypted, webhookSecret, webhookSecret_encrypted, ...response } = integration.toObject();
 
         res.status(201).json({
             success: true,
@@ -204,10 +202,8 @@ const getStatus = asyncHandler(async (req, res) => {
             webhookInfo = await telegramService.getWebhookInfo(integration.botToken);
         }
 
-        // Prepare response
-        const response = integration.toObject();
-        delete response.botToken;
-        delete response.webhookSecret;
+        // Response Leakage Protection: Exclude sensitive fields using destructuring
+        const { botToken, botToken_encrypted, webhookSecret, webhookSecret_encrypted, ...response } = integration.toObject();
 
         res.json({
             success: true,
@@ -227,10 +223,8 @@ const getStatus = asyncHandler(async (req, res) => {
     } catch (error) {
         logger.error('Error getting Telegram status:', error);
 
-        // Return integration data even if webhook check fails
-        const response = integration.toObject();
-        delete response.botToken;
-        delete response.webhookSecret;
+        // Response Leakage Protection: Exclude sensitive fields using destructuring
+        const { botToken, botToken_encrypted, webhookSecret, webhookSecret_encrypted, ...response } = integration.toObject();
 
         res.json({
             success: true,
@@ -391,10 +385,8 @@ const updateSettings = asyncHandler(async (req, res) => {
     integration.updatedBy = userId;
     await integration.save();
 
-    // Return response without sensitive data
-    const response = integration.toObject();
-    delete response.botToken;
-    delete response.webhookSecret;
+    // Response Leakage Protection: Exclude sensitive fields using destructuring
+    const { botToken, botToken_encrypted, webhookSecret, webhookSecret_encrypted, ...response } = integration.toObject();
 
     res.json({
         success: true,

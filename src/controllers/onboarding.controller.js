@@ -4,6 +4,12 @@ const asyncHandler = require('../utils/asyncHandler');
 const mongoose = require('mongoose');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 
+// Helper function to escape regex special characters (ReDoS protection)
+const escapeRegex = (str) => {
+    if (!str || typeof str !== 'string') return '';
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
+
 // ═══════════════════════════════════════════════════════════════
 // GET ALL ONBOARDINGS
 // GET /api/hr/onboarding
@@ -48,11 +54,11 @@ const getOnboardings = asyncHandler(async (req, res) => {
 
     if (search) {
         query.$or = [
-            { employeeName: { $regex: search, $options: 'i' } },
-            { employeeNameAr: { $regex: search, $options: 'i' } },
-            { onboardingId: { $regex: search, $options: 'i' } },
-            { onboardingNumber: { $regex: search, $options: 'i' } },
-            { employeeNumber: { $regex: search, $options: 'i' } }
+            { employeeName: { $regex: escapeRegex(search), $options: 'i' } },
+            { employeeNameAr: { $regex: escapeRegex(search), $options: 'i' } },
+            { onboardingId: { $regex: escapeRegex(search), $options: 'i' } },
+            { onboardingNumber: { $regex: escapeRegex(search), $options: 'i' } },
+            { employeeNumber: { $regex: escapeRegex(search), $options: 'i' } }
         ];
     }
 

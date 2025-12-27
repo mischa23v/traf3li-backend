@@ -8,6 +8,12 @@
 const mongoose = require('mongoose');
 const jwt = require('jsonwebtoken');
 const { Firm, User, Client, Case, Invoice, Lead, FirmInvitation } = require('../models');
+
+// Helper function to escape regex special characters
+const escapeRegex = (str) => {
+    if (typeof str !== 'string') return '';
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
 const asyncHandler = require('../utils/asyncHandler');
 const { CustomException } = require('../utils');
 const { getDefaultPermissions } = require('../config/permissions.config');
@@ -51,7 +57,7 @@ const getFirms = async (request, response) => {
     try {
         const filters = {
             ...(search && { $text: { $search: search } }),
-            ...(city && { city: { $regex: city, $options: 'i' } }),
+            ...(city && { city: { $regex: escapeRegex(city), $options: 'i' } }),
             ...(practiceArea && { practiceAreas: practiceArea })
         };
 
@@ -230,7 +236,11 @@ const getMyFirm = asyncHandler(async (req, res) => {
         });
     }
 
-    const firm = await Firm.findById(user.firmId)
+    // IDOR Protection: Verify user is a member of the firm
+    const firm = await Firm.findOne({
+        _id: user.firmId,
+        'members.userId': userId
+    })
         .populate('ownerId', 'firstName lastName email')
         .populate('members.userId', 'firstName lastName email image');
 
@@ -263,8 +273,11 @@ const switchFirm = asyncHandler(async (req, res) => {
         throw CustomException('firmId is required', 400);
     }
 
-    // Verify user is a member of this firm
-    const firm = await Firm.findById(firmId);
+    // IDOR PROTECTION: Verify user is a member of this firm
+    const firm = await Firm.findOne({
+        _id: firmId,
+        'members.userId': userId
+    });
     if (!firm) {
         throw CustomException('Firm not found', 404);
     }
@@ -320,7 +333,11 @@ const getFirm = asyncHandler(async (req, res) => {
     const id = req.params.id || req.params._id;
     const userId = req.userID;
 
-    const firm = await Firm.findById(id)
+    // IDOR PROTECTION: Only fetch firms where user is a member
+    const firm = await Firm.findOne({
+        _id: id,
+        'members.userId': userId
+    })
         .populate('ownerId', 'firstName lastName email')
         .populate('lawyers', 'username image email lawyerProfile')
         .populate('members.userId', 'firstName lastName email image');
@@ -355,7 +372,11 @@ const updateFirm = asyncHandler(async (req, res) => {
     const id = req.params.id || req.params._id;
     const userId = req.userID;
 
-    const firm = await Firm.findById(id);
+    // IDOR PROTECTION: Only fetch firms where user is a member
+    const firm = await Firm.findOne({
+        _id: id,
+        'members.userId': userId
+    });
     if (!firm) {
         throw CustomException('المكتب غير موجود', 404);
     }
@@ -398,8 +419,9 @@ const updateFirm = asyncHandler(async (req, res) => {
         throw CustomException('رقم التسجيل الضريبي غير صحيح. يجب أن يكون 15 رقم سعودي', 400);
     }
 
-    const updatedFirm = await Firm.findByIdAndUpdate(
-        id,
+    // IDOR PROTECTION: Use findOneAndUpdate with member check
+    const updatedFirm = await Firm.findOneAndUpdate(
+        { _id: id, 'members.userId': userId },
         { $set: updates },
         { new: true, runValidators: true }
     );
@@ -422,7 +444,11 @@ const updateBillingSettings = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const userId = req.userID;
 
-    const firm = await Firm.findById(id);
+    // IDOR PROTECTION: Only fetch firms where user is a member
+    const firm = await Firm.findOne({
+        _id: id,
+        'members.userId': userId
+    });
     if (!firm) {
         throw CustomException('المكتب غير موجود', 404);
     }
@@ -476,7 +502,11 @@ const getMembers = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const userId = req.userID;
 
-    const firm = await Firm.findById(id)
+    // IDOR PROTECTION: Only fetch firms where user is a member
+    const firm = await Firm.findOne({
+        _id: id,
+        'members.userId': userId
+    })
         .populate('members.userId', 'firstName lastName email phone image lawyerProfile');
 
     if (!firm) {
@@ -504,7 +534,11 @@ const inviteMember = asyncHandler(async (req, res) => {
     const userId = req.userID;
     const { email, role = 'lawyer', permissions } = req.body;
 
-    const firm = await Firm.findById(id);
+    // IDOR PROTECTION: Only fetch firms where user is a member
+    const firm = await Firm.findOne({
+        _id: id,
+        'members.userId': userId
+    });
     if (!firm) {
         throw CustomException('المكتب غير موجود', 404);
     }
@@ -570,7 +604,11 @@ const addLawyer = async (request, response) => {
     const userId = request.userID;
 
     try {
-        const firm = await Firm.findById(firmId);
+        // IDOR PROTECTION: Only fetch firms where user is a member
+        const firm = await Firm.findOne({
+            _id: firmId,
+            'members.userId': userId
+        });
         if (!firm) {
             throw CustomException('Firm not found!', 404);
         }
@@ -599,12 +637,15 @@ const addLawyer = async (request, response) => {
 
         await firm.save();
 
-        // Update lawyer profile with firm reference
-        await User.findByIdAndUpdate(lawyerId, {
-            'lawyerProfile.firmID': firmId,
-            firmId: firmId,
-            firmRole: 'lawyer'
-        });
+        // IDOR PROTECTION: Update lawyer profile with firm reference, verify they're being added to this firm
+        await User.findOneAndUpdate(
+            { _id: lawyerId },
+            {
+                'lawyerProfile.firmID': firmId,
+                firmId: firmId,
+                firmRole: 'lawyer'
+            }
+        );
 
         return response.status(202).send({
             error: false,
@@ -630,7 +671,11 @@ const updateMember = asyncHandler(async (req, res) => {
     const { id, memberId } = req.params;
     const userId = req.userID;
 
-    const firm = await Firm.findById(id);
+    // IDOR PROTECTION: Only fetch firms where user is a member
+    const firm = await Firm.findOne({
+        _id: id,
+        'members.userId': userId
+    });
     if (!firm) {
         throw CustomException('المكتب غير موجود', 404);
     }
@@ -677,7 +722,11 @@ const removeMember = asyncHandler(async (req, res) => {
     const { id, memberId } = req.params;
     const userId = req.userID;
 
-    const firm = await Firm.findById(id);
+    // IDOR PROTECTION: Only fetch firms where user is a member
+    const firm = await Firm.findOne({
+        _id: id,
+        'members.userId': userId
+    });
     if (!firm) {
         throw CustomException('المكتب غير موجود', 404);
     }
@@ -726,7 +775,11 @@ const removeLawyer = async (request, response) => {
     const userId = request.userID;
 
     try {
-        const firm = await Firm.findById(firmId);
+        // IDOR PROTECTION: Only fetch firms where user is a member
+        const firm = await Firm.findOne({
+            _id: firmId,
+            'members.userId': userId
+        });
         if (!firm) {
             throw CustomException('Firm not found!', 404);
         }
@@ -752,11 +805,14 @@ const removeLawyer = async (request, response) => {
 
         await firm.save();
 
-        // Remove firm reference from lawyer profile
-        await User.findByIdAndUpdate(lawyerId, {
-            'lawyerProfile.firmID': null,
-            $unset: { firmId: 1, firmRole: 1 }
-        });
+        // IDOR PROTECTION: Remove firm reference from lawyer profile, verify they're in this firm
+        await User.findOneAndUpdate(
+            { _id: lawyerId, firmId: firmId },
+            {
+                'lawyerProfile.firmID': null,
+                $unset: { firmId: 1, firmRole: 1 }
+            }
+        );
 
         return response.status(202).send({
             error: false,
@@ -780,7 +836,11 @@ const leaveFirm = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const userId = req.userID;
 
-    const firm = await Firm.findById(id);
+    // IDOR PROTECTION: Only fetch firms where user is a member
+    const firm = await Firm.findOne({
+        _id: id,
+        'members.userId': userId
+    });
     if (!firm) {
         throw CustomException('المكتب غير موجود', 404);
     }
@@ -815,7 +875,11 @@ const transferOwnership = asyncHandler(async (req, res) => {
     const userId = req.userID;
     const { newOwnerId } = req.body;
 
-    const firm = await Firm.findById(id);
+    // IDOR PROTECTION: Only fetch firms where user is a member
+    const firm = await Firm.findOne({
+        _id: id,
+        'members.userId': userId
+    });
     if (!firm) {
         throw CustomException('المكتب غير موجود', 404);
     }
@@ -856,7 +920,11 @@ const getFirmStats = asyncHandler(async (req, res) => {
     const userId = req.userID;
     const firmId = new mongoose.Types.ObjectId(id);
 
-    const firm = await Firm.findById(id);
+    // IDOR PROTECTION: Only fetch firms where user is a member
+    const firm = await Firm.findOne({
+        _id: id,
+        'members.userId': userId
+    });
     if (!firm) {
         throw CustomException('المكتب غير موجود', 404);
     }
@@ -930,7 +998,11 @@ const getTeam = asyncHandler(async (req, res) => {
     const userId = req.userID;
     const { includeAll = false } = req.query;
 
-    const firm = await Firm.findById(id)
+    // IDOR PROTECTION: Only fetch firms where user is a member
+    const firm = await Firm.findOne({
+        _id: id,
+        'members.userId': userId
+    })
         .populate('members.userId', 'firstName lastName email phone image lawyerProfile');
 
     if (!firm) {
@@ -979,7 +1051,11 @@ const processDeparture = asyncHandler(async (req, res) => {
     const userId = req.userID;
     const { reason, notes } = req.body;
 
-    const firm = await Firm.findById(id);
+    // IDOR PROTECTION: Only fetch firms where user is a member
+    const firm = await Firm.findOne({
+        _id: id,
+        'members.userId': userId
+    });
     if (!firm) {
         throw CustomException('المكتب غير موجود', 404);
     }
@@ -1039,7 +1115,11 @@ const reinstateMember = asyncHandler(async (req, res) => {
     const userId = req.userID;
     const { role } = req.body;
 
-    const firm = await Firm.findById(id);
+    // IDOR PROTECTION: Only fetch firms where user is a member
+    const firm = await Firm.findOne({
+        _id: id,
+        'members.userId': userId
+    });
     if (!firm) {
         throw CustomException('المكتب غير موجود', 404);
     }
@@ -1090,7 +1170,11 @@ const getDepartedMembers = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const userId = req.userID;
 
-    const firm = await Firm.findById(id)
+    // IDOR PROTECTION: Only fetch firms where user is a member
+    const firm = await Firm.findOne({
+        _id: id,
+        'members.userId': userId
+    })
         .populate('members.userId', 'firstName lastName email phone image')
         .populate('members.departureProcessedBy', 'firstName lastName');
 
@@ -1189,7 +1273,11 @@ const getMyPermissions = asyncHandler(async (req, res) => {
         });
     }
 
-    const firm = await Firm.findById(user.firmId).select('members name');
+    // IDOR Protection: Verify user is a member of the firm
+    const firm = await Firm.findOne({
+        _id: user.firmId,
+        'members.userId': userId
+    }).select('members name');
     if (!firm) {
         return res.status(404).json({
             success: false,
@@ -1295,7 +1383,11 @@ const createInvitation = asyncHandler(async (req, res) => {
         throw CustomException('البريد الإلكتروني مطلوب', 400);
     }
 
-    const firm = await Firm.findById(firmId);
+    // IDOR PROTECTION: Only fetch firms where user is a member
+    const firm = await Firm.findOne({
+        _id: firmId,
+        'members.userId': userId
+    });
     if (!firm) {
         throw CustomException('المكتب غير موجود', 404);
     }
@@ -1376,7 +1468,11 @@ const getInvitations = asyncHandler(async (req, res) => {
     const userId = req.userID;
     const { status } = req.query;
 
-    const firm = await Firm.findById(firmId);
+    // IDOR PROTECTION: Only fetch firms where user is a member
+    const firm = await Firm.findOne({
+        _id: firmId,
+        'members.userId': userId
+    });
     if (!firm) {
         throw CustomException('المكتب غير موجود', 404);
     }
@@ -1424,7 +1520,11 @@ const cancelInvitation = asyncHandler(async (req, res) => {
     const { firmId, invitationId } = req.params;
     const userId = req.userID;
 
-    const firm = await Firm.findById(firmId);
+    // IDOR PROTECTION: Only fetch firms where user is a member
+    const firm = await Firm.findOne({
+        _id: firmId,
+        'members.userId': userId
+    });
     if (!firm) {
         throw CustomException('المكتب غير موجود', 404);
     }
@@ -1712,7 +1812,11 @@ const leaveFirmWithSolo = asyncHandler(async (req, res) => {
     const userId = req.userID;
     const { reason, convertToSolo = true } = req.body;
 
-    const firm = await Firm.findById(id);
+    // IDOR PROTECTION: Only fetch firms where user is a member
+    const firm = await Firm.findOne({
+        _id: id,
+        'members.userId': userId
+    });
     if (!firm) {
         throw CustomException('المكتب غير موجود', 404);
     }
@@ -1765,7 +1869,11 @@ const resendInvitation = asyncHandler(async (req, res) => {
     const { firmId, invitationId } = req.params;
     const userId = req.userID;
 
-    const firm = await Firm.findById(firmId);
+    // IDOR PROTECTION: Only fetch firms where user is a member
+    const firm = await Firm.findOne({
+        _id: firmId,
+        'members.userId': userId
+    });
     if (!firm) {
         throw CustomException('المكتب غير موجود', 404);
     }
@@ -1816,8 +1924,11 @@ const getIPWhitelist = asyncHandler(async (req, res) => {
     const { firmId } = req.params;
     const userId = req.userID;
 
-    // Verify user is admin or owner
-    const firm = await Firm.findById(firmId);
+    // IDOR PROTECTION: Verify user is admin or owner - only fetch firms where user is a member
+    const firm = await Firm.findOne({
+        _id: firmId,
+        'members.userId': userId
+    });
     if (!firm) {
         throw CustomException('المكتب غير موجود', 404);
     }
@@ -1849,8 +1960,11 @@ const addIPToWhitelist = asyncHandler(async (req, res) => {
         throw CustomException('عنوان IP مطلوب', 400);
     }
 
-    // Verify user is admin or owner
-    const firm = await Firm.findById(firmId);
+    // IDOR PROTECTION: Verify user is admin or owner - only fetch firms where user is a member
+    const firm = await Firm.findOne({
+        _id: firmId,
+        'members.userId': userId
+    });
     if (!firm) {
         throw CustomException('المكتب غير موجود', 404);
     }
@@ -1914,8 +2028,11 @@ const removeIPFromWhitelist = asyncHandler(async (req, res) => {
     // Decode IP (URL-encoded)
     const decodedIP = decodeURIComponent(ip);
 
-    // Verify user is admin or owner
-    const firm = await Firm.findById(firmId);
+    // IDOR PROTECTION: Verify user is admin or owner - only fetch firms where user is a member
+    const firm = await Firm.findOne({
+        _id: firmId,
+        'members.userId': userId
+    });
     if (!firm) {
         throw CustomException('المكتب غير موجود', 404);
     }
@@ -1962,8 +2079,11 @@ const testIPAccess = asyncHandler(async (req, res) => {
         throw CustomException('غير قادر على تحديد عنوان IP', 400);
     }
 
-    // Verify user is member of firm
-    const firm = await Firm.findById(firmId);
+    // IDOR PROTECTION: Verify user is member of firm - only fetch firms where user is a member
+    const firm = await Firm.findOne({
+        _id: firmId,
+        'members.userId': userId
+    });
     if (!firm) {
         throw CustomException('المكتب غير موجود', 404);
     }
@@ -1998,8 +2118,11 @@ const enableIPWhitelist = asyncHandler(async (req, res) => {
     const userId = req.userID;
     const { autoWhitelistCurrentIP = true } = req.body;
 
-    // Verify user is owner or admin
-    const firm = await Firm.findById(firmId);
+    // IDOR PROTECTION: Verify user is owner or admin - only fetch firms where user is a member
+    const firm = await Firm.findOne({
+        _id: firmId,
+        'members.userId': userId
+    });
     if (!firm) {
         throw CustomException('المكتب غير موجود', 404);
     }
@@ -2043,8 +2166,11 @@ const disableIPWhitelist = asyncHandler(async (req, res) => {
     const { firmId } = req.params;
     const userId = req.userID;
 
-    // Verify user is owner or admin
-    const firm = await Firm.findById(firmId);
+    // IDOR PROTECTION: Verify user is owner or admin - only fetch firms where user is a member
+    const firm = await Firm.findOne({
+        _id: firmId,
+        'members.userId': userId
+    });
     if (!firm) {
         throw CustomException('المكتب غير موجود', 404);
     }
@@ -2081,8 +2207,11 @@ const revokeTemporaryIP = asyncHandler(async (req, res) => {
     const userId = req.userID;
     const { reason } = req.body;
 
-    // Verify user is admin or owner
-    const firm = await Firm.findById(firmId);
+    // IDOR PROTECTION: Verify user is admin or owner - only fetch firms where user is a member
+    const firm = await Firm.findOne({
+        _id: firmId,
+        'members.userId': userId
+    });
     if (!firm) {
         throw CustomException('المكتب غير موجود', 404);
     }
@@ -2094,14 +2223,10 @@ const revokeTemporaryIP = asyncHandler(async (req, res) => {
 
     // Revoke the temporary allowance
     const TemporaryIPAllowance = require('../models/temporaryIPAllowance.model');
-    const allowance = await TemporaryIPAllowance.findById(allowanceId);
+    const allowance = await TemporaryIPAllowance.findOne({ _id: allowanceId, firmId });
 
     if (!allowance) {
         throw CustomException('السماح المؤقت غير موجود', 404);
-    }
-
-    if (allowance.firmId.toString() !== firmId) {
-        throw CustomException('السماح المؤقت لا ينتمي لهذا المكتب', 403);
     }
 
     await allowance.revoke(userId, reason);

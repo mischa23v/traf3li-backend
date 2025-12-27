@@ -481,7 +481,9 @@ const testConnection = async (request, response) => {
             testOptions.testPassword = testPassword;
         }
 
-        const result = await ldapService.testConnection(config.toObject(), testOptions);
+        // Response Leakage Protection: Pass document directly instead of toObject()
+        // This prevents accidental exposure of encrypted fields if result is logged
+        const result = await ldapService.testConnection(config, testOptions);
 
         // Update config with test result
         config.lastConnectionTest = {

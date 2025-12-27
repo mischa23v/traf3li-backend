@@ -61,7 +61,7 @@ class WebhookService {
 
             // Trigger all filtered webhooks asynchronously
             const deliveryPromises = filteredWebhooks.map(webhook =>
-                this.deliver(webhook._id, event, payload, options)
+                this.deliver(webhook._id, event, payload, firmId, options)
             );
 
             // Don't wait for deliveries to complete (fire and forget)
@@ -85,14 +85,15 @@ class WebhookService {
      * @param {ObjectId} webhookId - Webhook ID
      * @param {String} event - Event type
      * @param {Object} payload - Event payload
+     * @param {ObjectId} firmId - Firm ID for authorization
      * @param {Object} options - Additional options
      */
-    async deliver(webhookId, event, payload, options = {}) {
+    async deliver(webhookId, event, payload, firmId, options = {}) {
         const startTime = Date.now();
 
         try {
-            // Get webhook details
-            const webhook = await Webhook.findById(webhookId).select('+secret');
+            // Get webhook details with firmId verification to prevent IDOR
+            const webhook = await Webhook.findOne({ _id: webhookId, firmId }).select('+secret');
 
             if (!webhook) {
                 throw new Error('Webhook not found');
@@ -478,10 +479,11 @@ class WebhookService {
     /**
      * Test webhook - sends a test event
      * @param {ObjectId} webhookId - Webhook ID
+     * @param {ObjectId} firmId - Firm ID for authorization
      * @param {Object} testData - Optional test data
      */
-    async testWebhook(webhookId, testData = {}) {
-        const webhook = await Webhook.findById(webhookId).select('+secret');
+    async testWebhook(webhookId, firmId, testData = {}) {
+        const webhook = await Webhook.findOne({ _id: webhookId, firmId }).select('+secret');
 
         if (!webhook) {
             throw new Error('Webhook not found');
@@ -497,7 +499,7 @@ class WebhookService {
         // Use the first subscribed event for testing
         const testEvent = webhook.events[0] || 'test.event';
 
-        return await this.deliver(webhookId, testEvent, testPayload, { isTest: true });
+        return await this.deliver(webhookId, testEvent, testPayload, firmId, { isTest: true });
     }
 
     /**
@@ -570,11 +572,12 @@ class WebhookService {
     /**
      * Update webhook
      * @param {String} webhookId - Webhook ID
+     * @param {ObjectId} firmId - Firm ID for authorization
      * @param {Object} data - Update data
      * @returns {Promise<Object>} - Updated webhook
      */
-    async updateWebhook(webhookId, data) {
-        const webhook = await Webhook.findById(webhookId);
+    async updateWebhook(webhookId, firmId, data) {
+        const webhook = await Webhook.findOne({ _id: webhookId, firmId });
 
         if (!webhook) {
             throw new Error('Webhook not found');
@@ -601,10 +604,11 @@ class WebhookService {
     /**
      * Delete webhook
      * @param {String} webhookId - Webhook ID
+     * @param {ObjectId} firmId - Firm ID for authorization
      * @returns {Promise<void>}
      */
-    async deleteWebhook(webhookId) {
-        const webhook = await Webhook.findById(webhookId);
+    async deleteWebhook(webhookId, firmId) {
+        const webhook = await Webhook.findOne({ _id: webhookId, firmId });
 
         if (!webhook) {
             throw new Error('Webhook not found');
@@ -643,10 +647,11 @@ class WebhookService {
     /**
      * Process delivery (attempt to deliver a pending webhook)
      * @param {String} deliveryId - Delivery ID
+     * @param {ObjectId} firmId - Firm ID for authorization
      * @returns {Promise<Object>} - Delivery result
      */
-    async processDelivery(deliveryId) {
-        const delivery = await WebhookDelivery.findById(deliveryId).populate('webhookId');
+    async processDelivery(deliveryId, firmId) {
+        const delivery = await WebhookDelivery.findOne({ _id: deliveryId, firmId }).populate('webhookId');
 
         if (!delivery) {
             throw new Error('Delivery not found');
@@ -682,10 +687,11 @@ class WebhookService {
     /**
      * Retry a specific delivery
      * @param {String} deliveryId - Delivery ID
+     * @param {ObjectId} firmId - Firm ID for authorization
      * @returns {Promise<Object>} - Delivery result
      */
-    async retryDelivery(deliveryId) {
-        const delivery = await WebhookDelivery.findById(deliveryId).populate('webhookId');
+    async retryDelivery(deliveryId, firmId) {
+        const delivery = await WebhookDelivery.findOne({ _id: deliveryId, firmId }).populate('webhookId');
 
         if (!delivery) {
             throw new Error('Delivery not found');

@@ -5,6 +5,12 @@ const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils'
 const mongoose = require('mongoose');
 const logger = require('../utils/logger');
 
+// Helper function to escape regex special characters (ReDoS protection)
+const escapeRegex = (str) => {
+    if (!str || typeof str !== 'string') return '';
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
+
 // ═══════════════════════════════════════════════════════════════
 // GET ALL PAYROLL RUNS
 // GET /api/hr/payroll-runs
@@ -36,9 +42,9 @@ const getPayrollRuns = asyncHandler(async (req, res) => {
 
     if (search) {
         query.$or = [
-            { runId: { $regex: search, $options: 'i' } },
-            { runName: { $regex: search, $options: 'i' } },
-            { runNameAr: { $regex: search, $options: 'i' } }
+            { runId: { $regex: escapeRegex(search), $options: 'i' } },
+            { runName: { $regex: escapeRegex(search), $options: 'i' } },
+            { runNameAr: { $regex: escapeRegex(search), $options: 'i' } }
         ];
     }
 

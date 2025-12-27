@@ -76,7 +76,8 @@ const createMessage = async (request, response) => {
                     mimetype: file.mimetype,
                     size: file.size,
                     url: `/uploads/messages/${file.filename}`,
-                    type: fileType
+                    type: fileType,
+                    firmId: request.firmId // SECURITY: Store firmId for attachment isolation
                 });
             });
         }
@@ -88,7 +89,8 @@ const createMessage = async (request, response) => {
             conversationID,
             userID: request.userID,
             description: sanitizedDescription,
-            attachments
+            attachments,
+            firmId: request.firmId // SECURITY: IDOR Protection - Store firmId for tenant isolation
         });
 
         await message.save();

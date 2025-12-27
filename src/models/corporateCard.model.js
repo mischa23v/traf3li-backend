@@ -7,6 +7,12 @@
 
 const mongoose = require('mongoose');
 
+// Helper function to escape regex special characters
+const escapeRegex = (str) => {
+    if (typeof str !== 'string') return '';
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
+
 const cardTransactionSchema = new mongoose.Schema({
     transactionId: { type: String, required: true }, // External transaction ID
     transactionDate: { type: Date, required: true },
@@ -297,7 +303,7 @@ corporateCardSchema.methods.autoCategorizeMerchant = function(merchantName) {
 
     for (const rule of this.autoCategorization.rules) {
         try {
-            const regex = new RegExp(rule.merchantPattern, 'i');
+            const regex = new RegExp(escapeRegex(rule.merchantPattern), 'i');
             if (regex.test(merchantName)) {
                 return rule;
             }

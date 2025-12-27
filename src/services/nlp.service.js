@@ -29,6 +29,16 @@ function addDays(date, days) {
 }
 
 /**
+ * Escape special regex characters to prevent ReDoS attacks
+ * @param {string} str - String to escape
+ * @returns {string} Escaped string
+ */
+function escapeRegex(str) {
+    if (typeof str !== 'string') return str;
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
  * Natural Language Processing Service
  * Uses chrono-node for date/time parsing and Claude for intent extraction
  * Supports both English and Arabic text for Saudi Arabia market
@@ -1255,13 +1265,13 @@ Return ONLY the title, nothing else.`;
 
     // Remove priority keywords
     Object.values(this.priorityKeywords).flat().forEach(keyword => {
-      const regex = new RegExp(`\\b${keyword}\\b`, 'gi');
+      const regex = new RegExp(`\\b${escapeRegex(keyword)}\\b`, 'gi');
       title = title.replace(regex, '');
     });
 
     // Remove recurrence keywords
     Object.values(this.recurrenceKeywords).flat().forEach(keyword => {
-      const regex = new RegExp(`\\b${keyword}\\b`, 'gi');
+      const regex = new RegExp(`\\b${escapeRegex(keyword)}\\b`, 'gi');
       title = title.replace(regex, '');
     });
 

@@ -1,5 +1,11 @@
 const mongoose = require('mongoose');
 
+// Helper function to escape regex special characters
+const escapeRegex = (str) => {
+    if (typeof str !== 'string') return '';
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
+
 // Document Version Schema
 const documentVersionSchema = new mongoose.Schema({
     version: {
@@ -198,9 +204,9 @@ documentSchema.statics.searchDocuments = async function(lawyerId, searchTerm, fi
 
     if (searchTerm) {
         query.$or = [
-            { fileName: { $regex: searchTerm, $options: 'i' } },
-            { originalName: { $regex: searchTerm, $options: 'i' } },
-            { description: { $regex: searchTerm, $options: 'i' } }
+            { fileName: { $regex: escapeRegex(searchTerm), $options: 'i' } },
+            { originalName: { $regex: escapeRegex(searchTerm), $options: 'i' } },
+            { description: { $regex: escapeRegex(searchTerm), $options: 'i' } }
         ];
     }
 

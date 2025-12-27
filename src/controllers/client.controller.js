@@ -320,14 +320,7 @@ const getClient = asyncHandler(async (req, res) => {
     const isSoloLawyer = req.isSoloLawyer;
 
     // SECURITY: IDOR Protection - Query with both ID and ownership check
-    const query = { _id: id };
-    if (firmId) {
-        query.firmId = firmId;
-    } else {
-        query.lawyerId = lawyerId;
-    }
-
-    const client = await Client.findOne(query)
+    const client = await Client.findOne({ _id: id, ...req.firmQuery })
         .populate('assignments.responsibleLawyerId', 'firstName lastName email')
         .populate('assignments.assistantLawyerId', 'firstName lastName')
         .populate('assignments.paralegalId', 'firstName lastName')
@@ -426,14 +419,7 @@ const getBillingInfo = asyncHandler(async (req, res) => {
     const firmId = req.firmId; // From firmFilter middleware
 
     // SECURITY: IDOR Protection - Query with both ID and ownership check
-    const query = { _id: id };
-    if (firmId) {
-        query.firmId = firmId;
-    } else {
-        query.lawyerId = lawyerId;
-    }
-
-    const client = await Client.findOne(query)
+    const client = await Client.findOne({ _id: id, ...req.firmQuery })
         .select('clientNumber clientType firstName lastName fullNameArabic fullNameEnglish companyName companyNameEnglish nationalId crNumber email phone address billing vatRegistration lawyerId firmId')
         .lean();
 
@@ -484,14 +470,7 @@ const getClientCases = asyncHandler(async (req, res) => {
     const isSoloLawyer = req.isSoloLawyer;
 
     // SECURITY: IDOR Protection - Query with both ID and ownership check
-    const query = { _id: id };
-    if (firmId) {
-        query.firmId = firmId;
-    } else {
-        query.lawyerId = lawyerId;
-    }
-
-    const client = await Client.findOne(query).lean();
+    const client = await Client.findOne({ _id: id, ...req.firmQuery }).lean();
     if (!client) {
         throw CustomException('العميل غير موجود', 404);
     }
@@ -533,14 +512,7 @@ const getClientInvoices = asyncHandler(async (req, res) => {
     const isSoloLawyer = req.isSoloLawyer;
 
     // SECURITY: IDOR Protection - Query with both ID and ownership check
-    const query = { _id: id };
-    if (firmId) {
-        query.firmId = firmId;
-    } else {
-        query.lawyerId = lawyerId;
-    }
-
-    const client = await Client.findOne(query).lean();
+    const client = await Client.findOne({ _id: id, ...req.firmQuery }).lean();
     if (!client) {
         throw CustomException('العميل غير موجود', 404);
     }
@@ -582,14 +554,7 @@ const getClientPayments = asyncHandler(async (req, res) => {
     const isSoloLawyer = req.isSoloLawyer;
 
     // SECURITY: IDOR Protection - Query with both ID and ownership check
-    const query = { _id: id };
-    if (firmId) {
-        query.firmId = firmId;
-    } else {
-        query.lawyerId = lawyerId;
-    }
-
-    const client = await Client.findOne(query).lean();
+    const client = await Client.findOne({ _id: id, ...req.firmQuery }).lean();
     if (!client) {
         throw CustomException('العميل غير موجود', 404);
     }
@@ -632,14 +597,7 @@ const updateClient = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
 
     // SECURITY: IDOR Protection - Query with both ID and ownership check
-    const query = { _id: id };
-    if (firmId) {
-        query.firmId = firmId;
-    } else {
-        query.lawyerId = lawyerId;
-    }
-
-    const client = await Client.findOne(query);
+    const client = await Client.findOne({ _id: id, ...req.firmQuery });
 
     if (!client) {
         throw CustomException('العميل غير موجود', 404);
@@ -685,7 +643,7 @@ const updateClient = asyncHandler(async (req, res) => {
 
     // SECURITY: Use secure query to ensure firmId ownership is enforced
     const updatedClient = await Client.findOneAndUpdate(
-        query,
+        { _id: id, ...req.firmQuery },
         updateData,
         { new: true, runValidators: true }
     );
@@ -743,14 +701,7 @@ const deleteClient = asyncHandler(async (req, res) => {
     const isSoloLawyer = req.isSoloLawyer;
 
     // SECURITY: IDOR Protection - Query with both ID and ownership check
-    const query = { _id: id };
-    if (firmId) {
-        query.firmId = firmId;
-    } else {
-        query.lawyerId = lawyerId;
-    }
-
-    const client = await Client.findOne(query);
+    const client = await Client.findOne({ _id: id, ...req.firmQuery });
 
     if (!client) {
         throw CustomException('العميل غير موجود', 404);
@@ -795,7 +746,7 @@ const deleteClient = asyncHandler(async (req, res) => {
     // Store client data for webhook before deletion
     const clientData = client.toObject();
 
-    await Client.findOneAndDelete({ _id: id, ...query });
+    await Client.findOneAndDelete({ _id: id, ...req.firmQuery });
 
     // Decrement usage counter for firm
     if (firmId) {
@@ -1043,14 +994,7 @@ const runConflictCheck = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
 
     // SECURITY: IDOR Protection - Query with both ID and ownership check
-    const query = { _id: id };
-    if (firmId) {
-        query.firmId = firmId;
-    } else {
-        query.lawyerId = lawyerId;
-    }
-
-    const client = await Client.findOne(query);
+    const client = await Client.findOne({ _id: id, ...req.firmQuery });
 
     if (!client) {
         throw CustomException('العميل غير موجود', 404);
@@ -1104,14 +1048,7 @@ const updateStatus = asyncHandler(async (req, res) => {
     }
 
     // SECURITY: IDOR Protection - Query with both ID and ownership check
-    const query = { _id: id };
-    if (firmId) {
-        query.firmId = firmId;
-    } else {
-        query.lawyerId = lawyerId;
-    }
-
-    const client = await Client.findOne(query);
+    const client = await Client.findOne({ _id: id, ...req.firmQuery });
 
     if (!client) {
         throw CustomException('العميل غير موجود', 404);
@@ -1171,14 +1108,7 @@ const updateFlags = asyncHandler(async (req, res) => {
     const { isVip, isHighRisk, needsApproval, isBlacklisted, blacklistReason } = flagUpdateData;
 
     // SECURITY: IDOR Protection - Query with both ID and ownership check
-    const query = { _id: id };
-    if (firmId) {
-        query.firmId = firmId;
-    } else {
-        query.lawyerId = lawyerId;
-    }
-
-    const client = await Client.findOne(query);
+    const client = await Client.findOne({ _id: id, ...req.firmQuery });
 
     if (!client) {
         throw CustomException('العميل غير موجود', 404);
@@ -1229,14 +1159,7 @@ const uploadAttachments = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
 
     // SECURITY: IDOR Protection - Query with both ID and ownership check
-    const query = { _id: id };
-    if (firmId) {
-        query.firmId = firmId;
-    } else {
-        query.lawyerId = lawyerId;
-    }
-
-    const client = await Client.findOne(query);
+    const client = await Client.findOne({ _id: id, ...req.firmQuery });
 
     if (!client) {
         throw CustomException('العميل غير موجود', 404);
@@ -1287,14 +1210,7 @@ const deleteAttachment = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
 
     // SECURITY: IDOR Protection - Query with both ID and ownership check
-    const query = { _id: id };
-    if (firmId) {
-        query.firmId = firmId;
-    } else {
-        query.lawyerId = lawyerId;
-    }
-
-    const client = await Client.findOne(query);
+    const client = await Client.findOne({ _id: id, ...req.firmQuery });
 
     if (!client) {
         throw CustomException('العميل غير موجود', 404);
@@ -1341,14 +1257,7 @@ const verifyWathq = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
 
     // SECURITY: IDOR Protection - Query with both ID and ownership check
-    const query = { _id: id };
-    if (firmId) {
-        query.firmId = firmId;
-    } else {
-        query.lawyerId = lawyerId;
-    }
-
-    const client = await Client.findOne(query);
+    const client = await Client.findOne({ _id: id, ...req.firmQuery });
 
     if (!client) {
         throw CustomException('العميل غير موجود', 404);
@@ -1431,14 +1340,7 @@ const getWathqData = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
 
     // SECURITY: IDOR Protection - Query with both ID and ownership check
-    const query = { _id: id };
-    if (firmId) {
-        query.firmId = firmId;
-    } else {
-        query.lawyerId = lawyerId;
-    }
-
-    const client = await Client.findOne(query).lean();
+    const client = await Client.findOne({ _id: id, ...req.firmQuery }).lean();
 
     if (!client) {
         throw CustomException('العميل غير موجود', 404);
@@ -1502,15 +1404,8 @@ const getClientFull = asyncHandler(async (req, res) => {
     const isSoloLawyer = req.isSoloLawyer;
 
     // SECURITY: IDOR Protection - Query with both ID and ownership check
-    const query = { _id: id };
-    if (firmId) {
-        query.firmId = firmId;
-    } else {
-        query.lawyerId = lawyerId;
-    }
-
     // First fetch client to check access before fetching related data
-    const client = await Client.findOne(query).lean();
+    const client = await Client.findOne({ _id: id, ...req.firmQuery }).lean();
 
     if (!client) {
         throw CustomException('العميل غير موجود', 404);

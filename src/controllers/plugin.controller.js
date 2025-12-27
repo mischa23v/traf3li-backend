@@ -100,7 +100,7 @@ const installPlugin = asyncHandler(async (req, res) => {
     const { settings = {} } = req.body;
 
     // Check firm permissions
-    const firm = await Firm.findById(firmId);
+    const firm = await Firm.findOne({ _id: firmId, ...req.firmQuery });
     const member = firm.members.find(m => m.userId.toString() === userId);
 
     if (!member || !['owner', 'admin'].includes(member.role)) {
@@ -132,7 +132,7 @@ const uninstallPlugin = asyncHandler(async (req, res) => {
     const userId = req.userID;
 
     // Check firm permissions
-    const firm = await Firm.findById(firmId);
+    const firm = await Firm.findOne({ _id: firmId, ...req.firmQuery });
     const member = firm.members.find(m => m.userId.toString() === userId);
 
     if (!member || !['owner', 'admin'].includes(member.role)) {
@@ -183,7 +183,7 @@ const updateSettings = asyncHandler(async (req, res) => {
     const { settings } = req.body;
 
     // Check firm permissions
-    const firm = await Firm.findById(firmId);
+    const firm = await Firm.findOne({ _id: firmId, ...req.firmQuery });
     const member = firm.members.find(m => m.userId.toString() === userId);
 
     if (!member || !['owner', 'admin'].includes(member.role)) {
@@ -216,7 +216,7 @@ const enablePlugin = asyncHandler(async (req, res) => {
     const userId = req.userID;
 
     // Check firm permissions
-    const firm = await Firm.findById(firmId);
+    const firm = await Firm.findOne({ _id: firmId, ...req.firmQuery });
     const member = firm.members.find(m => m.userId.toString() === userId);
 
     if (!member || !['owner', 'admin'].includes(member.role)) {
@@ -249,7 +249,7 @@ const disablePlugin = asyncHandler(async (req, res) => {
     const userId = req.userID;
 
     // Check firm permissions
-    const firm = await Firm.findById(firmId);
+    const firm = await Firm.findOne({ _id: firmId, ...req.firmQuery });
     const member = firm.members.find(m => m.userId.toString() === userId);
 
     if (!member || !['owner', 'admin'].includes(member.role)) {
@@ -285,8 +285,9 @@ const registerPlugin = asyncHandler(async (req, res) => {
     const pluginConfig = req.body;
 
     // Verify user is system admin
-    const user = await require('../models/user.model').findById(userId);
-    if (user.role !== 'admin') {
+    const User = require('../models/user.model');
+    const user = await User.findOne({ _id: userId });
+    if (!user || user.role !== 'admin') {
         throw CustomException('Only system administrators can register plugins', 403);
     }
 
@@ -321,8 +322,9 @@ const getAllPlugins = asyncHandler(async (req, res) => {
     const userId = req.userID;
 
     // Verify user is system admin
-    const user = await require('../models/user.model').findById(userId);
-    if (user.role !== 'admin') {
+    const User = require('../models/user.model');
+    const user = await User.findOne({ _id: userId });
+    if (!user || user.role !== 'admin') {
         throw CustomException('Only system administrators can view all plugins', 403);
     }
 
@@ -360,8 +362,9 @@ const reloadPlugin = asyncHandler(async (req, res) => {
     const userId = req.userID;
 
     // Verify user is system admin
-    const user = await require('../models/user.model').findById(userId);
-    if (user.role !== 'admin') {
+    const User = require('../models/user.model');
+    const user = await User.findOne({ _id: userId });
+    if (!user || user.role !== 'admin') {
         throw CustomException('Only system administrators can reload plugins', 403);
     }
 
@@ -382,8 +385,9 @@ const getLoaderStats = asyncHandler(async (req, res) => {
     const userId = req.userID;
 
     // Verify user is system admin
-    const user = await require('../models/user.model').findById(userId);
-    if (user.role !== 'admin') {
+    const User = require('../models/user.model');
+    const user = await User.findOne({ _id: userId });
+    if (!user || user.role !== 'admin') {
         throw CustomException('Only system administrators can view loader stats', 403);
     }
 

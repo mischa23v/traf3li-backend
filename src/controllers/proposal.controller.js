@@ -12,7 +12,7 @@ exports.createProposal = async (req, res, next) => {
             throw CustomException('Invalid job ID format', 400);
         }
 
-        const job = await Job.findById(jobId).populate('userID', 'username');
+        const job = await Job.findOne({ _id: jobId, firmId: req.firmId }).populate('userID', 'username');
 
         if (!job) {
             throw CustomException('Job not found', 404);
@@ -47,9 +47,10 @@ exports.createProposal = async (req, res, next) => {
         });
 
         // Increment proposals count
-        await Job.findByIdAndUpdate(jobId, {
-            $inc: { proposalsCount: 1 }
-        });
+        await Job.findOneAndUpdate(
+            { _id: jobId, firmId: req.firmId },
+            { $inc: { proposalsCount: 1 } }
+        );
 
         // ✅ ADDED: Create notification for job poster
         const lawyer = await User.findById(req.userID).select('username');
@@ -83,7 +84,7 @@ exports.getJobProposals = async (req, res, next) => {
             throw CustomException('Invalid job ID format', 400);
         }
 
-        const job = await Job.findById(jobId);
+        const job = await Job.findOne({ _id: jobId, firmId: req.firmId });
 
         if (!job) {
             throw CustomException('Job not found', 404);
@@ -126,13 +127,13 @@ exports.acceptProposal = async (req, res, next) => {
             throw CustomException('Invalid proposal ID format', 400);
         }
 
-        const proposal = await Proposal.findById(proposalId).populate('lawyerId', 'username');
+        const proposal = await Proposal.findOne({ _id: proposalId, firmId: req.firmId }).populate('lawyerId', 'username');
 
         if (!proposal) {
             throw CustomException('Proposal not found', 404);
         }
 
-        const job = await Job.findById(proposal.jobId);
+        const job = await Job.findOne({ _id: proposal.jobId, firmId: req.firmId });
 
         if (!job) {
             throw CustomException('Job not found', 404);
@@ -195,13 +196,13 @@ exports.rejectProposal = async (req, res, next) => {
             throw CustomException('Invalid proposal ID format', 400);
         }
 
-        const proposal = await Proposal.findById(proposalId).populate('lawyerId', 'username');
+        const proposal = await Proposal.findOne({ _id: proposalId, firmId: req.firmId }).populate('lawyerId', 'username');
 
         if (!proposal) {
             throw CustomException('Proposal not found', 404);
         }
 
-        const job = await Job.findById(proposal.jobId);
+        const job = await Job.findOne({ _id: proposal.jobId, firmId: req.firmId });
 
         if (!job) {
             throw CustomException('Job not found', 404);
@@ -250,6 +251,7 @@ exports.withdrawProposal = async (req, res, next) => {
             {
                 _id: proposalId,
                 lawyerId: req.userID,  // IDOR protection
+                firmId: req.firmId,    // IDOR protection
                 status: 'pending'      // Status check in query
             },
             { $set: { status: 'withdrawn' } },
@@ -258,7 +260,7 @@ exports.withdrawProposal = async (req, res, next) => {
 
         if (!proposal) {
             // Determine specific error
-            const existingProposal = await Proposal.findById(proposalId);
+            const existingProposal = await Proposal.findOne({ _id: proposalId, firmId: req.firmId });
             if (!existingProposal) {
                 throw CustomException('Proposal not found', 404);
             }
@@ -269,9 +271,10 @@ exports.withdrawProposal = async (req, res, next) => {
         }
 
         // Decrement proposals count
-        await Job.findByIdAndUpdate(proposal.jobId, {
-            $inc: { proposalsCount: -1 }
-        });
+        await Job.findOneAndUpdate(
+            { _id: proposal.jobId, firmId: req.firmId },
+            { $inc: { proposalsCount: -1 } }
+        );
 
         res.status(200).json({ message: 'Proposal withdrawn' });
     } catch (error) {

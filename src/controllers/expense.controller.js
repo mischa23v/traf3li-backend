@@ -239,7 +239,16 @@ const createExpense = asyncHandler(async (req, res) => {
         userAgent: req.get('user-agent')
     });
 
-    const populatedExpense = await Expense.findById(expense._id)
+    // SECURITY: IDOR Protection - Use findOne with firmId filter
+    const isSoloLawyer = req.isSoloLawyer;
+    const query = { _id: expense._id };
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
+
+    const populatedExpense = await Expense.findOne(query)
         .populate('caseId', 'title caseNumber')
         .populate('clientId', 'firstName lastName companyName')
         .populate('employeeId', 'firstName lastName')
