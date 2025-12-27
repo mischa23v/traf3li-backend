@@ -135,15 +135,17 @@ const getCookieDomain = (request) => {
 
 /**
  * Get cookie configuration based on request context
- * Uses more permissive settings for same-origin proxy requests
+ *
+ * GOLD STANDARD APPROACH (used by Auth0, Stripe, Okta, Google):
+ * - For multi-subdomain apps, ALWAYS set domain to parent domain
+ * - This ensures cookies work across api.domain.com, dashboard.domain.com, etc.
+ * - Use SameSite=None for cross-origin, SameSite=Lax for same-origin
  *
  * @param {Object} request - Express request object
  * @param {string} tokenType - 'access', 'refresh', or 'csrf' to set appropriate maxAge
  * @returns {Object} - Cookie configuration object
  */
 const getCookieConfig = (request, tokenType = 'access') => {
-    const isSameOrigin = isSameOriginProxy(request);
-
     // Determine maxAge based on token type
     let maxAge;
     switch (tokenType) {
@@ -159,23 +161,30 @@ const getCookieConfig = (request, tokenType = 'access') => {
             break;
     }
 
+    // GOLD STANDARD: Always get cookie domain for multi-subdomain support
+    // This ensures cookies work across api.traf3li.com, dashboard.traf3li.com, etc.
+    const cookieDomain = getCookieDomain(request);
+    const isSameOrigin = isSameOriginProxy(request);
+
+    // For same-origin proxy requests: use Lax (better browser compatibility)
+    // For cross-origin requests: use None (required for cross-origin cookies)
+    // IMPORTANT: Even for same-origin proxy, we set domain for subdomain sharing
     if (isSameOrigin) {
-        // Same-origin via proxy: use Lax (more compatible with browser privacy)
         return {
             httpOnly: true,
             sameSite: 'lax',
             secure: isProductionEnv,
             maxAge,
-            path: '/'
-            // No domain - let browser scope to exact origin
-            // No partitioned - not needed for same-origin
+            path: '/',
+            // GOLD STANDARD: Always set domain for multi-subdomain apps
+            // This ensures cookies work even if user later makes direct API calls
+            domain: cookieDomain
         };
     }
 
     // Cross-origin: use None with all the cross-site cookie requirements
     // Note: secure must be true for SameSite=None in production
     // But for localhost development, we need secure=false to work over HTTP
-    const cookieDomain = getCookieDomain(request);
     return {
         httpOnly: true,
         sameSite: isProductionEnv ? 'none' : 'lax', // 'lax' works better for localhost
@@ -191,6 +200,10 @@ const getCookieConfig = (request, tokenType = 'access') => {
  * Get CSRF token cookie configuration
  * CSRF tokens need httpOnly: false to allow JavaScript access
  *
+ * GOLD STANDARD: Same domain strategy as auth cookies
+ * - Always set domain for multi-subdomain apps
+ * - Ensures CSRF tokens work across all subdomains
+ *
  * @param {Object} request - Express request object
  * @returns {Object} - Cookie configuration object for CSRF tokens
  */
@@ -198,25 +211,29 @@ const getCSRFCookieConfig = (request) => {
     const isSameOrigin = isSameOriginProxy(request);
     const cookieDomain = getCookieDomain(request);
 
-    // Base configuration similar to regular cookies
-    const config = {
-        httpOnly: false, // Allow JavaScript access for sending in headers
-        maxAge: CSRF_TOKEN_COOKIE_MAX_AGE,
-        path: '/',
-        secure: isProductionEnv
-    };
-
-    // Set sameSite and domain based on origin type
+    // GOLD STANDARD: Always set domain for multi-subdomain support
+    // This ensures CSRF tokens work across api.traf3li.com, dashboard.traf3li.com, etc.
     if (isSameOrigin) {
-        config.sameSite = 'lax';
-        // No domain for same-origin
-    } else {
-        config.sameSite = isProductionEnv ? 'none' : 'lax';
-        config.domain = cookieDomain;
-        config.partitioned = isProductionEnv;
+        return {
+            httpOnly: false, // Allow JavaScript access for sending in headers
+            sameSite: 'lax',
+            secure: isProductionEnv,
+            maxAge: CSRF_TOKEN_COOKIE_MAX_AGE,
+            path: '/',
+            domain: cookieDomain // GOLD STANDARD: Always set for subdomain sharing
+        };
     }
 
-    return config;
+    // Cross-origin configuration
+    return {
+        httpOnly: false, // Allow JavaScript access for sending in headers
+        sameSite: isProductionEnv ? 'none' : 'lax',
+        secure: isProductionEnv,
+        maxAge: CSRF_TOKEN_COOKIE_MAX_AGE,
+        path: '/',
+        domain: cookieDomain,
+        partitioned: isProductionEnv
+    };
 };
 
 module.exports = {
