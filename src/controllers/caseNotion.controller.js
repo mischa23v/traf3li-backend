@@ -2860,12 +2860,12 @@ exports.moveFrameWithChildren = async (req, res) => {
         await CaseNotionBlock.bulkWrite(bulkOps);
 
         // Return updated frame with children
-        const query = { _id: frameId };
+        const updatedQuery = { _id: frameId };
         if (req.user.firmId) {
-            query.firmId = req.user.firmId;
+            updatedQuery.firmId = req.user.firmId;
         }
 
-        const updatedFrame = await CaseNotionBlock.findOne(query)
+        const updatedFrame = await CaseNotionBlock.findOne(updatedQuery)
             .populate('frameChildren');
 
         res.json({ success: true, data: updatedFrame });
@@ -3428,7 +3428,7 @@ exports.alignElements = async (req, res) => {
                     });
                 });
                 break;
-            case 'center-h':
+            case 'center-h': {
                 const avgX = elements.reduce((sum, e) => sum + e.canvasX + e.canvasWidth / 2, 0) / elements.length;
                 elements.forEach(el => {
                     bulkOps.push({
@@ -3439,7 +3439,8 @@ exports.alignElements = async (req, res) => {
                     });
                 });
                 break;
-            case 'center-v':
+            }
+            case 'center-v': {
                 const avgY = elements.reduce((sum, e) => sum + e.canvasY + e.canvasHeight / 2, 0) / elements.length;
                 elements.forEach(el => {
                     bulkOps.push({
@@ -3450,6 +3451,7 @@ exports.alignElements = async (req, res) => {
                     });
                 });
                 break;
+            }
             default:
                 return res.status(400).json({ error: true, message: 'Invalid alignment' });
         }
@@ -3710,7 +3712,7 @@ exports.createArrow = async (req, res) => {
             startType, endType,
             strokeColor, strokeWidth,
             sourceBlockId, targetBlockId,
-            sourceHandle, targetHandle
+            sourceHandle: _sourceHandle, targetHandle: _targetHandle
         } = req.body;
 
         const query = { _id: pageId };
@@ -3759,20 +3761,20 @@ exports.createArrow = async (req, res) => {
         });
 
         // Update bound elements on source and target if specified
-        const query = {};
+        const boundQuery = {};
         if (req.user.firmId) {
-            query.firmId = req.user.firmId;
+            boundQuery.firmId = req.user.firmId;
         }
 
         if (sourceBlockId) {
             await CaseNotionBlock.findOneAndUpdate(
-                { _id: sourceBlockId, ...query },
+                { _id: sourceBlockId, ...boundQuery },
                 { $push: { boundElements: { id: arrow._id, type: 'arrow' } } }
             );
         }
         if (targetBlockId) {
             await CaseNotionBlock.findOneAndUpdate(
-                { _id: targetBlockId, ...query },
+                { _id: targetBlockId, ...boundQuery },
                 { $push: { boundElements: { id: arrow._id, type: 'arrow' } } }
             );
         }
@@ -3856,31 +3858,34 @@ exports.updateZIndex = async (req, res) => {
         }).sort({ zIndex: 1 });
 
         switch (action) {
-            case 'front':
+            case 'front': {
                 const lastBlock = pageBlocks[pageBlocks.length - 1];
                 newZIndex = lastBlock ? incrementZIndex(lastBlock.zIndex) : 'z9';
                 break;
+            }
             case 'back':
                 newZIndex = '0';
                 break;
-            case 'forward':
+            case 'forward': {
                 const currentIdx = pageBlocks.findIndex(b => b._id.equals(block._id));
                 if (currentIdx < pageBlocks.length - 1) {
-                    const nextBlock = pageBlocks[currentIdx + 1];
+                    // nextBlock reference available for future use
                     newZIndex = incrementZIndex(block.zIndex);
                 } else {
                     newZIndex = block.zIndex;
                 }
                 break;
-            case 'backward':
+            }
+            case 'backward': {
                 const curIdx = pageBlocks.findIndex(b => b._id.equals(block._id));
                 if (curIdx > 0) {
-                    const prevBlock = pageBlocks[curIdx - 1];
+                    // prevBlock reference available for future use
                     newZIndex = decrementZIndex(block.zIndex);
                 } else {
                     newZIndex = block.zIndex;
                 }
                 break;
+            }
             default:
                 return res.status(400).json({ error: true, message: 'Invalid action' });
         }
