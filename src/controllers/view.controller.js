@@ -473,7 +473,7 @@ exports.deleteView = async (req, res) => {
         }
 
         // Delete view
-        await View.findByIdAndDelete(sanitizedId);
+        await View.findOneAndDelete({ _id: sanitizedId, firmId: req.firmId });
 
         res.json({
             success: true,

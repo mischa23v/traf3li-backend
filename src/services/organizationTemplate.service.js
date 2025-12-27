@@ -296,8 +296,8 @@ class OrganizationTemplateService {
 
             // Update user with firmId
             const User = mongoose.model('User');
-            await User.findByIdAndUpdate(
-                userId,
+            await User.findOneAndUpdate(
+                { _id: userId },
                 {
                     firmId: firm._id,
                     firmRole: 'owner',

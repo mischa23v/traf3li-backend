@@ -145,8 +145,11 @@ const validateRetainerBalance = async (applyFromRetainer, clientId, lawyerId, fi
  */
 const createInvoice = async (data, firmId, userId, context = {}) => {
     try {
-        // Check if user is a lawyer
-        const user = await User.findById(userId);
+        // Check if user is a lawyer and belongs to the firm
+        const user = await User.findOne({ _id: userId, firmId });
+        if (!user) {
+            throw CustomException('User not found or unauthorized', 403);
+        }
         if (user.role !== 'lawyer') {
             throw CustomException('Only lawyers can create invoices!', 403);
         }

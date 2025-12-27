@@ -144,7 +144,8 @@ const deleteDevice = asyncHandler(async (req, res) => {
     throw CustomException('Device not found', 404);
   }
 
-  await BiometricDevice.findByIdAndDelete(sanitizedId);
+  // IDOR PROTECTION: Use firm-scoped delete
+  await BiometricDevice.findOneAndDelete({ _id: sanitizedId, firmId });
 
   return res.json({
     success: true,
@@ -790,7 +791,8 @@ const deleteGeofenceZone = asyncHandler(async (req, res) => {
     throw CustomException('Geofence zone not found', 404);
   }
 
-  await GeofenceZone.findByIdAndDelete(id);
+  // IDOR PROTECTION: Use firm-scoped delete
+  await GeofenceZone.findOneAndDelete({ _id: id, firmId });
 
   return res.json({
     success: true,

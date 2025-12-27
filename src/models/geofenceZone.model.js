@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 
 const geofenceZoneSchema = new mongoose.Schema({
-  firmId: { type: mongoose.Schema.Types.ObjectId, ref: 'Firm' },
+  firmId: { type: mongoose.Schema.Types.ObjectId, ref: 'Firm', index: true },
   name: { type: String },
   nameAr: String,
   description: String,

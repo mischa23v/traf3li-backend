@@ -579,7 +579,7 @@ const deleteMessage = asyncHandler(async (req, res) => {
         throw CustomException('لا يمكن حذف الإشعارات', 400);
     }
 
-    await ThreadMessage.findByIdAndDelete(id);
+    await ThreadMessage.findOneAndDelete({ _id: id, firmId: req.firmId });
 
     res.status(200).json({
         success: true,

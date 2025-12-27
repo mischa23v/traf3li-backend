@@ -135,25 +135,33 @@ const createExpense = asyncHandler(async (req, res) => {
 
     // If caseId provided, validate case exists and user has access
     if (caseId) {
-        const caseDoc = await Case.findById(caseId);
-        if (!caseDoc) {
-            throw CustomException('Case not found', 404);
+        // SECURITY: IDOR Protection - Query with firmId/lawyerId check
+        const isSoloLawyer = req.isSoloLawyer;
+        const caseQuery = { _id: caseId };
+        if (isSoloLawyer || !firmId) {
+            caseQuery.lawyerId = lawyerId;
+        } else {
+            caseQuery.firmId = firmId;
         }
 
-        // Check access via firmId or lawyerId
-        const isSoloLawyer = req.isSoloLawyer;
-        const hasAccess = (isSoloLawyer || !firmId)
-            ? caseDoc.lawyerId.toString() === lawyerId
-            : caseDoc.firmId && caseDoc.firmId.toString() === firmId.toString();
-
-        if (!hasAccess) {
-            throw CustomException('You do not have access to this case', 403);
+        const caseDoc = await Case.findOne(caseQuery);
+        if (!caseDoc) {
+            throw CustomException('Case not found', 404);
         }
     }
 
     // If clientId provided, validate client exists
     if (clientId) {
-        const client = await Client.findById(clientId);
+        // SECURITY: IDOR Protection - Query with firmId/lawyerId check
+        const isSoloLawyer = req.isSoloLawyer;
+        const clientQuery = { _id: clientId };
+        if (isSoloLawyer || !firmId) {
+            clientQuery.lawyerId = lawyerId;
+        } else {
+            clientQuery.firmId = firmId;
+        }
+
+        const client = await Client.findOne(clientQuery);
         if (!client) {
             throw CustomException('Client not found', 404);
         }
@@ -443,8 +451,9 @@ const updateExpense = asyncHandler(async (req, res) => {
     // Add updatedBy (system field, not from allowlist)
     allowedUpdateFields.updatedBy = lawyerId;
 
-    const updatedExpense = await Expense.findByIdAndUpdate(
-        id,
+    // SECURITY: Use secure query to ensure firmId ownership is enforced
+    const updatedExpense = await Expense.findOneAndUpdate(
+        query,
         { $set: allowedUpdateFields },
         { new: true, runValidators: true }
     )
@@ -513,7 +522,8 @@ const deleteExpense = asyncHandler(async (req, res) => {
         throw CustomException('Cannot delete an invoiced expense', 400);
     }
 
-    await Expense.findByIdAndDelete(id);
+    // SECURITY: Use secure query to ensure firmId ownership is enforced
+    await Expense.findOneAndDelete(query);
 
     // Log activity
     await BillingActivity.logActivity({

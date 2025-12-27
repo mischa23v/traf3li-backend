@@ -4,6 +4,14 @@ const asyncHandler = require('../utils/asyncHandler');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 const mongoose = require('mongoose');
 
+/**
+ * Escape special regex characters to prevent regex injection
+ */
+const escapeRegex = (str) => {
+    if (typeof str !== 'string') return str;
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
+
 // ═══════════════════════════════════════════════════════════════
 // CREATE TRADING ACCOUNT
 // ═══════════════════════════════════════════════════════════════
@@ -123,8 +131,8 @@ const createTradingAccount = asyncHandler(async (req, res) => {
 
     // Check for duplicate account name for this broker
     const duplicateQuery = firmId
-        ? { firmId, brokerId: sanitizedBrokerId, name: { $regex: new RegExp(`^${name.trim()}$`, 'i') } }
-        : { userId, brokerId: sanitizedBrokerId, name: { $regex: new RegExp(`^${name.trim()}$`, 'i') } };
+        ? { firmId, brokerId: sanitizedBrokerId, name: { $regex: new RegExp(`^${escapeRegex(name.trim())}$`, 'i') } }
+        : { userId, brokerId: sanitizedBrokerId, name: { $regex: new RegExp(`^${escapeRegex(name.trim())}$`, 'i') } };
     const existingAccount = await TradingAccount.findOne(duplicateQuery);
 
     if (existingAccount) {
@@ -458,8 +466,8 @@ const updateTradingAccount = asyncHandler(async (req, res) => {
     // Check for duplicate name if name is being changed
     if (updateData.name && updateData.name !== existingAccount.name) {
         const duplicateCheckQuery = firmId
-            ? { firmId, brokerId: existingAccount.brokerId, _id: { $ne: sanitizedId }, name: { $regex: new RegExp(`^${updateData.name.trim()}$`, 'i') } }
-            : { userId, brokerId: existingAccount.brokerId, _id: { $ne: sanitizedId }, name: { $regex: new RegExp(`^${updateData.name.trim()}$`, 'i') } };
+            ? { firmId, brokerId: existingAccount.brokerId, _id: { $ne: sanitizedId }, name: { $regex: new RegExp(`^${escapeRegex(updateData.name.trim())}$`, 'i') } }
+            : { userId, brokerId: existingAccount.brokerId, _id: { $ne: sanitizedId }, name: { $regex: new RegExp(`^${escapeRegex(updateData.name.trim())}$`, 'i') } };
         const duplicateAccount = await TradingAccount.findOne(duplicateCheckQuery);
 
         if (duplicateAccount) {

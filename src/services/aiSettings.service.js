@@ -11,7 +11,10 @@ const logger = require('../utils/logger');
  */
 
 // Encryption key from environment (must be 32 bytes for AES-256)
-const ENCRYPTION_KEY = process.env.AI_KEYS_ENCRYPTION_SECRET || 'default-32-char-encryption-key!!';
+const ENCRYPTION_KEY = process.env.AI_KEYS_ENCRYPTION_SECRET;
+if (!ENCRYPTION_KEY) {
+  throw new Error('AI_KEYS_ENCRYPTION_SECRET environment variable must be set');
+}
 const ALGORITHM = 'aes-256-gcm';
 
 /**

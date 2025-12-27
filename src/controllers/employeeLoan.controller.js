@@ -665,7 +665,7 @@ const deleteLoan = asyncHandler(async (req, res) => {
         throw CustomException('Only pending or rejected loans can be deleted', 400);
     }
 
-    await EmployeeLoan.findByIdAndDelete(loanId);
+    await EmployeeLoan.findOneAndDelete({ _id: loanId, ...accessQuery });
 
     return res.json({
         success: true,

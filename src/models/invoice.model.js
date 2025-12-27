@@ -721,63 +721,82 @@ invoiceSchema.methods.postToGL = async function(session = null) {
     const GeneralLedger = mongoose.model('GeneralLedger');
     const Account = mongoose.model('Account');
 
-    // Check if already posted
-    if (this.glEntries && this.glEntries.length > 0) {
-        throw new Error('Invoice already posted to GL');
+    const externalSession = session !== null;
+    if (!session) {
+        session = await mongoose.startSession();
+        session.startTransaction();
     }
 
-    // Get account IDs (use defaults if not set)
-    let receivableAccountId = this.receivableAccountId;
-    let incomeAccountId = this.incomeAccountId;
+    try {
+        // Check if already posted
+        if (this.glEntries && this.glEntries.length > 0) {
+            throw new Error('Invoice already posted to GL');
+        }
 
-    // Get default accounts if not specified
-    if (!receivableAccountId) {
-        const arAccount = await Account.findOne({ code: '1110' }); // Accounts Receivable
-        if (!arAccount) throw new Error('Default Accounts Receivable account not found');
-        receivableAccountId = arAccount._id;
-        this.receivableAccountId = receivableAccountId;
+        // Get account IDs (use defaults if not set)
+        let receivableAccountId = this.receivableAccountId;
+        let incomeAccountId = this.incomeAccountId;
+
+        // Get default accounts if not specified
+        if (!receivableAccountId) {
+            const arAccount = await Account.findOne({ code: '1110' }).session(session); // Accounts Receivable
+            if (!arAccount) throw new Error('Default Accounts Receivable account not found');
+            receivableAccountId = arAccount._id;
+            this.receivableAccountId = receivableAccountId;
+        }
+
+        if (!incomeAccountId) {
+            const incomeAccount = await Account.findOne({ code: '4100' }).session(session); // Legal Service Fees
+            if (!incomeAccount) throw new Error('Default Income account not found');
+            incomeAccountId = incomeAccount._id;
+            this.incomeAccountId = incomeAccountId;
+        }
+
+        // Convert amount to halalas if stored as SAR
+        const { toHalalas } = require('../utils/currency');
+        const amount = Number.isInteger(this.totalAmount) ? this.totalAmount : toHalalas(this.totalAmount);
+
+        // Create GL entry
+        const glEntry = await GeneralLedger.postTransaction({
+            firmId: this.firmId,  // Multi-tenancy: pass firmId to GL
+            transactionDate: this.issueDate || new Date(),
+            description: `Invoice ${this.invoiceNumber}`,
+            descriptionAr: `فاتورة ${this.invoiceNumber}`,
+            debitAccountId: receivableAccountId,
+            creditAccountId: incomeAccountId,
+            amount,
+            referenceId: this._id,
+            referenceModel: 'Invoice',
+            referenceNumber: this.invoiceNumber,
+            caseId: this.caseId,
+            clientId: this.clientId,
+            lawyerId: this.lawyerId,
+            meta: {
+                subtotal: this.subtotal,
+                vatAmount: this.vatAmount,
+                totalAmount: this.totalAmount
+            },
+            createdBy: this.lawyerId
+        }, session);
+
+        this.glEntries = [glEntry._id];
+
+        await this.save({ session });
+
+        if (!externalSession) {
+            await session.commitTransaction();
+        }
+        return glEntry;
+    } catch (error) {
+        if (!externalSession) {
+            await session.abortTransaction();
+        }
+        throw error;
+    } finally {
+        if (!externalSession) {
+            session.endSession();
+        }
     }
-
-    if (!incomeAccountId) {
-        const incomeAccount = await Account.findOne({ code: '4100' }); // Legal Service Fees
-        if (!incomeAccount) throw new Error('Default Income account not found');
-        incomeAccountId = incomeAccount._id;
-        this.incomeAccountId = incomeAccountId;
-    }
-
-    // Convert amount to halalas if stored as SAR
-    const { toHalalas } = require('../utils/currency');
-    const amount = Number.isInteger(this.totalAmount) ? this.totalAmount : toHalalas(this.totalAmount);
-
-    // Create GL entry
-    const glEntry = await GeneralLedger.postTransaction({
-        firmId: this.firmId,  // Multi-tenancy: pass firmId to GL
-        transactionDate: this.issueDate || new Date(),
-        description: `Invoice ${this.invoiceNumber}`,
-        descriptionAr: `فاتورة ${this.invoiceNumber}`,
-        debitAccountId: receivableAccountId,
-        creditAccountId: incomeAccountId,
-        amount,
-        referenceId: this._id,
-        referenceModel: 'Invoice',
-        referenceNumber: this.invoiceNumber,
-        caseId: this.caseId,
-        clientId: this.clientId,
-        lawyerId: this.lawyerId,
-        meta: {
-            subtotal: this.subtotal,
-            vatAmount: this.vatAmount,
-            totalAmount: this.totalAmount
-        },
-        createdBy: this.lawyerId
-    }, session);
-
-    this.glEntries = [glEntry._id];
-
-    const options = session ? { session } : {};
-    await this.save(options);
-
-    return glEntry;
 };
 
 /**
@@ -792,91 +811,110 @@ invoiceSchema.methods.recordPayment = async function(paymentData, session = null
     const Account = mongoose.model('Account');
     const Payment = mongoose.model('Payment');
 
-    const { amount, paymentDate, bankAccountId, paymentMethod, userId } = paymentData;
-
-    // Get receivable account
-    let receivableAccountId = this.receivableAccountId;
-    if (!receivableAccountId) {
-        const arAccount = await Account.findOne({ code: '1110' });
-        if (!arAccount) throw new Error('Accounts Receivable account not found');
-        receivableAccountId = arAccount._id;
+    const externalSession = session !== null;
+    if (!session) {
+        session = await mongoose.startSession();
+        session.startTransaction();
     }
 
-    // Get bank account (use default if not specified)
-    let bankAcctId = bankAccountId;
-    if (!bankAcctId) {
-        const bankAccount = await Account.findOne({ code: '1102' }); // Bank Account - Main
-        if (!bankAccount) throw new Error('Default Bank account not found');
-        bankAcctId = bankAccount._id;
-    }
+    try {
+        const { amount, paymentDate, bankAccountId, paymentMethod, userId } = paymentData;
 
-    // Convert amount to halalas if needed
-    const { toHalalas, addAmounts, subtractAmounts } = require('../utils/currency');
-    const amountHalalas = Number.isInteger(amount) ? amount : toHalalas(amount);
+        // Get receivable account
+        let receivableAccountId = this.receivableAccountId;
+        if (!receivableAccountId) {
+            const arAccount = await Account.findOne({ code: '1110' }).session(session);
+            if (!arAccount) throw new Error('Accounts Receivable account not found');
+            receivableAccountId = arAccount._id;
+        }
 
-    // Create payment record
-    const payment = new Payment({
-        clientId: this.clientId,
-        invoiceId: this._id,
-        caseId: this.caseId,
-        lawyerId: this.lawyerId,
-        paymentDate: paymentDate || new Date(),
-        amount: amountHalalas,
-        paymentMethod: paymentMethod || 'bank_transfer',
-        bankAccountId: bankAcctId,
-        receivableAccountId: receivableAccountId,
-        status: 'completed',
-        createdBy: userId
-    });
+        // Get bank account (use default if not specified)
+        let bankAcctId = bankAccountId;
+        if (!bankAcctId) {
+            const bankAccount = await Account.findOne({ code: '1102' }).session(session); // Bank Account - Main
+            if (!bankAccount) throw new Error('Default Bank account not found');
+            bankAcctId = bankAccount._id;
+        }
 
-    const options = session ? { session } : {};
-    await payment.save(options);
+        // Convert amount to halalas if needed
+        const { toHalalas, addAmounts, subtractAmounts } = require('../utils/currency');
+        const amountHalalas = Number.isInteger(amount) ? amount : toHalalas(amount);
 
-    // Post payment to GL
-    const glEntry = await GeneralLedger.postTransaction({
-        firmId: this.firmId,  // Multi-tenancy: pass firmId to GL
-        transactionDate: paymentDate || new Date(),
-        description: `Payment for Invoice ${this.invoiceNumber}`,
-        descriptionAr: `دفعة للفاتورة ${this.invoiceNumber}`,
-        debitAccountId: bankAcctId,
-        creditAccountId: receivableAccountId,
-        amount: amountHalalas,
-        referenceId: payment._id,
-        referenceModel: 'Payment',
-        referenceNumber: payment.paymentNumber,
-        caseId: this.caseId,
-        clientId: this.clientId,
-        lawyerId: this.lawyerId,
-        meta: {
+        // Create payment record
+        const payment = new Payment({
+            clientId: this.clientId,
             invoiceId: this._id,
-            invoiceNumber: this.invoiceNumber
-        },
-        createdBy: userId
-    }, session);
+            caseId: this.caseId,
+            lawyerId: this.lawyerId,
+            paymentDate: paymentDate || new Date(),
+            amount: amountHalalas,
+            paymentMethod: paymentMethod || 'bank_transfer',
+            bankAccountId: bankAcctId,
+            receivableAccountId: receivableAccountId,
+            status: 'completed',
+            createdBy: userId
+        });
 
-    // Update invoice payment tracking
-    this.amountPaid = addAmounts(this.amountPaid || 0, amountHalalas);
-    this.balanceDue = subtractAmounts ? subtractAmounts(this.totalAmount, this.amountPaid) : (this.totalAmount - this.amountPaid);
+        await payment.save({ session });
 
-    // Update invoice status
-    if (this.balanceDue <= 0) {
-        this.status = 'paid';
-        this.paidDate = new Date();
-    } else if (this.amountPaid > 0) {
-        this.status = 'partial';
+        // Post payment to GL
+        const glEntry = await GeneralLedger.postTransaction({
+            firmId: this.firmId,  // Multi-tenancy: pass firmId to GL
+            transactionDate: paymentDate || new Date(),
+            description: `Payment for Invoice ${this.invoiceNumber}`,
+            descriptionAr: `دفعة للفاتورة ${this.invoiceNumber}`,
+            debitAccountId: bankAcctId,
+            creditAccountId: receivableAccountId,
+            amount: amountHalalas,
+            referenceId: payment._id,
+            referenceModel: 'Payment',
+            referenceNumber: payment.paymentNumber,
+            caseId: this.caseId,
+            clientId: this.clientId,
+            lawyerId: this.lawyerId,
+            meta: {
+                invoiceId: this._id,
+                invoiceNumber: this.invoiceNumber
+            },
+            createdBy: userId
+        }, session);
+
+        // Update invoice payment tracking
+        this.amountPaid = addAmounts(this.amountPaid || 0, amountHalalas);
+        this.balanceDue = subtractAmounts ? subtractAmounts(this.totalAmount, this.amountPaid) : (this.totalAmount - this.amountPaid);
+
+        // Update invoice status
+        if (this.balanceDue <= 0) {
+            this.status = 'paid';
+            this.paidDate = new Date();
+        } else if (this.amountPaid > 0) {
+            this.status = 'partial';
+        }
+
+        // Add to history
+        this.history.push({
+            action: 'paid',
+            date: new Date(),
+            user: userId,
+            note: `Payment of ${amountHalalas} received`
+        });
+
+        await this.save({ session });
+
+        if (!externalSession) {
+            await session.commitTransaction();
+        }
+        return { payment, glEntry };
+    } catch (error) {
+        if (!externalSession) {
+            await session.abortTransaction();
+        }
+        throw error;
+    } finally {
+        if (!externalSession) {
+            session.endSession();
+        }
     }
-
-    // Add to history
-    this.history.push({
-        action: 'paid',
-        date: new Date(),
-        user: userId,
-        note: `Payment of ${amountHalalas} received`
-    });
-
-    await this.save(options);
-
-    return { payment, glEntry };
 };
 
 /**
@@ -918,43 +956,54 @@ invoiceSchema.methods.voidInvoice = async function(reason, userId) {
 invoiceSchema.methods.applyRetainer = async function(amount, retainerId, userId) {
     const Retainer = mongoose.model('Retainer');
     const { toHalalas, addAmounts, subtractAmounts } = require('../utils/currency');
+    const session = await mongoose.startSession();
+    session.startTransaction();
 
-    const amountHalalas = Number.isInteger(amount) ? amount : toHalalas(amount);
+    try {
+        const amountHalalas = Number.isInteger(amount) ? amount : toHalalas(amount);
 
-    const retainer = await Retainer.findById(retainerId);
-    if (!retainer) {
-        throw new Error('Retainer not found');
+        const retainer = await Retainer.findById(retainerId).session(session);
+        if (!retainer) {
+            throw new Error('Retainer not found');
+        }
+
+        if (retainer.currentBalance < amountHalalas) {
+            throw new Error('Insufficient retainer balance');
+        }
+
+        // Consume from retainer (pass session to retainer.consume)
+        await retainer.consume(amountHalalas, this._id, `Applied to invoice ${this.invoiceNumber}`, session);
+
+        // Update invoice
+        this.applyFromRetainer = addAmounts(this.applyFromRetainer || 0, amountHalalas);
+        this.retainerTransactionId = retainerId;
+        this.balanceDue = subtractAmounts(
+            subtractAmounts(subtractAmounts(this.totalAmount, this.depositAmount), this.amountPaid),
+            this.applyFromRetainer
+        );
+
+        if (this.balanceDue <= 0) {
+            this.status = 'paid';
+            this.paidDate = new Date();
+        }
+
+        this.history.push({
+            action: 'paid',
+            date: new Date(),
+            user: userId,
+            note: `Retainer applied: ${amountHalalas}`
+        });
+
+        await this.save({ session });
+
+        await session.commitTransaction();
+        return this;
+    } catch (error) {
+        await session.abortTransaction();
+        throw error;
+    } finally {
+        session.endSession();
     }
-
-    if (retainer.currentBalance < amountHalalas) {
-        throw new Error('Insufficient retainer balance');
-    }
-
-    // Consume from retainer
-    await retainer.consume(amountHalalas, this._id, `Applied to invoice ${this.invoiceNumber}`);
-
-    // Update invoice
-    this.applyFromRetainer = addAmounts(this.applyFromRetainer || 0, amountHalalas);
-    this.retainerTransactionId = retainerId;
-    this.balanceDue = subtractAmounts(
-        subtractAmounts(subtractAmounts(this.totalAmount, this.depositAmount), this.amountPaid),
-        this.applyFromRetainer
-    );
-
-    if (this.balanceDue <= 0) {
-        this.status = 'paid';
-        this.paidDate = new Date();
-    }
-
-    this.history.push({
-        action: 'paid',
-        date: new Date(),
-        user: userId,
-        note: `Retainer applied: ${amountHalalas}`
-    });
-
-    await this.save();
-    return this;
 };
 
 module.exports = mongoose.model('Invoice', invoiceSchema);

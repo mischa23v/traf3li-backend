@@ -145,8 +145,12 @@ const generateAccessToken = async (user, context = {}) => {
       logger.warn('Failed to get custom claims, using basic payload:', claimsError.message);
     }
 
-    // Anonymous users get shorter token expiry (24 hours instead of 15 minutes)
-    // This reduces the need for frequent re-authentication for guest users
+    // SECURITY: Anonymous users get 24-hour access tokens (vs 15 min for normal users)
+    // This is acceptable because:
+    // 1. Anonymous users have 'client' role with minimal permissions (no access to sensitive data)
+    // 2. They cannot access any firm data, cases, invoices, or confidential information
+    // 3. The longer expiry reduces friction for guest users exploring the platform
+    // 4. Anonymous accounts are temporary and have no persistent sensitive data
     const expiresIn = isAnonymous ? '24h' : '15m';
 
     const options = {

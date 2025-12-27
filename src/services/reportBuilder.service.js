@@ -18,6 +18,14 @@ const logger = require('../utils/logger');
 const ReportDefinition = require('../models/reportDefinition.model');
 
 /**
+ * Escape special regex characters to prevent regex injection
+ */
+const escapeRegex = (str) => {
+  if (typeof str !== 'string') return str;
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
+
+/**
  * Report Builder Service Class
  */
 class ReportBuilderService {
@@ -297,16 +305,16 @@ class ReportBuilderService {
 
       case 'contains':
       case 'like':
-        return { [field]: { $regex: value, $options: 'i' } };
+        return { [field]: { $regex: escapeRegex(value), $options: 'i' } };
 
       case 'not_contains':
-        return { [field]: { $not: { $regex: value, $options: 'i' } } };
+        return { [field]: { $not: { $regex: escapeRegex(value), $options: 'i' } } };
 
       case 'starts_with':
-        return { [field]: { $regex: `^${value}`, $options: 'i' } };
+        return { [field]: { $regex: `^${escapeRegex(value)}`, $options: 'i' } };
 
       case 'ends_with':
-        return { [field]: { $regex: `${value}$`, $options: 'i' } };
+        return { [field]: { $regex: `${escapeRegex(value)}$`, $options: 'i' } };
 
       case 'is_null':
         return { [field]: null };

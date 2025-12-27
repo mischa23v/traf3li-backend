@@ -641,7 +641,14 @@ const deleteEvent = asyncHandler(async (req, res) => {
         }
     }
 
-    await Event.findByIdAndDelete(id);
+    // IDOR protection: Include firmId in delete query
+    const deleteQuery = { _id: id };
+    if (firmId) {
+        deleteQuery.firmId = firmId;
+    } else {
+        deleteQuery.$or = [{ organizer: userId }, { createdBy: userId }];
+    }
+    await Event.findOneAndDelete(deleteQuery);
 
     res.status(200).json({
         success: true,

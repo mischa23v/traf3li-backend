@@ -31,7 +31,10 @@ const generateOTP = (length = 6) => {
  * @returns {string} - Hashed OTP
  */
 const hashOTP = (otp) => {
-  const salt = process.env.OTP_SECRET_SALT || 'traf3li-default-salt';
+  const salt = process.env.OTP_SECRET_SALT;
+  if (!salt) {
+    throw new Error('OTP_SECRET_SALT environment variable must be set');
+  }
   return crypto
     .createHash('sha256')
     .update(otp + salt)

@@ -3,6 +3,7 @@ const CustomException = require('../utils/CustomException');
 const docusignService = require('../services/docusign.service');
 const DocuSignIntegration = require('../models/docusignIntegration.model');
 const { pickAllowedFields } = require('../utils/securityUtils');
+const { sanitizeFilename } = require('../utils/sanitize');
 
 /**
  * DocuSign Controller
@@ -231,7 +232,7 @@ const downloadDocument = asyncHandler(async (req, res) => {
     const result = await docusignService.downloadDocuments(userId, envelopeId, firmId);
 
     res.setHeader('Content-Type', result.contentType);
-    res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
+    res.setHeader('Content-Disposition', `attachment; filename="${sanitizeFilename(result.filename)}"`);
     res.send(result.data);
 });
 

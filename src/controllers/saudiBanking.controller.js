@@ -5,6 +5,7 @@
 
 const asyncHandler = require('express-async-handler');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
+const { sanitizeFilename } = require('../utils/sanitize');
 const leanTechService = require('../services/leantech.service');
 const { WPSService, SARIE_BANK_IDS } = require('../services/wps.service');
 const { SADADService, BILLER_CATEGORIES, COMMON_BILLERS } = require('../services/sadad.service');
@@ -574,7 +575,7 @@ const downloadWPSFile = asyncHandler(async (req, res) => {
     });
 
     res.setHeader('Content-Type', 'text/plain');
-    res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
+    res.setHeader('Content-Disposition', `attachment; filename="${sanitizeFilename(result.filename)}"`);
     res.send(result.content);
 });
 

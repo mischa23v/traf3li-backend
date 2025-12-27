@@ -410,9 +410,10 @@ const createJobPosition = asyncHandler(async (req, res) => {
 
     // Update parent's direct reports count if applicable
     if (position.reportsTo?.positionId) {
-        await JobPosition.findByIdAndUpdate(position.reportsTo.positionId, {
-            $inc: { directReportsCount: 1 }
-        });
+        await JobPosition.findOneAndUpdate(
+            { _id: position.reportsTo.positionId, ...baseQuery },
+            { $inc: { directReportsCount: 1 } }
+        );
     }
 
     // Add to position history
@@ -538,15 +539,17 @@ const updateJobPosition = asyncHandler(async (req, res) => {
     if (oldReportsTo !== newReportsTo) {
         // Decrement old parent's count
         if (oldReportsTo) {
-            await JobPosition.findByIdAndUpdate(oldReportsTo, {
-                $inc: { directReportsCount: -1 }
-            });
+            await JobPosition.findOneAndUpdate(
+                { _id: oldReportsTo, ...baseQuery },
+                { $inc: { directReportsCount: -1 } }
+            );
         }
         // Increment new parent's count
         if (newReportsTo) {
-            await JobPosition.findByIdAndUpdate(newReportsTo, {
-                $inc: { directReportsCount: 1 }
-            });
+            await JobPosition.findOneAndUpdate(
+                { _id: newReportsTo, ...baseQuery },
+                { $inc: { directReportsCount: 1 } }
+            );
         }
         changes.push({
             eventType: 'reporting_change',
@@ -612,9 +615,10 @@ const deleteJobPosition = asyncHandler(async (req, res) => {
 
     // Update parent's direct reports count
     if (position.reportsTo?.positionId) {
-        await JobPosition.findByIdAndUpdate(position.reportsTo.positionId, {
-            $inc: { directReportsCount: -1 }
-        });
+        await JobPosition.findOneAndUpdate(
+            { _id: position.reportsTo.positionId, ...baseQuery },
+            { $inc: { directReportsCount: -1 } }
+        );
     }
 
     await position.deleteOne();

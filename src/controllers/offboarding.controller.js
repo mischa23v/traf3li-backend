@@ -566,7 +566,7 @@ const deleteOffboarding = asyncHandler(async (req, res) => {
         throw CustomException('Only initiated or cancelled offboardings can be deleted', 400);
     }
 
-    await Offboarding.findByIdAndDelete(offboardingId);
+    await Offboarding.findOneAndDelete({ _id: offboardingId, ...hasAccess ? (firmId ? { firmId } : { lawyerId }) : {} });
 
     return res.json({
         success: true,
@@ -1607,11 +1607,15 @@ const completeOffboarding = asyncHandler(async (req, res) => {
     await offboarding.save();
 
     // Update employee status
-    await Employee.findByIdAndUpdate(offboarding.employeeId, {
-        'employment.employmentStatus': 'terminated',
-        'employment.terminationDate': offboarding.dates.exitEffectiveDate,
-        'employment.terminationReason': offboarding.exitType
-    });
+    const employeeAccessQuery = firmId ? { firmId } : { lawyerId };
+    await Employee.findOneAndUpdate(
+        { _id: offboarding.employeeId, ...employeeAccessQuery },
+        {
+            'employment.employmentStatus': 'terminated',
+            'employment.terminationDate': offboarding.dates.exitEffectiveDate,
+            'employment.terminationReason': offboarding.exitType
+        }
+    );
 
     return res.json({
         success: true,

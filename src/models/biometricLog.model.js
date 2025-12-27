@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 
 const biometricLogSchema = new mongoose.Schema({
-  firmId: { type: mongoose.Schema.Types.ObjectId, ref: 'Firm' },
+  firmId: { type: mongoose.Schema.Types.ObjectId, ref: 'Firm', index: true },
   employeeId: { type: mongoose.Schema.Types.ObjectId, ref: 'Employee' },
   deviceId: { type: mongoose.Schema.Types.ObjectId, ref: 'BiometricDevice' },
 

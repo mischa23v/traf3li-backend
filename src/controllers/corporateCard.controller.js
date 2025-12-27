@@ -11,6 +11,14 @@ const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils'
 const mongoose = require('mongoose');
 
 /**
+ * Escape special regex characters to prevent regex injection
+ */
+const escapeRegex = (str) => {
+    if (typeof str !== 'string') return str;
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
+
+/**
  * Helper function to mask sensitive card data
  */
 const maskCardData = (card) => {
@@ -216,7 +224,7 @@ const createCorporateCard = asyncHandler(async (req, res) => {
     // Check for duplicate
     const existing = await CorporateCard.findOne({
         ...req.firmQuery,
-        cardNumber: { $regex: last4 + '$' }
+        cardNumber: { $regex: escapeRegex(last4) + '$' }
     });
 
     if (existing) {

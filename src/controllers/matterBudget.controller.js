@@ -252,7 +252,7 @@ const deleteBudget = asyncHandler(async (req, res) => {
     await BudgetEntry.deleteMany({ budgetId: id });
 
     // Delete budget
-    await MatterBudget.findByIdAndDelete(id);
+    await MatterBudget.findOneAndDelete({ _id: id, lawyerId });
 
     res.status(200).json({
         success: true,
@@ -492,7 +492,7 @@ const deleteEntry = asyncHandler(async (req, res) => {
     }
 
     await budget.save();
-    await BudgetEntry.findByIdAndDelete(entryId);
+    await BudgetEntry.findOneAndDelete({ _id: entryId, budgetId: id, lawyerId });
 
     res.status(200).json({
         success: true,

@@ -4,6 +4,7 @@ const Client = require('../models/client.model');
 const { CustomException } = require('../utils');
 const logger = require('../utils/contextLogger');
 const crypto = require('crypto');
+const { sanitizeEmailHtml } = require('../utils/sanitize');
 
 const {
     GOOGLE_CLIENT_ID,
@@ -834,7 +835,9 @@ class GmailService {
             if (part.mimeType === 'text/plain' && part.body && part.body.data) {
                 body.text = Buffer.from(part.body.data, 'base64').toString();
             } else if (part.mimeType === 'text/html' && part.body && part.body.data) {
-                body.html = Buffer.from(part.body.data, 'base64').toString();
+                // SECURITY: Sanitize HTML content to prevent XSS attacks
+                const rawHtml = Buffer.from(part.body.data, 'base64').toString();
+                body.html = sanitizeEmailHtml(rawHtml);
             } else if (part.parts) {
                 // Recursively search nested parts
                 const nestedBody = this.getBody({ payload: part });

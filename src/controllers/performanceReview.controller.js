@@ -484,8 +484,8 @@ const updatePerformanceReview = async (req, res) => {
 
         const filteredUpdates = pickAllowedFields(req.body, allowedUpdates);
 
-        const updatedReview = await PerformanceReview.findByIdAndUpdate(
-            id,
+        const updatedReview = await PerformanceReview.findOneAndUpdate(
+            { _id: id, firmId: req.firmId },
             {
                 $set: {
                     ...filteredUpdates,
@@ -517,8 +517,8 @@ const updatePerformanceReview = async (req, res) => {
  */
 const deletePerformanceReview = async (req, res) => {
     try {
-        const review = await PerformanceReview.findByIdAndUpdate(
-            req.params.id,
+        const review = await PerformanceReview.findOneAndUpdate(
+            { _id: req.params.id, firmId: req.firmId },
             {
                 $set: {
                     isDeleted: true,
@@ -1418,22 +1418,25 @@ const completeReview = async (req, res) => {
         await review.save();
 
         // Update employee record with latest performance data
-        await Employee.findByIdAndUpdate(review.employeeId, {
-            $set: {
-                'performanceInfo.lastPerformanceRating': review.finalRating,
-                'performanceInfo.lastPerformanceScore': review.overallScore,
-                'performanceInfo.lastPerformanceReviewDate': new Date()
-            },
-            $push: {
-                'performanceInfo.performanceHistory': {
-                    reviewId: review._id,
-                    period: review.reviewPeriod,
-                    rating: review.finalRating,
-                    score: review.overallScore,
-                    completedDate: new Date()
+        await Employee.findOneAndUpdate(
+            { _id: review.employeeId, firmId: req.firmId },
+            {
+                $set: {
+                    'performanceInfo.lastPerformanceRating': review.finalRating,
+                    'performanceInfo.lastPerformanceScore': review.overallScore,
+                    'performanceInfo.lastPerformanceReviewDate': new Date()
+                },
+                $push: {
+                    'performanceInfo.performanceHistory': {
+                        reviewId: review._id,
+                        period: review.reviewPeriod,
+                        rating: review.finalRating,
+                        score: review.overallScore,
+                        completedDate: new Date()
+                    }
                 }
             }
-        });
+        );
 
         res.status(200).json({
             success: true,
@@ -2164,8 +2167,8 @@ const updateTemplate = async (req, res) => {
         ];
         const sanitizedBody = pickAllowedFields(req.body, allowedFields);
 
-        const template = await ReviewTemplate.findByIdAndUpdate(
-            req.params.id,
+        const template = await ReviewTemplate.findOneAndUpdate(
+            { _id: req.params.id, firmId: req.firmId },
             {
                 $set: {
                     ...sanitizedBody,

@@ -200,6 +200,7 @@ const createFirm = asyncHandler(async (req, res) => {
     });
 
     // Update user with firmId
+    // Note: firmId is null for new firm owners, no firm scoping needed for this self-update
     await User.findByIdAndUpdate(userId, {
         firmId: firm._id,
         firmRole: 'owner',
@@ -278,6 +279,7 @@ const switchFirm = asyncHandler(async (req, res) => {
     }
 
     // Update user's default firm
+    // Note: This is a self-update (switching own firm), no firm scoping needed
     await User.findByIdAndUpdate(userId, {
         firmId: firmId,
         firmRole: member.role
@@ -1008,10 +1010,14 @@ const processDeparture = asyncHandler(async (req, res) => {
     await firm.processDeparture(memberId, userId, reason, notes);
 
     // Update user's firmStatus and set departedAt for data retention tracking
-    await User.findByIdAndUpdate(memberId, {
-        firmStatus: 'departed',
-        departedAt: new Date()
-    });
+    // IDOR PROTECTION: Scope by firmId to ensure user belongs to this firm
+    await User.findOneAndUpdate(
+        { _id: memberId, firmId: id },
+        {
+            firmStatus: 'departed',
+            departedAt: new Date()
+        }
+    );
 
     res.json({
         success: true,
@@ -1059,7 +1065,11 @@ const reinstateMember = asyncHandler(async (req, res) => {
     await firm.reinstateMember(memberId, role);
 
     // Update user's firmStatus
-    await User.findByIdAndUpdate(memberId, { firmStatus: 'active' });
+    // IDOR PROTECTION: Scope by firmId to ensure user belongs to this firm
+    await User.findOneAndUpdate(
+        { _id: memberId, firmId: id },
+        { firmStatus: 'active' }
+    );
 
     res.json({
         success: true,

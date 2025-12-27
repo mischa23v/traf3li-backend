@@ -456,8 +456,8 @@ const applyDebitNote = asyncHandler(async (req, res) => {
         }
 
         // Update vendor balance
-        await Vendor.findByIdAndUpdate(
-            debitNote.vendorId,
+        await Vendor.findOneAndUpdate(
+            { _id: debitNote.vendorId, ...req.firmQuery },
             {
                 $inc: { outstandingBalance: -debitNote.total }
             },

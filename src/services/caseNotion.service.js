@@ -30,7 +30,7 @@ class CaseNotionService {
       const { title, icon, coverImage, parentPageId, isTemplate = false } = data;
 
       // Verify case exists
-      const caseExists = await Case.findById(caseId);
+      const caseExists = await Case.findOne({ _id: caseId, firmId });
       if (!caseExists) {
         throw new Error('Case not found');
       }
@@ -76,11 +76,12 @@ class CaseNotionService {
    * Get page with all its blocks
    * @param {string} pageId - Page ID
    * @param {string} userId - User ID
+   * @param {string} firmId - Firm ID
    * @returns {Promise<Object>} Page with blocks
    */
-  static async getPage(pageId, userId) {
+  static async getPage(pageId, userId, firmId) {
     try {
-      const page = await CaseNotionPage.findById(pageId)
+      const page = await CaseNotionPage.findOne({ _id: pageId, firmId })
         .populate('createdBy', 'firstName lastName fullName')
         .populate('lastEditedBy', 'firstName lastName fullName');
 
@@ -122,11 +123,12 @@ class CaseNotionService {
    * @param {string} pageId - Page ID
    * @param {Object} updates - Updates to apply
    * @param {string} userId - User ID
+   * @param {string} firmId - Firm ID
    * @returns {Promise<Object>} Updated page
    */
-  static async updatePage(pageId, updates, userId) {
+  static async updatePage(pageId, updates, userId, firmId) {
     try {
-      const page = await CaseNotionPage.findById(pageId);
+      const page = await CaseNotionPage.findOne({ _id: pageId, firmId });
       if (!page) {
         throw new Error('Page not found');
       }
@@ -159,11 +161,12 @@ class CaseNotionService {
    * Soft delete (archive) a page
    * @param {string} pageId - Page ID
    * @param {string} userId - User ID
+   * @param {string} firmId - Firm ID
    * @returns {Promise<Object>} Result
    */
-  static async deletePage(pageId, userId) {
+  static async deletePage(pageId, userId, firmId) {
     try {
-      const page = await CaseNotionPage.findById(pageId);
+      const page = await CaseNotionPage.findOne({ _id: pageId, firmId });
       if (!page) {
         throw new Error('Page not found');
       }
@@ -174,7 +177,7 @@ class CaseNotionService {
       }
 
       // Archive the page and all child pages
-      await this._archivePageRecursive(pageId, userId);
+      await this._archivePageRecursive(pageId, userId, firmId);
 
       return { success: true, message: 'Page archived successfully' };
     } catch (error) {
@@ -187,11 +190,12 @@ class CaseNotionService {
    * Duplicate a page with all blocks
    * @param {string} pageId - Page ID
    * @param {string} userId - User ID
+   * @param {string} firmId - Firm ID
    * @returns {Promise<Object>} Duplicated page
    */
-  static async duplicatePage(pageId, userId) {
+  static async duplicatePage(pageId, userId, firmId) {
     try {
-      const originalPage = await CaseNotionPage.findById(pageId);
+      const originalPage = await CaseNotionPage.findOne({ _id: pageId, firmId });
       if (!originalPage) {
         throw new Error('Page not found');
       }
@@ -255,11 +259,12 @@ class CaseNotionService {
    * @param {string} newParentId - New parent page ID (null for root)
    * @param {number} newOrder - New order position
    * @param {string} userId - User ID
+   * @param {string} firmId - Firm ID
    * @returns {Promise<Object>} Updated page
    */
-  static async movePage(pageId, newParentId, newOrder, userId) {
+  static async movePage(pageId, newParentId, newOrder, userId, firmId) {
     try {
-      const page = await CaseNotionPage.findById(pageId);
+      const page = await CaseNotionPage.findOne({ _id: pageId, firmId });
       if (!page) {
         throw new Error('Page not found');
       }
@@ -271,7 +276,7 @@ class CaseNotionService {
 
       // Prevent moving page to be its own child
       if (newParentId) {
-        const isDescendant = await this._isDescendant(pageId, newParentId);
+        const isDescendant = await this._isDescendant(pageId, newParentId, firmId);
         if (isDescendant || pageId === newParentId) {
           throw new Error('Cannot move page to be its own descendant');
         }
@@ -375,11 +380,12 @@ class CaseNotionService {
    * Toggle favorite status
    * @param {string} pageId - Page ID
    * @param {string} userId - User ID
+   * @param {string} firmId - Firm ID
    * @returns {Promise<Object>} Updated page
    */
-  static async toggleFavorite(pageId, userId) {
+  static async toggleFavorite(pageId, userId, firmId) {
     try {
-      const page = await CaseNotionPage.findById(pageId);
+      const page = await CaseNotionPage.findOne({ _id: pageId, firmId });
       if (!page) {
         throw new Error('Page not found');
       }
@@ -403,11 +409,12 @@ class CaseNotionService {
    * @param {string} pageId - Page ID
    * @param {Object} blockData - Block data
    * @param {string} userId - User ID
+   * @param {string} firmId - Firm ID
    * @returns {Promise<Object>} Created block
    */
-  static async createBlock(pageId, blockData, userId) {
+  static async createBlock(pageId, blockData, userId, firmId) {
     try {
-      const page = await CaseNotionPage.findById(pageId);
+      const page = await CaseNotionPage.findOne({ _id: pageId, firmId });
       if (!page) {
         throw new Error('Page not found');
       }
@@ -470,16 +477,17 @@ class CaseNotionService {
    * @param {string} blockId - Block ID
    * @param {Object} updates - Updates to apply
    * @param {string} userId - User ID
+   * @param {string} firmId - Firm ID
    * @returns {Promise<Object>} Updated block
    */
-  static async updateBlock(blockId, updates, userId) {
+  static async updateBlock(blockId, updates, userId, firmId) {
     try {
       const block = await CaseNotionBlock.findById(blockId);
       if (!block) {
         throw new Error('Block not found');
       }
 
-      const page = await CaseNotionPage.findById(block.pageId);
+      const page = await CaseNotionPage.findOne({ _id: block.pageId, firmId });
       if (!page || !this._hasEditPermission(page, userId)) {
         throw new Error('You do not have permission to edit this block');
       }
@@ -515,16 +523,17 @@ class CaseNotionService {
    * Delete block and its children
    * @param {string} blockId - Block ID
    * @param {string} userId - User ID
+   * @param {string} firmId - Firm ID
    * @returns {Promise<Object>} Result
    */
-  static async deleteBlock(blockId, userId) {
+  static async deleteBlock(blockId, userId, firmId) {
     try {
       const block = await CaseNotionBlock.findById(blockId);
       if (!block) {
         throw new Error('Block not found');
       }
 
-      const page = await CaseNotionPage.findById(block.pageId);
+      const page = await CaseNotionPage.findOne({ _id: block.pageId, firmId });
       if (!page || !this._hasEditPermission(page, userId)) {
         throw new Error('You do not have permission to delete this block');
       }
@@ -545,13 +554,26 @@ class CaseNotionService {
    * @param {string} targetPageId - Target page ID
    * @param {string} targetParentId - Target parent block ID
    * @param {number} newOrder - New order
+   * @param {string} firmId - Firm ID
    * @returns {Promise<Object>} Updated block
    */
-  static async moveBlock(blockId, targetPageId, targetParentId, newOrder) {
+  static async moveBlock(blockId, targetPageId, targetParentId, newOrder, firmId) {
     try {
       const block = await CaseNotionBlock.findById(blockId);
       if (!block) {
         throw new Error('Block not found');
+      }
+
+      // Verify source page belongs to firm
+      const sourcePage = await CaseNotionPage.findOne({ _id: block.pageId, firmId });
+      if (!sourcePage) {
+        throw new Error('Block not found or access denied');
+      }
+
+      // Verify target page belongs to firm
+      const targetPage = await CaseNotionPage.findOne({ _id: targetPageId, firmId });
+      if (!targetPage) {
+        throw new Error('Target page not found or access denied');
       }
 
       block.pageId = targetPageId;
@@ -570,13 +592,20 @@ class CaseNotionService {
    * Duplicate block with children
    * @param {string} blockId - Block ID
    * @param {string} userId - User ID
+   * @param {string} firmId - Firm ID
    * @returns {Promise<Object>} Duplicated block
    */
-  static async duplicateBlock(blockId, userId) {
+  static async duplicateBlock(blockId, userId, firmId) {
     try {
       const originalBlock = await CaseNotionBlock.findById(blockId);
       if (!originalBlock) {
         throw new Error('Block not found');
+      }
+
+      // Verify page belongs to firm
+      const page = await CaseNotionPage.findOne({ _id: originalBlock.pageId, firmId });
+      if (!page) {
+        throw new Error('Block not found or access denied');
       }
 
       // Get all descendant blocks
@@ -643,13 +672,20 @@ class CaseNotionService {
    * Nest block under another block
    * @param {string} blockId - Block ID
    * @param {string} parentBlockId - Parent block ID
+   * @param {string} firmId - Firm ID
    * @returns {Promise<Object>} Updated block
    */
-  static async nestBlock(blockId, parentBlockId) {
+  static async nestBlock(blockId, parentBlockId, firmId) {
     try {
       const block = await CaseNotionBlock.findById(blockId);
       if (!block) {
         throw new Error('Block not found');
+      }
+
+      // Verify block's page belongs to firm
+      const page = await CaseNotionPage.findOne({ _id: block.pageId, firmId });
+      if (!page) {
+        throw new Error('Block not found or access denied');
       }
 
       // Prevent circular nesting
@@ -671,13 +707,20 @@ class CaseNotionService {
   /**
    * Unnest block (move up one level)
    * @param {string} blockId - Block ID
+   * @param {string} firmId - Firm ID
    * @returns {Promise<Object>} Updated block
    */
-  static async unnestBlock(blockId) {
+  static async unnestBlock(blockId, firmId) {
     try {
       const block = await CaseNotionBlock.findById(blockId);
       if (!block) {
         throw new Error('Block not found');
+      }
+
+      // Verify block's page belongs to firm
+      const page = await CaseNotionPage.findOne({ _id: block.pageId, firmId });
+      if (!page) {
+        throw new Error('Block not found or access denied');
       }
 
       if (block.parentBlockId) {
@@ -698,13 +741,20 @@ class CaseNotionService {
    * @param {string} blockId - Block ID
    * @param {string} newType - New block type
    * @param {string} userId - User ID
+   * @param {string} firmId - Firm ID
    * @returns {Promise<Object>} Updated block
    */
-  static async convertBlockType(blockId, newType, userId) {
+  static async convertBlockType(blockId, newType, userId, firmId) {
     try {
       const block = await CaseNotionBlock.findById(blockId);
       if (!block) {
         throw new Error('Block not found');
+      }
+
+      // Verify block's page belongs to firm
+      const page = await CaseNotionPage.findOne({ _id: block.pageId, firmId });
+      if (!page) {
+        throw new Error('Block not found or access denied');
       }
 
       block.type = newType;
@@ -781,16 +831,17 @@ class CaseNotionService {
    * @param {string} pageId - Target page ID
    * @param {number} order - Order position
    * @param {string} userId - User ID
+   * @param {string} firmId - Firm ID
    * @returns {Promise<Object>} Created block instance
    */
-  static async insertSyncedBlock(syncedBlockId, pageId, order, userId) {
+  static async insertSyncedBlock(syncedBlockId, pageId, order, userId, firmId) {
     try {
-      const syncedBlock = await SyncedBlock.findById(syncedBlockId);
+      const syncedBlock = await SyncedBlock.findOne({ _id: syncedBlockId, firmId });
       if (!syncedBlock) {
         throw new Error('Synced block not found');
       }
 
-      const page = await CaseNotionPage.findById(pageId);
+      const page = await CaseNotionPage.findOne({ _id: pageId, firmId: syncedBlock.firmId });
       if (!page || !this._hasEditPermission(page, userId)) {
         throw new Error('You do not have permission to edit this page');
       }
@@ -829,11 +880,12 @@ class CaseNotionService {
    * @param {string} syncedBlockId - Synced block ID
    * @param {Object} newContent - New content
    * @param {string} userId - User ID
+   * @param {string} firmId - Firm ID
    * @returns {Promise<Object>} Result
    */
-  static async updateSyncedBlock(syncedBlockId, newContent, userId) {
+  static async updateSyncedBlock(syncedBlockId, newContent, userId, firmId) {
     try {
-      const syncedBlock = await SyncedBlock.findById(syncedBlockId);
+      const syncedBlock = await SyncedBlock.findOne({ _id: syncedBlockId, firmId });
       if (!syncedBlock) {
         throw new Error('Synced block not found');
       }
@@ -895,11 +947,12 @@ class CaseNotionService {
   /**
    * Get all instances of a synced block
    * @param {string} syncedBlockId - Synced block ID
+   * @param {string} firmId - Firm ID
    * @returns {Promise<Array>} Block instances with page info
    */
-  static async getSyncedBlockInstances(syncedBlockId) {
+  static async getSyncedBlockInstances(syncedBlockId, firmId) {
     try {
-      const syncedBlock = await SyncedBlock.findById(syncedBlockId)
+      const syncedBlock = await SyncedBlock.findOne({ _id: syncedBlockId, firmId })
         .populate({
           path: 'instances.pageId',
           select: 'title caseId',
@@ -926,11 +979,12 @@ class CaseNotionService {
    * @param {string} pageId - Page ID
    * @param {Object} viewConfig - View configuration
    * @param {string} userId - User ID
+   * @param {string} firmId - Firm ID
    * @returns {Promise<Object>} Created view
    */
-  static async createView(pageId, viewConfig, userId) {
+  static async createView(pageId, viewConfig, userId, firmId) {
     try {
-      const page = await CaseNotionPage.findById(pageId);
+      const page = await CaseNotionPage.findOne({ _id: pageId, firmId });
       if (!page || !this._hasEditPermission(page, userId)) {
         throw new Error('You do not have permission to create views on this page');
       }
@@ -980,11 +1034,12 @@ class CaseNotionService {
    * @param {string} viewId - View ID
    * @param {Object} updates - Updates to apply
    * @param {string} userId - User ID
+   * @param {string} firmId - Firm ID
    * @returns {Promise<Object>} Updated view
    */
-  static async updateView(viewId, updates, userId) {
+  static async updateView(viewId, updates, userId, firmId) {
     try {
-      const view = await CaseNotionDatabaseView.findById(viewId);
+      const view = await CaseNotionDatabaseView.findOne({ _id: viewId, firmId });
       if (!view) {
         throw new Error('View not found');
       }
@@ -1012,11 +1067,12 @@ class CaseNotionService {
    * Delete a view
    * @param {string} viewId - View ID
    * @param {string} userId - User ID
+   * @param {string} firmId - Firm ID
    * @returns {Promise<Object>} Result
    */
-  static async deleteView(viewId, userId) {
+  static async deleteView(viewId, userId, firmId) {
     try {
-      const view = await CaseNotionDatabaseView.findById(viewId);
+      const view = await CaseNotionDatabaseView.findOne({ _id: viewId, firmId });
       if (!view) {
         throw new Error('View not found');
       }
@@ -1038,7 +1094,7 @@ class CaseNotionService {
    */
   static async executeView(viewId, firmId) {
     try {
-      const view = await CaseNotionDatabaseView.findById(viewId);
+      const view = await CaseNotionDatabaseView.findOne({ _id: viewId, firmId });
       if (!view) {
         throw new Error('View not found');
       }
@@ -1092,11 +1148,12 @@ class CaseNotionService {
    * Calculate rollup values
    * @param {string} viewId - View ID
    * @param {Object} rollupConfig - Rollup configuration
+   * @param {string} firmId - Firm ID
    * @returns {Promise<Object>} Rollup results
    */
-  static async calculateRollup(viewId, rollupConfig) {
+  static async calculateRollup(viewId, rollupConfig, firmId) {
     try {
-      const view = await CaseNotionDatabaseView.findById(viewId);
+      const view = await CaseNotionDatabaseView.findOne({ _id: viewId, firmId });
       if (!view) {
         throw new Error('View not found');
       }
@@ -1275,17 +1332,18 @@ class CaseNotionService {
    * @param {string} pageId - Page ID
    * @param {string} category - Template category
    * @param {string} userId - User ID
+   * @param {string} firmId - Firm ID
    * @returns {Promise<Object>} Template page
    */
-  static async createTemplate(pageId, category, userId) {
+  static async createTemplate(pageId, category, userId, firmId) {
     try {
-      const originalPage = await CaseNotionPage.findById(pageId);
+      const originalPage = await CaseNotionPage.findOne({ _id: pageId, firmId });
       if (!originalPage) {
         throw new Error('Page not found');
       }
 
       // Duplicate page as template
-      const template = await this.duplicatePage(pageId, userId);
+      const template = await this.duplicatePage(pageId, userId, firmId);
       template.isTemplate = true;
       template.metadata = {
         ...template.metadata,
@@ -1330,17 +1388,18 @@ class CaseNotionService {
    * @param {string} templateId - Template ID
    * @param {string} caseId - Target case ID
    * @param {string} userId - User ID
+   * @param {string} firmId - Firm ID
    * @returns {Promise<Object>} Created page
    */
-  static async createFromTemplate(templateId, caseId, userId) {
+  static async createFromTemplate(templateId, caseId, userId, firmId) {
     try {
-      const template = await CaseNotionPage.findById(templateId);
+      const template = await CaseNotionPage.findOne({ _id: templateId, firmId });
       if (!template || !template.isTemplate) {
         throw new Error('Template not found');
       }
 
       // Duplicate template
-      const newPage = await this.duplicatePage(templateId, userId);
+      const newPage = await this.duplicatePage(templateId, userId, firmId);
       newPage.caseId = caseId;
       newPage.isTemplate = false;
       newPage.title = template.title.replace('(Copy)', '').trim();
@@ -1373,6 +1432,11 @@ class CaseNotionService {
       const block = await CaseNotionBlock.findById(blockId).populate('pageId');
       if (!block) {
         throw new Error('Block not found');
+      }
+
+      // Verify block's page belongs to firm
+      if (!block.pageId || block.pageId.firmId.toString() !== firmId) {
+        throw new Error('Block not found or access denied');
       }
 
       // Get context from page and surrounding blocks
@@ -1431,7 +1495,7 @@ Generate concise, relevant content for this block type. Return only the content,
         throw new Error('Anthropic API key not configured for this firm');
       }
 
-      const page = await this.getPage(pageId, null);
+      const page = await this.getPage(pageId, null, firmId);
       const pageText = this._extractPageText(page.blocks);
 
       const anthropic = new Anthropic({ apiKey });
@@ -1542,7 +1606,7 @@ Provide a detailed, accurate answer based only on the provided documentation. If
         throw new Error('Anthropic API key not configured for this firm');
       }
 
-      const page = await this.getPage(pageId, null);
+      const page = await this.getPage(pageId, null, firmId);
       const pageText = this._extractPageText(page.blocks);
 
       const anthropic = new Anthropic({ apiKey });
@@ -1588,13 +1652,20 @@ Generate content suggestions based on the user's request and the existing page c
    * Lock block for editing
    * @param {string} blockId - Block ID
    * @param {string} userId - User ID
+   * @param {string} firmId - Firm ID
    * @returns {Promise<Object>} Lock status
    */
-  static async lockBlock(blockId, userId) {
+  static async lockBlock(blockId, userId, firmId) {
     try {
       const block = await CaseNotionBlock.findById(blockId);
       if (!block) {
         throw new Error('Block not found');
+      }
+
+      // Verify block's page belongs to firm
+      const page = await CaseNotionPage.findOne({ _id: block.pageId, firmId });
+      if (!page) {
+        throw new Error('Block not found or access denied');
       }
 
       // Check if already locked
@@ -1633,13 +1704,20 @@ Generate content suggestions based on the user's request and the existing page c
    * Unlock block
    * @param {string} blockId - Block ID
    * @param {string} userId - User ID
+   * @param {string} firmId - Firm ID
    * @returns {Promise<Object>} Result
    */
-  static async unlockBlock(blockId, userId) {
+  static async unlockBlock(blockId, userId, firmId) {
     try {
       const block = await CaseNotionBlock.findById(blockId);
       if (!block) {
         throw new Error('Block not found');
+      }
+
+      // Verify block's page belongs to firm
+      const page = await CaseNotionPage.findOne({ _id: block.pageId, firmId });
+      if (!page) {
+        throw new Error('Block not found or access denied');
       }
 
       // Only owner can unlock
@@ -1730,11 +1808,12 @@ Generate content suggestions based on the user's request and the existing page c
    * Export page as markdown/html/pdf
    * @param {string} pageId - Page ID
    * @param {string} format - Export format
+   * @param {string} firmId - Firm ID
    * @returns {Promise<string>} Exported content
    */
-  static async exportPage(pageId, format) {
+  static async exportPage(pageId, format, firmId) {
     try {
-      const page = await this.getPage(pageId, null);
+      const page = await this.getPage(pageId, null, firmId);
 
       switch (format) {
         case 'markdown':
@@ -1757,17 +1836,23 @@ Generate content suggestions based on the user's request and the existing page c
    * @param {string} caseId - Case ID
    * @param {string} markdown - Markdown content
    * @param {string} userId - User ID
+   * @param {string} firmId - Firm ID
    * @returns {Promise<Object>} Created page
    */
-  static async importMarkdown(caseId, markdown, userId) {
+  static async importMarkdown(caseId, markdown, userId, firmId) {
     try {
       // Parse markdown and extract title
       const lines = markdown.split('\n');
       const titleMatch = lines[0].match(/^#\s+(.+)$/);
       const title = titleMatch ? titleMatch[1] : 'Imported Page';
 
+      // Verify case exists and belongs to firm
+      const caseExists = await Case.findOne({ _id: caseId, firmId });
+      if (!caseExists) {
+        throw new Error('Case not found');
+      }
+
       // Create page
-      const firmId = (await Case.findById(caseId)).firmId;
       const page = await this.createPage(caseId, { title }, userId, firmId);
 
       // Parse markdown blocks
@@ -1783,7 +1868,7 @@ Generate content suggestions based on the user's request and the existing page c
             await this.createBlock(page._id, {
               type: currentType,
               content: { text: currentContent.join('\n') }
-            }, userId);
+            }, userId, firmId);
             currentContent = [];
           }
           currentType = 'heading_2';
@@ -1798,7 +1883,7 @@ Generate content suggestions based on the user's request and the existing page c
             await this.createBlock(page._id, {
               type: currentType,
               content: { text: currentContent.join('\n') }
-            }, userId);
+            }, userId, firmId);
             currentContent = [];
             currentType = 'paragraph';
           }
@@ -1812,7 +1897,7 @@ Generate content suggestions based on the user's request and the existing page c
         await this.createBlock(page._id, {
           type: currentType,
           content: { text: currentContent.join('\n') }
-        }, userId);
+        }, userId, firmId);
       }
 
       return page;
@@ -1825,11 +1910,12 @@ Generate content suggestions based on the user's request and the existing page c
   /**
    * Get pages that link to this page (backlinks)
    * @param {string} pageId - Page ID
+   * @param {string} firmId - Firm ID
    * @returns {Promise<Array>} Pages with backlinks
    */
-  static async getBacklinks(pageId) {
+  static async getBacklinks(pageId, firmId) {
     try {
-      const page = await CaseNotionPage.findById(pageId);
+      const page = await CaseNotionPage.findOne({ _id: pageId, firmId });
       if (!page) {
         throw new Error('Page not found');
       }
@@ -1855,16 +1941,17 @@ Generate content suggestions based on the user's request and the existing page c
   /**
    * Update backlinks for a page
    * @param {string} pageId - Page ID
+   * @param {string} firmId - Firm ID
    * @returns {Promise<Object>} Result
    */
-  static async updateBacklinks(pageId) {
+  static async updateBacklinks(pageId, firmId) {
     try {
-      const page = await CaseNotionPage.findById(pageId);
+      const page = await CaseNotionPage.findOne({ _id: pageId, firmId });
       if (!page) {
         throw new Error('Page not found');
       }
 
-      const backlinks = await this.getBacklinks(pageId);
+      const backlinks = await this.getBacklinks(pageId, firmId);
 
       page.backlinks = backlinks.map(p => p._id);
       await page.save();
@@ -2040,17 +2127,19 @@ Generate content suggestions based on the user's request and the existing page c
    * Archive page recursively
    * @private
    */
-  static async _archivePageRecursive(pageId, userId) {
-    const page = await CaseNotionPage.findById(pageId);
+  static async _archivePageRecursive(pageId, userId, firmId) {
+    const page = await CaseNotionPage.findOne({ _id: pageId, firmId });
+    if (!page) return;
+
     page.isArchived = true;
     page.lastEditedBy = userId;
     page.lastEditedAt = new Date();
     await page.save();
 
     // Archive child pages
-    const childPages = await CaseNotionPage.find({ parentPageId: pageId });
+    const childPages = await CaseNotionPage.find({ parentPageId: pageId, firmId });
     for (const child of childPages) {
-      await this._archivePageRecursive(child._id, userId);
+      await this._archivePageRecursive(child._id, userId, firmId);
     }
   }
 
@@ -2091,14 +2180,14 @@ Generate content suggestions based on the user's request and the existing page c
    * Check if page is descendant of another
    * @private
    */
-  static async _isDescendant(pageId, potentialAncestorId) {
-    let currentPage = await CaseNotionPage.findById(pageId);
+  static async _isDescendant(pageId, potentialAncestorId, firmId) {
+    let currentPage = await CaseNotionPage.findOne({ _id: pageId, firmId });
 
     while (currentPage && currentPage.parentPageId) {
       if (currentPage.parentPageId.toString() === potentialAncestorId) {
         return true;
       }
-      currentPage = await CaseNotionPage.findById(currentPage.parentPageId);
+      currentPage = await CaseNotionPage.findOne({ _id: currentPage.parentPageId, firmId });
     }
 
     return false;

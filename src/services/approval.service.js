@@ -141,10 +141,13 @@ class ApprovalService {
       // Check if we've completed all levels
       if (instance.currentLevel > workflow.levels.length) {
         // Mark as approved and execute onApproval actions
-        await ApprovalInstance.findByIdAndUpdate(instance._id, {
-          status: 'approved',
-          completedAt: new Date()
-        });
+        await ApprovalInstance.findOneAndUpdate(
+          { _id: instance._id, firmId: instance.firmId },
+          {
+            status: 'approved',
+            completedAt: new Date()
+          }
+        );
 
         // Execute onApproval actions
         if (workflow.onApproval && workflow.onApproval.length > 0) {
@@ -176,8 +179,8 @@ class ApprovalService {
         // Skip this level
         logger.info(`ApprovalService: Skipping level ${instance.currentLevel} due to skip conditions`);
 
-        const updatedInstance = await ApprovalInstance.findByIdAndUpdate(
-          instance._id,
+        const updatedInstance = await ApprovalInstance.findOneAndUpdate(
+          { _id: instance._id, firmId: instance.firmId },
           {
             $push: {
               levelHistory: {
@@ -212,16 +215,19 @@ class ApprovalService {
       }
 
       // Create level history entry
-      await ApprovalInstance.findByIdAndUpdate(instance._id, {
-        $push: {
-          levelHistory: {
-            level: instance.currentLevel,
-            approvers: [],
-            startedAt: new Date(),
-            skipped: false
+      await ApprovalInstance.findOneAndUpdate(
+        { _id: instance._id, firmId: instance.firmId },
+        {
+          $push: {
+            levelHistory: {
+              level: instance.currentLevel,
+              approvers: [],
+              startedAt: new Date(),
+              skipped: false
+            }
           }
         }
-      });
+      );
 
       // Notify approvers
       if (workflow.notifyOnPending) {
@@ -384,22 +390,25 @@ class ApprovalService {
       };
 
       // Update level history and audit log
-      await ApprovalInstance.findByIdAndUpdate(instanceId, {
-        $push: {
-          [`levelHistory.${levelHistoryIndex}.approvers`]: decisionData,
-          auditLog: {
-            action: decision === 'approved' ? 'approved' : decision === 'rejected' ? 'rejected' : 'abstained',
-            userId: new mongoose.Types.ObjectId(approverId),
-            timestamp: new Date(),
-            details: {
-              level: instance.currentLevel,
-              decision,
-              comments
-            },
-            ipAddress
+      await ApprovalInstance.findOneAndUpdate(
+        { _id: instanceId, firmId: instance.firmId },
+        {
+          $push: {
+            [`levelHistory.${levelHistoryIndex}.approvers`]: decisionData,
+            auditLog: {
+              action: decision === 'approved' ? 'approved' : decision === 'rejected' ? 'rejected' : 'abstained',
+              userId: new mongoose.Types.ObjectId(approverId),
+              timestamp: new Date(),
+              details: {
+                level: instance.currentLevel,
+                decision,
+                comments
+              },
+              ipAddress
+            }
           }
         }
-      });
+      );
 
       // Add to audit log service
       await AuditLogService.log(
@@ -672,7 +681,10 @@ class ApprovalService {
       const updateData = {};
       updateData[params.field] = params.value;
 
-      await entityModel.findByIdAndUpdate(instance.entityId, updateData);
+      await entityModel.findOneAndUpdate(
+        { _id: instance.entityId, firmId: instance.firmId },
+        updateData
+      );
     } catch (error) {
       logger.error('ApprovalService.executeUpdateFieldAction failed:', error.message);
     }

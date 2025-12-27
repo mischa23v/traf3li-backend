@@ -628,7 +628,8 @@ const deleteTraining = asyncHandler(async (req, res) => {
         throw CustomException(`Cannot delete training in ${training.status} status`, 400);
     }
 
-    await Training.findByIdAndDelete(sanitizedTrainingId);
+    // IDOR protection: Use firm-scoped query for delete
+    await Training.findOneAndDelete(query);
 
     return res.json({
         success: true,

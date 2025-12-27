@@ -223,7 +223,10 @@ const createCase = async (request, response) => {
         }
 
         // Check if user is a lawyer
-        const user = await User.findById(request.userID);
+        const user = await User.findOne({ _id: request.userID, firmId: request.firmId });
+        if (!user) {
+            throw CustomException('User not found!', 404);
+        }
         if (!user.isSeller) {
             throw CustomException('Only lawyers can create cases!', 403);
         }
@@ -331,8 +334,8 @@ const createCase = async (request, response) => {
 
         // CASE 1: Platform case (with contract)
         if (contractId) {
-            const contract = await Order.findById(contractId);
-            
+            const contract = await Order.findOne({ _id: contractId, firmId: request.firmId });
+
             if (!contract) {
                 throw CustomException('Contract not found!', 404);
             }
@@ -372,10 +375,11 @@ const createCase = async (request, response) => {
         const caseDoc = await Case.create(caseData);
 
         // Increment usage counter for firm
-        if (firmId) {
-            await Firm.findByIdAndUpdate(firmId, {
-                $inc: { 'usage.cases': 1 }
-            }).catch(err => logger.error('Failed to update case usage counter', { error: err.message }));
+        if (firmId && firmId.toString() === request.firmId.toString()) {
+            await Firm.findOneAndUpdate(
+                { _id: firmId },
+                { $inc: { 'usage.cases': 1 } }
+            ).catch(err => logger.error('Failed to update case usage counter', { error: err.message }));
         }
 
         // Log CRM activity
@@ -1180,12 +1184,15 @@ const updateOutcome = async (request, response) => {
         await caseDoc.save();
 
         // Update lawyer stats
-        await User.findByIdAndUpdate(caseDoc.lawyerId, {
-            $inc: {
-                'lawyerProfile.casesTotal': 1,
-                ...(outcome === 'won' && { 'lawyerProfile.casesWon': 1 })
+        await User.findOneAndUpdate(
+            { _id: caseDoc.lawyerId, firmId: request.firmId },
+            {
+                $inc: {
+                    'lawyerProfile.casesTotal': 1,
+                    ...(outcome === 'won' && { 'lawyerProfile.casesWon': 1 })
+                }
             }
-        });
+        );
 
         // Recalculate lawyer score
         await calculateLawyerScore(caseDoc.lawyerId);
@@ -1510,10 +1517,11 @@ const deleteCase = async (request, response) => {
         await Case.findOneAndDelete(secureQuery);
 
         // Decrement usage counter for firm
-        if (caseDoc.firmId) {
-            await Firm.findByIdAndUpdate(caseDoc.firmId, {
-                $inc: { 'usage.cases': -1 }
-            }).catch(err => logger.error('Failed to update case usage', { error: err.message }));
+        if (caseDoc.firmId && caseDoc.firmId.toString() === request.firmId.toString()) {
+            await Firm.findOneAndUpdate(
+                { _id: caseDoc.firmId },
+                { $inc: { 'usage.cases': -1 } }
+            ).catch(err => logger.error('Failed to update case usage', { error: err.message }));
         }
 
         // Log CRM activity for case deletion

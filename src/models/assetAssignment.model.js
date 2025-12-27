@@ -369,7 +369,7 @@ const communicationSchema = new mongoose.Schema({
 
 const assetAssignmentSchema = new mongoose.Schema({
     // Multi-tenancy
-    firmId: { type: mongoose.Schema.Types.ObjectId, ref: 'Firm' },
+    firmId: { type: mongoose.Schema.Types.ObjectId, ref: 'Firm', index: true },
     lawyerId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
 
     // ═══════════════════════════════════════════════════════════════

@@ -14,6 +14,7 @@ const auditLogArchivingService = require('../services/auditLogArchiving.service'
 const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
 const logger = require('../utils/logger');
+const { sanitizeFilename } = require('../utils/sanitize');
 
 // ═══════════════════════════════════════════════════════════════
 // ENHANCED LOGGING ENDPOINTS
@@ -513,7 +514,7 @@ const exportForAudit = asyncHandler(async (req, res) => {
 
   if (format === 'csv') {
     res.setHeader('Content-Type', 'text/csv');
-    res.setHeader('Content-Disposition', `attachment; filename="${exportData.filename}"`);
+    res.setHeader('Content-Disposition', `attachment; filename="${sanitizeFilename(exportData.filename)}"`);
     return res.send(exportData.data);
   }
 

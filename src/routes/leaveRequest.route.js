@@ -24,6 +24,7 @@ const {
 } = require('../controllers/leaveRequest.controller');
 const { verifyToken } = require('../middlewares/jwt');
 const { attachFirmContext } = require('../middlewares/firmContext.middleware');
+const upload = require('../configs/multer');
 const {
     validateCreateLeaveRequest,
     validateUpdateLeaveRequest,
@@ -56,7 +57,7 @@ router.post('/:id/cancel', validateIdParam, cancelLeaveRequest);
 router.post('/:id/confirm-return', validateIdParam, confirmReturn);
 router.post('/:id/request-extension', validateIdParam, validateRequestExtension, requestExtension);
 router.post('/:id/complete-handover', validateIdParam, completeHandover);
-router.post('/:id/documents', validateIdParam, uploadDocument);
+router.post('/:id/documents', validateIdParam, upload.single('file'), upload.malwareScan, uploadDocument);
 
 // CRUD
 router.get('/', getLeaveRequests);

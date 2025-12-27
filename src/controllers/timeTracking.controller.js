@@ -791,7 +791,8 @@ const deleteTimeEntry = asyncHandler(async (req, res) => {
         throw new CustomException('Cannot delete invoiced time entry', 400);
     }
 
-    await TimeEntry.findByIdAndDelete(id);
+    // IDOR protection: Include firmFilter in delete query
+    await TimeEntry.findOneAndDelete({ _id: id, ...firmFilter });
 
     res.status(200).json({
         success: true,

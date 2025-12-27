@@ -24,6 +24,26 @@ const notificationService = require('./notificationDelivery.service');
 const webhookService = require('./webhook.service');
 const auditLogService = require('./auditLog.service');
 
+/**
+ * Escape special regex characters to prevent regex injection
+ */
+const escapeRegex = (str) => {
+  if (typeof str !== 'string') return str;
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
+
+/**
+ * Validate field name to prevent NoSQL injection via dynamic field names
+ */
+const isValidFieldName = (field) => {
+  if (typeof field !== 'string') return false;
+  // Reject fields starting with $ (MongoDB operators) or __proto__ (prototype pollution)
+  if (field.startsWith('$') || field.startsWith('__proto__') || field === 'constructor' || field === 'prototype') {
+    return false;
+  }
+  return true;
+};
+
 class AutomatedActionService {
   /**
    * Get all automated actions for a firm
@@ -780,6 +800,12 @@ class AutomatedActionService {
         if (Array.isArray(condition) && condition.length === 3) {
           const [field, operator, value] = condition;
 
+          // Validate field name to prevent NoSQL injection via dynamic field names
+          if (!isValidFieldName(field)) {
+            logger.warn(`Invalid field name in domain filter: ${field}`);
+            continue;
+          }
+
           switch (operator) {
             case '=':
             case '==':
@@ -808,7 +834,7 @@ class AutomatedActionService {
               break;
             case 'contains':
             case 'ilike':
-              query[field] = { $regex: value, $options: 'i' };
+              query[field] = { $regex: escapeRegex(value), $options: 'i' };
               break;
           }
         }
@@ -867,7 +893,7 @@ class AutomatedActionService {
       });
 
       // Update the record
-      await Model.findByIdAndUpdate(record._id, updates, { new: true });
+      await Model.findOneAndUpdate({ _id: record._id, firmId: action.firmId }, updates, { new: true });
 
       return { updated: true, fields: Object.keys(updates) };
     } catch (error) {

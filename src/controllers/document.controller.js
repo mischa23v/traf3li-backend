@@ -206,12 +206,15 @@ const confirmUpload = asyncHandler(async (req, res) => {
     // Increment usage counter for firm
     if (firmId) {
         const fileSizeMB = fileSize ? fileSize / (1024 * 1024) : 0;
-        await Firm.findByIdAndUpdate(firmId, {
-            $inc: {
-                'usage.documentsCount': 1,
-                'usage.storageUsedMB': fileSizeMB
+        await Firm.findOneAndUpdate(
+            { _id: firmId },
+            {
+                $inc: {
+                    'usage.documentsCount': 1,
+                    'usage.storageUsedMB': fileSizeMB
+                }
             }
-        }).catch(err => logger.error('Error updating document usage:', err.message));
+        ).catch(err => logger.error('Error updating document usage:', err.message));
     }
 
     res.status(201).json({
@@ -379,14 +382,17 @@ const deleteDocument = asyncHandler(async (req, res) => {
     await Document.findOneAndDelete({ _id: id, firmId });
 
     // Decrement usage counter for firm
-    if (docFirmId) {
+    if (docFirmId && docFirmId.toString() === firmId.toString()) {
         const fileSizeMB = fileSize / (1024 * 1024);
-        await Firm.findByIdAndUpdate(docFirmId, {
-            $inc: {
-                'usage.documentsCount': -1,
-                'usage.storageUsedMB': -fileSizeMB
+        await Firm.findOneAndUpdate(
+            { _id: docFirmId },
+            {
+                $inc: {
+                    'usage.documentsCount': -1,
+                    'usage.storageUsedMB': -fileSizeMB
+                }
             }
-        }).catch(err => logger.error('Error updating document usage:', err.message));
+        ).catch(err => logger.error('Error updating document usage:', err.message));
     }
 
     res.status(200).json({

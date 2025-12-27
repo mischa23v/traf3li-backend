@@ -3,6 +3,14 @@ const { CustomException } = require('../utils');
 const asyncHandler = require('../utils/asyncHandler');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 
+/**
+ * Escape special regex characters to prevent regex injection
+ */
+const escapeRegex = (str) => {
+    if (typeof str !== 'string') return str;
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
+
 // ═══════════════════════════════════════════════════════════════
 // CREATE BROKER
 // ═══════════════════════════════════════════════════════════════
@@ -123,7 +131,7 @@ const createBroker = asyncHandler(async (req, res) => {
     // Check for duplicate broker name for this user
     const existingBroker = await Broker.findOne({
         userId,
-        name: { $regex: new RegExp(`^${brokerData.name.trim()}$`, 'i') }
+        name: { $regex: new RegExp(`^${escapeRegex(brokerData.name.trim())}$`, 'i') }
     });
 
     if (existingBroker) {
@@ -447,7 +455,7 @@ const updateBroker = asyncHandler(async (req, res) => {
         const duplicateBroker = await Broker.findOne({
             userId,
             _id: { $ne: brokerId },
-            name: { $regex: new RegExp(`^${updateData.name.trim()}$`, 'i') }
+            name: { $regex: new RegExp(`^${escapeRegex(updateData.name.trim())}$`, 'i') }
         });
 
         if (duplicateBroker) {

@@ -512,7 +512,7 @@ const deleteSalarySlip = asyncHandler(async (req, res) => {
         throw CustomException('Only draft salary slips can be deleted', 400);
     }
 
-    await SalarySlip.findByIdAndDelete(id);
+    await SalarySlip.findOneAndDelete(query);
 
     return res.json({
         success: true,

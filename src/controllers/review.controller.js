@@ -144,12 +144,15 @@ const deleteReview = async (request, response) => {
         }
 
         // Update the gig's star count before deleting the review
-        await Gig.findByIdAndUpdate(review.gigID, {
-            $inc: { totalStars: -review.star, starNumber: -1 }
-        });
+        // IDOR protection: Use findOneAndUpdate instead of findByIdAndUpdate
+        await Gig.findOneAndUpdate(
+            { _id: review.gigID },
+            { $inc: { totalStars: -review.star, starNumber: -1 } }
+        );
 
         // Delete the review
-        await Review.findByIdAndDelete(sanitizedReviewID);
+        // IDOR protection: Include userID in delete query
+        await Review.findOneAndDelete({ _id: sanitizedReviewID, userID: request.userID });
 
         return response.status(200).send({
             error: false,

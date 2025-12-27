@@ -29,12 +29,18 @@ class AdminToolsService {
     /**
      * Get all user data for export/review (GDPR compliance)
      * @param {String} userId - User ID
-     * @param {Object} options - Export options
+     * @param {Object} options - Export options (includes context for firm scoping)
      * @returns {Promise<Object>} User data package
      */
     async getUserData(userId, options = {}) {
         try {
-            const user = await User.findById(userId)
+            // SECURITY: Build query with firmId check for firm admins
+            const query = { _id: userId };
+            if (options.context?.adminFirmId && !options.context?.isSystemAdmin) {
+                query.firmId = options.context.adminFirmId;
+            }
+
+            const user = await User.findOne(query)
                 .select('-password -mfaSecret')
                 .lean();
 
@@ -81,7 +87,7 @@ class AdminToolsService {
     /**
      * Delete user data (GDPR right to erasure)
      * @param {String} userId - User ID to delete
-     * @param {Object} options - Deletion options
+     * @param {Object} options - Deletion options (includes context for firm scoping)
      * @returns {Promise<Object>} Deletion report
      */
     async deleteUserData(userId, options = {}) {
@@ -89,7 +95,13 @@ class AdminToolsService {
         session.startTransaction();
 
         try {
-            const user = await User.findById(userId).session(session);
+            // SECURITY: Build query with firmId check for firm admins
+            const query = { _id: userId };
+            if (options.context?.adminFirmId && !options.context?.isSystemAdmin) {
+                query.firmId = options.context.adminFirmId;
+            }
+
+            const user = await User.findOne(query).session(session);
             if (!user) {
                 throw new Error('User not found');
             }
@@ -134,7 +146,8 @@ class AdminToolsService {
                     };
                 }
 
-                await User.findByIdAndDelete(userId).session(session);
+                // SECURITY: Use same query with firmId check
+                await User.findOneAndDelete(query).session(session);
                 deletionReport.affectedRecords.user = { deleted: true };
             }
 
@@ -153,11 +166,19 @@ class AdminToolsService {
      * Export all firm data
      * @param {String} firmId - Firm ID
      * @param {String} format - Export format (json, csv)
+     * @param {Object} context - Admin context { adminFirmId, isSystemAdmin }
      * @returns {Promise<Object>} Exported data
      */
-    async exportFirmData(firmId, format = 'json') {
+    async exportFirmData(firmId, format = 'json', context = {}) {
         try {
-            const firm = await Firm.findById(firmId).lean();
+            // SECURITY: Firm admin can only export their own firm's data
+            if (context.adminFirmId && !context.isSystemAdmin) {
+                if (firmId !== context.adminFirmId.toString()) {
+                    throw new Error('Cannot export data for other firms');
+                }
+            }
+
+            const firm = await Firm.findOne({ _id: firmId }).lean();
             if (!firm) {
                 throw new Error('Firm not found');
             }
@@ -201,14 +222,22 @@ class AdminToolsService {
      * Import firm data
      * @param {String} firmId - Target firm ID
      * @param {Object} data - Data to import
+     * @param {Object} context - Admin context { adminFirmId, isSystemAdmin }
      * @returns {Promise<Object>} Import report
      */
-    async importFirmData(firmId, data) {
+    async importFirmData(firmId, data, context = {}) {
         const session = await mongoose.startSession();
         session.startTransaction();
 
         try {
-            const firm = await Firm.findById(firmId).session(session);
+            // SECURITY: Firm admin can only import to their own firm
+            if (context.adminFirmId && !context.isSystemAdmin) {
+                if (firmId !== context.adminFirmId.toString()) {
+                    throw new Error('Cannot import data for other firms');
+                }
+            }
+
+            const firm = await Firm.findOne({ _id: firmId }).session(session);
             if (!firm) {
                 throw new Error('Firm not found');
             }
@@ -261,9 +290,15 @@ class AdminToolsService {
         session.startTransaction();
 
         try {
+            // SECURITY: Build query with firmId check for firm admins
+            const query = {};
+            if (context.adminFirmId && !context.isSystemAdmin) {
+                query.firmId = context.adminFirmId;
+            }
+
             const [sourceUser, targetUser] = await Promise.all([
-                User.findById(sourceUserId).session(session),
-                User.findById(targetUserId).session(session)
+                User.findOne({ _id: sourceUserId, ...query }).session(session),
+                User.findOne({ _id: targetUserId, ...query }).session(session)
             ]);
 
             if (!sourceUser || !targetUser) {
@@ -272,14 +307,6 @@ class AdminToolsService {
 
             if (sourceUserId === targetUserId) {
                 throw new Error('Cannot merge user with itself');
-            }
-
-            // SECURITY: Firm admin can only merge users within their own firm
-            if (context.adminFirmId && !context.isSystemAdmin) {
-                const firmIdStr = context.adminFirmId.toString();
-                if (sourceUser.firmId?.toString() !== firmIdStr || targetUser.firmId?.toString() !== firmIdStr) {
-                    throw new Error('Cannot merge users from different firms');
-                }
             }
 
             // Update all references to point to target user
@@ -302,8 +329,8 @@ class AdminToolsService {
                 ).session(session)
             ]);
 
-            // Delete source user
-            await User.findByIdAndDelete(sourceUserId).session(session);
+            // Delete source user (with firmId check)
+            await User.findOneAndDelete({ _id: sourceUserId, ...query }).session(session);
 
             await session.commitTransaction();
 
@@ -341,9 +368,15 @@ class AdminToolsService {
         session.startTransaction();
 
         try {
+            // SECURITY: Build query with firmId check for firm admins
+            const query = {};
+            if (context.adminFirmId && !context.isSystemAdmin) {
+                query.firmId = context.adminFirmId;
+            }
+
             const [sourceClient, targetClient] = await Promise.all([
-                Client.findById(sourceClientId).session(session),
-                Client.findById(targetClientId).session(session)
+                Client.findOne({ _id: sourceClientId, ...query }).session(session),
+                Client.findOne({ _id: targetClientId, ...query }).session(session)
             ]);
 
             if (!sourceClient || !targetClient) {
@@ -352,14 +385,6 @@ class AdminToolsService {
 
             if (sourceClientId === targetClientId) {
                 throw new Error('Cannot merge client with itself');
-            }
-
-            // SECURITY: Firm admin can only merge clients within their own firm
-            if (context.adminFirmId && !context.isSystemAdmin) {
-                const firmIdStr = context.adminFirmId.toString();
-                if (sourceClient.firmId?.toString() !== firmIdStr || targetClient.firmId?.toString() !== firmIdStr) {
-                    throw new Error('Cannot merge clients from different firms');
-                }
             }
 
             // Update all references
@@ -374,8 +399,8 @@ class AdminToolsService {
                 ).session(session)
             ]);
 
-            // Delete source client
-            await Client.findByIdAndDelete(sourceClientId).session(session);
+            // Delete source client (with firmId check)
+            await Client.findOneAndDelete({ _id: sourceClientId, ...query }).session(session);
 
             await session.commitTransaction();
 
@@ -614,12 +639,20 @@ class AdminToolsService {
     /**
      * Fix currency conversion issues
      * @param {String} firmId - Firm ID
+     * @param {Object} context - Admin context { adminFirmId, isSystemAdmin }
      * @returns {Promise<Object>} Fix report
      */
-    async fixCurrencyConversions(firmId) {
+    async fixCurrencyConversions(firmId, context = {}) {
         try {
+            // SECURITY: Firm admin can only fix currency for their own firm
+            if (context.adminFirmId && !context.isSystemAdmin) {
+                if (firmId !== context.adminFirmId.toString()) {
+                    throw new Error('Cannot fix currency for other firms');
+                }
+            }
+
             // This is a placeholder - implement actual currency fix logic based on your needs
-            const firm = await Firm.findById(firmId);
+            const firm = await Firm.findOne({ _id: firmId });
             if (!firm) {
                 throw new Error('Firm not found');
             }
@@ -868,16 +901,15 @@ class AdminToolsService {
      */
     async resetUserPassword(userId, context = {}) {
         try {
-            const user = await User.findById(userId);
-            if (!user) {
-                throw new Error('User not found');
+            // SECURITY: Build query with firmId check for firm admins
+            const query = { _id: userId };
+            if (context.adminFirmId && !context.isSystemAdmin) {
+                query.firmId = context.adminFirmId;
             }
 
-            // SECURITY: Firm admin can only reset passwords within their own firm
-            if (context.adminFirmId && !context.isSystemAdmin) {
-                if (user.firmId?.toString() !== context.adminFirmId.toString()) {
-                    throw new Error('Cannot reset passwords for users from other firms');
-                }
+            const user = await User.findOne(query);
+            if (!user) {
+                throw new Error('User not found');
             }
 
             // Generate temporary password
@@ -925,23 +957,22 @@ class AdminToolsService {
      */
     async impersonateUser(adminId, userId) {
         try {
-            const [admin, targetUser] = await Promise.all([
-                User.findById(adminId),
-                User.findById(userId)
-            ]);
-
+            // First, fetch admin to determine context
+            const admin = await User.findOne({ _id: adminId });
             if (!admin || admin.role !== 'admin') {
                 throw new Error('Only admins can impersonate users');
             }
 
-            if (!targetUser) {
-                throw new Error('Target user not found');
+            // SECURITY: Build query with firmId check for firm admins
+            const query = { _id: userId };
+            if (admin.firmId) {
+                // Firm admins can only impersonate users within their own firm
+                query.firmId = admin.firmId;
             }
 
-            // SECURITY: Firm admins can only impersonate users within their own firm
-            // System admins (no firmId) can impersonate anyone
-            if (admin.firmId && targetUser.firmId?.toString() !== admin.firmId.toString()) {
-                throw new Error('Cannot impersonate users from other firms');
+            const targetUser = await User.findOne(query);
+            if (!targetUser) {
+                throw new Error('Target user not found');
             }
 
             // Create impersonation session token
@@ -998,16 +1029,15 @@ class AdminToolsService {
      */
     async lockUser(userId, reason = 'administrative_action', context = {}) {
         try {
-            const user = await User.findById(userId);
-            if (!user) {
-                throw new Error('User not found');
+            // SECURITY: Build query with firmId check for firm admins
+            const query = { _id: userId };
+            if (context.adminFirmId && !context.isSystemAdmin) {
+                query.firmId = context.adminFirmId;
             }
 
-            // SECURITY: Firm admin can only lock users within their own firm
-            if (context.adminFirmId && !context.isSystemAdmin) {
-                if (user.firmId?.toString() !== context.adminFirmId.toString()) {
-                    throw new Error('Cannot lock users from other firms');
-                }
+            const user = await User.findOne(query);
+            if (!user) {
+                throw new Error('User not found');
             }
 
             user.firmStatus = 'suspended';
@@ -1042,16 +1072,15 @@ class AdminToolsService {
      */
     async unlockUser(userId, context = {}) {
         try {
-            const user = await User.findById(userId);
-            if (!user) {
-                throw new Error('User not found');
+            // SECURITY: Build query with firmId check for firm admins
+            const query = { _id: userId };
+            if (context.adminFirmId && !context.isSystemAdmin) {
+                query.firmId = context.adminFirmId;
             }
 
-            // SECURITY: Firm admin can only unlock users within their own firm
-            if (context.adminFirmId && !context.isSystemAdmin) {
-                if (user.firmId?.toString() !== context.adminFirmId.toString()) {
-                    throw new Error('Cannot unlock users from other firms');
-                }
+            const user = await User.findOne(query);
+            if (!user) {
+                throw new Error('User not found');
             }
 
             user.firmStatus = 'active';
@@ -1080,8 +1109,9 @@ class AdminToolsService {
         try {
             // SECURITY: Verify target user belongs to admin's firm
             if (context.adminFirmId && !context.isSystemAdmin) {
-                const targetUser = await User.findById(userId).select('firmId').lean();
-                if (!targetUser || targetUser.firmId?.toString() !== context.adminFirmId.toString()) {
+                const query = { _id: userId, firmId: context.adminFirmId };
+                const targetUser = await User.findOne(query).select('firmId').lean();
+                if (!targetUser) {
                     throw new Error('Cannot access login history for users from other firms');
                 }
             }

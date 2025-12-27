@@ -2,6 +2,7 @@ const asyncHandler = require('../utils/asyncHandler');
 const CustomException = require('../utils/CustomException');
 const LegalContractService = require('../services/legalContract.service');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
+const { sanitizeFilename } = require('../utils/sanitize');
 
 /**
  * Legal Contract Controller
@@ -1609,7 +1610,7 @@ const exportToPdf = asyncHandler(async (req, res) => {
     const pdfBuffer = await LegalContractService.exportToPdf(sanitizedContractId, userId, firmId);
 
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename="contract-${sanitizedContractId}.pdf"`);
+    res.setHeader('Content-Disposition', `attachment; filename="${sanitizeFilename(`contract-${sanitizedContractId}.pdf`)}"`);
     res.send(pdfBuffer);
 });
 
@@ -1639,7 +1640,7 @@ const exportToWord = asyncHandler(async (req, res) => {
     const docBuffer = await LegalContractService.exportToWord(sanitizedContractId, userId, firmId);
 
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
-    res.setHeader('Content-Disposition', `attachment; filename="contract-${sanitizedContractId}.docx"`);
+    res.setHeader('Content-Disposition', `attachment; filename="${sanitizeFilename(`contract-${sanitizedContractId}.docx`)}"`);
     res.send(docBuffer);
 });
 

@@ -880,7 +880,7 @@ class WorkflowService {
             let sentCount = 0;
             for (const recipientId of recipients) {
                 try {
-                    const user = await User.findById(recipientId).select('email firstName lastName').lean();
+                    const user = await User.findOne({ _id: recipientId, firmId }).select('email firstName lastName').lean();
 
                     if (!user) continue;
 
