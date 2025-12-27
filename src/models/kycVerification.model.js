@@ -16,6 +16,13 @@ const kycVerificationSchema = new mongoose.Schema({
     index: true
   },
 
+  firmId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Firm',
+    index: true,
+    required: false
+  },
+
   // Verification attempt details
   verificationId: {
     type: String,
@@ -212,6 +219,7 @@ const kycVerificationSchema = new mongoose.Schema({
 // Indexes for efficient querying
 kycVerificationSchema.index({ userId: 1, status: 1 });
 kycVerificationSchema.index({ userId: 1, createdAt: -1 });
+kycVerificationSchema.index({ firmId: 1, createdAt: -1 });
 kycVerificationSchema.index({ status: 1, createdAt: -1 });
 kycVerificationSchema.index({ verificationSource: 1, status: 1 });
 kycVerificationSchema.index({ 'review.required': 1, 'review.reviewedAt': 1 });

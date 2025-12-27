@@ -7,6 +7,12 @@ const budgetTemplateSchema = new mongoose.Schema({
         required: true,
         index: true
     },
+    firmId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Firm',
+        index: true,
+        required: false
+    },
     name: {
         type: String,
         required: true
@@ -46,6 +52,7 @@ const budgetTemplateSchema = new mongoose.Schema({
 // Indexes
 budgetTemplateSchema.index({ lawyerId: 1, isActive: 1 });
 budgetTemplateSchema.index({ lawyerId: 1, type: 1 });
+budgetTemplateSchema.index({ firmId: 1, lawyerId: 1 });
 
 // Pre-save hook to ensure only one default
 budgetTemplateSchema.pre('save', async function(next) {

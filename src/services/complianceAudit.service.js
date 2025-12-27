@@ -534,6 +534,9 @@ class ComplianceAuditService {
       return '';
     }
 
+    // SECURITY: Import sanitization function to prevent CSV injection
+    const { sanitizeForCSV } = require('../utils/securityUtils');
+
     const headers = [
       'Timestamp',
       'Action',
@@ -550,18 +553,18 @@ class ComplianceAuditService {
     ];
 
     const csvRows = logs.map(log => [
-      log.timestamp?.toISOString() || '',
-      log.action || '',
-      log.entityType || '',
-      log.entityId?.toString() || '',
-      log.userId?.toString() || '',
-      log.ipAddress || '',
-      log.sessionId || '',
-      log.sensitivityLevel || '',
-      (log.regulatoryTags || []).join('; '),
-      (log.changedFields || []).join('; '),
-      log.geoLocation ? `${log.geoLocation.city}, ${log.geoLocation.country}` : '',
-      log.checksum || ''
+      sanitizeForCSV(log.timestamp?.toISOString() || ''),
+      sanitizeForCSV(log.action || ''),
+      sanitizeForCSV(log.entityType || ''),
+      sanitizeForCSV(log.entityId?.toString() || ''),
+      sanitizeForCSV(log.userId?.toString() || ''),
+      sanitizeForCSV(log.ipAddress || ''),
+      sanitizeForCSV(log.sessionId || ''),
+      sanitizeForCSV(log.sensitivityLevel || ''),
+      sanitizeForCSV((log.regulatoryTags || []).join('; ')),
+      sanitizeForCSV((log.changedFields || []).join('; ')),
+      sanitizeForCSV(log.geoLocation ? `${log.geoLocation.city}, ${log.geoLocation.country}` : ''),
+      sanitizeForCSV(log.checksum || '')
     ]);
 
     const csv = [

@@ -9,8 +9,23 @@ const router = express.Router();
 const kycController = require('../controllers/kyc.controller');
 const authenticate = require('../middlewares/authenticate');
 const { requireAdmin, logAdminAction } = require('../middlewares/adminAuth.middleware');
+const { autoDetectWebhookAuth, preserveRawBody } = require('../middlewares/webhookAuth.middleware');
 
-// All KYC routes require authentication
+// ═══════════════════════════════════════════════════════════════
+// PUBLIC WEBHOOK ENDPOINT (no authentication, signature validation only)
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * @route   POST /api/kyc/webhook
+ * @desc    Handle verification callbacks from Yakeen/Wathq
+ * @access  Public (Webhook endpoint - validates signature via middleware)
+ * SECURITY: Webhook signature is verified by autoDetectWebhookAuth middleware
+ */
+router.post('/webhook', preserveRawBody, autoDetectWebhookAuth(), kycController.handleWebhook);
+
+// ═══════════════════════════════════════════════════════════════
+// AUTHENTICATED ROUTES (all routes below require authentication)
+// ═══════════════════════════════════════════════════════════════
 router.use(authenticate);
 
 // ═══════════════════════════════════════════════════════════════
@@ -54,13 +69,6 @@ router.get('/status', kycController.getStatus);
  * @access  Private (Authenticated users)
  */
 router.get('/history', kycController.getHistory);
-
-/**
- * @route   POST /api/kyc/webhook
- * @desc    Handle verification callbacks from Yakeen/Wathq
- * @access  Public (Webhook endpoint - should validate signature)
- */
-router.post('/webhook', kycController.handleWebhook);
 
 // ═══════════════════════════════════════════════════════════════
 // ADMIN KYC ENDPOINTS

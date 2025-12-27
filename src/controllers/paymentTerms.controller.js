@@ -83,8 +83,8 @@ const verifyFirmOwnership = async (termId, firmQuery) => {
     });
 
     if (!term) {
-        throw CustomException('Payment term not found or access denied', 404, {
-            messageAr: 'لم يتم العثور على شروط الدفع أو تم رفض الوصول'
+        throw CustomException('Payment term not found', 404, {
+            messageAr: 'لم يتم العثور على شروط الدفع'
         });
     }
 

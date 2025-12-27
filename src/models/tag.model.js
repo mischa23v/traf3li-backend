@@ -7,6 +7,12 @@ const tagSchema = new mongoose.Schema({
         required: true,
         index: true
     },
+    firmId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Firm',
+        index: true,
+        required: false
+    },
     name: {
         type: String,
         required: true,
@@ -43,6 +49,7 @@ const tagSchema = new mongoose.Schema({
 tagSchema.index({ lawyerId: 1, name: 1 }, { unique: true });
 tagSchema.index({ lawyerId: 1, entityType: 1 });
 tagSchema.index({ lawyerId: 1, usageCount: -1 });
+tagSchema.index({ firmId: 1, name: 1 });
 
 // Static method: Increment usage count
 tagSchema.statics.incrementUsage = async function(tagId) {

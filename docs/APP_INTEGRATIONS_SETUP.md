@@ -68,6 +68,7 @@ DOCUSIGN_ACCOUNT_ID=
 DOCUSIGN_REDIRECT_URI=https://api.traf3li.com/api/docusign/callback
 DOCUSIGN_ENVIRONMENT=developer
 DOCUSIGN_BASE_URL=https://demo.docusign.net/restapi
+DOCUSIGN_WEBHOOK_SECRET=
 
 # Finance (already configured)
 QUICKBOOKS_CLIENT_ID=
@@ -268,12 +269,21 @@ XERO_REDIRECT_URI=https://api.traf3li.com/api/integrations/xero/callback
 5. Set environment:
    - Development: `DOCUSIGN_ENVIRONMENT=developer`
    - Production: `DOCUSIGN_ENVIRONMENT=production`
+6. **Configure DocuSign Connect (Webhooks):**
+   - Go to "Settings" → "Connect" → "Add Configuration"
+   - Name: "Traf3li Webhooks"
+   - URL: `https://api.traf3li.com/api/docusign/webhook`
+   - Select events to monitor (envelope-sent, envelope-completed, etc.)
+   - Enable "Include HMAC Signature" under Security settings
+   - Generate and copy the HMAC secret → `DOCUSIGN_WEBHOOK_SECRET`
+   - This enables real-time notifications for signature events with cryptographic validation
 
 **Frontend Features:**
 - Send documents for e-signature
-- Track signature status
+- Track signature status in real-time (via webhooks)
 - Download signed documents
 - Use templates for common documents
+- Receive instant notifications when documents are signed
 
 ---
 

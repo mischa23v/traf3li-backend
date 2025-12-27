@@ -6,6 +6,12 @@ const jobSchema = new mongoose.Schema({
         ref: 'User',
         required: false
     },
+    firmId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Firm',
+        index: true,
+        required: false
+    },
     title: {
         type: String,
         required: false,
@@ -73,5 +79,6 @@ const jobSchema = new mongoose.Schema({
 jobSchema.index({ userID: 1, status: 1 });  // ✅ CHANGED from clientId
 jobSchema.index({ category: 1, status: 1 });
 jobSchema.index({ createdAt: -1 });
+jobSchema.index({ firmId: 1, createdAt: -1 });
 
 module.exports = mongoose.model('Job', jobSchema);

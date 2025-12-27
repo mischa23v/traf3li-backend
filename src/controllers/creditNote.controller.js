@@ -82,6 +82,18 @@ const getCreditNote = asyncHandler(async (req, res) => {
  * Get credit notes for specific invoice
  */
 const getCreditNotesForInvoice = asyncHandler(async (req, res) => {
+    // SECURITY: IDOR Protection - Verify invoice exists and belongs to user's firm
+    const invoice = await Invoice.findOne({
+        _id: req.params.invoiceId,
+        ...req.firmQuery
+    });
+
+    if (!invoice) {
+        throw CustomException('Invoice not found', 404, {
+            messageAr: 'لم يتم العثور على الفاتورة'
+        });
+    }
+
     const creditNotes = await CreditNote.find({
         invoiceId: req.params.invoiceId,
         ...req.firmQuery

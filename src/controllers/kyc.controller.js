@@ -180,60 +180,23 @@ exports.getHistory = async (req, res) => {
   }
 };
 
-/**
- * Verify webhook signature from Yakeen/Wathq
- * @param {Object} req - Express request object
- * @param {string} source - Webhook source ('yakeen' or 'wathq')
- * @returns {boolean} Whether signature is valid
- */
-const verifyWebhookSignature = (req, source) => {
-  const crypto = require('crypto');
-
-  const signature = req.headers['x-webhook-signature'] || req.headers['x-signature'];
-  if (!signature) {
-    logger.warn('Missing webhook signature header');
-    return false;
-  }
-
-  // Get the secret based on source
-  let secret;
-  if (source === 'yakeen') {
-    secret = process.env.YAKEEN_WEBHOOK_SECRET;
-  } else if (source === 'wathq') {
-    secret = process.env.WATHQ_WEBHOOK_SECRET;
-  } else {
-    logger.warn('Unknown webhook source', { source });
-    return false;
-  }
-
-  if (!secret) {
-    logger.error(`Webhook secret not configured for ${source}`);
-    return false;
-  }
-
-  // Compute expected signature (HMAC-SHA256)
-  const payload = JSON.stringify(req.body);
-  const expectedSignature = crypto
-    .createHmac('sha256', secret)
-    .update(payload)
-    .digest('hex');
-
-  // Constant-time comparison to prevent timing attacks
-  try {
-    return crypto.timingSafeEqual(
-      Buffer.from(signature, 'hex'),
-      Buffer.from(expectedSignature, 'hex')
-    );
-  } catch (error) {
-    logger.warn('Webhook signature comparison failed', { error: error.message });
-    return false;
-  }
-};
+// Webhook signature verification is now handled by centralized middleware
+// See: src/middlewares/webhookAuth.middleware.js
+// The handleWebhook endpoint should be protected by:
+// router.post('/webhook', createWebhookAuth('yakeen'), kycController.handleWebhook);
+// or use autoDetectWebhookAuth() for auto-detection
 
 /**
  * POST /api/kyc/webhook
  * Handle verification callbacks from external services
  * (Yakeen/Wathq webhook handler)
+ *
+ * SECURITY: This endpoint should be protected by the webhookAuth middleware
+ * in the routes file:
+ * router.post('/webhook', autoDetectWebhookAuth(), kycController.handleWebhook);
+ *
+ * The middleware will verify the webhook signature before this handler runs.
+ * If req.webhookVerified is true, the signature was valid.
  */
 exports.handleWebhook = async (req, res) => {
   try {
@@ -242,21 +205,20 @@ exports.handleWebhook = async (req, res) => {
 
     logger.info('KYC webhook received:', { source, userId, status });
 
+    // SECURITY: Verify webhook was authenticated by middleware
+    if (!req.webhookVerified) {
+      logger.warn('Webhook not verified by middleware', { source, userId });
+      return res.status(401).json({
+        success: false,
+        error: 'Webhook authentication required'
+      });
+    }
+
     // Validate source
     if (!source || !['yakeen', 'wathq'].includes(source)) {
       return res.status(400).json({
         success: false,
         error: 'Invalid or missing webhook source'
-      });
-    }
-
-    // Verify webhook signature
-    const isValid = verifyWebhookSignature(req, source);
-    if (!isValid) {
-      logger.warn('Invalid webhook signature', { source, userId });
-      return res.status(401).json({
-        success: false,
-        error: 'Invalid signature'
       });
     }
 

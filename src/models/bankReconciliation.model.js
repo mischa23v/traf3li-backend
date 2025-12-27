@@ -43,6 +43,12 @@ const bankReconciliationSchema = new mongoose.Schema({
         required: false,
         index: true
     },
+    firmId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Firm',
+        index: true,
+        required: false
+    },
     startDate: {
         type: Date,
         required: false
@@ -126,6 +132,7 @@ const bankReconciliationSchema = new mongoose.Schema({
 });
 
 // Indexes
+bankReconciliationSchema.index({ firmId: 1, accountId: 1 });
 bankReconciliationSchema.index({ lawyerId: 1, accountId: 1 });
 bankReconciliationSchema.index({ lawyerId: 1, status: 1 });
 bankReconciliationSchema.index({ accountId: 1, endDate: -1 });

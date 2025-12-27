@@ -1,6 +1,12 @@
 const mongoose = require('mongoose');
 
 const clientTrustBalanceSchema = new mongoose.Schema({
+    firmId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Firm',
+        required: true,
+        index: true
+    },
     lawyerId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
@@ -42,16 +48,22 @@ const clientTrustBalanceSchema = new mongoose.Schema({
 });
 
 // Indexes
-clientTrustBalanceSchema.index({ lawyerId: 1, accountId: 1 });
-clientTrustBalanceSchema.index({ lawyerId: 1, clientId: 1 });
-clientTrustBalanceSchema.index({ accountId: 1, clientId: 1 }, { unique: true });
+clientTrustBalanceSchema.index({ firmId: 1, lawyerId: 1, accountId: 1 });
+clientTrustBalanceSchema.index({ firmId: 1, clientId: 1 });
+clientTrustBalanceSchema.index({ firmId: 1, accountId: 1, clientId: 1 }, { unique: true });
 
-// Static method: Get or create balance
-clientTrustBalanceSchema.statics.getOrCreate = async function(lawyerId, accountId, clientId, caseId = null) {
-    let balance = await this.findOne({ accountId, clientId });
+// Static method: Get or create balance (requires firmId for security)
+clientTrustBalanceSchema.statics.getOrCreate = async function(firmId, lawyerId, accountId, clientId, caseId = null) {
+    // SECURITY: firmId is required
+    if (!firmId) {
+        throw new Error('firmId is required for client trust balance');
+    }
+
+    let balance = await this.findOne({ firmId, accountId, clientId });
 
     if (!balance) {
         balance = await this.create({
+            firmId,
             lawyerId,
             accountId,
             clientId,
@@ -62,8 +74,13 @@ clientTrustBalanceSchema.statics.getOrCreate = async function(lawyerId, accountI
     return balance;
 };
 
-// Static method: Update balance
-clientTrustBalanceSchema.statics.updateBalance = async function(accountId, clientId, amount, type, transactionType) {
+// Static method: Update balance (requires firmId for security)
+clientTrustBalanceSchema.statics.updateBalance = async function(firmId, accountId, clientId, amount, type, transactionType) {
+    // SECURITY: firmId is required
+    if (!firmId) {
+        throw new Error('firmId is required for client trust balance update');
+    }
+
     const update = type === 'add'
         ? {
             $inc: { balance: amount, availableBalance: amount },
@@ -78,8 +95,15 @@ clientTrustBalanceSchema.statics.updateBalance = async function(accountId, clien
             lastTransactionAmount: -amount
         };
 
+    // Build filter with minimum balance check for withdrawals
+    const filter = { firmId, accountId, clientId };
+    if (type !== 'add') {
+        filter.balance = { $gte: amount };
+        filter.availableBalance = { $gte: amount };
+    }
+
     return await this.findOneAndUpdate(
-        { accountId, clientId },
+        filter,
         update,
         { new: true }
     );

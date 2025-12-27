@@ -181,6 +181,16 @@ async function exportToCSV(data, config = {}) {
       withBOM = true // For Excel compatibility
     } = config;
 
+    // SECURITY: Sanitize data to prevent CSV injection attacks
+    const { sanitizeForCSV } = require('../utils/securityUtils');
+    const sanitizedData = data.map(row => {
+      const sanitizedRow = {};
+      for (const [key, value] of Object.entries(row)) {
+        sanitizedRow[key] = sanitizeForCSV(value);
+      }
+      return sanitizedRow;
+    });
+
     let fields;
     if (columns.length > 0) {
       fields = columns.map(col => ({
@@ -188,10 +198,10 @@ async function exportToCSV(data, config = {}) {
         value: col.field
       }));
     } else {
-      fields = Object.keys(data[0] || {});
+      fields = Object.keys(sanitizedData[0] || {});
     }
 
-    const csv = parse(data, { fields, delimiter });
+    const csv = parse(sanitizedData, { fields, delimiter });
 
     // Add BOM for proper UTF-8 encoding in Excel
     const buffer = Buffer.from(withBOM ? '\uFEFF' + csv : csv, 'utf-8');

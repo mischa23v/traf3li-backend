@@ -776,7 +776,7 @@ const changeRole = asyncHandler(async (req, res) => {
 
     // Update User's firmRole if linked
     if (member.userId) {
-        await User.findByIdAndUpdate(member.userId, { firmRole: role });
+        await User.findOneAndUpdate({ _id: member.userId, ...req.firmQuery }, { firmRole: role });
     }
 
     // Log activity
@@ -843,7 +843,7 @@ const suspendMember = asyncHandler(async (req, res) => {
 
     // Update User status if linked
     if (member.userId) {
-        await User.findByIdAndUpdate(member.userId, { firmStatus: 'suspended' });
+        await User.findOneAndUpdate({ _id: member.userId, ...req.firmQuery }, { firmStatus: 'suspended' });
     }
 
     // Log activity
@@ -912,7 +912,7 @@ const activateMember = asyncHandler(async (req, res) => {
 
     // Update User status if linked
     if (member.userId) {
-        await User.findByIdAndUpdate(member.userId, { firmStatus: 'active' });
+        await User.findOneAndUpdate({ _id: member.userId, ...req.firmQuery }, { firmStatus: 'active' });
     }
 
     // Log activity
@@ -980,7 +980,7 @@ const processDeparture = asyncHandler(async (req, res) => {
 
     // Update User firmRole and status if linked
     if (member.userId) {
-        await User.findByIdAndUpdate(member.userId, {
+        await User.findOneAndUpdate({ _id: member.userId, ...req.firmQuery }, {
             firmRole: 'departed',
             firmStatus: 'departed',
             departedAt: new Date()  // Set for data retention tracking
@@ -989,7 +989,7 @@ const processDeparture = asyncHandler(async (req, res) => {
 
     // Update Firm members array if exists
     try {
-        const firm = await Firm.findById(firmId);
+        const firm = await Firm.findOne({ _id: firmId, ...req.firmQuery });
         if (firm && member.userId) {
             await firm.processDeparture(member.userId, userId, reason, notes);
         }
@@ -1054,12 +1054,12 @@ const removeTeamMember = asyncHandler(async (req, res) => {
         role: member.role
     };
 
-    await Staff.findByIdAndDelete(member._id);
+    await Staff.findOneAndDelete({ _id: member._id, ...req.firmQuery });
 
     // Remove from Firm members if linked
     if (member.userId) {
         try {
-            const firm = await Firm.findById(firmId);
+            const firm = await Firm.findOne({ _id: firmId, ...req.firmQuery });
             if (firm) {
                 await firm.removeMember(member.userId);
             }

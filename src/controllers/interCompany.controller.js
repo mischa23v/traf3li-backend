@@ -216,13 +216,13 @@ exports.createTransaction = asyncHandler(async (req, res) => {
     }
 
     // Verify source firm exists and user has access
-    const sourceFirm = await Firm.findById(firmId);
+    const sourceFirm = await Firm.findOne({ _id: firmId, ...req.firmQuery });
     if (!sourceFirm) {
         throw CustomException('Source firm not found', 404);
     }
 
     // Verify target firm exists
-    const targetFirm = await Firm.findById(sanitizedTargetFirmId);
+    const targetFirm = await Firm.findOne({ _id: sanitizedTargetFirmId, ...req.firmQuery });
     if (!targetFirm) {
         throw CustomException('Target firm not found', 404);
     }
@@ -259,7 +259,10 @@ exports.createTransaction = asyncHandler(async (req, res) => {
         await session.commitTransaction();
 
         // Populate references
-        const populatedTransaction = await InterCompanyTransaction.findById(transaction[0]._id)
+        const populatedTransaction = await InterCompanyTransaction.findOne({
+            _id: transaction[0]._id,
+            sourceFirmId: firmId
+        })
             .populate('sourceFirmId', 'name nameArabic')
             .populate('targetFirmId', 'name nameArabic')
             .populate('createdBy', 'firstName lastName email');
@@ -289,7 +292,14 @@ exports.getTransaction = asyncHandler(async (req, res) => {
         throw CustomException('Firm ID is required', 400);
     }
 
-    const transaction = await InterCompanyTransaction.findById(transactionId)
+    // IDOR Protection - only fetch if firm is source or target
+    const transaction = await InterCompanyTransaction.findOne({
+        _id: transactionId,
+        $or: [
+            { sourceFirmId: firmId },
+            { targetFirmId: firmId }
+        ]
+    })
         .populate('sourceFirmId', 'name nameArabic')
         .populate('targetFirmId', 'name nameArabic')
         .populate('createdBy', 'firstName lastName email')
@@ -298,15 +308,6 @@ exports.getTransaction = asyncHandler(async (req, res) => {
 
     if (!transaction) {
         throw CustomException('Transaction not found', 404);
-    }
-
-    // Verify user has access (must be source or target firm)
-    const hasAccess =
-        transaction.sourceFirmId._id.toString() === firmId.toString() ||
-        transaction.targetFirmId._id.toString() === firmId.toString();
-
-    if (!hasAccess) {
-        throw CustomException('You do not have access to this transaction', 403);
     }
 
     // Add direction flag
@@ -358,15 +359,14 @@ exports.updateTransaction = asyncHandler(async (req, res) => {
         throw CustomException('Firm ID is required', 400);
     }
 
-    const transaction = await InterCompanyTransaction.findById(transactionId);
+    // IDOR Protection - Only source firm can update
+    const transaction = await InterCompanyTransaction.findOne({
+        _id: transactionId,
+        sourceFirmId: firmId
+    });
 
     if (!transaction) {
         throw CustomException('Transaction not found', 404);
-    }
-
-    // IDOR Protection - Only source firm can update
-    if (transaction.sourceFirmId.toString() !== firmId.toString()) {
-        throw CustomException('Only the source firm can update this transaction', 403);
     }
 
     // Can only update draft or pending transactions
@@ -427,7 +427,10 @@ exports.updateTransaction = asyncHandler(async (req, res) => {
     await transaction.save();
 
     // Populate and return
-    const updatedTransaction = await InterCompanyTransaction.findById(transactionId)
+    const updatedTransaction = await InterCompanyTransaction.findOne({
+        _id: transactionId,
+        sourceFirmId: firmId
+    })
         .populate('sourceFirmId', 'name nameArabic')
         .populate('targetFirmId', 'name nameArabic')
         .populate('createdBy', 'firstName lastName email');
@@ -452,19 +455,17 @@ exports.confirmTransaction = asyncHandler(async (req, res) => {
         throw CustomException('Firm ID is required', 400);
     }
 
-    const transaction = await InterCompanyTransaction.findById(transactionId);
+    // IDOR Protection - Either firm can confirm
+    const transaction = await InterCompanyTransaction.findOne({
+        _id: transactionId,
+        $or: [
+            { sourceFirmId: firmId },
+            { targetFirmId: firmId }
+        ]
+    });
 
     if (!transaction) {
         throw CustomException('Transaction not found', 404);
-    }
-
-    // IDOR Protection - Either firm can confirm
-    const hasAccess =
-        transaction.sourceFirmId.toString() === firmId.toString() ||
-        transaction.targetFirmId.toString() === firmId.toString();
-
-    if (!hasAccess) {
-        throw CustomException('You do not have access to this transaction', 403);
     }
 
     // Can only confirm draft or pending transactions
@@ -496,7 +497,13 @@ exports.confirmTransaction = asyncHandler(async (req, res) => {
 
         // TODO: Send notification to counterpart firm
 
-        const confirmedTransaction = await InterCompanyTransaction.findById(transactionId)
+        const confirmedTransaction = await InterCompanyTransaction.findOne({
+            _id: transactionId,
+            $or: [
+                { sourceFirmId: firmId },
+                { targetFirmId: firmId }
+            ]
+        })
             .populate('sourceFirmId', 'name nameArabic')
             .populate('targetFirmId', 'name nameArabic')
             .populate('confirmedBy', 'firstName lastName email');
@@ -531,15 +538,14 @@ exports.cancelTransaction = asyncHandler(async (req, res) => {
         throw CustomException('Firm ID is required', 400);
     }
 
-    const transaction = await InterCompanyTransaction.findById(transactionId);
+    // IDOR Protection - Only source firm can cancel
+    const transaction = await InterCompanyTransaction.findOne({
+        _id: transactionId,
+        sourceFirmId: firmId
+    });
 
     if (!transaction) {
         throw CustomException('Transaction not found', 404);
-    }
-
-    // IDOR Protection - Only source firm can cancel
-    if (transaction.sourceFirmId.toString() !== firmId.toString()) {
-        throw CustomException('Only the source firm can cancel this transaction', 403);
     }
 
     // Cannot cancel reconciled transactions
@@ -575,7 +581,10 @@ exports.cancelTransaction = asyncHandler(async (req, res) => {
 
         await session.commitTransaction();
 
-        const cancelledTransaction = await InterCompanyTransaction.findById(transactionId)
+        const cancelledTransaction = await InterCompanyTransaction.findOne({
+            _id: transactionId,
+            sourceFirmId: firmId
+        })
             .populate('sourceFirmId', 'name nameArabic')
             .populate('targetFirmId', 'name nameArabic');
 
@@ -688,7 +697,7 @@ exports.getBalanceWithFirm = asyncHandler(async (req, res) => {
     }
 
     // Verify counterpart firm exists
-    const counterpartFirm = await Firm.findById(counterpartFirmId).select('name nameArabic');
+    const counterpartFirm = await Firm.findOne({ _id: counterpartFirmId, ...req.firmQuery }).select('name nameArabic');
     if (!counterpartFirm) {
         throw CustomException('Counterpart firm not found', 404);
     }
@@ -886,10 +895,14 @@ exports.reconcileTransactions = asyncHandler(async (req, res) => {
         sanitizedCounterpartFirmId = sanitizeObjectId(counterpartFirmId, 'Counterpart firm ID');
     }
 
-    // Get transactions
+    // Get transactions - IDOR Protection: only fetch transactions involving current firm
     const transactions = await InterCompanyTransaction.find({
         _id: { $in: sanitizedTransactionIds },
-        status: 'confirmed'
+        status: 'confirmed',
+        $or: [
+            { sourceFirmId: firmId },
+            { targetFirmId: firmId }
+        ]
     });
 
     if (transactions.length === 0) {
@@ -907,7 +920,7 @@ exports.reconcileTransactions = asyncHandler(async (req, res) => {
     );
 
     if (!allValid) {
-        throw CustomException('Some transactions do not belong to your firm', 403);
+        throw CustomException('Some transactions were not found or are not accessible', 404);
     }
 
     // Use MongoDB transaction for reconciliation

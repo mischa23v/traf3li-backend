@@ -49,6 +49,12 @@ const savedReportSchema = new mongoose.Schema({
         required: true,
         index: true
     },
+    firmId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Firm',
+        index: true,
+        required: false
+    },
     name: {
         type: String,
         required: true
@@ -89,6 +95,7 @@ const savedReportSchema = new mongoose.Schema({
 });
 
 // Indexes
+savedReportSchema.index({ firmId: 1, lawyerId: 1 });
 savedReportSchema.index({ lawyerId: 1, type: 1 });
 savedReportSchema.index({ lawyerId: 1, isScheduled: 1 });
 

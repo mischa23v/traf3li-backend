@@ -154,12 +154,9 @@ const getTaskHierarchy = asyncHandler(async (req, res) => {
   }
 
   // IDOR Protection: Verify task belongs to user's firm
-  const task = await Task.findById(sanitizedTaskId);
+  const task = await Task.findOne({ _id: sanitizedTaskId, firmId });
   if (!task) {
-    throw CustomException('Task not found', 404);
-  }
-  if (task.firmId && task.firmId.toString() !== firmId) {
-    throw CustomException('Access denied: Task does not belong to your firm', 403);
+    throw CustomException('Resource not found', 404);
   }
 
   const hierarchy = await ganttService.getTaskHierarchy(sanitizedTaskId);
@@ -511,12 +508,9 @@ const updateTaskDates = asyncHandler(async (req, res) => {
   }
 
   // IDOR Protection: Verify task belongs to user's firm
-  const task = await Task.findById(sanitizedTaskId);
+  const task = await Task.findOne({ _id: sanitizedTaskId, firmId });
   if (!task) {
-    throw CustomException('Task not found', 404);
-  }
-  if (task.firmId && task.firmId.toString() !== firmId) {
-    throw CustomException('Access denied: Task does not belong to your firm', 403);
+    throw CustomException('Resource not found', 404);
   }
 
   const updatedTask = await ganttService.updateTaskDates(sanitizedTaskId, startDate, endDate);
@@ -571,12 +565,9 @@ const updateTaskDuration = asyncHandler(async (req, res) => {
   }
 
   // IDOR Protection: Verify task belongs to user's firm
-  const task = await Task.findById(sanitizedTaskId);
+  const task = await Task.findOne({ _id: sanitizedTaskId, firmId });
   if (!task) {
-    throw CustomException('Task not found', 404);
-  }
-  if (task.firmId && task.firmId.toString() !== firmId) {
-    throw CustomException('Access denied: Task does not belong to your firm', 403);
+    throw CustomException('Resource not found', 404);
   }
 
   const updatedTask = await ganttService.updateTaskDuration(sanitizedTaskId, durationNum);
@@ -629,12 +620,9 @@ const updateTaskProgress = asyncHandler(async (req, res) => {
   }
 
   // IDOR Protection: Verify task belongs to user's firm
-  const task = await Task.findById(sanitizedTaskId);
+  const task = await Task.findOne({ _id: sanitizedTaskId, firmId });
   if (!task) {
-    throw CustomException('Task not found', 404);
-  }
-  if (task.firmId && task.firmId.toString() !== firmId) {
-    throw CustomException('Access denied: Task does not belong to your firm', 403);
+    throw CustomException('Resource not found', 404);
   }
 
   const updatedTask = await ganttService.updateTaskProgress(sanitizedTaskId, progressNum);
@@ -685,22 +673,16 @@ const updateTaskParent = asyncHandler(async (req, res) => {
   }
 
   // IDOR Protection: Verify task belongs to user's firm
-  const task = await Task.findById(sanitizedTaskId);
+  const task = await Task.findOne({ _id: sanitizedTaskId, firmId });
   if (!task) {
-    throw CustomException('Task not found', 404);
-  }
-  if (task.firmId && task.firmId.toString() !== firmId) {
-    throw CustomException('Access denied: Task does not belong to your firm', 403);
+    throw CustomException('Resource not found', 404);
   }
 
   // If parentId is provided, verify it belongs to the same firm
   if (parentId) {
-    const parentTask = await Task.findById(parentId);
+    const parentTask = await Task.findOne({ _id: parentId, firmId });
     if (!parentTask) {
-      throw CustomException('Parent task not found', 404);
-    }
-    if (parentTask.firmId && parentTask.firmId.toString() !== firmId) {
-      throw CustomException('Access denied: Parent task does not belong to your firm', 403);
+      throw CustomException('Resource not found', 404);
     }
     // Verify both tasks belong to the same case
     if (task.caseId && parentTask.caseId && task.caseId.toString() !== parentTask.caseId.toString()) {
@@ -756,15 +738,10 @@ const reorderTasks = asyncHandler(async (req, res) => {
   }
 
   // IDOR Protection: Verify all tasks belong to user's firm
-  const tasks = await Task.find({ _id: { $in: sanitizedTaskIds } });
+  const tasks = await Task.find({ _id: { $in: sanitizedTaskIds }, firmId });
 
   if (tasks.length !== sanitizedTaskIds.length) {
-    throw CustomException('One or more tasks not found', 404);
-  }
-
-  const invalidTasks = tasks.filter(task => task.firmId && task.firmId.toString() !== firmId);
-  if (invalidTasks.length > 0) {
-    throw CustomException('Access denied: One or more tasks do not belong to your firm', 403);
+    throw CustomException('Resource not found', 404);
   }
 
   const reorderedTasks = await ganttService.reorderTasks(sanitizedTaskIds);
@@ -820,20 +797,14 @@ const createLink = asyncHandler(async (req, res) => {
   }
 
   // IDOR Protection: Verify both tasks belong to user's firm
-  const sourceTask = await Task.findById(source);
+  const sourceTask = await Task.findOne({ _id: source, firmId });
   if (!sourceTask) {
-    throw CustomException('Source task not found', 404);
-  }
-  if (sourceTask.firmId && sourceTask.firmId.toString() !== firmId) {
-    throw CustomException('Access denied: Source task does not belong to your firm', 403);
+    throw CustomException('Resource not found', 404);
   }
 
-  const targetTask = await Task.findById(target);
+  const targetTask = await Task.findOne({ _id: target, firmId });
   if (!targetTask) {
-    throw CustomException('Target task not found', 404);
-  }
-  if (targetTask.firmId && targetTask.firmId.toString() !== firmId) {
-    throw CustomException('Access denied: Target task does not belong to your firm', 403);
+    throw CustomException('Resource not found', 404);
   }
 
   // Verify both tasks belong to the same case
@@ -883,20 +854,14 @@ const deleteLink = asyncHandler(async (req, res) => {
   }
 
   // IDOR Protection: Verify both tasks belong to user's firm
-  const sourceTask = await Task.findById(source);
+  const sourceTask = await Task.findOne({ _id: source, firmId });
   if (!sourceTask) {
-    throw CustomException('Source task not found', 404);
-  }
-  if (sourceTask.firmId && sourceTask.firmId.toString() !== firmId) {
-    throw CustomException('Access denied: Source task does not belong to your firm', 403);
+    throw CustomException('Resource not found', 404);
   }
 
-  const targetTask = await Task.findById(target);
+  const targetTask = await Task.findOne({ _id: target, firmId });
   if (!targetTask) {
-    throw CustomException('Target task not found', 404);
-  }
-  if (targetTask.firmId && targetTask.firmId.toString() !== firmId) {
-    throw CustomException('Access denied: Target task does not belong to your firm', 403);
+    throw CustomException('Resource not found', 404);
   }
 
   const result = await ganttService.removeDependency(source, target);
@@ -933,12 +898,9 @@ const getDependencyChain = asyncHandler(async (req, res) => {
   }
 
   // IDOR Protection: Verify task belongs to user's firm
-  const task = await Task.findById(sanitizedTaskId);
+  const task = await Task.findOne({ _id: sanitizedTaskId, firmId });
   if (!task) {
-    throw CustomException('Task not found', 404);
-  }
-  if (task.firmId && task.firmId.toString() !== firmId) {
-    throw CustomException('Access denied: Task does not belong to your firm', 403);
+    throw CustomException('Resource not found', 404);
   }
 
   const chain = await ganttService.getDependencyChain(sanitizedTaskId);

@@ -11,6 +11,12 @@ const answerSchema = new mongoose.Schema({
         ref: 'User',
         required: true
     },
+    firmId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Firm',
+        index: true,
+        required: false
+    },
     content: {
         type: String,
         required: true
@@ -38,5 +44,6 @@ const answerSchema = new mongoose.Schema({
 });
 
 answerSchema.index({ questionId: 1, createdAt: -1 });
+answerSchema.index({ firmId: 1, lawyerId: 1 });
 
 module.exports = mongoose.model('Answer', answerSchema);

@@ -7,6 +7,12 @@ const scoreSchema = new mongoose.Schema({
         required: true,
         unique: true
     },
+    firmId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Firm',
+        index: true,
+        required: false
+    },
     clientRating: {
         type: Number,
         default: 0,
@@ -65,5 +71,6 @@ const scoreSchema = new mongoose.Schema({
 });
 
 scoreSchema.index({ overallScore: -1 });
+scoreSchema.index({ firmId: 1, overallScore: -1 });
 
 module.exports = mongoose.model('Score', scoreSchema);

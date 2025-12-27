@@ -317,7 +317,7 @@ class AutomationEngine {
 
       // Update success stats
       const executionTime = Date.now() - startTime;
-      await this.updateStats(automation._id, true, executionTime);
+      await this.updateStats(automation._id, automation.firmId, true, executionTime);
 
       // Log to audit
       await auditLogService.log(
@@ -350,7 +350,7 @@ class AutomationEngine {
 
       // Update failure stats
       const executionTime = Date.now() - startTime;
-      await this.updateStats(automation._id, false, executionTime, error.message);
+      await this.updateStats(automation._id, automation.firmId, false, executionTime, error.message);
 
       // Log failure to audit
       await auditLogService.log(
@@ -453,8 +453,12 @@ class AutomationEngine {
       updates[field] = this.interpolate(String(value), { record, context });
     }
 
-    // Update the record
-    await Model.findByIdAndUpdate(record._id, updates, { new: true });
+    // Update the record with firmId isolation
+    await Model.findOneAndUpdate(
+      { _id: record._id, firmId: context.firmId },
+      updates,
+      { new: true }
+    );
 
     return { updated: true, fields: Object.keys(updates) };
   }
@@ -594,8 +598,12 @@ class AutomationEngine {
     // Interpolate value
     const value = this.interpolate(String(config.value), { record, context });
 
-    // Update the field
-    await Model.findByIdAndUpdate(record._id, { [config.field]: value }, { new: true });
+    // Update the field with firmId isolation
+    await Model.findOneAndUpdate(
+      { _id: record._id, firmId: context.firmId },
+      { [config.field]: value },
+      { new: true }
+    );
 
     return { updated: true, field: config.field, value };
   }
@@ -668,8 +676,12 @@ class AutomationEngine {
     // Get the model
     const Model = mongoose.model(context.entityType || record.constructor.modelName);
 
-    // Update assignedTo field
-    await Model.findByIdAndUpdate(record._id, { assignedTo: config.userId }, { new: true });
+    // Update assignedTo field with firmId isolation
+    await Model.findOneAndUpdate(
+      { _id: record._id, firmId: context.firmId },
+      { assignedTo: config.userId },
+      { new: true }
+    );
 
     return { assigned: true, userId: config.userId };
   }
@@ -897,14 +909,15 @@ class AutomationEngine {
   /**
    * Update automation statistics
    * @param {String} automationId - Automation ID
+   * @param {String} firmId - Firm ID
    * @param {Boolean} success - Whether execution was successful
    * @param {Number} executionTime - Execution time in milliseconds
    * @param {String} error - Error message if failed
    * @returns {Promise<void>}
    */
-  async updateStats(automationId, success, executionTime, error = null) {
+  async updateStats(automationId, firmId, success, executionTime, error = null) {
     try {
-      const automation = await Automation.findById(automationId);
+      const automation = await Automation.findOne({ _id: automationId, firmId });
       if (!automation) {
         logger.warn(`Automation ${automationId} not found for stats update`);
         return;

@@ -14,9 +14,8 @@ const logger = require('../utils/logger');
 const getFiscalPeriods = async (req, res) => {
     try {
         const { year, status } = req.query;
-        const lawyerId = req.user._id;
 
-        const query = { lawyerId };
+        const query = { ...req.firmQuery };
         if (year) query.fiscalYear = parseInt(year);
         if (status) query.status = status;
 
@@ -44,7 +43,7 @@ const getFiscalPeriod = async (req, res) => {
         // IDOR protection: verify ownership
         const period = await FiscalPeriod.findOne({
             _id: periodId,
-            lawyerId: req.user._id
+            ...req.firmQuery
         })
             .populate('closingEntry.journalEntryId')
             .populate('closingEntry.closedBy', 'name')
@@ -69,7 +68,6 @@ const createFiscalYear = async (req, res) => {
         // Mass assignment protection
         const allowedFields = pickAllowedFields(req.body, ['fiscalYear', 'startMonth']);
         const { fiscalYear, startMonth } = allowedFields;
-        const lawyerId = req.user._id;
 
         // Input validation
         if (!fiscalYear) {
@@ -97,7 +95,7 @@ const createFiscalYear = async (req, res) => {
 
         // Check if fiscal year already exists
         const existing = await FiscalPeriod.findOne({
-            lawyerId,
+            ...req.firmQuery,
             fiscalYear: yearNum
         });
 
@@ -109,7 +107,7 @@ const createFiscalYear = async (req, res) => {
         }
 
         const periods = await FiscalPeriod.createFiscalYear(
-            lawyerId,
+            req.user._id,
             yearNum,
             req.user._id,
             monthNum
@@ -131,7 +129,14 @@ const createFiscalYear = async (req, res) => {
  */
 const getCurrentPeriod = async (req, res) => {
     try {
-        const period = await FiscalPeriod.getCurrentPeriod(req.user._id);
+        const date = new Date();
+        const period = await FiscalPeriod.findOne({
+            ...req.firmQuery,
+            startDate: { $lte: date },
+            endDate: { $gte: date },
+            periodType: { $ne: 'annual' },
+            status: 'open'
+        });
 
         if (!period) {
             return res.status(404).json({
@@ -161,7 +166,7 @@ const openPeriod = async (req, res) => {
         // IDOR protection: verify ownership
         const period = await FiscalPeriod.findOne({
             _id: periodId,
-            lawyerId: req.user._id
+            ...req.firmQuery
         });
 
         if (!period) {
@@ -170,7 +175,7 @@ const openPeriod = async (req, res) => {
 
         // Prevent unauthorized modifications on locked periods
         if (period.isLocked) {
-            return res.status(403).json({
+            return res.status(400).json({
                 success: false,
                 message: 'Cannot open a locked period'
             });
@@ -203,7 +208,7 @@ const closePeriod = async (req, res) => {
             // IDOR protection: verify ownership
             const period = await FiscalPeriod.findOne({
                 _id: periodId,
-                lawyerId: req.user._id
+                ...req.firmQuery
             }).session(session);
 
             if (!period) {
@@ -214,7 +219,7 @@ const closePeriod = async (req, res) => {
             // Prevent unauthorized modifications on locked periods
             if (period.isLocked) {
                 await session.abortTransaction();
-                return res.status(403).json({
+                return res.status(400).json({
                     success: false,
                     message: 'Cannot close a locked period'
                 });
@@ -251,7 +256,7 @@ const reopenPeriod = async (req, res) => {
         // IDOR protection: verify ownership
         const period = await FiscalPeriod.findOne({
             _id: periodId,
-            lawyerId: req.user._id
+            ...req.firmQuery
         });
 
         if (!period) {
@@ -260,7 +265,7 @@ const reopenPeriod = async (req, res) => {
 
         // Prevent unauthorized modifications on locked periods
         if (period.isLocked) {
-            return res.status(403).json({
+            return res.status(400).json({
                 success: false,
                 message: 'Cannot reopen a locked period'
             });
@@ -293,7 +298,7 @@ const lockPeriod = async (req, res) => {
         // IDOR protection: verify ownership
         const period = await FiscalPeriod.findOne({
             _id: periodId,
-            lawyerId: req.user._id
+            ...req.firmQuery
         });
 
         if (!period) {
@@ -331,7 +336,7 @@ const calculateBalances = async (req, res) => {
         // IDOR protection: verify ownership
         const period = await FiscalPeriod.findOne({
             _id: periodId,
-            lawyerId: req.user._id
+            ...req.firmQuery
         });
 
         if (!period) {
@@ -379,7 +384,7 @@ const yearEndClosing = async (req, res) => {
             // IDOR protection: verify ownership
             const period = await FiscalPeriod.findOne({
                 _id: periodId,
-                lawyerId: req.user._id
+                ...req.firmQuery
             }).session(session);
 
             if (!period) {
@@ -390,7 +395,7 @@ const yearEndClosing = async (req, res) => {
             // Prevent unauthorized modifications on locked periods
             if (period.isLocked) {
                 await session.abortTransaction();
-                return res.status(403).json({
+                return res.status(400).json({
                     success: false,
                     message: 'Cannot perform year-end closing on a locked period'
                 });
@@ -455,8 +460,14 @@ const canPostToDate = async (req, res) => {
             });
         }
 
-        const canPost = await FiscalPeriod.canPostToDate(req.user._id, parsedDate);
-        const period = await FiscalPeriod.getPeriodForDate(req.user._id, parsedDate);
+        const period = await FiscalPeriod.findOne({
+            ...req.firmQuery,
+            startDate: { $lte: parsedDate },
+            endDate: { $gte: parsedDate },
+            periodType: { $ne: 'annual' }
+        });
+
+        const canPost = period ? period.status === 'open' : true;
 
         res.json({
             success: true,
@@ -480,10 +491,19 @@ const canPostToDate = async (req, res) => {
  */
 const getFiscalYearsSummary = async (req, res) => {
     try {
-        const lawyerId = req.user._id;
+        // Build match query based on firmQuery
+        const matchQuery = { periodType: 'annual' };
+
+        // Convert firmQuery fields to ObjectId for aggregation
+        if (req.firmQuery.lawyerId) {
+            matchQuery.lawyerId = new mongoose.Types.ObjectId(req.firmQuery.lawyerId);
+        }
+        if (req.firmQuery.firmId) {
+            matchQuery.firmId = new mongoose.Types.ObjectId(req.firmQuery.firmId);
+        }
 
         const years = await FiscalPeriod.aggregate([
-            { $match: { lawyerId: new mongoose.Types.ObjectId(lawyerId), periodType: 'annual' } },
+            { $match: matchQuery },
             {
                 $project: {
                     fiscalYear: 1,

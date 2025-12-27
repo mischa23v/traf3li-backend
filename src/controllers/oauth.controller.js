@@ -1,7 +1,7 @@
 const oauthService = require('../services/oauth.service');
 const { CustomException } = require('../utils');
 const logger = require('../utils/contextLogger');
-const { getCookieConfig } = require('./auth.controller');
+const { getCookieConfig } = require('../utils/cookieConfig');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 const authWebhookService = require('../services/authWebhook.service');
 

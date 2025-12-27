@@ -25,6 +25,7 @@
  */
 
 const logger = require('../utils/logger');
+const { verifySocketResourceAccess } = require('../middlewares/socketAuth.middleware');
 
 class TimelineSocketHandler {
   constructor(io) {
@@ -39,10 +40,17 @@ class TimelineSocketHandler {
 
   /**
    * Initialize socket event listeners
+   * NOTE: Authentication is handled by socketAuthMiddleware at io.use() level
+   * All connected sockets are already authenticated with userId and firmId
    */
   initialize() {
     this.io.on('connection', (socket) => {
-      logger.debug('Socket connected for timeline updates:', socket.id);
+      // SECURITY: Socket is already authenticated by socketAuthMiddleware
+      logger.debug('Authenticated socket connected for timeline updates', {
+        socketId: socket.id,
+        userId: socket.userId,
+        firmId: socket.firmId
+      });
 
       // Subscribe to entity timeline
       socket.on('timeline:subscribe', (data) => this.onSubscribe(socket, data));
@@ -59,16 +67,65 @@ class TimelineSocketHandler {
 
   /**
    * When socket subscribes to an entity timeline
+   * SECURITY: Verifies user has access to entity before allowing subscription
    * @param {Object} socket - Socket.io socket instance
-   * @param {Object} data - { entityType, entityId, userId }
+   * @param {Object} data - { entityType, entityId }
    */
-  onSubscribe(socket, { entityType, entityId, userId }) {
+  async onSubscribe(socket, { entityType, entityId }) {
     if (!entityType || !entityId) {
       logger.warn('Invalid timeline:subscribe data received', { entityType, entityId });
+      socket.emit('timeline:error', { message: 'Invalid subscription data' });
       return;
     }
 
     try {
+      // SECURITY: Verify socket is authenticated
+      if (!socket.userId || !socket.authenticated) {
+        logger.warn('Unauthenticated timeline subscription attempt', {
+          socketId: socket.id,
+          entityType,
+          entityId
+        });
+        socket.emit('timeline:error', { message: 'Authentication required' });
+        return;
+      }
+
+      // SECURITY: Map entity type to Mongoose model name
+      const modelMap = {
+        'client': 'Client',
+        'contact': 'Contact',
+        'lead': 'Lead',
+        'case': 'Case',
+        'task': 'Task',
+        'invoice': 'Invoice',
+        'deal': 'Lead', // Deals are stored as Leads
+        'organization': 'Organization'
+      };
+
+      const modelName = modelMap[entityType.toLowerCase()];
+      if (!modelName) {
+        logger.warn('Invalid entity type for timeline subscription', {
+          entityType,
+          socketId: socket.id
+        });
+        socket.emit('timeline:error', { message: 'Invalid entity type' });
+        return;
+      }
+
+      // SECURITY: Verify user has access to this entity
+      const entity = await verifySocketResourceAccess(socket, modelName, entityId);
+      if (!entity) {
+        logger.warn('Timeline subscription denied - no access to entity', {
+          socketId: socket.id,
+          userId: socket.userId,
+          firmId: socket.firmId,
+          entityType,
+          entityId
+        });
+        socket.emit('timeline:error', { message: 'Entity not found or access denied' });
+        return;
+      }
+
       const entityKey = `${entityType}:${entityId}`;
       const roomId = `timeline:${entityKey}`;
 
@@ -86,7 +143,8 @@ class TimelineSocketHandler {
       this.entitySubscribers.set(entityKey, currentCount + 1);
 
       logger.info(`📊 Socket ${socket.id} subscribed to timeline: ${entityKey}`, {
-        userId,
+        userId: socket.userId,
+        firmId: socket.firmId,
         totalSubscribers: this.entitySubscribers.get(entityKey)
       });
 
@@ -98,6 +156,7 @@ class TimelineSocketHandler {
       });
     } catch (error) {
       logger.error('Error in timeline onSubscribe:', error.message);
+      socket.emit('timeline:error', { message: 'Subscription failed' });
     }
   }
 

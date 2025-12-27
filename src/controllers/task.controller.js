@@ -305,7 +305,19 @@ const getTask = asyncHandler(async (req, res) => {
     // IDOR protection
     const taskId = sanitizeObjectId(id);
 
-    const task = await Task.findById(taskId)
+    // Build query with firmId to prevent IDOR
+    const query = { _id: taskId };
+    if (firmId) {
+        query.firmId = firmId;
+    } else {
+        // Solo lawyer - only their own tasks
+        query.$or = [
+            { assignedTo: userId },
+            { createdBy: userId }
+        ];
+    }
+
+    const task = await Task.findOne(query)
         .populate('assignedTo', 'firstName lastName username email image')
         .populate('createdBy', 'firstName lastName username email image')
         .populate('caseId', 'title caseNumber category')
@@ -318,16 +330,6 @@ const getTask = asyncHandler(async (req, res) => {
 
     if (!task) {
         throw CustomException('Task not found', 404);
-    }
-
-    // Check access - firmId first, then user-based
-    const hasAccess = firmId
-        ? task.firmId && task.firmId.toString() === firmId.toString()
-        : (task.assignedTo?._id.toString() === userId ||
-           task.createdBy._id.toString() === userId);
-
-    if (!hasAccess) {
-        throw CustomException('You do not have access to this task', 403);
     }
 
     res.status(200).json({
@@ -350,20 +352,22 @@ const updateTask = asyncHandler(async (req, res) => {
     // IDOR protection
     const taskId = sanitizeObjectId(id);
 
-    const task = await Task.findById(taskId);
+    // Build query with firmId to prevent IDOR
+    const query = { _id: taskId };
+    if (firmId) {
+        query.firmId = firmId;
+    } else {
+        // Solo lawyer - only their own tasks
+        query.$or = [
+            { assignedTo: userId },
+            { createdBy: userId }
+        ];
+    }
+
+    const task = await Task.findOne(query);
 
     if (!task) {
         throw CustomException('Task not found', 404);
-    }
-
-    // Check permission - firmId first, then user-based
-    const canUpdate = firmId
-        ? task.firmId && task.firmId.toString() === firmId.toString()
-        : (task.createdBy.toString() === userId ||
-           task.assignedTo?.toString() === userId);
-
-    if (!canUpdate) {
-        throw CustomException('You do not have permission to update this task', 403);
     }
 
     // Mass assignment protection
@@ -547,19 +551,19 @@ const deleteTask = asyncHandler(async (req, res) => {
     // IDOR protection
     const taskId = sanitizeObjectId(id);
 
-    const task = await Task.findById(taskId);
+    // Build query with firmId to prevent IDOR
+    const query = { _id: taskId };
+    if (firmId) {
+        query.firmId = firmId;
+    } else {
+        // Solo lawyer - only tasks they created
+        query.createdBy = userId;
+    }
+
+    const task = await Task.findOne(query);
 
     if (!task) {
         throw CustomException('Task not found', 404);
-    }
-
-    // Check delete permission - firmId first, then creator-only
-    const canDelete = firmId
-        ? task.firmId && task.firmId.toString() === firmId.toString()
-        : task.createdBy.toString() === userId;
-
-    if (!canDelete) {
-        throw CustomException('Only the task creator can delete this task', 403);
     }
 
     // Delete linked calendar event if exists
@@ -584,6 +588,7 @@ const deleteTask = asyncHandler(async (req, res) => {
 const completeTask = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const userId = req.userID;
+    const firmId = req.firmId;
 
     // IDOR protection
     const taskId = sanitizeObjectId(id);
@@ -593,18 +598,22 @@ const completeTask = asyncHandler(async (req, res) => {
     const data = pickAllowedFields(req.body, allowedFields);
     const { completionNote } = data;
 
-    const task = await Task.findById(taskId);
+    // Build query with firmId to prevent IDOR
+    const query = { _id: taskId };
+    if (firmId) {
+        query.firmId = firmId;
+    } else {
+        // Solo lawyer - only their own tasks
+        query.$or = [
+            { assignedTo: userId },
+            { createdBy: userId }
+        ];
+    }
+
+    const task = await Task.findOne(query);
 
     if (!task) {
         throw CustomException('Task not found', 404);
-    }
-
-    const canComplete =
-        task.assignedTo?.toString() === userId ||
-        task.createdBy.toString() === userId;
-
-    if (!canComplete) {
-        throw CustomException('You do not have permission to complete this task', 403);
     }
 
     task.status = 'done';
@@ -691,6 +700,7 @@ const completeTask = asyncHandler(async (req, res) => {
 const addSubtask = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const userId = req.userID;
+    const firmId = req.firmId;
 
     // IDOR protection
     const taskId = sanitizeObjectId(id);
@@ -705,7 +715,19 @@ const addSubtask = asyncHandler(async (req, res) => {
         throw CustomException('Subtask title is required', 400);
     }
 
-    const task = await Task.findById(taskId);
+    // Build query with firmId to prevent IDOR
+    const query = { _id: taskId };
+    if (firmId) {
+        query.firmId = firmId;
+    } else {
+        // Solo lawyer - only their own tasks
+        query.$or = [
+            { assignedTo: userId },
+            { createdBy: userId }
+        ];
+    }
+
+    const task = await Task.findOne(query);
     if (!task) {
         throw CustomException('Task not found', 404);
     }
@@ -736,12 +758,25 @@ const addSubtask = asyncHandler(async (req, res) => {
 const toggleSubtask = asyncHandler(async (req, res) => {
     const { id, subtaskId } = req.params;
     const userId = req.userID;
+    const firmId = req.firmId;
 
     // IDOR protection
     const taskId = sanitizeObjectId(id);
     const sanitizedSubtaskId = sanitizeObjectId(subtaskId);
 
-    const task = await Task.findById(taskId);
+    // Build query with firmId to prevent IDOR
+    const query = { _id: taskId };
+    if (firmId) {
+        query.firmId = firmId;
+    } else {
+        // Solo lawyer - only their own tasks
+        query.$or = [
+            { assignedTo: userId },
+            { createdBy: userId }
+        ];
+    }
+
+    const task = await Task.findOne(query);
     if (!task) {
         throw CustomException('Task not found', 404);
     }
@@ -773,12 +808,26 @@ const toggleSubtask = asyncHandler(async (req, res) => {
 // Delete subtask
 const deleteSubtask = asyncHandler(async (req, res) => {
     const { id, subtaskId } = req.params;
+    const userId = req.userID;
+    const firmId = req.firmId;
 
     // IDOR protection
     const taskId = sanitizeObjectId(id);
     const sanitizedSubtaskId = sanitizeObjectId(subtaskId);
 
-    const task = await Task.findById(taskId);
+    // Build query with firmId to prevent IDOR
+    const query = { _id: taskId };
+    if (firmId) {
+        query.firmId = firmId;
+    } else {
+        // Solo lawyer - only their own tasks
+        query.$or = [
+            { assignedTo: userId },
+            { createdBy: userId }
+        ];
+    }
+
+    const task = await Task.findOne(query);
     if (!task) {
         throw CustomException('Task not found', 404);
     }
@@ -799,6 +848,7 @@ const deleteSubtask = asyncHandler(async (req, res) => {
 const startTimer = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const userId = req.userID;
+    const firmId = req.firmId;
 
     // IDOR protection
     const taskId = sanitizeObjectId(id);
@@ -808,7 +858,19 @@ const startTimer = asyncHandler(async (req, res) => {
     const data = pickAllowedFields(req.body, allowedFields);
     const { notes } = data;
 
-    const task = await Task.findById(taskId);
+    // Build query with firmId to prevent IDOR
+    const query = { _id: taskId };
+    if (firmId) {
+        query.firmId = firmId;
+    } else {
+        // Solo lawyer - only their own tasks
+        query.$or = [
+            { assignedTo: userId },
+            { createdBy: userId }
+        ];
+    }
+
+    const task = await Task.findOne(query);
     if (!task) {
         throw CustomException('Task not found', 404);
     }
@@ -842,6 +904,7 @@ const startTimer = asyncHandler(async (req, res) => {
 const stopTimer = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const userId = req.userID;
+    const firmId = req.firmId;
 
     // IDOR protection
     const taskId = sanitizeObjectId(id);
@@ -851,7 +914,19 @@ const stopTimer = asyncHandler(async (req, res) => {
     const data = pickAllowedFields(req.body, allowedFields);
     const { notes, isBillable } = data;
 
-    const task = await Task.findById(taskId);
+    // Build query with firmId to prevent IDOR
+    const query = { _id: taskId };
+    if (firmId) {
+        query.firmId = firmId;
+    } else {
+        // Solo lawyer - only their own tasks
+        query.$or = [
+            { assignedTo: userId },
+            { createdBy: userId }
+        ];
+    }
+
+    const task = await Task.findOne(query);
     if (!task) {
         throw CustomException('Task not found', 404);
     }
@@ -902,6 +977,7 @@ const stopTimer = asyncHandler(async (req, res) => {
 const addManualTime = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const userId = req.userID;
+    const firmId = req.firmId;
 
     // IDOR protection
     const taskId = sanitizeObjectId(id);
@@ -920,7 +996,19 @@ const addManualTime = asyncHandler(async (req, res) => {
         throw CustomException('Minutes cannot exceed 1440 (24 hours)', 400);
     }
 
-    const task = await Task.findById(taskId);
+    // Build query with firmId to prevent IDOR
+    const query = { _id: taskId };
+    if (firmId) {
+        query.firmId = firmId;
+    } else {
+        // Solo lawyer - only their own tasks
+        query.$or = [
+            { assignedTo: userId },
+            { createdBy: userId }
+        ];
+    }
+
+    const task = await Task.findOne(query);
     if (!task) {
         throw CustomException('Task not found', 404);
     }
@@ -956,6 +1044,7 @@ const addManualTime = asyncHandler(async (req, res) => {
 const addComment = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const userId = req.userID;
+    const firmId = req.firmId;
 
     // IDOR protection
     const taskId = sanitizeObjectId(id);
@@ -978,7 +1067,19 @@ const addComment = asyncHandler(async (req, res) => {
         throw CustomException('Invalid content detected', 400);
     }
 
-    const task = await Task.findById(taskId);
+    // Build query with firmId to prevent IDOR
+    const query = { _id: taskId };
+    if (firmId) {
+        query.firmId = firmId;
+    } else {
+        // Solo lawyer - only their own tasks
+        query.$or = [
+            { assignedTo: userId },
+            { createdBy: userId }
+        ];
+    }
+
+    const task = await Task.findOne(query);
     if (!task) {
         throw CustomException('Task not found', 404);
     }
@@ -1007,6 +1108,7 @@ const addComment = asyncHandler(async (req, res) => {
 const updateComment = asyncHandler(async (req, res) => {
     const { id, commentId } = req.params;
     const userId = req.userID;
+    const firmId = req.firmId;
 
     // IDOR protection
     const taskId = sanitizeObjectId(id);
@@ -1030,7 +1132,19 @@ const updateComment = asyncHandler(async (req, res) => {
         throw CustomException('Invalid content detected', 400);
     }
 
-    const task = await Task.findById(taskId);
+    // Build query with firmId to prevent IDOR
+    const query = { _id: taskId };
+    if (firmId) {
+        query.firmId = firmId;
+    } else {
+        // Solo lawyer - only their own tasks
+        query.$or = [
+            { assignedTo: userId },
+            { createdBy: userId }
+        ];
+    }
+
+    const task = await Task.findOne(query);
     if (!task) {
         throw CustomException('Task not found', 404);
     }
@@ -1060,12 +1174,25 @@ const updateComment = asyncHandler(async (req, res) => {
 const deleteComment = asyncHandler(async (req, res) => {
     const { id, commentId } = req.params;
     const userId = req.userID;
+    const firmId = req.firmId;
 
     // IDOR protection
     const taskId = sanitizeObjectId(id);
     const sanitizedCommentId = sanitizeObjectId(commentId);
 
-    const task = await Task.findById(taskId);
+    // Build query with firmId to prevent IDOR
+    const query = { _id: taskId };
+    if (firmId) {
+        query.firmId = firmId;
+    } else {
+        // Solo lawyer - only their own tasks
+        query.$or = [
+            { assignedTo: userId },
+            { createdBy: userId }
+        ];
+    }
+
+    const task = await Task.findOne(query);
     if (!task) {
         throw CustomException('Task not found', 404);
     }
@@ -2392,8 +2519,22 @@ async function executeWorkflowAction(task, action, context) {
 const addWorkflowRule = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const { name, trigger, conditions, actions } = req.body;
+    const userId = req.userID;
+    const firmId = req.firmId;
 
-    const task = await Task.findById(id);
+    // Build query with firmId to prevent IDOR
+    const query = { _id: id };
+    if (firmId) {
+        query.firmId = firmId;
+    } else {
+        // Solo lawyer - only their own tasks
+        query.$or = [
+            { assignedTo: userId },
+            { createdBy: userId }
+        ];
+    }
+
+    const task = await Task.findOne(query);
     if (!task) {
         throw CustomException('Task not found', 404);
     }
@@ -2427,8 +2568,21 @@ const updateOutcome = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const { outcome, outcomeNotes } = req.body;
     const userId = req.userID;
+    const firmId = req.firmId;
 
-    const task = await Task.findById(id);
+    // Build query with firmId to prevent IDOR
+    const query = { _id: id };
+    if (firmId) {
+        query.firmId = firmId;
+    } else {
+        // Solo lawyer - only their own tasks
+        query.$or = [
+            { assignedTo: userId },
+            { createdBy: userId }
+        ];
+    }
+
+    const task = await Task.findOne(query);
     if (!task) {
         throw CustomException('Task not found', 404);
     }
@@ -2474,8 +2628,22 @@ const updateOutcome = asyncHandler(async (req, res) => {
 const updateEstimate = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const { estimatedMinutes, hourlyRate } = req.body;
+    const userId = req.userID;
+    const firmId = req.firmId;
 
-    const task = await Task.findById(id);
+    // Build query with firmId to prevent IDOR
+    const query = { _id: id };
+    if (firmId) {
+        query.firmId = firmId;
+    } else {
+        // Solo lawyer - only their own tasks
+        query.$or = [
+            { assignedTo: userId },
+            { createdBy: userId }
+        ];
+    }
+
+    const task = await Task.findOne(query);
     if (!task) {
         throw CustomException('Task not found', 404);
     }
@@ -2505,8 +2673,22 @@ const updateEstimate = asyncHandler(async (req, res) => {
  */
 const getTimeTrackingSummary = asyncHandler(async (req, res) => {
     const { id } = req.params;
+    const userId = req.userID;
+    const firmId = req.firmId;
 
-    const task = await Task.findById(id)
+    // Build query with firmId to prevent IDOR
+    const query = { _id: id };
+    if (firmId) {
+        query.firmId = firmId;
+    } else {
+        // Solo lawyer - only their own tasks
+        query.$or = [
+            { assignedTo: userId },
+            { createdBy: userId }
+        ];
+    }
+
+    const task = await Task.findOne(query)
         .populate('timeTracking.sessions.userId', 'firstName lastName');
 
     if (!task) {
@@ -2621,19 +2803,23 @@ const getAttachmentDownloadUrl = asyncHandler(async (req, res) => {
     const { id, attachmentId } = req.params;
     const { versionId, disposition = 'attachment' } = req.query;
     const userId = req.userID;
+    const firmId = req.firmId;
 
-    const task = await Task.findById(id);
-    if (!task) {
-        throw CustomException('Task not found', 404);
+    // Build query with firmId to prevent IDOR
+    const query = { _id: id };
+    if (firmId) {
+        query.firmId = firmId;
+    } else {
+        // Solo lawyer - only their own tasks
+        query.$or = [
+            { assignedTo: userId },
+            { createdBy: userId }
+        ];
     }
 
-    // Verify user has access to this task
-    const hasAccess =
-        task.createdBy.toString() === userId ||
-        task.assignedTo?.toString() === userId;
-
-    if (!hasAccess) {
-        throw CustomException('You do not have access to this attachment', 403);
+    const task = await Task.findOne(query);
+    if (!task) {
+        throw CustomException('Task not found', 404);
     }
 
     const attachment = task.attachments.id(attachmentId);
@@ -2698,19 +2884,23 @@ const getAttachmentDownloadUrl = asyncHandler(async (req, res) => {
 const getAttachmentVersions = asyncHandler(async (req, res) => {
     const { id, attachmentId } = req.params;
     const userId = req.userID;
+    const firmId = req.firmId;
 
-    const task = await Task.findById(id);
-    if (!task) {
-        throw CustomException('Task not found', 404);
+    // Build query with firmId to prevent IDOR
+    const query = { _id: id };
+    if (firmId) {
+        query.firmId = firmId;
+    } else {
+        // Solo lawyer - only their own tasks
+        query.$or = [
+            { assignedTo: userId },
+            { createdBy: userId }
+        ];
     }
 
-    // Verify user has access to this task
-    const hasAccess =
-        task.createdBy.toString() === userId ||
-        task.assignedTo?.toString() === userId;
-
-    if (!hasAccess) {
-        throw CustomException('You do not have access to this attachment', 403);
+    const task = await Task.findOne(query);
+    if (!task) {
+        throw CustomException('Task not found', 404);
     }
 
     const attachment = task.attachments.id(attachmentId);
@@ -2765,12 +2955,25 @@ const createDocument = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const { title, content, contentJson, contentFormat = 'html' } = req.body;
     const userId = req.userID;
+    const firmId = req.firmId;
 
     if (!title) {
         throw CustomException('Document title is required', 400);
     }
 
-    const task = await Task.findById(id);
+    // Build query with firmId to prevent IDOR
+    const query = { _id: id };
+    if (firmId) {
+        query.firmId = firmId;
+    } else {
+        // Solo lawyer - only their own tasks
+        query.$or = [
+            { assignedTo: userId },
+            { createdBy: userId }
+        ];
+    }
+
+    const task = await Task.findOne(query);
     if (!task) {
         throw CustomException('Task not found', 404);
     }
@@ -2846,8 +3049,21 @@ const createDocument = asyncHandler(async (req, res) => {
 const getDocuments = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const userId = req.userID;
+    const firmId = req.firmId;
 
-    const task = await Task.findById(id)
+    // Build query with firmId to prevent IDOR
+    const query = { _id: id };
+    if (firmId) {
+        query.firmId = firmId;
+    } else {
+        // Solo lawyer - only their own tasks
+        query.$or = [
+            { assignedTo: userId },
+            { createdBy: userId }
+        ];
+    }
+
+    const task = await Task.findOne(query)
         .populate('createdBy', '_id')
         .populate('assignedTo', '_id')
         .populate('attachments.uploadedBy', 'firstName lastName')
@@ -2855,14 +3071,6 @@ const getDocuments = asyncHandler(async (req, res) => {
 
     if (!task) {
         throw CustomException('Task not found', 404);
-    }
-
-    // Verify user has access to this task
-    const isCreator = task.createdBy && task.createdBy._id.toString() === userId;
-    const isAssignee = task.assignedTo && task.assignedTo._id.toString() === userId;
-
-    if (!isCreator && !isAssignee) {
-        throw CustomException('You do not have access to this task', 403);
     }
 
     // Filter to get only editable documents (TipTap documents)
@@ -2898,8 +3106,21 @@ const updateDocument = asyncHandler(async (req, res) => {
     const { id, documentId } = req.params;
     const { title, content, contentJson, contentFormat, changeNote } = req.body;
     const userId = req.userID;
+    const firmId = req.firmId;
 
-    const task = await Task.findById(id);
+    // Build query with firmId to prevent IDOR
+    const query = { _id: id };
+    if (firmId) {
+        query.firmId = firmId;
+    } else {
+        // Solo lawyer - only their own tasks
+        query.$or = [
+            { assignedTo: userId },
+            { createdBy: userId }
+        ];
+    }
+
+    const task = await Task.findOne(query);
     if (!task) {
         throw CustomException('Task not found', 404);
     }
@@ -2995,8 +3216,22 @@ const updateDocument = asyncHandler(async (req, res) => {
  */
 const getDocument = asyncHandler(async (req, res) => {
     const { id, documentId } = req.params;
+    const userId = req.userID;
+    const firmId = req.firmId;
 
-    const task = await Task.findById(id)
+    // Build query with firmId to prevent IDOR
+    const query = { _id: id };
+    if (firmId) {
+        query.firmId = firmId;
+    } else {
+        // Solo lawyer - only their own tasks
+        query.$or = [
+            { assignedTo: userId },
+            { createdBy: userId }
+        ];
+    }
+
+    const task = await Task.findOne(query)
         .populate('attachments.uploadedBy', 'firstName lastName')
         .populate('attachments.lastEditedBy', 'firstName lastName');
 
@@ -3065,21 +3300,26 @@ const getDocument = asyncHandler(async (req, res) => {
 const getDocumentVersions = asyncHandler(async (req, res) => {
     const { id, documentId } = req.params;
     const userId = req.userID;
+    const firmId = req.firmId;
 
-    const task = await Task.findById(id)
+    // Build query with firmId to prevent IDOR
+    const query = { _id: id };
+    if (firmId) {
+        query.firmId = firmId;
+    } else {
+        // Solo lawyer - only their own tasks
+        query.$or = [
+            { assignedTo: userId },
+            { createdBy: userId }
+        ];
+    }
+
+    const task = await Task.findOne(query)
         .populate('createdBy', '_id')
         .populate('assignedTo', '_id');
 
     if (!task) {
         throw CustomException('Task not found', 404);
-    }
-
-    // Verify user has access to this task
-    const isCreator = task.createdBy && task.createdBy._id.toString() === userId;
-    const isAssignee = task.assignedTo && task.assignedTo._id.toString() === userId;
-
-    if (!isCreator && !isAssignee) {
-        throw CustomException('You do not have access to this document', 403);
     }
 
     const document = task.attachments.id(documentId);
@@ -3127,21 +3367,26 @@ const getDocumentVersions = asyncHandler(async (req, res) => {
 const restoreDocumentVersion = asyncHandler(async (req, res) => {
     const { id, documentId, versionId } = req.params;
     const userId = req.userID;
+    const firmId = req.firmId;
 
-    const task = await Task.findById(id)
+    // Build query with firmId to prevent IDOR
+    const query = { _id: id };
+    if (firmId) {
+        query.firmId = firmId;
+    } else {
+        // Solo lawyer - only their own tasks
+        query.$or = [
+            { assignedTo: userId },
+            { createdBy: userId }
+        ];
+    }
+
+    const task = await Task.findOne(query)
         .populate('createdBy', '_id')
         .populate('assignedTo', '_id');
 
     if (!task) {
         throw CustomException('Task not found', 404);
-    }
-
-    // Verify user has access to this task
-    const isCreator = task.createdBy && task.createdBy._id.toString() === userId;
-    const isAssignee = task.assignedTo && task.assignedTo._id.toString() === userId;
-
-    if (!isCreator && !isAssignee) {
-        throw CustomException('You do not have access to this document', 403);
     }
 
     const document = task.attachments.id(documentId);
@@ -3217,21 +3462,26 @@ const restoreDocumentVersion = asyncHandler(async (req, res) => {
 const getDocumentVersion = asyncHandler(async (req, res) => {
     const { id, documentId, versionId } = req.params;
     const userId = req.userID;
+    const firmId = req.firmId;
 
-    const task = await Task.findById(id)
+    // Build query with firmId to prevent IDOR
+    const query = { _id: id };
+    if (firmId) {
+        query.firmId = firmId;
+    } else {
+        // Solo lawyer - only their own tasks
+        query.$or = [
+            { assignedTo: userId },
+            { createdBy: userId }
+        ];
+    }
+
+    const task = await Task.findOne(query)
         .populate('createdBy', '_id')
         .populate('assignedTo', '_id');
 
     if (!task) {
         throw CustomException('Task not found', 404);
-    }
-
-    // Verify user has access
-    const isCreator = task.createdBy && task.createdBy._id.toString() === userId;
-    const isAssignee = task.assignedTo && task.assignedTo._id.toString() === userId;
-
-    if (!isCreator && !isAssignee) {
-        throw CustomException('You do not have access to this document', 403);
     }
 
     const document = task.attachments.id(documentId);
@@ -3282,8 +3532,21 @@ const addVoiceMemo = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const { duration, transcription } = req.body;
     const userId = req.userID;
+    const firmId = req.firmId;
 
-    const task = await Task.findById(id);
+    // Build query with firmId to prevent IDOR
+    const query = { _id: id };
+    if (firmId) {
+        query.firmId = firmId;
+    } else {
+        // Solo lawyer - only their own tasks
+        query.$or = [
+            { assignedTo: userId },
+            { createdBy: userId }
+        ];
+    }
+
+    const task = await Task.findOne(query);
     if (!task) {
         throw CustomException('Task not found', 404);
     }
@@ -3370,8 +3633,21 @@ const updateVoiceMemoTranscription = asyncHandler(async (req, res) => {
     const { id, memoId } = req.params;
     const { transcription } = req.body;
     const userId = req.userID;
+    const firmId = req.firmId;
 
-    const task = await Task.findById(id);
+    // Build query with firmId to prevent IDOR
+    const query = { _id: id };
+    if (firmId) {
+        query.firmId = firmId;
+    } else {
+        // Solo lawyer - only their own tasks
+        query.$or = [
+            { assignedTo: userId },
+            { createdBy: userId }
+        ];
+    }
+
+    const task = await Task.findOne(query);
     if (!task) {
         throw CustomException('Task not found', 404);
     }
@@ -3847,9 +4123,22 @@ const autoScheduleTasks = asyncHandler(async (req, res) => {
 const getTaskFull = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const userId = req.userID;
+    const firmId = req.firmId;
+
+    // Build query with firmId to prevent IDOR
+    const query = { _id: id };
+    if (firmId) {
+        query.firmId = firmId;
+    } else {
+        // Solo lawyer - only their own tasks
+        query.$or = [
+            { assignedTo: userId },
+            { createdBy: userId }
+        ];
+    }
 
     // Fetch task with full population
-    const task = await Task.findById(id)
+    const task = await Task.findOne(query)
         .populate('assignedTo', 'username firstName lastName image email')
         .populate('createdBy', 'username firstName lastName image email')
         .populate('caseId', 'title caseNumber category')
@@ -3860,14 +4149,6 @@ const getTaskFull = asyncHandler(async (req, res) => {
 
     if (!task) {
         throw CustomException('Task not found', 404);
-    }
-
-    // Verify user has access
-    const isCreator = task.createdBy && task.createdBy._id.toString() === userId;
-    const isAssignee = task.assignedTo && task.assignedTo._id.toString() === userId;
-
-    if (!isCreator && !isAssignee) {
-        throw CustomException('You do not have access to this task', 403);
     }
 
     // Calculate time tracking summary

@@ -20,6 +20,7 @@ const { CustomException } = require('../utils');
 const jwt = require('jsonwebtoken');
 const { User } = require('../models');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
+const { getCookieConfig } = require('../utils/cookieConfig');
 const crypto = require('crypto');
 
 const { JWT_SECRET, WEBAUTHN_ORIGIN } = process.env;
@@ -359,13 +360,8 @@ const finishAuthentication = asyncHandler(async (req, res) => {
         userAgent: req.headers['user-agent']
     });
 
-    // Set HTTP-only cookie for JWT
-    res.cookie('token', token, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
-        maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
-    });
+    // Set HTTP-only cookie for JWT using secure centralized configuration
+    res.cookie('token', token, getCookieConfig(req, 'refresh'));
 
     res.status(200).json({
         success: true,

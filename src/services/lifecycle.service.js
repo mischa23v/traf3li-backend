@@ -45,7 +45,10 @@ class LifecycleService {
   async initiateWorkflow(workflowId, entityType, entityId, initiatorId, firmId, options = {}) {
     try {
       // Get workflow
-      const workflow = await LifecycleWorkflow.findById(workflowId).lean();
+      const workflow = await LifecycleWorkflow.findOne({
+        _id: workflowId,
+        firmId: new mongoose.Types.ObjectId(firmId)
+      }).lean();
 
       if (!workflow) {
         throw new Error('Lifecycle workflow not found');
@@ -126,7 +129,10 @@ class LifecycleService {
       logger.info(`✅ Lifecycle workflow initiated: ${workflow.name} for ${entityType}:${entityId}`);
 
       // Return populated instance
-      return await LifecycleInstance.findById(instance._id)
+      return await LifecycleInstance.findOne({
+        _id: instance._id,
+        firmId: new mongoose.Types.ObjectId(firmId)
+      })
         .populate('workflowId', 'name entityType lifecycleType')
         .populate('createdBy', 'firstName lastName email')
         .lean();
@@ -149,7 +155,10 @@ class LifecycleService {
       // Ensure we have the document, not just a plain object
       let instanceDoc = instance;
       if (!instance.save) {
-        instanceDoc = await LifecycleInstance.findById(instance._id);
+        instanceDoc = await LifecycleInstance.findOne({
+          _id: instance._id,
+          firmId: new mongoose.Types.ObjectId(firmId)
+        });
       }
 
       if (!instanceDoc) {
@@ -157,7 +166,10 @@ class LifecycleService {
       }
 
       // Get workflow
-      const workflow = await LifecycleWorkflow.findById(instanceDoc.workflowId).lean();
+      const workflow = await LifecycleWorkflow.findOne({
+        _id: instanceDoc.workflowId,
+        firmId: new mongoose.Types.ObjectId(firmId)
+      }).lean();
 
       if (!workflow) {
         throw new Error('Workflow not found');
@@ -306,7 +318,10 @@ class LifecycleService {
       logger.info(`✅ Task created: ${taskDef.name} (assigned to: ${assigneeId})`);
 
       // Send task_assigned notifications
-      const workflow = await LifecycleWorkflow.findById(instance.workflowId).lean();
+      const workflow = await LifecycleWorkflow.findOne({
+        _id: instance.workflowId,
+        firmId: new mongoose.Types.ObjectId(firmId)
+      }).lean();
       if (workflow) {
         await this._sendNotifications(workflow, instance, 'task_assigned', {
           userId,
@@ -397,15 +412,19 @@ class LifecycleService {
    * Handle task completion
    * @param {String} taskId - Task ID
    * @param {String} userId - User ID who completed the task
+   * @param {String} firmId - Firm ID
    * @param {Object} options - Completion options
    * @param {String} options.notes - Completion notes
    * @param {Array} options.attachments - Attachments
    * @returns {Promise<Object>} - Result with instance and advancement status
    */
-  async onTaskComplete(taskId, userId, options = {}) {
+  async onTaskComplete(taskId, userId, firmId, options = {}) {
     try {
-      // Get task
-      const task = await Task.findById(taskId).lean();
+      // Get task with firmId check
+      const task = await Task.findOne({
+        _id: taskId,
+        firmId: new mongoose.Types.ObjectId(firmId)
+      }).lean();
 
       if (!task) {
         throw new Error('Task not found');
@@ -416,8 +435,11 @@ class LifecycleService {
         return { success: false, message: 'Not a lifecycle task' };
       }
 
-      // Get lifecycle instance
-      const instance = await LifecycleInstance.findById(task.lifecycleInstanceId);
+      // Get lifecycle instance with firmId check
+      const instance = await LifecycleInstance.findOne({
+        _id: task.lifecycleInstanceId,
+        firmId: task.firmId
+      });
 
       if (!instance) {
         throw new Error('Lifecycle instance not found');
@@ -457,7 +479,10 @@ class LifecycleService {
       );
 
       // Send task_completed notifications
-      const workflow = await LifecycleWorkflow.findById(instance.workflowId).lean();
+      const workflow = await LifecycleWorkflow.findOne({
+        _id: instance.workflowId,
+        firmId: instance.firmId
+      }).lean();
       if (workflow) {
         await this._sendNotifications(workflow, instance, 'task_completed', {
           userId,
@@ -475,7 +500,7 @@ class LifecycleService {
 
         if (stage && stage.autoAdvance) {
           logger.info(`🚀 Auto-advancing stage for instance ${instance._id}`);
-          await this.advanceStage(instance._id.toString(), userId);
+          await this.advanceStage(instance._id.toString(), userId, instance.firmId.toString());
 
           return {
             success: true,
@@ -503,12 +528,16 @@ class LifecycleService {
    * Advance to next stage
    * @param {String} instanceId - Lifecycle instance ID
    * @param {String} userId - User ID performing the action
+   * @param {String} firmId - Firm ID
    * @returns {Promise<Object>} - Updated instance
    */
-  async advanceStage(instanceId, userId) {
+  async advanceStage(instanceId, userId, firmId) {
     try {
-      // Get instance
-      const instance = await LifecycleInstance.findById(instanceId);
+      // Get instance with firmId check
+      const instance = await LifecycleInstance.findOne({
+        _id: instanceId,
+        firmId: new mongoose.Types.ObjectId(firmId)
+      });
 
       if (!instance) {
         throw new Error('Lifecycle instance not found');
@@ -518,8 +547,11 @@ class LifecycleService {
         throw new Error('Cannot advance stage - workflow is not in progress');
       }
 
-      // Get workflow
-      const workflow = await LifecycleWorkflow.findById(instance.workflowId).lean();
+      // Get workflow with firmId check
+      const workflow = await LifecycleWorkflow.findOne({
+        _id: instance.workflowId,
+        firmId: instance.firmId
+      }).lean();
 
       if (!workflow) {
         throw new Error('Workflow not found');
@@ -565,7 +597,10 @@ class LifecycleService {
 
         logger.info(`✅ Workflow completed for instance ${instanceId}`);
 
-        return await LifecycleInstance.findById(instanceId)
+        return await LifecycleInstance.findOne({
+          _id: instanceId,
+          firmId: instance.firmId
+        })
           .populate('workflowId', 'name entityType lifecycleType')
           .lean();
       }
@@ -598,7 +633,10 @@ class LifecycleService {
 
       logger.info(`✅ Advanced to stage ${nextStageIndex}: ${workflow.stages[nextStageIndex].name}`);
 
-      return await LifecycleInstance.findById(instanceId)
+      return await LifecycleInstance.findOne({
+        _id: instanceId,
+        firmId: instance.firmId
+      })
         .populate('workflowId', 'name entityType lifecycleType')
         .lean();
     } catch (error) {
@@ -623,7 +661,10 @@ class LifecycleService {
       await instance.save();
 
       // Get workflow for notifications
-      const workflow = await LifecycleWorkflow.findById(instance.workflowId).lean();
+      const workflow = await LifecycleWorkflow.findOne({
+        _id: instance.workflowId,
+        firmId: instance.firmId
+      }).lean();
 
       // Log completion
       await auditLogService.log(
@@ -664,13 +705,17 @@ class LifecycleService {
    * Cancel a workflow
    * @param {String} instanceId - Lifecycle instance ID
    * @param {String} userId - User ID cancelling the workflow
+   * @param {String} firmId - Firm ID
    * @param {String} reason - Cancellation reason
    * @returns {Promise<Object>} - Updated instance
    */
-  async cancelWorkflow(instanceId, userId, reason = '') {
+  async cancelWorkflow(instanceId, userId, firmId, reason = '') {
     try {
-      // Get instance
-      const instance = await LifecycleInstance.findById(instanceId);
+      // Get instance with firmId check
+      const instance = await LifecycleInstance.findOne({
+        _id: instanceId,
+        firmId: new mongoose.Types.ObjectId(firmId)
+      });
 
       if (!instance) {
         throw new Error('Lifecycle instance not found');
@@ -693,6 +738,7 @@ class LifecycleService {
       await Task.updateMany(
         {
           lifecycleInstanceId: instance._id,
+          firmId: instance.firmId,
           status: { $in: ['todo', 'in_progress'] }
         },
         {
@@ -706,7 +752,10 @@ class LifecycleService {
       );
 
       // Get workflow for notifications
-      const workflow = await LifecycleWorkflow.findById(instance.workflowId).lean();
+      const workflow = await LifecycleWorkflow.findOne({
+        _id: instance.workflowId,
+        firmId: instance.firmId
+      }).lean();
 
       // Log cancellation
       await auditLogService.log(
@@ -738,7 +787,10 @@ class LifecycleService {
 
       logger.info(`✅ Workflow cancelled: ${instance._id} - Reason: ${reason}`);
 
-      return await LifecycleInstance.findById(instanceId)
+      return await LifecycleInstance.findOne({
+        _id: instanceId,
+        firmId: instance.firmId
+      })
         .populate('workflowId', 'name entityType lifecycleType')
         .lean();
     } catch (error) {
@@ -750,12 +802,16 @@ class LifecycleService {
   /**
    * Get workflow progress
    * @param {String} instanceId - Lifecycle instance ID
+   * @param {String} firmId - Firm ID
    * @returns {Promise<Object>} - Progress summary
    */
-  async getProgress(instanceId) {
+  async getProgress(instanceId, firmId) {
     try {
-      // Get instance
-      const instance = await LifecycleInstance.findById(instanceId)
+      // Get instance with firmId check
+      const instance = await LifecycleInstance.findOne({
+        _id: instanceId,
+        firmId: new mongoose.Types.ObjectId(firmId)
+      })
         .populate('workflowId', 'name entityType lifecycleType stages')
         .lean();
 
@@ -771,6 +827,7 @@ class LifecycleService {
       // Get pending tasks for current instance
       const pendingTasks = await Task.find({
         lifecycleInstanceId: instance._id,
+        firmId: instance.firmId,
         status: { $in: ['todo', 'in_progress'] }
       })
         .populate('assignedTo', 'firstName lastName email')
@@ -779,6 +836,7 @@ class LifecycleService {
       // Get completed tasks
       const completedTasks = await Task.find({
         lifecycleInstanceId: instance._id,
+        firmId: instance.firmId,
         status: 'completed'
       })
         .populate('assignedTo', 'firstName lastName email')
@@ -841,8 +899,11 @@ class LifecycleService {
    */
   async checkStageAdvance(instance) {
     try {
-      // Get workflow
-      const workflow = await LifecycleWorkflow.findById(instance.workflowId).lean();
+      // Get workflow with firmId check
+      const workflow = await LifecycleWorkflow.findOne({
+        _id: instance.workflowId,
+        firmId: instance.firmId
+      }).lean();
 
       if (!workflow) {
         throw new Error('Workflow not found');
@@ -966,6 +1027,7 @@ class LifecycleService {
             const Notification = require('../models/notification.model');
             await Notification.create({
               userId: config.userId || task.assignedTo,
+              firmId: new mongoose.Types.ObjectId(firmId),
               type: 'task_assigned',
               title: config.title || 'New Task Assigned',
               message: config.message || `You have been assigned: ${task.title}`,
@@ -1049,7 +1111,10 @@ class LifecycleService {
           for (const channel of notificationConfig.channels || ['in_app']) {
             if (channel === 'email') {
               for (const recipientId of recipients) {
-                const user = await User.findById(recipientId).select('email firstName lastName').lean();
+                const user = await User.findOne({
+                  _id: recipientId,
+                  firmId: context.firmId ? new mongoose.Types.ObjectId(context.firmId) : instance.firmId
+                }).select('email firstName lastName').lean();
                 if (user && user.email) {
                   await notificationDeliveryService.sendEmail({
                     to: user.email,
@@ -1064,6 +1129,7 @@ class LifecycleService {
               for (const recipientId of recipients) {
                 await Notification.create({
                   userId: recipientId,
+                  firmId: context.firmId ? new mongoose.Types.ObjectId(context.firmId) : instance.firmId,
                   type: 'lifecycle_event',
                   title: `Workflow: ${workflow.name}`,
                   message,

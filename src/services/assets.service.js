@@ -105,7 +105,7 @@ const getAssets = async (query, firmId) => {
  */
 const getAssetById = async (id, firmId) => {
     try {
-        const asset = await Asset.findById(sanitizeObjectId(id))
+        const asset = await Asset.findOne({ _id: sanitizeObjectId(id), firmId })
             .populate('assetCategory', 'name nameAr depreciationMethod')
             .populate('custodian', 'firstName lastName email phone')
             .populate('supplierId', 'name')
@@ -113,12 +113,7 @@ const getAssetById = async (id, firmId) => {
             .populate('updatedBy', 'firstName lastName');
 
         if (!asset) {
-            throw CustomException('Asset not found', 404);
-        }
-
-        // IDOR Protection
-        if (firmId && asset.firmId && asset.firmId.toString() !== firmId.toString()) {
-            throw CustomException('You do not have permission to access this asset', 403);
+            throw CustomException('Resource not found', 404);
         }
 
         return asset;
@@ -187,15 +182,10 @@ const createAsset = async (data, firmId, userId) => {
  */
 const updateAsset = async (id, data, firmId, userId) => {
     try {
-        const asset = await Asset.findById(sanitizeObjectId(id));
+        const asset = await Asset.findOne({ _id: sanitizeObjectId(id), firmId });
 
         if (!asset) {
-            throw CustomException('Asset not found', 404);
-        }
-
-        // IDOR Protection
-        if (firmId && asset.firmId && asset.firmId.toString() !== firmId.toString()) {
-            throw CustomException('You do not have permission to update this asset', 403);
+            throw CustomException('Resource not found', 404);
         }
 
         // Cannot update submitted assets
@@ -248,15 +238,10 @@ const updateAsset = async (id, data, firmId, userId) => {
  */
 const submitAsset = async (id, firmId, userId) => {
     try {
-        const asset = await Asset.findById(sanitizeObjectId(id));
+        const asset = await Asset.findOne({ _id: sanitizeObjectId(id), firmId });
 
         if (!asset) {
-            throw CustomException('Asset not found', 404);
-        }
-
-        // IDOR Protection
-        if (firmId && asset.firmId && asset.firmId.toString() !== firmId.toString()) {
-            throw CustomException('You do not have permission to submit this asset', 403);
+            throw CustomException('Resource not found', 404);
         }
 
         if (asset.status !== 'draft') {
@@ -287,15 +272,10 @@ const submitAsset = async (id, firmId, userId) => {
  */
 const deleteAsset = async (id, firmId) => {
     try {
-        const asset = await Asset.findById(sanitizeObjectId(id));
+        const asset = await Asset.findOne({ _id: sanitizeObjectId(id), firmId });
 
         if (!asset) {
-            throw CustomException('Asset not found', 404);
-        }
-
-        // IDOR Protection
-        if (firmId && asset.firmId && asset.firmId.toString() !== firmId.toString()) {
-            throw CustomException('You do not have permission to delete this asset', 403);
+            throw CustomException('Resource not found', 404);
         }
 
         // Only draft assets can be deleted
@@ -303,7 +283,7 @@ const deleteAsset = async (id, firmId) => {
             throw CustomException('Only draft assets can be deleted. Use void/scrap for submitted assets.', 400);
         }
 
-        await Asset.findByIdAndDelete(sanitizeObjectId(id));
+        await Asset.findOneAndDelete({ _id: sanitizeObjectId(id), firmId });
     } catch (error) {
         logger.error('Error deleting asset:', error);
         throw error;
@@ -342,19 +322,14 @@ const getCategories = async (firmId) => {
  */
 const getCategoryById = async (id, firmId) => {
     try {
-        const category = await AssetCategory.findById(sanitizeObjectId(id))
+        const category = await AssetCategory.findOne({ _id: sanitizeObjectId(id), firmId })
             .populate('parentCategory', 'name nameAr')
             .populate('fixedAssetAccount', 'name accountNumber')
             .populate('accumulatedDepreciationAccount', 'name accountNumber')
             .populate('depreciationExpenseAccount', 'name accountNumber');
 
         if (!category) {
-            throw CustomException('Category not found', 404);
-        }
-
-        // IDOR Protection
-        if (firmId && category.firmId && category.firmId.toString() !== firmId.toString()) {
-            throw CustomException('You do not have permission to access this category', 403);
+            throw CustomException('Resource not found', 404);
         }
 
         return category;
@@ -414,15 +389,10 @@ const createCategory = async (data, firmId, userId) => {
  */
 const updateCategory = async (id, data, firmId, userId) => {
     try {
-        const category = await AssetCategory.findById(sanitizeObjectId(id));
+        const category = await AssetCategory.findOne({ _id: sanitizeObjectId(id), firmId });
 
         if (!category) {
-            throw CustomException('Category not found', 404);
-        }
-
-        // IDOR Protection
-        if (firmId && category.firmId && category.firmId.toString() !== firmId.toString()) {
-            throw CustomException('You do not have permission to update this category', 403);
+            throw CustomException('Resource not found', 404);
         }
 
         const allowedFields = [
@@ -455,15 +425,10 @@ const updateCategory = async (id, data, firmId, userId) => {
  */
 const deleteCategory = async (id, firmId) => {
     try {
-        const category = await AssetCategory.findById(sanitizeObjectId(id));
+        const category = await AssetCategory.findOne({ _id: sanitizeObjectId(id), firmId });
 
         if (!category) {
-            throw CustomException('Category not found', 404);
-        }
-
-        // IDOR Protection
-        if (firmId && category.firmId && category.firmId.toString() !== firmId.toString()) {
-            throw CustomException('You do not have permission to delete this category', 403);
+            throw CustomException('Resource not found', 404);
         }
 
         // Check if category has assets
@@ -478,7 +443,7 @@ const deleteCategory = async (id, firmId) => {
             throw CustomException('Cannot delete category with subcategories', 400);
         }
 
-        await AssetCategory.findByIdAndDelete(sanitizeObjectId(id));
+        await AssetCategory.findOneAndDelete({ _id: sanitizeObjectId(id), firmId });
     } catch (error) {
         logger.error('Error deleting category:', error);
         throw error;
@@ -549,17 +514,12 @@ const getMaintenanceSchedules = async (query, firmId) => {
  */
 const getMaintenanceScheduleById = async (id, firmId) => {
     try {
-        const schedule = await MaintenanceSchedule.findById(sanitizeObjectId(id))
+        const schedule = await MaintenanceSchedule.findOne({ _id: sanitizeObjectId(id), firmId })
             .populate('assetId', 'assetName assetNumber')
             .populate('assignTo', 'firstName lastName email');
 
         if (!schedule) {
-            throw CustomException('Maintenance schedule not found', 404);
-        }
-
-        // IDOR Protection
-        if (firmId && schedule.firmId && schedule.firmId.toString() !== firmId.toString()) {
-            throw CustomException('You do not have permission to access this schedule', 403);
+            throw CustomException('Resource not found', 404);
         }
 
         return schedule;
@@ -598,8 +558,8 @@ const createMaintenanceSchedule = async (data, firmId, userId) => {
         await schedule.save();
 
         // Add to asset's maintenance schedule
-        await Asset.findByIdAndUpdate(
-            safeData.assetId,
+        await Asset.findOneAndUpdate(
+            { _id: safeData.assetId, firmId },
             { $push: { maintenanceSchedule: schedule._id } }
         );
 
@@ -625,15 +585,10 @@ const createMaintenanceSchedule = async (data, firmId, userId) => {
  */
 const updateMaintenanceSchedule = async (id, data, firmId, userId) => {
     try {
-        const schedule = await MaintenanceSchedule.findById(sanitizeObjectId(id));
+        const schedule = await MaintenanceSchedule.findOne({ _id: sanitizeObjectId(id), firmId });
 
         if (!schedule) {
-            throw CustomException('Maintenance schedule not found', 404);
-        }
-
-        // IDOR Protection
-        if (firmId && schedule.firmId && schedule.firmId.toString() !== firmId.toString()) {
-            throw CustomException('You do not have permission to update this schedule', 403);
+            throw CustomException('Resource not found', 404);
         }
 
         const allowedFields = [
@@ -665,15 +620,10 @@ const updateMaintenanceSchedule = async (id, data, firmId, userId) => {
  */
 const completeMaintenanceSchedule = async (id, firmId, userId) => {
     try {
-        const schedule = await MaintenanceSchedule.findById(sanitizeObjectId(id));
+        const schedule = await MaintenanceSchedule.findOne({ _id: sanitizeObjectId(id), firmId });
 
         if (!schedule) {
-            throw CustomException('Maintenance schedule not found', 404);
-        }
-
-        // IDOR Protection
-        if (firmId && schedule.firmId && schedule.firmId.toString() !== firmId.toString()) {
-            throw CustomException('You do not have permission to complete this schedule', 403);
+            throw CustomException('Resource not found', 404);
         }
 
         await schedule.completeMaintenance(userId);
@@ -876,14 +826,15 @@ const updateSettings = async (data, firmId, userId) => {
 /**
  * Calculate depreciation for an asset
  * @param {String} assetId - Asset ID
+ * @param {String} firmId - Firm ID
  * @returns {Promise<Object>} - Depreciation calculation
  */
-const calculateDepreciation = async (assetId) => {
+const calculateDepreciation = async (assetId, firmId) => {
     try {
-        const asset = await Asset.findById(sanitizeObjectId(assetId));
+        const asset = await Asset.findOne({ _id: sanitizeObjectId(assetId), firmId });
 
         if (!asset) {
-            throw CustomException('Asset not found', 404);
+            throw CustomException('Resource not found', 404);
         }
 
         const depreciationAmount = asset.calculateDepreciation();
@@ -913,15 +864,10 @@ const calculateDepreciation = async (assetId) => {
  */
 const processAssetMovement = async (movementId, firmId, userId) => {
     try {
-        const movement = await AssetMovement.findById(sanitizeObjectId(movementId));
+        const movement = await AssetMovement.findOne({ _id: sanitizeObjectId(movementId), firmId });
 
         if (!movement) {
-            throw CustomException('Movement not found', 404);
-        }
-
-        // IDOR Protection
-        if (firmId && movement.firmId && movement.firmId.toString() !== firmId.toString()) {
-            throw CustomException('You do not have permission to process this movement', 403);
+            throw CustomException('Resource not found', 404);
         }
 
         // Auto-approve and complete the movement

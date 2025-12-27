@@ -17,6 +17,7 @@ const auditLogService = require('../services/auditLog.service');
 const { encryptField } = require('../utils/encryption');
 const { CustomException } = require('../utils');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
+const { getCookieConfig } = require('../utils/cookieConfig');
 const Firm = require('../models/firm.model');
 const logger = require('../utils/logger');
 
@@ -732,18 +733,8 @@ const login = async (request, response) => {
             }
         );
 
-        // Set cookie (similar to regular login)
-        const isProductionEnv = process.env.NODE_ENV === 'production' ||
-                                process.env.NODE_ENV === 'prod' ||
-                                process.env.RENDER === 'true';
-
-        response.cookie('token', result.token, {
-            httpOnly: true,
-            sameSite: isProductionEnv ? 'none' : 'lax',
-            secure: isProductionEnv,
-            maxAge: 60 * 60 * 24 * 7 * 1000, // 7 days
-            path: '/'
-        });
+        // Set cookie using secure centralized configuration
+        response.cookie('token', result.token, getCookieConfig(request, 'refresh'));
 
         return response.status(200).json({
             error: false,

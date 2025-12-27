@@ -40,7 +40,8 @@ const PAYMENT_CREATE_ALLOWED_FIELDS = [
     'internalNotes',
     'memo',
     'notes',
-    'attachments'
+    'attachments',
+    'idempotency_key'
 ];
 
 const PAYMENT_UPDATE_ALLOWED_FIELDS = [
@@ -82,6 +83,34 @@ const createPayment = asyncHandler(async (req, res) => {
     // Block departed users from financial operations
     if (req.isDeparted) {
         throw CustomException('ليس لديك صلاحية للوصول إلى المدفوعات', 403);
+    }
+
+    // SECURITY: Idempotency - Check for idempotency key in header or body
+    const idempotencyKey = req.headers['idempotency-key'] || req.body.idempotency_key;
+
+    if (idempotencyKey) {
+        // Check if payment with this idempotency key already exists
+        const existingPayment = await Payment.findOne({
+            idempotencyKey,
+            firmId: firmId || null,
+            lawyerId: firmId ? undefined : lawyerId
+        })
+            .populate([
+                { path: 'customerId', select: 'firstName lastName companyName email' },
+                { path: 'clientId', select: 'firstName lastName companyName email' },
+                { path: 'lawyerId', select: 'firstName lastName username' },
+                { path: 'invoiceId', select: 'invoiceNumber totalAmount' },
+                { path: 'caseId', select: 'title caseNumber' }
+            ]);
+
+        if (existingPayment) {
+            return res.status(200).json({
+                success: true,
+                message: 'Payment already exists (idempotent)',
+                payment: existingPayment,
+                isIdempotent: true
+            });
+        }
     }
 
     // SECURITY: Mass Assignment Protection - Only allow specific fields
@@ -225,6 +254,8 @@ const createPayment = asyncHandler(async (req, res) => {
         gatewayProvider,
         transactionId,
         gatewayResponse,
+        // Idempotency
+        idempotencyKey: idempotencyKey || undefined,
         // Invoice applications
         invoiceApplications: invoiceApplications || [],
         allocations: allocations || [],
@@ -697,23 +728,41 @@ const completePayment = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
-    const payment = await Payment.findById(id);
+    // SECURITY: IDOR Protection - Build access query
+    const accessQuery = firmId
+        ? { firmId: firmId }
+        : { lawyerId: lawyerId };
+
+    // SECURITY: Use atomic findOneAndUpdate to prevent race conditions
+    // This ensures only one request can transition the payment to 'processing' status
+    const payment = await Payment.findOneAndUpdate(
+        {
+            _id: id,
+            ...accessQuery,
+            status: { $in: ['pending', 'failed'] }
+        },
+        {
+            $set: {
+                status: 'processing',
+                processedBy: lawyerId
+            }
+        },
+        { new: false }
+    );
 
     if (!payment) {
-        throw CustomException('Payment not found', 404);
-    }
-
-    // SECURITY: IDOR Protection - Verify payment belongs to user's firm
-    const hasAccess = firmId
-        ? payment.firmId && payment.firmId.toString() === firmId.toString()
-        : payment.lawyerId.toString() === lawyerId;
-
-    if (!hasAccess) {
-        throw CustomException('You do not have access to this payment', 403);
-    }
-
-    if (payment.status === 'completed' || payment.status === 'reconciled') {
-        throw CustomException('Payment already completed', 400);
+        // Payment not found, already completed, or user doesn't have access
+        const existingPayment = await Payment.findOne({ _id: id, ...accessQuery });
+        if (!existingPayment) {
+            throw CustomException('Payment not found or access denied', 404);
+        }
+        if (existingPayment.status === 'completed' || existingPayment.status === 'reconciled') {
+            throw CustomException('Payment already completed', 400);
+        }
+        if (existingPayment.status === 'processing') {
+            throw CustomException('Payment is already being processed', 409);
+        }
+        throw CustomException('Payment cannot be completed in current status', 400);
     }
 
     // Use session for transaction
@@ -721,34 +770,37 @@ const completePayment = asyncHandler(async (req, res) => {
     session.startTransaction();
 
     try {
+        // Reload payment in session to get updated version
+        const paymentDoc = await Payment.findById(id).session(session);
+
         // Apply to invoices if provided
         if (invoiceApplications && invoiceApplications.length > 0) {
-            await payment.applyToInvoices(invoiceApplications);
-        } else if (payment.invoiceId && payment.invoiceApplications.length === 0) {
+            await paymentDoc.applyToInvoices(invoiceApplications);
+        } else if (paymentDoc.invoiceId && paymentDoc.invoiceApplications.length === 0) {
             // Apply to single invoice if specified and not already applied
-            await payment.applyToInvoices([{
-                invoiceId: payment.invoiceId,
-                amount: payment.amount
+            await paymentDoc.applyToInvoices([{
+                invoiceId: paymentDoc.invoiceId,
+                amount: paymentDoc.amount
             }]);
         }
 
-        payment.status = 'completed';
-        payment.processedBy = lawyerId;
-        await payment.save({ session });
+        paymentDoc.status = 'completed';
+        paymentDoc.processedBy = lawyerId;
+        await paymentDoc.save({ session });
 
         // Post to General Ledger
-        const glEntry = await payment.postToGL(session);
+        const glEntry = await paymentDoc.postToGL(session);
 
         // Update retainer if this is an advance/retainer payment
-        if (payment.paymentType === 'retainer' || payment.paymentType === 'advance') {
+        if (paymentDoc.paymentType === 'retainer' || paymentDoc.paymentType === 'advance') {
             const retainer = await Retainer.findOne({
-                clientId: payment.customerId || payment.clientId,
-                lawyerId: payment.lawyerId,
+                clientId: paymentDoc.customerId || paymentDoc.clientId,
+                lawyerId: paymentDoc.lawyerId,
                 status: { $in: ['active', 'depleted'] }
             }).sort({ createdAt: -1 });
 
             if (retainer) {
-                await retainer.replenish(payment.amount, payment._id);
+                await retainer.replenish(paymentDoc.amount, paymentDoc._id);
             }
         }
 
@@ -756,18 +808,18 @@ const completePayment = asyncHandler(async (req, res) => {
         await BillingActivity.logActivity({
             activityType: 'payment_completed',
             userId: lawyerId,
-            clientId: payment.customerId || payment.clientId,
+            clientId: paymentDoc.customerId || paymentDoc.clientId,
             relatedModel: 'Payment',
-            relatedId: payment._id,
-            description: `Payment ${payment.paymentNumber} completed for ${payment.amount} ${payment.currency}`,
-            amount: payment.amount,
+            relatedId: paymentDoc._id,
+            description: `Payment ${paymentDoc.paymentNumber} completed for ${paymentDoc.amount} ${paymentDoc.currency}`,
+            amount: paymentDoc.amount,
             ipAddress: req.ip,
             userAgent: req.get('user-agent')
         });
 
         await session.commitTransaction();
 
-        await payment.populate([
+        await paymentDoc.populate([
             { path: 'customerId', select: 'firstName lastName companyName email' },
             { path: 'invoiceId', select: 'invoiceNumber totalAmount status' },
             { path: 'invoiceApplications.invoiceId', select: 'invoiceNumber totalAmount status' }
@@ -775,7 +827,7 @@ const completePayment = asyncHandler(async (req, res) => {
 
         // SECURITY: Update client balance after payment completion using MongoDB transaction
         // to prevent race conditions on balance updates
-        const clientId = payment.customerId || payment.clientId;
+        const clientId = paymentDoc.customerId || paymentDoc.clientId;
         if (clientId) {
             const balanceSession = await mongoose.startSession();
             balanceSession.startTransaction();
@@ -796,7 +848,7 @@ const completePayment = asyncHandler(async (req, res) => {
         res.status(200).json({
             success: true,
             message: 'Payment completed successfully',
-            payment,
+            payment: paymentDoc,
             glEntryId: glEntry ? glEntry._id : null
         });
     } catch (error) {
@@ -821,26 +873,37 @@ const failPayment = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
-    const payment = await Payment.findById(id);
+    // SECURITY: IDOR Protection - Build access query
+    const accessQuery = firmId
+        ? { firmId: firmId }
+        : { lawyerId: lawyerId };
+
+    // SECURITY: Use atomic findOneAndUpdate to prevent race conditions
+    const payment = await Payment.findOneAndUpdate(
+        {
+            _id: id,
+            ...accessQuery,
+            status: { $in: ['pending', 'processing'] }
+        },
+        {
+            $set: {
+                status: 'failed',
+                failureReason: reason || 'Payment failed',
+                failureDate: new Date()
+            },
+            $inc: { retryCount: 1 }
+        },
+        { new: true }
+    );
 
     if (!payment) {
-        throw CustomException('Payment not found', 404);
+        // Payment not found or already in final status
+        const existingPayment = await Payment.findOne({ _id: id, ...accessQuery });
+        if (!existingPayment) {
+            throw CustomException('Payment not found or access denied', 404);
+        }
+        throw CustomException('Payment cannot be marked as failed in current status', 400);
     }
-
-    // SECURITY: IDOR Protection - Verify payment belongs to user's firm
-    const hasAccess = firmId
-        ? payment.firmId && payment.firmId.toString() === firmId.toString()
-        : payment.lawyerId.toString() === lawyerId;
-
-    if (!hasAccess) {
-        throw CustomException('You do not have access to this payment', 403);
-    }
-
-    payment.status = 'failed';
-    payment.failureReason = reason || 'Payment failed';
-    payment.failureDate = new Date();
-    payment.retryCount = (payment.retryCount || 0) + 1;
-    await payment.save();
 
     // Log activity
     await BillingActivity.logActivity({
@@ -1577,43 +1640,92 @@ const recordInvoicePayment = asyncHandler(async (req, res) => {
         amount,
         paymentMethod,
         transactionId,
-        notes
+        notes,
+        idempotency_key
     } = req.body;
 
     const lawyerId = req.userID;
     const firmId = req.firmId;
+
+    // SECURITY: Idempotency - Check for idempotency key in header or body
+    const idempotencyKey = req.headers['idempotency-key'] || idempotency_key;
+
+    if (idempotencyKey) {
+        // Check if payment with this idempotency key already exists for this invoice
+        const existingPayment = await Payment.findOne({
+            idempotencyKey,
+            invoiceId,
+            firmId: firmId || null,
+            lawyerId: firmId ? undefined : lawyerId
+        })
+            .populate([
+                { path: 'customerId', select: 'firstName lastName companyName email' },
+                { path: 'invoiceId', select: 'invoiceNumber totalAmount status balanceDue' }
+            ]);
+
+        if (existingPayment) {
+            const invoice = await Invoice.findById(invoiceId);
+            return res.status(200).json({
+                success: true,
+                message: 'Payment already recorded (idempotent)',
+                payment: existingPayment,
+                invoice: invoice ? {
+                    _id: invoice._id,
+                    invoiceNumber: invoice.invoiceNumber,
+                    totalAmount: invoice.totalAmount,
+                    amountPaid: invoice.amountPaid,
+                    balanceDue: invoice.balanceDue,
+                    status: invoice.status
+                } : null,
+                isIdempotent: true
+            });
+        }
+    }
 
     // SECURITY: Validate amount - must be a positive number
     if (!amount || typeof amount !== 'number' || amount <= 0 || !Number.isFinite(amount)) {
         throw CustomException('Amount is required and must be a positive number', 400);
     }
 
-    // Validate and get invoice
-    const invoice = await Invoice.findById(invoiceId);
+    // SECURITY: IDOR Protection - Build access query
+    const accessQuery = firmId
+        ? { firmId: firmId }
+        : { lawyerId: lawyerId };
+
+    // SECURITY: Use atomic findOneAndUpdate to prevent double payment race conditions
+    // This atomically checks the invoice status and transitions it to 'processing'
+    const invoice = await Invoice.findOneAndUpdate(
+        {
+            _id: invoiceId,
+            ...accessQuery,
+            status: { $in: ['pending', 'overdue', 'partial'] },
+            balanceDue: { $gte: amount }
+        },
+        {
+            $set: { paymentProcessing: true }
+        },
+        { new: false }
+    );
+
     if (!invoice) {
-        throw CustomException('Invoice not found', 404);
-    }
-
-    // Check access
-    const hasAccess = firmId
-        ? invoice.firmId && invoice.firmId.toString() === firmId.toString()
-        : invoice.lawyerId.toString() === lawyerId;
-
-    if (!hasAccess) {
-        throw CustomException('You do not have access to this invoice', 403);
-    }
-
-    if (invoice.status === 'paid') {
-        throw CustomException('Invoice is already paid in full', 400);
-    }
-
-    if (invoice.status === 'cancelled') {
-        throw CustomException('Cannot record payment for cancelled invoice', 400);
-    }
-
-    // Check if payment exceeds balance due
-    if (amount > invoice.balanceDue) {
-        throw CustomException(`Payment amount exceeds balance due (${invoice.balanceDue} SAR)`, 400);
+        // Invoice not found, already paid, or insufficient balance
+        const existingInvoice = await Invoice.findOne({ _id: invoiceId, ...accessQuery });
+        if (!existingInvoice) {
+            throw CustomException('Invoice not found or access denied', 404);
+        }
+        if (existingInvoice.status === 'paid') {
+            throw CustomException('Invoice is already paid in full', 400);
+        }
+        if (existingInvoice.status === 'cancelled') {
+            throw CustomException('Cannot record payment for cancelled invoice', 400);
+        }
+        if (amount > existingInvoice.balanceDue) {
+            throw CustomException(`Payment amount exceeds balance due (${existingInvoice.balanceDue} SAR)`, 400);
+        }
+        if (existingInvoice.paymentProcessing) {
+            throw CustomException('Invoice payment is already being processed', 409);
+        }
+        throw CustomException('Invoice cannot accept payment in current status', 400);
     }
 
     // Use session for transaction
@@ -1634,6 +1746,7 @@ const recordInvoicePayment = asyncHandler(async (req, res) => {
             currency: 'SAR',
             paymentMethod: paymentMethod || 'bank_transfer',
             transactionId,
+            idempotencyKey: idempotencyKey || undefined,
             status: 'completed',
             paymentDate: new Date(),
             notes,
@@ -1673,6 +1786,9 @@ const recordInvoicePayment = asyncHandler(async (req, res) => {
             date: new Date(),
             method: paymentMethod || 'bank_transfer'
         });
+
+        // SECURITY: Clear payment processing flag
+        invoice.paymentProcessing = false;
 
         await invoice.save({ session });
 
@@ -1731,6 +1847,13 @@ const recordInvoicePayment = asyncHandler(async (req, res) => {
         });
     } catch (error) {
         await session.abortTransaction();
+        // SECURITY: Clear payment processing flag on error
+        try {
+            await Invoice.findByIdAndUpdate(invoiceId, { $set: { paymentProcessing: false } });
+        } catch (cleanupError) {
+            // Log cleanup error but don't mask original error
+            console.error('Failed to clear payment processing flag:', cleanupError);
+        }
         throw error;
     } finally {
         session.endSession();

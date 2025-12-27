@@ -1,5 +1,6 @@
 const { Server } = require('socket.io');
 const logger = require('../utils/logger');
+const { socketAuthMiddleware, verifySocketResourceAccess } = require('../middlewares/socketAuth.middleware');
 
 // Import socket handlers
 const TicketCollisionHandler = require('../sockets/ticketCollision.socket');
@@ -106,6 +107,10 @@ const initSocket = (server) => {
     logger.error('Redis adapter initialization failed:', err.message);
   });
 
+  // ✅ SECURITY: Authentication middleware - verify JWT on connection
+  // CRITICAL: This must be before any socket handlers are initialized
+  io.use(socketAuthMiddleware);
+
   // ═══════════════════════════════════════════════════════════════
   // INITIALIZE MODULAR SOCKET HANDLERS
   // ═══════════════════════════════════════════════════════════════
@@ -126,38 +131,30 @@ const initSocket = (server) => {
   const activeRooms = new Map();
 
   io.on('connection', (socket) => {
-    logger.info('✅ User connected:', socket.id);
+    // SECURITY: Socket is already authenticated by socketAuthMiddleware
+    // socket.userId, socket.firmId, socket.userRole are set by middleware
+    logger.info('✅ Authenticated user connected', {
+      socketId: socket.id,
+      userId: socket.userId,
+      firmId: socket.firmId
+    });
 
     // ═══════════════════════════════════════════════════════════════
     // USER CONNECTION & PRESENCE
     // ═══════════════════════════════════════════════════════════════
 
-    // User joins with their ID and firmId
-    // SECURITY: Fixed - now requires firmId for scoped broadcasting
-    socket.on('user:join', (data) => {
-      // Support both old format (userId string) and new format (object with userId and firmId)
-      const userId = typeof data === 'string' ? data : data.userId;
-      const firmId = typeof data === 'object' ? data.firmId : null;
+    // Track online user
+    onlineUsers.set(socket.userId, socket.id);
 
-      onlineUsers.set(userId, socket.id);
-      socket.userId = userId;
-      socket.firmId = firmId; // Store firmId on socket for later use
+    // SECURITY: Broadcast online status only within user's firm
+    if (socket.firmId) {
+      io.to(`firm:${socket.firmId}`).emit('user:online', {
+        userId: socket.userId,
+        socketId: socket.id
+      });
+    }
 
-      // Join user's personal notification room
-      socket.join(`user:${userId}`);
-
-      // SECURITY: Join firm room if firmId provided
-      if (firmId) {
-        socket.join(`firm:${firmId}`);
-        // SECURITY: Only broadcast online status within the firm
-        io.to(`firm:${firmId}`).emit('user:online', {
-          userId,
-          socketId: socket.id
-        });
-      }
-
-      logger.info(`👤 User ${userId} is online${firmId ? ` (firm: ${firmId})` : ''}`);
-    });
+    logger.info(`👤 User ${socket.userId} is online (firm: ${socket.firmId})`);
 
     // Update user presence (what they're viewing)
     socket.on('user:presence', ({ userId, location }) => {
@@ -203,9 +200,21 @@ const initSocket = (server) => {
     // ═══════════════════════════════════════════════════════════════
 
     // Join conversation room
-    socket.on('conversation:join', (conversationId) => {
-      socket.join(conversationId);
-      logger.info(`💬 User joined conversation: ${conversationId}`);
+    // SECURITY: Verify user has access to conversation before joining
+    socket.on('conversation:join', async (conversationId) => {
+      try {
+        const conversation = await verifySocketResourceAccess(socket, 'Conversation', conversationId);
+        if (!conversation) {
+          socket.emit('error', { message: 'Conversation not found or access denied' });
+          return;
+        }
+
+        socket.join(conversationId);
+        logger.info(`💬 User ${socket.userId} joined conversation: ${conversationId}`);
+      } catch (error) {
+        logger.error('Error joining conversation:', error.message);
+        socket.emit('error', { message: 'Failed to join conversation' });
+      }
     });
 
     // Typing indicator
@@ -234,10 +243,22 @@ const initSocket = (server) => {
     // ═══════════════════════════════════════════════════════════════
 
     // Join task room
-    socket.on('task:join', (taskId) => {
-      const roomId = `task:${taskId}`;
-      socket.join(roomId);
-      logger.info(`📋 User joined task: ${taskId}`);
+    // SECURITY: Verify user has access to task before joining
+    socket.on('task:join', async (taskId) => {
+      try {
+        const task = await verifySocketResourceAccess(socket, 'Task', taskId);
+        if (!task) {
+          socket.emit('error', { message: 'Task not found or access denied' });
+          return;
+        }
+
+        const roomId = `task:${taskId}`;
+        socket.join(roomId);
+        logger.info(`📋 User ${socket.userId} joined task: ${taskId}`);
+      } catch (error) {
+        logger.error('Error joining task:', error.message);
+        socket.emit('error', { message: 'Failed to join task' });
+      }
     });
 
     // Leave task room
@@ -264,16 +285,29 @@ const initSocket = (server) => {
     // ═══════════════════════════════════════════════════════════════
 
     // Join Gantt room
-    socket.on('gantt:join', (projectId) => {
-      const roomId = `gantt:${projectId}`;
-      socket.join(roomId);
-      logger.info(`📊 User joined Gantt chart: ${projectId}`);
+    // SECURITY: Verify user has access to case/project before joining
+    socket.on('gantt:join', async (projectId) => {
+      try {
+        // Gantt charts are typically associated with cases in this system
+        const project = await verifySocketResourceAccess(socket, 'Case', projectId);
+        if (!project) {
+          socket.emit('error', { message: 'Project not found or access denied' });
+          return;
+        }
 
-      // Notify others
-      socket.to(roomId).emit('gantt:user:joined', {
-        userId: socket.userId,
-        socketId: socket.id
-      });
+        const roomId = `gantt:${projectId}`;
+        socket.join(roomId);
+        logger.info(`📊 User ${socket.userId} joined Gantt chart: ${projectId}`);
+
+        // Notify others in the same firm
+        socket.to(roomId).emit('gantt:user:joined', {
+          userId: socket.userId,
+          socketId: socket.id
+        });
+      } catch (error) {
+        logger.error('Error joining Gantt:', error.message);
+        socket.emit('error', { message: 'Failed to join Gantt chart' });
+      }
     });
 
     // Leave Gantt room
@@ -321,15 +355,27 @@ const initSocket = (server) => {
     // ═══════════════════════════════════════════════════════════════
 
     // Join document room
-    socket.on('document:join', (docId) => {
-      const roomId = `document:${docId}`;
-      socket.join(roomId);
-      logger.info(`📄 User joined document: ${docId}`);
+    // SECURITY: Verify user has access to document before joining
+    socket.on('document:join', async (docId) => {
+      try {
+        const document = await verifySocketResourceAccess(socket, 'Document', docId);
+        if (!document) {
+          socket.emit('error', { message: 'Document not found or access denied' });
+          return;
+        }
 
-      // Notify others
-      socket.to(roomId).emit('document:user:joined', {
-        userId: socket.userId
-      });
+        const roomId = `document:${docId}`;
+        socket.join(roomId);
+        logger.info(`📄 User ${socket.userId} joined document: ${docId}`);
+
+        // Notify others in the same firm
+        socket.to(roomId).emit('document:user:joined', {
+          userId: socket.userId
+        });
+      } catch (error) {
+        logger.error('Error joining document:', error.message);
+        socket.emit('error', { message: 'Failed to join document' });
+      }
     });
 
     // Leave document room
@@ -385,10 +431,22 @@ const initSocket = (server) => {
     // ═══════════════════════════════════════════════════════════════
 
     // Join case room
-    socket.on('case:join', (caseId) => {
-      const roomId = `case:${caseId}`;
-      socket.join(roomId);
-      logger.info(`⚖️ User joined case: ${caseId}`);
+    // SECURITY: Verify user has access to case before joining
+    socket.on('case:join', async (caseId) => {
+      try {
+        const caseData = await verifySocketResourceAccess(socket, 'Case', caseId);
+        if (!caseData) {
+          socket.emit('error', { message: 'Case not found or access denied' });
+          return;
+        }
+
+        const roomId = `case:${caseId}`;
+        socket.join(roomId);
+        logger.info(`⚖️ User ${socket.userId} joined case: ${caseId}`);
+      } catch (error) {
+        logger.error('Error joining case:', error.message);
+        socket.emit('error', { message: 'Failed to join case' });
+      }
     });
 
     // Leave case room
@@ -408,29 +466,32 @@ const initSocket = (server) => {
     // FIRM-WIDE UPDATES
     // ═══════════════════════════════════════════════════════════════
 
-    // Join firm room
-    // SECURITY: Validate that user is joining their own firm's room
-    socket.on('firm:join', (firmId) => {
-      // SECURITY: Only allow joining if socket has firmId set and it matches
-      if (socket.firmId && socket.firmId.toString() === firmId.toString()) {
-        const roomId = `firm:${firmId}`;
-        socket.join(roomId);
-        logger.info(`🏢 User joined firm room: ${firmId}`);
-      } else {
-        logger.warn(`🚫 Unauthorized firm:join attempt - socket firmId: ${socket.firmId}, requested: ${firmId}`);
-      }
-    });
+    // REMOVED: firm:join event - users are automatically joined to their firm room on connection
+    // This prevents client-controlled firmId attacks
 
     // Activity notification (firm-wide)
-    // SECURITY: Validate that user can only broadcast to their own firm
+    // SECURITY: Broadcasts are automatically scoped to user's firm (no client input needed)
     socket.on('activity:new', (data) => {
-      // SECURITY: Verify socket has firmId and it matches the broadcast target
-      if (socket.firmId && data.firmId && socket.firmId.toString() === data.firmId.toString()) {
-        const roomId = `firm:${data.firmId}`;
-        io.to(roomId).emit('activity:notification', data);
-      } else {
-        logger.warn(`🚫 Unauthorized activity:new attempt - socket firmId: ${socket.firmId}, target: ${data.firmId}`);
+      // SECURITY: Only broadcast to the authenticated user's firm
+      if (!socket.firmId) {
+        logger.warn(`🚫 Activity broadcast rejected - no firmId on socket`, {
+          socketId: socket.id,
+          userId: socket.userId
+        });
+        return;
       }
+
+      const roomId = `firm:${socket.firmId}`;
+      io.to(roomId).emit('activity:notification', {
+        ...data,
+        firmId: socket.firmId, // Override with verified firmId
+        userId: socket.userId  // Add verified userId
+      });
+
+      logger.debug('Activity broadcasted to firm', {
+        firmId: socket.firmId,
+        userId: socket.userId
+      });
     });
 
     // ═══════════════════════════════════════════════════════════════

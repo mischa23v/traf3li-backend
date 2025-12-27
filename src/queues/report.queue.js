@@ -70,6 +70,11 @@ reportQueue.process(async (job) => {
 async function generateFinancialReport(data, job) {
   const { firmId, startDate, endDate, reportType, format } = data;
 
+  // CRITICAL: Verify firmId is present for multi-tenant isolation
+  if (!firmId) {
+    throw new Error('firmId is required for financial report generation');
+  }
+
   await job.progress(10);
 
   // Import models
@@ -148,6 +153,11 @@ async function generateFinancialReport(data, job) {
 async function generateAnalyticsReport(data, job) {
   const { firmId, startDate, endDate, metrics } = data;
 
+  // CRITICAL: Verify firmId is present for multi-tenant isolation
+  if (!firmId) {
+    throw new Error('firmId is required for analytics report generation');
+  }
+
   await job.progress(10);
 
   const { Case, Client, TimeEntry } = require('../models');
@@ -215,6 +225,11 @@ async function generateAnalyticsReport(data, job) {
  */
 async function generateTimeUtilizationReport(data, job) {
   const { firmId, startDate, endDate, staffIds } = data;
+
+  // CRITICAL: Verify firmId is present for multi-tenant isolation
+  if (!firmId) {
+    throw new Error('firmId is required for time utilization report generation');
+  }
 
   await job.progress(10);
 
@@ -293,6 +308,11 @@ async function generateTimeUtilizationReport(data, job) {
  */
 async function generateClientAgingReport(data, job) {
   const { firmId } = data;
+
+  // CRITICAL: Verify firmId is present for multi-tenant isolation
+  if (!firmId) {
+    throw new Error('firmId is required for client aging report generation');
+  }
 
   await job.progress(10);
 
@@ -375,6 +395,11 @@ async function generateClientAgingReport(data, job) {
 async function generateCustomReport(data, job) {
   const { firmId, query, aggregation, name } = data;
 
+  // CRITICAL: Verify firmId is present for multi-tenant isolation
+  if (!firmId) {
+    throw new Error('firmId is required for custom report generation');
+  }
+
   await job.progress(20);
 
   // Execute custom query/aggregation
@@ -415,12 +440,17 @@ async function generateCustomReport(data, job) {
 async function generateDataExport(data, job) {
   const { firmId, exportType, format, filters } = data;
 
+  // CRITICAL: Verify firmId is present for multi-tenant isolation
+  if (!firmId) {
+    throw new Error('firmId is required for data export generation');
+  }
+
   await job.progress(10);
 
   const fs = require('fs').promises;
   const path = require('path');
 
-  // Fetch data based on export type
+  // Fetch data based on export type - all scoped to firmId
   let exportData;
   switch (exportType) {
     case 'invoices':
@@ -495,10 +525,15 @@ function groupBy(array, property) {
 function convertToCSV(data) {
   if (data.length === 0) return '';
 
+  // SECURITY: Import sanitization function to prevent CSV injection
+  const { sanitizeForCSV } = require('../utils/securityUtils');
+
   const headers = Object.keys(data[0]).join(',');
-  const rows = data.map(obj => Object.values(obj).map(val =>
-    typeof val === 'string' ? `"${val}"` : val
-  ).join(','));
+  const rows = data.map(obj => Object.values(obj).map(val => {
+    // Sanitize each value to prevent CSV injection
+    const sanitized = sanitizeForCSV(val);
+    return typeof sanitized === 'string' ? `"${sanitized}"` : sanitized;
+  }).join(','));
 
   return [headers, ...rows].join('\n');
 }

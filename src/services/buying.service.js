@@ -307,7 +307,10 @@ class BuyingService {
   async createPurchaseOrder(data, firmId, userId) {
     try {
       // Get supplier name
-      const supplier = await Supplier.findById(data.supplierId);
+      const supplier = await Supplier.findOne({
+        _id: data.supplierId,
+        firmId: new mongoose.Types.ObjectId(firmId)
+      });
       if (!supplier) {
         throw CustomException('Supplier not found', 404);
       }
@@ -557,7 +560,10 @@ class BuyingService {
   async createPurchaseReceipt(data, firmId, userId) {
     try {
       // Get supplier name
-      const supplier = await Supplier.findById(data.supplierId);
+      const supplier = await Supplier.findOne({
+        _id: data.supplierId,
+        firmId: new mongoose.Types.ObjectId(firmId)
+      });
       if (!supplier) {
         throw CustomException('Supplier not found', 404);
       }
@@ -706,7 +712,10 @@ class BuyingService {
   async createPurchaseInvoice(data, firmId, userId) {
     try {
       // Get supplier name
-      const supplier = await Supplier.findById(data.supplierId);
+      const supplier = await Supplier.findOne({
+        _id: data.supplierId,
+        firmId: new mongoose.Types.ObjectId(firmId)
+      });
       if (!supplier) {
         throw CustomException('Supplier not found', 404);
       }

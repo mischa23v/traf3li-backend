@@ -658,10 +658,19 @@ class OfflineSyncService {
    */
   async _updateEntity(Model, userId, entityId, data, timestamp) {
     try {
-      // Check for conflicts
-      const existing = await Model.findById(entityId).lean();
+      // Build access control query
+      const accessQuery = {
+        _id: entityId,
+        $or: [
+          { firmId: data.firmId },
+          { lawyerId: userId }
+        ]
+      };
+
+      // Check for conflicts with access control
+      const existing = await Model.findOne(accessQuery).lean();
       if (!existing) {
-        return { success: false, error: 'Entity not found' };
+        return { success: false, error: 'Entity not found or access denied' };
       }
 
       // Check if entity was modified after offline change was made
@@ -678,9 +687,9 @@ class OfflineSyncService {
         };
       }
 
-      // Apply update
-      const updated = await Model.findByIdAndUpdate(
-        entityId,
+      // Apply update with access control
+      const updated = await Model.findOneAndUpdate(
+        accessQuery,
         {
           ...data,
           updatedBy: userId,
@@ -688,6 +697,10 @@ class OfflineSyncService {
         },
         { new: true }
       );
+
+      if (!updated) {
+        return { success: false, error: 'Update failed or access denied' };
+      }
 
       return {
         success: true,
@@ -704,7 +717,33 @@ class OfflineSyncService {
    */
   async _deleteEntity(Model, userId, entityId) {
     try {
-      await Model.findByIdAndDelete(entityId);
+      // First, verify the entity exists and user has access
+      const entity = await Model.findById(entityId).select('firmId lawyerId').lean();
+      if (!entity) {
+        return { success: false, error: 'Entity not found' };
+      }
+
+      // Verify access control
+      const hasAccess = entity.firmId || entity.lawyerId === userId;
+      if (!hasAccess) {
+        return { success: false, error: 'Access denied' };
+      }
+
+      // Build access control query for deletion
+      const accessQuery = {
+        _id: entityId,
+        $or: [
+          { firmId: entity.firmId },
+          { lawyerId: userId }
+        ]
+      };
+
+      // Delete with access control
+      const deleted = await Model.findOneAndDelete(accessQuery);
+      if (!deleted) {
+        return { success: false, error: 'Delete failed or access denied' };
+      }
+
       return { success: true, entityId };
     } catch (error) {
       return { success: false, error: error.message };
@@ -722,10 +761,26 @@ class OfflineSyncService {
         return { success: false, error: `Unknown entity type: ${entityType}` };
       }
 
-      await Model.findByIdAndUpdate(entityId, {
-        ...localData,
-        updatedAt: new Date()
-      });
+      // Build access control query
+      const accessQuery = {
+        _id: entityId,
+        $or: [
+          { firmId: localData.firmId },
+          { lawyerId: localData.lawyerId }
+        ]
+      };
+
+      const updated = await Model.findOneAndUpdate(
+        accessQuery,
+        {
+          ...localData,
+          updatedAt: new Date()
+        }
+      );
+
+      if (!updated) {
+        return { success: false, error: 'Update failed or access denied' };
+      }
 
       return { success: true };
     } catch (error) {
@@ -753,7 +808,23 @@ class OfflineSyncService {
         _id: entityId
       };
 
-      await Model.findByIdAndUpdate(entityId, merged);
+      // Build access control query using firmId from serverData or localData
+      const firmId = serverData.firmId || localData.firmId;
+      const lawyerId = serverData.lawyerId || localData.lawyerId;
+
+      const accessQuery = {
+        _id: entityId,
+        $or: [
+          { firmId },
+          { lawyerId }
+        ]
+      };
+
+      const updated = await Model.findOneAndUpdate(accessQuery, merged);
+
+      if (!updated) {
+        return { success: false, error: 'Merge failed or access denied' };
+      }
 
       return { success: true };
     } catch (error) {

@@ -90,14 +90,21 @@ class WorkflowService {
      * Update a workflow template
      * @param {String} templateId - Template ID
      * @param {Object} data - Update data
+     * @param {String} firmId - Firm ID for access control
      * @returns {Promise<Object>} - Updated template
      */
-    async updateTemplate(templateId, data) {
+    async updateTemplate(templateId, data, firmId) {
         try {
-            const template = await WorkflowTemplate.findById(templateId);
+            const template = await WorkflowTemplate.findOne({
+                _id: templateId,
+                $or: [
+                    { firmId: new mongoose.Types.ObjectId(firmId) },
+                    { isSystem: true }
+                ]
+            });
 
             if (!template) {
-                throw new Error('Workflow template not found');
+                throw new Error('Resource not found');
             }
 
             // Check if template is in use
@@ -137,9 +144,10 @@ class WorkflowService {
     /**
      * Delete a workflow template
      * @param {String} templateId - Template ID
+     * @param {String} firmId - Firm ID for access control
      * @returns {Promise<Boolean>} - True if deleted
      */
-    async deleteTemplate(templateId) {
+    async deleteTemplate(templateId, firmId) {
         try {
             // Check if template is in use
             const activeInstances = await WorkflowInstance.countDocuments({
@@ -151,10 +159,16 @@ class WorkflowService {
                 throw new Error(`Cannot delete template: ${activeInstances} active instances exist`);
             }
 
-            const template = await WorkflowTemplate.findByIdAndDelete(templateId);
+            const template = await WorkflowTemplate.findOneAndDelete({
+                _id: templateId,
+                $or: [
+                    { firmId: new mongoose.Types.ObjectId(firmId) },
+                    { isSystem: true }
+                ]
+            });
 
             if (!template) {
-                throw new Error('Workflow template not found');
+                throw new Error('Resource not found');
             }
 
             logger.info(` Workflow template deleted: ${template.name}`);
@@ -217,15 +231,22 @@ class WorkflowService {
      * @param {String} entityId - Entity ID
      * @param {Object} variables - Initial variables
      * @param {String} userId - User ID starting the workflow
+     * @param {String} firmId - Firm ID for access control
      * @returns {Promise<Object>} - Workflow instance
      */
-    async startWorkflow(templateId, entityType, entityId, variables = {}, userId) {
+    async startWorkflow(templateId, entityType, entityId, variables = {}, userId, firmId) {
         try {
-            // Get template
-            const template = await WorkflowTemplate.findById(templateId).lean();
+            // Get template with firmId check
+            const template = await WorkflowTemplate.findOne({
+                _id: templateId,
+                $or: [
+                    { firmId: new mongoose.Types.ObjectId(firmId) },
+                    { isSystem: true }
+                ]
+            }).lean();
 
             if (!template) {
-                throw new Error('Workflow template not found');
+                throw new Error('Resource not found');
             }
 
             if (!template.isActive) {
@@ -233,7 +254,13 @@ class WorkflowService {
             }
 
             // Validate template configuration
-            const WorkflowTemplateModel = await WorkflowTemplate.findById(templateId);
+            const WorkflowTemplateModel = await WorkflowTemplate.findOne({
+                _id: templateId,
+                $or: [
+                    { firmId: new mongoose.Types.ObjectId(firmId) },
+                    { isSystem: true }
+                ]
+            });
             const validation = WorkflowTemplateModel.validateWorkflow();
             if (!validation.valid) {
                 throw new Error(`Invalid workflow configuration: ${validation.errors.join(', ')}`);
@@ -288,11 +315,17 @@ class WorkflowService {
             await instance.start(userId);
 
             // Execute first step
-            await this.executeNextStep(instance._id.toString(), userId);
+            await this.executeNextStep(instance._id.toString(), userId, firmId);
 
             // Update template stats
-            await WorkflowTemplate.findByIdAndUpdate(
-                templateId,
+            await WorkflowTemplate.findOneAndUpdate(
+                {
+                    _id: templateId,
+                    $or: [
+                        { firmId: new mongoose.Types.ObjectId(firmId) },
+                        { isSystem: true }
+                    ]
+                },
                 {
                     $inc: { 'stats.totalInstances': 1 },
                     $set: { 'stats.lastUsed': new Date() }
@@ -319,7 +352,10 @@ class WorkflowService {
 
             logger.info(` Workflow started: ${template.name} for ${entityType}:${entityId}`);
 
-            return await WorkflowInstance.findById(instance._id)
+            return await WorkflowInstance.findOne({
+                _id: instance._id,
+                firmId: new mongoose.Types.ObjectId(firmId)
+            })
                 .populate('templateId', 'name category')
                 .populate('startedBy', 'firstName lastName email')
                 .lean();
@@ -333,24 +369,34 @@ class WorkflowService {
      * Execute the next step in workflow
      * @param {String} instanceId - Instance ID
      * @param {String} userId - User ID executing the step
+     * @param {String} firmId - Firm ID for access control
      * @returns {Promise<Object>} - Updated instance
      */
-    async executeNextStep(instanceId, userId) {
+    async executeNextStep(instanceId, userId, firmId) {
         try {
-            const instance = await WorkflowInstance.findById(instanceId);
+            const instance = await WorkflowInstance.findOne({
+                _id: instanceId,
+                firmId: new mongoose.Types.ObjectId(firmId)
+            });
 
             if (!instance) {
-                throw new Error('Workflow instance not found');
+                throw new Error('Resource not found');
             }
 
             if (!['running', 'pending'].includes(instance.status)) {
                 throw new Error('Workflow is not in running state');
             }
 
-            const template = await WorkflowTemplate.findById(instance.templateId).lean();
+            const template = await WorkflowTemplate.findOne({
+                _id: instance.templateId,
+                $or: [
+                    { firmId: new mongoose.Types.ObjectId(firmId) },
+                    { isSystem: true }
+                ]
+            }).lean();
 
             if (!template) {
-                throw new Error('Workflow template not found');
+                throw new Error('Resource not found');
             }
 
             // Check if workflow is complete
@@ -391,7 +437,7 @@ class WorkflowService {
                     break;
 
                 case 'delay':
-                    stepResult = await this.executeDelayStep(step, instance);
+                    stepResult = await this.executeDelayStep(step, instance, template.firmId);
                     break;
 
                 case 'condition':
@@ -412,17 +458,23 @@ class WorkflowService {
 
             // Check if step auto-completes
             if (step.config.autoComplete) {
-                await this.advanceStep(instanceId, stepResult);
+                await this.advanceStep(instanceId, stepResult, firmId);
             }
 
             logger.info(` Step executed: ${step.name} (${step.type})`);
 
-            return await WorkflowInstance.findById(instanceId);
+            return await WorkflowInstance.findOne({
+                _id: instanceId,
+                firmId: new mongoose.Types.ObjectId(firmId)
+            });
         } catch (error) {
             logger.error('WorkflowService.executeNextStep failed:', error.message);
 
             // Mark instance as failed
-            const instance = await WorkflowInstance.findById(instanceId);
+            const instance = await WorkflowInstance.findOne({
+                _id: instanceId,
+                firmId: new mongoose.Types.ObjectId(firmId)
+            });
             if (instance) {
                 await instance.fail(error.message, error);
             }
@@ -435,14 +487,18 @@ class WorkflowService {
      * Advance workflow to next step
      * @param {String} instanceId - Instance ID
      * @param {Object} stepResult - Result from completed step
+     * @param {String} firmId - Firm ID for access control
      * @returns {Promise<Object>} - Updated instance
      */
-    async advanceStep(instanceId, stepResult = {}) {
+    async advanceStep(instanceId, stepResult = {}, firmId) {
         try {
-            const instance = await WorkflowInstance.findById(instanceId);
+            const instance = await WorkflowInstance.findOne({
+                _id: instanceId,
+                firmId: new mongoose.Types.ObjectId(firmId)
+            });
 
             if (!instance) {
-                throw new Error('Workflow instance not found');
+                throw new Error('Resource not found');
             }
 
             // Update current step status
@@ -455,18 +511,27 @@ class WorkflowService {
             await instance.advanceStep(stepResult);
 
             // Execute next step
-            const template = await WorkflowTemplate.findById(instance.templateId).lean();
+            const template = await WorkflowTemplate.findOne({
+                _id: instance.templateId,
+                $or: [
+                    { firmId: new mongoose.Types.ObjectId(firmId) },
+                    { isSystem: true }
+                ]
+            }).lean();
 
             if (instance.currentStep < template.steps.length) {
                 // Has more steps, execute next
-                await this.executeNextStep(instanceId, stepResult.completedBy || instance.startedBy.toString());
+                await this.executeNextStep(instanceId, stepResult.completedBy || instance.startedBy.toString(), firmId);
             } else {
                 // No more steps, complete workflow
                 await instance.complete(stepResult.completedBy || instance.startedBy.toString());
                 logger.info(` Workflow completed: ${instance.name}`);
             }
 
-            return await WorkflowInstance.findById(instanceId);
+            return await WorkflowInstance.findOne({
+                _id: instanceId,
+                firmId: new mongoose.Types.ObjectId(firmId)
+            });
         } catch (error) {
             logger.error('WorkflowService.advanceStep failed:', error.message);
             throw error;
@@ -476,14 +541,18 @@ class WorkflowService {
     /**
      * Pause a workflow
      * @param {String} instanceId - Instance ID
+     * @param {String} firmId - Firm ID for access control
      * @returns {Promise<Object>} - Updated instance
      */
-    async pauseWorkflow(instanceId) {
+    async pauseWorkflow(instanceId, firmId) {
         try {
-            const instance = await WorkflowInstance.findById(instanceId);
+            const instance = await WorkflowInstance.findOne({
+                _id: instanceId,
+                firmId: new mongoose.Types.ObjectId(firmId)
+            });
 
             if (!instance) {
-                throw new Error('Workflow instance not found');
+                throw new Error('Resource not found');
             }
 
             await instance.pause(instance.startedBy.toString(), 'Paused by user');
@@ -500,20 +569,24 @@ class WorkflowService {
     /**
      * Resume a workflow
      * @param {String} instanceId - Instance ID
+     * @param {String} firmId - Firm ID for access control
      * @returns {Promise<Object>} - Updated instance
      */
-    async resumeWorkflow(instanceId) {
+    async resumeWorkflow(instanceId, firmId) {
         try {
-            const instance = await WorkflowInstance.findById(instanceId);
+            const instance = await WorkflowInstance.findOne({
+                _id: instanceId,
+                firmId: new mongoose.Types.ObjectId(firmId)
+            });
 
             if (!instance) {
-                throw new Error('Workflow instance not found');
+                throw new Error('Resource not found');
             }
 
             await instance.resume(instance.startedBy.toString());
 
             // Continue execution
-            await this.executeNextStep(instanceId, instance.startedBy.toString());
+            await this.executeNextStep(instanceId, instance.startedBy.toString(), firmId);
 
             logger.info(` Workflow resumed: ${instance.name}`);
 
@@ -528,14 +601,18 @@ class WorkflowService {
      * Cancel a workflow
      * @param {String} instanceId - Instance ID
      * @param {String} reason - Cancellation reason
+     * @param {String} firmId - Firm ID for access control
      * @returns {Promise<Object>} - Updated instance
      */
-    async cancelWorkflow(instanceId, reason = '') {
+    async cancelWorkflow(instanceId, reason = '', firmId) {
         try {
-            const instance = await WorkflowInstance.findById(instanceId);
+            const instance = await WorkflowInstance.findOne({
+                _id: instanceId,
+                firmId: new mongoose.Types.ObjectId(firmId)
+            });
 
             if (!instance) {
-                throw new Error('Workflow instance not found');
+                throw new Error('Resource not found');
             }
 
             await instance.cancel(instance.startedBy.toString(), reason);
@@ -563,18 +640,22 @@ class WorkflowService {
     /**
      * Get workflow status
      * @param {String} instanceId - Instance ID
+     * @param {String} firmId - Firm ID for access control
      * @returns {Promise<Object>} - Workflow status
      */
-    async getWorkflowStatus(instanceId) {
+    async getWorkflowStatus(instanceId, firmId) {
         try {
-            const instance = await WorkflowInstance.findById(instanceId)
+            const instance = await WorkflowInstance.findOne({
+                _id: instanceId,
+                firmId: new mongoose.Types.ObjectId(firmId)
+            })
                 .populate('templateId', 'name category steps')
                 .populate('startedBy', 'firstName lastName email')
                 .populate('completedBy', 'firstName lastName email')
                 .lean();
 
             if (!instance) {
-                throw new Error('Workflow instance not found');
+                throw new Error('Resource not found');
             }
 
             return {
@@ -653,7 +734,8 @@ class WorkflowService {
                                     template.triggerConfig.entityType,
                                     entity._id.toString(),
                                     {},
-                                    template.createdBy.toString()
+                                    template.createdBy.toString(),
+                                    template.firmId.toString()
                                 );
                                 started++;
                             } catch (error) {
@@ -847,7 +929,7 @@ class WorkflowService {
      * Execute a delay step
      * @private
      */
-    async executeDelayStep(step, instance) {
+    async executeDelayStep(step, instance, firmId) {
         try {
             const delayMs = this.calculateDelay(step.config.delayDuration, step.config.delayUnit);
 
@@ -856,7 +938,7 @@ class WorkflowService {
             // Schedule next step execution
             setTimeout(async () => {
                 try {
-                    await this.advanceStep(instance._id.toString(), { status: 'completed' });
+                    await this.advanceStep(instance._id.toString(), { status: 'completed' }, firmId);
                 } catch (error) {
                     logger.error('Failed to advance after delay:', error.message);
                 }

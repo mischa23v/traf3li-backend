@@ -13,6 +13,12 @@ const documentVersionSchema = new mongoose.Schema({
     required: true,
     index: true
   },
+  firmId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Firm',
+    index: true,
+    required: false
+  },
   version: {
     type: Number,
     required: true
@@ -69,6 +75,7 @@ const documentVersionSchema = new mongoose.Schema({
 documentVersionSchema.index({ documentId: 1, version: -1 });
 documentVersionSchema.index({ documentId: 1, createdAt: -1 });
 documentVersionSchema.index({ uploadedBy: 1, createdAt: -1 });
+documentVersionSchema.index({ firmId: 1, createdAt: -1 });
 
 /**
  * Static method to get version history for a document

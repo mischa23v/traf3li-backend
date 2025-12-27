@@ -26,6 +26,12 @@ const followupSchema = new mongoose.Schema({
         required: true,
         index: true
     },
+    firmId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Firm',
+        index: true,
+        required: false
+    },
     title: {
         type: String,
         required: true,
@@ -108,6 +114,7 @@ followupSchema.index({ lawyerId: 1, dueDate: 1 });
 followupSchema.index({ lawyerId: 1, entityType: 1, entityId: 1 });
 followupSchema.index({ lawyerId: 1, priority: 1 });
 followupSchema.index({ assignedTo: 1, status: 1 });
+followupSchema.index({ firmId: 1, status: 1 });
 
 // Pre-save hook to add history
 followupSchema.pre('save', function(next) {

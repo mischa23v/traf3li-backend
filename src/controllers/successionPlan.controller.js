@@ -1416,6 +1416,9 @@ const exportSuccessionPlans = asyncHandler(async (req, res) => {
         .lean();
 
     if (format === 'csv') {
+        // SECURITY: Import sanitization function to prevent CSV injection
+        const { sanitizeForCSV } = require('../utils/securityUtils');
+
         const csvHeader = [
             'Plan ID',
             'Plan Number',
@@ -1431,17 +1434,17 @@ const exportSuccessionPlans = asyncHandler(async (req, res) => {
         ].join(',');
 
         const csvRows = plans.map(p => [
-            p.successionPlanId,
-            p.planNumber,
-            `"${p.criticalPosition?.positionTitle || ''}"`,
-            `"${p.incumbent?.employeeName || ''}"`,
-            p.criticalPosition?.criticalityAssessment?.criticalityLevel || '',
-            p.criticalPosition?.vacancyRisk?.riskLevel || '',
-            p.benchStrength?.overallBenchStrength || '',
-            p.successorsCount || 0,
-            p.readyNowCount || 0,
-            p.planStatus,
-            p.planDetails?.nextReviewDate ? new Date(p.planDetails.nextReviewDate).toISOString().split('T')[0] : ''
+            sanitizeForCSV(p.successionPlanId),
+            sanitizeForCSV(p.planNumber),
+            `"${sanitizeForCSV(p.criticalPosition?.positionTitle || '')}"`,
+            `"${sanitizeForCSV(p.incumbent?.employeeName || '')}"`,
+            sanitizeForCSV(p.criticalPosition?.criticalityAssessment?.criticalityLevel || ''),
+            sanitizeForCSV(p.criticalPosition?.vacancyRisk?.riskLevel || ''),
+            sanitizeForCSV(p.benchStrength?.overallBenchStrength || ''),
+            sanitizeForCSV(p.successorsCount || 0),
+            sanitizeForCSV(p.readyNowCount || 0),
+            sanitizeForCSV(p.planStatus),
+            sanitizeForCSV(p.planDetails?.nextReviewDate ? new Date(p.planDetails.nextReviewDate).toISOString().split('T')[0] : '')
         ].join(','));
 
         const csv = [csvHeader, ...csvRows].join('\n');

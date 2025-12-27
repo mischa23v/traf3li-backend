@@ -15,6 +15,12 @@ const threeWayReconciliationSchema = new mongoose.Schema({
         required: true,
         index: true
     },
+    firmId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Firm',
+        index: true,
+        required: false
+    },
     accountId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'TrustAccount',
@@ -64,6 +70,7 @@ const threeWayReconciliationSchema = new mongoose.Schema({
 
 // Indexes
 threeWayReconciliationSchema.index({ lawyerId: 1, accountId: 1 });
+threeWayReconciliationSchema.index({ firmId: 1, accountId: 1 });
 threeWayReconciliationSchema.index({ accountId: 1, reconciliationDate: -1 });
 
 // Static method: Run three-way reconciliation

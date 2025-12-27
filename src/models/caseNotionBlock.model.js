@@ -66,6 +66,12 @@ const caseNotionBlockSchema = new mongoose.Schema({
         required: true,
         index: true
     },
+    firmId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Firm',
+        index: true,
+        required: false
+    },
 
     type: { type: String, enum: BLOCK_TYPES, required: true },
     content: [richTextItemSchema],
@@ -477,6 +483,7 @@ caseNotionBlockSchema.index({ groupId: 1 });
 caseNotionBlockSchema.index({ pageId: 1, zIndex: 1 });
 caseNotionBlockSchema.index({ pageId: 1, isDeleted: 1 });
 caseNotionBlockSchema.index({ isFrame: 1, frameChildren: 1 });
+caseNotionBlockSchema.index({ firmId: 1, createdAt: -1 });
 
 // ═══════════════════════════════════════════════════════════════
 // EXPORTS

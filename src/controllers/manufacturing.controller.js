@@ -167,7 +167,7 @@ const updateBOM = asyncHandler(async (req, res) => {
 
   // Only certain roles can update BOMs
   if (!['owner', 'admin', 'manager'].includes(req.firmRole)) {
-    throw CustomException('ليس لديك صلاحية لتحديث BOM', 403);
+    throw CustomException('BOM غير موجود', 404);
   }
 
   // Sanitize ID
@@ -232,7 +232,7 @@ const deleteBOM = asyncHandler(async (req, res) => {
 
   // Only owner can delete BOMs
   if (req.firmRole !== 'owner') {
-    throw CustomException('فقط مالك المكتب يمكنه حذف BOM', 403);
+    throw CustomException('BOM غير موجود', 404);
   }
 
   // Sanitize ID
@@ -406,7 +406,7 @@ const updateWorkstation = asyncHandler(async (req, res) => {
 
   // Only certain roles can update workstations
   if (!['owner', 'admin', 'manager'].includes(req.firmRole)) {
-    throw CustomException('ليس لديك صلاحية لتحديث محطة العمل', 403);
+    throw CustomException('محطة العمل غير موجودة', 404);
   }
 
   // Sanitize ID
@@ -472,7 +472,7 @@ const deleteWorkstation = asyncHandler(async (req, res) => {
 
   // Only owner can delete workstations
   if (req.firmRole !== 'owner') {
-    throw CustomException('فقط مالك المكتب يمكنه حذف محطة العمل', 403);
+    throw CustomException('محطة العمل غير موجودة', 404);
   }
 
   // Sanitize ID
@@ -862,7 +862,7 @@ const cancelWorkOrder = asyncHandler(async (req, res) => {
 
   // Only certain roles can cancel
   if (!['owner', 'admin', 'manager'].includes(req.firmRole)) {
-    throw CustomException('ليس لديك صلاحية لإلغاء أمر العمل', 403);
+    throw CustomException('أمر العمل غير موجود', 404);
   }
 
   // Sanitize ID
@@ -914,7 +914,7 @@ const deleteWorkOrder = asyncHandler(async (req, res) => {
 
   // Only owner can delete
   if (req.firmRole !== 'owner') {
-    throw CustomException('فقط مالك المكتب يمكنه حذف أمر العمل', 403);
+    throw CustomException('أمر العمل غير موجود', 404);
   }
 
   // Sanitize ID

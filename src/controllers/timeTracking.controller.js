@@ -941,13 +941,37 @@ const approveTimeEntry = asyncHandler(async (req, res) => {
     const userId = req.userID || req.user?._id;
     const firmFilter = getFirmFilter(req);
 
-    const timeEntry = await TimeEntry.findOne({ _id: id, ...firmFilter });
+    // SECURITY: Atomic approval with race condition protection
+    // Prevents: self-approval, double approval, status race conditions
+    const timeEntry = await TimeEntry.findOneAndUpdate(
+        {
+            _id: id,
+            ...firmFilter,
+            status: 'submitted', // Only approve submitted entries
+            userId: { $ne: userId } // Prevent self-approval
+        },
+        {
+            $set: {
+                status: 'approved',
+                approvedBy: userId,
+                approvedAt: new Date(),
+                billStatus: 'unbilled'
+            },
+            $push: {
+                history: {
+                    action: 'approved',
+                    performedBy: userId,
+                    timestamp: new Date(),
+                    details: {}
+                }
+            }
+        },
+        { new: true }
+    );
 
     if (!timeEntry) {
-        throw new CustomException('Time entry not found', 404);
+        throw new CustomException('Time entry not found, already approved, or cannot self-approve', 404);
     }
-
-    await timeEntry.approve(userId);
 
     // Log activity
     if (BillingActivity && BillingActivity.logActivity) {
@@ -1716,14 +1740,21 @@ const bulkApproveTimeEntries = asyncHandler(async (req, res) => {
         throw new CustomException('Entry IDs are required', 400);
     }
 
+    if (entryIds.length > 100) {
+        throw new CustomException('Cannot approve more than 100 entries at once', 400);
+    }
+
     // IDOR protection: Sanitize all IDs
     const sanitizedIds = entryIds.map(id => sanitizeObjectId(id));
 
+    // SECURITY: Atomic bulk approval with race condition protection
+    // Prevents: self-approval, double approval, status race conditions
     const result = await TimeEntry.updateMany(
         {
             _id: { $in: sanitizedIds },
             ...firmFilter,
-            status: 'pending'
+            status: 'submitted', // Only approve submitted entries
+            userId: { $ne: userId } // Prevent self-approval
         },
         {
             $set: {

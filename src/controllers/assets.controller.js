@@ -588,8 +588,9 @@ const updateSettings = asyncHandler(async (req, res) => {
  */
 const calculateDepreciation = asyncHandler(async (req, res) => {
     const { id } = req.params;
+    const firmId = req.firmId;
 
-    const depreciation = await assetsService.calculateDepreciation(id);
+    const depreciation = await assetsService.calculateDepreciation(id, firmId);
 
     return res.json({
         success: true,

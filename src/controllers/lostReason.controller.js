@@ -19,23 +19,16 @@ const logger = require('../utils/logger');
 exports.getAll = async (req, res) => {
     try {
         if (req.isDeparted) {
-            return res.status(403).json({
+            return res.status(404).json({
                 success: false,
-                message: 'ليس لديك صلاحية للوصول / Access denied'
+                message: 'المورد غير موجود / Resource not found'
             });
         }
 
-        const firmId = req.firmId;
-        const lawyerId = req.userID;
         const { enabled, category } = req.query;
 
-        const isSoloLawyer = req.isSoloLawyer;
-        const query = {};
-        if (isSoloLawyer || !firmId) {
-            query.lawyerId = lawyerId;
-        } else {
-            query.firmId = firmId;
-        }
+        // Use req.firmQuery for consistent multi-tenant filtering
+        const query = { ...req.firmQuery };
 
         if (enabled !== undefined) {
             query.enabled = enabled === 'true';
@@ -95,14 +88,13 @@ exports.getCategories = async (req, res) => {
 exports.getById = async (req, res) => {
     try {
         if (req.isDeparted) {
-            return res.status(403).json({
+            return res.status(404).json({
                 success: false,
-                message: 'ليس لديك صلاحية للوصول / Access denied'
+                message: 'المورد غير موجود / Resource not found'
             });
         }
 
         const { id } = req.params;
-        const firmId = req.firmId;
 
         // IDOR Protection: Sanitize ID
         const sanitizedId = sanitizeObjectId(id);
@@ -113,8 +105,8 @@ exports.getById = async (req, res) => {
             });
         }
 
-        // IDOR Protection: Verify firmId ownership
-        const reason = await LostReason.findOne({ _id: sanitizedId, firmId });
+        // IDOR Protection: Verify firmId ownership with req.firmQuery
+        const reason = await LostReason.findOne({ _id: sanitizedId, ...req.firmQuery });
 
         if (!reason) {
             return res.status(404).json({
@@ -147,13 +139,12 @@ exports.getById = async (req, res) => {
 exports.create = async (req, res) => {
     try {
         if (req.isDeparted) {
-            return res.status(403).json({
+            return res.status(404).json({
                 success: false,
-                message: 'ليس لديك صلاحية للوصول / Access denied'
+                message: 'المورد غير موجود / Resource not found'
             });
         }
 
-        const firmId = req.firmId;
         const userId = req.userID;
 
         // Mass Assignment Protection: Only allow specific fields
@@ -193,7 +184,7 @@ exports.create = async (req, res) => {
 
         const reasonData = {
             ...safeData,
-            firmId
+            ...req.firmQuery
         };
 
         const reason = await LostReason.create(reasonData);
@@ -234,14 +225,13 @@ exports.create = async (req, res) => {
 exports.update = async (req, res) => {
     try {
         if (req.isDeparted) {
-            return res.status(403).json({
+            return res.status(404).json({
                 success: false,
-                message: 'ليس لديك صلاحية للوصول / Access denied'
+                message: 'المورد غير موجود / Resource not found'
             });
         }
 
         const { id } = req.params;
-        const firmId = req.firmId;
         const userId = req.userID;
 
         // IDOR Protection: Sanitize ID
@@ -297,9 +287,9 @@ exports.update = async (req, res) => {
             }
         }
 
-        // IDOR Protection: Verify firmId ownership
+        // IDOR Protection: Verify firmId ownership with req.firmQuery
         const reason = await LostReason.findOneAndUpdate(
-            { _id: sanitizedId, firmId },
+            { _id: sanitizedId, ...req.firmQuery },
             { $set: safeData },
             { new: true, runValidators: true }
         );
@@ -347,14 +337,13 @@ exports.update = async (req, res) => {
 exports.delete = async (req, res) => {
     try {
         if (req.isDeparted) {
-            return res.status(403).json({
+            return res.status(404).json({
                 success: false,
-                message: 'ليس لديك صلاحية للوصول / Access denied'
+                message: 'المورد غير موجود / Resource not found'
             });
         }
 
         const { id } = req.params;
-        const firmId = req.firmId;
         const userId = req.userID;
 
         // IDOR Protection: Sanitize ID
@@ -366,8 +355,8 @@ exports.delete = async (req, res) => {
             });
         }
 
-        // IDOR Protection: Verify firmId ownership
-        const reason = await LostReason.findOneAndDelete({ _id: sanitizedId, firmId });
+        // IDOR Protection: Verify firmId ownership with req.firmQuery
+        const reason = await LostReason.findOneAndDelete({ _id: sanitizedId, ...req.firmQuery });
 
         if (!reason) {
             return res.status(404).json({
@@ -411,17 +400,15 @@ exports.delete = async (req, res) => {
 exports.createDefaults = async (req, res) => {
     try {
         if (req.isDeparted) {
-            return res.status(403).json({
+            return res.status(404).json({
                 success: false,
-                message: 'ليس لديك صلاحية للوصول / Access denied'
+                message: 'المورد غير موجود / Resource not found'
             });
         }
 
-        const firmId = req.firmId;
+        await LostReason.createDefaults(req.firmId);
 
-        await LostReason.createDefaults(firmId);
-
-        const reasons = await LostReason.find({ firmId }).sort({ category: 1, reason: 1 });
+        const reasons = await LostReason.find(req.firmQuery).sort({ category: 1, reason: 1 });
 
         res.json({
             success: true,

@@ -133,7 +133,7 @@ class ManufacturingService {
       const bom = await BOM.create(bomData);
 
       // Populate before returning
-      return await BOM.findById(bom._id)
+      return await BOM.findOne({ _id: bom._id, firmId })
         .populate('itemId', 'itemCode itemName uom')
         .populate('items.itemId', 'itemCode itemName')
         .populate('operations.workstation', 'name nameAr')
@@ -165,7 +165,7 @@ class ManufacturingService {
       await bom.save();
 
       // Populate before returning
-      return await BOM.findById(bom._id)
+      return await BOM.findOne({ _id: bom._id, firmId })
         .populate('itemId', 'itemCode itemName uom')
         .populate('items.itemId', 'itemCode itemName')
         .populate('operations.workstation', 'name nameAr')
@@ -453,7 +453,7 @@ class ManufacturingService {
       const workOrder = await WorkOrder.create(workOrderData);
 
       // Populate before returning
-      return await WorkOrder.findById(workOrder._id)
+      return await WorkOrder.findOne({ _id: workOrder._id, firmId })
         .populate('itemId', 'itemCode itemName uom')
         .populate('bomId', 'bomId bomNumber')
         .populate('targetWarehouse', 'name')
@@ -498,7 +498,7 @@ class ManufacturingService {
       workOrder.updatedBy = userId;
       await workOrder.save();
 
-      return await WorkOrder.findById(workOrder._id)
+      return await WorkOrder.findOne({ _id: workOrder._id, firmId })
         .populate('itemId', 'itemCode itemName uom')
         .populate('bomId', 'bomId bomNumber')
         .lean();
@@ -781,7 +781,7 @@ class ManufacturingService {
       const jobCard = await JobCard.create(jobCardData);
 
       // Populate before returning
-      return await JobCard.findById(jobCard._id)
+      return await JobCard.findOne({ _id: jobCard._id, firmId })
         .populate('workOrderId', 'workOrderId workOrderNumber itemName')
         .populate('workstation', 'name nameAr')
         .lean();
@@ -865,7 +865,7 @@ class ManufacturingService {
 
       // Update work order progress
       if (jobCard.workOrderId) {
-        await this.updateWorkOrderProgress(jobCard.workOrderId);
+        await this.updateWorkOrderProgress(jobCard.workOrderId, firmId);
       }
 
       return await this.getJobCardById(id, firmId);
@@ -1083,19 +1083,23 @@ class ManufacturingService {
   /**
    * Update work order progress based on job cards
    * @param {String} workOrderId - Work order ID
+   * @param {String} firmId - Firm ID (optional, extracted from job cards)
    * @returns {Promise<void>}
    */
-  async updateWorkOrderProgress(workOrderId) {
+  async updateWorkOrderProgress(workOrderId, firmId = null) {
     try {
+      // Get firmId from job cards if not provided
       const jobCards = await JobCard.find({ workOrderId });
       if (jobCards.length === 0) return;
+
+      const jobCardFirmId = firmId || jobCards[0].firmId;
 
       const totalCompleted = jobCards.filter(jc => jc.status === 'completed').length;
       const totalJobCards = jobCards.length;
 
       // If all job cards are completed, update work order
       if (totalCompleted === totalJobCards) {
-        const workOrder = await WorkOrder.findById(workOrderId);
+        const workOrder = await WorkOrder.findOne({ _id: workOrderId, firmId: jobCardFirmId });
         if (workOrder && workOrder.status === 'in_progress') {
           // Calculate average completed quantity from job cards
           const avgCompletedQty = jobCards.reduce((sum, jc) => sum + jc.completedQty, 0) / totalJobCards;

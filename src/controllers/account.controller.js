@@ -24,7 +24,7 @@ const getAccounts = asyncHandler(async (req, res) => {
     }
 
     // Standard flat list
-    const query = {};
+    const query = { ...req.firmQuery };
     if (type) query.type = type;
     if (isActive !== undefined) query.isActive = isActive === 'true';
 
@@ -53,14 +53,14 @@ const getAccount = asyncHandler(async (req, res) => {
         });
     }
 
-    const account = await Account.findById(sanitizedId)
+    const account = await Account.findOne({ _id: sanitizedId, ...req.firmQuery })
         .populate('parentAccountId', 'code name')
         .populate('children', 'code name type');
 
     if (!account) {
         return res.status(404).json({
             success: false,
-            error: 'Account not found'
+            error: 'Resource not found'
         });
     }
 
@@ -128,7 +128,7 @@ const createAccount = asyncHandler(async (req, res) => {
     }
 
     // Check for duplicate code
-    const existingAccount = await Account.findOne({ code: accountData.code });
+    const existingAccount = await Account.findOne({ code: accountData.code, ...req.firmQuery });
     if (existingAccount) {
         return res.status(400).json({
             success: false,
@@ -146,7 +146,7 @@ const createAccount = asyncHandler(async (req, res) => {
             });
         }
 
-        const parentAccount = await Account.findById(sanitizedParentId);
+        const parentAccount = await Account.findOne({ _id: sanitizedParentId, ...req.firmQuery });
         if (!parentAccount) {
             return res.status(400).json({
                 success: false,
@@ -159,6 +159,7 @@ const createAccount = asyncHandler(async (req, res) => {
 
     // System-controlled fields
     accountData.isSystem = false; // Users cannot create system accounts
+    accountData.firmId = req.firmId;
     accountData.createdBy = req.user?._id;
 
     const account = await Account.create(accountData);
@@ -183,12 +184,12 @@ const updateAccount = asyncHandler(async (req, res) => {
         });
     }
 
-    const account = await Account.findById(sanitizedId);
+    const account = await Account.findOne({ _id: sanitizedId, ...req.firmQuery });
 
     if (!account) {
         return res.status(404).json({
             success: false,
-            error: 'Account not found'
+            error: 'Resource not found'
         });
     }
 
@@ -235,7 +236,7 @@ const updateAccount = asyncHandler(async (req, res) => {
 
         // Check for duplicate code
         if (updateData.code !== account.code) {
-            const existingAccount = await Account.findOne({ code: updateData.code });
+            const existingAccount = await Account.findOne({ code: updateData.code, ...req.firmQuery });
             if (existingAccount) {
                 return res.status(400).json({
                     success: false,
@@ -283,7 +284,7 @@ const updateAccount = asyncHandler(async (req, res) => {
                 });
             }
 
-            const parentAccount = await Account.findById(sanitizedParentId);
+            const parentAccount = await Account.findOne({ _id: sanitizedParentId, ...req.firmQuery });
             if (!parentAccount) {
                 return res.status(400).json({
                     success: false,
@@ -324,20 +325,20 @@ const deleteAccount = asyncHandler(async (req, res) => {
         });
     }
 
-    const account = await Account.findById(sanitizedId);
+    const account = await Account.findOne({ _id: sanitizedId, ...req.firmQuery });
 
     if (!account) {
         return res.status(404).json({
             success: false,
-            error: 'Account not found'
+            error: 'Resource not found'
         });
     }
 
     // Protect system accounts from deletion
     if (account.isSystem) {
-        return res.status(403).json({
+        return res.status(404).json({
             success: false,
-            error: 'Cannot delete system account'
+            error: 'Resource not found'
         });
     }
 
@@ -374,11 +375,11 @@ const getAccountBalance = asyncHandler(async (req, res) => {
         });
     }
 
-    const account = await Account.findById(sanitizedId);
+    const account = await Account.findOne({ _id: sanitizedId, ...req.firmQuery });
     if (!account) {
         return res.status(404).json({
             success: false,
-            error: 'Account not found'
+            error: 'Resource not found'
         });
     }
 

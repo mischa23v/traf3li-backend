@@ -110,11 +110,15 @@ class LegalContractService {
      * @param {String} contractId - Contract ID
      * @param {Object} updates - Fields to update
      * @param {String} userId - User making the update
+     * @param {String} firmId - Firm ID for authorization
      * @returns {Promise<Object>} Updated contract
      */
-    static async update(contractId, updates, userId) {
+    static async update(contractId, updates, userId, firmId) {
         try {
-            const contract = await LegalContract.findById(contractId);
+            const contract = await LegalContract.findOne({
+                _id: contractId,
+                firmId
+            });
 
             if (!contract) {
                 return {
@@ -160,11 +164,15 @@ class LegalContractService {
      * Soft delete (archive) contract
      * @param {String} contractId - Contract ID
      * @param {String} userId - User deleting the contract
+     * @param {String} firmId - Firm ID for authorization
      * @returns {Promise<Object>} Success status
      */
-    static async delete(contractId, userId) {
+    static async delete(contractId, userId, firmId) {
         try {
-            const contract = await LegalContract.findById(contractId);
+            const contract = await LegalContract.findOne({
+                _id: contractId,
+                firmId
+            });
 
             if (!contract) {
                 return {
@@ -331,11 +339,15 @@ class LegalContractService {
      * @param {String} contractId - Contract ID
      * @param {Object} partyData - Party information
      * @param {String} userId - User adding the party
+     * @param {String} firmId - Firm ID for authorization
      * @returns {Promise<Object>} Updated contract
      */
-    static async addParty(contractId, partyData, userId) {
+    static async addParty(contractId, partyData, userId, firmId) {
         try {
-            const contract = await LegalContract.findById(contractId);
+            const contract = await LegalContract.findOne({
+                _id: contractId,
+                firmId
+            });
 
             if (!contract) {
                 return {
@@ -383,11 +395,15 @@ class LegalContractService {
      * @param {Number} partyIndex - Index of party in array
      * @param {Object} partyData - Updated party data
      * @param {String} userId - User updating the party
+     * @param {String} firmId - Firm ID for authorization
      * @returns {Promise<Object>} Updated contract
      */
-    static async updateParty(contractId, partyIndex, partyData, userId) {
+    static async updateParty(contractId, partyIndex, partyData, userId, firmId) {
         try {
-            const contract = await LegalContract.findById(contractId);
+            const contract = await LegalContract.findOne({
+                _id: contractId,
+                firmId
+            });
 
             if (!contract) {
                 return {
@@ -435,11 +451,15 @@ class LegalContractService {
      * @param {String} contractId - Contract ID
      * @param {Number} partyIndex - Index of party to remove
      * @param {String} userId - User removing the party
+     * @param {String} firmId - Firm ID for authorization
      * @returns {Promise<Object>} Updated contract
      */
-    static async removeParty(contractId, partyIndex, userId) {
+    static async removeParty(contractId, partyIndex, userId, firmId) {
         try {
-            const contract = await LegalContract.findById(contractId);
+            const contract = await LegalContract.findOne({
+                _id: contractId,
+                firmId
+            });
 
             if (!contract) {
                 return {
@@ -488,11 +508,15 @@ class LegalContractService {
      * Initiate signature process
      * @param {String} contractId - Contract ID
      * @param {String} userId - User initiating signature
+     * @param {String} firmId - Firm ID for authorization
      * @returns {Promise<Object>} Updated contract
      */
-    static async initiateSignature(contractId, userId) {
+    static async initiateSignature(contractId, userId, firmId) {
         try {
-            const contract = await LegalContract.findById(contractId);
+            const contract = await LegalContract.findOne({
+                _id: contractId,
+                firmId
+            });
 
             if (!contract) {
                 return {
@@ -541,11 +565,15 @@ class LegalContractService {
      * @param {Number} partyIndex - Index of signing party
      * @param {Object} signatureData - Signature information
      * @param {String} userId - User recording the signature
+     * @param {String} firmId - Firm ID for authorization
      * @returns {Promise<Object>} Updated contract
      */
-    static async recordSignature(contractId, partyIndex, signatureData, userId) {
+    static async recordSignature(contractId, partyIndex, signatureData, userId, firmId) {
         try {
-            const contract = await LegalContract.findById(contractId);
+            const contract = await LegalContract.findOne({
+                _id: contractId,
+                firmId
+            });
 
             if (!contract) {
                 return {
@@ -603,11 +631,15 @@ class LegalContractService {
     /**
      * Check signature status
      * @param {String} contractId - Contract ID
+     * @param {String} firmId - Firm ID for authorization
      * @returns {Promise<Object>} Signature status
      */
-    static async checkSignatureStatus(contractId) {
+    static async checkSignatureStatus(contractId, firmId) {
         try {
-            const contract = await LegalContract.findById(contractId).select('parties status');
+            const contract = await LegalContract.findOne({
+                _id: contractId,
+                firmId
+            }).select('parties status');
 
             if (!contract) {
                 return {
@@ -649,6 +681,17 @@ class LegalContractService {
         }
     }
 
+    /**
+     * Get signature status (alias for controller compatibility)
+     * @param {String} contractId - Contract ID
+     * @param {String} userId - User ID (not used, for API consistency)
+     * @param {String} firmId - Firm ID for authorization
+     * @returns {Promise<Object>} Signature status
+     */
+    static async getSignatureStatus(contractId, userId, firmId) {
+        return this.checkSignatureStatus(contractId, firmId);
+    }
+
     // ═══════════════════════════════════════════════════════════════
     // AMENDMENTS
     // ═══════════════════════════════════════════════════════════════
@@ -658,11 +701,15 @@ class LegalContractService {
      * @param {String} contractId - Contract ID
      * @param {Object} amendmentData - Amendment details
      * @param {String} userId - User adding amendment
+     * @param {String} firmId - Firm ID for authorization
      * @returns {Promise<Object>} Updated contract
      */
-    static async addAmendment(contractId, amendmentData, userId) {
+    static async addAmendment(contractId, amendmentData, userId, firmId) {
         try {
-            const contract = await LegalContract.findById(contractId);
+            const contract = await LegalContract.findOne({
+                _id: contractId,
+                firmId
+            });
 
             if (!contract) {
                 return {
@@ -714,11 +761,15 @@ class LegalContractService {
     /**
      * Get all amendments for a contract
      * @param {String} contractId - Contract ID
+     * @param {String} firmId - Firm ID for authorization
      * @returns {Promise<Object>} List of amendments
      */
-    static async getAmendments(contractId) {
+    static async getAmendments(contractId, firmId) {
         try {
-            const contract = await LegalContract.findById(contractId).select('amendments contractNumber title');
+            const contract = await LegalContract.findOne({
+                _id: contractId,
+                firmId
+            }).select('amendments contractNumber title');
 
             if (!contract) {
                 return {
@@ -751,13 +802,17 @@ class LegalContractService {
     /**
      * Create version snapshot
      * @param {String} contractId - Contract ID
-     * @param {String} userId - User creating version
      * @param {String} note - Version note
+     * @param {String} userId - User creating version
+     * @param {String} firmId - Firm ID for authorization
      * @returns {Promise<Object>} Updated contract
      */
-    static async createVersion(contractId, userId, note) {
+    static async createVersion(contractId, note, userId, firmId) {
         try {
-            const contract = await LegalContract.findById(contractId);
+            const contract = await LegalContract.findOne({
+                _id: contractId,
+                firmId
+            });
 
             if (!contract) {
                 return {
@@ -787,11 +842,15 @@ class LegalContractService {
     /**
      * Get version history
      * @param {String} contractId - Contract ID
+     * @param {String} firmId - Firm ID for authorization
      * @returns {Promise<Object>} Version history
      */
-    static async getVersionHistory(contractId) {
+    static async getVersionHistory(contractId, firmId) {
         try {
-            const contract = await LegalContract.findById(contractId)
+            const contract = await LegalContract.findOne({
+                _id: contractId,
+                firmId
+            })
                 .select('version previousVersions contractNumber title')
                 .populate('previousVersions.changedBy', 'name email');
 
@@ -830,11 +889,15 @@ class LegalContractService {
      * @param {String} contractId - Contract ID
      * @param {Number} versionNumber - Version to revert to
      * @param {String} userId - User reverting
+     * @param {String} firmId - Firm ID for authorization
      * @returns {Promise<Object>} Updated contract
      */
-    static async revertToVersion(contractId, versionNumber, userId) {
+    static async revertToVersion(contractId, versionNumber, userId, firmId) {
         try {
-            const contract = await LegalContract.findById(contractId);
+            const contract = await LegalContract.findOne({
+                _id: contractId,
+                firmId
+            });
 
             if (!contract) {
                 return {
@@ -893,11 +956,15 @@ class LegalContractService {
      * @param {String} contractId - Contract ID
      * @param {Object} notarizationData - Notarization details
      * @param {String} userId - User recording notarization
+     * @param {String} firmId - Firm ID for authorization
      * @returns {Promise<Object>} Updated contract
      */
-    static async recordNotarization(contractId, notarizationData, userId) {
+    static async recordNotarization(contractId, notarizationData, userId, firmId) {
         try {
-            const contract = await LegalContract.findById(contractId);
+            const contract = await LegalContract.findOne({
+                _id: contractId,
+                firmId
+            });
 
             if (!contract) {
                 return {
@@ -950,11 +1017,15 @@ class LegalContractService {
     /**
      * Verify notarization with Najiz (stub for future API integration)
      * @param {String} contractId - Contract ID
+     * @param {String} firmId - Firm ID for authorization
      * @returns {Promise<Object>} Verification result
      */
-    static async verifyNotarization(contractId) {
+    static async verifyNotarization(contractId, firmId) {
         try {
-            const contract = await LegalContract.findById(contractId)
+            const contract = await LegalContract.findOne({
+                _id: contractId,
+                firmId
+            })
                 .select('najizIntegration contractNumber title');
 
             if (!contract) {
@@ -997,11 +1068,15 @@ class LegalContractService {
     /**
      * Generate QR verification code
      * @param {String} contractId - Contract ID
+     * @param {String} firmId - Firm ID for authorization
      * @returns {Promise<Object>} QR code data
      */
-    static async generateVerificationCode(contractId) {
+    static async generateVerificationCode(contractId, firmId) {
         try {
-            const contract = await LegalContract.findById(contractId);
+            const contract = await LegalContract.findOne({
+                _id: contractId,
+                firmId
+            });
 
             if (!contract) {
                 return {
@@ -1053,11 +1128,15 @@ class LegalContractService {
      * @param {String} contractId - Contract ID
      * @param {Object} breachData - Breach details
      * @param {String} userId - User recording breach
+     * @param {String} firmId - Firm ID for authorization
      * @returns {Promise<Object>} Updated contract
      */
-    static async recordBreach(contractId, breachData, userId) {
+    static async recordBreach(contractId, breachData, userId, firmId) {
         try {
-            const contract = await LegalContract.findById(contractId);
+            const contract = await LegalContract.findOne({
+                _id: contractId,
+                firmId
+            });
 
             if (!contract) {
                 return {
@@ -1104,11 +1183,15 @@ class LegalContractService {
      * @param {String} contractId - Contract ID
      * @param {Object} enforcementData - Enforcement details
      * @param {String} userId - User initiating enforcement
+     * @param {String} firmId - Firm ID for authorization
      * @returns {Promise<Object>} Updated contract
      */
-    static async initiateEnforcement(contractId, enforcementData, userId) {
+    static async initiateEnforcement(contractId, enforcementData, userId, firmId) {
         try {
-            const contract = await LegalContract.findById(contractId);
+            const contract = await LegalContract.findOne({
+                _id: contractId,
+                firmId
+            });
 
             if (!contract) {
                 return {
@@ -1159,12 +1242,17 @@ class LegalContractService {
      * Update enforcement status
      * @param {String} contractId - Contract ID
      * @param {String} status - New enforcement status
+     * @param {String} details - Status update details
      * @param {String} userId - User updating status
+     * @param {String} firmId - Firm ID for authorization
      * @returns {Promise<Object>} Updated contract
      */
-    static async updateEnforcementStatus(contractId, status, userId) {
+    static async updateEnforcementStatus(contractId, status, details, userId, firmId) {
         try {
-            const contract = await LegalContract.findById(contractId);
+            const contract = await LegalContract.findOne({
+                _id: contractId,
+                firmId
+            });
 
             if (!contract) {
                 return {
@@ -1218,13 +1306,20 @@ class LegalContractService {
      * @param {String} contractId - Contract ID
      * @param {String} caseId - Case ID
      * @param {String} userId - User linking
+     * @param {String} firmId - Firm ID for authorization
      * @returns {Promise<Object>} Updated contract
      */
-    static async linkToCase(contractId, caseId, userId) {
+    static async linkToCase(contractId, caseId, userId, firmId) {
         try {
             const [contract, caseRecord] = await Promise.all([
-                LegalContract.findById(contractId),
-                Case.findById(caseId)
+                LegalContract.findOne({
+                    _id: contractId,
+                    firmId
+                }),
+                Case.findOne({
+                    _id: caseId,
+                    firmId
+                })
             ]);
 
             if (!contract) {
@@ -1272,11 +1367,15 @@ class LegalContractService {
      * @param {String} contractId - Contract ID
      * @param {Object} reminderData - Reminder details
      * @param {String} userId - User setting reminder
+     * @param {String} firmId - Firm ID for authorization
      * @returns {Promise<Object>} Updated contract
      */
-    static async setReminder(contractId, reminderData, userId) {
+    static async setReminder(contractId, reminderData, userId, firmId) {
         try {
-            const contract = await LegalContract.findById(contractId);
+            const contract = await LegalContract.findOne({
+                _id: contractId,
+                firmId
+            });
 
             if (!contract) {
                 return {
@@ -1366,14 +1465,51 @@ class LegalContractService {
     }
 
     /**
+     * Get reminders for a contract
+     * @param {String} contractId - Contract ID
+     * @param {String} userId - User ID (not used, for API consistency)
+     * @param {String} firmId - Firm ID for authorization
+     * @returns {Promise<Object>} Contract reminders
+     */
+    static async getReminders(contractId, userId, firmId) {
+        try {
+            const contract = await LegalContract.findOne({
+                _id: contractId,
+                firmId
+            }).select('reminders contractNumber title');
+
+            if (!contract) {
+                return {
+                    success: false,
+                    error: 'Contract not found'
+                };
+            }
+
+            return {
+                success: true,
+                data: contract.reminders
+            };
+        } catch (error) {
+            return {
+                success: false,
+                error: error.message
+            };
+        }
+    }
+
+    /**
      * Mark reminder as sent
      * @param {String} contractId - Contract ID
      * @param {String} reminderId - Reminder ID
+     * @param {String} firmId - Firm ID for authorization
      * @returns {Promise<Object>} Updated contract
      */
-    static async markReminderSent(contractId, reminderId) {
+    static async markReminderSent(contractId, reminderId, firmId) {
         try {
-            const contract = await LegalContract.findById(contractId);
+            const contract = await LegalContract.findOne({
+                _id: contractId,
+                firmId
+            });
 
             if (!contract) {
                 return {
@@ -1475,11 +1611,15 @@ class LegalContractService {
     /**
      * Get contracts by client
      * @param {String} clientId - Client ID
+     * @param {String} firmId - Firm ID for authorization
      * @returns {Promise<Object>} Client's contracts
      */
-    static async getByClient(clientId) {
+    static async getByClient(clientId, firmId) {
         try {
-            const contracts = await LegalContract.getByClient(clientId);
+            const contracts = await LegalContract.find({
+                'linkedRecords.clientId': clientId,
+                firmId
+            });
 
             const populated = await LegalContract.populate(contracts, [
                 { path: 'lawyerId', select: 'name email' },
@@ -1497,6 +1637,17 @@ class LegalContractService {
                 error: error.message
             };
         }
+    }
+
+    /**
+     * Get contracts by client (alias for controller compatibility)
+     * @param {String} clientId - Client ID
+     * @param {String} userId - User ID (not used, for API consistency)
+     * @param {String} firmId - Firm ID for authorization
+     * @returns {Promise<Object>} Client's contracts
+     */
+    static async getContractsByClient(clientId, userId, firmId) {
+        return this.getByClient(clientId, firmId);
     }
 
     /**
@@ -1580,11 +1731,15 @@ class LegalContractService {
     /**
      * Export contract to PDF (stub)
      * @param {String} contractId - Contract ID
+     * @param {String} firmId - Firm ID for authorization
      * @returns {Promise<Object>} PDF export result
      */
-    static async exportToPdf(contractId) {
+    static async exportToPdf(contractId, firmId) {
         try {
-            const contract = await LegalContract.findById(contractId);
+            const contract = await LegalContract.findOne({
+                _id: contractId,
+                firmId
+            });
 
             if (!contract) {
                 return {
@@ -1614,11 +1769,15 @@ class LegalContractService {
     /**
      * Export contract to Word document (stub)
      * @param {String} contractId - Contract ID
+     * @param {String} firmId - Firm ID for authorization
      * @returns {Promise<Object>} Word export result
      */
-    static async exportToWord(contractId) {
+    static async exportToWord(contractId, firmId) {
         try {
-            const contract = await LegalContract.findById(contractId);
+            const contract = await LegalContract.findOne({
+                _id: contractId,
+                firmId
+            });
 
             if (!contract) {
                 return {
@@ -1720,6 +1879,59 @@ class LegalContractService {
             // Fallback to timestamp-based number
             return `CTR-${Date.now()}`;
         }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // CONTROLLER COMPATIBILITY ALIASES
+    // ═══════════════════════════════════════════════════════════════
+
+    /**
+     * Create contract (alias for controller compatibility)
+     */
+    static async createContract(data, userId, firmId) {
+        return this.create(data, userId, firmId);
+    }
+
+    /**
+     * Get contract by ID (alias for controller compatibility)
+     */
+    static async getContractById(contractId, userId, firmId) {
+        return this.getById(contractId, firmId);
+    }
+
+    /**
+     * Update contract (alias for controller compatibility)
+     */
+    static async updateContract(contractId, updates, userId, firmId) {
+        return this.update(contractId, updates, userId, firmId);
+    }
+
+    /**
+     * Delete contract (alias for controller compatibility)
+     */
+    static async deleteContract(contractId, userId, firmId) {
+        return this.delete(contractId, userId, firmId);
+    }
+
+    /**
+     * List contracts (alias for controller compatibility)
+     */
+    static async listContracts(filters, options, userId, firmId) {
+        return this.list(firmId, { ...filters, ...options });
+    }
+
+    /**
+     * Search contracts (alias for controller compatibility)
+     */
+    static async searchContracts(query, limit, userId, firmId) {
+        return this.search(firmId, query);
+    }
+
+    /**
+     * Get contract statistics (alias for controller compatibility)
+     */
+    static async getContractStatistics(userId, firmId) {
+        return this.getStatistics(firmId);
     }
 }
 

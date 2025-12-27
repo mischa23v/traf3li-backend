@@ -7,6 +7,16 @@ const tokenRevocationService = require('../services/tokenRevocation.service');
 const RefreshToken = require('../models/refreshToken.model');
 const Session = require('../models/session.model');
 
+/**
+ * Escape special regex characters to prevent NoSQL injection
+ * @param {string} str - String to escape
+ * @returns {string} - Escaped string safe for regex
+ */
+const escapeRegex = (str) => {
+    if (!str || typeof str !== 'string') return '';
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
+
 // Get user profile by ID (public)
 // UPDATED: Now uses standardized API response format
 const getUserProfile = async (request, response) => {
@@ -149,9 +159,10 @@ const getLawyers = async (request, response) => {
         
         // Search by name or description
         if (search) {
+            const safeSearch = escapeRegex(search);
             filter.$or = [
-                { username: { $regex: search, $options: 'i' } },
-                { description: { $regex: search, $options: 'i' } }
+                { username: { $regex: safeSearch, $options: 'i' } },
+                { description: { $regex: safeSearch, $options: 'i' } }
             ];
         }
         

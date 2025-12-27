@@ -105,6 +105,11 @@ const getTimeline = asyncHandler(async (req, res) => {
     const userId = req.userID;
     const firmId = req.firmId || req.user?.firmId;
 
+    // Validate firmId - CRITICAL for tenant isolation
+    if (!firmId) {
+        throw new CustomException('المورد غير موجود / Resource not found', 404);
+    }
+
     // Validate entity type
     if (!validateEntityType(entityType)) {
         throw new CustomException(
@@ -122,10 +127,8 @@ const getTimeline = asyncHandler(async (req, res) => {
     // Parse and validate query parameters
     const options = parseQueryOptions(req.query);
 
-    // Add firmId to options for multi-tenancy filtering
-    if (firmId) {
-        options.firmId = firmId;
-    }
+    // Add firmId to options for multi-tenancy filtering (required)
+    options.firmId = firmId;
 
     logger.info('Getting timeline', {
         userId,
@@ -166,6 +169,11 @@ const getTimelineSummary = asyncHandler(async (req, res) => {
     const { entityType, entityId } = req.params;
     const userId = req.userID;
     const firmId = req.firmId || req.user?.firmId;
+
+    // Validate firmId - CRITICAL for tenant isolation
+    if (!firmId) {
+        throw new CustomException('المورد غير موجود / Resource not found', 404);
+    }
 
     // Validate entity type
     if (!validateEntityType(entityType)) {

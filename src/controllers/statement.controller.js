@@ -72,36 +72,26 @@ const generateStatement = asyncHandler(async (req, res) => {
     }
 
     // IDOR Protection: Verify client belongs to the lawyer's firm
-    const client = await Client.findById(sanitizedClientId);
+    const client = await Client.findOne({ _id: sanitizedClientId, ...req.firmQuery });
     if (!client) {
         throw CustomException('Client not found', 404);
     }
 
-    // Verify client belongs to the lawyer's firm
-    if (firmId && client.firmId && client.firmId.toString() !== firmId.toString()) {
-        throw CustomException('You do not have access to this client', 403);
-    }
-
     // Verify client belongs to the lawyer
     if (client.lawyerId && client.lawyerId.toString() !== lawyerId) {
-        throw CustomException('You do not have access to this client', 403);
+        throw CustomException('Client not found', 404);
     }
 
     // IDOR Protection: Verify case belongs to the lawyer's firm (if caseId provided)
     if (sanitizedCaseId) {
-        const caseRecord = await Case.findById(sanitizedCaseId);
+        const caseRecord = await Case.findOne({ _id: sanitizedCaseId, ...req.firmQuery });
         if (!caseRecord) {
             throw CustomException('Case not found', 404);
         }
 
-        // Verify case belongs to the lawyer's firm
-        if (firmId && caseRecord.firmId && caseRecord.firmId.toString() !== firmId.toString()) {
-            throw CustomException('You do not have access to this case', 403);
-        }
-
         // Verify case belongs to the lawyer
         if (caseRecord.lawyerId && caseRecord.lawyerId.toString() !== lawyerId) {
-            throw CustomException('You do not have access to this case', 403);
+            throw CustomException('Case not found', 404);
         }
 
         // Verify case belongs to the client
@@ -409,7 +399,7 @@ const getStatement = asyncHandler(async (req, res) => {
         throw CustomException('Invalid statement ID format', 400);
     }
 
-    const statement = await Statement.findById(sanitizedId)
+    const statement = await Statement.findOne({ _id: sanitizedId, ...req.firmQuery })
         .populate('clientId', 'firstName lastName username email phone')
         .populate('caseId', 'title caseNumber category')
         .populate('invoices', 'invoiceNumber totalAmount amountPaid status issueDate')
@@ -423,7 +413,7 @@ const getStatement = asyncHandler(async (req, res) => {
     }
 
     if (statement.lawyerId.toString() !== lawyerId) {
-        throw CustomException('You do not have access to this statement', 403);
+        throw CustomException('Statement not found', 404);
     }
 
     res.status(200).json({
@@ -446,7 +436,7 @@ const downloadStatement = asyncHandler(async (req, res) => {
         throw CustomException('Invalid statement ID format', 400);
     }
 
-    const statement = await Statement.findById(sanitizedId)
+    const statement = await Statement.findOne({ _id: sanitizedId, ...req.firmQuery })
         .populate('clientId', 'firstName lastName username email phone address')
         .populate('caseId', 'title caseNumber')
         .populate('lawyerId', 'firstName lastName username email firmName');
@@ -456,7 +446,7 @@ const downloadStatement = asyncHandler(async (req, res) => {
     }
 
     if (statement.lawyerId._id.toString() !== lawyerId) {
-        throw CustomException('You do not have access to this statement', 403);
+        throw CustomException('Statement not found', 404);
     }
 
     // If PDF already exists, return URL
@@ -510,17 +500,17 @@ const deleteStatement = asyncHandler(async (req, res) => {
         throw CustomException('Invalid statement ID format', 400);
     }
 
-    const statement = await Statement.findById(sanitizedId);
+    const statement = await Statement.findOne({ _id: sanitizedId, ...req.firmQuery });
 
     if (!statement) {
         throw CustomException('Statement not found', 404);
     }
 
     if (statement.lawyerId.toString() !== lawyerId) {
-        throw CustomException('You do not have access to this statement', 403);
+        throw CustomException('Statement not found', 404);
     }
 
-    await Statement.findByIdAndDelete(sanitizedId);
+    await Statement.findOneAndDelete({ _id: sanitizedId, ...req.firmQuery });
 
     res.status(200).json({
         success: true,
@@ -546,7 +536,7 @@ const sendStatement = asyncHandler(async (req, res) => {
         throw CustomException('Invalid statement ID format', 400);
     }
 
-    const statement = await Statement.findById(sanitizedId)
+    const statement = await Statement.findOne({ _id: sanitizedId, ...req.firmQuery })
         .populate('clientId', 'firstName lastName email');
 
     if (!statement) {
@@ -554,7 +544,7 @@ const sendStatement = asyncHandler(async (req, res) => {
     }
 
     if (statement.lawyerId.toString() !== lawyerId) {
-        throw CustomException('You do not have access to this statement', 403);
+        throw CustomException('Statement not found', 404);
     }
 
     // Validate email if provided

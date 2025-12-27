@@ -113,6 +113,12 @@ const organizationTemplateSchema = new mongoose.Schema({
     // ═══════════════════════════════════════════════════════════════
     // BASIC INFO
     // ═══════════════════════════════════════════════════════════════
+    firmId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Firm',
+        index: true,
+        required: false
+    },
     name: {
         type: String,
         required: true,
@@ -287,6 +293,7 @@ organizationTemplateSchema.index({ isActive: 1, isDefault: 1 });
 organizationTemplateSchema.index({ 'metadata.targetFirmSize': 1 });
 organizationTemplateSchema.index({ createdBy: 1, createdAt: -1 });
 organizationTemplateSchema.index({ usageCount: -1 });
+organizationTemplateSchema.index({ firmId: 1, createdAt: -1 });
 
 // Unique constraint for default templates
 organizationTemplateSchema.index(

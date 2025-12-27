@@ -57,6 +57,12 @@ const statementSchema = new mongoose.Schema({
         required: true,
         index: true
     },
+    firmId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Firm',
+        index: true,
+        required: false
+    },
     // Case reference (optional - for case-specific statements)
     caseId: {
         type: mongoose.Schema.Types.ObjectId,
@@ -172,6 +178,7 @@ const statementSchema = new mongoose.Schema({
 
 // Indexes
 statementSchema.index({ lawyerId: 1, periodStart: -1 });
+statementSchema.index({ firmId: 1, periodStart: -1 });
 statementSchema.index({ clientId: 1, periodStart: -1 });
 statementSchema.index({ caseId: 1, periodStart: -1 });
 statementSchema.index({ status: 1 });

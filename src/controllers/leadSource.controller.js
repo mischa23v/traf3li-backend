@@ -19,9 +19,9 @@ const logger = require('../utils/logger');
 exports.getAll = async (req, res) => {
     try {
         if (req.isDeparted) {
-            return res.status(403).json({
+            return res.status(404).json({
                 success: false,
-                message: 'ليس لديك صلاحية للوصول / Access denied'
+                message: 'المورد غير موجود / Resource not found'
             });
         }
 
@@ -73,9 +73,9 @@ exports.getAll = async (req, res) => {
 exports.getById = async (req, res) => {
     try {
         if (req.isDeparted) {
-            return res.status(403).json({
+            return res.status(404).json({
                 success: false,
-                message: 'ليس لديك صلاحية للوصول / Access denied'
+                message: 'المورد غير موجود / Resource not found'
             });
         }
 
@@ -125,9 +125,9 @@ exports.getById = async (req, res) => {
 exports.create = async (req, res) => {
     try {
         if (req.isDeparted) {
-            return res.status(403).json({
+            return res.status(404).json({
                 success: false,
-                message: 'ليس لديك صلاحية للوصول / Access denied'
+                message: 'المورد غير موجود / Resource not found'
             });
         }
 
@@ -244,9 +244,9 @@ exports.create = async (req, res) => {
 exports.update = async (req, res) => {
     try {
         if (req.isDeparted) {
-            return res.status(403).json({
+            return res.status(404).json({
                 success: false,
-                message: 'ليس لديك صلاحية للوصول / Access denied'
+                message: 'المورد غير موجود / Resource not found'
             });
         }
 
@@ -379,9 +379,9 @@ exports.update = async (req, res) => {
 exports.delete = async (req, res) => {
     try {
         if (req.isDeparted) {
-            return res.status(403).json({
+            return res.status(404).json({
                 success: false,
-                message: 'ليس لديك صلاحية للوصول / Access denied'
+                message: 'المورد غير موجود / Resource not found'
             });
         }
 
@@ -443,9 +443,9 @@ exports.delete = async (req, res) => {
 exports.createDefaults = async (req, res) => {
     try {
         if (req.isDeparted) {
-            return res.status(403).json({
+            return res.status(404).json({
                 success: false,
-                message: 'ليس لديك صلاحية للوصول / Access denied'
+                message: 'المورد غير موجود / Resource not found'
             });
         }
 

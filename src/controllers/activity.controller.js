@@ -273,6 +273,7 @@ const getActivityStats = asyncHandler(async (req, res) => {
 const markAsDone = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const userId = req.userID;
+    const lawyerId = req.userID;
 
     // Sanitize ID
     const sanitizedId = sanitizeObjectId(id);
@@ -281,8 +282,8 @@ const markAsDone = asyncHandler(async (req, res) => {
     const allowedFields = ['feedback'];
     const updateData = pickAllowedFields(req.body, allowedFields);
 
-    // IDOR protection - verify ownership
-    const activity = await Activity.findOne({ _id: sanitizedId });
+    // IDOR protection - verify firmId ownership
+    const activity = await Activity.findOne({ _id: sanitizedId, lawyerId });
 
     if (!activity) {
         throw CustomException('النشاط غير موجود', 404);
@@ -290,7 +291,7 @@ const markAsDone = asyncHandler(async (req, res) => {
 
     // Verify user has permission (either assigned user or firm owner)
     if (activity.user_id.toString() !== userId && activity.lawyerId.toString() !== userId) {
-        throw CustomException('غير مصرح لك بتحديث هذا النشاط', 403);
+        throw CustomException('النشاط غير موجود', 404);
     }
 
     activity.state = 'done';
@@ -320,12 +321,13 @@ const markAsDone = asyncHandler(async (req, res) => {
 const cancelActivity = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const userId = req.userID;
+    const lawyerId = req.userID;
 
     // Sanitize ID
     const sanitizedId = sanitizeObjectId(id);
 
-    // IDOR protection - verify ownership
-    const activity = await Activity.findOne({ _id: sanitizedId });
+    // IDOR protection - verify firmId ownership
+    const activity = await Activity.findOne({ _id: sanitizedId, lawyerId });
 
     if (!activity) {
         throw CustomException('النشاط غير موجود', 404);
@@ -333,7 +335,7 @@ const cancelActivity = asyncHandler(async (req, res) => {
 
     // Verify user has permission
     if (activity.user_id.toString() !== userId && activity.lawyerId.toString() !== userId) {
-        throw CustomException('غير مصرح لك بإلغاء هذا النشاط', 403);
+        throw CustomException('النشاط غير موجود', 404);
     }
 
     activity.state = 'cancelled';
@@ -356,6 +358,7 @@ const cancelActivity = asyncHandler(async (req, res) => {
 const reschedule = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const userId = req.userID;
+    const lawyerId = req.userID;
 
     // Sanitize ID
     const sanitizedId = sanitizeObjectId(id);
@@ -374,8 +377,8 @@ const reschedule = asyncHandler(async (req, res) => {
         throw CustomException('تاريخ الموعد النهائي غير صالح', 400);
     }
 
-    // IDOR protection - verify ownership
-    const activity = await Activity.findOne({ _id: sanitizedId });
+    // IDOR protection - verify firmId ownership
+    const activity = await Activity.findOne({ _id: sanitizedId, lawyerId });
 
     if (!activity) {
         throw CustomException('النشاط غير موجود', 404);
@@ -383,7 +386,7 @@ const reschedule = asyncHandler(async (req, res) => {
 
     // Verify user has permission
     if (activity.user_id.toString() !== userId && activity.lawyerId.toString() !== userId) {
-        throw CustomException('غير مصرح لك بإعادة جدولة هذا النشاط', 403);
+        throw CustomException('النشاط غير موجود', 404);
     }
 
     activity.date_deadline = parsedDate;
@@ -410,6 +413,7 @@ const reschedule = asyncHandler(async (req, res) => {
 const reassign = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const currentUserId = req.userID;
+    const lawyerId = req.userID;
 
     // Sanitize IDs
     const sanitizedId = sanitizeObjectId(id);
@@ -424,8 +428,8 @@ const reassign = asyncHandler(async (req, res) => {
 
     const sanitizedUserId = sanitizeObjectId(updateData.user_id);
 
-    // IDOR protection - verify ownership
-    const activity = await Activity.findOne({ _id: sanitizedId });
+    // IDOR protection - verify firmId ownership
+    const activity = await Activity.findOne({ _id: sanitizedId, lawyerId });
 
     if (!activity) {
         throw CustomException('النشاط غير موجود', 404);
@@ -433,7 +437,7 @@ const reassign = asyncHandler(async (req, res) => {
 
     // Verify user has permission (only firm owner can reassign)
     if (activity.lawyerId.toString() !== currentUserId) {
-        throw CustomException('غير مصرح لك بإعادة تعيين هذا النشاط', 403);
+        throw CustomException('النشاط غير موجود', 404);
     }
 
     // Verify the new user exists and belongs to the same firm
@@ -611,7 +615,7 @@ const deleteActivityType = asyncHandler(async (req, res) => {
         throw CustomException('لا يمكن حذف نوع النشاط لأنه قيد الاستخدام', 400);
     }
 
-    await ActivityType.findByIdAndDelete(sanitizedId);
+    await ActivityType.findOneAndDelete({ _id: sanitizedId, lawyerId });
 
     res.status(200).json({
         success: true,

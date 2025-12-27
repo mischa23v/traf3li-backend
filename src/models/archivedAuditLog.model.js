@@ -36,6 +36,7 @@ const archivedAuditLogSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Firm',
       index: true,
+      required: false,
     },
     userId: {
       type: mongoose.Schema.Types.ObjectId,
@@ -207,6 +208,7 @@ const archivedAuditLogSchema = new mongoose.Schema(
 archivedAuditLogSchema.index({ userId: 1, timestamp: -1 });
 archivedAuditLogSchema.index({ action: 1, timestamp: -1 });
 archivedAuditLogSchema.index({ entityType: 1, entityId: 1 });
+archivedAuditLogSchema.index({ firmId: 1, createdAt: -1 });
 archivedAuditLogSchema.index({ firmId: 1, timestamp: -1 });
 archivedAuditLogSchema.index({ firmId: 1, userId: 1, timestamp: -1 });
 archivedAuditLogSchema.index({ firmId: 1, action: 1, timestamp: -1 });

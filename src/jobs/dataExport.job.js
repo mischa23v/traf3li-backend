@@ -32,6 +32,11 @@ async function processExportJob(jobId) {
       throw new Error('Export job not found');
     }
 
+    // CRITICAL: Verify firmId is present for multi-tenant isolation
+    if (!job.firmId) {
+      throw new Error('Export job missing firmId - security violation');
+    }
+
     // Update status to processing
     job.status = 'processing';
     job.startedAt = new Date();
@@ -233,6 +238,11 @@ async function processBulkExport(jobId, entityTypes) {
     job = await ExportJob.findById(jobId);
     if (!job) {
       throw new Error('Export job not found');
+    }
+
+    // CRITICAL: Verify firmId is present for multi-tenant isolation
+    if (!job.firmId) {
+      throw new Error('Export job missing firmId - security violation');
     }
 
     job.status = 'processing';

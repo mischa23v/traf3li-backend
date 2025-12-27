@@ -123,7 +123,7 @@ class SupportService {
                 throw CustomException('Firm ID is required', 400);
             }
 
-            const ticket = await Ticket.findById(id)
+            const ticket = await Ticket.findOne({ _id: id, firmId })
                 .populate('assignedTo', 'firstName lastName email username phone')
                 .populate('raisedBy', 'firstName lastName email username phone')
                 .populate('clientId', 'name email phone')
@@ -135,11 +135,6 @@ class SupportService {
 
             if (!ticket) {
                 throw CustomException('Ticket not found', 404);
-            }
-
-            // IDOR protection - verify firm ownership
-            if (ticket.firmId.toString() !== firmId.toString()) {
-                throw CustomException('Access denied to this ticket', 403);
             }
 
             logger.info(`Retrieved ticket ${id} for firm ${firmId}`);
@@ -211,7 +206,7 @@ class SupportService {
 
             // Apply SLA if configured
             if (settings.defaultSlaId) {
-                const sla = await SupportSLA.findById(settings.defaultSlaId);
+                const sla = await SupportSLA.findOne({ _id: settings.defaultSlaId, firmId });
                 if (sla && sla.status === 'active') {
                     ticket.slaId = sla._id;
                     const dueDates = sla.getDueDates(new Date());
@@ -257,14 +252,9 @@ class SupportService {
                 throw CustomException('Firm ID is required', 400);
             }
 
-            const ticket = await Ticket.findById(id);
+            const ticket = await Ticket.findOne({ _id: id, firmId });
             if (!ticket) {
                 throw CustomException('Ticket not found', 404);
-            }
-
-            // IDOR protection
-            if (ticket.firmId.toString() !== firmId.toString()) {
-                throw CustomException('Access denied to this ticket', 403);
             }
 
             // Update allowed fields
@@ -314,23 +304,16 @@ class SupportService {
                 throw CustomException('Firm ID is required', 400);
             }
 
-            const ticket = await Ticket.findById(id);
+            const ticket = await Ticket.findOneAndDelete({ _id: id, firmId });
             if (!ticket) {
                 throw CustomException('Ticket not found', 404);
             }
 
-            // IDOR protection
-            if (ticket.firmId.toString() !== firmId.toString()) {
-                throw CustomException('Access denied to this ticket', 403);
-            }
-
-            await Ticket.findByIdAndDelete(id);
-
             // Also delete related communications if using separate collection
             // NOTE: Bypass firmIsolation filter - cascade delete after ticket validation
-            await TicketCommunication.deleteMany({ ticketId: id }).setOptions({ bypassFirmFilter: true });
+            await TicketCommunication.deleteMany({ ticketId: ticket._id }).setOptions({ bypassFirmFilter: true });
 
-            logger.info(`Deleted ticket ${id} for firm ${firmId}`);
+            logger.info(`Deleted ticket ${ticket._id} for firm ${firmId}`);
         } catch (error) {
             logger.error('Error deleting ticket:', error);
             throw error;
@@ -355,14 +338,9 @@ class SupportService {
                 throw CustomException('Reply content is required', 400);
             }
 
-            const ticket = await Ticket.findById(id);
+            const ticket = await Ticket.findOne({ _id: id, firmId });
             if (!ticket) {
                 throw CustomException('Ticket not found', 404);
-            }
-
-            // IDOR protection
-            if (ticket.firmId.toString() !== firmId.toString()) {
-                throw CustomException('Access denied to this ticket', 403);
             }
 
             // Get user info
@@ -415,14 +393,9 @@ class SupportService {
                 throw CustomException('Firm ID is required', 400);
             }
 
-            const ticket = await Ticket.findById(id);
+            const ticket = await Ticket.findOne({ _id: id, firmId });
             if (!ticket) {
                 throw CustomException('Ticket not found', 404);
-            }
-
-            // IDOR protection
-            if (ticket.firmId.toString() !== firmId.toString()) {
-                throw CustomException('Access denied to this ticket', 403);
             }
 
             if (ticket.status === 'resolved' || ticket.status === 'closed') {
@@ -458,14 +431,9 @@ class SupportService {
                 throw CustomException('Firm ID is required', 400);
             }
 
-            const ticket = await Ticket.findById(id);
+            const ticket = await Ticket.findOne({ _id: id, firmId });
             if (!ticket) {
                 throw CustomException('Ticket not found', 404);
-            }
-
-            // IDOR protection
-            if (ticket.firmId.toString() !== firmId.toString()) {
-                throw CustomException('Access denied to this ticket', 403);
             }
 
             if (ticket.status === 'closed') {
@@ -528,17 +496,12 @@ class SupportService {
                 throw CustomException('Firm ID is required', 400);
             }
 
-            const sla = await SupportSLA.findById(id)
+            const sla = await SupportSLA.findOne({ _id: id, firmId })
                 .populate('createdBy', 'firstName lastName username email')
                 .populate('updatedBy', 'firstName lastName username email');
 
             if (!sla) {
                 throw CustomException('SLA not found', 404);
-            }
-
-            // IDOR protection
-            if (sla.firmId.toString() !== firmId.toString()) {
-                throw CustomException('Access denied to this SLA', 403);
             }
 
             logger.info(`Retrieved SLA ${id} for firm ${firmId}`);
@@ -638,14 +601,9 @@ class SupportService {
                 throw CustomException('Firm ID is required', 400);
             }
 
-            const sla = await SupportSLA.findById(id);
+            const sla = await SupportSLA.findOne({ _id: id, firmId });
             if (!sla) {
                 throw CustomException('SLA not found', 404);
-            }
-
-            // IDOR protection
-            if (sla.firmId.toString() !== firmId.toString()) {
-                throw CustomException('Access denied to this SLA', 403);
             }
 
             // Update allowed fields
@@ -704,14 +662,9 @@ class SupportService {
                 throw CustomException('Firm ID is required', 400);
             }
 
-            const sla = await SupportSLA.findById(id);
+            const sla = await SupportSLA.findOne({ _id: id, firmId });
             if (!sla) {
                 throw CustomException('SLA not found', 404);
-            }
-
-            // IDOR protection
-            if (sla.firmId.toString() !== firmId.toString()) {
-                throw CustomException('Access denied to this SLA', 403);
             }
 
             // Check if SLA is in use
@@ -720,7 +673,7 @@ class SupportService {
                 throw CustomException(`Cannot delete SLA. ${ticketsUsingThisSLA} tickets are using this SLA`, 400);
             }
 
-            await SupportSLA.findByIdAndDelete(id);
+            await SupportSLA.findOneAndDelete({ _id: id, firmId });
 
             logger.info(`Deleted SLA ${id} for firm ${firmId}`);
         } catch (error) {
@@ -932,7 +885,7 @@ class SupportService {
                 throw CustomException('Firm ID is required', 400);
             }
 
-            const ticket = await Ticket.findById(ticketId);
+            const ticket = await Ticket.findOne({ _id: ticketId, firmId });
             if (!ticket) {
                 throw CustomException('Ticket not found', 404);
             }

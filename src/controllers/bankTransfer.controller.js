@@ -89,9 +89,15 @@ const createTransfer = asyncHandler(async (req, res) => {
     session.startTransaction();
 
     try {
-        // IDOR Protection: Validate accounts exist and belong to user
-        const fromAccount = await BankAccount.findById(sanitizedFromAccountId).session(session);
-        const toAccount = await BankAccount.findById(sanitizedToAccountId).session(session);
+        // IDOR Protection: Validate accounts exist and belong to firm
+        const fromAccount = await BankAccount.findOne({
+            _id: sanitizedFromAccountId,
+            ...req.firmQuery
+        }).session(session);
+        const toAccount = await BankAccount.findOne({
+            _id: sanitizedToAccountId,
+            ...req.firmQuery
+        }).session(session);
 
         if (!fromAccount) {
             throw CustomException('Source account not found', 404);
@@ -101,13 +107,13 @@ const createTransfer = asyncHandler(async (req, res) => {
             throw CustomException('Destination account not found', 404);
         }
 
-        // IDOR Protection: Verify account ownership
+        // Additional IDOR Protection: Verify account ownership by lawyerId
         if (fromAccount.lawyerId.toString() !== lawyerId) {
-            throw CustomException('You do not have access to the source account', 403);
+            throw CustomException('Source account not found', 404);
         }
 
         if (toAccount.lawyerId.toString() !== lawyerId) {
-            throw CustomException('You do not have access to the destination account', 403);
+            throw CustomException('Destination account not found', 404);
         }
 
         // Validate account status
@@ -149,7 +155,7 @@ const createTransfer = asyncHandler(async (req, res) => {
             throw CustomException(`Daily transfer limit of ${TRANSFER_LIMITS.MAX_DAILY_AMOUNT} would be exceeded`, 400);
         }
 
-        // Create transfer with only allowed fields
+        // Create transfer with only allowed fields and firmId isolation
         const transfer = await BankTransfer.create([{
             fromAccountId: sanitizedFromAccountId,
             toAccountId: sanitizedToAccountId,
@@ -163,7 +169,8 @@ const createTransfer = asyncHandler(async (req, res) => {
             description,
             status: 'pending',
             createdBy: lawyerId,
-            lawyerId
+            lawyerId,
+            firmId: req.firmId
         }], { session });
 
         // Execute the transfer immediately within transaction
@@ -173,7 +180,10 @@ const createTransfer = asyncHandler(async (req, res) => {
         await session.commitTransaction();
 
         // Query populated transfer after transaction commits
-        const populatedTransfer = await BankTransfer.findById(executedTransfer._id)
+        const populatedTransfer = await BankTransfer.findOne({
+            _id: executedTransfer._id,
+            ...req.firmQuery
+        })
             .populate('fromAccountId', 'name bankName accountNumber')
             .populate('toAccountId', 'name bankName accountNumber');
 
@@ -216,7 +226,7 @@ const getTransfers = asyncHandler(async (req, res) => {
     } = req.query;
 
     const lawyerId = req.userID;
-    const filters = { lawyerId };
+    const filters = { lawyerId, ...req.firmQuery };
 
     // Sanitize ObjectIds for IDOR protection
     if (fromAccountId) {
@@ -226,9 +236,12 @@ const getTransfers = asyncHandler(async (req, res) => {
         }
 
         // Verify account ownership
-        const fromAccount = await BankAccount.findById(sanitizedFromAccountId);
+        const fromAccount = await BankAccount.findOne({
+            _id: sanitizedFromAccountId,
+            ...req.firmQuery
+        });
         if (!fromAccount || fromAccount.lawyerId.toString() !== lawyerId) {
-            throw CustomException('You do not have access to the specified source account', 403);
+            throw CustomException('Source account not found', 404);
         }
 
         filters.fromAccountId = sanitizedFromAccountId;
@@ -241,9 +254,12 @@ const getTransfers = asyncHandler(async (req, res) => {
         }
 
         // Verify account ownership
-        const toAccount = await BankAccount.findById(sanitizedToAccountId);
+        const toAccount = await BankAccount.findOne({
+            _id: sanitizedToAccountId,
+            ...req.firmQuery
+        });
         if (!toAccount || toAccount.lawyerId.toString() !== lawyerId) {
-            throw CustomException('You do not have access to the specified destination account', 403);
+            throw CustomException('Destination account not found', 404);
         }
 
         filters.toAccountId = sanitizedToAccountId;
@@ -314,7 +330,10 @@ const getTransfer = asyncHandler(async (req, res) => {
         throw CustomException('Invalid transfer ID format', 400);
     }
 
-    const transfer = await BankTransfer.findById(sanitizedId)
+    const transfer = await BankTransfer.findOne({
+        _id: sanitizedId,
+        ...req.firmQuery
+    })
         .populate('fromAccountId', 'name bankName accountNumber currency')
         .populate('toAccountId', 'name bankName accountNumber currency')
         .populate('createdBy', 'firstName lastName')
@@ -324,9 +343,9 @@ const getTransfer = asyncHandler(async (req, res) => {
         throw CustomException('Transfer not found', 404);
     }
 
-    // IDOR Protection: Verify transfer ownership
+    // IDOR Protection: Verify transfer ownership by lawyerId
     if (transfer.lawyerId.toString() !== lawyerId) {
-        throw CustomException('You do not have access to this transfer', 403);
+        throw CustomException('Transfer not found', 404);
     }
 
     return res.json({
@@ -351,15 +370,18 @@ const cancelTransfer = asyncHandler(async (req, res) => {
         throw CustomException('Invalid transfer ID format', 400);
     }
 
-    const transfer = await BankTransfer.findById(sanitizedId);
+    const transfer = await BankTransfer.findOne({
+        _id: sanitizedId,
+        ...req.firmQuery
+    });
 
     if (!transfer) {
         throw CustomException('Transfer not found', 404);
     }
 
-    // IDOR Protection: Verify transfer ownership
+    // IDOR Protection: Verify transfer ownership by lawyerId
     if (transfer.lawyerId.toString() !== lawyerId) {
-        throw CustomException('You do not have access to this transfer', 403);
+        throw CustomException('Transfer not found', 404);
     }
 
     if (transfer.status === 'cancelled') {
@@ -372,7 +394,10 @@ const cancelTransfer = asyncHandler(async (req, res) => {
 
     const cancelledTransfer = await BankTransfer.cancelTransfer(sanitizedId, reason);
 
-    const populatedTransfer = await BankTransfer.findById(cancelledTransfer._id)
+    const populatedTransfer = await BankTransfer.findOne({
+        _id: cancelledTransfer._id,
+        ...req.firmQuery
+    })
         .populate('fromAccountId', 'name bankName')
         .populate('toAccountId', 'name bankName');
 

@@ -199,15 +199,11 @@ const getBankAccount = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const lawyerId = req.userID;
 
-    const account = await BankAccount.findById(id);
+    // SECURITY: IDOR protection - atomic query with ownership check
+    const account = await BankAccount.findOne({ _id: id, lawyerId });
 
     if (!account) {
         throw CustomException('Bank account not found', 404);
-    }
-
-    // SECURITY: IDOR protection - verify user owns this account
-    if (account.lawyerId.toString() !== lawyerId) {
-        throw CustomException('You do not have access to this account', 403);
     }
 
     return res.json({
@@ -221,15 +217,11 @@ const updateBankAccount = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const lawyerId = req.userID;
 
-    const account = await BankAccount.findById(id);
+    // SECURITY: IDOR protection - fetch with ownership check
+    const account = await BankAccount.findOne({ _id: id, lawyerId });
 
     if (!account) {
         throw CustomException('Bank account not found', 404);
-    }
-
-    // SECURITY: IDOR protection - verify user owns this account
-    if (account.lawyerId.toString() !== lawyerId) {
-        throw CustomException('You do not have access to this account', 403);
     }
 
     // SECURITY: Mass assignment protection - only allow specified fields
@@ -249,8 +241,9 @@ const updateBankAccount = asyncHandler(async (req, res) => {
         }
     }
 
-    const updatedAccount = await BankAccount.findByIdAndUpdate(
-        id,
+    // SECURITY: IDOR protection - atomic update with ownership check
+    const updatedAccount = await BankAccount.findOneAndUpdate(
+        { _id: id, lawyerId },
         { $set: sanitizedData },
         { new: true, runValidators: true }
     );
@@ -267,15 +260,11 @@ const deleteBankAccount = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const lawyerId = req.userID;
 
-    const account = await BankAccount.findById(id);
+    // SECURITY: IDOR protection - fetch with ownership check
+    const account = await BankAccount.findOne({ _id: id, lawyerId });
 
     if (!account) {
         throw CustomException('Bank account not found', 404);
-    }
-
-    // SECURITY: IDOR protection - verify user owns this account
-    if (account.lawyerId.toString() !== lawyerId) {
-        throw CustomException('You do not have access to this account', 403);
     }
 
     // Check for existing transactions
@@ -285,7 +274,8 @@ const deleteBankAccount = asyncHandler(async (req, res) => {
         throw CustomException('Cannot delete account with existing transactions. Deactivate it instead.', 400);
     }
 
-    await BankAccount.findByIdAndDelete(id);
+    // SECURITY: IDOR protection - atomic delete with ownership check
+    await BankAccount.findOneAndDelete({ _id: id, lawyerId });
 
     return res.json({
         success: true,
@@ -298,15 +288,11 @@ const setDefault = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const lawyerId = req.userID;
 
-    const account = await BankAccount.findById(id);
+    // SECURITY: IDOR protection - fetch with ownership check
+    const account = await BankAccount.findOne({ _id: id, lawyerId });
 
     if (!account) {
         throw CustomException('Bank account not found', 404);
-    }
-
-    // SECURITY: IDOR protection - verify user owns this account
-    if (account.lawyerId.toString() !== lawyerId) {
-        throw CustomException('You do not have access to this account', 403);
     }
 
     // Remove default from all other accounts
@@ -331,15 +317,11 @@ const getBalanceHistory = asyncHandler(async (req, res) => {
     const { period = 'month' } = req.query;
     const lawyerId = req.userID;
 
-    const account = await BankAccount.findById(id);
+    // SECURITY: IDOR protection - fetch with ownership check
+    const account = await BankAccount.findOne({ _id: id, lawyerId });
 
     if (!account) {
         throw CustomException('Bank account not found', 404);
-    }
-
-    // SECURITY: IDOR protection - verify user owns this account
-    if (account.lawyerId.toString() !== lawyerId) {
-        throw CustomException('You do not have access to this account', 403);
     }
 
     const data = await BankAccount.getBalanceHistory(id, period);
@@ -367,15 +349,11 @@ const syncAccount = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const lawyerId = req.userID;
 
-    const account = await BankAccount.findById(id);
+    // SECURITY: IDOR protection - fetch with ownership check
+    const account = await BankAccount.findOne({ _id: id, lawyerId });
 
     if (!account) {
         throw CustomException('Bank account not found', 404);
-    }
-
-    // SECURITY: IDOR protection - verify user owns this account
-    if (account.lawyerId.toString() !== lawyerId) {
-        throw CustomException('You do not have access to this account', 403);
     }
 
     if (!account.connection || account.connection.status !== 'connected') {
@@ -401,15 +379,11 @@ const disconnectAccount = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const lawyerId = req.userID;
 
-    const account = await BankAccount.findById(id);
+    // SECURITY: IDOR protection - fetch with ownership check
+    const account = await BankAccount.findOne({ _id: id, lawyerId });
 
     if (!account) {
         throw CustomException('Bank account not found', 404);
-    }
-
-    // SECURITY: IDOR protection - verify user owns this account
-    if (account.lawyerId.toString() !== lawyerId) {
-        throw CustomException('You do not have access to this account', 403);
     }
 
     if (account.connection) {

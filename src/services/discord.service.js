@@ -4,6 +4,7 @@ const DiscordIntegration = require('../models/discordIntegration.model');
 const { encrypt, decrypt } = require('../utils/encryption');
 const { CustomException } = require('../utils');
 const logger = require('../utils/contextLogger');
+const cacheService = require('./cache.service');
 
 const DISCORD_API_BASE = 'https://discord.com/api/v10';
 const DISCORD_CDN_BASE = 'https://cdn.discordapp.com';
@@ -26,15 +27,15 @@ class DiscordService {
      * Generate Discord OAuth authorization URL
      * @param {string} firmId - Firm ID
      * @param {string} userId - User ID
-     * @returns {string} Authorization URL
+     * @returns {Promise<string>} Authorization URL
      */
-    getAuthUrl(firmId, userId) {
+    async getAuthUrl(firmId, userId) {
         if (!DISCORD_CLIENT_ID) {
             throw CustomException('Discord integration is not configured. Missing DISCORD_CLIENT_ID.', 500);
         }
 
-        // Generate state for CSRF protection
-        const state = this.generateState(firmId, userId);
+        // Generate state for CSRF protection (server-side stored)
+        const state = await this.generateState(firmId, userId);
 
         const params = new URLSearchParams({
             client_id: DISCORD_CLIENT_ID,
@@ -49,41 +50,72 @@ class DiscordService {
     }
 
     /**
-     * Generate state token for OAuth
+     * Generate state token for OAuth CSRF protection
      * @param {string} firmId - Firm ID
      * @param {string} userId - User ID
-     * @returns {string} State token
+     * @returns {Promise<string>} State token (cryptographically secure random string)
      */
-    generateState(firmId, userId) {
+    async generateState(firmId, userId) {
+        // Generate cryptographically secure random state token (32 bytes = 64 hex chars)
+        const state = crypto.randomBytes(32).toString('hex');
+
+        // Store state in cache with metadata (15 minutes TTL)
+        const key = `discord:oauth:state:${state}`;
         const data = {
             firmId,
             userId,
-            timestamp: Date.now(),
-            nonce: crypto.randomBytes(16).toString('hex')
+            timestamp: Date.now()
         };
 
-        return Buffer.from(JSON.stringify(data)).toString('base64url');
+        await cacheService.set(key, data, 900); // 15 minutes TTL
+
+        logger.debug('Discord OAuth state generated and stored', {
+            firmId,
+            userId,
+            stateLength: state.length
+        });
+
+        return state;
     }
 
     /**
-     * Verify and decode state token
+     * Verify and consume state token (one-time use for CSRF protection)
      * @param {string} state - State token
-     * @returns {object} Decoded state data
+     * @returns {Promise<object>} Decoded state data or throws error
      */
-    verifyState(state) {
+    async verifyState(state) {
         try {
-            const decoded = JSON.parse(Buffer.from(state, 'base64url').toString('utf8'));
-
-            // Verify timestamp (state valid for 15 minutes)
-            const age = Date.now() - decoded.timestamp;
-            if (age > 15 * 60 * 1000) {
-                throw new Error('State token expired');
+            if (!state || typeof state !== 'string') {
+                throw new Error('State parameter is required');
             }
 
-            return decoded;
+            // Retrieve state data from cache
+            const key = `discord:oauth:state:${state}`;
+            const data = await cacheService.get(key);
+
+            if (!data) {
+                logger.error('Discord OAuth state not found or expired - possible CSRF attack', {
+                    stateLength: state?.length
+                });
+                throw new Error('Invalid or expired state token');
+            }
+
+            // Delete state after verification (one-time use - prevents replay attacks)
+            await cacheService.del(key);
+
+            logger.debug('Discord OAuth state verified and consumed', {
+                firmId: data.firmId,
+                userId: data.userId,
+                age: Date.now() - data.timestamp
+            });
+
+            return data;
         } catch (error) {
-            logger.error('Failed to verify Discord OAuth state', { error: error.message });
-            throw CustomException('Invalid or expired state token', 400);
+            logger.error('Failed to verify Discord OAuth state', {
+                error: error.message,
+                stateValid: typeof state === 'string' && state.length === 64
+            });
+            throw CustomException('Invalid or expired state token - CSRF validation failed', 400);
         }
     }
 

@@ -18,6 +18,12 @@ const rateCardSchema = new mongoose.Schema({
         required: true,
         index: true
     },
+    firmId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Firm',
+        index: true,
+        required: false
+    },
     name: {
         type: String,
         required: true,
@@ -61,6 +67,7 @@ const rateCardSchema = new mongoose.Schema({
 // Indexes
 rateCardSchema.index({ lawyerId: 1, entityType: 1, entityId: 1 });
 rateCardSchema.index({ lawyerId: 1, isActive: 1 });
+rateCardSchema.index({ firmId: 1, lawyerId: 1 });
 
 // Static method: Get rate card for entity
 rateCardSchema.statics.getForEntity = async function(lawyerId, entityType, entityId) {

@@ -123,20 +123,34 @@ class SAMLService {
         const config = await this.getFirmSAMLConfig(firmId);
         const baseUrl = process.env.BACKEND_URL || 'https://api.traf3li.com';
 
+        // SECURITY: Validate that certificate exists before creating strategy
+        if (!config.ssoCertificate || !config.ssoCertificate.trim()) {
+            throw CustomException('IdP certificate is required for SAML authentication', 400);
+        }
+
+        // SECURITY: Validate certificate format
+        const cert = config.ssoCertificate.replace(/\\n/g, '\n').trim();
+        if (!cert.includes('BEGIN CERTIFICATE') && !cert.includes('END CERTIFICATE')) {
+            throw CustomException('Invalid IdP certificate format. Must be PEM encoded.', 400);
+        }
+
         const samlOptions = {
             // Service Provider (SP) settings
             callbackUrl: `${baseUrl}/api/auth/saml/acs/${firmId}`,
             entryPoint: config.ssoSsoUrl,
             issuer: `${baseUrl}/api/auth/saml/${firmId}`,
+            audience: `${baseUrl}/api/auth/saml/${firmId}`, // SECURITY: Validate assertion audience
 
             // Identity Provider (IdP) settings
-            cert: config.ssoCertificate?.replace(/\\n/g, '\n'),
+            cert: cert,
             identifierFormat: 'urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress',
 
-            // Security settings
-            wantAssertionsSigned: true,
-            wantAuthnResponseSigned: false,
-            signatureAlgorithm: 'sha256',
+            // SECURITY SETTINGS - CRITICAL FOR AUTHENTICATION BYPASS PREVENTION
+            wantAssertionsSigned: true,              // SECURITY: Require signed assertions
+            wantAuthnResponseSigned: true,           // SECURITY: Require signed responses (defense in depth)
+            signatureAlgorithm: 'sha256',            // Use secure signature algorithm
+            validateInResponseTo: true,              // SECURITY: Prevent replay attacks
+            requestIdExpirationPeriodMs: 3600000,    // SECURITY: Expire requests after 1 hour
 
             // Logout settings
             logoutUrl: config.ssoSsoUrl,

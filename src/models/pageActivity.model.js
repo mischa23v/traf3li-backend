@@ -18,6 +18,12 @@ const pageActivitySchema = new mongoose.Schema({
         required: true,
         index: true
     },
+    firmId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Firm',
+        index: true,
+        required: false
+    },
     userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     userName: String,
 
@@ -38,6 +44,7 @@ const pageActivitySchema = new mongoose.Schema({
 pageActivitySchema.index({ pageId: 1, createdAt: -1 });
 pageActivitySchema.index({ userId: 1, createdAt: -1 });
 pageActivitySchema.index({ action: 1 });
+pageActivitySchema.index({ firmId: 1, createdAt: -1 });
 
 // ═══════════════════════════════════════════════════════════════
 // EXPORTS

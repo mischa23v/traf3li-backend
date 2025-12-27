@@ -7,6 +7,12 @@ const budgetEntrySchema = new mongoose.Schema({
         required: true,
         index: true
     },
+    firmId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Firm',
+        index: true,
+        required: false
+    },
     budgetId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'MatterBudget',
@@ -54,6 +60,7 @@ const budgetEntrySchema = new mongoose.Schema({
 budgetEntrySchema.index({ lawyerId: 1, budgetId: 1 });
 budgetEntrySchema.index({ budgetId: 1, date: -1 });
 budgetEntrySchema.index({ sourceId: 1, sourceType: 1 });
+budgetEntrySchema.index({ firmId: 1, budgetId: 1 });
 
 // Post-save hook to update budget
 budgetEntrySchema.post('save', async function() {

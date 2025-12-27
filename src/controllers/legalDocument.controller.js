@@ -57,7 +57,8 @@ const createDocument = async (request, response) => {
         const document = new LegalDocument({
             ...documentData,
             author: documentData.author || user.username,
-            accessLevel: documentData.accessLevel || 'public'
+            accessLevel: documentData.accessLevel || 'public',
+            firmId: request.firmId
         });
 
         await document.save();
@@ -82,6 +83,7 @@ const getDocuments = async (request, response) => {
         const user = await User.findById(request.userID).catch(() => null);
 
         const filters = {
+            ...request.firmQuery,
             ...(search && { $text: { $search: search } }),
             ...(category && { category }),
             ...(type && { type }),
@@ -118,7 +120,7 @@ const getDocument = async (request, response) => {
         // Sanitize ID to prevent injection attacks
         const documentId = sanitizeObjectId(request.params._id);
 
-        const document = await LegalDocument.findById(documentId);
+        const document = await LegalDocument.findOne({ _id: documentId, ...request.firmQuery });
 
         if (!document) {
             throw CustomException('Document not found!', 404);
@@ -128,11 +130,11 @@ const getDocument = async (request, response) => {
         const user = await User.findById(request.userID).catch(() => null);
 
         if (document.accessLevel === 'lawyers-only' && (!user || user.role === 'client')) {
-            throw CustomException('This document is only accessible to lawyers!', 403);
+            throw CustomException('Document not found!', 404);
         }
 
         if (document.accessLevel === 'admin-only' && (!user || user.role !== 'admin')) {
-            throw CustomException('This document is only accessible to admins!', 403);
+            throw CustomException('Document not found!', 404);
         }
 
         // Increment views
@@ -203,8 +205,8 @@ const updateDocument = async (request, response) => {
             }
         }
 
-        const document = await LegalDocument.findByIdAndUpdate(
-            documentId,
+        const document = await LegalDocument.findOneAndUpdate(
+            { _id: documentId, ...request.firmQuery },
             { $set: updateData },
             { new: true }
         );
@@ -238,13 +240,13 @@ const deleteDocument = async (request, response) => {
         // Sanitize ID to prevent injection attacks
         const documentId = sanitizeObjectId(request.params._id);
 
-        const document = await LegalDocument.findById(documentId);
+        const document = await LegalDocument.findOne({ _id: documentId, ...request.firmQuery });
 
         if (!document) {
             throw CustomException('Document not found!', 404);
         }
 
-        await LegalDocument.deleteOne({ _id: documentId });
+        await LegalDocument.deleteOne({ _id: documentId, ...request.firmQuery });
 
         return response.send({
             error: false,
@@ -264,8 +266,8 @@ const incrementDownload = async (request, response) => {
         // Sanitize ID to prevent injection attacks
         const documentId = sanitizeObjectId(request.params._id);
 
-        const document = await LegalDocument.findByIdAndUpdate(
-            documentId,
+        const document = await LegalDocument.findOneAndUpdate(
+            { _id: documentId, ...request.firmQuery },
             { $inc: { downloads: 1 } },
             { new: true }
         );

@@ -6,6 +6,12 @@ const questionSchema = new mongoose.Schema({
         ref: 'User',
         required: true
     },
+    firmId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Firm',
+        index: true,
+        required: false
+    },
     title: {
         type: String,
         required: true,
@@ -51,5 +57,8 @@ questionSchema.index({ tags: 1 });
 
 // Category and status index
 questionSchema.index({ category: 1, status: 1 });
+
+// Compound index for firmId and createdAt
+questionSchema.index({ firmId: 1, createdAt: -1 });
 
 module.exports = mongoose.model('Question', questionSchema);

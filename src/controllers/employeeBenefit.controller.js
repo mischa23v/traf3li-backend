@@ -1725,6 +1725,9 @@ const exportBenefits = asyncHandler(async (req, res) => {
         .lean();
 
     if (format === 'csv') {
+        // SECURITY: Import sanitization function to prevent CSV injection
+        const { sanitizeForCSV } = require('../utils/securityUtils');
+
         const headers = [
             'Enrollment ID', 'Employee Name', 'Employee Number', 'Department',
             'Benefit Type', 'Benefit Name', 'Category', 'Provider',
@@ -1733,22 +1736,22 @@ const exportBenefits = asyncHandler(async (req, res) => {
         ];
 
         const rows = benefits.map(b => [
-            b.benefitEnrollmentId,
-            b.employeeName,
-            b.employeeNumber,
-            b.department,
-            b.benefitType,
-            b.benefitName,
-            b.benefitCategory,
-            b.providerName,
-            b.enrollmentDate?.toISOString().split('T')[0],
-            b.effectiveDate?.toISOString().split('T')[0],
-            b.coverageEndDate?.toISOString().split('T')[0],
-            b.status,
-            b.employerCost,
-            b.employeeCost,
-            b.totalCost,
-            b.currency
+            sanitizeForCSV(b.benefitEnrollmentId),
+            sanitizeForCSV(b.employeeName),
+            sanitizeForCSV(b.employeeNumber),
+            sanitizeForCSV(b.department),
+            sanitizeForCSV(b.benefitType),
+            sanitizeForCSV(b.benefitName),
+            sanitizeForCSV(b.benefitCategory),
+            sanitizeForCSV(b.providerName),
+            sanitizeForCSV(b.enrollmentDate?.toISOString().split('T')[0]),
+            sanitizeForCSV(b.effectiveDate?.toISOString().split('T')[0]),
+            sanitizeForCSV(b.coverageEndDate?.toISOString().split('T')[0]),
+            sanitizeForCSV(b.status),
+            sanitizeForCSV(b.employerCost),
+            sanitizeForCSV(b.employeeCost),
+            sanitizeForCSV(b.totalCost),
+            sanitizeForCSV(b.currency)
         ]);
 
         const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');

@@ -7,6 +7,12 @@ const exportJobSchema = new mongoose.Schema({
         required: true,
         index: true
     },
+    firmId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Firm',
+        index: true,
+        required: false
+    },
     entityType: {
         type: String,
         enum: ['clients', 'cases', 'contacts', 'organizations', 'staff', 'invoices', 'time_entries', 'documents', 'followups', 'tags'],
@@ -47,6 +53,7 @@ const exportJobSchema = new mongoose.Schema({
 
 // Indexes
 exportJobSchema.index({ lawyerId: 1, status: 1 });
+exportJobSchema.index({ firmId: 1, status: 1 });
 exportJobSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
 // Static method: Create export job

@@ -62,6 +62,7 @@ const initiateDunning = async (invoiceId, firmId, userId = null) => {
         // Check if dunning already exists
         const existingDunning = await DunningHistory.findOne({
             invoiceId,
+            firmId,
             status: 'active'
         });
 
@@ -163,6 +164,7 @@ const processOverdueInvoices = async (firmId, options = {}) => {
                 // Check if dunning already exists
                 let dunningHistory = await DunningHistory.findOne({
                     invoiceId: invoice._id,
+                    firmId,
                     status: 'active'
                 });
 
@@ -330,13 +332,19 @@ const executeStageAction = async (dunningHistory, stage, invoice = null, policy 
     try {
         // Fetch related documents if not provided
         if (!invoice) {
-            invoice = await Invoice.findById(dunningHistory.invoiceId)
+            invoice = await Invoice.findOne({
+                _id: dunningHistory.invoiceId,
+                firmId: dunningHistory.firmId
+            })
                 .populate('clientId', 'name email phone')
                 .populate('firmId', 'name email phone');
         }
 
         if (!policy) {
-            policy = await DunningPolicy.findById(dunningHistory.policyId);
+            policy = await DunningPolicy.findOne({
+                _id: dunningHistory.policyId,
+                firmId: dunningHistory.firmId
+            });
         }
 
         if (!invoice || !policy) {

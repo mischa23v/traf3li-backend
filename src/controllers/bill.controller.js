@@ -625,16 +625,19 @@ const exportBills = asyncHandler(async (req, res) => {
         .sort({ billDate: -1 });
 
     if (format === 'csv') {
+        // SECURITY: Import sanitization function to prevent CSV injection
+        const { sanitizeForCSV } = require('../utils/securityUtils');
+
         const headers = ['Bill Number', 'Vendor', 'Bill Date', 'Due Date', 'Total', 'Paid', 'Balance', 'Status'];
         const rows = bills.map(b => [
-            b.billNumber,
-            b.vendorId?.name || '',
-            b.billDate.toISOString().split('T')[0],
-            b.dueDate.toISOString().split('T')[0],
-            b.totalAmount,
-            b.amountPaid,
-            b.balanceDue,
-            b.status
+            sanitizeForCSV(b.billNumber),
+            sanitizeForCSV(b.vendorId?.name || ''),
+            sanitizeForCSV(b.billDate.toISOString().split('T')[0]),
+            sanitizeForCSV(b.dueDate.toISOString().split('T')[0]),
+            sanitizeForCSV(b.totalAmount),
+            sanitizeForCSV(b.amountPaid),
+            sanitizeForCSV(b.balanceDue),
+            sanitizeForCSV(b.status)
         ]);
 
         const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');

@@ -1440,6 +1440,9 @@ const exportJobPositions = asyncHandler(async (req, res) => {
         .lean();
 
     if (format === 'csv') {
+        // SECURITY: Import sanitization function to prevent CSV injection
+        const { sanitizeForCSV } = require('../utils/securityUtils');
+
         const csvHeader = [
             'Position ID',
             'Position Number',
@@ -1460,22 +1463,22 @@ const exportJobPositions = asyncHandler(async (req, res) => {
         ].join(',');
 
         const csvRows = positions.map(pos => [
-            pos.positionId,
-            pos.positionNumber,
-            `"${pos.jobTitle || ''}"`,
-            `"${pos.jobTitleAr || ''}"`,
-            pos.jobFamily,
-            pos.jobLevel,
-            pos.jobGrade,
-            `"${pos.departmentId?.unitName || ''}"`,
-            pos.status,
-            pos.filled ? 'Yes' : 'No',
-            `"${pos.incumbent?.employeeName || ''}"`,
-            `"${pos.reportsTo?.positionId?.jobTitle || ''}"`,
-            pos.compensation?.salaryRange?.minimum || '',
-            pos.compensation?.salaryRange?.maximum || '',
-            pos.fte || 1,
-            pos.effectiveDate ? new Date(pos.effectiveDate).toISOString().split('T')[0] : ''
+            sanitizeForCSV(pos.positionId),
+            sanitizeForCSV(pos.positionNumber),
+            `"${sanitizeForCSV(pos.jobTitle || '')}"`,
+            `"${sanitizeForCSV(pos.jobTitleAr || '')}"`,
+            sanitizeForCSV(pos.jobFamily),
+            sanitizeForCSV(pos.jobLevel),
+            sanitizeForCSV(pos.jobGrade),
+            `"${sanitizeForCSV(pos.departmentId?.unitName || '')}"`,
+            sanitizeForCSV(pos.status),
+            sanitizeForCSV(pos.filled ? 'Yes' : 'No'),
+            `"${sanitizeForCSV(pos.incumbent?.employeeName || '')}"`,
+            `"${sanitizeForCSV(pos.reportsTo?.positionId?.jobTitle || '')}"`,
+            sanitizeForCSV(pos.compensation?.salaryRange?.minimum || ''),
+            sanitizeForCSV(pos.compensation?.salaryRange?.maximum || ''),
+            sanitizeForCSV(pos.fte || 1),
+            sanitizeForCSV(pos.effectiveDate ? new Date(pos.effectiveDate).toISOString().split('T')[0] : '')
         ].join(','));
 
         const csv = [csvHeader, ...csvRows].join('\n');

@@ -183,6 +183,12 @@ const recurringTransactionSchema = new mongoose.Schema({
     },
 
     // Ownership
+    firmId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Firm',
+        index: true,
+        required: false
+    },
     lawyerId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
@@ -228,6 +234,7 @@ const recurringTransactionSchema = new mongoose.Schema({
 });
 
 // Indexes
+recurringTransactionSchema.index({ firmId: 1, status: 1 });
 recurringTransactionSchema.index({ lawyerId: 1, status: 1 });
 recurringTransactionSchema.index({ nextDueDate: 1, status: 1 });
 recurringTransactionSchema.index({ transactionType: 1, status: 1 });

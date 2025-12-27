@@ -109,6 +109,7 @@ const validateTemplateData = (data) => {
  */
 const createTemplate = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
+    const firmId = req.firmId;
 
     // Mass assignment protection - only allow specific fields
     const allowedFields = [
@@ -133,6 +134,7 @@ const createTemplate = asyncHandler(async (req, res) => {
     validateTemplateData(safeData);
 
     const template = await InvoiceTemplate.create({
+        firmId,
         lawyerId,
         name: safeData.name,
         nameAr: safeData.nameAr,
@@ -163,9 +165,8 @@ const createTemplate = asyncHandler(async (req, res) => {
  */
 const getTemplates = asyncHandler(async (req, res) => {
     const { type, isActive = true, page = 1, limit = 50 } = req.query;
-    const lawyerId = req.userID;
 
-    const query = { lawyerId };
+    const query = { ...req.firmQuery };
 
     if (type) query.type = type;
     if (isActive !== undefined) query.isActive = isActive === 'true';
@@ -195,9 +196,8 @@ const getTemplates = asyncHandler(async (req, res) => {
  */
 const getTemplate = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const lawyerId = req.userID;
 
-    const template = await InvoiceTemplate.findOne({ _id: id, lawyerId });
+    const template = await InvoiceTemplate.findOne({ _id: id, ...req.firmQuery });
 
     if (!template) {
         throw CustomException('قالب الفاتورة غير موجود', 404);
@@ -214,9 +214,9 @@ const getTemplate = asyncHandler(async (req, res) => {
  * GET /api/invoice-templates/default
  */
 const getDefaultTemplate = asyncHandler(async (req, res) => {
-    const lawyerId = req.userID;
+    const firmId = req.firmId;
 
-    let template = await InvoiceTemplate.getDefault(lawyerId);
+    let template = await InvoiceTemplate.findOne({ ...req.firmQuery, isDefault: true });
 
     if (!template) {
         // Return a default template structure if none exists
@@ -287,9 +287,8 @@ const getDefaultTemplate = asyncHandler(async (req, res) => {
  */
 const updateTemplate = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const lawyerId = req.userID;
 
-    const template = await InvoiceTemplate.findOne({ _id: id, lawyerId });
+    const template = await InvoiceTemplate.findOne({ _id: id, ...req.firmQuery });
 
     if (!template) {
         throw CustomException('قالب الفاتورة غير موجود', 404);
@@ -322,9 +321,8 @@ const updateTemplate = asyncHandler(async (req, res) => {
  */
 const deleteTemplate = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const lawyerId = req.userID;
 
-    const template = await InvoiceTemplate.findOne({ _id: id, lawyerId });
+    const template = await InvoiceTemplate.findOne({ _id: id, ...req.firmQuery });
 
     if (!template) {
         throw CustomException('قالب الفاتورة غير موجود', 404);
@@ -334,7 +332,7 @@ const deleteTemplate = asyncHandler(async (req, res) => {
         throw CustomException('لا يمكن حذف القالب الافتراضي', 400);
     }
 
-    await InvoiceTemplate.findByIdAndDelete(id);
+    await InvoiceTemplate.findOneAndDelete({ _id: id, ...req.firmQuery });
 
     res.status(200).json({
         success: true,
@@ -350,14 +348,16 @@ const duplicateTemplate = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const { name, nameAr } = req.body;
     const lawyerId = req.userID;
+    const firmId = req.firmId;
 
-    const original = await InvoiceTemplate.findOne({ _id: id, lawyerId });
+    const original = await InvoiceTemplate.findOne({ _id: id, ...req.firmQuery });
 
     if (!original) {
         throw CustomException('قالب الفاتورة غير موجود', 404);
     }
 
     const duplicate = await InvoiceTemplate.create({
+        firmId,
         lawyerId,
         name: name || `${original.name} (نسخة)`,
         nameAr: nameAr || `${original.nameAr} (نسخة)`,
@@ -388,9 +388,8 @@ const duplicateTemplate = asyncHandler(async (req, res) => {
  */
 const setAsDefault = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const lawyerId = req.userID;
 
-    const template = await InvoiceTemplate.findOne({ _id: id, lawyerId });
+    const template = await InvoiceTemplate.findOne({ _id: id, ...req.firmQuery });
 
     if (!template) {
         throw CustomException('قالب الفاتورة غير موجود', 404);
@@ -398,7 +397,7 @@ const setAsDefault = asyncHandler(async (req, res) => {
 
     // Remove default from other templates
     await InvoiceTemplate.updateMany(
-        { lawyerId, _id: { $ne: id } },
+        { ...req.firmQuery, _id: { $ne: id } },
         { isDefault: false }
     );
 
@@ -418,9 +417,8 @@ const setAsDefault = asyncHandler(async (req, res) => {
  */
 const previewTemplate = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const lawyerId = req.userID;
 
-    const template = await InvoiceTemplate.findOne({ _id: id, lawyerId });
+    const template = await InvoiceTemplate.findOne({ _id: id, ...req.firmQuery });
 
     if (!template) {
         throw CustomException('قالب الفاتورة غير موجود', 404);
@@ -463,9 +461,8 @@ const previewTemplate = asyncHandler(async (req, res) => {
  */
 const exportTemplate = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const lawyerId = req.userID;
 
-    const template = await InvoiceTemplate.findOne({ _id: id, lawyerId });
+    const template = await InvoiceTemplate.findOne({ _id: id, ...req.firmQuery });
 
     if (!template) {
         throw CustomException('قالب الفاتورة غير موجود', 404);
@@ -498,6 +495,7 @@ const exportTemplate = asyncHandler(async (req, res) => {
  */
 const importTemplate = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
+    const firmId = req.firmId;
 
     const {
         name, nameAr, description, descriptionAr, type,
@@ -510,6 +508,7 @@ const importTemplate = asyncHandler(async (req, res) => {
     }
 
     const template = await InvoiceTemplate.create({
+        firmId,
         lawyerId,
         name,
         nameAr,

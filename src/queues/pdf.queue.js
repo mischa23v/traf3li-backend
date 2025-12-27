@@ -117,7 +117,17 @@ pdfQueue.process(async (job) => {
  * Generate invoice PDF
  */
 async function generateInvoicePDF(data, job) {
-  const { invoiceId, invoiceData, options = {} } = data;
+  const { invoiceId, invoiceData, options = {}, firmId } = data;
+
+  // Verify firmId is provided for authorization
+  if (!firmId) {
+    throw new Error('firmId is required for invoice PDF generation');
+  }
+
+  // Verify invoice belongs to the firm if invoiceId is provided
+  if (invoiceId && invoiceData?.firmId && invoiceData.firmId.toString() !== firmId.toString()) {
+    throw new Error('Invoice does not belong to the specified firm');
+  }
 
   await job.progress(10);
 
@@ -161,7 +171,17 @@ async function generateInvoicePDF(data, job) {
  * Generate report PDF
  */
 async function generateReportPDF(data, job) {
-  const { reportId, reportData, reportType, options = {} } = data;
+  const { reportId, reportData, reportType, options = {}, firmId } = data;
+
+  // Verify firmId is provided for authorization
+  if (!firmId) {
+    throw new Error('firmId is required for report PDF generation');
+  }
+
+  // Verify report belongs to the firm if reportData contains firmId
+  if (reportData?.firmId && reportData.firmId.toString() !== firmId.toString()) {
+    throw new Error('Report does not belong to the specified firm');
+  }
 
   await job.progress(10);
 
@@ -207,7 +227,17 @@ async function generateReportPDF(data, job) {
  * Generate statement PDF
  */
 async function generateStatementPDF(data, job) {
-  const { statementId, statementData, options = {} } = data;
+  const { statementId, statementData, options = {}, firmId } = data;
+
+  // Verify firmId is provided for authorization
+  if (!firmId) {
+    throw new Error('firmId is required for statement PDF generation');
+  }
+
+  // Verify statement belongs to the firm if statementData contains firmId
+  if (statementData?.firmId && statementData.firmId.toString() !== firmId.toString()) {
+    throw new Error('Statement does not belong to the specified firm');
+  }
 
   await job.progress(10);
 
@@ -242,7 +272,17 @@ async function generateStatementPDF(data, job) {
  * Generate contract PDF
  */
 async function generateContractPDF(data, job) {
-  const { contractId, contractData, options = {} } = data;
+  const { contractId, contractData, options = {}, firmId } = data;
+
+  // Verify firmId is provided for authorization
+  if (!firmId) {
+    throw new Error('firmId is required for contract PDF generation');
+  }
+
+  // Verify contract belongs to the firm if contractData contains firmId
+  if (contractData?.firmId && contractData.firmId.toString() !== firmId.toString()) {
+    throw new Error('Contract does not belong to the specified firm');
+  }
 
   await job.progress(10);
 
@@ -277,7 +317,12 @@ async function generateContractPDF(data, job) {
  * Generate custom PDF from HTML
  */
 async function generateCustomPDF(data, job) {
-  const { html, fileName: customFileName, options = {} } = data;
+  const { html, fileName: customFileName, options = {}, firmId } = data;
+
+  // Verify firmId is provided for authorization
+  if (!firmId) {
+    throw new Error('firmId is required for custom PDF generation');
+  }
 
   await job.progress(20);
 
@@ -481,7 +526,12 @@ async function generatePdfmePDF(data, job) {
     throw new Error('PDFMe service not available');
   }
 
-  const { templateId, template, inputs, docType = 'custom', lawyerId } = data;
+  const { templateId, template, inputs, docType = 'custom', lawyerId, firmId } = data;
+
+  // Verify firmId is provided for authorization
+  if (!firmId) {
+    throw new Error('firmId is required for PDFMe PDF generation');
+  }
 
   await job.progress(10);
 
@@ -516,7 +566,17 @@ async function generatePdfmeInvoicePDF(data, job) {
     throw new Error('PDFMe service not available');
   }
 
-  const { invoiceData, templateId, lawyerId, includeQR, qrData } = data;
+  const { invoiceData, templateId, lawyerId, includeQR, qrData, firmId } = data;
+
+  // Verify firmId is provided for authorization
+  if (!firmId) {
+    throw new Error('firmId is required for PDFMe invoice PDF generation');
+  }
+
+  // Verify invoice belongs to the firm if invoiceData contains firmId
+  if (invoiceData?.firmId && invoiceData.firmId.toString() !== firmId.toString()) {
+    throw new Error('Invoice does not belong to the specified firm');
+  }
 
   await job.progress(10);
 
@@ -563,7 +623,17 @@ async function generatePdfmeContractPDF(data, job) {
     throw new Error('PDFMe service not available');
   }
 
-  const { contractData, templateId, lawyerId } = data;
+  const { contractData, templateId, lawyerId, firmId } = data;
+
+  // Verify firmId is provided for authorization
+  if (!firmId) {
+    throw new Error('firmId is required for PDFMe contract PDF generation');
+  }
+
+  // Verify contract belongs to the firm if contractData contains firmId
+  if (contractData?.firmId && contractData.firmId.toString() !== firmId.toString()) {
+    throw new Error('Contract does not belong to the specified firm');
+  }
 
   await job.progress(10);
 
@@ -600,7 +670,17 @@ async function generatePdfmeReceiptPDF(data, job) {
     throw new Error('PDFMe service not available');
   }
 
-  const { receiptData, templateId, lawyerId } = data;
+  const { receiptData, templateId, lawyerId, firmId } = data;
+
+  // Verify firmId is provided for authorization
+  if (!firmId) {
+    throw new Error('firmId is required for PDFMe receipt PDF generation');
+  }
+
+  // Verify receipt belongs to the firm if receiptData contains firmId
+  if (receiptData?.firmId && receiptData.firmId.toString() !== firmId.toString()) {
+    throw new Error('Receipt does not belong to the specified firm');
+  }
 
   await job.progress(10);
 

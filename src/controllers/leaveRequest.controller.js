@@ -222,7 +222,16 @@ const getLeaveRequest = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
-    const leaveRequest = await LeaveRequest.findById(id)
+    // IDOR PROTECTION: Build query with firmId/lawyerId filter
+    const isSoloLawyer = req.isSoloLawyer;
+    const query = { _id: id };
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
+
+    const leaveRequest = await LeaveRequest.findOne(query)
         .populate('employeeId', 'employeeId personalInfo employment')
         .populate('approvedBy', 'firstName lastName')
         .populate('rejectedBy', 'firstName lastName')
@@ -232,15 +241,6 @@ const getLeaveRequest = asyncHandler(async (req, res) => {
 
     if (!leaveRequest) {
         throw CustomException('Leave request not found', 404);
-    }
-
-    // Check access
-    const hasAccess = firmId
-        ? leaveRequest.firmId?.toString() === firmId.toString()
-        : leaveRequest.lawyerId?.toString() === lawyerId;
-
-    if (!hasAccess) {
-        throw CustomException('Access denied', 403);
     }
 
     return res.json({
@@ -398,20 +398,19 @@ const updateLeaveRequest = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
-    // IDOR PROTECTION: Fetch and verify access first
-    const leaveRequest = await LeaveRequest.findById(id);
+    // IDOR PROTECTION: Build query with firmId/lawyerId filter
+    const isSoloLawyer = req.isSoloLawyer;
+    const query = { _id: id };
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
+
+    const leaveRequest = await LeaveRequest.findOne(query);
 
     if (!leaveRequest) {
         throw CustomException('Leave request not found', 404);
-    }
-
-    // Check access
-    const hasAccess = firmId
-        ? leaveRequest.firmId?.toString() === firmId.toString()
-        : leaveRequest.lawyerId?.toString() === lawyerId;
-
-    if (!hasAccess) {
-        throw CustomException('Access denied', 403);
     }
 
     // Only allow updates if status is draft or submitted
@@ -494,19 +493,19 @@ const deleteLeaveRequest = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
-    const leaveRequest = await LeaveRequest.findById(id);
+    // IDOR PROTECTION: Build query with firmId/lawyerId filter
+    const isSoloLawyer = req.isSoloLawyer;
+    const query = { _id: id };
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
+
+    const leaveRequest = await LeaveRequest.findOne(query);
 
     if (!leaveRequest) {
         throw CustomException('Leave request not found', 404);
-    }
-
-    // Check access
-    const hasAccess = firmId
-        ? leaveRequest.firmId?.toString() === firmId.toString()
-        : leaveRequest.lawyerId?.toString() === lawyerId;
-
-    if (!hasAccess) {
-        throw CustomException('Access denied', 403);
     }
 
     // Only allow deletion if status is draft
@@ -531,19 +530,19 @@ const submitLeaveRequest = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
-    const leaveRequest = await LeaveRequest.findById(id);
+    // IDOR PROTECTION: Build query with firmId/lawyerId filter
+    const isSoloLawyer = req.isSoloLawyer;
+    const query = { _id: id };
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
+
+    const leaveRequest = await LeaveRequest.findOne(query);
 
     if (!leaveRequest) {
         throw CustomException('Leave request not found', 404);
-    }
-
-    // Check access
-    const hasAccess = firmId
-        ? leaveRequest.firmId?.toString() === firmId.toString()
-        : leaveRequest.lawyerId?.toString() === lawyerId;
-
-    if (!hasAccess) {
-        throw CustomException('Access denied', 403);
     }
 
     if (leaveRequest.status !== 'draft') {
@@ -596,20 +595,19 @@ const approveLeaveRequest = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
-    // IDOR PROTECTION: Fetch and verify access first
-    const leaveRequest = await LeaveRequest.findById(id);
+    // IDOR PROTECTION: Build query with firmId/lawyerId filter
+    const isSoloLawyer = req.isSoloLawyer;
+    const query = { _id: id };
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
+
+    const leaveRequest = await LeaveRequest.findOne(query);
 
     if (!leaveRequest) {
         throw CustomException('Leave request not found', 404);
-    }
-
-    // Check access
-    const hasAccess = firmId
-        ? leaveRequest.firmId?.toString() === firmId.toString()
-        : leaveRequest.lawyerId?.toString() === lawyerId;
-
-    if (!hasAccess) {
-        throw CustomException('Access denied', 403);
     }
 
     // MASS ASSIGNMENT PROTECTION: Filter request body to only allowed fields
@@ -689,20 +687,19 @@ const rejectLeaveRequest = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
-    // IDOR PROTECTION: Fetch and verify access first
-    const leaveRequest = await LeaveRequest.findById(id);
+    // IDOR PROTECTION: Build query with firmId/lawyerId filter
+    const isSoloLawyer = req.isSoloLawyer;
+    const query = { _id: id };
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
+
+    const leaveRequest = await LeaveRequest.findOne(query);
 
     if (!leaveRequest) {
         throw CustomException('Leave request not found', 404);
-    }
-
-    // Check access
-    const hasAccess = firmId
-        ? leaveRequest.firmId?.toString() === firmId.toString()
-        : leaveRequest.lawyerId?.toString() === lawyerId;
-
-    if (!hasAccess) {
-        throw CustomException('Access denied', 403);
     }
 
     // MASS ASSIGNMENT PROTECTION: Filter request body to only allowed fields
@@ -740,20 +737,19 @@ const cancelLeaveRequest = asyncHandler(async (req, res) => {
     const User = require('../models/user.model');
     const user = await User.findById(lawyerId);
 
-    // IDOR PROTECTION: Fetch and verify access first
-    const leaveRequest = await LeaveRequest.findById(id);
+    // IDOR PROTECTION: Build query with firmId/lawyerId filter
+    const isSoloLawyer = req.isSoloLawyer;
+    const query = { _id: id };
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
+
+    const leaveRequest = await LeaveRequest.findOne(query);
 
     if (!leaveRequest) {
         throw CustomException('Leave request not found', 404);
-    }
-
-    // Check access
-    const hasAccess = firmId
-        ? leaveRequest.firmId?.toString() === firmId.toString()
-        : leaveRequest.lawyerId?.toString() === lawyerId;
-
-    if (!hasAccess) {
-        throw CustomException('Access denied', 403);
     }
 
     // MASS ASSIGNMENT PROTECTION: Filter request body to only allowed fields
@@ -808,20 +804,19 @@ const confirmReturn = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
-    // IDOR PROTECTION: Fetch and verify access first
-    const leaveRequest = await LeaveRequest.findById(id);
+    // IDOR PROTECTION: Build query with firmId/lawyerId filter
+    const isSoloLawyer = req.isSoloLawyer;
+    const query = { _id: id };
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
+
+    const leaveRequest = await LeaveRequest.findOne(query);
 
     if (!leaveRequest) {
         throw CustomException('Leave request not found', 404);
-    }
-
-    // Check access
-    const hasAccess = firmId
-        ? leaveRequest.firmId?.toString() === firmId.toString()
-        : leaveRequest.lawyerId?.toString() === lawyerId;
-
-    if (!hasAccess) {
-        throw CustomException('Access denied', 403);
     }
 
     if (leaveRequest.status !== 'approved') {
@@ -903,20 +898,19 @@ const requestExtension = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
-    // IDOR PROTECTION: Fetch and verify access first
-    const leaveRequest = await LeaveRequest.findById(id);
+    // IDOR PROTECTION: Build query with firmId/lawyerId filter
+    const isSoloLawyer = req.isSoloLawyer;
+    const query = { _id: id };
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
+
+    const leaveRequest = await LeaveRequest.findOne(query);
 
     if (!leaveRequest) {
         throw CustomException('Leave request not found', 404);
-    }
-
-    // Check access
-    const hasAccess = firmId
-        ? leaveRequest.firmId?.toString() === firmId.toString()
-        : leaveRequest.lawyerId?.toString() === lawyerId;
-
-    if (!hasAccess) {
-        throw CustomException('Access denied', 403);
     }
 
     if (leaveRequest.status !== 'approved') {
@@ -997,20 +991,19 @@ const completeHandover = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
-    // IDOR PROTECTION: Fetch and verify access first
-    const leaveRequest = await LeaveRequest.findById(id);
+    // IDOR PROTECTION: Build query with firmId/lawyerId filter
+    const isSoloLawyer = req.isSoloLawyer;
+    const query = { _id: id };
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
+
+    const leaveRequest = await LeaveRequest.findOne(query);
 
     if (!leaveRequest) {
         throw CustomException('Leave request not found', 404);
-    }
-
-    // Check access
-    const hasAccess = firmId
-        ? leaveRequest.firmId?.toString() === firmId.toString()
-        : leaveRequest.lawyerId?.toString() === lawyerId;
-
-    if (!hasAccess) {
-        throw CustomException('Access denied', 403);
     }
 
     // MASS ASSIGNMENT PROTECTION: Filter request body to only allowed fields
@@ -1046,20 +1039,19 @@ const uploadDocument = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
-    // IDOR PROTECTION: Fetch and verify access first
-    const leaveRequest = await LeaveRequest.findById(id);
+    // IDOR PROTECTION: Build query with firmId/lawyerId filter
+    const isSoloLawyer = req.isSoloLawyer;
+    const query = { _id: id };
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
+    }
+
+    const leaveRequest = await LeaveRequest.findOne(query);
 
     if (!leaveRequest) {
         throw CustomException('Leave request not found', 404);
-    }
-
-    // Check access
-    const hasAccess = firmId
-        ? leaveRequest.firmId?.toString() === firmId.toString()
-        : leaveRequest.lawyerId?.toString() === lawyerId;
-
-    if (!hasAccess) {
-        throw CustomException('Access denied', 403);
     }
 
     // MASS ASSIGNMENT PROTECTION: Filter request body to only allowed fields
@@ -1101,18 +1093,19 @@ const getLeaveBalance = asyncHandler(async (req, res) => {
     const lawyerId = req.userID;
     const firmId = req.firmId;
 
-    // Verify employee access
-    const employee = await Employee.findById(employeeId);
-    if (!employee) {
-        throw CustomException('Employee not found', 404);
+    // IDOR PROTECTION: Build query with firmId/lawyerId filter
+    const isSoloLawyer = req.isSoloLawyer;
+    const query = { _id: employeeId };
+    if (isSoloLawyer || !firmId) {
+        query.lawyerId = lawyerId;
+    } else {
+        query.firmId = firmId;
     }
 
-    const hasAccess = firmId
-        ? employee.firmId?.toString() === firmId.toString()
-        : employee.lawyerId?.toString() === lawyerId;
-
-    if (!hasAccess) {
-        throw CustomException('Access denied', 403);
+    // Verify employee access
+    const employee = await Employee.findOne(query);
+    if (!employee) {
+        throw CustomException('Employee not found', 404);
     }
 
     // Get or create balance from LeaveBalance model

@@ -20,6 +20,13 @@ const sloMeasurementSchema = new mongoose.Schema(
       index: true,
     },
 
+    firmId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Firm',
+      index: true,
+      required: false,
+    },
+
     // ═══════════════════════════════════════════════════════════════
     // MEASUREMENT DATA
     // ═══════════════════════════════════════════════════════════════
@@ -90,6 +97,7 @@ sloMeasurementSchema.index({ sloId: 1, timestamp: -1 });
 sloMeasurementSchema.index({ sloId: 1, windowStart: 1, windowEnd: 1 });
 sloMeasurementSchema.index({ sloId: 1, status: 1, timestamp: -1 });
 sloMeasurementSchema.index({ timestamp: -1 });
+sloMeasurementSchema.index({ firmId: 1, createdAt: -1 });
 
 // TTL index: Auto-delete measurements older than 1 year
 sloMeasurementSchema.index({ timestamp: 1 }, { expireAfterSeconds: 365 * 24 * 60 * 60 });

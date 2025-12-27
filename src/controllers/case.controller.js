@@ -19,6 +19,16 @@ const {
 } = require('../configs/caseConstants');
 
 /**
+ * Escape special regex characters to prevent NoSQL injection
+ * @param {string} str - String to escape
+ * @returns {string} - Escaped string safe for regex
+ */
+const escapeRegex = (str) => {
+    if (!str || typeof str !== 'string') return '';
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
+
+/**
  * Generate internal reference for a case
  * Format: YYYY/XXXX (e.g., 2025/0001, 2025/0002)
  * @param {string} firmId - The firm ID for scoping the sequence
@@ -46,6 +56,44 @@ const generateInternalReference = async (firmId) => {
     }
 
     return `${year}/${sequence.toString().padStart(4, '0')}`;
+};
+
+/**
+ * SECURITY: Build secure case query with firm/user isolation
+ * Prevents IDOR by constraining queries to user's accessible cases
+ * @param {string} caseId - The case ID to query
+ * @param {Object} request - Express request object with user context
+ * @returns {Object} MongoDB query object with security constraints
+ */
+const buildSecureCaseQuery = (caseId, request) => {
+    const { userID, firmId, isSoloLawyer } = request;
+    const query = { _id: caseId };
+
+    // Solo lawyers can only access cases where they are the lawyer
+    if (isSoloLawyer) {
+        query.lawyerId = userID;
+        return query;
+    }
+
+    // If user has a firmId, apply firm-level isolation
+    if (firmId) {
+        // User can access cases that:
+        // 1. Belong to their firm, OR
+        // 2. They are the lawyer/client (for legacy cases without firmId)
+        query.$or = [
+            { firmId: firmId },
+            { lawyerId: userID },
+            { clientId: userID }
+        ];
+        return query;
+    }
+
+    // No firmId (legacy users) - can only access cases where they're lawyer or client
+    query.$or = [
+        { lawyerId: userID },
+        { clientId: userID }
+    ];
+    return query;
 };
 
 // Helper function to check firm access for a case
@@ -467,13 +515,14 @@ const getCases = async (request, response) => {
 
         // Search filter (title, description, caseNumber)
         if (search) {
+            const safeSearch = escapeRegex(search);
             filters.$and = filters.$and || [];
             filters.$and.push({
                 $or: [
-                    { title: { $regex: search, $options: 'i' } },
-                    { description: { $regex: search, $options: 'i' } },
-                    { caseNumber: { $regex: search, $options: 'i' } },
-                    { clientName: { $regex: search, $options: 'i' } }
+                    { title: { $regex: safeSearch, $options: 'i' } },
+                    { description: { $regex: safeSearch, $options: 'i' } },
+                    { caseNumber: { $regex: safeSearch, $options: 'i' } },
+                    { clientName: { $regex: safeSearch, $options: 'i' } }
                 ]
             });
         }
@@ -522,25 +571,19 @@ const getCases = async (request, response) => {
 const getCase = async (request, response) => {
     const { _id } = request.params;
     try {
-        const firmId = request.firmId;
-        const isSoloLawyer = request.isSoloLawyer || false;
+        // SECURITY: Build secure query with firm/user isolation to prevent IDOR
+        const secureQuery = buildSecureCaseQuery(_id, request);
 
-        const caseDoc = await Case.findById(_id)
+        const caseDoc = await Case.findOne(secureQuery)
             .populate('lawyerId', 'username firstName lastName image email lawyerProfile')
             .populate('clientId', 'username firstName lastName image email')
             .populate('contractId')
             .populate('documents.uploadedBy', 'username firstName lastName')
             .lean();
 
+        // Return 404 (not 403) to avoid information disclosure
         if (!caseDoc) {
             throw CustomException('Case not found!', 404);
-        }
-
-        // Check access using helper function
-        const hasAccess = checkCaseAccess(caseDoc, request.userID, firmId, false, isSoloLawyer);
-
-        if (!hasAccess) {
-            throw CustomException('You do not have access to this case!', 403);
         }
 
         return response.send({
@@ -566,24 +609,20 @@ const updateCase = async (request, response) => {
 
         const firmId = request.firmId;
         const isSoloLawyer = request.isSoloLawyer || false;
-        const caseDoc = await Case.findById(_id);
 
+        // SECURITY: Build secure query with firm/user isolation to prevent IDOR
+        const secureQuery = buildSecureCaseQuery(_id, request);
+        const caseDoc = await Case.findOne(secureQuery);
+
+        // Return 404 (not 403) to avoid information disclosure
         if (!caseDoc) {
             throw CustomException('Case not found!', 404);
         }
 
-        // IDOR Protection: Verify case belongs to user's firm
-        if (firmId && caseDoc.firmId) {
-            const caseFirmIdStr = caseDoc.firmId.toString();
-            const userFirmIdStr = firmId.toString();
-            if (caseFirmIdStr !== userFirmIdStr) {
-                throw CustomException('You do not have permission to update this case!', 403);
-            }
-        }
-
         // Check access (requires lawyer-level permissions)
         if (!checkCaseAccess(caseDoc, request.userID, firmId, true, isSoloLawyer)) {
-            throw CustomException('Only the lawyer can update case details!', 403);
+            // Return 404 (not 403) to avoid information disclosure
+            throw CustomException('Case not found!', 404);
         }
 
         // Mass Assignment Protection: Define allowed fields for case updates
@@ -658,8 +697,9 @@ const updateCase = async (request, response) => {
             }
         });
 
-        const updatedCase = await Case.findByIdAndUpdate(
-            _id,
+        // SECURITY: Use secure query to prevent TOCTOU race conditions
+        const updatedCase = await Case.findOneAndUpdate(
+            secureQuery,
             { $set: sanitizedUpdateData },
             { new: true }
         );
@@ -745,14 +785,19 @@ const addNote = async (request, response) => {
     try {
         const firmId = request.firmId;
         const isSoloLawyer = request.isSoloLawyer || false;
-        const caseDoc = await Case.findById(_id);
 
+        // SECURITY: Build secure query with firm/user isolation to prevent IDOR
+        const secureQuery = buildSecureCaseQuery(_id, request);
+        const caseDoc = await Case.findOne(secureQuery);
+
+        // Return 404 (not 403) to avoid information disclosure
         if (!caseDoc) {
             throw CustomException('Case not found!', 404);
         }
 
         if (!checkCaseAccess(caseDoc, request.userID, firmId, true, isSoloLawyer)) {
-            throw CustomException('Only the lawyer can add notes!', 403);
+            // Return 404 (not 403) to avoid information disclosure
+            throw CustomException('Case not found!', 404);
         }
 
         caseDoc.notes.push({
@@ -782,14 +827,19 @@ const addDocument = async (request, response) => {
     try {
         const firmId = request.firmId;
         const isSoloLawyer = request.isSoloLawyer || false;
-        const caseDoc = await Case.findById(_id);
 
+        // SECURITY: Build secure query with firm/user isolation to prevent IDOR
+        const secureQuery = buildSecureCaseQuery(_id, request);
+        const caseDoc = await Case.findOne(secureQuery);
+
+        // Return 404 (not 403) to avoid information disclosure
         if (!caseDoc) {
             throw CustomException('Case not found!', 404);
         }
 
         if (!checkCaseAccess(caseDoc, request.userID, firmId, false, isSoloLawyer)) {
-            throw CustomException('You do not have access to this case!', 403);
+            // Return 404 (not 403) to avoid information disclosure
+            throw CustomException('Case not found!', 404);
         }
 
         caseDoc.documents.push({
@@ -823,14 +873,19 @@ const addHearing = async (request, response) => {
     try {
         const firmId = request.firmId;
         const isSoloLawyer = request.isSoloLawyer || false;
-        const caseDoc = await Case.findById(_id);
 
+        // SECURITY: Build secure query with firm/user isolation to prevent IDOR
+        const secureQuery = buildSecureCaseQuery(_id, request);
+        const caseDoc = await Case.findOne(secureQuery);
+
+        // Return 404 (not 403) to avoid information disclosure
         if (!caseDoc) {
             throw CustomException('Case not found!', 404);
         }
 
         if (!checkCaseAccess(caseDoc, request.userID, firmId, true, isSoloLawyer)) {
-            throw CustomException('Only the lawyer can add hearings!', 403);
+            // Return 404 (not 403) to avoid information disclosure
+            throw CustomException('Case not found!', 404);
         }
 
         // Create the hearing
@@ -959,15 +1014,20 @@ const updateStatus = async (request, response) => {
     try {
         const firmId = request.firmId;
         const isSoloLawyer = request.isSoloLawyer || false;
-        const caseDoc = await Case.findById(_id);
 
+        // SECURITY: Build secure query with firm/user isolation to prevent IDOR
+        const secureQuery = buildSecureCaseQuery(_id, request);
+        const caseDoc = await Case.findOne(secureQuery);
+
+        // Return 404 (not 403) to avoid information disclosure
         if (!caseDoc) {
             throw CustomException('Case not found!', 404);
         }
 
         // SECURITY: Use checkCaseAccess for proper firm isolation
         if (!checkCaseAccess(caseDoc, request.userID, firmId, true, isSoloLawyer)) {
-            throw CustomException('Only the lawyer can update case status!', 403);
+            // Return 404 (not 403) to avoid information disclosure
+            throw CustomException('Case not found!', 404);
         }
 
         const oldStatus = caseDoc.status;
@@ -1017,15 +1077,20 @@ const closeCase = async (request, response) => {
     try {
         const firmId = request.firmId;
         const isSoloLawyer = request.isSoloLawyer || false;
-        const caseDoc = await Case.findById(_id);
 
+        // SECURITY: Build secure query with firm/user isolation to prevent IDOR
+        const secureQuery = buildSecureCaseQuery(_id, request);
+        const caseDoc = await Case.findOne(secureQuery);
+
+        // Return 404 (not 403) to avoid information disclosure
         if (!caseDoc) {
             throw CustomException('Case not found!', 404);
         }
 
         // Check access (requires lawyer-level permissions)
         if (!checkCaseAccess(caseDoc, request.userID, firmId, true, isSoloLawyer)) {
-            throw CustomException('Only the lawyer can close this case!', 403);
+            // Return 404 (not 403) to avoid information disclosure
+            throw CustomException('Case not found!', 404);
         }
 
         const oldStatus = caseDoc.status;
@@ -1094,7 +1159,9 @@ const updateOutcome = async (request, response) => {
     try {
         const firmId = request.firmId;
         const isSoloLawyer = request.isSoloLawyer || false;
-        const caseDoc = await Case.findById(_id);
+        // SECURITY: Build secure query with firm/user isolation to prevent IDOR
+        const secureQuery = buildSecureCaseQuery(_id, request);
+        const caseDoc = await Case.findOne(secureQuery);
 
         if (!caseDoc) {
             throw CustomException('Case not found!', 404);
@@ -1102,7 +1169,8 @@ const updateOutcome = async (request, response) => {
 
         // SECURITY: Use checkCaseAccess for proper firm isolation
         if (!checkCaseAccess(caseDoc, request.userID, firmId, true, isSoloLawyer)) {
-            throw CustomException('Only the lawyer can update case outcome!', 403);
+            // Return 404 (not 403) to avoid information disclosure
+            throw CustomException('Case not found!', 404);
         }
 
         const oldOutcome = caseDoc.outcome;
@@ -1165,7 +1233,9 @@ const addTimelineEvent = async (request, response) => {
     try {
         const firmId = request.firmId;
         const isSoloLawyer = request.isSoloLawyer || false;
-        const caseDoc = await Case.findById(_id);
+        // SECURITY: Build secure query with firm/user isolation to prevent IDOR
+        const secureQuery = buildSecureCaseQuery(_id, request);
+        const caseDoc = await Case.findOne(secureQuery);
 
         if (!caseDoc) {
             throw CustomException('Case not found!', 404);
@@ -1173,7 +1243,8 @@ const addTimelineEvent = async (request, response) => {
 
         // SECURITY: Use checkCaseAccess for proper firm isolation
         if (!checkCaseAccess(caseDoc, request.userID, firmId, true, isSoloLawyer)) {
-            throw CustomException('Only the lawyer can add timeline events!', 403);
+            // Return 404 (not 403) to avoid information disclosure
+            throw CustomException('Case not found!', 404);
         }
 
         caseDoc.timeline.push({
@@ -1204,7 +1275,9 @@ const addClaim = async (request, response) => {
     try {
         const firmId = request.firmId;
         const isSoloLawyer = request.isSoloLawyer || false;
-        const caseDoc = await Case.findById(_id);
+        // SECURITY: Build secure query with firm/user isolation to prevent IDOR
+        const secureQuery = buildSecureCaseQuery(_id, request);
+        const caseDoc = await Case.findOne(secureQuery);
 
         if (!caseDoc) {
             throw CustomException('Case not found!', 404);
@@ -1212,7 +1285,8 @@ const addClaim = async (request, response) => {
 
         // SECURITY: Use checkCaseAccess for proper firm isolation
         if (!checkCaseAccess(caseDoc, request.userID, firmId, true, isSoloLawyer)) {
-            throw CustomException('Only the lawyer can add claims!', 403);
+            // Return 404 (not 403) to avoid information disclosure
+            throw CustomException('Case not found!', 404);
         }
 
         caseDoc.claims.push({ type, amount, period, description });
@@ -1242,7 +1316,9 @@ const updateHearing = async (request, response) => {
     try {
         const firmId = request.firmId;
         const isSoloLawyer = request.isSoloLawyer || false;
-        const caseDoc = await Case.findById(_id);
+        // SECURITY: Build secure query with firm/user isolation to prevent IDOR
+        const secureQuery = buildSecureCaseQuery(_id, request);
+        const caseDoc = await Case.findOne(secureQuery);
 
         if (!caseDoc) {
             throw CustomException('Case not found!', 404);
@@ -1250,7 +1326,8 @@ const updateHearing = async (request, response) => {
 
         // SECURITY: Use checkCaseAccess for proper firm isolation
         if (!checkCaseAccess(caseDoc, request.userID, firmId, true, isSoloLawyer)) {
-            throw CustomException('Only the lawyer can update hearings!', 403);
+            // Return 404 (not 403) to avoid information disclosure
+            throw CustomException('Case not found!', 404);
         }
 
         const hearing = caseDoc.hearings.id(hearingId);
@@ -1292,7 +1369,11 @@ const updateHearing = async (request, response) => {
                 }
 
                 if (Object.keys(eventUpdates).length > 0) {
-                    await Event.findByIdAndUpdate(hearing.eventId, eventUpdates);
+                    // SECURITY: Include firmId to prevent IDOR when updating linked event
+                    await Event.findOneAndUpdate(
+                        { _id: hearing.eventId, firmId: firmId },
+                        eventUpdates
+                    );
                 }
             } catch (eventError) {
                 logger.error('Failed to update linked event', { error: eventError.message });
@@ -1312,7 +1393,11 @@ const updateHearing = async (request, response) => {
                     description: `موعد الجلسة غداً في ${location || hearing.location || 'المحكمة'}`
                 };
 
-                await Reminder.findByIdAndUpdate(hearing.reminderId, reminderUpdates);
+                // SECURITY: Include firmId to prevent IDOR when updating linked reminder
+                await Reminder.findOneAndUpdate(
+                    { _id: hearing.reminderId, firmId: firmId },
+                    reminderUpdates
+                );
             } catch (reminderError) {
                 logger.error('Failed to update linked reminder', { error: reminderError.message });
             }
@@ -1338,7 +1423,9 @@ const updateProgress = async (request, response) => {
     try {
         const firmId = request.firmId;
         const isSoloLawyer = request.isSoloLawyer || false;
-        const caseDoc = await Case.findById(_id);
+        // SECURITY: Build secure query with firm/user isolation to prevent IDOR
+        const secureQuery = buildSecureCaseQuery(_id, request);
+        const caseDoc = await Case.findOne(secureQuery);
 
         if (!caseDoc) {
             throw CustomException('Case not found!', 404);
@@ -1346,7 +1433,8 @@ const updateProgress = async (request, response) => {
 
         // SECURITY: Use checkCaseAccess for proper firm isolation
         if (!checkCaseAccess(caseDoc, request.userID, firmId, true, isSoloLawyer)) {
-            throw CustomException('Only the lawyer can update case progress!', 403);
+            // Return 404 (not 403) to avoid information disclosure
+            throw CustomException('Case not found!', 404);
         }
 
         if (progress < 0 || progress > 100) {
@@ -1397,15 +1485,20 @@ const deleteCase = async (request, response) => {
     try {
         const firmId = request.firmId;
         const isSoloLawyer = request.isSoloLawyer || false;
-        const caseDoc = await Case.findById(_id);
 
+        // SECURITY: Build secure query with firm/user isolation to prevent IDOR
+        const secureQuery = buildSecureCaseQuery(_id, request);
+        const caseDoc = await Case.findOne(secureQuery);
+
+        // Return 404 (not 403) to avoid information disclosure
         if (!caseDoc) {
             throw CustomException('Case not found!', 404);
         }
 
         // SECURITY: Use checkCaseAccess for proper firm isolation
         if (!checkCaseAccess(caseDoc, request.userID, firmId, true, isSoloLawyer)) {
-            throw CustomException('Only the lawyer can delete this case!', 403);
+            // Return 404 (not 403) to avoid information disclosure
+            throw CustomException('Case not found!', 404);
         }
 
         // Store case info before deletion
@@ -1413,7 +1506,8 @@ const deleteCase = async (request, response) => {
         const caseCategory = caseDoc.category;
         const caseStatus = caseDoc.status;
 
-        await Case.findByIdAndDelete(_id);
+        // SECURITY: Use secure query to prevent TOCTOU race conditions
+        await Case.findOneAndDelete(secureQuery);
 
         // Decrement usage counter for firm
         if (caseDoc.firmId) {
@@ -1460,7 +1554,9 @@ const deleteNote = async (request, response) => {
     try {
         const firmId = request.firmId;
         const isSoloLawyer = request.isSoloLawyer || false;
-        const caseDoc = await Case.findById(_id);
+        // SECURITY: Build secure query with firm/user isolation to prevent IDOR
+        const secureQuery = buildSecureCaseQuery(_id, request);
+        const caseDoc = await Case.findOne(secureQuery);
 
         if (!caseDoc) {
             throw CustomException('Case not found!', 404);
@@ -1468,7 +1564,8 @@ const deleteNote = async (request, response) => {
 
         // SECURITY: Use checkCaseAccess for proper firm isolation
         if (!checkCaseAccess(caseDoc, request.userID, firmId, true, isSoloLawyer)) {
-            throw CustomException('Only the lawyer can delete notes!', 403);
+            // Return 404 (not 403) to avoid information disclosure
+            throw CustomException('Case not found!', 404);
         }
 
         const note = caseDoc.notes.id(noteId);
@@ -1498,7 +1595,9 @@ const deleteHearing = async (request, response) => {
     try {
         const firmId = request.firmId;
         const isSoloLawyer = request.isSoloLawyer || false;
-        const caseDoc = await Case.findById(_id);
+        // SECURITY: Build secure query with firm/user isolation to prevent IDOR
+        const secureQuery = buildSecureCaseQuery(_id, request);
+        const caseDoc = await Case.findOne(secureQuery);
 
         if (!caseDoc) {
             throw CustomException('Case not found!', 404);
@@ -1506,7 +1605,8 @@ const deleteHearing = async (request, response) => {
 
         // SECURITY: Use checkCaseAccess for proper firm isolation
         if (!checkCaseAccess(caseDoc, request.userID, firmId, true, isSoloLawyer)) {
-            throw CustomException('Only the lawyer can delete hearings!', 403);
+            // Return 404 (not 403) to avoid information disclosure
+            throw CustomException('Case not found!', 404);
         }
 
         const hearing = caseDoc.hearings.id(hearingId);
@@ -1524,7 +1624,8 @@ const deleteHearing = async (request, response) => {
         // Delete linked Event if it exists
         if (eventId) {
             try {
-                await Event.findByIdAndDelete(eventId);
+                // SECURITY: Include firmId to prevent IDOR when deleting linked event
+                await Event.findOneAndDelete({ _id: eventId, firmId: firmId });
             } catch (eventError) {
                 logger.error('Failed to delete linked event', { error: eventError.message });
             }
@@ -1533,7 +1634,8 @@ const deleteHearing = async (request, response) => {
         // Delete linked Reminder if it exists
         if (reminderId) {
             try {
-                await Reminder.findByIdAndDelete(reminderId);
+                // SECURITY: Include firmId to prevent IDOR when deleting linked reminder
+                await Reminder.findOneAndDelete({ _id: reminderId, firmId: firmId });
             } catch (reminderError) {
                 logger.error('Failed to delete linked reminder', { error: reminderError.message });
             }
@@ -1558,7 +1660,9 @@ const deleteDocument = async (request, response) => {
     try {
         const firmId = request.firmId;
         const isSoloLawyer = request.isSoloLawyer || false;
-        const caseDoc = await Case.findById(_id);
+        // SECURITY: Build secure query with firm/user isolation to prevent IDOR
+        const secureQuery = buildSecureCaseQuery(_id, request);
+        const caseDoc = await Case.findOne(secureQuery);
 
         if (!caseDoc) {
             throw CustomException('Case not found!', 404);
@@ -1566,7 +1670,8 @@ const deleteDocument = async (request, response) => {
 
         // SECURITY: Use checkCaseAccess for proper firm isolation
         if (!checkCaseAccess(caseDoc, request.userID, firmId, true, isSoloLawyer)) {
-            throw CustomException('Only the lawyer can delete documents!', 403);
+            // Return 404 (not 403) to avoid information disclosure
+            throw CustomException('Case not found!', 404);
         }
 
         const doc = caseDoc.documents.id(documentId);
@@ -1596,7 +1701,9 @@ const deleteClaim = async (request, response) => {
     try {
         const firmId = request.firmId;
         const isSoloLawyer = request.isSoloLawyer || false;
-        const caseDoc = await Case.findById(_id);
+        // SECURITY: Build secure query with firm/user isolation to prevent IDOR
+        const secureQuery = buildSecureCaseQuery(_id, request);
+        const caseDoc = await Case.findOne(secureQuery);
 
         if (!caseDoc) {
             throw CustomException('Case not found!', 404);
@@ -1604,7 +1711,8 @@ const deleteClaim = async (request, response) => {
 
         // SECURITY: Use checkCaseAccess for proper firm isolation
         if (!checkCaseAccess(caseDoc, request.userID, firmId, true, isSoloLawyer)) {
-            throw CustomException('Only the lawyer can delete claims!', 403);
+            // Return 404 (not 403) to avoid information disclosure
+            throw CustomException('Case not found!', 404);
         }
 
         const claim = caseDoc.claims.id(claimId);
@@ -1638,7 +1746,9 @@ const deleteTimelineEvent = async (request, response) => {
     try {
         const firmId = request.firmId;
         const isSoloLawyer = request.isSoloLawyer || false;
-        const caseDoc = await Case.findById(_id);
+        // SECURITY: Build secure query with firm/user isolation to prevent IDOR
+        const secureQuery = buildSecureCaseQuery(_id, request);
+        const caseDoc = await Case.findOne(secureQuery);
 
         if (!caseDoc) {
             throw CustomException('Case not found!', 404);
@@ -1646,7 +1756,8 @@ const deleteTimelineEvent = async (request, response) => {
 
         // SECURITY: Use checkCaseAccess for proper firm isolation
         if (!checkCaseAccess(caseDoc, request.userID, firmId, true, isSoloLawyer)) {
-            throw CustomException('Only the lawyer can delete timeline events!', 403);
+            // Return 404 (not 403) to avoid information disclosure
+            throw CustomException('Case not found!', 404);
         }
 
         const event = caseDoc.timeline.id(eventId);
@@ -1774,7 +1885,9 @@ const getDocumentUploadUrl = async (request, response) => {
     try {
         const firmId = request.firmId;
         const isSoloLawyer = request.isSoloLawyer || false;
-        const caseDoc = await Case.findById(_id);
+        // SECURITY: Build secure query with firm/user isolation to prevent IDOR
+        const secureQuery = buildSecureCaseQuery(_id, request);
+        const caseDoc = await Case.findOne(secureQuery);
 
         if (!caseDoc) {
             throw CustomException('Case not found!', 404);
@@ -1782,7 +1895,8 @@ const getDocumentUploadUrl = async (request, response) => {
 
         // SECURITY: Use checkCaseAccess for proper firm isolation
         if (!checkCaseAccess(caseDoc, request.userID, firmId, false, isSoloLawyer)) {
-            throw CustomException('You do not have access to this case!', 403);
+            // Return 404 (not 403) to avoid information disclosure
+            throw CustomException('Case not found!', 404);
         }
 
         // Determine bucket based on category
@@ -1815,7 +1929,9 @@ const confirmDocumentUpload = async (request, response) => {
     try {
         const firmId = request.firmId;
         const isSoloLawyer = request.isSoloLawyer || false;
-        const caseDoc = await Case.findById(_id);
+        // SECURITY: Build secure query with firm/user isolation to prevent IDOR
+        const secureQuery = buildSecureCaseQuery(_id, request);
+        const caseDoc = await Case.findOne(secureQuery);
 
         if (!caseDoc) {
             throw CustomException('Case not found!', 404);
@@ -1823,7 +1939,8 @@ const confirmDocumentUpload = async (request, response) => {
 
         // SECURITY: Use checkCaseAccess for proper firm isolation
         if (!checkCaseAccess(caseDoc, request.userID, firmId, false, isSoloLawyer)) {
-            throw CustomException('You do not have access to this case!', 403);
+            // Return 404 (not 403) to avoid information disclosure
+            throw CustomException('Case not found!', 404);
         }
 
         // Add document to case
@@ -1859,7 +1976,12 @@ const confirmDocumentUpload = async (request, response) => {
 const getDocumentDownloadUrl = async (request, response) => {
     const { _id, docId } = request.params;
     try {
-        const caseDoc = await Case.findById(_id);
+        const firmId = request.firmId;
+        const isSoloLawyer = request.isSoloLawyer || false;
+
+        // SECURITY: Build secure query with firm/user isolation to prevent IDOR
+        const secureQuery = buildSecureCaseQuery(_id, request);
+        const caseDoc = await Case.findOne(secureQuery);
 
         if (!caseDoc) {
             throw CustomException('Case not found!', 404);
@@ -1916,7 +2038,12 @@ const getDocumentDownloadUrl = async (request, response) => {
 const deleteDocumentWithS3 = async (request, response) => {
     const { _id, docId } = request.params;
     try {
-        const caseDoc = await Case.findById(_id);
+        const firmId = request.firmId;
+        const isSoloLawyer = request.isSoloLawyer || false;
+
+        // SECURITY: Build secure query with firm/user isolation to prevent IDOR
+        const secureQuery = buildSecureCaseQuery(_id, request);
+        const caseDoc = await Case.findOne(secureQuery);
 
         if (!caseDoc) {
             throw CustomException('Case not found!', 404);
@@ -1976,7 +2103,9 @@ const updateNote = async (request, response) => {
     try {
         const firmId = request.firmId;
         const isSoloLawyer = request.isSoloLawyer || false;
-        const caseDoc = await Case.findById(_id);
+        // SECURITY: Build secure query with firm/user isolation to prevent IDOR
+        const secureQuery = buildSecureCaseQuery(_id, request);
+        const caseDoc = await Case.findOne(secureQuery);
 
         if (!caseDoc) {
             throw CustomException('Case not found!', 404);
@@ -1984,7 +2113,8 @@ const updateNote = async (request, response) => {
 
         // SECURITY: Use checkCaseAccess for proper firm isolation
         if (!checkCaseAccess(caseDoc, request.userID, firmId, true, isSoloLawyer)) {
-            throw CustomException('Only the lawyer can update notes!', 403);
+            // Return 404 (not 403) to avoid information disclosure
+            throw CustomException('Case not found!', 404);
         }
 
         const note = caseDoc.notes.id(noteId);
@@ -2018,7 +2148,9 @@ const updateClaim = async (request, response) => {
     try {
         const firmId = request.firmId;
         const isSoloLawyer = request.isSoloLawyer || false;
-        const caseDoc = await Case.findById(_id);
+        // SECURITY: Build secure query with firm/user isolation to prevent IDOR
+        const secureQuery = buildSecureCaseQuery(_id, request);
+        const caseDoc = await Case.findOne(secureQuery);
 
         if (!caseDoc) {
             throw CustomException('Case not found!', 404);
@@ -2026,7 +2158,8 @@ const updateClaim = async (request, response) => {
 
         // SECURITY: Use checkCaseAccess for proper firm isolation
         if (!checkCaseAccess(caseDoc, request.userID, firmId, true, isSoloLawyer)) {
-            throw CustomException('Only the lawyer can update claims!', 403);
+            // Return 404 (not 403) to avoid information disclosure
+            throw CustomException('Case not found!', 404);
         }
 
         const claim = caseDoc.claims.id(claimId);
@@ -2066,7 +2199,9 @@ const updateTimelineEvent = async (request, response) => {
     try {
         const firmId = request.firmId;
         const isSoloLawyer = request.isSoloLawyer || false;
-        const caseDoc = await Case.findById(_id);
+        // SECURITY: Build secure query with firm/user isolation to prevent IDOR
+        const secureQuery = buildSecureCaseQuery(_id, request);
+        const caseDoc = await Case.findOne(secureQuery);
 
         if (!caseDoc) {
             throw CustomException('Case not found!', 404);
@@ -2074,7 +2209,8 @@ const updateTimelineEvent = async (request, response) => {
 
         // SECURITY: Use checkCaseAccess for proper firm isolation
         if (!checkCaseAccess(caseDoc, request.userID, firmId, true, isSoloLawyer)) {
-            throw CustomException('Only the lawyer can update timeline events!', 403);
+            // Return 404 (not 403) to avoid information disclosure
+            throw CustomException('Case not found!', 404);
         }
 
         const timelineEvent = caseDoc.timeline.id(eventId);
@@ -2112,7 +2248,9 @@ const getCaseAudit = async (request, response) => {
     try {
         const firmId = request.firmId;
         const isSoloLawyer = request.isSoloLawyer || false;
-        const caseDoc = await Case.findById(_id);
+        // SECURITY: Build secure query with firm/user isolation to prevent IDOR
+        const secureQuery = buildSecureCaseQuery(_id, request);
+        const caseDoc = await Case.findOne(secureQuery);
 
         if (!caseDoc) {
             throw CustomException('Case not found!', 404);
@@ -2120,7 +2258,8 @@ const getCaseAudit = async (request, response) => {
 
         // SECURITY: Use checkCaseAccess for proper firm isolation
         if (!checkCaseAccess(caseDoc, request.userID, firmId, true, isSoloLawyer)) {
-            throw CustomException('Only the lawyer can view audit history!', 403);
+            // Return 404 (not 403) to avoid information disclosure
+            throw CustomException('Case not found!', 404);
         }
 
         // Get audit logs from the new CaseAuditLog model
@@ -2224,7 +2363,9 @@ const createRichDocument = async (request, response) => {
     try {
         const firmId = request.firmId;
         const isSoloLawyer = request.isSoloLawyer || false;
-        const caseDoc = await Case.findById(_id);
+        // SECURITY: Build secure query with firm/user isolation to prevent IDOR
+        const secureQuery = buildSecureCaseQuery(_id, request);
+        const caseDoc = await Case.findOne(secureQuery);
 
         if (!caseDoc) {
             throw CustomException('Case not found!', 404);
@@ -2232,7 +2373,8 @@ const createRichDocument = async (request, response) => {
 
         // SECURITY: Use checkCaseAccess for proper firm isolation
         if (!checkCaseAccess(caseDoc, request.userID, firmId, true, isSoloLawyer)) {
-            throw CustomException('Only the lawyer can create documents!', 403);
+            // Return 404 (not 403) to avoid information disclosure
+            throw CustomException('Case not found!', 404);
         }
 
         const plainText = stripHtml(content);
@@ -2286,7 +2428,9 @@ const getRichDocuments = async (request, response) => {
     try {
         const firmId = request.firmId;
         const isSoloLawyer = request.isSoloLawyer || false;
-        const caseDoc = await Case.findById(_id)
+        // SECURITY: Build secure query with firm/user isolation to prevent IDOR
+        const secureQuery = buildSecureCaseQuery(_id, request);
+        const caseDoc = await Case.findOne(secureQuery)
             .populate('richDocuments.createdBy', 'firstName lastName')
             .populate('richDocuments.lastEditedBy', 'firstName lastName');
 
@@ -2296,7 +2440,8 @@ const getRichDocuments = async (request, response) => {
 
         // SECURITY: Use checkCaseAccess for proper firm isolation
         if (!checkCaseAccess(caseDoc, request.userID, firmId, false, isSoloLawyer)) {
-            throw CustomException('You do not have access to this case!', 403);
+            // Return 404 (not 403) to avoid information disclosure
+            throw CustomException('Case not found!', 404);
         }
 
         let documents = caseDoc.richDocuments || [];
@@ -2342,7 +2487,9 @@ const getRichDocument = async (request, response) => {
     try {
         const firmId = request.firmId;
         const isSoloLawyer = request.isSoloLawyer || false;
-        const caseDoc = await Case.findById(_id)
+        // SECURITY: Build secure query with firm/user isolation to prevent IDOR
+        const secureQuery = buildSecureCaseQuery(_id, request);
+        const caseDoc = await Case.findOne(secureQuery)
             .populate('richDocuments.createdBy', 'firstName lastName')
             .populate('richDocuments.lastEditedBy', 'firstName lastName')
             .populate('richDocuments.previousVersions.editedBy', 'firstName lastName');
@@ -2353,7 +2500,8 @@ const getRichDocument = async (request, response) => {
 
         // SECURITY: Use checkCaseAccess for proper firm isolation
         if (!checkCaseAccess(caseDoc, request.userID, firmId, false, isSoloLawyer)) {
-            throw CustomException('You do not have access to this case!', 403);
+            // Return 404 (not 403) to avoid information disclosure
+            throw CustomException('Case not found!', 404);
         }
 
         const richDoc = caseDoc.richDocuments.id(docId);
@@ -2400,7 +2548,9 @@ const updateRichDocument = async (request, response) => {
     try {
         const firmId = request.firmId;
         const isSoloLawyer = request.isSoloLawyer || false;
-        const caseDoc = await Case.findById(_id);
+        // SECURITY: Build secure query with firm/user isolation to prevent IDOR
+        const secureQuery = buildSecureCaseQuery(_id, request);
+        const caseDoc = await Case.findOne(secureQuery);
 
         if (!caseDoc) {
             throw CustomException('Case not found!', 404);
@@ -2408,7 +2558,8 @@ const updateRichDocument = async (request, response) => {
 
         // SECURITY: Use checkCaseAccess for proper firm isolation
         if (!checkCaseAccess(caseDoc, request.userID, firmId, true, isSoloLawyer)) {
-            throw CustomException('Only the lawyer can update documents!', 403);
+            // Return 404 (not 403) to avoid information disclosure
+            throw CustomException('Case not found!', 404);
         }
 
         const richDoc = caseDoc.richDocuments.id(docId);
@@ -2472,7 +2623,9 @@ const deleteRichDocument = async (request, response) => {
     try {
         const firmId = request.firmId;
         const isSoloLawyer = request.isSoloLawyer || false;
-        const caseDoc = await Case.findById(_id);
+        // SECURITY: Build secure query with firm/user isolation to prevent IDOR
+        const secureQuery = buildSecureCaseQuery(_id, request);
+        const caseDoc = await Case.findOne(secureQuery);
 
         if (!caseDoc) {
             throw CustomException('Case not found!', 404);
@@ -2480,7 +2633,8 @@ const deleteRichDocument = async (request, response) => {
 
         // SECURITY: Use checkCaseAccess for proper firm isolation
         if (!checkCaseAccess(caseDoc, request.userID, firmId, true, isSoloLawyer)) {
-            throw CustomException('Only the lawyer can delete documents!', 403);
+            // Return 404 (not 403) to avoid information disclosure
+            throw CustomException('Case not found!', 404);
         }
 
         const richDoc = caseDoc.richDocuments.id(docId);
@@ -2510,7 +2664,9 @@ const getRichDocumentVersions = async (request, response) => {
     try {
         const firmId = request.firmId;
         const isSoloLawyer = request.isSoloLawyer || false;
-        const caseDoc = await Case.findById(_id)
+        // SECURITY: Build secure query with firm/user isolation to prevent IDOR
+        const secureQuery = buildSecureCaseQuery(_id, request);
+        const caseDoc = await Case.findOne(secureQuery)
             .populate('richDocuments.previousVersions.editedBy', 'firstName lastName');
 
         if (!caseDoc) {
@@ -2519,7 +2675,8 @@ const getRichDocumentVersions = async (request, response) => {
 
         // SECURITY: Use checkCaseAccess for proper firm isolation
         if (!checkCaseAccess(caseDoc, request.userID, firmId, false, isSoloLawyer)) {
-            throw CustomException('You do not have access to this case!', 403);
+            // Return 404 (not 403) to avoid information disclosure
+            throw CustomException('Case not found!', 404);
         }
 
         const richDoc = caseDoc.richDocuments.id(docId);
@@ -2566,7 +2723,9 @@ const restoreRichDocumentVersion = async (request, response) => {
     try {
         const firmId = request.firmId;
         const isSoloLawyer = request.isSoloLawyer || false;
-        const caseDoc = await Case.findById(_id);
+        // SECURITY: Build secure query with firm/user isolation to prevent IDOR
+        const secureQuery = buildSecureCaseQuery(_id, request);
+        const caseDoc = await Case.findOne(secureQuery);
 
         if (!caseDoc) {
             throw CustomException('Case not found!', 404);
@@ -2574,7 +2733,8 @@ const restoreRichDocumentVersion = async (request, response) => {
 
         // SECURITY: Use checkCaseAccess for proper firm isolation
         if (!checkCaseAccess(caseDoc, request.userID, firmId, true, isSoloLawyer)) {
-            throw CustomException('Only the lawyer can restore document versions!', 403);
+            // Return 404 (not 403) to avoid information disclosure
+            throw CustomException('Case not found!', 404);
         }
 
         const richDoc = caseDoc.richDocuments.id(docId);
@@ -2634,7 +2794,9 @@ const exportRichDocumentToPdf = async (request, response) => {
     try {
         const firmId = request.firmId;
         const isSoloLawyer = request.isSoloLawyer || false;
-        const caseDoc = await Case.findById(_id);
+        // SECURITY: Build secure query with firm/user isolation to prevent IDOR
+        const secureQuery = buildSecureCaseQuery(_id, request);
+        const caseDoc = await Case.findOne(secureQuery);
 
         if (!caseDoc) {
             throw CustomException('Case not found!', 404);
@@ -2642,7 +2804,8 @@ const exportRichDocumentToPdf = async (request, response) => {
 
         // SECURITY: Use checkCaseAccess for proper firm isolation
         if (!checkCaseAccess(caseDoc, request.userID, firmId, false, isSoloLawyer)) {
-            throw CustomException('You do not have access to this case!', 403);
+            // Return 404 (not 403) to avoid information disclosure
+            throw CustomException('Case not found!', 404);
         }
 
         const richDoc = caseDoc.richDocuments.id(docId);
@@ -2705,7 +2868,9 @@ const exportRichDocumentToLatex = async (request, response) => {
     try {
         const firmId = request.firmId;
         const isSoloLawyer = request.isSoloLawyer || false;
-        const caseDoc = await Case.findById(_id);
+        // SECURITY: Build secure query with firm/user isolation to prevent IDOR
+        const secureQuery = buildSecureCaseQuery(_id, request);
+        const caseDoc = await Case.findOne(secureQuery);
 
         if (!caseDoc) {
             throw CustomException('Case not found!', 404);
@@ -2713,7 +2878,8 @@ const exportRichDocumentToLatex = async (request, response) => {
 
         // SECURITY: Use checkCaseAccess for proper firm isolation
         if (!checkCaseAccess(caseDoc, request.userID, firmId, false, isSoloLawyer)) {
-            throw CustomException('You do not have access to this case!', 403);
+            // Return 404 (not 403) to avoid information disclosure
+            throw CustomException('Case not found!', 404);
         }
 
         const richDoc = caseDoc.richDocuments.id(docId);
@@ -2759,7 +2925,9 @@ const exportRichDocumentToMarkdown = async (request, response) => {
     try {
         const firmId = request.firmId;
         const isSoloLawyer = request.isSoloLawyer || false;
-        const caseDoc = await Case.findById(_id);
+        // SECURITY: Build secure query with firm/user isolation to prevent IDOR
+        const secureQuery = buildSecureCaseQuery(_id, request);
+        const caseDoc = await Case.findOne(secureQuery);
 
         if (!caseDoc) {
             throw CustomException('Case not found!', 404);
@@ -2767,7 +2935,8 @@ const exportRichDocumentToMarkdown = async (request, response) => {
 
         // SECURITY: Use checkCaseAccess for proper firm isolation
         if (!checkCaseAccess(caseDoc, request.userID, firmId, false, isSoloLawyer)) {
-            throw CustomException('You do not have access to this case!', 403);
+            // Return 404 (not 403) to avoid information disclosure
+            throw CustomException('Case not found!', 404);
         }
 
         const richDoc = caseDoc.richDocuments.id(docId);
@@ -2817,7 +2986,9 @@ const getRichDocumentPreview = async (request, response) => {
     try {
         const firmId = request.firmId;
         const isSoloLawyer = request.isSoloLawyer || false;
-        const caseDoc = await Case.findById(_id);
+        // SECURITY: Build secure query with firm/user isolation to prevent IDOR
+        const secureQuery = buildSecureCaseQuery(_id, request);
+        const caseDoc = await Case.findOne(secureQuery);
 
         if (!caseDoc) {
             throw CustomException('Case not found!', 404);
@@ -2825,7 +2996,8 @@ const getRichDocumentPreview = async (request, response) => {
 
         // SECURITY: Use checkCaseAccess for proper firm isolation
         if (!checkCaseAccess(caseDoc, request.userID, firmId, false, isSoloLawyer)) {
-            throw CustomException('You do not have access to this case!', 403);
+            // Return 404 (not 403) to avoid information disclosure
+            throw CustomException('Case not found!', 404);
         }
 
         const richDoc = caseDoc.richDocuments.id(docId);
@@ -3013,9 +3185,12 @@ const getCaseFull = async (request, response) => {
 
         const Task = require('../models/task.model');
 
+        // SECURITY: Build secure query with firm/user isolation to prevent IDOR
+        const secureQuery = buildSecureCaseQuery(_id, request);
+
         const [caseDoc, auditLog, relatedTasks] = await Promise.all([
             // Full case with populated fields
-            Case.findById(_id)
+            Case.findOne(secureQuery)
                 .populate('clientId', 'name email phone clientType nationalId crNumber address')
                 .populate('lawyerId', 'firstName lastName email phone image')
                 .populate('assignedLawyers', 'firstName lastName email')
@@ -3035,18 +3210,11 @@ const getCaseFull = async (request, response) => {
                 .lean()
         ]);
 
+        // Return 404 (not 403) to avoid information disclosure
         if (!caseDoc) {
             return response.status(404).json({
                 error: true,
                 message: 'Case not found'
-            });
-        }
-
-        // Check access
-        if (!checkCaseAccess(caseDoc, userId, firmId, false, isSoloLawyer)) {
-            return response.status(403).json({
-                error: true,
-                message: 'You do not have access to this case'
             });
         }
 

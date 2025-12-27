@@ -1,6 +1,12 @@
 const mongoose = require('mongoose');
 
 const dashboardWidgetSchema = new mongoose.Schema({
+    firmId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Firm',
+        index: true,
+        required: false
+    },
     lawyerId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
@@ -57,6 +63,7 @@ const dashboardWidgetSchema = new mongoose.Schema({
 });
 
 // Indexes
+dashboardWidgetSchema.index({ firmId: 1, lawyerId: 1 });
 dashboardWidgetSchema.index({ lawyerId: 1, order: 1 });
 dashboardWidgetSchema.index({ lawyerId: 1, isVisible: 1 });
 

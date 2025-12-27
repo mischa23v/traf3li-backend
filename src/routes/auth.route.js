@@ -23,6 +23,12 @@ const { reauthenticate, createReauthChallenge, verifyReauthChallenge, getReauthS
 const { authenticate } = require('../middlewares');
 const { requireRecentAuthHourly, requireVeryRecentAuth } = require('../middlewares/stepUpAuth.middleware');
 const { authRateLimiter, sensitiveRateLimiter, publicRateLimiter } = require('../middlewares/rateLimiter.middleware');
+const {
+    loginLimiter,
+    authLimiter,
+    passwordReset: passwordResetLimiter,
+    otp: otpLimiter
+} = require('../config/rateLimiter.config').rateLimiters;
 const { captchaRegister, captchaLogin, captchaForgotPassword } = require('../middlewares/captcha.middleware');
 const { csrfProtection, attachCSRFToken } = require('../middlewares/csrf.middleware');
 const {
@@ -101,7 +107,7 @@ app.post('/check-availability', sensitiveRateLimiter, validateCheckAvailability,
  *       429:
  *         $ref: '#/components/responses/TooManyRequests'
  */
-app.post('/register', authRateLimiter, captchaRegister, validateRegister, authRegister);
+app.post('/register', authLimiter, captchaRegister, validateRegister, authRegister);
 
 // ========== ANONYMOUS/GUEST AUTHENTICATION ==========
 /**
@@ -252,7 +258,7 @@ app.post('/anonymous/convert', authenticate, authRateLimiter, convertAnonymousUs
  *       429:
  *         $ref: '#/components/responses/TooManyRequests'
  */
-app.post('/login', authRateLimiter, captchaLogin, validateLogin, authLogin);
+app.post('/login', loginLimiter, captchaLogin, validateLogin, authLogin);
 
 // ========== GOOGLE ONE TAP AUTHENTICATION ==========
 /**
@@ -587,7 +593,7 @@ app.get('/onboarding-status', authenticate, publicRateLimiter, getOnboardingStat
  *       429:
  *         $ref: '#/components/responses/TooManyRequests'
  */
-app.post('/send-otp', sensitiveRateLimiter, validateSendOTP, sendOTP);
+app.post('/send-otp', otpLimiter, validateSendOTP, sendOTP);
 
 /**
  * @openapi
@@ -617,7 +623,7 @@ app.post('/send-otp', sensitiveRateLimiter, validateSendOTP, sendOTP);
  *       429:
  *         $ref: '#/components/responses/TooManyRequests'
  */
-app.post('/verify-otp', authRateLimiter, validateVerifyOTP, verifyOTP);
+app.post('/verify-otp', otpLimiter, validateVerifyOTP, verifyOTP);
 
 /**
  * @openapi
@@ -1679,7 +1685,7 @@ app.get('/password-status', authenticate, publicRateLimiter, getPasswordStatus);
  *       500:
  *         description: Server error
  */
-app.post('/forgot-password', sensitiveRateLimiter, captchaForgotPassword, validateForgotPassword, forgotPassword);
+app.post('/forgot-password', passwordResetLimiter, captchaForgotPassword, validateForgotPassword, forgotPassword);
 
 /**
  * @openapi
@@ -1744,7 +1750,7 @@ app.post('/forgot-password', sensitiveRateLimiter, captchaForgotPassword, valida
  *       500:
  *         description: Server error
  */
-app.post('/reset-password', authRateLimiter, validateResetPassword, resetPassword);
+app.post('/reset-password', passwordResetLimiter, validateResetPassword, resetPassword);
 
 // ========== Email Verification ==========
 /**

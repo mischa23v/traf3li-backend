@@ -22,7 +22,7 @@ const getApiKeys = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
 
     if (!firmId) {
-        throw CustomException('يجب أن تكون عضواً في مكتب للوصول إلى مفاتيح API', 403);
+        throw CustomException('المورد غير موجود', 404);
     }
 
     const keys = await ApiKey.find({ firmId })
@@ -55,7 +55,7 @@ const createApiKey = asyncHandler(async (req, res) => {
     const userId = req.userID;
 
     if (!firmId) {
-        throw CustomException('يجب أن تكون عضواً في مكتب لإنشاء مفتاح API', 403);
+        throw CustomException('المورد غير موجود', 404);
     }
 
     // Mass assignment protection - only allow specific fields
@@ -200,7 +200,7 @@ const getApiKey = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
 
     if (!firmId) {
-        throw CustomException('يجب أن تكون عضواً في مكتب', 403);
+        throw CustomException('المورد غير موجود', 404);
     }
 
     // IDOR protection - sanitize and validate ID
@@ -240,7 +240,7 @@ const updateApiKey = asyncHandler(async (req, res) => {
     const userId = req.userID;
 
     if (!firmId) {
-        throw CustomException('يجب أن تكون عضواً في مكتب', 403);
+        throw CustomException('المورد غير موجود', 404);
     }
 
     // IDOR protection - sanitize and validate ID
@@ -365,7 +365,7 @@ const revokeApiKey = asyncHandler(async (req, res) => {
     const userId = req.userID;
 
     if (!firmId) {
-        throw CustomException('يجب أن تكون عضواً في مكتب', 403);
+        throw CustomException('المورد غير موجود', 404);
     }
 
     // IDOR protection - sanitize and validate ID
@@ -439,7 +439,7 @@ const getApiKeyStats = asyncHandler(async (req, res) => {
     const firmId = req.firmId;
 
     if (!firmId) {
-        throw CustomException('يجب أن تكون عضواً في مكتب', 403);
+        throw CustomException('المورد غير موجود', 404);
     }
 
     const stats = await ApiKey.getStats(firmId);
@@ -469,7 +469,7 @@ const regenerateApiKey = asyncHandler(async (req, res) => {
     const userId = req.userID;
 
     if (!firmId) {
-        throw CustomException('يجب أن تكون عضواً في مكتب', 403);
+        throw CustomException('المورد غير موجود', 404);
     }
 
     // IDOR protection - sanitize and validate ID

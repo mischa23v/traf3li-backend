@@ -6,6 +6,12 @@ const conversationSchema = new mongoose.Schema({
         type: String,
         default: uuidv4,
     },
+    firmId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Firm',
+        index: true,
+        required: false
+    },
     sellerID: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
@@ -32,5 +38,7 @@ const conversationSchema = new mongoose.Schema({
     timestamps: true,
     versionKey: false
 });
+
+conversationSchema.index({ firmId: 1, createdAt: -1 });
 
 module.exports = mongoose.model('Conversation', conversationSchema);

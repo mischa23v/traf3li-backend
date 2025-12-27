@@ -12,6 +12,12 @@ const bankTransactionSchema = new mongoose.Schema({
         required: true,
         index: true
     },
+    firmId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Firm',
+        index: true,
+        required: false
+    },
     date: {
         type: Date,
         required: true,
@@ -102,6 +108,7 @@ const bankTransactionSchema = new mongoose.Schema({
 
 // Indexes
 bankTransactionSchema.index({ accountId: 1, date: -1 });
+bankTransactionSchema.index({ firmId: 1, date: -1 });
 bankTransactionSchema.index({ lawyerId: 1, date: -1 });
 bankTransactionSchema.index({ lawyerId: 1, matched: 1 });
 bankTransactionSchema.index({ lawyerId: 1, isReconciled: 1 });

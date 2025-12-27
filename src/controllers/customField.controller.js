@@ -15,7 +15,7 @@ const CustomFieldValue = require('../models/customFieldValue.model');
  */
 const createField = asyncHandler(async (req, res) => {
     const userId = req.userID;
-    const firmId = req.user?.firmId || req.userID;
+    const firmId = req.firmId;
 
     // Mass assignment protection
     const allowedFields = [
@@ -48,7 +48,7 @@ const createField = asyncHandler(async (req, res) => {
  * GET /api/custom-fields?entityType=client
  */
 const getFields = asyncHandler(async (req, res) => {
-    const firmId = req.user?.firmId || req.userID;
+    const firmId = req.firmId;
     const { entityType, showInList, showInDetail, isActive } = req.query;
 
     if (!entityType) {
@@ -74,14 +74,13 @@ const getFields = asyncHandler(async (req, res) => {
  */
 const getField = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const firmId = req.user?.firmId || req.userID;
 
     const sanitizedId = sanitizeObjectId(id);
 
     // IDOR protection - verify firmId ownership
     const field = await CustomField.findOne({
         _id: sanitizedId,
-        firmId
+        ...req.firmQuery
     });
 
     if (!field) {
@@ -101,7 +100,7 @@ const getField = asyncHandler(async (req, res) => {
 const updateField = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const userId = req.userID;
-    const firmId = req.user?.firmId || req.userID;
+    const firmId = req.firmId;
 
     const sanitizedId = sanitizeObjectId(id);
 
@@ -132,7 +131,7 @@ const updateField = asyncHandler(async (req, res) => {
  */
 const deleteField = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const firmId = req.user?.firmId || req.userID;
+    const firmId = req.firmId;
 
     const sanitizedId = sanitizeObjectId(id);
 
@@ -155,7 +154,7 @@ const deleteField = asyncHandler(async (req, res) => {
  */
 const getEntityValues = asyncHandler(async (req, res) => {
     const { entityType, entityId } = req.params;
-    const firmId = req.user?.firmId || req.userID;
+    const firmId = req.firmId;
 
     const sanitizedEntityId = sanitizeObjectId(entityId);
 
@@ -180,7 +179,7 @@ const setEntityValue = asyncHandler(async (req, res) => {
     const { entityType, entityId } = req.params;
     const { fieldId, value } = req.body;
     const userId = req.userID;
-    const firmId = req.user?.firmId || req.userID;
+    const firmId = req.firmId;
 
     if (!fieldId) {
         throw CustomException('Field ID is required', 400);
@@ -214,7 +213,7 @@ const setEntityValues = asyncHandler(async (req, res) => {
     const { entityType, entityId } = req.params;
     const { fieldValues } = req.body;
     const userId = req.userID;
-    const firmId = req.user?.firmId || req.userID;
+    const firmId = req.firmId;
 
     if (!fieldValues || typeof fieldValues !== 'object') {
         throw CustomException('Field values object is required', 400);
@@ -244,14 +243,13 @@ const setEntityValues = asyncHandler(async (req, res) => {
  */
 const deleteEntityValue = asyncHandler(async (req, res) => {
     const { entityType, entityId, fieldId } = req.params;
-    const firmId = req.user?.firmId || req.userID;
 
     const sanitizedEntityId = sanitizeObjectId(entityId);
     const sanitizedFieldId = sanitizeObjectId(fieldId);
 
     // Delete value
     await CustomFieldValue.deleteOne({
-        firmId,
+        ...req.firmQuery,
         fieldId: sanitizedFieldId,
         entityId: sanitizedEntityId,
         entityType
@@ -269,7 +267,7 @@ const deleteEntityValue = asyncHandler(async (req, res) => {
  */
 const deleteEntityValues = asyncHandler(async (req, res) => {
     const { entityType, entityId } = req.params;
-    const firmId = req.user?.firmId || req.userID;
+    const firmId = req.firmId;
 
     const sanitizedEntityId = sanitizeObjectId(entityId);
 
@@ -296,7 +294,7 @@ const deleteEntityValues = asyncHandler(async (req, res) => {
  */
 const searchByField = asyncHandler(async (req, res) => {
     const { fieldId, value, exact } = req.body;
-    const firmId = req.user?.firmId || req.userID;
+    const firmId = req.firmId;
 
     if (!fieldId || value === undefined) {
         throw CustomException('Field ID and value are required', 400);
@@ -329,7 +327,7 @@ const searchByField = asyncHandler(async (req, res) => {
 const bulkUpdateValues = asyncHandler(async (req, res) => {
     const { entityType, entityIds, fieldId, value } = req.body;
     const userId = req.userID;
-    const firmId = req.user?.firmId || req.userID;
+    const firmId = req.firmId;
 
     if (!entityType || !entityIds || !Array.isArray(entityIds) || !fieldId) {
         throw CustomException('Entity type, entity IDs array, and field ID are required', 400);
@@ -365,7 +363,7 @@ const bulkUpdateValues = asyncHandler(async (req, res) => {
  */
 const getFieldStats = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const firmId = req.user?.firmId || req.userID;
+    const firmId = req.firmId;
 
     const sanitizedId = sanitizeObjectId(id);
 
@@ -388,7 +386,7 @@ const getFieldStats = asyncHandler(async (req, res) => {
  */
 const exportFields = asyncHandler(async (req, res) => {
     const { entityType } = req.query;
-    const firmId = req.user?.firmId || req.userID;
+    const firmId = req.firmId;
 
     if (!entityType) {
         throw CustomException('Entity type is required', 400);
@@ -410,7 +408,7 @@ const exportFields = asyncHandler(async (req, res) => {
 const importFields = asyncHandler(async (req, res) => {
     const { entityType, fields, overwrite } = req.body;
     const userId = req.userID;
-    const firmId = req.user?.firmId || req.userID;
+    const firmId = req.firmId;
 
     if (!entityType || !fields || !Array.isArray(fields)) {
         throw CustomException('Entity type and fields array are required', 400);
@@ -442,7 +440,7 @@ const importFields = asyncHandler(async (req, res) => {
  */
 const checkDependencies = asyncHandler(async (req, res) => {
     const { entityType, entityId } = req.params;
-    const firmId = req.user?.firmId || req.userID;
+    const firmId = req.firmId;
 
     const sanitizedEntityId = sanitizeObjectId(entityId);
 
@@ -466,14 +464,13 @@ const checkDependencies = asyncHandler(async (req, res) => {
 const validateValue = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const { value } = req.body;
-    const firmId = req.user?.firmId || req.userID;
 
     const sanitizedId = sanitizeObjectId(id);
 
     // Get field
     const field = await CustomField.findOne({
         _id: sanitizedId,
-        firmId
+        ...req.firmQuery
     });
 
     if (!field) {

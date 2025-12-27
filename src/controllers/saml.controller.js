@@ -3,7 +3,7 @@ const { Firm, User } = require('../models');
 const { CustomException } = require('../utils');
 const jwt = require('jsonwebtoken');
 const auditLogService = require('../services/auditLog.service');
-const { getCookieConfig } = require('./auth.controller');
+const { getCookieConfig } = require('../utils/cookieConfig');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 const logger = require('../utils/logger');
 

@@ -14,6 +14,12 @@
 const mongoose = require('mongoose');
 
 const setupSectionSchema = new mongoose.Schema({
+    firmId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Firm',
+        index: true,
+        required: false
+    },
     sectionId: {
         type: String,
         required: true,
@@ -62,6 +68,7 @@ const setupSectionSchema = new mongoose.Schema({
 
 // Index for efficient querying
 setupSectionSchema.index({ isActive: 1, orderIndex: 1 });
+setupSectionSchema.index({ firmId: 1, createdAt: -1 });
 
 // Static methods
 setupSectionSchema.statics.getActiveSections = async function() {

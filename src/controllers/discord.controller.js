@@ -24,7 +24,7 @@ const getAuthUrl = async (request, response) => {
             throw CustomException('User must be associated with a firm to use Discord integration', 400);
         }
 
-        const authUrl = discordService.getAuthUrl(user.firmId.toString(), userId);
+        const authUrl = await discordService.getAuthUrl(user.firmId.toString(), userId);
 
         return response.status(200).json({
             error: false,
@@ -56,8 +56,8 @@ const handleCallback = async (request, response) => {
             throw CustomException('Missing authorization code or state parameter', 400);
         }
 
-        // Verify state
-        const stateData = discordService.verifyState(state);
+        // Verify state (CSRF protection - validates and consumes one-time use token)
+        const stateData = await discordService.verifyState(state);
         const { firmId, userId } = stateData;
 
         // Exchange code for tokens

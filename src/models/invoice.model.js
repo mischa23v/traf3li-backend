@@ -251,6 +251,11 @@ const invoiceSchema = new Schema({
         type: Number,
         default: 0
     },
+    // SECURITY: Flag to prevent concurrent payment processing race conditions
+    paymentProcessing: {
+        type: Boolean,
+        default: false
+    },
     paidDate: Date,
 
     // ============ RETAINER ============

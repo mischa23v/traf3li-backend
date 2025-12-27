@@ -426,9 +426,16 @@ class TelegramService {
                 throw new Error('No active Telegram integration found');
             }
 
-            // Verify secret token if set
-            if (integration.webhookSecret && secretToken !== integration.webhookSecret) {
-                throw new Error('Invalid webhook secret token');
+            // Verify webhook secret token - ALWAYS required if webhook is configured
+            if (integration.webhookSecret) {
+                if (!secretToken) {
+                    logger.warn(`Webhook request missing secret token for firm ${firmId}`);
+                    throw new Error('Missing webhook secret token');
+                }
+                if (secretToken !== integration.webhookSecret) {
+                    logger.warn(`Invalid webhook secret token for firm ${firmId}`);
+                    throw new Error('Invalid webhook secret token');
+                }
             }
 
             // Update last received timestamp

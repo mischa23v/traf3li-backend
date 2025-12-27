@@ -8,6 +8,16 @@ const crypto = require('crypto');
 const path = require('path');
 const logger = require('../utils/logger');
 
+/**
+ * Escape special regex characters to prevent NoSQL injection
+ * @param {string} str - String to escape
+ * @returns {string} - Escaped string safe for regex
+ */
+const escapeRegex = (str) => {
+    if (!str || typeof str !== 'string') return '';
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
+
 // Whitelist of allowed file types
 const ALLOWED_FILE_TYPES = [
     'application/pdf',
@@ -231,10 +241,11 @@ const getDocuments = asyncHandler(async (req, res) => {
     if (clientId) query.clientId = clientId;
 
     if (search) {
+        const safeSearch = escapeRegex(search);
         query.$or = [
-            { fileName: { $regex: search, $options: 'i' } },
-            { originalName: { $regex: search, $options: 'i' } },
-            { description: { $regex: search, $options: 'i' } }
+            { fileName: { $regex: safeSearch, $options: 'i' } },
+            { originalName: { $regex: safeSearch, $options: 'i' } },
+            { description: { $regex: safeSearch, $options: 'i' } }
         ];
     }
 
@@ -364,7 +375,8 @@ const deleteDocument = asyncHandler(async (req, res) => {
     const fileSize = document.fileSize || 0;
     const docFirmId = document.firmId || firmId;
 
-    await Document.findByIdAndDelete(id);
+    // IDOR protection: include firmId in delete operation
+    await Document.findOneAndDelete({ _id: id, firmId });
 
     // Decrement usage counter for firm
     if (docFirmId) {
@@ -717,13 +729,14 @@ const searchDocuments = asyncHandler(async (req, res) => {
     }
 
     // IDOR protection: search only documents belonging to user's firm
+    const safeQuery = escapeRegex(q);
     const documents = await Document.find({
         lawyerId: lawyerId,
         firmId: firmId,
         $or: [
-            { fileName: { $regex: q, $options: 'i' } },
-            { originalName: { $regex: q, $options: 'i' } },
-            { description: { $regex: q, $options: 'i' } }
+            { fileName: { $regex: safeQuery, $options: 'i' } },
+            { originalName: { $regex: safeQuery, $options: 'i' } },
+            { description: { $regex: safeQuery, $options: 'i' } }
         ]
     }).limit(20).lean();
 

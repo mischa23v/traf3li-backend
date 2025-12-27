@@ -307,7 +307,7 @@ class SLAService {
    */
   static async _sendBreachNotification(instance, metric, severity) {
     try {
-      const ticket = await Case.findById(instance.ticketId).populate('clientId assignedTo');
+      const ticket = await Case.findOne({ _id: instance.ticketId, firmId: instance.firmId }).populate('clientId assignedTo');
       if (!ticket) {
         logger.warn(`Ticket ${instance.ticketId} not found for SLA breach notification`);
         return;
@@ -428,26 +428,27 @@ class SLAService {
    *
    * @param {String} ticketId - Case/ticket ID
    * @param {String} slaId - SLA configuration ID
+   * @param {String} firmId - Firm ID for access control
    * @returns {Promise<Object>} Created SLA instance
    */
-  static async applySLA(ticketId, slaId) {
+  static async applySLA(ticketId, slaId, firmId) {
     try {
       logger.info(`Applying SLA ${slaId} to ticket ${ticketId}`);
 
       // Get SLA configuration
-      const sla = await SLA.findById(slaId);
+      const sla = await SLA.findOne({ _id: slaId, firmId });
       if (!sla) {
         throw new Error('SLA configuration not found');
       }
 
       // Get ticket
-      const ticket = await Case.findById(ticketId);
+      const ticket = await Case.findOne({ _id: ticketId, firmId });
       if (!ticket) {
         throw new Error('Ticket not found');
       }
 
       // Check if SLA instance already exists
-      const existingInstance = await SLAInstance.findOne({ ticketId, slaId });
+      const existingInstance = await SLAInstance.findOne({ ticketId, slaId, firmId });
       if (existingInstance) {
         logger.warn(`SLA instance already exists for ticket ${ticketId} and SLA ${slaId}`);
         return existingInstance;
@@ -503,14 +504,15 @@ class SLAService {
    * Pause SLA (e.g., waiting on customer)
    *
    * @param {String} instanceId - SLA instance ID
+   * @param {String} firmId - Firm ID for access control
    * @param {String} reason - Reason for pausing
    * @returns {Promise<Object>} Updated instance
    */
-  static async pauseSLA(instanceId, reason) {
+  static async pauseSLA(instanceId, firmId, reason) {
     try {
       logger.info(`Pausing SLA instance ${instanceId}: ${reason}`);
 
-      const instance = await SLAInstance.findById(instanceId);
+      const instance = await SLAInstance.findOne({ _id: instanceId, firmId });
       if (!instance) {
         throw new Error('SLA instance not found');
       }
@@ -535,13 +537,14 @@ class SLAService {
    * Resume SLA
    *
    * @param {String} instanceId - SLA instance ID
+   * @param {String} firmId - Firm ID for access control
    * @returns {Promise<Object>} Updated instance
    */
-  static async resumeSLA(instanceId) {
+  static async resumeSLA(instanceId, firmId) {
     try {
       logger.info(`Resuming SLA instance ${instanceId}`);
 
-      const instance = await SLAInstance.findById(instanceId);
+      const instance = await SLAInstance.findOne({ _id: instanceId, firmId });
       if (!instance) {
         throw new Error('SLA instance not found');
       }
@@ -566,14 +569,15 @@ class SLAService {
    * Record response/resolution
    *
    * @param {String} instanceId - SLA instance ID
+   * @param {String} firmId - Firm ID for access control
    * @param {String} metric - Metric name (firstResponse, nextResponse, resolution)
    * @returns {Promise<Object>} Updated instance
    */
-  static async recordMetric(instanceId, metric) {
+  static async recordMetric(instanceId, firmId, metric) {
     try {
       logger.info(`Recording ${metric} for SLA instance ${instanceId}`);
 
-      const instance = await SLAInstance.findById(instanceId).populate('slaId');
+      const instance = await SLAInstance.findOne({ _id: instanceId, firmId }).populate('slaId');
       if (!instance) {
         throw new Error('SLA instance not found');
       }
@@ -812,11 +816,12 @@ class SLAService {
    * Get SLA instance by ticket ID
    *
    * @param {String} ticketId - Ticket/case ID
+   * @param {String} firmId - Firm ID for access control
    * @returns {Promise<Object|null>} SLA instance or null
    */
-  static async getSLAByTicket(ticketId) {
+  static async getSLAByTicket(ticketId, firmId) {
     try {
-      const instance = await SLAInstance.findOne({ ticketId })
+      const instance = await SLAInstance.findOne({ ticketId, firmId })
         .populate('slaId')
         .sort({ startedAt: -1 }); // Get most recent if multiple
 

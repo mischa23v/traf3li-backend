@@ -111,20 +111,18 @@ const getSingleConversation = async (request, response) => {
             throw CustomException('Invalid IDs provided', 400);
         }
 
-        const conversation = await Conversation.findOne({ sellerID: sanitizedSellerID, buyerID: sanitizedBuyerID });
+        // IDOR protection - include authorization in the query itself
+        const conversation = await Conversation.findOne({
+            sellerID: sanitizedSellerID,
+            buyerID: sanitizedBuyerID,
+            $or: [
+                { sellerID: request.userID },
+                { buyerID: request.userID }
+            ]
+        });
 
         if (!conversation) {
             throw CustomException('No such conversation found!', 404);
-        }
-
-        // IDOR protection - ensure the authenticated user is part of this conversation
-        const isAuthorized = (
-            conversation.sellerID.toString() === request.userID ||
-            conversation.buyerID.toString() === request.userID
-        );
-
-        if (!isAuthorized) {
-            throw CustomException('Unauthorized: You can only access your own conversations', 403);
         }
 
         return response.send(conversation);
@@ -157,23 +155,6 @@ const updateConversation = async (request, response) => {
             throw CustomException('Invalid conversationID provided', 400);
         }
 
-        // First, fetch the conversation to verify ownership
-        const existingConversation = await Conversation.findOne({ conversationID: sanitizedConversationID });
-
-        if (!existingConversation) {
-            throw CustomException('Conversation not found', 404);
-        }
-
-        // IDOR protection - ensure the authenticated user is part of this conversation
-        const isAuthorized = (
-            existingConversation.sellerID.toString() === request.userID ||
-            existingConversation.buyerID.toString() === request.userID
-        );
-
-        if (!isAuthorized) {
-            throw CustomException('Unauthorized: You can only update your own conversations', 403);
-        }
-
         // Mass assignment protection - only allow specific fields to be updated
         const allowedFields = pickAllowedFields(request.body, ['readBySeller', 'readByBuyer']);
 
@@ -192,11 +173,22 @@ const updateConversation = async (request, response) => {
             updateData.readByBuyer = true;
         }
 
+        // IDOR protection - include authorization in the query itself
         const conversation = await Conversation.findOneAndUpdate(
-            { conversationID: sanitizedConversationID },
+            {
+                _id: sanitizedConversationID,
+                $or: [
+                    { sellerID: request.userID },
+                    { buyerID: request.userID }
+                ]
+            },
             { $set: updateData },
             { new: true }
         );
+
+        if (!conversation) {
+            throw CustomException('Conversation not found', 404);
+        }
 
         return response.send(conversation);
     }
@@ -282,7 +274,7 @@ const getConversation = asyncHandler(async (req, res) => {
 
     // IDOR protection - verify conversation belongs to user's firm
     if (conversation.firmId.toString() !== firmId.toString()) {
-        throw CustomException('Unauthorized access to this conversation', 403);
+        throw CustomException('Resource not found', 404);
     }
 
     res.json({
@@ -330,7 +322,7 @@ const addMessage = asyncHandler(async (req, res) => {
 
     // IDOR protection - verify conversation belongs to user's firm
     if (conversation.firmId.toString() !== firmId.toString()) {
-        throw CustomException('Unauthorized access to this conversation', 403);
+        throw CustomException('Resource not found', 404);
     }
 
     res.status(201).json({
@@ -378,7 +370,7 @@ const assignConversation = asyncHandler(async (req, res) => {
 
     // IDOR protection - verify conversation belongs to user's firm
     if (conversation.firmId.toString() !== firmId.toString()) {
-        throw CustomException('Unauthorized access to this conversation', 403);
+        throw CustomException('Resource not found', 404);
     }
 
     res.json({
@@ -427,7 +419,7 @@ const snoozeConversation = asyncHandler(async (req, res) => {
 
     // IDOR protection - verify conversation belongs to user's firm
     if (conversation.firmId.toString() !== firmId.toString()) {
-        throw CustomException('Unauthorized access to this conversation', 403);
+        throw CustomException('Resource not found', 404);
     }
 
     res.json({
@@ -470,7 +462,7 @@ const closeConversation = asyncHandler(async (req, res) => {
 
     // IDOR protection - verify conversation belongs to user's firm
     if (conversation.firmId.toString() !== firmId.toString()) {
-        throw CustomException('Unauthorized access to this conversation', 403);
+        throw CustomException('Resource not found', 404);
     }
 
     res.json({
@@ -504,7 +496,7 @@ const reopenConversation = asyncHandler(async (req, res) => {
 
     // IDOR protection - verify conversation belongs to user's firm
     if (conversation.firmId.toString() !== firmId.toString()) {
-        throw CustomException('Unauthorized access to this conversation', 403);
+        throw CustomException('Resource not found', 404);
     }
 
     res.json({
@@ -575,7 +567,7 @@ const updateTags = asyncHandler(async (req, res) => {
 
     // IDOR protection - verify conversation belongs to user's firm
     if (conversation.firmId.toString() !== firmId.toString()) {
-        throw CustomException('Unauthorized access to this conversation', 403);
+        throw CustomException('Resource not found', 404);
     }
 
     res.json({
@@ -616,7 +608,7 @@ const updatePriority = asyncHandler(async (req, res) => {
 
     // IDOR protection - verify conversation belongs to user's firm
     if (conversation.firmId.toString() !== firmId.toString()) {
-        throw CustomException('Unauthorized access to this conversation', 403);
+        throw CustomException('Resource not found', 404);
     }
 
     res.json({

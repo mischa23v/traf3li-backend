@@ -877,11 +877,15 @@ class SubcontractingService {
     /**
      * Calculate material consumption for an order
      * @param {String} orderId - Order ID
+     * @param {String} firmId - Firm ID
      * @returns {Promise<Object|null>} - Consumption summary or null
      */
-    async calculateMaterialConsumption(orderId) {
+    async calculateMaterialConsumption(orderId, firmId) {
         try {
-            const order = await SubcontractingOrder.findById(orderId);
+            const order = await SubcontractingOrder.findOne({
+                _id: orderId,
+                firmId
+            });
 
             if (!order) {
                 logger.error('SubcontractingService.calculateMaterialConsumption: Order not found');

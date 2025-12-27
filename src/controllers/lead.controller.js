@@ -875,12 +875,24 @@ exports.getStats = async (req, res) => {
 exports.getByPipeline = async (req, res) => {
     try {
         const lawyerId = req.userID;
+        const firmId = req.firmId; // From firmFilter middleware
+        const isSoloLawyer = req.isSoloLawyer;
         const { pipelineId } = req.params;
         const mongoose = require('mongoose');
 
+        // ═══════════════════════════════════════════════════════════════
+        // IDOR PROTECTION - Verify pipeline belongs to user's firm
+        // ═══════════════════════════════════════════════════════════════
         let pipeline;
         if (pipelineId) {
-            pipeline = await Pipeline.findOne({ _id: pipelineId, lawyerId });
+            // Build query based on user type
+            const pipelineQuery = { _id: pipelineId };
+            if (isSoloLawyer || !firmId) {
+                pipelineQuery.lawyerId = lawyerId;
+            } else {
+                pipelineQuery.firmId = firmId;
+            }
+            pipeline = await Pipeline.findOne(pipelineQuery);
         } else {
             pipeline = await Pipeline.getDefault(lawyerId, 'lead');
         }
@@ -895,14 +907,21 @@ exports.getByPipeline = async (req, res) => {
         // ═══════════════════════════════════════════════════════════════
         // OPTIMIZED: Single aggregation query instead of N+1 queries
         // ═══════════════════════════════════════════════════════════════
+        // Build match filter based on user type
+        const matchFilter = {
+            pipelineId: pipeline._id,
+            convertedToClient: false
+        };
+        if (isSoloLawyer || !firmId) {
+            matchFilter.lawyerId = new mongoose.Types.ObjectId(lawyerId);
+        } else {
+            matchFilter.firmId = new mongoose.Types.ObjectId(firmId);
+        }
+
         const leadsAggregation = await Lead.aggregate([
             // Match all leads for this pipeline
             {
-                $match: {
-                    lawyerId: new mongoose.Types.ObjectId(lawyerId),
-                    pipelineId: pipeline._id,
-                    convertedToClient: false
-                }
+                $match: matchFilter
             },
             // Sort by createdAt
             {

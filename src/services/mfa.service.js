@@ -272,10 +272,20 @@ const generateBackupCodesForUser = async (userId, count = 10) => {
 /**
  * Use a backup code for MFA verification
  *
+ * SECURITY: Uses atomic findOneAndUpdate with $elemMatch to prevent TOCTOU race conditions.
+ * The operation atomically:
+ * 1. Finds user by ID with a backup code matching the hash AND used=false
+ * 2. Marks that code as used with the positional $ operator
+ * 3. Returns null if code doesn't exist, is already used, or user not found
+ *
+ * This eliminates the race condition window completely - two concurrent requests
+ * with the same backup code cannot both succeed because the atomic operation
+ * includes both the verification (finding unused code) and invalidation (marking used).
+ *
  * @param {string} userId - User ID
  * @param {string} code - Backup code to verify
  * @param {Object} context - Optional context with IP, user agent, location
- * @returns {Promise<Object>} - {valid: boolean, remainingCodes: number}
+ * @returns {Promise<Object>} - {valid: boolean, remainingCodes: number, user?: Object}
  *
  * @throws {Error} - If user not found or verification fails
  *
@@ -287,42 +297,84 @@ const generateBackupCodesForUser = async (userId, count = 10) => {
  */
 const useBackupCode = async (userId, code, context = {}) => {
     try {
-        // Find the user
-        // NOTE: Bypass firmIsolation filter - MFA operations need to work for solo lawyers without firmId
-        const user = await User.findById(userId).setOptions({ bypassFirmFilter: true });
-        if (!user) {
-            const err = new Error('User not found');
-            err.code = 'USER_NOT_FOUND';
-            throw err;
-        }
+        // Hash the provided code for comparison
+        const hashedCode = await hashBackupCode(code);
 
-        // Check if user has any backup codes
-        if (!user.mfaBackupCodes || user.mfaBackupCodes.length === 0) {
-            await auditLogService.log(
-                'mfa_backup_code_failed',
-                'user',
-                userId,
-                null,
-                {
-                    userId,
-                    userEmail: user.email,
-                    userRole: user.role,
-                    reason: 'No backup codes available',
-                    severity: 'medium'
+        // SECURITY: Atomic findOneAndUpdate to prevent TOCTOU race conditions
+        // This single operation:
+        // 1. Finds the user by ID
+        // 2. Searches for a backup code matching the hash AND used=false
+        // 3. Atomically marks it as used if found
+        // No separate read/verify/write steps means no race condition window
+        const updateResult = await User.findOneAndUpdate(
+            {
+                _id: userId,
+                mfaBackupCodes: {
+                    $elemMatch: { code: hashedCode, used: false }
                 }
-            );
+            },
+            {
+                $set: {
+                    'mfaBackupCodes.$.used': true,
+                    'mfaBackupCodes.$.usedAt': new Date(),
+                    mfaVerifiedAt: new Date()
+                }
+            },
+            {
+                new: true,
+                // IMPORTANT: bypassFirmFilter for MFA operations
+                bypassFirmFilter: true
+            }
+        ).setOptions({ bypassFirmFilter: true });
 
-            return {
-                valid: false,
-                remainingCodes: 0,
-                error: 'No backup codes available'
-            };
-        }
+        // If update failed, either:
+        // 1. User not found
+        // 2. Invalid backup code (hash doesn't match any code)
+        // 3. Code already used (used=true)
+        // All three cases should be treated as authentication failure
+        if (!updateResult) {
+            // Fetch user to determine the specific error reason for audit logging
+            const user = await User.findById(userId)
+                .select('email role mfaBackupCodes')
+                .setOptions({ bypassFirmFilter: true });
 
-        // Verify the code
-        const verificationResult = await verifyBackupCode(code, user.mfaBackupCodes);
+            if (!user) {
+                const err = new Error('User not found');
+                err.code = 'USER_NOT_FOUND';
+                throw err;
+            }
 
-        if (!verificationResult.valid) {
+            // Check if user has any backup codes at all
+            if (!user.mfaBackupCodes || user.mfaBackupCodes.length === 0) {
+                await auditLogService.log(
+                    'mfa_backup_code_failed',
+                    'user',
+                    userId,
+                    null,
+                    {
+                        userId,
+                        userEmail: user.email,
+                        userRole: user.role,
+                        reason: 'No backup codes available',
+                        severity: 'medium'
+                    }
+                );
+
+                return {
+                    valid: false,
+                    remainingCodes: 0,
+                    error: 'No backup codes available'
+                };
+            }
+
+            // Determine if code was already used or just invalid
+            // Note: We can't definitively tell which without compromising security,
+            // so we check if ANY code matches the hash (regardless of used status)
+            const codeExists = user.mfaBackupCodes.some(bc => bc.code === hashedCode);
+            const reason = codeExists ?
+                'Backup code already used or invalid' :
+                'Invalid backup code';
+
             await auditLogService.log(
                 'mfa_backup_code_failed',
                 'user',
@@ -332,29 +384,20 @@ const useBackupCode = async (userId, code, context = {}) => {
                     userId,
                     userEmail: user.email,
                     userRole: user.role,
-                    reason: 'Invalid backup code',
-                    severity: 'medium'
+                    reason,
+                    severity: codeExists ? 'high' : 'medium' // Higher severity if code was reused
                 }
             );
 
             return {
                 valid: false,
                 remainingCodes: getRemainingBackupCodesCount(user.mfaBackupCodes),
-                error: 'Invalid backup code'
+                error: 'Invalid or already used backup code'
             };
         }
 
-        // Mark the code as used
-        user.mfaBackupCodes[verificationResult.codeIndex].used = true;
-        user.mfaBackupCodes[verificationResult.codeIndex].usedAt = new Date();
-
-        // Update MFA verified timestamp
-        user.mfaVerifiedAt = new Date();
-
-        await user.save();
-
-        // Get remaining codes count
-        const remainingCodes = getRemainingBackupCodesCount(user.mfaBackupCodes);
+        // Get remaining codes count from updated user
+        const remainingCodes = getRemainingBackupCodesCount(updateResult.mfaBackupCodes);
 
         // Log successful backup code usage
         await auditLogService.log(
@@ -364,12 +407,13 @@ const useBackupCode = async (userId, code, context = {}) => {
             null,
             {
                 userId,
-                userEmail: user.email,
-                userRole: user.role,
+                userEmail: updateResult.email,
+                userRole: updateResult.role,
                 remainingCodes,
                 severity: 'low',
                 details: {
-                    codeIndex: verificationResult.codeIndex
+                    // Note: We don't include codeIndex for security (don't reveal which code was used)
+                    atomicUpdate: true
                 }
             }
         );
@@ -380,7 +424,7 @@ const useBackupCode = async (userId, code, context = {}) => {
                 // Get last 4 characters of the backup code for security
                 const backupCodeLastDigits = code.replace('-', '').slice(-4);
 
-                const userName = `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email;
+                const userName = `${updateResult.firstName || ''} ${updateResult.lastName || ''}`.trim() || updateResult.email;
 
                 // Prepare usage info for email
                 const usageInfo = {
@@ -394,14 +438,14 @@ const useBackupCode = async (userId, code, context = {}) => {
 
                 // Send notification email
                 await emailService.sendMFABackupCodeUsed(
-                    { email: user.email, name: userName },
+                    { email: updateResult.email, name: userName },
                     usageInfo,
                     'ar' // Default to Arabic, can be made configurable
                 );
 
                 logger.info('MFA backup code usage notification sent', {
                     userId,
-                    email: user.email,
+                    email: updateResult.email,
                     remainingCodes
                 });
             } catch (emailError) {
@@ -409,7 +453,7 @@ const useBackupCode = async (userId, code, context = {}) => {
                 logger.error('Failed to send MFA backup code notification email', {
                     error: emailError.message,
                     userId,
-                    email: user.email
+                    email: updateResult.email
                 });
             }
         })();
@@ -417,7 +461,7 @@ const useBackupCode = async (userId, code, context = {}) => {
         return {
             valid: true,
             remainingCodes,
-            user
+            user: updateResult
         };
     } catch (error) {
         logger.error('Use backup code error', {

@@ -1,8 +1,14 @@
-const { Notification } = require('../models');
+const { Notification, User } = require('../models');
 const CustomException = require('../utils/CustomException');
 const { emitNotification, emitNotificationCount } = require('../configs/socket');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 const logger = require('../utils/logger');
+
+// Helper function to get user's firmId for IDOR protection
+const getUserFirmId = async (userId) => {
+    const user = await User.findById(userId).select('firmId').lean();
+    return user?.firmId || null;
+};
 
 // Get all notifications for user
 const getNotifications = async (request, response) => {
@@ -18,8 +24,16 @@ const getNotifications = async (request, response) => {
         const pageNum = Math.max(1, parseInt(page) || 1);
         const limitNum = Math.min(100, Math.max(1, parseInt(limit) || 50)); // Max 100, min 1
 
-        // IDOR Protection: Only fetch notifications for authenticated user
-        const query = { userId: sanitizeObjectId(request.userID) };
+        // IDOR Protection: Fetch notifications using both userId and firmId
+        const firmId = request.firmId || await getUserFirmId(request.userID);
+        const query = {
+            userId: sanitizeObjectId(request.userID)
+        };
+
+        // Add firmId to query if user belongs to a firm
+        if (firmId) {
+            query.firmId = sanitizeObjectId(firmId);
+        }
 
         // Optional filters with validation
         if (read !== undefined) {
@@ -51,11 +65,15 @@ const getNotifications = async (request, response) => {
             .skip((pageNum - 1) * limitNum)
             .lean();
 
-        // Get unread count
-        const unreadCount = await Notification.countDocuments({
+        // Get unread count with firmId filter
+        const unreadQuery = {
             userId: request.userID,
             read: false
-        });
+        };
+        if (firmId) {
+            unreadQuery.firmId = sanitizeObjectId(firmId);
+        }
+        const unreadCount = await Notification.countDocuments(unreadQuery);
 
         return response.status(200).send({
             notifications,
@@ -91,11 +109,19 @@ const markAsRead = async (request, response) => {
             throw CustomException('Invalid notification ID', 400);
         }
 
-        // IDOR Protection: Only allow user to access their own notifications
-        const notification = await Notification.findOne({
+        // IDOR Protection: Use both userId and firmId in query
+        const firmId = request.firmId || await getUserFirmId(request.userID);
+        const query = {
             _id: sanitizedId,
             userId: sanitizeObjectId(request.userID)
-        });
+        };
+
+        // Add firmId to query if user belongs to a firm
+        if (firmId) {
+            query.firmId = sanitizeObjectId(firmId);
+        }
+
+        const notification = await Notification.findOne(query);
 
         if (!notification) {
             throw CustomException('Notification not found', 404);
@@ -105,11 +131,15 @@ const markAsRead = async (request, response) => {
         notification.readAt = new Date();
         await notification.save();
 
-        // Get updated unread count
-        const unreadCount = await Notification.countDocuments({
+        // Get updated unread count with firmId filter
+        const unreadQuery = {
             userId: request.userID,
             read: false
-        });
+        };
+        if (firmId) {
+            unreadQuery.firmId = sanitizeObjectId(firmId);
+        }
+        const unreadCount = await Notification.countDocuments(unreadQuery);
 
         // Emit updated count via Socket.io
         emitNotificationCount(request.userID, unreadCount);
@@ -131,9 +161,20 @@ const markAllAsRead = async (request, response) => {
             throw CustomException('Unauthorized', 401);
         }
 
-        // IDOR Protection: Only update notifications for authenticated user
+        // IDOR Protection: Use both userId and firmId in query
+        const firmId = request.firmId || await getUserFirmId(request.userID);
+        const query = {
+            userId: sanitizeObjectId(request.userID),
+            read: false
+        };
+
+        // Add firmId to query if user belongs to a firm
+        if (firmId) {
+            query.firmId = sanitizeObjectId(firmId);
+        }
+
         const result = await Notification.updateMany(
-            { userId: sanitizeObjectId(request.userID), read: false },
+            query,
             { $set: { read: true, readAt: new Date() } }
         );
 
@@ -172,21 +213,33 @@ const deleteNotification = async (request, response) => {
             throw CustomException('Invalid notification ID', 400);
         }
 
-        // IDOR Protection: Only allow user to delete their own notifications
-        const notification = await Notification.findOneAndDelete({
+        // IDOR Protection: Use both userId and firmId in query
+        const firmId = request.firmId || await getUserFirmId(request.userID);
+        const query = {
             _id: sanitizedId,
             userId: sanitizeObjectId(request.userID)
-        });
+        };
+
+        // Add firmId to query if user belongs to a firm
+        if (firmId) {
+            query.firmId = sanitizeObjectId(firmId);
+        }
+
+        const notification = await Notification.findOneAndDelete(query);
 
         if (!notification) {
             throw CustomException('Notification not found', 404);
         }
 
-        // Get updated unread count
-        const unreadCount = await Notification.countDocuments({
+        // Get updated unread count with firmId filter
+        const unreadQuery = {
             userId: request.userID,
             read: false
-        });
+        };
+        if (firmId) {
+            unreadQuery.firmId = sanitizeObjectId(firmId);
+        }
+        const unreadCount = await Notification.countDocuments(unreadQuery);
 
         // Emit updated count via Socket.io
         emitNotificationCount(request.userID, unreadCount);
@@ -211,11 +264,19 @@ const getUnreadCount = async (request, response) => {
             throw CustomException('Unauthorized', 401);
         }
 
-        // IDOR Protection: Only count notifications for authenticated user
-        const count = await Notification.countDocuments({
+        // IDOR Protection: Use both userId and firmId in query
+        const firmId = request.firmId || await getUserFirmId(request.userID);
+        const query = {
             userId: sanitizeObjectId(request.userID),
             read: false
-        });
+        };
+
+        // Add firmId to query if user belongs to a firm
+        if (firmId) {
+            query.firmId = sanitizeObjectId(firmId);
+        }
+
+        const count = await Notification.countDocuments(query);
 
         return response.status(200).send({ count });
     } catch ({ message, status = 500 }) {
@@ -307,11 +368,15 @@ const createNotification = async (notificationData) => {
         // Emit notification via Socket.io
         emitNotification(sanitizedData.userId, notification.toObject());
 
-        // Get and emit updated unread count
-        const unreadCount = await Notification.countDocuments({
+        // Get and emit updated unread count with firmId filter
+        const unreadQuery = {
             userId: sanitizedData.userId,
             read: false
-        });
+        };
+        if (sanitizedData.firmId) {
+            unreadQuery.firmId = sanitizedData.firmId;
+        }
+        const unreadCount = await Notification.countDocuments(unreadQuery);
         emitNotificationCount(sanitizedData.userId, unreadCount);
 
         return notification;
@@ -411,13 +476,19 @@ const createBulkNotifications = async (notifications) => {
             emitNotification(notification.userId, notification.toObject());
         });
 
-        // Emit updated counts for all affected users
+        // Emit updated counts for all affected users with firmId filter
         const userIds = [...new Set(sanitizedNotifications.map(n => n.userId.toString()))];
         for (const userId of userIds) {
-            const unreadCount = await Notification.countDocuments({
+            // Find firmId for this user from the notifications
+            const userNotification = sanitizedNotifications.find(n => n.userId.toString() === userId);
+            const unreadQuery = {
                 userId,
                 read: false
-            });
+            };
+            if (userNotification?.firmId) {
+                unreadQuery.firmId = userNotification.firmId;
+            }
+            const unreadCount = await Notification.countDocuments(unreadQuery);
             emitNotificationCount(userId, unreadCount);
         }
 
@@ -448,11 +519,19 @@ const getNotification = async (request, response) => {
             throw CustomException('Invalid notification ID', 400);
         }
 
-        // IDOR Protection: Only allow user to access their own notifications
-        const notification = await Notification.findOne({
+        // IDOR Protection: Use both userId and firmId in query
+        const firmId = request.firmId || await getUserFirmId(request.userID);
+        const query = {
             _id: sanitizedId,
             userId: sanitizeObjectId(request.userID)
-        }).lean();
+        };
+
+        // Add firmId to query if user belongs to a firm
+        if (firmId) {
+            query.firmId = sanitizeObjectId(firmId);
+        }
+
+        const notification = await Notification.findOne(query).lean();
 
         if (!notification) {
             throw CustomException('Notification not found | الإشعار غير موجود', 404);
@@ -495,21 +574,33 @@ const markMultipleAsRead = async (request, response) => {
             throw CustomException('No valid IDs provided', 400);
         }
 
-        // IDOR Protection: Only update notifications for authenticated user
+        // IDOR Protection: Use both userId and firmId in query
+        const firmId = request.firmId || await getUserFirmId(request.userID);
+        const query = {
+            _id: { $in: sanitizedIds },
+            userId: sanitizeObjectId(request.userID),
+            read: false
+        };
+
+        // Add firmId to query if user belongs to a firm
+        if (firmId) {
+            query.firmId = sanitizeObjectId(firmId);
+        }
+
         const result = await Notification.updateMany(
-            {
-                _id: { $in: sanitizedIds },
-                userId: sanitizeObjectId(request.userID),
-                read: false
-            },
+            query,
             { $set: { read: true, readAt: new Date() } }
         );
 
-        // Get updated unread count
-        const unreadCount = await Notification.countDocuments({
+        // Get updated unread count with firmId filter
+        const unreadQuery = {
             userId: request.userID,
             read: false
-        });
+        };
+        if (firmId) {
+            unreadQuery.firmId = sanitizeObjectId(firmId);
+        }
+        const unreadCount = await Notification.countDocuments(unreadQuery);
 
         // Emit updated count via Socket.io
         emitNotificationCount(request.userID, unreadCount);
@@ -553,17 +644,29 @@ const bulkDeleteNotifications = async (request, response) => {
             throw CustomException('No valid IDs provided', 400);
         }
 
-        // IDOR Protection: Only delete notifications for authenticated user
-        const result = await Notification.deleteMany({
+        // IDOR Protection: Use both userId and firmId in query
+        const firmId = request.firmId || await getUserFirmId(request.userID);
+        const query = {
             _id: { $in: sanitizedIds },
             userId: sanitizeObjectId(request.userID)
-        });
+        };
 
-        // Get updated unread count
-        const unreadCount = await Notification.countDocuments({
+        // Add firmId to query if user belongs to a firm
+        if (firmId) {
+            query.firmId = sanitizeObjectId(firmId);
+        }
+
+        const result = await Notification.deleteMany(query);
+
+        // Get updated unread count with firmId filter
+        const unreadQuery = {
             userId: request.userID,
             read: false
-        });
+        };
+        if (firmId) {
+            unreadQuery.firmId = sanitizeObjectId(firmId);
+        }
+        const unreadCount = await Notification.countDocuments(unreadQuery);
 
         // Emit updated count via Socket.io
         emitNotificationCount(request.userID, unreadCount);
@@ -590,11 +693,19 @@ const clearReadNotifications = async (request, response) => {
             throw CustomException('Unauthorized', 401);
         }
 
-        // IDOR Protection: Only delete notifications for authenticated user
-        const result = await Notification.deleteMany({
+        // IDOR Protection: Use both userId and firmId in query
+        const firmId = request.firmId || await getUserFirmId(request.userID);
+        const query = {
             userId: sanitizeObjectId(request.userID),
             read: true
-        });
+        };
+
+        // Add firmId to query if user belongs to a firm
+        if (firmId) {
+            query.firmId = sanitizeObjectId(firmId);
+        }
+
+        const result = await Notification.deleteMany(query);
 
         return response.status(200).json({
             success: true,
@@ -639,11 +750,17 @@ const getNotificationsByType = async (request, response) => {
         const pageNum = Math.max(1, parseInt(page) || 1);
         const limitNum = Math.min(100, Math.max(1, parseInt(limit) || 50));
 
-        // Build query
+        // IDOR Protection: Use both userId and firmId in query
+        const firmId = request.firmId || await getUserFirmId(request.userID);
         const query = {
             userId: sanitizeObjectId(request.userID),
             type
         };
+
+        // Add firmId to query if user belongs to a firm
+        if (firmId) {
+            query.firmId = sanitizeObjectId(firmId);
+        }
 
         if (read !== undefined) {
             query.read = read === 'true';

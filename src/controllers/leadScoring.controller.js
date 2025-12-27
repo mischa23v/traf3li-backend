@@ -277,10 +277,10 @@ class LeadScoringController {
         const ownedLeads = await Lead.find(query).select('_id');
 
         if (ownedLeads.length !== sanitizedLeadIds.length) {
-            return res.status(403).json({
+            return res.status(404).json({
                 success: false,
-                error: 'Access denied',
-                message: 'One or more leads do not belong to your firm or you do not have access to them'
+                error: 'Resource not found',
+                message: 'One or more requested resources were not found'
             });
         }
 
@@ -488,7 +488,7 @@ class LeadScoringController {
      * @access  Public (webhook)
      */
     trackEmailOpen = asyncHandler(async (req, res) => {
-        const { leadId, campaignId } = req.body;
+        const { leadId, campaignId, firmId } = req.body;
 
         // Input validation - prevent score manipulation
         if (!leadId) {
@@ -498,12 +498,28 @@ class LeadScoringController {
             });
         }
 
+        if (!firmId) {
+            return res.status(400).json({
+                success: false,
+                error: 'firmId is required'
+            });
+        }
+
         // Sanitize and validate leadId
         const sanitizedLeadId = sanitizeObjectId(leadId);
         if (!sanitizedLeadId) {
             return res.status(400).json({
                 success: false,
                 error: 'Invalid lead ID format'
+            });
+        }
+
+        // Sanitize and validate firmId
+        const sanitizedFirmId = sanitizeObjectId(firmId);
+        if (!sanitizedFirmId) {
+            return res.status(400).json({
+                success: false,
+                error: 'Invalid firm ID format'
             });
         }
 
@@ -519,12 +535,12 @@ class LeadScoringController {
             }
         }
 
-        // Verify lead exists before tracking
-        const lead = await Lead.findById(sanitizedLeadId);
+        // IDOR Protection - Verify lead exists and belongs to the specified firm
+        const lead = await Lead.findOne({ _id: sanitizedLeadId, firmId: sanitizedFirmId });
         if (!lead) {
             return res.status(404).json({
                 success: false,
-                error: 'Lead not found'
+                error: 'Resource not found'
             });
         }
 
@@ -539,7 +555,7 @@ class LeadScoringController {
      * @access  Public (webhook)
      */
     trackEmailClick = asyncHandler(async (req, res) => {
-        const { leadId, campaignId, link } = req.body;
+        const { leadId, campaignId, link, firmId } = req.body;
 
         // Input validation - prevent score manipulation
         if (!leadId) {
@@ -549,12 +565,28 @@ class LeadScoringController {
             });
         }
 
+        if (!firmId) {
+            return res.status(400).json({
+                success: false,
+                error: 'firmId is required'
+            });
+        }
+
         // Sanitize and validate leadId
         const sanitizedLeadId = sanitizeObjectId(leadId);
         if (!sanitizedLeadId) {
             return res.status(400).json({
                 success: false,
                 error: 'Invalid lead ID format'
+            });
+        }
+
+        // Sanitize and validate firmId
+        const sanitizedFirmId = sanitizeObjectId(firmId);
+        if (!sanitizedFirmId) {
+            return res.status(400).json({
+                success: false,
+                error: 'Invalid firm ID format'
             });
         }
 
@@ -578,12 +610,12 @@ class LeadScoringController {
             });
         }
 
-        // Verify lead exists before tracking
-        const lead = await Lead.findById(sanitizedLeadId);
+        // IDOR Protection - Verify lead exists and belongs to the specified firm
+        const lead = await Lead.findOne({ _id: sanitizedLeadId, firmId: sanitizedFirmId });
         if (!lead) {
             return res.status(404).json({
                 success: false,
-                error: 'Lead not found'
+                error: 'Resource not found'
             });
         }
 
@@ -709,7 +741,7 @@ class LeadScoringController {
      * @access  Public (webhook)
      */
     trackDocumentView = asyncHandler(async (req, res) => {
-        const { leadId, documentId } = req.body;
+        const { leadId, documentId, firmId } = req.body;
 
         // Input validation - prevent score manipulation
         if (!leadId) {
@@ -719,12 +751,28 @@ class LeadScoringController {
             });
         }
 
+        if (!firmId) {
+            return res.status(400).json({
+                success: false,
+                error: 'firmId is required'
+            });
+        }
+
         // Sanitize and validate leadId
         const sanitizedLeadId = sanitizeObjectId(leadId);
         if (!sanitizedLeadId) {
             return res.status(400).json({
                 success: false,
                 error: 'Invalid lead ID format'
+            });
+        }
+
+        // Sanitize and validate firmId
+        const sanitizedFirmId = sanitizeObjectId(firmId);
+        if (!sanitizedFirmId) {
+            return res.status(400).json({
+                success: false,
+                error: 'Invalid firm ID format'
             });
         }
 
@@ -740,12 +788,12 @@ class LeadScoringController {
             }
         }
 
-        // Verify lead exists before tracking
-        const lead = await Lead.findById(sanitizedLeadId);
+        // IDOR Protection - Verify lead exists and belongs to the specified firm
+        const lead = await Lead.findOne({ _id: sanitizedLeadId, firmId: sanitizedFirmId });
         if (!lead) {
             return res.status(404).json({
                 success: false,
-                error: 'Lead not found'
+                error: 'Resource not found'
             });
         }
 
@@ -760,7 +808,7 @@ class LeadScoringController {
      * @access  Public (webhook)
      */
     trackWebsiteVisit = asyncHandler(async (req, res) => {
-        const { leadId, page, duration } = req.body;
+        const { leadId, page, duration, firmId } = req.body;
 
         // Input validation - prevent score manipulation
         if (!leadId) {
@@ -770,12 +818,28 @@ class LeadScoringController {
             });
         }
 
+        if (!firmId) {
+            return res.status(400).json({
+                success: false,
+                error: 'firmId is required'
+            });
+        }
+
         // Sanitize and validate leadId
         const sanitizedLeadId = sanitizeObjectId(leadId);
         if (!sanitizedLeadId) {
             return res.status(400).json({
                 success: false,
                 error: 'Invalid lead ID format'
+            });
+        }
+
+        // Sanitize and validate firmId
+        const sanitizedFirmId = sanitizeObjectId(firmId);
+        if (!sanitizedFirmId) {
+            return res.status(400).json({
+                success: false,
+                error: 'Invalid firm ID format'
             });
         }
 
@@ -797,12 +861,12 @@ class LeadScoringController {
             }
         }
 
-        // Verify lead exists before tracking
-        const lead = await Lead.findById(sanitizedLeadId);
+        // IDOR Protection - Verify lead exists and belongs to the specified firm
+        const lead = await Lead.findOne({ _id: sanitizedLeadId, firmId: sanitizedFirmId });
         if (!lead) {
             return res.status(404).json({
                 success: false,
-                error: 'Lead not found'
+                error: 'Resource not found'
             });
         }
 
@@ -817,7 +881,7 @@ class LeadScoringController {
      * @access  Public (webhook)
      */
     trackFormSubmit = asyncHandler(async (req, res) => {
-        const { leadId, formId } = req.body;
+        const { leadId, formId, firmId } = req.body;
 
         // Input validation - prevent score manipulation
         if (!leadId) {
@@ -827,12 +891,28 @@ class LeadScoringController {
             });
         }
 
+        if (!firmId) {
+            return res.status(400).json({
+                success: false,
+                error: 'firmId is required'
+            });
+        }
+
         // Sanitize and validate leadId
         const sanitizedLeadId = sanitizeObjectId(leadId);
         if (!sanitizedLeadId) {
             return res.status(400).json({
                 success: false,
                 error: 'Invalid lead ID format'
+            });
+        }
+
+        // Sanitize and validate firmId
+        const sanitizedFirmId = sanitizeObjectId(firmId);
+        if (!sanitizedFirmId) {
+            return res.status(400).json({
+                success: false,
+                error: 'Invalid firm ID format'
             });
         }
 
@@ -848,12 +928,12 @@ class LeadScoringController {
             }
         }
 
-        // Verify lead exists before tracking
-        const lead = await Lead.findById(sanitizedLeadId);
+        // IDOR Protection - Verify lead exists and belongs to the specified firm
+        const lead = await Lead.findOne({ _id: sanitizedLeadId, firmId: sanitizedFirmId });
         if (!lead) {
             return res.status(404).json({
                 success: false,
-                error: 'Lead not found'
+                error: 'Resource not found'
             });
         }
 
