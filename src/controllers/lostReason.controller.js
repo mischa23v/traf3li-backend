@@ -1,426 +1,413 @@
 /**
  * Lost Reason Controller
+ * Security: All operations enforce multi-tenant isolation via firmQuery
  *
- * Handles lost reason CRUD operations.
+ * Handles CRUD operations for lost reasons in the CRM system.
+ * Lost reasons track why deals (leads, opportunities, quotes) are lost.
  */
 
 const LostReason = require('../models/lostReason.model');
-const CrmActivity = require('../models/crmActivity.model');
-const { pickAllowedFields, sanitizeObjectId, sanitizeString } = require('../utils/securityUtils');
-const logger = require('../utils/logger');
+const asyncHandler = require('../utils/asyncHandler');
+const CustomException = require('../utils/CustomException');
+const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
+
+// Helper for regex safety
+const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 // ═══════════════════════════════════════════════════════════════
-// LIST LOST REASONS
-// ═══════════════════════════════════════════════════════════════
-
-/**
- * Get all lost reasons
- */
-exports.getAll = async (req, res) => {
-    try {
-        if (req.isDeparted) {
-            return res.status(404).json({
-                success: false,
-                message: 'المورد غير موجود / Resource not found'
-            });
-        }
-
-        const { enabled, category } = req.query;
-
-        // Use req.firmQuery for consistent multi-tenant filtering
-        const query = { ...req.firmQuery };
-
-        if (enabled !== undefined) {
-            query.enabled = enabled === 'true';
-        }
-        if (category) {
-            query.category = category;
-        }
-
-        const reasons = await LostReason.find(query).sort({ category: 1, reason: 1 });
-
-        res.json({
-            success: true,
-            data: reasons
-        });
-    } catch (error) {
-        logger.error('Error getting lost reasons:', error);
-        res.status(500).json({
-            success: false,
-            message: 'خطأ في جلب أسباب الخسارة / Error fetching lost reasons',
-            error: error.message
-        });
-    }
-};
-
-// ═══════════════════════════════════════════════════════════════
-// GET CATEGORIES
-// ═══════════════════════════════════════════════════════════════
-
-/**
- * Get valid lost reason categories
- */
-exports.getCategories = async (req, res) => {
-    try {
-        const categories = LostReason.getCategories();
-
-        res.json({
-            success: true,
-            data: categories
-        });
-    } catch (error) {
-        logger.error('Error getting categories:', error);
-        res.status(500).json({
-            success: false,
-            message: 'خطأ في جلب الفئات / Error fetching categories',
-            error: error.message
-        });
-    }
-};
-
-// ═══════════════════════════════════════════════════════════════
-// GET SINGLE LOST REASON
-// ═══════════════════════════════════════════════════════════════
-
-/**
- * Get lost reason by ID
- */
-exports.getById = async (req, res) => {
-    try {
-        if (req.isDeparted) {
-            return res.status(404).json({
-                success: false,
-                message: 'المورد غير موجود / Resource not found'
-            });
-        }
-
-        const { id } = req.params;
-
-        // IDOR Protection: Sanitize ID
-        const sanitizedId = sanitizeObjectId(id);
-        if (!sanitizedId) {
-            return res.status(400).json({
-                success: false,
-                message: 'معرف غير صالح / Invalid ID'
-            });
-        }
-
-        // IDOR Protection: Verify firmId ownership with req.firmQuery
-        const reason = await LostReason.findOne({ _id: sanitizedId, ...req.firmQuery });
-
-        if (!reason) {
-            return res.status(404).json({
-                success: false,
-                message: 'سبب الخسارة غير موجود / Lost reason not found'
-            });
-        }
-
-        res.json({
-            success: true,
-            data: reason
-        });
-    } catch (error) {
-        logger.error('Error getting lost reason:', error);
-        res.status(500).json({
-            success: false,
-            message: 'خطأ في جلب سبب الخسارة / Error fetching lost reason',
-            error: error.message
-        });
-    }
-};
-
-// ═══════════════════════════════════════════════════════════════
-// CREATE LOST REASON
+// CREATE
 // ═══════════════════════════════════════════════════════════════
 
 /**
  * Create a new lost reason
+ * @route POST /api/lost-reasons
  */
-exports.create = async (req, res) => {
-    try {
-        if (req.isDeparted) {
-            return res.status(404).json({
-                success: false,
-                message: 'المورد غير موجود / Resource not found'
-            });
-        }
-
-        const userId = req.userID;
-
-        // Mass Assignment Protection: Only allow specific fields
-        const allowedFields = ['reason', 'reasonAr', 'category', 'enabled'];
-        const safeData = pickAllowedFields(req.body, allowedFields);
-
-        // Input Validation: Ensure required fields are present
-        if (!safeData.reason || !safeData.reasonAr) {
-            return res.status(400).json({
-                success: false,
-                message: 'السبب مطلوب بكلا اللغتين / Reason required in both languages'
-            });
-        }
-
-        // XSS Protection: Sanitize text fields
-        safeData.reason = sanitizeString(safeData.reason);
-        safeData.reasonAr = sanitizeString(safeData.reasonAr);
-
-        // Input Validation: Check length
-        if (safeData.reason.length > 200 || safeData.reasonAr.length > 200) {
-            return res.status(400).json({
-                success: false,
-                message: 'السبب طويل جداً / Reason too long (max 200 characters)'
-            });
-        }
-
-        // Input Validation: Validate category if provided
-        if (safeData.category) {
-            const validCategories = LostReason.getCategories();
-            if (!validCategories.includes(safeData.category)) {
-                return res.status(400).json({
-                    success: false,
-                    message: 'فئة غير صالحة / Invalid category'
-                });
-            }
-        }
-
-        const reasonData = {
-            ...safeData,
-            ...req.firmQuery
-        };
-
-        const reason = await LostReason.create(reasonData);
-
-        // Log activity
-        await CrmActivity.logActivity({
-            lawyerId: userId,
-            type: 'lost_reason_created',
-            entityType: 'lost_reason',
-            entityId: reason._id,
-            entityName: reason.reason,
-            title: `Lost reason created: ${reason.reason}`,
-            performedBy: userId
-        });
-
-        res.status(201).json({
-            success: true,
-            message: 'تم إنشاء سبب الخسارة بنجاح / Lost reason created successfully',
-            data: reason
-        });
-    } catch (error) {
-        logger.error('Error creating lost reason:', error);
-        res.status(500).json({
-            success: false,
-            message: 'خطأ في إنشاء سبب الخسارة / Error creating lost reason',
-            error: error.message
+const createLostReason = asyncHandler(async (req, res) => {
+    // Validate required fields
+    const { name } = req.body;
+    if (!name || typeof name !== 'string' || name.trim().length === 0) {
+        throw CustomException('Name is required', 400, {
+            messageAr: 'الاسم مطلوب'
         });
     }
-};
 
-// ═══════════════════════════════════════════════════════════════
-// UPDATE LOST REASON
-// ═══════════════════════════════════════════════════════════════
+    // Mass assignment protection - only allow specific fields
+    const allowedFields = pickAllowedFields(req.body, [
+        'name',
+        'nameAr',
+        'description',
+        'category',
+        'applicableTo',
+        'sortOrder',
+        'isActive',
+        'isDefault'
+    ]);
 
-/**
- * Update a lost reason
- */
-exports.update = async (req, res) => {
-    try {
-        if (req.isDeparted) {
-            return res.status(404).json({
-                success: false,
-                message: 'المورد غير موجود / Resource not found'
+    // Validate category if provided
+    if (allowedFields.category && !LostReason.getCategories().includes(allowedFields.category)) {
+        throw CustomException('Invalid category', 400, {
+            messageAr: 'فئة غير صالحة'
+        });
+    }
+
+    // Validate applicableTo if provided
+    if (allowedFields.applicableTo) {
+        const validTypes = LostReason.getApplicableToTypes();
+        const invalidTypes = allowedFields.applicableTo.filter(type => !validTypes.includes(type));
+        if (invalidTypes.length > 0) {
+            throw CustomException(`Invalid applicableTo types: ${invalidTypes.join(', ')}`, 400, {
+                messageAr: 'أنواع applicableTo غير صالحة'
             });
         }
+    }
 
-        const { id } = req.params;
-        const userId = req.userID;
-
-        // IDOR Protection: Sanitize ID
-        const sanitizedId = sanitizeObjectId(id);
-        if (!sanitizedId) {
-            return res.status(400).json({
-                success: false,
-                message: 'معرف غير صالح / Invalid ID'
-            });
-        }
-
-        // Mass Assignment Protection: Only allow specific fields
-        const allowedFields = ['reason', 'reasonAr', 'category', 'enabled'];
-        const safeData = pickAllowedFields(req.body, allowedFields);
-
-        // Input Validation: Check if there's anything to update
-        if (Object.keys(safeData).length === 0) {
-            return res.status(400).json({
-                success: false,
-                message: 'لا توجد بيانات للتحديث / No data to update'
-            });
-        }
-
-        // XSS Protection: Sanitize text fields if present
-        if (safeData.reason !== undefined) {
-            safeData.reason = sanitizeString(safeData.reason);
-            if (safeData.reason.length > 200) {
-                return res.status(400).json({
-                    success: false,
-                    message: 'السبب طويل جداً / Reason too long (max 200 characters)'
-                });
-            }
-        }
-
-        if (safeData.reasonAr !== undefined) {
-            safeData.reasonAr = sanitizeString(safeData.reasonAr);
-            if (safeData.reasonAr.length > 200) {
-                return res.status(400).json({
-                    success: false,
-                    message: 'السبب طويل جداً / Reason too long (max 200 characters)'
-                });
-            }
-        }
-
-        // Input Validation: Validate category if provided
-        if (safeData.category) {
-            const validCategories = LostReason.getCategories();
-            if (!validCategories.includes(safeData.category)) {
-                return res.status(400).json({
-                    success: false,
-                    message: 'فئة غير صالحة / Invalid category'
-                });
-            }
-        }
-
-        // IDOR Protection: Verify firmId ownership with req.firmQuery
-        const reason = await LostReason.findOneAndUpdate(
-            { _id: sanitizedId, ...req.firmQuery },
-            { $set: safeData },
-            { new: true, runValidators: true }
+    // If setting as default, unset other defaults first
+    if (allowedFields.isDefault) {
+        await LostReason.updateMany(
+            { ...req.firmQuery },
+            { $set: { isDefault: false } }
         );
-
-        if (!reason) {
-            return res.status(404).json({
-                success: false,
-                message: 'سبب الخسارة غير موجود / Lost reason not found'
-            });
-        }
-
-        // Log activity
-        await CrmActivity.logActivity({
-            lawyerId: userId,
-            type: 'lost_reason_updated',
-            entityType: 'lost_reason',
-            entityId: reason._id,
-            entityName: reason.reason,
-            title: `Lost reason updated: ${reason.reason}`,
-            performedBy: userId
-        });
-
-        res.json({
-            success: true,
-            message: 'تم تحديث سبب الخسارة بنجاح / Lost reason updated successfully',
-            data: reason
-        });
-    } catch (error) {
-        logger.error('Error updating lost reason:', error);
-        res.status(500).json({
-            success: false,
-            message: 'خطأ في تحديث سبب الخسارة / Error updating lost reason',
-            error: error.message
-        });
     }
-};
+
+    // Create with firm context
+    const lostReason = new LostReason({
+        ...allowedFields,
+        firmId: req.firmId,
+        createdBy: req.userID
+    });
+
+    await lostReason.save();
+
+    // Fetch with population for response
+    const populated = await LostReason.findOne({
+        _id: lostReason._id,
+        ...req.firmQuery
+    }).populate('createdBy', 'firstName lastName email');
+
+    res.status(201).json({
+        success: true,
+        data: populated,
+        message: 'Lost reason created',
+        messageAr: 'تم إنشاء سبب الخسارة'
+    });
+});
 
 // ═══════════════════════════════════════════════════════════════
-// DELETE LOST REASON
+// READ
 // ═══════════════════════════════════════════════════════════════
 
 /**
- * Delete a lost reason
+ * Get all lost reasons with filters
+ * @route GET /api/lost-reasons
  */
-exports.delete = async (req, res) => {
-    try {
-        if (req.isDeparted) {
-            return res.status(404).json({
-                success: false,
-                message: 'المورد غير موجود / Resource not found'
-            });
+const getLostReasons = asyncHandler(async (req, res) => {
+    const { category, applicableTo, isActive, search, page = 1, limit = 50 } = req.query;
+
+    // Build query with firm isolation
+    const query = { ...req.firmQuery };
+
+    // Apply filters
+    if (category && LostReason.getCategories().includes(category)) {
+        query.category = category;
+    }
+
+    if (applicableTo && LostReason.getApplicableToTypes().includes(applicableTo)) {
+        query.applicableTo = applicableTo;
+    }
+
+    if (isActive !== undefined) {
+        query.isActive = isActive === 'true';
+    }
+
+    // Safe search with escaped regex
+    if (search && typeof search === 'string') {
+        query.$or = [
+            { name: { $regex: escapeRegex(search.trim()), $options: 'i' } },
+            { nameAr: { $regex: escapeRegex(search.trim()), $options: 'i' } }
+        ];
+    }
+
+    // Pagination
+    const pageNum = Math.max(1, parseInt(page, 10) || 1);
+    const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 50));
+    const skip = (pageNum - 1) * limitNum;
+
+    // Execute query
+    const lostReasons = await LostReason.find(query)
+        .populate('createdBy', 'firstName lastName email')
+        .populate('updatedBy', 'firstName lastName email')
+        .sort({ sortOrder: 1, name: 1 })
+        .skip(skip)
+        .limit(limitNum);
+
+    const total = await LostReason.countDocuments(query);
+
+    res.json({
+        success: true,
+        data: lostReasons,
+        pagination: {
+            page: pageNum,
+            limit: limitNum,
+            total,
+            pages: Math.ceil(total / limitNum)
         }
+    });
+});
 
-        const { id } = req.params;
-        const userId = req.userID;
+/**
+ * Get single lost reason by ID
+ * @route GET /api/lost-reasons/:id
+ */
+const getLostReasonById = asyncHandler(async (req, res) => {
+    const sanitizedId = sanitizeObjectId(req.params.id);
 
-        // IDOR Protection: Sanitize ID
-        const sanitizedId = sanitizeObjectId(id);
-        if (!sanitizedId) {
-            return res.status(400).json({
-                success: false,
-                message: 'معرف غير صالح / Invalid ID'
-            });
-        }
-
-        // IDOR Protection: Verify firmId ownership with req.firmQuery
-        const reason = await LostReason.findOneAndDelete({ _id: sanitizedId, ...req.firmQuery });
-
-        if (!reason) {
-            return res.status(404).json({
-                success: false,
-                message: 'سبب الخسارة غير موجود / Lost reason not found'
-            });
-        }
-
-        // Log activity
-        await CrmActivity.logActivity({
-            lawyerId: userId,
-            type: 'lost_reason_deleted',
-            entityType: 'lost_reason',
-            entityId: sanitizedId,
-            entityName: reason.reason,
-            title: `Lost reason deleted: ${reason.reason}`,
-            performedBy: userId
-        });
-
-        res.json({
-            success: true,
-            message: 'تم حذف سبب الخسارة بنجاح / Lost reason deleted successfully'
-        });
-    } catch (error) {
-        logger.error('Error deleting lost reason:', error);
-        res.status(500).json({
-            success: false,
-            message: 'خطأ في حذف سبب الخسارة / Error deleting lost reason',
-            error: error.message
+    if (!sanitizedId) {
+        throw CustomException('Invalid lost reason ID', 400, {
+            messageAr: 'معرف سبب الخسارة غير صالح'
         });
     }
-};
+
+    // IDOR Protection: Query includes firmQuery
+    const lostReason = await LostReason.findOne({
+        _id: sanitizedId,
+        ...req.firmQuery
+    })
+        .populate('createdBy', 'firstName lastName email')
+        .populate('updatedBy', 'firstName lastName email');
+
+    if (!lostReason) {
+        throw CustomException('Lost reason not found', 404, {
+            messageAr: 'سبب الخسارة غير موجود'
+        });
+    }
+
+    res.json({
+        success: true,
+        data: lostReason
+    });
+});
+
+/**
+ * Get usage statistics
+ * @route GET /api/lost-reasons/stats
+ */
+const getUsageStats = asyncHandler(async (req, res) => {
+    const { category, limit } = req.query;
+
+    const options = {
+        category,
+        limit: limit ? parseInt(limit, 10) : 10
+    };
+
+    const stats = await LostReason.getUsageStats(req.firmId, options);
+
+    res.json({
+        success: true,
+        data: stats
+    });
+});
 
 // ═══════════════════════════════════════════════════════════════
-// INITIALIZE DEFAULTS
+// UPDATE
 // ═══════════════════════════════════════════════════════════════
 
 /**
- * Create default lost reasons for a firm
+ * Update lost reason
+ * @route PUT /api/lost-reasons/:id
  */
-exports.createDefaults = async (req, res) => {
-    try {
-        if (req.isDeparted) {
-            return res.status(404).json({
-                success: false,
-                message: 'المورد غير موجود / Resource not found'
-            });
-        }
+const updateLostReason = asyncHandler(async (req, res) => {
+    const sanitizedId = sanitizeObjectId(req.params.id);
 
-        await LostReason.createDefaults(req.firmId);
-
-        const reasons = await LostReason.find(req.firmQuery).sort({ category: 1, reason: 1 });
-
-        res.json({
-            success: true,
-            message: 'تم إنشاء أسباب الخسارة الافتراضية / Default lost reasons created',
-            data: reasons
-        });
-    } catch (error) {
-        logger.error('Error creating default lost reasons:', error);
-        res.status(500).json({
-            success: false,
-            message: 'خطأ في إنشاء أسباب الخسارة الافتراضية / Error creating defaults',
-            error: error.message
+    if (!sanitizedId) {
+        throw CustomException('Invalid lost reason ID', 400, {
+            messageAr: 'معرف سبب الخسارة غير صالح'
         });
     }
+
+    // IDOR Protection: Find with firmQuery
+    const lostReason = await LostReason.findOne({
+        _id: sanitizedId,
+        ...req.firmQuery
+    });
+
+    if (!lostReason) {
+        throw CustomException('Lost reason not found', 404, {
+            messageAr: 'سبب الخسارة غير موجود'
+        });
+    }
+
+    // Mass assignment protection
+    const allowedFields = pickAllowedFields(req.body, [
+        'name',
+        'nameAr',
+        'description',
+        'category',
+        'applicableTo',
+        'sortOrder',
+        'isActive',
+        'isDefault'
+    ]);
+
+    // Validate category if provided
+    if (allowedFields.category && !LostReason.getCategories().includes(allowedFields.category)) {
+        throw CustomException('Invalid category', 400, {
+            messageAr: 'فئة غير صالحة'
+        });
+    }
+
+    // Validate applicableTo if provided
+    if (allowedFields.applicableTo) {
+        const validTypes = LostReason.getApplicableToTypes();
+        const invalidTypes = allowedFields.applicableTo.filter(type => !validTypes.includes(type));
+        if (invalidTypes.length > 0) {
+            throw CustomException(`Invalid applicableTo types: ${invalidTypes.join(', ')}`, 400, {
+                messageAr: 'أنواع applicableTo غير صالحة'
+            });
+        }
+    }
+
+    // If setting as default, unset other defaults first
+    if (allowedFields.isDefault && !lostReason.isDefault) {
+        await LostReason.updateMany(
+            { ...req.firmQuery, _id: { $ne: sanitizedId } },
+            { $set: { isDefault: false } }
+        );
+    }
+
+    // Apply updates
+    Object.keys(allowedFields).forEach(field => {
+        lostReason[field] = allowedFields[field];
+    });
+
+    lostReason.updatedBy = req.userID;
+    await lostReason.save();
+
+    // Fetch updated with population
+    const updated = await LostReason.findOne({
+        _id: lostReason._id,
+        ...req.firmQuery
+    })
+        .populate('createdBy', 'firstName lastName email')
+        .populate('updatedBy', 'firstName lastName email');
+
+    res.json({
+        success: true,
+        data: updated,
+        message: 'Lost reason updated',
+        messageAr: 'تم تحديث سبب الخسارة'
+    });
+});
+
+/**
+ * Reorder lost reasons
+ * @route PUT /api/lost-reasons/reorder
+ */
+const reorderLostReasons = asyncHandler(async (req, res) => {
+    const { reasonIds } = req.body;
+
+    if (!Array.isArray(reasonIds) || reasonIds.length === 0) {
+        throw CustomException('reasonIds array is required', 400, {
+            messageAr: 'مصفوفة reasonIds مطلوبة'
+        });
+    }
+
+    // Sanitize all IDs
+    const sanitizedIds = reasonIds.map(id => sanitizeObjectId(id)).filter(Boolean);
+
+    if (sanitizedIds.length !== reasonIds.length) {
+        throw CustomException('Invalid IDs in reasonIds array', 400, {
+            messageAr: 'معرفات غير صالحة في مصفوفة reasonIds'
+        });
+    }
+
+    // Update sort order for each reason (with firm isolation)
+    const updatePromises = sanitizedIds.map((id, index) =>
+        LostReason.findOneAndUpdate(
+            { _id: id, ...req.firmQuery },
+            { $set: { sortOrder: index, updatedBy: req.userID } },
+            { new: true }
+        )
+    );
+
+    const updatedReasons = await Promise.all(updatePromises);
+
+    // Filter out null results (reasons not found or not owned by firm)
+    const validReasons = updatedReasons.filter(Boolean);
+
+    if (validReasons.length === 0) {
+        throw CustomException('No lost reasons found to reorder', 404, {
+            messageAr: 'لم يتم العثور على أسباب خسارة لإعادة ترتيبها'
+        });
+    }
+
+    res.json({
+        success: true,
+        data: validReasons,
+        message: 'Lost reasons reordered',
+        messageAr: 'تم إعادة ترتيب أسباب الخسارة'
+    });
+});
+
+// ═══════════════════════════════════════════════════════════════
+// DELETE
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Delete lost reason
+ * @route DELETE /api/lost-reasons/:id
+ */
+const deleteLostReason = asyncHandler(async (req, res) => {
+    const sanitizedId = sanitizeObjectId(req.params.id);
+
+    if (!sanitizedId) {
+        throw CustomException('Invalid lost reason ID', 400, {
+            messageAr: 'معرف سبب الخسارة غير صالح'
+        });
+    }
+
+    // IDOR Protection: Query-level ownership check
+    const lostReason = await LostReason.findOneAndDelete({
+        _id: sanitizedId,
+        ...req.firmQuery
+    });
+
+    if (!lostReason) {
+        throw CustomException('Lost reason not found', 404, {
+            messageAr: 'سبب الخسارة غير موجود'
+        });
+    }
+
+    // If deleted reason was default, set another as default
+    if (lostReason.isDefault) {
+        const newDefault = await LostReason.findOne({
+            ...req.firmQuery,
+            isActive: true
+        }).sort({ usageCount: -1, sortOrder: 1 });
+
+        if (newDefault) {
+            newDefault.isDefault = true;
+            newDefault.updatedBy = req.userID;
+            await newDefault.save();
+        }
+    }
+
+    res.json({
+        success: true,
+        message: 'Lost reason deleted',
+        messageAr: 'تم حذف سبب الخسارة'
+    });
+});
+
+// ═══════════════════════════════════════════════════════════════
+// EXPORTS
+// ═══════════════════════════════════════════════════════════════
+
+module.exports = {
+    createLostReason,
+    getLostReasons,
+    getLostReasonById,
+    updateLostReason,
+    deleteLostReason,
+    reorderLostReasons,
+    getUsageStats
 };

@@ -1,37 +1,58 @@
+/**
+ * Tag Routes
+ * Universal tagging system for leads, clients, contacts, cases, quotes, campaigns
+ * All routes require authentication via userMiddleware
+ */
+
 const express = require('express');
 const { userMiddleware } = require('../middlewares');
 const {
     createTag,
     getTags,
-    getTag,
+    getTagById,
     updateTag,
     deleteTag,
-    searchTags,
+    mergeTags,
+    bulkCreate,
     getPopularTags,
-    attachTag,
-    detachTag,
-    getTagsForEntity
+    getTagsByEntity
 } = require('../controllers/tag.controller');
 
 const app = express.Router();
 
-// Search and popular tags (must be before :id routes)
-app.get('/search', userMiddleware, searchTags);
+// ==============================================
+// STATIC ROUTES (MUST BE BEFORE /:id ROUTES!)
+// ==============================================
+
+// Get popular tags (most used)
 app.get('/popular', userMiddleware, getPopularTags);
 
-// Entity tags
-app.get('/entity/:entityType/:entityId', userMiddleware, getTagsForEntity);
+// Merge multiple tags into one
+app.post('/merge', userMiddleware, mergeTags);
 
-// CRUD operations
+// Bulk create tags
+app.post('/bulk', userMiddleware, bulkCreate);
+
+// Get tags by entity type
+app.get('/entity/:entityType', userMiddleware, getTagsByEntity);
+
+// ==============================================
+// TAG CRUD ROUTES
+// ==============================================
+
+// Get all tags with filters (entityType, isActive, search)
 app.get('/', userMiddleware, getTags);
+
+// Create a new tag
 app.post('/', userMiddleware, createTag);
 
-app.get('/:id', userMiddleware, getTag);
-app.patch('/:id', userMiddleware, updateTag);
-app.delete('/:id', userMiddleware, deleteTag);
+// Get specific tag by ID
+app.get('/:id', userMiddleware, getTagById);
 
-// Attach/detach operations
-app.post('/:id/attach', userMiddleware, attachTag);
-app.post('/:id/detach', userMiddleware, detachTag);
+// Update tag
+app.put('/:id', userMiddleware, updateTag);
+
+// Delete tag
+app.delete('/:id', userMiddleware, deleteTag);
 
 module.exports = app;

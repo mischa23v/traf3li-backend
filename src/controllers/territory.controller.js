@@ -1,11 +1,12 @@
 /**
  * Territory Controller
+ * Security: All operations enforce multi-tenant isolation via firmQuery
  *
  * Handles territory CRUD operations and hierarchy management.
  */
 
 const Territory = require('../models/territory.model');
-const CrmActivity = require('../models/crmActivity.model');
+const { CustomException } = require('../utils');
 const { pickAllowedFields, sanitizeObjectId } = require('../utils/securityUtils');
 const logger = require('../utils/logger');
 
@@ -15,119 +16,218 @@ const escapeRegex = (str) => {
     return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 };
 
+// Allowed fields for territory creation/update
+const ALLOWED_CREATE_FIELDS = [
+    'name',
+    'nameAr',
+    'code',
+    'type',
+    'saudiRegion',
+    'countries',
+    'cities',
+    'postalCodes',
+    'parentTerritoryId',
+    'managerId',
+    'salesTeamId',
+    'assignedUsers',
+    'targets',
+    'isActive'
+];
+
+const ALLOWED_UPDATE_FIELDS = [
+    'name',
+    'nameAr',
+    'code',
+    'type',
+    'saudiRegion',
+    'countries',
+    'cities',
+    'postalCodes',
+    'managerId',
+    'salesTeamId',
+    'assignedUsers',
+    'targets',
+    'isActive'
+];
+
 // ═══════════════════════════════════════════════════════════════
-// LIST TERRITORIES
+// CREATE TERRITORY
 // ═══════════════════════════════════════════════════════════════
 
 /**
- * Get all territories with filters
+ * Create a new territory
+ * @route POST /api/territories
  */
-exports.getAll = async (req, res) => {
+exports.createTerritory = async (req, res) => {
     try {
-        if (req.isDeparted) {
-            return res.status(403).json({
-                success: false,
-                message: 'ليس لديك صلاحية للوصول / Access denied'
-            });
-        }
-
         const firmId = req.firmId;
-        const lawyerId = req.userID;
-        const {
-            enabled,
-            parentId,
-            isGroup,
-            search,
-            page = 1,
-            limit = 50
-        } = req.query;
+        const userId = req.userID;
 
-        const isSoloLawyer = req.isSoloLawyer;
-        const query = {};
-        if (isSoloLawyer || !firmId) {
-            query.lawyerId = lawyerId;
-        } else {
-            query.firmId = firmId;
+        // Validate required fields
+        const { name } = req.body;
+        if (!name || typeof name !== 'string' || name.trim().length === 0) {
+            throw CustomException('Territory name is required', 400);
         }
 
-        if (enabled !== undefined) {
-            query.enabled = enabled === 'true';
-        }
-        if (parentId) {
-            query.parentTerritoryId = parentId === 'null' ? null : parentId;
-        }
-        if (isGroup !== undefined) {
-            query.isGroup = isGroup === 'true';
-        }
-        if (search) {
-            query.$or = [
-                { name: { $regex: escapeRegex(search), $options: 'i' } },
-                { nameAr: { $regex: escapeRegex(search), $options: 'i' } }
-            ];
+        // Sanitize IDs if provided
+        if (req.body.parentTerritoryId) {
+            const sanitizedParentId = sanitizeObjectId(req.body.parentTerritoryId);
+            if (!sanitizedParentId) {
+                throw CustomException('Invalid parent territory ID', 400);
+            }
+            req.body.parentTerritoryId = sanitizedParentId;
         }
 
-        const skip = (parseInt(page) - 1) * parseInt(limit);
+        if (req.body.managerId) {
+            const sanitizedManagerId = sanitizeObjectId(req.body.managerId);
+            if (sanitizedManagerId) {
+                req.body.managerId = sanitizedManagerId;
+            } else {
+                delete req.body.managerId;
+            }
+        }
 
-        const [territories, total] = await Promise.all([
-            Territory.find(query)
-                .populate('managerId', 'name nameAr')
-                .sort({ level: 1, name: 1 })
-                .skip(skip)
-                .limit(parseInt(limit)),
-            Territory.countDocuments(query)
+        if (req.body.salesTeamId) {
+            const sanitizedTeamId = sanitizeObjectId(req.body.salesTeamId);
+            if (sanitizedTeamId) {
+                req.body.salesTeamId = sanitizedTeamId;
+            } else {
+                delete req.body.salesTeamId;
+            }
+        }
+
+        // Sanitize assignedUsers array
+        if (req.body.assignedUsers && Array.isArray(req.body.assignedUsers)) {
+            req.body.assignedUsers = req.body.assignedUsers
+                .map(id => sanitizeObjectId(id))
+                .filter(id => id !== null);
+        }
+
+        // Mass assignment protection
+        const allowedFields = pickAllowedFields(req.body, ALLOWED_CREATE_FIELDS);
+
+        // Create with firm context
+        const territory = new Territory({
+            ...allowedFields,
+            firmId,
+            createdBy: userId
+        });
+
+        await territory.save();
+
+        // Populate for response
+        await territory.populate([
+            { path: 'managerId', select: 'firstName lastName avatar email' },
+            { path: 'salesTeamId', select: 'name nameAr' },
+            { path: 'assignedUsers', select: 'firstName lastName avatar' },
+            { path: 'parentTerritoryId', select: 'name nameAr territoryId' }
         ]);
 
-        res.json({
-            success: true,
-            data: {
-                territories,
-                total,
-                page: parseInt(page),
-                limit: parseInt(limit)
-            }
+        return res.status(201).json({
+            error: false,
+            message: 'Territory created successfully',
+            data: territory
         });
-    } catch (error) {
-        logger.error('Error getting territories:', error);
-        res.status(500).json({
-            success: false,
-            message: 'خطأ في جلب المناطق / Error fetching territories',
-            error: error.message
-        });
+    } catch ({ message, status = 500 }) {
+        return res.status(status).json({ error: true, message });
     }
 };
 
 // ═══════════════════════════════════════════════════════════════
-// GET TERRITORY TREE
+// GET TERRITORIES
 // ═══════════════════════════════════════════════════════════════
 
 /**
- * Get territories in hierarchical tree structure
+ * Get all territories with filters
+ * @route GET /api/territories
  */
-exports.getTree = async (req, res) => {
+exports.getTerritories = async (req, res) => {
     try {
-        if (req.isDeparted) {
-            return res.status(403).json({
-                success: false,
-                message: 'ليس لديك صلاحية للوصول / Access denied'
-            });
+        const {
+            search,
+            type,
+            saudiRegion,
+            isActive,
+            managerId,
+            parentTerritoryId,
+            page = 1,
+            limit = 50
+        } = req.query;
+
+        // Build query with firm isolation
+        const query = { ...req.firmQuery };
+
+        // Safe search with escaped regex
+        if (search) {
+            query.$or = [
+                { name: { $regex: escapeRegex(search), $options: 'i' } },
+                { nameAr: { $regex: escapeRegex(search), $options: 'i' } },
+                { code: { $regex: escapeRegex(search), $options: 'i' } },
+                { territoryId: { $regex: escapeRegex(search), $options: 'i' } }
+            ];
         }
 
-        const firmId = req.firmId;
-        const enabledOnly = req.query.enabledOnly !== 'false';
+        // Validate type against allowlist
+        const VALID_TYPES = ['country', 'region', 'city', 'district', 'custom'];
+        if (type && VALID_TYPES.includes(type)) {
+            query.type = type;
+        }
 
-        const tree = await Territory.getTree(firmId, enabledOnly);
+        // Validate Saudi region against allowlist
+        const VALID_REGIONS = ['riyadh', 'makkah', 'madinah', 'eastern', 'asir', 'tabuk', 'hail', 'northern_borders', 'jazan', 'najran', 'bahah', 'jawf', 'qassim'];
+        if (saudiRegion && VALID_REGIONS.includes(saudiRegion)) {
+            query.saudiRegion = saudiRegion;
+        }
 
-        res.json({
-            success: true,
-            data: tree
+        if (isActive !== undefined) {
+            query.isActive = isActive === 'true';
+        }
+
+        if (managerId) {
+            const sanitizedManagerId = sanitizeObjectId(managerId);
+            if (sanitizedManagerId) {
+                query.managerId = sanitizedManagerId;
+            }
+        }
+
+        if (parentTerritoryId) {
+            if (parentTerritoryId === 'null' || parentTerritoryId === 'none') {
+                query.parentTerritoryId = null;
+            } else {
+                const sanitizedParentId = sanitizeObjectId(parentTerritoryId);
+                if (sanitizedParentId) {
+                    query.parentTerritoryId = sanitizedParentId;
+                }
+            }
+        }
+
+        const skip = (parseInt(page) - 1) * Math.min(parseInt(limit), 100);
+        const limitValue = Math.min(parseInt(limit), 100);
+
+        const [territories, total] = await Promise.all([
+            Territory.find(query)
+                .populate('managerId', 'firstName lastName avatar email')
+                .populate('salesTeamId', 'name nameAr')
+                .populate('assignedUsers', 'firstName lastName avatar')
+                .populate('parentTerritoryId', 'name nameAr territoryId')
+                .sort({ level: 1, name: 1 })
+                .skip(skip)
+                .limit(limitValue),
+            Territory.countDocuments(query)
+        ]);
+
+        return res.json({
+            error: false,
+            data: territories,
+            pagination: {
+                page: parseInt(page),
+                limit: limitValue,
+                total,
+                pages: Math.ceil(total / limitValue)
+            }
         });
-    } catch (error) {
-        logger.error('Error getting territory tree:', error);
-        res.status(500).json({
-            success: false,
-            message: 'خطأ في جلب شجرة المناطق / Error fetching territory tree',
-            error: error.message
-        });
+    } catch ({ message, status = 500 }) {
+        return res.status(status).json({ error: true, message });
     }
 };
 
@@ -137,171 +237,34 @@ exports.getTree = async (req, res) => {
 
 /**
  * Get territory by ID
+ * @route GET /api/territories/:id
  */
-exports.getById = async (req, res) => {
+exports.getTerritoryById = async (req, res) => {
     try {
-        if (req.isDeparted) {
-            return res.status(403).json({
-                success: false,
-                message: 'ليس لديك صلاحية للوصول / Access denied'
-            });
+        const sanitizedId = sanitizeObjectId(req.params.id);
+        if (!sanitizedId) {
+            throw CustomException('Invalid territory ID', 400);
         }
 
-        // Sanitize and validate ID
-        const id = sanitizeObjectId(req.params.id);
-        if (!id) {
-            return res.status(400).json({
-                success: false,
-                message: 'معرف غير صالح / Invalid ID'
-            });
-        }
-
-        const firmId = req.firmId;
-
-        const territory = await Territory.findOne({ _id: id, firmId })
-            .populate('managerId', 'name nameAr userId')
-            .populate('parentTerritoryId', 'name nameAr');
+        // IDOR Protection: Query includes firmQuery
+        const territory = await Territory.findOne({
+            _id: sanitizedId,
+            ...req.firmQuery
+        })
+            .populate('managerId', 'firstName lastName avatar email')
+            .populate('salesTeamId', 'name nameAr')
+            .populate('assignedUsers', 'firstName lastName avatar email')
+            .populate('parentTerritoryId', 'name nameAr territoryId level')
+            .populate('createdBy', 'firstName lastName')
+            .populate('updatedBy', 'firstName lastName');
 
         if (!territory) {
-            return res.status(404).json({
-                success: false,
-                message: 'المنطقة غير موجودة / Territory not found'
-            });
+            throw CustomException('Territory not found', 404);
         }
 
-        res.json({
-            success: true,
-            data: territory
-        });
-    } catch (error) {
-        logger.error('Error getting territory:', error);
-        res.status(500).json({
-            success: false,
-            message: 'خطأ في جلب المنطقة / Error fetching territory',
-            error: error.message
-        });
-    }
-};
-
-// ═══════════════════════════════════════════════════════════════
-// CREATE TERRITORY
-// ═══════════════════════════════════════════════════════════════
-
-/**
- * Create a new territory
- */
-exports.create = async (req, res) => {
-    try {
-        if (req.isDeparted) {
-            return res.status(403).json({
-                success: false,
-                message: 'ليس لديك صلاحية للوصول / Access denied'
-            });
-        }
-
-        const firmId = req.firmId;
-        const userId = req.userID;
-
-        // Define allowed fields for mass assignment protection
-        const allowedFields = [
-            'name',
-            'nameAr',
-            'code',
-            'description',
-            'descriptionAr',
-            'isGroup',
-            'parentTerritoryId',
-            'managerId',
-            'level',
-            'enabled',
-            'metadata'
-        ];
-
-        // Validate required fields
-        const { name } = req.body;
-        if (!name || typeof name !== 'string' || name.trim().length === 0) {
-            return res.status(400).json({
-                success: false,
-                message: 'اسم المنطقة مطلوب / Territory name is required'
-            });
-        }
-
-        // Sanitize parentTerritoryId if provided
-        if (req.body.parentTerritoryId) {
-            const sanitizedParentId = sanitizeObjectId(req.body.parentTerritoryId);
-            if (!sanitizedParentId) {
-                return res.status(400).json({
-                    success: false,
-                    message: 'معرف المنطقة الأم غير صالح / Invalid parent territory ID'
-                });
-            }
-            req.body.parentTerritoryId = sanitizedParentId;
-        }
-
-        // Sanitize managerId if provided
-        if (req.body.managerId) {
-            const sanitizedManagerId = sanitizeObjectId(req.body.managerId);
-            if (!sanitizedManagerId) {
-                return res.status(400).json({
-                    success: false,
-                    message: 'معرف المدير غير صالح / Invalid manager ID'
-                });
-            }
-            req.body.managerId = sanitizedManagerId;
-        }
-
-        // Validate level if provided
-        if (req.body.level !== undefined) {
-            const level = parseInt(req.body.level);
-            if (isNaN(level) || level < 0) {
-                return res.status(400).json({
-                    success: false,
-                    message: 'المستوى يجب أن يكون رقماً صحيحاً / Level must be a valid number'
-                });
-            }
-        }
-
-        // Use pickAllowedFields for mass assignment protection
-        const sanitizedData = pickAllowedFields(req.body, allowedFields);
-
-        const territoryData = {
-            ...sanitizedData,
-            firmId
-        };
-
-        const territory = await Territory.create(territoryData);
-
-        // Log activity
-        await CrmActivity.logActivity({
-            lawyerId: userId,
-            type: 'territory_created',
-            entityType: 'territory',
-            entityId: territory._id,
-            entityName: territory.name,
-            title: `Territory created: ${territory.name}`,
-            performedBy: userId
-        });
-
-        res.status(201).json({
-            success: true,
-            message: 'تم إنشاء المنطقة بنجاح / Territory created successfully',
-            data: territory
-        });
-    } catch (error) {
-        logger.error('Error creating territory:', error);
-
-        if (error.code === 11000) {
-            return res.status(400).json({
-                success: false,
-                message: 'المنطقة موجودة بالفعل / Territory already exists'
-            });
-        }
-
-        res.status(500).json({
-            success: false,
-            message: 'خطأ في إنشاء المنطقة / Error creating territory',
-            error: error.message
-        });
+        return res.json({ error: false, data: territory });
+    } catch ({ message, status = 500 }) {
+        return res.status(status).json({ error: true, message });
     }
 };
 
@@ -310,136 +273,76 @@ exports.create = async (req, res) => {
 // ═══════════════════════════════════════════════════════════════
 
 /**
- * Update a territory
+ * Update territory
+ * @route PUT /api/territories/:id
  */
-exports.update = async (req, res) => {
+exports.updateTerritory = async (req, res) => {
     try {
-        if (req.isDeparted) {
-            return res.status(403).json({
-                success: false,
-                message: 'ليس لديك صلاحية للوصول / Access denied'
-            });
+        const sanitizedId = sanitizeObjectId(req.params.id);
+        if (!sanitizedId) {
+            throw CustomException('Invalid territory ID', 400);
         }
 
-        // Sanitize and validate ID
-        const id = sanitizeObjectId(req.params.id);
-        if (!id) {
-            return res.status(400).json({
-                success: false,
-                message: 'معرف غير صالح / Invalid ID'
-            });
-        }
-
-        const firmId = req.firmId;
         const userId = req.userID;
 
-        // Define allowed fields for mass assignment protection
-        const allowedFields = [
-            'name',
-            'nameAr',
-            'code',
-            'description',
-            'descriptionAr',
-            'isGroup',
-            'parentTerritoryId',
-            'managerId',
-            'level',
-            'enabled',
-            'metadata'
-        ];
-
-        // Validate name if provided
-        if (req.body.name !== undefined) {
-            if (typeof req.body.name !== 'string' || req.body.name.trim().length === 0) {
-                return res.status(400).json({
-                    success: false,
-                    message: 'اسم المنطقة يجب أن يكون نصاً صحيحاً / Territory name must be valid text'
-                });
-            }
-        }
-
-        // Sanitize parentTerritoryId if provided
-        if (req.body.parentTerritoryId) {
-            const sanitizedParentId = sanitizeObjectId(req.body.parentTerritoryId);
-            if (!sanitizedParentId) {
-                return res.status(400).json({
-                    success: false,
-                    message: 'معرف المنطقة الأم غير صالح / Invalid parent territory ID'
-                });
-            }
-            req.body.parentTerritoryId = sanitizedParentId;
-        }
-
-        // Sanitize managerId if provided
+        // Sanitize IDs if provided
         if (req.body.managerId) {
             const sanitizedManagerId = sanitizeObjectId(req.body.managerId);
-            if (!sanitizedManagerId) {
-                return res.status(400).json({
-                    success: false,
-                    message: 'معرف المدير غير صالح / Invalid manager ID'
-                });
-            }
-            req.body.managerId = sanitizedManagerId;
-        }
-
-        // Validate level if provided
-        if (req.body.level !== undefined) {
-            const level = parseInt(req.body.level);
-            if (isNaN(level) || level < 0) {
-                return res.status(400).json({
-                    success: false,
-                    message: 'المستوى يجب أن يكون رقماً صحيحاً / Level must be a valid number'
-                });
+            if (sanitizedManagerId) {
+                req.body.managerId = sanitizedManagerId;
+            } else {
+                delete req.body.managerId;
             }
         }
 
-        // Use pickAllowedFields for mass assignment protection
-        const sanitizedData = pickAllowedFields(req.body, allowedFields);
+        if (req.body.salesTeamId) {
+            const sanitizedTeamId = sanitizeObjectId(req.body.salesTeamId);
+            if (sanitizedTeamId) {
+                req.body.salesTeamId = sanitizedTeamId;
+            } else {
+                delete req.body.salesTeamId;
+            }
+        }
 
+        // Sanitize assignedUsers array
+        if (req.body.assignedUsers && Array.isArray(req.body.assignedUsers)) {
+            req.body.assignedUsers = req.body.assignedUsers
+                .map(id => sanitizeObjectId(id))
+                .filter(id => id !== null);
+        }
+
+        // Mass assignment protection
+        const allowedFields = pickAllowedFields(req.body, ALLOWED_UPDATE_FIELDS);
+
+        // IDOR Protection: Query-level ownership check
         const territory = await Territory.findOneAndUpdate(
-            { _id: id, firmId },
-            { $set: sanitizedData },
+            { _id: sanitizedId, ...req.firmQuery },
+            {
+                $set: {
+                    ...allowedFields,
+                    updatedBy: userId,
+                    updatedAt: new Date()
+                }
+            },
             { new: true, runValidators: true }
-        );
+        ).populate([
+            { path: 'managerId', select: 'firstName lastName avatar email' },
+            { path: 'salesTeamId', select: 'name nameAr' },
+            { path: 'assignedUsers', select: 'firstName lastName avatar' },
+            { path: 'parentTerritoryId', select: 'name nameAr territoryId' }
+        ]);
 
         if (!territory) {
-            return res.status(404).json({
-                success: false,
-                message: 'المنطقة غير موجودة / Territory not found'
-            });
+            throw CustomException('Territory not found', 404);
         }
 
-        // Log activity
-        await CrmActivity.logActivity({
-            lawyerId: userId,
-            type: 'territory_updated',
-            entityType: 'territory',
-            entityId: territory._id,
-            entityName: territory.name,
-            title: `Territory updated: ${territory.name}`,
-            performedBy: userId
-        });
-
-        res.json({
-            success: true,
-            message: 'تم تحديث المنطقة بنجاح / Territory updated successfully',
+        return res.json({
+            error: false,
+            message: 'Territory updated successfully',
             data: territory
         });
-    } catch (error) {
-        logger.error('Error updating territory:', error);
-
-        if (error.code === 11000) {
-            return res.status(400).json({
-                success: false,
-                message: 'المنطقة موجودة بالفعل / Territory already exists'
-            });
-        }
-
-        res.status(500).json({
-            success: false,
-            message: 'خطأ في تحديث المنطقة / Error updating territory',
-            error: error.message
-        });
+    } catch ({ message, status = 500 }) {
+        return res.status(status).json({ error: true, message });
     }
 };
 
@@ -448,72 +351,280 @@ exports.update = async (req, res) => {
 // ═══════════════════════════════════════════════════════════════
 
 /**
- * Delete a territory
+ * Delete territory
+ * @route DELETE /api/territories/:id
  */
-exports.delete = async (req, res) => {
+exports.deleteTerritory = async (req, res) => {
     try {
-        if (req.isDeparted) {
-            return res.status(403).json({
-                success: false,
-                message: 'ليس لديك صلاحية للوصول / Access denied'
-            });
+        const sanitizedId = sanitizeObjectId(req.params.id);
+        if (!sanitizedId) {
+            throw CustomException('Invalid territory ID', 400);
         }
-
-        // Sanitize and validate ID
-        const id = sanitizeObjectId(req.params.id);
-        if (!id) {
-            return res.status(400).json({
-                success: false,
-                message: 'معرف غير صالح / Invalid ID'
-            });
-        }
-
-        const firmId = req.firmId;
-        const userId = req.userID;
 
         // Check for child territories
         const hasChildren = await Territory.exists({
-            firmId,
-            parentTerritoryId: id
+            parentTerritoryId: sanitizedId,
+            ...req.firmQuery
         });
 
         if (hasChildren) {
-            return res.status(400).json({
-                success: false,
-                message: 'لا يمكن حذف منطقة لديها مناطق فرعية / Cannot delete territory with children'
-            });
+            throw CustomException('Cannot delete territory with children', 400);
         }
 
-        const territory = await Territory.findOneAndDelete({ _id: id, firmId });
+        // IDOR Protection: Query-level ownership check
+        const territory = await Territory.findOneAndDelete({
+            _id: sanitizedId,
+            ...req.firmQuery
+        });
 
         if (!territory) {
-            return res.status(404).json({
-                success: false,
-                message: 'المنطقة غير موجودة / Territory not found'
-            });
+            throw CustomException('Territory not found', 404);
         }
 
-        // Log activity
-        await CrmActivity.logActivity({
-            lawyerId: userId,
-            type: 'territory_deleted',
-            entityType: 'territory',
-            entityId: id,
-            entityName: territory.name,
-            title: `Territory deleted: ${territory.name}`,
-            performedBy: userId
+        return res.json({
+            error: false,
+            message: 'Territory deleted successfully'
+        });
+    } catch ({ message, status = 500 }) {
+        return res.status(status).json({ error: true, message });
+    }
+};
+
+// ═══════════════════════════════════════════════════════════════
+// GET TERRITORY TREE
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Get full territory hierarchy tree
+ * @route GET /api/territories/:id/tree
+ */
+exports.getTree = async (req, res) => {
+    try {
+        const sanitizedId = sanitizeObjectId(req.params.id);
+        if (!sanitizedId) {
+            throw CustomException('Invalid territory ID', 400);
+        }
+
+        const firmId = req.firmId;
+
+        // Verify territory exists and belongs to firm
+        const territory = await Territory.findOne({
+            _id: sanitizedId,
+            ...req.firmQuery
         });
 
-        res.json({
-            success: true,
-            message: 'تم حذف المنطقة بنجاح / Territory deleted successfully'
+        if (!territory) {
+            throw CustomException('Territory not found', 404);
+        }
+
+        // Get full tree starting from this territory
+        const descendants = await territory.getDescendants();
+        const ancestors = await territory.getAncestors();
+
+        return res.json({
+            error: false,
+            data: {
+                territory,
+                ancestors,
+                descendants
+            }
         });
-    } catch (error) {
-        logger.error('Error deleting territory:', error);
-        res.status(500).json({
-            success: false,
-            message: 'خطأ في حذف المنطقة / Error deleting territory',
-            error: error.message
-        });
+    } catch ({ message, status = 500 }) {
+        return res.status(status).json({ error: true, message });
     }
+};
+
+// ═══════════════════════════════════════════════════════════════
+// GET TERRITORY CHILDREN
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Get direct children of a territory
+ * @route GET /api/territories/:id/children
+ */
+exports.getChildren = async (req, res) => {
+    try {
+        const sanitizedId = sanitizeObjectId(req.params.id);
+        if (!sanitizedId) {
+            throw CustomException('Invalid territory ID', 400);
+        }
+
+        const firmId = req.firmId;
+
+        // Verify parent territory exists and belongs to firm
+        const territory = await Territory.findOne({
+            _id: sanitizedId,
+            ...req.firmQuery
+        });
+
+        if (!territory) {
+            throw CustomException('Territory not found', 404);
+        }
+
+        // Get children using static method
+        const children = await Territory.getChildren(sanitizedId, firmId);
+
+        return res.json({
+            error: false,
+            data: children
+        });
+    } catch ({ message, status = 500 }) {
+        return res.status(status).json({ error: true, message });
+    }
+};
+
+// ═══════════════════════════════════════════════════════════════
+// GET TERRITORY STATS
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Get territory statistics
+ * @route GET /api/territories/:id/stats
+ */
+exports.getTerritoryStats = async (req, res) => {
+    try {
+        const sanitizedId = sanitizeObjectId(req.params.id);
+        if (!sanitizedId) {
+            throw CustomException('Invalid territory ID', 400);
+        }
+
+        // IDOR Protection: Query includes firmQuery
+        const territory = await Territory.findOne({
+            _id: sanitizedId,
+            ...req.firmQuery
+        });
+
+        if (!territory) {
+            throw CustomException('Territory not found', 404);
+        }
+
+        // Get basic stats from territory
+        const stats = {
+            territoryId: territory.territoryId,
+            name: territory.name,
+            nameAr: territory.nameAr,
+            type: territory.type,
+            level: territory.level,
+            isGroup: territory.isGroup,
+            stats: territory.stats,
+            targets: territory.targets
+        };
+
+        // Calculate additional statistics
+        const childCount = await Territory.countDocuments({
+            parentTerritoryId: sanitizedId,
+            ...req.firmQuery
+        });
+
+        stats.childCount = childCount;
+
+        // Get descendants count (all levels)
+        const descendants = await territory.getDescendants();
+        stats.descendantCount = descendants.length;
+
+        return res.json({
+            error: false,
+            data: stats
+        });
+    } catch ({ message, status = 500 }) {
+        return res.status(status).json({ error: true, message });
+    }
+};
+
+// ═══════════════════════════════════════════════════════════════
+// MOVE TERRITORY
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Move territory to a new parent
+ * @route PUT /api/territories/:id/move
+ */
+exports.moveTerritory = async (req, res) => {
+    try {
+        const sanitizedId = sanitizeObjectId(req.params.id);
+        if (!sanitizedId) {
+            throw CustomException('Invalid territory ID', 400);
+        }
+
+        const { newParentId } = req.body;
+        const userId = req.userID;
+
+        // Sanitize new parent ID
+        let sanitizedNewParentId = null;
+        if (newParentId && newParentId !== 'null' && newParentId !== 'none') {
+            sanitizedNewParentId = sanitizeObjectId(newParentId);
+            if (!sanitizedNewParentId) {
+                throw CustomException('Invalid new parent territory ID', 400);
+            }
+        }
+
+        // Verify territory exists and belongs to firm
+        const territory = await Territory.findOne({
+            _id: sanitizedId,
+            ...req.firmQuery
+        });
+
+        if (!territory) {
+            throw CustomException('Territory not found', 404);
+        }
+
+        // If new parent is specified, verify it exists and belongs to firm
+        if (sanitizedNewParentId) {
+            const newParent = await Territory.findOne({
+                _id: sanitizedNewParentId,
+                ...req.firmQuery
+            });
+
+            if (!newParent) {
+                throw CustomException('New parent territory not found', 404);
+            }
+
+            // Prevent circular reference
+            if (sanitizedNewParentId === sanitizedId) {
+                throw CustomException('Territory cannot be its own parent', 400);
+            }
+
+            // Check if new parent is a descendant of current territory
+            const descendants = await territory.getDescendants();
+            const isDescendant = descendants.some(
+                desc => desc._id.toString() === sanitizedNewParentId
+            );
+
+            if (isDescendant) {
+                throw CustomException('Cannot move territory to its own descendant', 400);
+            }
+        }
+
+        // Update parent
+        territory.parentTerritoryId = sanitizedNewParentId;
+        territory.updatedBy = userId;
+        await territory.save();
+
+        // Reload with populated fields
+        await territory.populate([
+            { path: 'managerId', select: 'firstName lastName avatar email' },
+            { path: 'salesTeamId', select: 'name nameAr' },
+            { path: 'parentTerritoryId', select: 'name nameAr territoryId level' }
+        ]);
+
+        return res.json({
+            error: false,
+            message: 'Territory moved successfully',
+            data: territory
+        });
+    } catch ({ message, status = 500 }) {
+        return res.status(status).json({ error: true, message });
+    }
+};
+
+module.exports = {
+    createTerritory,
+    getTerritories,
+    getTerritoryById,
+    updateTerritory,
+    deleteTerritory,
+    getTree,
+    getChildren,
+    getTerritoryStats,
+    moveTerritory
 };

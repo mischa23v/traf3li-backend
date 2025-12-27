@@ -163,6 +163,21 @@ const leadSchema = new mongoose.Schema({
         type: String,
         trim: true
     },
+    industry: {
+        type: String,
+        trim: true
+    },
+    industryCode: {
+        type: String,
+        trim: true
+    },
+    numberOfEmployees: {
+        type: String,
+        enum: ['1-10', '11-50', '51-200', '201-500', '501-1000', '1000+']
+    },
+    annualRevenue: {
+        type: Number
+    },
     // Common fields
     email: {
         type: String,
@@ -182,9 +197,23 @@ const leadSchema = new mongoose.Schema({
         type: String,
         trim: true
     },
+    mobile: {
+        type: String,
+        trim: true
+    },
+    fax: {
+        type: String,
+        trim: true
+    },
+    website: {
+        type: String,
+        trim: true
+    },
     address: {
         street: String,
         city: String,
+        state: String,
+        stateCode: String,
         postalCode: String,
         country: { type: String, default: 'Saudi Arabia' }
     },
@@ -326,6 +355,13 @@ const leadSchema = new mongoose.Schema({
         type: String,
         enum: ['price', 'competitor', 'no_response', 'not_qualified', 'timing', 'other']
     },
+    lostReasonId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'LostReason'
+    },
+    lostReasonDetails: String,
+    lostDate: Date,
+    lostToCompetitor: String,
     lostNotes: String,
     stageChangedAt: Date,
 
@@ -346,6 +382,13 @@ const leadSchema = new mongoose.Schema({
     // SOURCE & ACQUISITION
     // ═══════════════════════════════════════════════════════════════
     source: leadSourceSchema,
+    utm: {
+        source: { type: String, trim: true },
+        medium: { type: String, trim: true },
+        campaign: { type: String, trim: true },
+        term: { type: String, trim: true },
+        content: { type: String, trim: true }
+    },
 
     // ═══════════════════════════════════════════════════════════════
     // INTAKE & CASE INFORMATION
@@ -363,6 +406,17 @@ const leadSchema = new mongoose.Schema({
     estimatedValue: {
         type: Number,
         default: 0
+    },
+    weightedRevenue: {
+        type: Number,
+        default: 0
+    },
+    recurringRevenue: {
+        amount: { type: Number },
+        interval: {
+            type: String,
+            enum: ['monthly', 'quarterly', 'yearly']
+        }
     },
     currency: {
         type: String,
@@ -385,6 +439,18 @@ const leadSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User'
     }],
+    campaignId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Campaign'
+    },
+    territoryId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Territory'
+    },
+    salesTeamId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'SalesTeam'
+    },
 
     // ═══════════════════════════════════════════════════════════════
     // STAKEHOLDER MAPPING
@@ -444,6 +510,17 @@ const leadSchema = new mongoose.Schema({
     meetingCount: { type: Number, default: 0 },
 
     // ═══════════════════════════════════════════════════════════════
+    // METRICS
+    // ═══════════════════════════════════════════════════════════════
+    metrics: {
+        daysToAssign: { type: Number },
+        daysToClose: { type: Number },
+        firstResponseTime: { type: Number }, // in minutes
+        totalActivities: { type: Number, default: 0 },
+        lastActivityDaysAgo: { type: Number }
+    },
+
+    // ═══════════════════════════════════════════════════════════════
     // CONVERSION
     // ═══════════════════════════════════════════════════════════════
     convertedToClient: { type: Boolean, default: false },
@@ -480,9 +557,24 @@ const leadSchema = new mongoose.Schema({
     // METADATA
     // ═══════════════════════════════════════════════════════════════
     tags: [{ type: String, trim: true }],
+    tagIds: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Tag'
+    }],
     practiceArea: { type: String, trim: true },
     notes: { type: String, maxlength: 5000 },
     customFields: mongoose.Schema.Types.Mixed,
+
+    // ═══════════════════════════════════════════════════════════════
+    // DATA QUALITY
+    // ═══════════════════════════════════════════════════════════════
+    dataQuality: {
+        emailValid: { type: Boolean },
+        phoneValid: { type: Boolean },
+        enriched: { type: Boolean, default: false },
+        enrichedAt: { type: Date },
+        enrichmentSource: { type: String }
+    },
     createdBy: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
@@ -534,6 +626,15 @@ leadSchema.index({ 'dealHealth.score': 1 });
 leadSchema.index({ firmId: 1, forecastCategory: 1, expectedCloseDate: 1 });
 leadSchema.index({ firmId: 1, 'dealHealth.grade': 1 });
 
+// Campaign, Territory, Sales Team, Lost Reason, and Tag Indexes
+leadSchema.index({ campaignId: 1 });
+leadSchema.index({ territoryId: 1 });
+leadSchema.index({ salesTeamId: 1 });
+leadSchema.index({ lostReasonId: 1 });
+leadSchema.index({ tagIds: 1 });
+leadSchema.index({ firmId: 1, campaignId: 1, status: 1 });
+leadSchema.index({ firmId: 1, territoryId: 1, status: 1 });
+
 // ═══════════════════════════════════════════════════════════════
 // VIRTUALS
 // ═══════════════════════════════════════════════════════════════
@@ -573,6 +674,20 @@ leadSchema.pre('save', async function(next) {
             }
         });
         this.leadId = `LEAD-${year}${month}-${String(count + 1).padStart(4, '0')}`;
+    }
+
+    // Calculate weighted revenue
+    if (this.estimatedValue !== undefined && this.probability !== undefined) {
+        this.weightedRevenue = this.estimatedValue * (this.probability / 100);
+    }
+
+    // Calculate metrics.lastActivityDaysAgo
+    if (!this.metrics) {
+        this.metrics = {};
+    }
+    if (this.lastActivityAt) {
+        const daysSinceActivity = Math.floor((Date.now() - this.lastActivityAt.getTime()) / (1000 * 60 * 60 * 24));
+        this.metrics.lastActivityDaysAgo = daysSinceActivity;
     }
 
     // Calculate lead score with breakdown if qualification data exists
