@@ -110,7 +110,7 @@ const connect = asyncHandler(async (req, res) => {
         }
 
         // Response Leakage Protection: Exclude sensitive fields using destructuring
-        const { botToken, botToken_encrypted, webhookSecret, webhookSecret_encrypted, ...response } = integration.toObject();
+        const { botToken: _botToken, botToken_encrypted, webhookSecret: _webhookSecret, webhookSecret_encrypted, ...response } = integration.toObject();
 
         res.status(201).json({
             success: true,
